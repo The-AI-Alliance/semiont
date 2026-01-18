@@ -1,0 +1,484 @@
+/**
+ * Resource Core Styles
+ *
+ * Document viewer and resource-specific form styles
+ */
+
+/* Resource-specific form extensions */
+/* Inherits base form styles from components/forms.css */
+
+.semiont-form__entity-types {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.semiont-form__entity-type-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.semiont-form__entity-type-button {
+  padding: 0.5rem 1rem;
+  background: rgba(0, 0, 0, 0.1);
+  color: var(--semiont-color-gray-900);
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 300ms;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-theme="dark"] .semiont-form__entity-type-button {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--semiont-color-neutral-0);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.semiont-form__entity-type-button:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="dark"] .semiont-form__entity-type-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.semiont-form__entity-type-button[data-selected="true"] {
+  background: var(--semiont-gradient-primary);
+  color: var(--semiont-color-primary-700);
+  border-color: var(--semiont-color-primary-300);
+}
+
+[data-theme="dark"] .semiont-form__entity-type-button[data-selected="true"] {
+  background: var(--semiont-gradient-primary-dark);
+  color: var(--semiont-color-primary-400);
+  border-color: var(--semiont-color-primary-500);
+}
+
+/* Focus styles for entity type buttons */
+.semiont-form__entity-type-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-form__entity-type-button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-form__entity-type-button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+@media (prefers-contrast: more) {
+  .semiont-form__entity-type-button:focus-visible {
+    outline-width: 3px;
+  }
+}
+
+.semiont-form__entity-types-display {
+  margin-top: 0.5rem;
+}
+
+.semiont-form__entity-type-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.semiont-form__entity-type-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  background: var(--semiont-color-blue-100);
+  color: var(--semiont-color-blue-700);
+  border-radius: var(--semiont-radius-sm);
+  font-size: 0.75rem;
+}
+
+[data-theme="dark"] .semiont-form__entity-type-tag {
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--semiont-color-blue-300);
+}
+
+.semiont-form__helper-text {
+  font-size: 0.75rem;
+  color: var(--semiont-color-gray-500);
+  margin-top: 0.25rem;
+}
+
+[data-theme="dark"] .semiont-form__helper-text {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-form__content-source-toggle {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.semiont-form__content-source-button {
+  flex: 1;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.1);
+  color: var(--semiont-color-gray-900);
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 300ms;
+}
+
+[data-theme="dark"] .semiont-form__content-source-button {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--semiont-color-neutral-0);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.semiont-form__content-source-button:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="dark"] .semiont-form__content-source-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.semiont-form__content-source-button[data-active="true"] {
+  background: var(--semiont-gradient-primary);
+  color: var(--semiont-color-primary-700);
+  border-color: var(--semiont-color-primary-300);
+}
+
+[data-theme="dark"] .semiont-form__content-source-button[data-active="true"] {
+  background: var(--semiont-gradient-primary-dark);
+  color: var(--semiont-color-primary-400);
+  border-color: var(--semiont-color-primary-500);
+}
+
+/* Focus styles for content source button */
+.semiont-form__content-source-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-form__content-source-button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-form__content-source-button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+@media (prefers-contrast: more) {
+  .semiont-form__content-source-button:focus-visible {
+    outline-width: 3px;
+  }
+}
+
+.semiont-form__content-source-icon-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.5rem;
+}
+
+.semiont-form__content-source-icon {
+  width: 2rem;
+  height: 2rem;
+  color: var(--semiont-color-gray-600);
+}
+
+[data-theme="dark"] .semiont-form__content-source-icon {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-form__content-source-label {
+  display: block;
+  font-weight: 500;
+  color: var(--semiont-text-primary);
+  margin-bottom: 0.25rem;
+}
+
+[data-theme="dark"] .semiont-form__content-source-label {
+  color: var(--semiont-color-gray-100);
+}
+
+.semiont-form__content-source-description {
+  font-size: 0.75rem;
+  color: var(--semiont-color-gray-500);
+}
+
+[data-theme="dark"] .semiont-form__content-source-description {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-form__upload-section,
+.semiont-form__write-section {
+  margin-top: 1.5rem;
+}
+
+.semiont-form__editor {
+  width: 100%;
+}
+
+.semiont-form__editor-wrapper {
+  border: 1px solid var(--semiont-color-gray-300);
+  border-radius: var(--semiont-radius-md);
+  overflow: hidden;
+}
+
+[data-theme="dark"] .semiont-form__editor-wrapper {
+  border-color: var(--semiont-color-gray-600);
+}
+
+.semiont-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--semiont-color-gray-200);
+}
+
+[data-theme="dark"] .semiont-form__actions {
+  border-top-color: var(--semiont-color-gray-700);
+}
+
+
+/* Document Viewer Components */
+.semiont-document-viewer {
+  display: flex;
+  flex-direction: row;
+  height: 100vh;
+  background: var(--semiont-color-gray-50);
+  position: relative;
+}
+
+[data-theme="dark"] .semiont-document-viewer {
+  background: var(--semiont-bg-primary);
+}
+
+.semiont-document-viewer__main {
+  flex: 1;
+  display: flex;
+  flex-direction: row; /* Changed from column to row for side-by-side layout */
+  overflow: hidden;
+  min-width: 0; /* Allow flexbox to shrink below content width */
+}
+
+.semiont-document-viewer__content {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0; /* Prevent flex child from growing beyond parent */
+}
+
+.semiont-document-viewer__header {
+  background: var(--semiont-bg-primary);
+  border-bottom: 1px solid var(--semiont-color-gray-200);
+}
+
+[data-theme="dark"] .semiont-document-viewer__header {
+  background: var(--semiont-bg-secondary);
+  border-bottom-color: var(--semiont-color-gray-700);
+}
+
+.semiont-document-viewer__header-inner {
+  padding: 1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.semiont-document-viewer__title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-document-viewer__title {
+  color: var(--semiont-color-gray-100);
+}
+
+.semiont-document-viewer__body {
+  padding: 2rem;
+}
+
+.semiont-document-viewer__error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 2rem;
+  text-align: center;
+}
+
+.semiont-document-viewer__error-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--semiont-text-primary);
+  margin: 0 0 0.5rem;
+}
+
+[data-theme="dark"] .semiont-document-viewer__error-title {
+  color: var(--semiont-color-gray-100);
+}
+
+.semiont-document-viewer__error-message {
+  color: var(--semiont-color-gray-600);
+  margin: 0 0 1.5rem;
+}
+
+[data-theme="dark"] .semiont-document-viewer__error-message {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-document-viewer__error-button {
+  padding: 0.5rem 1rem;
+  background: var(--semiont-color-primary-500);
+  color: var(--semiont-color-white);
+  border: none;
+  border-radius: var(--semiont-radius-md);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--semiont-duration-base);
+}
+
+.semiont-document-viewer__error-button:hover {
+  background: var(--semiont-color-primary-600);
+}
+
+[data-theme="dark"] .semiont-document-viewer__error-button {
+  background: var(--semiont-color-primary-600);
+  color: var(--semiont-color-white);
+}
+
+[data-theme="dark"] .semiont-document-viewer__error-button:hover {
+  background: var(--semiont-color-primary-500);
+}
+
+/* Focus styles for error button */
+.semiont-document-viewer__error-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-document-viewer__error-button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-document-viewer__error-button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+@media (prefers-contrast: more) {
+  .semiont-document-viewer__error-button:focus-visible {
+    outline-width: 3px;
+  }
+}
+
+.semiont-document-viewer__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--semiont-color-gray-600);
+}
+
+[data-theme="dark"] .semiont-document-viewer__loading {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-document-viewer__archived-status {
+  padding: 0.75rem 1rem;
+  background: var(--semiont-color-yellow-50);
+  border-bottom: 1px solid var(--semiont-color-yellow-200);
+}
+
+[data-theme="dark"] .semiont-document-viewer__archived-status {
+  background: rgba(251, 191, 36, 0.1);
+  border-bottom-color: var(--semiont-color-yellow-700);
+}
+
+.semiont-document-viewer__archived-text {
+  color: var(--semiont-color-yellow-800);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+[data-theme="dark"] .semiont-document-viewer__archived-text {
+  color: var(--semiont-color-yellow-400);
+}
+
+.semiont-document-viewer__sidebar {
+  display: flex;
+  flex-direction: row;
+  flex-shrink: 0; /* Prevent sidebar from shrinking */
+  height: 100%;
+  background: transparent;
+}
+
+/* Toolbar panels container */
+.semiont-toolbar-panels {
+  width: 20rem;
+  background: var(--semiont-bg-primary);
+  border-left: 1px solid var(--semiont-color-gray-200);
+  padding: 1rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+[data-theme="dark"] .semiont-toolbar-panels {
+  background: var(--semiont-bg-primary);
+  border-left-color: var(--semiont-color-gray-700);
+}
+
+.semiont-toolbar-panels__content {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* Admin Components - Consolidated in Admin sections below */
+
+.semiont-admin__section {
+  margin-bottom: 2rem;
+}
+
+.semiont-admin__section-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--semiont-text-primary);
+  margin: 0 0 0.5rem;
+}
+
+[data-theme="dark"] .semiont-admin__section-title {
+  color: var(--semiont-color-gray-100);
+}
+
+.semiont-admin__section-description {
+  color: var(--semiont-color-gray-600);
+  font-size: 0.875rem;
+  margin: 0 0 1rem;
+}
+
+[data-theme="dark"] .semiont-admin__section-description {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-admin__features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+/* Spinner Animation */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

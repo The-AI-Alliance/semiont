@@ -83,33 +83,36 @@ describe('CollaborationPanel Component', () => {
       expect(screen.getByText('Live')).toBeInTheDocument();
     });
 
-    it('should show red indicator when disconnected', () => {
+    it('should show indicator when disconnected', () => {
       const { container } = render(<CollaborationPanel {...defaultProps} isConnected={false} />);
 
-      const indicator = container.querySelector('.bg-red-500');
+      const indicator = container.querySelector('.semiont-collaboration-panel__dot');
       expect(indicator).toBeInTheDocument();
-      expect(indicator).not.toHaveClass('animate-pulse');
+      expect(indicator).toHaveAttribute('data-connected', 'false');
     });
 
-    it('should show green animated indicator when connected', () => {
+    it('should show indicator when connected', () => {
       const { container } = render(<CollaborationPanel {...defaultProps} isConnected={true} />);
 
-      const indicator = container.querySelector('.bg-green-500.animate-pulse');
+      const indicator = container.querySelector('.semiont-collaboration-panel__dot');
       expect(indicator).toBeInTheDocument();
+      expect(indicator).toHaveAttribute('data-connected', 'true');
     });
 
-    it('should use appropriate text color for disconnected state', () => {
+    it('should use appropriate status text for disconnected state', () => {
       render(<CollaborationPanel {...defaultProps} isConnected={false} />);
 
       const statusText = screen.getByText('Disconnected');
-      expect(statusText).toHaveClass('text-red-600', 'dark:text-red-400');
+      expect(statusText).toHaveClass('semiont-collaboration-panel__status-text');
+      expect(statusText).toHaveAttribute('data-connected', 'false');
     });
 
-    it('should use appropriate text color for connected state', () => {
+    it('should use appropriate status text for connected state', () => {
       render(<CollaborationPanel {...defaultProps} isConnected={true} />);
 
       const statusText = screen.getByText('Live');
-      expect(statusText).toHaveClass('text-green-600', 'dark:text-green-400');
+      expect(statusText).toHaveClass('semiont-collaboration-panel__status-text');
+      expect(statusText).toHaveAttribute('data-connected', 'true');
     });
   });
 
@@ -387,43 +390,35 @@ describe('CollaborationPanel Component', () => {
       const { container } = render(<CollaborationPanel {...defaultProps} />);
 
       const panel = container.firstChild as HTMLElement;
-      expect(panel).toHaveClass(
-        'bg-white',
-        'dark:bg-gray-800',
-        'rounded-lg',
-        'shadow-sm',
-        'p-4',
-        'space-y-4'
-      );
+      expect(panel).toHaveClass('semiont-collaboration-panel');
     });
 
-    it('should support dark mode', () => {
+    it('should have semantic class names', () => {
       const { container } = render(<CollaborationPanel {...defaultProps} />);
 
       const panel = container.firstChild as HTMLElement;
-      expect(panel).toHaveClass('dark:bg-gray-800');
+      expect(panel).toHaveClass('semiont-collaboration-panel');
     });
 
     it('should have proper section divider', () => {
       const { container } = render(<CollaborationPanel {...defaultProps} />);
 
-      const divider = container.querySelector('.border-t.border-gray-200.dark\\:border-gray-700');
-      expect(divider).toBeInTheDocument();
+      const section = container.querySelector('.semiont-collaboration-panel__section--bordered');
+      expect(section).toBeInTheDocument();
     });
 
     it('should have proper heading styles', () => {
       render(<CollaborationPanel {...defaultProps} />);
 
       const heading = screen.getByText('Connection Status');
-      expect(heading).toHaveClass('text-sm', 'font-semibold');
+      expect(heading).toHaveClass('semiont-collaboration-panel__heading');
     });
 
-    it('should have proper text sizing for status', () => {
+    it('should have proper status container', () => {
       render(<CollaborationPanel {...defaultProps} />);
 
       const statusText = screen.getByText('Disconnected');
-      // Status text should be in a container with text-sm
-      const statusContainer = statusText.closest('.text-sm');
+      const statusContainer = statusText.closest('.semiont-collaboration-panel__status-text');
       expect(statusContainer).toBeInTheDocument();
     });
   });
@@ -432,24 +427,24 @@ describe('CollaborationPanel Component', () => {
     it('should have semantic heading structure', () => {
       render(<CollaborationPanel {...defaultProps} />);
 
-      expect(screen.getByText('Connection Status')).toHaveClass('text-sm', 'font-semibold');
-      expect(screen.getByText('Sharing')).toHaveClass('text-sm', 'font-semibold');
+      expect(screen.getByText('Connection Status')).toHaveClass('semiont-collaboration-panel__heading');
+      expect(screen.getByText('Sharing')).toHaveClass('semiont-collaboration-panel__heading');
     });
 
     it('should have visible status indicators', () => {
       const { container } = render(<CollaborationPanel {...defaultProps} isConnected={true} />);
 
-      // Should have a visible colored dot
-      const indicator = container.querySelector('.w-2.h-2.rounded-full');
+      // Should have a visible status dot
+      const indicator = container.querySelector('.semiont-collaboration-panel__dot');
       expect(indicator).toBeInTheDocument();
-      expect(indicator).toHaveClass('bg-green-500');
+      expect(indicator).toHaveAttribute('data-connected', 'true');
     });
 
     it('should have proper text hierarchy', () => {
       render(<CollaborationPanel {...defaultProps} />);
 
       const section = screen.getByText('Connection Status').closest('div');
-      expect(section?.querySelector('.text-xs')).toBeInTheDocument();
+      expect(section?.querySelector('.semiont-collaboration-panel__details')).toBeInTheDocument();
     });
   });
 

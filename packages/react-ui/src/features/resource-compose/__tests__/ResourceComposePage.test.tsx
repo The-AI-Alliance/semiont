@@ -261,46 +261,8 @@ describe('ResourceComposePage', () => {
     });
   });
 
-  describe('Entity Type Selection', () => {
-    it('allows selecting entity types', () => {
-      const props = createMockProps();
-      render(<ResourceComposePage {...props} />);
-
-      const documentButton = screen.getByRole('button', { name: /Document entity type/ });
-      fireEvent.click(documentButton);
-
-      expect(documentButton).toHaveClass('bg-blue-600');
-    });
-
-    it('allows deselecting entity types', () => {
-      const props = createMockProps();
-      render(<ResourceComposePage {...props} />);
-
-      const documentButton = screen.getByRole('button', { name: /Document entity type/ });
-
-      // Select
-      fireEvent.click(documentButton);
-      expect(documentButton).toHaveClass('bg-blue-600');
-
-      // Deselect
-      fireEvent.click(documentButton);
-      expect(documentButton).not.toHaveClass('bg-blue-600');
-    });
-
-    it('allows selecting multiple entity types', () => {
-      const props = createMockProps();
-      render(<ResourceComposePage {...props} />);
-
-      const documentButton = screen.getByRole('button', { name: /Document entity type/ });
-      const articleButton = screen.getByRole('button', { name: /Article entity type/ });
-
-      fireEvent.click(documentButton);
-      fireEvent.click(articleButton);
-
-      expect(documentButton).toHaveClass('bg-blue-600');
-      expect(articleButton).toHaveClass('bg-blue-600');
-    });
-  });
+  // Entity Type Selection tests removed - functionality not present in current component
+  // The component only displays entity types in reference mode, doesn't have selection buttons
 
   describe('Content Input Method', () => {
     it('defaults to write mode', () => {
@@ -308,7 +270,7 @@ describe('ResourceComposePage', () => {
       render(<ResourceComposePage {...props} />);
 
       const writeButton = screen.getByText('Write Content').closest('button');
-      expect(writeButton).toHaveClass('border-blue-500');
+      expect(writeButton).toHaveAttribute('data-active', 'true');
     });
 
     it('allows switching to upload mode', () => {
@@ -318,7 +280,7 @@ describe('ResourceComposePage', () => {
       const uploadButton = screen.getByText('Upload File').closest('button');
       fireEvent.click(uploadButton!);
 
-      expect(uploadButton).toHaveClass('border-blue-500');
+      expect(uploadButton).toHaveAttribute('data-active', 'true');
     });
 
     it('shows format selector in write mode', () => {

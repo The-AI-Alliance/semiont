@@ -283,5 +283,36 @@
     "rectangle": "Rectangle",
     "circle": "Circle",
     "polygon": "Polygon"
-  }
+  },
+  "CollapsibleResourceNavigation": {
+    "title": "Navigation",
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar",
+    "dragToReorder": "Drag to reorder",
+    "dragToReorderDoc": "Drag to reorder {name}",
+    "closeResource": "Close resource",
+    "dragInstructions": "To reorder resources: Use Tab to navigate to a resource. Press Alt+Up arrow to move up or Alt+Down arrow to move down. For drag and drop: Press space bar to pick up the item. Use arrow keys to move it. Press space bar again to drop."
+  },
+  "ResourceViewer": {
+    "deleteConfirmationTitle": "Delete Annotation",
+    "deleteConfirmationMessage": "Are you sure you want to delete this annotation? This action cannot be undone.",
+    "deleteConfirmationCancel": "Cancel",
+    "deleteConfirmationDelete": "Delete"
+  },
+  "Settings": {
+    "title": "Settings",
+    "lineNumbers": "Line Numbers",
+    "lineNumbersVisible": "Visible",
+    "lineNumbersHidden": "Hidden",
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
+    "themeSystemActive": "System ({mode})",
+    "themeModeActive": "Using {mode} mode",
+    "language": "Language",
+    "languageHint": "Change language in the main navigation",
+    "languageChanging": "Changing language..."
+  },
+  "AnnotateView": {}
 }

@@ -1,0 +1,141 @@
+/* ============================================
+   Settings Panel Component
+   ============================================ */
+
+.semiont-settings-panel {
+  padding: var(--semiont-panel-padding);
+  background: var(--semiont-bg-primary);
+  border-radius: var(--semiont-panel-border-radius);
+}
+
+.semiont-settings-panel__title {
+  margin: 0 0 var(--semiont-panel-header-margin-bottom);
+  font-size: var(--semiont-panel-title-size);
+  font-weight: var(--semiont-panel-title-weight);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-settings-panel__title {
+  color: var(--semiont-text-primary);
+}
+
+.semiont-settings-panel__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--semiont-panel-section-gap);
+}
+
+/* Field Container */
+.semiont-settings-panel__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--semiont-panel-field-gap);
+}
+
+/* Labels */
+.semiont-settings-panel__label {
+  display: block;
+  font-size: var(--semiont-text-sm);
+  font-weight: 500;
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-settings-panel__label {
+  color: var(--semiont-text-primary);
+}
+
+.semiont-settings-panel__label-text {
+  font-size: var(--semiont-text-sm);
+  font-weight: 500;
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-settings-panel__label-text {
+  color: var(--semiont-text-primary);
+}
+
+/* Toggle Switch Container */
+.semiont-settings-panel__toggle-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+/* Button Group */
+.semiont-settings-panel__button-group {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Select Dropdown */
+.semiont-settings-panel__select {
+  padding: 0.5rem 0.75rem;
+  background: var(--semiont-bg-primary);
+  color: var(--semiont-text-primary);
+  border: 1px solid var(--semiont-border-primary);
+  border-radius: var(--semiont-radius-md);
+  font-size: var(--semiont-text-sm);
+  cursor: pointer;
+  transition: all var(--semiont-duration-base);
+}
+
+[data-theme="dark"] .semiont-settings-panel__select {
+  background: var(--semiont-bg-secondary);
+  color: var(--semiont-text-primary);
+  border-color: var(--semiont-border-primary);
+}
+
+.semiont-settings-panel__select:hover {
+  border-color: var(--semiont-color-gray-400);
+}
+
+[data-theme="dark"] .semiont-settings-panel__select:hover {
+  border-color: var(--semiont-color-gray-500);
+}
+
+.semiont-settings-panel__select:focus {
+  outline: none;
+  border-color: var(--semiont-color-primary-500);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+[data-theme="dark"] .semiont-settings-panel__select:focus {
+  border-color: var(--semiont-color-primary-400);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+.semiont-settings-panel__select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Help Text */
+.semiont-settings-panel__help-text {
+  margin: 0;
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-text-tertiary);
+}
+
+[data-theme="dark"] .semiont-settings-panel__help-text {
+  color: var(--semiont-text-tertiary);
+}
+
+/* Loading State */
+.semiont-settings-panel__loading {
+  margin: 0;
+  padding: 0.5rem;
+  background: var(--semiont-bg-secondary);
+  border-left: 3px solid var(--semiont-color-primary-500);
+  border-radius: var(--semiont-radius-sm);
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-settings-panel__loading {
+  background: var(--semiont-bg-secondary);
+  border-left-color: var(--semiont-color-primary-400);
+}
+
+/* Removed responsive adjustments to maintain consistency across all panels */

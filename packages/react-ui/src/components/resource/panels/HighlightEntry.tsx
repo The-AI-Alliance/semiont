@@ -62,24 +62,22 @@ export function HighlightEntry({
   return (
     <div
       ref={highlightRef}
-      className={`border rounded-lg p-3 transition-all cursor-pointer ${
-        isFocused
-          ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 animate-pulse-outline'
-          : 'border-gray-200 dark:border-gray-700 hover:border-yellow-300 dark:hover:border-yellow-600'
-      }`}
+      className="semiont-annotation-entry"
+      data-type="highlight"
+      data-focused={isFocused ? 'true' : 'false'}
       onClick={onClick}
       onMouseEnter={() => onHighlightHover?.(highlight.id)}
       onMouseLeave={() => onHighlightHover?.(null)}
     >
       {/* Highlighted text */}
       {selectedText && (
-        <div className="text-sm mb-2 border-l-2 border-yellow-400 pl-2 bg-yellow-50 dark:bg-yellow-900/10 py-1">
+        <div className="semiont-annotation-entry__quote" data-type="highlight">
           "{selectedText.substring(0, 200)}{selectedText.length > 200 ? '...' : ''}"
         </div>
       )}
 
       {/* Metadata */}
-      <div className="text-xs text-gray-500">
+      <div className="semiont-annotation-entry__metadata">
         By {typeof highlight.creator === 'string' ? highlight.creator : highlight.creator?.name || 'Unknown'} • {formatRelativeTime(highlight.created || new Date().toISOString())}
       </div>
     </div>

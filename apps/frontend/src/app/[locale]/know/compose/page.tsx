@@ -62,11 +62,6 @@ function ComposeResourceContent() {
     if (panel) togglePanel(panel as any);
   };
 
-  // Convert theme to actual applied theme (system -> light or dark)
-  const appliedTheme: 'light' | 'dark' = theme === 'system'
-    ? (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-    : theme;
-
   // API hooks
   const resources = useResources();
   const annotations = useAnnotations();
@@ -253,7 +248,7 @@ function ComposeResourceContent() {
       referenceData={referenceData}
       availableEntityTypes={availableEntityTypes}
       initialLocale={locale}
-      theme={appliedTheme}
+      theme={theme}
       onThemeChange={setTheme}
       showLineNumbers={showLineNumbers}
       onLineNumbersToggle={toggleLineNumbers}

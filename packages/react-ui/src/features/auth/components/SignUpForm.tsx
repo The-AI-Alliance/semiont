@@ -6,7 +6,7 @@
  */
 
 import React, { useState } from 'react';
-import { buttonStyles } from '@semiont/react-ui';
+import { buttonStyles, SemiontBranding } from '@semiont/react-ui';
 
 
 export interface SignUpFormProps {
@@ -31,6 +31,8 @@ export interface SignUpFormProps {
     approvedDomainsInfo: string;
     termsAgreement: string;
     alreadyHaveAccount: string;
+    tagline: string;
+    backToHome: string;
   };
 }
 
@@ -39,7 +41,7 @@ export interface SignUpFormProps {
  */
 function GoogleIcon() {
   return (
-    <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
+    <svg className="semiont-icon semiont-icon--small semiont-icon--inline" viewBox="0 0 24 24">
       <path
         fill="currentColor"
         d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -80,43 +82,56 @@ export function SignUpForm({ onSignUp, Link, translations: t }: SignUpFormProps)
   };
 
   return (
-    <div className="flex items-center justify-center py-12 font-sans">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
-            {t.pageTitle}
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
-            {t.signUpPrompt}
-          </p>
-        </div>
+    <main className="semiont-auth__main" role="main">
+      <div className="semiont-auth__container">
+        <div className="semiont-auth__content">
+          {/* Hero Branding Section */}
+          <section aria-labelledby="signup-heading" className="semiont-auth__branding">
+            <h1 id="signup-heading" className="sr-only">
+              {t.pageTitle}
+            </h1>
+            <SemiontBranding t={(key: string) => t[key as keyof typeof t] || key} size="xl" animated={true} className="semiont-auth__logo" />
+            <p className="semiont-auth__welcome">
+              {t.pageTitle}
+            </p>
+            <p className="semiont-auth__subtitle">
+              {t.signUpPrompt}
+            </p>
+          </section>
 
-        <div className="mt-8 space-y-6">
-          <button onClick={handleSignUp} disabled={isLoading} className={buttonStyles.primary.large}>
-            {isLoading ? (
-              <div className="w-5 h-5 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-            ) : (
-              <GoogleIcon />
-            )}
-            {isLoading ? t.creatingAccount : t.signUpWithGoogle}
-          </button>
+          {/* Sign Up Form */}
+          <div className="semiont-auth__forms">
+            <button
+              onClick={handleSignUp}
+              disabled={isLoading}
+              className={`${buttonStyles.primary.base} semiont-button--full-width`}
+            >
+              {isLoading ? (
+                <div className="semiont-auth__spinner"></div>
+              ) : (
+                <GoogleIcon />
+              )}
+              {isLoading ? t.creatingAccount : t.signUpWithGoogle}
+            </button>
 
-          <div className="text-xs text-center text-gray-500 dark:text-gray-400">
-            {t.approvedDomainsInfo}
-            <br />
-            {t.termsAgreement}
+            <div className="semiont-auth__info">
+              {t.approvedDomainsInfo}
+              <br />
+              {t.termsAgreement}
+            </div>
           </div>
 
-          <div className="text-center">
-            <Link
-              href="/auth/signin"
-              className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
-            >
+          {/* Navigation Links */}
+          <div className="semiont-auth__links">
+            <Link href="/" className={buttonStyles.secondary.base}>
+              {t.backToHome}
+            </Link>
+            <Link href="/auth/signin" className={buttonStyles.primary.base}>
               {t.alreadyHaveAccount}
             </Link>
           </div>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

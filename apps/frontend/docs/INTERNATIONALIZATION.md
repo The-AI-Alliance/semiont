@@ -1,103 +1,158 @@
 # Internationalization (i18n) Guide
 
+**Last Updated**: 2026-01-12
+
 ## Overview
 
-The Semiont frontend uses a hybrid internationalization approach that combines:
-- **Frontend-specific translations** managed by Next.js and `next-intl`
-- **Component translations** provided by `@semiont/react-ui` with built-in English and Spanish
-- **Dynamic loading** for optimal bundle size
+Internationalization in Semiont follows the framework-agnostic architecture established by @semiont/react-ui:
+
+- **Provider Pattern**: @semiont/react-ui defines a `TranslationProvider` interface
+- **Framework Implementation**: Frontend implements this interface using `next-intl`
+- **Component Translations**: UI components use translations through the provider
+- **Dynamic Loading**: Optimal bundle size through code-splitting
 
 ## Architecture
 
-### Translation Sources
+```
+┌─────────────────────────────────────┐
+│         apps/frontend               │
+│                                     │
+│  Implements TranslationProvider:    │
+│  • Uses next-intl for i18n         │
+│  • Provides locale routing          │
+│  • Manages translation files        │
+└─────────────┬───────────────────────┘
+              │ provides
+              ▼
+┌─────────────────────────────────────┐
+│    packages/react-ui                │
+│                                     │
+│  Uses TranslationProvider:          │
+│  • Components call useTranslations()│
+│  • Framework-agnostic API           │
+│  • No direct next-intl dependency   │
+└─────────────────────────────────────┘
+```
 
-1. **Frontend Messages** (`apps/frontend/messages/*.json`)
-   - Page-specific content
-   - Frontend-only features
-   - Application routes and metadata
+### Translation Provider Pattern
 
-2. **React-UI Translations** (`packages/react-ui/translations/*.json`)
-   - Component UI strings
-   - Common UI elements (buttons, labels, etc.)
-   - Shared across all Semiont applications
-
-### Translation Manager
-
-The frontend uses a custom `useTranslationManager` hook that:
-- Bridges `next-intl` with `@semiont/react-ui` translations
-- Merges frontend and component translations
-- Handles parameter interpolation
-- Provides a unified interface
+The frontend implements the TranslationProvider interface:
 
 ```typescript
-// apps/frontend/src/hooks/useTranslationManager.ts
-export function useTranslationManager(): TranslationManager {
-  const messages = useMessages();
+// apps/frontend/src/app/providers/TranslationProvider.tsx
+import { TranslationProvider } from '@semiont/react-ui';
+import { useTranslations, useLocale } from 'next-intl';
+
+export function NextIntlTranslationProvider({ children }) {
+  const t = useTranslations();
   const locale = useLocale();
 
-  return useMemo(() => ({
-    t: (namespace: string, key: string, params?: Record<string, any>): string => {
-      // Check frontend messages first
-      // Then check react-ui translations
-      // Handle parameter interpolation
+  const translationManager = {
+    // Core translation function
+    t: (key: string, params?: Record<string, any>) => {
+      return t(key, params);
+    },
+
+    // Current locale
+    locale: locale,
+
+    // Available locales
+    availableLocales: ['en', 'es', 'fr'],
+
+    // Change locale (Next.js routing)
+    setLocale: (newLocale: string) => {
+      router.push(pathname, { locale: newLocale });
+    },
+
+    // Format functions
+    formatDate: (date: Date) => {
+      return new Intl.DateTimeFormat(locale).format(date);
+    },
+
+    formatNumber: (num: number) => {
+      return new Intl.NumberFormat(locale).format(num);
     }
-  }), [messages, locale]);
+  };
+
+  return (
+    <TranslationProvider translationManager={translationManager}>
+      {children}
+    </TranslationProvider>
+  );
 }
 ```
 
+### Using Translations in Components
+
+Components from @semiont/react-ui use translations through the provider:
+
+```typescript
+// In @semiont/react-ui components
+import { useTranslations } from '../contexts/TranslationContext';
+
+export function ResourceViewer() {
+  const { t } = useTranslations();
+
+  return (
+    <div>
+      <h1>{t('resource.title')}</h1>
+      <button>{t('common.save')}</button>
+    </div>
+  );
+}
+```
+
+### Translation File Organization
+
+**Frontend Messages** (`apps/frontend/messages/`)
+```
+messages/
+├── en.json          # English (default)
+├── es.json          # Spanish
+└── fr.json          # French
+```
+
+**Component Translations** (embedded in provider)
+Components get translations through the provider, which merges:
+- Frontend-specific translations from `messages/*.json`
+- Common UI translations defined by the provider implementation
+
 ## Adding a New Language
 
-### Step 1: Add Frontend Translations
+Since @semiont/react-ui is framework-agnostic, adding a new language only requires frontend configuration:
 
-1. Create a new message file:
+### Step 1: Add Translation Files
+
+1. Create a new message file for the frontend:
    ```bash
    cp messages/en.json messages/fr.json
    ```
 
-2. Translate frontend-specific keys in `messages/fr.json`
+2. Translate all keys in `messages/fr.json`
 
-3. Add locale to Next.js config:
+### Step 2: Configure Next.js for the New Locale
+
+1. Add locale to Next.js i18n config:
    ```typescript
    // src/i18n/config.ts
    export const locales = ['en', 'es', 'fr'] as const;
    ```
 
-### Step 2: Add Component Translations (react-ui)
-
-1. Create translation file:
-   ```bash
-   cd packages/react-ui/translations
-   cp en.json fr.json
-   ```
-
-2. Translate component UI strings in `fr.json`
-
-3. Update the available locales:
-   ```typescript
-   // packages/react-ui/src/contexts/TranslationContext.tsx
-   export const AVAILABLE_LOCALES = ['en', 'es', 'fr'] as const;
-   ```
-
-### Step 3: Update Translation Manager
-
-1. Import the new translations:
-   ```typescript
-   // apps/frontend/src/hooks/useTranslationManager.ts
-   import frReactUI from '../../../../packages/react-ui/translations/fr.json';
-
-   const reactUITranslations: Record<string, any> = {
-     en: enReactUI,
-     es: esReactUI,
-     fr: frReactUI,  // Add this
-   };
-   ```
-
-### Step 4: Add Locale Metadata
-
-1. Update middleware to support the new locale:
+2. Update middleware to support the new locale:
    ```typescript
    // apps/frontend/src/middleware.ts
    const locales = ['en', 'es', 'fr'];
+   ```
+
+### Step 3: Update Translation Provider
+
+1. Update the provider to include the new locale:
+   ```typescript
+   // apps/frontend/src/app/providers/TranslationProvider.tsx
+   const translationManager = {
+     availableLocales: ['en', 'es', 'fr'],  // Add 'fr'
+     // ... rest of configuration
+   };
    ```
 
 2. Add locale display names:
@@ -106,9 +161,16 @@ export function useTranslationManager(): TranslationManager {
    export const localeNames = {
      en: 'English',
      es: 'Español',
-     fr: 'Français',
+     fr: 'Français',  // Add this
    };
    ```
+
+### Step 4: Verify Component Translations
+
+Since @semiont/react-ui components use the TranslationProvider, they automatically work with the new locale. The provider implementation handles:
+- Loading the correct message file
+- Providing translations to components
+- Formatting dates/numbers for the locale
 
 ## Translation Keys Structure
 
@@ -286,11 +348,25 @@ t('welcome', { name: userName })
 
 ## Migration Notes
 
-When migrating from the old system:
+### From Monolithic Frontend to Component Library
 
-1. Component translations moved from `apps/frontend/messages/*.json` to `packages/react-ui/translations/*.json`
-2. Frontend now uses `useTranslationManager` hook instead of direct `next-intl`
-3. Dynamic loading reduces bundle size for non-English locales
+The internationalization architecture has evolved with the @semiont/react-ui factorization:
+
+**Old Architecture** (everything in frontend):
+- All translations in `apps/frontend/messages/*.json`
+- Direct `next-intl` usage in components
+- Tight coupling to Next.js
+
+**New Architecture** (provider pattern):
+- Frontend implements `TranslationProvider` interface
+- @semiont/react-ui components use provider for translations
+- Framework-agnostic components work with any i18n solution
+
+**Key Changes**:
+1. Components now call `useTranslations()` from @semiont/react-ui, not `next-intl`
+2. Translation logic abstracted behind provider interface
+3. Each app can implement i18n differently (next-intl, react-i18next, etc.)
+4. Component library remains framework-agnostic
 
 ## Resources
 

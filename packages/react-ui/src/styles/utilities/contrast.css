@@ -1,0 +1,443 @@
+/**
+ * Color Contrast Improvements for Accessibility
+ *
+ * This file provides high contrast color overrides to ensure WCAG 2.1 AA compliance
+ * - Normal text: 4.5:1 contrast ratio minimum
+ * - Large text (18pt+): 3:1 contrast ratio minimum
+ * - UI components: 3:1 contrast ratio minimum
+ */
+
+/* ========================================
+   Base Color Overrides
+   ======================================== */
+
+/* Fix light gray text that fails contrast */
+.semiont-color-gray-300,
+[class*="text-gray-300"],
+[class*="color-gray-300"] {
+  color: var(--semiont-color-gray-600) !important; /* Darker gray for better contrast */
+}
+
+[data-theme="dark"] .semiont-color-gray-300,
+[data-theme="dark"] [class*="text-gray-300"],
+[data-theme="dark"] [class*="color-gray-300"] {
+  color: var(--semiont-color-gray-400) !important;
+}
+
+.semiont-color-gray-400,
+[class*="text-gray-400"],
+[class*="color-gray-400"] {
+  color: var(--semiont-color-gray-600) !important;
+}
+
+[data-theme="dark"] .semiont-color-gray-400,
+[data-theme="dark"] [class*="text-gray-400"],
+[data-theme="dark"] [class*="color-gray-400"] {
+  color: var(--semiont-color-gray-300) !important;
+}
+
+/* Fix light yellow that often fails contrast */
+.semiont-color-yellow-100,
+.semiont-color-yellow-200,
+[class*="text-yellow-100"],
+[class*="text-yellow-200"] {
+  color: var(--semiont-color-yellow-700) !important; /* Much darker yellow */
+}
+
+[data-theme="dark"] .semiont-color-yellow-100,
+[data-theme="dark"] .semiont-color-yellow-200,
+[data-theme="dark"] [class*="text-yellow-100"],
+[data-theme="dark"] [class*="text-yellow-200"] {
+  color: var(--semiont-color-yellow-400) !important;
+}
+
+/* Fix light backgrounds with light text */
+.semiont-bg-gray-100,
+.semiont-bg-gray-200,
+[class*="bg-gray-100"],
+[class*="bg-gray-200"] {
+  color: var(--semiont-color-gray-800) !important; /* Ensure dark text on light bg */
+}
+
+[data-theme="dark"] .semiont-bg-gray-100,
+[data-theme="dark"] .semiont-bg-gray-200,
+[data-theme="dark"] [class*="bg-gray-100"],
+[data-theme="dark"] [class*="bg-gray-200"] {
+  background-color: var(--semiont-color-gray-800) !important;
+  color: var(--semiont-color-gray-100) !important;
+}
+
+/* ========================================
+   Component-Specific Contrast Fixes
+   ======================================== */
+
+/* Placeholder text - needs darker color */
+input::placeholder,
+textarea::placeholder,
+.semiont-input::placeholder,
+.semiont-textarea::placeholder {
+  color: var(--semiont-color-gray-600) !important;
+  opacity: 1 !important;
+}
+
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder,
+[data-theme="dark"] .semiont-input::placeholder,
+[data-theme="dark"] .semiont-textarea::placeholder {
+  color: var(--semiont-color-gray-400) !important;
+  opacity: 1 !important;
+}
+
+/* Disabled states - improve contrast while maintaining disabled appearance */
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled,
+.semiont-button:disabled,
+.semiont-button[data-disabled="true"],
+[disabled] {
+  opacity: 0.7 !important; /* Higher opacity for better contrast */
+  color: var(--semiont-color-gray-700) !important;
+}
+
+[data-theme="dark"] button:disabled,
+[data-theme="dark"] input:disabled,
+[data-theme="dark"] select:disabled,
+[data-theme="dark"] textarea:disabled,
+[data-theme="dark"] .semiont-button:disabled,
+[data-theme="dark"] .semiont-button[data-disabled="true"],
+[data-theme="dark"] [disabled] {
+  color: var(--semiont-color-gray-300) !important;
+}
+
+/* Status indicators - ensure sufficient contrast */
+.semiont-status--success {
+  color: var(--semiont-color-green-700) !important;
+  background-color: var(--semiont-color-green-50) !important;
+}
+
+[data-theme="dark"] .semiont-status--success {
+  color: var(--semiont-color-green-300) !important;
+  background-color: rgba(34, 197, 94, 0.1) !important;
+}
+
+.semiont-status--warning {
+  color: var(--semiont-color-amber-700) !important;
+  background-color: var(--semiont-color-amber-50) !important;
+}
+
+[data-theme="dark"] .semiont-status--warning {
+  color: var(--semiont-color-amber-300) !important;
+  background-color: rgba(251, 191, 36, 0.1) !important;
+}
+
+.semiont-status--error,
+.semiont-status--danger {
+  color: var(--semiont-color-red-700) !important;
+  background-color: var(--semiont-color-red-50) !important;
+}
+
+[data-theme="dark"] .semiont-status--error,
+[data-theme="dark"] .semiont-status--danger {
+  color: var(--semiont-color-red-300) !important;
+  background-color: rgba(239, 68, 68, 0.1) !important;
+}
+
+.semiont-status--info {
+  color: var(--semiont-color-blue-700) !important;
+  background-color: var(--semiont-color-blue-50) !important;
+}
+
+[data-theme="dark"] .semiont-status--info {
+  color: var(--semiont-color-blue-300) !important;
+  background-color: rgba(59, 130, 246, 0.1) !important;
+}
+
+/* Links - ensure sufficient contrast */
+a,
+.semiont-link {
+  color: var(--semiont-color-blue-600) !important;
+}
+
+a:hover,
+.semiont-link:hover {
+  color: var(--semiont-color-blue-700) !important;
+}
+
+a:visited,
+.semiont-link:visited {
+  color: var(--semiont-color-purple-600) !important;
+}
+
+[data-theme="dark"] a,
+[data-theme="dark"] .semiont-link {
+  color: var(--semiont-color-blue-400) !important;
+}
+
+[data-theme="dark"] a:hover,
+[data-theme="dark"] .semiont-link:hover {
+  color: var(--semiont-color-blue-300) !important;
+}
+
+[data-theme="dark"] a:visited,
+[data-theme="dark"] .semiont-link:visited {
+  color: var(--semiont-color-purple-400) !important;
+}
+
+/* Badge and chip text - ensure readability */
+.semiont-badge,
+.semiont-chip,
+.semiont-tag {
+  font-weight: 500 !important; /* Slightly bolder for better readability */
+}
+
+/* Light colored badges need dark text */
+.semiont-badge--light,
+.semiont-chip--light,
+.semiont-tag--light,
+[data-variant="light"] {
+  color: var(--semiont-color-gray-900) !important;
+  background-color: var(--semiont-color-gray-100) !important;
+}
+
+[data-theme="dark"] .semiont-badge--light,
+[data-theme="dark"] .semiont-chip--light,
+[data-theme="dark"] .semiont-tag--light,
+[data-theme="dark"] [data-variant="light"] {
+  color: var(--semiont-color-gray-100) !important;
+  background-color: var(--semiont-color-gray-700) !important;
+}
+
+/* ========================================
+   High Contrast Mode Support
+   ======================================== */
+
+@media (prefers-contrast: more) {
+  /* Increase all text contrast in high contrast mode */
+  body,
+  .semiont-text,
+  .semiont-content {
+    color: var(--semiont-color-gray-900) !important;
+  }
+
+  [data-theme="dark"] body,
+  [data-theme="dark"] .semiont-text,
+  [data-theme="dark"] .semiont-content {
+    color: var(--semiont-color-gray-50) !important;
+  }
+
+  /* Stronger borders for better definition */
+  button,
+  input,
+  select,
+  textarea,
+  .semiont-button,
+  .semiont-input,
+  .semiont-select,
+  .semiont-textarea {
+    border-width: 2px !important;
+    border-color: currentColor !important;
+  }
+
+  [data-theme="dark"] button,
+  [data-theme="dark"] input,
+  [data-theme="dark"] select,
+  [data-theme="dark"] textarea,
+  [data-theme="dark"] .semiont-button,
+  [data-theme="dark"] .semiont-input,
+  [data-theme="dark"] .semiont-select,
+  [data-theme="dark"] .semiont-textarea {
+    border-width: 2px !important;
+    border-color: var(--semiont-color-gray-400) !important;
+  }
+
+  /* Higher opacity for disabled states */
+  button:disabled,
+  input:disabled,
+  select:disabled,
+  textarea:disabled,
+  .semiont-button:disabled,
+  [disabled] {
+    opacity: 0.8 !important;
+  }
+
+  /* Stronger focus indicators (already handled in focus.css) */
+
+  /* Pure black/white for maximum contrast */
+  .semiont-high-contrast {
+    background: var(--semiont-color-white) !important;
+    color: var(--semiont-color-black) !important;
+  }
+
+  [data-theme="dark"] .semiont-high-contrast {
+    background: var(--semiont-color-black) !important;
+    color: var(--semiont-color-white) !important;
+  }
+}
+
+/* ========================================
+   Forced Colors Mode Support (Windows High Contrast)
+   ======================================== */
+
+@media (prefers-color-scheme: dark) and (prefers-contrast: more) {
+  /* Use system colors for maximum compatibility */
+  body {
+    background-color: Canvas !important;
+    color: CanvasText !important;
+  }
+
+  a {
+    color: LinkText !important;
+  }
+
+  a:visited {
+    color: VisitedText !important;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    background-color: ButtonFace !important;
+    color: ButtonText !important;
+    border-color: ButtonText !important;
+  }
+
+  button:hover,
+  input:hover,
+  select:hover,
+  textarea:hover {
+    background-color: Highlight !important;
+    color: HighlightText !important;
+  }
+
+  ::placeholder {
+    color: GrayText !important;
+  }
+
+  :disabled {
+    color: GrayText !important;
+    border-color: GrayText !important;
+  }
+}
+
+/* ========================================
+   Specific Component Overrides
+   ======================================== */
+
+/* Forms - improve label contrast */
+.semiont-form__label,
+.semiont-label,
+label {
+  color: var(--semiont-color-gray-700) !important;
+  font-weight: 500 !important;
+}
+
+[data-theme="dark"] .semiont-form__label,
+[data-theme="dark"] .semiont-label,
+[data-theme="dark"] label {
+  color: var(--semiont-color-gray-200) !important;
+}
+
+/* Helper text - ensure readability */
+.semiont-form__helper,
+.semiont-helper-text,
+.semiont-description {
+  color: var(--semiont-color-gray-600) !important;
+  font-size: 0.875rem !important;
+}
+
+[data-theme="dark"] .semiont-form__helper,
+[data-theme="dark"] .semiont-helper-text,
+[data-theme="dark"] .semiont-description {
+  color: var(--semiont-color-gray-400) !important;
+}
+
+/* Error messages - high contrast for importance */
+.semiont-form__error,
+.semiont-error-text,
+.semiont-error {
+  color: var(--semiont-color-red-700) !important;
+  font-weight: 500 !important;
+}
+
+[data-theme="dark"] .semiont-form__error,
+[data-theme="dark"] .semiont-error-text,
+[data-theme="dark"] .semiont-error {
+  color: var(--semiont-color-red-400) !important;
+}
+
+/* Tables - improve readability */
+.semiont-table th {
+  color: var(--semiont-color-gray-900) !important;
+  font-weight: 600 !important;
+}
+
+[data-theme="dark"] .semiont-table th {
+  color: var(--semiont-color-gray-50) !important;
+}
+
+.semiont-table td {
+  color: var(--semiont-color-gray-700) !important;
+}
+
+[data-theme="dark"] .semiont-table td {
+  color: var(--semiont-color-gray-300) !important;
+}
+
+/* Code blocks - ensure syntax highlighting has contrast */
+code,
+pre,
+.semiont-code {
+  background-color: var(--semiont-color-gray-100) !important;
+  color: var(--semiont-color-gray-900) !important;
+}
+
+[data-theme="dark"] code,
+[data-theme="dark"] pre,
+[data-theme="dark"] .semiont-code {
+  background-color: var(--semiont-color-gray-800) !important;
+  color: var(--semiont-color-gray-100) !important;
+}
+
+/* Tooltips - high contrast for readability */
+.semiont-tooltip {
+  background-color: var(--semiont-color-gray-900) !important;
+  color: var(--semiont-color-white) !important;
+}
+
+[data-theme="dark"] .semiont-tooltip {
+  background-color: var(--semiont-color-gray-100) !important;
+  color: var(--semiont-color-gray-900) !important;
+}
+
+/* ========================================
+   Utility Classes for Manual Overrides
+   ======================================== */
+
+/* Force high contrast text */
+.semiont-text-high-contrast {
+  color: var(--semiont-color-gray-900) !important;
+}
+
+[data-theme="dark"] .semiont-text-high-contrast {
+  color: var(--semiont-color-gray-50) !important;
+}
+
+/* Force medium contrast text (for less important content) */
+.semiont-text-medium-contrast {
+  color: var(--semiont-color-gray-700) !important;
+}
+
+[data-theme="dark"] .semiont-text-medium-contrast {
+  color: var(--semiont-color-gray-300) !important;
+}
+
+/* Force WCAG AAA compliance (7:1 ratio) */
+.semiont-text-aaa {
+  color: var(--semiont-color-black) !important;
+}
+
+[data-theme="dark"] .semiont-text-aaa {
+  color: var(--semiont-color-white) !important;
+}

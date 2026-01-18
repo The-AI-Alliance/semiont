@@ -77,15 +77,15 @@ export function JsonLdPanel({ resource: semiontResource }: Props) {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 h-full flex flex-col">
+    <div className="semiont-jsonld-panel">
       {/* Header with copy button */}
-      <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+      <div className="semiont-jsonld-panel__header">
+        <h3 className="semiont-jsonld-panel__title">
           JSON-LD
         </h3>
         <button
           onClick={handleCopyToClipboard}
-          className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300 text-sm px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+          className="semiont-button semiont-button--icon"
           title="Copy to clipboard"
         >
           📋 Copy
@@ -95,7 +95,7 @@ export function JsonLdPanel({ resource: semiontResource }: Props) {
       {/* JSON-LD content rendered with CodeMirror */}
       <div
         ref={editorRef}
-        className="flex-1 overflow-auto rounded-lg border border-gray-200 dark:border-gray-700"
+        className="semiont-jsonld-panel__editor"
       />
     </div>
   );

@@ -49,7 +49,7 @@ export function LiveRegionProvider({ children }: LiveRegionProviderProps) {
         role="status"
         aria-live="polite"
         aria-atomic="true"
-        className="sr-only"
+        className="semiont-sr-only"
       >
         {politeMessage}
       </div>
@@ -58,7 +58,7 @@ export function LiveRegionProvider({ children }: LiveRegionProviderProps) {
         role="alert"
         aria-live="assertive"
         aria-atomic="true"
-        className="sr-only"
+        className="semiont-sr-only"
       >
         {assertiveMessage}
       </div>
@@ -109,6 +109,12 @@ export function useDocumentAnnouncements() {
     announce('Annotation deleted', 'polite');
   }, [announce]);
 
+  const announceAnnotationUpdated = useCallback((annotation: Annotation) => {
+    const annotator = getAnnotator(annotation);
+    const message = `${annotator?.displayName ?? 'Annotation'} updated`;
+    announce(message, 'polite');
+  }, [announce]);
+
   const announceError = useCallback((message: string) => {
     announce(`Error: ${message}`, 'assertive');
   }, [announce]);
@@ -118,6 +124,90 @@ export function useDocumentAnnouncements() {
     announceDocumentDeleted,
     announceAnnotationCreated,
     announceAnnotationDeleted,
+    announceAnnotationUpdated,
     announceError
+  };
+}
+
+// Hook for resource loading announcements
+export function useResourceLoadingAnnouncements() {
+  const { announce } = useLiveRegion();
+
+  const announceResourceLoading = useCallback((resourceName?: string) => {
+    const message = resourceName
+      ? `Loading ${resourceName}...`
+      : 'Loading resource...';
+    announce(message, 'polite');
+  }, [announce]);
+
+  const announceResourceLoaded = useCallback((resourceName: string) => {
+    announce(`${resourceName} loaded successfully`, 'polite');
+  }, [announce]);
+
+  const announceResourceLoadError = useCallback((resourceName?: string) => {
+    const message = resourceName
+      ? `Failed to load ${resourceName}`
+      : 'Failed to load resource';
+    announce(message, 'assertive');
+  }, [announce]);
+
+  const announceResourceUpdating = useCallback((resourceName: string) => {
+    announce(`Updating ${resourceName}...`, 'polite');
+  }, [announce]);
+
+  return {
+    announceResourceLoading,
+    announceResourceLoaded,
+    announceResourceLoadError,
+    announceResourceUpdating
+  };
+}
+
+// Hook for form submission announcements
+export function useFormAnnouncements() {
+  const { announce } = useLiveRegion();
+
+  const announceFormSubmitting = useCallback(() => {
+    announce('Submitting form...', 'polite');
+  }, [announce]);
+
+  const announceFormSuccess = useCallback((message?: string) => {
+    announce(message || 'Form submitted successfully', 'polite');
+  }, [announce]);
+
+  const announceFormError = useCallback((message?: string) => {
+    announce(message || 'Form submission failed. Please check your entries and try again.', 'assertive');
+  }, [announce]);
+
+  const announceFormValidationError = useCallback((fieldCount: number) => {
+    const message = fieldCount === 1
+      ? 'There is 1 field with an error'
+      : `There are ${fieldCount} fields with errors`;
+    announce(message, 'assertive');
+  }, [announce]);
+
+  return {
+    announceFormSubmitting,
+    announceFormSuccess,
+    announceFormError,
+    announceFormValidationError
+  };
+}
+
+// Hook for language/locale change announcements
+export function useLanguageChangeAnnouncements() {
+  const { announce } = useLiveRegion();
+
+  const announceLanguageChanging = useCallback((newLanguage: string) => {
+    announce(`Changing language to ${newLanguage}...`, 'polite');
+  }, [announce]);
+
+  const announceLanguageChanged = useCallback((newLanguage: string) => {
+    announce(`Language changed to ${newLanguage}`, 'polite');
+  }, [announce]);
+
+  return {
+    announceLanguageChanging,
+    announceLanguageChanged
   };
 }

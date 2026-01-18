@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import { useAnnotations } from '../lib/api-hooks';
 import type { components, AnnotationUri, ResourceUri, ResourceAnnotationUri, Selector } from '@semiont/api-client';
 import { resourceAnnotationUri } from '@semiont/api-client';
+import { useDocumentAnnouncements } from '../components/LiveRegion';
 
 type Annotation = components['schemas']['Annotation'];
 // Create annotation request type - narrow target to only the object form (not string)
@@ -46,6 +47,9 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   // UI state only - no data management
   const [newAnnotationIds, setNewAnnotationIds] = useState<Set<string>>(new Set());
 
+  // Live region announcements
+  const { announceAnnotationCreated, announceAnnotationDeleted, announceError } = useDocumentAnnouncements();
+
   // API hooks
   const annotations = useAnnotations();
 
@@ -87,14 +91,18 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
             return next;
           });
         }, 6000);
+
+        // Announce the creation
+        announceAnnotationCreated(result.annotation);
       }
 
       return result.annotation;
     } catch (err) {
       console.error('Failed to create annotation:', err);
+      announceError('Failed to create annotation');
       throw err;
     }
-  }, [createAnnotationMutation]);
+  }, [createAnnotationMutation, announceAnnotationCreated, announceError]);
 
   const deleteAnnotation = useCallback(async (annotationId: string, rUri: ResourceUri) => {
     try {
@@ -103,11 +111,15 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
       await deleteAnnotationMutation.mutateAsync(
         resourceAnnotationUri(`${rUri}/annotations/${annotationIdSegment}`)
       );
+
+      // Announce the deletion
+      announceAnnotationDeleted();
     } catch (err) {
       console.error('Failed to delete annotation:', err);
+      announceError('Failed to delete annotation');
       throw err;
     }
-  }, [deleteAnnotationMutation]);
+  }, [deleteAnnotationMutation, announceAnnotationDeleted, announceError]);
 
   const clearNewAnnotationId = useCallback((id: AnnotationUri) => {
     setNewAnnotationIds(prev => {

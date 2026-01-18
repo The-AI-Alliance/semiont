@@ -586,8 +586,8 @@ export function CodeMirrorRenderer({
   }, [scrollToAnnotationId, segments]);
 
   const containerClasses = sourceView
-    ? "codemirror-renderer bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg overflow-x-auto h-full"
-    : "codemirror-renderer h-full";
+    ? "semiont-codemirror semiont-codemirror--source"
+    : "semiont-codemirror";
 
   return <div ref={containerRef} className={containerClasses} data-markdown-container />;
 }

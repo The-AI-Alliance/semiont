@@ -1,0 +1,370 @@
+/**
+ * Motion and Animation Utilities
+ *
+ * Provides accessible animation controls that respect user preferences
+ * for reduced motion (WCAG 2.1 Success Criterion 2.3.3)
+ */
+
+/* ========================================
+   Animation Keyframes
+   ======================================== */
+
+/* Fade animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Slide animations */
+@keyframes slideInUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Scale animations */
+@keyframes scaleIn {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes scaleOut {
+  from {
+    transform: scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+}
+
+/* Spin animation */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Pulse animation */
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.8;
+  }
+}
+
+/* Shimmer animation */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* ========================================
+   Motion Utility Classes
+   ======================================== */
+
+/* Safe transitions that respect user preferences */
+.semiont-transition {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: var(--semiont-duration-base, 150ms);
+}
+
+.semiont-transition-none {
+  transition-property: none;
+}
+
+.semiont-transition-all {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: var(--semiont-duration-base, 150ms);
+}
+
+.semiont-transition-colors {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: var(--semiont-duration-base, 150ms);
+}
+
+.semiont-transition-opacity {
+  transition-property: opacity;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: var(--semiont-duration-base, 150ms);
+}
+
+.semiont-transition-transform {
+  transition-property: transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: var(--semiont-duration-base, 150ms);
+}
+
+/* Animation classes */
+.semiont-animate-fade-in {
+  animation: fadeIn var(--semiont-duration-base, 150ms) ease-in-out;
+}
+
+.semiont-animate-fade-out {
+  animation: fadeOut var(--semiont-duration-base, 150ms) ease-in-out;
+}
+
+.semiont-animate-slide-in-up {
+  animation: slideInUp var(--semiont-duration-moderate, 300ms) ease-out;
+}
+
+.semiont-animate-slide-in-down {
+  animation: slideInDown var(--semiont-duration-moderate, 300ms) ease-out;
+}
+
+.semiont-animate-slide-in-left {
+  animation: slideInLeft var(--semiont-duration-moderate, 300ms) ease-out;
+}
+
+.semiont-animate-slide-in-right {
+  animation: slideInRight var(--semiont-duration-moderate, 300ms) ease-out;
+}
+
+.semiont-animate-scale-in {
+  animation: scaleIn var(--semiont-duration-base, 150ms) ease-out;
+}
+
+.semiont-animate-scale-out {
+  animation: scaleOut var(--semiont-duration-base, 150ms) ease-in;
+}
+
+.semiont-animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+.semiont-animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.semiont-animate-shimmer {
+  animation: shimmer 2s linear infinite;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+}
+
+/* ========================================
+   Reduced Motion Support
+   ======================================== */
+
+/**
+ * When users prefer reduced motion:
+ * - Remove all animations
+ * - Reduce transition durations to instant or very fast
+ * - Keep essential transitions for usability
+ */
+
+@media (prefers-reduced-motion: reduce) {
+  /* Remove all animations */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Keep essential opacity transitions for usability */
+  .semiont-transition,
+  .semiont-transition-all,
+  .semiont-transition-colors,
+  .semiont-transition-opacity {
+    transition-duration: 0.01ms !important;
+  }
+
+  /* Disable transform animations completely */
+  .semiont-transition-transform {
+    transition-property: none !important;
+  }
+
+  /* Override specific animations to be instant */
+  .semiont-animate-fade-in,
+  .semiont-animate-fade-out,
+  .semiont-animate-slide-in-up,
+  .semiont-animate-slide-in-down,
+  .semiont-animate-slide-in-left,
+  .semiont-animate-slide-in-right,
+  .semiont-animate-scale-in,
+  .semiont-animate-scale-out {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  /* Stop infinite animations */
+  .semiont-animate-spin,
+  .semiont-animate-pulse,
+  .semiont-animate-shimmer {
+    animation: none !important;
+  }
+
+  /* Ensure spinners are still visible but static */
+  .semiont-animate-spin {
+    opacity: 1;
+  }
+
+  /* Replace shimmer with static loading state */
+  .semiont-animate-shimmer {
+    background: rgba(0, 0, 0, 0.1);
+  }
+
+  [data-theme="dark"] .semiont-animate-shimmer {
+    background: rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* ========================================
+   Motion-Safe Utilities
+   ======================================== */
+
+/**
+ * Use these classes when motion is essential to functionality
+ * They will only apply when motion is NOT reduced
+ */
+
+@media (prefers-reduced-motion: no-preference) {
+  .semiont-motion-safe-animate-spin {
+    animation: spin 1s linear infinite;
+  }
+
+  .semiont-motion-safe-animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .semiont-motion-safe-transition-all {
+    transition-property: all;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: var(--semiont-duration-base, 150ms);
+  }
+
+  .semiont-motion-safe-transition-transform {
+    transition-property: transform;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: var(--semiont-duration-base, 150ms);
+  }
+}
+
+/* ========================================
+   Component-Specific Motion Overrides
+   ======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  /* Loading spinners - keep visible but static */
+  .semiont-spinner,
+  .semiont-loading__spinner {
+    animation: none !important;
+    opacity: 0.6;
+  }
+
+  /* Progress bars - instant updates */
+  .semiont-progress__fill {
+    transition: none !important;
+  }
+
+  /* Toasts - appear instantly */
+  .semiont-toast {
+    animation: none !important;
+    transition: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  /* Modals - no slide/fade effects */
+  .semiont-modal,
+  .semiont-modal__backdrop,
+  .semiont-modal__content {
+    animation: none !important;
+    transition: opacity 0.01ms !important;
+  }
+
+  /* Tooltips - instant show/hide */
+  .semiont-tooltip {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  /* Accordions/Collapsibles - instant expand/collapse */
+  .semiont-accordion__content,
+  .semiont-collapsible {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  /* Tabs - instant switching */
+  .semiont-tabs__panel {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  /* Dropdowns - instant open/close */
+  .semiont-dropdown,
+  .semiont-dropdown__menu {
+    transition: none !important;
+    animation: none !important;
+  }
+}

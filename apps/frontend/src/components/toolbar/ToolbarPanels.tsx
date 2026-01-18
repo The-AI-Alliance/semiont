@@ -1,8 +1,10 @@
 'use client';
 
-import React from 'react';
-import { SettingsPanel } from '../SettingsPanel';
+import React, { useTransition } from 'react';
+import { SettingsPanel } from '@semiont/react-ui';
 import { UserPanel } from '../UserPanel';
+import { useLocale } from 'next-intl';
+import { usePathname, useRouter } from '@/i18n/routing';
 import type { ToolbarPanelType } from '@semiont/react-ui';
 
 interface ToolbarPanelsProps {
@@ -15,8 +17,6 @@ interface ToolbarPanelsProps {
   onLineNumbersToggle: () => void;
   /** Custom panel content for context-specific panels */
   children?: React.ReactNode;
-  /** Panel width (default: w-80) */
-  width?: string;
 }
 
 /**
@@ -55,18 +55,31 @@ export function ToolbarPanels({
   onThemeChange,
   showLineNumbers,
   onLineNumbersToggle,
-  children,
-  width = 'w-80'
+  children
 }: ToolbarPanelsProps) {
+  const locale = useLocale();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [isPending, startTransition] = useTransition();
+
+  const handleLocaleChange = (newLocale: string) => {
+    if (!pathname) return;
+
+    startTransition(() => {
+      // The router from @/i18n/routing is locale-aware and will handle the locale prefix
+      router.replace(pathname, { locale: newLocale });
+    });
+  };
+
   // Don't render container if no panel is active
   if (!activePanel) {
     return null;
   }
 
   return (
-    <div className={`${width} bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 p-4 overflow-hidden flex flex-col h-full`}>
+    <div className="semiont-toolbar-panels">
       {/* Custom context-specific panels */}
-      <div className="flex-1 overflow-y-auto min-h-0">
+      <div className="semiont-toolbar-panels__content">
         {children}
 
         {/* User Panel - common to all contexts */}
@@ -81,6 +94,9 @@ export function ToolbarPanels({
             onLineNumbersToggle={onLineNumbersToggle}
             theme={theme}
             onThemeChange={onThemeChange}
+            locale={locale}
+            onLocaleChange={handleLocaleChange}
+            isPendingLocaleChange={isPending}
           />
         )}
       </div>

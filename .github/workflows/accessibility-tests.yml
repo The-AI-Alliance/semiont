@@ -50,8 +50,9 @@ jobs:
         id: a11y-tests
         run: |
           cd packages/react-ui
-          # Run all tests including accessibility tests
-          npm test -- --reporter=verbose
+          # Run accessibility tests in split mode to avoid memory issues
+          # This only runs tests with "Accessibility" in the name
+          npm run test:a11y
         continue-on-error: false
         env:
           CI: true

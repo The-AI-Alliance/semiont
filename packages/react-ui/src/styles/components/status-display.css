@@ -1,0 +1,580 @@
+/* ============================================
+   StatusDisplay Component Styles
+   ============================================ */
+
+.semiont-status-display {
+  margin-top: 2rem;
+  padding: 1rem;
+  border-radius: var(--semiont-radius-lg);
+  transition: all var(--semiont-duration-base) var(--semiont-ease);
+}
+
+.semiont-status-message {
+  font-size: var(--semiont-text-base);
+  font-weight: var(--semiont-font-medium);
+}
+
+.semiont-status-hint {
+  font-size: var(--semiont-text-xs);
+  margin-top: 0.25rem;
+}
+
+/* Status variants */
+.semiont-status-display[data-status="success"] {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.semiont-status-display[data-status="error"] {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.semiont-status-display[data-status="warning"] {
+  background-color: #fed7aa;
+  color: #9a3412;
+}
+
+.semiont-status-display[data-status="loading"] {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.semiont-status-display[data-status="info"] {
+  background-color: var(--semiont-bg-tertiary);
+  color: #1f2937;
+}
+
+.semiont-status-display[data-status="success"] .semiont-status-hint {
+  color: #1e3a8a;
+}
+
+.semiont-status-display[data-status="error"] .semiont-status-error-hint {
+  color: #dc2626;
+}
+
+.semiont-status-display[data-status="info"] .semiont-status-hint {
+  color: #4b5563;
+}
+
+/* Dark mode status variants - Fixed to respect data-theme attribute */
+[data-theme="dark"] .semiont-status-display[data-status="success"] {
+  background-color: rgba(59, 130, 246, 0.1);
+  color: #93c5fd;
+}
+
+[data-theme="dark"] .semiont-status-display[data-status="error"] {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #fca5a5;
+}
+
+[data-theme="dark"] .semiont-status-display[data-status="warning"] {
+  background-color: rgba(251, 146, 60, 0.1);
+  color: #fdba74;
+}
+
+[data-theme="dark"] .semiont-status-display[data-status="loading"] {
+  background-color: rgba(245, 158, 11, 0.1);
+  color: #fcd34d;
+}
+
+[data-theme="dark"] .semiont-status-display[data-status="info"] {
+  background-color: rgba(156, 163, 175, 0.1);
+  color: #e5e7eb;
+}
+
+[data-theme="dark"] .semiont-status-display[data-status="success"] .semiont-status-hint {
+  color: #60a5fa;
+}
+
+[data-theme="dark"] .semiont-status-display[data-status="error"] .semiont-status-error-hint {
+  color: #f87171;
+}
+
+[data-theme="dark"] .semiont-status-display[data-status="info"] .semiont-status-hint {
+  color: #9ca3af;
+}
+
+/* UserMenuSkeleton Component */
+.semiont-user-menu-skeleton {
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--semiont-radius-full);
+  background-color: var(--semiont-color-neutral-200);
+  animation: semiont-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Dark mode for UserMenuSkeleton - Fixed to respect data-theme attribute */
+[data-theme="dark"] .semiont-user-menu-skeleton {
+  background-color: var(--semiont-color-neutral-700);
+}
+
+/* DetectionProgressWidget Component */
+.semiont-detection-progress {
+  background-color: var(--semiont-bg-primary);
+  border-radius: var(--semiont-radius-lg);
+  box-shadow: var(--semiont-shadow-sm);
+  padding: var(--semiont-spacing-md);
+  border: 2px solid var(--semiont-color-primary-500);
+}
+
+.semiont-detection-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--semiont-spacing-sm);
+}
+
+.semiont-detection-title {
+  font-size: var(--semiont-font-size-sm);
+  font-weight: var(--semiont-font-weight-semibold);
+  color: var(--semiont-color-neutral-900);
+  display: flex;
+  align-items: center;
+  gap: var(--semiont-spacing-xs);
+  margin: 0;
+}
+
+.semiont-detection-sparkle {
+  font-size: var(--semiont-font-size-lg);
+  animation: semiont-sparkle-infinite 1.5s ease-in-out infinite;
+}
+
+@keyframes semiont-sparkle-infinite {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+
+.semiont-detection-cancel {
+  color: var(--semiont-color-neutral-600);
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: var(--semiont-font-size-sm);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.semiont-detection-cancel:hover {
+  color: var(--semiont-color-neutral-900);
+}
+
+.semiont-detection-params {
+  margin-bottom: var(--semiont-spacing-sm);
+  padding: var(--semiont-spacing-xs);
+  background-color: var(--semiont-color-primary-50);
+  border-radius: var(--semiont-radius-base);
+  border: 1px solid var(--semiont-color-primary-200);
+}
+
+.semiont-detection-params-title {
+  font-size: var(--semiont-font-size-xs);
+  font-weight: var(--semiont-font-weight-semibold);
+  color: var(--semiont-color-primary-900);
+  margin-bottom: calc(var(--semiont-spacing-xs) / 2);
+}
+
+.semiont-detection-params-item {
+  font-size: var(--semiont-font-size-xs);
+  color: var(--semiont-color-primary-800);
+}
+
+.semiont-detection-params-label {
+  font-weight: var(--semiont-font-weight-medium);
+}
+
+.semiont-detection-log {
+  margin-bottom: var(--semiont-spacing-sm);
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--semiont-spacing-xs) / 2);
+}
+
+.semiont-detection-log-item {
+  font-size: var(--semiont-font-size-xs);
+  color: var(--semiont-color-neutral-600);
+  display: flex;
+  align-items: center;
+  gap: var(--semiont-spacing-xs);
+}
+
+.semiont-detection-check {
+  color: var(--semiont-color-success-600);
+}
+
+.semiont-detection-entity-type {
+  font-weight: var(--semiont-font-weight-medium);
+}
+
+.semiont-detection-current {
+  margin-bottom: var(--semiont-spacing-sm);
+}
+
+.semiont-detection-status-text {
+  font-size: var(--semiont-font-size-sm);
+  color: var(--semiont-color-neutral-600);
+  margin: 0;
+}
+
+.semiont-detection-status-complete {
+  color: var(--semiont-color-success-600);
+  font-weight: var(--semiont-font-weight-medium);
+}
+
+.semiont-detection-status-error {
+  color: var(--semiont-color-danger-600);
+  font-weight: var(--semiont-font-weight-medium);
+}
+
+.semiont-detection-status-active {
+  font-weight: var(--semiont-font-weight-medium);
+}
+
+/* Dark mode for DetectionProgressWidget - Fixed to respect data-theme attribute */
+[data-theme="dark"] .semiont-detection-progress {
+  background-color: var(--semiont-color-neutral-800);
+  border-color: var(--semiont-color-primary-600);
+}
+
+[data-theme="dark"] .semiont-detection-title {
+  color: var(--semiont-color-neutral-0);
+}
+
+[data-theme="dark"] .semiont-detection-cancel {
+  color: var(--semiont-color-neutral-400);
+}
+
+[data-theme="dark"] .semiont-detection-cancel:hover {
+  color: var(--semiont-color-neutral-300);
+}
+
+[data-theme="dark"] .semiont-detection-params {
+  background-color: rgba(59, 130, 246, 0.1);
+  border-color: var(--semiont-color-primary-800);
+}
+
+[data-theme="dark"] .semiont-detection-params-title {
+  color: var(--semiont-color-primary-100);
+}
+
+[data-theme="dark"] .semiont-detection-params-item {
+  color: var(--semiont-color-primary-200);
+}
+
+[data-theme="dark"] .semiont-detection-log-item {
+  color: var(--semiont-color-neutral-400);
+}
+
+[data-theme="dark"] .semiont-detection-check {
+  color: var(--semiont-color-success-400);
+}
+
+[data-theme="dark"] .semiont-detection-status-text {
+  color: var(--semiont-color-neutral-400);
+}
+
+[data-theme="dark"] .semiont-detection-status-complete {
+  color: var(--semiont-color-success-400);
+}
+
+[data-theme="dark"] .semiont-detection-status-error {
+  color: var(--semiont-color-danger-400);
+}
+
+/* ===== TIER 2 - CORE UI COMPONENTS ===== */
+
+/* Toolbar Component */
+.semiont-toolbar {
+  width: 3rem;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem; /* gap-2 from main */
+  padding: 0.75rem 0; /* py-3 from main */
+  background-color: var(--semiont-bg-secondary);
+  border-left: 1px solid var(--semiont-color-gray-200);
+  flex-shrink: 0;
+}
+
+.semiont-toolbar-button {
+  padding: 0.5rem;
+  border-radius: var(--semiont-radius-md);
+  transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
+  position: relative;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--semiont-color-gray-600);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.semiont-toolbar-button:hover {
+  background-color: var(--semiont-color-gray-200);
+}
+
+.semiont-toolbar-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--semiont-color-blue-500), 0 0 0 4px rgba(59, 130, 246, 0.1); /* ring-2 ring-blue-500 ring-offset-2 */
+}
+
+.semiont-toolbar-button[data-active="true"] {
+  background-color: var(--semiont-color-blue-200);
+  color: var(--semiont-color-blue-700);
+  border-left: 4px solid var(--semiont-color-blue-600);
+}
+
+.semiont-toolbar-icon {
+  font-size: 1.5rem; /* 24px - was xl/1.25rem */
+}
+
+.semiont-toolbar-icon-large {
+  font-size: 1.875rem; /* 30px - was 2xl/1.5rem */
+  font-weight: var(--semiont-font-weight-bold);
+}
+
+/* Dark mode for Toolbar - Fixed to respect data-theme attribute */
+[data-theme="dark"] .semiont-toolbar {
+  background-color: var(--semiont-bg-secondary);
+  border-left-color: var(--semiont-color-gray-700);
+}
+
+[data-theme="dark"] .semiont-toolbar-button {
+  color: var(--semiont-color-gray-400);
+}
+
+[data-theme="dark"] .semiont-toolbar-button:hover {
+  background-color: var(--semiont-bg-tertiary);
+}
+
+[data-theme="dark"] .semiont-toolbar-button[data-active="true"] {
+  background-color: rgba(30, 58, 138, 0.5); /* blue-800/50 - keeping rgba for opacity */
+  color: var(--semiont-color-blue-300);
+  border-left-color: var(--semiont-color-blue-400);
+}
+
+/* ResourceTagsInline Component */
+.semiont-resource-tags-inline {
+  padding: var(--semiont-spacing-xs) var(--semiont-spacing-lg);
+  border-top: 1px solid var(--semiont-color-neutral-200);
+}
+
+.semiont-resource-tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--semiont-spacing-xs);
+}
+
+.semiont-resource-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--semiont-spacing-xs) / 2);
+  padding: calc(var(--semiont-spacing-xs) / 2) var(--semiont-spacing-xs);
+  background-color: var(--semiont-color-primary-100);
+  color: var(--semiont-color-primary-700);
+  border: 1px solid var(--semiont-color-primary-200);
+  border-radius: var(--semiont-radius-base);
+  font-size: var(--semiont-font-size-xs);
+}
+
+/* Dark mode for ResourceTagsInline - Fixed to respect data-theme attribute */
+[data-theme="dark"] .semiont-resource-tags-inline {
+  border-top-color: var(--semiont-color-neutral-700);
+}
+
+[data-theme="dark"] .semiont-resource-tag {
+  background-color: rgba(59, 130, 246, 0.3);
+  color: var(--semiont-color-primary-300);
+  border-color: var(--semiont-color-primary-800);
+}
+
+/* ErrorBoundary Component */
+.semiont-error-boundary-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--semiont-bg-secondary);
+  padding: var(--semiont-spacing-md);
+}
+
+.semiont-error-boundary-content {
+  max-width: 28rem;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--semiont-spacing-md);
+}
+
+.semiont-error-boundary-header {
+  text-align: center;
+}
+
+.semiont-error-boundary-title {
+  font-size: var(--semiont-font-size-2xl);
+  font-weight: var(--semiont-font-weight-bold);
+  color: var(--semiont-color-neutral-900);
+  margin-bottom: var(--semiont-spacing-xs);
+}
+
+.semiont-error-boundary-message {
+  color: var(--semiont-color-neutral-600);
+}
+
+.semiont-error-boundary-details {
+  background-color: var(--semiont-color-danger-50);
+  border: 1px solid var(--semiont-color-danger-200);
+  border-radius: var(--semiont-radius-md);
+  padding: var(--semiont-spacing-md);
+}
+
+.semiont-error-boundary-details-title {
+  font-size: var(--semiont-font-size-sm);
+  font-weight: var(--semiont-font-weight-semibold);
+  color: var(--semiont-color-danger-800);
+  margin-bottom: calc(var(--semiont-spacing-xs) / 2);
+}
+
+.semiont-error-boundary-details-message {
+  font-size: var(--semiont-font-size-xs);
+  color: var(--semiont-color-danger-700);
+  font-family: monospace;
+  word-break: break-all;
+}
+
+.semiont-error-boundary-stack {
+  margin-top: var(--semiont-spacing-xs);
+  font-size: var(--semiont-font-size-xs);
+  color: var(--semiont-color-danger-600);
+  overflow-x: auto;
+}
+
+.semiont-error-boundary-actions {
+  display: flex;
+  gap: var(--semiont-spacing-md);
+  justify-content: center;
+}
+
+/* AsyncErrorBoundary Component */
+.semiont-async-error-boundary {
+  padding: var(--semiont-spacing-md);
+  background-color: var(--semiont-color-warning-50);
+  border: 1px solid var(--semiont-color-warning-200);
+  border-radius: var(--semiont-radius-md);
+}
+
+.semiont-async-error-content {
+  display: flex;
+  align-items: flex-start;
+}
+
+.semiont-async-error-icon {
+  flex-shrink: 0;
+}
+
+.semiont-icon-warning {
+  height: 1.25rem;
+  width: 1.25rem;
+  color: var(--semiont-color-warning-400);
+}
+
+.semiont-async-error-details {
+  margin-left: var(--semiont-spacing-sm);
+  flex: 1;
+}
+
+.semiont-async-error-title {
+  font-size: var(--semiont-font-size-sm);
+  font-weight: var(--semiont-font-weight-medium);
+  color: var(--semiont-color-warning-800);
+}
+
+.semiont-async-error-message {
+  margin-top: calc(var(--semiont-spacing-xs) / 2);
+  font-size: var(--semiont-font-size-sm);
+  color: var(--semiont-color-warning-700);
+}
+
+.semiont-async-error-retry {
+  margin-top: var(--semiont-spacing-xs);
+  font-size: var(--semiont-font-size-sm);
+  color: var(--semiont-color-warning-600);
+  text-decoration: underline;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.semiont-async-error-retry:hover {
+  color: var(--semiont-color-warning-500);
+}
+
+/* Dark mode for ErrorBoundary */
+@media (prefers-color-scheme: dark) {
+  [data-theme="dark"] .semiont-error-boundary-container,
+  .semiont-error-boundary-container {
+    background-color: var(--semiont-bg-inverse);
+  }
+
+  [data-theme="dark"] .semiont-error-boundary-title,
+  .semiont-error-boundary-title {
+    color: var(--semiont-color-neutral-0);
+  }
+
+  [data-theme="dark"] .semiont-error-boundary-message,
+  .semiont-error-boundary-message {
+    color: var(--semiont-color-neutral-400);
+  }
+
+  [data-theme="dark"] .semiont-error-boundary-details,
+  .semiont-error-boundary-details {
+    background-color: rgba(239, 68, 68, 0.2);
+    border-color: var(--semiont-color-danger-800);
+  }
+
+  [data-theme="dark"] .semiont-error-boundary-details-title,
+  .semiont-error-boundary-details-title {
+    color: var(--semiont-color-danger-300);
+  }
+
+  [data-theme="dark"] .semiont-error-boundary-details-message,
+  .semiont-error-boundary-details-message {
+    color: var(--semiont-color-danger-400);
+  }
+
+  [data-theme="dark"] .semiont-error-boundary-stack,
+  .semiont-error-boundary-stack {
+    color: var(--semiont-color-danger-500);
+  }
+
+  [data-theme="dark"] .semiont-async-error-boundary,
+  .semiont-async-error-boundary {
+    background-color: rgba(245, 158, 11, 0.2);
+    border-color: var(--semiont-color-warning-800);
+  }
+
+  [data-theme="dark"] .semiont-async-error-title,
+  .semiont-async-error-title {
+    color: var(--semiont-color-warning-300);
+  }
+
+  [data-theme="dark"] .semiont-async-error-message,
+  .semiont-async-error-message {
+    color: var(--semiont-color-warning-400);
+  }
+
+  [data-theme="dark"] .semiont-async-error-retry,
+  .semiont-async-error-retry {
+    color: var(--semiont-color-warning-400);
+  }
+
+  [data-theme="dark"] .semiont-async-error-retry:hover,
+  .semiont-async-error-retry:hover {
+    color: var(--semiont-color-warning-300);
+  }
+}
+

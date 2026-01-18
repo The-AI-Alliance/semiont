@@ -30,11 +30,6 @@ export default function DiscoverPage() {
     if (panel) togglePanel(panel as any);
   };
 
-  // Convert theme to actual applied theme (system -> light or dark)
-  const appliedTheme: 'light' | 'dark' = theme === 'system'
-    ? (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-    : theme;
-
   // API hooks
   const resources = useResources();
   const entityTypesAPI = useEntityTypes();
@@ -66,7 +61,7 @@ export default function DiscoverPage() {
       entityTypes={entityTypes}
       isLoadingRecent={isLoadingRecent}
       isSearching={isSearching}
-      theme={appliedTheme}
+      theme={theme}
       onThemeChange={setTheme}
       showLineNumbers={showLineNumbers}
       onLineNumbersToggle={toggleLineNumbers}

@@ -1,0 +1,51 @@
+/**
+ * Inline Annotation Styles
+ *
+ * Common annotation styles and effects.
+ * Motivation-specific styles are in /styles/motivations/*.css
+ */
+
+/* Animation for newly created annotations (sparkle effect) */
+@keyframes sparkle {
+  0% {
+    box-shadow: 0 0 5px rgba(59, 130, 246, 0.8),
+                0 0 10px rgba(59, 130, 246, 0.6),
+                0 0 15px rgba(59, 130, 246, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.8),
+                0 0 20px rgba(59, 130, 246, 0.6),
+                0 0 30px rgba(59, 130, 246, 0.4);
+  }
+  100% {
+    box-shadow: 0 0 5px rgba(59, 130, 246, 0.8),
+                0 0 10px rgba(59, 130, 246, 0.6),
+                0 0 15px rgba(59, 130, 246, 0.4);
+  }
+}
+
+.annotation-sparkle {
+  animation: sparkle 1.5s ease-in-out infinite;
+}
+
+/* Active/selected annotation */
+.annotation-active {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+  z-index: 10;
+  position: relative;
+}
+
+/* Print styles */
+@media print {
+  .annotation-highlight,
+  .annotation-comment,
+  .annotation-assessment,
+  .annotation-reference,
+  .annotation-tag {
+    background: transparent !important;
+    outline: none !important;
+    text-decoration: underline !important;
+    color: inherit !important;
+  }
+}

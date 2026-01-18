@@ -47,10 +47,6 @@ export function HistoryEvent({
   const entityTypes = getEventEntityTypes(event);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const borderClass = isRelated
-    ? 'border-l-4 border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20'
-    : 'border-l-2 border-gray-200 dark:border-gray-700';
-
   // Handle hover on emoji icon with 300ms delay
   const handleEmojiMouseEnter = useCallback(() => {
     if (!annotationUri || !onEventHover) return;
@@ -85,9 +81,12 @@ export function HistoryEvent({
     type: 'button' as const,
     onClick: () => onEventClick?.(annotationUri),
     'aria-label': t('viewAnnotation', { content: displayContent?.exact || formatEventType(event.event.type as ResourceEventType, t) }),
-    className: `w-full text-left text-xs ${borderClass} pl-2 py-0.5 transition-all duration-200 hover:bg-gray-50 dark:hover:bg-gray-700/30 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset`
+    className: 'semiont-history-event',
+    'data-related': isRelated ? 'true' : 'false',
+    'data-interactive': 'true'
   } : {
-    className: `text-xs ${borderClass} pl-2 py-0.5`
+    className: 'semiont-history-event',
+    'data-related': isRelated ? 'true' : 'false'
   };
 
   return (
@@ -99,9 +98,9 @@ export function HistoryEvent({
       }}
       {...eventWrapperProps}
     >
-      <div className="flex items-center gap-1.5">
+      <div className="semiont-history-event__content">
         <span
-          className="text-sm cursor-pointer"
+          className="semiont-history-event__emoji"
           onMouseEnter={handleEmojiMouseEnter}
           onMouseLeave={handleEmojiMouseLeave}
         >
@@ -109,33 +108,34 @@ export function HistoryEvent({
         </span>
         {displayContent ? (
           displayContent.isTag ? (
-            <span className="inline-flex items-center px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded text-[11px] font-medium">
+            <span className="semiont-history-event__tag">
               {displayContent.exact}
             </span>
           ) : displayContent.isQuoted ? (
-            <span className="font-medium text-gray-900 dark:text-gray-100 line-clamp-1 italic">
+            <span className="semiont-history-event__text semiont-history-event__text--quoted">
               &ldquo;{displayContent.exact}&rdquo;
             </span>
           ) : (
-            <span className="font-medium text-gray-900 dark:text-gray-100 line-clamp-1">
+            <span className="semiont-history-event__text">
               {displayContent.exact}
             </span>
           )
         ) : (
-          <span className="font-medium text-gray-900 dark:text-gray-100">
+          <span className="semiont-history-event__text">
             {formatEventType(event.event.type as ResourceEventType, t, event.event.payload)}
           </span>
         )}
-        <span className="text-[10px] text-gray-500 dark:text-gray-400 ml-auto">
+        <span className="semiont-history-event__timestamp">
           {formatRelativeTime(event.event.timestamp, t)}
         </span>
       </div>
       {entityTypes.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-1">
+        <div className="semiont-history-event__entity-types">
           {entityTypes.map((type) => (
             <span
               key={type}
-              className="inline-flex items-center px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded text-[10px]"
+              className="semiont-tag semiont-tag--small"
+              data-variant="blue"
             >
               {type}
             </span>
@@ -143,17 +143,17 @@ export function HistoryEvent({
         </div>
       )}
       {creationDetails && (
-        <div className="text-[10px] text-gray-600 dark:text-gray-400 mt-0.5">
-          <span className="mr-2">
-            {t('user')}: <span className="font-mono">{creationDetails.userId}</span>
+        <div className="semiont-history-event__details">
+          <span className="semiont-history-event__detail">
+            {t('user')}: <span className="semiont-history-event__detail-value">{creationDetails.userId}</span>
           </span>
-          <span className="mr-2">
-            {t('method')}: <span className="uppercase">{creationDetails.method}</span>
+          <span className="semiont-history-event__detail">
+            {t('method')}: <span className="semiont-history-event__detail-value semiont-history-event__detail-value--uppercase">{creationDetails.method}</span>
           </span>
           {creationDetails.type === 'cloned' && creationDetails.sourceDocId && (
             <Link
               href={routes.resourceDetail(creationDetails.sourceDocId)}
-              className="text-blue-600 dark:text-blue-400 hover:underline"
+              className="semiont-history-event__link"
               onClick={(e) => e.stopPropagation()}
             >
               {t('viewOriginal')}

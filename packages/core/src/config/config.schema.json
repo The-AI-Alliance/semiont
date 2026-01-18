@@ -453,6 +453,78 @@
       ],
       "additionalProperties": false
     },
+    "ProxyServiceConfig": {
+      "type": "object",
+      "properties": {
+        "platform": {
+          "$ref": "#/definitions/ServicePlatformConfig"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["envoy", "nginx", "haproxy"],
+          "default": "envoy"
+        },
+        "port": {
+          "type": "integer",
+          "default": 8080
+        },
+        "adminPort": {
+          "type": "integer",
+          "default": 9901
+        },
+        "backendPort": {
+          "type": "integer",
+          "default": 4000
+        },
+        "frontendPort": {
+          "type": "integer",
+          "default": 3000
+        },
+        "image": {
+          "type": "string",
+          "default": "envoyproxy/envoy:v1.28-latest"
+        },
+        "configPath": {
+          "type": "string"
+        },
+        "timeout": {
+          "type": "integer"
+        },
+        "wait": {
+          "type": "integer"
+        },
+        "logsEndpoint": {
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "resources": {
+          "$ref": "#/definitions/ResourceRequirements"
+        },
+        "security": {
+          "$ref": "#/definitions/SecurityRequirements"
+        },
+        "environment": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "platform",
+        "type",
+        "port"
+      ],
+      "additionalProperties": false
+    },
     "DatabaseServiceConfig": {
       "type": "object",
       "properties": {
@@ -1290,6 +1362,9 @@
         },
         "mcp": {
           "$ref": "#/definitions/McpServiceConfig"
+        },
+        "proxy": {
+          "$ref": "#/definitions/ProxyServiceConfig"
         }
       },
       "additionalProperties": true

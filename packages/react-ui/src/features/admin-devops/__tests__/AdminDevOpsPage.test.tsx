@@ -119,7 +119,7 @@ describe('AdminDevOpsPage', () => {
       const { container } = render(<AdminDevOpsPage {...props} />);
 
       // Each feature has an icon
-      const icons = container.querySelectorAll('.w-5.h-5');
+      const icons = container.querySelectorAll('.semiont-devops-feature__icon');
       expect(icons.length).toBeGreaterThan(0);
     });
 
@@ -143,7 +143,7 @@ describe('AdminDevOpsPage', () => {
       const { container } = render(<AdminDevOpsPage {...props} />);
 
       // CLI commands should be in monospace
-      const monoElements = container.querySelectorAll('.font-mono');
+      const monoElements = container.querySelectorAll('.semiont-devops-feature__available');
       expect(monoElements.length).toBeGreaterThan(0);
     });
 
@@ -151,7 +151,7 @@ describe('AdminDevOpsPage', () => {
       const props = createMockProps();
       const { container } = render(<AdminDevOpsPage {...props} />);
 
-      const grid = container.querySelector('.grid-cols-1');
+      const grid = container.querySelector('.semiont-admin__features-grid');
       expect(grid).toBeInTheDocument();
     });
 
@@ -266,7 +266,7 @@ describe('AdminDevOpsPage', () => {
       const props = createMockProps();
       const { container } = render(<AdminDevOpsPage {...props} />);
 
-      const infoBox = container.querySelector('.bg-blue-50');
+      const infoBox = container.querySelector('.semiont-admin__info-box');
       expect(infoBox).toBeInTheDocument();
     });
 
@@ -275,7 +275,7 @@ describe('AdminDevOpsPage', () => {
       const { container } = render(<AdminDevOpsPage {...props} />);
 
       // CommandLineIcon should be present
-      const icon = container.querySelector('.h-5.w-5.text-blue-600');
+      const icon = container.querySelector('.semiont-icon--info');
       expect(icon).toBeInTheDocument();
     });
   });
@@ -378,7 +378,7 @@ describe('AdminDevOpsPage', () => {
       const props = createMockProps();
       const { container } = render(<AdminDevOpsPage {...props} />);
 
-      const mainContainer = container.querySelector('.flex.flex-1');
+      const mainContainer = container.querySelector('.semiont-page');
       expect(mainContainer).toBeInTheDocument();
     });
 
@@ -386,7 +386,7 @@ describe('AdminDevOpsPage', () => {
       const props = createMockProps();
       const { container } = render(<AdminDevOpsPage {...props} />);
 
-      const scrollArea = container.querySelector('.overflow-y-auto');
+      const scrollArea = container.querySelector('.semiont-page__content');
       expect(scrollArea).toBeInTheDocument();
     });
 
@@ -394,7 +394,7 @@ describe('AdminDevOpsPage', () => {
       const props = createMockProps();
       const { container } = render(<AdminDevOpsPage {...props} />);
 
-      const contentArea = container.querySelector('.px-4.py-8');
+      const contentArea = container.querySelector('.semiont-page__content');
       expect(contentArea).toBeInTheDocument();
     });
 
@@ -402,7 +402,7 @@ describe('AdminDevOpsPage', () => {
       const props = createMockProps();
       const { container } = render(<AdminDevOpsPage {...props} />);
 
-      const sections = container.querySelectorAll('.mb-8');
+      const sections = container.querySelectorAll('.semiont-admin__section');
       expect(sections.length).toBeGreaterThanOrEqual(2); // At least status and CLI sections
     });
   });

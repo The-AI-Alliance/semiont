@@ -55,7 +55,7 @@ describe('RecentDocumentsPage', () => {
       const props = createMockProps();
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const icon = container.querySelector('.w-6.h-6.text-gray-600');
+      const icon = container.querySelector('.semiont-recent-docs__icon');
       expect(icon).toBeInTheDocument();
     });
 
@@ -88,7 +88,7 @@ describe('RecentDocumentsPage', () => {
       const props = createMockProps({ hasDocuments: false });
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const svg = container.querySelector('svg.w-16.h-16');
+      const svg = container.querySelector('.semiont-recent-docs__empty-icon');
       expect(svg).toBeInTheDocument();
     });
 
@@ -96,7 +96,8 @@ describe('RecentDocumentsPage', () => {
       const props = createMockProps({ hasDocuments: false });
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const noDocsText = container.querySelector('.text-gray-500');
+      const noDocsText = container.querySelector('.semiont-recent-docs__empty-message');
+      expect(noDocsText).toBeInTheDocument();
       expect(noDocsText).toHaveTextContent('No documents found');
     });
 
@@ -104,7 +105,8 @@ describe('RecentDocumentsPage', () => {
       const props = createMockProps({ hasDocuments: false });
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const hintText = container.querySelector('.text-sm.text-gray-400');
+      const hintText = container.querySelector('.semiont-recent-docs__empty-hint');
+      expect(hintText).toBeInTheDocument();
       expect(hintText).toHaveTextContent('Activity will appear here');
     });
   });
@@ -114,7 +116,7 @@ describe('RecentDocumentsPage', () => {
       const props = createMockProps();
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const card = container.querySelector('.bg-white.dark\\:bg-gray-800');
+      const card = container.querySelector('.semiont-card');
       expect(card).toBeInTheDocument();
     });
 
@@ -122,7 +124,7 @@ describe('RecentDocumentsPage', () => {
       const props = createMockProps();
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const card = container.querySelector('.border.border-gray-200.dark\\:border-gray-700');
+      const card = container.querySelector('.semiont-card');
       expect(card).toBeInTheDocument();
     });
 
@@ -130,7 +132,7 @@ describe('RecentDocumentsPage', () => {
       const props = createMockProps();
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const card = container.querySelector('.rounded-lg');
+      const card = container.querySelector('.semiont-card');
       expect(card).toBeInTheDocument();
     });
 
@@ -138,7 +140,7 @@ describe('RecentDocumentsPage', () => {
       const props = createMockProps();
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const card = container.querySelector('.shadow');
+      const card = container.querySelector('.semiont-card');
       expect(card).toBeInTheDocument();
     });
   });
@@ -148,7 +150,7 @@ describe('RecentDocumentsPage', () => {
       const props = createMockProps();
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const iconContainer = container.querySelector('.bg-gray-100.dark\\:bg-gray-900\\/20');
+      const iconContainer = container.querySelector('.semiont-recent-docs__icon-box');
       expect(iconContainer).toBeInTheDocument();
     });
 
@@ -156,7 +158,7 @@ describe('RecentDocumentsPage', () => {
       const props = createMockProps();
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const icon = container.querySelector('.w-6.h-6');
+      const icon = container.querySelector('.semiont-recent-docs__icon');
       expect(icon).toBeInTheDocument();
     });
 
@@ -164,7 +166,7 @@ describe('RecentDocumentsPage', () => {
       const props = createMockProps();
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const icon = container.querySelector('.text-gray-600.dark\\:text-gray-400');
+      const icon = container.querySelector('.semiont-recent-docs__icon');
       expect(icon).toBeInTheDocument();
     });
   });
@@ -264,7 +266,7 @@ describe('RecentDocumentsPage', () => {
       const props = createMockProps();
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const mainContainer = container.querySelector('.flex.flex-1');
+      const mainContainer = container.querySelector('.semiont-page');
       expect(mainContainer).toBeInTheDocument();
     });
 
@@ -272,7 +274,7 @@ describe('RecentDocumentsPage', () => {
       const props = createMockProps();
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const scrollArea = container.querySelector('.overflow-y-auto');
+      const scrollArea = container.querySelector('.semiont-page__content');
       expect(scrollArea).toBeInTheDocument();
     });
 
@@ -280,7 +282,7 @@ describe('RecentDocumentsPage', () => {
       const props = createMockProps();
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const contentArea = container.querySelector('.px-4.py-8');
+      const contentArea = container.querySelector('.semiont-page__content');
       expect(contentArea).toBeInTheDocument();
     });
 
@@ -288,7 +290,7 @@ describe('RecentDocumentsPage', () => {
       const props = createMockProps();
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const emptyState = container.querySelector('.text-center.py-12');
+      const emptyState = container.querySelector('.semiont-recent-docs__empty-state');
       expect(emptyState).toBeInTheDocument();
     });
   });
@@ -305,7 +307,7 @@ describe('RecentDocumentsPage', () => {
       const props = createMockProps({ theme: 'dark' });
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const title = container.querySelector('.dark\\:text-white');
+      const title = container.querySelector('.semiont-page__title');
       expect(title).toBeInTheDocument();
     });
 
@@ -313,24 +315,27 @@ describe('RecentDocumentsPage', () => {
       const props = createMockProps({ theme: 'dark' });
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const card = container.querySelector('.dark\\:bg-gray-800');
+      const card = container.querySelector('.semiont-card');
       expect(card).toBeInTheDocument();
+      // Dark mode is handled by CSS, not inline classes
     });
 
     it('applies dark mode classes to icon container', () => {
       const props = createMockProps({ theme: 'dark' });
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const iconBg = container.querySelector('.dark\\:bg-gray-900\\/20');
+      const iconBg = container.querySelector('.semiont-recent-docs__icon-box');
       expect(iconBg).toBeInTheDocument();
+      // Dark mode is handled by CSS, not inline classes
     });
 
     it('applies dark mode classes to empty state SVG', () => {
-      const props = createMockProps({ theme: 'dark' });
+      const props = createMockProps({ theme: 'dark', hasDocuments: false });
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const svg = container.querySelector('.dark\\:text-gray-600');
+      const svg = container.querySelector('.semiont-recent-docs__empty-icon');
       expect(svg).toBeInTheDocument();
+      // Dark mode is handled by CSS, not inline classes
     });
   });
 
@@ -423,24 +428,27 @@ describe('RecentDocumentsPage', () => {
       const props = createMockProps();
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const titleSection = container.querySelector('.mb-8');
+      const titleSection = container.querySelector('.semiont-page__header');
       expect(titleSection).toBeInTheDocument();
+      // Spacing is handled by CSS, not utility classes
     });
 
     it('applies padding to card', () => {
       const props = createMockProps();
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const card = container.querySelector('.p-6');
+      const card = container.querySelector('.semiont-card');
       expect(card).toBeInTheDocument();
+      // Padding is handled by CSS, not utility classes
     });
 
     it('applies margin to section header', () => {
       const props = createMockProps();
       const { container } = render(<RecentDocumentsPage {...props} />);
 
-      const header = container.querySelector('.mb-4');
+      const header = container.querySelector('.semiont-recent-docs__header');
       expect(header).toBeInTheDocument();
+      // Margins are handled by CSS, not utility classes
     });
   });
 });

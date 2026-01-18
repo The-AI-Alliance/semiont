@@ -55,14 +55,7 @@ describe('AdminNavigation', () => {
       render(<AdminNavigation />);
 
       expect(screen.getByText('Administration')).toBeInTheDocument();
-      expect(screen.getByText('Administration')).toHaveClass(
-        'text-xs',
-        'font-semibold',
-        'text-gray-400',
-        'dark:text-gray-500',
-        'uppercase',
-        'tracking-wider'
-      );
+      expect(screen.getByText('Administration')).toHaveClass('sidebar-navigation__title');
     });
 
     it('should render all navigation items', () => {
@@ -99,7 +92,7 @@ describe('AdminNavigation', () => {
       );
 
       const usersIcon = screen.getByTestId('users-icon');
-      expect(usersIcon).toHaveClass('text-blue-500', 'dark:text-blue-400');
+      expect(usersIcon).toHaveClass('sidebar-navigation__icon', 'sidebar-navigation__icon--active');
     });
 
     it('should highlight active OAuth Settings navigation item', () => {
@@ -118,7 +111,7 @@ describe('AdminNavigation', () => {
       );
 
       const securityIcon = screen.getByTestId('shield-check-icon');
-      expect(securityIcon).toHaveClass('text-blue-500', 'dark:text-blue-400');
+      expect(securityIcon).toHaveClass('sidebar-navigation__icon', 'sidebar-navigation__icon--active');
     });
 
     it('should not highlight any item when on admin dashboard', () => {
@@ -170,28 +163,10 @@ describe('AdminNavigation', () => {
       render(<AdminNavigation />);
 
       const usersIcon = screen.getByTestId('users-icon');
-      expect(usersIcon).toHaveClass(
-        'flex-shrink-0',
-        '-ml-1',
-        'mr-3',
-        'h-5',
-        'w-5',
-        'text-gray-400',
-        'group-hover:text-gray-500',
-        'dark:group-hover:text-gray-300'
-      );
+      expect(usersIcon).toHaveClass('sidebar-navigation__icon', 'sidebar-navigation__icon--inactive');
 
       const securityIcon = screen.getByTestId('shield-check-icon');
-      expect(securityIcon).toHaveClass(
-        'flex-shrink-0',
-        '-ml-1',
-        'mr-3',
-        'h-5',
-        'w-5',
-        'text-gray-400',
-        'group-hover:text-gray-500',
-        'dark:group-hover:text-gray-300'
-      );
+      expect(securityIcon).toHaveClass('sidebar-navigation__icon', 'sidebar-navigation__icon--inactive');
     });
 
     // Removed home icon test - home icon no longer exists in the component
@@ -208,8 +183,8 @@ describe('AdminNavigation', () => {
       const navContainer = container.querySelector('.p-4');
       expect(navContainer).toBeInTheDocument();
 
-      const spaceContainer = navContainer?.querySelector('.space-y-1');
-      expect(spaceContainer).toBeInTheDocument();
+      const itemsContainer = navContainer?.querySelector('.sidebar-navigation__items');
+      expect(itemsContainer).toBeInTheDocument();
     });
 
     // Removed separator test - separator no longer exists in the component
@@ -236,7 +211,7 @@ describe('AdminNavigation', () => {
       // AdminNavigation no longer wraps in nav element - it's just content
       // The parent LeftSidebar handles dark mode styling
       const adminHeader = screen.getByText('Administration');
-      expect(adminHeader).toHaveClass('dark:text-gray-500');
+      expect(adminHeader).toHaveClass('sidebar-navigation__title');
     });
 
     // Removed separator dark mode test - separator no longer exists in the component
@@ -245,7 +220,7 @@ describe('AdminNavigation', () => {
       render(<AdminNavigation />);
 
       const adminHeader = screen.getByText('Administration');
-      expect(adminHeader).toHaveClass('dark:text-gray-500');
+      expect(adminHeader).toHaveClass('sidebar-navigation__title');
     });
 
     it('should have dark mode hover states for inactive links', () => {

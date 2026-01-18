@@ -68,7 +68,7 @@ describe('AuthErrorDisplay', () => {
 
       const errorText = screen.getByText('Access denied. Your email domain is not allowed.');
 
-      expect(errorText).toHaveClass('text-sm', 'text-red-700', 'dark:text-red-400');
+      expect(errorText).toHaveClass('semiont-auth-error-display__error-message');
     });
 
     it('renders try again link', () => {

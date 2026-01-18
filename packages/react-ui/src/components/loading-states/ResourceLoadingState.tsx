@@ -6,8 +6,8 @@
 
 export function ResourceLoadingState() {
   return (
-    <div className="flex items-center justify-center py-20">
-      <p className="text-gray-600 dark:text-gray-300">Loading resource...</p>
+    <div className="semiont-loading-state semiont-loading-state-resource">
+      <p className="semiont-loading-message">Loading resource...</p>
     </div>
   );
 }

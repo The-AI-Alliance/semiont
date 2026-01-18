@@ -24,7 +24,23 @@ import { ResourceInfoPanel } from '@semiont/react-ui';
 import { CollaborationPanel } from '@semiont/react-ui';
 import { JsonLdPanel } from '@semiont/react-ui';
 import { Toolbar } from '@semiont/react-ui';
-import type { SemiontResource, Annotation, Motivation, TextSelection, GenerationOptions } from '@semiont/react-ui';
+import { useResourceLoadingAnnouncements } from '@semiont/react-ui';
+import type { GenerationOptions } from '@semiont/react-ui';
+
+type SemiontResource = components['schemas']['ResourceDescriptor'];
+type Annotation = components['schemas']['Annotation'];
+type Motivation = components['schemas']['Motivation'];
+
+// Internal selection type used by viewer components
+interface InternalTextSelection {
+  exact: string;
+  start: number;
+  end: number;
+  prefix?: string;
+  suffix?: string;
+  svgSelector?: string;
+}
+
 import type { DetectionProgress } from '@semiont/react-ui';
 
 export interface ResourceViewerPageProps {
@@ -209,6 +225,13 @@ export function ResourceViewerPage({
 }: ResourceViewerPageProps) {
   const queryClient = useQueryClient();
 
+  // Resource loading announcements
+  const {
+    announceResourceLoading,
+    announceResourceLoaded,
+    announceResourceLoadError
+  } = useResourceLoadingAnnouncements();
+
   // Group annotations by type using centralized registry
   const groups = groupAnnotationsByType(annotations);
   const highlights = groups.highlight || [];
@@ -238,9 +261,9 @@ export function ResourceViewerPage({
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
 
   // Pending selections for creating annotations
-  const [pendingCommentSelection, setPendingCommentSelection] = useState<TextSelection | null>(null);
-  const [pendingTagSelection, setPendingTagSelection] = useState<TextSelection | null>(null);
-  const [pendingReferenceSelection, setPendingReferenceSelection] = useState<TextSelection | null>(null);
+  const [pendingCommentSelection, setPendingCommentSelection] = useState<InternalTextSelection | null>(null);
+  const [pendingTagSelection, setPendingTagSelection] = useState<InternalTextSelection | null>(null);
+  const [pendingReferenceSelection, setPendingReferenceSelection] = useState<InternalTextSelection | null>(null);
 
   // Search state
   const [searchModalOpen, setSearchModalOpen] = useState(false);
@@ -411,6 +434,15 @@ export function ResourceViewerPage({
     }
   }, [rUri, references, onUpdateAnnotationBody, onRefetchAnnotations, showSuccess, showError]);
 
+  // Announce content loading state changes
+  useEffect(() => {
+    if (contentLoading) {
+      announceResourceLoading(resource.name);
+    } else if (content) {
+      announceResourceLoaded(resource.name);
+    }
+  }, [contentLoading, content, resource.name, announceResourceLoading, announceResourceLoaded]);
+
   // Manual tag creation handler
   const handleCreateTag = useCallback(async (
     selection: { exact: string; start: number; end: number },
@@ -458,32 +490,32 @@ export function ResourceViewerPage({
 
   // Document rendering
   return (
-    <div className="flex flex-col h-full">
+    <div className={`semiont-document-viewer${activePanel ? ' semiont-document-viewer--panel-open' : ''}`}>
       {/* Main Content - Fills remaining height */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="semiont-document-viewer__main">
         {/* Document Content - Left Side */}
-        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+        <div className="semiont-document-viewer__content">
           {/* Document Header - Only spans document content width */}
-          <div className="flex-none bg-white dark:bg-gray-800 shadow-sm rounded-t-lg">
-            <div className="px-6 py-2 flex items-center justify-between gap-4">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+          <div className="semiont-document-viewer__header">
+            <div className="semiont-document-viewer__header-inner">
+              <h2 className="semiont-document-viewer__title">
                 {resource.name}
               </h2>
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto min-h-0">
+          <div className="semiont-document-viewer__body" lang={getLanguage(resource) || undefined}>
             <ErrorBoundary
               fallback={(error, reset) => (
-                <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-                  <h3 className="text-sm font-semibold text-red-800 dark:text-red-300 mb-1">
+                <div className="semiont-document-viewer__error">
+                  <h3 className="semiont-document-viewer__error-title">
                     Error loading document viewer
                   </h3>
-                  <p className="text-sm text-red-700 dark:text-red-400">
+                  <p className="semiont-document-viewer__error-message">
                     {error.message}
                   </p>
                   <button
                     onClick={reset}
-                    className="mt-2 text-sm text-red-600 hover:text-red-500 dark:text-red-400 dark:hover:text-red-300 underline"
+                    className="semiont-document-viewer__error-button"
                   >
                     Try again
                   </button>
@@ -491,7 +523,7 @@ export function ResourceViewerPage({
               )}
             >
               {contentLoading ? (
-                <div className="p-8 flex items-center justify-center text-gray-600 dark:text-gray-300">
+                <div className="semiont-document-viewer__loading">
                   Loading document content...
                 </div>
               ) : (
@@ -511,7 +543,7 @@ export function ResourceViewerPage({
                   setPendingTagSelection(selection);
                   setActivePanel('annotations');
                 }}
-                onReferenceCreationRequested={(selection: TextSelection) => {
+                onReferenceCreationRequested={(selection) => {
                   setPendingReferenceSelection(selection);
                   setActivePanel('annotations');
                 }}
@@ -554,7 +586,7 @@ export function ResourceViewerPage({
         </div>
 
         {/* Sidebar */}
-        <div className="flex">
+        <div className="semiont-document-viewer__sidebar">
           {/* Right Panel - Conditional based on active toolbar panel */}
           <ToolbarPanels
             activePanel={activePanel}
@@ -570,8 +602,8 @@ export function ResourceViewerPage({
           >
             {/* Archived Status */}
             {annotateMode && resource.archived && (
-              <div className="bg-gray-100 dark:bg-gray-700 rounded-lg shadow-sm p-3 mb-3">
-                <div className="text-gray-600 dark:text-gray-400 text-sm font-medium text-center">
+              <div className="semiont-document-viewer__archived-status">
+                <div className="semiont-document-viewer__archived-text">
                   📦 Archived
                 </div>
               </div>

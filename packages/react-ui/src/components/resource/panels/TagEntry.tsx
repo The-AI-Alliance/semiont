@@ -51,28 +51,24 @@ export function TagEntry({
       onClick={onClick}
       onMouseEnter={() => onTagHover?.(tag.id)}
       onMouseLeave={() => onTagHover?.(null)}
-      className={`
-        group relative p-4 rounded-lg border-2 transition-all duration-200 cursor-pointer
-        ${isFocused
-          ? 'border-orange-500 bg-orange-50 dark:border-orange-500 dark:bg-orange-900/20 shadow-lg'
-          : 'border-gray-200 dark:border-gray-700 hover:border-orange-300 dark:hover:border-orange-600 hover:bg-orange-50/50 dark:hover:bg-orange-900/10'
-        }
-      `}
+      className="semiont-annotation-entry"
+      data-type="tag"
+      data-focused={isFocused ? 'true' : 'false'}
     >
       {/* Category badge */}
-      <div className="flex items-center gap-2 mb-2">
-        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gradient-to-r from-orange-200 to-amber-200 text-gray-900 dark:from-orange-900/50 dark:to-amber-900/50 dark:text-white">
+      <div className="semiont-annotation-entry__header">
+        <span className="semiont-tag-badge" data-variant="tag">
           {category}
         </span>
         {schema && (
-          <span className="text-xs text-gray-500 dark:text-gray-400">
+          <span className="semiont-annotation-entry__meta">
             {schema.name}
           </span>
         )}
       </div>
 
       {/* Selected text */}
-      <div className="text-sm text-gray-700 dark:text-gray-300 italic border-l-2 border-orange-300 dark:border-orange-600 pl-3">
+      <div className="semiont-annotation-entry__quote" data-type="tag">
         "{selectedText.substring(0, 150)}{selectedText.length > 150 ? '...' : ''}"
       </div>
     </div>

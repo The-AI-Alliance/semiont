@@ -254,6 +254,32 @@ export interface FrontendServiceConfig {
 }
 /**
  * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema
+ * via the `definition` "ProxyServiceConfig".
+ */
+export interface ProxyServiceConfig {
+  platform: ServicePlatformConfig;
+  type: 'envoy' | 'nginx' | 'haproxy';
+  port: number;
+  adminPort?: number;
+  backendPort?: number;
+  frontendPort?: number;
+  image?: string;
+  configPath?: string;
+  timeout?: number;
+  wait?: number;
+  logsEndpoint?: string;
+  tag?: string;
+  resources?: ResourceRequirements;
+  security?: SecurityRequirements;
+  environment?: {
+    [k: string]: string;
+  };
+  env?: {
+    [k: string]: string;
+  };
+}
+/**
+ * This interface was referenced by `HttpsSemiontOrgSchemasConfigJson`'s JSON-Schema
  * via the `definition` "DatabaseServiceConfig".
  */
 export interface DatabaseServiceConfig {
@@ -479,6 +505,7 @@ export interface ServicesConfig {
   filesystem?: FilesystemServiceConfig;
   inference?: InferenceServiceConfig;
   mcp?: McpServiceConfig;
+  proxy?: ProxyServiceConfig;
   [k: string]: unknown;
 }
 /**

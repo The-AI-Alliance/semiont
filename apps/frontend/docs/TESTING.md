@@ -1,12 +1,13 @@
 # Frontend Testing Guide
 
-**Last Updated**: 2026-01-05
+**Last Updated**: 2026-01-12
 
-Comprehensive guide to testing the Semiont frontend, including test philosophy, structure, and examples.
+Comprehensive guide to testing the Semiont frontend and how it integrates with the @semiont/react-ui component library testing.
 
 ## Table of Contents
 
 - [Overview](#overview)
+- [Testing Architecture](#testing-architecture)
 - [Running Tests](#running-tests)
 - [Test Stack](#test-stack)
 - [Test Structure](#test-structure)
@@ -17,14 +18,60 @@ Comprehensive guide to testing the Semiont frontend, including test philosophy, 
 
 ## Overview
 
-The frontend uses **Vitest** with React Testing Library for testing React components and custom hooks, along with **MSW v2** (Mock Service Worker) for API mocking.
+Testing in the Semiont frontend is split between two packages following the component library factorization:
+
+- **@semiont/react-ui**: Tests framework-agnostic components and business logic
+- **apps/frontend**: Tests Next.js specific integrations and page wrappers
 
 **Key Principles**:
 1. **Type Safety First** - TypeScript provides compile-time validation
-2. **Unit & Integration Tests** - Critical business logic thoroughly tested
+2. **Separation of Concerns** - Business logic tested in react-ui, integration tested in frontend
 3. **API Mocking** - MSW v2 provides realistic mocking without code changes
 4. **Performance as Testing** - Lighthouse CI and bundle analysis catch regressions
 5. **Error Boundaries** - Runtime error handling for edge cases
+
+## Testing Architecture
+
+```
+┌─────────────────────────────────────┐
+│         apps/frontend               │
+│         Test Coverage:              │
+│                                     │
+│  • Next.js page wrappers            │
+│  • API routes                       │
+│  • NextAuth integration             │
+│  • App-specific components          │
+│  • Integration flows                │
+└─────────────┬───────────────────────┘
+              │ uses
+              ▼
+┌─────────────────────────────────────┐
+│    packages/react-ui                │
+│         Test Coverage:              │
+│                                     │
+│  • Core UI components (1250+ tests) │
+│  • Business logic                   │
+│  • Custom hooks                     │
+│  • Utilities and helpers            │
+│  • Provider implementations         │
+└─────────────────────────────────────┘
+```
+
+### What Gets Tested Where
+
+**In @semiont/react-ui** (framework-agnostic):
+- Pure components with business logic
+- Custom hooks (useResources, useAnnotations, etc.)
+- Utility functions
+- Provider logic
+- UI components (Button, Card, ResourceViewer, etc.)
+
+**In apps/frontend** (Next.js specific):
+- Page wrappers that use Next.js hooks
+- API route handlers
+- NextAuth configuration
+- Integration flows across pages
+- App-specific components
 
 ## Running Tests
 
@@ -417,77 +464,100 @@ npm run perf
 
 ### Overview
 
-The codebase follows the **Humble Object Pattern** for React components, separating framework-dependent code from testable business logic.
+The codebase follows the **Humble Object Pattern** for React components, with business logic components now living in @semiont/react-ui and thin wrappers in the frontend.
 
-### Component Architecture
+### Component Architecture with @semiont/react-ui
 
-**Pure Component** (in `features/`):
+**Pure Component** (in `@semiont/react-ui`):
 - Contains business logic and UI structure
-- All data passed as props
-- No framework hooks (except React state hooks like `useState`, `useMemo`)
-- Easy to test without mocking
+- All data passed as props or via providers
+- No framework-specific hooks (Next.js)
+- Thoroughly tested in the react-ui package
 
-**Page Wrapper** (in `app/`):
+**Page Wrapper** (in `apps/frontend/app/`):
+- Implements provider interfaces for Next.js
 - Calls Next.js hooks (`useRouter`, `useSearchParams`, etc.)
-- Calls data-fetching hooks (`useQuery`, etc.)
-- Passes data to pure component as props
+- Wraps components from @semiont/react-ui
 - So thin it rarely needs testing
 
 ### Example Structure
 
 ```typescript
-// ✅ Pure Component (features/admin-security/components/AdminSecurityPage.tsx)
-export interface AdminSecurityPageProps {
-  providers: OAuthProvider[];
-  allowedDomains: string[];
-  isLoading: boolean;
-  theme: 'light' | 'dark';
-  onThemeChange: (theme: 'light' | 'dark') => void;
-  translations: {
-    title: string;
-    subtitle: string;
-    // ... more translation keys
-  };
-  Toolbar: React.ComponentType<ToolbarProps>;
-  ToolbarPanels: React.ComponentType<ToolbarPanelsProps>;
+// ✅ Pure Component (@semiont/react-ui/src/components/ResourceViewer.tsx)
+export interface ResourceViewerProps {
+  resourceId: string;
+  onEdit?: (resource: Resource) => void;
+  className?: string;
 }
 
-export function AdminSecurityPage(props: AdminSecurityPageProps) {
-  // Pure component - all data from props, no framework hooks
+export function ResourceViewer(props: ResourceViewerProps) {
+  // Uses injected providers for data
+  const resources = useResources(); // From ApiClientProvider
+  const { t } = useTranslations(); // From TranslationProvider
+
+  const { data, isLoading } = resources.get.useQuery(props.resourceId);
+
+  // Pure component logic - all framework-agnostic
   return (
-    <div>
-      <h1>{props.translations.title}</h1>
+    <div className={props.className}>
+      <h1>{t('resource.title')}</h1>
       {/* ... rest of UI */}
     </div>
   );
 }
 
-// ✅ Page Wrapper (app/[locale]/admin/security/page.tsx)
-export default function AdminSecurityWrapperPage() {
-  // Calls all the hooks
-  const { data: providers, isLoading } = useOAuthProvidersQuery();
-  const allowedDomains = useAllowedDomains();
-  const { theme, setTheme } = useTheme();
-  const t = useTranslations('AdminSecurity');
+// ✅ Page Wrapper (apps/frontend/app/[locale]/resources/[id]/page.tsx)
+import { ResourceViewer } from '@semiont/react-ui';
 
-  // Passes everything as props
-  return (
-    <AdminSecurityPage
-      providers={providers || []}
-      allowedDomains={allowedDomains}
-      isLoading={isLoading}
-      theme={theme}
-      onThemeChange={setTheme}
-      translations={{
-        title: t('title'),
-        subtitle: t('subtitle'),
-        // ... map all translation keys
-      }}
-      Toolbar={Toolbar}
-      ToolbarPanels={ToolbarPanels}
-    />
-  );
+export default function ResourcePage({ params }: { params: { id: string } }) {
+  // Thin wrapper - just passes params
+  return <ResourceViewer resourceId={params.id} />;
 }
+```
+
+### Testing with Factored Components
+
+**Test in @semiont/react-ui** (business logic):
+
+```typescript
+// packages/react-ui/src/components/__tests__/ResourceViewer.test.tsx
+import { render, screen } from '@testing-library/react';
+import { ResourceViewer } from '../ResourceViewer';
+import { TestProviders } from '../../test-utils';
+
+it('renders resource title', async () => {
+  const mockResource = {
+    id: '123',
+    title: 'Test Resource',
+    content: 'Test content'
+  };
+
+  render(
+    <TestProviders
+      apiClient={{ resources: { get: { useQuery: () => ({ data: mockResource }) } } }}
+      translations={{ 'resource.title': 'Resource Title' }}
+    >
+      <ResourceViewer resourceId="123" />
+    </TestProviders>
+  );
+
+  expect(await screen.findByText('Resource Title')).toBeInTheDocument();
+  expect(screen.getByText('Test Resource')).toBeInTheDocument();
+});
+```
+
+**Frontend wrapper tests** (minimal, if needed):
+
+```typescript
+// apps/frontend/app/[locale]/resources/[id]/__tests__/page.test.tsx
+// Usually not needed - wrapper is too thin
+// If testing is required, mock @semiont/react-ui components
+
+vi.mock('@semiont/react-ui', () => ({
+  ResourceViewer: ({ resourceId }: { resourceId: string }) => (
+    <div>ResourceViewer: {resourceId}</div>
+  )
+}));
 ```
 
 ### Testing Pattern
@@ -544,21 +614,48 @@ it('renders page', () => {
 
 ### Current Status
 
-**~25-30 feature tests already follow this pattern:**
-- Auth tests: `SignUpForm`, `AuthErrorDisplay`, `WelcomePage`
-- Admin tests: `AdminSecurityPage`, `AdminDevOpsPage`, `AdminUsersPage`
-- Moderation tests: `TagSchemasPage`, `EntityTagsPage`, `RecentDocumentsPage`
-- Resource tests: `ResourceDiscoveryPage`, `ResourceComposePage`, `ResourceViewerPage`
+**Component testing is now split across packages:**
+
+**@semiont/react-ui (1250+ tests):**
+- Core UI components: `Button`, `Card`, `Toast`, `StatusDisplay`
+- Resource components: `ResourceViewer`, `AnnotateView`, `BrowseView`
+- Auth components: `SignUpForm`, `AuthErrorDisplay`, `WelcomePage`
+- Annotation components: All annotation UI and popups
+- Hooks: `useResources`, `useAnnotations`, `useToast`, etc.
+- Utilities: Validation, query keys, annotation registry
+
+**apps/frontend:**
+- Page wrappers: Thin Next.js page components
+- Integration tests: Multi-step user flows
+- API routes: NextAuth, cookie consent, data export
+- App-specific components: Home, About, Privacy pages
 
 ### Reference Examples
 
-See these tests as examples:
-- `packages/react-ui/src/features/auth/__tests__/SignUpForm.test.tsx` (in react-ui library)
-- `packages/react-ui/src/features/auth/__tests__/AuthErrorDisplay.test.tsx` (in react-ui library)
-- `src/features/admin-security/__tests__/AdminSecurityPage.test.tsx`
-- `src/app/[locale]/auth/__tests__/signup-flow.integration.test.tsx`
+**Testing @semiont/react-ui components:**
+```bash
+# Run react-ui tests
+cd packages/react-ui
+npm test
 
-**Note**: Authentication components (SignUpForm, AuthErrorDisplay, WelcomePage) are tested in `packages/react-ui/src/features/auth/__tests__/` since they're framework-agnostic components. Frontend integration tests verify Next.js-specific wrappers and flows.
+# Example test locations
+packages/react-ui/src/components/__tests__/Button.test.tsx
+packages/react-ui/src/hooks/__tests__/useResources.test.tsx
+packages/react-ui/src/features/auth/__tests__/SignUpForm.test.tsx
+```
+
+**Testing frontend integration:**
+```bash
+# Run frontend tests
+cd apps/frontend
+npm test
+
+# Example test locations
+src/app/[locale]/auth/__tests__/signup-flow.integration.test.tsx
+src/app/api/auth/[...nextauth]/__tests__/route.test.ts
+```
+
+**Key Testing Pattern**: Business logic lives in @semiont/react-ui and is thoroughly tested there. The frontend only tests Next.js-specific integration and thin wrapper components.
 
 ## Future Testing Enhancements
 

@@ -1,0 +1,28 @@
+/* ============================================
+   Core UI Elements
+
+   This is the central import file for all core UI elements.
+   These are fundamental, reusable components that can be used
+   anywhere in the application.
+   ============================================ */
+
+/* Buttons - Primary interactive elements */
+@import './buttons.css';
+
+/* Toggle switches - On/off switches for settings */
+@import './toggles.css';
+
+/* Progress bars - Loading and completion indicators */
+@import './progress.css';
+
+/* Range sliders - Input controls for numeric ranges */
+@import './sliders.css';
+
+/* Badges - Status and role indicators (Admin, Active, etc.) */
+@import './badges.css';
+
+/* Tags - Content labels and metadata */
+@import './tags.css';
+
+/* Status indicators - Online/offline/busy dots */
+@import './indicators.css';

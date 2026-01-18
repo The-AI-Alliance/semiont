@@ -1,0 +1,221 @@
+/* ============================================
+   ResourceInfoPanel Component
+   Resource information display panel
+   ============================================ */
+
+.semiont-resource-info-panel {
+  background: var(--semiont-bg-primary);
+  border-radius: var(--semiont-radius-lg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: var(--semiont-panel-padding);
+}
+
+[data-theme="dark"] .semiont-resource-info-panel {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.semiont-resource-info-panel__section {
+  margin-bottom: var(--semiont-panel-gap);
+}
+
+.semiont-resource-info-panel__section:last-child {
+  margin-bottom: 0;
+}
+
+.semiont-resource-info-panel__heading {
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-semibold);
+  color: var(--semiont-text-secondary);
+  margin-bottom: var(--semiont-panel-gap-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+[data-theme="dark"] .semiont-resource-info-panel__heading {
+  color: var(--semiont-text-secondary);
+}
+
+.semiont-resource-info-panel__value {
+  font-size: var(--semiont-text-base);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-resource-info-panel__value {
+  color: var(--semiont-text-primary);
+}
+
+.semiont-resource-info-panel__value--empty {
+  color: var(--semiont-text-tertiary);
+  font-style: italic;
+}
+
+[data-theme="dark"] .semiont-resource-info-panel__value--empty {
+  color: var(--semiont-text-tertiary);
+}
+
+.semiont-resource-info-panel__metric {
+  display: flex;
+  align-items: center;
+  gap: var(--semiont-panel-gap-sm);
+  margin-bottom: var(--semiont-panel-gap-sm);
+}
+
+.semiont-resource-info-panel__metric:last-child {
+  margin-bottom: 0;
+}
+
+.semiont-resource-info-panel__metric-label {
+  color: var(--semiont-text-tertiary);
+  font-size: var(--semiont-text-sm);
+}
+
+[data-theme="dark"] .semiont-resource-info-panel__metric-label {
+  color: var(--semiont-text-tertiary);
+}
+
+.semiont-resource-info-panel__metric-value {
+  color: var(--semiont-text-primary);
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-medium);
+}
+
+[data-theme="dark"] .semiont-resource-info-panel__metric-value {
+  color: var(--semiont-text-primary);
+}
+
+.semiont-resource-info-panel__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--semiont-panel-gap-sm);
+}
+
+.semiont-resource-info-panel__tag {
+  /* Use global tag styles from tags.css */
+  padding: var(--semiont-panel-padding-xs) var(--semiont-panel-padding-sm);
+  background-color: var(--semiont-color-primary-100);
+  color: var(--semiont-color-primary-700);
+  border-radius: var(--semiont-radius-full);
+  font-size: var(--semiont-text-xs);
+  font-weight: var(--semiont-font-medium);
+}
+
+[data-theme="dark"] .semiont-resource-info-panel__tag {
+  background-color: rgba(59, 130, 246, 0.2);
+  color: var(--semiont-color-primary-300);
+}
+
+.semiont-resource-info-panel__actions {
+  display: flex;
+  gap: var(--semiont-panel-gap-sm);
+  padding-top: var(--semiont-panel-padding);
+  border-top: 1px solid var(--semiont-color-gray-200);
+}
+
+[data-theme="dark"] .semiont-resource-info-panel__actions {
+  border-top-color: var(--semiont-color-gray-700);
+}
+
+.semiont-resource-info-panel__field-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--semiont-panel-gap-sm);
+}
+
+.semiont-resource-info-panel__field-group > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.semiont-resource-info-panel__label {
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-tertiary);
+  margin-right: var(--semiont-panel-gap-sm);
+}
+
+[data-theme="dark"] .semiont-resource-info-panel__label {
+  color: var(--semiont-text-tertiary);
+}
+
+.semiont-resource-info-panel__tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--semiont-panel-gap-sm);
+}
+
+.semiont-resource-info-panel__action-section {
+  margin-top: var(--semiont-panel-gap);
+  padding-top: var(--semiont-panel-padding);
+  border-top: 1px solid var(--semiont-color-gray-200);
+}
+
+[data-theme="dark"] .semiont-resource-info-panel__action-section {
+  border-top-color: var(--semiont-color-gray-700);
+}
+
+.semiont-resource-info-panel__description {
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-text-tertiary);
+  margin-top: var(--semiont-panel-gap-sm);
+  line-height: 1.4;
+}
+
+[data-theme="dark"] .semiont-resource-info-panel__description {
+  color: var(--semiont-text-tertiary);
+}
+
+/* Resource Info Panel Buttons */
+.semiont-resource-button {
+  width: 100%;
+  padding: var(--semiont-panel-padding-sm) var(--semiont-panel-padding);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--semiont-panel-gap-sm);
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-medium);
+  border-radius: var(--semiont-radius-lg);
+  transition: all 0.3s ease;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.semiont-resource-button--secondary {
+  background-color: rgba(0, 0, 0, 0.1);
+  color: var(--semiont-text-primary);
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="dark"] .semiont-resource-button--secondary {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--semiont-text-primary);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.semiont-resource-button--secondary:hover {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="dark"] .semiont-resource-button--secondary:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.semiont-resource-button--archive {
+  background-color: var(--semiont-color-orange-100);
+  color: var(--semiont-color-orange-700);
+  border-color: var(--semiont-color-orange-300);
+}
+
+[data-theme="dark"] .semiont-resource-button--archive {
+  background-color: rgba(251, 146, 60, 0.2);
+  color: var(--semiont-color-orange-400);
+  border-color: rgba(251, 146, 60, 0.3);
+}
+
+.semiont-resource-button--archive:hover {
+  background-color: var(--semiont-color-orange-200);
+}
+
+[data-theme="dark"] .semiont-resource-button--archive:hover {
+  background-color: rgba(251, 146, 60, 0.3);
+}

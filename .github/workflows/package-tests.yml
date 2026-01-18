@@ -107,7 +107,13 @@ jobs:
       - name: Run tests
         run: |
           cd packages/${{ matrix.package }}
-          npm test
+          # Use split tests for react-ui to avoid memory issues
+          if [ "${{ matrix.package }}" = "react-ui" ]; then
+            echo "Running split tests for react-ui to avoid memory issues..."
+            npm run test:split
+          else
+            npm test
+          fi
         env:
           CI: true
 

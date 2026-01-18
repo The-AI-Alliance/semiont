@@ -225,7 +225,7 @@ export function BrowseView({
   switch (category) {
     case 'text':
       return (
-        <div className="relative h-full flex flex-col">
+        <div className="semiont-browse-view" data-mime-type="text">
           <AnnotateToolbar
             selectedMotivation={null}
             selectedClick={selectedClick}
@@ -236,7 +236,7 @@ export function BrowseView({
             annotateMode={annotateMode}
             onAnnotateModeToggle={onAnnotateModeToggle}
           />
-          <div ref={containerRef} className="flex-1 overflow-auto prose prose-lg dark:prose-invert max-w-none py-4 pr-4 pl-2">
+          <div ref={containerRef} className="semiont-browse-view__content">
             <ReactMarkdown
               remarkPlugins={[
                 remarkGfm,
@@ -254,7 +254,7 @@ export function BrowseView({
 
     case 'image':
       return (
-        <div className="relative h-full flex flex-col">
+        <div className="semiont-browse-view" data-mime-type="image">
           <AnnotateToolbar
             selectedMotivation={null}
             selectedClick={selectedClick}
@@ -265,7 +265,7 @@ export function BrowseView({
             annotateMode={annotateMode}
             onAnnotateModeToggle={onAnnotateModeToggle}
           />
-          <div ref={containerRef} className="flex-1 overflow-auto">
+          <div ref={containerRef} className="semiont-browse-view__content">
             <ImageViewer
               resourceUri={resourceUri as any}
               mimeType={mimeType}
@@ -277,15 +277,15 @@ export function BrowseView({
 
     case 'unsupported':
       return (
-        <div ref={containerRef} className="flex items-center justify-center h-full p-8">
-          <div className="text-center space-y-4">
-            <p className="text-gray-600 dark:text-gray-400">
+        <div ref={containerRef} className="semiont-browse-view semiont-browse-view--unsupported" data-mime-type="unsupported">
+          <div className="semiont-browse-view__empty">
+            <p className="semiont-browse-view__empty-message">
               Preview not available for {mimeType}
             </p>
             <a
               href={resourceUri}
               download
-              className="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              className="semiont-button semiont-button--primary"
             >
               Download File
             </a>

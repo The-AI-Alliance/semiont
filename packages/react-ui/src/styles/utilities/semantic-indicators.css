@@ -1,0 +1,321 @@
+/**
+ * Semantic Indicators for Accessibility
+ *
+ * This file ensures that information is not conveyed by color alone
+ * by adding secondary indicators like icons, text, and patterns.
+ * WCAG 2.1 Success Criterion 1.4.1: Use of Color
+ */
+
+/* ========================================
+   Icon Indicators via Pseudo-elements
+   ======================================== */
+
+/**
+ * Add icons to error states using pseudo-elements
+ * This ensures errors are identifiable without relying on color
+ */
+
+/* Error indicators */
+.semiont-error-message::before,
+.semiont-auth__error::before,
+.semiont-auth__error-text::before,
+.semiont-form__error::before,
+.semiont-panel-error::before,
+.semiont-view-error::before,
+.semiont-entity-tags__error::before,
+.semiont-document-viewer__error-title::before,
+.semiont-document-viewer__error-message::before,
+.semiont-document-viewer__error-button::before,
+.semiont-stat-card__icon--error::before,
+[data-state="error"]::before,
+[data-status="error"]::before {
+  content: "⚠ " !important; /* Warning triangle */
+  font-family: system-ui, -apple-system, sans-serif !important;
+  font-weight: bold !important;
+  margin-right: 0.25em !important;
+}
+
+/* Warning indicators */
+.semiont-button[data-variant="warning"]::before,
+.semiont-stat-card__icon--warning::before,
+.semiont-status--warning::before,
+[data-state="warning"]::before,
+[data-status="warning"]::before {
+  content: "⚡ " !important; /* Lightning bolt for warnings */
+  font-family: system-ui, -apple-system, sans-serif !important;
+  margin-right: 0.25em !important;
+}
+
+/* Success indicators */
+.semiont-button[data-variant="success"]::before,
+.semiont-stat-card__icon--success::before,
+.semiont-status--success::before,
+.semiont-success-message::before,
+[data-state="success"]::before,
+[data-status="success"]::before {
+  content: "✓ " !important; /* Checkmark */
+  font-family: system-ui, -apple-system, sans-serif !important;
+  margin-right: 0.25em !important;
+}
+
+/* Info indicators */
+.semiont-button[data-variant="info"]::before,
+.semiont-stat-card__icon--info::before,
+.semiont-status--info::before,
+.semiont-info-message::before,
+[data-state="info"]::before,
+[data-status="info"]::before {
+  content: "ℹ " !important; /* Info symbol */
+  font-family: system-ui, -apple-system, sans-serif !important;
+  margin-right: 0.25em !important;
+}
+
+/* Danger indicators */
+.semiont-button[data-variant="danger"]::before,
+.semiont-status--danger::before,
+[data-state="danger"]::before,
+[data-status="danger"]::before {
+  content: "✕ " !important; /* X mark */
+  font-family: system-ui, -apple-system, sans-serif !important;
+  margin-right: 0.25em !important;
+}
+
+/* ========================================
+   Text Labels for Status
+   ======================================== */
+
+/**
+ * Add screen reader text for status indicators
+ * This ensures status is announced even if visual indicators fail
+ */
+
+/* Add visually hidden but screen-reader accessible text */
+.semiont-error-message::after,
+.semiont-auth__error::after,
+.semiont-auth__error-text::after,
+.semiont-form__error::after,
+.semiont-panel-error::after,
+.semiont-view-error::after {
+  content: " (Error)" !important;
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.semiont-button[data-variant="warning"]::after,
+.semiont-stat-card__icon--warning::after,
+.semiont-status--warning::after {
+  content: " (Warning)" !important;
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.semiont-button[data-variant="success"]::after,
+.semiont-stat-card__icon--success::after,
+.semiont-status--success::after {
+  content: " (Success)" !important;
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* ========================================
+   Pattern Overlays for Additional Context
+   ======================================== */
+
+/**
+ * Add subtle patterns to differentiate states
+ * This helps users who cannot distinguish colors
+ */
+
+/* Error pattern - diagonal stripes */
+.semiont-error-message,
+.semiont-auth__error,
+.semiont-panel-error,
+.semiont-view-error {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 10px,
+    rgba(220, 38, 38, 0.03) 10px,
+    rgba(220, 38, 38, 0.03) 20px
+  ) !important;
+}
+
+/* Warning pattern - dots */
+.semiont-button[data-variant="warning"],
+.semiont-stat-card__icon--warning,
+.semiont-status--warning {
+  background-image: radial-gradient(
+    circle,
+    rgba(251, 191, 36, 0.05) 1px,
+    transparent 1px
+  ) !important;
+  background-size: 10px 10px !important;
+}
+
+/* ========================================
+   Border Styles for Additional Distinction
+   ======================================== */
+
+/* Add distinct border styles to status elements */
+.semiont-error-message,
+.semiont-auth__error,
+.semiont-form__error,
+.semiont-panel-error {
+  border-left: 4px solid var(--semiont-color-red-600) !important;
+  padding-left: 0.75rem !important;
+}
+
+.semiont-button[data-variant="warning"],
+.semiont-status--warning {
+  border: 2px dashed var(--semiont-color-amber-600) !important;
+}
+
+.semiont-button[data-variant="success"],
+.semiont-status--success {
+  border: 2px solid var(--semiont-color-green-600) !important;
+}
+
+/* ========================================
+   ARIA Labels for Complex States
+   ======================================== */
+
+/* Note: ARIA attributes should be set in HTML, not CSS.
+   These selectors identify elements that need proper ARIA labels. */
+
+/* ========================================
+   Hover State Differentiation
+   ======================================== */
+
+/* Ensure hover states don't rely only on color */
+.semiont-button[data-variant="warning"]:hover:not(:disabled):not([data-disabled="true"]) {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
+  text-decoration: underline !important;
+}
+
+.semiont-button[data-variant="warning"]:active:not(:disabled):not([data-disabled="true"]),
+.semiont-button[data-variant="warning"][data-active="true"]:not(:disabled):not([data-disabled="true"]) {
+  transform: translateY(0) !important;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* ========================================
+   Document Viewer Error States
+   ======================================== */
+
+.semiont-document-viewer__error-title {
+  font-weight: bold !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+}
+
+.semiont-document-viewer__error-message {
+  font-style: italic !important;
+  border-left: 4px solid currentColor !important;
+  padding-left: 1rem !important;
+}
+
+.semiont-document-viewer__error-button {
+  text-decoration: underline !important;
+  font-weight: 600 !important;
+}
+
+.semiont-document-viewer__error-button:focus-visible {
+  outline: 2px solid var(--semiont-color-red-600) !important;
+  outline-offset: 2px !important;
+  border-radius: 2px !important;
+}
+
+/* ========================================
+   Entity Tags Error States
+   ======================================== */
+
+.semiont-entity-tags__error {
+  text-decoration: wavy underline !important;
+  text-underline-offset: 2px !important;
+  font-weight: 600 !important;
+}
+
+/* ========================================
+   Stat Card Icon States
+   ======================================== */
+
+/* Make stat card icons more distinguishable */
+.semiont-stat-card__icon--error,
+.semiont-stat-card__icon--warning,
+.semiont-stat-card__icon--success,
+.semiont-stat-card__icon--info {
+  position: relative !important;
+  display: inline-flex !important;
+  align-items: center !important;
+}
+
+/* ========================================
+   Dark Theme Support
+   ======================================== */
+
+/* Ensure patterns work in dark theme */
+[data-theme="dark"] .semiont-error-message,
+[data-theme="dark"] .semiont-auth__error,
+[data-theme="dark"] .semiont-auth__error-text,
+[data-theme="dark"] .semiont-form__error,
+[data-theme="dark"] .semiont-panel-error,
+[data-theme="dark"] .semiont-view-error,
+[data-theme="dark"] .semiont-entity-tags__error,
+[data-theme="dark"] .semiont-document-viewer__error-title,
+[data-theme="dark"] .semiont-document-viewer__error-message,
+[data-theme="dark"] .semiont-document-viewer__error-button {
+  /* Icons and patterns still work in dark theme */
+  filter: none !important;
+}
+
+[data-theme="dark"] .semiont-button[data-variant="warning"],
+[data-theme="dark"] .semiont-button[data-variant="warning"]:hover:not(:disabled):not([data-disabled="true"]),
+[data-theme="dark"] .semiont-button[data-variant="warning"]:active:not(:disabled):not([data-disabled="true"]),
+[data-theme="dark"] .semiont-button[data-variant="warning"][data-active="true"]:not(:disabled):not([data-disabled="true"]) {
+  /* Maintain visual indicators in dark theme */
+  filter: none !important;
+}
+
+[data-theme="dark"] .semiont-stat-card__icon--warning,
+[data-theme="dark"] .semiont-stat-card__icon--error,
+[data-theme="dark"] .semiont-stat-card__icon--success,
+[data-theme="dark"] .semiont-stat-card__icon--info {
+  /* Icons remain visible */
+  opacity: 1 !important;
+}
+
+/* ========================================
+   Print Styles
+   ======================================== */
+
+@media print {
+  /* Ensure status is clear when printed */
+  .semiont-error-message::before,
+  .semiont-button[data-variant="warning"]::before,
+  .semiont-status--success::before {
+    content: attr(data-status-text, "•") " " !important;
+    font-weight: bold !important;
+  }
+}

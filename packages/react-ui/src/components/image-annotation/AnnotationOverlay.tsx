@@ -55,7 +55,7 @@ export function AnnotationOverlay({
 
   return (
     <svg
-      className="absolute top-0 left-0 w-full h-full"
+      className="semiont-annotation-overlay"
       style={{ width: displayWidth, height: displayHeight }}
     >
       {annotations.map(annotation => {
@@ -95,7 +95,9 @@ export function AnnotationOverlay({
                   stroke={colors.stroke}
                   strokeWidth={isHovered || isSelected ? 3 : 2}
                   opacity={isHovered || isSelected ? 1 : 0.7}
-                  className="pointer-events-auto cursor-pointer transition-all"
+                  className="semiont-annotation-overlay__shape"
+                  data-hovered={isHovered ? 'true' : 'false'}
+                  data-selected={isSelected ? 'true' : 'false'}
                   onClick={() => onAnnotationClick?.(annotation)}
                   onMouseEnter={() => onAnnotationHover?.(annotation.id)}
                   onMouseLeave={() => onAnnotationHover?.(null)}
@@ -105,7 +107,7 @@ export function AnnotationOverlay({
                     x={indicatorX}
                     y={indicatorY}
                     fontSize="16"
-                    className="pointer-events-auto cursor-pointer select-none"
+                    className="semiont-annotation-overlay__status-indicator"
                     style={{ userSelect: 'none' }}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -139,7 +141,9 @@ export function AnnotationOverlay({
                   stroke={colors.stroke}
                   strokeWidth={isHovered || isSelected ? 3 : 2}
                   opacity={isHovered || isSelected ? 1 : 0.7}
-                  className="pointer-events-auto cursor-pointer transition-all"
+                  className="semiont-annotation-overlay__shape"
+                  data-hovered={isHovered ? 'true' : 'false'}
+                  data-selected={isSelected ? 'true' : 'false'}
                   onClick={() => onAnnotationClick?.(annotation)}
                   onMouseEnter={() => onAnnotationHover?.(annotation.id)}
                   onMouseLeave={() => onAnnotationHover?.(null)}
@@ -149,7 +153,7 @@ export function AnnotationOverlay({
                     x={indicatorX}
                     y={indicatorY}
                     fontSize="16"
-                    className="pointer-events-auto cursor-pointer select-none"
+                    className="semiont-annotation-overlay__status-indicator"
                     style={{ userSelect: 'none' }}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -196,7 +200,9 @@ export function AnnotationOverlay({
                   stroke={colors.stroke}
                   strokeWidth={isHovered || isSelected ? 3 : 2}
                   opacity={isHovered || isSelected ? 1 : 0.7}
-                  className="pointer-events-auto cursor-pointer transition-all"
+                  className="semiont-annotation-overlay__shape"
+                  data-hovered={isHovered ? 'true' : 'false'}
+                  data-selected={isSelected ? 'true' : 'false'}
                   onClick={() => onAnnotationClick?.(annotation)}
                   onMouseEnter={() => onAnnotationHover?.(annotation.id)}
                   onMouseLeave={() => onAnnotationHover?.(null)}
@@ -206,7 +212,7 @@ export function AnnotationOverlay({
                     x={indicatorX}
                     y={indicatorY}
                     fontSize="16"
-                    className="pointer-events-auto cursor-pointer select-none"
+                    className="semiont-annotation-overlay__status-indicator"
                     style={{ userSelect: 'none' }}
                     onClick={(e) => {
                       e.stopPropagation();

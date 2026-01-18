@@ -1,0 +1,354 @@
+/**
+ * Semiont CSS Variables
+ *
+ * Design tokens exposed as CSS custom properties.
+ * These variables provide the foundation for all component styling.
+ */
+
+:root {
+  /* Primary Colors */
+  --semiont-color-primary-50: #eff6ff;
+  --semiont-color-primary-100: #dbeafe;
+  --semiont-color-primary-200: #bfdbfe;
+  --semiont-color-primary-300: #93c5fd;
+  --semiont-color-primary-400: #60a5fa;
+  --semiont-color-primary-500: #0080ff;
+  --semiont-color-primary-600: #0066cc;
+  --semiont-color-primary-700: #0052a3;
+  --semiont-color-primary-800: #1e40af;
+  --semiont-color-primary-900: #1e3a8a;
+
+  /* Blue Colors (Tailwind palette for toolbar) */
+  --semiont-color-blue-50: #eff6ff;
+  --semiont-color-blue-100: #dbeafe;
+  --semiont-color-blue-200: #bfdbfe;
+  --semiont-color-blue-300: #93c5fd;
+  --semiont-color-blue-400: #60a5fa;
+  --semiont-color-blue-500: #3b82f6;
+  --semiont-color-blue-600: #2563eb;
+  --semiont-color-blue-700: #1d4ed8;
+  --semiont-color-blue-800: #1e40af;
+  --semiont-color-blue-900: #1e3a8a;
+
+  /* Cyan Colors (Tailwind palette for gradient accents) */
+  --semiont-color-cyan-50: #ecfeff;
+  --semiont-color-cyan-100: #cffafe;
+  --semiont-color-cyan-200: #a5f3fc;
+  --semiont-color-cyan-300: #67e8f9;
+  --semiont-color-cyan-400: #22d3ee;
+  --semiont-color-cyan-500: #06b6d4;
+  --semiont-color-cyan-600: #0891b2;
+  --semiont-color-cyan-700: #0e7490;
+  --semiont-color-cyan-800: #155e75;
+  --semiont-color-cyan-900: #164e63;
+
+  /* Gray Colors (Tailwind palette for consistency) */
+  --semiont-color-gray-50: #f9fafb;
+  --semiont-color-gray-100: #f3f4f6;
+  --semiont-color-gray-200: #e5e7eb;
+  --semiont-color-gray-300: #d1d5db;
+  --semiont-color-gray-400: #9ca3af;
+  --semiont-color-gray-500: #6b7280;
+  --semiont-color-gray-600: #4b5563;
+  --semiont-color-gray-700: #374151;
+  --semiont-color-gray-800: #1f2937;
+  --semiont-color-gray-900: #111827;
+
+  /* Purple/Violet Colors (Tailwind palette for schemas) */
+  --semiont-color-purple-50: #faf5ff;
+  --semiont-color-purple-100: #f3e8ff;
+  --semiont-color-purple-200: #e9d5ff;
+  --semiont-color-purple-300: #d8b4fe;
+  --semiont-color-purple-400: #c084fc;
+  --semiont-color-purple-500: #a855f7;
+  --semiont-color-purple-600: #9333ea;
+  --semiont-color-purple-700: #7e22ce;
+  --semiont-color-purple-800: #6b21a8;
+  --semiont-color-purple-900: #581c87;
+
+  /* Green Colors (Tailwind palette for success states) */
+  --semiont-color-green-50: #f0fdf4;
+  --semiont-color-green-100: #dcfce7;
+  --semiont-color-green-200: #bbf7d0;
+  --semiont-color-green-300: #86efac;
+  --semiont-color-green-400: #4ade80;
+  --semiont-color-green-500: #22c55e;
+  --semiont-color-green-600: #16a34a;
+  --semiont-color-green-700: #15803d;
+  --semiont-color-green-800: #166534;
+  --semiont-color-green-900: #14532d;
+
+  /* Orange/Amber Colors (Tailwind palette for warnings) */
+  --semiont-color-orange-50: #fff7ed;
+  --semiont-color-orange-100: #ffedd5;
+  --semiont-color-orange-200: #fed7aa;
+  --semiont-color-orange-300: #fdba74;
+  --semiont-color-orange-400: #fb923c;
+  --semiont-color-orange-500: #f97316;
+  --semiont-color-orange-600: #ea580c;
+  --semiont-color-orange-700: #c2410c;
+  --semiont-color-orange-800: #9a3412;
+  --semiont-color-orange-900: #7c2d12;
+
+  /* Yellow Colors (Tailwind palette for highlighting) */
+  --semiont-color-yellow-50: #fefce8;
+  --semiont-color-yellow-100: #fef9c3;
+  --semiont-color-yellow-200: #fef08a;
+  --semiont-color-yellow-300: #fde047;
+  --semiont-color-yellow-400: #facc15;
+  --semiont-color-yellow-500: #eab308;
+  --semiont-color-yellow-600: #ca8a04;
+  --semiont-color-yellow-700: #a16207;
+  --semiont-color-yellow-800: #854d0e;
+  --semiont-color-yellow-900: #713f12;
+
+  /* Amber Colors (Alternative warning palette) */
+  --semiont-color-amber-50: #fffbeb;
+  --semiont-color-amber-100: #fef3c7;
+  --semiont-color-amber-200: #fde68a;
+  --semiont-color-amber-300: #fcd34d;
+  --semiont-color-amber-400: #fbbf24;
+  --semiont-color-amber-500: #f59e0b;
+  --semiont-color-amber-600: #d97706;
+  --semiont-color-amber-700: #b45309;
+  --semiont-color-amber-800: #92400e;
+  --semiont-color-amber-900: #78350f;
+
+  /* Red Colors (Tailwind palette for errors) */
+  --semiont-color-red-50: #fef2f2;
+  --semiont-color-red-100: #fee2e2;
+  --semiont-color-red-200: #fecaca;
+  --semiont-color-red-300: #fca5a5;
+  --semiont-color-red-400: #f87171;
+  --semiont-color-red-500: #ef4444;
+  --semiont-color-red-600: #dc2626;
+  --semiont-color-red-700: #b91c1c;
+  --semiont-color-red-800: #991b1b;
+  --semiont-color-red-900: #7f1d1d;
+
+  /* Secondary Colors */
+  --semiont-color-secondary-50: #f0fffe;
+  --semiont-color-secondary-100: #e0fffd;
+  --semiont-color-secondary-200: #b3fffa;
+  --semiont-color-secondary-300: #66fff6;
+  --semiont-color-secondary-400: #1afff1;
+  --semiont-color-secondary-500: #00ffff;
+  --semiont-color-secondary-600: #00cccc;
+  --semiont-color-secondary-700: #00a3a3;
+  --semiont-color-secondary-800: #007a7a;
+  --semiont-color-secondary-900: #005252;
+
+  /* Semantic Colors */
+  --semiont-color-error: #ef4444;
+  --semiont-color-error-light: #fca5a5;
+  --semiont-color-error-dark: #b91c1c;
+  --semiont-color-warning: #f59e0b;
+  --semiont-color-warning-light: #fcd34d;
+  --semiont-color-warning-dark: #d97706;
+  --semiont-color-success: #10b981;
+  --semiont-color-success-light: #6ee7b7;
+  --semiont-color-success-dark: #047857;
+  --semiont-color-info: #3b82f6;
+  --semiont-color-info-light: #93c5fd;
+  --semiont-color-info-dark: #1d4ed8;
+
+  /* Base Colors */
+  --semiont-color-white: #ffffff;
+  --semiont-color-black: #000000;
+
+  /* Neutral Colors */
+  --semiont-color-neutral-0: #ffffff;
+  --semiont-color-neutral-50: #f9fafb;
+  --semiont-color-neutral-100: #f3f4f6;
+  --semiont-color-neutral-200: #e5e7eb;
+  --semiont-color-neutral-300: #d1d5db;
+  --semiont-color-neutral-400: #9ca3af;
+  --semiont-color-neutral-500: #6b7280;
+  --semiont-color-neutral-600: #4b5563;
+  --semiont-color-neutral-700: #374151;
+  --semiont-color-neutral-800: #1f2937;
+  --semiont-color-neutral-900: #111827;
+  --semiont-color-neutral-950: #030712;
+  --semiont-color-neutral-1000: #000000;
+
+  /* Background Colors */
+  --semiont-bg-primary: var(--semiont-color-neutral-0);
+  --semiont-bg-secondary: var(--semiont-color-neutral-50);
+  --semiont-bg-tertiary: var(--semiont-color-neutral-100);
+  --semiont-bg-inverse: var(--semiont-color-neutral-900);
+
+  /* Text Colors */
+  --semiont-text-primary: var(--semiont-color-neutral-900);
+  --semiont-text-secondary: var(--semiont-color-neutral-600);
+  --semiont-text-tertiary: var(--semiont-color-neutral-500);
+  --semiont-text-disabled: var(--semiont-color-neutral-400);
+  --semiont-text-inverse: var(--semiont-color-neutral-0);
+
+  /* Spacing */
+  --semiont-spacing-0: 0;
+  --semiont-spacing-xs: 0.25rem;
+  --semiont-spacing-sm: 0.5rem;
+  --semiont-spacing-md: 1rem;
+  --semiont-spacing-lg: 1.5rem;
+  --semiont-spacing-xl: 2rem;
+  --semiont-spacing-2xl: 2.5rem;
+  --semiont-spacing-3xl: 3rem;
+  --semiont-spacing-4xl: 4rem;
+  --semiont-spacing-5xl: 5rem;
+
+  /* Font Families */
+  --semiont-font-sans: inter, system-ui, -apple-system, blinkmacsystemfont, "Segoe UI", roboto, "Helvetica Neue", arial, sans-serif;
+  --semiont-font-mono: jetbrains mono, "SF Mono", monaco, consolas, "Liberation Mono", "Courier New", monospace;
+
+  /* Font Sizes */
+  --semiont-text-xs: 0.75rem;
+  --semiont-text-sm: 0.875rem;
+  --semiont-text-base: 1rem;
+  --semiont-text-lg: 1.125rem;
+  --semiont-text-xl: 1.25rem;
+  --semiont-text-2xl: 1.5rem;
+  --semiont-text-3xl: 1.875rem;
+  --semiont-text-4xl: 2.25rem;
+  --semiont-text-5xl: 3rem;
+
+  /* Font Weights */
+  --semiont-font-thin: 100;
+  --semiont-font-light: 300;
+  --semiont-font-normal: 400;
+  --semiont-font-medium: 500;
+  --semiont-font-semibold: 600;
+  --semiont-font-bold: 700;
+  --semiont-font-black: 900;
+
+  /* Line Heights */
+  --semiont-leading-none: 1;
+  --semiont-leading-tight: 1.25;
+  --semiont-leading-snug: 1.375;
+  --semiont-leading-normal: 1.5;
+  --semiont-leading-relaxed: 1.625;
+  --semiont-leading-loose: 2;
+
+  /* Border Radius */
+  --semiont-radius-none: 0;
+  --semiont-radius-sm: 0.125rem;
+  --semiont-radius-base: 0.25rem;
+  --semiont-radius-md: 0.375rem;
+  --semiont-radius-lg: 0.5rem;
+  --semiont-radius-xl: 0.75rem;
+  --semiont-radius-2xl: 1rem;
+  --semiont-radius-3xl: 1.5rem;
+  --semiont-radius-full: 9999px;
+
+  /* Shadows */
+  --semiont-shadow-none: none;
+  --semiont-shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --semiont-shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --semiont-shadow-base: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --semiont-shadow-md: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --semiont-shadow-lg: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --semiont-shadow-xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+  --semiont-shadow-inner: inset 0 2px 4px 0 rgb(0 0 0 / 0.05);
+
+  /* Transition Durations */
+  --semiont-duration-fast: 150ms;
+  --semiont-duration-base: 250ms;
+  --semiont-duration-slow: 350ms;
+  --semiont-duration-slower: 500ms;
+
+  /* Transition Timing Functions */
+  --semiont-ease-linear: linear;
+  --semiont-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --semiont-ease-in: cubic-bezier(0.4, 0, 1, 1);
+
+  /* Button Gradient Colors */
+  --semiont-gradient-cyan-20: rgba(6, 182, 212, 0.2);  /* cyan-500 at 20% */
+  --semiont-gradient-cyan-30: rgba(6, 182, 212, 0.3);  /* cyan-500 at 30% */
+  --semiont-gradient-blue-20: rgba(59, 130, 246, 0.2); /* blue-500 at 20% */
+  --semiont-gradient-cyan-dark-20: rgba(8, 145, 178, 0.2); /* cyan-600 at 20% */
+  --semiont-gradient-blue-dark-20: rgba(37, 99, 235, 0.2); /* blue-600 at 20% */
+
+  /* Button gradients */
+  --semiont-gradient-primary: linear-gradient(to right, var(--semiont-gradient-cyan-20), var(--semiont-gradient-blue-20));
+  --semiont-gradient-primary-dark: linear-gradient(to right, var(--semiont-gradient-cyan-dark-20), var(--semiont-gradient-blue-dark-20));
+  --semiont-gradient-primary-hover: linear-gradient(to right, var(--semiont-color-cyan-600), var(--semiont-color-blue-600));
+  --semiont-gradient-primary-hover-dark: linear-gradient(to right, var(--semiont-color-cyan-500), var(--semiont-color-blue-500));
+  --semiont-ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --semiont-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Z-Index Scale */
+  --semiont-z-0: 0;
+  --semiont-z-10: 10;
+  --semiont-z-20: 20;
+  --semiont-z-30: 30;
+  --semiont-z-40: 40;
+  --semiont-z-50: 50;
+  --semiont-z-60: 60;
+  --semiont-z-70: 70;
+  --semiont-z-80: 80;
+  --semiont-z-90: 90;
+  --semiont-z-100: 100;
+
+  /* Panel Component Tokens */
+  /* These define the standard sizing for all panels */
+  --semiont-panel-padding: 1rem;
+  --semiont-panel-padding-sm: 0.5rem;
+  --semiont-panel-padding-md: 0.75rem;
+  --semiont-panel-padding-xs: 0.25rem;
+  --semiont-panel-gap: 1rem;
+  --semiont-panel-gap-sm: 0.5rem;
+  --semiont-panel-gap-md: 0.75rem;
+  --semiont-panel-header-margin-bottom: 0.75rem;
+  --semiont-panel-title-size: var(--semiont-text-lg);
+  --semiont-panel-title-weight: var(--semiont-font-semibold);
+  --semiont-panel-section-gap: 1.5rem;
+  --semiont-panel-field-gap: 0.5rem;
+  --semiont-panel-border-radius: var(--semiont-radius-lg);
+  --semiont-panel-icon-size: 1.125rem;
+  --semiont-panel-icon-size-sm: 1rem;
+  --semiont-panel-icon-size-lg: 1.5rem;
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Override for dark mode */
+    --semiont-bg-primary: var(--semiont-color-neutral-900);
+    --semiont-bg-secondary: var(--semiont-color-neutral-800);
+    --semiont-bg-tertiary: var(--semiont-color-neutral-700);
+    --semiont-bg-inverse: var(--semiont-color-neutral-0);
+
+    --semiont-text-primary: var(--semiont-color-neutral-50);
+    --semiont-text-secondary: var(--semiont-color-neutral-300);
+    --semiont-text-tertiary: var(--semiont-color-neutral-400);
+    --semiont-text-disabled: var(--semiont-color-neutral-600);
+    --semiont-text-inverse: var(--semiont-color-neutral-900);
+  }
+}
+
+/* Explicit light mode */
+[data-theme="light"] {
+  --semiont-bg-primary: var(--semiont-color-neutral-0);
+  --semiont-bg-secondary: var(--semiont-color-neutral-50);
+  --semiont-bg-tertiary: var(--semiont-color-neutral-100);
+  --semiont-bg-inverse: var(--semiont-color-neutral-900);
+
+  --semiont-text-primary: var(--semiont-color-neutral-900);
+  --semiont-text-secondary: var(--semiont-color-neutral-600);
+  --semiont-text-tertiary: var(--semiont-color-neutral-500);
+  --semiont-text-disabled: var(--semiont-color-neutral-400);
+  --semiont-text-inverse: var(--semiont-color-neutral-0);
+}
+
+/* Allow manual dark mode override */
+[data-theme="dark"] {
+  --semiont-bg-primary: var(--semiont-color-neutral-900);
+  --semiont-bg-secondary: var(--semiont-color-neutral-800);
+  --semiont-bg-tertiary: var(--semiont-color-neutral-700);
+  --semiont-bg-inverse: var(--semiont-color-neutral-0);
+
+  --semiont-text-primary: var(--semiont-color-neutral-50);
+  --semiont-text-secondary: var(--semiont-color-neutral-300);
+  --semiont-text-tertiary: var(--semiont-color-neutral-400);
+  --semiont-text-disabled: var(--semiont-color-neutral-600);
+  --semiont-text-inverse: var(--semiont-color-neutral-900);
+}

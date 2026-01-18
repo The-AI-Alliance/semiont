@@ -1,0 +1,22 @@
+/* ============================================
+   JsonLdPanel Component
+   JSON-LD editor panel styles
+   ============================================ */
+
+.semiont-jsonld-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.semiont-jsonld-panel__editor {
+  flex: 1;
+  overflow: hidden;
+  background: var(--semiont-bg-secondary);
+  border-radius: var(--semiont-radius-md);
+  padding: var(--semiont-panel-padding);
+}
+
+[data-theme="dark"] .semiont-jsonld-panel__editor {
+  background: var(--semiont-bg-tertiary);
+}

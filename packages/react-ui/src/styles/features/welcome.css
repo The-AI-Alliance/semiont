@@ -1,0 +1,81 @@
+/**
+ * Welcome Page Styles
+ *
+ * Styles for the welcome and terms acceptance page
+ */
+
+/* Prose content styling */
+.semiont-welcome-page__prose {
+  max-width: none;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--semiont-color-gray-700);
+}
+
+[data-theme="dark"] .semiont-welcome-page__prose {
+  color: var(--semiont-color-gray-300);
+}
+
+.semiont-welcome-page__prose h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.semiont-welcome-page__prose h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.semiont-welcome-page__prose p {
+  margin-bottom: 0.75rem;
+}
+
+.semiont-welcome-page__prose ul {
+  list-style-type: disc;
+  margin-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.semiont-welcome-page__prose li {
+  margin-bottom: 0.25rem;
+}
+
+/* Warning Text */
+.semiont-welcome-page__warning {
+  margin-top: 1rem;
+  font-weight: 500;
+}
+
+/* Link styles */
+.semiont-link {
+  color: var(--semiont-color-blue-600);
+  text-decoration: none;
+}
+
+.semiont-link:hover {
+  text-decoration: underline;
+}
+
+/* Focus styles for keyboard navigation */
+.semiont-link:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Remove focus for mouse users */
+.semiont-link:focus:not(:focus-visible) {
+  outline: none;
+}
+
+[data-theme="dark"] .semiont-link {
+  color: var(--semiont-color-blue-400);
+}
+
+[data-theme="dark"] .semiont-link:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}

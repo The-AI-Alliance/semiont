@@ -19,13 +19,13 @@ describe('ResourceLoadingState', () => {
     render(<ResourceLoadingState />);
 
     const container = screen.getByText('Loading resource...').parentElement;
-    expect(container).toHaveClass('flex', 'items-center', 'justify-center', 'py-20');
+    expect(container).toHaveClass('semiont-loading-state');
   });
 
   it('renders text with correct styling', () => {
     render(<ResourceLoadingState />);
 
     const text = screen.getByText('Loading resource...');
-    expect(text).toHaveClass('text-gray-600', 'dark:text-gray-300');
+    expect(text).toHaveClass('semiont-loading-message');
   });
 });

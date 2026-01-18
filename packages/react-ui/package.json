@@ -13,10 +13,25 @@
       "types": "./dist/test-utils.d.mts",
       "import": "./dist/test-utils.mjs"
     },
+    "./styles": "./src/styles/index.css",
+    "./styles/index.css": "./src/styles/index.css",
+    "./styles/variables.css": "./src/styles/variables.css",
+    "./tailwind": "./src/integrations/tailwind-plugin.js",
+    "./integrations/css-modules": {
+      "types": "./dist/integrations/css-modules-helper.d.mts",
+      "import": "./dist/integrations/css-modules-helper.mjs"
+    },
+    "./integrations/styled-components": {
+      "types": "./dist/integrations/styled-components-theme.d.mts",
+      "import": "./dist/integrations/styled-components-theme.mjs"
+    },
     "./translations/*": "./translations/*.json"
   },
   "files": [
     "dist",
+    "src/styles",
+    "src/integrations",
+    "src/examples",
     "translations",
     "public",
     "README.md"
@@ -25,11 +40,15 @@
     "build": "npm run typecheck && tsup",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
-    "test": "vitest run",
+    "test": "node --max-old-space-size=4096 node_modules/.bin/vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "test:a11y": "vitest run -t \"Accessibility\"",
-    "test:a11y:watch": "vitest -t \"Accessibility\""
+    "test:coverage": "node --max-old-space-size=4096 node_modules/.bin/vitest run --coverage",
+    "test:a11y": "node --max-old-space-size=4096 node_modules/.bin/vitest run -t \"Accessibility\"",
+    "test:a11y:watch": "vitest -t \"Accessibility\"",
+    "test:components": "node --max-old-space-size=4096 node_modules/.bin/vitest run src/components",
+    "test:features": "node --max-old-space-size=4096 node_modules/.bin/vitest run src/features",
+    "test:other": "node --max-old-space-size=4096 node_modules/.bin/vitest run src/contexts src/hooks src/lib src/assets",
+    "test:split": "npm run test:components && npm run test:features && npm run test:other"
   },
   "peerDependencies": {
     "@semiont/api-client": "*",

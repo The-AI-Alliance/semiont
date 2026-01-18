@@ -43,11 +43,11 @@ export function HighlightPanel({
     useAnnotationPanel(annotations, hoveredAnnotationId);
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-gray-900">
+    <div className="semiont-panel">
       <PanelHeader annotationType="highlight" count={annotations.length} title={t('title')} />
 
       {/* Scrollable content area */}
-      <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-6">
+      <div ref={containerRef} className="semiont-panel__content">
         {/* Detection Section - only in Annotate mode and for text resources */}
         {annotateMode && onDetect && (
           <DetectSection
@@ -59,9 +59,9 @@ export function HighlightPanel({
         )}
 
         {/* Highlights list */}
-        <div className="space-y-4">
+        <div className="semiont-panel__list">
           {sortedAnnotations.length === 0 ? (
-            <p className="text-gray-500 dark:text-gray-400 text-sm">
+            <p className="semiont-panel__empty">
               {t('noHighlights')}
             </p>
           ) : (

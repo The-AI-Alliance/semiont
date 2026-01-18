@@ -18,16 +18,14 @@ export function useTheme() {
     const root = window.document.documentElement;
 
     const applyTheme = () => {
-      // Remove existing theme classes
-      root.classList.remove('light', 'dark');
-
+      // Apply theme via data attribute
       if (theme === 'system') {
         const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches
           ? 'dark'
           : 'light';
-        root.classList.add(systemTheme);
+        root.setAttribute('data-theme', systemTheme);
       } else {
-        root.classList.add(theme);
+        root.setAttribute('data-theme', theme);
       }
     };
 

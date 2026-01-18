@@ -9,9 +9,9 @@ interface SelectedTextDisplayProps {
 
 export function SelectedTextDisplay({ exact }: SelectedTextDisplayProps) {
   return (
-    <div className="mb-4 p-3 bg-gray-100 dark:bg-gray-700 rounded-lg">
-      <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Selected text:</p>
-      <p className="text-sm font-medium text-gray-900 dark:text-white">
+    <div className="semiont-selected-text-display">
+      <p className="semiont-selected-text-display__label">Selected text:</p>
+      <p className="semiont-selected-text-display__content">
         "{exact}"
       </p>
     </div>
@@ -26,11 +26,11 @@ export function EntityTypeBadges({ entityTypes }: EntityTypeBadgesProps) {
   if (!entityTypes) return null;
 
   return (
-    <div className="mb-3">
+    <div className="semiont-entity-type-badges">
       {entityTypes.split(',').map((type, index) => (
         <span
           key={index}
-          className="inline-block px-2 py-1 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 mr-1 mb-1"
+          className="semiont-entity-type-badges__badge"
         >
           {type.trim()}
         </span>
@@ -47,18 +47,18 @@ interface PopupHeaderProps {
 
 export function PopupHeader({ title, selectedText, onClose }: PopupHeaderProps) {
   return (
-    <div className="flex items-center justify-between mb-3">
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+    <div className="semiont-popup-header">
+      <h3 className="semiont-popup-header__title">
         {title}
         {selectedText && (
-          <span className="font-normal text-base ml-1">
+          <span className="semiont-popup-header__selected-text">
             &ldquo;{selectedText}&rdquo;
           </span>
         )}
       </h3>
       <button
         onClick={onClose}
-        className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300"
+        className="semiont-popup-header__close-button"
       >
         ✕
       </button>
@@ -86,7 +86,7 @@ export function PopupContainer({ children, position, onClose, isOpen, wide = fal
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-[999]" onClose={onClose}>
+      <Dialog as="div" className="semiont-popup-overlay" onClose={onClose}>
         {/* Backdrop */}
         <TransitionChild
           as={Fragment}
@@ -97,11 +97,11 @@ export function PopupContainer({ children, position, onClose, isOpen, wide = fal
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-black/20 backdrop-blur-sm" />
+          <div className="semiont-popup-backdrop" />
         </TransitionChild>
 
         {/* Popup positioned at cursor */}
-        <div className="fixed inset-0 pointer-events-none">
+        <div className="semiont-popup-container">
           <TransitionChild
             as={Fragment}
             enter="ease-out duration-200"
@@ -112,11 +112,10 @@ export function PopupContainer({ children, position, onClose, isOpen, wide = fal
             leaveTo="opacity-0 scale-95"
           >
             <DialogPanel
-              className={`pointer-events-auto bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-4 overflow-y-auto ${
-                wide ? 'w-[800px] max-h-[700px]' : 'w-96 max-h-[500px]'
-              }`}
+              className="semiont-popup-panel"
               style={popupStyle}
               data-annotation-ui
+              data-wide={wide ? 'true' : 'false'}
             >
               {children}
             </DialogPanel>
