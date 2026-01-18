@@ -1,0 +1,275 @@
+/* ============================================
+   Settings Panel Component
+   ============================================ */
+
+.semiont-settings-panel {
+  padding: 1rem;
+  background: var(--semiont-bg-primary);
+  border-radius: var(--semiont-radius-lg);
+}
+
+.semiont-settings-panel__title {
+  margin: 0 0 1.5rem;
+  font-size: var(--semiont-text-lg);
+  font-weight: 600;
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-settings-panel__title {
+  color: var(--semiont-text-primary);
+}
+
+.semiont-settings-panel__content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Field Container */
+.semiont-settings-panel__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Labels */
+.semiont-settings-panel__label {
+  display: block;
+  font-size: var(--semiont-text-sm);
+  font-weight: 500;
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-settings-panel__label {
+  color: var(--semiont-text-primary);
+}
+
+.semiont-settings-panel__label-text {
+  font-size: var(--semiont-text-sm);
+  font-weight: 500;
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-settings-panel__label-text {
+  color: var(--semiont-text-primary);
+}
+
+/* Toggle Switch Container */
+.semiont-settings-panel__toggle-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+/* Toggle Switch */
+.semiont-settings-panel__toggle {
+  position: relative;
+  width: 2.75rem;
+  height: 1.5rem;
+  background: var(--semiont-color-gray-300);
+  border: none;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: background-color var(--semiont-duration-base);
+}
+
+[data-theme="dark"] .semiont-settings-panel__toggle {
+  background: var(--semiont-color-gray-700);
+}
+
+.semiont-settings-panel__toggle--active {
+  background: var(--semiont-color-primary-600);
+}
+
+[data-theme="dark"] .semiont-settings-panel__toggle--active {
+  background: var(--semiont-color-primary-500);
+}
+
+.semiont-settings-panel__toggle:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+/* Toggle Slider */
+.semiont-settings-panel__toggle-slider {
+  position: absolute;
+  top: 0.125rem;
+  left: 0.125rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  background: var(--semiont-color-white);
+  border-radius: 9999px;
+  transition: transform var(--semiont-duration-base);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="dark"] .semiont-settings-panel__toggle-slider {
+  background: var(--semiont-color-white);
+}
+
+.semiont-settings-panel__toggle-slider--active {
+  transform: translateX(1.25rem);
+}
+
+/* Button Group */
+.semiont-settings-panel__button-group {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Button */
+.semiont-settings-panel__button {
+  padding: 0.5rem 1rem;
+  background: var(--semiont-bg-secondary);
+  color: var(--semiont-text-secondary);
+  border: 1px solid var(--semiont-border-primary);
+  border-radius: var(--semiont-radius-md);
+  font-size: var(--semiont-text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--semiont-duration-base);
+}
+
+[data-theme="dark"] .semiont-settings-panel__button {
+  background: var(--semiont-bg-secondary);
+  color: var(--semiont-text-secondary);
+  border-color: var(--semiont-border-primary);
+}
+
+.semiont-settings-panel__button:hover {
+  background: var(--semiont-bg-tertiary);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-settings-panel__button:hover {
+  background: var(--semiont-bg-tertiary);
+  color: var(--semiont-text-primary);
+}
+
+.semiont-settings-panel__button--active {
+  background: var(--semiont-color-primary-600);
+  color: var(--semiont-color-white);
+  border-color: var(--semiont-color-primary-600);
+}
+
+[data-theme="dark"] .semiont-settings-panel__button--active {
+  background: var(--semiont-color-primary-500);
+  color: var(--semiont-color-white);
+  border-color: var(--semiont-color-primary-500);
+}
+
+.semiont-settings-panel__button--active:hover {
+  background: var(--semiont-color-primary-700);
+  color: var(--semiont-color-white);
+  border-color: var(--semiont-color-primary-700);
+}
+
+.semiont-settings-panel__button--active:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-settings-panel__button--active:hover {
+  background: var(--semiont-color-primary-600);
+  color: var(--semiont-color-white);
+  border-color: var(--semiont-color-primary-600);
+}
+
+[data-theme="dark"] .semiont-settings-panel__button--active:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-settings-panel__button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-settings-panel__button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+/* Select Dropdown */
+.semiont-settings-panel__select {
+  padding: 0.5rem 0.75rem;
+  background: var(--semiont-bg-primary);
+  color: var(--semiont-text-primary);
+  border: 1px solid var(--semiont-border-primary);
+  border-radius: var(--semiont-radius-md);
+  font-size: var(--semiont-text-sm);
+  cursor: pointer;
+  transition: all var(--semiont-duration-base);
+}
+
+[data-theme="dark"] .semiont-settings-panel__select {
+  background: var(--semiont-bg-secondary);
+  color: var(--semiont-text-primary);
+  border-color: var(--semiont-border-primary);
+}
+
+.semiont-settings-panel__select:hover {
+  border-color: var(--semiont-color-gray-400);
+}
+
+[data-theme="dark"] .semiont-settings-panel__select:hover {
+  border-color: var(--semiont-color-gray-500);
+}
+
+.semiont-settings-panel__select:focus {
+  outline: none;
+  border-color: var(--semiont-color-primary-500);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+[data-theme="dark"] .semiont-settings-panel__select:focus {
+  border-color: var(--semiont-color-primary-400);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+.semiont-settings-panel__select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Help Text */
+.semiont-settings-panel__help-text {
+  margin: 0;
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-text-tertiary);
+}
+
+[data-theme="dark"] .semiont-settings-panel__help-text {
+  color: var(--semiont-text-tertiary);
+}
+
+/* Loading State */
+.semiont-settings-panel__loading {
+  margin: 0;
+  padding: 0.5rem;
+  background: var(--semiont-bg-secondary);
+  border-left: 3px solid var(--semiont-color-primary-500);
+  border-radius: var(--semiont-radius-sm);
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-settings-panel__loading {
+  background: var(--semiont-bg-secondary);
+  border-left-color: var(--semiont-color-primary-400);
+}
+
+/* Responsive adjustments */
+@media (min-width: 640px) {
+  .semiont-settings-panel {
+    padding: 1.5rem;
+  }
+
+  .semiont-settings-panel__title {
+    font-size: var(--semiont-text-xl);
+  }
+
+  .semiont-settings-panel__content {
+    gap: 1.5rem;
+  }
+}

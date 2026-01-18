@@ -38,6 +38,7 @@
 @import './components/toolbar.css';
 @import './components/cards.css';
 @import './components/references.css';
+@import './components/settings-panel.css';
 @import './components/sidebar-navigation.css';
 @import './components/collapsible-resource-navigation.css';
 @import './components/annotations.css';
