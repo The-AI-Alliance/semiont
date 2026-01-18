@@ -149,6 +149,12 @@
   border-color: var(--semiont-color-purple-400);
 }
 
+.semiont-motivation-comment-button:focus-visible,
+.semiont-detect-button[data-type="comment"]:focus-visible {
+  outline: 2px solid var(--semiont-motivation-comment-primary);
+  outline-offset: 2px;
+}
+
 [data-theme="dark"] .semiont-motivation-comment-button:focus-visible,
 [data-theme="dark"] .semiont-detect-button[data-type="comment"]:focus-visible {
   outline: 2px solid var(--semiont-color-purple-400);

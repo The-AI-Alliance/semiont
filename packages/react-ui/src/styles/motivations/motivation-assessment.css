@@ -167,6 +167,12 @@
   border-color: var(--semiont-motivation-assessment-dark-primary);
 }
 
+.semiont-motivation-assessment-button:focus-visible,
+.semiont-detect-button[data-type="assessment"]:focus-visible {
+  outline: 2px solid var(--semiont-motivation-assessment-primary);
+  outline-offset: 2px;
+}
+
 [data-theme="dark"] .semiont-motivation-assessment-button:focus-visible,
 [data-theme="dark"] .semiont-detect-button[data-type="assessment"]:focus-visible {
   outline: 2px solid var(--semiont-motivation-assessment-dark-primary);

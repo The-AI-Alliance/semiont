@@ -148,6 +148,12 @@
   border-color: var(--semiont-motivation-highlight-dark-primary);
 }
 
+.semiont-motivation-highlight-button:focus-visible,
+.semiont-detect-button[data-type="highlight"]:focus-visible {
+  outline: 2px solid var(--semiont-motivation-highlight-primary);
+  outline-offset: 2px;
+}
+
 [data-theme="dark"] .semiont-motivation-highlight-button:focus-visible,
 [data-theme="dark"] .semiont-detect-button[data-type="highlight"]:focus-visible {
   outline: 2px solid var(--semiont-motivation-highlight-dark-primary);
