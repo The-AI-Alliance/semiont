@@ -77,6 +77,11 @@
   border-color: var(--semiont-motivation-reference-border-hover);
 }
 
+[data-theme="dark"] .semiont-motivation-reference-entry,
+[data-theme="dark"] .semiont-annotation-entry[data-type="reference"] {
+  border-color: var(--semiont-motivation-reference-border);
+}
+
 [data-theme="dark"] .semiont-motivation-reference-entry:hover,
 [data-theme="dark"] .semiont-annotation-entry[data-type="reference"]:hover {
   background: linear-gradient(to right, rgba(30, 58, 138, 0.2), rgba(8, 51, 68, 0.2));
@@ -128,12 +133,20 @@
   border-color: var(--semiont-motivation-reference-primary);
 }
 
-[data-theme="dark"] .semiont-motivation-reference-button {
+[data-theme="dark"] .semiont-motivation-reference-button,
+[data-theme="dark"] .semiont-detect-button[data-type="reference"] {
   border-color: var(--semiont-motivation-reference-dark-outline);
 }
 
-[data-theme="dark"] .semiont-motivation-reference-button:hover {
+[data-theme="dark"] .semiont-motivation-reference-button:hover,
+[data-theme="dark"] .semiont-detect-button[data-type="reference"]:hover {
   border-color: var(--semiont-motivation-reference-dark-primary);
+}
+
+[data-theme="dark"] .semiont-motivation-reference-button:focus-visible,
+[data-theme="dark"] .semiont-detect-button[data-type="reference"]:focus-visible {
+  outline: 2px solid var(--semiont-motivation-reference-dark-primary);
+  outline-offset: 2px;
 }
 
 /* ============================================

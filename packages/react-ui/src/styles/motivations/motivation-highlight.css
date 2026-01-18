@@ -80,6 +80,11 @@
   border-color: var(--semiont-motivation-highlight-border-hover);
 }
 
+[data-theme="dark"] .semiont-motivation-highlight-entry,
+[data-theme="dark"] .semiont-annotation-entry[data-type="highlight"] {
+  border-color: var(--semiont-motivation-highlight-border);
+}
+
 [data-theme="dark"] .semiont-motivation-highlight-entry:hover,
 [data-theme="dark"] .semiont-annotation-entry[data-type="highlight"]:hover {
   background: var(--semiont-motivation-highlight-panel-bg-dark);
@@ -133,12 +138,20 @@
   border-color: var(--semiont-motivation-highlight-primary);
 }
 
-[data-theme="dark"] .semiont-motivation-highlight-button {
+[data-theme="dark"] .semiont-motivation-highlight-button,
+[data-theme="dark"] .semiont-detect-button[data-type="highlight"] {
   border-color: var(--semiont-motivation-highlight-dark-outline);
 }
 
-[data-theme="dark"] .semiont-motivation-highlight-button:hover {
+[data-theme="dark"] .semiont-motivation-highlight-button:hover,
+[data-theme="dark"] .semiont-detect-button[data-type="highlight"]:hover {
   border-color: var(--semiont-motivation-highlight-dark-primary);
+}
+
+[data-theme="dark"] .semiont-motivation-highlight-button:focus-visible,
+[data-theme="dark"] .semiont-detect-button[data-type="highlight"]:focus-visible {
+  outline: 2px solid var(--semiont-motivation-highlight-dark-primary);
+  outline-offset: 2px;
 }
 
 /* ============================================

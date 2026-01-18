@@ -85,6 +85,11 @@
   border-color: var(--semiont-motivation-tag-border-hover);
 }
 
+[data-theme="dark"] .semiont-motivation-tag-entry,
+[data-theme="dark"] .semiont-annotation-entry[data-type="tag"] {
+  border-color: var(--semiont-motivation-tag-border);
+}
+
 [data-theme="dark"] .semiont-motivation-tag-entry:hover,
 [data-theme="dark"] .semiont-annotation-entry[data-type="tag"]:hover {
   background: var(--semiont-motivation-tag-panel-bg-dark);
@@ -138,12 +143,20 @@
   border-color: var(--semiont-motivation-tag-primary);
 }
 
-[data-theme="dark"] .semiont-motivation-tag-button {
+[data-theme="dark"] .semiont-motivation-tag-button,
+[data-theme="dark"] .semiont-detect-button[data-type="tag"] {
   border-color: var(--semiont-motivation-tag-dark-outline);
 }
 
-[data-theme="dark"] .semiont-motivation-tag-button:hover {
+[data-theme="dark"] .semiont-motivation-tag-button:hover,
+[data-theme="dark"] .semiont-detect-button[data-type="tag"]:hover {
   border-color: var(--semiont-motivation-tag-dark-primary);
+}
+
+[data-theme="dark"] .semiont-motivation-tag-button:focus-visible,
+[data-theme="dark"] .semiont-detect-button[data-type="tag"]:focus-visible {
+  outline: 2px solid var(--semiont-motivation-tag-dark-primary);
+  outline-offset: 2px;
 }
 
 /* ============================================
