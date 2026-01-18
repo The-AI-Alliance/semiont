@@ -44,6 +44,8 @@
 
 .semiont-page-layout__main {
   flex: 1;
+  /* Add padding-bottom to account for fixed footer */
+  padding-bottom: 2.5rem; /* Footer height: ~2.5rem total */
 }
 
 /* App Layout for Document/Knowledge Views */
@@ -53,6 +55,12 @@
   height: 100vh;
   width: 100%;
   overflow: hidden;
+}
+
+/* Layout with footer - adds space for fixed footer */
+.semiont-layout-with-footer {
+  /* Account for fixed footer height */
+  padding-bottom: 2.5rem; /* Footer height: 1rem padding * 2 + ~0.5rem content */
 }
 
 .semiont-app-layout__content {
@@ -307,23 +315,28 @@
 .semiont-footer {
   background: var(--semiont-bg-primary);
   border-top: 1px solid var(--semiont-border-primary);
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 30; /* Below modals (50) but above content */
 }
 
 .semiont-footer__container {
   max-width: 80rem;
   margin: 0 auto;
-  padding: 2rem 1rem;
+  padding: 1rem;
 }
 
 @media (min-width: 640px) {
   .semiont-footer__container {
-    padding: 2rem 1.5rem;
+    padding: 1rem 1.5rem;
   }
 }
 
 @media (min-width: 1024px) {
   .semiont-footer__container {
-    padding: 2rem;
+    padding: 1rem 2rem;
   }
 }
 
