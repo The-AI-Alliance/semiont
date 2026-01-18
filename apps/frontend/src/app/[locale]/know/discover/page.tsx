@@ -23,7 +23,7 @@ export default function DiscoverPage() {
 
   // Toolbar and settings state
   const { activePanel, togglePanel } = useToolbar();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, resolvedTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
   const handlePanelToggle = (panel: string | null) => {
@@ -61,7 +61,7 @@ export default function DiscoverPage() {
       entityTypes={entityTypes}
       isLoadingRecent={isLoadingRecent}
       isSearching={isSearching}
-      theme={theme}
+      theme={resolvedTheme}
       onThemeChange={setTheme}
       showLineNumbers={showLineNumbers}
       onLineNumbersToggle={toggleLineNumbers}

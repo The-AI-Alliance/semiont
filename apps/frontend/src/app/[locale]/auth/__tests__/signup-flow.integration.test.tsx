@@ -30,6 +30,8 @@ describe('Sign-Up Flow Integration Tests', () => {
     approvedDomainsInfo: 'Only approved email domains can sign up',
     termsAgreement: 'By signing up, you agree to our Terms of Service',
     alreadyHaveAccount: 'Already have an account? Sign in',
+    tagline: 'Open Source AI Foundation Models',
+    backToHome: 'Back to Home',
   };
 
   const mockWelcomeTranslations = {

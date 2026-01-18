@@ -55,7 +55,7 @@ function ComposeResourceContent() {
 
   // Toolbar and settings state
   const { activePanel, togglePanel } = useToolbar();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, resolvedTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
   const handlePanelToggle = (panel: string | null) => {
@@ -248,7 +248,7 @@ function ComposeResourceContent() {
       referenceData={referenceData}
       availableEntityTypes={availableEntityTypes}
       initialLocale={locale}
-      theme={theme}
+      theme={resolvedTheme}
       onThemeChange={setTheme}
       showLineNumbers={showLineNumbers}
       onLineNumbersToggle={toggleLineNumbers}
