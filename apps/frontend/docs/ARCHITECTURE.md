@@ -41,11 +41,19 @@ The Semiont frontend is a Next.js 14 application using the App Router with React
 
 #### Hybrid CSS Architecture
 The frontend uses a hybrid CSS approach that combines:
-- **@semiont/react-ui** - Semantic CSS with BEM methodology for all UI components
+- **@semiont/react-ui** - Semantic CSS with BEM methodology for all UI components, organized into:
+  - `core/` - Fundamental UI elements (buttons, toggles, sliders, badges, tags, indicators)
+  - `components/` - Complex composed components (forms, modals, cards)
+  - `panels/` - Panel layouts and containers (12 different panel styles)
+  - `motivations/` - W3C Web Annotation standard styles (5 motivation types)
+  - `features/` - Feature-specific styling
 - **Tailwind CSS** - Utility-first CSS for app-specific layouts and custom components
 
 This architecture ensures:
 - Framework-agnostic component library (@semiont/react-ui uses semantic CSS)
+- Modular organization with clear separation (core elements vs. components vs. panels)
+- Centralized design tokens for consistency (panel tokens, color palettes)
+- W3C Web Annotation compliance with dedicated motivation styles
 - Flexibility for app-specific styling (frontend uses Tailwind)
 - Clear separation of concerns (component styles vs. layout utilities)
 

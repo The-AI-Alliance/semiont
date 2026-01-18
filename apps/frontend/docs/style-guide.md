@@ -3,7 +3,7 @@
 ## CSS Architecture Overview
 
 The Semiont frontend uses a hybrid CSS architecture that combines:
-1. **Semantic CSS from @semiont/react-ui** - Framework-agnostic component styles
+1. **Semantic CSS from @semiont/react-ui** - Framework-agnostic component styles with modular organization
 2. **Tailwind CSS** - For app-specific styling and utilities
 
 ### Technical Implementation
@@ -16,10 +16,18 @@ All React UI components from `@semiont/react-ui` come with semantic CSS classes 
 @import '@semiont/react-ui/styles';
 ```
 
+The styles are organized into a modular architecture:
+- **Core UI Elements** (`core/`) - Fundamental components like buttons, toggles, sliders, badges, tags
+- **Components** (`components/`) - Complex composed components like forms, modals, cards
+- **Panels** (`panels/`) - Layout containers for content sections
+- **Motivations** (`motivations/`) - W3C Web Annotation standard styles
+- **Features** (`features/`) - Feature-specific styling
+
 This provides all component styles with the `semiont-` prefix:
-- `semiont-button`, `semiont-button--primary`
-- `semiont-card`, `semiont-card__header`
-- `semiont-toolbar`, `semiont-toolbar__section`
+- `semiont-button`, `semiont-button--primary` (from `core/buttons.css`)
+- `semiont-card`, `semiont-card__header` (from `components/cards.css`)
+- `semiont-panel`, `semiont-panel__title` (from `panels/`)
+- `semiont-toggle`, `semiont-progress`, `semiont-slider` (from `core/`)
 - And more...
 
 #### Tailwind Configuration
@@ -89,6 +97,17 @@ The design system uses CSS custom properties from @semiont/react-ui:
 - `--semiont-color-primary-*`: Blue color scale
 - `--semiont-color-gray-*`: Neutral color scale
 - `--semiont-color-red-*`, `--semiont-color-green-*`, etc.: Semantic colors
+- `--semiont-color-yellow-*`: Full yellow palette for highlights
+- `--semiont-color-orange-*`, `--semiont-color-amber-*`: For tagging motivations
+
+### Panel Design Tokens
+Centralized tokens ensure consistency across all panels:
+- `--semiont-panel-padding`: 1rem
+- `--semiont-panel-title-size`: var(--semiont-text-lg)
+- `--semiont-panel-title-weight`: 600
+- `--semiont-panel-header-margin-bottom`: 1rem
+- `--semiont-panel-section-gap`: 1.5rem
+- `--semiont-panel-icon-size`: 1.25rem
 
 ### Primary Colors
 The Semiont design system uses a **blue/cyan** color palette as its primary theme:
@@ -124,6 +143,75 @@ Use the blue-to-cyan gradient (`from-blue-600 to-cyan-600`) for:
 - Progress bars
 - Special interactive elements
 - AI detection features
+
+## Core UI Elements from @semiont/react-ui
+
+The react-ui package provides fundamental UI elements in the `core/` directory:
+
+### Toggle Switches
+```typescript
+// Use the semantic classes from core/toggles.css
+<label className="semiont-toggle">
+  <input type="checkbox" className="semiont-toggle__input" />
+  <span className="semiont-toggle__slider"></span>
+</label>
+```
+
+### Progress Bars
+```typescript
+// From core/progress.css
+<div className="semiont-progress">
+  <div className="semiont-progress__fill" style={{width: '60%'}}></div>
+</div>
+```
+
+### Range Sliders
+```typescript
+// From core/sliders.css
+<input type="range" className="semiont-slider" min="0" max="100" />
+<input type="range" className="semiont-slider semiont-slider--small" /> // Small variant
+```
+
+### Tags and Badges
+```typescript
+// Tags from core/tags.css
+<span className="semiont-tag">Category</span>
+<span className="semiont-tag semiont-tag--secondary">Secondary</span>
+
+// Badges from core/badges.css
+<span className="semiont-badge semiont-badge--admin">Admin</span>
+<span className="semiont-badge semiont-badge--active">Active</span>
+```
+
+### Status Indicators
+```typescript
+// From core/indicators.css
+<span className="semiont-indicator semiont-indicator--online"></span>
+<span className="semiont-indicator semiont-indicator--busy"></span>
+```
+
+## W3C Web Annotation Motivations
+
+The react-ui package includes dedicated styles for W3C Web Annotation standard motivations:
+
+### Available Motivation Classes
+- `.semiont-motivation--linking` - Blue to cyan gradient (references)
+- `.semiont-motivation--highlighting` - Yellow background
+- `.semiont-motivation--assessing` - Red wavy underline
+- `.semiont-motivation--commenting` - Dashed outline
+- `.semiont-motivation--tagging` - Orange to amber gradient
+
+### Usage Example
+```typescript
+// Apply motivation-specific styling
+<div className="semiont-motivation--highlighting">
+  Highlighted text
+</div>
+
+<div className="semiont-motivation--linking">
+  Reference to another resource
+</div>
+```
 
 ## Component Styling Guidelines
 
@@ -425,10 +513,15 @@ The component uses the Orbitron font for "SEMIONT" and includes:
 ## Best Practices
 
 ### CSS Architecture
-1. **Component Styles:** Use @semiont/react-ui components with their semantic CSS when available
-2. **App Styles:** Use Tailwind for app-specific components and layouts
-3. **Don't Mix:** Avoid overriding semantic classes from @semiont/react-ui with Tailwind utilities
-4. **Custom Properties:** Leverage CSS variables from @semiont/react-ui for consistency
+1. **Component Organization:** @semiont/react-ui styles are organized into:
+   - `core/` - Fundamental UI elements (buttons, toggles, sliders)
+   - `components/` - Complex components (forms, modals, cards)
+   - `panels/` - Panel layouts and containers
+   - `motivations/` - W3C Web Annotation standard styles
+2. **Use Design Tokens:** Leverage panel design tokens and CSS variables for consistency
+3. **App Styles:** Use Tailwind for app-specific components and layouts
+4. **Don't Mix:** Avoid overriding semantic classes from @semiont/react-ui with Tailwind utilities
+5. **Custom Properties:** Use CSS variables from @semiont/react-ui (colors, spacing, typography)
 
 ### Style Guidelines
 1. **Consistency:** Always use the predefined styles rather than creating custom classes
@@ -470,7 +563,20 @@ className={clsx(
 
 ## File Organization
 
+### Frontend App Files
 - `/src/lib/button-styles.ts` - App-specific button styles using Tailwind
 - `/src/lib/annotation-styles.ts` - Annotation and highlight styles
 - `/src/app/globals.css` - Global styles and @semiont/react-ui import
-- `@semiont/react-ui/styles` - All semantic component styles from the UI library
+
+### @semiont/react-ui Style Organization
+- `@semiont/react-ui/styles/` - Main styles directory
+  - `index.css` - Entry point that imports all styles
+  - `variables.css` - Design tokens and CSS custom properties
+  - `core/` - Fundamental UI elements
+    - `buttons.css`, `toggles.css`, `progress.css`, `sliders.css`
+    - `badges.css`, `tags.css`, `indicators.css`
+  - `components/` - Complex composed components
+  - `panels/` - Panel layouts (12 different panel styles)
+  - `motivations/` - W3C Web Annotation standard (5 motivation styles)
+  - `features/` - Feature-specific styling
+  - `utilities/` - Accessibility and interaction helpers

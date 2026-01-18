@@ -143,6 +143,25 @@ The library follows strict architectural principles:
 - **Framework Agnostic** - Apps provide framework-specific implementations
 - **TypeScript First** - Full type safety throughout
 
+## CSS Architecture
+
+The styles are organized into a modular, maintainable structure:
+
+- **Design Tokens** - Centralized variables for consistent theming
+- **Core UI Elements** - Fundamental, reusable components (buttons, toggles, sliders, etc.)
+- **W3C Motivations** - Dedicated styles for Web Annotation standard motivations
+- **Component/Panel Separation** - Complex components vs. layout containers
+- **Dark Theme Support** - Comprehensive dark mode using `[data-theme="dark"]`
+
+Key directories:
+- `styles/core/` - Fundamental UI elements (buttons, toggles, progress bars, sliders, badges, tags, indicators)
+- `styles/motivations/` - W3C Web Annotation motivation styles (reference, highlight, assessment, comment, tag)
+- `styles/components/` - Complex, composed components
+- `styles/panels/` - Panel layouts and containers
+- `styles/features/` - Feature-specific styling
+
+See [docs/STYLES.md](docs/STYLES.md) for detailed CSS documentation.
+
 ## Core Concepts
 
 ### Providers
