@@ -25,16 +25,15 @@
 /* Layout */
 @import './layout/layout.css';
 
+/* Core UI Elements */
+@import './core/index.css';
+
 /* Core Components */
-@import './components/buttons.css';
 @import './components/forms.css';
 @import './components/auth.css';
 @import './components/tables.css';
 @import './components/toast.css';
 @import './components/status-display.css';
-@import './components/toggles.css';
-@import './components/tags.css';
-@import './components/badges.css';
 @import './components/panels-base.css';
 @import './components/panel-sections.css';
 @import './components/modals.css';
@@ -42,7 +41,6 @@
 @import './components/toolbar.css';
 @import './components/cards.css';
 @import './components/references.css';
-@import './components/settings-panel.css';
 @import './components/sidebar-navigation.css';
 @import './components/collapsible-resource-navigation.css';
 @import './components/annotations.css';
@@ -60,6 +58,7 @@
 @import './panels/collaboration-panel.css';
 @import './panels/jsonld-panel.css';
 @import './panels/references-panel.css';
+@import './panels/settings-panel.css';
 @import './panels/unified-annotations-panel.css';
 @import './panels/resource-info-panel.css';
 @import './panels/tagging-panel.css';

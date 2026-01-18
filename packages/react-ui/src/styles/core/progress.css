@@ -1,0 +1,170 @@
+/* ============================================
+   Progress Bars - Core UI Element
+
+   This is the authoritative source for all progress bar styles.
+   Usage: Apply .semiont-progress to container and .semiont-progress__fill to the fill element.
+
+   Available modifiers:
+   - .semiont-progress--small (height: 0.25rem)
+   - .semiont-progress--large (height: 1rem)
+   - .semiont-progress--striped (animated stripes)
+   ============================================ */
+
+/* Base Progress Bar Container */
+.semiont-progress {
+  position: relative;
+  width: 100%;
+  height: 0.5rem;
+  background-color: var(--semiont-bg-secondary);
+  border-radius: var(--semiont-radius-full);
+  overflow: hidden;
+}
+
+[data-theme="dark"] .semiont-progress {
+  background-color: var(--semiont-bg-tertiary);
+}
+
+/* Progress Fill */
+.semiont-progress__fill {
+  height: 100%;
+  background-color: var(--semiont-color-primary-500);
+  transition: width 0.3s ease;
+}
+
+[data-theme="dark"] .semiont-progress__fill {
+  background-color: var(--semiont-color-primary-500);
+}
+
+/* Size Variants */
+.semiont-progress--small {
+  height: 0.25rem;
+}
+
+.semiont-progress--large {
+  height: 1rem;
+}
+
+/* Striped Variant */
+.semiont-progress--striped .semiont-progress__fill {
+  background-image: linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.15) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.15) 50%,
+    rgba(255, 255, 255, 0.15) 75%,
+    transparent 75%,
+    transparent
+  );
+  background-size: 1rem 1rem;
+  animation: progress-stripes 1s linear infinite;
+}
+
+@keyframes progress-stripes {
+  from {
+    background-position: 1rem 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+/* Color Variants */
+.semiont-progress__fill--success {
+  background-color: var(--semiont-color-success);
+}
+
+[data-theme="dark"] .semiont-progress__fill--success {
+  background-color: var(--semiont-color-success);
+}
+
+.semiont-progress__fill--warning {
+  background-color: var(--semiont-color-warning);
+}
+
+[data-theme="dark"] .semiont-progress__fill--warning {
+  background-color: var(--semiont-color-warning);
+}
+
+.semiont-progress__fill--error {
+  background-color: var(--semiont-color-error);
+}
+
+[data-theme="dark"] .semiont-progress__fill--error {
+  background-color: var(--semiont-color-error);
+}
+
+/* With Label */
+.semiont-progress-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.semiont-progress__label {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-secondary);
+}
+
+[data-theme="dark"] .semiont-progress__label {
+  color: var(--semiont-text-secondary);
+}
+
+/* Indeterminate Progress */
+.semiont-progress--indeterminate .semiont-progress__fill {
+  width: 30%;
+  animation: progress-indeterminate 1.5s ease-in-out infinite;
+}
+
+@keyframes progress-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(333%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+/* Accessibility - Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .semiont-progress__fill,
+  .semiont-progress--striped .semiont-progress__fill,
+  .semiont-progress--indeterminate .semiont-progress__fill {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* Legacy Compatibility Mappings (deprecated - use base classes above)
+   These will be removed in a future version. Update components to use .semiont-progress */
+.semiont-progress-bar,
+.semiont-panel-progress {
+  position: relative;
+  width: 100%;
+  height: 0.5rem;
+  background-color: var(--semiont-bg-secondary);
+  border-radius: var(--semiont-radius-full);
+  overflow: hidden;
+}
+
+[data-theme="dark"] .semiont-progress-bar,
+[data-theme="dark"] .semiont-panel-progress {
+  background-color: var(--semiont-bg-tertiary);
+}
+
+.semiont-progress-bar__fill,
+.semiont-panel-progress__fill {
+  height: 100%;
+  background-color: var(--semiont-color-primary-500);
+  transition: width 0.3s ease;
+}
+
+[data-theme="dark"] .semiont-progress-bar__fill,
+[data-theme="dark"] .semiont-panel-progress__fill {
+  background-color: var(--semiont-color-primary-500);
+}
