@@ -6,13 +6,6 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./vitest.setup.ts'],
-    // Use forks pool for better isolation and memory management in CI
-    pool: 'forks',
-    poolOptions: {
-      forks: {
-        singleFork: true,
-      },
-    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'json-summary', 'html'],
