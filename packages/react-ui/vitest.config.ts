@@ -6,16 +6,6 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./vitest.setup.ts'],
-    // Use forks with single worker and file isolation for better memory management
-    pool: 'forks',
-    poolOptions: {
-      forks: {
-        singleFork: false,
-        isolate: true,
-      },
-    },
-    // Run test files sequentially to prevent memory accumulation
-    fileParallelism: false,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'json-summary', 'html'],
