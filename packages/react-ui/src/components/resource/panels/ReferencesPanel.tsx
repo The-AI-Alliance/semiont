@@ -97,16 +97,25 @@ export function ReferencesPanel({
 
   // Track previous isDetecting state to detect transitions
   const prevIsDetectingRef = useRef(isDetecting);
+  const hasLoggedRef = useRef(false);
 
   // When detection completes, save log
   useEffect(() => {
     const wasDetecting = prevIsDetectingRef.current;
     prevIsDetectingRef.current = isDetecting;
 
-    // Only update when transitioning from detecting to not detecting
-    if (wasDetecting && !isDetecting && detectionProgress?.completedEntityTypes) {
-      setLastDetectionLog(detectionProgress.completedEntityTypes);
-      setSelectedEntityTypes([]);
+    // Update when transitioning from detecting to not detecting, OR on first render if already complete
+    if (!isDetecting && detectionProgress?.completedEntityTypes) {
+      if (wasDetecting || !hasLoggedRef.current) {
+        setLastDetectionLog(detectionProgress.completedEntityTypes);
+        setSelectedEntityTypes([]);
+        hasLoggedRef.current = true;
+      }
+    }
+
+    // Reset flag when detection starts
+    if (isDetecting) {
+      hasLoggedRef.current = false;
     }
   }, [isDetecting, detectionProgress?.completedEntityTypes]);
 
