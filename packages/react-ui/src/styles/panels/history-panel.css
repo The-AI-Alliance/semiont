@@ -181,6 +181,10 @@
   color: var(--semiont-text-secondary);
 }
 
+[data-theme="dark"] .semiont-history-event__text--quoted {
+  color: var(--semiont-text-secondary);
+}
+
 /* Entity types container - tags themselves use .semiont-tag from core */
 .semiont-history-event__entity-types {
   display: flex;

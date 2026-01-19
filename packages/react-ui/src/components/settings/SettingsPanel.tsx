@@ -75,21 +75,21 @@ export function SettingsPanel({
               />
             </button>
           </label>
-          <p className="semiont-settings-panel__help-text">
+          <p className="semiont-form__help">
             {showLineNumbers ? t('lineNumbersVisible') : t('lineNumbersHidden')}
           </p>
         </div>
 
         {/* Theme Selection */}
         <div className="semiont-settings-panel__field">
-          <label className="semiont-settings-panel__label">
+          <label className="semiont-form__label">
             {t('theme')}
           </label>
           <div className="semiont-settings-panel__button-group">
             <button
               onClick={() => onThemeChange('light')}
-              className={`semiont-settings-panel__button ${
-                theme === 'light' ? 'semiont-settings-panel__button--active' : ''
+              className={`semiont-panel-button ${
+                theme === 'light' ? 'semiont-panel-button-active' : ''
               }`}
               aria-pressed={theme === 'light'}
             >
@@ -97,8 +97,8 @@ export function SettingsPanel({
             </button>
             <button
               onClick={() => onThemeChange('dark')}
-              className={`semiont-settings-panel__button ${
-                theme === 'dark' ? 'semiont-settings-panel__button--active' : ''
+              className={`semiont-panel-button ${
+                theme === 'dark' ? 'semiont-panel-button-active' : ''
               }`}
               aria-pressed={theme === 'dark'}
             >
@@ -106,15 +106,15 @@ export function SettingsPanel({
             </button>
             <button
               onClick={() => onThemeChange('system')}
-              className={`semiont-settings-panel__button ${
-                theme === 'system' ? 'semiont-settings-panel__button--active' : ''
+              className={`semiont-panel-button ${
+                theme === 'system' ? 'semiont-panel-button-active' : ''
               }`}
               aria-pressed={theme === 'system'}
             >
               💻 {t('themeSystem')}
             </button>
           </div>
-          <p className="semiont-settings-panel__help-text" aria-live="polite">
+          <p className="semiont-form__help" aria-live="polite">
             {theme === 'system'
               ? t('themeSystemActive')
               : t('themeModeActive', { mode: theme.charAt(0).toUpperCase() + theme.slice(1) })}
@@ -123,7 +123,7 @@ export function SettingsPanel({
 
         {/* Language Selection */}
         <div className="semiont-settings-panel__field">
-          <label htmlFor="language-select" className="semiont-settings-panel__label">
+          <label htmlFor="language-select" className="semiont-form__label">
             {t('language')}
           </label>
           <select
@@ -131,7 +131,7 @@ export function SettingsPanel({
             value={locale}
             onChange={(e) => handleLocaleChange(e.target.value)}
             disabled={isPendingLocaleChange}
-            className="semiont-settings-panel__select"
+            className="semiont-form__select"
             aria-busy={isPendingLocaleChange}
             aria-describedby="language-hint"
           >
@@ -141,7 +141,7 @@ export function SettingsPanel({
               </option>
             ))}
           </select>
-          <p id="language-hint" className="semiont-settings-panel__help-text">
+          <p id="language-hint" className="semiont-form__help">
             {t('languageHint')}
           </p>
           {isPendingLocaleChange && (
