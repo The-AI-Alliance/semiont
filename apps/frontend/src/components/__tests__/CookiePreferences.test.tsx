@@ -62,7 +62,8 @@ vi.mock('@heroicons/react/24/outline', () => ({
   CogIcon: ({ className }: { className?: string }) => <div data-testid="cog-icon" className={className} />,
   TrashIcon: ({ className }: { className?: string }) => <div data-testid="trash-icon" className={className} />,
   ArrowDownTrayIcon: ({ className }: { className?: string }) => <div data-testid="arrow-down-tray-icon" className={className} />,
-  ShieldCheckIcon: ({ className }: { className?: string }) => <div data-testid="shield-check-icon" className={className} />
+  ShieldCheckIcon: ({ className }: { className?: string }) => <div data-testid="shield-check-icon" className={className} />,
+  XMarkIcon: ({ className }: { className?: string }) => <div data-testid="x-mark-icon" className={className} />
 }));
 
 describe('CookiePreferences - Comprehensive Tests', () => {
