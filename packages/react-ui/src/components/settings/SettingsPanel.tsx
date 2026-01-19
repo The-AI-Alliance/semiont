@@ -55,8 +55,8 @@ export function SettingsPanel({
       <div className="semiont-settings-panel__content">
         {/* Line Numbers Toggle */}
         <div className="semiont-settings-panel__field">
-          <label className="semiont-settings-panel__toggle-label">
-            <span className="semiont-settings-panel__label-text">
+          <label className="semiont-toggle-label">
+            <span className="semiont-toggle-label__text">
               {t('lineNumbers')}
             </span>
             <button
@@ -64,13 +64,13 @@ export function SettingsPanel({
               role="switch"
               aria-checked={showLineNumbers}
               onClick={onLineNumbersToggle}
-              className={`semiont-settings-panel__toggle ${
-                showLineNumbers ? 'semiont-settings-panel__toggle--active' : ''
+              className={`semiont-toggle ${
+                showLineNumbers ? 'semiont-toggle--active' : ''
               }`}
             >
               <span
-                className={`semiont-settings-panel__toggle-slider ${
-                  showLineNumbers ? 'semiont-settings-panel__toggle-slider--active' : ''
+                className={`semiont-toggle__slider ${
+                  showLineNumbers ? 'semiont-toggle__slider--active' : ''
                 }`}
               />
             </button>

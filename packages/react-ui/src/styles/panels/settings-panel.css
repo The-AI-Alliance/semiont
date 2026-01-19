@@ -54,14 +54,6 @@
   color: var(--semiont-text-primary);
 }
 
-/* Toggle Switch Container */
-.semiont-settings-panel__toggle-label {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-}
-
 /* Button Group */
 .semiont-settings-panel__button-group {
   display: flex;
