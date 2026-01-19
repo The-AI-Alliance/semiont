@@ -14,8 +14,15 @@
   appearance: none;
   width: 100%;
   height: 0.5rem;
-  background: transparent;
+  background: var(--semiont-color-gray-300);
+  border-radius: var(--semiont-radius-full);
+  border: 1px solid var(--semiont-color-gray-400);
   cursor: pointer;
+}
+
+[data-theme="dark"] .semiont-slider {
+  background: var(--semiont-bg-tertiary);
+  border-color: var(--semiont-color-gray-600);
 }
 
 /* Track Styling */
