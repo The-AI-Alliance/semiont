@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
 import { DetectionProgressWidget } from '../../DetectionProgressWidget';
@@ -95,13 +95,20 @@ export function ReferencesPanel({
     onDetect(selectedEntityTypes, includeDescriptiveReferences);
   };
 
+  // Track previous isDetecting state to detect transitions
+  const prevIsDetectingRef = useRef(isDetecting);
+
   // When detection completes, save log
-  React.useEffect(() => {
-    if (!isDetecting && detectionProgress?.completedEntityTypes) {
+  useEffect(() => {
+    const wasDetecting = prevIsDetectingRef.current;
+    prevIsDetectingRef.current = isDetecting;
+
+    // Only update when transitioning from detecting to not detecting
+    if (wasDetecting && !isDetecting && detectionProgress?.completedEntityTypes) {
       setLastDetectionLog(detectionProgress.completedEntityTypes);
       setSelectedEntityTypes([]);
     }
-  }, [isDetecting, detectionProgress]);
+  }, [isDetecting, detectionProgress?.completedEntityTypes]);
 
   const togglePendingEntityType = (type: string) => {
     setPendingEntityTypes(prev =>
