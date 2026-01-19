@@ -79,7 +79,7 @@ describe('EntityTagsPage', () => {
       const props = createMockProps();
       const { container } = render(<EntityTagsPage {...props} />);
 
-      const tagBadge = container.querySelector('.semiont-entity-tags__tag');
+      const tagBadge = container.querySelector('.semiont-tag');
       expect(tagBadge).toBeInTheDocument();
       expect(tagBadge).toHaveTextContent('Document');
     });
@@ -88,7 +88,7 @@ describe('EntityTagsPage', () => {
       const props = createMockProps({ entityTypes: [] });
       const { container } = render(<EntityTagsPage {...props} />);
 
-      const tags = container.querySelectorAll('.semiont-entity-tags__tag');
+      const tags = container.querySelectorAll('.semiont-tag');
       expect(tags.length).toBe(0);
     });
 

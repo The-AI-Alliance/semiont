@@ -66,8 +66,7 @@ describe('useTheme', () => {
 
       renderHook(() => useTheme());
 
-      expect(document.documentElement.classList.contains('light')).toBe(true);
-      expect(document.documentElement.classList.contains('dark')).toBe(false);
+      expect(document.documentElement.getAttribute('data-theme')).toBe('light');
     });
 
     it('should apply dark theme from localStorage', () => {
@@ -75,8 +74,7 @@ describe('useTheme', () => {
 
       renderHook(() => useTheme());
 
-      expect(document.documentElement.classList.contains('dark')).toBe(true);
-      expect(document.documentElement.classList.contains('light')).toBe(false);
+      expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     });
   });
 
@@ -86,8 +84,7 @@ describe('useTheme', () => {
 
       renderHook(() => useTheme());
 
-      expect(document.documentElement.classList.contains('light')).toBe(true);
-      expect(document.documentElement.classList.contains('dark')).toBe(false);
+      expect(document.documentElement.getAttribute('data-theme')).toBe('light');
     });
 
     it('should apply dark theme when system prefers dark', () => {
@@ -95,8 +92,7 @@ describe('useTheme', () => {
 
       renderHook(() => useTheme());
 
-      expect(document.documentElement.classList.contains('dark')).toBe(true);
-      expect(document.documentElement.classList.contains('light')).toBe(false);
+      expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     });
 
     it('should listen for system theme changes', () => {
@@ -115,12 +111,17 @@ describe('useTheme', () => {
       );
     });
 
-    it('should not listen for system changes when theme is not system', () => {
+    it('should always listen for system changes to track systemTheme', () => {
       localStorageMock.theme = 'dark';
 
       renderHook(() => useTheme());
 
-      expect(matchMediaMock.addEventListener).not.toHaveBeenCalled();
+      // Even when theme is set to 'dark', we still listen for system changes
+      // to keep the systemTheme state up to date
+      expect(matchMediaMock.addEventListener).toHaveBeenCalledWith(
+        'change',
+        expect.any(Function)
+      );
     });
 
     it('should update theme when system preference changes', () => {
@@ -128,18 +129,17 @@ describe('useTheme', () => {
 
       const { rerender } = renderHook(() => useTheme());
 
-      expect(document.documentElement.classList.contains('light')).toBe(true);
+      expect(document.documentElement.getAttribute('data-theme')).toBe('light');
 
       // Simulate system theme change
       matchMediaMock.matches = true;
       const changeHandler = matchMediaMock.addEventListener.mock.calls[0][1];
 
       act(() => {
-        changeHandler();
+        changeHandler({ matches: true } as MediaQueryListEvent);
       });
 
-      expect(document.documentElement.classList.contains('dark')).toBe(true);
-      expect(document.documentElement.classList.contains('light')).toBe(false);
+      expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     });
   });
 
@@ -171,8 +171,7 @@ describe('useTheme', () => {
         result.current.setTheme('dark');
       });
 
-      expect(document.documentElement.classList.contains('dark')).toBe(true);
-      expect(document.documentElement.classList.contains('light')).toBe(false);
+      expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     });
 
     it('should apply light theme to document', () => {
@@ -182,36 +181,33 @@ describe('useTheme', () => {
         result.current.setTheme('light');
       });
 
-      expect(document.documentElement.classList.contains('light')).toBe(true);
-      expect(document.documentElement.classList.contains('dark')).toBe(false);
+      expect(document.documentElement.getAttribute('data-theme')).toBe('light');
     });
 
     it('should switch from light to dark', () => {
       localStorageMock.theme = 'light';
       const { result } = renderHook(() => useTheme());
 
-      expect(document.documentElement.classList.contains('light')).toBe(true);
+      expect(document.documentElement.getAttribute('data-theme')).toBe('light');
 
       act(() => {
         result.current.setTheme('dark');
       });
 
-      expect(document.documentElement.classList.contains('dark')).toBe(true);
-      expect(document.documentElement.classList.contains('light')).toBe(false);
+      expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     });
 
     it('should switch from dark to light', () => {
       localStorageMock.theme = 'dark';
       const { result } = renderHook(() => useTheme());
 
-      expect(document.documentElement.classList.contains('dark')).toBe(true);
+      expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
 
       act(() => {
         result.current.setTheme('light');
       });
 
-      expect(document.documentElement.classList.contains('light')).toBe(true);
-      expect(document.documentElement.classList.contains('dark')).toBe(false);
+      expect(document.documentElement.getAttribute('data-theme')).toBe('light');
     });
 
     it('should switch to system theme', () => {
@@ -220,37 +216,35 @@ describe('useTheme', () => {
 
       const { result } = renderHook(() => useTheme());
 
-      expect(document.documentElement.classList.contains('dark')).toBe(true);
+      expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
 
       act(() => {
         result.current.setTheme('system');
       });
 
-      expect(document.documentElement.classList.contains('light')).toBe(true);
-      expect(document.documentElement.classList.contains('dark')).toBe(false);
+      expect(document.documentElement.getAttribute('data-theme')).toBe('light');
       expect(localStorageMock.theme).toBe('system');
     });
   });
 
   describe('Theme Removal and Reapplication', () => {
-    it('should remove previous theme class when changing theme', () => {
+    it('should replace previous theme attribute when changing theme', () => {
       const { result } = renderHook(() => useTheme());
 
       act(() => {
         result.current.setTheme('light');
       });
 
-      expect(document.documentElement.classList.contains('light')).toBe(true);
+      expect(document.documentElement.getAttribute('data-theme')).toBe('light');
 
       act(() => {
         result.current.setTheme('dark');
       });
 
-      expect(document.documentElement.classList.contains('light')).toBe(false);
-      expect(document.documentElement.classList.contains('dark')).toBe(true);
+      expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     });
 
-    it('should clean up listeners when switching from system to fixed theme', () => {
+    it('should always have listener for system changes', () => {
       const { result } = renderHook(() => useTheme());
 
       expect(matchMediaMock.addEventListener).toHaveBeenCalledWith(
@@ -262,24 +256,27 @@ describe('useTheme', () => {
         result.current.setTheme('dark');
       });
 
-      // Should have cleaned up the listener when theme changed from system
-      expect(matchMediaMock.removeEventListener).toHaveBeenCalled();
+      // The listener persists - we always track system theme changes
+      // Only cleanup happens on unmount
+      expect(matchMediaMock.removeEventListener).not.toHaveBeenCalled();
     });
 
-    it('should add listeners when switching to system theme', () => {
+    it('should maintain system theme listener regardless of current theme', () => {
       localStorageMock.theme = 'dark';
       const { result } = renderHook(() => useTheme());
 
-      expect(matchMediaMock.addEventListener).not.toHaveBeenCalled();
+      // Listener is added on mount
+      expect(matchMediaMock.addEventListener).toHaveBeenCalledWith(
+        'change',
+        expect.any(Function)
+      );
 
       act(() => {
         result.current.setTheme('system');
       });
 
-      expect(matchMediaMock.addEventListener).toHaveBeenCalledWith(
-        'change',
-        expect.any(Function)
-      );
+      // Still have the same listener
+      expect(matchMediaMock.addEventListener).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -295,7 +292,7 @@ describe('useTheme', () => {
       });
 
       expect(result.current.theme).toBe('dark');
-      expect(document.documentElement.classList.contains('dark')).toBe(true);
+      expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
       expect(localStorageMock.theme).toBe('dark');
     });
 
