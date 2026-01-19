@@ -35,104 +35,12 @@
   color: var(--semiont-text-primary);
 }
 
-/* Input and select elements */
-.semiont-form__input,
-.semiont-form__select,
-.semiont-form__textarea {
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--semiont-color-gray-300);
-  border-radius: 0.375rem;
-  font-size: 1rem;
-  background-color: var(--semiont-bg-primary);
-  color: var(--semiont-text-primary);
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-[data-theme="dark"] .semiont-form__input,
-[data-theme="dark"] .semiont-form__select,
-[data-theme="dark"] .semiont-form__textarea {
-  background-color: var(--semiont-bg-primary);
-  color: var(--semiont-text-primary);
-  border-color: var(--semiont-color-gray-700);
-}
-
-/* Focus states - keyboard navigation */
-.semiont-form__input:focus-visible,
-.semiont-form__select:focus-visible,
-.semiont-form__textarea:focus-visible {
-  outline: 2px solid var(--semiont-color-primary-500);
-  outline-offset: -1px;
-  border-color: var(--semiont-color-primary-500);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-[data-theme="dark"] .semiont-form__input:focus-visible,
-[data-theme="dark"] .semiont-form__select:focus-visible,
-[data-theme="dark"] .semiont-form__textarea:focus-visible {
-  outline-color: var(--semiont-color-primary-400);
-  border-color: var(--semiont-color-primary-400);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
-}
-
-/* Remove default focus for mouse users */
-.semiont-form__input:focus:not(:focus-visible),
-.semiont-form__select:focus:not(:focus-visible),
-.semiont-form__textarea:focus:not(:focus-visible) {
-  outline: none;
-  border-color: var(--semiont-color-primary-500);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-[data-theme="dark"] .semiont-form__input:focus:not(:focus-visible),
-[data-theme="dark"] .semiont-form__select:focus:not(:focus-visible),
-[data-theme="dark"] .semiont-form__textarea:focus:not(:focus-visible) {
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
-}
-
-/* High contrast mode support */
-@media (prefers-contrast: more) {
-  .semiont-form__input:focus-visible,
-  .semiont-form__select:focus-visible,
-  .semiont-form__textarea:focus-visible {
-    outline-width: 3px;
-  }
-}
-
-/* Invalid states */
-.semiont-form__input[aria-invalid="true"],
-.semiont-form__select[aria-invalid="true"],
-.semiont-form__textarea[aria-invalid="true"] {
-  border-color: var(--semiont-color-red-500);
-}
-
-[data-theme="dark"] .semiont-form__input[aria-invalid="true"],
-[data-theme="dark"] .semiont-form__select[aria-invalid="true"],
-[data-theme="dark"] .semiont-form__textarea[aria-invalid="true"] {
-  border-color: var(--semiont-color-red-400);
-}
-
-.semiont-form__input[aria-invalid="true"]:focus-visible,
-.semiont-form__select[aria-invalid="true"]:focus-visible,
-.semiont-form__textarea[aria-invalid="true"]:focus-visible {
-  outline: 2px solid var(--semiont-color-red-500);
-  outline-offset: -1px;
-  border-color: var(--semiont-color-red-500);
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
-}
-
-[data-theme="dark"] .semiont-form__input[aria-invalid="true"]:focus-visible,
-[data-theme="dark"] .semiont-form__select[aria-invalid="true"]:focus-visible,
-[data-theme="dark"] .semiont-form__textarea[aria-invalid="true"]:focus-visible {
-  outline-color: var(--semiont-color-red-400);
-  border-color: var(--semiont-color-red-400);
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
-}
-
-/* Textarea specific */
-.semiont-form__textarea {
-  min-height: 4rem;
-  resize: vertical;
-}
+/* Note: Form control styles (.semiont-input, .semiont-textarea, .semiont-select, .semiont-checkbox)
+   are now defined in dedicated core files:
+   - core/inputs.css
+   - core/textareas.css
+   - core/selects.css
+   - core/checkboxes.css */
 
 /* Error messages */
 .semiont-form__error {
@@ -145,29 +53,12 @@
   color: var(--semiont-color-red-400);
 }
 
-/* Checkbox and radio */
+/* Checkbox and radio - wrapper fields */
 .semiont-form__checkbox-field,
 .semiont-form__radio-field {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-}
-
-.semiont-form__checkbox,
-.semiont-form__radio {
-  width: 1rem;
-  height: 1rem;
-  border: 1px solid var(--semiont-color-gray-300);
-  border-radius: 0.25rem;
-}
-
-.semiont-form__radio {
-  border-radius: 50%;
-}
-
-[data-theme="dark"] .semiont-form__checkbox,
-[data-theme="dark"] .semiont-form__radio {
-  border-color: var(--semiont-color-gray-600);
 }
 
 .semiont-form__checkbox-label,
@@ -234,24 +125,7 @@
   color: var(--semiont-text-primary);
 }
 
-/* Disabled states */
-.semiont-form__input:disabled,
-.semiont-form__select:disabled,
-.semiont-form__textarea:disabled,
-.semiont-form__checkbox:disabled,
-.semiont-form__radio:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  background-color: var(--semiont-color-gray-100);
-}
-
-[data-theme="dark"] .semiont-form__input:disabled,
-[data-theme="dark"] .semiont-form__select:disabled,
-[data-theme="dark"] .semiont-form__textarea:disabled,
-[data-theme="dark"] .semiont-form__checkbox:disabled,
-[data-theme="dark"] .semiont-form__radio:disabled {
-  background-color: var(--semiont-color-gray-800);
-}
+/* Note: Disabled states for form controls are defined in their respective core files */
 
 /* Panel form elements */
 .semiont-panel-label {
@@ -319,3 +193,62 @@
   background-color: var(--semiont-color-gray-700);
   color: var(--semiont-color-gray-100);
 }
+/* ============================================
+   Detect Section Form Fields (single-dash BEM variant)
+   Used in DetectSection component
+   ============================================ */
+
+.semiont-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.semiont-form-field__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.semiont-form-field__label {
+  display: block;
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-medium);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-form-field__label {
+  color: var(--semiont-text-primary);
+}
+
+.semiont-form-field__label--with-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.semiont-form-field__info {
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-text-tertiary);
+  font-weight: var(--semiont-font-medium);
+}
+
+[data-theme="dark"] .semiont-form-field__info {
+  color: var(--semiont-text-tertiary);
+}
+
+.semiont-form-field__char-count {
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-text-tertiary);
+  text-align: right;
+}
+
+[data-theme="dark"] .semiont-form-field__char-count {
+  color: var(--semiont-text-tertiary);
+}
+
+/* Note: Basic form controls (.semiont-textarea, .semiont-select, .semiont-checkbox)
+   are now defined in /styles/core/ as they are fundamental UI elements.
+   See: core/textareas.css, core/selects.css, core/checkboxes.css */

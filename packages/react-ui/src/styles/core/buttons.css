@@ -223,6 +223,24 @@
   filter: brightness(0.9);
 }
 
+/* Detect variant - AI-powered detection button */
+.semiont-button[data-variant="detect"] {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-size: var(--semiont-text-base);
+  font-weight: var(--semiont-font-semibold);
+  border-radius: var(--semiont-radius-md);
+  gap: 0.5rem;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: linear-gradient(to right, #6366f1, #8b5cf6);
+  color: var(--semiont-color-white);
+  /* These base colors will be overridden by motivation CSS via data-type attribute */
+}
+
+[data-theme="dark"] .semiont-button[data-variant="detect"] {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
 /* Ghost variant */
 .semiont-button[data-variant="ghost"] {
   background-color: transparent;

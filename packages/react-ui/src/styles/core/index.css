@@ -18,6 +18,21 @@
 /* Range sliders - Input controls for numeric ranges */
 @import './sliders.css';
 
+/* Inputs - Text input fields */
+@import './inputs.css';
+
+/* Checkboxes - Checkbox input controls */
+@import './checkboxes.css';
+
+/* Textareas - Multi-line text input fields */
+@import './textareas.css';
+
+/* Selects - Dropdown selection controls */
+@import './selects.css';
+
+/* Forms - Form field wrappers and layout structures */
+@import './forms.css';
+
 /* Badges - Status and role indicators (Admin, Active, etc.) */
 @import './badges.css';
 

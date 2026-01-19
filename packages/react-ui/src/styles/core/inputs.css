@@ -1,0 +1,117 @@
+/* ============================================
+   Text Inputs - Core UI Element
+
+   This is the authoritative source for all text input styles.
+   Usage: Apply .semiont-input to <input type="text">, <input type="email">, etc.
+
+   Available modifiers:
+   - .semiont-input--small (reduced padding)
+   - .semiont-input--large (increased padding)
+   ============================================ */
+
+/* Base Input Styling */
+.semiont-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--semiont-color-gray-300);
+  border-radius: var(--semiont-radius-md);
+  font-size: var(--semiont-text-sm);
+  font-family: inherit;
+  line-height: 1.5;
+  background-color: var(--semiont-bg-primary);
+  color: var(--semiont-text-primary);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+[data-theme="dark"] .semiont-input {
+  background-color: var(--semiont-bg-primary);
+  color: var(--semiont-text-primary);
+  border-color: var(--semiont-color-gray-700);
+}
+
+/* Focus State - keyboard navigation */
+.semiont-input:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: -1px;
+  border-color: var(--semiont-color-primary-500);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+[data-theme="dark"] .semiont-input:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+  border-color: var(--semiont-color-primary-400);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* Remove default focus for mouse users */
+.semiont-input:focus:not(:focus-visible) {
+  outline: none;
+  border-color: var(--semiont-color-primary-500);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+[data-theme="dark"] .semiont-input:focus:not(:focus-visible) {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: more) {
+  .semiont-input:focus-visible {
+    outline-width: 3px;
+  }
+}
+
+/* Invalid State */
+.semiont-input[aria-invalid="true"] {
+  border-color: var(--semiont-color-red-500);
+}
+
+[data-theme="dark"] .semiont-input[aria-invalid="true"] {
+  border-color: var(--semiont-color-red-400);
+}
+
+.semiont-input[aria-invalid="true"]:focus-visible {
+  outline: 2px solid var(--semiont-color-red-500);
+  outline-offset: -1px;
+  border-color: var(--semiont-color-red-500);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+[data-theme="dark"] .semiont-input[aria-invalid="true"]:focus-visible {
+  outline-color: var(--semiont-color-red-400);
+  border-color: var(--semiont-color-red-400);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+}
+
+/* Disabled State */
+.semiont-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: var(--semiont-color-gray-100);
+}
+
+[data-theme="dark"] .semiont-input:disabled {
+  background-color: var(--semiont-color-gray-800);
+}
+
+/* Size Variants */
+.semiont-input--small {
+  padding: 0.375rem 0.5rem;
+  font-size: var(--semiont-text-xs);
+}
+
+.semiont-input--large {
+  padding: 0.75rem 1rem;
+  font-size: var(--semiont-text-base);
+}
+
+/* Placeholder */
+.semiont-input::placeholder {
+  color: var(--semiont-text-tertiary);
+  opacity: 0.6;
+}
+
+[data-theme="dark"] .semiont-input::placeholder {
+  color: var(--semiont-text-tertiary);
+  opacity: 0.5;
+}

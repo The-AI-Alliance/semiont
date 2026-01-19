@@ -1,0 +1,92 @@
+/* ============================================
+   Checkboxes - Core UI Element
+
+   This is the authoritative source for all checkbox styles.
+   Usage: Apply .semiont-checkbox to <input type="checkbox"> elements.
+
+   Available modifiers:
+   - .semiont-checkbox--small (reduced size)
+   - .semiont-checkbox--large (increased size)
+   ============================================ */
+
+/* Base Checkbox Styling */
+.semiont-checkbox {
+  width: 1.125rem;
+  height: 1.125rem;
+  border: 2px solid var(--semiont-color-gray-400);
+  border-radius: var(--semiont-radius-sm);
+  cursor: pointer;
+  flex-shrink: 0;
+  appearance: none;
+  background-color: var(--semiont-bg-primary);
+  transition: all 0.2s ease;
+}
+
+[data-theme="dark"] .semiont-checkbox {
+  border-color: var(--semiont-color-gray-600);
+  background-color: var(--semiont-bg-primary);
+}
+
+/* Checked State */
+.semiont-checkbox:checked {
+  background-color: var(--semiont-color-primary-500);
+  border-color: var(--semiont-color-primary-500);
+}
+
+[data-theme="dark"] .semiont-checkbox:checked {
+  background-color: var(--semiont-color-primary-400);
+  border-color: var(--semiont-color-primary-400);
+}
+
+/* Focus State */
+.semiont-checkbox:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.semiont-checkbox:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-checkbox:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+/* Hover State */
+.semiont-checkbox:hover:not(:disabled) {
+  border-color: var(--semiont-color-primary-500);
+}
+
+[data-theme="dark"] .semiont-checkbox:hover:not(:disabled) {
+  border-color: var(--semiont-color-primary-400);
+}
+
+/* Disabled State */
+.semiont-checkbox:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: var(--semiont-color-gray-100);
+}
+
+[data-theme="dark"] .semiont-checkbox:disabled {
+  background-color: var(--semiont-color-gray-800);
+}
+
+/* Size Variants */
+.semiont-checkbox--small {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.semiont-checkbox--large {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+/* Accessibility - Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .semiont-checkbox {
+    transition: none;
+  }
+}
