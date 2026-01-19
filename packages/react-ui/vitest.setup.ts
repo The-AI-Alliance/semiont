@@ -6,13 +6,30 @@ import * as matchers from '@testing-library/jest-dom/matchers';
 expect.extend(matchers);
 
 // Polyfill for HTMLElement.focus to fix @headlessui/react Dialog focus issues in jsdom
-if (typeof window !== 'undefined' && window.HTMLElement) {
-  const originalFocus = window.HTMLElement.prototype.focus;
-  window.HTMLElement.prototype.focus = function (this: HTMLElement, options?: any) {
-    if (typeof originalFocus === 'function') {
-      originalFocus.call(this, options);
-    }
-  };
+// The focus property is read-only in jsdom, so we need to use Object.defineProperty
+if (typeof globalThis !== 'undefined' && (globalThis as any).HTMLElement) {
+  const HTMLElementCtor = (globalThis as any).HTMLElement;
+  const descriptor = Object.getOwnPropertyDescriptor(HTMLElementCtor.prototype, 'focus');
+  if (descriptor && !descriptor.writable && !descriptor.set) {
+    // Store original focus implementation
+    const originalFocus = descriptor.get ? descriptor.get.bind(HTMLElementCtor.prototype) : null;
+
+    // Redefine focus as a writable property
+    Object.defineProperty(HTMLElementCtor.prototype, 'focus', {
+      configurable: true,
+      writable: true,
+      value: function (this: HTMLElement) {
+        // Call original focus if available
+        if (originalFocus && typeof originalFocus === 'function') {
+          try {
+            originalFocus.call(this);
+          } catch (e) {
+            // Ignore focus errors in tests
+          }
+        }
+      }
+    });
+  }
 }
 
 // Cleanup after each test
