@@ -150,7 +150,7 @@ export function DetectSection({
                       onChange={(e) => setDensity(Number(e.target.value))}
                       className="semiont-slider"
                     />
-                    <div className="semiont-form-field__slider-labels">
+                    <div className="semiont-slider__labels">
                       <span>{t('densitySparse')}</span>
                       <span>{t('densityDense')}</span>
                     </div>
@@ -161,10 +161,12 @@ export function DetectSection({
 
             <button
               onClick={handleDetect}
-              className="semiont-detect-button"
+              className="semiont-button"
+              data-variant="detect"
               data-type={annotationType}
             >
-              <span className="semiont-detect-button__icon">✨</span>
+              <span className="semiont-button-icon">✨</span>
+              <span>{t('detect')}</span>
             </button>
           </>
         )}

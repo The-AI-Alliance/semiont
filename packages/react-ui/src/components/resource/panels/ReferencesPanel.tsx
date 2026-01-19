@@ -252,10 +252,12 @@ export function ReferencesPanel({
                 onClick={handleDetect}
                 disabled={selectedEntityTypes.length === 0}
                 title={t('startDetection')}
-                className="semiont-detect-widget__button"
-                data-enabled={selectedEntityTypes.length > 0}
+                className="semiont-button"
+                data-variant="detect"
+                data-type="reference"
               >
-                <span className="semiont-detect-widget__button-icon">✨</span>
+                <span className="semiont-button-icon">✨</span>
+                <span>{t('startDetection')}</span>
               </button>
             </>
             </div>
@@ -283,7 +285,9 @@ export function ReferencesPanel({
               </div>
               <button
                 onClick={() => setLastDetectionLog(null)}
-                className="semiont-detect-widget__button semiont-detect-widget__button--gradient"
+                className="semiont-button"
+                data-variant="detect"
+                data-type="reference"
               >
                 {t('more')}
               </button>

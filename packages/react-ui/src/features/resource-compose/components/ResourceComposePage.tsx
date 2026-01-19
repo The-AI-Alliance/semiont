@@ -293,7 +293,7 @@ export function ResourceComposePage({
               value={newResourceName}
               onChange={(e) => setNewResourceName(e.target.value)}
               placeholder={t.resourceNamePlaceholder}
-              className="semiont-form__input"
+              className="semiont-input"
               required
               disabled={isCreating}
             />
@@ -380,7 +380,7 @@ export function ResourceComposePage({
               value={selectedLanguage}
               onChange={(e) => setSelectedLanguage(e.target.value)}
               disabled={isCreating}
-              className="semiont-form__select"
+              className="semiont-select"
             >
               {LOCALES.map((lang) => (
                 <option key={lang.code} value={lang.code}>
@@ -512,7 +512,7 @@ export function ResourceComposePage({
                     value={selectedFormat}
                     onChange={(e) => setSelectedFormat(e.target.value)}
                     disabled={isCreating}
-                    className="semiont-form__select"
+                    className="semiont-select"
                   >
                     <option value="text/markdown">Markdown (text/markdown)</option>
                     <option value="text/plain">Plain Text (text/plain)</option>
@@ -549,7 +549,7 @@ export function ResourceComposePage({
                     value={selectedCharset}
                     onChange={(e) => setSelectedCharset(e.target.value)}
                     disabled={isCreating}
-                    className="semiont-form__select"
+                    className="semiont-select"
                   >
                     <option value="">UTF-8 (default)</option>
                     <option value="iso-8859-1">ISO-8859-1 (Latin-1)</option>
@@ -570,7 +570,7 @@ export function ResourceComposePage({
                 type="checkbox"
                 checked={archiveOriginal}
                 onChange={(e) => setArchiveOriginal(e.target.checked)}
-                className="semiont-form__checkbox"
+                className="semiont-checkbox"
                 disabled={isCreating}
               />
               <label htmlFor="archiveOriginal" className="semiont-form__checkbox-label">

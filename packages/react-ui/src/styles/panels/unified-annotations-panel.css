@@ -85,6 +85,13 @@
 .semiont-unified-panel__content {
   flex: 1;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ensure child panels fill and scroll properly */
+.semiont-unified-panel__content > .semiont-panel {
+  height: 100%;
 }
 
 /* Motivation-specific detection styles moved to /styles/motivations/*.css */

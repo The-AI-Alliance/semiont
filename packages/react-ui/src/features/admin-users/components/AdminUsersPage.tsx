@@ -356,7 +356,7 @@ export function AdminUsersPage({
                 </label>
                 <select
                   id="role"
-                  className="semiont-form__select"
+                  className="semiont-select"
                   value={selectedRole}
                   onChange={(e) => setSelectedRole(e.target.value)}
                 >
@@ -372,7 +372,7 @@ export function AdminUsersPage({
                 </label>
                 <select
                   id="status"
-                  className="semiont-form__select"
+                  className="semiont-select"
                   value={selectedStatus}
                   onChange={(e) => setSelectedStatus(e.target.value)}
                 >

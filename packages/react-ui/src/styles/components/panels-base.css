@@ -220,7 +220,33 @@
   color: var(--semiont-color-gray-400);
 }
 
-/* Panel List */
+/* Panel content area (BEM style for motivation panels) */
+.semiont-panel__content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--semiont-panel-padding);
+}
+
+/* Panel list container (BEM style for motivation panels) */
+.semiont-panel__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Empty state (BEM style for motivation panels) */
+.semiont-panel__empty {
+  padding: 3rem 1rem;
+  text-align: center;
+  color: var(--semiont-text-tertiary);
+  font-size: var(--semiont-text-sm);
+}
+
+[data-theme="dark"] .semiont-panel__empty {
+  color: var(--semiont-text-tertiary);
+}
+
+/* Panel List (modifier class style - legacy) */
 .semiont-panel-list {
   display: flex;
   flex-direction: column;

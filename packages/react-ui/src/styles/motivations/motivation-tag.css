@@ -61,7 +61,7 @@
 [data-theme="dark"] .semiont-motivation-tag,
 [data-theme="dark"] .annotation-tag {
   background: var(--semiont-motivation-tag-dark-bg);
-  color: var(--semiont-color-white);
+  color: var(--semiont-color-white) !important;
   outline: 2px dashed var(--semiont-motivation-tag-dark-outline);
   outline-offset: 1px;
 }
@@ -129,38 +129,38 @@
    Button Styling
    ============================================ */
 .semiont-motivation-tag-button,
-.semiont-detect-button[data-type="tag"] {
-  background: var(--semiont-motivation-tag-button-bg);
-  color: var(--semiont-color-white);
+.semiont-button[data-variant="detect"][data-type="tag"] {
+  background: linear-gradient(to right, var(--semiont-color-orange-500), var(--semiont-color-amber-500)) !important;
+  color: var(--semiont-color-white) !important;
   border: 1px solid var(--semiont-motivation-tag-border);
   cursor: pointer;
   transition: all 0.3s ease;
 }
 
 .semiont-motivation-tag-button:hover,
-.semiont-detect-button[data-type="tag"]:hover {
+.semiont-button[data-variant="detect"][data-type="tag"]:hover:not(:disabled) {
   background: var(--semiont-motivation-tag-button-bg-hover);
   border-color: var(--semiont-motivation-tag-primary);
 }
 
 [data-theme="dark"] .semiont-motivation-tag-button,
-[data-theme="dark"] .semiont-detect-button[data-type="tag"] {
+[data-theme="dark"] .semiont-button[data-variant="detect"][data-type="tag"] {
   border-color: var(--semiont-motivation-tag-dark-outline);
 }
 
 [data-theme="dark"] .semiont-motivation-tag-button:hover,
-[data-theme="dark"] .semiont-detect-button[data-type="tag"]:hover {
+[data-theme="dark"] .semiont-button[data-variant="detect"][data-type="tag"]:hover:not(:disabled) {
   border-color: var(--semiont-motivation-tag-dark-primary);
 }
 
 .semiont-motivation-tag-button:focus-visible,
-.semiont-detect-button[data-type="tag"]:focus-visible {
+.semiont-button[data-variant="detect"][data-type="tag"]:focus-visible {
   outline: 2px solid var(--semiont-motivation-tag-primary);
   outline-offset: 2px;
 }
 
 [data-theme="dark"] .semiont-motivation-tag-button:focus-visible,
-[data-theme="dark"] .semiont-detect-button[data-type="tag"]:focus-visible {
+[data-theme="dark"] .semiont-button[data-variant="detect"][data-type="tag"]:focus-visible {
   outline: 2px solid var(--semiont-motivation-tag-dark-primary);
   outline-offset: 2px;
 }
@@ -186,7 +186,7 @@
 /* Tag chip when related to tag motivation */
 .semiont-motivation-tag-chip {
   background: var(--semiont-motivation-tag-primary);
-  color: var(--semiont-color-white);
+  color: var(--semiont-color-white) !important;
   border-radius: var(--semiont-radius-full);
   padding: 0.125rem 0.5rem;
   font-size: var(--semiont-text-xs);
@@ -241,7 +241,7 @@
 
 .semiont-tag-badge {
   background: var(--semiont-motivation-tag-primary);
-  color: var(--semiont-color-white);
+  color: var(--semiont-color-white) !important;
   border-radius: var(--semiont-radius-sm);
   padding: 0.125rem 0.375rem;
   font-size: var(--semiont-text-xs);

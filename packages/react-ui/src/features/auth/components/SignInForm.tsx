@@ -151,7 +151,7 @@ function CredentialsAuthForm({
               }
             }}
             placeholder={t.emailPlaceholder}
-            className="semiont-form__input"
+            className="semiont-input"
             aria-invalid={!!fieldErrors.email}
             aria-describedby={fieldErrors.email ? 'email-error' : undefined}
             required
@@ -177,7 +177,7 @@ function CredentialsAuthForm({
               }
             }}
             placeholder={t.passwordPlaceholder}
-            className="semiont-form__input"
+            className="semiont-input"
             aria-invalid={!!fieldErrors.password}
             aria-describedby={fieldErrors.password ? 'password-error' : undefined}
             required

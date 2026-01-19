@@ -179,7 +179,7 @@ export function TaggingPanel({
                       ))}
                     </select>
                     {selectedSchema && (
-                      <p className="semiont-form-field__description">
+                      <p className="semiont-form__help">
                         {selectedSchema.description}
                       </p>
                     )}
@@ -188,72 +188,73 @@ export function TaggingPanel({
                   {/* Category Selector */}
                   {selectedSchema && (
                     <div className="semiont-form-field">
-                      <div className="semiont-form-field__header">
-                        <label className="semiont-form-field__label">
-                          {t('selectCategories')}
-                        </label>
-                        <div className="semiont-form-field__actions">
-                          <button
-                            onClick={handleSelectAll}
-                            className="semiont-text-button"
-                            data-variant="tag"
-                          >
-                            {t('selectAll')}
-                          </button>
-                          <span className="semiont-form-field__separator">|</span>
-                          <button
-                            onClick={handleDeselectAll}
-                            className="semiont-text-button"
-                            data-variant="tag"
-                          >
-                            {t('deselectAll')}
-                          </button>
-                        </div>
+                      <label className="semiont-form-field__label">
+                        {t('selectCategories')}
+                      </label>
+                      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                        <button
+                          onClick={handleSelectAll}
+                          type="button"
+                          className="semiont-button--secondary"
+                          style={{ fontSize: 'var(--semiont-text-xs)', padding: '0.25rem 0.5rem' }}
+                        >
+                          {t('selectAll')}
+                        </button>
+                        <button
+                          onClick={handleDeselectAll}
+                          type="button"
+                          className="semiont-button--secondary"
+                          style={{ fontSize: 'var(--semiont-text-xs)', padding: '0.25rem 0.5rem' }}
+                        >
+                          {t('deselectAll')}
+                        </button>
                       </div>
 
-                      <div className="semiont-category-list">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                         {selectedSchema.tags.map(category => (
-                          <div key={category.name} className="semiont-category-item">
-                            <label className="semiont-category-item__label">
-                              <input
-                                type="checkbox"
-                                checked={selectedCategories.has(category.name)}
-                                onChange={() => handleCategoryToggle(category.name)}
-                                className="semiont-checkbox"
-                                data-variant="tag"
-                              />
-                              <div className="semiont-category-item__content">
-                                <div className="semiont-category-item__name">
-                                  {t(`category${category.name.replace(/\s+/g, '')}`)}
-                                </div>
-                                <div className="semiont-category-item__description">
-                                  {category.description}
-                                </div>
-                              </div>
+                          <div key={category.name} className="semiont-form__checkbox-field">
+                            <input
+                              type="checkbox"
+                              id={`category-${category.name.replace(/\s+/g, '-')}`}
+                              checked={selectedCategories.has(category.name)}
+                              onChange={() => handleCategoryToggle(category.name)}
+                              className="semiont-checkbox"
+                            />
+                            <label
+                              htmlFor={`category-${category.name.replace(/\s+/g, '-')}`}
+                              className="semiont-form__checkbox-label"
+                              style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}
+                            >
+                              <span style={{ fontWeight: 500 }}>
+                                {t(`category${category.name.replace(/\s+/g, '')}`)}
+                              </span>
+                              <span style={{ fontSize: 'var(--semiont-text-xs)', color: 'var(--semiont-text-secondary)' }}>
+                                {category.description}
+                              </span>
                             </label>
                           </div>
                         ))}
                       </div>
 
-                      <div className="semiont-form-field__description">
+                      <p className="semiont-form__help">
                         {t('categoriesSelected', { count: selectedCategories.size })}
-                      </div>
+                      </p>
                     </div>
                   )}
-
-                  <button
-                    onClick={handleDetect}
-                    disabled={selectedCategories.size === 0}
-                    className="semiont-detect-button"
-                    data-type="tag"
-                  >
-                    <span className="semiont-detect-button__content">
-                      <span className="semiont-detect-button__icon">✨</span>
-                      <span>{t('detect')}</span>
-                    </span>
-                  </button>
                 </>
               )}
+
+              {/* Detect Button - Always visible */}
+              <button
+                onClick={handleDetect}
+                disabled={selectedCategories.size === 0 || isDetecting}
+                className="semiont-button"
+                data-variant="detect"
+                data-type="tag"
+              >
+                <span className="semiont-button-icon">✨</span>
+                <span>{t('detect')}</span>
+              </button>
 
               {/* Detection Progress */}
               {isDetecting && detectionProgress && (

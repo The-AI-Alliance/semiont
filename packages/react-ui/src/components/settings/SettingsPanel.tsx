@@ -131,7 +131,7 @@ export function SettingsPanel({
             value={locale}
             onChange={(e) => handleLocaleChange(e.target.value)}
             disabled={isPendingLocaleChange}
-            className="semiont-form__select"
+            className="semiont-select"
             aria-busy={isPendingLocaleChange}
             aria-describedby="language-hint"
           >

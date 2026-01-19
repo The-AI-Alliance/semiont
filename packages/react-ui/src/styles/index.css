@@ -29,7 +29,6 @@
 @import './core/index.css';
 
 /* Core Components */
-@import './components/forms.css';
 @import './components/auth.css';
 @import './components/tables.css';
 @import './components/toast.css';

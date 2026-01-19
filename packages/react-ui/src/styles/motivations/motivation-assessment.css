@@ -143,38 +143,38 @@
    Button Styling
    ============================================ */
 .semiont-motivation-assessment-button,
-.semiont-detect-button[data-type="assessment"] {
-  background: var(--semiont-motivation-assessment-button-bg);
-  color: var(--semiont-color-white);
+.semiont-button[data-variant="detect"][data-type="assessment"] {
+  background: var(--semiont-motivation-assessment-button-bg) !important;
+  color: var(--semiont-color-white) !important;
   border: 1px solid var(--semiont-motivation-assessment-border);
   cursor: pointer;
   transition: all 0.3s ease;
 }
 
 .semiont-motivation-assessment-button:hover,
-.semiont-detect-button[data-type="assessment"]:hover {
+.semiont-button[data-variant="detect"][data-type="assessment"]:hover {
   background: var(--semiont-motivation-assessment-button-bg-hover);
   border-color: var(--semiont-motivation-assessment-primary);
 }
 
 [data-theme="dark"] .semiont-motivation-assessment-button,
-[data-theme="dark"] .semiont-detect-button[data-type="assessment"] {
+[data-theme="dark"] .semiont-button[data-variant="detect"][data-type="assessment"] {
   border-color: var(--semiont-motivation-assessment-border);
 }
 
 [data-theme="dark"] .semiont-motivation-assessment-button:hover,
-[data-theme="dark"] .semiont-detect-button[data-type="assessment"]:hover {
+[data-theme="dark"] .semiont-button[data-variant="detect"][data-type="assessment"]:hover {
   border-color: var(--semiont-motivation-assessment-dark-primary);
 }
 
 .semiont-motivation-assessment-button:focus-visible,
-.semiont-detect-button[data-type="assessment"]:focus-visible {
+.semiont-button[data-variant="detect"][data-type="assessment"]:focus-visible {
   outline: 2px solid var(--semiont-motivation-assessment-primary);
   outline-offset: 2px;
 }
 
 [data-theme="dark"] .semiont-motivation-assessment-button:focus-visible,
-[data-theme="dark"] .semiont-detect-button[data-type="assessment"]:focus-visible {
+[data-theme="dark"] .semiont-button[data-variant="detect"][data-type="assessment"]:focus-visible {
   outline: 2px solid var(--semiont-motivation-assessment-dark-primary);
   outline-offset: 2px;
 }
