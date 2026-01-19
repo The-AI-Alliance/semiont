@@ -6,7 +6,7 @@ Comprehensive testing guide for `@semiont/react-ui` components and applications 
 
 The library includes:
 
-- **800+ tests** with high coverage
+- **1300+ tests** with high coverage
 - **Test utilities** for easy component testing
 - **Mock providers** for all cross-cutting concerns
 - **Vitest + React Testing Library** setup
@@ -495,6 +495,27 @@ describe('useMyHook', () => {
   });
 });
 ```
+
+## Known Test Issues
+
+### SearchModal Tests (Skipped)
+
+All SearchModal component tests are currently skipped due to memory issues with HeadlessUI Dialog in jsdom:
+
+- **Issue**: HeadlessUI's `<Dialog>` component creates complex DOM structures with portals, transitions, and focus management that cause Out Of Memory errors in jsdom, even with increased heap size
+- **Impact**: 38 tests across 4 test files are skipped
+- **Files affected**:
+  - `SearchModal.basic.test.tsx` (8 tests)
+  - `SearchModal.visual.test.tsx` (15 tests)
+  - `SearchModal.accessibility.test.tsx` (7 tests)
+  - `SearchModal.keyboard.test.tsx` (8 tests)
+
+**Potential solutions**:
+1. Mock HeadlessUI Dialog component entirely
+2. Use Playwright/Cypress for integration tests instead of jsdom
+3. Redesign SearchModal to use a lighter modal implementation
+
+The tests remain in place with detailed TODO comments for future implementation.
 
 ## Best Practices
 
