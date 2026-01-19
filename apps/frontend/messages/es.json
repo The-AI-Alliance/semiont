@@ -511,5 +511,23 @@
     "maxLengthHelp": "Valores más altos permiten contenido más largo (100-4000 tokens)",
     "cancel": "Cancelar",
     "generate": "✨ Generar"
+  },
+  "SearchResources": {
+    "title": "Buscar recursos",
+    "placeholder": "Buscar recursos...",
+    "searching": "Buscando...",
+    "noResults": "No se encontraron recursos",
+    "close": "Cerrar"
+  },
+  "Search": {
+    "placeholder": "Buscar recursos y entidades...",
+    "searching": "Buscando...",
+    "noResults": "No se encontraron resultados",
+    "startTyping": "Comience a escribir para buscar",
+    "navigate": "para navegar",
+    "select": "para seleccionar",
+    "close": "para cerrar",
+    "enter": "Enter",
+    "esc": "Esc"
   }
 }

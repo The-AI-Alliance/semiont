@@ -511,5 +511,23 @@
     "maxLengthHelp": "Higher values allow longer content (100-4000 tokens)",
     "cancel": "Cancel",
     "generate": "✨ Generate"
+  },
+  "SearchResources": {
+    "title": "Search Resources",
+    "placeholder": "Search for resources...",
+    "searching": "Searching...",
+    "noResults": "No resources found",
+    "close": "Close"
+  },
+  "Search": {
+    "placeholder": "Search for resources and entities...",
+    "searching": "Searching...",
+    "noResults": "No results found",
+    "startTyping": "Start typing to search",
+    "navigate": "to navigate",
+    "select": "to select",
+    "close": "to close",
+    "enter": "Enter",
+    "esc": "Esc"
   }
 }
