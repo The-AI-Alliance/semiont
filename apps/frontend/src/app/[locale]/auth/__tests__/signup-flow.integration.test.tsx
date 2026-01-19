@@ -99,7 +99,7 @@ describe('Sign-Up Flow Integration Tests', () => {
         />
       );
 
-      expect(screen.getByText('Create your Semiont account')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Create your Semiont account' })).toBeInTheDocument();
       expect(screen.getByText('Sign Up with Google')).toBeInTheDocument();
 
       // User clicks sign up
@@ -457,12 +457,12 @@ describe('Sign-Up Flow Integration Tests', () => {
             translations={mockSignUpTranslations}
           />
         );
-        expect(screen.getByText('Create your Semiont account')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Create your Semiont account' })).toBeInTheDocument();
         unmount();
       }
 
       // Should not leak memory or cause errors
-      expect(screen.queryByText('Create your Semiont account')).not.toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Create your Semiont account' })).not.toBeInTheDocument();
     });
 
     it('should clean up async operations on unmount', async () => {
@@ -561,7 +561,7 @@ describe('Sign-Up Flow Integration Tests', () => {
         />
       );
 
-      const headings = screen.getAllByRole('heading', { level: 2 });
+      const headings = screen.getAllByRole('heading', { level: 1 });
       const mainHeading = headings.find(h => h.textContent === 'Create your Semiont account');
       expect(mainHeading).toBeInTheDocument();
     });

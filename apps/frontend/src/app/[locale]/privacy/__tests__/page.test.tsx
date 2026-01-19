@@ -32,41 +32,41 @@ describe('Privacy Policy Page', () => {
     it('should render the main privacy policy container', () => {
       const { container } = render(<PrivacyPolicyPage />);
 
-      // PageLayout now wraps content in a main element with the bg-gray-50 class
+      // PageLayout wraps content in a main element with the semiont-static-page class
       const pageContainer = container.querySelector('.min-h-screen');
       expect(pageContainer).toBeInTheDocument();
       expect(pageContainer).toHaveClass('flex', 'flex-col', 'min-h-screen');
 
-      // The bg-gray-50 class is on the main element
+      // The main element has the semiont-static-page class
       const mainElement = container.querySelector('main');
       expect(mainElement).toBeInTheDocument();
-      expect(mainElement).toHaveClass('flex-1', 'bg-gray-50');
+      expect(mainElement).toHaveClass('flex-1', 'semiont-static-page');
     });
 
     it('should render the content within a responsive container', () => {
       render(<PrivacyPolicyPage />);
-      
-      const contentContainer = document.querySelector('.max-w-4xl');
+
+      const contentContainer = document.querySelector('.semiont-static-container');
       expect(contentContainer).toBeInTheDocument();
-      expect(contentContainer).toHaveClass('max-w-4xl', 'mx-auto', 'py-12', 'px-4', 'sm:px-6', 'lg:px-8');
+      expect(contentContainer).toHaveClass('semiont-static-container');
     });
 
     it('should render content within a white card', () => {
       render(<PrivacyPolicyPage />);
-      
-      const card = document.querySelector('.bg-white.shadow.rounded-lg');
+
+      const card = document.querySelector('.semiont-static-content');
       expect(card).toBeInTheDocument();
-      expect(card).toHaveClass('bg-white', 'shadow', 'rounded-lg', 'p-8');
+      expect(card).toHaveClass('semiont-static-content');
     });
   });
 
   describe('Page Content', () => {
     it('should render the main heading', () => {
       render(<PrivacyPolicyPage />);
-      
+
       const heading = screen.getByRole('heading', { level: 1, name: /privacy policy/i });
       expect(heading).toBeInTheDocument();
-      expect(heading).toHaveClass('text-3xl', 'font-bold', 'text-gray-900', 'dark:text-white', 'mb-8');
+      expect(heading).toHaveClass('semiont-static-title');
     });
 
     it('should render all main sections', () => {
@@ -97,10 +97,10 @@ describe('Privacy Policy Page', () => {
   describe('Information Collection Section', () => {
     it('should render personal information subsection', () => {
       render(<PrivacyPolicyPage />);
-      
+
       const personalInfoHeading = screen.getByRole('heading', { level: 3, name: /personal information/i });
       expect(personalInfoHeading).toBeInTheDocument();
-      expect(personalInfoHeading).toHaveClass('text-xl', 'font-medium', 'text-gray-900', 'mb-2');
+      // h3 styling is handled by semiont-static-article CSS
     });
 
     it('should list personal information items', () => {
@@ -113,10 +113,10 @@ describe('Privacy Policy Page', () => {
 
     it('should render automatically collected information subsection', () => {
       render(<PrivacyPolicyPage />);
-      
+
       const autoInfoHeading = screen.getByRole('heading', { level: 3, name: /automatically collected information/i });
       expect(autoInfoHeading).toBeInTheDocument();
-      expect(autoInfoHeading).toHaveClass('text-xl', 'font-medium', 'text-gray-900', 'mb-2', 'mt-4');
+      // h3 styling is handled by semiont-static-article CSS
     });
 
     it('should list automatically collected information items', () => {
@@ -164,12 +164,12 @@ describe('Privacy Policy Page', () => {
 
     it('should style cookie category cards correctly', () => {
       render(<PrivacyPolicyPage />);
-      
-      const cookieCards = document.querySelectorAll('.border.border-gray-200.rounded-lg.p-4');
+
+      const cookieCards = document.querySelectorAll('.semiont-static-cookie-card');
       expect(cookieCards).toHaveLength(4);
-      
+
       cookieCards.forEach(card => {
-        expect(card).toHaveClass('border', 'border-gray-200', 'rounded-lg', 'p-4');
+        expect(card).toHaveClass('semiont-static-cookie-card');
       });
     });
   });
@@ -196,10 +196,10 @@ describe('Privacy Policy Page', () => {
 
     it('should render CCPA rights subsection', () => {
       render(<PrivacyPolicyPage />);
-      
+
       const ccpaHeading = screen.getByRole('heading', { level: 3, name: /CCPA Rights \(California Residents\)/i });
       expect(ccpaHeading).toBeInTheDocument();
-      expect(ccpaHeading).toHaveClass('text-xl', 'font-medium', 'text-gray-900', 'mb-2', 'mt-4');
+      // h3 styling is handled by semiont-static-article CSS
     });
 
     it('should list CCPA rights', () => {
@@ -247,10 +247,10 @@ describe('Privacy Policy Page', () => {
 
     it('should render contact details in styled container', () => {
       render(<PrivacyPolicyPage />);
-      
-      const contactContainer = document.querySelector('.bg-gray-50.rounded-lg.p-4');
+
+      const contactContainer = document.querySelector('.semiont-static-info-box');
       expect(contactContainer).toBeInTheDocument();
-      expect(contactContainer).toHaveClass('bg-gray-50', 'rounded-lg', 'p-4', 'mt-4');
+      expect(contactContainer).toHaveClass('semiont-static-info-box');
     });
 
     it('should display email and address', () => {
@@ -283,9 +283,10 @@ describe('Privacy Policy Page', () => {
 
     it('should style the last updated text correctly', () => {
       render(<PrivacyPolicyPage />);
-      
+
       const lastUpdatedElement = screen.getByText(/Last updated:/i).closest('p');
-      expect(lastUpdatedElement).toHaveClass('text-gray-600', 'text-sm', 'mt-4');
+      // Footer styling is handled by semiont-static-footer CSS
+      expect(lastUpdatedElement).toBeInTheDocument();
     });
   });
 
@@ -307,26 +308,25 @@ describe('Privacy Policy Page', () => {
 
     it('should have semantic list structures', () => {
       render(<PrivacyPolicyPage />);
-      
+
       const lists = screen.getAllByRole('list');
       expect(lists.length).toBeGreaterThan(0);
-      
-      // Check that lists have proper styling
-      const styledLists = document.querySelectorAll('.list-disc.pl-6');
-      expect(styledLists.length).toBeGreaterThan(0);
+
+      // List styling is handled by semiont-static-article CSS
     });
 
     it('should have proper text contrast classes', () => {
       render(<PrivacyPolicyPage />);
-      
-      // Check main heading color with dark mode support
+
+      // Check main heading exists
       const mainHeading = screen.getByRole('heading', { level: 1 });
-      expect(mainHeading).toHaveClass('text-gray-900', 'dark:text-white');
-      
-      // Check section headings color with dark mode support
+      expect(mainHeading).toBeInTheDocument();
+      expect(mainHeading).toHaveClass('semiont-static-title');
+
+      // Check section headings exist (h2 styling is handled by semiont-static-article CSS)
       const sectionHeadings = screen.getAllByRole('heading', { level: 2 });
       sectionHeadings.forEach(heading => {
-        expect(heading).toHaveClass('text-gray-900', 'dark:text-white');
+        expect(heading).toBeInTheDocument();
       });
     });
   });
@@ -334,30 +334,27 @@ describe('Privacy Policy Page', () => {
   describe('Responsive Design', () => {
     it('should have responsive padding classes', () => {
       render(<PrivacyPolicyPage />);
-      
-      const responsiveContainer = document.querySelector('.px-4.sm\\:px-6.lg\\:px-8');
+
+      // Responsive padding is handled by semiont-static-container CSS
+      const responsiveContainer = document.querySelector('.semiont-static-container');
       expect(responsiveContainer).toBeInTheDocument();
-      expect(responsiveContainer).toHaveClass('px-4', 'sm:px-6', 'lg:px-8');
     });
 
     it('should have responsive text sizing', () => {
       render(<PrivacyPolicyPage />);
-      
-      // Check prose styling
-      const proseContainer = document.querySelector('.prose.prose-lg');
-      expect(proseContainer).toBeInTheDocument();
-      expect(proseContainer).toHaveClass('prose', 'prose-lg', 'max-w-none', 'space-y-6');
+
+      // Text sizing is handled by semiont-static-article CSS
+      const articleContainer = document.querySelector('.semiont-static-article');
+      expect(articleContainer).toBeInTheDocument();
     });
 
     it('should have proper spacing between sections', () => {
       render(<PrivacyPolicyPage />);
-      
+
       const sections = document.querySelectorAll('section');
       expect(sections.length).toBeGreaterThan(0);
-      
-      // Check that content has proper spacing
-      const spaceContainer = document.querySelector('.space-y-6');
-      expect(spaceContainer).toBeInTheDocument();
+
+      // Section spacing is handled by semiont-static-article CSS
     });
   });
 
@@ -380,11 +377,11 @@ describe('Privacy Policy Page', () => {
 
     it('should maintain consistent styling across all sections', () => {
       render(<PrivacyPolicyPage />);
-      
-      // Check that all section headings have consistent styling
+
+      // Check that all section headings exist (h2 styling is handled by semiont-static-article CSS)
       const sectionHeadings = screen.getAllByRole('heading', { level: 2 });
       sectionHeadings.forEach(heading => {
-        expect(heading).toHaveClass('text-2xl', 'font-semibold', 'text-gray-900', 'dark:text-white', 'mb-4');
+        expect(heading).toBeInTheDocument();
       });
     });
   });
