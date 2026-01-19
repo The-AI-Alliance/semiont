@@ -56,8 +56,15 @@ static_resources:
                   timeout: 30s
 
               # Backend API routes (without /api prefix)
+              # Match /resources (exact - for POST /resources)
               - match:
-                  prefix: "/resources"
+                  path: "/resources"
+                route:
+                  cluster: backend
+                  timeout: 30s
+              # Match /resources/* (prefix - for GET /resources/:id)
+              - match:
+                  prefix: "/resources/"
                 route:
                   cluster: backend
                   timeout: 30s
