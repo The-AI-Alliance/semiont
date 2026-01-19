@@ -176,27 +176,12 @@
   color: var(--semiont-text-tertiary);
 }
 
-.semiont-history-event__tag {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.125rem 0.5rem;
-  background: var(--semiont-color-primary-100);
-  color: var(--semiont-color-primary-700);
-  border-radius: var(--semiont-radius-sm);
-  font-size: var(--semiont-text-sm);
-  font-weight: var(--semiont-font-medium);
-}
-
-[data-theme="dark"] .semiont-history-event__tag {
-  background: var(--semiont-color-primary-900);
-  color: var(--semiont-color-primary-300);
-}
-
 .semiont-history-event__text--quoted {
   font-style: italic;
   color: var(--semiont-text-secondary);
 }
 
+/* Entity types container - tags themselves use .semiont-tag from core */
 .semiont-history-event__entity-types {
   display: flex;
   gap: 0.25rem;
