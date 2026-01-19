@@ -496,6 +496,19 @@ if [ -n "$CODESPACE_NAME" ]; then
     echo ""
     echo "   (These credentials are unique to this Codespace)"
     echo ""
+    # Write credentials to JSON file
+    CREDS_FILE="/workspace/credentials.json"
+    cat > "$CREDS_FILE" << EOF
+{
+  "email": "$ADMIN_EMAIL",
+  "password": "$ADMIN_PASSWORD",
+  "environment": "codespace",
+  "codespace_name": "$CODESPACE_NAME",
+  "created_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+}
+EOF
+    echo "   📄 Credentials saved to: credentials.json"
+    echo ""
     echo "📌 Note: Path-based routing via Envoy:"
     echo "   • /resources/*, /annotations/*, etc. → Backend"
     echo "   • /api/auth/*, /api/cookies/* → Frontend"
@@ -511,6 +524,18 @@ else
     echo ""
     echo "   Email:    $ADMIN_EMAIL"
     echo "   Password: $ADMIN_PASSWORD"
+    echo ""
+    # Write credentials to JSON file
+    CREDS_FILE="/workspace/credentials.json"
+    cat > "$CREDS_FILE" << EOF
+{
+  "email": "$ADMIN_EMAIL",
+  "password": "$ADMIN_PASSWORD",
+  "environment": "localhost",
+  "created_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+}
+EOF
+    echo "   📄 Credentials saved to: credentials.json"
     echo ""
     echo "📌 Note: Path-based routing via Envoy:"
     echo "   • /resources/*, /annotations/*, etc. → Backend (port 4000)"
