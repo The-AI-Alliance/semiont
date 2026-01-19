@@ -121,8 +121,11 @@ jobs:
         id: coverage
         run: |
           cd packages/${{ matrix.package }}
-          # Try to run coverage, fallback to test with coverage flag
-          if grep -q '"test:coverage"' package.json; then
+          # Use split coverage for react-ui to avoid memory issues
+          if [ "${{ matrix.package }}" = "react-ui" ]; then
+            echo "Running split coverage for react-ui to avoid memory issues..."
+            npm run test:split:coverage
+          elif grep -q '"test:coverage"' package.json; then
             npm run test:coverage
           else
             npm test -- --coverage

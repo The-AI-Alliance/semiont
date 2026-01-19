@@ -51,9 +51,13 @@
     "test:components:navigation": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/components/navigation",
     "test:components:layout": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/components/layout src/components/branding",
     "test:components:misc": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/components/error-states src/components/loading-states src/components/modals src/components/annotation src/components/Button src/components/resource/__tests__ src/components/__tests__",
+    "test:components:states": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/components/error-states src/components/loading-states",
+    "test:components:modals": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/components/modals",
+    "test:components:other": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/components/annotation src/components/Button src/components/resource/__tests__ src/components/__tests__",
     "test:features": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/features",
     "test:other": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/contexts src/hooks src/lib src/assets",
-    "test:split": "npm run test:components:panels && npm run test:components:navigation && npm run test:components:layout && npm run test:components:misc && npm run test:features && npm run test:other"
+    "test:split": "npm run test:components:panels && npm run test:components:navigation && npm run test:components:layout && npm run test:components:states && npm run test:components:modals && npm run test:components:other && npm run test:features && npm run test:other",
+    "test:split:coverage": "NODE_OPTIONS=--max-old-space-size=8192 vitest run --coverage src/components/resource/panels && NODE_OPTIONS=--max-old-space-size=8192 vitest run --coverage src/components/navigation && NODE_OPTIONS=--max-old-space-size=8192 vitest run --coverage src/components/layout src/components/branding && NODE_OPTIONS=--max-old-space-size=8192 vitest run --coverage src/components/error-states src/components/loading-states && NODE_OPTIONS=--max-old-space-size=8192 vitest run --coverage src/components/modals && NODE_OPTIONS=--max-old-space-size=8192 vitest run --coverage src/components/annotation src/components/Button src/components/resource/__tests__ src/components/__tests__ && NODE_OPTIONS=--max-old-space-size=8192 vitest run --coverage src/features && NODE_OPTIONS=--max-old-space-size=8192 vitest run --coverage src/contexts src/hooks src/lib src/assets"
   },
   "peerDependencies": {
     "@semiont/api-client": "*",
