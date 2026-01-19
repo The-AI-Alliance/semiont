@@ -21,7 +21,7 @@
   background: var(--semiont-bg-tertiary);
 }
 
-.semiont-unified-panel__tab {
+.semiont-unified-panel__tab-button {
   flex: 1;
   padding: var(--semiont-panel-padding-sm);
   background: transparent;
@@ -38,26 +38,44 @@
   gap: calc(var(--semiont-panel-padding-xs) * 1.5);
 }
 
-[data-theme="dark"] .semiont-unified-panel__tab {
+[data-theme="dark"] .semiont-unified-panel__tab-button {
   color: var(--semiont-text-secondary);
 }
 
-.semiont-unified-panel__tab:hover {
+.semiont-unified-panel__tab-button:hover {
   background: var(--semiont-bg-tertiary);
 }
 
-[data-theme="dark"] .semiont-unified-panel__tab:hover {
+[data-theme="dark"] .semiont-unified-panel__tab-button:hover {
   background: var(--semiont-color-gray-700);
 }
 
-.semiont-unified-panel__tab--active {
+.semiont-unified-panel__tab-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-unified-panel__tab-button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-unified-panel__tab-button--active {
   background: var(--semiont-bg-primary);
   color: var(--semiont-text-primary);
 }
 
-[data-theme="dark"] .semiont-unified-panel__tab--active {
+[data-theme="dark"] .semiont-unified-panel__tab-button--active {
   background: var(--semiont-bg-secondary);
   color: var(--semiont-text-primary);
+}
+
+.semiont-unified-panel__tab-button--active:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-unified-panel__tab-button--active:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
 }
 
 .semiont-unified-panel__tab-icon {
