@@ -95,33 +95,28 @@ export function ReferencesPanel({
     onDetect(selectedEntityTypes, includeDescriptiveReferences);
   };
 
-  // Track previous isDetecting state to detect transitions
-  const prevIsDetectingRef = useRef(isDetecting);
-  const isFirstRenderRef = useRef(true);
+  // Track whether we've already saved the log for the current detection run
+  // This prevents infinite loops from repeated state updates
+  const hasSavedLogRef = useRef(false);
 
   // Save detection log when detection completes
   // Only depends on isDetecting boolean to avoid infinite loops from array reference changes
   // Trade-off: If completedEntityTypes changes while isDetecting stays false, we won't update
   // This is acceptable because in practice, completedEntityTypes only changes when detection finishes
   useEffect(() => {
-    const wasDetecting = prevIsDetectingRef.current;
-    const isFirstRender = isFirstRenderRef.current;
+    // When detection starts, reset the flag
+    if (isDetecting) {
+      hasSavedLogRef.current = false;
+      return;
+    }
 
-    prevIsDetectingRef.current = isDetecting;
-    isFirstRenderRef.current = false;
-
-    // Save log when:
-    // 1. Transitioning from detecting (true) to not detecting (false), OR
-    // 2. First render with detection already complete (for tests that start in complete state)
-    const shouldSaveLog =
-      (wasDetecting && !isDetecting) || // Transition: detection just finished
-      (isFirstRender && !isDetecting && detectionProgress?.completedEntityTypes); // Initial: already complete
-
-    if (shouldSaveLog && detectionProgress?.completedEntityTypes) {
+    // When detection is complete and we haven't saved yet, save the log
+    if (!isDetecting && !hasSavedLogRef.current && detectionProgress?.completedEntityTypes) {
+      hasSavedLogRef.current = true;
       setLastDetectionLog(detectionProgress.completedEntityTypes);
       setSelectedEntityTypes([]);
     }
-  }, [isDetecting]); // Intentionally NOT depending on completedEntityTypes array to prevent infinite loops
+  }, [isDetecting, detectionProgress?.completedEntityTypes]); // Both dependencies needed to detect completion
 
   const togglePendingEntityType = (type: string) => {
     setPendingEntityTypes(prev =>
