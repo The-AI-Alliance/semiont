@@ -281,8 +281,10 @@ describe('ReferencesPanel Component', () => {
 
       const startButton = screen.getByTitle('Start Detection');
 
-      expect(startButton).toHaveClass('semiont-detect-widget__button');
-      expect(startButton).toHaveAttribute('data-enabled', 'false');
+      expect(startButton).toHaveClass('semiont-button');
+      expect(startButton).toHaveAttribute('data-variant', 'detect');
+      expect(startButton).toHaveAttribute('data-type', 'reference');
+      expect(startButton).toBeDisabled();
     });
 
     it('should have proper styling when enabled', async () => {
@@ -292,8 +294,10 @@ describe('ReferencesPanel Component', () => {
 
       const startButton = screen.getByTitle('Start Detection');
 
-      expect(startButton).toHaveClass('semiont-detect-widget__button');
-      expect(startButton).toHaveAttribute('data-enabled', 'true');
+      expect(startButton).toHaveClass('semiont-button');
+      expect(startButton).toHaveAttribute('data-variant', 'detect');
+      expect(startButton).toHaveAttribute('data-type', 'reference');
+      expect(startButton).not.toBeDisabled();
     });
   });
 
