@@ -61,6 +61,61 @@
   flex-wrap: wrap;
 }
 
+/* Theme Selection Buttons */
+.semiont-settings-panel__button {
+  background-color: var(--semiont-bg-tertiary);
+  color: var(--semiont-text-primary);
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--semiont-radius-lg);
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-medium);
+  transition: all var(--semiont-duration-base);
+  cursor: pointer;
+  border: none;
+}
+
+.semiont-settings-panel__button:hover {
+  background-color: var(--semiont-color-neutral-300);
+}
+
+.semiont-settings-panel__button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+/* Active/selected state */
+.semiont-settings-panel__button--active {
+  background-color: var(--semiont-color-primary-600);
+  color: var(--semiont-color-white);
+}
+
+.semiont-settings-panel__button--active:hover {
+  background-color: var(--semiont-color-primary-700);
+}
+
+/* Dark mode adjustments */
+[data-theme="dark"] .semiont-settings-panel__button {
+  background-color: var(--semiont-color-neutral-700);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-settings-panel__button:hover {
+  background-color: var(--semiont-color-neutral-600);
+}
+
+[data-theme="dark"] .semiont-settings-panel__button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+[data-theme="dark"] .semiont-settings-panel__button--active {
+  background-color: var(--semiont-color-primary-600);
+  color: var(--semiont-color-white);
+}
+
+[data-theme="dark"] .semiont-settings-panel__button--active:hover {
+  background-color: var(--semiont-color-primary-700);
+}
+
 /* Select Dropdown */
 .semiont-settings-panel__select {
   padding: 0.5rem 0.75rem;
