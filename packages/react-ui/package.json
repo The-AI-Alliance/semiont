@@ -48,10 +48,12 @@
     "test:a11y:watch": "vitest -t \"Accessibility\"",
     "test:components": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/components",
     "test:components:panels": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/components/resource/panels",
-    "test:components:other": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/components/branding src/components/layout src/components/error-states src/components/loading-states src/components/navigation src/components/modals src/components/annotation src/components/Button src/components/resource/__tests__ src/components/__tests__",
+    "test:components:navigation": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/components/navigation",
+    "test:components:layout": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/components/layout src/components/branding",
+    "test:components:misc": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/components/error-states src/components/loading-states src/components/modals src/components/annotation src/components/Button src/components/resource/__tests__ src/components/__tests__",
     "test:features": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/features",
     "test:other": "NODE_OPTIONS=--max-old-space-size=8192 vitest run src/contexts src/hooks src/lib src/assets",
-    "test:split": "npm run test:components:panels && npm run test:components:other && npm run test:features && npm run test:other"
+    "test:split": "npm run test:components:panels && npm run test:components:navigation && npm run test:components:layout && npm run test:components:misc && npm run test:features && npm run test:other"
   },
   "peerDependencies": {
     "@semiont/api-client": "*",
