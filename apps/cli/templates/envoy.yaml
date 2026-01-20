@@ -63,11 +63,13 @@ static_resources:
                   cluster: backend
                   timeout: 30s
               # Match /resources/* (prefix - for GET /resources/:id)
+              # Increased timeout for SSE streams at /resources/:id/events/stream
               - match:
                   prefix: "/resources/"
                 route:
                   cluster: backend
-                  timeout: 30s
+                  timeout: 0s  # No timeout for SSE long-lived connections
+                  idle_timeout: 3600s  # 1 hour idle timeout
               - match:
                   prefix: "/annotations/"
                 route:

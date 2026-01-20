@@ -74,37 +74,22 @@ function segmentTextWithAnnotations(exact: string, annotations: Annotation[]): T
       const posSelector = getTextPositionSelector(targetSelector);
       const quoteSelector = targetSelector ? getTextQuoteSelector(targetSelector) : null;
 
-      console.log('[AnnotateView] Processing annotation:', {
-        id: ann.id?.substring(Math.max(0, (ann.id?.length || 0) - 10)),
-        exact: quoteSelector?.exact,
-        posSelector
-      });
-
       // Try fuzzy anchoring if TextQuoteSelector with context is available
       let position;
       if (quoteSelector && (quoteSelector.prefix || quoteSelector.suffix)) {
         // Use fuzzy anchoring when prefix/suffix context is available
         // This helps when content changes or same text appears multiple times
-        console.log('[AnnotateView] Trying fuzzy anchoring:', {
-          exact: quoteSelector.exact,
-          prefix: quoteSelector.prefix?.substring(0, 50),
-          suffix: quoteSelector.suffix?.substring(0, 50),
-          contentLength: exact.length,
-          contentPreview: exact.substring(0, 100)
-        });
         position = findTextWithContext(
           exact,
           quoteSelector.exact,
           quoteSelector.prefix,
           quoteSelector.suffix
         );
-        console.log('[AnnotateView] Fuzzy anchoring result:', position);
       }
 
       // Fallback to TextPositionSelector or fuzzy position
       const start = position?.start ?? posSelector?.start ?? 0;
       const end = position?.end ?? posSelector?.end ?? 0;
-      console.log('[AnnotateView] Final position:', { start, end, posSelector, position });
 
       return {
         annotation: ann,

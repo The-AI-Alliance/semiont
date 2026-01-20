@@ -35,13 +35,6 @@ export function useGenerationProgress({
       maxTokens?: number;
     }
   ) => {
-    console.log('[useGenerationProgress] startGeneration called with:', {
-      referenceId,
-      resourceId,
-      options,
-      language: options?.language
-    });
-
     // Close any existing stream
     if (streamRef.current) {
       streamRef.current.close();
@@ -64,14 +57,12 @@ export function useGenerationProgress({
 
       // Handle progress events
       stream.onProgress((apiProgress) => {
-        console.log('[useGenerationProgress] Received progress event:', apiProgress);
         setProgress(apiProgress);
         onProgress?.(apiProgress);
       });
 
       // Handle completion
       stream.onComplete((apiProgress) => {
-        console.log('[useGenerationProgress] Processing completion event');
         setIsGenerating(false);
         // Keep progress visible to show completion state and link
         onComplete?.(apiProgress);
