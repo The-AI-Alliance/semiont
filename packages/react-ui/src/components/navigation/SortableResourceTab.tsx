@@ -3,7 +3,7 @@
 import React, { useCallback } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { getResourceIcon } from '../../utils/resource-icons';
+import { getResourceIcon } from '../../lib/resource-utils';
 import type { SortableResourceTabProps } from '../../types/collapsible-navigation';
 
 /**
@@ -39,7 +39,7 @@ export function SortableResourceTab({
     opacity: isSortableDragging || isDragging ? 0.5 : 1,
   };
 
-  const IconComponent = getResourceIcon(resource.mediaType);
+  const iconEmoji = getResourceIcon(resource.mediaType);
   const isCurrentlyDragging = isSortableDragging || isDragging;
 
   // Handle keyboard shortcuts for reordering (Alt + Up/Down)
@@ -99,12 +99,12 @@ export function SortableResourceTab({
               }
             }}
           >
-            <span aria-hidden="true"><IconComponent /></span>
+            <span aria-hidden="true">{iconEmoji}</span>
           </div>
         ) : (
           // When collapsed, icon is clickable for navigation
           <span className="semiont-resource-tab__icon" aria-hidden="true">
-            <IconComponent />
+            {iconEmoji}
           </span>
         )}
         {!isCollapsed && (

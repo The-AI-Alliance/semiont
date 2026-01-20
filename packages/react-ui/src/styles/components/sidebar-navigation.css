@@ -318,10 +318,36 @@
   margin-left: -0.25rem;
   margin-right: 0.75rem;
   cursor: move;
+  color: var(--semiont-color-gray-500);
+}
+
+.semiont-resource-tab--active .semiont-resource-tab__drag-handle {
+  color: var(--semiont-color-gray-700);
+}
+
+[data-theme="dark"] .semiont-resource-tab__drag-handle {
+  color: var(--semiont-color-gray-400);
+}
+
+[data-theme="dark"] .semiont-resource-tab--active .semiont-resource-tab__drag-handle {
+  color: var(--semiont-color-gray-300);
 }
 
 .semiont-resource-tab__icon {
   flex-shrink: 0;
+  color: var(--semiont-color-gray-500);
+}
+
+.semiont-resource-tab--active .semiont-resource-tab__icon {
+  color: var(--semiont-color-gray-700);
+}
+
+[data-theme="dark"] .semiont-resource-tab__icon {
+  color: var(--semiont-color-gray-400);
+}
+
+[data-theme="dark"] .semiont-resource-tab--active .semiont-resource-tab__icon {
+  color: var(--semiont-color-gray-300);
 }
 
 .semiont-resource-tab__name {
