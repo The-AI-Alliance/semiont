@@ -16,7 +16,7 @@ export async function middleware(request: NextRequest) {
   const localeMatch = pathname.match(/^\/([a-z]{2})(\/|$)/);
   const pathWithoutLocale = localeMatch ? pathname.slice(3) : pathname;
 
-  // Only apply admin auth middleware to admin routes
+  // Apply auth middleware to admin routes
   if (pathWithoutLocale.startsWith('/admin')) {
     try {
       const secret = process.env.NEXTAUTH_SECRET;
@@ -33,6 +33,31 @@ export async function middleware(request: NextRequest) {
       // Check if user is authenticated and is an admin
       if (!token || !(token as any).backendUser?.isAdmin) {
         // Return 404 instead of 401/403 to hide the existence of admin routes
+        return NextResponse.rewrite(new URL('/404', request.url));
+      }
+    } catch (error) {
+      console.error('Middleware auth error:', error);
+      return NextResponse.rewrite(new URL('/404', request.url));
+    }
+  }
+
+  // Apply auth middleware to moderate routes
+  if (pathWithoutLocale.startsWith('/moderate')) {
+    try {
+      const secret = process.env.NEXTAUTH_SECRET;
+      if (!secret) {
+        console.error('NEXTAUTH_SECRET is not set');
+        return NextResponse.rewrite(new URL('/404', request.url));
+      }
+
+      const token = await getToken({
+        req: request,
+        secret
+      });
+
+      // Check if user is authenticated and is a moderator or admin
+      if (!token || (!(token as any).backendUser?.isModerator && !(token as any).backendUser?.isAdmin)) {
+        // Return 404 instead of 401/403 to hide the existence of moderate routes
         return NextResponse.rewrite(new URL('/404', request.url));
       }
     } catch (error) {
