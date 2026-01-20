@@ -104,7 +104,7 @@
 }
 
 [data-theme="dark"] .semiont-browse-view {
-  background-color: var(--semiont-bg-inverse);
+  background-color: var(--semiont-bg-primary);
 }
 
 .semiont-browse-view--pdf,
@@ -153,7 +153,7 @@
 }
 
 [data-theme="dark"] .semiont-annotate-view {
-  background: var(--semiont-bg-inverse);
+  background: var(--semiont-bg-primary);
 }
 
 .semiont-annotate-view--image,
