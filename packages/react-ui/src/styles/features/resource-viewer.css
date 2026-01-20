@@ -428,6 +428,43 @@
   color: var(--semiont-color-blue-300);
 }
 
+/* Image Annotation Canvas */
+.semiont-svg-drawing-canvas {
+  position: relative;
+  display: inline-block;
+  cursor: crosshair;
+}
+
+.semiont-svg-drawing-canvas__image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  user-select: none;
+}
+
+.semiont-svg-drawing-canvas__overlay-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.semiont-svg-drawing-canvas__overlay {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.semiont-svg-drawing-canvas__preview {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
 /* Card Grid Layouts */
 .semiont-card-grid {
   display: grid;
