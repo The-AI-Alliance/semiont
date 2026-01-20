@@ -19,6 +19,10 @@
   backdrop-filter: blur(4px);
 }
 
+[data-theme="dark"] .semiont-search-modal__backdrop {
+  background-color: rgba(0, 0, 0, 0.6);
+}
+
 /* Content wrapper */
 .semiont-search-modal__wrapper {
   position: fixed;
@@ -58,8 +62,17 @@
   border-bottom: 1px solid var(--semiont-color-gray-200);
 }
 
+.semiont-search-modal__input-container:focus-within {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: -2px;
+}
+
 [data-theme="dark"] .semiont-search-modal__input-container {
   border-bottom-color: var(--semiont-color-gray-700);
+}
+
+[data-theme="dark"] .semiont-search-modal__input-container:focus-within {
+  outline-color: var(--semiont-color-primary-400);
 }
 
 .semiont-search-modal__search-icon-wrapper {
@@ -91,6 +104,10 @@
 
 [data-theme="dark"] .semiont-search-modal__input {
   color: var(--semiont-color-white);
+}
+
+[data-theme="dark"] .semiont-search-modal__input:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
 }
 
 .semiont-search-modal__esc-wrapper {
@@ -161,8 +178,17 @@
   background-color: var(--semiont-color-gray-50);
 }
 
+.semiont-search-modal__result--selected:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
 [data-theme="dark"] .semiont-search-modal__result--selected {
   background-color: rgba(55, 65, 81, 0.5);
+}
+
+[data-theme="dark"] .semiont-search-modal__result--selected:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
 }
 
 /* Result icon */
@@ -180,8 +206,16 @@
   color: var(--semiont-color-primary-500);
 }
 
+[data-theme="dark"] .semiont-search-modal__result-icon--resource {
+  color: var(--semiont-color-primary-400);
+}
+
 .semiont-search-modal__result-icon--entity {
   color: var(--semiont-color-success-500);
+}
+
+[data-theme="dark"] .semiont-search-modal__result-icon--entity {
+  color: var(--semiont-color-success-400);
 }
 
 /* Result content */
@@ -318,12 +352,21 @@
   color: var(--semiont-color-gray-900);
 }
 
+.semiont-search-modal__close-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
 [data-theme="dark"] .semiont-search-modal__close-button {
   color: var(--semiont-color-gray-400);
 }
 
 [data-theme="dark"] .semiont-search-modal__close-button:hover {
   color: var(--semiont-color-gray-300);
+}
+
+[data-theme="dark"] .semiont-search-modal__close-button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
 }
 
 /* Search form */
@@ -340,10 +383,19 @@
   color: var(--semiont-color-gray-900);
 }
 
+.semiont-search-modal__search-input:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
 [data-theme="dark"] .semiont-search-modal__search-input {
   border-color: var(--semiont-color-gray-600);
   background-color: var(--semiont-color-gray-700);
   color: var(--semiont-color-white);
+}
+
+[data-theme="dark"] .semiont-search-modal__search-input:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
 }
 
 /* Resource list */
