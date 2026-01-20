@@ -92,6 +92,18 @@
   /* Content that comes after the header */
 }
 
+/* Container with padding */
+.semiont-collapsible-nav__container {
+  padding: 1rem; /* matches p-4 */
+}
+
+/* Resources list with vertical spacing */
+.semiont-collapsible-nav__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem; /* matches space-y-1 */
+}
+
 /* Resources section */
 .semiont-collapsible-nav__resources {
   margin-top: 0.75rem;

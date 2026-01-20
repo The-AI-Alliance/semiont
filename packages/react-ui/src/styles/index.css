@@ -36,6 +36,7 @@
 @import './components/panels-base.css';
 @import './components/panel-sections.css';
 @import './components/modals.css';
+@import './components/search-modal.css';
 @import './components/branding.css';
 @import './components/toolbar.css';
 @import './components/cards.css';

@@ -134,7 +134,7 @@ export function SearchModal({
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-[1000]" onClose={onClose}>
+      <Dialog as="div" className="semiont-search-modal" onClose={onClose}>
         {/* Backdrop */}
         <TransitionChild
           as={Fragment}
@@ -145,12 +145,12 @@ export function SearchModal({
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="semiont-search-modal__backdrop" />
         </TransitionChild>
 
         {/* Modal */}
-        <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-start justify-center p-4 pt-[10vh]">
+        <div className="semiont-search-modal__wrapper">
+          <div className="semiont-search-modal__centering">
             <TransitionChild
               as={Fragment}
               enter="ease-out duration-200"
@@ -160,11 +160,11 @@ export function SearchModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <DialogPanel className="w-full max-w-2xl transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 shadow-xl transition-all">
+              <DialogPanel className="semiont-search-modal__panel">
                 {/* Search Input */}
-                <div className="flex items-center border-b border-gray-200 dark:border-gray-700">
-                  <div className="flex-shrink-0 px-4 py-3">
-                    <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="semiont-search-modal__input-container">
+                  <div className="semiont-search-modal__search-icon-wrapper">
+                    <svg className="semiont-search-modal__search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                   </div>
@@ -174,72 +174,72 @@ export function SearchModal({
                     onChange={(e) => setQuery(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder={t.placeholder}
-                    className="flex-1 px-4 py-3 bg-transparent text-gray-900 dark:text-white focus:outline-none"
+                    className="semiont-search-modal__input"
                     autoFocus
                   />
-                  <div className="flex-shrink-0 px-4 py-3">
-                    <kbd className="px-2 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 rounded">
+                  <div className="semiont-search-modal__esc-wrapper">
+                    <kbd className="semiont-search-modal__kbd">
                       {t.esc}
                     </kbd>
                   </div>
                 </div>
 
                 {/* Results */}
-                <div className="max-h-[60vh] overflow-y-auto">
+                <div className="semiont-search-modal__results">
                   {loading && (
-                    <div className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                    <div className="semiont-search-modal__empty">
                       {t.searching}
                     </div>
                   )}
 
                   {!loading && query && results.length === 0 && (
-                    <div className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                    <div className="semiont-search-modal__empty">
                       {t.noResults} "{query}"
                     </div>
                   )}
 
                   {!loading && results.length > 0 && (
-                    <div className="py-2">
+                    <div className="semiont-search-modal__results-list">
                       {results.map((result, index) => (
                         <button
                           key={`${result.type}-${result.id}`}
                           onClick={() => navigateToResult(result)}
                           onMouseEnter={() => setSelectedIndex(index)}
-                          className={`w-full px-4 py-3 flex items-start gap-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
-                            index === selectedIndex ? 'bg-gray-50 dark:bg-gray-700/50' : ''
+                          className={`semiont-search-modal__result ${
+                            index === selectedIndex ? 'semiont-search-modal__result--selected' : ''
                           }`}
                         >
-                          <div className="flex-shrink-0 mt-0.5">
+                          <div className="semiont-search-modal__result-icon-wrapper">
                             {result.type === 'resource' ? (
-                              <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="semiont-search-modal__result-icon semiont-search-modal__result-icon--resource" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                               </svg>
                             ) : (
-                              <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="semiont-search-modal__result-icon semiont-search-modal__result-icon--entity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                               </svg>
                             )}
                           </div>
-                          <div className="flex-1 text-left">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-gray-900 dark:text-white">
+                          <div className="semiont-search-modal__result-content">
+                            <div className="semiont-search-modal__result-header">
+                              <span className="semiont-search-modal__result-name">
                                 {result.name}
                               </span>
                               {result.type === 'entity' && result.entityType && (
-                                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
+                                <span className="semiont-search-modal__result-badge">
                                   {result.entityType}
                                 </span>
                               )}
                             </div>
                             {result.content && (
-                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
+                              <p className="semiont-search-modal__result-description">
                                 {result.content}
                               </p>
                             )}
                           </div>
                           {index === selectedIndex && (
-                            <div className="flex-shrink-0 flex items-center">
-                              <kbd className="px-2 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 rounded">
+                            <div className="semiont-search-modal__result-action">
+                              <kbd className="semiont-search-modal__kbd">
                                 {t.enter}
                               </kbd>
                             </div>
@@ -250,21 +250,21 @@ export function SearchModal({
                   )}
 
                   {!loading && !query && (
-                    <div className="px-4 py-8">
-                      <div className="text-center text-gray-500 dark:text-gray-400 mb-4">
+                    <div className="semiont-search-modal__help">
+                      <div className="semiont-search-modal__help-text">
                         {t.startTyping}
                       </div>
-                      <div className="flex flex-wrap justify-center gap-2">
-                        <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-                          <kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">↑↓</kbd>
+                      <div className="semiont-search-modal__shortcuts">
+                        <div className="semiont-search-modal__shortcut">
+                          <kbd className="semiont-search-modal__kbd semiont-search-modal__kbd--small">↑↓</kbd>
                           {t.navigate}
                         </div>
-                        <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-                          <kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">{t.enter}</kbd>
+                        <div className="semiont-search-modal__shortcut">
+                          <kbd className="semiont-search-modal__kbd semiont-search-modal__kbd--small">{t.enter}</kbd>
                           {t.select}
                         </div>
-                        <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-                          <kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded">Esc</kbd>
+                        <div className="semiont-search-modal__shortcut">
+                          <kbd className="semiont-search-modal__kbd semiont-search-modal__kbd--small">Esc</kbd>
                           {t.close}
                         </div>
                       </div>

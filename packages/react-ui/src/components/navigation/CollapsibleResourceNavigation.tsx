@@ -147,8 +147,8 @@ export function CollapsibleResourceNavigation({
         Resources can be reordered using Alt+Up or Alt+Down arrow keys.
       </div>
 
-      <div className="p-4">
-        <div className="space-y-1">
+      <div className="semiont-collapsible-nav__container">
+        <div className="semiont-collapsible-nav__list">
           <div>
             {/* Header with collapse button - fixed height for alignment */}
             <div className="semiont-collapsible-nav__header">
@@ -187,12 +187,12 @@ export function CollapsibleResourceNavigation({
                 LinkComponent={LinkComponent}
                 isCollapsed={isCollapsed}
                 showDescriptions={!isCollapsed}
-                activeClassName={activeClassName || 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors'}
-                inactiveClassName={inactiveClassName || 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800 group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors'}
+                activeClassName={activeClassName}
+                inactiveClassName={inactiveClassName}
               />
 
               {/* Resource tabs with drag and drop */}
-              <div className="semiont-collapsible-nav__resources mt-3" role="tablist" aria-label="Open resources">
+              <div className="semiont-collapsible-nav__resources" role="tablist" aria-label="Open resources">
                 {isCollapsed ? (
                   // When collapsed, dragging is disabled - just render simple tabs
                   resources.map((resource) => {

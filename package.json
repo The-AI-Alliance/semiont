@@ -18,6 +18,7 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint:css": "stylelint '**/*.css' --ignore-path .gitignore",
     "lint:css:fix": "stylelint '**/*.css' --ignore-path .gitignore --fix",
+    "lint:no-utility-classes": "node scripts/check-no-utility-classes-in-react-ui.js",
     "build:css": "node scripts/build-css-with-sourcemaps.js",
     "build:css:watch": "node scripts/build-css-with-sourcemaps.js --watch",
     "build:css:prod": "node scripts/build-css-with-sourcemaps.js --production",

@@ -107,7 +107,7 @@ export function ResourceSearchModal({
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-[1001]" onClose={onClose}>
+      <Dialog as="div" className="semiont-search-modal semiont-search-modal--resource" onClose={onClose}>
         {/* Backdrop */}
         <TransitionChild
           as={Fragment}
@@ -118,12 +118,12 @@ export function ResourceSearchModal({
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="semiont-search-modal__backdrop" />
         </TransitionChild>
 
         {/* Modal panel */}
-        <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4">
+        <div className="semiont-search-modal__wrapper">
+          <div className="semiont-search-modal__centering semiont-search-modal__centering--center">
             <TransitionChild
               as={Fragment}
               enter="ease-out duration-200"
@@ -133,65 +133,65 @@ export function ResourceSearchModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <DialogPanel className="w-full max-w-[600px] transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 shadow-xl border border-gray-200 dark:border-gray-700 p-6 transition-all">
-                <div className="flex items-center justify-between mb-4">
-                  <DialogTitle className="text-lg font-semibold text-gray-900 dark:text-white">
+              <DialogPanel className="semiont-search-modal__panel semiont-search-modal__panel--with-border">
+                <div className="semiont-search-modal__header">
+                  <DialogTitle className="semiont-search-modal__title">
                     {t.title}
                   </DialogTitle>
                   <button
                     onClick={onClose}
-                    className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300"
+                    className="semiont-search-modal__close-button"
                     aria-label={t.close}
                   >
                     {t.close}
                   </button>
                 </div>
 
-                <form onSubmit={handleSearch} className="mb-4">
+                <form onSubmit={handleSearch} className="semiont-search-modal__search-form">
                   <input
                     type="text"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder={t.placeholder}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-gray-900 dark:text-white"
+                    className="semiont-search-modal__search-input"
                     autoFocus
                   />
                 </form>
 
-                <div className="max-h-[60vh] overflow-y-auto">
+                <div className="semiont-search-modal__results">
                   {loading && (
-                    <div className="text-center py-4 text-gray-600 dark:text-gray-400">
+                    <div className="semiont-search-modal__empty">
                       {t.searching}
                     </div>
                   )}
 
                   {!loading && results.length === 0 && search && (
-                    <div className="text-center py-4 text-gray-600 dark:text-gray-400">
+                    <div className="semiont-search-modal__empty">
                       {t.noResults}
                     </div>
                   )}
 
                   {!loading && results.length > 0 && (
-                    <div className="space-y-2">
+                    <div className="semiont-search-modal__resource-list">
                       {results.map((resource: any) => {
                         const isImage = resource.mediaType?.startsWith('image/');
 
                         return (
                           <div
                             key={resource.id}
-                            className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
+                            className="semiont-search-modal__resource-item"
                             onClick={() => handleSelect(resource.id, resource.name)}
                           >
-                            <h4 className="font-medium text-gray-900 dark:text-white mb-1">
+                            <h4 className="semiont-search-modal__resource-name">
                               {resource.name}
                             </h4>
                             {resource.content && !isImage && (
-                              <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                              <p className="semiont-search-modal__resource-description">
                                 {resource.content.substring(0, 150)}...
                               </p>
                             )}
                             {isImage && (
-                              <p className="text-sm text-gray-500 dark:text-gray-500 italic">
+                              <p className="semiont-search-modal__resource-media-type">
                                 {resource.mediaType}
                               </p>
                             )}
