@@ -69,8 +69,9 @@ export default function KnowledgeResourcePage() {
     }
   }, [isError, isLoading, initialUri, error]);
 
-  // Early return: Loading state
-  if (isLoading) {
+  // Early return: Loading state - show loading until we have data
+  // isLoading only true on initial fetch, but we need to show loading until data arrives
+  if (isLoading || !docData) {
     return <ResourceLoadingState />;
   }
 
@@ -80,7 +81,7 @@ export default function KnowledgeResourcePage() {
   }
 
   // Early return: ResourceDescriptor not found
-  if (!docData?.resource) {
+  if (!docData.resource) {
     return <ResourceErrorState error={new Error('Resource not found')} onRetry={() => refetchDocument()} />;
   }
 
