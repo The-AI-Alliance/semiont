@@ -101,6 +101,19 @@
   color: var(--semiont-color-white);
 }
 
+/* Override global visited link styles - navigation should not use purple visited colors */
+.sidebar-navigation__item:visited,
+.sidebar-navigation__item--active:visited,
+.sidebar-navigation__item--inactive:visited {
+  color: inherit !important;
+}
+
+[data-theme="dark"] .sidebar-navigation__item:visited,
+[data-theme="dark"] .sidebar-navigation__item--active:visited,
+[data-theme="dark"] .sidebar-navigation__item--inactive:visited {
+  color: inherit !important;
+}
+
 /* Icon */
 .sidebar-navigation__icon {
   flex-shrink: 0;
@@ -289,6 +302,15 @@
   min-width: 0;
   text-decoration: none;
   color: inherit;
+}
+
+/* Override global visited link styles for resource tabs */
+.semiont-resource-tab__link:visited {
+  color: inherit !important;
+}
+
+[data-theme="dark"] .semiont-resource-tab__link:visited {
+  color: inherit !important;
 }
 
 .semiont-resource-tab__drag-handle {
