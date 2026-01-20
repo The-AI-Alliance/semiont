@@ -15,7 +15,7 @@ import { SemiontApiClient, resourceUri, type ResourceUri, type AccessToken, type
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   // Get user session for authentication
   const session = await getServerSession(authOptions);
@@ -24,7 +24,7 @@ export async function GET(
     return new NextResponse('Unauthorized', { status: 401 });
   }
 
-  const { id } = params;
+  const { id } = await params;
   const backendUrl = SERVER_API_URL;
 
   // Get Accept header and strip JSON-LD/JSON values
