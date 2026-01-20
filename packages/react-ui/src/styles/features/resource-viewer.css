@@ -377,9 +377,10 @@
   position: fixed;
   right: 0;
   top: 0;
-  bottom: 0;
+  height: 100vh;
   background: transparent;
   z-index: 30;
+  overflow: hidden;
 }
 
 .semiont-page__header {
