@@ -431,33 +431,20 @@ References:
 
 **Event Emission**: All workers emit `job.started`, `job.progress`, `job.completed`, or `job.failed` events to Event Store.
 
-### Real-Time Event Architecture
+### Real-Time Updates
 
-Detection workers emit events to the Event Store, which broadcasts them to subscribed clients via Server-Sent Events (SSE). This enables:
+Detection events flow through the Event Store to subscribed clients via Server-Sent Events (SSE), enabling real-time UI updates:
 
-**Progress Updates**: Client receives real-time progress during detection (<50ms latency)
-- Route subscribes to Event Store for specific resource (resourceUri)
-- Worker emits job progress events → Event Store → SSE stream → Frontend
-- Frontend updates UI in real-time
+**Progress Updates**: Route subscribes to resource events, forwards job progress to client (<50ms latency)
 
-**Annotation Creation**: When worker creates annotations, events flow through:
-1. Worker emits `annotation.added` → Event Store
-2. View Materializer consumes event → updates View Storage
-3. Graph Consumer consumes event → updates Graph Database
-4. Event Store broadcasts to SSE subscribers (document viewers)
-5. Frontend receives `annotation.added` → invalidates React Query cache → refetches annotations
+**Annotation Creation**: When worker emits `annotation.added`:
+1. Event Store broadcasts to SSE subscribers (document viewers)
+2. View Materializer updates View Storage
+3. Graph Consumer updates Graph Database
+4. Frontend invalidates React Query cache → refetches annotations
+5. UI updates automatically
 
-**Connection Management** ([packages/react-ui/src/hooks/useResourceEvents.ts](../../packages/react-ui/src/hooks/useResourceEvents.ts)):
-- Event Handler Refs Pattern prevents reconnection on re-renders
-- Immediate reconnection (100ms) on transient network errors
-- Envoy proxy configured with `timeout: 0s` for long-lived SSE connections
-- React Strict Mode double-mount handling with `connectingRef` guard
-
-**SSE Endpoint**: [apps/backend/src/routes/resources/routes/events-stream.ts](../../apps/backend/src/routes/resources/routes/events-stream.ts)
-- Per-resource SSE stream: `GET /resources/:id/events/stream`
-- Broadcasts all events for resource (annotations, jobs, document changes)
-- Keep-alive pings every 30 seconds
-- Graceful handling of client disconnection
+See [Real-Time Event Architecture](../../apps/backend/docs/REAL-TIME.md) for complete SSE implementation details including Event Handler Refs Pattern, reconnection strategy, and Envoy proxy configuration.
 
 ### Data Flow Through Backend Layers
 
