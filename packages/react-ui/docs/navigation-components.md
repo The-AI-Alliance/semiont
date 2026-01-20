@@ -282,15 +282,15 @@ All navigation components use BEM-style CSS classes for consistent styling:
 .collapsible-resource-navigation__resources
 
 /* SortableResourceTab */
-.sortable-resource-tab
-.sortable-resource-tab--active
-.sortable-resource-tab--inactive
-.sortable-resource-tab--dragging
-.sortable-resource-tab__link
-.sortable-resource-tab__drag-handle
-.sortable-resource-tab__icon
-.sortable-resource-tab__name
-.sortable-resource-tab__close
+.semiont-resource-tab
+.semiont-resource-tab--active
+.semiont-resource-tab--inactive
+.semiont-resource-tab--dragging
+.semiont-resource-tab__link
+.semiont-resource-tab__drag-handle
+.semiont-resource-tab__icon
+.semiont-resource-tab__name
+.semiont-resource-tab__close
 ```
 
 You can override these styles or add additional utility classes as needed.
