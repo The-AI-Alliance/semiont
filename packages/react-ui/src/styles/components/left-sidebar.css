@@ -1,0 +1,133 @@
+/* ============================================
+   LeftSidebar Component
+   ============================================ */
+
+.semiont-left-sidebar {
+  display: flex;
+  flex-direction: column;
+  background: var(--semiont-bg-primary);
+  border-right: 1px solid var(--semiont-border-primary);
+  transition: width var(--semiont-duration-base);
+  overflow: hidden;
+}
+
+.semiont-left-sidebar[data-collapsed="false"] {
+  width: 16rem;
+}
+
+.semiont-left-sidebar[data-collapsed="true"] {
+  width: 4rem;
+}
+
+.semiont-left-sidebar__header {
+  padding: 1rem;
+  border-bottom: 1px solid var(--semiont-color-gray-200);
+}
+
+[data-theme="dark"] .semiont-left-sidebar__header {
+  border-bottom-color: var(--semiont-color-gray-800);
+}
+
+.semiont-left-sidebar__branding-button {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.5rem;
+  border-radius: var(--semiont-radius-lg);
+  transition: background var(--semiont-duration-base);
+  text-decoration: none;
+  color: inherit;
+}
+
+.semiont-left-sidebar__branding-button:hover {
+  background: var(--semiont-bg-tertiary);
+}
+
+[data-theme="dark"] .semiont-left-sidebar__branding-button {
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-left-sidebar__branding-button:hover {
+  background: var(--semiont-bg-tertiary);
+}
+
+.semiont-left-sidebar__branding-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-left-sidebar__branding-button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-left-sidebar__branding-button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.semiont-left-sidebar__logo-collapsed {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Match the natural height of the SEMIONT branding */
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.semiont-left-sidebar__logo-text {
+  font-family: 'Orbitron', var(--semiont-font-sans);
+  font-size: 1.5rem; /* Match size="sm" branding - mobile */
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: -0.025em;
+  line-height: 1;
+  background: linear-gradient(to right, var(--semiont-color-black), var(--semiont-color-primary-600), var(--semiont-color-black));
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (min-width: 640px) {
+  .semiont-left-sidebar__logo-text {
+    font-size: 1.875rem; /* Match size="sm" branding - small screens */
+  }
+}
+
+@media (min-width: 768px) {
+  .semiont-left-sidebar__logo-text {
+    font-size: 2.25rem; /* Match size="sm" branding - medium screens */
+  }
+}
+
+[data-theme="dark"] .semiont-left-sidebar__logo-text {
+  background: linear-gradient(to right, var(--semiont-color-white), var(--semiont-color-primary-400), var(--semiont-color-white));
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.semiont-left-sidebar__dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 0.5rem;
+  background: var(--semiont-bg-primary);
+  border: 1px solid var(--semiont-border-primary);
+  border-radius: var(--semiont-radius-lg);
+  box-shadow: var(--semiont-shadow-xl);
+  min-width: 12rem;
+  z-index: 50;
+}
+
+[data-theme="dark"] .semiont-left-sidebar__dropdown {
+  background: var(--semiont-bg-secondary);
+  border-color: var(--semiont-border-secondary);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+}
+
+.semiont-left-sidebar__content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+}

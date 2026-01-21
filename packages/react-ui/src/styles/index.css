@@ -47,6 +47,10 @@
 @import './components/annotations.css';
 @import './components/annotation-entries.css';
 @import './components/skip-links.css';
+@import './components/header.css';
+@import './components/footer.css';
+@import './components/left-sidebar.css';
+@import './components/navigation-menu.css';
 
 /* Motivation-Specific Styles (W3C Web Annotation) */
 @import './motivations/motivation-reference.css';

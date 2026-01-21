@@ -1,0 +1,42 @@
+/* ============================================
+   NavigationMenu Component
+   ============================================ */
+
+.semiont-navigation-menu {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem;
+}
+
+.semiont-navigation-menu__link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  color: var(--semiont-color-gray-700);
+  text-decoration: none;
+  border-radius: var(--semiont-radius-md);
+  transition: all var(--semiont-duration-base);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+[data-theme="dark"] .semiont-navigation-menu__link {
+  color: var(--semiont-color-gray-300);
+}
+
+.semiont-navigation-menu__link:hover {
+  background: var(--semiont-bg-tertiary);
+  color: var(--semiont-text-primary);
+}
+
+.semiont-navigation-menu__link:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+.semiont-navigation-menu__divider {
+  height: 1px;
+  margin: 0.25rem 0.5rem;
+  background: var(--semiont-border-primary);
+}
