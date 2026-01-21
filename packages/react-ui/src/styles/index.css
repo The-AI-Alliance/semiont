@@ -40,6 +40,7 @@
 @import './components/branding.css';
 @import './components/toolbar.css';
 @import './components/cards.css';
+@import './components/detection-widget.css';
 @import './components/references.css';
 @import './components/sidebar-navigation.css';
 @import './components/collapsible-resource-navigation.css';
