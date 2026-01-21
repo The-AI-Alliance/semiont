@@ -187,6 +187,98 @@
   border-color: var(--semiont-color-blue-600);
 }
 
+/* Header section */
+.semiont-detection-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.semiont-detection-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--semiont-color-gray-900);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+[data-theme="dark"] .semiont-detection-title {
+  color: var(--semiont-color-gray-100);
+}
+
+.semiont-detection-sparkle {
+  font-size: 1.125rem;
+  animation: semiont-sparkle-infinite 1.5s ease-in-out infinite;
+}
+
+@keyframes semiont-sparkle-infinite {
+  0%, 100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+.semiont-detection-cancel {
+  color: var(--semiont-color-gray-600);
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.semiont-detection-cancel:hover {
+  color: var(--semiont-color-gray-900);
+}
+
+[data-theme="dark"] .semiont-detection-cancel {
+  color: var(--semiont-color-gray-400);
+}
+
+[data-theme="dark"] .semiont-detection-cancel:hover {
+  color: var(--semiont-color-gray-300);
+}
+
+/* Completed entity types log */
+.semiont-detection-log {
+  margin-bottom: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.semiont-detection-log-item {
+  font-size: 0.75rem;
+  color: var(--semiont-color-gray-600);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+[data-theme="dark"] .semiont-detection-log-item {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-detection-check {
+  color: var(--semiont-color-green-600);
+}
+
+[data-theme="dark"] .semiont-detection-check {
+  color: var(--semiont-color-green-400);
+}
+
+.semiont-detection-entity-type {
+  font-weight: 500;
+}
+
 .semiont-detection-progress__params {
   margin-bottom: 0.75rem;
   padding: 0.5rem;
