@@ -30,6 +30,10 @@ graph TB
         OAUTH[OAuth Providers<br/>Google]
     end
 
+    subgraph "Proxy"
+        PROXY[Proxy<br/>Envoy/ALB]
+    end
+
     subgraph "Application"
         FE[Frontend<br/>NextAuth.js]
         BE[Backend API<br/>JWT Auth]
@@ -48,19 +52,19 @@ graph TB
         JW[Job Worker]
     end
 
-    %% Client connections
-    USER -->|HTTPS| FE
+    %% Client to Proxy
+    USER -->|HTTPS| PROXY
     AI -->|MCP Protocol| MCP
+    MCP -->|REST + JWT| PROXY
 
     %% OAuth flow (server-side only)
     USER -.->|OAuth| OAUTH
     OAUTH -.->|Token| FE
     FE -.->|Exchange Token| BE
 
-    %% API calls (client-side from browser)
-    USER -->|REST + JWT| BE
-    USER -->|SSE + JWT| BE
-    MCP -->|REST + JWT| BE
+    %% Proxy routing
+    PROXY -->|/api/auth/*<br/>/api/cookies/*<br/>/*| FE
+    PROXY -->|/resources/*<br/>/annotations/*<br/>/admin/*<br/>/api/*| BE
 
     %% Backend to data (write path)
     BE -->|Store Representations| REP
@@ -82,25 +86,34 @@ graph TB
     JW -->|Emit Events| EVENTS
     JW -->|Use AI| INF
 
-    %% SSE event flow (real-time updates back to browser)
+    %% SSE event flow (real-time updates back through proxy)
     EVENTS -.->|Subscribe| BE
-    BE -.->|SSE: Events| USER
+    BE -.->|SSE: Events| PROXY
+    PROXY -.->|SSE: Events| USER
 
     %% Styling
     classDef client fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
     classDef identity fill:#c97d5d,stroke:#8b4513,stroke-width:2px,color:#fff
+    classDef proxy fill:#9b59b6,stroke:#6c3483,stroke-width:2px,color:#fff
     classDef app fill:#d4a827,stroke:#8b6914,stroke-width:2px,color:#000
     classDef data fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
     classDef compute fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
 
     class USER,AI,MCP client
     class OAUTH identity
+    class PROXY proxy
     class FE,BE app
     class REP,EVENTS,GRAPH,DB,SEC data
     class INF,JW compute
 ```
 
 ## Application Services
+
+### Proxy
+Routes HTTP traffic between frontend and backend services.
+- **Documentation**: [docs/services/PROXY.md](./services/PROXY.md)
+- **Local/Codespaces**: Envoy proxy
+- **AWS Platform**: Application Load Balancer (ALB)
 
 ### Frontend
 Next.js web application with React components for document management and annotation.
