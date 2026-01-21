@@ -37,7 +37,9 @@ export default function ModerateLayout({
             isAdmin={isAdmin}
             isModerator={isModerator}
           >
-            <ModerationNavigation />
+            {(isCollapsed, toggleCollapsed, navigationMenu) => (
+              <ModerationNavigation navigationMenu={navigationMenu} />
+            )}
           </LeftSidebar>
           <main className="flex-1 p-6 flex flex-col">
             <div className="max-w-7xl mx-auto flex-1 flex flex-col w-full">

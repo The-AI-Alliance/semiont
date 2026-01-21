@@ -8,7 +8,7 @@
   background: var(--semiont-bg-primary);
   border-right: 1px solid var(--semiont-border-primary);
   transition: width var(--semiont-duration-base);
-  overflow: hidden;
+  overflow: hidden visible;
 }
 
 .semiont-left-sidebar[data-collapsed="false"] {

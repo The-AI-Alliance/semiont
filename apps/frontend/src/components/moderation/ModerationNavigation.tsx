@@ -4,19 +4,23 @@ import React from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { usePathname } from '@/i18n/routing';
-import { SidebarNavigation } from '@semiont/react-ui';
-import type { NavigationItem } from '@semiont/react-ui';
+import { SimpleNavigation } from '@semiont/react-ui';
+import type { SimpleNavigationItem } from '@semiont/react-ui';
 import {
   ClockIcon,
   TagIcon,
   BookOpenIcon
 } from '@heroicons/react/24/outline';
 
-export function ModerationNavigation() {
+interface ModerationNavigationProps {
+  navigationMenu?: (onClose: () => void) => React.ReactNode;
+}
+
+export function ModerationNavigation({ navigationMenu }: ModerationNavigationProps = {}) {
   const t = useTranslations('Moderation');
   const pathname = usePathname();
 
-  const navigation: NavigationItem[] = [
+  const navigation: SimpleNavigationItem[] = [
     {
       name: t('recentResources'),
       href: '/moderate/recent',
@@ -38,15 +42,12 @@ export function ModerationNavigation() {
   ];
 
   return (
-    <div className="p-4">
-      <SidebarNavigation
-        items={navigation}
-        title={t('title')}
-        currentPath={pathname}
-        LinkComponent={Link as any}
-        activeClassName="semiont-nav-link semiont-nav-link--active"
-        inactiveClassName="semiont-nav-link"
-      />
-    </div>
+    <SimpleNavigation
+      title={t('title')}
+      items={navigation}
+      currentPath={pathname}
+      LinkComponent={Link as any}
+      {...(navigationMenu && { dropdownContent: navigationMenu })}
+    />
   );
 }

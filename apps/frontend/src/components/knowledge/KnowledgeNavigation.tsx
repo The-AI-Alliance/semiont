@@ -20,9 +20,10 @@ const TelescopeIcon = ({ className }: { className?: string }) => (
 interface KnowledgeNavigationProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
+  navigationMenu?: (onClose: () => void) => React.ReactNode;
 }
 
-export function KnowledgeNavigation({ isCollapsed, onToggleCollapse }: KnowledgeNavigationProps) {
+export function KnowledgeNavigation({ isCollapsed, onToggleCollapse, navigationMenu }: KnowledgeNavigationProps) {
   const t = useTranslations('Knowledge');
   const pathname = usePathname();
   const router = useRouter();
@@ -86,6 +87,7 @@ export function KnowledgeNavigation({ isCollapsed, onToggleCollapse }: Knowledge
         bars: Bars3Icon,
         close: XMarkIcon
       }}
+      navigationMenu={navigationMenu}
     />
   );
 }

@@ -1,18 +1,25 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { NavigationMenu } from '../navigation/NavigationMenu';
 import { SemiontBranding } from '../branding/SemiontBranding';
-import { useDropdown } from '../../hooks/useUI';
+import { NavigationMenu } from '../navigation/NavigationMenu';
 import type { LinkComponentProps, RouteBuilder } from '../../contexts/RoutingContext';
 import type { TranslateFn } from '../../types/translation';
+
+export interface NavigationMenuHelper {
+  (onClose: () => void): React.ReactNode;
+}
 
 interface LeftSidebarProps {
   Link: React.ComponentType<LinkComponentProps>;
   routes: RouteBuilder;
   t: TranslateFn;
   tHome: TranslateFn;
-  children: React.ReactNode | ((isCollapsed: boolean, toggleCollapsed: () => void) => React.ReactNode);
+  children: React.ReactNode | ((
+    isCollapsed: boolean,
+    toggleCollapsed: () => void,
+    navigationMenu: NavigationMenuHelper
+  ) => React.ReactNode);
   brandingLink?: string;
   collapsible?: boolean;
   storageKey?: string;
@@ -36,7 +43,6 @@ export function LeftSidebar({
   isModerator = false,
   currentPath
 }: LeftSidebarProps) {
-  const { isOpen, toggle, close, dropdownRef } = useDropdown();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Load collapsed state from localStorage on mount (only if collapsible)
@@ -57,6 +63,20 @@ export function LeftSidebar({
     localStorage.setItem(storageKey, newState.toString());
   };
 
+  // Helper function to render NavigationMenu in dropdowns
+  const navigationMenu: NavigationMenuHelper = (onClose) => (
+    <NavigationMenu
+      Link={Link}
+      routes={routes}
+      t={t}
+      isAdmin={isAdmin}
+      isModerator={isModerator}
+      brandingLink={brandingLink}
+      onItemClick={onClose}
+      currentPath={currentPath}
+    />
+  );
+
   return (
     <aside
       className="semiont-left-sidebar"
@@ -66,16 +86,11 @@ export function LeftSidebar({
       <div
         className="semiont-left-sidebar__header"
         data-collapsed={isCollapsed}
-        ref={dropdownRef}
       >
-        <button
-          onClick={toggle}
+        <Link
+          href={brandingLink}
           className="semiont-left-sidebar__branding-button"
-          aria-label="Navigation menu"
-          aria-expanded={isOpen}
-          aria-controls="sidebar-nav-dropdown"
-          aria-haspopup="true"
-          id="sidebar-nav-button"
+          aria-label="Go to home page"
         >
           {isCollapsed ? (
             // Collapsed: Just show "S" with gradient
@@ -94,29 +109,7 @@ export function LeftSidebar({
               className=""
             />
           )}
-        </button>
-
-        {/* Dropdown Menu */}
-        {isOpen && isAuthenticated && (
-          <div
-            id="sidebar-nav-dropdown"
-            className="semiont-left-sidebar__dropdown"
-            role="menu"
-            aria-orientation="vertical"
-            aria-labelledby="sidebar-nav-button"
-          >
-            <NavigationMenu
-              Link={Link}
-              routes={routes}
-              t={t}
-              isAdmin={isAdmin}
-              isModerator={isModerator}
-              brandingLink={brandingLink}
-              onItemClick={close}
-              currentPath={currentPath}
-            />
-          </div>
-        )}
+        </Link>
       </div>
 
       {/* Navigation Content */}
@@ -126,7 +119,7 @@ export function LeftSidebar({
         id="main-navigation"
         className="semiont-left-sidebar__content"
       >
-        {typeof children === 'function' ? children(isCollapsed, toggleCollapsed) : children}
+        {typeof children === 'function' ? children(isCollapsed, toggleCollapsed, navigationMenu) : children}
       </nav>
     </aside>
   );

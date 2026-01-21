@@ -8,9 +8,9 @@
   },
   "Navigation": {
     "home": "Inicio",
-    "know": "Conocer",
-    "moderate": "Moderar",
-    "administer": "Administrar"
+    "know": "Recursos",
+    "moderate": "Moderación",
+    "administer": "Administración"
   },
   "Footer": {
     "copyright": "© {year} Semiont. Todos los derechos reservados.",
@@ -225,7 +225,7 @@
     "errorAcceptingTerms": "Hubo un error al registrar tu aceptación de los términos. Por favor, inténtalo de nuevo."
   },
   "Knowledge": {
-    "title": "Conocimiento",
+    "title": "Recursos",
     "discover": "Descubrir",
     "compose": "Redactar",
     "collapseSidebar": "Ocultar barra lateral",
@@ -236,7 +236,7 @@
     "redirecting": "Redirigiendo..."
   },
   "Discover": {
-    "title": "Descubrir Conocimiento",
+    "title": "Descubrir Recursos",
     "subtitle": "Explora tu grafo de conocimiento y descubre conexiones",
     "searchPlaceholder": "Buscar recursos por nombre o contenido...",
     "searchButton": "Buscar",

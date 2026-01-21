@@ -35,18 +35,3 @@ export interface NavigationProps {
   title?: string;
 }
 
-/**
- * Props for the SidebarNavigation component
- */
-export interface SidebarNavigationProps extends NavigationProps {
-  /** Whether to show descriptions as tooltips */
-  showDescriptions?: boolean;
-  /** Custom active item class */
-  activeClassName?: string;
-  /** Custom inactive item class */
-  inactiveClassName?: string;
-  /** Whether the navigation is in collapsed state (icons only) */
-  isCollapsed?: boolean;
-  /** Whether to show text labels (when not collapsed) */
-  showText?: boolean;
-}
