@@ -28,15 +28,15 @@
 }
 
 .sidebar-navigation__title {
-  font-size: 0.75rem; /* 12px - same as text-xs in Tailwind */
-  font-weight: 600;
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-semibold);
+  color: var(--semiont-text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--semiont-color-gray-400);
 }
 
 [data-theme="dark"] .sidebar-navigation__title {
-  color: var(--semiont-color-gray-500);
+  color: var(--semiont-text-secondary);
 }
 
 /* Items Container */
@@ -222,16 +222,16 @@
 
 /* Collapsible navigation header title - consistent with sidebar-navigation__title */
 .semiont-nav-header__title {
-  font-size: 0.75rem; /* 12px - same as text-xs */
-  font-weight: 600;
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-semibold);
+  color: var(--semiont-text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--semiont-color-gray-400);
   flex: 1;
 }
 
 [data-theme="dark"] .semiont-nav-header__title {
-  color: var(--semiont-color-gray-500);
+  color: var(--semiont-text-secondary);
 }
 
 /* Active navigation link */
