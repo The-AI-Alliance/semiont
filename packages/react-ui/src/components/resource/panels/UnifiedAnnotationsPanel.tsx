@@ -277,6 +277,7 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
                 onGenerateDocument={props.onGenerateDocument}
                 onSearchDocuments={props.onSearchDocuments}
                 onUpdate={props.onUpdateReference}
+                generatingReferenceId={props.generatingReferenceId}
                 mediaType={props.mediaType}
                 referencedBy={props.referencedBy}
                 referencedByLoading={props.referencedByLoading}

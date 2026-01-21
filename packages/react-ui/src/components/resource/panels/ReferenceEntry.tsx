@@ -21,6 +21,7 @@ interface ReferenceEntryProps {
   onSearchDocuments?: (referenceId: string, searchTerm: string) => void;
   onUpdateReference?: (referenceId: string, updates: Partial<Annotation>) => void;
   annotateMode?: boolean;
+  isGenerating?: boolean;
 }
 
 export function ReferenceEntry({
@@ -34,6 +35,7 @@ export function ReferenceEntry({
   onSearchDocuments,
   onUpdateReference,
   annotateMode = true,
+  isGenerating = false,
 }: ReferenceEntryProps) {
   const t = useTranslations('ReferencesPanel');
   const referenceRef = useRef<HTMLDivElement>(null);
@@ -173,6 +175,7 @@ export function ReferenceEntry({
                 onClick={handleGenerate}
                 className="semiont-reference-button semiont-reference-button--primary semiont-reference-button--full"
                 title={t('generate')}
+                data-generating={isGenerating ? 'true' : 'false'}
               >
                 ✨
               </button>

@@ -177,6 +177,7 @@
    ============================================ */
 
 .semiont-reference-button {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -253,6 +254,42 @@
 [data-theme="dark"] .semiont-reference-button--secondary:hover:not(:disabled) {
   background-color: var(--semiont-color-gray-600);
   border-color: var(--semiont-color-gray-500);
+}
+
+/* Generating state animation - sparkle pulses and glows */
+.semiont-reference-button[data-generating="true"] {
+  animation: semiont-reference-button-pulse 1.5s ease-in-out infinite;
+  box-shadow: 0 0 8px 2px rgba(59, 130, 246, 0.5);
+}
+
+[data-theme="dark"] .semiont-reference-button[data-generating="true"] {
+  box-shadow: 0 0 8px 2px rgba(96, 165, 250, 0.6);
+}
+
+@keyframes semiont-reference-button-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 8px 2px rgba(59, 130, 246, 0.5);
+  }
+  50% {
+    transform: scale(1.15);
+    box-shadow: 0 0 16px 4px rgba(59, 130, 246, 0.8);
+  }
+}
+
+[data-theme="dark"] .semiont-reference-button[data-generating="true"] {
+  animation: semiont-reference-button-pulse-dark 1.5s ease-in-out infinite;
+}
+
+@keyframes semiont-reference-button-pulse-dark {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 8px 2px rgba(96, 165, 250, 0.6);
+  }
+  50% {
+    transform: scale(1.15);
+    box-shadow: 0 0 16px 4px rgba(96, 165, 250, 0.9);
+  }
 }
 
 /* Size variants */
