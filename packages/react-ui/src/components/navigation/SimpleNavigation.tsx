@@ -15,6 +15,14 @@ export interface SimpleNavigationProps {
   currentPath: string;
   LinkComponent: React.ComponentType<any>;
   dropdownContent?: (onClose: () => void) => React.ReactNode;
+  isCollapsed: boolean;
+  onToggleCollapse: () => void;
+  icons: {
+    chevronLeft: React.ComponentType<{ className?: string }>;
+    bars: React.ComponentType<{ className?: string }>;
+  };
+  collapseSidebarLabel: string;
+  expandSidebarLabel: string;
 }
 
 /**
@@ -26,8 +34,16 @@ export function SimpleNavigation({
   items,
   currentPath,
   LinkComponent,
-  dropdownContent
+  dropdownContent,
+  isCollapsed,
+  onToggleCollapse,
+  icons,
+  collapseSidebarLabel,
+  expandSidebarLabel
 }: SimpleNavigationProps) {
+  const ChevronLeftIcon = icons.chevronLeft;
+  const BarsIcon = icons.bars;
+
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -50,7 +66,7 @@ export function SimpleNavigation({
 
   return (
     <div className="semiont-simple-nav">
-      {/* Section header with optional dropdown */}
+      {/* Section header with collapse/expand button and optional dropdown */}
       <div style={{ position: 'relative' }} ref={dropdownContent ? dropdownRef : undefined}>
         <button
           onClick={dropdownContent ? toggleDropdown : undefined}
@@ -60,10 +76,22 @@ export function SimpleNavigation({
           aria-haspopup={dropdownContent ? 'true' : undefined}
           type="button"
         >
-          {title}
+          {!isCollapsed && <span className="semiont-nav-section__header-text">{title}</span>}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleCollapse();
+            }}
+            className="semiont-nav-section__header-icon"
+            title={isCollapsed ? expandSidebarLabel : collapseSidebarLabel}
+            aria-label={isCollapsed ? expandSidebarLabel : collapseSidebarLabel}
+            type="button"
+          >
+            {!isCollapsed ? <ChevronLeftIcon /> : <BarsIcon />}
+          </button>
         </button>
 
-        {isDropdownOpen && dropdownContent && (
+        {isDropdownOpen && dropdownContent && !isCollapsed && (
           <div className="semiont-nav-section__dropdown">
             {dropdownContent(closeDropdown)}
           </div>
@@ -71,23 +99,46 @@ export function SimpleNavigation({
       </div>
 
       {/* Static navigation tabs */}
-      <nav className="semiont-nav-tabs">
-        {items.map((item) => {
-          const isActive = currentPath === item.href;
-          return (
-            <LinkComponent
-              key={item.href}
-              href={item.href}
-              className={`semiont-nav-tab ${isActive ? 'semiont-nav-tab--active' : ''}`}
-              title={item.description || item.name}
-              aria-current={isActive ? 'page' : undefined}
-            >
-              <item.icon className="semiont-nav-tab__icon" aria-hidden="true" />
-              <span className="semiont-nav-tab__text">{item.name}</span>
-            </LinkComponent>
-          );
-        })}
-      </nav>
+      {!isCollapsed && (
+        <nav className="semiont-nav-tabs">
+          {items.map((item) => {
+            const isActive = currentPath === item.href;
+            return (
+              <LinkComponent
+                key={item.href}
+                href={item.href}
+                className={`semiont-nav-tab ${isActive ? 'semiont-nav-tab--active' : ''}`}
+                title={item.description || item.name}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                <item.icon className="semiont-nav-tab__icon" aria-hidden="true" />
+                <span className="semiont-nav-tab__text">{item.name}</span>
+              </LinkComponent>
+            );
+          })}
+        </nav>
+      )}
+
+      {/* Collapsed state - show icon-only tabs */}
+      {isCollapsed && (
+        <nav className="semiont-nav-tabs">
+          {items.map((item) => {
+            const isActive = currentPath === item.href;
+            return (
+              <LinkComponent
+                key={item.href}
+                href={item.href}
+                className={`semiont-nav-tab ${isActive ? 'semiont-nav-tab--active' : ''}`}
+                title={item.description || item.name}
+                aria-current={isActive ? 'page' : undefined}
+                aria-label={item.name}
+              >
+                <item.icon className="semiont-nav-tab__icon" aria-hidden="true" />
+              </LinkComponent>
+            );
+          })}
+        </nav>
+      )}
     </div>
   );
 }

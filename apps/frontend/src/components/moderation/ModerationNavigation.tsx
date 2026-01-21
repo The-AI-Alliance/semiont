@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { usePathname } from '@/i18n/routing';
@@ -9,7 +9,9 @@ import type { SimpleNavigationItem } from '@semiont/react-ui';
 import {
   ClockIcon,
   TagIcon,
-  BookOpenIcon
+  BookOpenIcon,
+  ChevronLeftIcon,
+  Bars3Icon
 } from '@heroicons/react/24/outline';
 
 interface ModerationNavigationProps {
@@ -18,7 +20,25 @@ interface ModerationNavigationProps {
 
 export function ModerationNavigation({ navigationMenu }: ModerationNavigationProps = {}) {
   const t = useTranslations('Moderation');
+  const tSidebar = useTranslations('Sidebar');
   const pathname = usePathname();
+
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Load collapse state from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem('moderation-sidebar-collapsed');
+    if (stored !== null) {
+      setIsCollapsed(stored === 'true');
+    }
+  }, []);
+
+  // Save collapse state to localStorage
+  const handleToggleCollapse = () => {
+    const newState = !isCollapsed;
+    setIsCollapsed(newState);
+    localStorage.setItem('moderation-sidebar-collapsed', newState.toString());
+  };
 
   const navigation: SimpleNavigationItem[] = [
     {
@@ -48,6 +68,14 @@ export function ModerationNavigation({ navigationMenu }: ModerationNavigationPro
       currentPath={pathname}
       LinkComponent={Link as any}
       {...(navigationMenu && { dropdownContent: navigationMenu })}
+      isCollapsed={isCollapsed}
+      onToggleCollapse={handleToggleCollapse}
+      icons={{
+        chevronLeft: ChevronLeftIcon,
+        bars: Bars3Icon
+      }}
+      collapseSidebarLabel={tSidebar('collapseSidebar')}
+      expandSidebarLabel={tSidebar('expandSidebar')}
     />
   );
 }

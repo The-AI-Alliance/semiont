@@ -24,7 +24,7 @@ interface KnowledgeNavigationProps {
 }
 
 export function KnowledgeNavigation({ isCollapsed, onToggleCollapse, navigationMenu }: KnowledgeNavigationProps) {
-  const t = useTranslations('Knowledge');
+  const t = useTranslations('Sidebar');
   const pathname = usePathname();
   const router = useRouter();
   const { openResources, removeResource, reorderResources } = useOpenResources();

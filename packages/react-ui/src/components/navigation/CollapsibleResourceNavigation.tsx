@@ -164,52 +164,37 @@ export function CollapsibleResourceNavigation({
       </div>
 
       <div className="semiont-collapsible-nav__container">
-        {/* Header with collapse/expand button */}
-        <div className="semiont-collapsible-nav__header">
-          {!isCollapsed ? (
+        {/* Section header with collapse/expand button and optional dropdown */}
+        <div style={{ position: 'relative' }} ref={navigationMenu ? dropdownRef : undefined}>
+          <button
+            onClick={navigationMenu ? toggleDropdown : undefined}
+            className="semiont-nav-section__header"
+            disabled={!navigationMenu}
+            aria-expanded={navigationMenu ? isDropdownOpen : undefined}
+            aria-haspopup={navigationMenu ? 'true' : undefined}
+            type="button"
+          >
+            {!isCollapsed && <span className="semiont-nav-section__header-text">{mergedTranslations.title}</span>}
             <button
-              onClick={onToggleCollapse}
-              className="semiont-collapsible-nav__collapse-btn"
-              title={mergedTranslations.collapseSidebar}
-              aria-label={mergedTranslations.collapseSidebar}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleCollapse();
+              }}
+              className="semiont-nav-section__header-icon"
+              title={isCollapsed ? mergedTranslations.expandSidebar : mergedTranslations.collapseSidebar}
+              aria-label={isCollapsed ? mergedTranslations.expandSidebar : mergedTranslations.collapseSidebar}
               type="button"
             >
-              <ChevronLeftIcon />
+              {!isCollapsed ? <ChevronLeftIcon /> : <BarsIcon />}
             </button>
-          ) : (
-            <button
-              onClick={onToggleCollapse}
-              className="semiont-collapsible-nav__expand-btn"
-              title={mergedTranslations.expandSidebar}
-              aria-label={mergedTranslations.expandSidebar}
-              type="button"
-            >
-              <BarsIcon />
-            </button>
+          </button>
+
+          {isDropdownOpen && navigationMenu && !isCollapsed && (
+            <div className="semiont-nav-section__dropdown">
+              {navigationMenu(closeDropdown)}
+            </div>
           )}
         </div>
-
-        {/* Section header with optional dropdown */}
-        {!isCollapsed && (
-          <div style={{ position: 'relative' }} ref={navigationMenu ? dropdownRef : undefined}>
-            <button
-              onClick={navigationMenu ? toggleDropdown : undefined}
-              className="semiont-nav-section__header"
-              disabled={!navigationMenu}
-              aria-expanded={navigationMenu ? isDropdownOpen : undefined}
-              aria-haspopup={navigationMenu ? 'true' : undefined}
-              type="button"
-            >
-              {mergedTranslations.title}
-            </button>
-
-            {isDropdownOpen && navigationMenu && (
-              <div className="semiont-nav-section__dropdown">
-                {navigationMenu(closeDropdown)}
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Fixed navigation tabs */}
         {!isCollapsed && (
