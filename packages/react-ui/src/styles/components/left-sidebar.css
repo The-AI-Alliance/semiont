@@ -20,6 +20,7 @@
 }
 
 .semiont-left-sidebar__header {
+  position: relative;
   padding: 1rem;
   border-bottom: 1px solid var(--semiont-color-gray-200);
 }
@@ -112,8 +113,8 @@
   top: 100%;
   left: 0;
   margin-top: 0.5rem;
-  background: var(--semiont-bg-primary);
-  border: 1px solid var(--semiont-border-primary);
+  background: linear-gradient(to bottom, var(--semiont-bg-primary), var(--semiont-color-gray-50));
+  border: 1px solid var(--semiont-color-gray-300);
   border-radius: var(--semiont-radius-lg);
   box-shadow: var(--semiont-shadow-xl);
   min-width: 12rem;
@@ -121,8 +122,8 @@
 }
 
 [data-theme="dark"] .semiont-left-sidebar__dropdown {
-  background: var(--semiont-bg-secondary);
-  border-color: var(--semiont-border-secondary);
+  background: linear-gradient(to bottom, var(--semiont-bg-secondary), var(--semiont-color-gray-800));
+  border-color: var(--semiont-color-gray-700);
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
 }
 
