@@ -30,11 +30,8 @@ graph TB
         OAUTH[OAuth Providers<br/>Google]
     end
 
-    subgraph "Proxy"
-        PROXY[Proxy<br/>Envoy/ALB]
-    end
-
     subgraph "Application"
+        PROXY[Proxy<br/>Envoy/ALB]
         FE[Frontend<br/>NextAuth.js]
         BE[Backend API<br/>JWT Auth]
     end
@@ -94,15 +91,13 @@ graph TB
     %% Styling
     classDef client fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
     classDef identity fill:#c97d5d,stroke:#8b4513,stroke-width:2px,color:#fff
-    classDef proxy fill:#9b59b6,stroke:#6c3483,stroke-width:2px,color:#fff
     classDef app fill:#d4a827,stroke:#8b6914,stroke-width:2px,color:#000
     classDef data fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
     classDef compute fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
 
     class USER,AI,MCP client
     class OAUTH identity
-    class PROXY proxy
-    class FE,BE app
+    class PROXY,FE,BE app
     class REP,EVENTS,GRAPH,DB,SEC data
     class INF,JW compute
 ```
