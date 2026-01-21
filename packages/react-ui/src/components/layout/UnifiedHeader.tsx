@@ -19,6 +19,7 @@ interface UnifiedHeaderProps {
   isAuthenticated?: boolean;
   isAdmin?: boolean;
   isModerator?: boolean;
+  currentPath?: string;
 }
 
 export function UnifiedHeader({
@@ -32,17 +33,22 @@ export function UnifiedHeader({
   variant = 'standalone',
   isAuthenticated = false,
   isAdmin = false,
-  isModerator = false
+  isModerator = false,
+  currentPath
 }: UnifiedHeaderProps) {
   const { isOpen, toggle, close, dropdownRef } = useDropdown();
 
   // Floating variant - just the logo button, positioned in the sidebar
   if (variant === 'floating' && showBranding) {
     return (
-      <div className="fixed top-0 left-0 w-64 z-50 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 p-4" ref={dropdownRef}>
+      <div
+        className="semiont-unified-header semiont-unified-header--floating"
+        data-variant="floating"
+        ref={dropdownRef}
+      >
         <button
           onClick={toggle}
-          className="w-full hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
+          className="semiont-unified-header__branding-button"
           aria-label="Navigation menu"
           aria-expanded={isOpen}
           aria-controls="nav-menu-dropdown-1"
@@ -55,7 +61,7 @@ export function UnifiedHeader({
             showTagline={true}
             animated={false}
             compactTagline={true}
-            className="py-1"
+            className="semiont-unified-header__branding"
           />
         </button>
 
@@ -63,7 +69,7 @@ export function UnifiedHeader({
         {isOpen && isAuthenticated && (
           <div
             id="nav-menu-dropdown-1"
-            className="absolute left-4 top-full mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700"
+            className="semiont-unified-header__dropdown"
             role="menu"
             aria-orientation="vertical"
             aria-labelledby="nav-menu-button-1"
@@ -76,6 +82,7 @@ export function UnifiedHeader({
               isModerator={isModerator}
               brandingLink={brandingLink}
               onItemClick={close}
+              currentPath={currentPath}
             />
           </div>
         )}
@@ -84,12 +91,15 @@ export function UnifiedHeader({
   }
 
   const content = (
-    <div className={variant === 'standalone' ? "flex justify-between items-center h-16" : "flex justify-between items-center w-full mb-8"}>
+    <div
+      className="semiont-unified-header__content"
+      data-variant={variant}
+    >
       {showBranding ? (
-        <div className="relative" ref={dropdownRef}>
+        <div className="semiont-unified-header__branding-wrapper" ref={dropdownRef}>
           <button
             onClick={toggle}
-            className="hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded"
+            className="semiont-unified-header__branding-button"
             aria-label="Navigation menu"
             aria-expanded={isOpen}
             aria-controls="nav-menu-dropdown-2"
@@ -102,7 +112,7 @@ export function UnifiedHeader({
               showTagline={true}
               animated={false}
               compactTagline={true}
-              className="py-1"
+              className="semiont-unified-header__branding"
             />
           </button>
 
@@ -110,7 +120,7 @@ export function UnifiedHeader({
           {isOpen && isAuthenticated && (
             <div
               id="nav-menu-dropdown-2"
-              className="absolute left-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50"
+              className="semiont-unified-header__dropdown"
               role="menu"
               aria-orientation="vertical"
               aria-labelledby="nav-menu-button-2"
@@ -123,6 +133,7 @@ export function UnifiedHeader({
               isModerator={isModerator}
               brandingLink={brandingLink}
               onItemClick={close}
+              currentPath={currentPath}
             />
             </div>
           )}
@@ -131,7 +142,7 @@ export function UnifiedHeader({
         <div></div>
       )}
 
-      <div className={variant === 'standalone' ? "flex items-center space-x-4" : "text-right relative"}>
+      <div className="semiont-unified-header__actions" data-variant={variant}>
         {/* UserMenu removed - navigation moved to logo dropdown */}
       </div>
     </div>
@@ -139,8 +150,11 @@ export function UnifiedHeader({
 
   if (variant === 'standalone') {
     return (
-      <header className="bg-white dark:bg-gray-900 shadow border-b border-gray-200 dark:border-gray-700">
-        <div className="px-4 sm:px-6 lg:px-8">
+      <header
+        className="semiont-unified-header semiont-unified-header--standalone"
+        data-variant="standalone"
+      >
+        <div className="semiont-unified-header__container">
           {content}
         </div>
       </header>

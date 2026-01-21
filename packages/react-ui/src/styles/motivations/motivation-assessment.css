@@ -1,0 +1,234 @@
+/**
+ * Motivation: Assessing
+ * Color Theme: Red with wavy underline
+ * W3C Web Annotation: assessing motivation
+ *
+ * This file defines all styles for assessment annotations
+ * across text, panels, and image annotations.
+ */
+
+/* ============================================
+   Color Variables
+   ============================================ */
+:root {
+  /* Light theme colors */
+  --semiont-motivation-assessment-primary: var(--semiont-color-red-500);
+  --semiont-motivation-assessment-secondary: var(--semiont-color-red-700);
+  --semiont-motivation-assessment-bg: rgba(254, 226, 226, 0.5);
+  --semiont-motivation-assessment-bg-hover: rgba(254, 226, 226, 0.7);
+  --semiont-motivation-assessment-border: rgba(239, 68, 68, 0.3);
+  --semiont-motivation-assessment-border-hover: rgba(239, 68, 68, 0.5);
+  --semiont-motivation-assessment-text: var(--semiont-color-red-700);
+
+  /* Dark theme colors */
+  --semiont-motivation-assessment-dark-bg: rgba(127, 29, 29, 0.3);
+  --semiont-motivation-assessment-dark-bg-hover: rgba(127, 29, 29, 0.4);
+  --semiont-motivation-assessment-dark-text: var(--semiont-color-red-300);
+  --semiont-motivation-assessment-dark-primary: var(--semiont-color-red-400);
+
+  /* Panel backgrounds */
+  --semiont-motivation-assessment-panel-bg: rgba(254, 226, 226, 0.3);
+  --semiont-motivation-assessment-panel-bg-dark: rgba(127, 29, 29, 0.2);
+
+  /* Button gradients - using red gradient for assessment */
+  --semiont-motivation-assessment-button-bg: linear-gradient(to right, var(--semiont-color-red-500), var(--semiont-color-red-600));
+  --semiont-motivation-assessment-button-bg-hover: linear-gradient(to right, var(--semiont-color-red-600), var(--semiont-color-red-700));
+}
+
+/* ============================================
+   Inline Text Annotations - Wavy Underline
+   ============================================ */
+.semiont-motivation-assessment,
+.annotation-assessment,
+.red-underline {
+  cursor: pointer;
+  transition: all 200ms;
+  text-decoration: underline wavy;
+  text-decoration-color: var(--semiont-motivation-assessment-primary);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+
+.semiont-motivation-assessment:hover,
+.annotation-assessment:hover,
+.red-underline:hover {
+  opacity: 0.8;
+  text-decoration-thickness: 3px;
+}
+
+/* Fallback for browsers that don't support wavy underline */
+@supports not (text-decoration-style: wavy) {
+  .semiont-motivation-assessment,
+  .annotation-assessment,
+  .red-underline {
+    border-bottom: 2px solid var(--semiont-motivation-assessment-primary);
+    text-decoration: none;
+  }
+
+  .semiont-motivation-assessment:hover,
+  .annotation-assessment:hover,
+  .red-underline:hover {
+    border-bottom-width: 3px;
+  }
+}
+
+/* ============================================
+   Panel Entry Styling
+   ============================================ */
+.semiont-motivation-assessment-entry,
+.semiont-annotation-entry[data-type="assessment"] {
+  border-color: var(--semiont-motivation-assessment-border);
+}
+
+[data-theme="dark"] .semiont-motivation-assessment-entry,
+[data-theme="dark"] .semiont-annotation-entry[data-type="assessment"] {
+  border-color: var(--semiont-motivation-assessment-border);
+}
+
+.semiont-motivation-assessment-entry:hover,
+.semiont-annotation-entry[data-type="assessment"]:hover {
+  background: var(--semiont-motivation-assessment-panel-bg);
+  border-color: var(--semiont-motivation-assessment-border-hover);
+}
+
+[data-theme="dark"] .semiont-motivation-assessment-entry:hover,
+[data-theme="dark"] .semiont-annotation-entry[data-type="assessment"]:hover {
+  background: var(--semiont-motivation-assessment-panel-bg-dark);
+}
+
+/* ============================================
+   Quote/Excerpt Styling in Panels
+   ============================================ */
+.semiont-motivation-assessment-quote,
+.semiont-annotation-entry__quote[data-type="assessment"] {
+  background: var(--semiont-motivation-assessment-bg);
+  color: var(--semiont-motivation-assessment-text);
+  padding: 0.375rem 0.5rem;
+  border-radius: var(--semiont-radius-sm);
+}
+
+[data-theme="dark"] .semiont-motivation-assessment-quote,
+[data-theme="dark"] .semiont-annotation-entry__quote[data-type="assessment"] {
+  background: var(--semiont-motivation-assessment-dark-bg);
+  color: var(--semiont-motivation-assessment-dark-text);
+}
+
+/* ============================================
+   Body Content (Rating Stars)
+   ============================================ */
+.semiont-annotation-entry__body[data-type="assessment"] {
+  display: flex;
+  gap: 0.25rem;
+  color: var(--semiont-color-warning);
+}
+
+[data-theme="dark"] .semiont-annotation-entry__body[data-type="assessment"] {
+  color: var(--semiont-color-warning);
+}
+
+/* ============================================
+   Detection Section in Unified Panel
+   ============================================ */
+.semiont-motivation-assessment-section,
+.semiont-detect-section[data-type="assessment"] {
+  border-color: var(--semiont-color-error);
+}
+
+[data-theme="dark"] .semiont-motivation-assessment-section,
+[data-theme="dark"] .semiont-detect-section[data-type="assessment"] {
+  border-color: var(--semiont-color-error-dark);
+}
+
+/* ============================================
+   Button Styling
+   ============================================ */
+.semiont-motivation-assessment-button,
+.semiont-button[data-variant="detect"][data-type="assessment"] {
+  background: var(--semiont-motivation-assessment-button-bg) !important;
+  color: var(--semiont-color-white) !important;
+  border: 1px solid var(--semiont-motivation-assessment-border);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.semiont-motivation-assessment-button:hover,
+.semiont-button[data-variant="detect"][data-type="assessment"]:hover {
+  background: var(--semiont-motivation-assessment-button-bg-hover);
+  border-color: var(--semiont-motivation-assessment-primary);
+}
+
+[data-theme="dark"] .semiont-motivation-assessment-button,
+[data-theme="dark"] .semiont-button[data-variant="detect"][data-type="assessment"] {
+  border-color: var(--semiont-motivation-assessment-border);
+}
+
+[data-theme="dark"] .semiont-motivation-assessment-button:hover,
+[data-theme="dark"] .semiont-button[data-variant="detect"][data-type="assessment"]:hover {
+  border-color: var(--semiont-motivation-assessment-dark-primary);
+}
+
+.semiont-motivation-assessment-button:focus-visible,
+.semiont-button[data-variant="detect"][data-type="assessment"]:focus-visible {
+  outline: 2px solid var(--semiont-motivation-assessment-primary);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-motivation-assessment-button:focus-visible,
+[data-theme="dark"] .semiont-button[data-variant="detect"][data-type="assessment"]:focus-visible {
+  outline: 2px solid var(--semiont-motivation-assessment-dark-primary);
+  outline-offset: 2px;
+}
+
+/* ============================================
+   Image Annotation Overlays
+   ============================================ */
+.semiont-image-annotation-assessment {
+  stroke: var(--semiont-motivation-assessment-primary);
+  stroke-width: 2px;
+  stroke-dasharray: 5, 3;
+  fill: var(--semiont-motivation-assessment-border);
+}
+
+.semiont-image-annotation-assessment:hover {
+  stroke-width: 3px;
+  fill: var(--semiont-motivation-assessment-border-hover);
+}
+
+[data-theme="dark"] .semiont-image-annotation-assessment {
+  stroke: var(--semiont-motivation-assessment-dark-primary);
+  fill: rgba(239, 68, 68, 0.2);
+}
+
+/* ============================================
+   Assessment-specific Visual Elements
+   ============================================ */
+.semiont-assessment-indicator {
+  color: var(--semiont-motivation-assessment-primary);
+  font-size: 1.125rem;
+}
+
+[data-theme="dark"] .semiont-assessment-indicator {
+  color: var(--semiont-motivation-assessment-dark-primary);
+}
+
+.semiont-assessment-star {
+  color: var(--semiont-color-warning);
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+[data-theme="dark"] .semiont-assessment-star {
+  color: var(--semiont-color-warning);
+}
+
+.semiont-assessment-star:hover {
+  transform: scale(1.1);
+}
+
+.semiont-assessment-star--filled {
+  color: var(--semiont-color-warning);
+}
+
+[data-theme="dark"] .semiont-assessment-star--filled {
+  color: var(--semiont-color-warning);
+}

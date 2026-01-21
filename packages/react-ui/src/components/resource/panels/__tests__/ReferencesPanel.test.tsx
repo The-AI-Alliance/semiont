@@ -167,14 +167,13 @@ describe('ReferencesPanel Component', () => {
       const personButton = screen.getByText('Person');
 
       // Before selection
-      expect(personButton).toHaveClass('bg-gray-50');
-      expect(personButton).not.toHaveClass('bg-blue-100');
+      expect(personButton).toHaveClass('semiont-chip', 'semiont-chip--selectable');
+      expect(personButton).toHaveAttribute('data-selected', 'false');
 
       await userEvent.click(personButton);
 
       // After selection
-      expect(personButton).toHaveClass('bg-blue-100');
-      expect(personButton).not.toHaveClass('bg-gray-50');
+      expect(personButton).toHaveAttribute('data-selected', 'true');
     });
 
     it('should have proper ARIA attributes', () => {
@@ -191,7 +190,7 @@ describe('ReferencesPanel Component', () => {
 
       const personButton = screen.getByText('Person');
 
-      expect(personButton).toHaveClass('focus:outline-none', 'focus:ring-2', 'focus:ring-blue-500');
+      expect(personButton).toHaveClass('semiont-chip', 'semiont-chip--selectable');
     });
   });
 
@@ -282,7 +281,10 @@ describe('ReferencesPanel Component', () => {
 
       const startButton = screen.getByTitle('Start Detection');
 
-      expect(startButton).toHaveClass('bg-gray-200', 'cursor-not-allowed');
+      expect(startButton).toHaveClass('semiont-button');
+      expect(startButton).toHaveAttribute('data-variant', 'detect');
+      expect(startButton).toHaveAttribute('data-type', 'reference');
+      expect(startButton).toBeDisabled();
     });
 
     it('should have proper styling when enabled', async () => {
@@ -292,7 +294,10 @@ describe('ReferencesPanel Component', () => {
 
       const startButton = screen.getByTitle('Start Detection');
 
-      expect(startButton).toHaveClass('from-blue-600', 'to-cyan-600');
+      expect(startButton).toHaveClass('semiont-button');
+      expect(startButton).toHaveAttribute('data-variant', 'detect');
+      expect(startButton).toHaveAttribute('data-type', 'reference');
+      expect(startButton).not.toBeDisabled();
     });
   });
 
@@ -641,14 +646,14 @@ describe('ReferencesPanel Component', () => {
       const { container } = render(<ReferencesPanel {...defaultProps} />);
 
       const panel = container.firstChild as HTMLElement;
-      expect(panel).toHaveClass('flex', 'flex-col', 'h-full', 'bg-white', 'dark:bg-gray-900');
+      expect(panel).toHaveClass('semiont-panel');
     });
 
     it('should support dark mode', () => {
       const { container } = render(<ReferencesPanel {...defaultProps} />);
 
       const panel = container.firstChild as HTMLElement;
-      expect(panel).toHaveClass('dark:bg-gray-900');
+      expect(panel).toHaveClass('semiont-panel');
     });
 
     it('should have emoji in title', () => {
@@ -663,7 +668,7 @@ describe('ReferencesPanel Component', () => {
       render(<ReferencesPanel {...defaultProps} />);
 
       const buttonContainer = screen.getByText('Person').parentElement;
-      expect(buttonContainer).toHaveClass('flex', 'flex-wrap', 'gap-2');
+      expect(buttonContainer).toHaveClass('semiont-detect-widget__chips');
     });
   });
 

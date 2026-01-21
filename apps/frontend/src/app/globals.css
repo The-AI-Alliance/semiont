@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import @semiont/react-ui styles */
+@import '@semiont/react-ui/styles';
+
 /* Light mode (default) */
 :root {
   --foreground-rgb: 0, 0, 0;
@@ -10,8 +13,8 @@
   --cm-cursor-color: #000000;
 }
 
-/* Dark mode - applied when html has class="dark" */
-.dark {
+/* Dark mode - applied when html has data-theme="dark" attribute */
+[data-theme="dark"] {
   --foreground-rgb: 255, 255, 255;
   --background-start-rgb: 0, 0, 0;
   --background-end-rgb: 0, 0, 0;
@@ -26,6 +29,15 @@ body {
       rgb(var(--background-end-rgb))
     )
     rgb(var(--background-start-rgb));
+}
+
+/* Knowledge layout background that respects data-theme */
+.semiont-knowledge-layout {
+  background-color: #f9fafb; /* gray-50 */
+}
+
+[data-theme="dark"] .semiont-knowledge-layout {
+  background-color: #111827; /* gray-900 */
 }
 
 @keyframes pulse {
@@ -99,7 +111,7 @@ body {
 
 /* Lists */
 .md-list-bullet {
-  color: #666;
+  color: #666666;
   font-weight: bold;
 }
 .md-list-item {
@@ -187,4 +199,57 @@ body {
 /* Remove left margin from prose container (Browse mode) */
 .prose {
   margin-left: 0 !important;
+}
+
+/* ========================================
+   Reduced Motion Support
+   ======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  /* Disable all animations and transitions */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  /* Override specific keyframes */
+  @keyframes fadeInScale {
+    from, to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideDown {
+    from, to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+
+  @keyframes pulse-outline {
+    from, to {
+      outline-color: currentColor;
+      outline-offset: 0;
+    }
+  }
+
+  /* Ensure elements are visible without animation */
+  .fade-in-scale {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .slide-down {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  .annotation-comment-focused {
+    animation: none !important;
+  }
 }

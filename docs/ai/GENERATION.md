@@ -1,0 +1,423 @@
+# AI-Powered Resource Generation
+
+**Purpose**: Automatic generation of new resources from reference annotations using AI inference to create contextually relevant content based on entity references.
+
+**Related Documentation**:
+- [W3C Web Annotation Data Model](../../specs/docs/W3C-WEB-ANNOTATION.md) - Reference annotation structure
+- [Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - Event Store architecture
+- [Real-Time Event Architecture](../../apps/backend/docs/REAL-TIME.md) - SSE streaming and event flow
+- [Detection](./DETECTION.md) - Annotation detection and creation
+
+## Overview
+
+Semiont generates new resources from reference annotations (motivation: `linking`) that lack resolved content. The system:
+
+1. Identifies unresolved reference annotations (empty body or stub SpecificResource)
+2. Uses AI to generate contextually relevant content based on the reference text
+3. Creates a new resource with the generated content
+4. Updates the reference annotation body to link to the new resource
+5. Broadcasts real-time updates via SSE so UI reflects changes immediately
+
+## Reference Annotation Structure
+
+**Unresolved Reference** (needs generation):
+```json
+{
+  "@context": "http://www.w3.org/ns/anno.jsonld",
+  "type": "Annotation",
+  "id": "http://localhost:8080/annotations/abc123",
+  "motivation": "linking",
+  "target": {
+    "type": "SpecificResource",
+    "source": "http://localhost:8080/resources/doc-456",
+    "selector": [
+      {
+        "type": "TextPositionSelector",
+        "start": 52,
+        "end": 59
+      },
+      {
+        "type": "TextQuoteSelector",
+        "exact": "Ouranos",
+        "prefix": "In the beginning, ",
+        "suffix": " ruled the universe"
+      }
+    ]
+  },
+  "body": [
+    {
+      "type": "TextualBody",
+      "value": "Person",
+      "purpose": "tagging"
+    },
+    {
+      "type": "TextualBody",
+      "value": "Deity",
+      "purpose": "tagging"
+    }
+  ]
+}
+```
+
+**Resolved Reference** (after generation):
+```json
+{
+  "body": [
+    {
+      "type": "TextualBody",
+      "value": "Person",
+      "purpose": "tagging"
+    },
+    {
+      "type": "TextualBody",
+      "value": "Deity",
+      "purpose": "tagging"
+    },
+    {
+      "type": "SpecificResource",
+      "source": "http://localhost:8080/resources/generated-789",
+      "purpose": "linking"
+    }
+  ]
+}
+```
+
+## Generation Flow
+
+```
+User clicks "Generate" on reference annotation ❓
+    ↓
+Frontend → POST /resources/{sourceId}/generate-resource-from-annotation-stream
+    ↓
+Route validates request, creates job → submits to queue
+    ↓
+Route subscribes to job progress events (job-specific SSE)
+    ↓
+Worker picks up job from queue
+    ↓
+Worker generates content → creates resource → updates annotation
+    ↓
+Worker emits annotation.body.updated → Event Store
+    ↓
+Document viewer's SSE receives event → invalidates cache → refetches annotations
+    ↓
+UI updates: ❓ → 🔗 in real-time (<50ms latency)
+```
+
+## Backend Implementation
+
+### Generation Route
+
+**File**: [apps/backend/src/routes/resources/routes/generate-resource-from-annotation-stream.ts](../../apps/backend/src/routes/resources/routes/generate-resource-from-annotation-stream.ts)
+
+**Request Body**:
+```typescript
+{
+  referenceId: string;      // Annotation ID to generate from
+  title?: string;           // Optional custom title
+  language?: string;        // Content language (default: 'en')
+  tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical';
+  length?: 'brief' | 'moderate' | 'detailed';
+  maxTokens?: number;       // Max LLM response tokens
+}
+```
+
+**Responsibilities**:
+1. Validate request body and authentication
+2. Verify source resource and reference annotation exist
+3. Create generation job and submit to queue
+4. Subscribe to Event Store for job events (resourceUri stream)
+5. Forward progress events to client via SSE (<50ms latency)
+6. Handle client disconnection (job continues running)
+
+**SSE Event Types**:
+- `generation-started`: Job initiated
+- `generation-progress`: Status updates (generating content, creating resource, linking)
+- `generation-complete`: Generation finished with new resource ID
+- `generation-error`: Generation failed
+
+### Generation Worker
+
+**File**: [apps/backend/src/jobs/workers/generation-worker.ts](../../apps/backend/src/jobs/workers/generation-worker.ts)
+
+**Processing Stages**:
+
+1. **Load Source Resource (10%)**
+   - Fetch source resource from View Storage
+   - Load reference annotation by ID
+   - Extract reference text and entity type tags
+
+2. **Generate Content (40%)**
+   - Build generation prompt with reference text and context
+   - Apply user parameters (tone, length, language)
+   - Call LLM inference (Claude Sonnet 4.5)
+   - Parse and validate generated content
+
+3. **Create Resource (70%)**
+   - Generate resource ID (SHA-256 of content)
+   - Emit `resource.created` event → Event Store
+   - Content persisted via Representation Store
+
+4. **Link Reference (85%)**
+   - Build SpecificResource body linking to new resource
+   - Emit `annotation.body.updated` event → Event Store
+   - Event broadcasts to SSE subscribers (document viewers)
+
+5. **Complete (100%)**
+   - Emit `job.completed` event with new resource ID
+   - Frontend receives completion via generation progress SSE
+   - Document viewer receives `annotation.body.updated` via resource events SSE
+
+### AI Generation Prompt
+
+**Prompt Structure**:
+```
+You are generating content for a reference to "{referenceText}" in a document.
+
+Context from source document:
+{surrounding text from source document}
+
+Entity types: {comma-separated entity type tags}
+
+Generate {length} content in a {tone} tone about "{referenceText}".
+
+The generated content should:
+- Be factually accurate and informative
+- Match the requested tone and length
+- Provide relevant context and background
+- Be written in {language}
+
+Generate the content as plain text (no markdown formatting).
+```
+
+**Model Parameters**:
+- Model: Claude Sonnet 4.5
+- Temperature: 0.4 (balanced between accuracy and creativity)
+- Max tokens: Configurable (default 500 for brief, 1500 for moderate, 3000 for detailed)
+
+**Tone Guidelines**:
+- **Scholarly**: Academic style, formal language, citation-oriented
+- **Explanatory**: Educational, clear explanations for general audience
+- **Conversational**: Casual, friendly, approachable
+- **Technical**: Precise, detailed, expert-level terminology
+
+**Length Guidelines**:
+- **Brief**: ~100-200 words, concise overview
+- **Moderate**: ~300-500 words, balanced coverage
+- **Detailed**: ~800-1200 words, comprehensive treatment
+
+### Event Emission
+
+**Resource Creation**:
+```typescript
+await eventStore.append({
+  type: 'resource.created',
+  resourceId: newResourceId,
+  payload: {
+    title: generatedTitle,
+    mimeType: 'text/plain',
+    language: language,
+    sourceAnnotationId: referenceId
+  }
+});
+```
+
+**Annotation Update**:
+```typescript
+await eventStore.append({
+  type: 'annotation.body.updated',
+  resourceId: sourceResourceId,  // Source document where reference lives
+  payload: {
+    annotationId: referenceId,
+    operations: [{
+      op: 'add',
+      item: {
+        type: 'SpecificResource',
+        source: newResourceUri,
+        purpose: 'linking'
+      }
+    }]
+  }
+});
+```
+
+**Why Two Events?**
+- `resource.created`: Creates the new generated resource (broadcasts to subscribers of generated resource)
+- `annotation.body.updated`: Updates the reference in source document (broadcasts to subscribers of source document)
+
+Both events flow through Event Store → View Storage → Graph Database, enabling:
+- Source document viewer sees reference resolve in real-time
+- New resource is immediately queryable and browsable
+- Graph database tracks relationship: (Source)-[:HAS_ANNOTATION]->(Reference)-[:LINKS_TO]->(Generated)
+
+## Frontend Implementation
+
+### Generation UI
+
+**Component**: [apps/frontend/src/components/resource/panels/ReferencesPanel.tsx](../../apps/frontend/src/components/resource/panels/ReferencesPanel.tsx)
+
+**UI Elements**:
+- Reference annotations display with ❓ icon for unresolved references
+- "Generate" button triggers generation modal
+- Generation modal shows:
+  - Reference text preview
+  - Entity type tags
+  - Optional title input
+  - Tone selector (scholarly/explanatory/conversational/technical)
+  - Length selector (brief/moderate/detailed)
+  - Language selector
+  - Advanced options (max tokens override)
+
+**Progress Display**:
+- Modal shows real-time progress during generation
+- Progress bar with percentage
+- Status messages:
+  - "Generating content with AI..."
+  - "Creating resource..."
+  - "Linking reference..."
+  - "Complete! View resource →"
+- Link to view newly generated resource
+
+### SSE Client Usage
+
+**File**: [packages/api-client/src/sse/index.ts](../../packages/api-client/src/sse/index.ts)
+
+```typescript
+// Initiate generation
+const stream = client.sse.generateResourceFromAnnotation(
+  resourceUri,
+  referenceId,
+  {
+    tone: 'scholarly',
+    length: 'moderate',
+    language: 'en'
+  }
+);
+
+// Handle progress
+stream.onProgress((progress) => {
+  setGenerationProgress({
+    status: progress.status,
+    percentage: progress.percentage,
+    message: progress.message
+  });
+});
+
+// Handle completion
+stream.onComplete((result) => {
+  toast.success('Resource generated successfully');
+  // Generation progress SSE closes
+  // Document viewer's resource events SSE receives annotation.body.updated
+  // React Query cache invalidates and refetches
+  // UI updates: ❓ → 🔗
+});
+
+// Handle errors
+stream.onError((error) => {
+  toast.error(error.message);
+  setIsGenerating(false);
+});
+```
+
+### Real-Time Reference Resolution
+
+**Two SSE Streams Work Together**:
+
+1. **Generation Progress Stream** (`POST /resources/{id}/generate-resource-from-annotation-stream`)
+   - Job-specific progress updates
+   - Closes when generation completes
+   - Shows progress in modal
+
+2. **Resource Events Stream** (`GET /resources/{id}/events/stream`)
+   - Long-lived connection per document viewer
+   - Receives `annotation.body.updated` event
+   - Triggers React Query cache invalidation
+   - UI updates icon: ❓ → 🔗
+
+**Critical: No Page Refresh Required**
+
+The `annotation.body.updated` event flow ensures real-time updates:
+1. Worker emits event → Event Store (source document stream)
+2. Document viewer's SSE receives event (<50ms latency)
+3. Frontend `onAnnotationBodyUpdated` handler invalidates React Query cache
+4. Annotations refetch from View Storage
+5. UI re-renders with resolved reference
+
+See [REAL-TIME.md](../../apps/backend/docs/REAL-TIME.md) for complete SSE architecture details.
+
+## Error Handling
+
+**Generation Failures**:
+- Worker logs detailed error to backend console
+- Generic error sent to frontend: "Generation failed. Please try again."
+- Job marked as `status: 'failed'` in queue
+- Frontend shows error toast with retry option
+
+**Client Disconnection**:
+- Generation job continues running even if progress SSE disconnects
+- Resource still created and annotation still updated
+- User sees resolved reference on page refresh (from View Storage)
+- Resource events SSE delivers real-time update if still connected
+
+**Validation Errors**:
+- Invalid reference ID: 404 error returned immediately
+- Missing source resource: 404 error
+- Reference already resolved: 400 error with message
+- Invalid parameters: 400 error with validation details
+
+**Retry Strategy**:
+- Max 1 retry on transient LLM failures
+- Permanent failures (404, validation) not retried
+- Retry delay: 5 seconds
+
+## Validation
+
+### End-to-End Test Scenarios
+
+**Happy Path**:
+1. Create reference annotation with entity type tags
+2. Click "Generate" → modal opens
+3. Configure options → click "Generate"
+4. Progress updates appear in real-time
+5. Reference icon changes ❓ → 🔗 without page refresh
+6. Click 🔗 → navigate to generated resource
+7. Verify generated content is relevant and matches tone/length
+
+**Error Scenarios**:
+- Invalid reference ID → 404 error, no job created
+- Reference already resolved → 400 error with message
+- LLM timeout → retry once, then fail gracefully
+- Client disconnects during generation → job completes, refresh shows result
+
+**Real-Time Event Delivery**:
+- Multiple references generated in quick succession → all resolve in real-time
+- Multiple browser tabs viewing same document → all see updates simultaneously
+- SSE connection drops and reconnects → updates resume after reconnection
+
+### Known Limitations
+
+1. **Content Quality**: LLM generation quality varies based on reference text clarity and available context
+2. **Factual Accuracy**: Generated content should be reviewed for accuracy, especially for scholarly use
+3. **Single Language**: Each generated resource is single-language (no multilingual generation)
+4. **No Iterative Refinement**: Generation is one-shot, no revision or refinement cycle
+5. **Context Window**: Prompt includes limited context from source document (~2000 characters)
+6. **Duplicate Detection**: No automatic detection of duplicate/similar generated resources
+
+## Related Files
+
+### Backend
+- [apps/backend/src/routes/resources/routes/generate-resource-from-annotation-stream.ts](../../apps/backend/src/routes/resources/routes/generate-resource-from-annotation-stream.ts) - Generation route
+- [apps/backend/src/jobs/workers/generation-worker.ts](../../apps/backend/src/jobs/workers/generation-worker.ts) - Generation worker + prompt
+- [apps/backend/src/routes/resources/routes/events-stream.ts](../../apps/backend/src/routes/resources/routes/events-stream.ts) - Resource events SSE endpoint
+
+### Frontend
+- [apps/frontend/src/components/resource/panels/ReferencesPanel.tsx](../../apps/frontend/src/components/resource/panels/ReferencesPanel.tsx) - Generation UI
+- [packages/react-ui/src/hooks/useGenerationProgress.ts](../../packages/react-ui/src/hooks/useGenerationProgress.ts) - Generation progress hook
+- [packages/react-ui/src/hooks/useResourceEvents.ts](../../packages/react-ui/src/hooks/useResourceEvents.ts) - Resource events hook
+- [packages/api-client/src/sse/index.ts](../../packages/api-client/src/sse/index.ts) - SSE client
+
+### Documentation
+- [W3C Web Annotation Data Model](../../specs/docs/W3C-WEB-ANNOTATION.md) - Annotation structure
+- [Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - Event Store flow
+- [Real-Time Event Architecture](../../apps/backend/docs/REAL-TIME.md) - SSE streaming details
+- [Detection](./DETECTION.md) - Reference detection

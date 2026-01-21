@@ -23,13 +23,13 @@ export function ResourceTagsInline({
   }
 
   return (
-    <div className="px-6 py-2 border-t border-gray-200 dark:border-gray-700">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="semiont-resource-tags-inline" data-editing={isEditing}>
+      <div className="semiont-resource-tags-list">
         {/* Display existing tags */}
         {tags.map((tag) => (
           <span
             key={tag}
-            className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded text-xs"
+            className="semiont-resource-tag"
           >
             {tag}
           </span>

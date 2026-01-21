@@ -26,6 +26,7 @@ import type { Logger } from '../logger';
  */
 export interface DetectAnnotationsStreamRequest {
   entityTypes: EntityType[];
+  includeDescriptiveReferences?: boolean;
 }
 
 /**

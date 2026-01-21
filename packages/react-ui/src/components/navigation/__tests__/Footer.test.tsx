@@ -359,12 +359,7 @@ describe('Footer Component', () => {
       );
 
       const footer = container.querySelector('footer');
-      expect(footer).toHaveClass(
-        'bg-gray-50',
-        'dark:bg-gray-800',
-        'border-t',
-        'mt-auto'
-      );
+      expect(footer).toHaveClass('semiont-footer');
     });
 
     it('should have responsive layout classes', () => {
@@ -376,7 +371,7 @@ describe('Footer Component', () => {
         />
       );
 
-      const flexContainer = container.querySelector('.flex.flex-col.sm\\:flex-row');
+      const flexContainer = container.querySelector('.semiont-footer__container');
       expect(flexContainer).toBeInTheDocument();
     });
 
@@ -390,7 +385,7 @@ describe('Footer Component', () => {
       );
 
       const aboutLink = screen.getByText('footer.about');
-      expect(aboutLink).toHaveClass('hover:text-gray-700');
+      expect(aboutLink).toHaveClass('semiont-footer__link');
     });
   });
 

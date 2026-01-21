@@ -22,20 +22,6 @@
     "apiDocs": "Documentación API",
     "sourceCode": "Código Fuente"
   },
-  "Settings": {
-    "title": "Configuración de Usuario",
-    "lineNumbers": "Números de Línea",
-    "lineNumbersVisible": "Números de línea visibles",
-    "lineNumbersHidden": "Números de línea ocultos",
-    "theme": "Tema",
-    "themeLight": "Claro",
-    "themeDark": "Oscuro",
-    "themeSystem": "Sistema",
-    "themeSystemActive": "Usando preferencia del sistema",
-    "themeModeActive": "Modo {mode} activo",
-    "language": "Idioma",
-    "languageHint": "Idioma de la interfaz"
-  },
   "Home": {
     "tagline": "crear significado",
     "description": "El marco de código abierto y a prueba de futuro que permite a humanos y agentes inteligentes co-crear conocimiento compartido — gobernado por ti y construido para durar.",
@@ -183,7 +169,8 @@
     "signUpWithGoogle": "Registrarse con Google",
     "approvedDomainsInfo": "Solo los usuarios con dominios de correo electrónico aprobados pueden crear cuentas.",
     "termsAgreement": "Al registrarte, se te pedirá que aceptes nuestros términos de servicio.",
-    "alreadyHaveAccount": "¿Ya tienes una cuenta? Inicia sesión en su lugar"
+    "alreadyHaveAccount": "¿Ya tienes una cuenta? Inicia sesión en su lugar",
+    "backToHome": "Volver al Inicio"
   },
   "AuthError": {
     "loading": "Cargando...",
@@ -345,11 +332,6 @@
     "convertToHighlight": "Convertir a Destacado",
     "deleteReference": "Eliminar Referencia"
   },
-  "SortableResourceTab": {
-    "dragToReorder": "Arrastrar para reordenar",
-    "dragToReorderDoc": "Arrastrar para reordenar {name}",
-    "closeResource": "Cerrar recurso"
-  },
   "Moderation": {
     "title": "Moderación",
     "recentResources": "Recursos Recientes",
@@ -510,12 +492,6 @@
     "deleteConfirmTitle": "Eliminar Todos los Datos",
     "deleteConfirmDescription": "Esto eliminará permanentemente todos tus datos, incluidas cookies, preferencias e información de sesión. Esta acción no se puede deshacer y recargará la página."
   },
-  "ResourceViewer": {
-    "deleteConfirmationTitle": "¿Eliminar anotación?",
-    "deleteConfirmationMessage": "¿Está seguro de que desea eliminar esta anotación? Esta acción no se puede deshacer.",
-    "deleteConfirmationCancel": "Cancelar",
-    "deleteConfirmationDelete": "Eliminar"
-  },
   "GenerationConfigModal": {
     "title": "Configurar generación de recurso",
     "sourceContext": "Contexto de origen",
@@ -535,5 +511,23 @@
     "maxLengthHelp": "Valores más altos permiten contenido más largo (100-4000 tokens)",
     "cancel": "Cancelar",
     "generate": "✨ Generar"
+  },
+  "SearchResources": {
+    "title": "Buscar recursos",
+    "placeholder": "Buscar recursos...",
+    "searching": "Buscando...",
+    "noResults": "No se encontraron recursos",
+    "close": "Cerrar"
+  },
+  "Search": {
+    "placeholder": "Buscar recursos y entidades...",
+    "searching": "Buscando...",
+    "noResults": "No se encontraron resultados",
+    "startTyping": "Comience a escribir para buscar",
+    "navigate": "para navegar",
+    "select": "para seleccionar",
+    "close": "para cerrar",
+    "enter": "Enter",
+    "esc": "Esc"
   }
 }

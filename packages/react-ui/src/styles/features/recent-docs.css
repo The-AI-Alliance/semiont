@@ -1,0 +1,97 @@
+/**
+ * Recent Documents Feature Styles
+ *
+ * Styles for the recent documents page
+ */
+
+/* Header section */
+.semiont-recent-docs__header {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.semiont-recent-docs__icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.5rem;
+  background-color: var(--semiont-color-gray-100);
+  margin-right: 0.75rem;
+}
+
+[data-theme="dark"] .semiont-recent-docs__icon-box {
+  background-color: rgba(17, 24, 39, 0.2);
+}
+
+.semiont-recent-docs__icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: var(--semiont-color-gray-600);
+}
+
+[data-theme="dark"] .semiont-recent-docs__icon {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-recent-docs__content {
+  flex: 1;
+}
+
+.semiont-recent-docs__title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--semiont-color-gray-900);
+}
+
+[data-theme="dark"] .semiont-recent-docs__title {
+  color: var(--semiont-color-white);
+}
+
+.semiont-recent-docs__description {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  color: var(--semiont-color-gray-600);
+}
+
+[data-theme="dark"] .semiont-recent-docs__description {
+  color: var(--semiont-color-gray-400);
+}
+
+/* Empty state */
+.semiont-recent-docs__empty-state {
+  text-align: center;
+  padding: 3rem 0;
+}
+
+.semiont-recent-docs__empty-icon {
+  width: 4rem;
+  height: 4rem;
+  color: var(--semiont-color-gray-300);
+  margin: 0 auto 1rem;
+}
+
+[data-theme="dark"] .semiont-recent-docs__empty-icon {
+  color: var(--semiont-color-gray-600);
+}
+
+.semiont-recent-docs__empty-message {
+  color: var(--semiont-color-gray-500);
+  font-size: 1rem;
+}
+
+[data-theme="dark"] .semiont-recent-docs__empty-message {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-recent-docs__empty-hint {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  color: var(--semiont-color-gray-400);
+}
+
+[data-theme="dark"] .semiont-recent-docs__empty-hint {
+  color: var(--semiont-color-gray-500);
+}

@@ -12,9 +12,9 @@ export interface ComposeLoadingStateProps {
 
 export function ComposeLoadingState({ message }: ComposeLoadingStateProps) {
   return (
-    <div className="px-4 py-8">
-      <div className="flex items-center justify-center py-20">
-        <p className="text-gray-600 dark:text-gray-300">{message}</p>
+    <div className="semiont-loading-state-wrapper">
+      <div className="semiont-loading-state semiont-loading-state-compose">
+        <p className="semiont-loading-message">{message}</p>
       </div>
     </div>
   );

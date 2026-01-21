@@ -74,37 +74,22 @@ function segmentTextWithAnnotations(exact: string, annotations: Annotation[]): T
       const posSelector = getTextPositionSelector(targetSelector);
       const quoteSelector = targetSelector ? getTextQuoteSelector(targetSelector) : null;
 
-      console.log('[AnnotateView] Processing annotation:', {
-        id: ann.id?.substring(Math.max(0, (ann.id?.length || 0) - 10)),
-        exact: quoteSelector?.exact,
-        posSelector
-      });
-
       // Try fuzzy anchoring if TextQuoteSelector with context is available
       let position;
       if (quoteSelector && (quoteSelector.prefix || quoteSelector.suffix)) {
         // Use fuzzy anchoring when prefix/suffix context is available
         // This helps when content changes or same text appears multiple times
-        console.log('[AnnotateView] Trying fuzzy anchoring:', {
-          exact: quoteSelector.exact,
-          prefix: quoteSelector.prefix?.substring(0, 50),
-          suffix: quoteSelector.suffix?.substring(0, 50),
-          contentLength: exact.length,
-          contentPreview: exact.substring(0, 100)
-        });
         position = findTextWithContext(
           exact,
           quoteSelector.exact,
           quoteSelector.prefix,
           quoteSelector.suffix
         );
-        console.log('[AnnotateView] Fuzzy anchoring result:', position);
       }
 
       // Fallback to TextPositionSelector or fuzzy position
       const start = position?.start ?? posSelector?.start ?? 0;
       const end = position?.end ?? posSelector?.end ?? 0;
-      console.log('[AnnotateView] Final position:', { start, end, posSelector, position });
 
       return {
         annotation: ann,
@@ -384,7 +369,7 @@ export function AnnotateView({
   switch (category) {
     case 'text':
       return (
-        <div className="relative h-full flex flex-col" ref={containerRef}>
+        <div className="semiont-annotate-view" data-mime-type="text" ref={containerRef}>
           <AnnotateToolbar
             selectedMotivation={selectedMotivation}
             selectedClick={selectedClick}
@@ -393,7 +378,7 @@ export function AnnotateView({
             annotateMode={annotateMode}
             onAnnotateModeToggle={onAnnotateModeToggle}
           />
-          <div className="flex-1 overflow-auto">
+          <div className="semiont-annotate-view__content">
             <CodeMirrorRenderer
             content={content}
             segments={segments}
@@ -422,16 +407,13 @@ export function AnnotateView({
               {annotationState.rects.map((rect, index) => (
                 <div
                   key={index}
-                  className="absolute pointer-events-none z-40"
+                  className="semiont-annotate-view__selection-indicator"
+                  data-active
                   style={{
                     left: `${rect.left - containerRef.current!.getBoundingClientRect().left}px`,
                     top: `${rect.top - containerRef.current!.getBoundingClientRect().top}px`,
                     width: `${rect.width}px`,
-                    height: `${rect.height}px`,
-                    border: '2px dashed rgba(250, 204, 21, 0.6)',
-                    borderRadius: '3px',
-                    backgroundColor: 'rgba(254, 240, 138, 0.2)',
-                    animation: 'pulse 2s ease-in-out infinite'
+                    height: `${rect.height}px`
                   }}
                 />
               ))}
@@ -443,7 +425,7 @@ export function AnnotateView({
 
     case 'image':
       return (
-        <div className="relative h-full flex flex-col" ref={containerRef}>
+        <div className="semiont-annotate-view" data-mime-type="image" ref={containerRef}>
           <AnnotateToolbar
             selectedMotivation={selectedMotivation}
             selectedClick={selectedClick}
@@ -455,7 +437,7 @@ export function AnnotateView({
             annotateMode={annotateMode}
             onAnnotateModeToggle={onAnnotateModeToggle}
           />
-          <div className="flex-1 overflow-auto">
+          <div className="semiont-annotate-view__content">
             {resourceUri && (
               <SvgDrawingCanvas
                 resourceUri={toResourceUri(resourceUri)}
@@ -487,16 +469,16 @@ export function AnnotateView({
     case 'unsupported':
     default:
       return (
-        <div ref={containerRef} className="flex items-center justify-center h-full p-8">
-          <div className="text-center space-y-4">
-            <p className="text-gray-600 dark:text-gray-400">
+        <div ref={containerRef} className="semiont-annotate-view semiont-annotate-view--unsupported" data-mime-type="unsupported">
+          <div className="semiont-annotate-view__empty">
+            <p className="semiont-annotate-view__empty-message">
               Annotation not supported for {mimeType}
             </p>
             {resourceUri && (
               <a
                 href={resourceUri}
                 download
-                className="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                className="semiont-button semiont-button--primary"
               >
                 Download File
               </a>

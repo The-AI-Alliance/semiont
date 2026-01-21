@@ -3,7 +3,6 @@
 import React from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { formatLocaleDisplay } from '@semiont/api-client';
-import { buttonStyles } from '../../../lib/button-styles';
 
 interface Props {
   documentEntityTypes: string[];
@@ -29,16 +28,16 @@ export function ResourceInfoPanel({
   const t = useTranslations('ResourceInfoPanel');
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 space-y-4">
+    <div className="semiont-resource-info-panel">
       {/* Locale Section */}
-      <div>
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{t('locale')}</h3>
+      <div className="semiont-resource-info-panel__section">
+        <h3 className="semiont-resource-info-panel__heading">{t('locale')}</h3>
         {documentLocale ? (
-          <div className="text-xs text-gray-700 dark:text-gray-300">
+          <div className="semiont-resource-info-panel__value">
             {formatLocaleDisplay(documentLocale)}
           </div>
         ) : (
-          <div className="text-xs text-gray-500 dark:text-gray-400">
+          <div className="semiont-resource-info-panel__value semiont-resource-info-panel__value--empty">
             {t('notSpecified')}
           </div>
         )}
@@ -46,21 +45,21 @@ export function ResourceInfoPanel({
 
       {/* Representation Section */}
       {(primaryMediaType || primaryByteSize !== undefined) && (
-        <div>
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{t('representation')}</h3>
-          <div className="space-y-2 text-xs">
+        <div className="semiont-resource-info-panel__section">
+          <h3 className="semiont-resource-info-panel__heading">{t('representation')}</h3>
+          <div className="semiont-resource-info-panel__field-group">
             {primaryMediaType && (
               <div>
-                <span className="text-gray-500 dark:text-gray-400 block">{t('mediaType')}</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100">
+                <span className="semiont-resource-info-panel__label">{t('mediaType')}</span>
+                <span className="semiont-resource-info-panel__value">
                   {primaryMediaType}
                 </span>
               </div>
             )}
             {primaryByteSize !== undefined && (
               <div>
-                <span className="text-gray-500 dark:text-gray-400 block">{t('byteSize')}</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100">
+                <span className="semiont-resource-info-panel__label">{t('byteSize')}</span>
+                <span className="semiont-resource-info-panel__value">
                   {primaryByteSize.toLocaleString()} bytes
                 </span>
               </div>
@@ -71,13 +70,14 @@ export function ResourceInfoPanel({
 
       {/* Entity Type Tags Section */}
       {documentEntityTypes.length > 0 && (
-        <div>
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{t('entityTypeTags')}</h3>
-          <div className="flex flex-wrap gap-1.5">
+        <div className="semiont-resource-info-panel__section">
+          <h3 className="semiont-resource-info-panel__heading">{t('entityTypeTags')}</h3>
+          <div className="semiont-resource-info-panel__tag-list">
             {documentEntityTypes.map((tag) => (
               <span
                 key={tag}
-                className="inline-flex items-center px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded text-xs"
+                className="semiont-tag"
+                data-variant="blue"
               >
                 {tag}
               </span>
@@ -88,14 +88,14 @@ export function ResourceInfoPanel({
 
       {/* Clone Action */}
       {onClone && (
-        <div>
+        <div className="semiont-resource-info-panel__action-section">
           <button
             onClick={onClone}
-            className={`${buttonStyles.secondary.base} w-full justify-center`}
+            className="semiont-resource-button semiont-resource-button--secondary"
           >
             🔗 {t('clone')}
           </button>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          <p className="semiont-resource-info-panel__description">
             {t('cloneDescription')}
           </p>
         </div>
@@ -103,16 +103,16 @@ export function ResourceInfoPanel({
 
       {/* Archive/Unarchive Actions */}
       {(onArchive || onUnarchive) && (
-        <div>
+        <div className="semiont-resource-info-panel__action-section">
           {isArchived ? (
             <>
               <button
                 onClick={onUnarchive}
-                className={`${buttonStyles.secondary.base} w-full justify-center`}
+                className="semiont-resource-button semiont-resource-button--secondary"
               >
                 📤 {t('unarchive')}
               </button>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              <p className="semiont-resource-info-panel__description">
                 {t('unarchiveDescription')}
               </p>
             </>
@@ -120,11 +120,11 @@ export function ResourceInfoPanel({
             <>
               <button
                 onClick={onArchive}
-                className="w-full px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 justify-center bg-white dark:bg-gray-800 text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                className="semiont-resource-button semiont-resource-button--archive"
               >
                 📦 {t('archive')}
               </button>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              <p className="semiont-resource-info-panel__description">
                 {t('archiveDescription')}
               </p>
             </>

@@ -155,7 +155,7 @@ describe('TagSchemasPage', () => {
       const props = createMockProps();
       const { container } = render(<TagSchemasPage {...props} />);
 
-      const purpleIcon = container.querySelector('.bg-purple-100');
+      const purpleIcon = container.querySelector('.semiont-schema-domain--legal');
       expect(purpleIcon).toBeInTheDocument();
     });
 
@@ -163,7 +163,7 @@ describe('TagSchemasPage', () => {
       const props = createMockProps();
       const { container } = render(<TagSchemasPage {...props} />);
 
-      const greenIcon = container.querySelector('.bg-green-100');
+      const greenIcon = container.querySelector('.semiont-schema-domain--scientific');
       expect(greenIcon).toBeInTheDocument();
     });
 
@@ -171,7 +171,7 @@ describe('TagSchemasPage', () => {
       const props = createMockProps();
       const { container } = render(<TagSchemasPage {...props} />);
 
-      const orangeIcon = container.querySelector('.bg-orange-100');
+      const orangeIcon = container.querySelector('.semiont-schema-domain--general');
       expect(orangeIcon).toBeInTheDocument();
     });
 
@@ -179,9 +179,9 @@ describe('TagSchemasPage', () => {
       const props = createMockProps();
       const { container } = render(<TagSchemasPage {...props} />);
 
-      const legalBadge = container.querySelector('.border-purple-200');
-      const scientificBadge = container.querySelector('.border-green-200');
-      const generalBadge = container.querySelector('.border-orange-200');
+      const legalBadge = container.querySelector('.semiont-schema__badge.semiont-schema-domain--legal');
+      const scientificBadge = container.querySelector('.semiont-schema__badge.semiont-schema-domain--scientific');
+      const generalBadge = container.querySelector('.semiont-schema__badge.semiont-schema-domain--general');
 
       expect(legalBadge).toBeInTheDocument();
       expect(scientificBadge).toBeInTheDocument();
@@ -236,7 +236,7 @@ describe('TagSchemasPage', () => {
       const props = createMockProps();
       render(<TagSchemasPage {...props} />);
 
-      const ruleSection = screen.getByText('Rule').closest('.bg-gray-50');
+      const ruleSection = screen.getByText('Rule').closest('.semiont-schema__category');
       expect(ruleSection).toBeInTheDocument();
       expect(ruleSection?.textContent).not.toContain('more');
     });
@@ -326,7 +326,7 @@ describe('TagSchemasPage', () => {
       const props = createMockProps();
       const { container } = render(<TagSchemasPage {...props} />);
 
-      const mainContainer = container.querySelector('.flex.flex-1');
+      const mainContainer = container.querySelector('.semiont-page');
       expect(mainContainer).toBeInTheDocument();
     });
 
@@ -334,7 +334,7 @@ describe('TagSchemasPage', () => {
       const props = createMockProps();
       const { container } = render(<TagSchemasPage {...props} />);
 
-      const scrollArea = container.querySelector('.overflow-y-auto');
+      const scrollArea = container.querySelector('.semiont-page__content');
       expect(scrollArea).toBeInTheDocument();
     });
 
@@ -342,7 +342,7 @@ describe('TagSchemasPage', () => {
       const props = createMockProps();
       const { container } = render(<TagSchemasPage {...props} />);
 
-      const grid = container.querySelector('.grid.grid-cols-1.lg\\:grid-cols-2');
+      const grid = container.querySelector('.semiont-card-grid--two-columns');
       expect(grid).toBeInTheDocument();
     });
 
@@ -350,7 +350,7 @@ describe('TagSchemasPage', () => {
       const props = createMockProps();
       const { container } = render(<TagSchemasPage {...props} />);
 
-      const contentArea = container.querySelector('.px-4.py-8');
+      const contentArea = container.querySelector('.semiont-page__content');
       expect(contentArea).toBeInTheDocument();
     });
   });
@@ -367,16 +367,18 @@ describe('TagSchemasPage', () => {
       const props = createMockProps({ theme: 'dark' });
       const { container } = render(<TagSchemasPage {...props} />);
 
-      const card = container.querySelector('.dark\\:bg-gray-800');
+      const card = container.querySelector('.semiont-card');
       expect(card).toBeInTheDocument();
+      // Dark mode is handled by CSS, not inline classes
     });
 
     it('applies dark mode classes to category containers', () => {
       const props = createMockProps({ theme: 'dark' });
       const { container } = render(<TagSchemasPage {...props} />);
 
-      const categoryContainer = container.querySelector('.dark\\:bg-gray-900\\/50');
+      const categoryContainer = container.querySelector('.semiont-schema__categories');
       expect(categoryContainer).toBeInTheDocument();
+      // Dark mode is handled by CSS, not inline classes
     });
   });
 

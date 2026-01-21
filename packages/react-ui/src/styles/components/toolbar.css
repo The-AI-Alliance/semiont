@@ -1,0 +1,200 @@
+/**
+ * Toolbar Component
+ *
+ * Styles for toolbar including annotation toolbar and dropdown groups
+ */
+
+.semiont-annotate-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--semiont-bg-primary);
+  border-bottom: 1px solid var(--semiont-color-gray-200);
+}
+
+[data-theme="dark"] .semiont-annotate-toolbar {
+  background: var(--semiont-bg-primary);
+  border-bottom-color: var(--semiont-color-gray-700);
+}
+
+.semiont-toolbar-separator {
+  height: 2rem;
+  width: 1px;
+  background: var(--semiont-color-gray-300);
+}
+
+[data-theme="dark"] .semiont-toolbar-separator {
+  background: var(--semiont-color-gray-600);
+}
+
+.semiont-dropdown-group {
+  position: relative;
+}
+
+.semiont-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  padding: 0.375rem 0.75rem;
+  border-radius: var(--semiont-radius-md);
+  transition: all var(--semiont-duration-base);
+  border: 1px solid transparent;
+}
+
+.semiont-dropdown-trigger:hover {
+  background: var(--semiont-color-primary-100);
+  border-color: var(--semiont-color-primary-400);
+}
+
+[data-theme="dark"] .semiont-dropdown-trigger:hover {
+  background: var(--semiont-color-primary-900);
+  border-color: var(--semiont-color-primary-600);
+}
+
+.semiont-dropdown-trigger:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+.semiont-dropdown-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.semiont-dropdown-icon {
+  font-size: 1.125rem;
+}
+
+.semiont-dropdown-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--semiont-color-gray-700);
+}
+
+[data-theme="dark"] .semiont-dropdown-label {
+  color: var(--semiont-color-gray-300);
+}
+
+.semiont-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  padding-top: 0.5rem;
+  z-index: 50;
+}
+
+.semiont-dropdown-content {
+  background: var(--semiont-bg-primary);
+  border: 1px solid var(--semiont-color-gray-200);
+  border-radius: var(--semiont-radius-lg);
+  box-shadow: var(--semiont-shadow-lg);
+  padding: 0.5rem;
+  min-width: max-content;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+[data-theme="dark"] .semiont-dropdown-content {
+  border-color: var(--semiont-color-gray-700);
+}
+
+.semiont-dropdown-header {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--semiont-color-gray-600);
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--semiont-color-gray-200);
+}
+
+[data-theme="dark"] .semiont-dropdown-header {
+  color: var(--semiont-color-gray-300);
+  border-bottom-color: var(--semiont-color-gray-700);
+}
+
+.semiont-toolbar-menu-button {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--semiont-radius-md);
+  transition: all var(--semiont-duration-base);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.semiont-toolbar-menu-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+.semiont-toolbar-menu-button[data-selected="false"] {
+  color: var(--semiont-color-gray-700);
+}
+
+.semiont-toolbar-menu-button[data-selected="false"]:hover {
+  background: var(--semiont-color-gray-50);
+}
+
+.semiont-toolbar-menu-button[data-selected="true"] {
+  background: var(--semiont-color-gray-300);
+  color: var(--semiont-color-gray-900);
+}
+
+[data-theme="dark"] .semiont-toolbar-menu-button[data-selected="false"] {
+  color: var(--semiont-color-gray-300);
+}
+
+[data-theme="dark"] .semiont-toolbar-menu-button[data-selected="false"]:hover {
+  background: var(--semiont-bg-secondary);
+}
+
+[data-theme="dark"] .semiont-toolbar-menu-button[data-selected="true"] {
+  background: var(--semiont-color-gray-700);
+  color: var(--semiont-color-gray-100);
+}
+
+.semiont-toolbar-menu-button[data-delete="true"][data-selected="false"] {
+  color: var(--semiont-color-error-dark);
+}
+
+.semiont-toolbar-menu-button[data-delete="true"][data-selected="false"]:hover {
+  background: var(--semiont-color-error-light);
+}
+
+.semiont-toolbar-menu-button[data-delete="true"][data-selected="true"] {
+  background: var(--semiont-color-error);
+  color: var(--semiont-color-white);
+}
+
+[data-theme="dark"] .semiont-toolbar-menu-button[data-delete="true"][data-selected="false"] {
+  color: var(--semiont-color-error-light);
+}
+
+[data-theme="dark"] .semiont-toolbar-menu-button[data-delete="true"][data-selected="false"]:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+[data-theme="dark"] .semiont-toolbar-menu-button[data-delete="true"][data-selected="true"] {
+  background: var(--semiont-color-error-dark);
+  color: var(--semiont-color-error-light);
+}
+
+.semiont-toolbar-menu-icon {
+  font-size: 1.125rem;
+}
+
+.semiont-toolbar-menu-label {
+  font-size: 0.875rem;
+}
+
+/* Popup Components */

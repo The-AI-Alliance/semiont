@@ -1,0 +1,85 @@
+/* ============================================
+   ReferencesPanel Component
+   Reference management panel styles
+   ============================================ */
+
+.semiont-references-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.semiont-references-panel__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--semiont-panel-gap-sm);
+}
+
+.semiont-references-panel__item {
+  padding: var(--semiont-panel-padding-md);
+  background: var(--semiont-bg-secondary);
+  border-radius: var(--semiont-radius-md);
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+}
+
+[data-theme="dark"] .semiont-references-panel__item {
+  background: var(--semiont-bg-tertiary);
+}
+
+.semiont-references-panel__item:hover {
+  border-color: var(--semiont-color-primary-300);
+}
+
+.semiont-references-panel__title {
+  font-size: var(--semiont-panel-title-size);
+  font-weight: var(--semiont-panel-title-weight);
+  color: var(--semiont-text-primary);
+  margin-bottom: var(--semiont-panel-header-margin-bottom);
+}
+
+[data-theme="dark"] .semiont-references-panel__title {
+  color: var(--semiont-text-primary);
+}
+
+.semiont-references-panel__path {
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-tertiary);
+  margin-top: var(--semiont-panel-padding-xs);
+}
+
+[data-theme="dark"] .semiont-references-panel__path {
+  color: var(--semiont-text-tertiary);
+}
+
+.semiont-references-panel__count {
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-tertiary);
+  margin-top: var(--semiont-panel-padding-xs);
+}
+
+[data-theme="dark"] .semiont-references-panel__count {
+  color: var(--semiont-text-tertiary);
+}
+
+/* Reference Entry Buttons */
+.semiont-reference-button-group {
+  display: flex;
+  gap: var(--semiont-panel-gap-sm);
+  width: 100%;
+}
+
+.semiont-reference-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--semiont-panel-padding-xs) var(--semiont-panel-padding-sm);
+  font-size: var(--semiont-panel-icon-size);
+}
+
+.semiont-reference-button--full {
+  width: 100%;
+}
+
+.semiont-reference-button--flex {
+  flex: 1;
+}

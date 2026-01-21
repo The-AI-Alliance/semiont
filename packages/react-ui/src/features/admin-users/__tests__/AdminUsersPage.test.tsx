@@ -139,7 +139,7 @@ describe('AdminUsersPage', () => {
       const props = createMockProps({ isLoadingStats: true });
       const { container } = render(<AdminUsersPage {...props} />);
 
-      const skeletons = container.querySelectorAll('.animate-pulse');
+      const skeletons = container.querySelectorAll('.semiont-skeleton');
       expect(skeletons.length).toBeGreaterThan(0);
     });
   });
@@ -316,7 +316,7 @@ describe('AdminUsersPage', () => {
       const { container } = render(<AdminUsersPage {...props} />);
 
       // Find badge in table row
-      const roleBadge = container.querySelector('tbody .bg-red-100');
+      const roleBadge = container.querySelector('tbody .semiont-badge--danger');
       expect(roleBadge).toBeInTheDocument();
       expect(roleBadge).toHaveTextContent('Admin');
     });
@@ -328,7 +328,7 @@ describe('AdminUsersPage', () => {
       const { container } = render(<AdminUsersPage {...props} />);
 
       // Find User badge in table row (not "User" column header)
-      const roleBadge = container.querySelector('tbody td:nth-child(3) .bg-gray-100');
+      const roleBadge = container.querySelector('tbody td:nth-child(3) .semiont-badge--default');
       expect(roleBadge).toBeInTheDocument();
       expect(roleBadge).toHaveTextContent('User');
     });
@@ -340,7 +340,7 @@ describe('AdminUsersPage', () => {
       const { container } = render(<AdminUsersPage {...props} />);
 
       // Find badge in table row (not in stats card which also says "Active Users")
-      const tableBadge = container.querySelector('tbody .bg-green-100');
+      const tableBadge = container.querySelector('tbody .semiont-badge--success');
       expect(tableBadge).toBeInTheDocument();
       expect(tableBadge).toHaveTextContent('Active');
     });
@@ -352,7 +352,7 @@ describe('AdminUsersPage', () => {
       const { container } = render(<AdminUsersPage {...props} />);
 
       // Find badge in table row status column
-      const statusBadge = container.querySelector('tbody td:nth-child(4) .bg-gray-100');
+      const statusBadge = container.querySelector('tbody td:nth-child(4) .semiont-badge--default');
       expect(statusBadge).toBeInTheDocument();
       expect(statusBadge).toHaveTextContent('Inactive');
     });

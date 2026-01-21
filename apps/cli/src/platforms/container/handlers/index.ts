@@ -8,6 +8,10 @@ import { databaseProvisionDescriptor } from './database-provision.js';
 import { graphProvisionDescriptor } from './graph-provision.js';
 import { graphStopDescriptor } from './graph-stop.js';
 import { databaseStopDescriptor } from './database-stop.js';
+import { proxyProvisionDescriptor } from './proxy-provision.js';
+import { proxyStartDescriptor } from './proxy-start.js';
+import { proxyStopDescriptor } from './proxy-stop.js';
+import { proxyCheckDescriptor } from './proxy-check.js';
 import type { HandlerDescriptor } from './types.js';
 import { BaseHandlerContext, HandlerResult } from '../../../core/handlers/types.js';
 
@@ -20,16 +24,20 @@ const containerHandlers: Array<HandlerDescriptor<any, any>> = [
   webCheckDescriptor,
   databaseCheckDescriptor,
   graphCheckDescriptor,
+  proxyCheckDescriptor,
   // Start handlers
   webStartDescriptor,
   databaseStartDescriptor,
   graphStartDescriptor,
+  proxyStartDescriptor,
   // Stop handlers
   graphStopDescriptor,
   databaseStopDescriptor,
+  proxyStopDescriptor,
   // Provision handlers
   databaseProvisionDescriptor,
-  graphProvisionDescriptor
+  graphProvisionDescriptor,
+  proxyProvisionDescriptor
 ];
 
 // Export as base handler type for registry compatibility

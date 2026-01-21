@@ -1,0 +1,108 @@
+/* Focus Utilities - WCAG 2.1 AA Compliant */
+/* Provides consistent focus indicators for keyboard navigation */
+
+/* Base focus visible styles for all interactive elements */
+.semiont-focus-visible:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Inset variant for contained elements */
+.semiont-focus-visible--inset:focus-visible {
+  outline-offset: -2px;
+}
+
+/* Subtle variant for less prominent elements */
+.semiont-focus-visible--subtle:focus-visible {
+  outline: 1px solid var(--semiont-color-primary-400);
+  outline-offset: 1px;
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .semiont-focus-visible:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+[data-theme="dark"] .semiont-focus-visible--subtle:focus-visible {
+  outline-color: var(--semiont-color-primary-300);
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: more) {
+  .semiont-focus-visible:focus-visible {
+    outline-width: 3px;
+    outline-color: currentColor;
+  }
+
+  .semiont-focus-visible--subtle:focus-visible {
+    outline-width: 2px;
+    outline-color: currentColor;
+  }
+}
+
+/* Remove default focus for mouse users, keep for keyboard */
+.semiont-focus-visible:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Global interactive element focus styles */
+/* These apply to all standard interactive elements */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[role="button"]:focus-visible,
+[role="link"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] button:focus-visible,
+[data-theme="dark"] a:focus-visible,
+[data-theme="dark"] input:focus-visible,
+[data-theme="dark"] textarea:focus-visible,
+[data-theme="dark"] select:focus-visible,
+[data-theme="dark"] [role="button"]:focus-visible,
+[data-theme="dark"] [role="link"]:focus-visible,
+[data-theme="dark"] [tabindex]:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+/* Form fields need special handling */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline-offset: -1px;
+  border-color: var(--semiont-color-primary-500);
+}
+
+[data-theme="dark"] input:focus-visible,
+[data-theme="dark"] textarea:focus-visible,
+[data-theme="dark"] select:focus-visible {
+  border-color: var(--semiont-color-primary-400);
+}
+
+/* Skip link for keyboard navigation */
+.semiont-skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--semiont-bg-primary);
+  color: var(--semiont-text-primary);
+  padding: 8px;
+  text-decoration: none;
+  z-index: 100;
+}
+
+[data-theme="dark"] .semiont-skip-link {
+  background: var(--semiont-color-gray-800);
+  color: var(--semiont-color-gray-100);
+}
+
+.semiont-skip-link:focus {
+  top: 0;
+}

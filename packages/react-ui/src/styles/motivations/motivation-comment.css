@@ -1,0 +1,245 @@
+/**
+ * Motivation: Commenting
+ * Color Theme: Gray/Black/White with dashed outline
+ * W3C Web Annotation: commenting motivation
+ *
+ * This file defines all styles for comment annotations
+ * across text, panels, and image annotations.
+ */
+
+/* ============================================
+   Color Variables
+   ============================================ */
+:root {
+  /* Light theme colors */
+  --semiont-motivation-comment-primary: var(--semiont-color-gray-700);
+  --semiont-motivation-comment-secondary: var(--semiont-color-gray-600);
+  --semiont-motivation-comment-bg: var(--semiont-color-gray-100);
+  --semiont-motivation-comment-bg-hover: var(--semiont-color-gray-200);
+  --semiont-motivation-comment-border: rgba(107, 114, 128, 0.3);
+  --semiont-motivation-comment-border-hover: rgba(107, 114, 128, 0.5);
+  --semiont-motivation-comment-text: var(--semiont-color-gray-700);
+  --semiont-motivation-comment-outline: var(--semiont-color-gray-900);
+
+  /* Dark theme colors */
+  --semiont-motivation-comment-dark-bg: rgba(55, 65, 81, 0.3);
+  --semiont-motivation-comment-dark-bg-hover: var(--semiont-bg-secondary);
+  --semiont-motivation-comment-dark-text: var(--semiont-color-gray-300);
+  --semiont-motivation-comment-dark-outline: var(--semiont-color-gray-100);
+  --semiont-motivation-comment-dark-primary: var(--semiont-color-gray-400);
+
+  /* Panel backgrounds */
+  --semiont-motivation-comment-panel-bg: rgba(243, 244, 246, 0.5);
+  --semiont-motivation-comment-panel-bg-dark: rgba(55, 65, 81, 0.2);
+
+  /* Button gradients */
+  --semiont-motivation-comment-button-bg: linear-gradient(to right, var(--semiont-color-purple-600), var(--semiont-color-indigo-600));
+  --semiont-motivation-comment-button-bg-hover: linear-gradient(to right, var(--semiont-color-purple-700), var(--semiont-color-indigo-700));
+}
+
+/* ============================================
+   Inline Text Annotations - Dashed Outline
+   ============================================ */
+.semiont-motivation-comment,
+.annotation-comment {
+  border-radius: 0.25rem;
+  padding: 0 0.125rem;
+  cursor: pointer;
+  transition: all 200ms;
+  outline: 2px dashed var(--semiont-motivation-comment-outline);
+  outline-offset: 1px;
+}
+
+.semiont-motivation-comment:hover,
+.annotation-comment:hover {
+  background: var(--semiont-motivation-comment-bg);
+}
+
+[data-theme="dark"] .semiont-motivation-comment,
+[data-theme="dark"] .annotation-comment {
+  outline: 2px dashed var(--semiont-motivation-comment-dark-outline);
+}
+
+[data-theme="dark"] .semiont-motivation-comment:hover,
+[data-theme="dark"] .annotation-comment:hover {
+  background: var(--semiont-motivation-comment-dark-bg-hover);
+}
+
+/* ============================================
+   Panel Entry Styling
+   ============================================ */
+.semiont-motivation-comment-entry,
+.semiont-annotation-entry[data-type="comment"] {
+  border-color: var(--semiont-motivation-comment-border);
+}
+
+[data-theme="dark"] .semiont-motivation-comment-entry,
+[data-theme="dark"] .semiont-annotation-entry[data-type="comment"] {
+  border-color: var(--semiont-motivation-comment-border);
+}
+
+.semiont-motivation-comment-entry:hover,
+.semiont-annotation-entry[data-type="comment"]:hover {
+  background: var(--semiont-motivation-comment-panel-bg);
+  border-color: var(--semiont-motivation-comment-border-hover);
+}
+
+[data-theme="dark"] .semiont-motivation-comment-entry:hover,
+[data-theme="dark"] .semiont-annotation-entry[data-type="comment"]:hover {
+  background: var(--semiont-motivation-comment-panel-bg-dark);
+}
+
+/* ============================================
+   Quote/Excerpt Styling in Panels
+   ============================================ */
+.semiont-motivation-comment-quote,
+.semiont-annotation-entry__quote[data-type="comment"] {
+  background: var(--semiont-motivation-comment-bg);
+  color: var(--semiont-motivation-comment-text);
+  padding: 0.375rem 0.5rem;
+  border-radius: var(--semiont-radius-sm);
+  border-left: 3px dashed var(--semiont-motivation-comment-border-hover);
+}
+
+[data-theme="dark"] .semiont-motivation-comment-quote,
+[data-theme="dark"] .semiont-annotation-entry__quote[data-type="comment"] {
+  background: var(--semiont-motivation-comment-dark-bg);
+  color: var(--semiont-motivation-comment-dark-text);
+  border-left-color: var(--semiont-motivation-comment-dark-primary);
+}
+
+/* ============================================
+   Detection Section in Unified Panel
+   ============================================ */
+.semiont-motivation-comment-section,
+.semiont-detect-section[data-type="comment"] {
+  border-color: var(--semiont-color-purple-500);
+}
+
+[data-theme="dark"] .semiont-motivation-comment-section,
+[data-theme="dark"] .semiont-detect-section[data-type="comment"] {
+  border-color: var(--semiont-color-purple-600);
+}
+
+/* ============================================
+   Button Styling
+   ============================================ */
+.semiont-motivation-comment-button,
+.semiont-button[data-variant="detect"][data-type="comment"] {
+  background: linear-gradient(to right, var(--semiont-color-gray-800), var(--semiont-color-gray-700)) !important;
+  color: var(--semiont-color-white) !important;
+  border: 1px solid var(--semiont-motivation-comment-border);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.semiont-motivation-comment-button:hover:not(:disabled),
+.semiont-button[data-variant="detect"][data-type="comment"]:hover:not(:disabled) {
+  background: linear-gradient(to right, var(--semiont-color-gray-900), var(--semiont-color-gray-800)) !important;
+  border-color: var(--semiont-color-gray-600);
+}
+
+[data-theme="dark"] .semiont-motivation-comment-button,
+[data-theme="dark"] .semiont-button[data-variant="detect"][data-type="comment"] {
+  background: linear-gradient(to right, var(--semiont-color-gray-600), var(--semiont-color-gray-500)) !important;
+  color: var(--semiont-color-white) !important;
+  border-color: var(--semiont-motivation-comment-dark-primary);
+}
+
+[data-theme="dark"] .semiont-motivation-comment-button:hover:not(:disabled),
+[data-theme="dark"] .semiont-button[data-variant="detect"][data-type="comment"]:hover:not(:disabled) {
+  background: linear-gradient(to right, var(--semiont-color-gray-500), var(--semiont-color-gray-400)) !important;
+  border-color: var(--semiont-color-gray-400);
+}
+
+.semiont-motivation-comment-button:focus-visible,
+.semiont-button[data-variant="detect"][data-type="comment"]:focus-visible {
+  outline: 2px solid var(--semiont-motivation-comment-primary);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-motivation-comment-button:focus-visible,
+[data-theme="dark"] .semiont-button[data-variant="detect"][data-type="comment"]:focus-visible {
+  outline: 2px solid var(--semiont-color-purple-400);
+  outline-offset: 2px;
+}
+
+/* ============================================
+   Comment Input Areas
+   ============================================ */
+.semiont-annotation-prompt[data-type="comment"] {
+  background: var(--semiont-motivation-comment-bg);
+  padding: var(--semiont-panel-padding);
+  border-radius: var(--semiont-radius-md);
+  border: 2px dashed var(--semiont-motivation-comment-border);
+}
+
+[data-theme="dark"] .semiont-annotation-prompt[data-type="comment"] {
+  background: var(--semiont-motivation-comment-dark-bg);
+  border-color: var(--semiont-motivation-comment-dark-primary);
+}
+
+.semiont-annotation-prompt__quote {
+  background: var(--semiont-bg-primary);
+  padding: var(--semiont-panel-padding-sm);
+  border-radius: var(--semiont-radius-sm);
+  border-left: 3px solid var(--semiont-motivation-comment-primary);
+  margin-bottom: var(--semiont-panel-gap-sm);
+}
+
+[data-theme="dark"] .semiont-annotation-prompt__quote {
+  background: var(--semiont-bg-secondary);
+  border-left-color: var(--semiont-motivation-comment-dark-primary);
+}
+
+/* ============================================
+   Image Annotation Overlays
+   ============================================ */
+.semiont-image-annotation-comment {
+  stroke: var(--semiont-motivation-comment-primary);
+  stroke-width: 2px;
+  stroke-dasharray: 8, 4;
+  fill: transparent;
+}
+
+.semiont-image-annotation-comment:hover {
+  stroke-width: 3px;
+  fill: var(--semiont-motivation-comment-border);
+}
+
+[data-theme="dark"] .semiont-image-annotation-comment {
+  stroke: var(--semiont-motivation-comment-dark-outline);
+}
+
+[data-theme="dark"] .semiont-image-annotation-comment:hover {
+  fill: rgba(107, 114, 128, 0.2);
+}
+
+/* ============================================
+   Comment-specific Visual Elements
+   ============================================ */
+.semiont-comment-indicator {
+  display: inline-block;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px dashed var(--semiont-motivation-comment-primary);
+  border-radius: 50%;
+  position: relative;
+}
+
+[data-theme="dark"] .semiont-comment-indicator {
+  border-color: var(--semiont-motivation-comment-dark-primary);
+}
+
+.semiont-comment-bubble {
+  background: var(--semiont-motivation-comment-bg);
+  border: 1px solid var(--semiont-motivation-comment-border);
+  border-radius: var(--semiont-radius-md);
+  padding: var(--semiont-panel-padding-sm);
+  position: relative;
+}
+
+[data-theme="dark"] .semiont-comment-bubble {
+  background: var(--semiont-motivation-comment-dark-bg);
+  border-color: var(--semiont-motivation-comment-dark-primary);
+}

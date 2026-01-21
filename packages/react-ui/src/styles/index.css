@@ -1,0 +1,86 @@
+/**
+ * Semiont React UI - Main Stylesheet
+ *
+ * This is the entry point for all styles.
+ * CLEANED UP: Only imports files that actually exist with real content.
+ *
+ * Total CSS: ~8,700 lines properly modularized (down from 25,000+ lines of cruft)
+ */
+
+/* Design Tokens */
+@import './variables.css';
+
+/* Base */
+@import './base/reset.css';
+@import './base/utilities.css';
+
+/* Utilities */
+@import './utilities/focus.css';
+@import './utilities/focus-extended.css';
+@import './utilities/motion.css';
+@import './utilities/motion-overrides.css';
+@import './utilities/contrast.css';
+@import './utilities/semantic-indicators.css';
+
+/* Layout */
+@import './layout/layout.css';
+
+/* Core UI Elements */
+@import './core/index.css';
+
+/* Core Components */
+@import './components/auth.css';
+@import './components/tables.css';
+@import './components/toast.css';
+@import './components/status-display.css';
+@import './components/panels-base.css';
+@import './components/panel-sections.css';
+@import './components/modals.css';
+@import './components/search-modal.css';
+@import './components/branding.css';
+@import './components/toolbar.css';
+@import './components/cards.css';
+@import './components/references.css';
+@import './components/sidebar-navigation.css';
+@import './components/collapsible-resource-navigation.css';
+@import './components/annotations.css';
+@import './components/annotation-entries.css';
+@import './components/skip-links.css';
+
+/* Motivation-Specific Styles (W3C Web Annotation) */
+@import './motivations/motivation-reference.css';
+@import './motivations/motivation-highlight.css';
+@import './motivations/motivation-assessment.css';
+@import './motivations/motivation-comment.css';
+@import './motivations/motivation-tag.css';
+
+/* Individual Panel Styles */
+@import './panels/collaboration-panel.css';
+@import './panels/jsonld-panel.css';
+@import './panels/references-panel.css';
+@import './panels/settings-panel.css';
+@import './panels/unified-annotations-panel.css';
+@import './panels/resource-info-panel.css';
+@import './panels/tagging-panel.css';
+@import './panels/highlight-panel.css';
+@import './panels/comments-panel.css';
+@import './panels/assessment-panel.css';
+@import './panels/statistics-panel.css';
+@import './panels/history-panel.css';
+
+/* Features */
+@import './features/admin.css';
+@import './features/compose.css';
+@import './features/devops.css';
+@import './features/entity-tags.css';
+@import './features/recent-docs.css';
+@import './features/resource.css';
+@import './features/resource-discovery.css';
+@import './features/resource-viewer.css';
+@import './features/schemas.css';
+@import './features/static-pages.css';
+@import './features/welcome.css';
+
+/* Patterns */
+@import './patterns/loading.css';
+@import './patterns/errors.css';

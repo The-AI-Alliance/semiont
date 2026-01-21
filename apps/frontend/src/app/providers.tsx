@@ -14,9 +14,10 @@ import {
 } from '@semiont/react-ui';
 import { KeyboardShortcutsProvider } from '@/contexts/KeyboardShortcutsContext';
 import { AuthErrorBoundary } from '@/components/AuthErrorBoundary';
+import { ThemeInitializer } from '@/components/ThemeInitializer';
 import { APIError } from '@semiont/api-client';
 import { useSessionManager } from '@/hooks/useSessionManager';
-import { useTranslationManager } from '@/hooks/useTranslationManager';
+import { useMergedTranslationManager } from '@/hooks/useMergedTranslationManager';
 import { useApiClientManager } from '@/hooks/useApiClientManager';
 
 /**
@@ -100,7 +101,7 @@ function InnerProviders({ children, queryClient }: { children: React.ReactNode; 
   // Manager hooks - these provide app-specific implementations to @semiont/react-ui contexts
   // These are called INSIDE SessionProvider because they use useSession()
   const sessionManager = useSessionManager();
-  const translationManager = useTranslationManager();
+  const translationManager = useMergedTranslationManager(); // Use merged manager for both frontend and react-ui translations
   const apiClientManager = useApiClientManager();
 
   return (
@@ -112,6 +113,7 @@ function InnerProviders({ children, queryClient }: { children: React.ReactNode; 
               <ToastProvider>
                 <LiveRegionProvider>
                   <KeyboardShortcutsProvider>
+                    <ThemeInitializer />
                     {children}
                   </KeyboardShortcutsProvider>
                 </LiveRegionProvider>

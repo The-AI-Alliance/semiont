@@ -131,12 +131,32 @@ export function registerGetEventStream(router: ResourcesRouterType) {
           };
 
           console.log(`[EventStream:${streamId}] Event data prepared, calling writeSSE...`);
+
+          // DEBUG: Test JSON.stringify separately
+          let jsonData: string;
+          try {
+            const startStringify = Date.now();
+            jsonData = JSON.stringify(eventData);
+            const stringifyTime = Date.now() - startStringify;
+            console.log(`[EventStream:${streamId}] JSON.stringify completed in ${stringifyTime}ms, size: ${jsonData.length} bytes`);
+          } catch (stringifyError) {
+            console.error(`[EventStream:${streamId}] JSON.stringify FAILED:`, stringifyError);
+            throw stringifyError;
+          }
+
+          // DEBUG: Log payload structure for annotation.body.updated
+          if (storedEvent.event.type === 'annotation.body.updated') {
+            console.log(`[EventStream:${streamId}] annotation.body.updated payload:`, JSON.stringify(storedEvent.event.payload, null, 2));
+          }
+
+          const startWrite = Date.now();
           await stream.writeSSE({
-            data: JSON.stringify(eventData),
+            data: jsonData,
             event: storedEvent.event.type,
             id: storedEvent.metadata.sequenceNumber.toString(),
           });
-          console.log(`[EventStream:${streamId}] Successfully wrote event ${storedEvent.event.type} to SSE stream for ${rUri}`);
+          const writeTime = Date.now() - startWrite;
+          console.log(`[EventStream:${streamId}] Successfully wrote event ${storedEvent.event.type} to SSE stream for ${rUri} in ${writeTime}ms`);
         } catch (error) {
           console.error(`[EventStream:${streamId}] Error writing event ${storedEvent.event.type} to SSE stream for ${rUri}:`, error);
           cleanup();

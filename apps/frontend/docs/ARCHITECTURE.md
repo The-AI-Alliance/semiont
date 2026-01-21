@@ -38,10 +38,71 @@ The Semiont frontend is a Next.js 14 application using the App Router with React
 - **NextAuth.js** - Authentication session management
 
 ### UI & Styling
-- **Tailwind CSS** - Utility-first CSS framework
+
+#### Hybrid CSS Architecture
+The frontend uses a hybrid CSS approach that combines:
+- **@semiont/react-ui** - Semantic CSS with BEM methodology for all UI components, organized into:
+  - `core/` - Fundamental UI elements (buttons, toggles, sliders, badges, tags, indicators)
+  - `components/` - Complex composed components (forms, modals, cards)
+  - `panels/` - Panel layouts and containers (12 different panel styles)
+  - `motivations/` - W3C Web Annotation standard styles (5 motivation types)
+  - `features/` - Feature-specific styling
+- **Tailwind CSS** - Utility-first CSS for app-specific layouts and custom components
+
+This architecture ensures:
+- Framework-agnostic component library (@semiont/react-ui uses semantic CSS)
+- Modular organization with clear separation (core elements vs. components vs. panels)
+- Centralized design tokens for consistency (panel tokens, color palettes)
+- W3C Web Annotation compliance with dedicated motivation styles
+- Flexibility for app-specific styling (frontend uses Tailwind)
+- Clear separation of concerns (component styles vs. layout utilities)
+
+#### UI Libraries
 - **CodeMirror 6** - Code editor for document content
-- **Headless UI** - Accessible UI components
+- **Headless UI** - Accessible UI components with Tailwind integration
 - **Radix UI** - Low-level UI primitives
+
+### Component Library Architecture
+
+The frontend leverages **@semiont/react-ui**, a comprehensive framework-agnostic component library that provides:
+
+#### Core Components
+- **UI Components**: Button, Card, Toolbar, Toast, StatusDisplay
+- **Resource Components**: ResourceViewer, AnnotateView, BrowseView
+- **Annotation Components**: Complete annotation system with popups and overlays
+- **Panel Components**: Comments, References, Tags, Statistics, JSON-LD panels
+- **Navigation**: Footer, NavigationMenu, SkipLinks
+- **Layout**: UnifiedHeader, LeftSidebar, PageLayout
+- **Session**: SessionTimer, SessionExpiryBanner
+
+#### Hooks & Utilities
+- **API Hooks**: React Query wrappers for all Semiont API operations
+- **UI Hooks**: useTheme, useKeyboardShortcuts, useToast, useDebounce
+- **Resource Hooks**: useResourceEvents, useDetectionProgress, useGenerationProgress
+- **Form Hooks**: useFormValidation with built-in validation rules
+
+#### Provider Pattern
+@semiont/react-ui uses a provider pattern for framework independence:
+
+```typescript
+// Frontend provides Next.js-specific implementations
+<SessionProvider sessionManager={nextAuthSessionManager}>
+  <TranslationProvider translationManager={nextIntlManager}>
+    <ApiClientProvider apiClientManager={apiClientManager}>
+      {/* App components can now use react-ui hooks */}
+    </ApiClientProvider>
+  </TranslationProvider>
+</SessionProvider>
+```
+
+This architecture enables:
+- **Framework Independence**: Components work with any React framework
+- **Consistent Design**: Shared components across all Semiont applications
+- **Type Safety**: Shared TypeScript types and interfaces
+- **Comprehensive Testing**: 1250+ tests in the component library
+- **Clear Boundaries**: Separation between framework code and UI components
+
+See [Component Library Integration Guide](./COMPONENT-LIBRARY.md) for detailed usage.
 
 ### API Communication
 - **Fetch API** - HTTP client (wrapped with authentication)

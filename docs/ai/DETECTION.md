@@ -431,6 +431,21 @@ References:
 
 **Event Emission**: All workers emit `job.started`, `job.progress`, `job.completed`, or `job.failed` events to Event Store.
 
+### Real-Time Updates
+
+Detection events flow through the Event Store to subscribed clients via Server-Sent Events (SSE), enabling real-time UI updates:
+
+**Progress Updates**: Route subscribes to resource events, forwards job progress to client (<50ms latency)
+
+**Annotation Creation**: When worker emits `annotation.added`:
+1. Event Store broadcasts to SSE subscribers (document viewers)
+2. View Materializer updates View Storage
+3. Graph Consumer updates Graph Database
+4. Frontend invalidates React Query cache → refetches annotations
+5. UI updates automatically
+
+See [Real-Time Event Architecture](../../apps/backend/docs/REAL-TIME.md) for complete SSE implementation details including Event Handler Refs Pattern, reconnection strategy, and Envoy proxy configuration.
+
 ### Data Flow Through Backend Layers
 
 **Event Store → View Storage → Graph Database** ([Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md)):

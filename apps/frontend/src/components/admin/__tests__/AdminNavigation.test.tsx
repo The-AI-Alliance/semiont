@@ -55,14 +55,7 @@ describe('AdminNavigation', () => {
       render(<AdminNavigation />);
 
       expect(screen.getByText('Administration')).toBeInTheDocument();
-      expect(screen.getByText('Administration')).toHaveClass(
-        'text-xs',
-        'font-semibold',
-        'text-gray-400',
-        'dark:text-gray-500',
-        'uppercase',
-        'tracking-wider'
-      );
+      expect(screen.getByText('Administration')).toHaveClass('sidebar-navigation__title');
     });
 
     it('should render all navigation items', () => {
@@ -85,79 +78,51 @@ describe('AdminNavigation', () => {
   describe('Active state handling', () => {
     it('should highlight active Users navigation item', () => {
       (usePathname as any).mockReturnValue('/admin/users');
-      
+
       render(<AdminNavigation />);
 
       const usersLink = screen.getByRole('link', { name: /users/i });
-      expect(usersLink).toHaveClass(
-        'bg-blue-50',
-        'dark:bg-blue-900/20',
-        'text-blue-700',
-        'dark:text-blue-300',
-        'border-r-2',
-        'border-blue-500'
-      );
+      expect(usersLink).toHaveClass('sidebar-navigation__item', 'sidebar-navigation__item--active');
 
       const usersIcon = screen.getByTestId('users-icon');
-      expect(usersIcon).toHaveClass('text-blue-500', 'dark:text-blue-400');
+      expect(usersIcon).toHaveClass('sidebar-navigation__icon', 'sidebar-navigation__icon--active');
     });
 
     it('should highlight active OAuth Settings navigation item', () => {
       (usePathname as any).mockReturnValue('/admin/security');
-      
+
       render(<AdminNavigation />);
 
       const securityLink = screen.getByRole('link', { name: /oauth settings/i });
-      expect(securityLink).toHaveClass(
-        'bg-blue-50',
-        'dark:bg-blue-900/20',
-        'text-blue-700',
-        'dark:text-blue-300',
-        'border-r-2',
-        'border-blue-500'
-      );
+      expect(securityLink).toHaveClass('sidebar-navigation__item', 'sidebar-navigation__item--active');
 
       const securityIcon = screen.getByTestId('shield-check-icon');
-      expect(securityIcon).toHaveClass('text-blue-500', 'dark:text-blue-400');
+      expect(securityIcon).toHaveClass('sidebar-navigation__icon', 'sidebar-navigation__icon--active');
     });
 
     it('should not highlight any item when on admin dashboard', () => {
       (usePathname as any).mockReturnValue('/admin');
-      
+
       render(<AdminNavigation />);
 
       const usersLink = screen.getByRole('link', { name: /users/i });
-      expect(usersLink).toHaveClass(
-        'text-gray-700',
-        'dark:text-gray-300',
-        'hover:text-gray-900',
-        'dark:hover:text-white',
-        'hover:bg-gray-50',
-        'dark:hover:bg-gray-800'
-      );
+      expect(usersLink).toHaveClass('sidebar-navigation__item', 'sidebar-navigation__item--inactive');
 
       const securityLink = screen.getByRole('link', { name: /oauth settings/i });
-      expect(securityLink).toHaveClass(
-        'text-gray-700',
-        'dark:text-gray-300',
-        'hover:text-gray-900',
-        'dark:hover:text-white',
-        'hover:bg-gray-50',
-        'dark:hover:bg-gray-800'
-      );
+      expect(securityLink).toHaveClass('sidebar-navigation__item', 'sidebar-navigation__item--inactive');
     });
 
     it('should not highlight any item when on unrelated path', () => {
       (usePathname as any).mockReturnValue('/admin/some-other-page');
-      
+
       render(<AdminNavigation />);
 
       const usersLink = screen.getByRole('link', { name: /users/i });
       const securityLink = screen.getByRole('link', { name: /oauth settings/i });
 
       // Both should be inactive
-      expect(usersLink).not.toHaveClass('bg-blue-50');
-      expect(securityLink).not.toHaveClass('bg-blue-50');
+      expect(usersLink).toHaveClass('sidebar-navigation__item--inactive');
+      expect(securityLink).toHaveClass('sidebar-navigation__item--inactive');
     });
   });
 
@@ -170,28 +135,10 @@ describe('AdminNavigation', () => {
       render(<AdminNavigation />);
 
       const usersIcon = screen.getByTestId('users-icon');
-      expect(usersIcon).toHaveClass(
-        'flex-shrink-0',
-        '-ml-1',
-        'mr-3',
-        'h-5',
-        'w-5',
-        'text-gray-400',
-        'group-hover:text-gray-500',
-        'dark:group-hover:text-gray-300'
-      );
+      expect(usersIcon).toHaveClass('sidebar-navigation__icon', 'sidebar-navigation__icon--inactive');
 
       const securityIcon = screen.getByTestId('shield-check-icon');
-      expect(securityIcon).toHaveClass(
-        'flex-shrink-0',
-        '-ml-1',
-        'mr-3',
-        'h-5',
-        'w-5',
-        'text-gray-400',
-        'group-hover:text-gray-500',
-        'dark:group-hover:text-gray-300'
-      );
+      expect(securityIcon).toHaveClass('sidebar-navigation__icon', 'sidebar-navigation__icon--inactive');
     });
 
     // Removed home icon test - home icon no longer exists in the component
@@ -208,8 +155,8 @@ describe('AdminNavigation', () => {
       const navContainer = container.querySelector('.p-4');
       expect(navContainer).toBeInTheDocument();
 
-      const spaceContainer = navContainer?.querySelector('.space-y-1');
-      expect(spaceContainer).toBeInTheDocument();
+      const itemsContainer = navContainer?.querySelector('.sidebar-navigation__items');
+      expect(itemsContainer).toBeInTheDocument();
     });
 
     // Removed separator test - separator no longer exists in the component
@@ -218,9 +165,9 @@ describe('AdminNavigation', () => {
       render(<AdminNavigation />);
 
       const links = screen.getAllByRole('link');
-      
+
       links.forEach(link => {
-        expect(link).toHaveClass('group', 'flex', 'items-center', 'px-3', 'py-2', 'text-sm', 'font-medium');
+        expect(link).toHaveClass('sidebar-navigation__item');
       });
     });
   });
@@ -236,7 +183,7 @@ describe('AdminNavigation', () => {
       // AdminNavigation no longer wraps in nav element - it's just content
       // The parent LeftSidebar handles dark mode styling
       const adminHeader = screen.getByText('Administration');
-      expect(adminHeader).toHaveClass('dark:text-gray-500');
+      expect(adminHeader).toHaveClass('sidebar-navigation__title');
     });
 
     // Removed separator dark mode test - separator no longer exists in the component
@@ -245,14 +192,14 @@ describe('AdminNavigation', () => {
       render(<AdminNavigation />);
 
       const adminHeader = screen.getByText('Administration');
-      expect(adminHeader).toHaveClass('dark:text-gray-500');
+      expect(adminHeader).toHaveClass('sidebar-navigation__title');
     });
 
     it('should have dark mode hover states for inactive links', () => {
       render(<AdminNavigation />);
 
       const usersLink = screen.getByRole('link', { name: /users/i });
-      expect(usersLink).toHaveClass('dark:text-gray-300', 'dark:hover:text-white', 'dark:hover:bg-gray-800');
+      expect(usersLink).toHaveClass('sidebar-navigation__item', 'sidebar-navigation__item--inactive');
     });
   });
 
@@ -286,7 +233,7 @@ describe('AdminNavigation', () => {
 
       const links = screen.getAllByRole('link');
       links.forEach(link => {
-        expect(link).toHaveClass('transition-colors');
+        expect(link).toHaveClass('sidebar-navigation__item');
       });
     });
 
@@ -305,19 +252,19 @@ describe('AdminNavigation', () => {
       // Start with users page active
       (usePathname as any).mockReturnValue('/admin/users');
       rerender(<AdminNavigation />);
-      
+
       let usersLink = screen.getByRole('link', { name: /users/i });
-      expect(usersLink).toHaveClass('bg-blue-50');
+      expect(usersLink).toHaveClass('sidebar-navigation__item--active');
 
       // Change to security page active
       (usePathname as any).mockReturnValue('/admin/security');
       rerender(<AdminNavigation />);
-      
+
       usersLink = screen.getByRole('link', { name: /users/i });
       const securityLink = screen.getByRole('link', { name: /oauth settings/i });
-      
-      expect(usersLink).not.toHaveClass('bg-blue-50');
-      expect(securityLink).toHaveClass('bg-blue-50');
+
+      expect(usersLink).toHaveClass('sidebar-navigation__item--inactive');
+      expect(securityLink).toHaveClass('sidebar-navigation__item--active');
     });
   });
 });

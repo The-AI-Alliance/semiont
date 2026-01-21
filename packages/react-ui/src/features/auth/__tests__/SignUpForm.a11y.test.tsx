@@ -32,6 +32,8 @@ const mockTranslations = {
   approvedDomainsInfo: 'Only users with approved email domains can sign up',
   termsAgreement: 'By signing up, you agree to our Terms of Service',
   alreadyHaveAccount: 'Already have an account? Sign In',
+  tagline: 'Structured Knowledge, Unstructured Inputs',
+  backToHome: 'Back to Home',
 };
 
 describe('SignUpForm - Accessibility', () => {
@@ -89,9 +91,16 @@ describe('SignUpForm - Accessibility', () => {
         />
       );
 
-      // Should have h2 heading for main title
-      const heading = screen.getByRole('heading', { level: 2 });
-      expect(heading).toHaveTextContent('Join Semiont');
+      // Should have h1 headings (one sr-only, one from SemiontBranding)
+      const h1s = screen.getAllByRole('heading', { level: 1 });
+      expect(h1s.length).toBeGreaterThanOrEqual(1);
+      // One of them should have "Join Semiont" text
+      const pageTitle = h1s.find(h => h.textContent === 'Join Semiont');
+      expect(pageTitle).toBeDefined();
+
+      // Should have h2 heading (tagline from SemiontBranding)
+      const h2s = screen.getAllByRole('heading', { level: 2 });
+      expect(h2s.length).toBeGreaterThan(0);
     });
   });
 
@@ -164,7 +173,7 @@ describe('SignUpForm - Accessibility', () => {
       expect(button).toHaveAccessibleName(/Sign Up with Google/i);
     });
 
-    it('should have accessible link name', () => {
+    it('should have accessible link names', () => {
       const onSignUp = vi.fn();
 
       render(
@@ -175,8 +184,12 @@ describe('SignUpForm - Accessibility', () => {
         />
       );
 
-      const link = screen.getByRole('link');
-      expect(link).toHaveAccessibleName();
+      const links = screen.getAllByRole('link');
+      // Should have two links: "Back to Home" and "Already have an account? Sign In"
+      expect(links).toHaveLength(2);
+      links.forEach(link => {
+        expect(link).toHaveAccessibleName();
+      });
     });
   });
 
@@ -217,7 +230,7 @@ describe('SignUpForm - Accessibility', () => {
       await screen.findByText('Creating your account...');
 
       // Loading spinner should be present
-      const spinner = container.querySelector('.animate-spin');
+      const spinner = container.querySelector('.semiont-auth__spinner');
       expect(spinner).toBeInTheDocument();
     });
   });
@@ -234,8 +247,14 @@ describe('SignUpForm - Accessibility', () => {
         />
       );
 
-      const heading = screen.getByRole('heading', { level: 2 });
-      expect(heading).toHaveTextContent('Join Semiont');
+      // Check that one of the h1 headings has the page title
+      const h1s = screen.getAllByRole('heading', { level: 1 });
+      const pageTitle = h1s.find(h => h.textContent === 'Join Semiont');
+      expect(pageTitle).toBeDefined();
+
+      // Check that there are h2 headings (from SemiontBranding)
+      const h2s = screen.getAllByRole('heading', { level: 2 });
+      expect(h2s.length).toBeGreaterThan(0);
     });
 
     it('should have descriptive button text', () => {

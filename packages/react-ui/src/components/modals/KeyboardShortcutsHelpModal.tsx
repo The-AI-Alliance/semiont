@@ -91,7 +91,7 @@ export function KeyboardShortcutsHelpModal({ isOpen, onClose }: KeyboardShortcut
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-[1000]" onClose={onClose}>
+      <Dialog as="div" className="semiont-modal" onClose={onClose}>
         {/* Backdrop */}
         <TransitionChild
           as={Fragment}
@@ -102,12 +102,12 @@ export function KeyboardShortcutsHelpModal({ isOpen, onClose }: KeyboardShortcut
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="semiont-modal__backdrop" />
         </TransitionChild>
 
         {/* Modal */}
-        <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4">
+        <div className="semiont-modal__container">
+          <div className="semiont-modal__wrapper">
             <TransitionChild
               as={Fragment}
               enter="ease-out duration-200"
@@ -117,19 +117,19 @@ export function KeyboardShortcutsHelpModal({ isOpen, onClose }: KeyboardShortcut
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <DialogPanel className="w-full max-w-2xl transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 shadow-xl transition-all">
+              <DialogPanel className="semiont-modal__panel semiont-modal__panel--large">
                 {/* Header */}
-                <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center justify-between">
-                    <DialogTitle className="text-lg font-semibold text-gray-900 dark:text-white">
+                <div className="semiont-modal__header">
+                  <div className="semiont-modal__header-content">
+                    <DialogTitle className="semiont-modal__title">
                       {t('title')}
                     </DialogTitle>
                     <button
                       onClick={onClose}
                       aria-label={t('closeDialog')}
-                      className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      className="semiont-modal__close"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <svg className="semiont-modal__close-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                       </svg>
                     </button>
@@ -137,23 +137,23 @@ export function KeyboardShortcutsHelpModal({ isOpen, onClose }: KeyboardShortcut
                 </div>
 
                 {/* Content */}
-                <div className="px-6 py-4 max-h-[70vh] overflow-y-auto">
-                  <div className="space-y-6">
+                <div className="semiont-modal__body">
+                  <div className="semiont-shortcuts">
                     {shortcutGroups.map((group) => (
-                      <div key={group.titleKey}>
-                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
+                      <div key={group.titleKey} className="semiont-shortcuts__group">
+                        <h3 className="semiont-shortcuts__group-title">
                           {t(group.titleKey)}
                         </h3>
-                        <div className="space-y-2">
+                        <div className="semiont-shortcuts__list">
                           {group.shortcuts.map((shortcut, index) => (
                             <div
                               key={index}
-                              className="flex items-center justify-between py-1.5"
+                              className="semiont-shortcuts__item"
                             >
-                              <span className="text-sm text-gray-600 dark:text-gray-400">
+                              <span className="semiont-shortcuts__description">
                                 {t(shortcut.descriptionKey)}
                               </span>
-                              <div className="flex items-center gap-2">
+                              <div className="semiont-shortcuts__keys">
                                 {shortcut.keys.map((key, keyIndex) => {
                                   // Only show Mac keys on Mac, Windows/Linux keys on others
                                   if (key.includes('⌘') && !isMac) return null;
@@ -162,9 +162,9 @@ export function KeyboardShortcutsHelpModal({ isOpen, onClose }: KeyboardShortcut
                                   return (
                                     <React.Fragment key={keyIndex}>
                                       {keyIndex > 0 && !key.includes('⌘') && !key.includes('Ctrl') && (
-                                        <span className="text-xs text-gray-400 dark:text-gray-500">{t('or')}</span>
+                                        <span className="semiont-shortcuts__separator">{t('or')}</span>
                                       )}
-                                      <kbd className="px-2 py-1 text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded">
+                                      <kbd className="semiont-shortcuts__key">
                                         {key}
                                       </kbd>
                                     </React.Fragment>
@@ -179,29 +179,29 @@ export function KeyboardShortcutsHelpModal({ isOpen, onClose }: KeyboardShortcut
                   </div>
 
                   {/* Platform note */}
-                  <div className="mt-8 pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <div className="semiont-shortcuts__note">
+                    <p className="semiont-shortcuts__note-text">
                       {isMac ? t('macNote') : t('windowsNote')}
                     </p>
                   </div>
                 </div>
 
                 {/* Footer */}
-                <div className="px-6 py-3 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                <div className="semiont-modal__footer">
+                  <div className="semiont-modal__footer-content">
+                    <div className="semiont-modal__hint">
                       {t('footerHint', { key: '?' }).split('?').map((part, i, arr) => (
                         <React.Fragment key={i}>
                           {part}
                           {i < arr.length - 1 && (
-                            <kbd className="px-1.5 py-0.5 text-xs font-semibold bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded">?</kbd>
+                            <kbd className="semiont-modal__hint-key">?</kbd>
                           )}
                         </React.Fragment>
                       ))}
                     </div>
                     <button
                       onClick={onClose}
-                      className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="semiont-button semiont-button--secondary"
                     >
                       {t('close')}
                     </button>

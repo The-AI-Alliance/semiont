@@ -69,7 +69,7 @@ export function ProposeEntitiesModal({
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-50" onClose={onCancel}>
+      <Dialog as="div" className="semiont-modal" onClose={onCancel}>
         {/* Backdrop */}
         <TransitionChild
           as={Fragment}
@@ -80,12 +80,12 @@ export function ProposeEntitiesModal({
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
+          <div className="semiont-modal__backdrop" />
         </TransitionChild>
 
         {/* Modal panel */}
-        <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4">
+        <div className="semiont-modal__container">
+          <div className="semiont-modal__wrapper">
             <TransitionChild
               as={Fragment}
               enter="ease-out duration-200"
@@ -95,47 +95,48 @@ export function ProposeEntitiesModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <DialogPanel className="w-full max-w-md transform overflow-hidden rounded-xl bg-white dark:bg-gray-800 shadow-2xl p-6 transition-all border border-gray-200 dark:border-gray-700">
+              <DialogPanel className="semiont-modal__panel semiont-modal__panel--medium">
         {/* Icon */}
-        <div className="flex justify-center mb-4">
-          <div className="w-12 h-12 bg-gradient-to-br from-yellow-100 to-amber-100 dark:from-yellow-900/30 dark:to-amber-900/30 rounded-full flex items-center justify-center">
-            <span className="text-2xl">✨</span>
+        <div className="semiont-modal__icon-wrapper">
+          <div className="semiont-modal__icon">
+            <span className="semiont-modal__icon-emoji">✨</span>
           </div>
         </div>
 
                 {/* Content */}
-                <div className="text-center mb-4">
-                  <DialogTitle className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                <div className="semiont-modal__content">
+                  <DialogTitle className="semiont-modal__title semiont-modal__title--centered">
                     Detect Entity References
                   </DialogTitle>
 
-                  <DialogDescription className="text-gray-600 dark:text-gray-400 text-sm">
+                  <DialogDescription className="semiont-modal__description">
                     Select entity types to automatically detect and create references for in this document.
                   </DialogDescription>
                 </div>
 
                 {/* Entity Types Selection */}
-                <div className="mb-4">
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <div className="semiont-modal__selection">
+                  <p className="semiont-modal__selection-label">
                     Select entity types to detect:
                   </p>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="semiont-modal__chips">
                     {allEntityTypes.length > 0 ? (
                       allEntityTypes.map((type: string) => (
                         <button
                           key={type}
                           onClick={() => handleToggleType(type)}
-                          className={`px-3 py-1 text-sm rounded-full transition-colors ${
+                          className={`semiont-chip ${
                             selectedTypes.includes(type)
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                              ? 'semiont-chip--selected'
+                              : ''
                           }`}
+                          data-selected={selectedTypes.includes(type)}
                         >
                           {type}
                         </button>
                       ))
                     ) : (
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                      <p className="semiont-modal__empty-state">
                         No entity types available
                       </p>
                     )}
@@ -144,27 +145,28 @@ export function ProposeEntitiesModal({
 
                 {/* Selected Count */}
                 {selectedTypes.length > 0 && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 text-center mb-4">
+                  <p className="semiont-modal__count">
                     {selectedTypes.length} type{selectedTypes.length !== 1 ? 's' : ''} selected
                   </p>
                 )}
 
                 {/* Actions */}
-                <div className="flex gap-2">
+                <div className="semiont-modal__actions">
                   <button
                     onClick={onCancel}
-                    className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors duration-200 font-medium"
+                    className="semiont-button semiont-button--secondary semiont-button--flex"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleConfirm}
                     disabled={selectedTypes.length === 0}
-                    className={`flex-1 px-4 py-2 rounded-lg transition-colors duration-200 font-medium ${
+                    className={`semiont-button semiont-button--flex ${
                       selectedTypes.length > 0
-                        ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-md hover:shadow-lg'
-                        : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                        ? 'semiont-button--primary semiont-button--gradient'
+                        : 'semiont-button--disabled'
                     }`}
+                    data-disabled={selectedTypes.length === 0}
                   >
                     ✨ Detect Entity References
                   </button>

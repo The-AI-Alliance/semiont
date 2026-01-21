@@ -118,7 +118,7 @@ describe('AdminSecurityPage', () => {
     const props = createMockProps({ isLoading: true });
     const { container } = render(<AdminSecurityPage {...props} />);
 
-    const skeletons = container.querySelectorAll('.animate-pulse');
+    const skeletons = container.querySelectorAll('.semiont-skeleton');
     expect(skeletons.length).toBeGreaterThan(0);
   });
 
@@ -155,8 +155,8 @@ describe('AdminSecurityPage', () => {
       });
       const { container } = render(<AdminSecurityPage {...props} />);
 
-      // Provider name should be capitalized via CSS
-      const providerElement = container.querySelector('.capitalize');
+      // Provider name should be displayed
+      const providerElement = container.querySelector('.semiont-provider-item__name');
       expect(providerElement).toBeInTheDocument();
       expect(providerElement).toHaveTextContent('google');
     });
@@ -220,7 +220,7 @@ describe('AdminSecurityPage', () => {
       });
       const { container } = render(<AdminSecurityPage {...props} />);
 
-      const domainBadge = container.querySelector('.bg-blue-100');
+      const domainBadge = container.querySelector('.semiont-chip');
       expect(domainBadge).toBeInTheDocument();
       expect(domainBadge).toHaveTextContent('@example.com');
     });
@@ -232,7 +232,7 @@ describe('AdminSecurityPage', () => {
       const { container } = render(<AdminSecurityPage {...props} />);
 
       // Should have loading skeletons
-      const skeletons = container.querySelectorAll('.animate-pulse');
+      const skeletons = container.querySelectorAll('.semiont-skeleton');
       expect(skeletons.length).toBeGreaterThan(0);
     });
 
@@ -241,7 +241,7 @@ describe('AdminSecurityPage', () => {
       const { container } = render(<AdminSecurityPage {...props} />);
 
       // Multiple loading skeletons for both sections
-      const skeletons = container.querySelectorAll('.animate-pulse');
+      const skeletons = container.querySelectorAll('.semiont-skeleton');
       expect(skeletons.length).toBeGreaterThan(1);
     });
 
@@ -284,7 +284,7 @@ describe('AdminSecurityPage', () => {
       const props = createMockProps();
       const { container } = render(<AdminSecurityPage {...props} />);
 
-      const infoBox = container.querySelector('.bg-blue-50');
+      const infoBox = container.querySelector('.semiont-admin__info-box');
       expect(infoBox).toBeInTheDocument();
     });
   });

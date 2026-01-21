@@ -1,0 +1,539 @@
+/**
+ * Extended Focus Styles
+ *
+ * Additional focus indicators for specific component variants and states
+ * that extend beyond the base focus utilities.
+ */
+
+/* ========================================
+   Action Button Variants
+   ======================================== */
+
+.semiont-action-button--info:focus-visible,
+.semiont-action-button--warning:focus-visible,
+.semiont-action-button--danger:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+[data-theme="dark"] .semiont-action-button--info:focus-visible,
+[data-theme="dark"] .semiont-action-button--warning:focus-visible,
+[data-theme="dark"] .semiont-action-button--danger:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-action-button--info:focus:not(:focus-visible),
+.semiont-action-button--warning:focus:not(:focus-visible),
+.semiont-action-button--danger:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ========================================
+   Button Variants and States
+   ======================================== */
+
+.semiont-button:focus-visible,
+.semiont-button[data-variant="primary"]:focus-visible,
+.semiont-button[data-variant="secondary"]:focus-visible,
+.semiont-button[data-variant="tertiary"]:focus-visible,
+.semiont-button[data-variant="danger"]:focus-visible,
+.semiont-button[data-variant="warning"]:focus-visible,
+.semiont-button[data-variant="ghost"]:focus-visible,
+.semiont-button[data-size="xs"]:focus-visible,
+.semiont-button[data-size="sm"]:focus-visible,
+.semiont-button[data-size="md"]:focus-visible,
+.semiont-button[data-size="lg"]:focus-visible,
+.semiont-button[data-size="xl"]:focus-visible,
+.semiont-button[data-icon-only="true"]:focus-visible,
+.semiont-button[data-full-width="true"]:focus-visible,
+.semiont-button--flex:focus-visible,
+.semiont-button--full-width:focus-visible,
+.semiont-button--gradient:focus-visible,
+.semiont-button-icon:focus-visible,
+.semiont-button-icon-left:focus-visible,
+.semiont-button-icon-right:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+  position: relative;
+  z-index: 1;
+}
+
+[data-theme="dark"] .semiont-button:focus-visible,
+[data-theme="dark"] .semiont-button[data-variant="primary"]:focus-visible,
+[data-theme="dark"] .semiont-button[data-variant="secondary"]:focus-visible,
+[data-theme="dark"] .semiont-button[data-variant="tertiary"]:focus-visible,
+[data-theme="dark"] .semiont-button[data-variant="danger"]:focus-visible,
+[data-theme="dark"] .semiont-button[data-variant="warning"]:focus-visible,
+[data-theme="dark"] .semiont-button[data-variant="ghost"]:focus-visible,
+[data-theme="dark"] .semiont-button--gradient:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-button:focus:not(:focus-visible),
+.semiont-button[data-variant="primary"]:focus:not(:focus-visible),
+.semiont-button[data-variant="secondary"]:focus:not(:focus-visible),
+.semiont-button[data-variant="tertiary"]:focus:not(:focus-visible),
+.semiont-button[data-variant="danger"]:focus:not(:focus-visible),
+.semiont-button[data-variant="warning"]:focus:not(:focus-visible),
+.semiont-button[data-variant="ghost"]:focus:not(:focus-visible),
+.semiont-button[data-size="sm"]:focus:not(:focus-visible),
+.semiont-button[data-size="md"]:focus:not(:focus-visible),
+.semiont-button[data-size="lg"]:focus:not(:focus-visible),
+.semiont-button[data-full-width="true"]:focus:not(:focus-visible),
+.semiont-button[data-icon-only="true"]:focus:not(:focus-visible),
+.semiont-button--full-width:focus:not(:focus-visible),
+.semiont-button--flex:focus:not(:focus-visible),
+.semiont-button--gradient:focus:not(:focus-visible),
+.semiont-button-icon:focus:not(:focus-visible),
+.semiont-button-icon-left:focus:not(:focus-visible),
+.semiont-button-icon-right:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ========================================
+   Panel Components
+   ======================================== */
+
+.semiont-panel-button:focus-visible,
+.semiont-panel-button-active:focus-visible,
+.semiont-panel-button-full:focus-visible,
+.semiont-panel-button-flex:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+  position: relative;
+  z-index: 1;
+}
+
+[data-theme="dark"] .semiont-panel-button:focus-visible,
+[data-theme="dark"] .semiont-panel-button-active:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-panel-button:focus:not(:focus-visible),
+.semiont-panel-button-active:focus:not(:focus-visible),
+.semiont-panel-button-full:focus:not(:focus-visible),
+.semiont-panel-button-flex:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Panel Inputs */
+.semiont-comments-panel__input:focus-visible,
+.semiont-comments-panel__input-area:focus-visible,
+.semiont-highlight-panel__color--selected:focus-visible,
+.semiont-tagging-panel__input:focus-visible,
+.semiont-assessment-panel__textarea:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: -1px;
+  border-color: var(--semiont-color-primary-500);
+}
+
+[data-theme="dark"] .semiont-comments-panel__input:focus-visible,
+[data-theme="dark"] .semiont-comments-panel__input-area:focus-visible,
+[data-theme="dark"] .semiont-highlight-panel__color--selected:focus-visible,
+[data-theme="dark"] .semiont-tagging-panel__input:focus-visible,
+[data-theme="dark"] .semiont-assessment-panel__textarea:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+  border-color: var(--semiont-color-primary-400);
+}
+
+.semiont-comments-panel__input:focus:not(:focus-visible),
+.semiont-comments-panel__input-area:focus:not(:focus-visible),
+.semiont-highlight-panel__color--selected:focus:not(:focus-visible),
+.semiont-tagging-panel__input:focus:not(:focus-visible),
+.semiont-assessment-panel__textarea:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ========================================
+   Navigation Components
+   ======================================== */
+
+.semiont-nav-link--active:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-nav-link--active:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-nav-link--active:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ========================================
+   Chip Components
+   ======================================== */
+
+.semiont-chip--selectable[data-selected="false"]:focus-visible,
+.semiont-chip--selectable[data-selected="true"]:focus-visible,
+.semiont-chip--selected:focus-visible,
+.semiont-chip[data-selected="true"]:focus-visible,
+.semiont-chip[data-selected="false"]:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-chip--selectable[data-selected="false"]:focus-visible,
+[data-theme="dark"] .semiont-chip--selectable[data-selected="true"]:focus-visible,
+[data-theme="dark"] .semiont-chip--selected:focus-visible,
+[data-theme="dark"] .semiont-chip[data-selected="true"]:focus-visible,
+[data-theme="dark"] .semiont-chip[data-selected="false"]:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+/* ========================================
+   Form Components
+   ======================================== */
+
+/* Base form inputs */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+input[type="number"]:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: -1px;
+  border-color: var(--semiont-color-primary-500);
+}
+
+[data-theme="dark"] input:focus-visible,
+[data-theme="dark"] textarea:focus-visible,
+[data-theme="dark"] select:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+  border-color: var(--semiont-color-primary-400);
+}
+
+input:focus:not(:focus-visible),
+textarea:focus:not(:focus-visible),
+select:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Specific form inputs */
+.semiont-form__upload-input:focus-visible,
+.semiont-language-select:focus-visible,
+.semiont-card__search-input:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: -1px;
+  border-color: var(--semiont-color-primary-500);
+}
+
+[data-theme="dark"] .semiont-form__upload-input:focus-visible,
+[data-theme="dark"] .semiont-language-select:focus-visible,
+[data-theme="dark"] .semiont-card__search-input:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+  border-color: var(--semiont-color-primary-400);
+}
+
+.semiont-form__upload-input:focus:not(:focus-visible),
+.semiont-language-select:focus:not(:focus-visible),
+.semiont-card__search-input:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Language select options */
+.semiont-language-select option:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: -1px;
+}
+
+[data-theme="dark"] .semiont-language-select option:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+/* Entity type button (selected state) */
+.semiont-form__entity-type-button[data-selected="true"]:focus-visible {
+  outline: 2px solid var(--semiont-color-white);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--semiont-color-primary-700);
+}
+
+[data-theme="dark"] .semiont-form__entity-type-button[data-selected="true"]:focus-visible {
+  outline-color: var(--semiont-color-white);
+  box-shadow: 0 0 0 4px var(--semiont-color-primary-400);
+}
+
+/* ========================================
+   Modal Components
+   ======================================== */
+
+.semiont-modal__selection:focus-visible,
+.semiont-modal__selection-label:focus-visible,
+.semiont-modal__close-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+  position: relative;
+  z-index: 1;
+}
+
+[data-theme="dark"] .semiont-modal__selection-label:focus-visible,
+[data-theme="dark"] .semiont-modal__close-button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-modal__selection:focus:not(:focus-visible),
+.semiont-modal__selection-label:focus:not(:focus-visible),
+.semiont-modal__close-button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ========================================
+   Resource & Reference Components
+   ======================================== */
+
+.semiont-reference-button:focus-visible,
+.semiont-reference-button--full:focus-visible,
+.semiont-reference-button--flex:focus-visible,
+.semiont-resource-button:focus-visible,
+.semiont-resource-button--secondary:focus-visible,
+.semiont-resource-button--archive:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+  position: relative;
+  z-index: 1;
+}
+
+[data-theme="dark"] .semiont-resource-button--secondary:focus-visible,
+[data-theme="dark"] .semiont-resource-button--archive:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-reference-button:focus:not(:focus-visible),
+.semiont-reference-button--full:focus:not(:focus-visible),
+.semiont-reference-button--flex:focus:not(:focus-visible),
+.semiont-resource-button:focus:not(:focus-visible),
+.semiont-resource-button--secondary:focus:not(:focus-visible),
+.semiont-resource-button--archive:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ========================================
+   Toolbar Components
+   ======================================== */
+
+.semiont-toolbar-button:focus-visible,
+.semiont-toolbar-menu-button:focus-visible,
+.semiont-toolbar-menu-button[data-selected="false"]:focus-visible,
+.semiont-toolbar-menu-button[data-selected="true"]:focus-visible,
+.semiont-toolbar-menu-button[data-delete="true"]:focus-visible,
+.semiont-toolbar-menu-button[data-delete="true"][data-selected="false"]:focus-visible,
+.semiont-toolbar-menu-button[data-delete="true"][data-selected="true"]:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+  position: relative;
+  z-index: 1;
+}
+
+[data-theme="dark"] .semiont-toolbar-button:focus-visible,
+[data-theme="dark"] .semiont-toolbar-menu-button:focus-visible,
+[data-theme="dark"] .semiont-toolbar-menu-button[data-selected="false"]:focus-visible,
+[data-theme="dark"] .semiont-toolbar-menu-button[data-selected="true"]:focus-visible,
+[data-theme="dark"] .semiont-toolbar-menu-button[data-delete="true"]:focus-visible,
+[data-theme="dark"] .semiont-toolbar-menu-button[data-delete="true"][data-selected="false"]:focus-visible,
+[data-theme="dark"] .semiont-toolbar-menu-button[data-delete="true"][data-selected="true"]:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-toolbar-button:focus:not(:focus-visible),
+.semiont-toolbar-menu-button:focus:not(:focus-visible),
+.semiont-toolbar-menu-button[data-selected="true"]:focus:not(:focus-visible),
+.semiont-toolbar-menu-button[data-delete="true"]:focus:not(:focus-visible),
+.semiont-toolbar-menu-button[data-selected="false"]:focus:not(:focus-visible),
+.semiont-toolbar-menu-button[data-delete="true"][data-selected="false"]:focus:not(:focus-visible),
+.semiont-toolbar-menu-button[data-delete="true"][data-selected="true"]:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ========================================
+   Detection Components
+   ======================================== */
+
+.semiont-detect-button:focus-visible,
+.semiont-detect-button[data-type="primary"]:focus-visible,
+.semiont-detect-button[data-type="secondary"]:focus-visible,
+.semiont-detect-button[data-type="url"]:focus-visible,
+.semiont-detect-button[data-type="file"]:focus-visible,
+.semiont-detect-widget__button--gradient:focus-visible,
+.semiont-detect-widget__button-icon:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+  position: relative;
+  z-index: 1;
+}
+
+[data-theme="dark"] .semiont-detect-button:focus-visible,
+[data-theme="dark"] .semiont-detect-button[data-type="primary"]:focus-visible,
+[data-theme="dark"] .semiont-detect-button[data-type="secondary"]:focus-visible,
+[data-theme="dark"] .semiont-detect-button[data-type="url"]:focus-visible,
+[data-theme="dark"] .semiont-detect-button[data-type="file"]:focus-visible,
+[data-theme="dark"] .semiont-detect-widget__button--gradient:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-detect-button:focus:not(:focus-visible),
+.semiont-detect-button[data-type="primary"]:focus:not(:focus-visible),
+.semiont-detect-button[data-type="secondary"]:focus:not(:focus-visible),
+.semiont-detect-button[data-type="url"]:focus:not(:focus-visible),
+.semiont-detect-button[data-type="file"]:focus:not(:focus-visible),
+.semiont-detect-widget__button--gradient:focus:not(:focus-visible),
+.semiont-detect-widget__button-icon:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ========================================
+   Miscellaneous Components
+   ======================================== */
+
+/* Provider Items */
+.semiont-provider-item:focus-visible,
+.semiont-provider-item[data-selected="true"]:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-provider-item:focus-visible,
+[data-theme="dark"] .semiont-provider-item[data-selected="true"]:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-provider-item:focus:not(:focus-visible),
+.semiont-provider-item[data-selected="true"]:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Selection Indicator */
+.semiont-selection-indicator:focus-visible {
+  outline: 2px solid var(--semiont-color-amber-500);
+  outline-offset: 2px;
+  position: relative;
+  z-index: 1;
+}
+
+[data-theme="dark"] .semiont-selection-indicator:focus-visible {
+  outline-color: var(--semiont-color-amber-400);
+}
+
+.semiont-selection-indicator:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Signout button */
+.semiont-signout-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+  position: relative;
+  z-index: 1;
+}
+
+[data-theme="dark"] .semiont-signout-button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-signout-button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Skip links (always visible on focus) */
+.semiont-skip-link:focus,
+.semiont-skip-link-first:focus-visible,
+.semiont-skip-link-last:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+  position: relative;
+  z-index: 1000;
+}
+
+[data-theme="dark"] .semiont-skip-link:focus,
+[data-theme="dark"] .semiont-skip-link-first:focus-visible,
+[data-theme="dark"] .semiont-skip-link-last:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+/* ========================================
+   Table Components (when interactive)
+   ======================================== */
+
+/* Note: Tables are not usually interactive, only apply focus when tabindex is present */
+.semiont-table-container[tabindex]:focus-visible,
+.semiont-table[tabindex]:focus-visible,
+.semiont-table__head[tabindex]:focus-visible,
+.semiont-table__header[tabindex]:focus-visible,
+.semiont-table__header--actions[tabindex]:focus-visible,
+.semiont-table__body[tabindex]:focus-visible,
+.semiont-table__row[tabindex]:focus-visible,
+.semiont-table__cell[tabindex]:focus-visible,
+.semiont-table__cell--actions[tabindex]:focus-visible,
+.semiont-table__actions[tabindex]:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+  position: relative;
+  z-index: 1;
+}
+
+[data-theme="dark"] .semiont-table__head[tabindex]:focus-visible,
+[data-theme="dark"] .semiont-table__header[tabindex]:focus-visible,
+[data-theme="dark"] .semiont-table__body[tabindex]:focus-visible,
+[data-theme="dark"] .semiont-table__row[tabindex]:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-table-container[tabindex]:focus:not(:focus-visible),
+.semiont-table[tabindex]:focus:not(:focus-visible),
+.semiont-table__head[tabindex]:focus:not(:focus-visible),
+.semiont-table__header[tabindex]:focus:not(:focus-visible),
+.semiont-table__header--actions[tabindex]:focus:not(:focus-visible),
+.semiont-table__body[tabindex]:focus:not(:focus-visible),
+.semiont-table__row[tabindex]:focus:not(:focus-visible),
+.semiont-table__cell[tabindex]:focus:not(:focus-visible),
+.semiont-table__cell--actions[tabindex]:focus:not(:focus-visible),
+.semiont-table__actions[tabindex]:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ========================================
+   High Contrast Mode Support
+   ======================================== */
+
+@media (prefers-contrast: more) {
+  /* All interactive elements get stronger focus indicators in high contrast mode */
+  .semiont-action-button--info:focus-visible,
+  .semiont-action-button--warning:focus-visible,
+  .semiont-action-button--danger:focus-visible,
+  .semiont-button:focus-visible,
+  .semiont-button[data-variant]:focus-visible,
+  .semiont-button[data-size]:focus-visible,
+  .semiont-button[data-icon-only]:focus-visible,
+  .semiont-button[data-full-width]:focus-visible,
+  .semiont-button--gradient:focus-visible,
+  .semiont-panel-button:focus-visible,
+  .semiont-panel-button-active:focus-visible,
+  .semiont-panel-button-flex:focus-visible,
+  .semiont-nav-link--active:focus-visible,
+  .semiont-chip--selectable:focus-visible,
+  .semiont-chip--selected:focus-visible,
+  .semiont-chip[data-selected]:focus-visible,
+  .semiont-detect-button:focus-visible,
+  .semiont-detect-widget__button--gradient:focus-visible,
+  .semiont-toolbar-button:focus-visible,
+  .semiont-toolbar-menu-button:focus-visible,
+  .semiont-provider-item:focus-visible,
+  .semiont-modal__selection:focus-visible,
+  .semiont-modal__close-button:focus-visible,
+  .semiont-reference-button:focus-visible,
+  .semiont-resource-button:focus-visible,
+  .semiont-signout-button:focus-visible,
+  .semiont-skip-link:focus,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline-width: 3px;
+    outline-color: currentColor;
+  }
+}
+
+/* Ensure proper layering for all focus indicators */
+*:focus-visible {
+  position: relative;
+  z-index: 1;
+}

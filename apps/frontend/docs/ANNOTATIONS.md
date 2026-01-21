@@ -113,7 +113,7 @@ export interface AnnotationTypeMetadata {
   description: string;              // User-facing description
 
   // Visual styling
-  className: string;                // Tailwind classes for rendering
+  className: string;                // CSS classes for rendering (app-specific uses Tailwind)
   iconEmoji?: string;               // Optional emoji icon
 
   // Behavior flags

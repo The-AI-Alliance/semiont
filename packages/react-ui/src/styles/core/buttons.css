@@ -1,0 +1,781 @@
+/**
+ * Button Component Styles
+ *
+ * Data-attribute based button styling system
+ * Supports variants, sizes, states, and groups
+ */
+
+/* ============================================
+   Button Component Styles
+   ============================================ */
+
+.semiont-button {
+  /* Base styles */
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--semiont-font-sans);
+  font-weight: var(--semiont-font-medium);
+  line-height: var(--semiont-leading-snug);
+  border: none;
+  outline: none;
+  cursor: pointer;
+  transition: all var(--semiont-duration-base) var(--semiont-ease);
+  user-select: none;
+  white-space: nowrap;
+  text-decoration: none;
+
+  /* Focus styles handled below */
+}
+
+/* Focus indicators for keyboard navigation */
+.semiont-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+  position: relative;
+  z-index: 1;
+}
+
+/* Remove default focus for mouse users */
+.semiont-button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Dark theme focus */
+[data-theme="dark"] .semiont-button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: more) {
+  .semiont-button:focus-visible {
+    outline-width: 3px;
+    outline-color: currentColor;
+  }
+}
+
+/* Disabled state */
+.semiont-button:disabled,
+.semiont-button[data-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Button content wrapper */
+.semiont-button-content {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Button icons */
+.semiont-button-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.semiont-button-icon-left {
+  margin-right: var(--semiont-spacing-sm);
+}
+
+.semiont-button-icon-right {
+  margin-left: var(--semiont-spacing-sm);
+}
+
+/* Loading spinner */
+.semiont-button-spinner {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inset: 0;
+}
+
+.semiont-spinner-svg {
+  animation: spin 1s linear infinite;
+  width: 1.25em;
+  height: 1.25em;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Hide content when loading */
+.semiont-button[data-loading="true"] .semiont-button-content,
+.semiont-button[data-loading="true"] .semiont-button-icon {
+  visibility: hidden;
+}
+
+/* ============================================
+   Button Variants
+   ============================================ */
+
+/* Primary variant */
+.semiont-button[data-variant="primary"] {
+  background-color: var(--semiont-color-primary-500);
+  color: var(--semiont-color-neutral-0);
+}
+
+[data-theme="dark"] .semiont-button[data-variant="primary"] {
+  background-color: var(--semiont-color-primary-600);
+  color: var(--semiont-color-neutral-0);
+}
+
+.semiont-button[data-variant="primary"]:hover:not(:disabled):not([data-disabled="true"]) {
+  background-color: var(--semiont-color-primary-600);
+}
+
+[data-theme="dark"] .semiont-button[data-variant="primary"]:hover:not(:disabled):not([data-disabled="true"]) {
+  background-color: var(--semiont-color-primary-500);
+}
+
+.semiont-button[data-variant="primary"]:active:not(:disabled):not([data-disabled="true"]),
+.semiont-button[data-variant="primary"][data-active="true"]:not(:disabled):not([data-disabled="true"]) {
+  background-color: var(--semiont-color-primary-700);
+}
+
+/* Secondary variant */
+.semiont-button[data-variant="secondary"] {
+  background-color: var(--semiont-bg-tertiary);
+  color: var(--semiont-color-neutral-900);
+}
+
+.semiont-button[data-variant="secondary"]:hover:not(:disabled):not([data-disabled="true"]) {
+  background-color: var(--semiont-color-neutral-200);
+}
+
+.semiont-button[data-variant="secondary"]:active:not(:disabled):not([data-disabled="true"]),
+.semiont-button[data-variant="secondary"][data-active="true"]:not(:disabled):not([data-disabled="true"]) {
+  background-color: var(--semiont-color-neutral-300);
+}
+
+/* Tertiary variant */
+.semiont-button[data-variant="tertiary"] {
+  background-color: transparent;
+  color: var(--semiont-color-primary-600);
+  box-shadow: inset 0 0 0 1px var(--semiont-color-primary-200);
+}
+
+[data-theme="dark"] .semiont-button[data-variant="tertiary"] {
+  background-color: transparent;
+  color: var(--semiont-color-primary-400);
+  box-shadow: inset 0 0 0 1px var(--semiont-color-primary-700);
+}
+
+.semiont-button[data-variant="tertiary"]:hover:not(:disabled):not([data-disabled="true"]) {
+  background-color: var(--semiont-color-primary-50);
+  box-shadow: inset 0 0 0 1px var(--semiont-color-primary-300);
+}
+
+.semiont-button[data-variant="tertiary"]:active:not(:disabled):not([data-disabled="true"]),
+.semiont-button[data-variant="tertiary"][data-active="true"]:not(:disabled):not([data-disabled="true"]) {
+  background-color: var(--semiont-color-primary-100);
+  box-shadow: inset 0 0 0 1px var(--semiont-color-primary-400);
+}
+
+/* Danger variant */
+.semiont-button[data-variant="danger"] {
+  background-color: var(--semiont-color-error);
+  color: var(--semiont-color-neutral-0);
+}
+
+[data-theme="dark"] .semiont-button[data-variant="danger"] {
+  background-color: var(--semiont-color-error-dark);
+  color: var(--semiont-color-neutral-0);
+}
+
+.semiont-button[data-variant="danger"]:hover:not(:disabled):not([data-disabled="true"]) {
+  background-color: var(--semiont-color-error-dark);
+}
+
+.semiont-button[data-variant="danger"]:active:not(:disabled):not([data-disabled="true"]),
+.semiont-button[data-variant="danger"][data-active="true"]:not(:disabled):not([data-disabled="true"]) {
+  background-color: var(--semiont-color-error-dark);
+  filter: brightness(0.9);
+}
+
+/* Warning variant */
+.semiont-button[data-variant="warning"] {
+  background-color: var(--semiont-color-warning);
+  color: var(--semiont-color-neutral-900);
+}
+
+[data-theme="dark"] .semiont-button[data-variant="warning"] {
+  background-color: var(--semiont-color-warning-dark);
+  color: var(--semiont-color-neutral-900);
+}
+
+.semiont-button[data-variant="warning"]:hover:not(:disabled):not([data-disabled="true"]) {
+  background-color: var(--semiont-color-warning-dark);
+}
+
+.semiont-button[data-variant="warning"]:active:not(:disabled):not([data-disabled="true"]),
+.semiont-button[data-variant="warning"][data-active="true"]:not(:disabled):not([data-disabled="true"]) {
+  background-color: var(--semiont-color-warning-dark);
+  filter: brightness(0.9);
+}
+
+/* Detect variant - AI-powered detection button */
+.semiont-button[data-variant="detect"] {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-size: var(--semiont-text-base);
+  font-weight: var(--semiont-font-semibold);
+  border-radius: var(--semiont-radius-md);
+  gap: 0.5rem;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: linear-gradient(to right, #6366f1, #8b5cf6);
+  color: var(--semiont-color-white);
+  /* These base colors will be overridden by motivation CSS via data-type attribute */
+}
+
+[data-theme="dark"] .semiont-button[data-variant="detect"] {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Ghost variant */
+.semiont-button[data-variant="ghost"] {
+  background-color: transparent;
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-button[data-variant="ghost"] {
+  background-color: transparent;
+  color: var(--semiont-text-primary);
+}
+
+.semiont-button[data-variant="ghost"]:hover:not(:disabled):not([data-disabled="true"]) {
+  background-color: var(--semiont-bg-tertiary);
+}
+
+.semiont-button[data-variant="ghost"]:active:not(:disabled):not([data-disabled="true"]),
+.semiont-button[data-variant="ghost"][data-active="true"]:not(:disabled):not([data-disabled="true"]) {
+  background-color: var(--semiont-color-neutral-200);
+}
+
+/* ============================================
+   Button Sizes
+   ============================================ */
+
+.semiont-button[data-size="xs"] {
+  padding: var(--semiont-spacing-xs) var(--semiont-spacing-sm);
+  font-size: var(--semiont-text-xs);
+  border-radius: var(--semiont-radius-sm);
+  min-height: 1.75rem;
+}
+
+.semiont-button[data-size="sm"] {
+  padding: var(--semiont-spacing-xs) var(--semiont-spacing-md);
+  font-size: var(--semiont-text-sm);
+  border-radius: var(--semiont-radius-base);
+  min-height: 2rem;
+}
+
+.semiont-button[data-size="md"] {
+  padding: var(--semiont-spacing-sm) var(--semiont-spacing-lg);
+  font-size: var(--semiont-text-base);
+  border-radius: var(--semiont-radius-md);
+  min-height: 2.5rem;
+}
+
+.semiont-button[data-size="lg"] {
+  padding: var(--semiont-spacing-sm) var(--semiont-spacing-xl);
+  font-size: var(--semiont-text-lg);
+  border-radius: var(--semiont-radius-md);
+  min-height: 3rem;
+}
+
+.semiont-button[data-size="xl"] {
+  padding: var(--semiont-spacing-md) var(--semiont-spacing-2xl);
+  font-size: var(--semiont-text-xl);
+  border-radius: var(--semiont-radius-lg);
+  min-height: 3.5rem;
+}
+
+/* Icon-only buttons have equal padding */
+.semiont-button[data-icon-only="true"][data-size="xs"] {
+  padding: var(--semiont-spacing-xs);
+  width: 1.75rem;
+}
+
+.semiont-button[data-icon-only="true"][data-size="sm"] {
+  padding: var(--semiont-spacing-xs);
+  width: 2rem;
+}
+
+.semiont-button[data-icon-only="true"][data-size="md"] {
+  padding: var(--semiont-spacing-sm);
+  width: 2.5rem;
+}
+
+.semiont-button[data-icon-only="true"][data-size="lg"] {
+  padding: var(--semiont-spacing-sm);
+  width: 3rem;
+}
+
+.semiont-button[data-icon-only="true"][data-size="xl"] {
+  padding: var(--semiont-spacing-md);
+  width: 3.5rem;
+}
+
+/* Full width button */
+.semiont-button[data-full-width="true"] {
+  width: 100%;
+}
+
+/* ============================================
+   Button Group Styles
+   ============================================ */
+
+.semiont-button-group {
+  display: flex;
+}
+
+/* Horizontal orientation (default) */
+.semiont-button-group[data-orientation="horizontal"] {
+  flex-direction: row;
+}
+
+.semiont-button-group[data-orientation="vertical"] {
+  flex-direction: column;
+}
+
+/* Spacing between buttons */
+.semiont-button-group[data-spacing="xs"] {
+  gap: var(--semiont-spacing-xs);
+}
+
+.semiont-button-group[data-spacing="sm"] {
+  gap: var(--semiont-spacing-sm);
+}
+
+.semiont-button-group[data-spacing="md"] {
+  gap: var(--semiont-spacing-md);
+}
+
+.semiont-button-group[data-spacing="lg"] {
+  gap: var(--semiont-spacing-lg);
+}
+
+/* Attached button group (no gaps) */
+.semiont-button-group[data-attached="true"] {
+  gap: 0;
+}
+
+/* Attached horizontal buttons */
+.semiont-button-group[data-attached="true"][data-orientation="horizontal"] .semiont-button:not(:first-child) {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  margin-left: -1px;
+}
+
+.semiont-button-group[data-attached="true"][data-orientation="horizontal"] .semiont-button:not(:last-child) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* Attached vertical buttons */
+.semiont-button-group[data-attached="true"][data-orientation="vertical"] .semiont-button:not(:first-child) {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  margin-top: -1px;
+}
+
+.semiont-button-group[data-attached="true"][data-orientation="vertical"] .semiont-button:not(:last-child) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* Ensure attached buttons have proper z-index on hover/focus */
+.semiont-button-group[data-attached="true"] .semiont-button:hover,
+.semiont-button-group[data-attached="true"] .semiont-button:focus-visible,
+.semiont-button-group[data-attached="true"] .semiont-button[data-active="true"] {
+  z-index: 1;
+  position: relative;
+}
+
+/* ============================================
+   Dark Mode Support - Fixed to respect data-theme attribute
+   ============================================ */
+
+/* Manual dark mode override */
+[data-theme="dark"] .semiont-button[data-variant="ghost"]:hover:not(:disabled):not([data-disabled="true"]) {
+  background-color: var(--semiont-color-neutral-800);
+}
+
+[data-theme="dark"] .semiont-button[data-variant="ghost"]:active:not(:disabled):not([data-disabled="true"]),
+[data-theme="dark"] .semiont-button[data-variant="ghost"][data-active="true"]:not(:disabled):not([data-disabled="true"]) {
+  background-color: var(--semiont-color-neutral-700);
+}
+
+/* Secondary variant in dark mode */
+[data-theme="dark"] .semiont-button[data-variant="secondary"] {
+  background-color: var(--semiont-color-neutral-700);
+  color: var(--semiont-color-neutral-100);
+}
+
+[data-theme="dark"] .semiont-button[data-variant="secondary"]:hover:not(:disabled):not([data-disabled="true"]) {
+  background-color: var(--semiont-color-neutral-600);
+}
+
+[data-theme="dark"] .semiont-button[data-variant="secondary"]:active:not(:disabled):not([data-disabled="true"]),
+[data-theme="dark"] .semiont-button[data-variant="secondary"][data-active="true"]:not(:disabled):not([data-disabled="true"]) {
+  background-color: var(--semiont-color-neutral-500);
+}
+
+/* Additional button styles from base.css */
+.semiont-button__icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.semiont-button--full-width {
+  width: 100%;
+}
+
+/* ============================================
+   Panel Buttons (Settings Panel, User Panel)
+   ============================================ */
+
+/* Default panel button (inactive) */
+.semiont-panel-button {
+  background-color: var(--semiont-bg-tertiary);
+  color: var(--semiont-text-primary);
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--semiont-radius-lg);
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-medium);
+  transition: all var(--semiont-duration-base);
+  cursor: pointer;
+  border: none;
+}
+
+.semiont-panel-button:hover {
+  background-color: var(--semiont-color-neutral-300);
+}
+
+/* Active/selected state */
+.semiont-panel-button-active {
+  background-color: var(--semiont-color-primary-600);
+  color: var(--semiont-color-white);
+}
+
+.semiont-panel-button-active:hover {
+  background-color: var(--semiont-color-primary-700);
+}
+
+/* Dark mode adjustments */
+[data-theme="dark"] .semiont-panel-button {
+  background-color: var(--semiont-color-neutral-700);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-panel-button:hover {
+  background-color: var(--semiont-color-neutral-600);
+}
+
+[data-theme="dark"] .semiont-panel-button-active {
+  background-color: var(--semiont-color-primary-600);
+  color: var(--semiont-color-white);
+}
+
+[data-theme="dark"] .semiont-panel-button-active:hover {
+  background-color: var(--semiont-color-primary-700);
+}
+
+/* ============================================
+   Button Class Modifiers (for button-styles.ts)
+   ============================================ */
+
+/* Primary button with cyan/blue gradient */
+.semiont-button--primary {
+  background: var(--semiont-gradient-primary);
+  color: var(--semiont-color-primary-700);
+  border: 1px solid var(--semiont-color-primary-300);
+  padding: 0.5rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: all 300ms;
+  backdrop-filter: blur(4px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.semiont-button--primary:hover:not(:disabled) {
+  background: var(--semiont-gradient-primary-hover);
+  color: var(--semiont-color-neutral-0);
+  border-color: var(--semiont-color-primary-600);
+}
+
+.semiont-button--primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Dark mode primary button */
+[data-theme="dark"] .semiont-button--primary {
+  background: var(--semiont-gradient-primary-dark);
+  color: var(--semiont-color-primary-400);
+  border-color: var(--semiont-color-primary-500);
+}
+
+[data-theme="dark"] .semiont-button--primary:hover:not(:disabled) {
+  background: var(--semiont-gradient-primary-hover-dark);
+  color: var(--semiont-color-neutral-0);
+  border-color: var(--semiont-color-primary-400);
+}
+
+/* Large variant */
+.semiont-button--large {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-weight: 500;
+}
+
+.semiont-button--large:hover:not(:disabled) {
+  transform: scale(1.02);
+}
+
+/* Secondary button */
+.semiont-button--secondary {
+  background: rgba(0, 0, 0, 0.1);
+  color: var(--semiont-color-gray-900);
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  padding: 0.5rem 1.5rem;
+  border-radius: 0.5rem;
+  transition: all 300ms;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.semiont-button--secondary:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.semiont-button--secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+[data-theme="dark"] .semiont-button--secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--semiont-color-neutral-0);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="dark"] .semiont-button--secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Scale modifier */
+.semiont-button--scale:hover:not(:disabled) {
+  transform: scale(1.05);
+}
+
+/* Tertiary button */
+.semiont-button--tertiary {
+  color: var(--semiont-color-gray-700);
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  transition: colors 150ms;
+  background: transparent;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.semiont-button--tertiary:hover:not(:disabled) {
+  background: var(--semiont-color-gray-100);
+}
+
+[data-theme="dark"] .semiont-button--tertiary {
+  color: var(--semiont-color-gray-300);
+}
+
+[data-theme="dark"] .semiont-button--tertiary:hover:not(:disabled) {
+  background: var(--semiont-color-gray-700);
+}
+
+/* Danger button */
+.semiont-button--danger {
+  color: var(--semiont-color-red-600);
+  padding: 0.5rem 1.5rem;
+  border: 1px solid var(--semiont-color-red-200);
+  border-radius: 0.5rem;
+  transition: all 300ms;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.semiont-button--danger:hover:not(:disabled) {
+  background: var(--semiont-color-red-50);
+}
+
+[data-theme="dark"] .semiont-button--danger {
+  color: var(--semiont-color-red-400);
+  border-color: var(--semiont-color-red-800);
+}
+
+[data-theme="dark"] .semiont-button--danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+/* Warning button */
+.semiont-button--warning {
+  background: rgba(251, 191, 36, 0.2);
+  color: var(--semiont-color-amber-800);
+  border: 1px solid var(--semiont-color-amber-300);
+  padding: 0.5rem 1.5rem;
+  border-radius: 0.5rem;
+  transition: all 300ms;
+  backdrop-filter: blur(4px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.semiont-button--warning:hover:not(:disabled) {
+  background: rgba(251, 191, 36, 0.3);
+  color: var(--semiont-color-amber-900);
+  border-color: var(--semiont-color-amber-500);
+}
+
+[data-theme="dark"] .semiont-button--warning {
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--semiont-color-amber-300);
+  border-color: var(--semiont-color-amber-500);
+}
+
+[data-theme="dark"] .semiont-button--warning:hover:not(:disabled) {
+  background: rgba(245, 158, 11, 0.3);
+  color: var(--semiont-color-amber-200);
+  border-color: var(--semiont-color-amber-400);
+}
+
+/* Sign out button */
+.semiont-signout-button {
+  background-color: var(--semiont-bg-secondary);
+  color: var(--semiont-text-primary);
+  padding: 0.5rem 1rem;
+  border-radius: var(--semiont-radius-lg);
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-medium);
+  transition: all var(--semiont-duration-base);
+  cursor: pointer;
+  border: none;
+  width: 100%;
+}
+
+.semiont-signout-button:hover {
+  background-color: var(--semiont-bg-tertiary);
+}
+
+.semiont-signout-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-signout-button {
+  background-color: var(--semiont-color-neutral-700);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-signout-button:hover {
+  background-color: var(--semiont-color-neutral-600);
+}
+
+/* Session info box */
+.semiont-session-box {
+  background-color: var(--semiont-bg-secondary);
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--semiont-radius-lg);
+}
+
+[data-theme="dark"] .semiont-session-box {
+  background-color: var(--semiont-color-neutral-800);
+}
+
+/* ============================================
+   User Menu Dropdown
+   ============================================ */
+
+.semiont-user-menu-dropdown {
+  background-color: var(--semiont-bg-primary);
+  border: 1px solid var(--semiont-color-gray-200);
+  border-radius: var(--semiont-radius-lg);
+  box-shadow: var(--semiont-shadow-lg);
+  padding: 0.75rem;
+  width: 16rem;
+  position: absolute;
+  right: 0;
+  margin-top: 0.5rem;
+  z-index: 50;
+}
+
+[data-theme="dark"] .semiont-user-menu-dropdown {
+  background-color: var(--semiont-color-gray-800);
+  border-color: var(--semiont-color-gray-700);
+}
+
+.semiont-user-menu-link {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-secondary);
+  padding: 0.25rem;
+  transition: all var(--semiont-duration-base);
+  text-decoration: none;
+  border-radius: var(--semiont-radius-base);
+}
+
+.semiont-user-menu-link:hover {
+  color: var(--semiont-text-primary);
+  background-color: var(--semiont-bg-secondary);
+}
+
+.semiont-user-menu-link:focus-visible {
+  outline: none;
+  background-color: var(--semiont-bg-secondary);
+}
+
+[data-theme="dark"] .semiont-user-menu-link {
+  color: var(--semiont-color-gray-300);
+}
+
+[data-theme="dark"] .semiont-user-menu-link:hover {
+  color: var(--semiont-color-gray-100);
+  background-color: var(--semiont-color-gray-700);
+}
+
+[data-theme="dark"] .semiont-user-menu-link:focus-visible {
+  background-color: var(--semiont-color-gray-700);
+}
+
+.semiont-user-menu-divider {
+  margin: 0.5rem 0;
+  border-top: 1px solid var(--semiont-color-gray-200);
+}
+
+[data-theme="dark"] .semiont-user-menu-divider {
+  border-top-color: var(--semiont-color-gray-600);
+}

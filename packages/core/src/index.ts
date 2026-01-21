@@ -112,6 +112,7 @@ export {
   type Environment,
 } from './config/environment-validator';
 export { ConfigurationError } from './config/configuration-error';
+export type { ProxyServiceConfig } from './config/config.types';
 export {
   findProjectRoot,
   isProjectRoot,

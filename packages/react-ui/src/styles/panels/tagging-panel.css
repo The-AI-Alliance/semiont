@@ -1,0 +1,59 @@
+/* ============================================
+   TaggingPanel Component
+   Tag management panel styles
+   ============================================ */
+
+.semiont-tagging-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--semiont-panel-gap);
+  padding: var(--semiont-panel-padding);
+  background: var(--semiont-bg-primary);
+  border-radius: var(--semiont-radius-lg);
+}
+
+[data-theme="dark"] .semiont-tagging-panel {
+  background: var(--semiont-bg-secondary);
+}
+
+.semiont-tagging-panel__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--semiont-panel-gap-sm);
+}
+
+.semiont-tagging-panel__label {
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-semibold);
+  color: var(--semiont-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+[data-theme="dark"] .semiont-tagging-panel__label {
+  color: var(--semiont-text-secondary);
+}
+
+.semiont-tagging-panel__input {
+  padding: var(--semiont-panel-padding-sm);
+  background: var(--semiont-bg-secondary);
+  border: 1px solid var(--semiont-color-gray-300);
+  border-radius: var(--semiont-radius-md);
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-primary);
+  transition: border-color 0.2s ease;
+}
+
+[data-theme="dark"] .semiont-tagging-panel__input {
+  background: var(--semiont-bg-tertiary);
+  border-color: var(--semiont-color-gray-600);
+}
+
+.semiont-tagging-panel__input:focus {
+  outline: none;
+  border-color: var(--semiont-color-primary-500);
+}
+
+/* Tags now use centralized styles from components/tags.css
+   Tagging panel uses: .semiont-tags container with .semiont-tag children
+   Remove buttons use: .semiont-tag__remove */

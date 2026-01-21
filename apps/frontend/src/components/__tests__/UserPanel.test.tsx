@@ -330,8 +330,8 @@ describe('UserPanel Component', () => {
       render(<UserPanel />);
 
       const adminBadge = screen.getByText('Administrator');
-      expect(adminBadge).toHaveClass('text-purple-700', 'dark:text-purple-300');
-      expect(adminBadge.parentElement).toHaveClass('bg-purple-50', 'dark:bg-purple-900/20');
+      expect(adminBadge).toHaveClass('semiont-privilege-text');
+      expect(adminBadge.parentElement).toHaveClass('semiont-privilege-badge', 'semiont-privilege-badge--admin');
     });
 
     it('should style moderator badge with blue colors', () => {
@@ -346,8 +346,8 @@ describe('UserPanel Component', () => {
       render(<UserPanel />);
 
       const modBadge = screen.getByText('Moderator');
-      expect(modBadge).toHaveClass('text-blue-700', 'dark:text-blue-300');
-      expect(modBadge.parentElement).toHaveClass('bg-blue-50', 'dark:bg-blue-900/20');
+      expect(modBadge).toHaveClass('semiont-privilege-text');
+      expect(modBadge.parentElement).toHaveClass('semiont-privilege-badge', 'semiont-privilege-badge--moderator');
     });
   });
 
@@ -377,13 +377,7 @@ describe('UserPanel Component', () => {
       render(<UserPanel />);
 
       const signOutButton = screen.getByRole('button', { name: 'Sign Out' });
-      expect(signOutButton).toHaveClass(
-        'w-full',
-        'px-4',
-        'py-2',
-        'bg-gray-100',
-        'dark:bg-gray-700'
-      );
+      expect(signOutButton).toHaveClass('semiont-signout-button');
     });
   });
 
@@ -392,14 +386,15 @@ describe('UserPanel Component', () => {
       render(<UserPanel />);
 
       const heading = screen.getByText('Account');
-      expect(heading).toHaveClass('text-sm', 'font-semibold', 'mb-3');
+      expect(heading).toHaveClass('semiont-panel-title');
     });
 
     it('should support dark mode for heading', () => {
       render(<UserPanel />);
 
       const heading = screen.getByText('Account');
-      expect(heading).toHaveClass('dark:text-white');
+      // Dark mode styling is handled by semiont-panel-title CSS class
+      expect(heading).toHaveClass('semiont-panel-title');
     });
 
     it('should have proper spacing between sections', () => {
@@ -419,9 +414,8 @@ describe('UserPanel Component', () => {
     it('should have border separator before sign out button', () => {
       const { container } = render(<UserPanel />);
 
-      const separator = container.querySelector('.border-t');
+      const separator = container.querySelector('.semiont-panel-divider');
       expect(separator).toBeInTheDocument();
-      expect(separator).toHaveClass('border-gray-200', 'dark:border-gray-700');
     });
 
     it('should truncate long display names', () => {
@@ -436,14 +430,16 @@ describe('UserPanel Component', () => {
       render(<UserPanel />);
 
       const nameElement = screen.getByText('A Very Long User Name That Should Be Truncated');
-      expect(nameElement).toHaveClass('truncate');
+      // Truncation is handled by semiont-panel-text CSS class
+      expect(nameElement).toHaveClass('semiont-panel-text');
     });
 
     it('should truncate long domains', () => {
       render(<UserPanel />);
 
       const domainElement = screen.getByText('@example.com');
-      expect(domainElement).toHaveClass('truncate');
+      // Truncation is handled by semiont-panel-text-secondary CSS class
+      expect(domainElement).toHaveClass('semiont-panel-text-secondary');
     });
   });
 
@@ -481,7 +477,8 @@ describe('UserPanel Component', () => {
       render(<UserPanel />);
 
       const signOutButton = screen.getByRole('button', { name: 'Sign Out' });
-      expect(signOutButton).toHaveClass('focus:outline-none', 'focus:ring-2', 'focus:ring-blue-500');
+      // Focus styles are handled by semiont-signout-button CSS class
+      expect(signOutButton).toHaveClass('semiont-signout-button');
     });
 
     it('should have semantic label elements', () => {

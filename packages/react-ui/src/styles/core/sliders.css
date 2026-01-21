@@ -1,0 +1,236 @@
+/* ============================================
+   Sliders/Range Inputs - Core UI Element
+
+   This is the authoritative source for all slider/range input styles.
+   Usage: Apply .semiont-slider to <input type="range"> elements.
+
+   Available modifiers:
+   - .semiont-slider--small (reduced size)
+   - .semiont-slider--large (increased size)
+   ============================================ */
+
+/* Base Slider Reset and Styling */
+.semiont-slider {
+  appearance: none;
+  width: 100%;
+  height: 0.5rem;
+  background: var(--semiont-color-gray-300);
+  border-radius: var(--semiont-radius-full);
+  border: 1px solid var(--semiont-color-gray-400);
+  cursor: pointer;
+}
+
+[data-theme="dark"] .semiont-slider {
+  background: var(--semiont-bg-tertiary);
+  border-color: var(--semiont-color-gray-600);
+}
+
+/* Track Styling */
+.semiont-slider::-webkit-slider-track {
+  width: 100%;
+  height: 0.5rem;
+  background: var(--semiont-bg-secondary);
+  border-radius: var(--semiont-radius-full);
+  border: 1px solid var(--semiont-color-gray-300);
+}
+
+.semiont-slider::-moz-range-track {
+  width: 100%;
+  height: 0.5rem;
+  background: var(--semiont-bg-secondary);
+  border-radius: var(--semiont-radius-full);
+  border: 1px solid var(--semiont-color-gray-300);
+}
+
+[data-theme="dark"] .semiont-slider::-webkit-slider-track {
+  background: var(--semiont-bg-tertiary);
+  border-color: var(--semiont-color-gray-600);
+}
+
+[data-theme="dark"] .semiont-slider::-moz-range-track {
+  background: var(--semiont-bg-tertiary);
+  border-color: var(--semiont-color-gray-600);
+}
+
+/* Thumb/Handle Styling */
+.semiont-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  background: var(--semiont-color-primary-500);
+  border: 2px solid var(--semiont-color-white);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+}
+
+.semiont-slider::-moz-range-thumb {
+  width: 1.25rem;
+  height: 1.25rem;
+  background: var(--semiont-color-primary-500);
+  border: 2px solid var(--semiont-color-white);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+}
+
+[data-theme="dark"] .semiont-slider::-webkit-slider-thumb {
+  background: var(--semiont-color-primary-400);
+  border-color: var(--semiont-bg-primary);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .semiont-slider::-moz-range-thumb {
+  background: var(--semiont-color-primary-400);
+  border-color: var(--semiont-bg-primary);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+/* Hover State */
+.semiont-slider:hover::-webkit-slider-thumb {
+  background: var(--semiont-color-primary-600);
+  transform: scale(1.1);
+}
+
+.semiont-slider:hover::-moz-range-thumb {
+  background: var(--semiont-color-primary-600);
+  transform: scale(1.1);
+}
+
+[data-theme="dark"] .semiont-slider:hover::-webkit-slider-thumb {
+  background: var(--semiont-color-primary-300);
+}
+
+[data-theme="dark"] .semiont-slider:hover::-moz-range-thumb {
+  background: var(--semiont-color-primary-300);
+}
+
+/* Focus State */
+.semiont-slider:focus::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2), 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.semiont-slider:focus::-moz-range-thumb {
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2), 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.semiont-slider:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+.semiont-slider:focus-visible::-moz-range-thumb {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+/* Active/Dragging State */
+.semiont-slider:active::-webkit-slider-thumb {
+  background: var(--semiont-color-primary-700);
+  transform: scale(0.95);
+}
+
+.semiont-slider:active::-moz-range-thumb {
+  background: var(--semiont-color-primary-700);
+  transform: scale(0.95);
+}
+
+/* Disabled State */
+.semiont-slider:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.semiont-slider:disabled::-webkit-slider-track {
+  background: var(--semiont-color-gray-200);
+}
+
+.semiont-slider:disabled::-moz-range-track {
+  background: var(--semiont-color-gray-200);
+}
+
+.semiont-slider:disabled::-webkit-slider-thumb {
+  background: var(--semiont-color-gray-400);
+  cursor: not-allowed;
+}
+
+.semiont-slider:disabled::-moz-range-thumb {
+  background: var(--semiont-color-gray-400);
+  cursor: not-allowed;
+}
+
+/* Size Variants */
+.semiont-slider--small::-webkit-slider-track {
+  height: 0.25rem;
+}
+
+.semiont-slider--small::-moz-range-track {
+  height: 0.25rem;
+}
+
+.semiont-slider--small::-webkit-slider-thumb {
+  width: 1rem;
+  height: 1rem;
+}
+
+.semiont-slider--small::-moz-range-thumb {
+  width: 1rem;
+  height: 1rem;
+}
+
+.semiont-slider--large::-webkit-slider-track {
+  height: 0.75rem;
+}
+
+.semiont-slider--large::-moz-range-track {
+  height: 0.75rem;
+}
+
+.semiont-slider--large::-webkit-slider-thumb {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.semiont-slider--large::-moz-range-thumb {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+/* Slider Container with Labels */
+.semiont-slider-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.semiont-slider__labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-text-secondary);
+}
+
+[data-theme="dark"] .semiont-slider__labels {
+  color: var(--semiont-text-secondary);
+}
+
+.semiont-slider__value {
+  text-align: center;
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-medium);
+  color: var(--semiont-color-primary-600);
+}
+
+[data-theme="dark"] .semiont-slider__value {
+  color: var(--semiont-color-primary-400);
+}
+
+/* Accessibility - Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .semiont-slider::-webkit-slider-thumb,
+  .semiont-slider::-moz-range-thumb {
+    transition: none;
+  }
+}

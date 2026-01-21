@@ -23,6 +23,8 @@ const mockTranslations = {
   approvedDomainsInfo: 'Only users with approved email domains can sign up',
   termsAgreement: 'By signing up, you agree to our Terms of Service',
   alreadyHaveAccount: 'Already have an account? Sign In',
+  tagline: 'Structured Knowledge, Unstructured Inputs',
+  backToHome: 'Back to Home',
 };
 
 describe('SignUpForm', () => {
@@ -31,7 +33,8 @@ describe('SignUpForm', () => {
       const onSignUp = vi.fn();
       render(<SignUpForm onSignUp={onSignUp} Link={MockLink} translations={mockTranslations} />);
 
-      expect(screen.getByText('Join Semiont')).toBeInTheDocument();
+      // "Join Semiont" appears twice: in sr-only h1 and visible p tag
+      expect(screen.getAllByText('Join Semiont').length).toBeGreaterThan(0);
       expect(screen.getByText('Create your knowledge workspace account')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Continue with Google/i })).toBeInTheDocument();
       expect(screen.getByText(/Only users with approved email domains/i)).toBeInTheDocument();
@@ -73,7 +76,7 @@ describe('SignUpForm', () => {
       expect(button).toBeDisabled();
 
       // Should show spinner instead of Google icon
-      const spinner = button.querySelector('.animate-spin');
+      const spinner = button.querySelector('.semiont-auth__spinner');
       expect(spinner).toBeInTheDocument();
 
       await waitFor(() => expect(onSignUp).toHaveBeenCalled());

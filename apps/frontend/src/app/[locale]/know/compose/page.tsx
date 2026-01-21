@@ -55,17 +55,12 @@ function ComposeResourceContent() {
 
   // Toolbar and settings state
   const { activePanel, togglePanel } = useToolbar();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, resolvedTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
   const handlePanelToggle = (panel: string | null) => {
     if (panel) togglePanel(panel as any);
   };
-
-  // Convert theme to actual applied theme (system -> light or dark)
-  const appliedTheme: 'light' | 'dark' = theme === 'system'
-    ? (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-    : theme;
 
   // API hooks
   const resources = useResources();
@@ -253,7 +248,7 @@ function ComposeResourceContent() {
       referenceData={referenceData}
       availableEntityTypes={availableEntityTypes}
       initialLocale={locale}
-      theme={appliedTheme}
+      theme={resolvedTheme}
       onThemeChange={setTheme}
       showLineNumbers={showLineNumbers}
       onLineNumbersToggle={toggleLineNumbers}

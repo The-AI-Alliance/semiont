@@ -18,9 +18,11 @@ export function PanelHeader({ annotationType, count, title }: PanelHeaderProps) 
   const metadata = ANNOTATORS[annotationType];
 
   return (
-    <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-        {metadata?.iconEmoji} {title} ({count})
+    <div className="semiont-panel-header">
+      <h2 className="semiont-panel-header__title">
+        <span className="semiont-panel-header__icon">{metadata?.iconEmoji}</span>
+        <span className="semiont-panel-header__text">{title}</span>
+        <span className="semiont-panel-header__count">({count})</span>
       </h2>
     </div>
   );

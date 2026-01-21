@@ -1,0 +1,465 @@
+/**
+ * Utility Classes
+ *
+ * Common utility classes for layout, spacing, and display
+ * These are semantic utilities, not Tailwind-style atomics
+ */
+
+/* ============================================
+   Display Utilities
+   ============================================ */
+
+.semiont-hidden {
+  display: none !important;
+}
+
+.semiont-block {
+  display: block;
+}
+
+.semiont-inline-block {
+  display: inline-block;
+}
+
+.semiont-flex {
+  display: flex;
+}
+
+.semiont-inline-flex {
+  display: inline-flex;
+}
+
+.semiont-grid {
+  display: grid;
+}
+
+/* ============================================
+   Flexbox Utilities
+   ============================================ */
+
+.semiont-flex-row {
+  flex-direction: row;
+}
+
+.semiont-flex-col {
+  flex-direction: column;
+}
+
+.semiont-flex-wrap {
+  flex-wrap: wrap;
+}
+
+.semiont-flex-nowrap {
+  flex-wrap: nowrap;
+}
+
+.semiont-flex-grow {
+  flex: 1;
+}
+
+.semiont-flex-shrink-0 {
+  flex-shrink: 0;
+}
+
+/* Alignment */
+.semiont-items-start {
+  align-items: flex-start;
+}
+
+.semiont-items-center {
+  align-items: center;
+}
+
+.semiont-items-end {
+  align-items: flex-end;
+}
+
+.semiont-justify-start {
+  justify-content: flex-start;
+}
+
+.semiont-justify-center {
+  justify-content: center;
+}
+
+.semiont-justify-end {
+  justify-content: flex-end;
+}
+
+.semiont-justify-between {
+  justify-content: space-between;
+}
+
+.semiont-justify-around {
+  justify-content: space-around;
+}
+
+/* ============================================
+   Spacing Utilities
+   ============================================ */
+
+/* Margin */
+.semiont-m-auto {
+  margin: auto;
+}
+
+.semiont-mx-auto {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.semiont-my-auto {
+  margin-top: auto;
+  margin-bottom: auto;
+}
+
+/* Gaps */
+.semiont-gap-xs {
+  gap: var(--semiont-spacing-xs);
+}
+
+.semiont-gap-sm {
+  gap: var(--semiont-spacing-sm);
+}
+
+.semiont-gap-md {
+  gap: var(--semiont-spacing-md);
+}
+
+.semiont-gap-lg {
+  gap: var(--semiont-spacing-lg);
+}
+
+.semiont-gap-xl {
+  gap: var(--semiont-spacing-xl);
+}
+
+/* ============================================
+   Text Utilities
+   ============================================ */
+
+.semiont-text-left {
+  text-align: left;
+}
+
+.semiont-text-center {
+  text-align: center;
+}
+
+.semiont-text-right {
+  text-align: right;
+}
+
+.semiont-text-justify {
+  text-align: justify;
+}
+
+/* Font Weights */
+.semiont-font-normal {
+  font-weight: 400;
+}
+
+.semiont-font-medium {
+  font-weight: 500;
+}
+
+.semiont-font-semibold {
+  font-weight: 600;
+}
+
+.semiont-font-bold {
+  font-weight: 700;
+}
+
+/* Font Sizes */
+.semiont-text-xs {
+  font-size: var(--semiont-text-xs);
+}
+
+.semiont-text-sm {
+  font-size: var(--semiont-text-sm);
+}
+
+.semiont-text-base {
+  font-size: var(--semiont-text-base);
+}
+
+.semiont-text-lg {
+  font-size: var(--semiont-text-lg);
+}
+
+.semiont-text-xl {
+  font-size: var(--semiont-text-xl);
+}
+
+.semiont-text-2xl {
+  font-size: var(--semiont-text-2xl);
+}
+
+.semiont-text-3xl {
+  font-size: var(--semiont-text-3xl);
+}
+
+/* Text Transforms */
+.semiont-uppercase {
+  text-transform: uppercase;
+}
+
+.semiont-lowercase {
+  text-transform: lowercase;
+}
+
+.semiont-capitalize {
+  text-transform: capitalize;
+}
+
+.semiont-normal-case {
+  text-transform: none;
+}
+
+/* ============================================
+   Width & Height Utilities
+   ============================================ */
+
+.semiont-w-full {
+  width: 100%;
+}
+
+.semiont-h-full {
+  height: 100%;
+}
+
+.semiont-w-auto {
+  width: auto;
+}
+
+.semiont-h-auto {
+  height: auto;
+}
+
+.semiont-min-w-0 {
+  min-width: 0;
+}
+
+.semiont-min-h-0 {
+  min-height: 0;
+}
+
+/* ============================================
+   Position Utilities
+   ============================================ */
+
+.semiont-relative {
+  position: relative;
+}
+
+.semiont-absolute {
+  position: absolute;
+}
+
+.semiont-fixed {
+  position: fixed;
+}
+
+.semiont-sticky {
+  position: sticky;
+}
+
+.semiont-static {
+  position: static;
+}
+
+/* ============================================
+   Overflow Utilities
+   ============================================ */
+
+.semiont-overflow-auto {
+  overflow: auto;
+}
+
+.semiont-overflow-hidden {
+  overflow: hidden;
+}
+
+.semiont-overflow-visible {
+  overflow: visible;
+}
+
+.semiont-overflow-scroll {
+  overflow: scroll;
+}
+
+.semiont-overflow-x-auto {
+  overflow: auto visible;
+}
+
+.semiont-overflow-y-auto {
+  overflow: visible auto;
+}
+
+/* ============================================
+   Border Radius Utilities
+   ============================================ */
+
+.semiont-rounded-none {
+  border-radius: 0;
+}
+
+.semiont-rounded-sm {
+  border-radius: var(--semiont-radius-sm);
+}
+
+.semiont-rounded {
+  border-radius: var(--semiont-radius-base);
+}
+
+.semiont-rounded-md {
+  border-radius: var(--semiont-radius-md);
+}
+
+.semiont-rounded-lg {
+  border-radius: var(--semiont-radius-lg);
+}
+
+.semiont-rounded-xl {
+  border-radius: var(--semiont-radius-xl);
+}
+
+.semiont-rounded-full {
+  border-radius: 9999px;
+}
+
+/* ============================================
+   Cursor Utilities
+   ============================================ */
+
+.semiont-cursor-pointer {
+  cursor: pointer;
+}
+
+.semiont-cursor-default {
+  cursor: default;
+}
+
+.semiont-cursor-not-allowed {
+  cursor: not-allowed;
+}
+
+.semiont-cursor-wait {
+  cursor: wait;
+}
+
+.semiont-cursor-text {
+  cursor: text;
+}
+
+/* ============================================
+   User Select Utilities
+   ============================================ */
+
+.semiont-select-none {
+  user-select: none;
+}
+
+.semiont-select-text {
+  user-select: text;
+}
+
+.semiont-select-all {
+  user-select: all;
+}
+
+.semiont-select-auto {
+  user-select: auto;
+}
+
+/* ============================================
+   Pointer Events Utilities
+   ============================================ */
+
+.semiont-pointer-events-none {
+  pointer-events: none;
+}
+
+.semiont-pointer-events-auto {
+  pointer-events: auto;
+}
+
+/* ============================================
+   Opacity Utilities
+   ============================================ */
+
+.semiont-opacity-0 {
+  opacity: 0;
+}
+
+.semiont-opacity-25 {
+  opacity: 0.25;
+}
+
+.semiont-opacity-50 {
+  opacity: 0.5;
+}
+
+.semiont-opacity-75 {
+  opacity: 0.75;
+}
+
+.semiont-opacity-100 {
+  opacity: 1;
+}
+
+/* ============================================
+   Z-Index Utilities
+   ============================================ */
+
+.semiont-z-0 {
+  z-index: 0;
+}
+
+.semiont-z-10 {
+  z-index: 10;
+}
+
+.semiont-z-20 {
+  z-index: 20;
+}
+
+.semiont-z-30 {
+  z-index: 30;
+}
+
+.semiont-z-40 {
+  z-index: 40;
+}
+
+.semiont-z-50 {
+  z-index: 50;
+}
+
+/* ============================================
+   Screen Reader Only
+   ============================================ */
+
+.semiont-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.semiont-not-sr-only {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: 0;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}

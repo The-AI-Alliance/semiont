@@ -3,6 +3,7 @@
 import React from 'react';
 import { UnifiedHeader } from './UnifiedHeader';
 import { Footer } from '../navigation/Footer';
+import { SkipLinks } from './SkipLinks';
 import type { LinkComponentProps, RouteBuilder } from '../../contexts/RoutingContext';
 import type { TranslateFn } from '../../types/translation';
 
@@ -32,9 +33,11 @@ export function PageLayout({
   onOpenKeyboardHelp
 }: PageLayoutProps) {
   return (
-    <div className="flex flex-col min-h-screen">
-      <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
-        <div className="px-4 sm:px-6 lg:px-8 py-4">
+    <div className="semiont-page-layout">
+      <SkipLinks />
+
+      <header role="banner" className="semiont-page-layout__header">
+        <div className="semiont-page-layout__header-container">
           <UnifiedHeader
             Link={Link}
             routes={routes}
@@ -47,7 +50,12 @@ export function PageLayout({
         </div>
       </header>
 
-      <main className={`flex-1 ${className}`}>
+      <main
+        role="main"
+        id="main-content"
+        tabIndex={-1}
+        className={`semiont-page-layout__main ${className}`}
+      >
         {children}
       </main>
 

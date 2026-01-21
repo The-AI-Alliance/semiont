@@ -27,7 +27,7 @@ import { Link, routes } from '@/lib/routing';
 import { useCacheManager } from '@/hooks/useCacheManager';
 
 // Feature components
-import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage } from '@semiont/react-ui';
+import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage, TranslationProvider } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { SearchResourcesModal } from '@/components/modals/SearchResourcesModal';
 import { GenerationConfigModal } from '@/components/modals/GenerationConfigModal';
@@ -69,8 +69,9 @@ export default function KnowledgeResourcePage() {
     }
   }, [isError, isLoading, initialUri, error]);
 
-  // Early return: Loading state
-  if (isLoading) {
+  // Early return: Loading state - show loading until we have data
+  // isLoading only true on initial fetch, but we need to show loading until data arrives
+  if (isLoading || !docData) {
     return <ResourceLoadingState />;
   }
 
@@ -80,7 +81,7 @@ export default function KnowledgeResourcePage() {
   }
 
   // Early return: ResourceDescriptor not found
-  if (!docData?.resource) {
+  if (!docData.resource) {
     return <ResourceErrorState error={new Error('Resource not found')} onRetry={() => refetchDocument()} />;
   }
 
@@ -361,58 +362,60 @@ function ResourceViewWrapper({
 
   // Render the pure component with all props
   return (
-    <ResourceViewerPage
-      resource={resource}
-      rUri={rUri}
-      content={content}
-      contentLoading={contentLoading}
-      annotations={annotations}
-      referencedBy={referencedBy}
-      referencedByLoading={referencedByLoading}
-      allEntityTypes={allEntityTypes}
-      locale={locale}
-      theme={theme}
-      onThemeChange={setTheme}
-      showLineNumbers={showLineNumbers}
-      onLineNumbersToggle={toggleLineNumbers}
-      activePanel={activePanel}
-      onPanelToggle={togglePanel}
-      setActivePanel={setActivePanel}
-      onUpdateDocumentTags={handleUpdateDocumentTags}
-      onArchive={handleArchive}
-      onUnarchive={handleUnarchive}
-      onClone={handleClone}
-      onUpdateAnnotationBody={handleUpdateAnnotationBody}
-      onRefetchAnnotations={async () => { await refetchAnnotations(); }}
-      onCreateAnnotation={async (rUri, motivation, selector, body) => {
-        await createAnnotation(rUri, motivation as any, selector, body);
-      }}
-      onDeleteAnnotation={async (annotationId) => {
-        await deleteAnnotation(annotationId, rUri);
-      }}
-      onTriggerSparkleAnimation={(annotationId) => {
-        triggerSparkleAnimation(annotationId as any);
-      }}
-      onClearNewAnnotationId={(annotationId) => {
-        clearNewAnnotationId(annotationId as any);
-      }}
-      showSuccess={showSuccess}
-      showError={showError}
-      onAnnotationAdded={(event) => debouncedInvalidateAnnotations()}
-      onAnnotationRemoved={(event) => debouncedInvalidateAnnotations()}
-      onAnnotationBodyUpdated={(event) => {}}
-      onDocumentArchived={(event) => {}}
-      onDocumentUnarchived={(event) => {}}
-      onEntityTagAdded={(event) => {}}
-      onEntityTagRemoved={(event) => {}}
-      onEventError={(error) => {}}
-      cacheManager={cacheManager}
-      client={client}
-      Link={Link}
-      routes={routes}
-      ToolbarPanels={ToolbarPanels}
-      SearchResourcesModal={SearchResourcesModal}
-      GenerationConfigModal={GenerationConfigModal}
-    />
+    <TranslationProvider>
+      <ResourceViewerPage
+        resource={resource}
+        rUri={rUri}
+        content={content}
+        contentLoading={contentLoading}
+        annotations={annotations}
+        referencedBy={referencedBy}
+        referencedByLoading={referencedByLoading}
+        allEntityTypes={allEntityTypes}
+        locale={locale}
+        theme={theme}
+        onThemeChange={setTheme}
+        showLineNumbers={showLineNumbers}
+        onLineNumbersToggle={toggleLineNumbers}
+        activePanel={activePanel}
+        onPanelToggle={togglePanel}
+        setActivePanel={setActivePanel}
+        onUpdateDocumentTags={handleUpdateDocumentTags}
+        onArchive={handleArchive}
+        onUnarchive={handleUnarchive}
+        onClone={handleClone}
+        onUpdateAnnotationBody={handleUpdateAnnotationBody}
+        onRefetchAnnotations={async () => { await refetchAnnotations(); }}
+        onCreateAnnotation={async (rUri, motivation, selector, body) => {
+          await createAnnotation(rUri, motivation as any, selector, body);
+        }}
+        onDeleteAnnotation={async (annotationId) => {
+          await deleteAnnotation(annotationId, rUri);
+        }}
+        onTriggerSparkleAnimation={(annotationId) => {
+          triggerSparkleAnimation(annotationId as any);
+        }}
+        onClearNewAnnotationId={(annotationId) => {
+          clearNewAnnotationId(annotationId as any);
+        }}
+        showSuccess={showSuccess}
+        showError={showError}
+        onAnnotationAdded={(event) => debouncedInvalidateAnnotations()}
+        onAnnotationRemoved={(event) => debouncedInvalidateAnnotations()}
+        onAnnotationBodyUpdated={(event) => {}}
+        onDocumentArchived={(event) => {}}
+        onDocumentUnarchived={(event) => {}}
+        onEntityTagAdded={(event) => {}}
+        onEntityTagRemoved={(event) => {}}
+        onEventError={(error) => {}}
+        cacheManager={cacheManager}
+        client={client}
+        Link={Link}
+        routes={routes}
+        ToolbarPanels={ToolbarPanels}
+        SearchResourcesModal={SearchResourcesModal}
+        GenerationConfigModal={GenerationConfigModal}
+      />
+    </TranslationProvider>
   );
 }

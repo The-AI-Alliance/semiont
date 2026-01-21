@@ -1,0 +1,63 @@
+/* ============================================
+   HighlightPanel Component
+   Text highlighting controls panel
+   ============================================ */
+
+.semiont-highlight-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--semiont-panel-gap);
+  padding: var(--semiont-panel-padding);
+  background: var(--semiont-bg-primary);
+  border-radius: var(--semiont-radius-lg);
+}
+
+[data-theme="dark"] .semiont-highlight-panel {
+  background: var(--semiont-bg-secondary);
+}
+
+.semiont-highlight-panel__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--semiont-panel-gap-sm);
+}
+
+.semiont-highlight-panel__label {
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-semibold);
+  color: var(--semiont-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+[data-theme="dark"] .semiont-highlight-panel__label {
+  color: var(--semiont-text-secondary);
+}
+
+.semiont-highlight-panel__colors {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--semiont-panel-gap-sm);
+}
+
+.semiont-highlight-panel__color {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: var(--semiont-radius-md);
+  cursor: pointer;
+  transition: transform 0.2s ease;
+  border: 2px solid transparent;
+}
+
+.semiont-highlight-panel__color:hover {
+  transform: scale(1.1);
+}
+
+.semiont-highlight-panel__color--selected {
+  border-color: var(--semiont-text-primary);
+  transform: scale(1.1);
+}
+
+[data-theme="dark"] .semiont-highlight-panel__color--selected {
+  border-color: var(--semiont-text-primary);
+}

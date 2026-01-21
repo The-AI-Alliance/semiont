@@ -80,11 +80,11 @@ export function AnnotationHistory({ rUri, hoveredAnnotationId, onEventHover, onE
 
   if (loading) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+      <div className="semiont-history-panel">
+        <h3 className="semiont-history-panel__title">
           {t('history')}
         </h3>
-        <div className="text-sm text-gray-500 dark:text-gray-400">{t('loading')}</div>
+        <div className="semiont-history-panel__loading">{t('loading')}</div>
       </div>
     );
   }
@@ -98,11 +98,11 @@ export function AnnotationHistory({ rUri, hoveredAnnotationId, onEventHover, onE
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 flex flex-col h-full">
-      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+    <div className="semiont-history-panel">
+      <h3 className="semiont-history-panel__title">
         {t('history')}
       </h3>
-      <div ref={containerRef} className="space-y-1.5 overflow-y-auto flex-1 min-h-0">
+      <div ref={containerRef} className="semiont-history-panel__list">
         {events.map((stored) => {
           // Check if event is related to the hovered annotation
           const isRelated = hoveredAnnotationId ? (() => {

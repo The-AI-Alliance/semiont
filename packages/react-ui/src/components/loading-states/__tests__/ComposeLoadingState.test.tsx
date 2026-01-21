@@ -25,13 +25,13 @@ describe('ComposeLoadingState', () => {
     render(<ComposeLoadingState message="Loading..." />);
 
     const container = screen.getByText('Loading...').parentElement;
-    expect(container).toHaveClass('flex', 'items-center', 'justify-center', 'py-20');
+    expect(container).toHaveClass('semiont-loading-state');
   });
 
   it('renders text with correct styling', () => {
     render(<ComposeLoadingState message="Loading..." />);
 
     const text = screen.getByText('Loading...');
-    expect(text).toHaveClass('text-gray-600', 'dark:text-gray-300');
+    expect(text).toHaveClass('semiont-loading-message');
   });
 });

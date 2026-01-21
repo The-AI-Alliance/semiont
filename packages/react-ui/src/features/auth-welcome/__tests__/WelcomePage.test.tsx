@@ -75,10 +75,10 @@ describe('WelcomePage', () => {
 
     it('renders with correct page layout', () => {
       const props = createMockProps({ status: 'loading' });
-      render(<WelcomePage {...props} />);
+      const { container } = render(<WelcomePage {...props} />);
 
-      const pageLayout = screen.getByTestId('page-layout');
-      expect(pageLayout).toHaveClass('bg-gray-50', 'dark:bg-gray-900');
+      const pageLayout = container.querySelector('.semiont-welcome-page__layout');
+      expect(pageLayout).toBeInTheDocument();
     });
 
     it('renders spinner', () => {
@@ -86,7 +86,7 @@ describe('WelcomePage', () => {
       render(<WelcomePage {...props} />);
 
       const spinner = screen.getByText('Loading...').previousElementSibling;
-      expect(spinner).toHaveClass('animate-spin');
+      expect(spinner).toHaveClass('semiont-welcome-page__spinner');
     });
   });
 
@@ -101,9 +101,9 @@ describe('WelcomePage', () => {
 
     it('renders success checkmark', () => {
       const props = createMockProps({ status: 'accepted' });
-      render(<WelcomePage {...props} />);
+      const { container } = render(<WelcomePage {...props} />);
 
-      const checkmarkContainer = screen.getByText('Welcome!').closest('div')?.parentElement?.querySelector('.bg-green-100');
+      const checkmarkContainer = container.querySelector('.semiont-welcome-page__accepted-checkmark');
       expect(checkmarkContainer).toBeInTheDocument();
     });
 
@@ -284,10 +284,10 @@ describe('WelcomePage', () => {
   describe('Styling and Accessibility', () => {
     it('renders scrollable terms container', () => {
       const props = createMockProps();
-      render(<WelcomePage {...props} />);
+      const { container } = render(<WelcomePage {...props} />);
 
-      const termsContainer = screen.getByText('Terms Summary').closest('div.max-h-96');
-      expect(termsContainer).toHaveClass('overflow-y-auto');
+      const termsContainer = container.querySelector('.semiont-welcome-page__terms-content');
+      expect(termsContainer).toBeInTheDocument();
     });
 
     it('renders accept button with correct styling', () => {
@@ -295,7 +295,7 @@ describe('WelcomePage', () => {
       render(<WelcomePage {...props} />);
 
       const button = screen.getByRole('button', { name: 'Accept and Continue' });
-      expect(button).toHaveClass('bg-green-600', 'text-white');
+      expect(button).toHaveClass('semiont-welcome-page__button semiont-welcome-page__button--primary');
     });
 
     it('renders decline button with correct styling', () => {
@@ -303,15 +303,15 @@ describe('WelcomePage', () => {
       render(<WelcomePage {...props} />);
 
       const button = screen.getByRole('button', { name: 'Decline and Sign Out' });
-      expect(button).toHaveClass('border', 'border-gray-300');
+      expect(button).toHaveClass('semiont-welcome-page__button semiont-welcome-page__button--secondary');
     });
 
     it('renders with proper dark mode classes', () => {
       const props = createMockProps();
-      render(<WelcomePage {...props} />);
+      const { container } = render(<WelcomePage {...props} />);
 
-      const pageLayout = screen.getByTestId('page-layout');
-      expect(pageLayout).toHaveClass('dark:bg-gray-900');
+      const pageLayout = container.querySelector('.semiont-welcome-page__layout');
+      expect(pageLayout).toBeInTheDocument();
     });
   });
 });

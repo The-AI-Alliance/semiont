@@ -185,19 +185,13 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
   // Tab button styling (matches AnnotateToolbar button style)
   const tabButtonClass = (tab: TabKey) => {
     const isActive = activeTab === tab;
-    return `
-      px-3 py-1.5 rounded-md transition-all flex items-center font-medium border-none focus:outline-none
-      ${isActive
-        ? 'bg-gray-300 dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-[inset_0_4px_8px_rgba(0,0,0,0.3)] translate-y-1 scale-95'
-        : 'text-gray-700 dark:text-gray-300 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-800'
-      }
-    `.trim();
+    return `semiont-unified-panel__tab-button${isActive ? ' semiont-unified-panel__tab-button--active' : ''}`;
   };
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-gray-900">
+    <div className="semiont-unified-panel">
       {/* Tab Navigation */}
-      <div className="flex items-center gap-0 p-2 border-b border-gray-200 dark:border-gray-700">
+      <div className="semiont-unified-panel__tabs">
         {TAB_ORDER.map(key => {
           // Statistics tab (special case - not in annotators)
           if (key === 'statistics') {
@@ -209,7 +203,7 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
                 title={t(key)}
                 aria-pressed={activeTab === key}
               >
-                <span className="text-lg">📊</span>
+                <span className="semiont-unified-panel__tab-icon">📊</span>
               </button>
             );
           }
@@ -226,14 +220,14 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
               title={t(key)}
               aria-pressed={activeTab === key}
             >
-              <span className="text-lg">{annotator.iconEmoji}</span>
+              <span className="semiont-unified-panel__tab-icon">{annotator.iconEmoji}</span>
             </button>
           );
         })}
       </div>
 
       {/* Tab Content */}
-      <div className="flex-1 overflow-hidden">
+      <div className="semiont-unified-panel__content">
         {(() => {
           const PanelComponent = PANEL_COMPONENTS[activeTab];
           if (!PanelComponent) return null;

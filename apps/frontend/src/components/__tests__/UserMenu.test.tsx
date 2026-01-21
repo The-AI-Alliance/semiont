@@ -618,20 +618,8 @@ describe('UserMenu Component', () => {
       render(<UserMenu />);
 
       const dropdown = screen.getByRole('menu');
-      expect(dropdown).toHaveClass(
-        'absolute',
-        'right-0',
-        'mt-2',
-        'w-64',
-        'bg-white',
-        'dark:bg-gray-800',
-        'rounded-lg',
-        'shadow-lg',
-        'border',
-        'border-gray-200',
-        'dark:border-gray-700',
-        'z-50'
-      );
+      // Dropdown styling is handled by semiont-user-menu-dropdown CSS class
+      expect(dropdown).toHaveClass('semiont-user-menu-dropdown');
     });
 
     it('should maintain dropdown position and z-index', () => {
@@ -641,7 +629,8 @@ describe('UserMenu Component', () => {
       render(<UserMenu />);
 
       const dropdown = screen.getByRole('menu');
-      expect(dropdown).toHaveClass('absolute', 'right-0', 'z-50');
+      // Dropdown positioning is handled by semiont-user-menu-dropdown CSS class
+      expect(dropdown).toHaveClass('semiont-user-menu-dropdown');
     });
   });
 

@@ -65,6 +65,20 @@ export function useFormValidation(options: UseFormValidationOptions = {}) {
     return Object.keys(errors).length > 0;
   }, [errors]);
 
+  // Generate ARIA attributes for form fields
+  const getFieldProps = useCallback((fieldName: string) => ({
+    'aria-invalid': !!errors[fieldName],
+    'aria-describedby': errors[fieldName] ? `${fieldName}-error` : undefined,
+    id: fieldName,
+  }), [errors]);
+
+  // Generate error message props
+  const getErrorProps = useCallback((fieldName: string) => ({
+    id: `${fieldName}-error`,
+    role: 'alert',
+    'aria-live': 'polite',
+  }), []);
+
   return {
     errors,
     setFieldError,
@@ -74,6 +88,8 @@ export function useFormValidation(options: UseFormValidationOptions = {}) {
     announceSuccess,
     getFieldError,
     hasErrors,
+    getFieldProps,
+    getErrorProps,
   };
 }
 

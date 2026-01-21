@@ -1,0 +1,26 @@
+/**
+ * Loading Patterns
+ *
+ * Styles for loading states and skeleton screens
+ */
+
+/* Loading States */
+.semiont-loading-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5rem 0;
+}
+
+.semiont-loading-state-wrapper {
+  padding: 1rem 2rem;
+}
+
+.semiont-loading-message {
+  color: var(--semiont-color-gray-600);
+  font-size: var(--semiont-text-base);
+}
+
+[data-theme="dark"] .semiont-loading-message {
+  color: var(--semiont-color-gray-300);
+}

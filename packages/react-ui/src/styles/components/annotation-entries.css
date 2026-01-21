@@ -1,0 +1,138 @@
+/**
+ * Annotation Entry Styles for Panels
+ *
+ * Base structure and common styles for annotation entries.
+ * Motivation-specific styles are in /styles/motivations/*.css
+ */
+
+/* Base annotation entry container */
+.semiont-annotation-entry {
+  padding: 0.75rem;
+  background: var(--semiont-bg-secondary);
+  border-radius: var(--semiont-radius-md);
+  border: 2px solid transparent;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  position: relative;
+  margin-bottom: 0.5rem;
+}
+
+[data-theme="dark"] .semiont-annotation-entry {
+  background: var(--semiont-bg-tertiary);
+}
+
+/* Focused state */
+.semiont-annotation-entry[data-focused="true"] {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+  z-index: 10;
+}
+
+/* Motivation-specific styles are handled in /styles/motivations/*.css */
+
+/* Entry structure */
+.semiont-annotation-entry__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.semiont-annotation-entry__content {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Quote styling - base structure */
+.semiont-annotation-entry__quote {
+  font-size: var(--semiont-text-sm);
+  line-height: 1.5;
+  padding: 0.375rem 0.5rem;
+  border-radius: var(--semiont-radius-sm);
+  margin-bottom: 0.5rem;
+}
+
+/* Motivation-specific quote styles are handled in /styles/motivations/*.css */
+
+/* Body content */
+.semiont-annotation-entry__body {
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-primary);
+  line-height: 1.5;
+  margin-bottom: 0.5rem;
+}
+
+[data-theme="dark"] .semiont-annotation-entry__body {
+  color: var(--semiont-text-primary);
+}
+
+/* Motivation-specific body styles are handled in /styles/motivations/*.css */
+
+/* Metadata */
+.semiont-annotation-entry__metadata,
+.semiont-annotation-entry__meta {
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-text-tertiary);
+}
+
+[data-theme="dark"] .semiont-annotation-entry__metadata,
+[data-theme="dark"] .semiont-annotation-entry__meta {
+  color: var(--semiont-text-tertiary);
+}
+
+/* Footer */
+.semiont-annotation-entry__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+
+/* Actions */
+.semiont-annotation-entry__actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.semiont-annotation-entry__action-row {
+  display: flex;
+  gap: 0.25rem;
+  width: 100%;
+}
+
+/* Button group for edit mode */
+.semiont-annotation-entry__button-group {
+  display: flex;
+  gap: 0.25rem;
+}
+
+/* Edit mode */
+.semiont-annotation-entry__edit {
+  margin-top: 0.5rem;
+}
+
+.semiont-annotation-entry__edit-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+
+.semiont-annotation-entry__char-count {
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-text-tertiary);
+}
+
+[data-theme="dark"] .semiont-annotation-entry__char-count {
+  color: var(--semiont-text-tertiary);
+}
+
+/* Tags within entries */
+.semiont-annotation-entry__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+}
+
+/* Reference-specific styles moved to /styles/motivations/motivation-reference.css */

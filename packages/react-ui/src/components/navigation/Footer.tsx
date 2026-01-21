@@ -28,30 +28,30 @@ export function Footer({
 
   return (
     <>
-      <footer className="bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-auto font-sans">
-        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
-            <div className="text-sm text-gray-500">
+      <footer role="contentinfo" className="semiont-footer">
+        <div className="semiont-footer__container">
+          <div className="semiont-footer__content">
+            <div className="semiont-footer__copyright">
               {t('copyright', { year: new Date().getFullYear() })}
             </div>
 
-            <div className="flex space-x-6 text-sm">
+            <div className="semiont-footer__links">
               <Link
                 href={routes.about?.() || '/about'}
-                className="text-gray-500 hover:text-gray-700 transition-colors"
+                className="semiont-footer__link"
               >
                 {t('about')}
               </Link>
               <Link
                 href={routes.privacy?.() || '/privacy'}
-                className="text-gray-500 hover:text-gray-700 transition-colors"
+                className="semiont-footer__link"
               >
                 {t('privacyPolicy')}
               </Link>
               {CookiePreferences && (
                 <button
                   onClick={() => setShowCookiePreferences(true)}
-                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                  className="semiont-footer__link"
                 >
                   {t('cookiePreferences')}
                 </button>
@@ -59,17 +59,17 @@ export function Footer({
               {onOpenKeyboardHelp && (
                 <button
                   onClick={onOpenKeyboardHelp}
-                  className="text-gray-500 hover:text-gray-700 transition-colors flex items-center gap-1"
+                  className="semiont-footer__link semiont-footer__link--keyboard"
                 >
                   {t('keyboardShortcuts')}
-                  <kbd className="hidden sm:inline-block px-1 py-0.5 text-xs bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded">
+                  <kbd className="semiont-footer__kbd">
                     ?
                   </kbd>
                 </button>
               )}
               <Link
                 href={routes.terms?.() || '/terms'}
-                className="text-gray-500 hover:text-gray-700 transition-colors"
+                className="semiont-footer__link"
               >
                 {t('termsOfService')}
               </Link>
@@ -77,7 +77,7 @@ export function Footer({
                 href={apiDocsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-gray-500 hover:text-gray-700 transition-colors"
+                className="semiont-footer__link"
               >
                 {t('apiDocs')}
               </a>
@@ -85,7 +85,7 @@ export function Footer({
                 href={sourceCodeUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-gray-500 hover:text-gray-700 transition-colors"
+                className="semiont-footer__link"
               >
                 {t('sourceCode')}
               </a>

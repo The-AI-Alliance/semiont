@@ -19,10 +19,10 @@ export function useCacheManager(): CacheManager {
 
   return useMemo(() => ({
     invalidateAnnotations: (rUri: ResourceUri) => {
-      queryClient.invalidateQueries({ queryKey: ['annotations', rUri] });
+      queryClient.invalidateQueries({ queryKey: ['resources', rUri, 'annotations'] });
     },
     invalidateEvents: (rUri: ResourceUri) => {
-      queryClient.invalidateQueries({ queryKey: ['documents', 'events', rUri] });
+      queryClient.invalidateQueries({ queryKey: ['resources', rUri, 'events'] });
     }
   }), [queryClient]);
 }

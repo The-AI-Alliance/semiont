@@ -9,7 +9,9 @@ export * from './types/annotation-props';
 export * from './types/AnnotationManager';
 export * from './types/ApiClientManager';
 export * from './types/CacheManager';
-export * from './types/OpenResourcesManager';
+export * from './types/navigation';
+export type { OpenResourcesManager } from './types/OpenResourcesManager';
+export { type OpenResource as OpenResourceFromManager } from './types/OpenResourcesManager';
 export * from './types/SessionManager';
 export * from './types/TranslationManager';
 export * from './types/resource-viewer';
@@ -66,6 +68,9 @@ export * from './components/ResourceTagsInline';
 export * from './components/Toast';
 export * from './components/Toolbar';
 
+// Components - Settings
+export * from './components/settings/SettingsPanel';
+
 // Components - Annotation
 export * from './components/annotation/AnnotateToolbar';
 
@@ -116,9 +121,26 @@ export * from './components/viewers';
 // Components - Navigation
 export * from './components/navigation/Footer';
 export * from './components/navigation/NavigationMenu';
+export * from './components/navigation/SidebarNavigation';
+export * from './components/navigation/CollapsibleResourceNavigation';
+export * from './components/navigation/SortableResourceTab';
+export type {
+  CollapsibleResourceNavigationProps,
+  SortableResourceTabProps,
+  OpenResource
+} from './types/collapsible-navigation';
+
+// Components - Modals
+export * from './components/modals/SearchModal';
+export * from './components/modals/ResourceSearchModal';
+export type {
+  SearchModalProps,
+  ResourceSearchModalProps,
+  GenerationOptions
+} from './types/modals';
 
 // Components - Layout
-export * from './components/SkipLinks';
+export * from './components/layout/SkipLinks';
 export * from './components/StatusDisplay';
 
 // Components - Session
@@ -135,6 +157,19 @@ export * from './components/layout/PageLayout';
 // Favicon components and assets
 export { SemiontFavicon } from './assets/favicons/SemiontFavicon';
 export { faviconPaths } from './assets/favicons';
+
+// Design tokens and CSS-agnostic components
+export { Button, ButtonGroup } from './components/Button/Button';
+export type { ButtonProps, ButtonGroupProps } from './components/Button/Button';
+export { tokens, generateCSSVariables, cssVariables } from './design-tokens';
+export type {
+  ColorToken,
+  SpacingToken,
+  TypographyToken,
+  BorderRadiusToken,
+  ShadowToken,
+  TransitionToken
+} from './design-tokens';
 
 // Components - Loading States
 export * from './components/loading-states/ComposeLoadingState';

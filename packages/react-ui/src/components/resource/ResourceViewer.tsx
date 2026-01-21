@@ -392,7 +392,7 @@ export function ResourceViewer({
   }, [handleDeleteAnnotation]);
 
   return (
-    <div ref={documentViewerRef} className="h-full">
+    <div ref={documentViewerRef} className="semiont-resource-viewer">
       {/* Content */}
       {activeView === 'annotate' ? (
         <AnnotateView
@@ -482,29 +482,29 @@ export function ResourceViewer({
             onClose={() => setDeleteConfirmation(null)}
             position={deleteConfirmation.position}
           >
-            <div className="flex flex-col gap-4 p-4 bg-white dark:bg-gray-800 rounded-lg shadow-lg min-w-[300px]">
-              <div className="flex items-center gap-2">
-                <span className="text-2xl">{motivationEmoji}</span>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            <div className="semiont-delete-confirmation">
+              <div className="semiont-delete-confirmation__header">
+                <span className="semiont-delete-confirmation__icon">{motivationEmoji}</span>
+                <h3 className="semiont-delete-confirmation__title">
                   {t('deleteConfirmationTitle')}
                 </h3>
               </div>
 
               {selectedText && (
-                <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border-l-4 border-blue-500">
-                  <p className="text-sm text-gray-700 dark:text-gray-300 italic">
+                <div className="semiont-delete-confirmation__quote">
+                  <p className="semiont-delete-confirmation__text">
                     "{selectedText.length > 100 ? selectedText.substring(0, 100) + '...' : selectedText}"
                   </p>
                 </div>
               )}
 
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <p className="semiont-delete-confirmation__message">
                 {t('deleteConfirmationMessage')}
               </p>
-              <div className="flex gap-2 justify-end">
+              <div className="semiont-delete-confirmation__actions">
               <button
                 onClick={() => setDeleteConfirmation(null)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                className="semiont-button semiont-button--secondary"
               >
                 {t('deleteConfirmationCancel')}
               </button>
@@ -513,7 +513,7 @@ export function ResourceViewer({
                   await handleDeleteAnnotation(deleteConfirmation.annotation.id);
                   setDeleteConfirmation(null);
                 }}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="semiont-button semiont-button--danger"
               >
                 {t('deleteConfirmationDelete')}
               </button>

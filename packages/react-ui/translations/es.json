@@ -283,5 +283,36 @@
     "rectangle": "Rectángulo",
     "circle": "Círculo",
     "polygon": "Polígono"
-  }
+  },
+  "CollapsibleResourceNavigation": {
+    "title": "Navegación",
+    "collapseSidebar": "Contraer barra lateral",
+    "expandSidebar": "Expandir barra lateral",
+    "dragToReorder": "Arrastrar para reordenar",
+    "dragToReorderDoc": "Arrastrar para reordenar {name}",
+    "closeResource": "Cerrar recurso",
+    "dragInstructions": "Para reordenar recursos: Usa Tab para navegar a un recurso. Presiona Alt+Flecha arriba para mover hacia arriba o Alt+Flecha abajo para mover hacia abajo. Para arrastrar y soltar: Presiona la barra espaciadora para seleccionar el elemento. Usa las flechas para moverlo. Presiona la barra espaciadora de nuevo para soltar."
+  },
+  "ResourceViewer": {
+    "deleteConfirmationTitle": "Eliminar Anotación",
+    "deleteConfirmationMessage": "¿Estás seguro de que quieres eliminar esta anotación? Esta acción no se puede deshacer.",
+    "deleteConfirmationCancel": "Cancelar",
+    "deleteConfirmationDelete": "Eliminar"
+  },
+  "Settings": {
+    "title": "Configuración",
+    "lineNumbers": "Números de Línea",
+    "lineNumbersVisible": "Visible",
+    "lineNumbersHidden": "Oculto",
+    "theme": "Tema",
+    "themeLight": "Claro",
+    "themeDark": "Oscuro",
+    "themeSystem": "Sistema",
+    "themeSystemActive": "Sistema ({mode})",
+    "themeModeActive": "Usando modo {mode}",
+    "language": "Idioma",
+    "languageHint": "Cambia el idioma en la navegación principal",
+    "languageChanging": "Cambiando idioma..."
+  },
+  "AnnotateView": {}
 }

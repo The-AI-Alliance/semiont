@@ -70,58 +70,73 @@ export function useResourceEvents({
   const streamRef = useRef<SSEStream<ApiResourceEvent, never> | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
+  const connectingRef = useRef(false);
+
+  // Event Handler Refs Pattern: Store event handlers in refs to prevent reconnection
+  // when parent component passes new function references on re-render
+  const onEventRef = useRef(onEvent);
+  const onAnnotationAddedRef = useRef(onAnnotationAdded);
+  const onAnnotationRemovedRef = useRef(onAnnotationRemoved);
+  const onAnnotationBodyUpdatedRef = useRef(onAnnotationBodyUpdated);
+  const onEntityTagAddedRef = useRef(onEntityTagAdded);
+  const onEntityTagRemovedRef = useRef(onEntityTagRemoved);
+  const onDocumentArchivedRef = useRef(onDocumentArchived);
+  const onDocumentUnarchivedRef = useRef(onDocumentUnarchived);
+  const onErrorRef = useRef(onError);
+
+  // Sync refs with latest props on every render
+  useEffect(() => {
+    onEventRef.current = onEvent;
+    onAnnotationAddedRef.current = onAnnotationAdded;
+    onAnnotationRemovedRef.current = onAnnotationRemoved;
+    onAnnotationBodyUpdatedRef.current = onAnnotationBodyUpdated;
+    onEntityTagAddedRef.current = onEntityTagAdded;
+    onEntityTagRemovedRef.current = onEntityTagRemoved;
+    onDocumentArchivedRef.current = onDocumentArchived;
+    onDocumentUnarchivedRef.current = onDocumentUnarchived;
+    onErrorRef.current = onError;
+  });
 
   const handleEvent = useCallback((event: ResourceEvent) => {
     setLastEvent(event);
     setEventCount(prev => prev + 1);
 
-    // Call generic handler
-    onEvent?.(event);
+    // Call generic handler using ref (always latest)
+    onEventRef.current?.(event);
 
-    // Call specific handlers
+    // Call specific handlers using refs (always latest)
     switch (event.type) {
       case 'annotation.added':
-        onAnnotationAdded?.(event);
+        onAnnotationAddedRef.current?.(event);
         break;
       case 'annotation.removed':
-        onAnnotationRemoved?.(event);
+        onAnnotationRemovedRef.current?.(event);
         break;
       case 'annotation.body.updated':
-        onAnnotationBodyUpdated?.(event);
+        onAnnotationBodyUpdatedRef.current?.(event);
         break;
       case 'entitytag.added':
-        onEntityTagAdded?.(event);
+        onEntityTagAddedRef.current?.(event);
         break;
       case 'entitytag.removed':
-        onEntityTagRemoved?.(event);
+        onEntityTagRemovedRef.current?.(event);
         break;
       case 'document.archived':
-        onDocumentArchived?.(event);
+        onDocumentArchivedRef.current?.(event);
         break;
       case 'document.unarchived':
-        onDocumentUnarchived?.(event);
+        onDocumentUnarchivedRef.current?.(event);
         break;
     }
-  }, [
-    onEvent,
-    onAnnotationAdded,
-    onAnnotationRemoved,
-    onAnnotationBodyUpdated,
-    onEntityTagAdded,
-    onEntityTagRemoved,
-    onDocumentArchived,
-    onDocumentUnarchived,
-  ]);
+  }, []); // Empty deps - stable reference prevents reconnection!
 
   const connect = useCallback(async () => {
-    console.log(`[ResourceEvents] Attempting to connect to resource ${rUri} events stream`);
-
-    // Close any existing stream
-    if (streamRef.current) {
-      console.log(`[ResourceEvents] Closing existing connection for ${rUri}`);
-      streamRef.current.close();
-      streamRef.current = null;
+    // Prevent duplicate connections
+    if (connectingRef.current || streamRef.current) {
+      return;
     }
+
+    connectingRef.current = true;
 
     // Clear any pending reconnect
     if (reconnectTimeoutRef.current) {
@@ -132,12 +147,12 @@ export function useResourceEvents({
     // Check if client is available
     if (!client) {
       console.error(`[ResourceEvents] Cannot connect to ${rUri}: No API client available`);
-      onError?.('Authentication required');
+      onErrorRef.current?.('Authentication required');
       setStatus('error');
+      connectingRef.current = false;
       return;
     }
 
-    console.log(`[ResourceEvents] Connecting to SSE stream for resource ${rUri}`);
     setStatus('connecting');
 
     try {
@@ -154,13 +169,11 @@ export function useResourceEvents({
 
         // Handle stream-connected event
         if (event.type === 'stream-connected') {
-          console.log(`[ResourceEvents] Stream connected event received for ${rUri}`);
           setStatus('connected');
           reconnectAttemptsRef.current = 0; // Reset reconnect counter
           return;
         }
 
-        console.log(`[ResourceEvents] Received event for document ${rUri}:`, event.type);
         handleEvent(event);
       });
 
@@ -172,16 +185,16 @@ export function useResourceEvents({
         // Don't retry on 404 - document doesn't exist
         if (error.message.includes('404')) {
           console.error(`[ResourceEvents] Document ${rUri} not found (404). Stopping reconnection attempts.`);
-          onError?.('Document not found');
+          onErrorRef.current?.('Document not found');
           streamRef.current = null;
+          connectingRef.current = false;
           return;
         }
 
-        // Exponential backoff for reconnection
+        // Immediate reconnection for network errors (likely chunked encoding issues from proxy)
+        // Use small delay to avoid tight loop on persistent errors
         reconnectAttemptsRef.current++;
-        const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current - 1), 30000);
-
-        console.log(`[ResourceEvents] Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current})`);
+        const delay = reconnectAttemptsRef.current === 1 ? 100 : Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current - 2), 30000);
 
         reconnectTimeoutRef.current = setTimeout(() => {
           if (!streamRef.current) {
@@ -193,10 +206,11 @@ export function useResourceEvents({
     } catch (error) {
       console.error('[ResourceEvents] Failed to connect:', error);
       setStatus('error');
-      onError?.('Failed to connect to event stream');
+      onErrorRef.current?.('Failed to connect to event stream');
+      connectingRef.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rUri, handleEvent, onError, client]);
+  }, [rUri, handleEvent, client]); // handleEvent now stable, client changes when auth state changes
 
   const disconnect = useCallback(() => {
     if (streamRef.current) {
@@ -211,6 +225,7 @@ export function useResourceEvents({
 
     setStatus('disconnected');
     reconnectAttemptsRef.current = 0;
+    connectingRef.current = false; // Reset connecting flag
   }, []);
 
   // Auto-connect on mount if enabled and client is available
@@ -224,7 +239,7 @@ export function useResourceEvents({
       disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoConnect, client]); // Only reconnect when client availability or autoConnect changes, not when connect/disconnect change
+  }, [autoConnect, client]); // Only reconnect when client availability or autoConnect changes
 
   return {
     status,

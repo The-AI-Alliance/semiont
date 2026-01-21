@@ -11,6 +11,72 @@ const TranslationContext = createContext<TranslationManager | null>(null);
 // Cache for dynamically loaded translations
 const translationCache = new Map<string, any>();
 
+/**
+ * Process ICU MessageFormat plural syntax
+ * Supports: {count, plural, =0 {text} =1 {text} other {text}}
+ */
+function processPluralFormat(text: string, params: Record<string, any>): string {
+  console.log('[processPluralFormat] Called with text:', text, 'params:', params);
+  // Match {paramName, plural, ...} with proper brace counting
+  const pluralMatch = text.match(/\{(\w+),\s*plural,\s*/);
+  if (!pluralMatch) {
+    console.log('[processPluralFormat] No plural match found');
+    return text;
+  }
+
+  const paramName = pluralMatch[1];
+  const count = params[paramName];
+  console.log('[processPluralFormat] paramName:', paramName, 'count:', count);
+  if (count === undefined) {
+    console.log('[processPluralFormat] Count undefined, returning original');
+    return text;
+  }
+
+  // Find the matching closing brace by counting
+  let startPos = pluralMatch[0].length;
+  let braceCount = 1; // We're inside the first {
+  let endPos = startPos;
+
+  for (let i = startPos; i < text.length; i++) {
+    if (text[i] === '{') braceCount++;
+    else if (text[i] === '}') {
+      braceCount--;
+      if (braceCount === 0) {
+        endPos = i;
+        break;
+      }
+    }
+  }
+
+  const pluralCases = text.substring(startPos, endPos);
+
+  // Parse plural cases: =0 {text} =1 {text} other {text}
+  const cases: Record<string, string> = {};
+  const caseRegex = /(?:=(\d+)|(\w+))\s*\{([^}]+)\}/g;
+  let caseMatch;
+
+  while ((caseMatch = caseRegex.exec(pluralCases)) !== null) {
+    const [, exactNumber, keyword, textContent] = caseMatch;
+    const key = exactNumber !== undefined ? `=${exactNumber}` : keyword;
+    cases[key] = textContent;
+  }
+
+  // Select appropriate case
+  const exactMatch = cases[`=${count}`];
+  if (exactMatch !== undefined) {
+    const result = exactMatch.replace(/#/g, String(count));
+    return text.substring(0, pluralMatch.index!) + result + text.substring(endPos + 1);
+  }
+
+  const otherCase = cases['other'];
+  if (otherCase !== undefined) {
+    const result = otherCase.replace(/#/g, String(count));
+    return text.substring(0, pluralMatch.index!) + result + text.substring(endPos + 1);
+  }
+
+  return text;
+}
+
 // List of available locales (can be extended without importing all files)
 export const AVAILABLE_LOCALES = [
   'ar', // Arabic
@@ -82,12 +148,18 @@ const defaultTranslationManager: TranslationManager = {
       return `${namespace}.${key}`;
     }
 
-    // Handle parameter interpolation
+    // Handle parameter interpolation and plural format
     if (params && typeof translation === 'string') {
+      console.log('[Translation] Processing:', namespace, key, 'with params:', params, 'translation:', translation);
       let result = translation;
+      // First process plural format
+      result = processPluralFormat(result, params);
+      console.log('[Translation] After processPluralFormat:', result);
+      // Then handle simple parameter interpolation
       Object.entries(params).forEach(([paramKey, paramValue]) => {
         result = result.replace(new RegExp(`\\{${paramKey}\\}`, 'g'), String(paramValue));
       });
+      console.log('[Translation] Final result:', result);
       return result;
     }
 
@@ -163,9 +235,12 @@ export function TranslationProvider({
           return `${namespace}.${key}`;
         }
 
-        // Handle parameter interpolation
+        // Handle parameter interpolation and plural format
         if (params && typeof translation === 'string') {
           let result = translation;
+          // First process plural format
+          result = processPluralFormat(result, params);
+          // Then handle simple parameter interpolation
           Object.entries(params).forEach(([paramKey, paramValue]) => {
             result = result.replace(new RegExp(`\\{${paramKey}\\}`, 'g'), String(paramValue));
           });
@@ -233,9 +308,12 @@ export function useTranslations(namespace: string) {
         return `${namespace}.${key}`;
       }
 
-      // Handle parameter interpolation
+      // Handle parameter interpolation and plural format
       if (params && typeof translation === 'string') {
         let result = translation;
+        // First process plural format
+        result = processPluralFormat(result, params);
+        // Then handle simple parameter interpolation
         Object.entries(params).forEach(([paramKey, paramValue]) => {
           result = result.replace(new RegExp(`\\{${paramKey}\\}`, 'g'), String(paramValue));
         });

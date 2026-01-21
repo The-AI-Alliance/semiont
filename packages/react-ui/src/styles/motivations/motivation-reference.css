@@ -1,0 +1,210 @@
+/**
+ * Motivation: Linking/References
+ * Color Theme: Blue/Cyan gradient
+ * W3C Web Annotation: linking motivation
+ *
+ * This file defines all styles for reference/linking annotations
+ * across text, panels, and image annotations.
+ */
+
+/* ============================================
+   Color Variables
+   ============================================ */
+:root {
+  /* Light theme colors */
+  --semiont-motivation-reference-primary: var(--semiont-color-cyan-600);
+  --semiont-motivation-reference-secondary: var(--semiont-color-blue-600);
+  --semiont-motivation-reference-bg: linear-gradient(to right, var(--semiont-color-cyan-200, #a5f3fc), var(--semiont-color-blue-200));
+  --semiont-motivation-reference-bg-hover: linear-gradient(to right, var(--semiont-color-cyan-300, #67e8f9), var(--semiont-color-blue-300));
+  --semiont-motivation-reference-border: rgba(6, 182, 212, 0.3);
+  --semiont-motivation-reference-border-hover: rgba(6, 182, 212, 0.5);
+  --semiont-motivation-reference-text: var(--semiont-color-gray-900);
+
+  /* Dark theme colors */
+  --semiont-motivation-reference-dark-bg: linear-gradient(to right, rgba(30, 58, 138, 0.5), rgba(8, 51, 68, 0.5));
+  --semiont-motivation-reference-dark-bg-hover: linear-gradient(to right, rgba(30, 58, 138, 0.6), rgba(8, 51, 68, 0.6));
+  --semiont-motivation-reference-dark-text: var(--semiont-color-white);
+  --semiont-motivation-reference-dark-outline: rgba(6, 182, 212, 0.6);
+  --semiont-motivation-reference-dark-primary: var(--semiont-color-cyan-400);
+
+  /* Button gradients */
+  --semiont-motivation-reference-button-bg: linear-gradient(to right, var(--semiont-color-cyan-600), var(--semiont-color-blue-500));
+  --semiont-motivation-reference-button-bg-hover: linear-gradient(to right, var(--semiont-color-cyan-500), var(--semiont-color-blue-500));
+}
+
+/* ============================================
+   Inline Text Annotations
+   ============================================ */
+.semiont-motivation-reference,
+.annotation-reference {
+  border-radius: 0.25rem;
+  padding: 0 0.125rem;
+  cursor: pointer;
+  transition: all 200ms;
+  background: var(--semiont-motivation-reference-bg);
+  color: var(--semiont-motivation-reference-text);
+}
+
+.semiont-motivation-reference:hover,
+.annotation-reference:hover {
+  background: var(--semiont-motivation-reference-bg-hover);
+}
+
+[data-theme="dark"] .semiont-motivation-reference,
+[data-theme="dark"] .annotation-reference {
+  background: var(--semiont-motivation-reference-dark-bg);
+  color: var(--semiont-motivation-reference-dark-text);
+  outline: 2px dashed var(--semiont-motivation-reference-dark-outline);
+  outline-offset: 1px;
+}
+
+[data-theme="dark"] .semiont-motivation-reference:hover,
+[data-theme="dark"] .annotation-reference:hover {
+  background: var(--semiont-motivation-reference-dark-bg-hover);
+}
+
+/* ============================================
+   Panel Entry Styling
+   ============================================ */
+.semiont-motivation-reference-entry,
+.semiont-annotation-entry[data-type="reference"] {
+  border-color: var(--semiont-motivation-reference-border);
+}
+
+.semiont-motivation-reference-entry:hover,
+.semiont-annotation-entry[data-type="reference"]:hover {
+  background: linear-gradient(to right, rgba(165, 243, 252, 0.1), rgba(191, 219, 254, 0.1));
+  border-color: var(--semiont-motivation-reference-border-hover);
+}
+
+[data-theme="dark"] .semiont-motivation-reference-entry,
+[data-theme="dark"] .semiont-annotation-entry[data-type="reference"] {
+  border-color: var(--semiont-motivation-reference-border);
+}
+
+[data-theme="dark"] .semiont-motivation-reference-entry:hover,
+[data-theme="dark"] .semiont-annotation-entry[data-type="reference"]:hover {
+  background: linear-gradient(to right, rgba(30, 58, 138, 0.2), rgba(8, 51, 68, 0.2));
+}
+
+/* ============================================
+   Quote/Excerpt Styling in Panels
+   ============================================ */
+.semiont-motivation-reference-quote,
+.semiont-annotation-entry__quote[data-type="reference"] {
+  background: linear-gradient(to right, rgba(165, 243, 252, 0.2), rgba(191, 219, 254, 0.2));
+  color: var(--semiont-color-cyan-700);
+}
+
+[data-theme="dark"] .semiont-motivation-reference-quote,
+[data-theme="dark"] .semiont-annotation-entry__quote[data-type="reference"] {
+  background: linear-gradient(to right, rgba(30, 58, 138, 0.3), rgba(8, 51, 68, 0.3));
+  color: var(--semiont-color-cyan-300);
+}
+
+/* ============================================
+   Detection Section in Unified Panel
+   ============================================ */
+.semiont-motivation-reference-section,
+.semiont-detect-section[data-type="reference"] {
+  border-color: var(--semiont-color-cyan-500);
+}
+
+[data-theme="dark"] .semiont-motivation-reference-section,
+[data-theme="dark"] .semiont-detect-section[data-type="reference"] {
+  border-color: var(--semiont-color-cyan-600);
+}
+
+/* ============================================
+   Button Styling
+   ============================================ */
+.semiont-motivation-reference-button,
+.semiont-button[data-variant="detect"][data-type="reference"] {
+  background: linear-gradient(to right, var(--semiont-color-cyan-600), var(--semiont-color-blue-500)) !important;
+  color: var(--semiont-color-white) !important;
+  border: 1px solid var(--semiont-motivation-reference-border);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.semiont-motivation-reference-button:hover,
+.semiont-button[data-variant="detect"][data-type="reference"]:hover {
+  background: var(--semiont-motivation-reference-button-bg-hover);
+  border-color: var(--semiont-motivation-reference-primary);
+}
+
+[data-theme="dark"] .semiont-motivation-reference-button,
+[data-theme="dark"] .semiont-button[data-variant="detect"][data-type="reference"] {
+  border-color: var(--semiont-motivation-reference-dark-outline);
+}
+
+[data-theme="dark"] .semiont-motivation-reference-button:hover,
+[data-theme="dark"] .semiont-button[data-variant="detect"][data-type="reference"]:hover {
+  border-color: var(--semiont-motivation-reference-dark-primary);
+}
+
+.semiont-motivation-reference-button:focus-visible,
+.semiont-button[data-variant="detect"][data-type="reference"]:focus-visible {
+  outline: 2px solid var(--semiont-motivation-reference-primary);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-motivation-reference-button:focus-visible,
+[data-theme="dark"] .semiont-button[data-variant="detect"][data-type="reference"]:focus-visible {
+  outline: 2px solid var(--semiont-motivation-reference-dark-primary);
+  outline-offset: 2px;
+}
+
+/* ============================================
+   Reference-specific Elements
+   ============================================ */
+.semiont-reference-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+  color: var(--semiont-motivation-reference-primary);
+}
+
+[data-theme="dark"] .semiont-reference-icon {
+  color: var(--semiont-motivation-reference-dark-primary);
+}
+
+.semiont-reference-link {
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-motivation-reference-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+}
+
+[data-theme="dark"] .semiont-reference-link {
+  color: var(--semiont-motivation-reference-dark-primary);
+}
+
+.semiont-reference-link:focus-visible {
+  outline: 2px solid var(--semiont-motivation-reference-primary);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+[data-theme="dark"] .semiont-reference-link:focus-visible {
+  outline-color: var(--semiont-motivation-reference-dark-primary);
+}
+
+/* ============================================
+   Image Annotation Overlays
+   ============================================ */
+.semiont-image-annotation-reference {
+  stroke: var(--semiont-motivation-reference-primary);
+  fill: var(--semiont-motivation-reference-border);
+}
+
+.semiont-image-annotation-reference:hover {
+  stroke-width: 3px;
+  fill: var(--semiont-motivation-reference-border-hover);
+}
+
+[data-theme="dark"] .semiont-image-annotation-reference {
+  stroke: var(--semiont-motivation-reference-dark-primary);
+  fill: rgba(6, 182, 212, 0.2);
+}

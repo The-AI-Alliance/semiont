@@ -62,7 +62,7 @@ function DropdownGroup({
 
   return (
     <div
-      className="relative"
+      className="semiont-dropdown-group"
       onMouseEnter={() => onHoverChange(true)}
       onMouseLeave={() => onHoverChange(false)}
     >
@@ -73,7 +73,7 @@ function DropdownGroup({
         aria-haspopup="true"
         aria-expanded={isExpanded}
         aria-label={label}
-        className="flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-md transition-all hover:bg-blue-100/80 dark:hover:bg-blue-900/30 hover:border-blue-400 dark:hover:border-blue-600 border border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        className="semiont-dropdown-trigger"
         onClick={onPin}
         onKeyDown={handleKeyDown}
       >
@@ -87,10 +87,10 @@ function DropdownGroup({
           ref={dropdownRef}
           role="menu"
           aria-orientation="vertical"
-          className="absolute top-full left-0 pt-2 z-50"
+          className="semiont-dropdown-menu"
         >
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-2 min-w-max flex flex-col gap-1">
-            <div className="text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider px-2 py-1 border-b border-gray-200 dark:border-gray-700">
+          <div className="semiont-dropdown-content">
+            <div className="semiont-dropdown-header">
               {label}
             </div>
             {expandedContent}
@@ -228,19 +228,6 @@ export function AnnotateToolbar({
     onClick: () => void,
     isDelete: boolean = false
   ) => {
-    const baseClasses = 'px-2 py-1 rounded-md transition-all flex items-center gap-1.5 font-medium border-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 text-left whitespace-nowrap';
-
-    let classes = baseClasses;
-    if (isDelete) {
-      classes += isSelected
-        ? ' bg-red-600 dark:bg-red-800 text-white dark:text-red-50'
-        : ' text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20';
-    } else {
-      classes += isSelected
-        ? ' bg-gray-300 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
-        : ' text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800';
-    }
-
     return (
       <button
         role="menuitem"
@@ -248,12 +235,14 @@ export function AnnotateToolbar({
           e.stopPropagation(); // Prevent click from bubbling to parent container
           onClick();
         }}
-        className={classes}
+        className="semiont-toolbar-menu-button"
+        data-selected={isSelected}
+        data-delete={isDelete}
         aria-pressed={isSelected}
         aria-label={label}
       >
-        <span className="text-lg" aria-hidden="true">{icon}</span>
-        <span className="text-sm">{label}</span>
+        <span className="semiont-toolbar-menu-icon" aria-hidden="true">{icon}</span>
+        <span className="semiont-toolbar-menu-label">{label}</span>
       </button>
     );
   };
@@ -286,7 +275,7 @@ export function AnnotateToolbar({
   ];
 
   return (
-    <div className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+    <div className="semiont-annotate-toolbar">
       {/* Click Group */}
       <DropdownGroup
         label={t('clickGroup')}
@@ -295,11 +284,11 @@ export function AnnotateToolbar({
         onPin={() => setClickPinned(!clickPinned)}
         containerRef={clickRef}
         collapsedContent={
-          <div className="flex items-center gap-2">
-            <span className="text-lg">
+          <div className="semiont-dropdown-display">
+            <span className="semiont-dropdown-icon">
               {clickActions.find(a => a.action === selectedClick)?.icon}
             </span>
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <span className="semiont-dropdown-label">
               {clickActions.find(a => a.action === selectedClick)?.label}
             </span>
           </div>
@@ -316,7 +305,7 @@ export function AnnotateToolbar({
       />
 
       {/* Separator */}
-      <div className="h-8 w-px bg-gray-300 dark:bg-gray-600" />
+      <div className="semiont-toolbar-separator" />
 
       {/* Mode Group */}
       <DropdownGroup
@@ -326,9 +315,9 @@ export function AnnotateToolbar({
         onPin={() => setModePinned(!modePinned)}
         containerRef={modeRef}
         collapsedContent={
-          <div className="flex items-center gap-2">
-            <span className="text-lg">{annotateMode ? '✏️' : '📖'}</span>
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          <div className="semiont-dropdown-display">
+            <span className="semiont-dropdown-icon">{annotateMode ? '✏️' : '📖'}</span>
+            <span className="semiont-dropdown-label">
               {annotateMode ? t('annotate') : t('browse')}
             </span>
           </div>
@@ -342,7 +331,7 @@ export function AnnotateToolbar({
       />
 
       {/* Separator */}
-      {showSelectionGroup && <div className="h-8 w-px bg-gray-300 dark:bg-gray-600" />}
+      {showSelectionGroup && <div className="semiont-toolbar-separator" />}
 
       {/* Selection Group */}
       {showSelectionGroup && (
@@ -353,9 +342,9 @@ export function AnnotateToolbar({
           onPin={() => setSelectionPinned(!selectionPinned)}
           containerRef={selectionRef}
           collapsedContent={
-            <div className="flex items-center gap-2">
-              <span className="text-lg">{selectedMotivation ? getMotivationEmoji(selectedMotivation) : '—'}</span>
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <div className="semiont-dropdown-display">
+              <span className="semiont-dropdown-icon">{selectedMotivation ? getMotivationEmoji(selectedMotivation) : '—'}</span>
+              <span className="semiont-dropdown-label">
                 {selectedMotivation
                   ? selectionMotivations.find(m => m.motivation === selectedMotivation)?.label
                   : t('none')
@@ -388,7 +377,7 @@ export function AnnotateToolbar({
       )}
 
       {/* Separator */}
-      {showShapeGroup && <div className="h-8 w-px bg-gray-300 dark:bg-gray-600" />}
+      {showShapeGroup && <div className="semiont-toolbar-separator" />}
 
       {/* Shape Group */}
       {showShapeGroup && (
@@ -399,11 +388,11 @@ export function AnnotateToolbar({
           onPin={() => setShapePinned(!shapePinned)}
           containerRef={shapeRef}
           collapsedContent={
-            <div className="flex items-center gap-2">
-              <span className="text-lg">
+            <div className="semiont-dropdown-display">
+              <span className="semiont-dropdown-icon">
                 {shapeTypes.find(s => s.shape === selectedShape)?.icon}
               </span>
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              <span className="semiont-dropdown-label">
                 {shapeTypes.find(s => s.shape === selectedShape)?.label}
               </span>
             </div>

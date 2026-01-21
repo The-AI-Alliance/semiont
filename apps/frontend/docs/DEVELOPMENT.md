@@ -13,6 +13,7 @@ Complete guide to local development workflows, common tasks, debugging, and trou
 - [Debugging Tips](#debugging-tips)
 - [Common Troubleshooting](#common-troubleshooting)
 - [Code Style Guidelines](#code-style-guidelines)
+- [CSS and Styling Workflow](#css-and-styling-workflow)
 - [Related Documentation](#related-documentation)
 
 ## Local Development with Semiont CLI
@@ -536,6 +537,99 @@ const envSchema = z.object({
 - Use type inference where possible
 - Define interfaces for props and data structures
 - Use const assertions for literal types
+
+## CSS and Styling Workflow
+
+The frontend uses a **hybrid CSS architecture** combining semantic CSS from @semiont/react-ui with Tailwind for app-specific styling.
+
+### When to Use Which System
+
+#### Use @semiont/react-ui Components (Semantic CSS)
+When the component exists in @semiont/react-ui, use it directly:
+
+```tsx
+import { Button, Card, Toolbar } from '@semiont/react-ui';
+
+// These come with semantic CSS classes pre-applied
+<Button variant="primary">Click me</Button>
+<Card>
+  <Card.Header>Title</Card.Header>
+  <Card.Content>Content</Card.Content>
+</Card>
+```
+
+**Benefits:**
+- Consistent styling across the application
+- Framework-agnostic (no Tailwind dependency)
+- Built-in accessibility features
+- Managed dark mode support
+
+#### Use Tailwind for App-Specific Components
+For components unique to the frontend application:
+
+```tsx
+// App-specific layout component
+<div className="flex items-center gap-4 p-6 bg-white dark:bg-gray-800">
+  <span className="text-lg font-semibold">Custom content</span>
+</div>
+```
+
+**Use Tailwind for:**
+- Page layouts and containers
+- Custom components not in @semiont/react-ui
+- Spacing and positioning utilities
+- One-off styling needs
+
+### Combining Both Systems
+
+When you need to add spacing or layout to @semiont/react-ui components:
+
+```tsx
+// Good - adds spacing without breaking component styles
+<Button variant="primary" className="mt-4">
+  Submit
+</Button>
+
+// Bad - overriding semantic classes
+<Button variant="primary" className="bg-blue-500 hover:bg-blue-600">
+  Submit
+</Button>
+```
+
+### CSS Import Structure
+
+The CSS is imported in `src/app/globals.css`:
+
+```css
+/* Tailwind base styles */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Import all @semiont/react-ui styles */
+@import '@semiont/react-ui/styles';
+```
+
+### Dark Mode Coordination
+
+- **@semiont/react-ui**: Uses `data-theme="dark"` attribute
+- **Tailwind**: Uses `class="dark"` on HTML element
+- Both are coordinated by the theme provider
+
+### Style File Locations
+
+- **App-specific styles:** `/src/lib/button-styles.ts`, `/src/lib/annotation-styles.ts`
+- **Global styles:** `/src/app/globals.css`
+- **Component library styles:** `@semiont/react-ui/styles` (imported automatically)
+
+### Development Tips
+
+1. **Check @semiont/react-ui first** - Before creating a custom component
+2. **Use semantic classes** - Don't override @semiont/react-ui styles
+3. **Test dark mode** - Ensure both systems work in dark mode
+4. **Keep separation clear** - Components vs. layout utilities
+
+For detailed styling guidelines, see the [Style Guide](./style-guide.md).
 
 ## Related Documentation
 
