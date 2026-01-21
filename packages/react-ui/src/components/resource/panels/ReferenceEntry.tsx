@@ -171,7 +171,7 @@ export function ReferenceEntry({
             <div className="semiont-annotation-entry__action-row">
               <button
                 onClick={handleGenerate}
-                className="semiont-reference-button semiont-reference-button--primary semiont-reference-button--full"
+                className="semiont-reference-button semiont-reference-button--secondary semiont-reference-button--full"
                 title={t('generate')}
               >
                 ✨

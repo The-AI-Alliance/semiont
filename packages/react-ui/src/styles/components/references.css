@@ -301,3 +301,103 @@
 .semiont-panel__empty-message--small {
   font-size: 0.75rem;
 }
+
+/* ============================================
+   Reference Action Buttons
+   ============================================ */
+
+.semiont-reference-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.375rem 0.75rem;
+  font-size: 1rem;
+  line-height: 1.5;
+  border-radius: 0.375rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
+.semiont-reference-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-reference-button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+@media (prefers-contrast: more) {
+  .semiont-reference-button:focus-visible {
+    outline-width: 3px;
+  }
+}
+
+/* Primary variant - for main actions like Generate, Open */
+.semiont-reference-button--primary {
+  background: var(--semiont-gradient-primary);
+  color: var(--semiont-color-primary-700);
+  border-color: var(--semiont-color-primary-300);
+}
+
+.semiont-reference-button--primary:hover:not(:disabled) {
+  background: var(--semiont-gradient-primary-hover);
+  color: var(--semiont-color-neutral-0);
+  border-color: var(--semiont-color-primary-600);
+}
+
+[data-theme="dark"] .semiont-reference-button--primary {
+  background: var(--semiont-gradient-primary-dark);
+  color: var(--semiont-color-primary-400);
+  border-color: var(--semiont-color-primary-500);
+}
+
+[data-theme="dark"] .semiont-reference-button--primary:hover:not(:disabled) {
+  background: var(--semiont-gradient-primary-hover-dark);
+  color: var(--semiont-color-neutral-0);
+  border-color: var(--semiont-color-primary-400);
+}
+
+/* Secondary variant - for supporting actions like Find, Create, Unlink */
+.semiont-reference-button--secondary {
+  background-color: var(--semiont-bg-secondary);
+  color: var(--semiont-text-primary);
+  border-color: var(--semiont-color-gray-300);
+}
+
+.semiont-reference-button--secondary:hover:not(:disabled) {
+  background-color: var(--semiont-bg-tertiary);
+  border-color: var(--semiont-color-gray-400);
+}
+
+[data-theme="dark"] .semiont-reference-button--secondary {
+  background-color: var(--semiont-color-gray-700);
+  color: var(--semiont-text-primary);
+  border-color: var(--semiont-color-gray-600);
+}
+
+[data-theme="dark"] .semiont-reference-button--secondary:hover:not(:disabled) {
+  background-color: var(--semiont-color-gray-600);
+  border-color: var(--semiont-color-gray-500);
+}
+
+/* Size variants */
+.semiont-reference-button--full {
+  flex: 1;
+  min-width: 0;
+}
+
+.semiont-reference-button--wide {
+  flex: 2;
+  min-width: 0;
+}
+
+/* Disabled state */
+.semiont-reference-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
