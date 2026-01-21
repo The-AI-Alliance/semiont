@@ -158,7 +158,7 @@ export function ReferenceEntry({
             {annotateMode && (
               <button
                 onClick={handleUnlink}
-                className="semiont-reference-button semiont-reference-button--secondary"
+                className="semiont-reference-button semiont-reference-button--primary"
                 title={t('unlink')}
               >
                 ⛓️‍💥
@@ -171,21 +171,21 @@ export function ReferenceEntry({
             <div className="semiont-annotation-entry__action-row">
               <button
                 onClick={handleGenerate}
-                className="semiont-reference-button semiont-reference-button--secondary semiont-reference-button--full"
+                className="semiont-reference-button semiont-reference-button--primary semiont-reference-button--full"
                 title={t('generate')}
               >
                 ✨
               </button>
               <button
                 onClick={handleSearch}
-                className="semiont-reference-button semiont-reference-button--secondary semiont-reference-button--full"
+                className="semiont-reference-button semiont-reference-button--primary semiont-reference-button--full"
                 title={t('find')}
               >
                 🔍
               </button>
               <button
                 onClick={handleComposeDocument}
-                className="semiont-reference-button semiont-reference-button--secondary semiont-reference-button--full"
+                className="semiont-reference-button semiont-reference-button--primary semiont-reference-button--full"
                 title={t('create')}
               >
                 ✏️
