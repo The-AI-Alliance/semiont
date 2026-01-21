@@ -145,8 +145,7 @@
 /* AnnotateView Component */
 .semiont-annotate-view {
   position: relative;
-  padding: 0 1.5rem;
-  padding-bottom: 2rem;
+  padding: 0;
   background: var(--semiont-bg-primary);
   height: 100%;
   overflow-y: auto;
