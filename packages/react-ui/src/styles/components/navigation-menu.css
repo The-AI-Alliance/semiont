@@ -26,13 +26,30 @@
 }
 
 .semiont-navigation-menu__link:hover {
-  background: var(--semiont-bg-tertiary);
-  color: var(--semiont-text-primary);
+  background: var(--semiont-color-gray-100) !important;
+  color: var(--semiont-color-gray-900) !important;
+  cursor: pointer;
+}
+
+[data-theme="dark"] .semiont-navigation-menu__link:hover {
+  background: var(--semiont-color-gray-700) !important;
+  color: var(--semiont-color-gray-50) !important;
 }
 
 .semiont-navigation-menu__link:focus-visible {
   outline: 2px solid var(--semiont-color-primary-500);
   outline-offset: 2px;
+}
+
+.semiont-navigation-menu__link[aria-current="page"] {
+  background: var(--semiont-color-gray-200);
+  color: var(--semiont-color-gray-900);
+  font-weight: 600;
+}
+
+[data-theme="dark"] .semiont-navigation-menu__link[aria-current="page"] {
+  background: var(--semiont-color-gray-800);
+  color: var(--semiont-color-gray-100);
 }
 
 .semiont-navigation-menu__divider {
