@@ -8,6 +8,7 @@ A type-safe Node.js backend API providing comprehensive document management, W3C
 - **[Development Guide](./docs/DEVELOPMENT.md)** - Local development, CLI usage, manual setup
 - **[API Reference](../../specs/docs/API.md)** - API endpoints, request/response formats
 - **[Authentication](./docs/AUTHENTICATION.md)** - JWT tokens, OAuth, MCP authentication
+- **[Real-Time Events](./docs/REAL-TIME.md)** - SSE streaming, Event Store broadcasting, connection management
 - **[Logging](./docs/LOGGING.md)** - Winston logging, log levels, debugging 401s
 - **[Testing Guide](./docs/TESTING.md)** - Running tests, writing tests, coverage
 - **[Deployment Guide](./docs/DEPLOYMENT.md)** - Production deployment, rollbacks, monitoring
@@ -353,6 +354,7 @@ For detailed troubleshooting, see [Development Guide](./docs/DEVELOPMENT.md#trou
 - [Development Guide](./docs/DEVELOPMENT.md) - Complete local development setup
 - [API Reference](./docs/API.md) - All API endpoints and examples
 - [Authentication](./docs/AUTHENTICATION.md) - JWT, OAuth, MCP implementation
+- [Real-Time Events](./docs/REAL-TIME.md) - SSE streaming, Event Store broadcasting, connection management
 - [Database](./docs/DATABASE.md) - PostgreSQL setup for user authentication
 - [Filesystem](./docs/FILESYSTEM.md) - Storage patterns and providers
 - [Data Flow](./docs/DATA-FLOW.md) - Data flow across all storage layers
