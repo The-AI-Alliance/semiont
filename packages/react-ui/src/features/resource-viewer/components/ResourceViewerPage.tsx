@@ -726,6 +726,7 @@ export function ResourceViewerPage({
                   pendingReferenceSelection={pendingReferenceSelection}
                   allEntityTypes={allEntityTypes}
                   onGenerateDocument={handleGenerateDocument}
+                  generatingReferenceId={generationProgress?.referenceId ?? null}
                   onSearchDocuments={handleSearchDocuments}
                   onUpdateReference={handleUpdateReference}
                   onCancelDetection={handleCancelDetection}

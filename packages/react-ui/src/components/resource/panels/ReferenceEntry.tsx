@@ -21,6 +21,7 @@ interface ReferenceEntryProps {
   onSearchDocuments?: (referenceId: string, searchTerm: string) => void;
   onUpdateReference?: (referenceId: string, updates: Partial<Annotation>) => void;
   annotateMode?: boolean;
+  isGenerating?: boolean;
 }
 
 export function ReferenceEntry({
@@ -34,6 +35,7 @@ export function ReferenceEntry({
   onSearchDocuments,
   onUpdateReference,
   annotateMode = true,
+  isGenerating = false,
 }: ReferenceEntryProps) {
   const t = useTranslations('ReferencesPanel');
   const referenceRef = useRef<HTMLDivElement>(null);
@@ -158,7 +160,7 @@ export function ReferenceEntry({
             {annotateMode && (
               <button
                 onClick={handleUnlink}
-                className="semiont-reference-button semiont-reference-button--secondary"
+                className="semiont-reference-button semiont-reference-button--primary"
                 title={t('unlink')}
               >
                 ⛓️‍💥
@@ -173,19 +175,20 @@ export function ReferenceEntry({
                 onClick={handleGenerate}
                 className="semiont-reference-button semiont-reference-button--primary semiont-reference-button--full"
                 title={t('generate')}
+                data-generating={isGenerating ? 'true' : 'false'}
               >
                 ✨
               </button>
               <button
                 onClick={handleSearch}
-                className="semiont-reference-button semiont-reference-button--secondary semiont-reference-button--full"
+                className="semiont-reference-button semiont-reference-button--primary semiont-reference-button--full"
                 title={t('find')}
               >
                 🔍
               </button>
               <button
                 onClick={handleComposeDocument}
-                className="semiont-reference-button semiont-reference-button--secondary semiont-reference-button--full"
+                className="semiont-reference-button semiont-reference-button--primary semiont-reference-button--full"
                 title={t('create')}
               >
                 ✏️

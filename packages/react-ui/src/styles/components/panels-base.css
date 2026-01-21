@@ -227,6 +227,22 @@
   padding: var(--semiont-panel-padding);
 }
 
+/* Panel section (for detection/creation sections within panels) */
+.semiont-panel__section {
+  margin-bottom: 1.5rem;
+}
+
+.semiont-panel__section-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--semiont-color-gray-700);
+  margin-bottom: 0.75rem;
+}
+
+[data-theme="dark"] .semiont-panel__section-title {
+  color: var(--semiont-color-gray-300);
+}
+
 /* Panel list container (BEM style for motivation panels) */
 .semiont-panel__list {
   display: flex;

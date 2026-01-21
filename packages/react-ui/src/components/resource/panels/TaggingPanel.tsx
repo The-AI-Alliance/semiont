@@ -258,7 +258,7 @@ export function TaggingPanel({
 
               {/* Detection Progress */}
               {isDetecting && detectionProgress && (
-                <div className="semiont-detection-progress">
+                <div className="semiont-detection-progress" data-type="tag">
                   {/* Request Parameters */}
                   {detectionProgress.requestParams && detectionProgress.requestParams.length > 0 && (
                     <div className="semiont-detection-progress__params" data-type="tag">

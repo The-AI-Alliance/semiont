@@ -16,19 +16,15 @@ const translationCache = new Map<string, any>();
  * Supports: {count, plural, =0 {text} =1 {text} other {text}}
  */
 function processPluralFormat(text: string, params: Record<string, any>): string {
-  console.log('[processPluralFormat] Called with text:', text, 'params:', params);
   // Match {paramName, plural, ...} with proper brace counting
   const pluralMatch = text.match(/\{(\w+),\s*plural,\s*/);
   if (!pluralMatch) {
-    console.log('[processPluralFormat] No plural match found');
     return text;
   }
 
   const paramName = pluralMatch[1];
   const count = params[paramName];
-  console.log('[processPluralFormat] paramName:', paramName, 'count:', count);
   if (count === undefined) {
-    console.log('[processPluralFormat] Count undefined, returning original');
     return text;
   }
 
@@ -150,16 +146,13 @@ const defaultTranslationManager: TranslationManager = {
 
     // Handle parameter interpolation and plural format
     if (params && typeof translation === 'string') {
-      console.log('[Translation] Processing:', namespace, key, 'with params:', params, 'translation:', translation);
       let result = translation;
       // First process plural format
       result = processPluralFormat(result, params);
-      console.log('[Translation] After processPluralFormat:', result);
       // Then handle simple parameter interpolation
       Object.entries(params).forEach(([paramKey, paramValue]) => {
         result = result.replace(new RegExp(`\\{${paramKey}\\}`, 'g'), String(paramValue));
       });
-      console.log('[Translation] Final result:', result);
       return result;
     }
 

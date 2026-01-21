@@ -3,13 +3,17 @@
 import React from 'react';
 import { useTranslations } from '../contexts/TranslationContext';
 import type { DetectionProgress } from '../hooks/useDetectionProgress';
+import type { components } from '@semiont/api-client';
+
+type Motivation = components['schemas']['Motivation'];
 
 interface DetectionProgressWidgetProps {
   progress: DetectionProgress | null;
   onCancel?: () => void;
+  annotationType?: Motivation | 'reference';
 }
 
-export function DetectionProgressWidget({ progress, onCancel }: DetectionProgressWidgetProps) {
+export function DetectionProgressWidget({ progress, onCancel, annotationType = 'reference' }: DetectionProgressWidgetProps) {
   const t = useTranslations('DetectionProgressWidget');
 
   if (!progress) return null;
@@ -18,6 +22,7 @@ export function DetectionProgressWidget({ progress, onCancel }: DetectionProgres
     <div
       className="semiont-detection-progress"
       data-status={progress.status}
+      data-type={annotationType}
     >
       {/* Header with pulsing sparkle */}
       <div className="semiont-detection-header">
@@ -38,11 +43,11 @@ export function DetectionProgressWidget({ progress, onCancel }: DetectionProgres
 
       {/* Request Parameters */}
       {(progress as any).requestParams && (progress as any).requestParams.length > 0 && (
-        <div className="semiont-detection-params">
-          <div className="semiont-detection-params-title">Request Parameters:</div>
+        <div className="semiont-detection-progress__params">
+          <div className="semiont-detection-progress__params-title">Request Parameters:</div>
           {(progress as any).requestParams.map((param: { label: string; value: string }, idx: number) => (
-            <div key={idx} className="semiont-detection-params-item">
-              <span className="semiont-detection-params-label">{param.label}:</span> {param.value}
+            <div key={idx} className="semiont-detection-progress__param">
+              <span className="semiont-detection-progress__param-label">{param.label}:</span> {param.value}
             </div>
           ))}
         </div>
@@ -61,23 +66,29 @@ export function DetectionProgressWidget({ progress, onCancel }: DetectionProgres
         </div>
       )}
 
-      {/* Current entity type progress */}
-      <div className="semiont-detection-current">
-        <p className="semiont-detection-status-text">
-          {progress.status === 'complete' ? (
-            <span className="semiont-detection-status-complete">
-              ✅ {t('complete')}
-            </span>
-          ) : progress.status === 'error' ? (
-            <span className="semiont-detection-status-error">
-              ❌ {progress.message || t('failed')}
-            </span>
-          ) : progress.currentEntityType ? (
-            <span className="semiont-detection-status-active">
-              {t('current', { entityType: progress.currentEntityType })}
-            </span>
-          ) : null}
-        </p>
+      {/* Status display with pulsing animation */}
+      <div className="semiont-detection-progress__status">
+        {progress.status === 'complete' ? (
+          <div className="semiont-detection-progress__message">
+            <span className="semiont-detection-progress__icon">✅</span>
+            <span>{t('complete')}</span>
+          </div>
+        ) : progress.status === 'error' ? (
+          <div className="semiont-detection-progress__message">
+            <span className="semiont-detection-progress__icon">❌</span>
+            <span>{progress.message || t('failed')}</span>
+          </div>
+        ) : (
+          <div className="semiont-detection-progress__message">
+            <span className="semiont-detection-progress__icon">✨</span>
+            <span>{progress.message || (progress.currentEntityType ? t('current', { entityType: progress.currentEntityType }) : t('detecting'))}</span>
+          </div>
+        )}
+        {progress.currentEntityType && progress.status !== 'complete' && progress.status !== 'error' && (
+          <div className="semiont-detection-progress__details">
+            Processing: {progress.currentEntityType}
+          </div>
+        )}
       </div>
     </div>
   );
