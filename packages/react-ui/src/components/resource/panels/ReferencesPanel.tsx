@@ -268,6 +268,7 @@ export function ReferencesPanel({
             <DetectionProgressWidget
               progress={detectionProgress}
               onCancel={onCancelDetection}
+              annotationType="reference"
             />
           )}
 

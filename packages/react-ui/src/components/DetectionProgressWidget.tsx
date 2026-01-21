@@ -3,13 +3,17 @@
 import React from 'react';
 import { useTranslations } from '../contexts/TranslationContext';
 import type { DetectionProgress } from '../hooks/useDetectionProgress';
+import type { components } from '@semiont/api-client';
+
+type Motivation = components['schemas']['Motivation'];
 
 interface DetectionProgressWidgetProps {
   progress: DetectionProgress | null;
   onCancel?: () => void;
+  annotationType?: Motivation | 'reference';
 }
 
-export function DetectionProgressWidget({ progress, onCancel }: DetectionProgressWidgetProps) {
+export function DetectionProgressWidget({ progress, onCancel, annotationType = 'reference' }: DetectionProgressWidgetProps) {
   const t = useTranslations('DetectionProgressWidget');
 
   if (!progress) return null;
@@ -18,6 +22,7 @@ export function DetectionProgressWidget({ progress, onCancel }: DetectionProgres
     <div
       className="semiont-detection-progress"
       data-status={progress.status}
+      data-type={annotationType}
     >
       {/* Header with pulsing sparkle */}
       <div className="semiont-detection-header">
