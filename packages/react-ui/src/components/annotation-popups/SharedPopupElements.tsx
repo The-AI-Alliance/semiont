@@ -51,7 +51,7 @@ export function PopupHeader({ title, selectedText, onClose }: PopupHeaderProps) 
       <h3 className="semiont-popup-header__title">
         {title}
         {selectedText && (
-          <span className="semiont-popup-header__selected-text">
+          <span className="semiont-popup-header__subtitle">
             &ldquo;{selectedText}&rdquo;
           </span>
         )}
