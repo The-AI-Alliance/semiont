@@ -90,10 +90,25 @@ src/__tests__/integration/
 ### Security Tests
 
 ```
-src/__tests__/api/
-├── admin-endpoints.test.ts      # Admin access control
-└── documentation.test.ts        # API docs validation
+src/__tests__/
+├── route-auth-coverage.test.ts  # Comprehensive route authentication testing
+├── backend-security.test.ts     # Security requirements documentation
+├── security-controls.test.ts    # CORS and security headers
+└── api/
+    ├── admin-endpoints.test.ts  # Admin access control
+    └── documentation.test.ts    # API docs validation
 ```
+
+**Key Security Tests**:
+
+- **route-auth-coverage.test.ts** (615 lines) - **Critical comprehensive test**
+  - Tests ALL registered Hono routes dynamically
+  - Uses OpenAPI spec as single source of truth for public routes
+  - Validates all non-public routes return 401 without authentication
+  - Tests invalid tokens, malformed tokens, expired tokens
+  - Auto-detects route patterns and catch-all routes
+  - Provides coverage statistics (tested vs skipped routes)
+  - **Prevents authentication regressions** when adding/modifying routes
 
 ## Backend Testing Patterns
 
@@ -246,11 +261,37 @@ describe('OAuthService', () => {
 
 Current focus areas:
 
-1. **JWT Service** - Token creation, validation, domain checking
-2. **Validation Schemas** - 100% coverage of Zod schemas
-3. **Auth Middleware** - Token validation and user context
-4. **Prisma Operations** - Database CRUD operations
-5. **Environment Config** - Configuration validation
+1. **Route Authentication** - Comprehensive coverage via route-auth-coverage.test.ts
+   - All routes tested for proper authentication
+   - OpenAPI spec validation
+   - Invalid/expired token handling
+   - Auto-detects new routes (no hardcoded lists)
+
+2. **JWT Service** - Token creation, validation, domain checking
+   - HMAC SHA256 signature verification
+   - Token expiration handling
+   - Payload structure validation
+
+3. **Validation Schemas** - 100% coverage of Zod schemas
+   - Request body validation
+   - Response schema validation
+   - Error message validation
+
+4. **Auth Middleware** - Token validation and user context
+   - Bearer token extraction
+   - User database lookup
+   - Context injection
+
+5. **Prisma Operations** - Database CRUD operations
+6. **Environment Config** - Configuration validation
+
+### Security Test Coverage Goals
+
+- **Authentication**: 100% coverage (critical security) ✅
+- **Route Protection**: 100% coverage via route-auth-coverage.test.ts ✅
+- **Validation**: 100% coverage (all Zod schemas)
+- **Business Logic**: >80% coverage
+- **Integration Points**: Contract tests for all APIs
 
 ## Writing New Tests
 
@@ -385,12 +426,52 @@ curl -H "Authorization: Bearer $TOKEN" \
   http://localhost:4000/api/documents
 ```
 
-## Test Coverage Goals
+## Running Security Tests
 
-- **Authentication**: 100% coverage (critical security)
-- **Validation**: 100% coverage (all Zod schemas)
-- **Business Logic**: >80% coverage
-- **Integration Points**: Contract tests for all APIs
+Security tests are critical and run automatically in CI/CD:
+
+```bash
+# Run all security tests
+npm run test:security
+
+# Run specific security test files
+npm test route-auth-coverage.test.ts
+npm test backend-security.test.ts
+npm test security-controls.test.ts
+
+# Run security tests in watch mode
+npm run test:watch -- --testNamePattern=security
+```
+
+### Understanding route-auth-coverage.test.ts
+
+This test is the **cornerstone of backend security testing**:
+
+```typescript
+// Dynamically loads OpenAPI spec
+const publicRoutes = await loadPublicRoutesFromSpec();
+
+// Gets ALL registered Hono routes
+const routes = app.routes;
+
+// Tests each route
+for (const route of routes) {
+  if (isPublicRoute(route.path, publicRoutes)) {
+    // Skip - documented as public
+    continue;
+  }
+
+  // Test without authentication - MUST return 401
+  const res = await app.request(route.path, { method: route.method });
+  expect(res.status).toBe(401);
+}
+```
+
+**Why this matters**:
+- Catches forgotten authentication middleware
+- Validates OpenAPI spec matches implementation
+- No hardcoded route lists (tests adapt to codebase changes)
+- Prevents accidental exposure of protected endpoints
 
 ## Performance Optimization
 
@@ -442,7 +523,55 @@ describe('UserService', () => {
 - [Contributing Guide](./CONTRIBUTING.md) - Testing requirements for PRs
 - [API Reference](./API.md) - API endpoints to test
 
+## Adding Routes: Security Test Checklist
+
+When adding new backend routes:
+
+1. **Apply authentication middleware**:
+   ```typescript
+   // Add to existing protected router (automatic auth)
+   router.post('/api/resources/:id/my-action', async (c) => {
+     const user = c.get('user'); // Available automatically
+   });
+
+   // OR create new router with auth
+   export const myRouter = new Hono<{ Variables: { user: User } }>();
+   myRouter.use('/api/my-feature/*', authMiddleware);
+   ```
+
+2. **Document in OpenAPI spec**:
+   ```json
+   {
+     "post": {
+       "summary": "My action",
+       "security": [{ "bearerAuth": [] }],  // Protected route
+       "responses": { ... }
+     }
+   }
+   ```
+
+3. **Run security tests**:
+   ```bash
+   npm run test:security
+   ```
+
+4. **Verify coverage**:
+   - route-auth-coverage.test.ts should automatically test your new route
+   - Check test output for "Tested: X routes" to confirm coverage
+   - If route is public, ensure it has NO `security` field in OpenAPI spec
+
+**For admin/moderator routes**:
+```typescript
+router.post('/api/admin/my-action', async (c) => {
+  const user = c.get('user');
+  if (!user.isAdmin) {
+    return c.json({ error: 'Forbidden: Admin access required' }, 403);
+  }
+  // Admin logic
+});
+```
+
 ---
 
-**Last Updated**: 2025-10-23
-**Scope**: Backend testing with Jest (Node.js, TypeScript, Prisma)
+**Last Updated**: 2026-01-21
+**Scope**: Backend testing with Vitest (Node.js, TypeScript, Prisma, Security)
