@@ -9,6 +9,7 @@ export const SERVER_API_URL = process.env.SERVER_API_URL || '';
 
 // Site Configuration
 export const NEXT_PUBLIC_SITE_NAME = process.env.NEXT_PUBLIC_SITE_NAME || 'Semiont';
+export const NEXT_PUBLIC_BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 
 // OAuth Configuration
 export const NEXT_PUBLIC_GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;

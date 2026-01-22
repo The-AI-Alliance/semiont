@@ -7,7 +7,7 @@ import { notFound } from 'next/navigation';
 import "../globals.css";
 import "@/styles/animations.css";
 import { Providers } from "../providers";
-import { NEXT_PUBLIC_SITE_NAME } from "@/lib/env";
+import { NEXT_PUBLIC_SITE_NAME, NEXT_PUBLIC_BASE_URL } from "@/lib/env";
 import { CookieBanner } from "@/components/CookieBanner";
 import { SkipLinks } from "@semiont/react-ui";
 import { ClientModals } from "@/components/ClientModals";
@@ -20,6 +20,7 @@ const orbitron = Orbitron({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(NEXT_PUBLIC_BASE_URL),
   title: `${NEXT_PUBLIC_SITE_NAME} - AI-Powered Research Environment`,
   description: "A modern AI-powered research environment for collaborative knowledge work and analysis",
   icons: {

@@ -1,0 +1,24 @@
+/* ============================================
+   UserPanel Component
+   User account information and session management
+   ============================================ */
+
+.semiont-user-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--semiont-panel-gap);
+  padding: var(--semiont-panel-padding);
+  background: var(--semiont-bg-primary);
+  border-radius: var(--semiont-panel-border-radius);
+}
+
+.semiont-user-panel__title {
+  margin: 0 0 var(--semiont-panel-header-margin-bottom);
+  font-size: var(--semiont-panel-title-size);
+  font-weight: var(--semiont-panel-title-weight);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-user-panel__title {
+  color: var(--semiont-text-primary);
+}

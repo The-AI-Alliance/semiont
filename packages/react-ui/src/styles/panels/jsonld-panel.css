@@ -9,6 +9,25 @@
   flex-direction: column;
 }
 
+.semiont-jsonld-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--semiont-panel-padding);
+  padding-bottom: var(--semiont-panel-gap);
+}
+
+.semiont-jsonld-panel__title {
+  margin: 0;
+  font-size: var(--semiont-panel-title-size);
+  font-weight: var(--semiont-panel-title-weight);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-jsonld-panel__title {
+  color: var(--semiont-text-primary);
+}
+
 .semiont-jsonld-panel__editor {
   flex: 1;
   overflow: hidden;

@@ -118,6 +118,15 @@ static_resources:
                   cluster: backend
                   timeout: 30s
 
+              # Next.js static assets (must come before catch-all)
+              # Preserve Content-Type headers from Next.js
+              - match:
+                  prefix: "/_next/"
+                route:
+                  cluster: frontend
+                  timeout: 30s
+                  auto_host_rewrite: true
+
               # Everything else goes to frontend (Next.js pages)
               - match:
                   prefix: "/"

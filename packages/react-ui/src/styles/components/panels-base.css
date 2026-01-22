@@ -243,6 +243,58 @@
   color: var(--semiont-color-gray-300);
 }
 
+/* Collapsible section title */
+.semiont-panel__section-title--collapsible {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  margin: 0 -0.75rem 0.75rem;
+  border-radius: var(--semiont-radius-md);
+  cursor: pointer;
+  transition: background var(--semiont-duration-base);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--semiont-color-gray-700);
+}
+
+.semiont-panel__section-title--collapsible:hover {
+  background: var(--semiont-bg-tertiary);
+}
+
+[data-theme="dark"] .semiont-panel__section-title--collapsible {
+  color: var(--semiont-color-gray-300);
+}
+
+[data-theme="dark"] .semiont-panel__section-title--collapsible:hover {
+  background: var(--semiont-bg-tertiary);
+}
+
+.semiont-panel__section-title--collapsible:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+/* Chevron icon */
+.semiont-panel__section-chevron {
+  font-size: 1.5rem;
+  color: var(--semiont-color-gray-500);
+  transition: transform var(--semiont-duration-base);
+  user-select: none;
+}
+
+.semiont-panel__section-chevron[data-expanded="true"] {
+  transform: rotate(90deg);
+}
+
+[data-theme="dark"] .semiont-panel__section-chevron {
+  color: var(--semiont-color-gray-400);
+}
+
 /* Panel list container (BEM style for motivation panels) */
 .semiont-panel__list {
   display: flex;

@@ -85,6 +85,19 @@ export function ReferencesPanel({
   const [pendingEntityTypes, setPendingEntityTypes] = useState<string[]>([]);
   const [includeDescriptiveReferences, setIncludeDescriptiveReferences] = useState(false);
 
+  // Collapsible detection section state - load from localStorage, default expanded
+  const [isDetectExpanded, setIsDetectExpanded] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    const stored = localStorage.getItem('detect-section-expanded-reference');
+    return stored ? stored === 'true' : true;
+  });
+
+  // Persist detection section expanded state to localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('detect-section-expanded-reference', String(isDetectExpanded));
+  }, [isDetectExpanded]);
+
   const { sortedAnnotations, containerRef, handleAnnotationRef } =
     useAnnotationPanel(annotations, hoveredAnnotationId);
 
@@ -186,12 +199,22 @@ export function ReferencesPanel({
         {/* Detection Section - only in Annotate mode and for text resources */}
         {annotateMode && isTextResource && (
           <div className="semiont-panel__section">
-            <h3 className="semiont-panel__section-title">
-              {t('title')}
-            </h3>
-            {/* Show annotation UI only when not detecting and no completed log */}
-            {!detectionProgress && !lastDetectionLog && (
-            <div className="semiont-detect-widget" data-type="reference">
+            <button
+              onClick={() => setIsDetectExpanded(!isDetectExpanded)}
+              className="semiont-panel__section-title semiont-panel__section-title--collapsible"
+              aria-expanded={isDetectExpanded}
+              type="button"
+            >
+              <span>{t('title')}</span>
+              <span className="semiont-panel__section-chevron" data-expanded={isDetectExpanded}>
+                ›
+              </span>
+            </button>
+            {isDetectExpanded && (
+              <>
+                {/* Show annotation UI only when not detecting and no completed log */}
+                {!detectionProgress && !lastDetectionLog && (
+                <div className="semiont-detect-widget" data-type="reference">
             <>
               {/* Entity Types Selection */}
               <div className="semiont-detect-widget__entity-types">
@@ -296,6 +319,8 @@ export function ReferencesPanel({
               </button>
             </div>
           )}
+              </>
+            )}
           </div>
         )}
 

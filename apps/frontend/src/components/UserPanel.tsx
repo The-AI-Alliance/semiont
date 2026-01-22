@@ -37,8 +37,8 @@ export function UserPanel() {
   };
 
   return (
-    <div>
-      <h3 className="semiont-panel-title">
+    <div className="semiont-user-panel">
+      <h3 className="semiont-user-panel__title">
         {t('account')}
       </h3>
 

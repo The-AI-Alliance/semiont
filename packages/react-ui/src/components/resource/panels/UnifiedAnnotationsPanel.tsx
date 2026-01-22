@@ -190,6 +190,11 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
 
   return (
     <div className="semiont-unified-panel">
+      {/* Panel Title */}
+      <h3 className="semiont-unified-panel__title">
+        {t('title')}
+      </h3>
+
       {/* Tab Navigation */}
       <div className="semiont-unified-panel__tabs">
         {TAB_ORDER.map(key => {

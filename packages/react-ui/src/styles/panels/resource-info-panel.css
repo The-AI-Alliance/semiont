@@ -14,6 +14,17 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
+.semiont-resource-info-panel__title {
+  margin: 0 0 var(--semiont-panel-header-margin-bottom);
+  font-size: var(--semiont-panel-title-size);
+  font-weight: var(--semiont-panel-title-weight);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-resource-info-panel__title {
+  color: var(--semiont-text-primary);
+}
+
 .semiont-resource-info-panel__section {
   margin-bottom: var(--semiont-panel-gap);
 }
@@ -23,20 +34,18 @@
 }
 
 .semiont-resource-info-panel__heading {
-  font-size: var(--semiont-text-sm);
+  font-size: var(--semiont-text-base);
   font-weight: var(--semiont-font-semibold);
-  color: var(--semiont-text-secondary);
+  color: var(--semiont-text-primary);
   margin-bottom: var(--semiont-panel-gap-sm);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
 [data-theme="dark"] .semiont-resource-info-panel__heading {
-  color: var(--semiont-text-secondary);
+  color: var(--semiont-text-primary);
 }
 
 .semiont-resource-info-panel__value {
-  font-size: var(--semiont-text-base);
+  font-size: var(--semiont-text-sm);
   color: var(--semiont-text-primary);
 }
 
@@ -157,7 +166,7 @@
   font-size: var(--semiont-text-xs);
   color: var(--semiont-text-tertiary);
   margin-top: var(--semiont-panel-gap-sm);
-  line-height: 1.4;
+  line-height: 1.5;
 }
 
 [data-theme="dark"] .semiont-resource-info-panel__description {

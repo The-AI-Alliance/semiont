@@ -39,6 +39,11 @@ export function CollaborationPanel({
 
   return (
     <div className="semiont-collaboration-panel">
+      {/* Panel Title */}
+      <h3 className="semiont-collaboration-panel__title">
+        {t('title')}
+      </h3>
+
       {/* Connection Status Section */}
       <div className="semiont-collaboration-panel__section">
         <h3 className="semiont-collaboration-panel__heading">

@@ -426,11 +426,16 @@
   width: 20rem;
   background: var(--semiont-bg-primary);
   border-left: 1px solid var(--semiont-color-gray-200);
-  padding: 1rem;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   height: 100%;
+}
+
+/* Wider panels for Annotations and JSON-LD */
+.semiont-toolbar-panels:has(.semiont-unified-panel),
+.semiont-toolbar-panels:has(.semiont-jsonld-panel) {
+  width: 28rem;
 }
 
 [data-theme="dark"] .semiont-toolbar-panels {
@@ -440,7 +445,7 @@
 
 .semiont-toolbar-panels__content {
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden; /* Don't scroll here - panels inside handle their own scrolling */
   min-height: 0;
 }
 

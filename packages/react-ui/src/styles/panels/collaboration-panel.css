@@ -12,6 +12,17 @@
   border-radius: var(--semiont-panel-border-radius);
 }
 
+.semiont-collaboration-panel__title {
+  margin: 0 0 var(--semiont-panel-header-margin-bottom);
+  font-size: var(--semiont-panel-title-size);
+  font-weight: var(--semiont-panel-title-weight);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-collaboration-panel__title {
+  color: var(--semiont-text-primary);
+}
+
 /* Sections */
 .semiont-collaboration-panel__section {
   display: flex;
@@ -31,7 +42,7 @@
 /* Headings */
 .semiont-collaboration-panel__heading {
   margin: 0 0 var(--semiont-panel-gap-sm);
-  font-size: var(--semiont-text-base);
+  font-size: var(--semiont-text-sm);
   font-weight: var(--semiont-font-semibold);
   color: var(--semiont-text-primary);
 }
@@ -110,6 +121,7 @@
   gap: 0.25rem;
   font-size: var(--semiont-text-sm);
   color: var(--semiont-text-secondary);
+  line-height: 1.5;
 }
 
 [data-theme="dark"] .semiont-collaboration-panel__details {
@@ -131,6 +143,7 @@
   font-size: var(--semiont-text-sm);
   color: var(--semiont-text-tertiary);
   font-style: italic;
+  line-height: 1.5;
 }
 
 [data-theme="dark"] .semiont-collaboration-panel__description {
