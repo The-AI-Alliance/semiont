@@ -9,6 +9,19 @@
   flex-direction: column;
 }
 
+.semiont-unified-panel__title {
+  margin: 0 0 var(--semiont-panel-header-margin-bottom);
+  padding: var(--semiont-panel-padding);
+  padding-bottom: 0;
+  font-size: var(--semiont-panel-title-size);
+  font-weight: var(--semiont-panel-title-weight);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-unified-panel__title {
+  color: var(--semiont-text-primary);
+}
+
 .semiont-unified-panel__tabs {
   display: flex;
   gap: 0;

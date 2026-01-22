@@ -29,6 +29,11 @@ export function ResourceInfoPanel({
 
   return (
     <div className="semiont-resource-info-panel">
+      {/* Panel Title */}
+      <h3 className="semiont-resource-info-panel__title">
+        {t('title')}
+      </h3>
+
       {/* Locale Section */}
       <div className="semiont-resource-info-panel__section">
         <h3 className="semiont-resource-info-panel__heading">{t('locale')}</h3>
