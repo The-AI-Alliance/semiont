@@ -90,3 +90,7 @@ public/favicon-*.png
 public/apple-touch-icon.png
 public/android-chrome-*.png
 public/site.webmanifest
+
+# Merged translation files
+# Generated from messages-source/ and packages/react-ui/translations/ by merge-translations.js
+messages/*.json
