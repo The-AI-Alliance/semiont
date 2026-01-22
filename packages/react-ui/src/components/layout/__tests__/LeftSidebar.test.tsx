@@ -31,17 +31,6 @@ vi.mock('@/hooks/useAuth', () => ({
   })),
 }));
 
-vi.mock('@/hooks/useUI', () => ({
-  useDropdown: vi.fn(() => ({
-    isOpen: false,
-    toggle: vi.fn(),
-    close: vi.fn(),
-    dropdownRef: { current: null },
-  })),
-}));
-
-import { useDropdown } from '@/hooks/useUI';
-
 // Mock Link component
 const MockLink = ({ href, children, ...props }: any) => (
   <a href={href} {...props}>{children}</a>
@@ -79,12 +68,6 @@ describe('LeftSidebar Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorageMock.clear();
-    vi.mocked(useDropdown).mockReturnValue({
-      isOpen: false,
-      toggle: vi.fn(),
-      close: vi.fn(),
-      dropdownRef: { current: null },
-    });
   });
 
   describe('Rendering', () => {
@@ -118,7 +101,7 @@ describe('LeftSidebar Component', () => {
       expect(screen.getByTestId('semiont-branding')).toBeInTheDocument();
     });
 
-    it('should render navigation button', () => {
+    it('should render branding link', () => {
       render(
         <LeftSidebar
           Link={MockLink}
@@ -130,8 +113,8 @@ describe('LeftSidebar Component', () => {
         </LeftSidebar>
       );
 
-      const button = screen.getByLabelText('Navigation menu');
-      expect(button).toBeInTheDocument();
+      const brandingLink = screen.getByLabelText('Go to home page');
+      expect(brandingLink).toBeInTheDocument();
     });
   });
 
@@ -272,14 +255,12 @@ describe('LeftSidebar Component', () => {
     });
   });
 
-  describe('Dropdown Menu', () => {
-    it('should toggle dropdown when button clicked', () => {
-      const mockToggle = vi.fn();
-      vi.mocked(useDropdown).mockReturnValue({
-        isOpen: false,
-        toggle: mockToggle,
-        close: vi.fn(),
-        dropdownRef: { current: null },
+  describe('Navigation Menu Helper', () => {
+    it('should provide navigationMenu helper to function children', () => {
+      const mockChildren = vi.fn((isCollapsed, toggleCollapsed, navigationMenu) => {
+        // Test that navigationMenu helper returns NavigationMenu component
+        const menuElement = navigationMenu(() => {});
+        return <div data-testid="children-content">{menuElement}</div>;
       });
 
       render(
@@ -288,46 +269,21 @@ describe('LeftSidebar Component', () => {
           routes={mockRoutes}
           t={mockT}
           tHome={mockTHome}
+          isAdmin={true}
         >
-          <div>Content</div>
+          {mockChildren}
         </LeftSidebar>
       );
 
-      const button = screen.getByLabelText('Navigation menu');
-      fireEvent.click(button);
-
-      expect(mockToggle).toHaveBeenCalledOnce();
-    });
-
-    it('should show dropdown menu when open and authenticated', () => {
-      vi.mocked(useDropdown).mockReturnValue({
-        isOpen: true,
-        toggle: vi.fn(),
-        close: vi.fn(),
-        dropdownRef: { current: null },
-      });
-
-      render(
-        <LeftSidebar
-          Link={MockLink}
-          routes={mockRoutes}
-          t={mockT}
-          tHome={mockTHome}
-          isAuthenticated={true}
-        >
-          <div>Content</div>
-        </LeftSidebar>
-      );
-
+      expect(mockChildren).toHaveBeenCalled();
       expect(screen.getByTestId('navigation-menu')).toBeInTheDocument();
     });
 
-    it('should not show dropdown menu when not authenticated', () => {
-      vi.mocked(useDropdown).mockReturnValue({
-        isOpen: true,
-        toggle: vi.fn(),
-        close: vi.fn(),
-        dropdownRef: { current: null },
+    it('should pass onClose callback to NavigationMenu', () => {
+      const mockOnClose = vi.fn();
+      const mockChildren = vi.fn((isCollapsed, toggleCollapsed, navigationMenu) => {
+        const menuElement = navigationMenu(mockOnClose);
+        return <div>{menuElement}</div>;
       });
 
       render(
@@ -336,40 +292,16 @@ describe('LeftSidebar Component', () => {
           routes={mockRoutes}
           t={mockT}
           tHome={mockTHome}
-          isAuthenticated={false}
         >
-          <div>Content</div>
+          {mockChildren}
         </LeftSidebar>
       );
 
-      expect(screen.queryByTestId('navigation-menu')).not.toBeInTheDocument();
-    });
-
-    it('should close dropdown when menu item clicked', () => {
-      const mockClose = vi.fn();
-      vi.mocked(useDropdown).mockReturnValue({
-        isOpen: true,
-        toggle: vi.fn(),
-        close: mockClose,
-        dropdownRef: { current: null },
-      });
-
-      render(
-        <LeftSidebar
-          Link={MockLink}
-          routes={mockRoutes}
-          t={mockT}
-          tHome={mockTHome}
-          isAuthenticated={true}
-        >
-          <div>Content</div>
-        </LeftSidebar>
-      );
-
+      // Click the menu item which should trigger onClose
       const menuItem = screen.getByText('Menu Item');
       fireEvent.click(menuItem);
 
-      expect(mockClose).toHaveBeenCalledOnce();
+      expect(mockOnClose).toHaveBeenCalledOnce();
     });
   });
 
@@ -428,7 +360,7 @@ describe('LeftSidebar Component', () => {
   });
 
   describe('Accessibility', () => {
-    it('should have proper ARIA attributes on button', () => {
+    it('should have proper ARIA attributes on nav element', () => {
       render(
         <LeftSidebar
           Link={MockLink}
@@ -440,21 +372,12 @@ describe('LeftSidebar Component', () => {
         </LeftSidebar>
       );
 
-      const button = screen.getByLabelText('Navigation menu');
-      expect(button).toHaveAttribute('aria-expanded', 'false');
-      expect(button).toHaveAttribute('aria-controls', 'sidebar-nav-dropdown');
-      expect(button).toHaveAttribute('aria-haspopup', 'true');
-      expect(button).toHaveAttribute('id', 'sidebar-nav-button');
+      const nav = screen.getByRole('navigation');
+      expect(nav).toHaveAttribute('aria-label', 'Main navigation');
+      expect(nav).toHaveAttribute('id', 'main-navigation');
     });
 
-    it('should update aria-expanded when dropdown opens', () => {
-      vi.mocked(useDropdown).mockReturnValue({
-        isOpen: true,
-        toggle: vi.fn(),
-        close: vi.fn(),
-        dropdownRef: { current: null },
-      });
-
+    it('should have accessible branding link', () => {
       render(
         <LeftSidebar
           Link={MockLink}
@@ -466,34 +389,8 @@ describe('LeftSidebar Component', () => {
         </LeftSidebar>
       );
 
-      const button = screen.getByLabelText('Navigation menu');
-      expect(button).toHaveAttribute('aria-expanded', 'true');
-    });
-
-    it('should have proper menu role attributes', () => {
-      vi.mocked(useDropdown).mockReturnValue({
-        isOpen: true,
-        toggle: vi.fn(),
-        close: vi.fn(),
-        dropdownRef: { current: null },
-      });
-
-      render(
-        <LeftSidebar
-          Link={MockLink}
-          routes={mockRoutes}
-          t={mockT}
-          tHome={mockTHome}
-          isAuthenticated={true}
-        >
-          <div>Content</div>
-        </LeftSidebar>
-      );
-
-      const dropdown = screen.getByRole('menu');
-      expect(dropdown).toHaveAttribute('aria-orientation', 'vertical');
-      expect(dropdown).toHaveAttribute('aria-labelledby', 'sidebar-nav-button');
-      expect(dropdown).toHaveAttribute('id', 'sidebar-nav-dropdown');
+      const brandingLink = screen.getByLabelText('Go to home page');
+      expect(brandingLink).toHaveAttribute('href', '/');
     });
   });
 

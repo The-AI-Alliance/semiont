@@ -71,8 +71,8 @@ export function ModerationNavigation({ navigationMenu }: ModerationNavigationPro
       isCollapsed={isCollapsed}
       onToggleCollapse={handleToggleCollapse}
       icons={{
-        chevronLeft: ChevronLeftIcon,
-        bars: Bars3Icon
+        chevronLeft: ChevronLeftIcon as React.ComponentType<{ className?: string }>,
+        bars: Bars3Icon as React.ComponentType<{ className?: string }>
       }}
       collapseSidebarLabel={tSidebar('collapseSidebar')}
       expandSidebarLabel={tSidebar('expandSidebar')}

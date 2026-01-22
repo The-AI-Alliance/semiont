@@ -28,7 +28,6 @@ describe('NavigationMenu Component', () => {
 
   const mockTranslate = vi.fn((key: string) => {
     const translations: Record<string, string> = {
-      'home': 'Home',
       'know': 'Knowledge',
       'moderate': 'Moderate',
       'administer': 'Administer',
@@ -48,19 +47,6 @@ describe('NavigationMenu Component', () => {
   });
 
   describe('Basic Rendering', () => {
-    it('should render home link', () => {
-      render(
-        <NavigationMenu
-          Link={mockLink}
-          routes={mockRoutes}
-          t={mockTranslate}
-        />
-      );
-
-      expect(screen.getByText('Home')).toBeInTheDocument();
-      expect(mockTranslate).toHaveBeenCalledWith('home');
-    });
-
     it('should render knowledge link', () => {
       render(
         <NavigationMenu
@@ -74,7 +60,7 @@ describe('NavigationMenu Component', () => {
       expect(mockTranslate).toHaveBeenCalledWith('know');
     });
 
-    it('should render all navigation links', () => {
+    it('should render only knowledge link when no permissions', () => {
       const { container } = render(
         <NavigationMenu
           Link={mockLink}
@@ -84,10 +70,10 @@ describe('NavigationMenu Component', () => {
       );
 
       const links = container.querySelectorAll('a');
-      expect(links.length).toBeGreaterThanOrEqual(2);
+      expect(links.length).toBe(1);
     });
 
-    it('should render dividers between sections', () => {
+    it('should not render dividers when only knowledge link visible', () => {
       const { container } = render(
         <NavigationMenu
           Link={mockLink}
@@ -97,38 +83,11 @@ describe('NavigationMenu Component', () => {
       );
 
       const dividers = container.querySelectorAll('hr');
-      expect(dividers.length).toBeGreaterThanOrEqual(1);
+      expect(dividers.length).toBe(0);
     });
   });
 
   describe('Link URLs', () => {
-    it('should use brandingLink for home', () => {
-      render(
-        <NavigationMenu
-          Link={mockLink}
-          routes={mockRoutes}
-          t={mockTranslate}
-          brandingLink="/custom-home"
-        />
-      );
-
-      const homeLink = screen.getByText('Home').closest('a');
-      expect(homeLink).toHaveAttribute('href', '/custom-home');
-    });
-
-    it('should use default home link when brandingLink not provided', () => {
-      render(
-        <NavigationMenu
-          Link={mockLink}
-          routes={mockRoutes}
-          t={mockTranslate}
-        />
-      );
-
-      const homeLink = screen.getByText('Home').closest('a');
-      expect(homeLink).toHaveAttribute('href', '/');
-    });
-
     it('should use routes.knowledge for knowledge link', () => {
       render(
         <NavigationMenu
@@ -273,7 +232,7 @@ describe('NavigationMenu Component', () => {
       expect(screen.getByText('Moderate')).toBeInTheDocument();
     });
 
-    it('should show divider after moderate link', () => {
+    it('should show divider before moderate link', () => {
       const { container } = render(
         <NavigationMenu
           Link={mockLink}
@@ -283,9 +242,8 @@ describe('NavigationMenu Component', () => {
         />
       );
 
-      const moderateLink = screen.getByText('Moderate');
-      const nextSibling = moderateLink.closest('a')?.nextElementSibling;
-      expect(nextSibling?.tagName).toBe('HR');
+      const dividers = container.querySelectorAll('hr');
+      expect(dividers.length).toBe(1);
     });
   });
 
@@ -385,7 +343,6 @@ describe('NavigationMenu Component', () => {
         />
       );
 
-      expect(screen.getByText('Home')).toBeInTheDocument();
       expect(screen.getByText('Knowledge')).toBeInTheDocument();
       expect(screen.getByText('Moderate')).toBeInTheDocument();
       expect(screen.getByText('Administer')).toBeInTheDocument();
@@ -393,22 +350,6 @@ describe('NavigationMenu Component', () => {
   });
 
   describe('Click Handling', () => {
-    it('should call onItemClick when home link is clicked', () => {
-      render(
-        <NavigationMenu
-          Link={mockLink}
-          routes={mockRoutes}
-          t={mockTranslate}
-          onItemClick={mockOnItemClick}
-        />
-      );
-
-      const homeLink = screen.getByText('Home');
-      fireEvent.click(homeLink);
-
-      expect(mockOnItemClick).toHaveBeenCalledTimes(1);
-    });
-
     it('should call onItemClick when knowledge link is clicked', () => {
       render(
         <NavigationMenu
@@ -468,8 +409,8 @@ describe('NavigationMenu Component', () => {
         />
       );
 
-      const homeLink = screen.getByText('Home').closest('a');
-      expect(homeLink).not.toHaveAttribute('onClick');
+      const knowledgeLink = screen.getByText('Knowledge').closest('a');
+      expect(knowledgeLink).not.toHaveAttribute('onClick');
     });
   });
 
@@ -567,11 +508,12 @@ describe('NavigationMenu Component', () => {
           routes={mockRoutes}
           t={mockTranslate}
           currentPath="/knowledge"
+          isModerator={true}
         />
       );
 
-      const homeLink = screen.getByText('Home').closest('a');
-      expect(homeLink).not.toHaveAttribute('aria-current');
+      const moderateLink = screen.getByText('Moderate').closest('a');
+      expect(moderateLink).not.toHaveAttribute('aria-current');
     });
 
     it('should have accessible link text', () => {
@@ -583,7 +525,6 @@ describe('NavigationMenu Component', () => {
         />
       );
 
-      expect(screen.getByText('Home')).toBeInTheDocument();
       expect(screen.getByText('Knowledge')).toBeInTheDocument();
     });
 
@@ -600,7 +541,7 @@ describe('NavigationMenu Component', () => {
       const nav = container.querySelector('nav');
       expect(nav).toBeInTheDocument();
       const links = nav?.querySelectorAll('a');
-      expect(links).toHaveLength(4); // Home, Knowledge, Moderate, Admin
+      expect(links).toHaveLength(3); // Knowledge, Moderate, Admin
     });
   });
 
@@ -615,7 +556,6 @@ describe('NavigationMenu Component', () => {
         />
       );
 
-      expect(mockTranslate).toHaveBeenCalledWith('home');
       expect(mockTranslate).toHaveBeenCalledWith('know');
       expect(mockTranslate).toHaveBeenCalledWith('moderate');
       expect(mockTranslate).toHaveBeenCalledWith('administer');
@@ -624,7 +564,6 @@ describe('NavigationMenu Component', () => {
     it('should use custom translations', () => {
       const customTranslate = vi.fn((key: string) => {
         const translations: Record<string, string> = {
-          'home': 'Casa',
           'know': 'Conocimiento',
           'moderate': 'Moderar',
           'administer': 'Administrar',
@@ -641,7 +580,6 @@ describe('NavigationMenu Component', () => {
         />
       );
 
-      expect(screen.getByText('Casa')).toBeInTheDocument();
       expect(screen.getByText('Conocimiento')).toBeInTheDocument();
       expect(screen.getByText('Moderar')).toBeInTheDocument();
       expect(screen.getByText('Administrar')).toBeInTheDocument();
@@ -658,7 +596,6 @@ describe('NavigationMenu Component', () => {
         />
       );
 
-      expect(mockTranslate).toHaveBeenCalledWith('home');
       expect(mockTranslate).toHaveBeenCalledWith('know');
       expect(mockTranslate).not.toHaveBeenCalledWith('moderate');
       expect(mockTranslate).not.toHaveBeenCalledWith('administer');
@@ -675,7 +612,6 @@ describe('NavigationMenu Component', () => {
         />
       );
 
-      expect(screen.getByText('Home')).toBeInTheDocument();
       expect(screen.getByText('Knowledge')).toBeInTheDocument();
     });
 
@@ -702,14 +638,14 @@ describe('NavigationMenu Component', () => {
 
     it('should handle all combinations of permissions', () => {
       const permutations = [
-        { isAdmin: false, isModerator: false, expectedCount: 2 },
-        { isAdmin: false, isModerator: true, expectedCount: 3 },
-        { isAdmin: true, isModerator: false, expectedCount: 4 },
-        { isAdmin: true, isModerator: true, expectedCount: 4 },
+        { isAdmin: false, isModerator: false, expectedCount: 1 }, // Knowledge only
+        { isAdmin: false, isModerator: true, expectedCount: 2 }, // Knowledge + Moderate
+        { isAdmin: true, isModerator: false, expectedCount: 3 }, // Knowledge + Moderate + Administer
+        { isAdmin: true, isModerator: true, expectedCount: 3 }, // Knowledge + Moderate + Administer
       ];
 
       permutations.forEach(({ isAdmin, isModerator, expectedCount }) => {
-        const { container } = render(
+        const { unmount, container } = render(
           <NavigationMenu
             Link={mockLink}
             routes={mockRoutes}
@@ -721,6 +657,7 @@ describe('NavigationMenu Component', () => {
 
         const links = container.querySelectorAll('a');
         expect(links).toHaveLength(expectedCount);
+        unmount();
       });
     });
   });

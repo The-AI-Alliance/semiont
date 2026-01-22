@@ -108,12 +108,10 @@ describe('NavigationMenu - Accessibility', () => {
         />
       );
 
-      const homeLink = screen.getByText('Home');
       const knowLink = screen.getByText('Knowledge');
       const moderateLink = screen.getByText('Moderate');
       const adminLink = screen.getByText('Administer');
 
-      expect(homeLink).toBeInTheDocument();
       expect(knowLink).toBeInTheDocument();
       expect(moderateLink).toBeInTheDocument();
       expect(adminLink).toBeInTheDocument();
@@ -172,7 +170,6 @@ describe('NavigationMenu - Accessibility', () => {
       );
 
       // Link text should be descriptive (not "click here" or "link")
-      expect(screen.getByText('Home')).toBeInTheDocument();
       expect(screen.getByText('Knowledge')).toBeInTheDocument();
       expect(screen.getByText('Moderate')).toBeInTheDocument();
       expect(screen.getByText('Administer')).toBeInTheDocument();
@@ -209,10 +206,6 @@ describe('NavigationMenu - Accessibility', () => {
           t={mockTranslate}
         />
       );
-
-      const homeLink = screen.getByText('Home').closest('a');
-      expect(homeLink).toBeInTheDocument();
-      expect(homeLink).toHaveTextContent('Home');
 
       const knowLink = screen.getByText('Knowledge').closest('a');
       expect(knowLink).toBeInTheDocument();
@@ -252,10 +245,9 @@ describe('NavigationMenu - Accessibility', () => {
       const links = container.querySelectorAll('a');
 
       // Links should be in DOM order (logical tab order)
-      expect(links[0]).toHaveTextContent('Home');
-      expect(links[1]).toHaveTextContent('Knowledge');
-      expect(links[2]).toHaveTextContent('Moderate');
-      expect(links[3]).toHaveTextContent('Administer');
+      expect(links[0]).toHaveTextContent('Knowledge');
+      expect(links[1]).toHaveTextContent('Moderate');
+      expect(links[2]).toHaveTextContent('Administer');
     });
   });
 
@@ -300,7 +292,6 @@ describe('NavigationMenu - Accessibility', () => {
 
       // Translation function should be called for navigation items
       expect(mockTranslate).toHaveBeenCalled();
-      expect(mockTranslate).toHaveBeenCalledWith('home');
       expect(mockTranslate).toHaveBeenCalledWith('know');
       expect(mockTranslate).toHaveBeenCalledWith('moderate');
       expect(mockTranslate).toHaveBeenCalledWith('administer');
@@ -320,9 +311,9 @@ describe('NavigationMenu - Accessibility', () => {
         />
       );
 
-      const homeLink = screen.getByText('Home').closest('a');
-      expect(homeLink).toBeInTheDocument();
-      homeLink?.click();
+      const knowLink = screen.getByText('Knowledge').closest('a');
+      expect(knowLink).toBeInTheDocument();
+      knowLink?.click();
 
       // Callback should be triggered
       expect(onItemClick).toHaveBeenCalled();
