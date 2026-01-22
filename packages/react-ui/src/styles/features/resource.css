@@ -426,7 +426,6 @@
   width: 20rem;
   background: var(--semiont-bg-primary);
   border-left: 1px solid var(--semiont-color-gray-200);
-  padding: 1rem;
   overflow: hidden;
   display: flex;
   flex-direction: column;
