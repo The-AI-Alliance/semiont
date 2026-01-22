@@ -20,7 +20,6 @@ export function PanelHeader({ annotationType, count, title }: PanelHeaderProps) 
   return (
     <div className="semiont-panel-header">
       <h2 className="semiont-panel-header__title">
-        <span className="semiont-panel-header__icon">{metadata?.iconEmoji}</span>
         <span className="semiont-panel-header__text">{title}</span>
         <span className="semiont-panel-header__count">({count})</span>
       </h2>
