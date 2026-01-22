@@ -44,8 +44,6 @@
 
 .semiont-page-layout__main {
   flex: 1;
-  /* Add padding-bottom to account for fixed footer */
-  padding-bottom: 2.5rem; /* Footer height: ~2.5rem total */
 }
 
 /* App Layout for Document/Knowledge Views */
@@ -57,10 +55,9 @@
   overflow: hidden;
 }
 
-/* Layout with footer - adds space for fixed footer */
+/* Layout with footer */
 .semiont-layout-with-footer {
-  /* Account for fixed footer height */
-  padding-bottom: 2.5rem; /* Footer height: 1rem padding * 2 + ~0.5rem content */
+  /* Footer participates in flex layout flow. Content areas are scrollable within their flex boundaries. */
 }
 
 .semiont-app-layout__content {

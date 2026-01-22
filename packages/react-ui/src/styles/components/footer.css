@@ -5,11 +5,7 @@
 .semiont-footer {
   background: var(--semiont-bg-primary);
   border-top: 1px solid var(--semiont-border-primary);
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 30; /* Below modals (50) but above content */
+  /* Footer participates in flex layout flow - no fixed positioning needed */
 }
 
 .semiont-footer__container {
