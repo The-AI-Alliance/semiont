@@ -432,6 +432,12 @@
   height: 100%;
 }
 
+/* Wider panels for Annotations and JSON-LD */
+.semiont-toolbar-panels:has(.semiont-unified-panel),
+.semiont-toolbar-panels:has(.semiont-jsonld-panel) {
+  width: 28rem;
+}
+
 [data-theme="dark"] .semiont-toolbar-panels {
   background: var(--semiont-bg-primary);
   border-left-color: var(--semiont-color-gray-700);
