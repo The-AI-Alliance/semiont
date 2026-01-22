@@ -1,8 +1,9 @@
 import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { usePathname } from 'next/navigation';
 import { AdminNavigation } from '../AdminNavigation';
+import type { SimpleNavigationProps } from '@semiont/react-ui';
 
 // Mock next/navigation
 vi.mock('next/navigation', () => ({
@@ -18,6 +19,30 @@ vi.mock('@/i18n/routing', async () => {
   };
 });
 
+// Mock next-intl
+const mockTranslations = {
+  Administration: {
+    title: 'Administration',
+    users: 'Users',
+    usersDescription: 'User management and permissions',
+    oauthSettings: 'OAuth Settings',
+    oauthSettingsDescription: 'View OAuth configuration',
+    devops: 'DevOps',
+    devopsDescription: 'Development operations and tools',
+  },
+  Sidebar: {
+    collapseSidebar: 'Collapse sidebar',
+    expandSidebar: 'Expand sidebar',
+  },
+};
+
+vi.mock('next-intl', () => ({
+  useTranslations: (namespace: string) => (key: string) => {
+    const translations = mockTranslations[namespace as keyof typeof mockTranslations];
+    return translations?.[key as keyof typeof translations] || key;
+  },
+}));
+
 // Mock Heroicons
 vi.mock('@heroicons/react/24/outline', () => ({
   UsersIcon: ({ className }: { className?: string }) => (
@@ -29,242 +54,369 @@ vi.mock('@heroicons/react/24/outline', () => ({
   CommandLineIcon: ({ className }: { className?: string }) => (
     <svg data-testid="command-line-icon" className={className} />
   ),
+  ChevronLeftIcon: ({ className }: { className?: string }) => (
+    <svg data-testid="chevron-left-icon" className={className} />
+  ),
+  Bars3Icon: ({ className }: { className?: string }) => (
+    <svg data-testid="bars3-icon" className={className} />
+  ),
+}));
+
+// Mock SimpleNavigation component
+const mockSimpleNavigation = vi.fn();
+vi.mock('@semiont/react-ui', () => ({
+  SimpleNavigation: (props: SimpleNavigationProps) => {
+    mockSimpleNavigation(props);
+    return <div data-testid="simple-navigation">Mocked SimpleNavigation</div>;
+  },
 }));
 
 describe('AdminNavigation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    (usePathname as any).mockReturnValue('/admin');
+    // Mock localStorage
+    Storage.prototype.getItem = vi.fn();
+    Storage.prototype.setItem = vi.fn();
   });
 
-  describe('Basic rendering', () => {
-    beforeEach(() => {
-      (usePathname as any).mockReturnValue('/admin');
-    });
-
-    it('should render navigation container with correct styling', () => {
-      const { container } = render(<AdminNavigation />);
-
-      const nav = container.querySelector('.p-4');
-      expect(nav).toBeInTheDocument();
-      expect(nav).toHaveClass('p-4');
-    });
-
-    // Removed "Back to Site" link test - this link no longer exists in the component
-
-    it('should render administration section header', () => {
-      render(<AdminNavigation />);
-
-      expect(screen.getByText('Administration')).toBeInTheDocument();
-      expect(screen.getByText('Administration')).toHaveClass('sidebar-navigation__title');
-    });
-
-    it('should render all navigation items', () => {
-      render(<AdminNavigation />);
-
-      // Users link
-      const usersLink = screen.getByRole('link', { name: /users/i });
-      expect(usersLink).toHaveAttribute('href', '/admin/users');
-      expect(usersLink).toHaveAttribute('title', 'User management and permissions');
-      expect(screen.getByTestId('users-icon')).toBeInTheDocument();
-
-      // OAuth Settings link
-      const securityLink = screen.getByRole('link', { name: /oauth settings/i });
-      expect(securityLink).toHaveAttribute('href', '/admin/security');
-      expect(securityLink).toHaveAttribute('title', 'View OAuth configuration');
-      expect(screen.getByTestId('shield-check-icon')).toBeInTheDocument();
-    });
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
-  describe('Active state handling', () => {
-    it('should highlight active Users navigation item', () => {
-      (usePathname as any).mockReturnValue('/admin/users');
-
+  describe('SimpleNavigation integration', () => {
+    it('should render SimpleNavigation component', () => {
       render(<AdminNavigation />);
-
-      const usersLink = screen.getByRole('link', { name: /users/i });
-      expect(usersLink).toHaveClass('sidebar-navigation__item', 'sidebar-navigation__item--active');
-
-      const usersIcon = screen.getByTestId('users-icon');
-      expect(usersIcon).toHaveClass('sidebar-navigation__icon', 'sidebar-navigation__icon--active');
+      expect(screen.getByTestId('simple-navigation')).toBeInTheDocument();
     });
 
-    it('should highlight active OAuth Settings navigation item', () => {
-      (usePathname as any).mockReturnValue('/admin/security');
-
+    it('should pass correct title prop from translations', () => {
       render(<AdminNavigation />);
 
-      const securityLink = screen.getByRole('link', { name: /oauth settings/i });
-      expect(securityLink).toHaveClass('sidebar-navigation__item', 'sidebar-navigation__item--active');
-
-      const securityIcon = screen.getByTestId('shield-check-icon');
-      expect(securityIcon).toHaveClass('sidebar-navigation__icon', 'sidebar-navigation__icon--active');
+      expect(mockSimpleNavigation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Administration',
+        })
+      );
     });
 
-    it('should not highlight any item when on admin dashboard', () => {
-      (usePathname as any).mockReturnValue('/admin');
+    it('should pass currentPath from usePathname', () => {
+      const testPath = '/admin/users';
+      (usePathname as any).mockReturnValue(testPath);
 
       render(<AdminNavigation />);
 
-      const usersLink = screen.getByRole('link', { name: /users/i });
-      expect(usersLink).toHaveClass('sidebar-navigation__item', 'sidebar-navigation__item--inactive');
-
-      const securityLink = screen.getByRole('link', { name: /oauth settings/i });
-      expect(securityLink).toHaveClass('sidebar-navigation__item', 'sidebar-navigation__item--inactive');
+      expect(mockSimpleNavigation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          currentPath: testPath,
+        })
+      );
     });
 
-    it('should not highlight any item when on unrelated path', () => {
-      (usePathname as any).mockReturnValue('/admin/some-other-page');
-
+    it('should pass Link component as LinkComponent prop', () => {
       render(<AdminNavigation />);
 
-      const usersLink = screen.getByRole('link', { name: /users/i });
-      const securityLink = screen.getByRole('link', { name: /oauth settings/i });
+      const call = mockSimpleNavigation.mock.calls[0][0];
+      expect(call.LinkComponent).toBeDefined();
+    });
 
-      // Both should be inactive
-      expect(usersLink).toHaveClass('sidebar-navigation__item--inactive');
-      expect(securityLink).toHaveClass('sidebar-navigation__item--inactive');
+    it('should pass collapse/expand labels from Sidebar translations', () => {
+      render(<AdminNavigation />);
+
+      expect(mockSimpleNavigation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          collapseSidebarLabel: 'Collapse sidebar',
+          expandSidebarLabel: 'Expand sidebar',
+        })
+      );
+    });
+
+    it('should pass chevronLeft and bars icons', () => {
+      render(<AdminNavigation />);
+
+      const call = mockSimpleNavigation.mock.calls[0][0];
+      expect(call.icons).toBeDefined();
+      expect(call.icons.chevronLeft).toBeDefined();
+      expect(call.icons.bars).toBeDefined();
     });
   });
 
-  describe('Icon styling', () => {
-    beforeEach(() => {
-      (usePathname as any).mockReturnValue('/admin');
-    });
-
-    it('should apply correct icon classes for inactive items', () => {
+  describe('Navigation items configuration', () => {
+    it('should pass 3 navigation items to SimpleNavigation', () => {
       render(<AdminNavigation />);
 
-      const usersIcon = screen.getByTestId('users-icon');
-      expect(usersIcon).toHaveClass('sidebar-navigation__icon', 'sidebar-navigation__icon--inactive');
-
-      const securityIcon = screen.getByTestId('shield-check-icon');
-      expect(securityIcon).toHaveClass('sidebar-navigation__icon', 'sidebar-navigation__icon--inactive');
+      const call = mockSimpleNavigation.mock.calls[0][0];
+      expect(call.items).toHaveLength(3);
     });
 
-    // Removed home icon test - home icon no longer exists in the component
-  });
-
-  describe('Layout and structure', () => {
-    beforeEach(() => {
-      (usePathname as any).mockReturnValue('/admin');
-    });
-
-    it('should have proper navigation container structure', () => {
-      const { container } = render(<AdminNavigation />);
-
-      const navContainer = container.querySelector('.p-4');
-      expect(navContainer).toBeInTheDocument();
-
-      const itemsContainer = navContainer?.querySelector('.sidebar-navigation__items');
-      expect(itemsContainer).toBeInTheDocument();
-    });
-
-    // Removed separator test - separator no longer exists in the component
-
-    it('should render all links with proper button-like styling', () => {
+    it('should configure Users navigation item correctly', () => {
       render(<AdminNavigation />);
 
-      const links = screen.getAllByRole('link');
+      const call = mockSimpleNavigation.mock.calls[0][0];
+      const usersItem = call.items[0];
 
-      links.forEach(link => {
-        expect(link).toHaveClass('sidebar-navigation__item');
+      expect(usersItem).toEqual(
+        expect.objectContaining({
+          name: 'Users',
+          href: '/admin/users',
+          description: 'User management and permissions',
+        })
+      );
+      expect(usersItem.icon).toBeDefined();
+    });
+
+    it('should configure OAuth Settings navigation item correctly', () => {
+      render(<AdminNavigation />);
+
+      const call = mockSimpleNavigation.mock.calls[0][0];
+      const oauthItem = call.items[1];
+
+      expect(oauthItem).toEqual(
+        expect.objectContaining({
+          name: 'OAuth Settings',
+          href: '/admin/security',
+          description: 'View OAuth configuration',
+        })
+      );
+      expect(oauthItem.icon).toBeDefined();
+    });
+
+    it('should configure DevOps navigation item correctly', () => {
+      render(<AdminNavigation />);
+
+      const call = mockSimpleNavigation.mock.calls[0][0];
+      const devopsItem = call.items[2];
+
+      expect(devopsItem).toEqual(
+        expect.objectContaining({
+          name: 'DevOps',
+          href: '/admin/devops',
+          description: 'Development operations and tools',
+        })
+      );
+      expect(devopsItem.icon).toBeDefined();
+    });
+
+    it('should pass all items with correct structure', () => {
+      render(<AdminNavigation />);
+
+      const call = mockSimpleNavigation.mock.calls[0][0];
+
+      call.items.forEach((item: any) => {
+        expect(item).toHaveProperty('name');
+        expect(item).toHaveProperty('href');
+        expect(item).toHaveProperty('icon');
+        expect(item).toHaveProperty('description');
+        expect(typeof item.name).toBe('string');
+        expect(typeof item.href).toBe('string');
+        expect(typeof item.description).toBe('string');
       });
     });
   });
 
-  describe('Dark mode support', () => {
-    beforeEach(() => {
-      (usePathname as any).mockReturnValue('/admin');
-    });
-
-    it('should have dark mode classes for navigation container', () => {
+  describe('Collapse/expand state management', () => {
+    it('should initialize with isCollapsed as false by default', () => {
       render(<AdminNavigation />);
 
-      // AdminNavigation no longer wraps in nav element - it's just content
-      // The parent LeftSidebar handles dark mode styling
-      const adminHeader = screen.getByText('Administration');
-      expect(adminHeader).toHaveClass('sidebar-navigation__title');
+      expect(mockSimpleNavigation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isCollapsed: false,
+        })
+      );
     });
 
-    // Removed separator dark mode test - separator no longer exists in the component
+    it('should load collapsed state from localStorage on mount', () => {
+      (Storage.prototype.getItem as any).mockReturnValue('true');
 
-    it('should have dark mode classes for administration header', () => {
       render(<AdminNavigation />);
 
-      const adminHeader = screen.getByText('Administration');
-      expect(adminHeader).toHaveClass('sidebar-navigation__title');
+      expect(localStorage.getItem).toHaveBeenCalledWith('admin-sidebar-collapsed');
+
+      // Need to wait for useEffect to run and component to re-render
+      // The second call should have isCollapsed: true
+      const calls = mockSimpleNavigation.mock.calls;
+      const lastCall = calls[calls.length - 1][0];
+      expect(lastCall.isCollapsed).toBe(true);
     });
 
-    it('should have dark mode hover states for inactive links', () => {
+    it('should remain false when localStorage has no value', () => {
+      (Storage.prototype.getItem as any).mockReturnValue(null);
+
       render(<AdminNavigation />);
 
-      const usersLink = screen.getByRole('link', { name: /users/i });
-      expect(usersLink).toHaveClass('sidebar-navigation__item', 'sidebar-navigation__item--inactive');
-    });
-  });
-
-  describe('Accessibility', () => {
-    beforeEach(() => {
-      (usePathname as any).mockReturnValue('/admin');
+      const call = mockSimpleNavigation.mock.calls[0][0];
+      expect(call.isCollapsed).toBe(false);
     });
 
-    it('should use semantic nav element', () => {
-      // AdminNavigation no longer wraps in nav element - it's just content
-      // The parent LeftSidebar provides the structural wrapper
-      const { container } = render(<AdminNavigation />);
-
-      const navContainer = container.querySelector('.p-4');
-      expect(navContainer).toBeInTheDocument();
-      expect(navContainer?.tagName).toBe('DIV');
-    });
-
-    it('should have title attributes for tooltips', () => {
+    it('should pass onToggleCollapse handler', () => {
       render(<AdminNavigation />);
 
-      const usersLink = screen.getByRole('link', { name: /users/i });
-      expect(usersLink).toHaveAttribute('title', 'User management and permissions');
-
-      const securityLink = screen.getByRole('link', { name: /oauth settings/i });
-      expect(securityLink).toHaveAttribute('title', 'View OAuth configuration');
+      const call = mockSimpleNavigation.mock.calls[0][0];
+      expect(call.onToggleCollapse).toBeDefined();
+      expect(typeof call.onToggleCollapse).toBe('function');
     });
 
-    it('should maintain focus and hover states', () => {
+    it('should save collapsed state to localStorage when toggled', () => {
       render(<AdminNavigation />);
 
-      const links = screen.getAllByRole('link');
-      links.forEach(link => {
-        expect(link).toHaveClass('sidebar-navigation__item');
-      });
+      const call = mockSimpleNavigation.mock.calls[0][0];
+      const toggleHandler = call.onToggleCollapse;
+
+      // Call the toggle handler
+      toggleHandler();
+
+      expect(localStorage.setItem).toHaveBeenCalledWith('admin-sidebar-collapsed', 'true');
     });
 
-    it('should have proper link text for screen readers', () => {
-      render(<AdminNavigation />);
-
-      expect(screen.getByRole('link', { name: /users/i })).toBeInTheDocument();
-      expect(screen.getByRole('link', { name: /oauth settings/i })).toBeInTheDocument();
-    });
-  });
-
-  describe('Navigation configuration', () => {
-    it('should handle dynamic pathname changes', () => {
+    it('should toggle between true and false states', () => {
       const { rerender } = render(<AdminNavigation />);
 
-      // Start with users page active
+      const firstCall = mockSimpleNavigation.mock.calls[0][0];
+      expect(firstCall.isCollapsed).toBe(false);
+
+      // Toggle to collapsed
+      firstCall.onToggleCollapse();
+      rerender(<AdminNavigation />);
+
+      const secondCall = mockSimpleNavigation.mock.calls[mockSimpleNavigation.mock.calls.length - 1][0];
+      expect(secondCall.isCollapsed).toBe(true);
+
+      // Toggle back to expanded
+      secondCall.onToggleCollapse();
+      rerender(<AdminNavigation />);
+
+      const thirdCall = mockSimpleNavigation.mock.calls[mockSimpleNavigation.mock.calls.length - 1][0];
+      expect(thirdCall.isCollapsed).toBe(false);
+    });
+
+    it('should use admin-sidebar-collapsed as localStorage key', () => {
+      render(<AdminNavigation />);
+
+      expect(localStorage.getItem).toHaveBeenCalledWith('admin-sidebar-collapsed');
+
+      const call = mockSimpleNavigation.mock.calls[0][0];
+      call.onToggleCollapse();
+
+      expect(localStorage.setItem).toHaveBeenCalledWith(
+        'admin-sidebar-collapsed',
+        expect.any(String)
+      );
+    });
+  });
+
+  describe('Optional navigationMenu prop', () => {
+    it('should not pass dropdownContent when navigationMenu is not provided', () => {
+      render(<AdminNavigation />);
+
+      const call = mockSimpleNavigation.mock.calls[0][0];
+      expect(call.dropdownContent).toBeUndefined();
+    });
+
+    it('should pass dropdownContent when navigationMenu is provided', () => {
+      const mockNavigationMenu = vi.fn(() => <div>Mock Menu</div>);
+
+      render(<AdminNavigation navigationMenu={mockNavigationMenu} />);
+
+      const call = mockSimpleNavigation.mock.calls[0][0];
+      expect(call.dropdownContent).toBeDefined();
+      expect(call.dropdownContent).toBe(mockNavigationMenu);
+    });
+
+    it('should pass navigationMenu function with correct signature', () => {
+      const mockNavigationMenu = vi.fn((onClose: () => void) => <div>Mock Menu</div>);
+
+      render(<AdminNavigation navigationMenu={mockNavigationMenu} />);
+
+      const call = mockSimpleNavigation.mock.calls[0][0];
+      expect(typeof call.dropdownContent).toBe('function');
+    });
+  });
+
+  describe('Dynamic pathname updates', () => {
+    it('should update currentPath when pathname changes', () => {
+      const { rerender } = render(<AdminNavigation />);
+
+      let call = mockSimpleNavigation.mock.calls[0][0];
+      expect(call.currentPath).toBe('/admin');
+
       (usePathname as any).mockReturnValue('/admin/users');
       rerender(<AdminNavigation />);
 
-      let usersLink = screen.getByRole('link', { name: /users/i });
-      expect(usersLink).toHaveClass('sidebar-navigation__item--active');
+      call = mockSimpleNavigation.mock.calls[mockSimpleNavigation.mock.calls.length - 1][0];
+      expect(call.currentPath).toBe('/admin/users');
+    });
 
-      // Change to security page active
-      (usePathname as any).mockReturnValue('/admin/security');
-      rerender(<AdminNavigation />);
+    it('should handle multiple pathname changes', () => {
+      const { rerender } = render(<AdminNavigation />);
 
-      usersLink = screen.getByRole('link', { name: /users/i });
-      const securityLink = screen.getByRole('link', { name: /oauth settings/i });
+      const paths = ['/admin/users', '/admin/security', '/admin/devops'];
 
-      expect(usersLink).toHaveClass('sidebar-navigation__item--inactive');
-      expect(securityLink).toHaveClass('sidebar-navigation__item--active');
+      paths.forEach((path) => {
+        (usePathname as any).mockReturnValue(path);
+        rerender(<AdminNavigation />);
+
+        const call = mockSimpleNavigation.mock.calls[mockSimpleNavigation.mock.calls.length - 1][0];
+        expect(call.currentPath).toBe(path);
+      });
+    });
+  });
+
+  describe('Props validation', () => {
+    it('should pass all required SimpleNavigation props', () => {
+      render(<AdminNavigation />);
+
+      const call = mockSimpleNavigation.mock.calls[0][0];
+
+      // Required props from SimpleNavigationProps interface
+      expect(call.title).toBeDefined();
+      expect(call.items).toBeDefined();
+      expect(call.currentPath).toBeDefined();
+      expect(call.LinkComponent).toBeDefined();
+      expect(call.isCollapsed).toBeDefined();
+      expect(call.onToggleCollapse).toBeDefined();
+      expect(call.icons).toBeDefined();
+      expect(call.collapseSidebarLabel).toBeDefined();
+      expect(call.expandSidebarLabel).toBeDefined();
+    });
+
+    it('should pass props with correct types', () => {
+      render(<AdminNavigation />);
+
+      const call = mockSimpleNavigation.mock.calls[0][0];
+
+      expect(typeof call.title).toBe('string');
+      expect(Array.isArray(call.items)).toBe(true);
+      expect(typeof call.currentPath).toBe('string');
+      expect(typeof call.isCollapsed).toBe('boolean');
+      expect(typeof call.onToggleCollapse).toBe('function');
+      expect(typeof call.icons).toBe('object');
+      expect(typeof call.collapseSidebarLabel).toBe('string');
+      expect(typeof call.expandSidebarLabel).toBe('string');
+    });
+
+    it('should not pass any unexpected props to SimpleNavigation', () => {
+      render(<AdminNavigation />);
+
+      const call = mockSimpleNavigation.mock.calls[0][0];
+      const expectedKeys = [
+        'title',
+        'items',
+        'currentPath',
+        'LinkComponent',
+        'isCollapsed',
+        'onToggleCollapse',
+        'icons',
+        'collapseSidebarLabel',
+        'expandSidebarLabel',
+      ];
+
+      const actualKeys = Object.keys(call);
+
+      actualKeys.forEach((key) => {
+        expect(
+          expectedKeys.includes(key) || key === 'dropdownContent'
+        ).toBe(true);
+      });
     });
   });
 });
