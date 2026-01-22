@@ -8,9 +8,9 @@
   },
   "Navigation": {
     "home": "Home",
-    "know": "Know",
-    "moderate": "Moderate",
-    "administer": "Administer"
+    "know": "Resources",
+    "moderate": "Moderation",
+    "administer": "Administration"
   },
   "Footer": {
     "copyright": "© {year} Semiont. All rights reserved.",
@@ -224,8 +224,8 @@
     "legallyBound": "By clicking \"Accept & Continue\", you agree to be legally bound by these terms.",
     "errorAcceptingTerms": "There was an error recording your terms acceptance. Please try again."
   },
-  "Knowledge": {
-    "title": "Knowledge",
+  "Sidebar": {
+    "title": "Resources",
     "discover": "Discover",
     "compose": "Compose",
     "collapseSidebar": "Collapse sidebar",
@@ -236,7 +236,7 @@
     "redirecting": "Redirecting..."
   },
   "Discover": {
-    "title": "Discover Knowledge",
+    "title": "Discover Resources",
     "subtitle": "Explore your knowledge graph and discover connections",
     "searchPlaceholder": "Search resources by name or content...",
     "searchButton": "Search",

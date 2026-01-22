@@ -11,14 +11,15 @@
 
 .semiont-unified-panel__tabs {
   display: flex;
-  gap: var(--semiont-panel-padding-xs);
-  padding: var(--semiont-panel-padding-sm);
+  gap: 0;
+  padding: 0;
   background: var(--semiont-bg-secondary);
-  border-radius: var(--semiont-radius-md);
+  border-bottom: 1px solid var(--semiont-color-gray-300);
 }
 
 [data-theme="dark"] .semiont-unified-panel__tabs {
   background: var(--semiont-bg-tertiary);
+  border-bottom-color: var(--semiont-color-gray-700);
 }
 
 .semiont-unified-panel__tab-button {
@@ -26,7 +27,7 @@
   padding: var(--semiont-panel-padding-sm);
   background: transparent;
   border: none;
-  border-radius: var(--semiont-radius-sm);
+  border-right: 1px solid var(--semiont-color-gray-300);
   font-size: var(--semiont-text-sm);
   font-weight: var(--semiont-font-medium);
   color: var(--semiont-text-secondary);
@@ -36,23 +37,42 @@
   align-items: center;
   justify-content: center;
   gap: calc(var(--semiont-panel-padding-xs) * 1.5);
+  position: relative;
+}
+
+.semiont-unified-panel__tab-button:last-child {
+  border-right: none;
+}
+
+.semiont-unified-panel__tab-button:last-child:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+[data-theme="dark"] .semiont-unified-panel__tab-button:last-child:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
 }
 
 [data-theme="dark"] .semiont-unified-panel__tab-button {
   color: var(--semiont-text-secondary);
+  border-right-color: var(--semiont-color-gray-700);
 }
 
 .semiont-unified-panel__tab-button:hover {
   background: var(--semiont-bg-tertiary);
+  color: var(--semiont-text-primary);
 }
 
 [data-theme="dark"] .semiont-unified-panel__tab-button:hover {
   background: var(--semiont-color-gray-700);
+  color: var(--semiont-text-primary);
 }
 
 .semiont-unified-panel__tab-button:focus-visible {
   outline: 2px solid var(--semiont-color-primary-500);
-  outline-offset: 2px;
+  outline-offset: -2px;
+  z-index: 1;
 }
 
 [data-theme="dark"] .semiont-unified-panel__tab-button:focus-visible {
@@ -62,11 +82,14 @@
 .semiont-unified-panel__tab-button--active {
   background: var(--semiont-bg-primary);
   color: var(--semiont-text-primary);
+  font-weight: var(--semiont-font-semibold);
+  border-bottom: 2px solid var(--semiont-color-primary-500);
 }
 
 [data-theme="dark"] .semiont-unified-panel__tab-button--active {
-  background: var(--semiont-bg-secondary);
+  background: var(--semiont-bg-primary);
   color: var(--semiont-text-primary);
+  border-bottom-color: var(--semiont-color-primary-400);
 }
 
 .semiont-unified-panel__tab-button--active:focus-visible {

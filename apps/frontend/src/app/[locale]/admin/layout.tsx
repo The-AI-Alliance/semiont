@@ -37,7 +37,9 @@ export default function AdminLayout({
           isAdmin={isAdmin}
           isModerator={isModerator}
         >
-          <AdminNavigation />
+          {(isCollapsed, toggleCollapsed, navigationMenu) => (
+            <AdminNavigation navigationMenu={navigationMenu} />
+          )}
         </LeftSidebar>
         <main className="flex-1 p-6 flex flex-col">
           <div className="max-w-7xl mx-auto flex-1 flex flex-col w-full">

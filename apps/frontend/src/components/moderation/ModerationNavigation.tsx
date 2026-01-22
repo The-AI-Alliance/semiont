@@ -1,22 +1,46 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { usePathname } from '@/i18n/routing';
-import { SidebarNavigation } from '@semiont/react-ui';
-import type { NavigationItem } from '@semiont/react-ui';
+import { SimpleNavigation } from '@semiont/react-ui';
+import type { SimpleNavigationItem } from '@semiont/react-ui';
 import {
   ClockIcon,
   TagIcon,
-  BookOpenIcon
+  BookOpenIcon,
+  ChevronLeftIcon,
+  Bars3Icon
 } from '@heroicons/react/24/outline';
 
-export function ModerationNavigation() {
+interface ModerationNavigationProps {
+  navigationMenu?: (onClose: () => void) => React.ReactNode;
+}
+
+export function ModerationNavigation({ navigationMenu }: ModerationNavigationProps = {}) {
   const t = useTranslations('Moderation');
+  const tSidebar = useTranslations('Sidebar');
   const pathname = usePathname();
 
-  const navigation: NavigationItem[] = [
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Load collapse state from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem('moderation-sidebar-collapsed');
+    if (stored !== null) {
+      setIsCollapsed(stored === 'true');
+    }
+  }, []);
+
+  // Save collapse state to localStorage
+  const handleToggleCollapse = () => {
+    const newState = !isCollapsed;
+    setIsCollapsed(newState);
+    localStorage.setItem('moderation-sidebar-collapsed', newState.toString());
+  };
+
+  const navigation: SimpleNavigationItem[] = [
     {
       name: t('recentResources'),
       href: '/moderate/recent',
@@ -38,15 +62,20 @@ export function ModerationNavigation() {
   ];
 
   return (
-    <div className="p-4">
-      <SidebarNavigation
-        items={navigation}
-        title={t('title')}
-        currentPath={pathname}
-        LinkComponent={Link as any}
-        activeClassName="semiont-nav-link semiont-nav-link--active"
-        inactiveClassName="semiont-nav-link"
-      />
-    </div>
+    <SimpleNavigation
+      title={t('title')}
+      items={navigation}
+      currentPath={pathname}
+      LinkComponent={Link as any}
+      {...(navigationMenu && { dropdownContent: navigationMenu })}
+      isCollapsed={isCollapsed}
+      onToggleCollapse={handleToggleCollapse}
+      icons={{
+        chevronLeft: ChevronLeftIcon as React.ComponentType<{ className?: string }>,
+        bars: Bars3Icon as React.ComponentType<{ className?: string }>
+      }}
+      collapseSidebarLabel={tSidebar('collapseSidebar')}
+      expandSidebarLabel={tSidebar('expandSidebar')}
+    />
   );
 }

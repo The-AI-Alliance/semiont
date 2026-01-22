@@ -121,7 +121,7 @@ export * from './components/viewers';
 // Components - Navigation
 export * from './components/navigation/Footer';
 export * from './components/navigation/NavigationMenu';
-export * from './components/navigation/SidebarNavigation';
+export * from './components/navigation/SimpleNavigation';
 export * from './components/navigation/CollapsibleResourceNavigation';
 export * from './components/navigation/SortableResourceTab';
 export type {
@@ -129,6 +129,10 @@ export type {
   SortableResourceTabProps,
   OpenResource
 } from './types/collapsible-navigation';
+export type {
+  SimpleNavigationItem,
+  SimpleNavigationProps
+} from './types/simple-navigation';
 
 // Components - Modals
 export * from './components/modals/SearchModal';

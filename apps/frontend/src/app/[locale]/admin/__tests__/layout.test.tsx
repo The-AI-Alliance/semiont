@@ -9,9 +9,11 @@ vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual('@semiont/react-ui');
   return {
     ...actual,
-    LeftSidebar: ({ children }: { children: React.ReactNode }) => (
+    LeftSidebar: ({ children }: { children: React.ReactNode | Function }) => (
       <aside data-testid="admin-sidebar">
-        {children}
+        {typeof children === 'function'
+          ? children(false, () => {}, () => null)
+          : children}
       </aside>
     ),
     Footer: () => <footer data-testid="admin-footer">Footer</footer>,

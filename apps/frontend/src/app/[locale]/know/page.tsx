@@ -5,7 +5,7 @@ import { useRouter } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
 
 export default function KnowledgePage() {
-  const t = useTranslations('Knowledge');
+  const t = useTranslations('Sidebar');
   const router = useRouter();
   const [checking, setChecking] = useState(true);
 

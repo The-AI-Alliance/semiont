@@ -40,16 +40,6 @@ export function NavigationMenu({
   return (
     <nav className={navClassName} aria-label="Main navigation">
       <Link
-        href={brandingLink}
-        {...(onItemClick && { onClick: onItemClick })}
-        className="semiont-navigation-menu__link"
-        aria-current={isCurrentPage(brandingLink) ? 'page' : undefined}
-      >
-        {t('home')}
-      </Link>
-      <hr className="semiont-navigation-menu__divider" />
-
-      <Link
         href={routes.knowledge?.() || '/know'}
         {...(onItemClick && { onClick: onItemClick })}
         className="semiont-navigation-menu__link"
@@ -57,10 +47,10 @@ export function NavigationMenu({
       >
         {t('know')}
       </Link>
-      <hr className="semiont-navigation-menu__divider" />
 
       {(isModerator || isAdmin) && (
         <>
+          <hr className="semiont-navigation-menu__divider" />
           <Link
             href={routes.moderate?.() || '/moderate'}
             {...(onItemClick && { onClick: onItemClick })}
@@ -69,19 +59,21 @@ export function NavigationMenu({
           >
             {t('moderate')}
           </Link>
-          <hr className="semiont-navigation-menu__divider" />
         </>
       )}
 
       {isAdmin && (
-        <Link
-          href={routes.admin?.() || '/admin'}
-          {...(onItemClick && { onClick: onItemClick })}
-          className="semiont-navigation-menu__link"
-          aria-current={isCurrentPage(routes.admin?.() || '/admin') ? 'page' : undefined}
-        >
-          {t('administer')}
-        </Link>
+        <>
+          <hr className="semiont-navigation-menu__divider" />
+          <Link
+            href={routes.admin?.() || '/admin'}
+            {...(onItemClick && { onClick: onItemClick })}
+            className="semiont-navigation-menu__link"
+            aria-current={isCurrentPage(routes.admin?.() || '/admin') ? 'page' : undefined}
+          >
+            {t('administer')}
+          </Link>
+        </>
       )}
     </nav>
   );

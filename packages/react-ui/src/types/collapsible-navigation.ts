@@ -89,6 +89,9 @@ export interface CollapsibleResourceNavigationProps {
     bars: ComponentType<any>;
     close: ComponentType<any>;
   };
+
+  // Optional dropdown menu for header
+  navigationMenu?: ((onClose: () => void) => ReactNode) | undefined;
 }
 
 /**

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useState, useRef, useEffect } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -16,7 +16,6 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { SidebarNavigation } from './SidebarNavigation';
 import { SortableResourceTab } from './SortableResourceTab';
 import { useDragAnnouncements } from '../../hooks/useDragAnnouncements';
 import { useTranslations } from '../../contexts/TranslationContext';
@@ -34,20 +33,20 @@ export function CollapsibleResourceNavigation({
   onToggleCollapse,
   onResourceClose,
   onResourceReorder,
-  onResourceSelect,
   currentPath,
   LinkComponent,
   onNavigate,
   getResourceHref,
   className = '',
-  activeClassName,
-  inactiveClassName,
   translations = {},
-  icons
+  icons,
+  navigationMenu
 }: CollapsibleResourceNavigationProps) {
   const ChevronLeftIcon = icons.chevronLeft;
   const BarsIcon = icons.bars;
-  const CloseIcon = icons.close;
+
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const { announcePickup, announceDrop, announceKeyboardReorder, announceCannotMove } = useDragAnnouncements();
   const t = useTranslations('CollapsibleResourceNavigation');
@@ -62,6 +61,23 @@ export function CollapsibleResourceNavigation({
     closeResource: translations?.closeResource || t('closeResource'),
     dragInstructions: translations?.dragInstructions || t('dragInstructions')
   };
+
+  const toggleDropdown = () => setIsDropdownOpen(!isDropdownOpen);
+  const closeDropdown = () => setIsDropdownOpen(false);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        closeDropdown();
+      }
+    };
+
+    if (isDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isDropdownOpen]);
 
   // Setup drag and drop sensors
   const sensors = useSensors(
@@ -148,51 +164,82 @@ export function CollapsibleResourceNavigation({
       </div>
 
       <div className="semiont-collapsible-nav__container">
-        <div className="semiont-collapsible-nav__list">
-          <div>
-            {/* Header with collapse button - fixed height for alignment */}
-            <div className="semiont-collapsible-nav__header">
-              {!isCollapsed ? (
-                <>
-                  <div className="semiont-nav-header__title">
-                    {mergedTranslations.title}
-                  </div>
-                  <button
-                    onClick={onToggleCollapse}
-                    className="semiont-collapsible-nav__collapse-btn"
-                    title={mergedTranslations.collapseSidebar}
-                    aria-label={mergedTranslations.collapseSidebar}
-                  >
-                    <ChevronLeftIcon />
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={onToggleCollapse}
-                  className="semiont-collapsible-nav__expand-btn"
-                  title={mergedTranslations.expandSidebar}
-                  aria-label={mergedTranslations.expandSidebar}
-                >
-                  <BarsIcon />
-                </button>
-              )}
+        {/* Section header with collapse/expand button and optional dropdown */}
+        <div style={{ position: 'relative' }} ref={navigationMenu ? dropdownRef : undefined}>
+          <button
+            onClick={navigationMenu ? toggleDropdown : undefined}
+            className="semiont-nav-section__header"
+            disabled={!navigationMenu}
+            aria-expanded={navigationMenu ? isDropdownOpen : undefined}
+            aria-haspopup={navigationMenu ? 'true' : undefined}
+            type="button"
+          >
+            {!isCollapsed && <span className="semiont-nav-section__header-text">{mergedTranslations.title}</span>}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleCollapse();
+              }}
+              className="semiont-nav-section__header-icon"
+              title={isCollapsed ? mergedTranslations.expandSidebar : mergedTranslations.collapseSidebar}
+              aria-label={isCollapsed ? mergedTranslations.expandSidebar : mergedTranslations.collapseSidebar}
+              type="button"
+            >
+              {!isCollapsed ? <ChevronLeftIcon /> : <BarsIcon />}
+            </button>
+          </button>
+
+          {isDropdownOpen && navigationMenu && !isCollapsed && (
+            <div className="semiont-nav-section__dropdown">
+              {navigationMenu(closeDropdown)}
             </div>
+          )}
+        </div>
 
-            {/* Navigation content */}
-            <div className="semiont-collapsible-nav__content">
-              {/* Fixed navigation items using SidebarNavigation */}
-              <SidebarNavigation
-                items={fixedItems}
-                currentPath={currentPath}
-                LinkComponent={LinkComponent}
-                isCollapsed={isCollapsed}
-                showDescriptions={!isCollapsed}
-                activeClassName={activeClassName}
-                inactiveClassName={inactiveClassName}
-              />
+        {/* Fixed navigation tabs */}
+        {!isCollapsed && (
+          <nav className="semiont-nav-tabs">
+            {fixedItems.map((item) => {
+              const isActive = currentPath === item.href;
+              return (
+                <LinkComponent
+                  key={item.href}
+                  href={item.href}
+                  className={`semiont-nav-tab ${isActive ? 'semiont-nav-tab--active' : ''}`}
+                  title={item.description || item.name}
+                  aria-current={isActive ? 'page' : undefined}
+                >
+                  <item.icon className="semiont-nav-tab__icon" aria-hidden="true" />
+                  <span className="semiont-nav-tab__text">{item.name}</span>
+                </LinkComponent>
+              );
+            })}
+          </nav>
+        )}
 
-              {/* Resource tabs with drag and drop */}
-              <div className="semiont-collapsible-nav__resources" role="tablist" aria-label="Open resources">
+        {/* Collapsed state - show fixed items as icon-only */}
+        {isCollapsed && (
+          <nav className="semiont-nav-tabs">
+            {fixedItems.map((item) => {
+              const isActive = currentPath === item.href;
+              return (
+                <LinkComponent
+                  key={item.href}
+                  href={item.href}
+                  className={`semiont-nav-tab ${isActive ? 'semiont-nav-tab--active' : ''}`}
+                  title={item.description || item.name}
+                  aria-current={isActive ? 'page' : undefined}
+                  aria-label={item.name}
+                >
+                  <item.icon className="semiont-nav-tab__icon" aria-hidden="true" />
+                </LinkComponent>
+              );
+            })}
+          </nav>
+        )}
+
+        {/* Resource tabs with drag and drop */}
+        <div className="semiont-resource-tabs" role="tablist" aria-label="Open resources">
                 {isCollapsed ? (
                   // When collapsed, dragging is disabled - just render simple tabs
                   resources.map((resource) => {
@@ -255,9 +302,6 @@ export function CollapsibleResourceNavigation({
                     </SortableContext>
                   </DndContext>
                 )}
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

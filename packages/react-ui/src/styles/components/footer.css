@@ -1,0 +1,102 @@
+/* ============================================
+   Footer Component
+   ============================================ */
+
+.semiont-footer {
+  background: var(--semiont-bg-primary);
+  border-top: 1px solid var(--semiont-border-primary);
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 30; /* Below modals (50) but above content */
+}
+
+.semiont-footer__container {
+  max-width: 80rem;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+@media (min-width: 640px) {
+  .semiont-footer__container {
+    padding: 1rem 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .semiont-footer__container {
+    padding: 1rem 2rem;
+  }
+}
+
+.semiont-footer__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .semiont-footer__content {
+    flex-direction: row;
+    justify-content: space-between;
+  }
+}
+
+.semiont-footer__copyright {
+  color: var(--semiont-color-gray-600);
+  font-size: 0.875rem;
+}
+
+[data-theme="dark"] .semiont-footer__copyright {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-footer__links {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+.semiont-footer__link {
+  color: var(--semiont-color-gray-600);
+  font-size: 0.875rem;
+  text-decoration: none;
+  transition: color var(--semiont-duration-base);
+}
+
+.semiont-footer__link:hover {
+  color: var(--semiont-color-gray-900);
+}
+
+[data-theme="dark"] .semiont-footer__link {
+  color: var(--semiont-color-gray-400);
+}
+
+[data-theme="dark"] .semiont-footer__link:hover {
+  color: var(--semiont-color-gray-100);
+}
+
+.semiont-footer__link--keyboard {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.semiont-footer__kbd {
+  display: inline-block;
+  padding: 0.125rem 0.375rem;
+  background: var(--semiont-bg-tertiary);
+  border: 1px solid var(--semiont-border-primary);
+  border-radius: var(--semiont-radius-sm);
+  font-family: var(--semiont-font-mono);
+  font-size: 0.75rem;
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-footer__kbd {
+  background: var(--semiont-bg-tertiary);
+  border-color: var(--semiont-border-primary);
+  color: var(--semiont-text-primary);
+}

@@ -62,17 +62,13 @@ export function SortableResourceTab({
     <div
       ref={setNodeRef}
       style={style}
-      role="tab"
+      {...attributes}
+      {...listeners}
       aria-selected={isActive}
       onKeyDown={handleKeyDown}
       aria-label={`${resource.name}, position ${index !== undefined ? index + 1 : ''} of ${totalCount || ''}`}
-      className={`semiont-resource-tab ${
-        isCollapsed ? 'semiont-resource-tab--collapsed' : ''
-      } ${
-        isActive
-          ? 'semiont-resource-tab--active'
-          : 'semiont-resource-tab--inactive'
-      } ${isCurrentlyDragging ? 'semiont-resource-tab--dragging' : ''}`}
+      className={`semiont-resource-tab ${isActive ? 'semiont-resource-tab--active' : ''} ${isCurrentlyDragging ? 'semiont-resource-tab--dragging' : ''}`}
+      role="tab"
     >
       {/* Document Link with Icon */}
       <LinkComponent
@@ -80,87 +76,27 @@ export function SortableResourceTab({
         className="semiont-resource-tab__link"
         title={resource.name}
       >
-        {/* Document Icon - draggable when expanded, clickable when collapsed */}
-        {!isCollapsed ? (
-          <div
-            {...attributes}
-            {...listeners}
-            className="semiont-resource-tab__drag-handle"
-            title={translations.dragToReorder || 'Drag to reorder'}
-            aria-label={translations.dragToReorderDoc?.replace('{name}', resource.name) || `Drag to reorder ${resource.name}`}
-            aria-describedby="drag-instructions"
-            role="button"
-            tabIndex={0}
-            onClick={(e: React.MouseEvent) => {
-              // Prevent navigation when dragging
-              if (isCurrentlyDragging) {
-                e.preventDefault();
-                e.stopPropagation();
-              }
-            }}
-          >
-            <span aria-hidden="true">{iconEmoji}</span>
-          </div>
-        ) : (
-          // When collapsed, icon is clickable for navigation
-          <span className="semiont-resource-tab__icon" aria-hidden="true">
-            {iconEmoji}
-          </span>
-        )}
+        <span className="semiont-resource-tab__icon" aria-hidden="true">
+          {iconEmoji}
+        </span>
         {!isCollapsed && (
-          <span className="semiont-resource-tab__name">{resource.name}</span>
+          <span className="semiont-resource-tab__text">{resource.name}</span>
         )}
       </LinkComponent>
 
-      {/* Action buttons - only visible when not collapsed */}
+      {/* Close button - only visible when not collapsed */}
       {!isCollapsed && (
-        <div className="semiont-resource-tab__actions">
-          {/* Reorder buttons (alternative to drag & drop) */}
-          {onReorder && (
-            <div className="semiont-resource-tab__reorder-buttons">
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  onReorder(resource.id, 'up');
-                }}
-                disabled={!canMoveUp}
-                className="semiont-resource-tab__reorder-btn"
-                title={translations.moveUp || 'Move up'}
-                aria-label={`Move ${resource.name} up`}
-              >
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                </svg>
-              </button>
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  onReorder(resource.id, 'down');
-                }}
-                disabled={!canMoveDown}
-                className="semiont-resource-tab__reorder-btn"
-                title={translations.moveDown || 'Move down'}
-                aria-label={`Move ${resource.name} down`}
-              >
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-            </div>
-          )}
-
-          {/* Close button */}
-          <button
-            onClick={(e) => onClose(resource.id, e)}
-            className="semiont-resource-tab__close"
-            title={translations.closeResource || 'Close resource'}
-            aria-label={`Close ${resource.name}`}
-          >
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+        <button
+          onClick={(e) => onClose(resource.id, e)}
+          className="semiont-resource-tab__close"
+          title={translations.closeResource || 'Close resource'}
+          aria-label={`Close ${resource.name}`}
+          type="button"
+        >
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
       )}
     </div>
   );
