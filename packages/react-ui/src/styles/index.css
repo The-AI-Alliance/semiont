@@ -72,6 +72,7 @@
 @import './panels/assessment-panel.css';
 @import './panels/statistics-panel.css';
 @import './panels/history-panel.css';
+@import './panels/user-panel.css';
 
 /* Features */
 @import './features/admin.css';
