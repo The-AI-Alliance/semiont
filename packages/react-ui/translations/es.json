@@ -8,6 +8,7 @@
     "settings": "Configuración"
   },
   "ResourceInfoPanel": {
+    "title": "Información del Recurso",
     "locale": "Idioma",
     "notSpecified": "No especificado",
     "entityTypeTags": "Etiquetas de Tipo de Entidad",
@@ -22,6 +23,7 @@
     "unarchiveDescription": "Restaurar este recurso al estado activo"
   },
   "CollaborationPanel": {
+    "title": "Colaboración",
     "connectionStatus": "Estado de Conexión",
     "live": "En Vivo",
     "disconnected": "Desconectado",
@@ -158,6 +160,7 @@
     "chooseCategory": "Elegir una categoría..."
   },
   "UnifiedAnnotationsPanel": {
+    "title": "Anotaciones",
     "statistics": "Estadísticas",
     "highlight": "Destacados",
     "reference": "Referencias",

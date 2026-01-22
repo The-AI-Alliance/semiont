@@ -8,6 +8,7 @@
     "settings": "Settings"
   },
   "ResourceInfoPanel": {
+    "title": "Resource Info",
     "locale": "Locale",
     "notSpecified": "Not specified",
     "entityTypeTags": "Entity Type Tags",
@@ -22,6 +23,7 @@
     "unarchiveDescription": "Restore this resource to active status"
   },
   "CollaborationPanel": {
+    "title": "Collaboration",
     "connectionStatus": "Connection Status",
     "live": "Live",
     "disconnected": "Disconnected",
@@ -158,6 +160,7 @@
     "chooseCategory": "Choose a category..."
   },
   "UnifiedAnnotationsPanel": {
+    "title": "Annotations",
     "statistics": "Statistics",
     "highlight": "Highlights",
     "reference": "References",
