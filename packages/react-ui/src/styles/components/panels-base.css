@@ -281,14 +281,14 @@
 
 /* Chevron icon */
 .semiont-panel__section-chevron {
-  font-size: 0.75rem;
+  font-size: 1.5rem;
   color: var(--semiont-color-gray-500);
   transition: transform var(--semiont-duration-base);
   user-select: none;
 }
 
 .semiont-panel__section-chevron[data-expanded="true"] {
-  transform: rotate(180deg);
+  transform: rotate(90deg);
 }
 
 [data-theme="dark"] .semiont-panel__section-chevron {

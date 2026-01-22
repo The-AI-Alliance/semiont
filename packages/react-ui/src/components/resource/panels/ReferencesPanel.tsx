@@ -207,7 +207,7 @@ export function ReferencesPanel({
             >
               <span>{t('title')}</span>
               <span className="semiont-panel__section-chevron" data-expanded={isDetectExpanded}>
-                ▼
+                ›
               </span>
             </button>
             {isDetectExpanded && (

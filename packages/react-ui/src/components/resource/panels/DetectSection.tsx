@@ -83,7 +83,7 @@ export function DetectSection({
              'detectComments')}
         </span>
         <span className="semiont-panel__section-chevron" data-expanded={isExpanded}>
-          ▼
+          ›
         </span>
       </button>
       {isExpanded && (

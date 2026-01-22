@@ -177,7 +177,7 @@ export function TaggingPanel({
             >
               <span>{t('detectTags')}</span>
               <span className="semiont-panel__section-chevron" data-expanded={isDetectExpanded}>
-                ▼
+                ›
               </span>
             </button>
             {isDetectExpanded && (
