@@ -116,7 +116,7 @@ describe('AdminNavigation', () => {
     it('should pass Link component as LinkComponent prop', () => {
       render(<AdminNavigation />);
 
-      const call = mockSimpleNavigation.mock.calls[0][0];
+      const call = mockSimpleNavigation.mock.calls[0]![0]!;
       expect(call.LinkComponent).toBeDefined();
     });
 
@@ -134,7 +134,7 @@ describe('AdminNavigation', () => {
     it('should pass chevronLeft and bars icons', () => {
       render(<AdminNavigation />);
 
-      const call = mockSimpleNavigation.mock.calls[0][0];
+      const call = mockSimpleNavigation.mock.calls[0]![0]!;
       expect(call.icons).toBeDefined();
       expect(call.icons.chevronLeft).toBeDefined();
       expect(call.icons.bars).toBeDefined();
@@ -145,14 +145,14 @@ describe('AdminNavigation', () => {
     it('should pass 3 navigation items to SimpleNavigation', () => {
       render(<AdminNavigation />);
 
-      const call = mockSimpleNavigation.mock.calls[0][0];
+      const call = mockSimpleNavigation.mock.calls[0]![0]!;
       expect(call.items).toHaveLength(3);
     });
 
     it('should configure Users navigation item correctly', () => {
       render(<AdminNavigation />);
 
-      const call = mockSimpleNavigation.mock.calls[0][0];
+      const call = mockSimpleNavigation.mock.calls[0]![0]!;
       const usersItem = call.items[0];
 
       expect(usersItem).toEqual(
@@ -168,7 +168,7 @@ describe('AdminNavigation', () => {
     it('should configure OAuth Settings navigation item correctly', () => {
       render(<AdminNavigation />);
 
-      const call = mockSimpleNavigation.mock.calls[0][0];
+      const call = mockSimpleNavigation.mock.calls[0]![0]!;
       const oauthItem = call.items[1];
 
       expect(oauthItem).toEqual(
@@ -184,7 +184,7 @@ describe('AdminNavigation', () => {
     it('should configure DevOps navigation item correctly', () => {
       render(<AdminNavigation />);
 
-      const call = mockSimpleNavigation.mock.calls[0][0];
+      const call = mockSimpleNavigation.mock.calls[0]![0]!;
       const devopsItem = call.items[2];
 
       expect(devopsItem).toEqual(
@@ -200,7 +200,7 @@ describe('AdminNavigation', () => {
     it('should pass all items with correct structure', () => {
       render(<AdminNavigation />);
 
-      const call = mockSimpleNavigation.mock.calls[0][0];
+      const call = mockSimpleNavigation.mock.calls[0]![0]!;
 
       call.items.forEach((item: any) => {
         expect(item).toHaveProperty('name');
@@ -235,7 +235,7 @@ describe('AdminNavigation', () => {
       // Need to wait for useEffect to run and component to re-render
       // The second call should have isCollapsed: true
       const calls = mockSimpleNavigation.mock.calls;
-      const lastCall = calls[calls.length - 1][0];
+      const lastCall = calls[calls.length - 1]![0]!;
       expect(lastCall.isCollapsed).toBe(true);
     });
 
@@ -244,14 +244,14 @@ describe('AdminNavigation', () => {
 
       render(<AdminNavigation />);
 
-      const call = mockSimpleNavigation.mock.calls[0][0];
+      const call = mockSimpleNavigation.mock.calls[0]![0]!;
       expect(call.isCollapsed).toBe(false);
     });
 
     it('should pass onToggleCollapse handler', () => {
       render(<AdminNavigation />);
 
-      const call = mockSimpleNavigation.mock.calls[0][0];
+      const call = mockSimpleNavigation.mock.calls[0]![0]!;
       expect(call.onToggleCollapse).toBeDefined();
       expect(typeof call.onToggleCollapse).toBe('function');
     });
@@ -259,7 +259,7 @@ describe('AdminNavigation', () => {
     it('should save collapsed state to localStorage when toggled', () => {
       render(<AdminNavigation />);
 
-      const call = mockSimpleNavigation.mock.calls[0][0];
+      const call = mockSimpleNavigation.mock.calls[0]![0]!;
       const toggleHandler = call.onToggleCollapse;
 
       // Call the toggle handler
@@ -271,21 +271,21 @@ describe('AdminNavigation', () => {
     it('should toggle between true and false states', () => {
       const { rerender } = render(<AdminNavigation />);
 
-      const firstCall = mockSimpleNavigation.mock.calls[0][0];
+      const firstCall = mockSimpleNavigation.mock.calls[0]![0]!;
       expect(firstCall.isCollapsed).toBe(false);
 
       // Toggle to collapsed
       firstCall.onToggleCollapse();
       rerender(<AdminNavigation />);
 
-      const secondCall = mockSimpleNavigation.mock.calls[mockSimpleNavigation.mock.calls.length - 1][0];
+      const secondCall = mockSimpleNavigation.mock.calls[mockSimpleNavigation.mock.calls.length - 1]![0]!;
       expect(secondCall.isCollapsed).toBe(true);
 
       // Toggle back to expanded
       secondCall.onToggleCollapse();
       rerender(<AdminNavigation />);
 
-      const thirdCall = mockSimpleNavigation.mock.calls[mockSimpleNavigation.mock.calls.length - 1][0];
+      const thirdCall = mockSimpleNavigation.mock.calls[mockSimpleNavigation.mock.calls.length - 1]![0]!;
       expect(thirdCall.isCollapsed).toBe(false);
     });
 
@@ -294,7 +294,7 @@ describe('AdminNavigation', () => {
 
       expect(localStorage.getItem).toHaveBeenCalledWith('admin-sidebar-collapsed');
 
-      const call = mockSimpleNavigation.mock.calls[0][0];
+      const call = mockSimpleNavigation.mock.calls[0]![0]!;
       call.onToggleCollapse();
 
       expect(localStorage.setItem).toHaveBeenCalledWith(
@@ -308,7 +308,7 @@ describe('AdminNavigation', () => {
     it('should not pass dropdownContent when navigationMenu is not provided', () => {
       render(<AdminNavigation />);
 
-      const call = mockSimpleNavigation.mock.calls[0][0];
+      const call = mockSimpleNavigation.mock.calls[0]![0]!;
       expect(call.dropdownContent).toBeUndefined();
     });
 
@@ -317,7 +317,7 @@ describe('AdminNavigation', () => {
 
       render(<AdminNavigation navigationMenu={mockNavigationMenu} />);
 
-      const call = mockSimpleNavigation.mock.calls[0][0];
+      const call = mockSimpleNavigation.mock.calls[0]![0]!;
       expect(call.dropdownContent).toBeDefined();
       expect(call.dropdownContent).toBe(mockNavigationMenu);
     });
@@ -327,7 +327,7 @@ describe('AdminNavigation', () => {
 
       render(<AdminNavigation navigationMenu={mockNavigationMenu} />);
 
-      const call = mockSimpleNavigation.mock.calls[0][0];
+      const call = mockSimpleNavigation.mock.calls[0]![0]!;
       expect(typeof call.dropdownContent).toBe('function');
     });
   });
@@ -336,13 +336,13 @@ describe('AdminNavigation', () => {
     it('should update currentPath when pathname changes', () => {
       const { rerender } = render(<AdminNavigation />);
 
-      let call = mockSimpleNavigation.mock.calls[0][0];
+      let call = mockSimpleNavigation.mock.calls[0]![0]!;
       expect(call.currentPath).toBe('/admin');
 
       (usePathname as any).mockReturnValue('/admin/users');
       rerender(<AdminNavigation />);
 
-      call = mockSimpleNavigation.mock.calls[mockSimpleNavigation.mock.calls.length - 1][0];
+      call = mockSimpleNavigation.mock.calls[mockSimpleNavigation.mock.calls.length - 1]![0]!;
       expect(call.currentPath).toBe('/admin/users');
     });
 
@@ -355,7 +355,7 @@ describe('AdminNavigation', () => {
         (usePathname as any).mockReturnValue(path);
         rerender(<AdminNavigation />);
 
-        const call = mockSimpleNavigation.mock.calls[mockSimpleNavigation.mock.calls.length - 1][0];
+        const call = mockSimpleNavigation.mock.calls[mockSimpleNavigation.mock.calls.length - 1]![0]!;
         expect(call.currentPath).toBe(path);
       });
     });
@@ -365,7 +365,7 @@ describe('AdminNavigation', () => {
     it('should pass all required SimpleNavigation props', () => {
       render(<AdminNavigation />);
 
-      const call = mockSimpleNavigation.mock.calls[0][0];
+      const call = mockSimpleNavigation.mock.calls[0]![0]!;
 
       // Required props from SimpleNavigationProps interface
       expect(call.title).toBeDefined();
@@ -382,7 +382,7 @@ describe('AdminNavigation', () => {
     it('should pass props with correct types', () => {
       render(<AdminNavigation />);
 
-      const call = mockSimpleNavigation.mock.calls[0][0];
+      const call = mockSimpleNavigation.mock.calls[0]![0]!;
 
       expect(typeof call.title).toBe('string');
       expect(Array.isArray(call.items)).toBe(true);
@@ -397,7 +397,7 @@ describe('AdminNavigation', () => {
     it('should not pass any unexpected props to SimpleNavigation', () => {
       render(<AdminNavigation />);
 
-      const call = mockSimpleNavigation.mock.calls[0][0];
+      const call = mockSimpleNavigation.mock.calls[0]![0]!;
       const expectedKeys = [
         'title',
         'items',
