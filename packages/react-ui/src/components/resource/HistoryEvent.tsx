@@ -125,6 +125,11 @@ export function HistoryEvent({
             {formatEventType(event.event.type as ResourceEventType, t, event.event.payload)}
           </span>
         )}
+        {event.event.userId && (
+          <span className="semiont-history-event__user">
+            {event.event.userId}
+          </span>
+        )}
         <span className="semiont-history-event__timestamp">
           {formatRelativeTime(event.event.timestamp, t)}
         </span>
