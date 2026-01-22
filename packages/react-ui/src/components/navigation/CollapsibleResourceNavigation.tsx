@@ -166,20 +166,23 @@ export function CollapsibleResourceNavigation({
       <div className="semiont-collapsible-nav__container">
         {/* Section header with collapse/expand button and optional dropdown */}
         <div style={{ position: 'relative' }} ref={navigationMenu ? dropdownRef : undefined}>
-          <button
-            onClick={navigationMenu ? toggleDropdown : undefined}
-            className="semiont-nav-section__header"
-            disabled={!navigationMenu}
-            aria-expanded={navigationMenu ? isDropdownOpen : undefined}
-            aria-haspopup={navigationMenu ? 'true' : undefined}
-            type="button"
-          >
-            {!isCollapsed && <span className="semiont-nav-section__header-text">{mergedTranslations.title}</span>}
+          <div className="semiont-nav-section__header">
+            {!isCollapsed && navigationMenu && (
+              <button
+                onClick={toggleDropdown}
+                className="semiont-nav-section__header-text"
+                aria-expanded={isDropdownOpen}
+                aria-haspopup="true"
+                type="button"
+              >
+                {mergedTranslations.title}
+              </button>
+            )}
+            {!isCollapsed && !navigationMenu && (
+              <span className="semiont-nav-section__header-text">{mergedTranslations.title}</span>
+            )}
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleCollapse();
-              }}
+              onClick={onToggleCollapse}
               className="semiont-nav-section__header-icon"
               title={isCollapsed ? mergedTranslations.expandSidebar : mergedTranslations.collapseSidebar}
               aria-label={isCollapsed ? mergedTranslations.expandSidebar : mergedTranslations.collapseSidebar}
@@ -187,7 +190,7 @@ export function CollapsibleResourceNavigation({
             >
               {!isCollapsed ? <ChevronLeftIcon /> : <BarsIcon />}
             </button>
-          </button>
+          </div>
 
           {isDropdownOpen && navigationMenu && !isCollapsed && (
             <div className="semiont-nav-section__dropdown">
