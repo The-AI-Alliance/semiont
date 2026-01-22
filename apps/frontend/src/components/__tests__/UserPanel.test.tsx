@@ -386,15 +386,15 @@ describe('UserPanel Component', () => {
       render(<UserPanel />);
 
       const heading = screen.getByText('Account');
-      expect(heading).toHaveClass('semiont-panel-title');
+      expect(heading).toHaveClass('semiont-user-panel__title');
     });
 
     it('should support dark mode for heading', () => {
       render(<UserPanel />);
 
       const heading = screen.getByText('Account');
-      // Dark mode styling is handled by semiont-panel-title CSS class
-      expect(heading).toHaveClass('semiont-panel-title');
+      // Dark mode styling is handled by semiont-user-panel__title CSS class
+      expect(heading).toHaveClass('semiont-user-panel__title');
     });
 
     it('should have proper spacing between sections', () => {
