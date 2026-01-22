@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components } from '@semiont/api-client';
 import { TagEntry } from './TagEntry';
@@ -52,6 +52,19 @@ export function TaggingPanel({
   const t = useTranslations('TaggingPanel');
   const [selectedSchemaId, setSelectedSchemaId] = useState<string>('legal-irac');
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
+
+  // Collapsible detection section state - load from localStorage, default expanded
+  const [isDetectExpanded, setIsDetectExpanded] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    const stored = localStorage.getItem('detect-section-expanded-tag');
+    return stored ? stored === 'true' : true;
+  });
+
+  // Persist detection section expanded state to localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('detect-section-expanded-tag', String(isDetectExpanded));
+  }, [isDetectExpanded]);
 
   const { sortedAnnotations, containerRef, handleAnnotationRef } =
     useAnnotationPanel(annotations, hoveredAnnotationId);
@@ -156,10 +169,19 @@ export function TaggingPanel({
         {/* Detection Section - only in Annotate mode */}
         {annotateMode && onDetect && (
           <div className="semiont-panel__section">
-            <h3 className="semiont-panel__section-title">
-              {t('detectTags')}
-            </h3>
-            <div className="semiont-detect-widget" data-detecting={isDetecting && detectionProgress ? 'true' : 'false'} data-type="tag">
+            <button
+              onClick={() => setIsDetectExpanded(!isDetectExpanded)}
+              className="semiont-panel__section-title semiont-panel__section-title--collapsible"
+              aria-expanded={isDetectExpanded}
+              type="button"
+            >
+              <span>{t('detectTags')}</span>
+              <span className="semiont-panel__section-chevron" data-expanded={isDetectExpanded}>
+                ▼
+              </span>
+            </button>
+            {isDetectExpanded && (
+              <div className="semiont-detect-widget" data-detecting={isDetecting && detectionProgress ? 'true' : 'false'} data-type="tag">
               {!isDetecting && !detectionProgress && (
                 <>
                   {/* Schema Selector */}
@@ -296,7 +318,8 @@ export function TaggingPanel({
                   )}
                 </div>
               )}
-            </div>
+              </div>
+            )}
           </div>
         )}
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { ANNOTATORS } from '../../../lib/annotation-registry';
 
@@ -45,6 +45,19 @@ export function DetectSection({
   const [useDensity, setUseDensity] = useState(true); // Enabled by default
   const metadata = ANNOTATORS[annotationType]!;
 
+  // Collapsible section state - load from localStorage, default expanded
+  const [isExpanded, setIsExpanded] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    const stored = localStorage.getItem(`detect-section-expanded-${annotationType}`);
+    return stored ? stored === 'true' : true;
+  });
+
+  // Persist expanded state to localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(`detect-section-expanded-${annotationType}`, String(isExpanded));
+  }, [isExpanded, annotationType]);
+
   const handleDetect = () => {
     onDetect(
       instructions.trim() || undefined,
@@ -58,16 +71,27 @@ export function DetectSection({
 
   return (
     <div className="semiont-panel__section">
-      <h3 className="semiont-panel__section-title">
-        {t(annotationType === 'highlight' ? 'detectHighlights' :
-           annotationType === 'assessment' ? 'detectAssessments' :
-           'detectComments')}
-      </h3>
-      <div
-        className="semiont-detect-widget"
-        data-detecting={isDetecting && detectionProgress ? 'true' : 'false'}
-        data-type={annotationType}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="semiont-panel__section-title semiont-panel__section-title--collapsible"
+        aria-expanded={isExpanded}
+        type="button"
       >
+        <span>
+          {t(annotationType === 'highlight' ? 'detectHighlights' :
+             annotationType === 'assessment' ? 'detectAssessments' :
+             'detectComments')}
+        </span>
+        <span className="semiont-panel__section-chevron" data-expanded={isExpanded}>
+          ▼
+        </span>
+      </button>
+      {isExpanded && (
+        <div
+          className="semiont-detect-widget"
+          data-detecting={isDetecting && detectionProgress ? 'true' : 'false'}
+          data-type={annotationType}
+        >
         {!isDetecting && !detectionProgress && (
           <>
             <div className="semiont-form-field">
@@ -194,7 +218,8 @@ export function DetectSection({
             </div>
           </div>
         )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
