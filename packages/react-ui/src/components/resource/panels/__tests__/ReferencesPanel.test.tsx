@@ -656,12 +656,13 @@ describe('ReferencesPanel Component', () => {
       expect(panel).toHaveClass('semiont-panel');
     });
 
-    it('should have emoji in title', () => {
+    it('should have title without emoji', () => {
       render(<ReferencesPanel {...defaultProps} />);
 
-      // The emoji is part of the title text content
+      // The emoji is no longer in the title (it's only in the tab now)
       const title = screen.getByRole('heading', { level: 2 });
-      expect(title.textContent).toContain('🔵');
+      expect(title.textContent).not.toContain('🔵');
+      expect(title.textContent).toContain('referencesTitle');
     });
 
     it('should have proper button layout', () => {
