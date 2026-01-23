@@ -45,15 +45,15 @@
   transition: all 200ms;
   text-decoration: underline wavy;
   text-decoration-color: var(--semiont-motivation-assessment-primary);
-  text-decoration-thickness: 2px;
-  text-underline-offset: 2px;
+  text-decoration-thickness: 1.2px;
+  text-underline-offset: 0.8px;
 }
 
 .semiont-motivation-assessment:hover,
 .annotation-assessment:hover,
 .red-underline:hover {
   opacity: 0.8;
-  text-decoration-thickness: 3px;
+  text-decoration-thickness: 1.6px;
 }
 
 /* Fallback for browsers that don't support wavy underline */
@@ -61,14 +61,14 @@
   .semiont-motivation-assessment,
   .annotation-assessment,
   .red-underline {
-    border-bottom: 2px solid var(--semiont-motivation-assessment-primary);
+    border-bottom: 1.2px solid var(--semiont-motivation-assessment-primary);
     text-decoration: none;
   }
 
   .semiont-motivation-assessment:hover,
   .annotation-assessment:hover,
   .red-underline:hover {
-    border-bottom-width: 3px;
+    border-bottom-width: 1.6px;
   }
 }
 
