@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Fragment } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
-// import { useResources } from '../../hooks/useResources';
+import { useResources } from '../../lib/api-hooks';
 import { useSearchAnnouncements } from '../../hooks/useSearchAnnouncements';
 
 interface ResourceSearchModalProps {
@@ -47,14 +47,11 @@ export function ResourceSearchModal({
   }, [search]);
 
   // Use React Query for search
-  // const resources = useResources();
-  const resources: any[] = []; // TODO: This should come from props or context
-  // const { data: searchData, isFetching: loading } = resources.search.useQuery(
-  //   debouncedSearch,
-  //   10
-  // );
-  const searchData = { resources: [] };
-  const loading = false;
+  const resources = useResources();
+  const { data: searchData, isFetching: loading } = resources.search.useQuery(
+    debouncedSearch,
+    50 // Limit to 50 results
+  );
 
   // Extract results from search data
   const results = searchData?.resources?.map((resource: any) => {
