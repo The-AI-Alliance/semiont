@@ -27,6 +27,7 @@
     "test:api": "SEMIONT_ENV=unit SEMIONT_ROOT=../.. vitest run --reporter=default --reporter=json --outputFile=test-results.json src/app/api/auth/\\[...nextauth\\]/__tests__/route.test.ts src/app/api/cookies/consent/__tests__/route.test.ts src/app/api/cookies/export/__tests__/route.test.ts src/app/api/cookies/consent/__tests__/route.basic.test.ts src/app/api/cookies/export/__tests__/route.basic.test.ts",
     "test:security:admin": "SEMIONT_ENV=unit SEMIONT_ROOT=../.. vitest run --reporter=verbose src/app/admin/__tests__/page.test.tsx src/app/admin/__tests__/auth-wrapper.security.test.tsx src/app/admin/security/__tests__/page.test.tsx src/app/admin/__tests__/layout.test.tsx src/components/admin/__tests__/AdminAuthWrapper.test.tsx src/app/admin/users/__tests__/page.test.tsx",
     "test:security:other": "SEMIONT_ENV=unit SEMIONT_ROOT=../.. vitest run --reporter=verbose src/app/privacy/__tests__/page.test.tsx src/app/api/auth/\\[...nextauth\\]/__tests__/route.test.ts src/lib/__tests__/validation.test.ts",
+    "pretest:security": "node scripts/merge-translations.js",
     "test:security": "npm run test:security:admin && npm run test:security:other",
     "test:a11y": "SEMIONT_ENV=unit SEMIONT_ROOT=../.. vitest run -t \"Accessibility\"",
     "test:a11y:watch": "SEMIONT_ENV=unit SEMIONT_ROOT=../.. vitest -t \"Accessibility\"",
