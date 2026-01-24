@@ -525,8 +525,9 @@ export function CodeMirrorRenderer({
 
     if (!element) return undefined;
 
-    // Find the actual scroll container (not window!)
-    const scrollContainer = element.closest('.semiont-document-viewer__scrollable-body') as HTMLElement;
+    // Find the actual scroll container - could be annotate view or document viewer
+    const scrollContainer = (element.closest('.semiont-annotate-view__content') ||
+                            element.closest('.semiont-document-viewer__scrollable-body')) as HTMLElement;
 
     if (scrollContainer) {
       // Check visibility within the scroll container, not window
@@ -572,8 +573,9 @@ export function CodeMirrorRenderer({
 
     if (!element) return undefined;
 
-    // Find the actual scroll container (not window!)
-    const scrollContainer = element.closest('.semiont-document-viewer__scrollable-body') as HTMLElement;
+    // Find the actual scroll container - could be annotate view or document viewer
+    const scrollContainer = (element.closest('.semiont-annotate-view__content') ||
+                            element.closest('.semiont-document-viewer__scrollable-body')) as HTMLElement;
 
     if (scrollContainer) {
       // Check visibility within the scroll container, not window
@@ -619,8 +621,19 @@ export function CodeMirrorRenderer({
 
     if (!element) return;
 
-    // Scroll using native scrollIntoView (scrolls parent container)
-    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Find the actual scroll container - could be annotate view or document viewer
+    const scrollContainer = (element.closest('.semiont-annotate-view__content') ||
+                            element.closest('.semiont-document-viewer__scrollable-body')) as HTMLElement;
+
+    if (scrollContainer) {
+      // Scroll using container.scrollTo to avoid scrolling ancestors
+      const elementTop = element.offsetTop;
+      const containerHeight = scrollContainer.clientHeight;
+      const elementHeight = element.offsetHeight;
+      const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
+
+      scrollContainer.scrollTo({ top: scrollTo, behavior: 'smooth' });
+    }
   }, [scrollToAnnotationId]);
 
   const containerClasses = sourceView
