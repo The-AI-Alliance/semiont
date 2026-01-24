@@ -51,6 +51,7 @@
 @import './components/footer.css';
 @import './components/left-sidebar.css';
 @import './components/navigation-menu.css';
+@import './components/resize-handle.css';
 
 /* Motivation-Specific Styles (W3C Web Annotation) */
 @import './motivations/motivation-reference.css';

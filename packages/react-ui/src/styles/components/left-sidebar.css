@@ -12,6 +12,8 @@
 }
 
 .semiont-left-sidebar[data-collapsed="false"] {
+  /* Width is now controlled by inline style from usePanelWidth hook */
+  /* Default fallback kept for non-JS scenarios */
   width: 16rem;
 }
 
@@ -131,4 +133,6 @@
   flex: 1;
   overflow-y: auto;
   padding: 1rem;
+  position: relative;
+  z-index: 1; /* Ensure content is above resize handle */
 }

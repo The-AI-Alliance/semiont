@@ -21,10 +21,22 @@
   cursor: pointer;
   border-radius: var(--semiont-radius-md);
   transition: background var(--semiont-duration-base);
+  position: relative;
+  z-index: 1; /* Ensure header is above resize handle */
 }
 
 .semiont-nav-section__header-text {
   flex: 1;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
 }
 
 .semiont-nav-section__header-icon {
