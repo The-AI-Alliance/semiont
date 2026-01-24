@@ -133,4 +133,6 @@
   flex: 1;
   overflow-y: auto;
   padding: 1rem;
+  position: relative;
+  z-index: 1; /* Ensure content is above resize handle */
 }

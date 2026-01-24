@@ -28,27 +28,33 @@
   right: 0;
 }
 
-/* Visual indicator on hover */
+/* Visual indicator - always visible but subtle */
 .semiont-resize-handle::before {
   content: '';
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 2px;
-  height: 40px;
-  background: var(--semiont-color-gray-300);
+  width: 3px;
+  height: 48px;
+  background: var(--semiont-color-gray-400);
   border-radius: 2px;
-  opacity: 0;
-  transition: opacity var(--semiont-duration-base);
+  opacity: 0.4;
+  transition: all var(--semiont-duration-base);
 }
 
 .semiont-resize-handle:hover::before {
   opacity: 1;
+  height: 64px;
+  background: var(--semiont-color-primary-500);
 }
 
 [data-theme="dark"] .semiont-resize-handle::before {
-  background: var(--semiont-color-gray-600);
+  background: var(--semiont-color-gray-500);
+}
+
+[data-theme="dark"] .semiont-resize-handle:hover::before {
+  background: var(--semiont-color-primary-400);
 }
 
 /* Hover state */
