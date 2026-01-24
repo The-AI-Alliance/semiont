@@ -35,8 +35,8 @@ export default function KnowledgeLayout({
           <div className="h-screen semiont-knowledge-layout semiont-layout-with-footer flex flex-col overflow-hidden">
             <div className="flex flex-1 overflow-hidden">
               <KnowledgeSidebarWrapper />
-              <main className="flex-1 px-2 pb-6 flex flex-col overflow-hidden">
-                <div className="max-w-7xl mx-auto flex-1 flex flex-col w-full h-full overflow-hidden">
+              <main className="flex-1 w-full px-2 pb-6 flex flex-col overflow-hidden">
+                <div className="w-full mx-auto flex-1 flex flex-col h-full overflow-hidden">
                   {children}
                 </div>
               </main>

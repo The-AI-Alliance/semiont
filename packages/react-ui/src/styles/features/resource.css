@@ -250,7 +250,8 @@
 .semiont-document-viewer {
   display: flex;
   flex-direction: row;
-  height: 100vh;
+  height: 100%;
+  width: 100%;
   background: var(--semiont-color-gray-50);
   position: relative;
 }
