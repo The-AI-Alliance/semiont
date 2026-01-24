@@ -97,10 +97,18 @@
 
 /* BrowseView Component */
 .semiont-browse-view {
-  padding: 0 1.5rem;
-  height: 100%;
-  overflow-y: auto;
+  padding: 0;
   background-color: var(--semiont-bg-primary);
+  display: flex;
+  flex-direction: column;
+  height: 100%; /* Fill parent to enable flexbox children sizing */
+}
+
+.semiont-browse-view__content {
+  flex: 1; /* Take remaining space after toolbar */
+  min-height: 0; /* Allow flexbox shrinking */
+  overflow: auto; /* This becomes the scroll container */
+  padding: 0 1.5rem; /* Move padding from parent to scrollable content */
 }
 
 [data-theme="dark"] .semiont-browse-view {
@@ -147,8 +155,9 @@
   position: relative;
   padding: 0;
   background: var(--semiont-bg-primary);
-  height: 100%;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  height: 100%; /* Fill parent to enable flexbox children sizing */
 }
 
 [data-theme="dark"] .semiont-annotate-view {
@@ -172,6 +181,9 @@
 .semiont-annotate-view__content {
   position: relative;
   max-width: 100%;
+  flex: 1; /* Take remaining space after toolbar */
+  min-height: 0; /* Allow flexbox shrinking */
+  overflow: auto; /* This becomes the scroll container */
 }
 
 .semiont-annotate-view__image-container,
@@ -232,7 +244,7 @@
 
 /* CodeMirrorRenderer Component */
 .semiont-codemirror {
-  height: 100%;
+  /* Removed height: 100% - allow content to expand naturally */
   overflow: hidden;
 }
 

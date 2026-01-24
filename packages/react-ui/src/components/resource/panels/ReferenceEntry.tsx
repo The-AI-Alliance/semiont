@@ -48,10 +48,29 @@ export function ReferenceEntry({
     };
   }, [reference.id, onReferenceRef]);
 
-  // Scroll to reference when focused
+  // Scroll to reference when focused - use container.scrollTo to avoid scrolling ancestors
   useEffect(() => {
     if (isFocused && referenceRef.current) {
-      referenceRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const element = referenceRef.current;
+      const container = element.closest('.semiont-toolbar-panels__content') as HTMLElement;
+
+      if (container) {
+        const elementRect = element.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+
+        const isVisible =
+          elementRect.top >= containerRect.top &&
+          elementRect.bottom <= containerRect.bottom;
+
+        if (!isVisible) {
+          const elementTop = element.offsetTop;
+          const containerHeight = container.clientHeight;
+          const elementHeight = element.offsetHeight;
+          const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
+
+          container.scrollTo({ top: scrollTo, behavior: 'smooth' });
+        }
+      }
     }
   }, [isFocused]);
 

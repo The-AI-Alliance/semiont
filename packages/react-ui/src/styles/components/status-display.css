@@ -123,6 +123,7 @@
   background-color: var(--semiont-bg-secondary);
   border-left: 1px solid var(--semiont-color-gray-200);
   flex-shrink: 0;
+  overflow: visible; /* FIXED: Don't clip toolbar buttons at top */
 }
 
 .semiont-toolbar-button {

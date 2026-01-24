@@ -269,13 +269,15 @@
 
 .semiont-document-viewer__content {
   flex: 1;
-  overflow: auto;
+  overflow: hidden; /* Changed: clip at this level, child scrolls instead */
   display: flex;
   flex-direction: column;
   min-width: 0; /* Prevent flex child from growing beyond parent */
+  min-height: 0; /* Allow flexbox shrinking */
 }
 
 .semiont-document-viewer__header {
+  flex-shrink: 0; /* NEW: Prevent header from being scrolled out */
   background: var(--semiont-bg-primary);
   border-bottom: 1px solid var(--semiont-color-gray-200);
 }
@@ -302,6 +304,15 @@
   color: var(--semiont-color-gray-100);
 }
 
+/* NEW: Scrollable body wrapper - replaces .semiont-document-viewer__body functionality */
+.semiont-document-viewer__scrollable-body {
+  flex: 1; /* Take remaining vertical space after header */
+  overflow: auto; /* Scroll here instead of parent */
+  min-height: 0; /* Allow flexbox shrinking */
+  padding: 0;
+}
+
+/* DEPRECATED: Keep temporarily for safety, can be removed in future cleanup */
 .semiont-document-viewer__body {
   padding: 0;
 }
@@ -419,6 +430,7 @@
   flex-shrink: 0; /* Prevent sidebar from shrinking */
   height: 100%;
   background: transparent;
+  overflow: visible; /* FIXED: Don't clip toolbar or panels */
 }
 
 /* Toolbar panels container */
@@ -428,7 +440,7 @@
   width: 24rem;
   background: var(--semiont-bg-primary);
   border-left: 1px solid var(--semiont-color-gray-200);
-  overflow: hidden;
+  overflow: visible; /* FIXED: Don't clip panel content, child scrolls instead */
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -449,7 +461,7 @@
 
 .semiont-toolbar-panels__content {
   flex: 1;
-  overflow: hidden; /* Don't scroll here - panels inside handle their own scrolling */
+  overflow: auto; /* FIXED: Allow scrolling so panel content isn't clipped */
   min-height: 0;
 }
 

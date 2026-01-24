@@ -197,28 +197,92 @@ export function BrowseView({
     };
   }, [content, allAnnotations, onAnnotationClick, annotationMap, newAnnotationIds, handleAnnotationHover]);
 
-  // Handle hoveredCommentId visual feedback
+  // Handle hoveredAnnotationId - scroll and pulse
+  useEffect(() => {
+    if (!containerRef.current || !hoveredAnnotationId) return undefined;
+
+    const element = containerRef.current.querySelector(
+      `[data-annotation-id="${CSS.escape(hoveredAnnotationId)}"]`
+    ) as HTMLElement;
+
+    if (!element) return undefined;
+
+    // Find the scroll container
+    const scrollContainer = element.closest('.semiont-browse-view__content') as HTMLElement;
+
+    if (scrollContainer) {
+      // Check visibility within the scroll container
+      const elementRect = element.getBoundingClientRect();
+      const containerRect = scrollContainer.getBoundingClientRect();
+
+      const isVisible =
+        elementRect.top >= containerRect.top &&
+        elementRect.bottom <= containerRect.bottom;
+
+      if (!isVisible) {
+        // Scroll using container.scrollTo to avoid scrolling ancestors
+        const elementTop = element.offsetTop;
+        const containerHeight = scrollContainer.clientHeight;
+        const elementHeight = element.offsetHeight;
+        const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
+
+        scrollContainer.scrollTo({ top: scrollTo, behavior: 'smooth' });
+      }
+    }
+
+    // Add pulse effect
+    const timeoutId = setTimeout(() => {
+      element.classList.add('annotation-pulse');
+    }, 100);
+
+    return () => {
+      clearTimeout(timeoutId);
+      element.classList.remove('annotation-pulse');
+    };
+  }, [hoveredAnnotationId]);
+
+  // Handle hoveredCommentId - scroll and pulse
   useEffect(() => {
     if (!containerRef.current || !hoveredCommentId) return undefined;
 
-    const container = containerRef.current;
-    const element = container.querySelector(
+    const element = containerRef.current.querySelector(
       `[data-annotation-id="${CSS.escape(hoveredCommentId)}"]`
     ) as HTMLElement;
 
-    if (element) {
-      element.classList.add('annotation-pulse');
-      const timeoutId = setTimeout(() => {
-        element.classList.remove('annotation-pulse');
-      }, 1500);
+    if (!element) return undefined;
 
-      return () => {
-        clearTimeout(timeoutId);
-        element.classList.remove('annotation-pulse');
-      };
+    // Find the scroll container
+    const scrollContainer = element.closest('.semiont-browse-view__content') as HTMLElement;
+
+    if (scrollContainer) {
+      // Check visibility within the scroll container
+      const elementRect = element.getBoundingClientRect();
+      const containerRect = scrollContainer.getBoundingClientRect();
+
+      const isVisible =
+        elementRect.top >= containerRect.top &&
+        elementRect.bottom <= containerRect.bottom;
+
+      if (!isVisible) {
+        // Scroll using container.scrollTo to avoid scrolling ancestors
+        const elementTop = element.offsetTop;
+        const containerHeight = scrollContainer.clientHeight;
+        const elementHeight = element.offsetHeight;
+        const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
+
+        scrollContainer.scrollTo({ top: scrollTo, behavior: 'smooth' });
+      }
     }
 
-    return undefined;
+    // Add pulse effect
+    const timeoutId = setTimeout(() => {
+      element.classList.add('annotation-pulse');
+    }, 100);
+
+    return () => {
+      clearTimeout(timeoutId);
+      element.classList.remove('annotation-pulse');
+    };
   }, [hoveredCommentId]);
 
   // Route to appropriate viewer based on MIME type category

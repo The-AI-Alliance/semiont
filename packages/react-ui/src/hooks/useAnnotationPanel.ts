@@ -39,7 +39,25 @@ export function useAnnotationPanel<T extends Annotation>(
 
     const element = refs.current.get(hoveredId);
     if (element && containerRef.current) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      // Only scroll if element is not fully visible within its container
+      const container = containerRef.current;
+      const elementRect = element.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+
+      const isVisible =
+        elementRect.top >= containerRect.top &&
+        elementRect.bottom <= containerRect.bottom;
+
+      if (!isVisible) {
+        // Use container.scrollTo instead of scrollIntoView to avoid scrolling ancestors
+        const elementTop = element.offsetTop;
+        const containerHeight = container.clientHeight;
+        const elementHeight = element.offsetHeight;
+        const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
+
+        container.scrollTo({ top: scrollTo, behavior: 'smooth' });
+      }
+
       element.classList.add('bg-gray-200', 'dark:bg-gray-700');
       setTimeout(() => {
         element.classList.remove('bg-gray-200', 'dark:bg-gray-700');
