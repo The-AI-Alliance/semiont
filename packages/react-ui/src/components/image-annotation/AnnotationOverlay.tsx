@@ -39,6 +39,25 @@ function getAnnotationColor(annotation: Annotation): { stroke: string; fill: str
 }
 
 /**
+ * Get tooltip text for annotation based on type/motivation
+ */
+function getAnnotationTooltip(annotation: Annotation): string {
+  if (isComment(annotation)) {
+    return 'Comment';
+  } else if (isHighlight(annotation)) {
+    return 'Highlight';
+  } else if (isAssessment(annotation)) {
+    return 'Assessment';
+  } else if (isTag(annotation)) {
+    return 'Tag';
+  } else if (isReference(annotation)) {
+    const isResolved = isBodyResolved(annotation.body);
+    return isResolved ? 'Resolved Reference' : 'Unresolved Reference';
+  }
+  return 'Annotation';
+}
+
+/**
  * Render annotation overlay - displays existing annotations as SVG shapes
  */
 export function AnnotationOverlay({
@@ -88,6 +107,7 @@ export function AnnotationOverlay({
 
             return (
               <g key={annotation.id}>
+                <title>{getAnnotationTooltip(annotation)}</title>
                 <rect
                   x={x * scaleX}
                   y={y * scaleY}
@@ -135,6 +155,7 @@ export function AnnotationOverlay({
 
             return (
               <g key={annotation.id}>
+                <title>{getAnnotationTooltip(annotation)}</title>
                 <circle
                   cx={cx * scaleX}
                   cy={cy * scaleY}
@@ -196,6 +217,7 @@ export function AnnotationOverlay({
 
             return (
               <g key={annotation.id}>
+                <title>{getAnnotationTooltip(annotation)}</title>
                 <polygon
                   points={points}
                   fill={isHovered || isSelected ? colors.fill : 'transparent'}
