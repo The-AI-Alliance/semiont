@@ -404,8 +404,8 @@ export function CodeMirrorRenderer({
             outline: 'none'
           },
           '.cm-scroller': {
-            overflow: 'auto !important',
-            height: '100% !important'
+            overflow: 'visible !important', // Let parent container handle scrolling
+            height: 'auto !important'
           },
           '.cm-content, .cm-gutters': {
             minHeight: '0 !important'
@@ -516,97 +516,112 @@ export function CodeMirrorRenderer({
   useEffect(() => {
     if (!viewRef.current || !hoveredAnnotationId) return undefined;
 
-    const segment = segments.find(s => s.annotation?.id === hoveredAnnotationId);
-    if (!segment) return undefined;
-
     const view = viewRef.current;
 
-    // Scroll first
-    view.dispatch({
-      effects: EditorView.scrollIntoView(segment.start, {
-        y: 'nearest',
-        yMargin: 50
-      })
-    });
+    // Find the annotation element in the DOM
+    const element = view.contentDOM.querySelector(
+      `[data-annotation-id="${CSS.escape(hoveredAnnotationId)}"]`
+    ) as HTMLElement;
+
+    if (!element) return undefined;
+
+    // Find the actual scroll container (not window!)
+    const scrollContainer = element.closest('.semiont-document-viewer__scrollable-body') as HTMLElement;
+
+    if (scrollContainer) {
+      // Check visibility within the scroll container, not window
+      const elementRect = element.getBoundingClientRect();
+      const containerRect = scrollContainer.getBoundingClientRect();
+
+      const isVisible =
+        elementRect.top >= containerRect.top &&
+        elementRect.bottom <= containerRect.bottom;
+
+      if (!isVisible) {
+        // Manually scroll the container instead of using scrollIntoView
+        const elementTop = element.offsetTop;
+        const containerHeight = scrollContainer.clientHeight;
+        const elementHeight = element.offsetHeight;
+        const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
+
+        scrollContainer.scrollTo({ top: scrollTo, behavior: 'smooth' });
+      }
+    }
 
     // Add pulse effect after a brief delay to ensure element is visible
     const timeoutId = setTimeout(() => {
-      const element = view.contentDOM.querySelector(
-        `[data-annotation-id="${CSS.escape(hoveredAnnotationId)}"]`
-      ) as HTMLElement;
-
-      if (element) {
-        element.classList.add('annotation-pulse');
-      }
+      element.classList.add('annotation-pulse');
     }, 100);
 
     return () => {
       clearTimeout(timeoutId);
-      const element = view.contentDOM.querySelector(
-        `[data-annotation-id="${CSS.escape(hoveredAnnotationId)}"]`
-      ) as HTMLElement;
-      if (element) {
-        element.classList.remove('annotation-pulse');
-      }
+      element.classList.remove('annotation-pulse');
     };
-  }, [hoveredAnnotationId, segments]);
+  }, [hoveredAnnotationId]);
 
   // Handle hovered comment - add pulse effect and scroll if not visible
   useEffect(() => {
     if (!viewRef.current || !hoveredCommentId) return undefined;
 
-    const segment = segments.find(s => s.annotation?.id === hoveredCommentId);
-    if (!segment) return undefined;
-
     const view = viewRef.current;
 
-    // Scroll first
-    view.dispatch({
-      effects: EditorView.scrollIntoView(segment.start, {
-        y: 'nearest',
-        yMargin: 50
-      })
-    });
+    // Find the comment element in the DOM
+    const element = view.contentDOM.querySelector(
+      `[data-annotation-id="${CSS.escape(hoveredCommentId)}"]`
+    ) as HTMLElement;
+
+    if (!element) return undefined;
+
+    // Find the actual scroll container (not window!)
+    const scrollContainer = element.closest('.semiont-document-viewer__scrollable-body') as HTMLElement;
+
+    if (scrollContainer) {
+      // Check visibility within the scroll container, not window
+      const elementRect = element.getBoundingClientRect();
+      const containerRect = scrollContainer.getBoundingClientRect();
+
+      const isVisible =
+        elementRect.top >= containerRect.top &&
+        elementRect.bottom <= containerRect.bottom;
+
+      if (!isVisible) {
+        // Manually scroll the container instead of using scrollIntoView
+        const elementTop = element.offsetTop;
+        const containerHeight = scrollContainer.clientHeight;
+        const elementHeight = element.offsetHeight;
+        const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
+
+        scrollContainer.scrollTo({ top: scrollTo, behavior: 'smooth' });
+      }
+    }
 
     // Add pulse effect after a brief delay to ensure element is visible
     const timeoutId = setTimeout(() => {
-      const element = view.contentDOM.querySelector(
-        `[data-annotation-id="${CSS.escape(hoveredCommentId)}"]`
-      ) as HTMLElement;
-
-      if (element) {
-        element.classList.add('annotation-pulse');
-      }
+      element.classList.add('annotation-pulse');
     }, 100);
 
     return () => {
       clearTimeout(timeoutId);
-      const element = view.contentDOM.querySelector(
-        `[data-annotation-id="${CSS.escape(hoveredCommentId)}"]`
-      ) as HTMLElement;
-      if (element) {
-        element.classList.remove('annotation-pulse');
-      }
+      element.classList.remove('annotation-pulse');
     };
-  }, [hoveredCommentId, segments]);
+  }, [hoveredCommentId]);
 
   // Handle scroll to annotation
   useEffect(() => {
     if (!viewRef.current || !scrollToAnnotationId) return;
 
-    const segment = segments.find(s => s.annotation?.id === scrollToAnnotationId);
-    if (!segment) return;
-
-    const pos = segment.start;
     const view = viewRef.current;
 
-    view.dispatch({
-      effects: EditorView.scrollIntoView(pos, {
-        y: 'center',
-        yMargin: 100
-      })
-    });
-  }, [scrollToAnnotationId, segments]);
+    // Find the annotation element in the DOM
+    const element = view.contentDOM.querySelector(
+      `[data-annotation-id="${CSS.escape(scrollToAnnotationId)}"]`
+    ) as HTMLElement;
+
+    if (!element) return;
+
+    // Scroll using native scrollIntoView (scrolls parent container)
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [scrollToAnnotationId]);
 
   const containerClasses = sourceView
     ? "semiont-codemirror semiont-codemirror--source"

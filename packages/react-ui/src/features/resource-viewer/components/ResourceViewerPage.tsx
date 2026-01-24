@@ -503,7 +503,8 @@ export function ResourceViewerPage({
               </h2>
             </div>
           </div>
-          <div className="semiont-document-viewer__body" lang={getLanguage(resource) || undefined}>
+          {/* Scrollable body wrapper - contains document content, header is sibling above */}
+          <div className="semiont-document-viewer__scrollable-body" lang={getLanguage(resource) || undefined}>
             <ErrorBoundary
               fallback={(error, reset) => (
                 <div className="semiont-document-viewer__error">
