@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { SemiontBranding } from '../branding/SemiontBranding';
 import { NavigationMenu } from '../navigation/NavigationMenu';
+import { ResizeHandle } from '../ResizeHandle';
+import { usePanelWidth } from '../../hooks/usePanelWidth';
 import type { LinkComponentProps, RouteBuilder } from '../../contexts/RoutingContext';
 import type { TranslateFn } from '../../types/translation';
 
@@ -45,6 +47,15 @@ export function LeftSidebar({
 }: LeftSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
+  // Sidebar width management with localStorage persistence
+  // Only applies when not collapsed
+  const { width, setWidth, minWidth, maxWidth } = usePanelWidth({
+    defaultWidth: 256, // 16rem
+    minWidth: 192,     // 12rem
+    maxWidth: 400,     // 25rem
+    storageKey: 'semiont-left-sidebar-width'
+  });
+
   // Load collapsed state from localStorage on mount (only if collapsible)
   useEffect(() => {
     if (collapsible) {
@@ -81,7 +92,19 @@ export function LeftSidebar({
     <aside
       className="semiont-left-sidebar"
       data-collapsed={isCollapsed}
+      style={!isCollapsed ? { width: `${width}px`, position: 'relative' } : undefined}
     >
+      {/* Resize handle on right edge - only when expanded */}
+      {!isCollapsed && (
+        <ResizeHandle
+          onResize={setWidth}
+          minWidth={minWidth}
+          maxWidth={maxWidth}
+          position="right"
+          ariaLabel="Resize left sidebar"
+        />
+      )}
+
       {/* Logo Header - fixed height for alignment */}
       <div
         className="semiont-left-sidebar__header"

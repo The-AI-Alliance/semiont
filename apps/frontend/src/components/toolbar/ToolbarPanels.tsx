@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useTransition } from 'react';
-import { SettingsPanel } from '@semiont/react-ui';
+import { SettingsPanel, ResizeHandle, usePanelWidth } from '@semiont/react-ui';
 import { UserPanel } from '../UserPanel';
 import { useLocale } from 'next-intl';
 import { usePathname, useRouter } from '@/i18n/routing';
@@ -62,6 +62,9 @@ export function ToolbarPanels({
   const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
 
+  // Panel width management with localStorage persistence
+  const { width, setWidth, minWidth, maxWidth } = usePanelWidth();
+
   const handleLocaleChange = (newLocale: string) => {
     if (!pathname) return;
 
@@ -77,7 +80,16 @@ export function ToolbarPanels({
   }
 
   return (
-    <div className="semiont-toolbar-panels">
+    <div className="semiont-toolbar-panels" style={{ width: `${width}px`, position: 'relative' }}>
+      {/* Resize handle on left edge */}
+      <ResizeHandle
+        onResize={setWidth}
+        minWidth={minWidth}
+        maxWidth={maxWidth}
+        position="left"
+        ariaLabel="Resize right panel"
+      />
+
       {/* Custom context-specific panels */}
       <div className="semiont-toolbar-panels__content">
         {children}

@@ -423,7 +423,9 @@
 
 /* Toolbar panels container */
 .semiont-toolbar-panels {
-  width: 20rem;
+  /* Width is now controlled by inline style from usePanelWidth hook */
+  /* Default fallback kept for non-JS scenarios */
+  width: 24rem;
   background: var(--semiont-bg-primary);
   border-left: 1px solid var(--semiont-color-gray-200);
   overflow: hidden;
@@ -432,11 +434,13 @@
   height: 100%;
 }
 
-/* Wider panels for Annotations and JSON-LD */
+/* Legacy wider panels - now handled by user-adjustable width
+   Keeping as comments for reference:
 .semiont-toolbar-panels:has(.semiont-unified-panel),
 .semiont-toolbar-panels:has(.semiont-jsonld-panel) {
   width: 28rem;
 }
+*/
 
 [data-theme="dark"] .semiont-toolbar-panels {
   background: var(--semiont-bg-primary);

@@ -1,0 +1,104 @@
+/* ============================================
+   Resize Handle Component
+   ============================================ */
+
+.semiont-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: col-resize;
+  z-index: 10;
+  transition: background var(--semiont-duration-base);
+
+  /* Ensure sufficient click target for accessibility (WCAG 2.1 Level AA) */
+  min-width: 44px;
+  margin-left: -18px;
+}
+
+/* Position variants */
+.semiont-resize-handle--left {
+  left: 0;
+}
+
+.semiont-resize-handle--right {
+  right: 0;
+}
+
+/* Visual indicator on hover */
+.semiont-resize-handle::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 40px;
+  background: var(--semiont-color-gray-300);
+  border-radius: 2px;
+  opacity: 0;
+  transition: opacity var(--semiont-duration-base);
+}
+
+.semiont-resize-handle:hover::before {
+  opacity: 1;
+}
+
+[data-theme="dark"] .semiont-resize-handle::before {
+  background: var(--semiont-color-gray-600);
+}
+
+/* Hover state */
+.semiont-resize-handle:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+[data-theme="dark"] .semiont-resize-handle:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* Active/dragging state */
+.semiont-resize-handle--dragging,
+.semiont-resize-handle:active {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="dark"] .semiont-resize-handle--dragging,
+[data-theme="dark"] .semiont-resize-handle:active {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.semiont-resize-handle--dragging::before,
+.semiont-resize-handle:active::before {
+  opacity: 1;
+  background: var(--semiont-color-primary-500);
+}
+
+[data-theme="dark"] .semiont-resize-handle--dragging::before,
+[data-theme="dark"] .semiont-resize-handle:active::before {
+  background: var(--semiont-color-primary-400);
+}
+
+/* Focus state for keyboard navigation */
+.semiont-resize-handle:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: -2px;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+[data-theme="dark"] .semiont-resize-handle:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.semiont-resize-handle:focus-visible::before {
+  opacity: 1;
+}
+
+/* Remove outline when not using keyboard */
+.semiont-resize-handle:focus:not(:focus-visible) {
+  outline: none;
+}
