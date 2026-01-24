@@ -51,7 +51,8 @@ function getAnnotationTooltip(annotation: Annotation): string {
   } else if (isTag(annotation)) {
     return 'Tag';
   } else if (isReference(annotation)) {
-    const isResolved = isBodyResolved(annotation.body);
+    // Use optional chaining to avoid TypeScript type narrowing issues
+    const isResolved = annotation.body && isBodyResolved(annotation.body);
     return isResolved ? 'Resolved Reference' : 'Unresolved Reference';
   }
   return 'Annotation';
