@@ -2,7 +2,7 @@
 
 import React from 'react';
 import type { components } from '@semiont/api-client';
-import { getSvgSelector, isHighlight, isReference, isAssessment, isComment, isTag, isBodyResolved } from '@semiont/api-client';
+import { getSvgSelector, isHighlight, isReference, isAssessment, isComment, isTag, isBodyResolved, isResolvedReference } from '@semiont/api-client';
 import { parseSvgSelector } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
@@ -50,10 +50,10 @@ function getAnnotationTooltip(annotation: Annotation): string {
     return 'Assessment';
   } else if (isTag(annotation)) {
     return 'Tag';
+  } else if (isResolvedReference(annotation)) {
+    return 'Resolved Reference';
   } else if (isReference(annotation)) {
-    // Use optional chaining to avoid TypeScript type narrowing issues
-    const isResolved = annotation.body && isBodyResolved(annotation.body);
-    return isResolved ? 'Resolved Reference' : 'Unresolved Reference';
+    return 'Unresolved Reference';
   }
   return 'Annotation';
 }
