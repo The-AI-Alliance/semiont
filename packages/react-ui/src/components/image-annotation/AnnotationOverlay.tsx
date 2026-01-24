@@ -2,7 +2,7 @@
 
 import React from 'react';
 import type { components } from '@semiont/api-client';
-import { getSvgSelector, isHighlight, isReference, isAssessment, isComment, isBodyResolved } from '@semiont/api-client';
+import { getSvgSelector, isHighlight, isReference, isAssessment, isComment, isTag, isBodyResolved } from '@semiont/api-client';
 import { parseSvgSelector } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
@@ -32,6 +32,8 @@ function getAnnotationColor(annotation: Annotation): { stroke: string; fill: str
     return { stroke: 'rgb(239, 68, 68)', fill: 'rgba(239, 68, 68, 0.2)' }; // red
   } else if (isComment(annotation)) {
     return { stroke: 'rgb(255, 255, 255)', fill: 'rgba(255, 255, 255, 0.2)' }; // white
+  } else if (isTag(annotation)) {
+    return { stroke: 'rgb(234, 88, 12)', fill: 'rgba(234, 88, 12, 0.2)' }; // orange (orange-600)
   }
   return { stroke: 'rgb(156, 163, 175)', fill: 'rgba(156, 163, 175, 0.2)' }; // gray default
 }

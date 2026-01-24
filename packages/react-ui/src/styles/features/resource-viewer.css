@@ -457,6 +457,11 @@
   height: 100%;
 }
 
+/* Re-enable pointer events on annotation overlay so shapes can be hovered/clicked */
+.semiont-annotation-overlay {
+  pointer-events: auto;
+}
+
 .semiont-svg-drawing-canvas__preview {
   position: absolute;
   top: 0;
