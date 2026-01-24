@@ -6,7 +6,7 @@ import { EditorState, RangeSetBuilder, StateField, StateEffect, Facet, Compartme
 import { markdown } from '@codemirror/lang-markdown';
 import { getAnnotationClassName } from '../lib/annotation-registry';
 import { ReferenceResolutionWidget } from '../lib/codemirror-widgets';
-import { isHighlight, isReference, isResolvedReference, isComment, isAssessment, getBodySource } from '@semiont/api-client';
+import { isHighlight, isReference, isResolvedReference, isComment, isAssessment, isTag, getBodySource } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
@@ -102,6 +102,33 @@ function convertSegmentPositions(segments: TextSegment[], content: string): Text
   }));
 }
 
+/**
+ * Get tooltip text for annotation based on type/motivation
+ */
+function getAnnotationTooltip(annotation: Annotation): string {
+  const isCommentAnn = isComment(annotation);
+  const isHighlightAnn = isHighlight(annotation);
+  const isAssessmentAnn = isAssessment(annotation);
+  const isTagAnn = isTag(annotation);
+  const isReferenceAnn = isReference(annotation);
+  const isResolvedRef = isResolvedReference(annotation);
+
+  if (isCommentAnn) {
+    return 'Comment';
+  } else if (isHighlightAnn) {
+    return 'Highlight';
+  } else if (isAssessmentAnn) {
+    return 'Assessment';
+  } else if (isTagAnn) {
+    return 'Tag';
+  } else if (isResolvedRef) {
+    return 'Resolved Reference';
+  } else if (isReferenceAnn) {
+    return 'Unresolved Reference';
+  }
+  return 'Annotation';
+}
+
 // Build decorations from segments
 function buildAnnotationDecorations(
   segments: TextSegment[],
@@ -125,6 +152,7 @@ function buildAnnotationDecorations(
     const isReferenceAnn = isReference(segment.annotation);
     const isCommentAnn = isComment(segment.annotation);
     const isAssessmentAnn = isAssessment(segment.annotation);
+    const isTagAnn = isTag(segment.annotation);
     const isResolvedRef = isResolvedReference(segment.annotation);
 
     // Determine annotation type for data attribute - use motivation directly
@@ -132,6 +160,7 @@ function buildAnnotationDecorations(
     if (isCommentAnn) annotationType = 'comment';
     else if (isReferenceAnn) annotationType = 'reference';
     else if (isAssessmentAnn) annotationType = 'assessment';
+    else if (isTagAnn) annotationType = 'tag';
     else if (isHighlightAnn) annotationType = 'highlight';
 
     const decoration = Decoration.mark({
@@ -139,13 +168,7 @@ function buildAnnotationDecorations(
       attributes: {
         'data-annotation-id': segment.annotation.id,
         'data-annotation-type': annotationType,
-        title: isCommentAnn
-          ? 'Click to view comment'
-          : isHighlightAnn
-            ? 'Click to delete or convert to reference'
-            : isResolvedRef
-              ? 'Click to navigate • Right-click for options'
-              : 'Right-click for options'
+        title: getAnnotationTooltip(segment.annotation)
       }
     });
 

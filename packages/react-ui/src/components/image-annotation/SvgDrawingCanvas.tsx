@@ -96,9 +96,30 @@ export function SvgDrawingCanvas({
     };
 
     updateDisplayDimensions();
-    window.addEventListener('resize', updateDisplayDimensions);
-    return () => window.removeEventListener('resize', updateDisplayDimensions);
-  }, [imageDimensions]);
+
+    // Use ResizeObserver to detect image element size changes
+    // This catches: sidebar open/close, window resize, font size changes, etc.
+    let resizeObserver: ResizeObserver | null = null;
+
+    try {
+      resizeObserver = new ResizeObserver(updateDisplayDimensions);
+      if (imageRef.current) {
+        resizeObserver.observe(imageRef.current);
+      }
+    } catch (error) {
+      // Fallback for browsers without ResizeObserver support
+      console.warn('ResizeObserver not supported, falling back to window resize listener');
+      window.addEventListener('resize', updateDisplayDimensions);
+    }
+
+    return () => {
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      } else {
+        window.removeEventListener('resize', updateDisplayDimensions);
+      }
+    };
+  }, []);
 
   // Convert mouse event to SVG coordinates relative to image
   const getRelativeCoordinates = useCallback((e: React.MouseEvent<HTMLDivElement>): Point | null => {
