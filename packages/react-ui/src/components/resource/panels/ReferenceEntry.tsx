@@ -18,6 +18,7 @@ interface ReferenceEntryProps {
   onReferenceRef: (referenceId: string, el: HTMLElement | null) => void;
   onReferenceHover?: (referenceId: string | null) => void;
   onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
+  onCreateDocument?: (annotationUri: string, title: string, entityTypes: string[]) => void;
   onSearchDocuments?: (referenceId: string, searchTerm: string) => void;
   onUpdateReference?: (referenceId: string, updates: Partial<Annotation>) => void;
   annotateMode?: boolean;
@@ -32,6 +33,7 @@ export function ReferenceEntry({
   onReferenceRef,
   onReferenceHover,
   onGenerateDocument,
+  onCreateDocument,
   onSearchDocuments,
   onUpdateReference,
   annotateMode = true,
@@ -94,7 +96,9 @@ export function ReferenceEntry({
   };
 
   const handleComposeDocument = () => {
-    window.location.href = `/know/compose?title=${encodeURIComponent(selectedText)}`;
+    if (onCreateDocument) {
+      onCreateDocument(reference.id, selectedText, entityTypes);
+    }
   };
 
   const handleUnlink = () => {

@@ -191,20 +191,22 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         throw new Error('Resource must have at least one representation');
       }
 
+      // Use MERGE instead of CREATE for idempotence and to enrich stub nodes
+      // Stub nodes may be created by REFERENCES edge creation before resource.created event
       const result = await session.run(
-        `CREATE (d:Resource {
-          id: $id,
-          name: $name,
-          entityTypes: $entityTypes,
-          format: $format,
-          archived: $archived,
-          created: datetime($created),
-          creator: $creator,
-          creationMethod: $creationMethod,
-          contentChecksum: $contentChecksum,
-          sourceAnnotationId: $sourceAnnotationId,
-          sourceResourceId: $sourceResourceId
-        }) RETURN d`,
+        `MERGE (d:Resource {id: $id})
+         SET d.name = $name,
+             d.entityTypes = $entityTypes,
+             d.format = $format,
+             d.archived = $archived,
+             d.created = datetime($created),
+             d.creator = $creator,
+             d.creationMethod = $creationMethod,
+             d.contentChecksum = $contentChecksum,
+             d.sourceAnnotationId = $sourceAnnotationId,
+             d.sourceResourceId = $sourceResourceId,
+             d.stub = false
+         RETURN d`,
         {
           id,
           name: resource.name,
@@ -220,6 +222,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         }
       );
 
+      console.log(`[Neo4j] Resource created/enriched: ${id}`);
       return this.parseResourceNode(result.records[0]!.get('d'));
     } finally {
       await session.close();
@@ -544,20 +547,29 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         if (specificResource && 'source' in specificResource && specificResource.source) {
           console.log(`[Neo4j] ✅ Creating REFERENCES edge: ${id} -> ${specificResource.source}`);
           // Create REFERENCES relationship to the target resource
+          // Use MERGE for target to create stub node if it doesn't exist yet (eventual consistency)
+          // Stub will be enriched when resource.created event arrives
           const refResult = await session.run(
             `MATCH (a:Annotation {id: $annotationId})
-             MATCH (target:Resource {id: $targetResourceId})
+             MERGE (target:Resource {id: $targetResourceId})
+             ON CREATE SET target.stub = true
              MERGE (a)-[:REFERENCES]->(target)
-             RETURN a, target`,
+             RETURN a, target, target.stub AS wasStub`,
             {
               annotationId: id,
               targetResourceId: specificResource.source
             }
           );
-          console.log(`[Neo4j] ✅ REFERENCES edge created! Matched ${refResult.records.length} nodes`);
+
           if (refResult.records.length > 0) {
-            console.log(`[Neo4j]   Annotation: ${refResult.records[0]!.get('a').properties.id}`);
-            console.log(`[Neo4j]   Target Resource: ${refResult.records[0]!.get('target').properties.id}`);
+            const wasStub = refResult.records[0]!.get('wasStub');
+            if (wasStub) {
+              console.log(`[Neo4j] ✅ REFERENCES edge created with stub node for ${specificResource.source} (will be enriched by resource.created event)`);
+            } else {
+              console.log(`[Neo4j] ✅ REFERENCES edge created to existing resource ${specificResource.source}`);
+            }
+          } else {
+            console.log(`[Neo4j] ⚠️  REFERENCES edge creation returned no records`);
           }
         } else {
           console.log(`[Neo4j] No SpecificResource in body - this is a stub reference (not yet resolved)`);

@@ -40,6 +40,7 @@ interface Props {
   onSearchDocuments?: (referenceId: string, searchTerm: string) => void;
   onUpdate?: (referenceId: string, updates: Partial<Annotation>) => void;
   onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
+  onCreateDocument?: (annotationUri: string, title: string, entityTypes: string[]) => void;
   generatingReferenceId?: string | null;
   mediaType?: string | undefined;
   referencedBy?: ReferencedBy[];
@@ -72,6 +73,7 @@ export function ReferencesPanel({
   onSearchDocuments,
   onUpdate,
   onGenerateDocument,
+  onCreateDocument,
   generatingReferenceId,
   mediaType,
   referencedBy = [],
@@ -350,6 +352,7 @@ export function ReferencesPanel({
                   isGenerating={reference.id === generatingReferenceId}
                   {...(onAnnotationHover && { onReferenceHover: onAnnotationHover })}
                   {...(onGenerateDocument && { onGenerateDocument })}
+                  {...(onCreateDocument && { onCreateDocument })}
                   {...(onSearchDocuments && { onSearchDocuments })}
                   {...(onUpdate && { onUpdateReference: onUpdate })}
                 />

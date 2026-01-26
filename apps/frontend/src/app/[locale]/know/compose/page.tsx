@@ -19,7 +19,7 @@ import { useToolbar } from '@semiont/react-ui';
 import { useLineNumbers } from '@semiont/react-ui';
 import { Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { getPrimaryMediaType, getResourceId, resourceUri, resourceAnnotationUri, type ResourceUri, type ContentFormat } from '@semiont/api-client';
+import { getPrimaryMediaType, getResourceId, resourceUri, resourceAnnotationUri, type ResourceUri, type ContentFormat, type ResourceAnnotationUri } from '@semiont/api-client';
 import { decodeWithCharset } from '@semiont/api-client';
 import { ComposeLoadingState } from '@semiont/react-ui';
 import { ResourceComposePage } from '@semiont/react-ui';
@@ -44,7 +44,7 @@ function ComposeResourceContent() {
   }, [session, status, router]);
 
   // Reference completion parameters
-  const referenceId = searchParams?.get('referenceId');
+  const annotationUriParam = searchParams?.get('annotationUri');
   const sourceDocumentId = searchParams?.get('sourceDocumentId');
   const nameFromUrl = searchParams?.get('name');
   const entityTypesFromUrl = searchParams?.get('entityTypes');
@@ -81,7 +81,7 @@ function ComposeResourceContent() {
   const createFromTokenMutation = resources.createFromToken.useMutation();
 
   // Determine mode
-  const isReferenceMode = Boolean(referenceId && sourceDocumentId && nameFromUrl);
+  const isReferenceMode = Boolean(annotationUriParam && sourceDocumentId && nameFromUrl);
   const isCloneMode = mode === 'clone' && Boolean(tokenFromUrl);
   const pageMode = isCloneMode ? 'clone' : isReferenceMode ? 'reference' : 'new';
 
@@ -92,7 +92,7 @@ function ComposeResourceContent() {
       if (isReferenceMode) {
         const entityTypes = entityTypesFromUrl ? entityTypesFromUrl.split(',') : [];
         setReferenceData({
-          referenceId: referenceId!,
+          annotationUri: annotationUriParam!,
           sourceDocumentId: sourceDocumentId!,
           name: nameFromUrl!,
           entityTypes,
@@ -135,7 +135,7 @@ function ComposeResourceContent() {
 
     loadInitialData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, tokenFromUrl, cloneDataResponse, referenceId, sourceDocumentId, nameFromUrl, entityTypesFromUrl, session?.backendToken]);
+  }, [mode, tokenFromUrl, cloneDataResponse, annotationUriParam, sourceDocumentId, nameFromUrl, entityTypesFromUrl, session?.backendToken]);
 
   // Handle save resource
   const handleSaveResource = async (params: SaveResourceParams) => {
@@ -187,11 +187,24 @@ function ComposeResourceContent() {
         rUri = resourceUri(response.resource['@id']);
 
         // If this is a reference completion, update the reference
-        if (params.mode === 'reference' && params.referenceId && params.sourceDocumentId) {
+        if (params.mode === 'reference' && params.annotationUri && params.sourceDocumentId) {
           try {
-            const annotationUri = resourceAnnotationUri(`${params.sourceDocumentId}/annotations/${params.referenceId}`);
+            // Convert flat annotation URI to nested format required by the API
+            // Flat format: http://localhost:8080/annotations/{annotationId}
+            // Nested format: http://localhost:8080/resources/{resourceId}/annotations/{annotationId}
+            const annotationIdSegment = params.annotationUri.split('/').pop();
+            if (!annotationIdSegment) {
+              throw new Error('Invalid annotation URI format');
+            }
+
+            // Construct nested URI using the backend's public URL
+            const baseUrl = new URL(params.annotationUri).origin;
+            const nestedUri = resourceAnnotationUri(
+              `${baseUrl}/resources/${params.sourceDocumentId}/annotations/${annotationIdSegment}`
+            );
+
             await updateAnnotationBodyMutation.mutateAsync({
-              annotationUri,
+              annotationUri: nestedUri,
               data: {
                 resourceId: params.sourceDocumentId,
                 operations: [{
