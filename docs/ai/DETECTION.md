@@ -8,6 +8,9 @@
 - [Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - Event Store, View Storage, Graph Database flow
 - [Frontend Annotations](../../apps/frontend/docs/ANNOTATIONS.md) - UI patterns and component architecture
 - [CodeMirror Integration](../../apps/frontend/docs/CODEMIRROR-INTEGRATION.md) - Position accuracy and CRLF handling
+- [@semiont/make-meaning](../../packages/make-meaning/README.md) - Detection API and job workers
+- [Make-Meaning Job Workers](../../packages/make-meaning/docs/job-workers.md) - Worker implementation details
+- [Make-Meaning API Reference](../../packages/make-meaning/docs/api-reference.md) - AnnotationDetection methods
 
 ## Overview
 
@@ -112,10 +115,13 @@ Every detected annotation follows the [W3C Web Annotation Data Model](https://ww
 ```
 
 **Implementation**:
-- Highlights: [apps/backend/src/jobs/workers/highlight-detection-worker.ts:265-308](../../apps/backend/src/jobs/workers/highlight-detection-worker.ts)
-- Assessments: [apps/backend/src/jobs/workers/assessment-detection-worker.ts:265-308](../../apps/backend/src/jobs/workers/assessment-detection-worker.ts)
-- Comments: [apps/backend/src/jobs/workers/comment-detection-worker.ts:322-369](../../apps/backend/src/jobs/workers/comment-detection-worker.ts)
-- References: [apps/backend/src/jobs/workers/detection-worker.ts:100-180](../../apps/backend/src/jobs/workers/detection-worker.ts)
+- Highlights: [packages/make-meaning/src/jobs/workers/highlight-detection-worker.ts](../../packages/make-meaning/src/jobs/workers/highlight-detection-worker.ts)
+- Assessments: [packages/make-meaning/src/jobs/workers/assessment-detection-worker.ts](../../packages/make-meaning/src/jobs/workers/assessment-detection-worker.ts)
+- Comments: [packages/make-meaning/src/jobs/workers/comment-detection-worker.ts](../../packages/make-meaning/src/jobs/workers/comment-detection-worker.ts)
+- References: [packages/make-meaning/src/jobs/workers/reference-detection-worker.ts](../../packages/make-meaning/src/jobs/workers/reference-detection-worker.ts)
+- Tags: [packages/make-meaning/src/jobs/workers/tag-detection-worker.ts](../../packages/make-meaning/src/jobs/workers/tag-detection-worker.ts)
+
+See [Job Workers Documentation](../../packages/make-meaning/docs/job-workers.md) for complete details on worker architecture and dependency injection.
 
 ### Dual Selectors for Robustness
 
@@ -157,31 +163,43 @@ Frontend uses fuzzy anchoring ([CODEMIRROR-INTEGRATION.md](../../apps/frontend/d
 
 Detection workers use structured prompts optimized for each annotation type:
 
+Detection workers use the `AnnotationDetection` class from [@semiont/make-meaning](../../packages/make-meaning/docs/api-reference.md#annotationdetection) for all AI-powered detection logic. Workers handle job orchestration and progress tracking, while detection methods handle prompt construction and response parsing.
+
 **Highlight Detection**:
-- **File**: [apps/backend/src/jobs/workers/highlight-detection-worker.ts:230-260](../../apps/backend/src/jobs/workers/highlight-detection-worker.ts)
+- **Detection Method**: [AnnotationDetection.detectHighlights()](../../packages/make-meaning/docs/api-reference.md#detecthighlights)
+- **Worker**: [HighlightDetectionWorker](../../packages/make-meaning/src/jobs/workers/highlight-detection-worker.ts)
 - **Task**: Identify important/noteworthy passages
 - **Input**: First 8000 characters + optional user instructions
 - **Output**: JSON array with `exact`, `start`, `end`, `prefix`, `suffix`
 - **Model params**: max_tokens=2000, temperature=0.3
 
 **Assessment Detection**:
-- **File**: [apps/backend/src/jobs/workers/assessment-detection-worker.ts:231-261](../../apps/backend/src/jobs/workers/assessment-detection-worker.ts)
+- **Detection Method**: [AnnotationDetection.detectAssessments()](../../packages/make-meaning/docs/api-reference.md#detectassessments)
+- **Worker**: [AssessmentDetectionWorker](../../packages/make-meaning/src/jobs/workers/assessment-detection-worker.ts)
 - **Task**: Assess and evaluate key passages
 - **Input**: First 8000 characters + optional user instructions
 - **Output**: JSON array with `exact`, `start`, `end`, `prefix`, `suffix`, `assessment`
 - **Model params**: max_tokens=2000, temperature=0.3
 
 **Comment Detection**:
-
-- **File**: [apps/backend/src/jobs/workers/comment-detection-worker.ts:231-286](../../apps/backend/src/jobs/workers/comment-detection-worker.ts)
+- **Detection Method**: [AnnotationDetection.detectComments()](../../packages/make-meaning/docs/api-reference.md#detectcomments)
+- **Worker**: [CommentDetectionWorker](../../packages/make-meaning/src/jobs/workers/comment-detection-worker.ts)
 - **Task**: Identify passages needing explanatory comments
 - **Input**: First 8000 characters + optional user instructions + optional tone (scholarly/explanatory/conversational/technical)
 - **Output**: JSON array with `exact`, `start`, `end`, `prefix`, `suffix`, `comment`
 - **Model params**: max_tokens=3000 (higher to allow for comment generation), temperature=0.4 (higher for creative context)
 - **Guidelines**: Emphasis on selectivity (3-8 comments per 2000 words), value beyond restating text, focus on context/background/clarification
 
+**Tag Detection**:
+- **Detection Method**: [AnnotationDetection.detectTags()](../../packages/make-meaning/docs/api-reference.md#detecttags)
+- **Worker**: [TagDetectionWorker](../../packages/make-meaning/src/jobs/workers/tag-detection-worker.ts)
+- **Task**: Detect and extract structured tags using ontology schemas
+- **Input**: Full document content + schema ID + category
+- **Output**: JSON array with `exact`, `start`, `end`, `prefix`, `suffix`, `category`
+- **Model params**: max_tokens=2000, temperature=0.3
+
 **Reference/Entity Detection**:
-- **File**: [apps/backend/src/inference/entity-extractor.ts:24-78](../../apps/backend/src/inference/entity-extractor.ts)
+- **Worker**: [ReferenceDetectionWorker](../../packages/make-meaning/src/jobs/workers/reference-detection-worker.ts)
 - **Task**: Identify entity references by type (Person, Location, Concept, etc.)
 - **Input**: Full document content + selected entity types (with optional examples)
 - **Output**: JSON array with `exact`, `entityType`, `startOffset`, `endOffset`, `prefix`, `suffix`
@@ -402,34 +420,42 @@ References:
 
 ### Backend Workers (Job Processing)
 
-**Highlights Worker**: [apps/backend/src/jobs/workers/highlight-detection-worker.ts](../../apps/backend/src/jobs/workers/highlight-detection-worker.ts)
+All detection workers follow the same pattern, inheriting from `JobWorker` base class in [@semiont/jobs](../../packages/jobs/). See [Job Workers Documentation](../../packages/make-meaning/docs/job-workers.md) for complete architecture details.
+
+**Highlights Worker**: [HighlightDetectionWorker](../../packages/make-meaning/src/jobs/workers/highlight-detection-worker.ts)
 
 **Processing Stages**:
 1. **Load Resource (10%)**: Fetch from View Storage → load content via Representation Store → charset-aware decoding
-2. **AI Detection (30%)**: Truncate to 8000 chars → LLM inference → parse JSON response
+2. **AI Detection (30%)**: Call `AnnotationDetection.detectHighlights()` → parse validated matches
 3. **Create Annotations (60-100%)**: For each highlight → create W3C annotation → append to Event Store
 
-**Assessments Worker**: [apps/backend/src/jobs/workers/assessment-detection-worker.ts](../../apps/backend/src/jobs/workers/assessment-detection-worker.ts)
+**Assessments Worker**: [AssessmentDetectionWorker](../../packages/make-meaning/src/jobs/workers/assessment-detection-worker.ts)
 
-**Processing Stages**: Same as highlights, but with assessment text in body
+**Processing Stages**: Same as highlights, but calls `AnnotationDetection.detectAssessments()` and includes assessment text in body
 
-**Comments Worker**: [apps/backend/src/jobs/workers/comment-detection-worker.ts](../../apps/backend/src/jobs/workers/comment-detection-worker.ts)
+**Comments Worker**: [CommentDetectionWorker](../../packages/make-meaning/src/jobs/workers/comment-detection-worker.ts)
 
 **Processing Stages**:
-
 1. **Load Resource (10%)**: Fetch from View Storage → load content via Representation Store → charset-aware decoding
-2. **AI Detection (30%)**: Truncate to 8000 chars → LLM inference with tone guidance → parse JSON response
+2. **AI Detection (30%)**: Call `AnnotationDetection.detectComments()` with tone parameter → parse validated matches
 3. **Create Annotations (60-100%)**: For each comment → create W3C annotation with `purpose: "commenting"` → append to Event Store
 
-**References Worker**: [apps/backend/src/jobs/workers/detection-worker.ts](../../apps/backend/src/jobs/workers/detection-worker.ts)
+**Tags Worker**: [TagDetectionWorker](../../packages/make-meaning/src/jobs/workers/tag-detection-worker.ts)
+
+**Processing Stages**:
+1. **Load Resource (10%)**: Fetch from View Storage → load full content
+2. **Per-Category Detection**: For each category → call `AnnotationDetection.detectTags()` → parse validated matches
+3. **Create Annotations (60-100%)**: For each tag → create W3C annotation with dual-body structure (category + schema ID) → append to Event Store
+
+**References Worker**: [ReferenceDetectionWorker](../../packages/make-meaning/src/jobs/workers/reference-detection-worker.ts)
 
 **Processing Stages**:
 1. **Load Resource**: Fetch from View Storage → load full content (no truncation)
-2. **Per-Entity-Type Detection**: For each selected entity type → call entity extractor → validate/correct positions
+2. **Per-Entity-Type Detection**: For each selected entity type → perform AI inference → validate/correct positions
 3. **Create Annotations**: For each entity → create W3C annotation with entity type tags → append to Event Store
 4. **Progress Updates**: Emit progress after each entity type completes
 
-**Event Emission**: All workers emit `job.started`, `job.progress`, `job.completed`, or `job.failed` events to Event Store.
+**Event Emission**: All workers emit `job.started`, `job.progress`, `job.completed`, or `job.failed` events to Event Store. Workers receive dependencies (JobQueue, EventStore, EnvironmentConfig) via constructor parameters, not singletons.
 
 ### Real-Time Updates
 
@@ -637,17 +663,23 @@ After detection completes:
 
 ## Related Implementation Files
 
-### Backend
+### Detection Package (@semiont/make-meaning)
+
+- [AnnotationDetection API](../../packages/make-meaning/docs/api-reference.md#annotationdetection) - Detection methods
+- [Job Workers Documentation](../../packages/make-meaning/docs/job-workers.md) - Worker architecture and dependency injection
+- [HighlightDetectionWorker](../../packages/make-meaning/src/jobs/workers/highlight-detection-worker.ts) - Highlight worker
+- [AssessmentDetectionWorker](../../packages/make-meaning/src/jobs/workers/assessment-detection-worker.ts) - Assessment worker
+- [CommentDetectionWorker](../../packages/make-meaning/src/jobs/workers/comment-detection-worker.ts) - Comment worker
+- [TagDetectionWorker](../../packages/make-meaning/src/jobs/workers/tag-detection-worker.ts) - Tag worker
+- [ReferenceDetectionWorker](../../packages/make-meaning/src/jobs/workers/reference-detection-worker.ts) - Reference/entity detection worker
+- [Make-Meaning Examples](../../packages/make-meaning/docs/examples.md) - Usage examples
+
+### Backend Routes
 
 - [apps/backend/src/routes/resources/routes/detect-highlights-stream.ts](../../apps/backend/src/routes/resources/routes/detect-highlights-stream.ts) - Highlight detection route
 - [apps/backend/src/routes/resources/routes/detect-assessments-stream.ts](../../apps/backend/src/routes/resources/routes/detect-assessments-stream.ts) - Assessment detection route
 - [apps/backend/src/routes/resources/routes/detect-comments-stream.ts](../../apps/backend/src/routes/resources/routes/detect-comments-stream.ts) - Comment detection route
 - [apps/backend/src/routes/resources/routes/detect-annotations-stream.ts](../../apps/backend/src/routes/resources/routes/detect-annotations-stream.ts) - Reference detection route
-- [apps/backend/src/jobs/workers/highlight-detection-worker.ts](../../apps/backend/src/jobs/workers/highlight-detection-worker.ts) - Highlight worker + prompt
-- [apps/backend/src/jobs/workers/assessment-detection-worker.ts](../../apps/backend/src/jobs/workers/assessment-detection-worker.ts) - Assessment worker + prompt
-- [apps/backend/src/jobs/workers/comment-detection-worker.ts](../../apps/backend/src/jobs/workers/comment-detection-worker.ts) - Comment worker + prompt (with tone support)
-- [apps/backend/src/jobs/workers/detection-worker.ts](../../apps/backend/src/jobs/workers/detection-worker.ts) - Reference/entity detection worker
-- [apps/backend/src/inference/entity-extractor.ts](../../apps/backend/src/inference/entity-extractor.ts) - Entity extraction prompt + position validation
 
 ### Frontend
 
