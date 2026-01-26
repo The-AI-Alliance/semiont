@@ -242,6 +242,23 @@ export function useAnnotations() {
             queryClient.invalidateQueries({ queryKey: ['annotations', variables.annotationUri] });
             // Also invalidate resource annotations list
             queryClient.invalidateQueries({ queryKey: ['documents'] });
+
+            // Invalidate referencedBy cache for any resources referenced in the body operations
+            // This ensures the target resource's "Referenced By" panel updates immediately
+            if (variables.data.operations) {
+              for (const op of variables.data.operations) {
+                if (op.op === 'add' && op.item && typeof op.item === 'object') {
+                  // Check if this is a SpecificResource with a source URI
+                  if ('type' in op.item && op.item.type === 'SpecificResource' && 'source' in op.item && op.item.source) {
+                    const targetResourceUri = op.item.source as ResourceUri;
+                    console.log(`[API Hooks] Invalidating referencedBy cache for target resource: ${targetResourceUri}`);
+                    queryClient.invalidateQueries({
+                      queryKey: QUERY_KEYS.documents.referencedBy(targetResourceUri)
+                    });
+                  }
+                }
+              }
+            }
           },
         }),
     },
