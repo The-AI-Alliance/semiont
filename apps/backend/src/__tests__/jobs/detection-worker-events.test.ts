@@ -6,11 +6,12 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { ReferenceDetectionWorker } from '../../jobs/workers/reference-detection-worker';
+import { ReferenceDetectionWorker } from '@semiont/make-meaning';
 import type { DetectionJob } from '@semiont/jobs';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 import { resourceId, userId } from '@semiont/core';
 import { jobId, entityType } from '@semiont/api-client';
+import { createEventStore } from '@semiont/event-sourcing';
 
 // Mock AI detection to avoid external API calls
 vi.mock('../../inference/detect-annotations', () => ({
@@ -92,7 +93,8 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
 
   beforeAll(async () => {
     testEnv = await setupTestEnvironment();
-    worker = new ReferenceDetectionWorker(testEnv.config);
+    const eventStore = createEventStore(testEnv.config.services.filesystem!.path, testEnv.config.services.backend!.publicURL);
+    worker = new ReferenceDetectionWorker(testEnv.config, eventStore);
   });
 
   afterAll(async () => {

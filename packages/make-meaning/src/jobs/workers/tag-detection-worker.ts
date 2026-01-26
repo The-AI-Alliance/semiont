@@ -8,9 +8,8 @@
 
 import { JobWorker } from '@semiont/jobs';
 import type { Job, TagDetectionJob } from '@semiont/jobs';
-import { ResourceContext, AnnotationDetection } from '@semiont/make-meaning';
-import { createEventStore } from '../../services/event-store-service';
-import { generateAnnotationId } from '../../utils/id-generator';
+import { ResourceContext, AnnotationDetection } from '../..';
+import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
 import { resourceIdToURI } from '@semiont/core';
 import { getTagSchema } from '@semiont/ontology';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
@@ -20,7 +19,10 @@ import type { TagMatch } from '@semiont/inference';
 export class TagDetectionWorker extends JobWorker {
   private isFirstProgress = true;
 
-  constructor(private config: EnvironmentConfig) {
+  constructor(
+    private config: EnvironmentConfig,
+    private eventStore: EventStore
+  ) {
     super();
   }
 
@@ -54,7 +56,6 @@ export class TagDetectionWorker extends JobWorker {
     const tdJob = job as TagDetectionJob;
     if (!tdJob.progress) return;
 
-    const eventStore = await createEventStore(this.config);
     const baseEvent = {
       resourceId: tdJob.resourceId,
       userId: tdJob.userId,
@@ -67,7 +68,7 @@ export class TagDetectionWorker extends JobWorker {
     if (this.isFirstProgress) {
       // First progress update - emit job.started
       this.isFirstProgress = false;
-      await eventStore.appendEvent({
+      await this.eventStore.appendEvent({
         type: 'job.started',
         ...baseEvent,
         payload: {
@@ -77,7 +78,7 @@ export class TagDetectionWorker extends JobWorker {
       });
     } else if (isComplete) {
       // Final update - emit job.completed
-      await eventStore.appendEvent({
+      await this.eventStore.appendEvent({
         type: 'job.completed',
         ...baseEvent,
         payload: {
@@ -88,7 +89,7 @@ export class TagDetectionWorker extends JobWorker {
       });
     } else {
       // Intermediate progress - emit job.progress
-      await eventStore.appendEvent({
+      await this.eventStore.appendEvent({
         type: 'job.progress',
         ...baseEvent,
         payload: {
@@ -107,9 +108,8 @@ export class TagDetectionWorker extends JobWorker {
     // If job permanently failed, emit job.failed event
     if (job.status === 'failed' && job.type === 'tag-detection') {
       const tdJob = job as TagDetectionJob;
-      const eventStore = await createEventStore(this.config);
 
-      await eventStore.appendEvent({
+      await this.eventStore.appendEvent({
         type: 'job.failed',
         resourceId: tdJob.resourceId,
         userId: tdJob.userId,
@@ -230,7 +230,6 @@ export class TagDetectionWorker extends JobWorker {
     schemaId: string,
     tag: TagMatch
   ): Promise<void> {
-    const eventStore = await createEventStore(this.config);
     const backendUrl = this.config.services.backend?.publicURL;
 
     if (!backendUrl) {
@@ -283,7 +282,7 @@ export class TagDetectionWorker extends JobWorker {
     };
 
     // Append annotation.added event to Event Store
-    await eventStore.appendEvent({
+    await this.eventStore.appendEvent({
       type: 'annotation.added',
       resourceId,
       userId: userId(userId_),

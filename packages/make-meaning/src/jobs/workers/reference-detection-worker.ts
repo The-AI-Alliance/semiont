@@ -9,9 +9,8 @@
 
 import { JobWorker } from '@semiont/jobs';
 import type { Job, DetectionJob } from '@semiont/jobs';
-import { ResourceContext } from '@semiont/make-meaning';
-import { createEventStore } from '../../services/event-store-service';
-import { generateAnnotationId } from '../../utils/id-generator';
+import { ResourceContext } from '../..';
+import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
 import { resourceIdToURI } from '@semiont/core';
 import type { EnvironmentConfig } from '@semiont/core';
 import {
@@ -39,7 +38,10 @@ export interface DetectedAnnotation {
 }
 
 export class ReferenceDetectionWorker extends JobWorker {
-  constructor(private config: EnvironmentConfig) {
+  constructor(
+    private config: EnvironmentConfig,
+    private eventStore: EventStore
+  ) {
     super();
   }
 
@@ -192,8 +194,7 @@ export class ReferenceDetectionWorker extends JobWorker {
         }
 
         try {
-          const eventStore = await createEventStore( this.config);
-          await eventStore.appendEvent({
+          await this.eventStore.appendEvent({
             type: 'annotation.added',
             resourceId: job.resourceId,
             userId: job.userId,
@@ -273,11 +274,10 @@ export class ReferenceDetectionWorker extends JobWorker {
     // If job permanently failed, emit job.failed event
     if (job.status === 'failed' && job.type === 'detection') {
       const detJob = job as DetectionJob;
-      const eventStore = await createEventStore(this.config);
 
       // Log the full error details to backend logs (already logged by parent)
       // Send generic error message to frontend
-      await eventStore.appendEvent({
+      await this.eventStore.appendEvent({
         type: 'job.failed',
         resourceId: detJob.resourceId,
         userId: detJob.userId,
@@ -305,7 +305,6 @@ export class ReferenceDetectionWorker extends JobWorker {
     }
 
     const detJob = job as DetectionJob;
-    const eventStore = await createEventStore( this.config);
 
     const baseEvent = {
       resourceId: detJob.resourceId,
@@ -328,7 +327,7 @@ export class ReferenceDetectionWorker extends JobWorker {
 
     if (isFirstUpdate) {
       // First progress update - emit job.started
-      await eventStore.appendEvent({
+      await this.eventStore.appendEvent({
         type: 'job.started',
         ...baseEvent,
         payload: {
@@ -339,7 +338,7 @@ export class ReferenceDetectionWorker extends JobWorker {
       });
     } else if (isFinalUpdate) {
       // Final progress update - emit job.completed
-      await eventStore.appendEvent({
+      await this.eventStore.appendEvent({
         type: 'job.completed',
         ...baseEvent,
         payload: {
@@ -351,7 +350,7 @@ export class ReferenceDetectionWorker extends JobWorker {
     } else {
       // Intermediate progress - emit job.progress
       const percentage = Math.round((detJob.progress.processedEntityTypes / detJob.progress.totalEntityTypes) * 100);
-      await eventStore.appendEvent({
+      await this.eventStore.appendEvent({
         type: 'job.progress',
         ...baseEvent,
         payload: {

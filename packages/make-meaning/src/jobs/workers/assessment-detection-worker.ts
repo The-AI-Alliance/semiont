@@ -7,9 +7,8 @@
 
 import { JobWorker } from '@semiont/jobs';
 import type { Job, AssessmentDetectionJob } from '@semiont/jobs';
-import { ResourceContext, AnnotationDetection } from '@semiont/make-meaning';
-import { createEventStore } from '../../services/event-store-service';
-import { generateAnnotationId } from '../../utils/id-generator';
+import { ResourceContext, AnnotationDetection } from '../..';
+import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
 import { resourceIdToURI } from '@semiont/core';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
@@ -18,7 +17,10 @@ import type { AssessmentMatch } from '@semiont/inference';
 export class AssessmentDetectionWorker extends JobWorker {
   private isFirstProgress = true;
 
-  constructor(private config: EnvironmentConfig) {
+  constructor(
+    private config: EnvironmentConfig,
+    private eventStore: EventStore
+  ) {
     super();
   }
 
@@ -52,7 +54,6 @@ export class AssessmentDetectionWorker extends JobWorker {
     const assJob = job as AssessmentDetectionJob;
     if (!assJob.progress) return;
 
-    const eventStore = await createEventStore(this.config);
     const baseEvent = {
       resourceId: assJob.resourceId,
       userId: assJob.userId,
@@ -65,7 +66,7 @@ export class AssessmentDetectionWorker extends JobWorker {
     if (this.isFirstProgress) {
       // First progress update - emit job.started
       this.isFirstProgress = false;
-      await eventStore.appendEvent({
+      await this.eventStore.appendEvent({
         type: 'job.started',
         ...baseEvent,
         payload: {
@@ -75,7 +76,7 @@ export class AssessmentDetectionWorker extends JobWorker {
       });
     } else if (isComplete) {
       // Final update - emit job.completed
-      await eventStore.appendEvent({
+      await this.eventStore.appendEvent({
         type: 'job.completed',
         ...baseEvent,
         payload: {
@@ -86,7 +87,7 @@ export class AssessmentDetectionWorker extends JobWorker {
       });
     } else {
       // Intermediate progress - emit job.progress
-      await eventStore.appendEvent({
+      await this.eventStore.appendEvent({
         type: 'job.progress',
         ...baseEvent,
         payload: {
@@ -105,11 +106,10 @@ export class AssessmentDetectionWorker extends JobWorker {
     // If job permanently failed, emit job.failed event
     if (job.status === 'failed' && job.type === 'assessment-detection') {
       const aJob = job as AssessmentDetectionJob;
-      const eventStore = await createEventStore(this.config);
 
       // Log the full error details to backend logs (already logged by parent)
       // Send generic error message to frontend
-      await eventStore.appendEvent({
+      await this.eventStore.appendEvent({
         type: 'job.failed',
         resourceId: aJob.resourceId,
         userId: aJob.userId,
@@ -200,7 +200,6 @@ export class AssessmentDetectionWorker extends JobWorker {
     creatorUserId: string,
     assessment: AssessmentMatch
   ): Promise<void> {
-    const eventStore = await createEventStore(this.config);
     const backendUrl = this.config.services.backend?.publicURL;
     if (!backendUrl) throw new Error('Backend publicURL not configured');
 
@@ -240,7 +239,7 @@ export class AssessmentDetectionWorker extends JobWorker {
       }
     };
 
-    await eventStore.appendEvent({
+    await this.eventStore.appendEvent({
       type: 'annotation.added',
       resourceId,
       userId: userId(creatorUserId),

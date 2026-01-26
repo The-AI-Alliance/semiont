@@ -6,12 +6,13 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { GenerationWorker } from '../../jobs/workers/generation-worker';
+import { GenerationWorker } from '@semiont/make-meaning';
 import type { GenerationJob } from '@semiont/jobs';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 import { resourceId, userId, annotationId } from '@semiont/core';
 import { jobId, entityType } from '@semiont/api-client';
 import type { GenerationContext } from '@semiont/api-client';
+import { createEventStore } from '@semiont/event-sourcing';
 
 // Mock GenerationContext for tests
 const mockGenerationContext: GenerationContext = {
@@ -158,7 +159,7 @@ describe('GenerationWorker - Event Emission', () => {
       dataDir: testEnv.config.services.filesystem!.path
     });
 
-    worker = new GenerationWorker(testEnv.config);
+    worker = new GenerationWorker(testEnv.config, createEventStore(testEnv.config.services.filesystem!.path, testEnv.config.services.backend!.publicURL));
   });
 
   afterAll(async () => {

@@ -19,6 +19,14 @@ export type {
   TagMatch,
 } from '@semiont/inference';
 
+// Job workers
+export { CommentDetectionWorker } from './jobs/workers/comment-detection-worker';
+export { HighlightDetectionWorker } from './jobs/workers/highlight-detection-worker';
+export { AssessmentDetectionWorker } from './jobs/workers/assessment-detection-worker';
+export { TagDetectionWorker } from './jobs/workers/tag-detection-worker';
+export { ReferenceDetectionWorker } from './jobs/workers/reference-detection-worker';
+export { GenerationWorker } from './jobs/workers/generation-worker';
+
 // Reasoning exports (future)
 // export { ResourceReasoning } from './resource-reasoning';
 

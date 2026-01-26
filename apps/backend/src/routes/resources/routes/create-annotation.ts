@@ -11,8 +11,8 @@ import { createEventStore } from '../../../services/event-store-service';
 import type { components } from '@semiont/api-client';
 import { getTextPositionSelector, getSvgSelector, validateSvgMarkup } from '@semiont/api-client';
 import type { AnnotationAddedEvent } from '@semiont/core';
-import { resourceId, userId } from '@semiont/core';
-import { generateAnnotationId, userToAgent } from '../../../utils/id-generator';
+import { resourceId, userId, userToAgent } from '@semiont/core';
+import { generateAnnotationId } from '@semiont/event-sourcing';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 
 type Annotation = components['schemas']['Annotation'];

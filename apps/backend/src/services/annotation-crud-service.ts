@@ -17,8 +17,8 @@ import type {
   EnvironmentConfig,
   ResourceId,
 } from '@semiont/core';
-import { annotationId, userId, uriToResourceId, uriToAnnotationId } from '@semiont/core';
-import { generateAnnotationId, userToAgent } from '../utils/id-generator';
+import { annotationId, userId, uriToResourceId, uriToAnnotationId, userToAgent } from '@semiont/core';
+import { generateAnnotationId } from '@semiont/event-sourcing';
 import { AnnotationContext } from '@semiont/make-meaning';
 import type { User } from '@prisma/client';
 

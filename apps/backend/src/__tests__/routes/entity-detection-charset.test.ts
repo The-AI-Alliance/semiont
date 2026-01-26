@@ -6,10 +6,11 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { ReferenceDetectionWorker } from '../../jobs/workers/reference-detection-worker';
+import { ReferenceDetectionWorker } from '@semiont/make-meaning';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import type { components } from '@semiont/api-client';
 import type { EnvironmentConfig } from '@semiont/core';
+import { createEventStore } from '@semiont/event-sourcing';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -68,7 +69,8 @@ describe('Entity Detection - Charset Handling', () => {
       },
     } as EnvironmentConfig;
 
-    worker = new ReferenceDetectionWorker(config);
+    const eventStore = createEventStore(config.services.filesystem!.path, config.services.backend!.publicURL);
+    worker = new ReferenceDetectionWorker(config, eventStore);
   });
 
   afterAll(async () => {

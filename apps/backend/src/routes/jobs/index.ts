@@ -10,61 +10,68 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { User } from '@prisma/client';
-import { authMiddleware } from '../../middleware/auth';
+import type { Context, Next } from 'hono';
 import { getJobQueue } from '@semiont/jobs';
 import type { components } from '@semiont/api-client';
 import { jobId } from '@semiont/api-client';
 
+// Type for auth middleware - backend will provide this
+type AuthMiddleware = (c: Context, next: Next) => Promise<Response | void>;
+
 type JobStatusResponse = components['schemas']['JobStatusResponse'];
 
-// Create jobs router
-export const jobsRouter = new Hono<{ Variables: { user: User } }>();
+export function createJobsRouter(authMiddleware: AuthMiddleware) {
+  // Create jobs router
+  const jobsRouter = new Hono<{ Variables: { user: User } }>();
 
-// Apply auth middleware to all jobs routes
-jobsRouter.use('/api/jobs/*', authMiddleware);
+  // Apply auth middleware to all jobs routes
+  jobsRouter.use('/api/jobs/*', authMiddleware);
 
-/**
- * GET /api/jobs/:id
- *
- * Get job status and progress
- * Requires authentication
- */
-jobsRouter.get('/api/jobs/:id', async (c) => {
-  const { id } = c.req.param();
-  const user = c.get('user');
+  /**
+   * GET /api/jobs/:id
+   *
+   * Get job status and progress
+   * Requires authentication
+   */
+  jobsRouter.get('/api/jobs/:id', async (c) => {
+    const { id } = c.req.param();
+    const user = c.get('user');
 
-  const jobQueue = getJobQueue();
-  const job = await jobQueue.getJob(jobId(id));
+    const jobQueue = getJobQueue();
+    const job = await jobQueue.getJob(jobId(id));
 
-  if (!job) {
-    throw new HTTPException(404, { message: 'Job not found' });
-  }
+    if (!job) {
+      throw new HTTPException(404, { message: 'Job not found' });
+    }
 
-  // Verify user owns this job
-  if (job.userId !== user.id) {
-    throw new HTTPException(404, { message: 'Job not found' });
-  }
+    // Verify user owns this job
+    if (job.userId !== user.id) {
+      throw new HTTPException(404, { message: 'Job not found' });
+    }
 
-  const response: JobStatusResponse = {
-    jobId: job.id,
-    type: job.type,
-    status: job.status,
-    userId: job.userId,
-    created: job.created,
-    startedAt: job.startedAt,
-    completedAt: job.completedAt,
-    error: job.error,
-    progress: job.type === 'detection' || job.type === 'highlight-detection' || job.type === 'assessment-detection' || job.type === 'comment-detection'
-      ? (job as any).progress
-      : job.type === 'generation'
+    const response: JobStatusResponse = {
+      jobId: job.id,
+      type: job.type,
+      status: job.status,
+      userId: job.userId,
+      created: job.created,
+      startedAt: job.startedAt,
+      completedAt: job.completedAt,
+      error: job.error,
+      progress: job.type === 'detection' || job.type === 'highlight-detection' || job.type === 'assessment-detection' || job.type === 'comment-detection'
         ? (job as any).progress
-        : undefined,
-    result: job.type === 'detection' || job.type === 'highlight-detection' || job.type === 'assessment-detection' || job.type === 'comment-detection'
-      ? (job as any).result
-      : job.type === 'generation'
+        : job.type === 'generation'
+          ? (job as any).progress
+          : undefined,
+      result: job.type === 'detection' || job.type === 'highlight-detection' || job.type === 'assessment-detection' || job.type === 'comment-detection'
         ? (job as any).result
-        : undefined,
-  };
+        : job.type === 'generation'
+          ? (job as any).result
+          : undefined,
+    };
 
-  return c.json(response);
-});
+    return c.json(response);
+  });
+
+  return jobsRouter;
+}

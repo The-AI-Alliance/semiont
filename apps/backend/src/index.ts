@@ -58,7 +58,9 @@ import { adminRouter } from './routes/admin';
 import { resourcesRouter } from './routes/resources/index';
 import { annotationsRouter } from './routes/annotations/index';
 import { entityTypesRouter } from './routes/entity-types';
-import { jobsRouter } from './routes/jobs/index';
+import { createJobsRouter } from './routes/jobs/index';
+import { createEventStore } from './services/event-store-service';
+import { authMiddleware } from './middleware/auth';
 
 // Import static OpenAPI spec
 import * as fs from 'fs';
@@ -120,6 +122,7 @@ app.route('/', adminRouter);
 app.route('/', resourcesRouter);
 app.route('/', annotationsRouter);
 app.route('/', entityTypesRouter);
+const jobsRouter = createJobsRouter(authMiddleware);
 app.route('/', jobsRouter);
 
 // API Resourceation root - redirect to appropriate format
@@ -294,19 +297,24 @@ if (nodeEnv !== 'test') {
     // Start Job Workers
     try {
       console.log('👷 Starting job workers...');
-      const { ReferenceDetectionWorker } = await import('./jobs/workers/reference-detection-worker');
-      const { GenerationWorker } = await import('./jobs/workers/generation-worker');
-      const { HighlightDetectionWorker } = await import('./jobs/workers/highlight-detection-worker');
-      const { AssessmentDetectionWorker } = await import('./jobs/workers/assessment-detection-worker');
-      const { CommentDetectionWorker } = await import('./jobs/workers/comment-detection-worker');
-      const { TagDetectionWorker } = await import('./jobs/workers/tag-detection-worker');
+      const {
+        ReferenceDetectionWorker,
+        GenerationWorker,
+        HighlightDetectionWorker,
+        AssessmentDetectionWorker,
+        CommentDetectionWorker,
+        TagDetectionWorker,
+      } = await import('@semiont/make-meaning');
 
-      const referenceDetectionWorker = new ReferenceDetectionWorker(config);
-      const generationWorker = new GenerationWorker(config);
-      const highlightDetectionWorker = new HighlightDetectionWorker(config);
-      const assessmentDetectionWorker = new AssessmentDetectionWorker(config);
-      const commentDetectionWorker = new CommentDetectionWorker(config);
-      const tagDetectionWorker = new TagDetectionWorker(config);
+      // Create single EventStore instance to share across all workers
+      const eventStore = await createEventStore(config);
+
+      const referenceDetectionWorker = new ReferenceDetectionWorker(config, eventStore);
+      const generationWorker = new GenerationWorker(config, eventStore);
+      const highlightDetectionWorker = new HighlightDetectionWorker(config, eventStore);
+      const assessmentDetectionWorker = new AssessmentDetectionWorker(config, eventStore);
+      const commentDetectionWorker = new CommentDetectionWorker(config, eventStore);
+      const tagDetectionWorker = new TagDetectionWorker(config, eventStore);
 
       // Start workers in background (non-blocking)
       referenceDetectionWorker.start().catch((error) => {

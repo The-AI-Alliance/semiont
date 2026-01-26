@@ -10,6 +10,7 @@
  * All functions are pure - they take config explicitly as a parameter.
  */
 
+import { nanoid } from 'nanoid';
 import {
   type ResourceId,
   type AnnotationId,
@@ -44,4 +45,20 @@ export function toAnnotationUri(
     throw new Error('baseUrl is required');
   }
   return annotationUri(`${config.baseUrl}/annotations/${id}`);
+}
+
+/**
+ * Generate a unique annotation ID (W3C-compliant HTTP URI)
+ * Moved from apps/backend/src/utils/id-generator.ts
+ *
+ * @param baseUrl - Base URL for the annotation service (e.g., "http://localhost:8080")
+ * @returns A W3C-compliant annotation URI (e.g., "http://localhost:8080/annotations/V1StGXR8_Z5jdHi6B-myT")
+ */
+export function generateAnnotationId(baseUrl: string): string {
+  if (!baseUrl) {
+    throw new Error('baseUrl is required to generate annotation URIs');
+  }
+  // Remove trailing slash if present
+  const normalizedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  return `${normalizedBase}/annotations/${nanoid(21)}`;
 }
