@@ -87,6 +87,7 @@ const annotations = await graph.getAnnotationsForDocument('doc-123');
 
 - [API Reference](./docs/API.md) - Complete API documentation
 - [Architecture](./docs/ARCHITECTURE.md) - System design and principles
+- [Eventual Consistency](./docs/EVENTUAL-CONSISTENCY.md) - Order-independent projections and race condition handling
 - [Provider Guide](./docs/PROVIDERS.md) - Provider-specific details
 
 ## Examples

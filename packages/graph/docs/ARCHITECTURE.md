@@ -94,6 +94,9 @@ graph LR
 2. **System Event Routing**: System events processed immediately
 3. **Fail-Fast**: Errors propagate to prevent data corruption
 4. **Idempotent Operations**: Repeated events produce same result
+5. **Order-Independent Projections**: MERGE-based operations handle events in any order
+
+For details on handling race conditions and eventual consistency, see [Eventual Consistency](./EVENTUAL-CONSISTENCY.md).
 
 ## Data Model Principles
 
