@@ -49,6 +49,7 @@ export function createJobsRouter(authMiddleware: AuthMiddleware) {
       throw new HTTPException(404, { message: 'Job not found' });
     }
 
+    // All job types support progress and result
     const response: JobStatusResponse = {
       jobId: job.id,
       type: job.type,
@@ -58,16 +59,8 @@ export function createJobsRouter(authMiddleware: AuthMiddleware) {
       startedAt: job.startedAt,
       completedAt: job.completedAt,
       error: job.error,
-      progress: job.type === 'detection' || job.type === 'highlight-detection' || job.type === 'assessment-detection' || job.type === 'comment-detection'
-        ? (job as any).progress
-        : job.type === 'generation'
-          ? (job as any).progress
-          : undefined,
-      result: job.type === 'detection' || job.type === 'highlight-detection' || job.type === 'assessment-detection' || job.type === 'comment-detection'
-        ? (job as any).result
-        : job.type === 'generation'
-          ? (job as any).result
-          : undefined,
+      progress: (job as any).progress,
+      result: (job as any).result,
     };
 
     return c.json(response);
