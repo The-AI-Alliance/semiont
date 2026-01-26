@@ -377,6 +377,29 @@ export function ResourceViewerPage({
     });
   }, [startGeneration, resource, onClearNewAnnotationId, locale]);
 
+  // Handle manual document creation from stub reference
+  const handleCreateDocument = useCallback((
+    annotationUri: string,
+    title: string,
+    entityTypes: string[]
+  ) => {
+    if (!resource) return;
+
+    // Extract resource ID from URI
+    const resourceId = rUri.split('/').pop() || '';
+
+    // Navigate to compose page with reference context
+    const entityTypesStr = entityTypes.join(',');
+    const params = new URLSearchParams({
+      name: title,  // Compose page expects 'name' parameter
+      annotationUri,  // Pass full annotation URI, not just ID
+      sourceDocumentId: resourceId,
+      ...(entityTypes.length > 0 ? { entityTypes: entityTypesStr } : {}),
+    });
+
+    window.location.href = `/know/compose?${params.toString()}`;
+  }, [resource, rUri]);
+
   // Handle search for documents to link to reference
   const handleSearchDocuments = useCallback((referenceId: string, searchTerm: string) => {
     setPendingReferenceId(referenceId);
@@ -727,6 +750,7 @@ export function ResourceViewerPage({
                   pendingReferenceSelection={pendingReferenceSelection}
                   allEntityTypes={allEntityTypes}
                   onGenerateDocument={handleGenerateDocument}
+                  onCreateDocument={handleCreateDocument}
                   generatingReferenceId={generationProgress?.referenceId ?? null}
                   onSearchDocuments={handleSearchDocuments}
                   onUpdateReference={handleUpdateReference}

@@ -39,6 +39,10 @@
   text-align: left;
 }
 
+[data-theme="dark"] .semiont-nav-section__header-text {
+  color: inherit;
+}
+
 .semiont-nav-section__header-icon {
   display: flex;
   align-items: center;

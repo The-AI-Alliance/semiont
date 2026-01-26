@@ -26,7 +26,7 @@ export interface ResourceComposePageProps {
 
   // Reference completion data
   referenceData?: {
-    referenceId: string;
+    annotationUri: string;
     sourceDocumentId: string;
     name: string;
     entityTypes: string[];
@@ -100,7 +100,7 @@ export interface SaveResourceParams {
   entityTypes?: string[];
   language: string;
   archiveOriginal?: boolean;
-  referenceId?: string;
+  annotationUri?: string;
   sourceDocumentId?: string;
 }
 
@@ -229,8 +229,8 @@ export function ResourceComposePage({
       if (mode === 'clone') {
         params.archiveOriginal = archiveOriginal;
       }
-      if (referenceData?.referenceId) {
-        params.referenceId = referenceData.referenceId;
+      if (referenceData?.annotationUri) {
+        params.annotationUri = referenceData.annotationUri;
       }
       if (referenceData?.sourceDocumentId) {
         params.sourceDocumentId = referenceData.sourceDocumentId;

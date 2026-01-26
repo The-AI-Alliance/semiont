@@ -209,7 +209,7 @@ describe('ResourceComposePage', () => {
       const props = createMockProps({
         mode: 'reference',
         referenceData: {
-          referenceId: 'ref-1',
+          annotationUri: 'http://localhost:8080/annotations/ref-1',
           sourceDocumentId: 'doc-1',
           name: 'Referenced Resource',
           entityTypes: ['Document'],
@@ -226,7 +226,7 @@ describe('ResourceComposePage', () => {
       const props = createMockProps({
         mode: 'reference',
         referenceData: {
-          referenceId: 'ref-1',
+          annotationUri: 'http://localhost:8080/annotations/ref-1',
           sourceDocumentId: 'doc-1',
           name: 'Referenced Resource',
           entityTypes: ['Document', 'Article'],
@@ -245,7 +245,7 @@ describe('ResourceComposePage', () => {
       const props = createMockProps({
         mode: 'reference',
         referenceData: {
-          referenceId: 'ref-1',
+          annotationUri: 'http://localhost:8080/annotations/ref-1',
           sourceDocumentId: 'doc-1',
           name: 'Referenced Resource',
           entityTypes: ['Document'],
