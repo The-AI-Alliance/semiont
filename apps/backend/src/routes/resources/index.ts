@@ -1,6 +1,7 @@
 // Main resources router that combines all individual route files
 import { createResourceRouter } from './shared';
 import type { ResourcesRouterType } from './shared';
+import type { JobQueue } from '@semiont/jobs';
 
 // Import registration functions for all routes
 import { registerCreateResource } from './routes/create';
@@ -28,8 +29,9 @@ import { registerUpdateAnnotationBody } from './routes/update-annotation-body';
 import { registerGenerateResourceStream } from './routes/generate-resource-stream';
 import { registerGetAnnotationHistory } from '../annotations/routes/history';
 
-// Create main resources router
-export const resourcesRouter: ResourcesRouterType = createResourceRouter();
+// Factory function to create resources router with JobQueue
+export function createResourcesRouter(jobQueue: JobQueue): ResourcesRouterType {
+  const resourcesRouter: ResourcesRouterType = createResourceRouter();
 
 // Register all routes
 // NOTE: Register specific paths before generic :id patterns to avoid route conflicts
@@ -42,29 +44,32 @@ registerListResources(resourcesRouter);  // GET /resources
 // Routes with literal second segment (before :id routes)
 registerTokenRoutes(resourcesRouter);  // GET /api/resources/token/:token, POST /api/resources/create-from-token, POST /resources/:id/clone-with-token
 
-// Routes with :id and specific suffixes
-registerDetectAnnotationsStream(resourcesRouter);  // POST /resources/:id/detect-annotations-stream
-registerDetectHighlightsStream(resourcesRouter);  // POST /resources/:id/detect-highlights-stream
-registerDetectAssessmentsStream(resourcesRouter);  // POST /resources/:id/detect-assessments-stream
-registerDetectCommentsStream(resourcesRouter);  // POST /resources/:id/detect-comments-stream
-registerDetectTagsStream(resourcesRouter);  // POST /resources/:id/detect-tags-stream
-registerGetResourceLLMContext(resourcesRouter);  // GET /resources/:id/llm-context
-registerGetAnnotationLLMContext(resourcesRouter);  // GET /resources/:resourceId/annotations/:annotationId/llm-context
-registerGetReferencedBy(resourcesRouter);  // GET /resources/:id/referenced-by
+  // Routes with :id and specific suffixes
+  registerDetectAnnotationsStream(resourcesRouter, jobQueue);  // POST /resources/:id/detect-annotations-stream
+  registerDetectHighlightsStream(resourcesRouter, jobQueue);  // POST /resources/:id/detect-highlights-stream
+  registerDetectAssessmentsStream(resourcesRouter, jobQueue);  // POST /resources/:id/detect-assessments-stream
+  registerDetectCommentsStream(resourcesRouter, jobQueue);  // POST /resources/:id/detect-comments-stream
+  registerDetectTagsStream(resourcesRouter, jobQueue);  // POST /resources/:id/detect-tags-stream
+  registerGetResourceLLMContext(resourcesRouter);  // GET /resources/:id/llm-context
+  registerGetAnnotationLLMContext(resourcesRouter);  // GET /resources/:resourceId/annotations/:annotationId/llm-context
+  registerGetReferencedBy(resourcesRouter);  // GET /resources/:id/referenced-by
 
-// Annotation routes (nested under resources) - must be before generic :id route
-registerGetResourceAnnotations(resourcesRouter);  // GET /resources/:id/annotations (list)
-registerCreateAnnotation(resourcesRouter);  // POST /resources/:id/annotations
-registerGetAnnotation(resourcesRouter);  // GET /resources/:resourceId/annotations/:annotationId
-registerUpdateAnnotationBody(resourcesRouter);  // PUT /resources/:resourceId/annotations/:annotationId/body
-registerGenerateResourceStream(resourcesRouter);  // POST /resources/:resourceId/annotations/:annotationId/generate-resource-stream
-registerGetAnnotationHistory(resourcesRouter);  // GET /resources/:resourceId/annotations/:annotationId/history
-registerDeleteAnnotation(resourcesRouter);  // DELETE /resources/:resourceId/annotations/:annotationId
+  // Annotation routes (nested under resources) - must be before generic :id route
+  registerGetResourceAnnotations(resourcesRouter);  // GET /resources/:id/annotations (list)
+  registerCreateAnnotation(resourcesRouter);  // POST /resources/:id/annotations
+  registerGetAnnotation(resourcesRouter);  // GET /resources/:resourceId/annotations/:annotationId
+  registerUpdateAnnotationBody(resourcesRouter);  // PUT /resources/:resourceId/annotations/:annotationId/body
+  registerGenerateResourceStream(resourcesRouter, jobQueue);  // POST /resources/:resourceId/annotations/:annotationId/generate-resource-stream
+  registerGetAnnotationHistory(resourcesRouter);  // GET /resources/:resourceId/annotations/:annotationId/history
+  registerDeleteAnnotation(resourcesRouter);  // DELETE /resources/:resourceId/annotations/:annotationId
 
-// Event routes
-registerGetEvents(resourcesRouter);  // GET /resources/:id/events
-registerGetEventStream(resourcesRouter);  // GET /resources/:id/events/stream
+  // Event routes
+  registerGetEvents(resourcesRouter);  // GET /resources/:id/events
+  registerGetEventStream(resourcesRouter);  // GET /resources/:id/events/stream
 
-// Generic routes with :id parameter - MUST BE LAST
-registerGetResourceUri(resourcesRouter);  // W3C content negotiation for /resources/:id - handles both metadata and raw representations
-registerUpdateResource(resourcesRouter);
+  // Generic routes with :id parameter - MUST BE LAST
+  registerGetResourceUri(resourcesRouter);  // W3C content negotiation for /resources/:id - handles both metadata and raw representations
+  registerUpdateResource(resourcesRouter);
+
+  return resourcesRouter;
+}

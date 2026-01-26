@@ -17,7 +17,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { ResourceContext } from '@semiont/make-meaning';
 import { createEventStore } from '../../../services/event-store-service';
-import { getJobQueue } from '@semiont/jobs';
+import type { JobQueue } from '@semiont/jobs';
 import type { TagDetectionJob } from '@semiont/jobs';
 import { nanoid } from 'nanoid';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
@@ -42,7 +42,7 @@ interface TagDetectionProgress {
   byCategory?: Record<string, number>;
 }
 
-export function registerDetectTagsStream(router: ResourcesRouterType) {
+export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: JobQueue) {
   /**
    * POST /resources/:id/detect-tags-stream
    *
@@ -103,7 +103,6 @@ export function registerDetectTagsStream(router: ResourcesRouterType) {
       const rUri = resourceUri(`${config.services.backend!.publicURL}/resources/${id}`);
 
       // Create a tag detection job
-      const jobQueue = getJobQueue();
       const job: TagDetectionJob = {
         id: jobId(`job-${nanoid()}`),
         type: 'tag-detection',

@@ -17,7 +17,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { ResourceContext } from '@semiont/make-meaning';
 import { createEventStore } from '../../../services/event-store-service';
-import { getJobQueue } from '@semiont/jobs';
+import type { JobQueue } from '@semiont/jobs';
 import type { AssessmentDetectionJob } from '@semiont/jobs';
 import { nanoid } from 'nanoid';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
@@ -37,7 +37,7 @@ interface AssessmentDetectionProgress {
   createdCount?: number;
 }
 
-export function registerDetectAssessmentsStream(router: ResourcesRouterType) {
+export function registerDetectAssessmentsStream(router: ResourcesRouterType, jobQueue: JobQueue) {
   /**
    * POST /resources/:id/detect-assessments-stream
    *
@@ -86,7 +86,6 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType) {
       const rUri = resourceUri(`${config.services.backend!.publicURL}/resources/${id}`);
 
       // Create an assessment detection job
-      const jobQueue = getJobQueue();
       const job: AssessmentDetectionJob = {
         id: jobId(`job-${nanoid()}`),
         type: 'assessment-detection',

@@ -20,7 +20,7 @@ import { createEventStore } from '../../../services/event-store-service';
 import type { components } from '@semiont/api-client';
 import { getExactText } from '@semiont/api-client';
 import { AnnotationContext } from '@semiont/make-meaning';
-import { getJobQueue } from '@semiont/jobs';
+import type { JobQueue } from '@semiont/jobs';
 import type { GenerationJob } from '@semiont/jobs';
 import { nanoid } from 'nanoid';
 import { getTargetSelector } from '@semiont/api-client';
@@ -40,7 +40,7 @@ interface GenerationProgress {
   message?: string;
 }
 
-export function registerGenerateResourceStream(router: ResourcesRouterType) {
+export function registerGenerateResourceStream(router: ResourcesRouterType, jobQueue: JobQueue) {
   /**
    * POST /resources/:resourceId/annotations/:annotationId/generate-resource-stream
    *
@@ -110,7 +110,6 @@ export function registerGenerateResourceStream(router: ResourcesRouterType) {
       }
 
       // Create a generation job (this decouples event emission from HTTP client)
-      const jobQueue = getJobQueue();
       const job: GenerationJob = {
         id: jobId(`job-${nanoid()}`),
         type: 'generation',

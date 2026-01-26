@@ -17,7 +17,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { ResourceContext } from '@semiont/make-meaning';
 import { createEventStore } from '../../../services/event-store-service';
-import { getJobQueue } from '@semiont/jobs';
+import type { JobQueue } from '@semiont/jobs';
 import type { CommentDetectionJob } from '@semiont/jobs';
 import { nanoid } from 'nanoid';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
@@ -37,7 +37,7 @@ interface CommentDetectionProgress {
   createdCount?: number;
 }
 
-export function registerDetectCommentsStream(router: ResourcesRouterType) {
+export function registerDetectCommentsStream(router: ResourcesRouterType, jobQueue: JobQueue) {
   /**
    * POST /resources/:id/detect-comments-stream
    *
@@ -86,7 +86,6 @@ export function registerDetectCommentsStream(router: ResourcesRouterType) {
       const rUri = resourceUri(`${config.services.backend!.publicURL}/resources/${id}`);
 
       // Create a comment detection job
-      const jobQueue = getJobQueue();
       const job: CommentDetectionJob = {
         id: jobId(`job-${nanoid()}`),
         type: 'comment-detection',
