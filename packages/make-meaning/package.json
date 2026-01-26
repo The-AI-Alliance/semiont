@@ -30,7 +30,8 @@
     "@semiont/content": "*",
     "@semiont/graph": "*",
     "@semiont/ontology": "*",
-    "@semiont/inference": "*"
+    "@semiont/inference": "*",
+    "@semiont/jobs": "*"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.8",
