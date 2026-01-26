@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { GenerationWorker } from '@semiont/make-meaning';
-import type { GenerationJob } from '@semiont/jobs';
+import { JobQueue, type GenerationJob } from '@semiont/jobs';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 import { resourceId, userId, annotationId } from '@semiont/core';
 import { jobId, entityType } from '@semiont/api-client';
@@ -153,13 +153,10 @@ describe('GenerationWorker - Event Emission', () => {
   beforeAll(async () => {
     testEnv = await setupTestEnvironment();
 
-    // Initialize JobQueue to prevent "JobQueue not initialized" errors
-    const { initializeJobQueue } = await import('@semiont/jobs');
-    await initializeJobQueue({
-      dataDir: testEnv.config.services.filesystem!.path
-    });
+    const jobQueue = new JobQueue({ dataDir: testEnv.config.services.filesystem!.path });
+    await jobQueue.initialize();
 
-    worker = new GenerationWorker(testEnv.config, createEventStore(testEnv.config.services.filesystem!.path, testEnv.config.services.backend!.publicURL));
+    worker = new GenerationWorker(jobQueue, testEnv.config, createEventStore(testEnv.config.services.filesystem!.path, testEnv.config.services.backend!.publicURL));
   });
 
   afterAll(async () => {

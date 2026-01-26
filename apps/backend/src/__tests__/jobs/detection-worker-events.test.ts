@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { ReferenceDetectionWorker } from '@semiont/make-meaning';
-import type { DetectionJob } from '@semiont/jobs';
+import { JobQueue, type DetectionJob } from '@semiont/jobs';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 import { resourceId, userId } from '@semiont/core';
 import { jobId, entityType } from '@semiont/api-client';
@@ -93,8 +93,10 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
 
   beforeAll(async () => {
     testEnv = await setupTestEnvironment();
+    const jobQueue = new JobQueue({ dataDir: testEnv.config.services.filesystem!.path });
+    await jobQueue.initialize();
     const eventStore = createEventStore(testEnv.config.services.filesystem!.path, testEnv.config.services.backend!.publicURL);
-    worker = new ReferenceDetectionWorker(testEnv.config, eventStore);
+    worker = new ReferenceDetectionWorker(jobQueue, testEnv.config, eventStore);
   });
 
   afterAll(async () => {

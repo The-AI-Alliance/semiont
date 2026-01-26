@@ -29,6 +29,7 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { swaggerUI } from '@hono/swagger-ui';
 import { loadEnvironmentConfig, findProjectRoot, type EnvironmentConfig } from '@semiont/core';
+import { JobQueue } from '@semiont/jobs';
 
 import { User } from '@prisma/client';
 
@@ -49,6 +50,13 @@ if (!config.services?.frontend?.url) {
 }
 
 const backendService = config.services.backend;
+
+// Initialize JobQueue (will be initialized in serve callback)
+const dataDir = config.services?.filesystem?.path || process.env.DATA_DIR || './data';
+if (!dataDir) {
+  throw new Error('services.filesystem.path is required in environment config for job queue initialization');
+}
+const jobQueue = new JobQueue({ dataDir });
 
 // Import route definitions
 import { healthRouter } from './routes/health';
@@ -122,7 +130,7 @@ app.route('/', adminRouter);
 app.route('/', resourcesRouter);
 app.route('/', annotationsRouter);
 app.route('/', entityTypesRouter);
-const jobsRouter = createJobsRouter(authMiddleware);
+const jobsRouter = createJobsRouter(jobQueue, authMiddleware);
 app.route('/', jobsRouter);
 
 // API Resourceation root - redirect to appropriate format
@@ -280,22 +288,13 @@ if (nodeEnv !== 'test') {
       // Continue running even if consumer fails to start
     }
 
-    // Initialize Job Queue
+    // Initialize Job Queue and Start Workers
     try {
       console.log('💼 Initializing job queue...');
-      const { initializeJobQueue } = await import('@semiont/jobs');
-      const dataDir = config.services?.filesystem?.path || process.env.DATA_DIR || './data';
-      if (!dataDir) {
-        throw new Error('services.filesystem.path is required in environment config for job queue initialization');
-      }
-      await initializeJobQueue({ dataDir });
+      await jobQueue.initialize();
       console.log('✅ Job queue initialized');
-    } catch (error) {
-      console.error('⚠️ Failed to initialize job queue:', error);
-    }
 
-    // Start Job Workers
-    try {
+      // Only start workers if job queue initialization succeeded
       console.log('👷 Starting job workers...');
       const {
         ReferenceDetectionWorker,
@@ -309,12 +308,12 @@ if (nodeEnv !== 'test') {
       // Create single EventStore instance to share across all workers
       const eventStore = await createEventStore(config);
 
-      const referenceDetectionWorker = new ReferenceDetectionWorker(config, eventStore);
-      const generationWorker = new GenerationWorker(config, eventStore);
-      const highlightDetectionWorker = new HighlightDetectionWorker(config, eventStore);
-      const assessmentDetectionWorker = new AssessmentDetectionWorker(config, eventStore);
-      const commentDetectionWorker = new CommentDetectionWorker(config, eventStore);
-      const tagDetectionWorker = new TagDetectionWorker(config, eventStore);
+      const referenceDetectionWorker = new ReferenceDetectionWorker(jobQueue, config, eventStore);
+      const generationWorker = new GenerationWorker(jobQueue, config, eventStore);
+      const highlightDetectionWorker = new HighlightDetectionWorker(jobQueue, config, eventStore);
+      const assessmentDetectionWorker = new AssessmentDetectionWorker(jobQueue, config, eventStore);
+      const commentDetectionWorker = new CommentDetectionWorker(jobQueue, config, eventStore);
+      const tagDetectionWorker = new TagDetectionWorker(jobQueue, config, eventStore);
 
       // Start workers in background (non-blocking)
       referenceDetectionWorker.start().catch((error) => {
@@ -349,7 +348,7 @@ if (nodeEnv !== 'test') {
       console.log('✅ Tag detection worker started');
 
     } catch (error) {
-      console.error('⚠️ Failed to start job workers:', error);
+      console.error('⚠️ Failed to initialize job queue and start workers:', error);
     }
   });
 }

@@ -8,7 +8,7 @@
  */
 
 import { JobWorker } from '@semiont/jobs';
-import type { Job, DetectionJob } from '@semiont/jobs';
+import type { Job, DetectionJob, JobQueue } from '@semiont/jobs';
 import { ResourceContext } from '../..';
 import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
 import { resourceIdToURI } from '@semiont/core';
@@ -39,10 +39,11 @@ export interface DetectedAnnotation {
 
 export class ReferenceDetectionWorker extends JobWorker {
   constructor(
+    jobQueue: JobQueue,
     private config: EnvironmentConfig,
     private eventStore: EventStore
   ) {
-    super();
+    super(jobQueue);
   }
 
   protected getWorkerName(): string {

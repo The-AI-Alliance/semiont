@@ -11,7 +11,7 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { User } from '@prisma/client';
 import type { Context, Next } from 'hono';
-import { getJobQueue } from '@semiont/jobs';
+import type { JobQueue } from '@semiont/jobs';
 import type { components } from '@semiont/api-client';
 import { jobId } from '@semiont/api-client';
 
@@ -20,7 +20,7 @@ type AuthMiddleware = (c: Context, next: Next) => Promise<Response | void>;
 
 type JobStatusResponse = components['schemas']['JobStatusResponse'];
 
-export function createJobsRouter(authMiddleware: AuthMiddleware) {
+export function createJobsRouter(jobQueue: JobQueue, authMiddleware: AuthMiddleware) {
   // Create jobs router
   const jobsRouter = new Hono<{ Variables: { user: User } }>();
 
@@ -37,7 +37,6 @@ export function createJobsRouter(authMiddleware: AuthMiddleware) {
     const { id } = c.req.param();
     const user = c.get('user');
 
-    const jobQueue = getJobQueue();
     const job = await jobQueue.getJob(jobId(id));
 
     if (!job) {

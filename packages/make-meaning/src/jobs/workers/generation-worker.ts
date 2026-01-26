@@ -8,7 +8,7 @@
  */
 
 import { JobWorker } from '@semiont/jobs';
-import type { Job, GenerationJob } from '@semiont/jobs';
+import type { Job, GenerationJob, JobQueue } from '@semiont/jobs';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import { ResourceContext } from '../..';
 import { generateResourceFromTopic } from '@semiont/inference';
@@ -31,10 +31,11 @@ import type { EnvironmentConfig } from '@semiont/core';
 
 export class GenerationWorker extends JobWorker {
   constructor(
+    jobQueue: JobQueue,
     private config: EnvironmentConfig,
     private eventStore: EventStore
   ) {
-    super();
+    super(jobQueue);
   }
 
   protected getWorkerName(): string {

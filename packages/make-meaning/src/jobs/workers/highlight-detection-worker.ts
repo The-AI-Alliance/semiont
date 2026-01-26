@@ -6,7 +6,7 @@
  */
 
 import { JobWorker } from '@semiont/jobs';
-import type { Job, HighlightDetectionJob } from '@semiont/jobs';
+import type { Job, HighlightDetectionJob, JobQueue } from '@semiont/jobs';
 import { ResourceContext, AnnotationDetection } from '../..';
 import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
 import { resourceIdToURI } from '@semiont/core';
@@ -18,10 +18,11 @@ export class HighlightDetectionWorker extends JobWorker {
   private isFirstProgress = true;
 
   constructor(
+    jobQueue: JobQueue,
     private config: EnvironmentConfig,
     private eventStore: EventStore
   ) {
-    super();
+    super(jobQueue);
   }
 
   protected getWorkerName(): string {
