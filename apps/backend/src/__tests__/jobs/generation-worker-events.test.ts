@@ -12,7 +12,8 @@ import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup
 import { resourceId, userId, annotationId } from '@semiont/core';
 import { jobId, entityType } from '@semiont/api-client';
 import type { GenerationContext } from '@semiont/api-client';
-import { createEventStore } from '@semiont/event-sourcing';
+import { createEventStore, type EventStore } from '@semiont/event-sourcing';
+import { createEventQuery } from '../../services/event-store-service';
 
 // Mock GenerationContext for tests
 const mockGenerationContext: GenerationContext = {
@@ -69,49 +70,10 @@ vi.mock('../../services/annotation-context', () => ({
   }
 }));
 
-// Cache EventStore instances per basePath to ensure consistency
-const eventStoreCache = new Map();
-
-// Mock createEventStore to avoid requiring project config
-vi.mock('../../services/event-store-service', async (importOriginal) => {
-  const actual = await importOriginal() as any;
-  const { EventStore } = await import('@semiont/event-sourcing');
-  const { FilesystemViewStorage } = await import('@semiont/event-sourcing');
-
-  return {
-    ...actual,
-    createEventStore: vi.fn(async (envConfig: any) => {
-      // Extract basePath from envConfig
-      const basePath = envConfig.services.filesystem!.path;
-
-      // Return cached instance if available
-      if (eventStoreCache.has(basePath)) {
-        return eventStoreCache.get(basePath);
-      }
-
-      // Create new instance and cache it
-      const viewStorage = new FilesystemViewStorage(basePath);
-      const identifierConfig = { baseUrl: 'http://localhost:4000' };
-      const eventStore = new EventStore(
-        {
-          basePath,
-          dataDir: basePath,
-          enableSharding: false,
-          maxEventsPerFile: 100,
-        },
-        viewStorage,
-        identifierConfig
-      );
-
-      eventStoreCache.set(basePath, eventStore);
-      return eventStore;
-    })
-  };
-});
-
 describe('GenerationWorker - Event Emission', () => {
   let worker: GenerationWorker;
   let testEnv: TestEnvironmentConfig;
+  let testEventStore: EventStore;
 
   // Helper to create view for a source resource
   async function createSourceView(sourceResourceId: string) {
@@ -156,7 +118,8 @@ describe('GenerationWorker - Event Emission', () => {
     const jobQueue = new JobQueue({ dataDir: testEnv.config.services.filesystem!.path });
     await jobQueue.initialize();
 
-    worker = new GenerationWorker(jobQueue, testEnv.config, createEventStore(testEnv.config.services.filesystem!.path, testEnv.config.services.backend!.publicURL));
+    testEventStore = createEventStore(testEnv.config.services.filesystem!.path, testEnv.config.services.backend!.publicURL);
+    worker = new GenerationWorker(jobQueue, testEnv.config, testEventStore);
   });
 
   afterAll(async () => {
@@ -182,10 +145,8 @@ describe('GenerationWorker - Event Emission', () => {
     await createSourceView(job.sourceResourceId);
     await (worker as any).executeJob(job);
 
-    // Query events from Event Store using the same path as the worker
-    const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const eventStore = await createEventStore( testEnv.config);
-    const query = createEventQuery(eventStore);
+    // Query events from Event Store using the same instance as the worker
+    const query = createEventQuery(testEventStore);
     const events = await query.getResourceEvents(resourceId('source-resource-1'));
 
     const startedEvents = events.filter(e => e.event.type === 'job.started');
@@ -224,9 +185,7 @@ describe('GenerationWorker - Event Emission', () => {
     await (worker as any).executeJob(job);
 
     // Query events from Event Store
-    const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const eventStore = await createEventStore( testEnv.config);
-    const query = createEventQuery(eventStore);
+    const query = createEventQuery(testEventStore);
     const events = await query.getResourceEvents(resourceId('source-resource-2'));
 
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
@@ -259,9 +218,7 @@ describe('GenerationWorker - Event Emission', () => {
     await (worker as any).executeJob(job);
 
     // Query events from Event Store
-    const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const eventStore = await createEventStore( testEnv.config);
-    const query = createEventQuery(eventStore);
+    const query = createEventQuery(testEventStore);
     const events = await query.getResourceEvents(resourceId('source-resource-3'));
 
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
@@ -312,9 +269,7 @@ describe('GenerationWorker - Event Emission', () => {
     await (worker as any).executeJob(job);
 
     // Query events from Event Store
-    const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const eventStore = await createEventStore( testEnv.config);
-    const query = createEventQuery(eventStore);
+    const query = createEventQuery(testEventStore);
     const events = await query.getResourceEvents(resourceId('source-resource-4'));
 
     const completedEvents = events.filter(e => e.event.type === 'job.completed');
@@ -352,9 +307,7 @@ describe('GenerationWorker - Event Emission', () => {
     await (worker as any).executeJob(job);
 
     // Get the resultResourceId from job.completed event
-    const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const eventStore = await createEventStore( testEnv.config);
-    const query = createEventQuery(eventStore);
+    const query = createEventQuery(testEventStore);
     const sourceEvents = await query.getResourceEvents(resourceId('source-resource-5'));
 
     const completedEvents = sourceEvents.filter(e => e.event.type === 'job.completed');
@@ -400,9 +353,7 @@ describe('GenerationWorker - Event Emission', () => {
     await (worker as any).executeJob(job);
 
     // Query events from Event Store
-    const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const eventStore = await createEventStore( testEnv.config);
-    const query = createEventQuery(eventStore);
+    const query = createEventQuery(testEventStore);
     const events = await query.getResourceEvents(resourceId('source-resource-6'));
 
     const eventTypes = events.map(e => e.event.type);
@@ -438,9 +389,7 @@ describe('GenerationWorker - Event Emission', () => {
     await (worker as any).executeJob(job);
 
     // Query events from Event Store
-    const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const eventStore = await createEventStore( testEnv.config);
-    const query = createEventQuery(eventStore);
+    const query = createEventQuery(testEventStore);
     const events = await query.getResourceEvents(resourceId('source-resource-7'));
 
     const progressEvents = events.filter(e => e.event.type === 'job.progress');

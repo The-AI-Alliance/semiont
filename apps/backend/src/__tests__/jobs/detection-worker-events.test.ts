@@ -12,6 +12,7 @@ import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup
 import { resourceId, userId } from '@semiont/core';
 import { jobId, entityType } from '@semiont/api-client';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
+import { createEventQuery } from '../../services/event-store-service';
 
 // Mock AI entity extraction to avoid external API calls
 vi.mock('@semiont/inference', async (importOriginal) => {
@@ -89,7 +90,6 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
 
-    const { createEventQuery } = await import('../../services/event-store-service');
     const query = createEventQuery(testEventStore);
     const events = await query.getResourceEvents(resourceId(testResourceId));
 
@@ -129,7 +129,6 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
 
-    const { createEventQuery } = await import('../../services/event-store-service');
     const query = createEventQuery(testEventStore);
     const events = await query.getResourceEvents(resourceId(testResourceId));
 
@@ -172,7 +171,6 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
 
-    const { createEventQuery } = await import('../../services/event-store-service');
     const query = createEventQuery(testEventStore);
     const events = await query.getResourceEvents(resourceId(testResourceId));
 
@@ -210,7 +208,6 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
 
-    const { createEventQuery } = await import('../../services/event-store-service');
     const query = createEventQuery(testEventStore);
     const events = await query.getResourceEvents(resourceId(testResourceId));
 
@@ -261,7 +258,6 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
 
-    const { createEventQuery } = await import('../../services/event-store-service');
     const query = createEventQuery(testEventStore);
     const events = await query.getResourceEvents(resourceId(testResourceId));
 
@@ -299,7 +295,6 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
 
-    const { createEventQuery } = await import('../../services/event-store-service');
     const query = createEventQuery(testEventStore);
     const events = await query.getResourceEvents(resourceId(testResourceId));
 
