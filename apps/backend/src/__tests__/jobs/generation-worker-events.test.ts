@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { GenerationWorker } from '@semiont/make-meaning';
-import { JobQueue, type GenerationJob } from '@semiont/jobs';
+import { JobQueue, type PendingJob, type GenerationParams } from '@semiont/jobs';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 import { resourceId, userId, annotationId } from '@semiont/core';
 import { jobId, entityType } from '@semiont/api-client';
@@ -127,22 +127,26 @@ describe('GenerationWorker - Event Emission', () => {
   });
 
   it('should emit job.started event when generation begins', async () => {
-    const job: GenerationJob = {
-      id: jobId('job-gen-1'),
-      type: 'generation',
+    const job: PendingJob<GenerationParams> = {
       status: 'pending',
-      userId: userId('user-1'),
-      referenceId: annotationId('test-ref-id'),
-      sourceResourceId: resourceId('source-resource-1'),  // Unique per test
-      title: 'Test Resource',
-      entityTypes: [entityType('Person')],
-      context: mockGenerationContext,
-      created: new Date().toISOString(),
-      retryCount: 0,
-      maxRetries: 3
+      metadata: {
+        id: jobId('job-gen-1'),
+        type: 'generation',
+        userId: userId('user-1'),
+        created: new Date().toISOString(),
+        retryCount: 0,
+        maxRetries: 3
+      },
+      params: {
+        referenceId: annotationId('test-ref-id'),
+        sourceResourceId: resourceId('source-resource-1'),  // Unique per test
+        title: 'Test Resource',
+        entityTypes: [entityType('Person')],
+        context: mockGenerationContext
+      }
     };
 
-    await createSourceView(job.sourceResourceId);
+    await createSourceView(job.params.sourceResourceId);
     await (worker as any).executeJob(job);
 
     // Query events from Event Store using the same instance as the worker
@@ -166,22 +170,26 @@ describe('GenerationWorker - Event Emission', () => {
   });
 
   it('should emit job.progress events for each generation stage', async () => {
-    const job: GenerationJob = {
-      id: jobId('job-gen-2'),
-      type: 'generation',
+    const job: PendingJob<GenerationParams> = {
       status: 'pending',
-      userId: userId('user-1'),
-      referenceId: annotationId('test-ref-id'),
-      sourceResourceId: resourceId('source-resource-2'),
-      title: 'Test Resource',
-      entityTypes: [entityType('Person')],
-      context: mockGenerationContext,
-      created: new Date().toISOString(),
-      retryCount: 0,
-      maxRetries: 3
+      metadata: {
+        id: jobId('job-gen-2'),
+        type: 'generation',
+        userId: userId('user-1'),
+        created: new Date().toISOString(),
+        retryCount: 0,
+        maxRetries: 3
+      },
+      params: {
+        referenceId: annotationId('test-ref-id'),
+        sourceResourceId: resourceId('source-resource-2'),
+        title: 'Test Resource',
+        entityTypes: [entityType('Person')],
+        context: mockGenerationContext
+      }
     };
 
-    await createSourceView(job.sourceResourceId);
+    await createSourceView(job.params.sourceResourceId);
     await (worker as any).executeJob(job);
 
     // Query events from Event Store
@@ -199,22 +207,26 @@ describe('GenerationWorker - Event Emission', () => {
   });
 
   it('should emit progress events with increasing percentages', async () => {
-    const job: GenerationJob = {
-      id: jobId('job-gen-3'),
-      type: 'generation',
+    const job: PendingJob<GenerationParams> = {
       status: 'pending',
-      userId: userId('user-1'),
-      referenceId: annotationId('test-ref-id'),
-      sourceResourceId: resourceId('source-resource-3'),
-      title: 'Test Resource',
-      entityTypes: [entityType('Person')],
-      context: mockGenerationContext,
-      created: new Date().toISOString(),
-      retryCount: 0,
-      maxRetries: 3
+      metadata: {
+        id: jobId('job-gen-3'),
+        type: 'generation',
+        userId: userId('user-1'),
+        created: new Date().toISOString(),
+        retryCount: 0,
+        maxRetries: 3
+      },
+      params: {
+        referenceId: annotationId('test-ref-id'),
+        sourceResourceId: resourceId('source-resource-3'),
+        title: 'Test Resource',
+        entityTypes: [entityType('Person')],
+        context: mockGenerationContext
+      }
     };
 
-    await createSourceView(job.sourceResourceId);
+    await createSourceView(job.params.sourceResourceId);
     await (worker as any).executeJob(job);
 
     // Query events from Event Store
@@ -250,22 +262,26 @@ describe('GenerationWorker - Event Emission', () => {
   });
 
   it('should emit job.completed event with resultResourceId', async () => {
-    const job: GenerationJob = {
-      id: jobId('job-gen-4'),
-      type: 'generation',
+    const job: PendingJob<GenerationParams> = {
       status: 'pending',
-      userId: userId('user-1'),
-      referenceId: annotationId('test-ref-id'),
-      sourceResourceId: resourceId('source-resource-4'),
-      title: 'Test Resource',
-      entityTypes: [entityType('Person')],
-      context: mockGenerationContext,
-      created: new Date().toISOString(),
-      retryCount: 0,
-      maxRetries: 3
+      metadata: {
+        id: jobId('job-gen-4'),
+        type: 'generation',
+        userId: userId('user-1'),
+        created: new Date().toISOString(),
+        retryCount: 0,
+        maxRetries: 3
+      },
+      params: {
+        referenceId: annotationId('test-ref-id'),
+        sourceResourceId: resourceId('source-resource-4'),
+        title: 'Test Resource',
+        entityTypes: [entityType('Person')],
+        context: mockGenerationContext
+      }
     };
 
-    await createSourceView(job.sourceResourceId);
+    await createSourceView(job.params.sourceResourceId);
     await (worker as any).executeJob(job);
 
     // Query events from Event Store
@@ -288,22 +304,26 @@ describe('GenerationWorker - Event Emission', () => {
   });
 
   it('should emit resource.created event for new resource', async () => {
-    const job: GenerationJob = {
-      id: jobId('job-gen-5'),
-      type: 'generation',
+    const job: PendingJob<GenerationParams> = {
       status: 'pending',
-      userId: userId('user-1'),
-      referenceId: annotationId('test-ref-id'),
-      sourceResourceId: resourceId('source-resource-5'),
-      title: 'Test Resource',
-      entityTypes: [entityType('Person')],
-      context: mockGenerationContext,
-      created: new Date().toISOString(),
-      retryCount: 0,
-      maxRetries: 3
+      metadata: {
+        id: jobId('job-gen-5'),
+        type: 'generation',
+        userId: userId('user-1'),
+        created: new Date().toISOString(),
+        retryCount: 0,
+        maxRetries: 3
+      },
+      params: {
+        referenceId: annotationId('test-ref-id'),
+        sourceResourceId: resourceId('source-resource-5'),
+        title: 'Test Resource',
+        entityTypes: [entityType('Person')],
+        context: mockGenerationContext
+      }
     };
 
-    await createSourceView(job.sourceResourceId);
+    await createSourceView(job.params.sourceResourceId);
     await (worker as any).executeJob(job);
 
     // Get the resultResourceId from job.completed event
@@ -334,22 +354,26 @@ describe('GenerationWorker - Event Emission', () => {
   });
 
   it('should emit events in correct order', async () => {
-    const job: GenerationJob = {
-      id: jobId('job-gen-6'),
-      type: 'generation',
+    const job: PendingJob<GenerationParams> = {
       status: 'pending',
-      userId: userId('user-1'),
-      referenceId: annotationId('test-ref-id'),
-      sourceResourceId: resourceId('source-resource-6'),
-      title: 'Test Resource',
-      entityTypes: [entityType('Person')],
-      context: mockGenerationContext,
-      created: new Date().toISOString(),
-      retryCount: 0,
-      maxRetries: 3
+      metadata: {
+        id: jobId('job-gen-6'),
+        type: 'generation',
+        userId: userId('user-1'),
+        created: new Date().toISOString(),
+        retryCount: 0,
+        maxRetries: 3
+      },
+      params: {
+        referenceId: annotationId('test-ref-id'),
+        sourceResourceId: resourceId('source-resource-6'),
+        title: 'Test Resource',
+        entityTypes: [entityType('Person')],
+        context: mockGenerationContext
+      }
     };
 
-    await createSourceView(job.sourceResourceId);
+    await createSourceView(job.params.sourceResourceId);
     await (worker as any).executeJob(job);
 
     // Query events from Event Store
@@ -370,22 +394,26 @@ describe('GenerationWorker - Event Emission', () => {
   });
 
   it('should include descriptive messages in progress events', async () => {
-    const job: GenerationJob = {
-      id: jobId('job-gen-7'),
-      type: 'generation',
+    const job: PendingJob<GenerationParams> = {
       status: 'pending',
-      userId: userId('user-1'),
-      referenceId: annotationId('test-ref-id'),
-      sourceResourceId: resourceId('source-resource-7'),
-      title: 'Test Resource',
-      entityTypes: [entityType('Person')],
-      context: mockGenerationContext,
-      created: new Date().toISOString(),
-      retryCount: 0,
-      maxRetries: 3
+      metadata: {
+        id: jobId('job-gen-7'),
+        type: 'generation',
+        userId: userId('user-1'),
+        created: new Date().toISOString(),
+        retryCount: 0,
+        maxRetries: 3
+      },
+      params: {
+        referenceId: annotationId('test-ref-id'),
+        sourceResourceId: resourceId('source-resource-7'),
+        title: 'Test Resource',
+        entityTypes: [entityType('Person')],
+        context: mockGenerationContext
+      }
     };
 
-    await createSourceView(job.sourceResourceId);
+    await createSourceView(job.params.sourceResourceId);
     await (worker as any).executeJob(job);
 
     // Query events from Event Store

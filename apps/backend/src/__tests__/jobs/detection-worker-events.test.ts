@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { ReferenceDetectionWorker } from '@semiont/make-meaning';
-import { JobQueue, type DetectionJob } from '@semiont/jobs';
+import { JobQueue, type DetectionJob, type PendingJob, type DetectionParams } from '@semiont/jobs';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 import { resourceId, userId } from '@semiont/core';
 import { jobId, entityType } from '@semiont/api-client';
@@ -76,16 +76,20 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
     // Create test resource first
     await createTestResource(testResourceId);
 
-    const job: DetectionJob = {
-      id: jobId('job-test-1'),
-      type: 'detection',
+    const job: PendingJob<DetectionParams> = {
       status: 'pending',
-      userId: userId('user-1'),
-      resourceId: resourceId(testResourceId),
-      entityTypes: [entityType('Person')],
-      created: new Date().toISOString(),
-      retryCount: 0,
-      maxRetries: 3
+      metadata: {
+        id: jobId('job-test-1'),
+        type: 'detection',
+        userId: userId('user-1'),
+        created: new Date().toISOString(),
+        retryCount: 0,
+        maxRetries: 3
+      },
+      params: {
+        resourceId: resourceId(testResourceId),
+        entityTypes: [entityType('Person')]
+      }
     };
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
@@ -115,16 +119,20 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
     // Create test resource first
     await createTestResource(testResourceId);
 
-    const job: DetectionJob = {
-      id: jobId('job-test-2'),
-      type: 'detection',
+    const job: PendingJob<DetectionParams> = {
       status: 'pending',
-      userId: userId('user-1'),
-      resourceId: resourceId(testResourceId),
-      entityTypes: [entityType('Person'), entityType('Organization'), entityType('Location')],
-      created: new Date().toISOString(),
-      retryCount: 0,
-      maxRetries: 3
+      metadata: {
+        id: jobId('job-test-2'),
+        type: 'detection',
+        userId: userId('user-1'),
+        created: new Date().toISOString(),
+        retryCount: 0,
+        maxRetries: 3
+      },
+      params: {
+        resourceId: resourceId(testResourceId),
+        entityTypes: [entityType('Person'), entityType('Organization'), entityType('Location')]
+      }
     };
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
@@ -157,16 +165,20 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
     // Create test resource first
     await createTestResource(testResourceId);
 
-    const job: DetectionJob = {
-      id: jobId('job-test-3'),
-      type: 'detection',
+    const job: PendingJob<DetectionParams> = {
       status: 'pending',
-      userId: userId('user-1'),
-      resourceId: resourceId(testResourceId),
-      entityTypes: [entityType('Person')],
-      created: new Date().toISOString(),
-      retryCount: 0,
-      maxRetries: 3
+      metadata: {
+        id: jobId('job-test-3'),
+        type: 'detection',
+        userId: userId('user-1'),
+        created: new Date().toISOString(),
+        retryCount: 0,
+        maxRetries: 3
+      },
+      params: {
+        resourceId: resourceId(testResourceId),
+        entityTypes: [entityType('Person')]
+      }
     };
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
@@ -194,16 +206,20 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
     // Create test resource first
     await createTestResource(testResourceId);
 
-    const job: DetectionJob = {
-      id: jobId('job-test-4'),
-      type: 'detection',
+    const job: PendingJob<DetectionParams> = {
       status: 'pending',
-      userId: userId('user-1'),
-      resourceId: resourceId(testResourceId),
-      entityTypes: [entityType('Person')],
-      created: new Date().toISOString(),
-      retryCount: 0,
-      maxRetries: 3
+      metadata: {
+        id: jobId('job-test-4'),
+        type: 'detection',
+        userId: userId('user-1'),
+        created: new Date().toISOString(),
+        retryCount: 0,
+        maxRetries: 3
+      },
+      params: {
+        resourceId: resourceId(testResourceId),
+        entityTypes: [entityType('Person')]
+      }
     };
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
@@ -244,16 +260,20 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
     // Create test resource first
     await createTestResource(testResourceId);
 
-    const job: DetectionJob = {
-      id: jobId('job-test-5'),
-      type: 'detection',
+    const job: PendingJob<DetectionParams> = {
       status: 'pending',
-      userId: userId('user-1'),
-      resourceId: resourceId(testResourceId),
-      entityTypes: [entityType('Person'), entityType('Organization')], // Use multiple types to test progress
-      created: new Date().toISOString(),
-      retryCount: 0,
-      maxRetries: 3
+      metadata: {
+        id: jobId('job-test-5'),
+        type: 'detection',
+        userId: userId('user-1'),
+        created: new Date().toISOString(),
+        retryCount: 0,
+        maxRetries: 3
+      },
+      params: {
+        resourceId: resourceId(testResourceId),
+        entityTypes: [entityType('Person'), entityType('Organization')] // Use multiple types to test progress
+      }
     };
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
@@ -281,16 +301,20 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
     // Create test resource first
     await createTestResource(testResourceId);
 
-    const job: DetectionJob = {
-      id: jobId('job-test-6'),
-      type: 'detection',
+    const job: PendingJob<DetectionParams> = {
       status: 'pending',
-      userId: userId('user-1'),
-      resourceId: resourceId(testResourceId),
-      entityTypes: [entityType('Person'), entityType('Organization')],
-      created: new Date().toISOString(),
-      retryCount: 0,
-      maxRetries: 3
+      metadata: {
+        id: jobId('job-test-6'),
+        type: 'detection',
+        userId: userId('user-1'),
+        created: new Date().toISOString(),
+        retryCount: 0,
+        maxRetries: 3
+      },
+      params: {
+        resourceId: resourceId(testResourceId),
+        entityTypes: [entityType('Person'), entityType('Organization')]
+      }
     };
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
