@@ -8,7 +8,7 @@
  */
 
 import { JobWorker } from '@semiont/jobs';
-import type { Job, GenerationJob, JobQueue } from '@semiont/jobs';
+import type { AnyJob, JobQueue, RunningJob, GenerationParams, GenerationProgress } from '@semiont/jobs';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import { ResourceContext } from '../..';
 import { generateResourceFromTopic } from '@semiont/inference';
@@ -42,116 +42,133 @@ export class GenerationWorker extends JobWorker {
     return 'GenerationWorker';
   }
 
-  protected canProcessJob(job: Job): boolean {
-    return job.type === 'generation';
+  protected canProcessJob(job: AnyJob): boolean {
+    return job.metadata.type === 'generation';
   }
 
-  protected async executeJob(job: Job): Promise<void> {
-    if (job.type !== 'generation') {
-      throw new Error(`Invalid job type: ${job.type}`);
+  protected async executeJob(job: AnyJob): Promise<void> {
+    if (job.metadata.type !== 'generation') {
+      throw new Error(`Invalid job type: ${job.metadata.type}`);
     }
 
-    await this.processGenerationJob(job);
+    // Type guard: job must be running to execute
+    if (job.status !== 'running') {
+      throw new Error(`Job must be in running state to execute, got: ${job.status}`);
+    }
+
+    await this.processGenerationJob(job as RunningJob<GenerationParams, GenerationProgress>);
   }
 
-  private async processGenerationJob(job: GenerationJob): Promise<void> {
-    console.log(`[GenerationWorker] Processing generation for reference ${job.referenceId} (job: ${job.id})`);
+  private async processGenerationJob(job: RunningJob<GenerationParams, GenerationProgress>): Promise<void> {
+    console.log(`[GenerationWorker] Processing generation for reference ${job.params.referenceId} (job: ${job.metadata.id})`);
 
     const basePath = this.config.services.filesystem!.path;
     const projectRoot = this.config._metadata?.projectRoot;
     const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
 
     // Update progress: fetching
-    job.progress = {
-      stage: 'fetching',
-      percentage: 20,
-      message: 'Fetching source resource...'
+    let updatedJob: RunningJob<GenerationParams, GenerationProgress> = {
+      ...job,
+      progress: {
+        stage: 'fetching',
+        percentage: 20,
+        message: 'Fetching source resource...'
+      }
     };
-    console.log(`[GenerationWorker] 📥 ${job.progress.message}`);
-    await this.updateJobProgress(job);
+    console.log(`[GenerationWorker] 📥 ${updatedJob.progress.message}`);
+    await this.updateJobProgress(updatedJob);
 
     // Fetch annotation from view storage
     // TODO: Once AnnotationContext is consolidated, use it here
     const { FilesystemViewStorage } = await import('@semiont/event-sourcing');
     const viewStorage = new FilesystemViewStorage(basePath, projectRoot);
-    const view = await viewStorage.get(job.sourceResourceId);
+    const view = await viewStorage.get(job.params.sourceResourceId);
     if (!view) {
-      throw new Error(`Resource ${job.sourceResourceId} not found`);
+      throw new Error(`Resource ${job.params.sourceResourceId} not found`);
     }
     const projection = view.annotations;
 
     // Construct full annotation URI for comparison
-    const expectedAnnotationUri = `${this.config.services.backend!.publicURL}/annotations/${job.referenceId}`;
+    const expectedAnnotationUri = `${this.config.services.backend!.publicURL}/annotations/${job.params.referenceId}`;
     const annotation = projection.annotations.find((a: any) =>
       a.id === expectedAnnotationUri && a.motivation === 'linking'
     );
 
     if (!annotation) {
-      throw new Error(`Annotation ${job.referenceId} not found in resource ${job.sourceResourceId}`);
+      throw new Error(`Annotation ${job.params.referenceId} not found in resource ${job.params.sourceResourceId}`);
     }
 
-    const sourceResource = await ResourceContext.getResourceMetadata(job.sourceResourceId, this.config);
+    const sourceResource = await ResourceContext.getResourceMetadata(job.params.sourceResourceId, this.config);
     if (!sourceResource) {
-      throw new Error(`Source resource ${job.sourceResourceId} not found`);
+      throw new Error(`Source resource ${job.params.sourceResourceId} not found`);
     }
 
     // Determine resource name
     const targetSelector = getTargetSelector(annotation.target);
-    const resourceName = job.title || (targetSelector ? getExactText(targetSelector) : '') || 'New Resource';
+    const resourceName = job.params.title || (targetSelector ? getExactText(targetSelector) : '') || 'New Resource';
     console.log(`[GenerationWorker] Generating resource: "${resourceName}"`);
 
     // Verify context is provided (required for generation)
-    if (!job.context) {
+    if (!job.params.context) {
       throw new Error('Generation context is required but was not provided in job');
     }
-    console.log(`[GenerationWorker] Using pre-fetched context: ${job.context.sourceContext?.before?.length || 0} chars before, ${job.context.sourceContext?.selected?.length || 0} chars selected, ${job.context.sourceContext?.after?.length || 0} chars after`);
+    console.log(`[GenerationWorker] Using pre-fetched context: ${job.params.context.sourceContext?.before?.length || 0} chars before, ${job.params.context.sourceContext?.selected?.length || 0} chars selected, ${job.params.context.sourceContext?.after?.length || 0} chars after`);
 
     // Update progress: generating (skip fetching context since it's already in job)
-    job.progress = {
-      stage: 'generating',
-      percentage: 40,
-      message: 'Creating content with AI...'
+    updatedJob = {
+      ...updatedJob,
+      progress: {
+        stage: 'generating',
+        percentage: 40,
+        message: 'Creating content with AI...'
+      }
     };
-    console.log(`[GenerationWorker] 🤖 ${job.progress.message}`);
-    await this.updateJobProgress(job);
+    console.log(`[GenerationWorker] 🤖 ${updatedJob.progress.message}`);
+    await this.updateJobProgress(updatedJob);
 
     // Generate content using AI with context from job
-    const prompt = job.prompt || `Create a comprehensive resource about "${resourceName}"`;
+    const prompt = job.params.prompt || `Create a comprehensive resource about "${resourceName}"`;
     // Extract entity types from annotation body
     const annotationEntityTypes = getEntityTypes({ body: annotation.body });
 
     const generatedContent = await generateResourceFromTopic(
       resourceName,
-      job.entityTypes || annotationEntityTypes,
+      job.params.entityTypes || annotationEntityTypes,
       this.config,
       prompt,
-      job.language,
-      job.context,      // NEW - context from job (passed from modal)
-      job.temperature,  // NEW - from job
-      job.maxTokens     // NEW - from job
+      job.params.language,
+      job.params.context,      // NEW - context from job (passed from modal)
+      job.params.temperature,  // NEW - from job
+      job.params.maxTokens     // NEW - from job
     );
 
     console.log(`[GenerationWorker] ✅ Generated ${generatedContent.content.length} bytes of content`);
 
     // Update progress: creating
-    job.progress = {
-      stage: 'generating',
-      percentage: 70,
-      message: 'Content ready, creating resource...'
+    updatedJob = {
+      ...updatedJob,
+      progress: {
+        stage: 'generating',
+        percentage: 70,
+        message: 'Content ready, creating resource...'
+      }
     };
-    await this.updateJobProgress(job);
+    await this.updateJobProgress(updatedJob);
 
     // Generate resource ID
     const rId = resourceId(generateUuid());
 
     // Update progress: creating
-    job.progress = {
-      stage: 'creating',
-      percentage: 85,
-      message: 'Saving resource...'
+    updatedJob = {
+      ...updatedJob,
+      progress: {
+        stage: 'creating',
+        percentage: 85,
+        message: 'Saving resource...'
+      }
     };
-    console.log(`[GenerationWorker] 💾 ${job.progress.message}`);
-    await this.updateJobProgress(job);
+    console.log(`[GenerationWorker] 💾 ${updatedJob.progress.message}`);
+    await this.updateJobProgress(updatedJob);
 
     // Save content to RepresentationStore
     const storedRep = await repStore.store(Buffer.from(generatedContent.content), {
@@ -164,30 +181,33 @@ export class GenerationWorker extends JobWorker {
     await this.eventStore.appendEvent({
       type: 'resource.created',
       resourceId: rId,
-      userId: job.userId,
+      userId: job.metadata.userId,
       version: 1,
       payload: {
         name: resourceName,
         format: 'text/markdown',
         contentChecksum: storedRep.checksum,
         creationMethod: CREATION_METHODS.GENERATED,
-        entityTypes: job.entityTypes || annotationEntityTypes,
-        language: job.language,
+        entityTypes: job.params.entityTypes || annotationEntityTypes,
+        language: job.params.language,
         isDraft: true,
-        generatedFrom: job.referenceId,
+        generatedFrom: job.params.referenceId,
         generationPrompt: undefined,  // Could be added if we track the prompt
       },
     });
     console.log(`[GenerationWorker] Emitted resource.created event for ${rId}`);
 
     // Update progress: linking
-    job.progress = {
-      stage: 'linking',
-      percentage: 95,
-      message: 'Linking reference...'
+    updatedJob = {
+      ...updatedJob,
+      progress: {
+        stage: 'linking',
+        percentage: 95,
+        message: 'Linking reference...'
+      }
     };
-    console.log(`[GenerationWorker] 🔗 ${job.progress.message}`);
-    await this.updateJobProgress(job);
+    console.log(`[GenerationWorker] 🔗 ${updatedJob.progress.message}`);
+    await this.updateJobProgress(updatedJob);
 
     // Emit annotation.body.updated event to link the annotation to the new resource
     // Build full resource URI for the annotation body
@@ -203,32 +223,32 @@ export class GenerationWorker extends JobWorker {
     }];
 
     // Extract annotation ID from full URI (format: http://host/annotations/{id})
-    const annotationIdSegment = job.referenceId.split('/').pop()!;
+    const annotationIdSegment = job.params.referenceId.split('/').pop()!;
 
     await this.eventStore.appendEvent({
       type: 'annotation.body.updated',
-      resourceId: job.sourceResourceId,
-      userId: job.userId,
+      resourceId: job.params.sourceResourceId,
+      userId: job.metadata.userId,
       version: 1,
       payload: {
         annotationId: annotationId(annotationIdSegment),
         operations,
       },
     });
-    console.log(`[GenerationWorker] ✅ Emitted annotation.body.updated event linking ${job.referenceId} → ${rId}`);
+    console.log(`[GenerationWorker] ✅ Emitted annotation.body.updated event linking ${job.params.referenceId} → ${rId}`);
 
-    // Set final result
-    job.result = {
-      resourceId: rId,
-      resourceName
-    };
+    // Note: JobWorker base class will create the CompleteJob with result
+    // We don't set job.result here - that's handled by the base class
 
-    job.progress = {
-      stage: 'linking',
-      percentage: 100,
-      message: 'Complete!'
+    updatedJob = {
+      ...updatedJob,
+      progress: {
+        stage: 'linking',
+        percentage: 100,
+        message: 'Complete!'
+      }
     };
-    await this.updateJobProgress(job);
+    await this.updateJobProgress(updatedJob);
 
     console.log(`[GenerationWorker] ✅ Generation complete: created resource ${rId}`);
   }
@@ -237,55 +257,60 @@ export class GenerationWorker extends JobWorker {
    * Update job progress and emit events to Event Store
    * Overrides base class to also emit job progress events
    */
-  protected override async updateJobProgress(job: Job): Promise<void> {
+  protected override async updateJobProgress(job: AnyJob): Promise<void> {
     // Call parent to update job queue
     await super.updateJobProgress(job);
 
     // Emit events for generation jobs
-    if (job.type !== 'generation') {
+    if (job.metadata.type !== 'generation') {
       return;
     }
 
-    const genJob = job as GenerationJob;
+    // Type guard: only running jobs have progress
+    if (job.status !== 'running') {
+      return;
+    }
+
+    const genJob = job as RunningJob<GenerationParams, GenerationProgress>;
 
     const baseEvent = {
-      resourceId: genJob.sourceResourceId,
-      userId: genJob.userId,
+      resourceId: genJob.params.sourceResourceId,
+      userId: genJob.metadata.userId,
       version: 1,
     };
 
     // Emit appropriate event based on progress stage
-    if (genJob.progress?.stage === 'fetching' && genJob.progress?.percentage === 20) {
+    if (genJob.progress.stage === 'fetching' && genJob.progress.percentage === 20) {
       // First progress update - emit job.started
       await this.eventStore.appendEvent({
         type: 'job.started',
         ...baseEvent,
         payload: {
-          jobId: genJob.id,
-          jobType: genJob.type,
+          jobId: genJob.metadata.id,
+          jobType: genJob.metadata.type,
           totalSteps: 5, // fetching, generating, creating, linking, complete
         },
       });
-    } else if (genJob.progress?.stage === 'linking' && genJob.progress?.percentage === 100) {
+    } else if (genJob.progress.stage === 'linking' && genJob.progress.percentage === 100) {
       // Final progress update - emit job.completed
       await this.eventStore.appendEvent({
         type: 'job.completed',
         ...baseEvent,
         payload: {
-          jobId: genJob.id,
-          jobType: genJob.type,
-          resultResourceId: genJob.result?.resourceId,
-          annotationUri: annotationUri(`${this.config.services.backend!.publicURL}/annotations/${genJob.referenceId}`),
+          jobId: genJob.metadata.id,
+          jobType: genJob.metadata.type,
+          // Note: resultResourceId would come from job.result, but that's handled by base class
+          annotationUri: annotationUri(`${this.config.services.backend!.publicURL}/annotations/${genJob.params.referenceId}`),
         },
       });
-    } else if (genJob.progress) {
+    } else {
       // Intermediate progress - emit job.progress
       await this.eventStore.appendEvent({
         type: 'job.progress',
         ...baseEvent,
         payload: {
-          jobId: genJob.id,
-          jobType: genJob.type,
+          jobId: genJob.metadata.id,
+          jobType: genJob.metadata.type,
           currentStep: genJob.progress.stage,
           percentage: genJob.progress.percentage,
           message: genJob.progress.message,

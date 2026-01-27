@@ -1,8 +1,14 @@
 /**
- * Job Queue Type Definitions
+ * Job Queue Type Definitions - Discriminated Union Design
  *
  * Jobs represent async work that can be queued, processed, and monitored.
- * They are completely independent of HTTP request/response cycles.
+ * Uses TypeScript discriminated unions to enforce valid state transitions.
+ *
+ * Design principles:
+ * - Each job status has specific valid fields
+ * - Type narrowing works automatically via status discriminant
+ * - No optional fields that may or may not exist
+ * - State machine is explicit and type-safe
  */
 
 import type { GenerationContext } from '@semiont/api-client';
@@ -12,159 +18,310 @@ import type { ResourceId, UserId, AnnotationId } from '@semiont/core';
 export type JobType = 'detection' | 'generation' | 'highlight-detection' | 'assessment-detection' | 'comment-detection' | 'tag-detection';
 export type JobStatus = 'pending' | 'running' | 'complete' | 'failed' | 'cancelled';
 
+// ============================================================================
+// Core Metadata and Parameters
+// ============================================================================
+
 /**
- * Base job interface - all jobs extend this
+ * Job metadata - common to all states
  */
-export interface BaseJob {
+export interface JobMetadata {
   id: JobId;
   type: JobType;
-  status: JobStatus;
   userId: UserId;
   created: string;
-  startedAt?: string;
-  completedAt?: string;
-  error?: string;
   retryCount: number;
   maxRetries: number;
 }
 
 /**
- * Detection job - finds entities in a resource using AI inference
+ * Detection job parameters
  */
-export interface DetectionJob extends BaseJob {
-  type: 'detection';
+export interface DetectionParams {
   resourceId: ResourceId;
   entityTypes: EntityType[];
-  includeDescriptiveReferences?: boolean;  // Include anaphoric/cataphoric references (e.g., "the CEO", "the tech giant")
-  progress?: {
-    totalEntityTypes: number;
-    processedEntityTypes: number;
-    currentEntityType?: string;
-    entitiesFound: number;
-    entitiesEmitted: number;
-  };
-  result?: {
-    totalFound: number;
-    totalEmitted: number;
-    errors: number;
-  };
+  includeDescriptiveReferences?: boolean;
 }
 
 /**
- * Generation job - generates a new resource using AI inference
+ * Generation job parameters
  */
-export interface GenerationJob extends BaseJob {
-  type: 'generation';
+export interface GenerationParams {
   referenceId: AnnotationId;
   sourceResourceId: ResourceId;
   prompt?: string;
   title?: string;
   entityTypes?: EntityType[];
   language?: string;
-  context?: GenerationContext;  // Generation context (required for generation to proceed)
-  temperature?: number;         // AI inference temperature (0.0-1.0)
-  maxTokens?: number;           // Maximum tokens to generate
-  progress?: {
-    stage: 'fetching' | 'generating' | 'creating' | 'linking';
-    percentage: number;
-    message?: string;
-  };
-  result?: {
-    resourceId: ResourceId;
-    resourceName: string;
-  };
+  context?: GenerationContext;
+  temperature?: number;
+  maxTokens?: number;
 }
 
 /**
- * Highlight Detection job - finds passages to highlight using AI
+ * Highlight detection job parameters
  */
-export interface HighlightDetectionJob extends BaseJob {
-  type: 'highlight-detection';
+export interface HighlightDetectionParams {
   resourceId: ResourceId;
-  instructions?: string;  // Optional user instructions for AI
-  density?: number;  // Optional: desired number of highlights per 2000 words (1-15)
-  progress?: {
-    stage: 'analyzing' | 'creating';
-    percentage: number;
-    message?: string;
-  };
-  result?: {
-    highlightsFound: number;
-    highlightsCreated: number;
-  };
+  instructions?: string;
+  density?: number;
 }
 
 /**
- * Assessment Detection job - evaluates passages using AI
+ * Assessment detection job parameters
  */
-export interface AssessmentDetectionJob extends BaseJob {
-  type: 'assessment-detection';
+export interface AssessmentDetectionParams {
   resourceId: ResourceId;
-  instructions?: string;  // Optional user instructions for AI
-  tone?: 'analytical' | 'critical' | 'balanced' | 'constructive';  // Optional tone/style
-  density?: number;  // Optional: desired number of assessments per 2000 words (1-10)
-  progress?: {
-    stage: 'analyzing' | 'creating';
-    percentage: number;
-    message?: string;
-  };
-  result?: {
-    assessmentsFound: number;
-    assessmentsCreated: number;
-  };
+  instructions?: string;
+  tone?: 'analytical' | 'critical' | 'balanced' | 'constructive';
+  density?: number;
 }
 
 /**
- * Comment Detection job - generates explanatory comments on passages using AI
+ * Comment detection job parameters
  */
-export interface CommentDetectionJob extends BaseJob {
-  type: 'comment-detection';
+export interface CommentDetectionParams {
   resourceId: ResourceId;
-  instructions?: string;  // Optional user instructions for AI
-  tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical';  // Optional tone/style
-  density?: number;  // Optional: desired number of comments per 2000 words (2-12)
-  progress?: {
-    stage: 'analyzing' | 'creating';
-    percentage: number;
-    message?: string;
-  };
-  result?: {
-    commentsFound: number;
-    commentsCreated: number;
-  };
+  instructions?: string;
+  tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical';
+  density?: number;
 }
 
 /**
- * Tag Detection job - identifies passages serving structural roles using AI
+ * Tag detection job parameters
  */
-export interface TagDetectionJob extends BaseJob {
-  type: 'tag-detection';
+export interface TagDetectionParams {
   resourceId: ResourceId;
-  schemaId: string;  // e.g., 'legal-irac', 'scientific-imrad'
-  categories: string[];  // e.g., ['Issue', 'Rule', 'Application', 'Conclusion']
-  progress?: {
-    stage: 'analyzing' | 'creating';
-    percentage: number;
-    currentCategory?: string;  // Category currently being processed
-    processedCategories: number;
-    totalCategories: number;
-    message?: string;
-  };
-  result?: {
-    tagsFound: number;
-    tagsCreated: number;
-    byCategory: Record<string, number>;  // e.g., { "Issue": 1, "Rule": 2 }
-  };
+  schemaId: string;
+  categories: string[];
 }
+
+// ============================================================================
+// Progress and Result Types
+// ============================================================================
+
+/**
+ * Detection job progress
+ */
+export interface DetectionProgress {
+  totalEntityTypes: number;
+  processedEntityTypes: number;
+  currentEntityType?: string;
+  entitiesFound: number;
+  entitiesEmitted: number;
+}
+
+/**
+ * Detection job result
+ */
+export interface DetectionResult {
+  totalFound: number;
+  totalEmitted: number;
+  errors: number;
+}
+
+/**
+ * Generation job progress
+ */
+export interface GenerationProgress {
+  stage: 'fetching' | 'generating' | 'creating' | 'linking';
+  percentage: number;
+  message?: string;
+}
+
+/**
+ * Generation job result
+ */
+export interface GenerationResult {
+  resourceId: ResourceId;
+  resourceName: string;
+}
+
+/**
+ * Highlight detection job progress
+ */
+export interface HighlightDetectionProgress {
+  stage: 'analyzing' | 'creating';
+  percentage: number;
+  message?: string;
+}
+
+/**
+ * Highlight detection job result
+ */
+export interface HighlightDetectionResult {
+  highlightsFound: number;
+  highlightsCreated: number;
+}
+
+/**
+ * Assessment detection job progress
+ */
+export interface AssessmentDetectionProgress {
+  stage: 'analyzing' | 'creating';
+  percentage: number;
+  message?: string;
+}
+
+/**
+ * Assessment detection job result
+ */
+export interface AssessmentDetectionResult {
+  assessmentsFound: number;
+  assessmentsCreated: number;
+}
+
+/**
+ * Comment detection job progress
+ */
+export interface CommentDetectionProgress {
+  stage: 'analyzing' | 'creating';
+  percentage: number;
+  message?: string;
+}
+
+/**
+ * Comment detection job result
+ */
+export interface CommentDetectionResult {
+  commentsFound: number;
+  commentsCreated: number;
+}
+
+/**
+ * Tag detection job progress
+ */
+export interface TagDetectionProgress {
+  stage: 'analyzing' | 'creating';
+  percentage: number;
+  currentCategory?: string;
+  processedCategories: number;
+  totalCategories: number;
+  message?: string;
+}
+
+/**
+ * Tag detection job result
+ */
+export interface TagDetectionResult {
+  tagsFound: number;
+  tagsCreated: number;
+  byCategory: Record<string, number>;
+}
+
+// ============================================================================
+// Generic Job State Types
+// ============================================================================
+
+/**
+ * Pending job - just created, waiting to be picked up
+ */
+export interface PendingJob<P> {
+  status: 'pending';
+  metadata: JobMetadata;
+  params: P;
+}
+
+/**
+ * Running job - actively being processed
+ */
+export interface RunningJob<P, PG> {
+  status: 'running';
+  metadata: JobMetadata;
+  params: P;
+  startedAt: string;
+  progress: PG;
+}
+
+/**
+ * Complete job - successfully finished
+ */
+export interface CompleteJob<P, R> {
+  status: 'complete';
+  metadata: JobMetadata;
+  params: P;
+  startedAt: string;
+  completedAt: string;
+  result: R;
+}
+
+/**
+ * Failed job - encountered an error
+ */
+export interface FailedJob<P> {
+  status: 'failed';
+  metadata: JobMetadata;
+  params: P;
+  startedAt?: string;
+  completedAt: string;
+  error: string;
+}
+
+/**
+ * Cancelled job - stopped by user
+ */
+export interface CancelledJob<P> {
+  status: 'cancelled';
+  metadata: JobMetadata;
+  params: P;
+  startedAt?: string;
+  completedAt: string;
+}
+
+/**
+ * Generic job - discriminated union of all states
+ */
+export type Job<P, PG, R> =
+  | PendingJob<P>
+  | RunningJob<P, PG>
+  | CompleteJob<P, R>
+  | FailedJob<P>
+  | CancelledJob<P>;
+
+// ============================================================================
+// Concrete Job Types
+// ============================================================================
+
+export type DetectionJob = Job<DetectionParams, DetectionProgress, DetectionResult>;
+export type GenerationJob = Job<GenerationParams, GenerationProgress, GenerationResult>;
+export type HighlightDetectionJob = Job<HighlightDetectionParams, HighlightDetectionProgress, HighlightDetectionResult>;
+export type AssessmentDetectionJob = Job<AssessmentDetectionParams, AssessmentDetectionProgress, AssessmentDetectionResult>;
+export type CommentDetectionJob = Job<CommentDetectionParams, CommentDetectionProgress, CommentDetectionResult>;
+export type TagDetectionJob = Job<TagDetectionParams, TagDetectionProgress, TagDetectionResult>;
 
 /**
  * Discriminated union of all job types
  */
-export type Job = DetectionJob | GenerationJob | HighlightDetectionJob | AssessmentDetectionJob | CommentDetectionJob | TagDetectionJob;
+export type AnyJob = DetectionJob | GenerationJob | HighlightDetectionJob | AssessmentDetectionJob | CommentDetectionJob | TagDetectionJob;
 
-/**
- * Job creation request types (without server-generated fields)
- */
+// ============================================================================
+// Type Guards
+// ============================================================================
+
+export function isPendingJob(job: AnyJob): job is PendingJob<any> {
+  return job.status === 'pending';
+}
+
+export function isRunningJob(job: AnyJob): job is RunningJob<any, any> {
+  return job.status === 'running';
+}
+
+export function isCompleteJob(job: AnyJob): job is CompleteJob<any, any> {
+  return job.status === 'complete';
+}
+
+export function isFailedJob(job: AnyJob): job is FailedJob<any> {
+  return job.status === 'failed';
+}
+
+export function isCancelledJob(job: AnyJob): job is CancelledJob<any> {
+  return job.status === 'cancelled';
+}
+
+// ============================================================================
+// Job Creation Request Types
+// ============================================================================
+
 export interface CreateDetectionJobRequest {
   resourceId: ResourceId;
   entityTypes: EntityType[];
@@ -178,9 +335,10 @@ export interface CreateGenerationJobRequest {
   entityTypes?: EntityType[];
 }
 
-/**
- * Job query filters
- */
+// ============================================================================
+// Job Query Types
+// ============================================================================
+
 export interface JobQueryFilters {
   status?: JobStatus;
   type?: JobType;
@@ -189,14 +347,15 @@ export interface JobQueryFilters {
   offset?: number;
 }
 
-/**
- * Job API response types
- */
+// ============================================================================
+// Job API Response Types
+// ============================================================================
+
 export interface CreateJobResponse {
   jobId: JobId;
 }
 
 export interface ListJobsResponse {
-  jobs: Job[];
+  jobs: AnyJob[];
   total: number;
 }

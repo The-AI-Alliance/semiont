@@ -7,7 +7,7 @@
  */
 
 import { JobWorker } from '@semiont/jobs';
-import type { Job, TagDetectionJob, JobQueue } from '@semiont/jobs';
+import type { AnyJob, TagDetectionJob, JobQueue, RunningJob, TagDetectionParams, TagDetectionProgress } from '@semiont/jobs';
 import { ResourceContext, AnnotationDetection } from '../..';
 import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
 import { resourceIdToURI } from '@semiont/core';
@@ -31,40 +31,49 @@ export class TagDetectionWorker extends JobWorker {
     return 'TagDetectionWorker';
   }
 
-  protected canProcessJob(job: Job): boolean {
-    return job.type === 'tag-detection';
+  protected canProcessJob(job: AnyJob): boolean {
+    return job.metadata.type === 'tag-detection';
   }
 
-  protected async executeJob(job: Job): Promise<void> {
-    if (job.type !== 'tag-detection') {
-      throw new Error(`Invalid job type: ${job.type}`);
+  protected async executeJob(job: AnyJob): Promise<void> {
+    if (job.metadata.type !== 'tag-detection') {
+      throw new Error(`Invalid job type: ${job.metadata.type}`);
+    }
+
+    // Type guard: job must be running to execute
+    if (job.status !== 'running') {
+      throw new Error(`Job must be in running state to execute, got: ${job.status}`);
     }
 
     // Reset progress tracking
     this.isFirstProgress = true;
-    await this.processTagDetectionJob(job);
+    await this.processTagDetectionJob(job as RunningJob<TagDetectionParams, TagDetectionProgress>);
   }
 
   /**
    * Override updateJobProgress to emit events to Event Store
    */
-  protected override async updateJobProgress(job: Job): Promise<void> {
+  protected override async updateJobProgress(job: AnyJob): Promise<void> {
     // Call parent to update filesystem
     await super.updateJobProgress(job);
 
-    if (job.type !== 'tag-detection') return;
+    if (job.metadata.type !== 'tag-detection') return;
 
-    const tdJob = job as TagDetectionJob;
-    if (!tdJob.progress) return;
+    // Type guard: only running jobs have progress
+    if (job.status !== 'running') {
+      return;
+    }
+
+    const tdJob = job as RunningJob<TagDetectionParams, TagDetectionProgress>;
 
     const baseEvent = {
-      resourceId: tdJob.resourceId,
-      userId: tdJob.userId,
+      resourceId: tdJob.params.resourceId,
+      userId: tdJob.metadata.userId,
       version: 1,
     };
 
     // Determine if this is completion (100% and has result)
-    const isComplete = tdJob.progress.percentage === 100 && tdJob.result;
+    const isComplete = tdJob.progress.percentage === 100;
 
     if (this.isFirstProgress) {
       // First progress update - emit job.started
@@ -73,8 +82,8 @@ export class TagDetectionWorker extends JobWorker {
         type: 'job.started',
         ...baseEvent,
         payload: {
-          jobId: tdJob.id,
-          jobType: tdJob.type,
+          jobId: tdJob.metadata.id,
+          jobType: tdJob.metadata.type,
         },
       });
     } else if (isComplete) {
@@ -83,9 +92,9 @@ export class TagDetectionWorker extends JobWorker {
         type: 'job.completed',
         ...baseEvent,
         payload: {
-          jobId: tdJob.id,
-          jobType: tdJob.type,
-          result: tdJob.result,
+          jobId: tdJob.metadata.id,
+          jobType: tdJob.metadata.type,
+          // Note: result would come from job.result, but that's handled by base class
         },
       });
     } else {
@@ -94,90 +103,96 @@ export class TagDetectionWorker extends JobWorker {
         type: 'job.progress',
         ...baseEvent,
         payload: {
-          jobId: tdJob.id,
-          jobType: tdJob.type,
+          jobId: tdJob.metadata.id,
+          jobType: tdJob.metadata.type,
           progress: tdJob.progress,
         },
       });
     }
   }
 
-  protected override async handleJobFailure(job: Job, error: any): Promise<void> {
+  protected override async handleJobFailure(job: AnyJob, error: any): Promise<void> {
     // Call parent to handle the failure logic
     await super.handleJobFailure(job, error);
 
     // If job permanently failed, emit job.failed event
-    if (job.status === 'failed' && job.type === 'tag-detection') {
+    if (job.status === 'failed' && job.metadata.type === 'tag-detection') {
       const tdJob = job as TagDetectionJob;
 
       await this.eventStore.appendEvent({
         type: 'job.failed',
-        resourceId: tdJob.resourceId,
-        userId: tdJob.userId,
+        resourceId: tdJob.params.resourceId,
+        userId: tdJob.metadata.userId,
         version: 1,
         payload: {
-          jobId: tdJob.id,
-          jobType: tdJob.type,
+          jobId: tdJob.metadata.id,
+          jobType: tdJob.metadata.type,
           error: 'Tag detection failed. Please try again later.',
         },
       });
     }
   }
 
-  private async processTagDetectionJob(job: TagDetectionJob): Promise<void> {
-    console.log(`[TagDetectionWorker] Processing tag detection for resource ${job.resourceId} (job: ${job.id})`);
+  private async processTagDetectionJob(job: RunningJob<TagDetectionParams, TagDetectionProgress>): Promise<void> {
+    console.log(`[TagDetectionWorker] Processing tag detection for resource ${job.params.resourceId} (job: ${job.metadata.id})`);
 
     // Validate schema
-    const schema = getTagSchema(job.schemaId);
+    const schema = getTagSchema(job.params.schemaId);
     if (!schema) {
-      throw new Error(`Invalid tag schema: ${job.schemaId}`);
+      throw new Error(`Invalid tag schema: ${job.params.schemaId}`);
     }
 
     // Validate categories
-    for (const category of job.categories) {
+    for (const category of job.params.categories) {
       if (!schema.tags.some(t => t.name === category)) {
-        throw new Error(`Invalid category "${category}" for schema ${job.schemaId}`);
+        throw new Error(`Invalid category "${category}" for schema ${job.params.schemaId}`);
       }
     }
 
     // Fetch resource content
-    const resource = await ResourceContext.getResourceMetadata(job.resourceId, this.config);
+    const resource = await ResourceContext.getResourceMetadata(job.params.resourceId, this.config);
     if (!resource) {
-      throw new Error(`Resource ${job.resourceId} not found`);
+      throw new Error(`Resource ${job.params.resourceId} not found`);
     }
 
     // Emit job.started
-    job.progress = {
-      stage: 'analyzing',
-      percentage: 10,
-      processedCategories: 0,
-      totalCategories: job.categories.length,
-      message: 'Loading resource...'
+    let updatedJob: RunningJob<TagDetectionParams, TagDetectionProgress> = {
+      ...job,
+      progress: {
+        stage: 'analyzing',
+        percentage: 10,
+        processedCategories: 0,
+        totalCategories: job.params.categories.length,
+        message: 'Loading resource...'
+      }
     };
-    await this.updateJobProgress(job);
+    await this.updateJobProgress(updatedJob);
 
     // Process each category separately
     const allTags: TagMatch[] = [];
     const byCategory: Record<string, number> = {};
 
-    for (let i = 0; i < job.categories.length; i++) {
-      const category = job.categories[i]!; // Safe: i < length check guarantees element exists
+    for (let i = 0; i < job.params.categories.length; i++) {
+      const category = job.params.categories[i]!; // Safe: i < length check guarantees element exists
 
-      job.progress = {
-        stage: 'analyzing',
-        percentage: 10 + Math.floor((i / job.categories.length) * 50),
-        currentCategory: category,
-        processedCategories: i + 1,
-        totalCategories: job.categories.length,
-        message: `Analyzing ${category}...`
+      updatedJob = {
+        ...updatedJob,
+        progress: {
+          stage: 'analyzing',
+          percentage: 10 + Math.floor((i / job.params.categories.length) * 50),
+          currentCategory: category,
+          processedCategories: i + 1,
+          totalCategories: job.params.categories.length,
+          message: `Analyzing ${category}...`
+        }
       };
-      await this.updateJobProgress(job);
+      await this.updateJobProgress(updatedJob);
 
       // Detect tags for this category
       const tags = await AnnotationDetection.detectTags(
-        job.resourceId,
+        job.params.resourceId,
         this.config,
-        job.schemaId,
+        job.params.schemaId,
         category
       );
       console.log(`[TagDetectionWorker] Found ${tags.length} tags for category "${category}"`);
@@ -187,42 +202,44 @@ export class TagDetectionWorker extends JobWorker {
     }
 
     // Create annotations
-    job.progress = {
-      stage: 'creating',
-      percentage: 60,
-      processedCategories: job.categories.length,
-      totalCategories: job.categories.length,
-      message: `Creating ${allTags.length} tag annotations...`
+    updatedJob = {
+      ...updatedJob,
+      progress: {
+        stage: 'creating',
+        percentage: 60,
+        processedCategories: job.params.categories.length,
+        totalCategories: job.params.categories.length,
+        message: `Creating ${allTags.length} tag annotations...`
+      }
     };
-    await this.updateJobProgress(job);
+    await this.updateJobProgress(updatedJob);
 
     let created = 0;
     for (const tag of allTags) {
       try {
-        await this.createTagAnnotation(job.resourceId, job.userId, job.schemaId, tag);
+        await this.createTagAnnotation(job.params.resourceId, job.metadata.userId, job.params.schemaId, tag);
         created++;
       } catch (error) {
         console.error(`[TagDetectionWorker] Failed to create tag:`, error);
       }
     }
 
-    // Complete job
-    job.result = {
-      tagsFound: allTags.length,
-      tagsCreated: created,
-      byCategory
+    // Note: JobWorker base class will create the CompleteJob with result
+    // We don't set job.result here - that's handled by the base class
+
+    updatedJob = {
+      ...updatedJob,
+      progress: {
+        stage: 'creating',
+        percentage: 100,
+        processedCategories: job.params.categories.length,
+        totalCategories: job.params.categories.length,
+        message: `Complete! Created ${created} tags`
+      }
     };
 
-    job.progress = {
-      stage: 'creating',
-      percentage: 100,
-      processedCategories: job.categories.length,
-      totalCategories: job.categories.length,
-      message: `Complete! Created ${created} tags`
-    };
-
-    await this.updateJobProgress(job);
-    console.log(`[TagDetectionWorker] ✅ Created ${created}/${allTags.length} tags across ${job.categories.length} categories`);
+    await this.updateJobProgress(updatedJob);
+    console.log(`[TagDetectionWorker] ✅ Created ${created}/${allTags.length} tags across ${job.params.categories.length} categories`);
   }
 
   private async createTagAnnotation(

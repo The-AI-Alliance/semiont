@@ -6,7 +6,7 @@
  */
 
 import { JobWorker } from '@semiont/jobs';
-import type { Job, AssessmentDetectionJob, JobQueue } from '@semiont/jobs';
+import type { AnyJob, AssessmentDetectionJob, JobQueue, RunningJob, AssessmentDetectionParams, AssessmentDetectionProgress } from '@semiont/jobs';
 import { ResourceContext, AnnotationDetection } from '../..';
 import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
 import { resourceIdToURI } from '@semiont/core';
@@ -29,40 +29,49 @@ export class AssessmentDetectionWorker extends JobWorker {
     return 'AssessmentDetectionWorker';
   }
 
-  protected canProcessJob(job: Job): boolean {
-    return job.type === 'assessment-detection';
+  protected canProcessJob(job: AnyJob): boolean {
+    return job.metadata.type === 'assessment-detection';
   }
 
-  protected async executeJob(job: Job): Promise<void> {
-    if (job.type !== 'assessment-detection') {
-      throw new Error(`Invalid job type: ${job.type}`);
+  protected async executeJob(job: AnyJob): Promise<void> {
+    if (job.metadata.type !== 'assessment-detection') {
+      throw new Error(`Invalid job type: ${job.metadata.type}`);
+    }
+
+    // Type guard: job must be running to execute
+    if (job.status !== 'running') {
+      throw new Error(`Job must be in running state to execute, got: ${job.status}`);
     }
 
     // Reset progress tracking
     this.isFirstProgress = true;
-    await this.processAssessmentDetectionJob(job);
+    await this.processAssessmentDetectionJob(job as RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>);
   }
 
   /**
    * Override updateJobProgress to emit events to Event Store
    */
-  protected override async updateJobProgress(job: Job): Promise<void> {
+  protected override async updateJobProgress(job: AnyJob): Promise<void> {
     // Call parent to update filesystem
     await super.updateJobProgress(job);
 
-    if (job.type !== 'assessment-detection') return;
+    if (job.metadata.type !== 'assessment-detection') return;
 
-    const assJob = job as AssessmentDetectionJob;
-    if (!assJob.progress) return;
+    // Type guard: only running jobs have progress
+    if (job.status !== 'running') {
+      return;
+    }
+
+    const assJob = job as RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>;
 
     const baseEvent = {
-      resourceId: assJob.resourceId,
-      userId: assJob.userId,
+      resourceId: assJob.params.resourceId,
+      userId: assJob.metadata.userId,
       version: 1,
     };
 
     // Determine if this is completion (100% and has result)
-    const isComplete = assJob.progress.percentage === 100 && assJob.result;
+    const isComplete = assJob.progress.percentage === 100;
 
     if (this.isFirstProgress) {
       // First progress update - emit job.started
@@ -71,8 +80,8 @@ export class AssessmentDetectionWorker extends JobWorker {
         type: 'job.started',
         ...baseEvent,
         payload: {
-          jobId: assJob.id,
-          jobType: assJob.type,
+          jobId: assJob.metadata.id,
+          jobType: assJob.metadata.type,
         },
       });
     } else if (isComplete) {
@@ -81,9 +90,9 @@ export class AssessmentDetectionWorker extends JobWorker {
         type: 'job.completed',
         ...baseEvent,
         payload: {
-          jobId: assJob.id,
-          jobType: assJob.type,
-          result: assJob.result,
+          jobId: assJob.metadata.id,
+          jobType: assJob.metadata.type,
+          // Note: result would come from job.result, but that's handled by base class
         },
       });
     } else {
@@ -92,107 +101,116 @@ export class AssessmentDetectionWorker extends JobWorker {
         type: 'job.progress',
         ...baseEvent,
         payload: {
-          jobId: assJob.id,
-          jobType: assJob.type,
+          jobId: assJob.metadata.id,
+          jobType: assJob.metadata.type,
           progress: assJob.progress,
         },
       });
     }
   }
 
-  protected override async handleJobFailure(job: Job, error: any): Promise<void> {
+  protected override async handleJobFailure(job: AnyJob, error: any): Promise<void> {
     // Call parent to handle the failure logic
     await super.handleJobFailure(job, error);
 
     // If job permanently failed, emit job.failed event
-    if (job.status === 'failed' && job.type === 'assessment-detection') {
+    if (job.status === 'failed' && job.metadata.type === 'assessment-detection') {
       const aJob = job as AssessmentDetectionJob;
 
       // Log the full error details to backend logs (already logged by parent)
       // Send generic error message to frontend
       await this.eventStore.appendEvent({
         type: 'job.failed',
-        resourceId: aJob.resourceId,
-        userId: aJob.userId,
+        resourceId: aJob.params.resourceId,
+        userId: aJob.metadata.userId,
         version: 1,
         payload: {
-          jobId: aJob.id,
-          jobType: aJob.type,
+          jobId: aJob.metadata.id,
+          jobType: aJob.metadata.type,
           error: 'Assessment detection failed. Please try again later.',
         },
       });
     }
   }
 
-  private async processAssessmentDetectionJob(job: AssessmentDetectionJob): Promise<void> {
-    console.log(`[AssessmentDetectionWorker] Processing assessment detection for resource ${job.resourceId} (job: ${job.id})`);
+  private async processAssessmentDetectionJob(job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>): Promise<void> {
+    console.log(`[AssessmentDetectionWorker] Processing assessment detection for resource ${job.params.resourceId} (job: ${job.metadata.id})`);
 
     // Fetch resource content
-    const resource = await ResourceContext.getResourceMetadata(job.resourceId, this.config);
+    const resource = await ResourceContext.getResourceMetadata(job.params.resourceId, this.config);
 
     if (!resource) {
-      throw new Error(`Resource ${job.resourceId} not found`);
+      throw new Error(`Resource ${job.params.resourceId} not found`);
     }
 
     // Emit job.started and start analyzing
-    job.progress = {
-      stage: 'analyzing',
-      percentage: 10,
-      message: 'Loading resource...'
+    let updatedJob: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress> = {
+      ...job,
+      progress: {
+        stage: 'analyzing',
+        percentage: 10,
+        message: 'Loading resource...'
+      }
     };
-    await this.updateJobProgress(job);
+    await this.updateJobProgress(updatedJob);
 
     // Update progress
-    job.progress = {
-      stage: 'analyzing',
-      percentage: 30,
-      message: 'Analyzing text...'
+    updatedJob = {
+      ...updatedJob,
+      progress: {
+        stage: 'analyzing',
+        percentage: 30,
+        message: 'Analyzing text...'
+      }
     };
-    await this.updateJobProgress(job);
+    await this.updateJobProgress(updatedJob);
 
     // Use AI to detect assessments
     const assessments = await AnnotationDetection.detectAssessments(
-      job.resourceId,
+      job.params.resourceId,
       this.config,
-      job.instructions,
-      job.tone,
-      job.density
+      job.params.instructions,
+      job.params.tone,
+      job.params.density
     );
 
     console.log(`[AssessmentDetectionWorker] Found ${assessments.length} assessments to create`);
 
     // Update progress
-    job.progress = {
-      stage: 'creating',
-      percentage: 60,
-      message: `Creating ${assessments.length} annotations...`
+    updatedJob = {
+      ...updatedJob,
+      progress: {
+        stage: 'creating',
+        percentage: 60,
+        message: `Creating ${assessments.length} annotations...`
+      }
     };
-    await this.updateJobProgress(job);
+    await this.updateJobProgress(updatedJob);
 
     // Create annotations for each assessment
     let created = 0;
     for (const assessment of assessments) {
       try {
-        await this.createAssessmentAnnotation(job.resourceId, job.userId, assessment);
+        await this.createAssessmentAnnotation(job.params.resourceId, job.metadata.userId, assessment);
         created++;
       } catch (error) {
         console.error(`[AssessmentDetectionWorker] Failed to create assessment:`, error);
       }
     }
 
-    // Complete job
-    job.result = {
-      assessmentsFound: assessments.length,
-      assessmentsCreated: created
+    // Note: JobWorker base class will create the CompleteJob with result
+    // We don't set job.result here - that's handled by the base class
+
+    updatedJob = {
+      ...updatedJob,
+      progress: {
+        stage: 'creating',
+        percentage: 100,
+        message: `Complete! Created ${created} assessments`
+      }
     };
 
-    job.progress = {
-      stage: 'creating',
-      percentage: 100,
-      message: `Complete! Created ${created} assessments`
-    };
-
-    await this.updateJobProgress(job);
+    await this.updateJobProgress(updatedJob);
     console.log(`[AssessmentDetectionWorker] ✅ Created ${created}/${assessments.length} assessments`);
   }
 
