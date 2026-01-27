@@ -146,7 +146,7 @@ describe('GenerationWorker - Event Emission', () => {
       },
       startedAt: new Date().toISOString(),
       progress: {
-        stage: 'initializing',
+        stage: 'fetching',
         percentage: 0
       }
     };
@@ -194,7 +194,7 @@ describe('GenerationWorker - Event Emission', () => {
       },
       startedAt: new Date().toISOString(),
       progress: {
-        stage: 'initializing',
+        stage: 'fetching',
         percentage: 0
       }
     };
@@ -236,7 +236,7 @@ describe('GenerationWorker - Event Emission', () => {
       },
       startedAt: new Date().toISOString(),
       progress: {
-        stage: 'initializing',
+        stage: 'fetching',
         percentage: 0
       }
     };
@@ -296,7 +296,7 @@ describe('GenerationWorker - Event Emission', () => {
       },
       startedAt: new Date().toISOString(),
       progress: {
-        stage: 'initializing',
+        stage: 'fetching',
         percentage: 0
       }
     };
@@ -343,7 +343,7 @@ describe('GenerationWorker - Event Emission', () => {
       },
       startedAt: new Date().toISOString(),
       progress: {
-        stage: 'initializing',
+        stage: 'fetching',
         percentage: 0
       }
     };
@@ -402,7 +402,7 @@ describe('GenerationWorker - Event Emission', () => {
       },
       startedAt: new Date().toISOString(),
       progress: {
-        stage: 'initializing',
+        stage: 'fetching',
         percentage: 0
       }
     };
@@ -447,7 +447,7 @@ describe('GenerationWorker - Event Emission', () => {
       },
       startedAt: new Date().toISOString(),
       progress: {
-        stage: 'initializing',
+        stage: 'fetching',
         percentage: 0
       }
     };
