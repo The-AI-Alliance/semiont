@@ -57,6 +57,9 @@ describe('Entity Detection - Charset Handling', () => {
           platform: { type: 'posix' },
           path: testDir
         },
+        backend: {
+          publicURL: 'http://localhost:4000'
+        }
       },
       site: {
         siteName: 'Test Site',

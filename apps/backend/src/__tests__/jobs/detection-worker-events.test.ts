@@ -11,7 +11,7 @@ import { JobQueue, type DetectionJob } from '@semiont/jobs';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 import { resourceId, userId } from '@semiont/core';
 import { jobId, entityType } from '@semiont/api-client';
-import { createEventStore } from '@semiont/event-sourcing';
+import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 
 // Mock AI detection to avoid external API calls
 vi.mock('../../inference/detect-annotations', () => ({
@@ -26,26 +26,6 @@ vi.mock('../../inference/detect-annotations', () => ({
     }
   ])
 }));
-
-// Mock ResourceContext from @semiont/make-meaning
-vi.mock('@semiont/make-meaning', async (importOriginal) => {
-  const actual = await importOriginal() as any;
-  return {
-    ...actual,
-    ResourceContext: {
-      getResourceMetadata: vi.fn().mockResolvedValue({
-        id: 'test-resource',
-        name: 'Test Resource',
-        format: 'text/plain',
-        content: 'Test content',
-        representations: [{
-          mediaType: 'text/plain',
-          rel: 'original'
-        }]
-      })
-    }
-  };
-});
 
 // Cache EventStore instances per basePath to ensure consistency
 const eventStoreCache = new Map();
@@ -90,20 +70,40 @@ vi.mock('../../services/event-store-service', async (importOriginal) => {
 describe('ReferenceDetectionWorker - Event Emission', () => {
   let worker: ReferenceDetectionWorker;
   let testEnv: TestEnvironmentConfig;
+  let testEventStore: EventStore;
 
   beforeAll(async () => {
     testEnv = await setupTestEnvironment();
     const jobQueue = new JobQueue({ dataDir: testEnv.config.services.filesystem!.path });
     await jobQueue.initialize();
-    const eventStore = createEventStore(testEnv.config.services.filesystem!.path, testEnv.config.services.backend!.publicURL);
-    worker = new ReferenceDetectionWorker(jobQueue, testEnv.config, eventStore);
+    testEventStore = createEventStore(testEnv.config.services.filesystem!.path, testEnv.config.services.backend!.publicURL);
+    worker = new ReferenceDetectionWorker(jobQueue, testEnv.config, testEventStore);
   });
 
   afterAll(async () => {
     await testEnv.cleanup();
   });
 
+  // Helper to create a test resource
+  async function createTestResource(id: string): Promise<void> {
+    await testEventStore.appendEvent({
+      type: 'resource.created',
+      resourceId: resourceId(id),
+      userId: userId('user-1'),
+      version: 1,
+      payload: {
+        name: `Test Resource ${id}`,
+        format: 'text/plain',
+        contentChecksum: 'test-checksum',
+        creationMethod: 'api'
+      }
+    });
+  }
+
   it('should emit job.started event when detection begins', async () => {
+    // Create test resource first
+    await createTestResource('resource-1');
+
     const job: DetectionJob = {
       id: jobId('job-test-1'),
       type: 'detection',
@@ -116,7 +116,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
       maxRetries: 3
     };
 
-    await (worker as any).executeJob(job);
+    await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
 
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const eventStore = await createEventStore( testEnv.config);
@@ -141,6 +141,9 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
   });
 
   it('should emit job.progress events during entity type scanning', async () => {
+    // Create test resource first
+    await createTestResource('resource-2');
+
     const job: DetectionJob = {
       id: jobId('job-test-2'),
       type: 'detection',
@@ -153,7 +156,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
       maxRetries: 3
     };
 
-    await (worker as any).executeJob(job);
+    await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
 
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const eventStore = await createEventStore( testEnv.config);
@@ -181,6 +184,9 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
   });
 
   it('should emit job.completed event when detection finishes successfully', async () => {
+    // Create test resource first
+    await createTestResource('resource-3');
+
     const job: DetectionJob = {
       id: jobId('job-test-3'),
       type: 'detection',
@@ -193,7 +199,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
       maxRetries: 3
     };
 
-    await (worker as any).executeJob(job);
+    await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
 
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const eventStore = await createEventStore( testEnv.config);
@@ -216,6 +222,9 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
   });
 
   it('should emit annotation.added events for detected entities', async () => {
+    // Create test resource first
+    await createTestResource('resource-4');
+
     const job: DetectionJob = {
       id: jobId('job-test-4'),
       type: 'detection',
@@ -228,7 +237,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
       maxRetries: 3
     };
 
-    await (worker as any).executeJob(job);
+    await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
 
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const eventStore = await createEventStore( testEnv.config);
@@ -264,6 +273,9 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
   });
 
   it('should emit events in correct order', async () => {
+    // Create test resource first
+    await createTestResource('resource-5');
+
     const job: DetectionJob = {
       id: jobId('job-test-5'),
       type: 'detection',
@@ -276,7 +288,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
       maxRetries: 3
     };
 
-    await (worker as any).executeJob(job);
+    await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
 
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const eventStore = await createEventStore( testEnv.config);
@@ -296,6 +308,9 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
   });
 
   it('should include percentage and foundCount in progress events', async () => {
+    // Create test resource first
+    await createTestResource('resource-6');
+
     const job: DetectionJob = {
       id: jobId('job-test-6'),
       type: 'detection',
@@ -308,7 +323,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
       maxRetries: 3
     };
 
-    await (worker as any).executeJob(job);
+    await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
 
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const eventStore = await createEventStore( testEnv.config);
