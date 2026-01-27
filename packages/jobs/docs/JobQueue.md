@@ -75,25 +75,29 @@ Creates a new job and persists it to the queue.
 
 ```typescript
 import { getJobQueue } from '@semiont/jobs';
+import type { PendingJob, GenerationParams } from '@semiont/jobs';
 import { jobId } from '@semiont/api-client';
 import { userId, resourceId, annotationId } from '@semiont/core';
-import type { GenerationJob } from '@semiont/jobs';
 
 const queue = getJobQueue();
 
-const job: GenerationJob = {
-  id: jobId('job-abc123'),
-  type: 'generation',
+const job: PendingJob<GenerationParams> = {
   status: 'pending',
-  userId: userId('user@example.com'),
-  referenceId: annotationId('ref-456'),
-  sourceResourceId: resourceId('doc-789'),
-  title: 'Generated Article',
-  prompt: 'Write about AI',
-  language: 'en-US',
-  created: new Date().toISOString(),
-  retryCount: 0,
-  maxRetries: 3,
+  metadata: {
+    id: jobId('job-abc123'),
+    type: 'generation',
+    userId: userId('user@example.com'),
+    created: new Date().toISOString(),
+    retryCount: 0,
+    maxRetries: 3,
+  },
+  params: {
+    referenceId: annotationId('ref-456'),
+    sourceResourceId: resourceId('doc-789'),
+    title: 'Generated Article',
+    prompt: 'Write about AI',
+    language: 'en-US',
+  },
 };
 
 await queue.createJob(job);
@@ -109,15 +113,19 @@ await queue.createJob(job);
 ```typescript
 // Generate unique job ID
 import { nanoid } from 'nanoid';
-const job = {
-  id: jobId(`job-${nanoid()}`),
-  // ...
-};
-
-// Set creation timestamp
-const job = {
-  created: new Date().toISOString(),
-  // ...
+const job: PendingJob<GenerationParams> = {
+  status: 'pending',
+  metadata: {
+    id: jobId(`job-${nanoid()}`),
+    type: 'generation',
+    userId: userId('user@example.com'),
+    created: new Date().toISOString(),
+    retryCount: 0,
+    maxRetries: 3,
+  },
+  params: {
+    // job-specific params
+  },
 };
 ```
 
@@ -132,7 +140,16 @@ const job = await queue.getJob(jobId('job-abc123'));
 
 if (job) {
   console.log(`Job status: ${job.status}`);
-  console.log(`Job type: ${job.type}`);
+  console.log(`Job type: ${job.metadata.type}`);
+  console.log(`User: ${job.metadata.userId}`);
+
+  // Type-safe access based on status
+  if (job.status === 'running') {
+    console.log(`Progress: ${job.progress.percentage}%`);
+  }
+  if (job.status === 'complete') {
+    console.log(`Result: ${JSON.stringify(job.result)}`);
+  }
 } else {
   console.log('Job not found');
 }
@@ -156,14 +173,32 @@ Updates a job, optionally moving it between status directories.
 ```typescript
 const job = await queue.getJob(jobId('job-abc123'));
 
-// Simple update (same status)
-job.progress = { stage: 'generating', percentage: 50 };
-await queue.updateJob(job);
+if (!job) return;
 
-// Status change (atomic move)
-job.status = 'complete';
-job.completedAt = new Date().toISOString();
-await queue.updateJob(job, 'running');
+// Simple update (same status) - create new object
+if (job.status === 'running') {
+  const updatedJob: RunningJob<GenerationParams, GenerationProgress> = {
+    ...job,
+    progress: { stage: 'generating', percentage: 50, message: 'Generating...' },
+  };
+  await queue.updateJob(updatedJob);
+}
+
+// Status change (atomic move) - transition to complete
+if (job.status === 'running') {
+  const completeJob: CompleteJob<GenerationParams, GenerationResult> = {
+    status: 'complete',
+    metadata: job.metadata,
+    params: job.params,
+    startedAt: job.startedAt,
+    completedAt: new Date().toISOString(),
+    result: {
+      resourceId: resourceId('doc-new'),
+      resourceName: 'Generated Article',
+    },
+  };
+  await queue.updateJob(completeJob, 'running');
+}
 ```
 
 **Parameters:**
@@ -181,26 +216,52 @@ await queue.updateJob(job, 'running');
 **Common patterns:**
 
 ```typescript
-// Worker processing job
-const oldStatus = job.status;
-job.status = 'running';
-job.startedAt = new Date().toISOString();
-await queue.updateJob(job, oldStatus);
+// Worker processing job - transition from pending to running
+if (job.status === 'pending') {
+  const runningJob: RunningJob<GenerationParams, GenerationProgress> = {
+    status: 'running',
+    metadata: job.metadata,
+    params: job.params,
+    startedAt: new Date().toISOString(),
+    progress: { stage: 'starting', percentage: 0, message: 'Starting...' },
+  };
+  await queue.updateJob(runningJob, 'pending');
+}
 
-// Job completion
-job.status = 'complete';
-job.completedAt = new Date().toISOString();
-job.result = { /* ... */ };
-await queue.updateJob(job, 'running');
+// Job completion - transition from running to complete
+if (job.status === 'running') {
+  const completeJob: CompleteJob<GenerationParams, GenerationResult> = {
+    status: 'complete',
+    metadata: job.metadata,
+    params: job.params,
+    startedAt: job.startedAt,
+    completedAt: new Date().toISOString(),
+    result: { resourceId: resourceId('doc-new'), resourceName: 'Article' },
+  };
+  await queue.updateJob(completeJob, 'running');
+}
 
-// Job failure
-job.status = 'failed';
-job.error = error.message;
-await queue.updateJob(job, 'running');
+// Job failure - transition from running to failed
+if (job.status === 'running') {
+  const failedJob: FailedJob<GenerationParams> = {
+    status: 'failed',
+    metadata: job.metadata,
+    params: job.params,
+    startedAt: job.startedAt,
+    completedAt: new Date().toISOString(),
+    error: error.message,
+  };
+  await queue.updateJob(failedJob, 'running');
+}
 
-// Progress update (no status change)
-job.progress = { stage: 'creating', percentage: 75 };
-await queue.updateJob(job); // oldStatus not needed
+// Progress update (no status change) - immutable pattern
+if (job.status === 'running') {
+  const updatedJob: RunningJob<GenerationParams, GenerationProgress> = {
+    ...job,
+    progress: { stage: 'creating', percentage: 75, message: 'Creating resource...' },
+  };
+  await queue.updateJob(updatedJob); // oldStatus not needed
+}
 ```
 
 ## Querying Jobs
@@ -444,19 +505,25 @@ No explicit locking needed - atomic file operations and status directories preve
 
 ```typescript
 const jobs = await Promise.all(
-  entityTypes.map(type =>
-    queue.createJob({
-      id: jobId(`job-${nanoid()}`),
-      type: 'detection',
+  entityTypes.map(type => {
+    const job: PendingJob<DetectionParams> = {
       status: 'pending',
-      userId,
-      resourceId,
-      entityTypes: [type],
-      created: new Date().toISOString(),
-      retryCount: 0,
-      maxRetries: 3,
-    })
-  )
+      metadata: {
+        id: jobId(`job-${nanoid()}`),
+        type: 'detection',
+        userId,
+        created: new Date().toISOString(),
+        retryCount: 0,
+        maxRetries: 3,
+      },
+      params: {
+        resourceId,
+        entityTypes: [type],
+        includeDescriptiveReferences: true,
+      },
+    };
+    return queue.createJob(job);
+  })
 );
 ```
 
@@ -466,12 +533,18 @@ const jobs = await Promise.all(
 const failed = await queue.queryJobs({ status: 'failed' });
 
 for (const job of failed) {
-  if (job.retryCount < job.maxRetries) {
-    job.status = 'pending';
-    job.retryCount++;
-    delete job.error;
-    await queue.updateJob(job, 'failed');
-    console.log(`Retrying job ${job.id} (attempt ${job.retryCount})`);
+  if (job.status === 'failed' && job.metadata.retryCount < job.metadata.maxRetries) {
+    // Create new pending job from failed job
+    const retryJob: PendingJob<any> = {
+      status: 'pending',
+      metadata: {
+        ...job.metadata,
+        retryCount: job.metadata.retryCount + 1,
+      },
+      params: job.params,
+    };
+    await queue.updateJob(retryJob, 'failed');
+    console.log(`Retrying job ${job.metadata.id} (attempt ${job.metadata.retryCount + 1})`);
   }
 }
 ```

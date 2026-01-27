@@ -37,27 +37,36 @@ import {
   initializeJobQueue,
   getJobQueue,
   JobWorker,
-  type GenerationJob,
+  type PendingJob,
+  type RunningJob,
+  type GenerationParams,
+  type AnyJob,
 } from '@semiont/jobs';
 import { jobId } from '@semiont/api-client';
-import { userId, resourceId } from '@semiont/core';
+import { userId, resourceId, annotationId } from '@semiont/core';
 
 // 1. Initialize job queue
 await initializeJobQueue({ dataDir: './data' });
 
 // 2. Create a job
 const jobQueue = getJobQueue();
-const job: GenerationJob = {
-  id: jobId('job-abc123'),
-  type: 'generation',
+const job: PendingJob<GenerationParams> = {
   status: 'pending',
-  userId: userId('user@example.com'),
-  referenceId: annotationId('ref-123'),
-  sourceResourceId: resourceId('doc-456'),
-  title: 'Generated Article',
-  created: new Date().toISOString(),
-  retryCount: 0,
-  maxRetries: 3,
+  metadata: {
+    id: jobId('job-abc123'),
+    type: 'generation',
+    userId: userId('user@example.com'),
+    created: new Date().toISOString(),
+    retryCount: 0,
+    maxRetries: 3,
+  },
+  params: {
+    referenceId: annotationId('ref-123'),
+    sourceResourceId: resourceId('doc-456'),
+    title: 'Generated Article',
+    prompt: 'Write about AI',
+    language: 'en-US',
+  },
 };
 
 await jobQueue.createJob(job);
@@ -68,13 +77,18 @@ class MyGenerationWorker extends JobWorker {
     return 'MyGenerationWorker';
   }
 
-  protected canProcessJob(job: Job): boolean {
-    return job.type === 'generation';
+  protected canProcessJob(job: AnyJob): boolean {
+    return job.metadata.type === 'generation';
   }
 
-  protected async executeJob(job: Job): Promise<void> {
-    const genJob = job as GenerationJob;
-    console.log(`Generating resource: ${genJob.title}`);
+  protected async executeJob(job: AnyJob): Promise<void> {
+    // Type guard ensures job is running
+    if (job.status !== 'running') {
+      throw new Error('Job must be running');
+    }
+
+    const genJob = job as RunningJob<GenerationParams>;
+    console.log(`Generating resource: ${genJob.params.title}`);
     // Your processing logic here
   }
 }
@@ -114,61 +128,75 @@ data/
 
 ### Jobs
 
-Jobs are JSON documents that represent async work:
+Jobs use discriminated unions based on their status, ensuring type safety and preventing invalid state access:
 
 ```typescript
-import type { GenerationJob } from '@semiont/jobs';
+import type { PendingJob, RunningJob, CompleteJob, GenerationParams, GenerationProgress, GenerationResult } from '@semiont/jobs';
 
-const job: GenerationJob = {
-  id: jobId('job-123'),
-  type: 'generation',
+// Pending job - waiting to be processed
+const pendingJob: PendingJob<GenerationParams> = {
   status: 'pending',
-  userId: userId('user@example.com'),
+  metadata: {
+    id: jobId('job-123'),
+    type: 'generation',
+    userId: userId('user@example.com'),
+    created: '2024-01-01T00:00:00Z',
+    retryCount: 0,
+    maxRetries: 3,
+  },
+  params: {
+    referenceId: annotationId('ref-456'),
+    sourceResourceId: resourceId('doc-789'),
+    title: 'AI Generated Article',
+    prompt: 'Write about quantum computing',
+    language: 'en-US',
+  },
+};
 
-  // Job-specific fields
-  referenceId: annotationId('ref-456'),
-  sourceResourceId: resourceId('doc-789'),
-  title: 'AI Generated Article',
-  prompt: 'Write about quantum computing',
-  language: 'en-US',
-
-  // Timestamps
-  created: '2024-01-01T00:00:00Z',
-  startedAt: undefined,      // Set when worker picks up job
-  completedAt: undefined,    // Set when job finishes
-
-  // Retry handling
-  retryCount: 0,
-  maxRetries: 3,
-  error: undefined,          // Set if job fails
-
-  // Progress tracking (optional)
+// Running job - currently being processed
+const runningJob: RunningJob<GenerationParams, GenerationProgress> = {
+  status: 'running',
+  metadata: { /* same as above */ },
+  params: { /* same as above */ },
+  startedAt: '2024-01-01T00:01:00Z',
   progress: {
     stage: 'generating',
     percentage: 45,
     message: 'Generating content...',
   },
+};
 
-  // Result (optional)
+// Complete job - successfully finished
+const completeJob: CompleteJob<GenerationParams, GenerationResult> = {
+  status: 'complete',
+  metadata: { /* same as above */ },
+  params: { /* same as above */ },
+  startedAt: '2024-01-01T00:01:00Z',
+  completedAt: '2024-01-01T00:05:00Z',
   result: {
     resourceId: resourceId('doc-new'),
     resourceName: 'Generated Article',
   },
 };
+
+// TypeScript prevents accessing progress on pending jobs!
+// pendingJob.progress  // ❌ Compile error
+// runningJob.progress  // ✅ Available
+// completeJob.result   // ✅ Available
 ```
 
 ### Job Types
 
-The package supports multiple job types for different tasks:
+The package supports multiple job types for different tasks, each with their own parameter types:
 
 ```typescript
 import type {
-  DetectionJob,           // Entity detection in resources
-  GenerationJob,          // AI content generation
-  HighlightDetectionJob,  // Identify key passages
-  AssessmentDetectionJob, // Generate evaluative comments
-  CommentDetectionJob,    // Generate explanatory comments
-  TagDetectionJob,        // Structural role detection
+  DetectionParams,           // Entity detection in resources
+  GenerationParams,          // AI content generation
+  HighlightDetectionParams,  // Identify key passages
+  AssessmentDetectionParams, // Generate evaluative comments
+  CommentDetectionParams,    // Generate explanatory comments
+  TagDetectionParams,        // Structural role detection
 } from '@semiont/jobs';
 ```
 
@@ -190,7 +218,7 @@ type JobStatus =
 Workers poll the queue and process jobs:
 
 ```typescript
-import { JobWorker, type Job } from '@semiont/jobs';
+import { JobWorker, type AnyJob, type RunningJob, type CustomParams } from '@semiont/jobs';
 
 class CustomWorker extends JobWorker {
   // Worker identification
@@ -199,20 +227,30 @@ class CustomWorker extends JobWorker {
   }
 
   // Filter which jobs this worker processes
-  protected canProcessJob(job: Job): boolean {
-    return job.type === 'custom-type';
+  protected canProcessJob(job: AnyJob): boolean {
+    return job.metadata.type === 'custom-type';
   }
 
   // Implement job processing logic
-  protected async executeJob(job: Job): Promise<void> {
-    // 1. Access job data
-    const customJob = job as CustomJob;
+  protected async executeJob(job: AnyJob): Promise<void> {
+    // 1. Type guard - job must be running
+    if (job.status !== 'running') {
+      throw new Error('Job must be running');
+    }
 
-    // 2. Perform async work
-    const result = await doWork(customJob);
+    // 2. Access typed job data
+    const customJob = job as RunningJob<CustomParams>;
+    const params = customJob.params;
 
-    // 3. Update job with results
-    customJob.result = result;
+    // 3. Perform async work
+    const result = await doWork(params);
+
+    // 4. Create updated job with result (immutable pattern)
+    const updatedJob: RunningJob<CustomParams> = {
+      ...customJob,
+      progress: { stage: 'complete', percentage: 100 },
+    };
+    await this.updateJobProgress(updatedJob);
   }
 }
 ```
@@ -339,22 +377,28 @@ data/
       job-ghi789.json
 ```
 
-Each job file contains the complete job object:
+Each job file contains the complete job object using the discriminated union structure:
 
 ```json
 {
-  "id": "job-abc123",
-  "type": "generation",
   "status": "complete",
-  "userId": "user@example.com",
-  "referenceId": "ref-456",
-  "sourceResourceId": "doc-789",
-  "title": "Generated Article",
-  "created": "2024-01-01T00:00:00Z",
+  "metadata": {
+    "id": "job-abc123",
+    "type": "generation",
+    "userId": "user@example.com",
+    "created": "2024-01-01T00:00:00Z",
+    "retryCount": 0,
+    "maxRetries": 3
+  },
+  "params": {
+    "referenceId": "ref-456",
+    "sourceResourceId": "doc-789",
+    "title": "Generated Article",
+    "prompt": "Write about AI",
+    "language": "en-US"
+  },
   "startedAt": "2024-01-01T00:01:00Z",
   "completedAt": "2024-01-01T00:05:00Z",
-  "retryCount": 0,
-  "maxRetries": 3,
   "result": {
     "resourceId": "doc-new",
     "resourceName": "Generated Article"
@@ -381,7 +425,11 @@ Each job file contains the complete job object:
 
 ```typescript
 class ResilientWorker extends JobWorker {
-  protected async executeJob(job: Job): Promise<void> {
+  protected async executeJob(job: AnyJob): Promise<void> {
+    if (job.status !== 'running') {
+      throw new Error('Job must be running');
+    }
+
     try {
       await doWork(job);
     } catch (error) {
@@ -402,11 +450,17 @@ const queue = getJobQueue();
 const failedJobs = await queue.queryJobs({ status: 'failed' });
 
 for (const job of failedJobs) {
-  if (job.retryCount < job.maxRetries) {
-    job.status = 'pending';
-    job.retryCount++;
-    delete job.error;
-    await queue.updateJob(job, 'failed');
+  if (job.status === 'failed' && job.metadata.retryCount < job.metadata.maxRetries) {
+    // Create new pending job from failed job
+    const retryJob: PendingJob<any> = {
+      status: 'pending',
+      metadata: {
+        ...job.metadata,
+        retryCount: job.metadata.retryCount + 1,
+      },
+      params: job.params,
+    };
+    await queue.updateJob(retryJob, 'failed');
   }
 }
 ```
@@ -415,6 +469,7 @@ for (const job of failedJobs) {
 
 ```typescript
 import { initializeJobQueue, getJobQueue } from '@semiont/jobs';
+import type { PendingJob, GenerationParams } from '@semiont/jobs';
 import { describe, it, beforeEach } from 'vitest';
 
 describe('Job queue', () => {
@@ -425,11 +480,23 @@ describe('Job queue', () => {
   it('should create and retrieve jobs', async () => {
     const queue = getJobQueue();
 
-    const job: GenerationJob = {
-      id: jobId('test-1'),
-      type: 'generation',
+    const job: PendingJob<GenerationParams> = {
       status: 'pending',
-      // ... other fields
+      metadata: {
+        id: jobId('test-1'),
+        type: 'generation',
+        userId: userId('user@test.com'),
+        created: new Date().toISOString(),
+        retryCount: 0,
+        maxRetries: 3,
+      },
+      params: {
+        referenceId: annotationId('ref-1'),
+        sourceResourceId: resourceId('doc-1'),
+        title: 'Test',
+        prompt: 'Test prompt',
+        language: 'en-US',
+      },
     };
 
     await queue.createJob(job);
@@ -445,7 +512,7 @@ describe('Job queue', () => {
 ### Building a Background Worker
 
 ```typescript
-import { JobWorker, type Job, type GenerationJob } from '@semiont/jobs';
+import { JobWorker, type AnyJob, type RunningJob, type GenerationParams, type GenerationProgress } from '@semiont/jobs';
 import { InferenceService } from './inference';
 
 class GenerationWorker extends JobWorker {
@@ -460,44 +527,55 @@ class GenerationWorker extends JobWorker {
     return 'GenerationWorker';
   }
 
-  protected canProcessJob(job: Job): boolean {
-    return job.type === 'generation';
+  protected canProcessJob(job: AnyJob): boolean {
+    return job.metadata.type === 'generation';
   }
 
-  protected async executeJob(job: Job): Promise<void> {
-    const genJob = job as GenerationJob;
+  protected async executeJob(job: AnyJob): Promise<void> {
+    // Type guard
+    if (job.status !== 'running') {
+      throw new Error('Job must be running');
+    }
 
-    // Report progress
-    genJob.progress = {
-      stage: 'generating',
-      percentage: 0,
-      message: 'Starting generation...',
+    const genJob = job as RunningJob<GenerationParams, GenerationProgress>;
+
+    // Report progress (create new object - immutable pattern)
+    const updatedJob1: RunningJob<GenerationParams, GenerationProgress> = {
+      ...genJob,
+      progress: {
+        stage: 'generating',
+        percentage: 0,
+        message: 'Starting generation...',
+      },
     };
-    await getJobQueue().updateJob(genJob);
+    await getJobQueue().updateJob(updatedJob1);
 
     // Generate content
     const content = await this.inference.generate({
-      prompt: genJob.prompt,
-      context: genJob.context,
-      temperature: genJob.temperature,
-      maxTokens: genJob.maxTokens,
+      prompt: genJob.params.prompt,
+      context: genJob.params.context,
+      temperature: genJob.params.temperature,
+      maxTokens: genJob.params.maxTokens,
     });
 
     // Update progress
-    genJob.progress = {
-      stage: 'creating',
-      percentage: 75,
-      message: 'Creating resource...',
+    const updatedJob2: RunningJob<GenerationParams, GenerationProgress> = {
+      ...updatedJob1,
+      progress: {
+        stage: 'creating',
+        percentage: 75,
+        message: 'Creating resource...',
+      },
     };
-    await getJobQueue().updateJob(genJob);
+    await getJobQueue().updateJob(updatedJob2);
 
     // Create resource (simplified)
-    const resourceId = await createResource(content, genJob.title);
+    const resourceId = await createResource(content, genJob.params.title);
 
-    // Set result
-    genJob.result = {
+    // Set result (will be handled by base class transition to complete)
+    return {
       resourceId,
-      resourceName: genJob.title,
+      resourceName: genJob.params.title,
     };
   }
 }
@@ -521,10 +599,21 @@ async function monitorJob(jobId: JobId): Promise<void> {
 
     console.log(`Status: ${job.status}`);
 
-    if (job.progress) {
+    // Type-safe progress access - only available on running jobs
+    if (job.status === 'running') {
       console.log(`Progress: ${job.progress.percentage}%`);
       console.log(`Stage: ${job.progress.stage}`);
-      console.log(`Message: ${job.progress.message}`);
+      console.log(`Message: ${job.progress.message || 'Processing...'}`);
+    }
+
+    // Type-safe result access - only available on complete jobs
+    if (job.status === 'complete') {
+      console.log(`Result: ${JSON.stringify(job.result)}`);
+    }
+
+    // Type-safe error access - only available on failed jobs
+    if (job.status === 'failed') {
+      console.log(`Error: ${job.error}`);
     }
 
     if (job.status === 'complete' || job.status === 'failed') {

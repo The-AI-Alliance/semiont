@@ -35,7 +35,7 @@ You implement:
 ### Basic Worker
 
 ```typescript
-import { JobWorker, type Job, type GenerationJob } from '@semiont/jobs';
+import { JobWorker, type AnyJob, type RunningJob, type GenerationParams, type GenerationProgress } from '@semiont/jobs';
 
 class GenerationWorker extends JobWorker {
   // 1. Identify your worker
@@ -44,19 +44,24 @@ class GenerationWorker extends JobWorker {
   }
 
   // 2. Filter which jobs to process
-  protected canProcessJob(job: Job): boolean {
-    return job.type === 'generation';
+  protected canProcessJob(job: AnyJob): boolean {
+    return job.metadata.type === 'generation';
   }
 
   // 3. Implement processing logic
-  protected async executeJob(job: Job): Promise<void> {
-    const genJob = job as GenerationJob;
-    console.log(`Generating: ${genJob.title}`);
+  protected async executeJob(job: AnyJob): Promise<void> {
+    // Type guard - job must be running
+    if (job.status !== 'running') {
+      throw new Error('Job must be running');
+    }
+
+    const genJob = job as RunningJob<GenerationParams, GenerationProgress>;
+    console.log(`Generating: ${genJob.params.title}`);
 
     // Your business logic here
     // - Call AI APIs
     // - Create resources
-    // - Update job.result
+    // - Return result (base class handles completion)
   }
 }
 
@@ -68,7 +73,7 @@ await worker.start();
 ### Worker with Dependencies
 
 ```typescript
-import { JobWorker, type Job } from '@semiont/jobs';
+import { JobWorker, type AnyJob, type RunningJob, type GenerationParams, type GenerationProgress, type GenerationResult } from '@semiont/jobs';
 import type { Config } from '../config';
 import { InferenceService } from '../services/inference';
 
@@ -89,23 +94,28 @@ class GenerationWorker extends JobWorker {
     return 'GenerationWorker';
   }
 
-  protected canProcessJob(job: Job): boolean {
-    return job.type === 'generation';
+  protected canProcessJob(job: AnyJob): boolean {
+    return job.metadata.type === 'generation';
   }
 
-  protected async executeJob(job: Job): Promise<void> {
-    const genJob = job as GenerationJob;
+  protected async executeJob(job: AnyJob): Promise<GenerationResult> {
+    // Type guard
+    if (job.status !== 'running') {
+      throw new Error('Job must be running');
+    }
 
-    // Use injected dependencies
+    const genJob = job as RunningJob<GenerationParams, GenerationProgress>;
+
+    // Use injected dependencies - access params not flat fields
     const content = await this.inference.generate({
-      prompt: genJob.prompt,
-      temperature: genJob.temperature,
+      prompt: genJob.params.prompt,
+      temperature: genJob.params.temperature,
     });
 
-    // Store results
-    genJob.result = {
+    // Return result - base class handles transition to complete
+    return {
       resourceId: await this.createResource(content),
-      resourceName: genJob.title,
+      resourceName: genJob.params.title,
     };
   }
 
@@ -209,23 +219,30 @@ The `JobWorker` base class handles the following flow automatically:
 ### Type-Safe Job Access
 
 ```typescript
-protected async executeJob(job: Job): Promise<void> {
-  // Type narrowing
-  if (job.type === 'generation') {
-    const genJob = job as GenerationJob;
-    // genJob has all GenerationJob fields
-    console.log(genJob.title);
-    console.log(genJob.prompt);
+protected async executeJob(job: AnyJob): Promise<void> {
+  // Status guard first
+  if (job.status !== 'running') {
+    throw new Error('Job must be running');
+  }
+
+  // Type narrowing by job type
+  if (job.metadata.type === 'generation') {
+    const genJob = job as RunningJob<GenerationParams, GenerationProgress>;
+    // TypeScript knows genJob.params has generation-specific fields
+    console.log(genJob.params.title);
+    console.log(genJob.params.prompt);
+    // TypeScript knows genJob.progress is available
+    console.log(genJob.progress.stage);
   }
 
   // Or use type guard
   if (this.isGenerationJob(job)) {
-    console.log(job.title); // TypeScript knows type
+    console.log(job.params.title); // TypeScript knows type
   }
 }
 
-private isGenerationJob(job: Job): job is GenerationJob {
-  return job.type === 'generation';
+private isGenerationJob(job: AnyJob): job is RunningJob<GenerationParams, GenerationProgress> {
+  return job.status === 'running' && job.metadata.type === 'generation';
 }
 ```
 
@@ -234,38 +251,48 @@ private isGenerationJob(job: Job): job is GenerationJob {
 ```typescript
 import { getJobQueue } from '@semiont/jobs';
 
-protected async executeJob(job: Job): Promise<void> {
-  const genJob = job as GenerationJob;
+protected async executeJob(job: AnyJob): Promise<GenerationResult> {
+  // Type guard
+  if (job.status !== 'running') {
+    throw new Error('Job must be running');
+  }
+
+  const genJob = job as RunningJob<GenerationParams, GenerationProgress>;
   const queue = getJobQueue();
 
-  // Update progress (optional)
-  genJob.progress = {
-    stage: 'fetching',
-    percentage: 25,
-    message: 'Fetching source content...',
+  // Update progress (immutable pattern - create new object)
+  const updatedJob1: RunningJob<GenerationParams, GenerationProgress> = {
+    ...genJob,
+    progress: {
+      stage: 'fetching',
+      percentage: 25,
+      message: 'Fetching source content...',
+    },
   };
-  await queue.updateJob(genJob);
+  await queue.updateJob(updatedJob1);
 
   // Do work
-  const source = await fetchSource(genJob.sourceResourceId);
+  const source = await fetchSource(genJob.params.sourceResourceId);
 
   // Update progress again
-  genJob.progress = {
-    stage: 'generating',
-    percentage: 50,
-    message: 'Generating content...',
+  const updatedJob2: RunningJob<GenerationParams, GenerationProgress> = {
+    ...updatedJob1,
+    progress: {
+      stage: 'generating',
+      percentage: 50,
+      message: 'Generating content...',
+    },
   };
-  await queue.updateJob(genJob);
+  await queue.updateJob(updatedJob2);
 
   // Generate
-  const content = await this.inference.generate(source, genJob.prompt);
+  const content = await this.inference.generate(source, genJob.params.prompt);
 
-  // Set final result
-  genJob.result = {
+  // Return final result - base class handles transition to complete
+  return {
     resourceId: await this.createResource(content),
-    resourceName: genJob.title,
+    resourceName: genJob.params.title,
   };
-  // JobWorker base class will move to 'complete' and set completedAt
 }
 ```
 
@@ -281,24 +308,37 @@ The `JobWorker` base class catches errors and automatically:
 4. Implements retry logic (if `retryCount < maxRetries`)
 
 ```typescript
-protected async executeJob(job: Job): Promise<void> {
+protected async executeJob(job: AnyJob): Promise<void> {
+  // Type guard
+  if (job.status !== 'running') {
+    throw new Error('Job must be running');
+  }
+
   // If this throws an error, base class handles it
   await riskyOperation();
 
   // Job will automatically move to 'failed' status
-  // job.error will be set to error message
+  // A FailedJob will be created with error message
 }
 ```
 
 ### Custom Error Handling
 
 ```typescript
-protected async executeJob(job: Job): Promise<void> {
-  const genJob = job as GenerationJob;
+protected async executeJob(job: AnyJob): Promise<GenerationResult> {
+  // Type guard
+  if (job.status !== 'running') {
+    throw new Error('Job must be running');
+  }
+
+  const genJob = job as RunningJob<GenerationParams, GenerationProgress>;
 
   try {
-    const content = await this.inference.generate(genJob.prompt);
-    genJob.result = { /* ... */ };
+    const content = await this.inference.generate(genJob.params.prompt);
+    return {
+      resourceId: await this.createResource(content),
+      resourceName: genJob.params.title,
+    };
   } catch (error) {
     // Add context to error
     if (error.code === 'RATE_LIMIT') {
@@ -307,7 +347,7 @@ protected async executeJob(job: Job): Promise<void> {
 
     // Log detailed error
     console.error('[GenerationWorker] Generation failed:', {
-      jobId: genJob.id,
+      jobId: genJob.metadata.id,
       error: error.message,
       stack: error.stack,
     });
@@ -321,28 +361,42 @@ protected async executeJob(job: Job): Promise<void> {
 ### Retry Logic
 
 ```typescript
-// Jobs have built-in retry configuration
-const job: GenerationJob = {
-  // ...
-  retryCount: 0,
-  maxRetries: 3, // Will retry up to 3 times
+// Jobs have built-in retry configuration in metadata
+const job: PendingJob<GenerationParams> = {
+  status: 'pending',
+  metadata: {
+    id: jobId('job-123'),
+    type: 'generation',
+    userId: userId('user@example.com'),
+    created: new Date().toISOString(),
+    retryCount: 0,
+    maxRetries: 3, // Will retry up to 3 times
+  },
+  params: {
+    // generation params
+  },
 };
 
 // Base class automatically handles retries:
-// 1. If retryCount < maxRetries: move back to 'pending'
-// 2. If retryCount >= maxRetries: move to 'failed' (final)
+// 1. If metadata.retryCount < metadata.maxRetries: move back to 'pending'
+// 2. If metadata.retryCount >= metadata.maxRetries: move to 'failed' (final)
 ```
 
 **Customizing retries:**
 
 ```typescript
-protected async executeJob(job: Job): Promise<void> {
+protected async executeJob(job: AnyJob): Promise<void> {
+  // Type guard
+  if (job.status !== 'running') {
+    throw new Error('Job must be running');
+  }
+
   try {
     await doWork(job);
   } catch (error) {
     // Check retry eligibility
-    if (job.retryCount < job.maxRetries) {
-      console.log(`Will retry (attempt ${job.retryCount + 1}/${job.maxRetries})`);
+    if (job.metadata.retryCount < job.metadata.maxRetries) {
+      console.log(`Will retry (attempt ${job.metadata.retryCount + 1}/${job.metadata.maxRetries})`);
     } else {
       console.log('Max retries reached, job failed permanently');
     }
@@ -374,69 +428,88 @@ class MyWorker extends JobWorker {
 ### Progress Structure
 
 ```typescript
-// Update job progress during execution
-genJob.progress = {
-  stage: 'generating',  // Current stage
-  percentage: 50,        // 0-100
-  message: 'Optional description',
-};
-await getJobQueue().updateJob(genJob);
+// Update job progress during execution (immutable pattern)
+if (job.status === 'running') {
+  const updatedJob: RunningJob<GenerationParams, GenerationProgress> = {
+    ...job,
+    progress: {
+      stage: 'generating',  // Current stage
+      percentage: 50,        // 0-100
+      message: 'Optional description',
+    },
+  };
+  await getJobQueue().updateJob(updatedJob);
+}
 ```
 
 ### Multi-Stage Progress
 
 ```typescript
-protected async executeJob(job: Job): Promise<void> {
-  const genJob = job as GenerationJob;
+protected async executeJob(job: AnyJob): Promise<GenerationResult> {
+  // Type guard
+  if (job.status !== 'running') {
+    throw new Error('Job must be running');
+  }
+
+  const genJob = job as RunningJob<GenerationParams, GenerationProgress>;
   const queue = getJobQueue();
 
   // Stage 1: Fetching
-  genJob.progress = { stage: 'fetching', percentage: 0 };
-  await queue.updateJob(genJob);
-  const source = await fetchSource(genJob.sourceResourceId);
+  let currentJob = { ...genJob, progress: { stage: 'fetching', percentage: 0, message: 'Fetching source...' } };
+  await queue.updateJob(currentJob);
+  const source = await fetchSource(genJob.params.sourceResourceId);
 
   // Stage 2: Generating
-  genJob.progress = { stage: 'generating', percentage: 33 };
-  await queue.updateJob(genJob);
+  currentJob = { ...currentJob, progress: { stage: 'generating', percentage: 33, message: 'Generating content...' } };
+  await queue.updateJob(currentJob);
   const content = await this.inference.generate(source);
 
   // Stage 3: Creating
-  genJob.progress = { stage: 'creating', percentage: 66 };
-  await queue.updateJob(genJob);
+  currentJob = { ...currentJob, progress: { stage: 'creating', percentage: 66, message: 'Creating resource...' } };
+  await queue.updateJob(currentJob);
   const resourceId = await this.createResource(content);
 
   // Stage 4: Linking
-  genJob.progress = { stage: 'linking', percentage: 90 };
-  await queue.updateJob(genJob);
-  await this.linkToSource(resourceId, genJob.sourceResourceId);
+  currentJob = { ...currentJob, progress: { stage: 'linking', percentage: 90, message: 'Linking to source...' } };
+  await queue.updateJob(currentJob);
+  await this.linkToSource(resourceId, genJob.params.sourceResourceId);
 
-  // Final result
-  genJob.result = { resourceId, resourceName: genJob.title };
+  // Return final result
+  return { resourceId, resourceName: genJob.params.title };
 }
 ```
 
 ### Progress Throttling
 
 ```typescript
-protected async executeJob(job: Job): Promise<void> {
-  const detectionJob = job as DetectionJob;
+protected async executeJob(job: AnyJob): Promise<void> {
+  // Type guard
+  if (job.status !== 'running') {
+    throw new Error('Job must be running');
+  }
+
+  const detectionJob = job as RunningJob<DetectionParams, DetectionProgress>;
   const queue = getJobQueue();
 
   let lastProgressUpdate = 0;
   const MIN_UPDATE_INTERVAL = 1000; // 1 second
+  let currentJob = detectionJob;
 
   for (let i = 0; i < entities.length; i++) {
     await processEntity(entities[i]);
 
-    // Throttle progress updates
+    // Throttle progress updates (immutable pattern)
     const now = Date.now();
     if (now - lastProgressUpdate > MIN_UPDATE_INTERVAL) {
-      detectionJob.progress = {
-        processedEntities: i + 1,
-        totalEntities: entities.length,
-        percentage: Math.round(((i + 1) / entities.length) * 100),
+      currentJob = {
+        ...currentJob,
+        progress: {
+          processedEntities: i + 1,
+          totalEntities: entities.length,
+          percentage: Math.round(((i + 1) / entities.length) * 100),
+        },
       };
-      await queue.updateJob(detectionJob);
+      await queue.updateJob(currentJob);
       lastProgressUpdate = now;
     }
   }
@@ -449,14 +522,28 @@ protected async executeJob(job: Job): Promise<void> {
 
 ```typescript
 // Base class implements:
-if (job.retryCount < job.maxRetries) {
-  job.retryCount++;
-  job.status = 'pending';
-  delete job.error;
-  await queue.updateJob(job, 'running');
+if (job.metadata.retryCount < job.metadata.maxRetries) {
+  // Create new pending job for retry
+  const retryJob: PendingJob<any> = {
+    status: 'pending',
+    metadata: {
+      ...job.metadata,
+      retryCount: job.metadata.retryCount + 1,
+    },
+    params: job.params,
+  };
+  await queue.updateJob(retryJob, 'running');
 } else {
-  job.status = 'failed';
-  await queue.updateJob(job, 'running');
+  // Create failed job - no more retries
+  const failedJob: FailedJob<any> = {
+    status: 'failed',
+    metadata: job.metadata,
+    params: job.params,
+    startedAt: job.startedAt,
+    completedAt: new Date().toISOString(),
+    error: error.message,
+  };
+  await queue.updateJob(failedJob, 'running');
 }
 ```
 
@@ -512,11 +599,23 @@ describe('GenerationWorker', () => {
     const queue = getJobQueue();
 
     // Create test job
-    const job: GenerationJob = {
-      id: jobId('test-1'),
-      type: 'generation',
+    const job: PendingJob<GenerationParams> = {
       status: 'pending',
-      // ... other fields
+      metadata: {
+        id: jobId('test-1'),
+        type: 'generation',
+        userId: userId('user@test.com'),
+        created: new Date().toISOString(),
+        retryCount: 0,
+        maxRetries: 3,
+      },
+      params: {
+        referenceId: annotationId('ref-1'),
+        sourceResourceId: resourceId('doc-1'),
+        title: 'Test Article',
+        prompt: 'Test prompt',
+        language: 'en-US',
+      },
     };
     await queue.createJob(job);
 
@@ -525,11 +624,24 @@ describe('GenerationWorker', () => {
     expect(retrieved).toBeTruthy();
 
     if (retrieved && worker['canProcessJob'](retrieved)) {
-      await worker['executeJob'](retrieved);
+      // Transition to running before executing
+      const runningJob: RunningJob<GenerationParams, GenerationProgress> = {
+        status: 'running',
+        metadata: retrieved.metadata,
+        params: retrieved.params,
+        startedAt: new Date().toISOString(),
+        progress: { stage: 'starting', percentage: 0, message: 'Starting...' },
+      };
+      await queue.updateJob(runningJob, 'pending');
+
+      await worker['executeJob'](runningJob);
 
       // Verify results
       const completed = await queue.getJob(jobId('test-1'));
-      expect(completed?.result).toBeDefined();
+      expect(completed?.status).toBe('complete');
+      if (completed?.status === 'complete') {
+        expect(completed.result).toBeDefined();
+      }
     }
   });
 });
@@ -667,7 +779,12 @@ class MonitoredWorker extends JobWorker {
   private processedCount = 0;
   private errorCount = 0;
 
-  protected async executeJob(job: Job): Promise<void> {
+  protected async executeJob(job: AnyJob): Promise<void> {
+    // Type guard
+    if (job.status !== 'running') {
+      throw new Error('Job must be running');
+    }
+
     try {
       await doWork(job);
       this.processedCount++;
