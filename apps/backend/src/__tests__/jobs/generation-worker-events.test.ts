@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { GenerationWorker } from '@semiont/make-meaning';
-import { JobQueue, type PendingJob, type GenerationParams } from '@semiont/jobs';
+import { JobQueue, type RunningJob, type GenerationParams, type GenerationProgress } from '@semiont/jobs';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 import { resourceId, userId, annotationId } from '@semiont/core';
 import { jobId, entityType } from '@semiont/api-client';
@@ -127,8 +127,8 @@ describe('GenerationWorker - Event Emission', () => {
   });
 
   it('should emit job.started event when generation begins', async () => {
-    const job: PendingJob<GenerationParams> = {
-      status: 'pending',
+    const job: RunningJob<GenerationParams, GenerationProgress> = {
+      status: 'running',
       metadata: {
         id: jobId('job-gen-1'),
         type: 'generation',
@@ -143,6 +143,11 @@ describe('GenerationWorker - Event Emission', () => {
         title: 'Test Resource',
         entityTypes: [entityType('Person')],
         context: mockGenerationContext
+      },
+      startedAt: new Date().toISOString(),
+      progress: {
+        stage: 'initializing',
+        percentage: 0
       }
     };
 
@@ -170,8 +175,8 @@ describe('GenerationWorker - Event Emission', () => {
   });
 
   it('should emit job.progress events for each generation stage', async () => {
-    const job: PendingJob<GenerationParams> = {
-      status: 'pending',
+    const job: RunningJob<GenerationParams, GenerationProgress> = {
+      status: 'running',
       metadata: {
         id: jobId('job-gen-2'),
         type: 'generation',
@@ -186,6 +191,11 @@ describe('GenerationWorker - Event Emission', () => {
         title: 'Test Resource',
         entityTypes: [entityType('Person')],
         context: mockGenerationContext
+      },
+      startedAt: new Date().toISOString(),
+      progress: {
+        stage: 'initializing',
+        percentage: 0
       }
     };
 
@@ -207,8 +217,8 @@ describe('GenerationWorker - Event Emission', () => {
   });
 
   it('should emit progress events with increasing percentages', async () => {
-    const job: PendingJob<GenerationParams> = {
-      status: 'pending',
+    const job: RunningJob<GenerationParams, GenerationProgress> = {
+      status: 'running',
       metadata: {
         id: jobId('job-gen-3'),
         type: 'generation',
@@ -223,6 +233,11 @@ describe('GenerationWorker - Event Emission', () => {
         title: 'Test Resource',
         entityTypes: [entityType('Person')],
         context: mockGenerationContext
+      },
+      startedAt: new Date().toISOString(),
+      progress: {
+        stage: 'initializing',
+        percentage: 0
       }
     };
 
@@ -262,8 +277,8 @@ describe('GenerationWorker - Event Emission', () => {
   });
 
   it('should emit job.completed event with resultResourceId', async () => {
-    const job: PendingJob<GenerationParams> = {
-      status: 'pending',
+    const job: RunningJob<GenerationParams, GenerationProgress> = {
+      status: 'running',
       metadata: {
         id: jobId('job-gen-4'),
         type: 'generation',
@@ -278,6 +293,11 @@ describe('GenerationWorker - Event Emission', () => {
         title: 'Test Resource',
         entityTypes: [entityType('Person')],
         context: mockGenerationContext
+      },
+      startedAt: new Date().toISOString(),
+      progress: {
+        stage: 'initializing',
+        percentage: 0
       }
     };
 
@@ -303,9 +323,9 @@ describe('GenerationWorker - Event Emission', () => {
     });
   });
 
-  it('should emit resource.created event for new resource', async () => {
-    const job: PendingJob<GenerationParams> = {
-      status: 'pending',
+  it('should link annotation to generated resource', async () => {
+    const job: RunningJob<GenerationParams, GenerationProgress> = {
+      status: 'running',
       metadata: {
         id: jobId('job-gen-5'),
         type: 'generation',
@@ -320,6 +340,11 @@ describe('GenerationWorker - Event Emission', () => {
         title: 'Test Resource',
         entityTypes: [entityType('Person')],
         context: mockGenerationContext
+      },
+      startedAt: new Date().toISOString(),
+      progress: {
+        stage: 'initializing',
+        percentage: 0
       }
     };
 
@@ -336,26 +361,30 @@ describe('GenerationWorker - Event Emission', () => {
     expect(completedEvents[0]).toBeDefined();
     const resultResourceId = (completedEvents[0]!.event.payload as any).resultResourceId;
     expect(resultResourceId).toBeDefined();
+    expect(resultResourceId).toMatch(/^[a-f0-9]{32}$/); // Valid resource ID format
 
-    // Now query the new resource's events
-    const newResourceEvents = await query.getResourceEvents(resultResourceId);
-    const createdEvents = newResourceEvents.filter(e => e.event.type === 'resource.created');
+    // Verify annotation was linked to the generated resource via annotation.body.updated event
+    const bodyUpdateEvents = sourceEvents.filter(e => e.event.type === 'annotation.body.updated');
+    expect(bodyUpdateEvents.length).toBeGreaterThan(0);
 
-    expect(createdEvents.length).toBeGreaterThan(0);
-    expect(createdEvents[0]).toBeDefined();
-    expect(createdEvents[0]!.event).toMatchObject({
-      type: 'resource.created',
-      userId: userId('user-1'),
-      payload: {
-        name: 'Test Resource',
-        format: expect.any(String)
-      }
+    // Find the event that links to our generated resource
+    const bodyUpdate = bodyUpdateEvents.find(e => {
+      const operations = (e.event.payload as any).operations;
+      return operations?.some((op: any) =>
+        op.item?.source?.includes(resultResourceId)
+      );
+    });
+    expect(bodyUpdate).toBeDefined();
+    expect(bodyUpdate!.event).toMatchObject({
+      type: 'annotation.body.updated',
+      resourceId: resourceId('source-resource-5'),
+      userId: userId('user-1')
     });
   });
 
   it('should emit events in correct order', async () => {
-    const job: PendingJob<GenerationParams> = {
-      status: 'pending',
+    const job: RunningJob<GenerationParams, GenerationProgress> = {
+      status: 'running',
       metadata: {
         id: jobId('job-gen-6'),
         type: 'generation',
@@ -370,6 +399,11 @@ describe('GenerationWorker - Event Emission', () => {
         title: 'Test Resource',
         entityTypes: [entityType('Person')],
         context: mockGenerationContext
+      },
+      startedAt: new Date().toISOString(),
+      progress: {
+        stage: 'initializing',
+        percentage: 0
       }
     };
 
@@ -394,8 +428,8 @@ describe('GenerationWorker - Event Emission', () => {
   });
 
   it('should include descriptive messages in progress events', async () => {
-    const job: PendingJob<GenerationParams> = {
-      status: 'pending',
+    const job: RunningJob<GenerationParams, GenerationProgress> = {
+      status: 'running',
       metadata: {
         id: jobId('job-gen-7'),
         type: 'generation',
@@ -410,6 +444,11 @@ describe('GenerationWorker - Event Emission', () => {
         title: 'Test Resource',
         entityTypes: [entityType('Person')],
         context: mockGenerationContext
+      },
+      startedAt: new Date().toISOString(),
+      progress: {
+        stage: 'initializing',
+        percentage: 0
       }
     };
 

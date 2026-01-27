@@ -203,7 +203,8 @@ export class GenerationWorker extends JobWorker {
       progress: {
         stage: 'linking',
         percentage: 95,
-        message: 'Linking reference...'
+        message: 'Linking reference...',
+        resultResourceId: rId  // Store for job.completed event
       }
     };
     console.log(`[GenerationWorker] 🔗 ${updatedJob.progress.message}`);
@@ -245,7 +246,8 @@ export class GenerationWorker extends JobWorker {
       progress: {
         stage: 'linking',
         percentage: 100,
-        message: 'Complete!'
+        message: 'Complete!',
+        resultResourceId: rId  // Store for job.completed event
       }
     };
     await this.updateJobProgress(updatedJob);
@@ -299,7 +301,7 @@ export class GenerationWorker extends JobWorker {
         payload: {
           jobId: genJob.metadata.id,
           jobType: genJob.metadata.type,
-          // Note: resultResourceId would come from job.result, but that's handled by base class
+          resultResourceId: genJob.progress.resultResourceId,
           annotationUri: annotationUri(`${this.config.services.backend!.publicURL}/annotations/${genJob.params.referenceId}`),
         },
       });

@@ -127,6 +127,7 @@ export interface GenerationProgress {
   stage: 'fetching' | 'generating' | 'creating' | 'linking';
   percentage: number;
   message?: string;
+  resultResourceId?: ResourceId; // Set after resource is created
 }
 
 /**
