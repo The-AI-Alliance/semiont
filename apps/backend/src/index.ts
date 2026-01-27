@@ -51,7 +51,7 @@ if (!config.services?.frontend?.url) {
 
 const backendService = config.services.backend;
 
-// Initialize JobQueue (will be initialized in serve callback)
+// Initialize JobQueue
 const dataDir = config.services?.filesystem?.path || process.env.DATA_DIR || './data';
 if (!dataDir) {
   throw new Error('services.filesystem.path is required in environment config for job queue initialization');

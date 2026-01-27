@@ -6,6 +6,7 @@
 import { vi, beforeAll, afterEach, afterAll } from 'vitest';
 import { setupServer } from 'msw/node';
 import { handlers } from './mocks/server';
+import { promises as fs } from 'fs';
 
 // Create mock Prisma client that will be used by all tests
 const mockPrismaClient = {
@@ -78,9 +79,35 @@ process.env.JWT_SECRET = 'test-secret-key-for-testing-32char';
 // Setup MSW server for mocking HTTP requests
 const server = setupServer(...handlers);
 
-beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }));
+beforeAll(async () => {
+  server.listen({ onUnhandledRequest: 'warn' });
+
+  // Create the directory structure that the mocked config references
+  // This ensures JobQueue initialization doesn't fail with ENOENT
+  // Use recursive: true to avoid race conditions when multiple tests run in parallel
+  try {
+    await fs.mkdir('/tmp/semiont-test/jobs/pending', { recursive: true });
+    await fs.mkdir('/tmp/semiont-test/jobs/running', { recursive: true });
+    await fs.mkdir('/tmp/semiont-test/jobs/complete', { recursive: true });
+    await fs.mkdir('/tmp/semiont-test/jobs/failed', { recursive: true });
+    await fs.mkdir('/tmp/semiont-test/jobs/cancelled', { recursive: true });
+  } catch (error) {
+    // Ignore errors if directories already exist from parallel tests
+  }
+});
+
 afterEach(() => server.resetHandlers());
-afterAll(() => server.close());
+
+afterAll(async () => {
+  server.close();
+
+  // Clean up the test directory
+  try {
+    await fs.rm('/tmp/semiont-test', { recursive: true, force: true });
+  } catch (error) {
+    // Ignore cleanup errors
+  }
+});
 
 // Export mocks for tests that need direct access
 export { mockPrismaClient, server };
