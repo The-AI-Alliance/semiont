@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { ReferenceDetectionWorker } from '@semiont/make-meaning';
-import { JobQueue, type DetectionJob } from '@semiont/jobs';
+import { JobQueue, type DetectionJob, type RunningJob, type DetectionParams, type DetectionProgress } from '@semiont/jobs';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 import { resourceId, userId } from '@semiont/core';
 import { jobId, entityType } from '@semiont/api-client';
@@ -76,16 +76,27 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
     // Create test resource first
     await createTestResource(testResourceId);
 
-    const job: DetectionJob = {
-      id: jobId('job-test-1'),
-      type: 'detection',
-      status: 'pending',
-      userId: userId('user-1'),
-      resourceId: resourceId(testResourceId),
-      entityTypes: [entityType('Person')],
-      created: new Date().toISOString(),
-      retryCount: 0,
-      maxRetries: 3
+    const job: RunningJob<DetectionParams, DetectionProgress> = {
+      status: 'running',
+      metadata: {
+        id: jobId('job-test-1'),
+        type: 'detection',
+        userId: userId('user-1'),
+        created: new Date().toISOString(),
+        retryCount: 0,
+        maxRetries: 3
+      },
+      params: {
+        resourceId: resourceId(testResourceId),
+        entityTypes: [entityType('Person')]
+      },
+      startedAt: new Date().toISOString(),
+      progress: {
+        totalEntityTypes: 1,
+        processedEntityTypes: 0,
+        entitiesFound: 0,
+        entitiesEmitted: 0
+      }
     };
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
@@ -115,16 +126,27 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
     // Create test resource first
     await createTestResource(testResourceId);
 
-    const job: DetectionJob = {
-      id: jobId('job-test-2'),
-      type: 'detection',
-      status: 'pending',
-      userId: userId('user-1'),
-      resourceId: resourceId(testResourceId),
-      entityTypes: [entityType('Person'), entityType('Organization'), entityType('Location')],
-      created: new Date().toISOString(),
-      retryCount: 0,
-      maxRetries: 3
+    const job: RunningJob<DetectionParams, DetectionProgress> = {
+      status: 'running',
+      metadata: {
+        id: jobId('job-test-2'),
+        type: 'detection',
+        userId: userId('user-1'),
+        created: new Date().toISOString(),
+        retryCount: 0,
+        maxRetries: 3
+      },
+      params: {
+        resourceId: resourceId(testResourceId),
+        entityTypes: [entityType('Person'), entityType('Organization'), entityType('Location')]
+      },
+      startedAt: new Date().toISOString(),
+      progress: {
+        totalEntityTypes: 3,
+        processedEntityTypes: 0,
+        entitiesFound: 0,
+        entitiesEmitted: 0
+      }
     };
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
@@ -157,16 +179,27 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
     // Create test resource first
     await createTestResource(testResourceId);
 
-    const job: DetectionJob = {
-      id: jobId('job-test-3'),
-      type: 'detection',
-      status: 'pending',
-      userId: userId('user-1'),
-      resourceId: resourceId(testResourceId),
-      entityTypes: [entityType('Person')],
-      created: new Date().toISOString(),
-      retryCount: 0,
-      maxRetries: 3
+    const job: RunningJob<DetectionParams, DetectionProgress> = {
+      status: 'running',
+      metadata: {
+        id: jobId('job-test-3'),
+        type: 'detection',
+        userId: userId('user-1'),
+        created: new Date().toISOString(),
+        retryCount: 0,
+        maxRetries: 3
+      },
+      params: {
+        resourceId: resourceId(testResourceId),
+        entityTypes: [entityType('Person')]
+      },
+      startedAt: new Date().toISOString(),
+      progress: {
+        totalEntityTypes: 1,
+        processedEntityTypes: 0,
+        entitiesFound: 0,
+        entitiesEmitted: 0
+      }
     };
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
@@ -194,16 +227,27 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
     // Create test resource first
     await createTestResource(testResourceId);
 
-    const job: DetectionJob = {
-      id: jobId('job-test-4'),
-      type: 'detection',
-      status: 'pending',
-      userId: userId('user-1'),
-      resourceId: resourceId(testResourceId),
-      entityTypes: [entityType('Person')],
-      created: new Date().toISOString(),
-      retryCount: 0,
-      maxRetries: 3
+    const job: RunningJob<DetectionParams, DetectionProgress> = {
+      status: 'running',
+      metadata: {
+        id: jobId('job-test-4'),
+        type: 'detection',
+        userId: userId('user-1'),
+        created: new Date().toISOString(),
+        retryCount: 0,
+        maxRetries: 3
+      },
+      params: {
+        resourceId: resourceId(testResourceId),
+        entityTypes: [entityType('Person')]
+      },
+      startedAt: new Date().toISOString(),
+      progress: {
+        totalEntityTypes: 1,
+        processedEntityTypes: 0,
+        entitiesFound: 0,
+        entitiesEmitted: 0
+      }
     };
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
@@ -244,16 +288,27 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
     // Create test resource first
     await createTestResource(testResourceId);
 
-    const job: DetectionJob = {
-      id: jobId('job-test-5'),
-      type: 'detection',
-      status: 'pending',
-      userId: userId('user-1'),
-      resourceId: resourceId(testResourceId),
-      entityTypes: [entityType('Person'), entityType('Organization')], // Use multiple types to test progress
-      created: new Date().toISOString(),
-      retryCount: 0,
-      maxRetries: 3
+    const job: RunningJob<DetectionParams, DetectionProgress> = {
+      status: 'running',
+      metadata: {
+        id: jobId('job-test-5'),
+        type: 'detection',
+        userId: userId('user-1'),
+        created: new Date().toISOString(),
+        retryCount: 0,
+        maxRetries: 3
+      },
+      params: {
+        resourceId: resourceId(testResourceId),
+        entityTypes: [entityType('Person'), entityType('Organization')] // Use multiple types to test progress
+      },
+      startedAt: new Date().toISOString(),
+      progress: {
+        totalEntityTypes: 2,
+        processedEntityTypes: 0,
+        entitiesFound: 0,
+        entitiesEmitted: 0
+      }
     };
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
@@ -281,16 +336,27 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
     // Create test resource first
     await createTestResource(testResourceId);
 
-    const job: DetectionJob = {
-      id: jobId('job-test-6'),
-      type: 'detection',
-      status: 'pending',
-      userId: userId('user-1'),
-      resourceId: resourceId(testResourceId),
-      entityTypes: [entityType('Person'), entityType('Organization')],
-      created: new Date().toISOString(),
-      retryCount: 0,
-      maxRetries: 3
+    const job: RunningJob<DetectionParams, DetectionProgress> = {
+      status: 'running',
+      metadata: {
+        id: jobId('job-test-6'),
+        type: 'detection',
+        userId: userId('user-1'),
+        created: new Date().toISOString(),
+        retryCount: 0,
+        maxRetries: 3
+      },
+      params: {
+        resourceId: resourceId(testResourceId),
+        entityTypes: [entityType('Person'), entityType('Organization')]
+      },
+      startedAt: new Date().toISOString(),
+      progress: {
+        totalEntityTypes: 2,
+        processedEntityTypes: 0,
+        entitiesFound: 0,
+        entitiesEmitted: 0
+      }
     };
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);

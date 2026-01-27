@@ -6,7 +6,7 @@
  */
 
 import { JobWorker } from '@semiont/jobs';
-import type { Job, CommentDetectionJob, JobQueue } from '@semiont/jobs';
+import type { AnyJob, CommentDetectionJob, JobQueue, RunningJob, CommentDetectionParams, CommentDetectionProgress } from '@semiont/jobs';
 import { ResourceContext, AnnotationDetection } from '../..';
 import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
 import { resourceIdToURI } from '@semiont/core';
@@ -29,40 +29,49 @@ export class CommentDetectionWorker extends JobWorker {
     return 'CommentDetectionWorker';
   }
 
-  protected canProcessJob(job: Job): boolean {
-    return job.type === 'comment-detection';
+  protected canProcessJob(job: AnyJob): boolean {
+    return job.metadata.type === 'comment-detection';
   }
 
-  protected async executeJob(job: Job): Promise<void> {
-    if (job.type !== 'comment-detection') {
-      throw new Error(`Invalid job type: ${job.type}`);
+  protected async executeJob(job: AnyJob): Promise<void> {
+    if (job.metadata.type !== 'comment-detection') {
+      throw new Error(`Invalid job type: ${job.metadata.type}`);
+    }
+
+    // Type guard: job must be running to execute
+    if (job.status !== 'running') {
+      throw new Error(`Job must be in running state to execute, got: ${job.status}`);
     }
 
     // Reset progress tracking
     this.isFirstProgress = true;
-    await this.processCommentDetectionJob(job);
+    await this.processCommentDetectionJob(job as RunningJob<CommentDetectionParams, CommentDetectionProgress>);
   }
 
   /**
    * Override updateJobProgress to emit events to Event Store
    */
-  protected override async updateJobProgress(job: Job): Promise<void> {
+  protected override async updateJobProgress(job: AnyJob): Promise<void> {
     // Call parent to update filesystem
     await super.updateJobProgress(job);
 
-    if (job.type !== 'comment-detection') return;
+    if (job.metadata.type !== 'comment-detection') return;
 
-    const cdJob = job as CommentDetectionJob;
-    if (!cdJob.progress) return;
+    // Type guard: only running jobs have progress
+    if (job.status !== 'running') {
+      return;
+    }
+
+    const cdJob = job as RunningJob<CommentDetectionParams, CommentDetectionProgress>;
 
     const baseEvent = {
-      resourceId: cdJob.resourceId,
-      userId: cdJob.userId,
+      resourceId: cdJob.params.resourceId,
+      userId: cdJob.metadata.userId,
       version: 1,
     };
 
     // Determine if this is completion (100% and has result)
-    const isComplete = cdJob.progress.percentage === 100 && cdJob.result;
+    const isComplete = cdJob.progress.percentage === 100;
 
     if (this.isFirstProgress) {
       // First progress update - emit job.started
@@ -71,8 +80,8 @@ export class CommentDetectionWorker extends JobWorker {
         type: 'job.started',
         ...baseEvent,
         payload: {
-          jobId: cdJob.id,
-          jobType: cdJob.type,
+          jobId: cdJob.metadata.id,
+          jobType: cdJob.metadata.type,
         },
       });
     } else if (isComplete) {
@@ -81,9 +90,9 @@ export class CommentDetectionWorker extends JobWorker {
         type: 'job.completed',
         ...baseEvent,
         payload: {
-          jobId: cdJob.id,
-          jobType: cdJob.type,
-          result: cdJob.result,
+          jobId: cdJob.metadata.id,
+          jobType: cdJob.metadata.type,
+          // Note: result would come from job.result, but that's handled by base class
         },
       });
     } else {
@@ -92,107 +101,116 @@ export class CommentDetectionWorker extends JobWorker {
         type: 'job.progress',
         ...baseEvent,
         payload: {
-          jobId: cdJob.id,
-          jobType: cdJob.type,
+          jobId: cdJob.metadata.id,
+          jobType: cdJob.metadata.type,
           progress: cdJob.progress,
         },
       });
     }
   }
 
-  protected override async handleJobFailure(job: Job, error: any): Promise<void> {
+  protected override async handleJobFailure(job: AnyJob, error: any): Promise<void> {
     // Call parent to handle the failure logic
     await super.handleJobFailure(job, error);
 
     // If job permanently failed, emit job.failed event
-    if (job.status === 'failed' && job.type === 'comment-detection') {
+    if (job.status === 'failed' && job.metadata.type === 'comment-detection') {
       const cdJob = job as CommentDetectionJob;
 
       // Log the full error details to backend logs (already logged by parent)
       // Send generic error message to frontend
       await this.eventStore.appendEvent({
         type: 'job.failed',
-        resourceId: cdJob.resourceId,
-        userId: cdJob.userId,
+        resourceId: cdJob.params.resourceId,
+        userId: cdJob.metadata.userId,
         version: 1,
         payload: {
-          jobId: cdJob.id,
-          jobType: cdJob.type,
+          jobId: cdJob.metadata.id,
+          jobType: cdJob.metadata.type,
           error: 'Comment detection failed. Please try again later.',
         },
       });
     }
   }
 
-  private async processCommentDetectionJob(job: CommentDetectionJob): Promise<void> {
-    console.log(`[CommentDetectionWorker] Processing comment detection for resource ${job.resourceId} (job: ${job.id})`);
+  private async processCommentDetectionJob(job: RunningJob<CommentDetectionParams, CommentDetectionProgress>): Promise<void> {
+    console.log(`[CommentDetectionWorker] Processing comment detection for resource ${job.params.resourceId} (job: ${job.metadata.id})`);
 
     // Fetch resource content
-    const resource = await ResourceContext.getResourceMetadata(job.resourceId, this.config);
+    const resource = await ResourceContext.getResourceMetadata(job.params.resourceId, this.config);
 
     if (!resource) {
-      throw new Error(`Resource ${job.resourceId} not found`);
+      throw new Error(`Resource ${job.params.resourceId} not found`);
     }
 
     // Emit job.started and start analyzing
-    job.progress = {
-      stage: 'analyzing',
-      percentage: 10,
-      message: 'Loading resource...'
+    let updatedJob: RunningJob<CommentDetectionParams, CommentDetectionProgress> = {
+      ...job,
+      progress: {
+        stage: 'analyzing',
+        percentage: 10,
+        message: 'Loading resource...'
+      }
     };
-    await this.updateJobProgress(job);
+    await this.updateJobProgress(updatedJob);
 
     // Update progress
-    job.progress = {
-      stage: 'analyzing',
-      percentage: 30,
-      message: 'Analyzing text and generating comments...'
+    updatedJob = {
+      ...updatedJob,
+      progress: {
+        stage: 'analyzing',
+        percentage: 30,
+        message: 'Analyzing text and generating comments...'
+      }
     };
-    await this.updateJobProgress(job);
+    await this.updateJobProgress(updatedJob);
 
     // Use AI to detect passages needing comments
     const comments = await AnnotationDetection.detectComments(
-      job.resourceId,
+      job.params.resourceId,
       this.config,
-      job.instructions,
-      job.tone,
-      job.density
+      job.params.instructions,
+      job.params.tone,
+      job.params.density
     );
 
     console.log(`[CommentDetectionWorker] Found ${comments.length} comments to create`);
 
     // Update progress
-    job.progress = {
-      stage: 'creating',
-      percentage: 60,
-      message: `Creating ${comments.length} annotations...`
+    updatedJob = {
+      ...updatedJob,
+      progress: {
+        stage: 'creating',
+        percentage: 60,
+        message: `Creating ${comments.length} annotations...`
+      }
     };
-    await this.updateJobProgress(job);
+    await this.updateJobProgress(updatedJob);
 
     // Create annotations for each comment
     let created = 0;
     for (const comment of comments) {
       try {
-        await this.createCommentAnnotation(job.resourceId, job.userId, comment);
+        await this.createCommentAnnotation(job.params.resourceId, job.metadata.userId, comment);
         created++;
       } catch (error) {
         console.error(`[CommentDetectionWorker] Failed to create comment:`, error);
       }
     }
 
-    // Complete job
-    job.result = {
-      commentsFound: comments.length,
-      commentsCreated: created
+    // Note: JobWorker base class will create the CompleteJob with result
+    // We don't set job.result here - that's handled by the base class
+
+    updatedJob = {
+      ...updatedJob,
+      progress: {
+        stage: 'creating',
+        percentage: 100,
+        message: `Complete! Created ${created} comments`
+      }
     };
 
-    job.progress = {
-      stage: 'creating',
-      percentage: 100,
-      message: `Complete! Created ${created} comments`
-    };
-
-    await this.updateJobProgress(job);
+    await this.updateJobProgress(updatedJob);
     console.log(`[CommentDetectionWorker] ✅ Created ${created}/${comments.length} comments`);
   }
 

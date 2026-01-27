@@ -44,22 +44,22 @@ export function createJobsRouter(jobQueue: JobQueue, authMiddleware: AuthMiddlew
     }
 
     // Verify user owns this job
-    if (job.userId !== user.id) {
+    if (job.metadata.userId !== user.id) {
       throw new HTTPException(404, { message: 'Job not found' });
     }
 
-    // All job types support progress and result
+    // Use discriminated union to safely access state-specific fields
     const response: JobStatusResponse = {
-      jobId: job.id,
-      type: job.type,
+      jobId: job.metadata.id,
+      type: job.metadata.type,
       status: job.status,
-      userId: job.userId,
-      created: job.created,
-      startedAt: job.startedAt,
-      completedAt: job.completedAt,
-      error: job.error,
-      progress: (job as any).progress,
-      result: (job as any).result,
+      userId: job.metadata.userId,
+      created: job.metadata.created,
+      startedAt: job.status === 'running' || job.status === 'complete' ? job.startedAt : undefined,
+      completedAt: job.status === 'complete' || job.status === 'failed' || job.status === 'cancelled' ? job.completedAt : undefined,
+      error: job.status === 'failed' ? job.error : undefined,
+      progress: job.status === 'running' ? job.progress : undefined,
+      result: job.status === 'complete' ? job.result : undefined,
     };
 
     return c.json(response);

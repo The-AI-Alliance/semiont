@@ -20,8 +20,7 @@ import { createEventStore } from '../../../services/event-store-service';
 import type { components } from '@semiont/api-client';
 import { getExactText } from '@semiont/api-client';
 import { AnnotationContext } from '@semiont/make-meaning';
-import type { JobQueue } from '@semiont/jobs';
-import type { GenerationJob } from '@semiont/jobs';
+import type { JobQueue, PendingJob, GenerationParams } from '@semiont/jobs';
 import { nanoid } from 'nanoid';
 import { getTargetSelector } from '@semiont/api-client';
 import { jobId, entityType, resourceUri } from '@semiont/api-client';
@@ -110,28 +109,32 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
       }
 
       // Create a generation job (this decouples event emission from HTTP client)
-      const job: GenerationJob = {
-        id: jobId(`job-${nanoid()}`),
-        type: 'generation',
+      const job: PendingJob<GenerationParams> = {
         status: 'pending',
-        userId: userId(user.id),
-        referenceId: makeAnnotationId(annotationIdParam),
-        sourceResourceId: resourceId(resourceIdParam),
-        title: body.title,
-        prompt: body.prompt,
-        language: body.language,
-        entityTypes: getEntityTypes(reference).map(et => entityType(et)),
-        context: body.context,           // NEW - context from frontend modal
-        temperature: body.temperature,   // NEW - inference parameter
-        maxTokens: body.maxTokens,       // NEW - inference parameter
-        created: new Date().toISOString(),
-        retryCount: 0,
-        maxRetries: 3
+        metadata: {
+          id: jobId(`job-${nanoid()}`),
+          type: 'generation',
+          userId: userId(user.id),
+          created: new Date().toISOString(),
+          retryCount: 0,
+          maxRetries: 3
+        },
+        params: {
+          referenceId: makeAnnotationId(annotationIdParam),
+          sourceResourceId: resourceId(resourceIdParam),
+          title: body.title,
+          prompt: body.prompt,
+          language: body.language,
+          entityTypes: getEntityTypes(reference).map(et => entityType(et)),
+          context: body.context,           // NEW - context from frontend modal
+          temperature: body.temperature,   // NEW - inference parameter
+          maxTokens: body.maxTokens        // NEW - inference parameter
+        }
       };
 
       await jobQueue.createJob(job);
-      console.log(`[GenerateResource] Created job ${job.id} for annotation ${annotationIdParam}`);
-      console.log(`[GenerateResource] Job includes locale:`, job.language);
+      console.log(`[GenerateResource] Created job ${job.metadata.id} for annotation ${annotationIdParam}`);
+      console.log(`[GenerateResource] Job includes locale:`, job.params.language);
 
       // Determine resource name for progress messages
       const targetSelector = getTargetSelector(reference.target);
@@ -181,7 +184,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
         try {
           // Subscribe to Event Store for job events on this resource
           // Workers emit job.started, job.progress, job.completed, job.failed events
-          console.log(`[GenerateResource] Subscribing to events for resource ${rUri}, filtering for job ${job.id}`);
+          console.log(`[GenerateResource] Subscribing to events for resource ${rUri}, filtering for job ${job.metadata.id}`);
           subscription = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent) => {
             if (isStreamClosed) {
               console.log(`[GenerateResource] Stream already closed, ignoring event ${storedEvent.event.type}`);
@@ -191,8 +194,8 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
             const event = storedEvent.event;
 
             // Filter to this job's events only
-            if (event.type === 'job.started' && event.payload.jobId === job.id) {
-              console.log(`[GenerateResource] Job ${job.id} started`);
+            if (event.type === 'job.started' && event.payload.jobId === job.metadata.id) {
+              console.log(`[GenerateResource] Job ${job.metadata.id} started`);
               try {
                 await stream.writeSSE({
                   data: JSON.stringify({
@@ -206,11 +209,11 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
                   id: storedEvent.metadata.sequenceNumber.toString()
                 });
               } catch (error) {
-                console.warn(`[GenerateResource] Client disconnected, job ${job.id} will continue`);
+                console.warn(`[GenerateResource] Client disconnected, job ${job.metadata.id} will continue`);
                 cleanup();
               }
-            } else if (event.type === 'job.progress' && event.payload.jobId === job.id) {
-              console.log(`[GenerateResource] Job ${job.id} progress:`, event.payload);
+            } else if (event.type === 'job.progress' && event.payload.jobId === job.metadata.id) {
+              console.log(`[GenerateResource] Job ${job.metadata.id} progress:`, event.payload);
               const stage = event.payload.currentStep as 'fetching' | 'generating' | 'creating' | 'linking';
               try {
                 await stream.writeSSE({
@@ -225,11 +228,11 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
                   id: storedEvent.metadata.sequenceNumber.toString()
                 });
               } catch (error) {
-                console.warn(`[GenerateResource] Client disconnected, job ${job.id} will continue`);
+                console.warn(`[GenerateResource] Client disconnected, job ${job.metadata.id} will continue`);
                 cleanup();
               }
-            } else if (event.type === 'job.completed' && event.payload.jobId === job.id) {
-              console.log(`[GenerateResource] Job ${job.id} completed`);
+            } else if (event.type === 'job.completed' && event.payload.jobId === job.metadata.id) {
+              console.log(`[GenerateResource] Job ${job.metadata.id} completed`);
               try {
                 await stream.writeSSE({
                   data: JSON.stringify({
@@ -245,11 +248,11 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
                   id: storedEvent.metadata.sequenceNumber.toString()
                 });
               } catch (error) {
-                console.warn(`[GenerateResource] Client disconnected after job ${job.id} completed`);
+                console.warn(`[GenerateResource] Client disconnected after job ${job.metadata.id} completed`);
               }
               cleanup();
-            } else if (event.type === 'job.failed' && event.payload.jobId === job.id) {
-              console.log(`[GenerateResource] Job ${job.id} failed:`, event.payload.error);
+            } else if (event.type === 'job.failed' && event.payload.jobId === job.metadata.id) {
+              console.log(`[GenerateResource] Job ${job.metadata.id} failed:`, event.payload.error);
               try {
                 await stream.writeSSE({
                   data: JSON.stringify({
@@ -262,7 +265,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
                   id: storedEvent.metadata.sequenceNumber.toString()
                 });
               } catch (error) {
-                console.warn(`[GenerateResource] Client disconnected after job ${job.id} failed`);
+                console.warn(`[GenerateResource] Client disconnected after job ${job.metadata.id} failed`);
               }
               cleanup();
             }
@@ -288,7 +291,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
 
           // Cleanup on disconnect
           c.req.raw.signal.addEventListener('abort', () => {
-            console.log(`[GenerateResource] Client disconnected from generation stream for annotation ${annotationIdParam}, job ${job.id} will continue`);
+            console.log(`[GenerateResource] Client disconnected from generation stream for annotation ${annotationIdParam}, job ${job.metadata.id} will continue`);
             cleanup();
           });
 
@@ -307,7 +310,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
             });
           } catch (sseError) {
             // Client already disconnected
-            console.warn(`[GenerateResource] Could not send error to client (disconnected), job ${job.id} status is preserved`);
+            console.warn(`[GenerateResource] Could not send error to client (disconnected), job ${job.metadata.id} status is preserved`);
           }
           cleanup();
         }

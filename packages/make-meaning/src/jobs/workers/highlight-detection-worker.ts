@@ -6,7 +6,7 @@
  */
 
 import { JobWorker } from '@semiont/jobs';
-import type { Job, HighlightDetectionJob, JobQueue } from '@semiont/jobs';
+import type { AnyJob, HighlightDetectionJob, JobQueue, RunningJob, HighlightDetectionParams, HighlightDetectionProgress } from '@semiont/jobs';
 import { ResourceContext, AnnotationDetection } from '../..';
 import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
 import { resourceIdToURI } from '@semiont/core';
@@ -29,40 +29,49 @@ export class HighlightDetectionWorker extends JobWorker {
     return 'HighlightDetectionWorker';
   }
 
-  protected canProcessJob(job: Job): boolean {
-    return job.type === 'highlight-detection';
+  protected canProcessJob(job: AnyJob): boolean {
+    return job.metadata.type === 'highlight-detection';
   }
 
-  protected async executeJob(job: Job): Promise<void> {
-    if (job.type !== 'highlight-detection') {
-      throw new Error(`Invalid job type: ${job.type}`);
+  protected async executeJob(job: AnyJob): Promise<void> {
+    if (job.metadata.type !== 'highlight-detection') {
+      throw new Error(`Invalid job type: ${job.metadata.type}`);
+    }
+
+    // Type guard: job must be running to execute
+    if (job.status !== 'running') {
+      throw new Error(`Job must be in running state to execute, got: ${job.status}`);
     }
 
     // Reset progress tracking
     this.isFirstProgress = true;
-    await this.processHighlightDetectionJob(job);
+    await this.processHighlightDetectionJob(job as RunningJob<HighlightDetectionParams, HighlightDetectionProgress>);
   }
 
   /**
    * Override updateJobProgress to emit events to Event Store
    */
-  protected override async updateJobProgress(job: Job): Promise<void> {
+  protected override async updateJobProgress(job: AnyJob): Promise<void> {
     // Call parent to update filesystem
     await super.updateJobProgress(job);
 
-    if (job.type !== 'highlight-detection') return;
+    if (job.metadata.type !== 'highlight-detection') return;
 
-    const hlJob = job as HighlightDetectionJob;
-    if (!hlJob.progress) return;
+    // Type guard: only running jobs have progress
+    if (job.status !== 'running') {
+      return;
+    }
+
+    const hlJob = job as RunningJob<HighlightDetectionParams, HighlightDetectionProgress>;
 
     const baseEvent = {
-      resourceId: hlJob.resourceId,
-      userId: hlJob.userId,
+      resourceId: hlJob.params.resourceId,
+      userId: hlJob.metadata.userId,
       version: 1,
     };
 
     // Determine if this is completion (100% and has result)
-    const isComplete = hlJob.progress.percentage === 100 && hlJob.result;
+    const isComplete = hlJob.progress.percentage === 100;
 
     if (this.isFirstProgress) {
       // First progress update - emit job.started
@@ -71,8 +80,8 @@ export class HighlightDetectionWorker extends JobWorker {
         type: 'job.started',
         ...baseEvent,
         payload: {
-          jobId: hlJob.id,
-          jobType: hlJob.type,
+          jobId: hlJob.metadata.id,
+          jobType: hlJob.metadata.type,
         },
       });
     } else if (isComplete) {
@@ -81,9 +90,9 @@ export class HighlightDetectionWorker extends JobWorker {
         type: 'job.completed',
         ...baseEvent,
         payload: {
-          jobId: hlJob.id,
-          jobType: hlJob.type,
-          result: hlJob.result,
+          jobId: hlJob.metadata.id,
+          jobType: hlJob.metadata.type,
+          // Note: result would come from job.result, but that's handled by base class
         },
       });
     } else {
@@ -92,106 +101,115 @@ export class HighlightDetectionWorker extends JobWorker {
         type: 'job.progress',
         ...baseEvent,
         payload: {
-          jobId: hlJob.id,
-          jobType: hlJob.type,
+          jobId: hlJob.metadata.id,
+          jobType: hlJob.metadata.type,
           progress: hlJob.progress,
         },
       });
     }
   }
 
-  protected override async handleJobFailure(job: Job, error: any): Promise<void> {
+  protected override async handleJobFailure(job: AnyJob, error: any): Promise<void> {
     // Call parent to handle the failure logic
     await super.handleJobFailure(job, error);
 
     // If job permanently failed, emit job.failed event
-    if (job.status === 'failed' && job.type === 'highlight-detection') {
+    if (job.status === 'failed' && job.metadata.type === 'highlight-detection') {
       const hlJob = job as HighlightDetectionJob;
 
       // Log the full error details to backend logs (already logged by parent)
       // Send generic error message to frontend
       await this.eventStore.appendEvent({
         type: 'job.failed',
-        resourceId: hlJob.resourceId,
-        userId: hlJob.userId,
+        resourceId: hlJob.params.resourceId,
+        userId: hlJob.metadata.userId,
         version: 1,
         payload: {
-          jobId: hlJob.id,
-          jobType: hlJob.type,
+          jobId: hlJob.metadata.id,
+          jobType: hlJob.metadata.type,
           error: 'Highlight detection failed. Please try again later.',
         },
       });
     }
   }
 
-  private async processHighlightDetectionJob(job: HighlightDetectionJob): Promise<void> {
-    console.log(`[HighlightDetectionWorker] Processing highlight detection for resource ${job.resourceId} (job: ${job.id})`);
+  private async processHighlightDetectionJob(job: RunningJob<HighlightDetectionParams, HighlightDetectionProgress>): Promise<void> {
+    console.log(`[HighlightDetectionWorker] Processing highlight detection for resource ${job.params.resourceId} (job: ${job.metadata.id})`);
 
     // Fetch resource content
-    const resource = await ResourceContext.getResourceMetadata(job.resourceId, this.config);
+    const resource = await ResourceContext.getResourceMetadata(job.params.resourceId, this.config);
 
     if (!resource) {
-      throw new Error(`Resource ${job.resourceId} not found`);
+      throw new Error(`Resource ${job.params.resourceId} not found`);
     }
 
     // Emit job.started and start analyzing
-    job.progress = {
-      stage: 'analyzing',
-      percentage: 10,
-      message: 'Loading resource...'
+    let updatedJob: RunningJob<HighlightDetectionParams, HighlightDetectionProgress> = {
+      ...job,
+      progress: {
+        stage: 'analyzing',
+        percentage: 10,
+        message: 'Loading resource...'
+      }
     };
-    await this.updateJobProgress(job);
+    await this.updateJobProgress(updatedJob);
 
     // Update progress
-    job.progress = {
-      stage: 'analyzing',
-      percentage: 30,
-      message: 'Analyzing text...'
+    updatedJob = {
+      ...updatedJob,
+      progress: {
+        stage: 'analyzing',
+        percentage: 30,
+        message: 'Analyzing text...'
+      }
     };
-    await this.updateJobProgress(job);
+    await this.updateJobProgress(updatedJob);
 
     // Use AI to detect highlights
     const highlights = await AnnotationDetection.detectHighlights(
-      job.resourceId,
+      job.params.resourceId,
       this.config,
-      job.instructions,
-      job.density
+      job.params.instructions,
+      job.params.density
     );
 
     console.log(`[HighlightDetectionWorker] Found ${highlights.length} highlights to create`);
 
     // Update progress
-    job.progress = {
-      stage: 'creating',
-      percentage: 60,
-      message: `Creating ${highlights.length} annotations...`
+    updatedJob = {
+      ...updatedJob,
+      progress: {
+        stage: 'creating',
+        percentage: 60,
+        message: `Creating ${highlights.length} annotations...`
+      }
     };
-    await this.updateJobProgress(job);
+    await this.updateJobProgress(updatedJob);
 
     // Create annotations for each highlight
     let created = 0;
     for (const highlight of highlights) {
       try {
-        await this.createHighlightAnnotation(job.resourceId, job.userId, highlight);
+        await this.createHighlightAnnotation(job.params.resourceId, job.metadata.userId, highlight);
         created++;
       } catch (error) {
         console.error(`[HighlightDetectionWorker] Failed to create highlight:`, error);
       }
     }
 
-    // Complete job
-    job.result = {
-      highlightsFound: highlights.length,
-      highlightsCreated: created
+    // Note: JobWorker base class will create the CompleteJob with result
+    // We don't set job.result here - that's handled by the base class
+
+    updatedJob = {
+      ...updatedJob,
+      progress: {
+        stage: 'creating',
+        percentage: 100,
+        message: `Complete! Created ${created} highlights`
+      }
     };
 
-    job.progress = {
-      stage: 'creating',
-      percentage: 100,
-      message: `Complete! Created ${created} highlights`
-    };
-
-    await this.updateJobProgress(job);
+    await this.updateJobProgress(updatedJob);
     console.log(`[HighlightDetectionWorker] ✅ Created ${created}/${highlights.length} highlights`);
   }
 

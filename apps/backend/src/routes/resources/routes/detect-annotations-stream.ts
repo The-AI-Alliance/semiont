@@ -17,7 +17,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { ResourceContext } from '@semiont/make-meaning';
 import { createEventStore } from '../../../services/event-store-service';
-import type { JobQueue, DetectionJob } from '@semiont/jobs';
+import type { JobQueue, PendingJob, DetectionParams } from '@semiont/jobs';
 import { nanoid } from 'nanoid';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
@@ -80,21 +80,25 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
       const rUri = resourceUri(`${config.services.backend!.publicURL}/resources/${id}`);
 
       // Create a detection job (this decouples event emission from HTTP client)
-      const job: DetectionJob = {
-        id: jobId(`job-${nanoid()}`),
-        type: 'detection',
+      const job: PendingJob<DetectionParams> = {
         status: 'pending',
-        userId: userId(user.id),
-        resourceId: resourceId(id),
-        entityTypes: entityTypes.map(et => entityType(et)),
-        includeDescriptiveReferences,
-        created: new Date().toISOString(),
-        retryCount: 0,
-        maxRetries: 1
+        metadata: {
+          id: jobId(`job-${nanoid()}`),
+          type: 'detection',
+          userId: userId(user.id),
+          created: new Date().toISOString(),
+          retryCount: 0,
+          maxRetries: 1
+        },
+        params: {
+          resourceId: resourceId(id),
+          entityTypes: entityTypes.map(et => entityType(et)),
+          includeDescriptiveReferences
+        }
       };
 
       await jobQueue.createJob(job);
-      console.log(`[DetectAnnotations] Created job ${job.id} for resource ${id}`);
+      console.log(`[DetectAnnotations] Created job ${job.metadata.id} for resource ${id}`);
 
       // Stream job progress to the client using Event Store subscriptions
       return streamSSE(c, async (stream) => {
@@ -132,7 +136,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
         try {
           // Subscribe to Event Store for job events on this resource
           // Workers emit job.started, job.progress, job.completed, job.failed events
-          console.log(`[DetectAnnotations] Subscribing to events for resource ${rUri}, filtering for job ${job.id}`);
+          console.log(`[DetectAnnotations] Subscribing to events for resource ${rUri}, filtering for job ${job.metadata.id}`);
           subscription = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent) => {
             if (isStreamClosed) {
               console.log(`[DetectAnnotations] Stream already closed, ignoring event ${storedEvent.event.type}`);
@@ -142,8 +146,8 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
             const event = storedEvent.event;
 
             // Filter to this job's events only
-            if (event.type === 'job.started' && event.payload.jobId === job.id) {
-              console.log(`[DetectAnnotations] Job ${job.id} started`);
+            if (event.type === 'job.started' && event.payload.jobId === job.metadata.id) {
+              console.log(`[DetectAnnotations] Job ${job.metadata.id} started`);
               try {
                 await stream.writeSSE({
                   data: JSON.stringify({
@@ -157,11 +161,11 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
                   id: storedEvent.metadata.sequenceNumber.toString()
                 });
               } catch (error) {
-                console.warn(`[DetectAnnotations] Client disconnected, job ${job.id} will continue`);
+                console.warn(`[DetectAnnotations] Client disconnected, job ${job.metadata.id} will continue`);
                 cleanup();
               }
-            } else if (event.type === 'job.progress' && event.payload.jobId === job.id) {
-              console.log(`[DetectAnnotations] Job ${job.id} progress:`, event.payload);
+            } else if (event.type === 'job.progress' && event.payload.jobId === job.metadata.id) {
+              console.log(`[DetectAnnotations] Job ${job.metadata.id} progress:`, event.payload);
               try {
                 await stream.writeSSE({
                   data: JSON.stringify({
@@ -179,11 +183,11 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
                   id: storedEvent.metadata.sequenceNumber.toString()
                 });
               } catch (error) {
-                console.warn(`[DetectAnnotations] Client disconnected, job ${job.id} will continue`);
+                console.warn(`[DetectAnnotations] Client disconnected, job ${job.metadata.id} will continue`);
                 cleanup();
               }
-            } else if (event.type === 'job.completed' && event.payload.jobId === job.id) {
-              console.log(`[DetectAnnotations] Job ${job.id} completed`);
+            } else if (event.type === 'job.completed' && event.payload.jobId === job.metadata.id) {
+              console.log(`[DetectAnnotations] Job ${job.metadata.id} completed`);
               try {
                 await stream.writeSSE({
                   data: JSON.stringify({
@@ -200,11 +204,11 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
                   id: storedEvent.metadata.sequenceNumber.toString()
                 });
               } catch (error) {
-                console.warn(`[DetectAnnotations] Client disconnected after job ${job.id} completed`);
+                console.warn(`[DetectAnnotations] Client disconnected after job ${job.metadata.id} completed`);
               }
               cleanup();
-            } else if (event.type === 'job.failed' && event.payload.jobId === job.id) {
-              console.log(`[DetectAnnotations] Job ${job.id} failed:`, event.payload.error);
+            } else if (event.type === 'job.failed' && event.payload.jobId === job.metadata.id) {
+              console.log(`[DetectAnnotations] Job ${job.metadata.id} failed:`, event.payload.error);
               try {
                 await stream.writeSSE({
                   data: JSON.stringify({
@@ -218,7 +222,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
                   id: storedEvent.metadata.sequenceNumber.toString()
                 });
               } catch (error) {
-                console.warn(`[DetectAnnotations] Client disconnected after job ${job.id} failed`);
+                console.warn(`[DetectAnnotations] Client disconnected after job ${job.metadata.id} failed`);
               }
               cleanup();
             }
@@ -244,7 +248,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
 
           // Cleanup on disconnect
           c.req.raw.signal.addEventListener('abort', () => {
-            console.log(`[DetectAnnotations] Client disconnected from detection stream for resource ${id}, job ${job.id} will continue`);
+            console.log(`[DetectAnnotations] Client disconnected from detection stream for resource ${id}, job ${job.metadata.id} will continue`);
             cleanup();
           });
 
@@ -264,7 +268,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
             });
           } catch (sseError) {
             // Client already disconnected
-            console.warn(`[DetectAnnotations] Could not send error to client (disconnected), job ${job.id} status is preserved`);
+            console.warn(`[DetectAnnotations] Could not send error to client (disconnected), job ${job.metadata.id} status is preserved`);
           }
           cleanup();
         }

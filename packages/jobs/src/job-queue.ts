@@ -7,7 +7,7 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import type { Job, JobStatus, JobQueryFilters } from './types';
+import type { AnyJob, JobStatus, JobQueryFilters, CancelledJob } from './types';
 import type { JobId } from '@semiont/api-client';
 
 export interface JobQueueConfig {
@@ -38,23 +38,23 @@ export class JobQueue {
   /**
    * Create a new job
    */
-  async createJob(job: Job): Promise<void> {
-    const jobPath = this.getJobPath(job.id, job.status);
+  async createJob(job: AnyJob): Promise<void> {
+    const jobPath = this.getJobPath(job.metadata.id, job.status);
     await fs.writeFile(jobPath, JSON.stringify(job, null, 2), 'utf-8');
-    console.log(`[JobQueue] Created job ${job.id} with status ${job.status}`);
+    console.log(`[JobQueue] Created job ${job.metadata.id} with status ${job.status}`);
   }
 
   /**
    * Get a job by ID (searches all status directories)
    */
-  async getJob(jobId: JobId): Promise<Job | null> {
+  async getJob(jobId: JobId): Promise<AnyJob | null> {
     const statuses: JobStatus[] = ['pending', 'running', 'complete', 'failed', 'cancelled'];
 
     for (const status of statuses) {
       const jobPath = this.getJobPath(jobId, status);
       try {
         const content = await fs.readFile(jobPath, 'utf-8');
-        return JSON.parse(content) as Job;
+        return JSON.parse(content) as AnyJob;
       } catch (error) {
         // File doesn't exist in this status directory, try next
         continue;
@@ -67,10 +67,10 @@ export class JobQueue {
   /**
    * Update a job (atomic: delete old, write new)
    */
-  async updateJob(job: Job, oldStatus?: JobStatus): Promise<void> {
+  async updateJob(job: AnyJob, oldStatus?: JobStatus): Promise<void> {
     // If oldStatus provided, delete from old location
     if (oldStatus && oldStatus !== job.status) {
-      const oldPath = this.getJobPath(job.id, oldStatus);
+      const oldPath = this.getJobPath(job.metadata.id, oldStatus);
       try {
         await fs.unlink(oldPath);
       } catch (error) {
@@ -79,20 +79,20 @@ export class JobQueue {
     }
 
     // Write to new location
-    const newPath = this.getJobPath(job.id, job.status);
+    const newPath = this.getJobPath(job.metadata.id, job.status);
     await fs.writeFile(newPath, JSON.stringify(job, null, 2), 'utf-8');
 
     if (oldStatus && oldStatus !== job.status) {
-      console.log(`[JobQueue] Moved job ${job.id} from ${oldStatus} to ${job.status}`);
+      console.log(`[JobQueue] Moved job ${job.metadata.id} from ${oldStatus} to ${job.status}`);
     } else {
-      console.log(`[JobQueue] Updated job ${job.id} (status: ${job.status})`);
+      console.log(`[JobQueue] Updated job ${job.metadata.id} (status: ${job.status})`);
     }
   }
 
   /**
    * Poll for next pending job (FIFO)
    */
-  async pollNextPendingJob(): Promise<Job | null> {
+  async pollNextPendingJob(): Promise<AnyJob | null> {
     const pendingDir = path.join(this.jobsDir, 'pending');
 
     try {
@@ -109,7 +109,7 @@ export class JobQueue {
       const jobPath = path.join(pendingDir, jobFile);
 
       const content = await fs.readFile(jobPath, 'utf-8');
-      return JSON.parse(content) as Job;
+      return JSON.parse(content) as AnyJob;
     } catch (error) {
       console.error('[JobQueue] Error polling pending jobs:', error);
       return null;
@@ -119,8 +119,8 @@ export class JobQueue {
   /**
    * List jobs with filters
    */
-  async listJobs(filters: JobQueryFilters = {}): Promise<Job[]> {
-    const jobs: Job[] = [];
+  async listJobs(filters: JobQueryFilters = {}): Promise<AnyJob[]> {
+    const jobs: AnyJob[] = [];
 
     // Determine which status directories to scan
     const statuses: JobStatus[] = filters.status
@@ -136,11 +136,11 @@ export class JobQueue {
         for (const file of files) {
           const jobPath = path.join(statusDir, file);
           const content = await fs.readFile(jobPath, 'utf-8');
-          const job = JSON.parse(content) as Job;
+          const job = JSON.parse(content) as AnyJob;
 
           // Apply filters
-          if (filters.type && job.type !== filters.type) continue;
-          if (filters.userId && job.userId !== filters.userId) continue;
+          if (filters.type && job.metadata.type !== filters.type) continue;
+          if (filters.userId && job.metadata.userId !== filters.userId) continue;
 
           jobs.push(job);
         }
@@ -151,7 +151,7 @@ export class JobQueue {
     }
 
     // Sort by created descending (newest first)
-    jobs.sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime());
+    jobs.sort((a, b) => new Date(b.metadata.created).getTime() - new Date(a.metadata.created).getTime());
 
     // Apply pagination
     const offset = filters.offset || 0;
@@ -176,10 +176,17 @@ export class JobQueue {
     }
 
     const oldStatus = job.status;
-    job.status = 'cancelled';
-    job.completedAt = new Date().toISOString();
 
-    await this.updateJob(job, oldStatus);
+    // Create cancelled job with proper structure
+    const cancelledJob: CancelledJob<any> = {
+      status: 'cancelled',
+      metadata: job.metadata,
+      params: job.status === 'pending' ? job.params : job.params,
+      startedAt: job.status === 'running' ? job.startedAt : undefined,
+      completedAt: new Date().toISOString(),
+    };
+
+    await this.updateJob(cancelledJob, oldStatus);
     return true;
   }
 
@@ -201,9 +208,9 @@ export class JobQueue {
         for (const file of files) {
           const jobPath = path.join(statusDir, file);
           const content = await fs.readFile(jobPath, 'utf-8');
-          const job = JSON.parse(content) as Job;
+          const job = JSON.parse(content) as AnyJob;
 
-          if (job.completedAt) {
+          if (job.status === 'complete' || job.status === 'failed' || job.status === 'cancelled') {
             const completedTime = new Date(job.completedAt).getTime();
 
             if (completedTime < cutoffTime) {

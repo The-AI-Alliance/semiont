@@ -481,9 +481,16 @@ class SpecializedWorker extends JobWorker {
     this.workerType = workerType;
   }
 
-  protected canProcessJob(job: Job): boolean {
+  protected canProcessJob(job: AnyJob): boolean {
     // Each worker only handles specific job types
-    return job.type === this.workerType;
+    return job.metadata.type === this.workerType;
+  }
+
+  protected async executeJob(job: AnyJob): Promise<void> {
+    if (job.status !== 'running') {
+      throw new Error('Job must be running');
+    }
+    // Process job...
   }
 }
 
@@ -507,7 +514,11 @@ class MonitoredWorker extends JobWorker {
     totalDuration: 0,
   };
 
-  protected async executeJob(job: Job): Promise<void> {
+  protected async executeJob(job: AnyJob): Promise<void> {
+    if (job.status !== 'running') {
+      throw new Error('Job must be running');
+    }
+
     const start = Date.now();
 
     try {
@@ -588,11 +599,16 @@ async function resetStuckJobs() {
   const fiveMinutesAgo = Date.now() - 300000;
 
   for (const job of running) {
-    if (job.startedAt && new Date(job.startedAt).getTime() < fiveMinutesAgo) {
-      console.log(`Resetting stuck job: ${job.id}`);
-      job.status = 'pending';
-      delete job.startedAt;
-      await queue.updateJob(job, 'running');
+    if (job.status === 'running' && new Date(job.startedAt).getTime() < fiveMinutesAgo) {
+      console.log(`Resetting stuck job: ${job.metadata.id}`);
+
+      // Create new pending job from stuck running job
+      const pendingJob: PendingJob<any> = {
+        status: 'pending',
+        metadata: job.metadata,
+        params: job.params,
+      };
+      await queue.updateJob(pendingJob, 'running');
     }
   }
 }
@@ -629,15 +645,19 @@ setInterval(async () => {
 
 ```typescript
 // Add timing logs
-protected async executeJob(job: Job): Promise<void> {
+protected async executeJob(job: AnyJob): Promise<void> {
+  if (job.status !== 'running') {
+    throw new Error('Job must be running');
+  }
+
   const start = Date.now();
 
-  console.log(`[${this.getWorkerName()}] Starting job ${job.id}`);
+  console.log(`[${this.getWorkerName()}] Starting job ${job.metadata.id}`);
 
   await actualWork(job);
 
   const duration = Date.now() - start;
-  console.log(`[${this.getWorkerName()}] Completed job ${job.id} in ${duration}ms`);
+  console.log(`[${this.getWorkerName()}] Completed job ${job.metadata.id} in ${duration}ms`);
 
   if (duration > 10000) {
     console.warn(`[${this.getWorkerName()}] Slow job detected: ${duration}ms`);
