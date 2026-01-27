@@ -111,5 +111,5 @@ afterAll(async () => {
   }
 });
 
-// Export mocks for tests that need direct access
-export { mockPrismaClient, server };
+// Export mocks and testDir for tests that need direct access
+export { mockPrismaClient, server, testDir };
