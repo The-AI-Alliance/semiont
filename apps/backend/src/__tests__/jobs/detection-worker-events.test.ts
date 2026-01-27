@@ -129,9 +129,8 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
 
-    const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const eventStore = await createEventStore( testEnv.config);
-    const query = createEventQuery(eventStore);
+    const { createEventQuery } = await import('../../services/event-store-service');
+    const query = createEventQuery(testEventStore);
     const events = await query.getResourceEvents(resourceId(testResourceId));
 
     const startedEvents = events.filter(e => e.event.type === 'job.started');
@@ -170,9 +169,8 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
 
-    const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const eventStore = await createEventStore( testEnv.config);
-    const query = createEventQuery(eventStore);
+    const { createEventQuery } = await import('../../services/event-store-service');
+    const query = createEventQuery(testEventStore);
     const events = await query.getResourceEvents(resourceId(testResourceId));
 
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
@@ -214,9 +212,8 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
 
-    const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const eventStore = await createEventStore( testEnv.config);
-    const query = createEventQuery(eventStore);
+    const { createEventQuery } = await import('../../services/event-store-service');
+    const query = createEventQuery(testEventStore);
     const events = await query.getResourceEvents(resourceId(testResourceId));
 
     const completedEvents = events.filter(e => e.event.type === 'job.completed');
@@ -253,9 +250,8 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
 
-    const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const eventStore = await createEventStore( testEnv.config);
-    const query = createEventQuery(eventStore);
+    const { createEventQuery } = await import('../../services/event-store-service');
+    const query = createEventQuery(testEventStore);
     const events = await query.getResourceEvents(resourceId(testResourceId));
 
     // Note: This test verifies the event schema, not that entities are actually detected
@@ -305,21 +301,23 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
 
-    const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const eventStore = await createEventStore( testEnv.config);
-    const query = createEventQuery(eventStore);
+    const { createEventQuery } = await import('../../services/event-store-service');
+    const query = createEventQuery(testEventStore);
     const events = await query.getResourceEvents(resourceId(testResourceId));
 
     const eventTypes = events.map(e => e.event.type);
 
-    // First event should be job.started
-    expect(eventTypes[0]).toBe('job.started');
+    // Find job-related events (excluding resource.created from setup)
+    const jobEvents = eventTypes.filter(t => t.startsWith('job.') || t.startsWith('annotation.'));
 
-    // Last event should be job.completed
-    expect(eventTypes[eventTypes.length - 1]).toBe('job.completed');
+    // First job event should be job.started
+    expect(jobEvents[0]).toBe('job.started');
+
+    // Last job event should be job.completed
+    expect(jobEvents[jobEvents.length - 1]).toBe('job.completed');
 
     // Should have at least one job.progress event (between started and completed)
-    expect(eventTypes).toContain('job.progress');
+    expect(jobEvents).toContain('job.progress');
   });
 
   it('should include percentage and foundCount in progress events', async () => {
@@ -341,9 +339,8 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
 
-    const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
-    const eventStore = await createEventStore( testEnv.config);
-    const query = createEventQuery(eventStore);
+    const { createEventQuery } = await import('../../services/event-store-service');
+    const query = createEventQuery(testEventStore);
     const events = await query.getResourceEvents(resourceId(testResourceId));
 
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
