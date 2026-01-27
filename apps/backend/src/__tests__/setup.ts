@@ -44,6 +44,9 @@ vi.mock('@semiont/core', async () => {
     findProjectRoot: vi.fn(() => '/tmp/test-project'),
     loadEnvironmentConfig: vi.fn(() => ({
       site: { domain: 'test.local', oauthAllowedDomains: ['test.local'] },
+      env: {
+        NODE_ENV: 'test'
+      },
       services: {
         backend: {
           platform: { type: 'posix' },
