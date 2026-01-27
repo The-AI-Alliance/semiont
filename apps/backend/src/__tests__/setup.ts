@@ -38,6 +38,9 @@ vi.mock('../db', () => ({
 }));
 
 // Mock project discovery to avoid needing actual semiont.json
+// Use a unique directory per worker thread to avoid race conditions
+const testDir = `/tmp/semiont-test-${process.pid}-${Date.now()}`;
+
 vi.mock('@semiont/core', async () => {
   const actual = await vi.importActual('@semiont/core');
   return {
@@ -63,7 +66,7 @@ vi.mock('@semiont/core', async () => {
         },
         filesystem: {
           platform: { type: 'posix' },
-          path: '/tmp/semiont-test'
+          path: testDir
         }
       },
       app: {}
@@ -84,15 +87,14 @@ beforeAll(async () => {
 
   // Create the directory structure that the mocked config references
   // This ensures JobQueue initialization doesn't fail with ENOENT
-  // Use recursive: true to avoid race conditions when multiple tests run in parallel
   try {
-    await fs.mkdir('/tmp/semiont-test/jobs/pending', { recursive: true });
-    await fs.mkdir('/tmp/semiont-test/jobs/running', { recursive: true });
-    await fs.mkdir('/tmp/semiont-test/jobs/complete', { recursive: true });
-    await fs.mkdir('/tmp/semiont-test/jobs/failed', { recursive: true });
-    await fs.mkdir('/tmp/semiont-test/jobs/cancelled', { recursive: true });
+    await fs.mkdir(`${testDir}/jobs/pending`, { recursive: true });
+    await fs.mkdir(`${testDir}/jobs/running`, { recursive: true });
+    await fs.mkdir(`${testDir}/jobs/complete`, { recursive: true });
+    await fs.mkdir(`${testDir}/jobs/failed`, { recursive: true });
+    await fs.mkdir(`${testDir}/jobs/cancelled`, { recursive: true });
   } catch (error) {
-    // Ignore errors if directories already exist from parallel tests
+    // Ignore errors if directories already exist
   }
 });
 
@@ -103,7 +105,7 @@ afterAll(async () => {
 
   // Clean up the test directory
   try {
-    await fs.rm('/tmp/semiont-test', { recursive: true, force: true });
+    await fs.rm(testDir, { recursive: true, force: true });
   } catch (error) {
     // Ignore cleanup errors
   }
