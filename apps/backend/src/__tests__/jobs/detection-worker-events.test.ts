@@ -13,19 +13,21 @@ import { resourceId, userId } from '@semiont/core';
 import { jobId, entityType } from '@semiont/api-client';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 
-// Mock AI detection to avoid external API calls
-vi.mock('../../inference/detect-annotations', () => ({
-  detectAnnotationsInResource: vi.fn().mockResolvedValue([
-    {
-      annotation: {
-        selector: { start: 0, end: 4 },
-        exact: 'Test'
-      },
-      entityType: 'Person',
-      confidence: 0.9
-    }
-  ])
-}));
+// Mock AI entity extraction to avoid external API calls
+vi.mock('@semiont/inference', async (importOriginal) => {
+  const actual = await importOriginal() as any;
+  return {
+    ...actual,
+    extractEntities: vi.fn().mockResolvedValue([
+      {
+        exact: 'Test',
+        entityType: 'Person',
+        startOffset: 0,
+        endOffset: 4
+      }
+    ])
+  };
+});
 
 // Cache EventStore instances per basePath to ensure consistency
 const eventStoreCache = new Map();

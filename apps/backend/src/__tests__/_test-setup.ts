@@ -77,6 +77,16 @@ export async function setupTestEnvironment(envName?: string): Promise<TestEnviro
     description: 'Test filesystem storage'
   };
 
+  // 4. Add inference config for tests (mocked, but config must exist)
+  envConfig.services.inference = {
+    platform: { type: 'external' },
+    type: 'anthropic',
+    model: 'claude-sonnet-4-20250514',
+    maxTokens: 8192,
+    endpoint: 'https://api.anthropic.com',
+    apiKey: 'test-api-key'
+  };
+
   await fs.writeFile(
     join(envDir, `${environment}.json`),
     JSON.stringify(envConfig, null, 2)
