@@ -29,46 +29,6 @@ vi.mock('@semiont/inference', async (importOriginal) => {
   };
 });
 
-// Cache EventStore instances per basePath to ensure consistency
-const eventStoreCache = new Map();
-
-// Mock createEventStore to avoid requiring project config
-vi.mock('../../services/event-store-service', async (importOriginal) => {
-  const actual = await importOriginal() as any;
-  const { EventStore } = await import('@semiont/event-sourcing');
-  const { FilesystemViewStorage } = await import('@semiont/event-sourcing');
-
-  return {
-    ...actual,
-    createEventStore: vi.fn(async (envConfig: any) => {
-      // Extract basePath from envConfig
-      const basePath = envConfig.services.filesystem!.path;
-
-      // Return cached instance if available
-      if (eventStoreCache.has(basePath)) {
-        return eventStoreCache.get(basePath);
-      }
-
-      // Create new instance and cache it
-      const viewStorage = new FilesystemViewStorage(basePath);
-      const identifierConfig = { baseUrl: 'http://localhost:4000' };
-      const eventStore = new EventStore(
-        {
-          basePath,
-          dataDir: basePath,
-          enableSharding: false,
-          maxEventsPerFile: 100,
-        },
-        viewStorage,
-        identifierConfig
-      );
-
-      eventStoreCache.set(basePath, eventStore);
-      return eventStore;
-    })
-  };
-});
-
 describe('ReferenceDetectionWorker - Event Emission', () => {
   let worker: ReferenceDetectionWorker;
   let testEnv: TestEnvironmentConfig;

@@ -9,6 +9,7 @@ vi.mock('@semiont/event-sourcing', () => ({
   EventQuery: vi.fn(),
   EventValidator: vi.fn(),
   FilesystemViewStorage: vi.fn(),
+  createEventStore: vi.fn(), // Mock the function that the service imports
 }));
 
 describe('EventStoreService', () => {
