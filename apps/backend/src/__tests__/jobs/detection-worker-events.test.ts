@@ -84,8 +84,16 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
     await testEnv.cleanup();
   });
 
-  // Helper to create a test resource
+  // Helper to create a test resource with content
   async function createTestResource(id: string): Promise<void> {
+    // Store content in representation store
+    const { FilesystemRepresentationStore } = await import('@semiont/content');
+    const repStore = new FilesystemRepresentationStore({ basePath: testEnv.config.services.filesystem!.path });
+
+    const testContent = Buffer.from('Test content for detection', 'utf-8');
+    const { checksum } = await repStore.store(testContent, { mediaType: 'text/plain' });
+
+    // Create resource event with actual checksum
     await testEventStore.appendEvent({
       type: 'resource.created',
       resourceId: resourceId(id),
@@ -94,22 +102,23 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
       payload: {
         name: `Test Resource ${id}`,
         format: 'text/plain',
-        contentChecksum: 'test-checksum',
+        contentChecksum: checksum,
         creationMethod: 'api'
       }
     });
   }
 
   it('should emit job.started event when detection begins', async () => {
+    const testResourceId = `resource-started-${Date.now()}`;
     // Create test resource first
-    await createTestResource('resource-1');
+    await createTestResource(testResourceId);
 
     const job: DetectionJob = {
       id: jobId('job-test-1'),
       type: 'detection',
       status: 'pending',
       userId: userId('user-1'),
-      resourceId: resourceId('resource-1'),
+      resourceId: resourceId(testResourceId),
       entityTypes: [entityType('Person')],
       created: new Date().toISOString(),
       retryCount: 0,
@@ -121,7 +130,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
-    const events = await query.getResourceEvents(resourceId('resource-1'));
+    const events = await query.getResourceEvents(resourceId(testResourceId));
 
     const startedEvents = events.filter(e => e.event.type === 'job.started');
     expect(startedEvents.length).toBeGreaterThanOrEqual(1);
@@ -130,7 +139,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
     expect(startedEvent).toBeDefined();
     expect(startedEvent!.event).toMatchObject({
       type: 'job.started',
-      resourceId: resourceId('resource-1'),
+      resourceId: resourceId(testResourceId),
       userId: userId('user-1'),
       payload: {
         jobId: 'job-test-1',
@@ -141,15 +150,16 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
   });
 
   it('should emit job.progress events during entity type scanning', async () => {
+    const testResourceId = `resource-progress-${Date.now()}`;
     // Create test resource first
-    await createTestResource('resource-2');
+    await createTestResource(testResourceId);
 
     const job: DetectionJob = {
       id: jobId('job-test-2'),
       type: 'detection',
       status: 'pending',
       userId: userId('user-1'),
-      resourceId: resourceId('resource-2'),
+      resourceId: resourceId(testResourceId),
       entityTypes: [entityType('Person'), entityType('Organization'), entityType('Location')],
       created: new Date().toISOString(),
       retryCount: 0,
@@ -161,7 +171,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
-    const events = await query.getResourceEvents(resourceId('resource-2'));
+    const events = await query.getResourceEvents(resourceId(testResourceId));
 
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
     expect(progressEvents.length).toBeGreaterThanOrEqual(2); // First two entity types emit progress, last emits completed
@@ -170,7 +180,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
     expect(progressEvents[0]).toBeDefined();
     expect(progressEvents[0]!.event).toMatchObject({
       type: 'job.progress',
-      resourceId: resourceId('resource-2'),
+      resourceId: resourceId(testResourceId),
       payload: {
         jobId: 'job-test-2',
         jobType: 'detection',
@@ -184,15 +194,16 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
   });
 
   it('should emit job.completed event when detection finishes successfully', async () => {
+    const testResourceId = `resource-completed-${Date.now()}`;
     // Create test resource first
-    await createTestResource('resource-3');
+    await createTestResource(testResourceId);
 
     const job: DetectionJob = {
       id: jobId('job-test-3'),
       type: 'detection',
       status: 'pending',
       userId: userId('user-1'),
-      resourceId: resourceId('resource-3'),
+      resourceId: resourceId(testResourceId),
       entityTypes: [entityType('Person')],
       created: new Date().toISOString(),
       retryCount: 0,
@@ -204,7 +215,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
-    const events = await query.getResourceEvents(resourceId('resource-3'));
+    const events = await query.getResourceEvents(resourceId(testResourceId));
 
     const completedEvents = events.filter(e => e.event.type === 'job.completed');
     expect(completedEvents.length).toBeGreaterThanOrEqual(1);
@@ -212,7 +223,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
     expect(completedEvents[0]).toBeDefined();
     expect(completedEvents[0]!.event).toMatchObject({
       type: 'job.completed',
-      resourceId: resourceId('resource-3'),
+      resourceId: resourceId(testResourceId),
       payload: {
         jobId: 'job-test-3',
         jobType: 'detection',
@@ -222,15 +233,16 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
   });
 
   it('should emit annotation.added events for detected entities', async () => {
+    const testResourceId = `resource-annotations-${Date.now()}`;
     // Create test resource first
-    await createTestResource('resource-4');
+    await createTestResource(testResourceId);
 
     const job: DetectionJob = {
       id: jobId('job-test-4'),
       type: 'detection',
       status: 'pending',
       userId: userId('user-1'),
-      resourceId: resourceId('resource-4'),
+      resourceId: resourceId(testResourceId),
       entityTypes: [entityType('Person')],
       created: new Date().toISOString(),
       retryCount: 0,
@@ -242,7 +254,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
-    const events = await query.getResourceEvents(resourceId('resource-4'));
+    const events = await query.getResourceEvents(resourceId(testResourceId));
 
     // Note: This test verifies the event schema, not that entities are actually detected
     // The mocked AI detection may return 0 entities, which is fine for testing event emission
@@ -254,7 +266,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
       expect(annotationEvents[0]).toBeDefined();
       expect(annotationEvents[0]!.event).toMatchObject({
         type: 'annotation.added',
-        resourceId: resourceId('resource-4'),
+        resourceId: resourceId(testResourceId),
         payload: {
           annotation: {
             motivation: 'linking',
@@ -273,15 +285,16 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
   });
 
   it('should emit events in correct order', async () => {
+    const testResourceId = `resource-order-${Date.now()}`;
     // Create test resource first
-    await createTestResource('resource-5');
+    await createTestResource(testResourceId);
 
     const job: DetectionJob = {
       id: jobId('job-test-5'),
       type: 'detection',
       status: 'pending',
       userId: userId('user-1'),
-      resourceId: resourceId('resource-5'),
+      resourceId: resourceId(testResourceId),
       entityTypes: [entityType('Person'), entityType('Organization')], // Use multiple types to test progress
       created: new Date().toISOString(),
       retryCount: 0,
@@ -293,7 +306,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
-    const events = await query.getResourceEvents(resourceId('resource-5'));
+    const events = await query.getResourceEvents(resourceId(testResourceId));
 
     const eventTypes = events.map(e => e.event.type);
 
@@ -308,15 +321,16 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
   });
 
   it('should include percentage and foundCount in progress events', async () => {
+    const testResourceId = `resource-percentage-${Date.now()}`;
     // Create test resource first
-    await createTestResource('resource-6');
+    await createTestResource(testResourceId);
 
     const job: DetectionJob = {
       id: jobId('job-test-6'),
       type: 'detection',
       status: 'pending',
       userId: userId('user-1'),
-      resourceId: resourceId('resource-6'),
+      resourceId: resourceId(testResourceId),
       entityTypes: [entityType('Person'), entityType('Organization')],
       created: new Date().toISOString(),
       retryCount: 0,
@@ -328,7 +342,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
     const { createEventStore, createEventQuery } = await import('../../services/event-store-service');
     const eventStore = await createEventStore( testEnv.config);
     const query = createEventQuery(eventStore);
-    const events = await query.getResourceEvents(resourceId('resource-6'));
+    const events = await query.getResourceEvents(resourceId(testResourceId));
 
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
 
