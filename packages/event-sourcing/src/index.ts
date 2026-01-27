@@ -13,6 +13,7 @@
 
 // Core event sourcing components
 export { EventStore } from './event-store';
+export { createEventStore } from './event-store-factory';
 export { EventLog, type EventLogConfig } from './event-log';
 export { EventBus, type EventBusConfig } from './event-bus';
 export { ViewManager, type ViewManagerConfig } from './view-manager';
@@ -46,4 +47,8 @@ export { ViewMaterializer } from './views/view-materializer';
 
 // Identifier utilities
 export type { IdentifierConfig } from './types';
-export { toResourceUri, toAnnotationUri } from './identifier-utils';
+export {
+  toResourceUri,
+  toAnnotationUri,
+  generateAnnotationId,
+} from './identifier-utils';

@@ -7,6 +7,8 @@
 - [Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - Event Store architecture
 - [Real-Time Event Architecture](../../apps/backend/docs/REAL-TIME.md) - SSE streaming and event flow
 - [Detection](./DETECTION.md) - Annotation detection and creation
+- [@semiont/make-meaning](../../packages/make-meaning/README.md) - Generation worker and detection API
+- [Make-Meaning Job Workers](../../packages/make-meaning/docs/job-workers.md) - GenerationWorker implementation
 
 ## Overview
 
@@ -138,27 +140,29 @@ UI updates: ❓ → 🔗 in real-time (<50ms latency)
 
 ### Generation Worker
 
-**File**: [apps/backend/src/jobs/workers/generation-worker.ts](../../apps/backend/src/jobs/workers/generation-worker.ts)
+The GenerationWorker is part of [@semiont/make-meaning](../../packages/make-meaning/docs/job-workers.md#generationworker) and handles AI-powered resource generation.
+
+**File**: [packages/make-meaning/src/jobs/workers/generation-worker.ts](../../packages/make-meaning/src/jobs/workers/generation-worker.ts)
 
 **Processing Stages**:
 
-1. **Load Source Resource (10%)**
+1. **Load Source Resource (20%)**
    - Fetch source resource from View Storage
    - Load reference annotation by ID
-   - Extract reference text and entity type tags
+   - Extract reference text and context
 
-2. **Generate Content (40%)**
+2. **Generate Content (40-70%)**
    - Build generation prompt with reference text and context
    - Apply user parameters (tone, length, language)
-   - Call LLM inference (Claude Sonnet 4.5)
+   - Call AI inference using `generateResourceFromTopic()`
    - Parse and validate generated content
 
-3. **Create Resource (70%)**
-   - Generate resource ID (SHA-256 of content)
+3. **Create Resource (85%)**
+   - Store content in RepresentationStore
    - Emit `resource.created` event → Event Store
-   - Content persisted via Representation Store
+   - Generate resource ID from content checksum
 
-4. **Link Reference (85%)**
+4. **Link Reference (95%)**
    - Build SpecificResource body linking to new resource
    - Emit `annotation.body.updated` event → Event Store
    - Event broadcasts to SSE subscribers (document viewers)
@@ -167,6 +171,8 @@ UI updates: ❓ → 🔗 in real-time (<50ms latency)
    - Emit `job.completed` event with new resource ID
    - Frontend receives completion via generation progress SSE
    - Document viewer receives `annotation.body.updated` via resource events SSE
+
+See [Job Workers Documentation](../../packages/make-meaning/docs/job-workers.md#generationworker) for complete implementation details including dependency injection and error handling.
 
 ### AI Generation Prompt
 
@@ -405,18 +411,27 @@ See [REAL-TIME.md](../../apps/backend/docs/REAL-TIME.md) for complete SSE archit
 
 ## Related Files
 
-### Backend
+### Generation Package (@semiont/make-meaning)
+
+- [GenerationWorker](../../packages/make-meaning/src/jobs/workers/generation-worker.ts) - Worker implementation
+- [Job Workers Documentation](../../packages/make-meaning/docs/job-workers.md#generationworker) - Architecture and flow
+- [Make-Meaning Examples](../../packages/make-meaning/docs/examples.md) - Usage patterns
+
+### Backend Routes
+
 - [apps/backend/src/routes/resources/routes/generate-resource-from-annotation-stream.ts](../../apps/backend/src/routes/resources/routes/generate-resource-from-annotation-stream.ts) - Generation route
-- [apps/backend/src/jobs/workers/generation-worker.ts](../../apps/backend/src/jobs/workers/generation-worker.ts) - Generation worker + prompt
 - [apps/backend/src/routes/resources/routes/events-stream.ts](../../apps/backend/src/routes/resources/routes/events-stream.ts) - Resource events SSE endpoint
 
 ### Frontend
+
 - [apps/frontend/src/components/resource/panels/ReferencesPanel.tsx](../../apps/frontend/src/components/resource/panels/ReferencesPanel.tsx) - Generation UI
 - [packages/react-ui/src/hooks/useGenerationProgress.ts](../../packages/react-ui/src/hooks/useGenerationProgress.ts) - Generation progress hook
 - [packages/react-ui/src/hooks/useResourceEvents.ts](../../packages/react-ui/src/hooks/useResourceEvents.ts) - Resource events hook
 - [packages/api-client/src/sse/index.ts](../../packages/api-client/src/sse/index.ts) - SSE client
 
 ### Documentation
+
+- [@semiont/make-meaning](../../packages/make-meaning/README.md) - Package overview
 - [W3C Web Annotation Data Model](../../specs/docs/W3C-WEB-ANNOTATION.md) - Annotation structure
 - [Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - Event Store flow
 - [Real-Time Event Architecture](../../apps/backend/docs/REAL-TIME.md) - SSE streaming details

@@ -13,11 +13,11 @@ import {
   type UserId,
   type ResourceId,
   type EnvironmentConfig,
+  userToAgent,
 } from '@semiont/core';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import { createEventStore } from './event-store-service';
 import type { components } from '@semiont/api-client';
-import { userToAgent } from '../utils/id-generator';
 import type { User } from '@prisma/client';
 
 type CreateResourceResponse = components['schemas']['CreateResourceResponse'];

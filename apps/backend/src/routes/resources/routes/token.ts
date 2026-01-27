@@ -15,12 +15,12 @@ import {
   generateUuid,
   resourceId as makeResourceId,
   type ResourceId,
+  userToAgent,
 } from '@semiont/core';
 import { resourceUri, type CloneToken, cloneToken as makeCloneToken } from '@semiont/api-client';
 import type { ResourcesRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
-import { userToAgent } from '../../../utils/id-generator';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 import { FilesystemRepresentationStore } from '@semiont/content';

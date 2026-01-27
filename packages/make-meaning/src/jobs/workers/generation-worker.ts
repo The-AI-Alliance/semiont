@@ -8,9 +8,9 @@
  */
 
 import { JobWorker } from '@semiont/jobs';
-import type { Job, GenerationJob } from '@semiont/jobs';
+import type { Job, GenerationJob, JobQueue } from '@semiont/jobs';
 import { FilesystemRepresentationStore } from '@semiont/content';
-import { ResourceContext } from '@semiont/make-meaning';
+import { ResourceContext } from '../..';
 import { generateResourceFromTopic } from '@semiont/inference';
 import {
   getTargetSelector,
@@ -26,12 +26,16 @@ import {
   resourceId,
   annotationId,
 } from '@semiont/core';
-import { createEventStore } from '../../services/event-store-service';
+import { EventStore } from '@semiont/event-sourcing';
 import type { EnvironmentConfig } from '@semiont/core';
 
 export class GenerationWorker extends JobWorker {
-  constructor(private config: EnvironmentConfig) {
-    super();
+  constructor(
+    jobQueue: JobQueue,
+    private config: EnvironmentConfig,
+    private eventStore: EventStore
+  ) {
+    super(jobQueue);
   }
 
   protected getWorkerName(): string {
@@ -157,8 +161,7 @@ export class GenerationWorker extends JobWorker {
     console.log(`[GenerationWorker] ✅ Saved resource representation to filesystem: ${rId}`);
 
     // Emit resource.created event
-    const eventStore = await createEventStore( this.config);
-    await eventStore.appendEvent({
+    await this.eventStore.appendEvent({
       type: 'resource.created',
       resourceId: rId,
       userId: job.userId,
@@ -202,7 +205,7 @@ export class GenerationWorker extends JobWorker {
     // Extract annotation ID from full URI (format: http://host/annotations/{id})
     const annotationIdSegment = job.referenceId.split('/').pop()!;
 
-    await eventStore.appendEvent({
+    await this.eventStore.appendEvent({
       type: 'annotation.body.updated',
       resourceId: job.sourceResourceId,
       userId: job.userId,
@@ -244,7 +247,6 @@ export class GenerationWorker extends JobWorker {
     }
 
     const genJob = job as GenerationJob;
-    const eventStore = await createEventStore( this.config);
 
     const baseEvent = {
       resourceId: genJob.sourceResourceId,
@@ -255,7 +257,7 @@ export class GenerationWorker extends JobWorker {
     // Emit appropriate event based on progress stage
     if (genJob.progress?.stage === 'fetching' && genJob.progress?.percentage === 20) {
       // First progress update - emit job.started
-      await eventStore.appendEvent({
+      await this.eventStore.appendEvent({
         type: 'job.started',
         ...baseEvent,
         payload: {
@@ -266,7 +268,7 @@ export class GenerationWorker extends JobWorker {
       });
     } else if (genJob.progress?.stage === 'linking' && genJob.progress?.percentage === 100) {
       // Final progress update - emit job.completed
-      await eventStore.appendEvent({
+      await this.eventStore.appendEvent({
         type: 'job.completed',
         ...baseEvent,
         payload: {
@@ -278,7 +280,7 @@ export class GenerationWorker extends JobWorker {
       });
     } else if (genJob.progress) {
       // Intermediate progress - emit job.progress
-      await eventStore.appendEvent({
+      await this.eventStore.appendEvent({
         type: 'job.progress',
         ...baseEvent,
         payload: {

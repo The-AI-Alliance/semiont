@@ -1,21 +1,22 @@
 /**
- * Event Store Service - Dependency Injection
+ * Event Store Service - Backend Configuration Wrapper
  *
- * Single initialization point for EventStore and all its dependencies.
- * No singleton pattern - just a simple factory function.
+ * Thin wrapper around @semiont/event-sourcing's createEventStore factory.
+ * Extracts configuration from EnvironmentConfig and resolves paths.
  */
 
 import * as path from 'path';
 import type { EnvironmentConfig } from '@semiont/core';
-import { EventStore, EventQuery, EventValidator, FilesystemViewStorage } from '@semiont/event-sourcing';
-import type { EventStorageConfig, IdentifierConfig } from '@semiont/event-sourcing';
+import { createEventStore as createEventStoreCore, EventStore, EventQuery, EventValidator } from '@semiont/event-sourcing';
+import type { EventStorageConfig } from '@semiont/event-sourcing';
 
 /**
- * Create and initialize an EventStore instance
- * This is the ONE place where EventStore is instantiated
+ * Create EventStore from backend EnvironmentConfig
+ * Handles path resolution and config extraction
  *
- * @param envConfig - REQUIRED: Application environment configuration
- * @param config - Optional additional configuration (basePath can be provided here, or derived from envConfig)
+ * @param envConfig - Backend environment configuration
+ * @param config - Optional additional storage configuration
+ * @returns Configured EventStore instance
  */
 export async function createEventStore(
   envConfig: EnvironmentConfig,
@@ -39,38 +40,14 @@ export async function createEventStore(
     basePath = path.resolve(configuredPath);
   }
 
+  // Extract baseUrl from backend config
   if (!envConfig.services?.backend?.publicURL) {
     throw new Error('Backend publicURL not found in configuration');
   }
-
   const baseUrl = envConfig.services.backend.publicURL;
 
-  const identifierConfig: IdentifierConfig = {
-    baseUrl,
-  };
-
-  // Create ViewStorage for materialized views
-  // Structure: <basePath>/projections/resources/...
-  // basePath is already resolved, pass projectRoot for safety
-  const viewStorage = new FilesystemViewStorage(basePath, projectRoot);
-
-  // Determine data directory for events
-  // Structure: <basePath>/events/...
-  const dataDir = path.join(basePath, 'events');
-
-  const eventStore = new EventStore(
-    {
-      ...config,
-      basePath,
-      dataDir,
-      enableSharding: true,
-      numShards: 65536,  // 4 hex digits
-    },
-    viewStorage,
-    identifierConfig
-  );
-
-  return eventStore;
+  // Delegate to event-sourcing package
+  return createEventStoreCore(basePath, baseUrl, config);
 }
 
 /**

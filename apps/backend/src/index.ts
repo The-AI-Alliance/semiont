@@ -29,6 +29,7 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { swaggerUI } from '@hono/swagger-ui';
 import { loadEnvironmentConfig, findProjectRoot, type EnvironmentConfig } from '@semiont/core';
+import { JobQueue } from '@semiont/jobs';
 
 import { User } from '@prisma/client';
 
@@ -50,15 +51,24 @@ if (!config.services?.frontend?.url) {
 
 const backendService = config.services.backend;
 
+// Initialize JobQueue
+const dataDir = config.services?.filesystem?.path || process.env.DATA_DIR || './data';
+if (!dataDir) {
+  throw new Error('services.filesystem.path is required in environment config for job queue initialization');
+}
+const jobQueue = new JobQueue({ dataDir });
+
 // Import route definitions
 import { healthRouter } from './routes/health';
 import { authRouter } from './routes/auth';
 import { statusRouter } from './routes/status';
 import { adminRouter } from './routes/admin';
-import { resourcesRouter } from './routes/resources/index';
+import { createResourcesRouter } from './routes/resources/index';
 import { annotationsRouter } from './routes/annotations/index';
 import { entityTypesRouter } from './routes/entity-types';
-import { jobsRouter } from './routes/jobs/index';
+import { createJobsRouter } from './routes/jobs/index';
+import { createEventStore } from './services/event-store-service';
+import { authMiddleware } from './middleware/auth';
 
 // Import static OpenAPI spec
 import * as fs from 'fs';
@@ -117,9 +127,11 @@ app.route('/', healthRouter);
 app.route('/', authRouter);
 app.route('/', statusRouter);
 app.route('/', adminRouter);
+const resourcesRouter = createResourcesRouter(jobQueue);
 app.route('/', resourcesRouter);
 app.route('/', annotationsRouter);
 app.route('/', entityTypesRouter);
+const jobsRouter = createJobsRouter(jobQueue, authMiddleware);
 app.route('/', jobsRouter);
 
 // API Resourceation root - redirect to appropriate format
@@ -277,36 +289,32 @@ if (nodeEnv !== 'test') {
       // Continue running even if consumer fails to start
     }
 
-    // Initialize Job Queue
+    // Initialize Job Queue and Start Workers
     try {
       console.log('💼 Initializing job queue...');
-      const { initializeJobQueue } = await import('@semiont/jobs');
-      const dataDir = config.services?.filesystem?.path || process.env.DATA_DIR || './data';
-      if (!dataDir) {
-        throw new Error('services.filesystem.path is required in environment config for job queue initialization');
-      }
-      await initializeJobQueue({ dataDir });
+      await jobQueue.initialize();
       console.log('✅ Job queue initialized');
-    } catch (error) {
-      console.error('⚠️ Failed to initialize job queue:', error);
-    }
 
-    // Start Job Workers
-    try {
+      // Only start workers if job queue initialization succeeded
       console.log('👷 Starting job workers...');
-      const { ReferenceDetectionWorker } = await import('./jobs/workers/reference-detection-worker');
-      const { GenerationWorker } = await import('./jobs/workers/generation-worker');
-      const { HighlightDetectionWorker } = await import('./jobs/workers/highlight-detection-worker');
-      const { AssessmentDetectionWorker } = await import('./jobs/workers/assessment-detection-worker');
-      const { CommentDetectionWorker } = await import('./jobs/workers/comment-detection-worker');
-      const { TagDetectionWorker } = await import('./jobs/workers/tag-detection-worker');
+      const {
+        ReferenceDetectionWorker,
+        GenerationWorker,
+        HighlightDetectionWorker,
+        AssessmentDetectionWorker,
+        CommentDetectionWorker,
+        TagDetectionWorker,
+      } = await import('@semiont/make-meaning');
 
-      const referenceDetectionWorker = new ReferenceDetectionWorker(config);
-      const generationWorker = new GenerationWorker(config);
-      const highlightDetectionWorker = new HighlightDetectionWorker(config);
-      const assessmentDetectionWorker = new AssessmentDetectionWorker(config);
-      const commentDetectionWorker = new CommentDetectionWorker(config);
-      const tagDetectionWorker = new TagDetectionWorker(config);
+      // Create single EventStore instance to share across all workers
+      const eventStore = await createEventStore(config);
+
+      const referenceDetectionWorker = new ReferenceDetectionWorker(jobQueue, config, eventStore);
+      const generationWorker = new GenerationWorker(jobQueue, config, eventStore);
+      const highlightDetectionWorker = new HighlightDetectionWorker(jobQueue, config, eventStore);
+      const assessmentDetectionWorker = new AssessmentDetectionWorker(jobQueue, config, eventStore);
+      const commentDetectionWorker = new CommentDetectionWorker(jobQueue, config, eventStore);
+      const tagDetectionWorker = new TagDetectionWorker(jobQueue, config, eventStore);
 
       // Start workers in background (non-blocking)
       referenceDetectionWorker.start().catch((error) => {
@@ -341,7 +349,7 @@ if (nodeEnv !== 'test') {
       console.log('✅ Tag detection worker started');
 
     } catch (error) {
-      console.error('⚠️ Failed to start job workers:', error);
+      console.error('⚠️ Failed to initialize job queue and start workers:', error);
     }
   });
 }

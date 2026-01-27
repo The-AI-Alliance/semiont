@@ -6,10 +6,9 @@
  */
 
 import { JobWorker } from '@semiont/jobs';
-import type { Job, CommentDetectionJob } from '@semiont/jobs';
-import { ResourceContext, AnnotationDetection } from '@semiont/make-meaning';
-import { createEventStore } from '../../services/event-store-service';
-import { generateAnnotationId } from '../../utils/id-generator';
+import type { Job, CommentDetectionJob, JobQueue } from '@semiont/jobs';
+import { ResourceContext, AnnotationDetection } from '../..';
+import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
 import { resourceIdToURI } from '@semiont/core';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
@@ -18,8 +17,12 @@ import type { CommentMatch } from '@semiont/inference';
 export class CommentDetectionWorker extends JobWorker {
   private isFirstProgress = true;
 
-  constructor(private config: EnvironmentConfig) {
-    super();
+  constructor(
+    jobQueue: JobQueue,
+    private config: EnvironmentConfig,
+    private eventStore: EventStore
+  ) {
+    super(jobQueue);
   }
 
   protected getWorkerName(): string {
@@ -52,7 +55,6 @@ export class CommentDetectionWorker extends JobWorker {
     const cdJob = job as CommentDetectionJob;
     if (!cdJob.progress) return;
 
-    const eventStore = await createEventStore(this.config);
     const baseEvent = {
       resourceId: cdJob.resourceId,
       userId: cdJob.userId,
@@ -65,7 +67,7 @@ export class CommentDetectionWorker extends JobWorker {
     if (this.isFirstProgress) {
       // First progress update - emit job.started
       this.isFirstProgress = false;
-      await eventStore.appendEvent({
+      await this.eventStore.appendEvent({
         type: 'job.started',
         ...baseEvent,
         payload: {
@@ -75,7 +77,7 @@ export class CommentDetectionWorker extends JobWorker {
       });
     } else if (isComplete) {
       // Final update - emit job.completed
-      await eventStore.appendEvent({
+      await this.eventStore.appendEvent({
         type: 'job.completed',
         ...baseEvent,
         payload: {
@@ -86,7 +88,7 @@ export class CommentDetectionWorker extends JobWorker {
       });
     } else {
       // Intermediate progress - emit job.progress
-      await eventStore.appendEvent({
+      await this.eventStore.appendEvent({
         type: 'job.progress',
         ...baseEvent,
         payload: {
@@ -105,11 +107,10 @@ export class CommentDetectionWorker extends JobWorker {
     // If job permanently failed, emit job.failed event
     if (job.status === 'failed' && job.type === 'comment-detection') {
       const cdJob = job as CommentDetectionJob;
-      const eventStore = await createEventStore(this.config);
 
       // Log the full error details to backend logs (already logged by parent)
       // Send generic error message to frontend
-      await eventStore.appendEvent({
+      await this.eventStore.appendEvent({
         type: 'job.failed',
         resourceId: cdJob.resourceId,
         userId: cdJob.userId,
@@ -200,7 +201,6 @@ export class CommentDetectionWorker extends JobWorker {
     userId_: string,
     comment: CommentMatch
   ): Promise<void> {
-    const eventStore = await createEventStore(this.config);
     const backendUrl = this.config.services.backend?.publicURL;
 
     if (!backendUrl) {
@@ -245,7 +245,7 @@ export class CommentDetectionWorker extends JobWorker {
     };
 
     // Append annotation.added event to Event Store
-    await eventStore.appendEvent({
+    await this.eventStore.appendEvent({
       type: 'annotation.added',
       resourceId,
       userId: userId(userId_),

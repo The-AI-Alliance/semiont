@@ -17,8 +17,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { ResourceContext } from '@semiont/make-meaning';
 import { createEventStore } from '../../../services/event-store-service';
-import { getJobQueue } from '@semiont/jobs';
-import type { DetectionJob } from '@semiont/jobs';
+import type { JobQueue, DetectionJob } from '@semiont/jobs';
 import { nanoid } from 'nanoid';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
@@ -37,7 +36,7 @@ interface DetectionProgress {
   foundCount?: number;
 }
 
-export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
+export function registerDetectAnnotationsStream(router: ResourcesRouterType, jobQueue: JobQueue) {
   /**
    * POST /resources/:id/detect-annotations-stream
    *
@@ -81,7 +80,6 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType) {
       const rUri = resourceUri(`${config.services.backend!.publicURL}/resources/${id}`);
 
       // Create a detection job (this decouples event emission from HTTP client)
-      const jobQueue = getJobQueue();
       const job: DetectionJob = {
         id: jobId(`job-${nanoid()}`),
         type: 'detection',

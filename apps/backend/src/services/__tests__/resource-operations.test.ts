@@ -12,9 +12,13 @@ vi.mock('@semiont/content', () => ({
   FilesystemRepresentationStore: vi.fn(),
 }));
 
-vi.mock('../../utils/id-generator', () => ({
-  userToAgent: vi.fn(),
-}));
+vi.mock('@semiont/core', async () => {
+  const actual = await vi.importActual('@semiont/core');
+  return {
+    ...actual,
+    userToAgent: vi.fn(),
+  };
+});
 
 vi.mock('../../events/consumers/graph-consumer', () => ({
   getGraphConsumer: vi.fn(),
@@ -22,7 +26,7 @@ vi.mock('../../events/consumers/graph-consumer', () => ({
 
 import { createEventStore } from '../event-store-service';
 import { FilesystemRepresentationStore } from '@semiont/content';
-import { userToAgent } from '../../utils/id-generator';
+import { userToAgent } from '@semiont/core';
 
 describe('ResourceOperations', () => {
   let mockConfig: EnvironmentConfig;

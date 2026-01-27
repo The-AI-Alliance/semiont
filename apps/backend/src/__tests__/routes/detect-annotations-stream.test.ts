@@ -17,16 +17,13 @@ import { EventStore } from '@semiont/event-sourcing';
 import type { IdentifierConfig } from '@semiont/event-sourcing';
 import { FilesystemViewStorage } from '@semiont/event-sourcing';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
-import { promises as fs } from 'fs';
-import { tmpdir } from 'os';
+import { testDir } from '../setup';
 import { join } from 'path';
 
 type Variables = {
   user: User;
   config: EnvironmentConfig;
 };
-
-let testDir: string;
 
 // Create shared mock Prisma client
 const sharedMockClient = {
@@ -97,9 +94,8 @@ describe('POST /resources/:id/detect-annotations-stream - Event Store Subscripti
     // Set up test environment with proper config files
     testEnv = await setupTestEnvironment();
 
-    // Get testDir from environment setup (or create a local one for job queue)
-    testDir = join(tmpdir(), `semiont-test-sse-${Date.now()}`);
-    await fs.mkdir(testDir, { recursive: true });
+    // Use testDir from global setup (already created and configured)
+    // No need to create directories - setup.ts handles that
 
     // Set additional JWT environment variables
     process.env.SITE_DOMAIN = 'test.example.com';
@@ -176,7 +172,7 @@ describe('POST /resources/:id/detect-annotations-stream - Event Store Subscripti
   });
 
   afterAll(async () => {
-    await fs.rm(testDir, { recursive: true, force: true });
+    // Cleanup is handled by global setup.ts afterAll
     await testEnv.cleanup();
   });
 
@@ -360,9 +356,7 @@ describe('Event Store Subscription Pattern', () => {
   let eventStore: EventStore;
 
   beforeAll(async () => {
-    testDir = join(tmpdir(), `semiont-test-subscription-${Date.now()}`);
-    await fs.mkdir(testDir, { recursive: true });
-
+    // Use testDir from global setup (already created and configured)
     const viewStorage = new FilesystemViewStorage(testDir);
     const identifierConfig: IdentifierConfig = { baseUrl: 'http://localhost:4000' };
     eventStore = new EventStore(
@@ -378,7 +372,7 @@ describe('Event Store Subscription Pattern', () => {
   });
 
   afterAll(async () => {
-    await fs.rm(testDir, { recursive: true, force: true });
+    // Cleanup is handled by global setup.ts afterAll
   });
 
   it('should subscribe to resource events and receive job.progress events', async () => {

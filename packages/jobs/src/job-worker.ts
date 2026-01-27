@@ -6,18 +6,21 @@
  */
 
 import type { Job } from './types';
-import { getJobQueue } from './job-queue';
+import type { JobQueue } from './job-queue';
 
 export abstract class JobWorker {
   private running = false;
   private currentJob: Job | null = null;
   private pollIntervalMs: number;
   private errorBackoffMs: number;
+  protected jobQueue: JobQueue;
 
   constructor(
+    jobQueue: JobQueue,
     pollIntervalMs: number = 1000,
     errorBackoffMs: number = 5000
   ) {
+    this.jobQueue = jobQueue;
     this.pollIntervalMs = pollIntervalMs;
     this.errorBackoffMs = errorBackoffMs;
   }
@@ -73,8 +76,7 @@ export abstract class JobWorker {
    * Poll for next job to process
    */
   private async pollNextJob(): Promise<Job | null> {
-    const jobQueue = getJobQueue();
-    const job = await jobQueue.pollNextPendingJob();
+    const job = await this.jobQueue.pollNextPendingJob();
 
     if (job && this.canProcessJob(job)) {
       return job;
@@ -88,14 +90,13 @@ export abstract class JobWorker {
    */
   private async processJob(job: Job): Promise<void> {
     this.currentJob = job;
-    const jobQueue = getJobQueue();
 
     try {
       // Move to running state
       const oldStatus = job.status;
       job.status = 'running';
       job.startedAt = new Date().toISOString();
-      await jobQueue.updateJob(job, oldStatus);
+      await this.jobQueue.updateJob(job, oldStatus);
 
       console.log(`[${this.getWorkerName()}] 🔄 Processing job ${job.id} (type: ${job.type})`);
 
@@ -105,7 +106,7 @@ export abstract class JobWorker {
       // Move to complete state
       job.status = 'complete';
       job.completedAt = new Date().toISOString();
-      await jobQueue.updateJob(job, 'running');
+      await this.jobQueue.updateJob(job, 'running');
 
       console.log(`[${this.getWorkerName()}] ✅ Job ${job.id} completed successfully`);
 
@@ -120,7 +121,6 @@ export abstract class JobWorker {
    * Handle job failure (retry or move to failed)
    */
   protected async handleJobFailure(job: Job, error: any): Promise<void> {
-    const jobQueue = getJobQueue();
     job.retryCount++;
 
     if (job.retryCount < job.maxRetries) {
@@ -130,7 +130,7 @@ export abstract class JobWorker {
       // Move back to pending for retry
       job.status = 'pending';
       job.startedAt = undefined; // Clear start time for retry
-      await jobQueue.updateJob(job, 'running');
+      await this.jobQueue.updateJob(job, 'running');
 
     } else {
       console.error(`[${this.getWorkerName()}] ❌ Job ${job.id} failed permanently after ${job.retryCount} retries`);
@@ -140,7 +140,7 @@ export abstract class JobWorker {
       job.status = 'failed';
       job.error = error instanceof Error ? error.message : String(error);
       job.completedAt = new Date().toISOString();
-      await jobQueue.updateJob(job, 'running');
+      await this.jobQueue.updateJob(job, 'running');
     }
   }
 
@@ -149,8 +149,7 @@ export abstract class JobWorker {
    */
   protected async updateJobProgress(job: Job): Promise<void> {
     try {
-      const jobQueue = getJobQueue();
-      await jobQueue.updateJob(job);
+      await this.jobQueue.updateJob(job);
     } catch (error) {
       console.warn(`[${this.getWorkerName()}] Failed to update job progress:`, error);
       // Don't throw - progress updates are best-effort

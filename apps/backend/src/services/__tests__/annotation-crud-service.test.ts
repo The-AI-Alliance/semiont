@@ -20,14 +20,22 @@ vi.mock('@semiont/make-meaning', () => ({
   },
 }));
 
-vi.mock('../../utils/id-generator', () => ({
+vi.mock('@semiont/event-sourcing', () => ({
   generateAnnotationId: vi.fn(),
-  userToAgent: vi.fn(),
 }));
+
+vi.mock('@semiont/core', async () => {
+  const actual = await vi.importActual('@semiont/core');
+  return {
+    ...actual,
+    userToAgent: vi.fn(),
+  };
+});
 
 import { createEventStore } from '../event-store-service';
 import { AnnotationContext } from '@semiont/make-meaning';
-import { generateAnnotationId, userToAgent } from '../../utils/id-generator';
+import { generateAnnotationId } from '@semiont/event-sourcing';
+import { userToAgent } from '@semiont/core';
 
 describe('AnnotationCrudService', () => {
   let mockConfig: EnvironmentConfig;

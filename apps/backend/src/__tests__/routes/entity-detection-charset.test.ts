@@ -6,10 +6,12 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { ReferenceDetectionWorker } from '../../jobs/workers/reference-detection-worker';
+import { ReferenceDetectionWorker } from '@semiont/make-meaning';
+import { JobQueue } from '@semiont/jobs';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import type { components } from '@semiont/api-client';
 import type { EnvironmentConfig } from '@semiont/core';
+import { createEventStore } from '@semiont/event-sourcing';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -55,6 +57,12 @@ describe('Entity Detection - Charset Handling', () => {
           platform: { type: 'posix' },
           path: testDir
         },
+        backend: {
+          platform: { type: 'posix' },
+          port: 4000,
+          publicURL: 'http://localhost:4000',
+          corsOrigin: 'http://localhost:3000'
+        }
       },
       site: {
         siteName: 'Test Site',
@@ -68,7 +76,10 @@ describe('Entity Detection - Charset Handling', () => {
       },
     } as EnvironmentConfig;
 
-    worker = new ReferenceDetectionWorker(config);
+    const jobQueue = new JobQueue({ dataDir: config.services.filesystem!.path });
+    await jobQueue.initialize();
+    const eventStore = createEventStore(config.services.filesystem!.path, config.services.backend!.publicURL);
+    worker = new ReferenceDetectionWorker(jobQueue, config, eventStore);
   });
 
   afterAll(async () => {

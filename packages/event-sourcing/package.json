@@ -55,6 +55,7 @@
   },
   "dependencies": {
     "@semiont/api-client": "*",
-    "@semiont/core": "*"
+    "@semiont/core": "*",
+    "nanoid": "^5.0.0"
   }
 }
