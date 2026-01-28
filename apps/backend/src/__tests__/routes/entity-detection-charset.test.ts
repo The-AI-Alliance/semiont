@@ -21,7 +21,13 @@ type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 // Mock inference to avoid actual API calls
 vi.mock('@semiont/inference', () => ({
   generateText: vi.fn().mockResolvedValue('Mock AI response'),
-  getInferenceClient: vi.fn().mockResolvedValue({}),
+  getInferenceClient: vi.fn().mockResolvedValue({
+    messages: {
+      create: vi.fn().mockResolvedValue({
+        content: [{ type: 'text', text: 'Mock AI response' }]
+      })
+    }
+  }),
   getInferenceModel: vi.fn().mockReturnValue('claude-sonnet-4-20250514'),
 }));
 

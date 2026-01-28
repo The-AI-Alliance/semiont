@@ -55,7 +55,7 @@ vi.mock('../../db', () => ({
   prisma: sharedMockClient,
 }));
 
-// Mock ResourceContext from @semiont/make-meaning
+// Mock ResourceContext and startMakeMeaning from @semiont/make-meaning
 vi.mock('@semiont/make-meaning', async (importOriginal) => {
   const actual = await importOriginal() as any;
   return {
@@ -71,7 +71,12 @@ vi.mock('@semiont/make-meaning', async (importOriginal) => {
           rel: 'original'
         }]
       })
-    }
+    },
+    startMakeMeaning: vi.fn().mockResolvedValue({
+      jobQueue: {},
+      workers: [],
+      graphConsumer: {}
+    })
   };
 });
 
