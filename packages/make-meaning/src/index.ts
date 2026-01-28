@@ -1,6 +1,13 @@
 // @semiont/make-meaning - Making meaning from resources
 // Transforms raw resources into meaningful, interconnected knowledge
 
+// Service (primary export)
+export { startMakeMeaning } from './service';
+export type { MakeMeaningService } from './service';
+
+// Graph Consumer
+export { GraphDBConsumer } from './graph/consumer';
+
 // Context assembly exports
 export { ResourceContext } from './resource-context';
 export type { ListResourcesFilters } from './resource-context';
@@ -19,7 +26,7 @@ export type {
   TagMatch,
 } from '@semiont/inference';
 
-// Job workers
+// Job workers (exported for direct instantiation if needed)
 export { CommentDetectionWorker } from './jobs/workers/comment-detection-worker';
 export { HighlightDetectionWorker } from './jobs/workers/highlight-detection-worker';
 export { AssessmentDetectionWorker } from './jobs/workers/assessment-detection-worker';

@@ -29,7 +29,7 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { swaggerUI } from '@hono/swagger-ui';
 import { loadEnvironmentConfig, findProjectRoot, type EnvironmentConfig } from '@semiont/core';
-import { JobQueue } from '@semiont/jobs';
+import { startMakeMeaning } from '@semiont/make-meaning';
 
 import { User } from '@prisma/client';
 
@@ -51,12 +51,10 @@ if (!config.services?.frontend?.url) {
 
 const backendService = config.services.backend;
 
-// Initialize JobQueue
-const dataDir = config.services?.filesystem?.path || process.env.DATA_DIR || './data';
-if (!dataDir) {
-  throw new Error('services.filesystem.path is required in environment config for job queue initialization');
-}
-const jobQueue = new JobQueue({ dataDir });
+// Initialize make-meaning service (job queue, workers, graph consumer)
+console.log('🧠 Initializing make-meaning service...');
+const makeMeaning = await startMakeMeaning(config);
+console.log('✅ Make-meaning service initialized');
 
 // Import route definitions
 import { healthRouter } from './routes/health';
@@ -67,7 +65,6 @@ import { createResourcesRouter } from './routes/resources/index';
 import { annotationsRouter } from './routes/annotations/index';
 import { entityTypesRouter } from './routes/entity-types';
 import { createJobsRouter } from './routes/jobs/index';
-import { createEventStore } from './services/event-store-service';
 import { authMiddleware } from './middleware/auth';
 
 // Import static OpenAPI spec
@@ -127,11 +124,11 @@ app.route('/', healthRouter);
 app.route('/', authRouter);
 app.route('/', statusRouter);
 app.route('/', adminRouter);
-const resourcesRouter = createResourcesRouter(jobQueue);
+const resourcesRouter = createResourcesRouter(makeMeaning.jobQueue);
 app.route('/', resourcesRouter);
 app.route('/', annotationsRouter);
 app.route('/', entityTypesRouter);
-const jobsRouter = createJobsRouter(jobQueue, authMiddleware);
+const jobsRouter = createJobsRouter(makeMeaning.jobQueue, authMiddleware);
 app.route('/', jobsRouter);
 
 // API Resourceation root - redirect to appropriate format
@@ -276,80 +273,6 @@ if (nodeEnv !== 'test') {
     } catch (error) {
       console.error('⚠️ Failed to initialize inference client:', error);
       // Continue running even if inference initialization fails
-    }
-
-    // Initialize GraphDB consumer (syncs from Event Store views)
-    try {
-      console.log('📊 Starting GraphDB consumer...');
-      const { startGraphConsumer } = await import('./events/consumers/graph-consumer');
-      await startGraphConsumer(config);
-      console.log('✅ GraphDB consumer started');
-    } catch (error) {
-      console.error('⚠️ Failed to start GraphDB consumer:', error);
-      // Continue running even if consumer fails to start
-    }
-
-    // Initialize Job Queue and Start Workers
-    try {
-      console.log('💼 Initializing job queue...');
-      await jobQueue.initialize();
-      console.log('✅ Job queue initialized');
-
-      // Only start workers if job queue initialization succeeded
-      console.log('👷 Starting job workers...');
-      const {
-        ReferenceDetectionWorker,
-        GenerationWorker,
-        HighlightDetectionWorker,
-        AssessmentDetectionWorker,
-        CommentDetectionWorker,
-        TagDetectionWorker,
-      } = await import('@semiont/make-meaning');
-
-      // Create single EventStore instance to share across all workers
-      const eventStore = await createEventStore(config);
-
-      const referenceDetectionWorker = new ReferenceDetectionWorker(jobQueue, config, eventStore);
-      const generationWorker = new GenerationWorker(jobQueue, config, eventStore);
-      const highlightDetectionWorker = new HighlightDetectionWorker(jobQueue, config, eventStore);
-      const assessmentDetectionWorker = new AssessmentDetectionWorker(jobQueue, config, eventStore);
-      const commentDetectionWorker = new CommentDetectionWorker(jobQueue, config, eventStore);
-      const tagDetectionWorker = new TagDetectionWorker(jobQueue, config, eventStore);
-
-      // Start workers in background (non-blocking)
-      referenceDetectionWorker.start().catch((error) => {
-        console.error('⚠️ Reference detection worker stopped with error:', error);
-      });
-
-      generationWorker.start().catch((error) => {
-        console.error('⚠️ Generation worker stopped with error:', error);
-      });
-
-      highlightDetectionWorker.start().catch((error) => {
-        console.error('⚠️ Highlight detection worker stopped with error:', error);
-      });
-
-      assessmentDetectionWorker.start().catch((error) => {
-        console.error('⚠️ Assessment detection worker stopped with error:', error);
-      });
-
-      commentDetectionWorker.start().catch((error) => {
-        console.error('⚠️ Comment detection worker stopped with error:', error);
-      });
-
-      tagDetectionWorker.start().catch((error) => {
-        console.error('⚠️ Tag detection worker stopped with error:', error);
-      });
-
-      console.log('✅ Detection worker started');
-      console.log('✅ Generation worker started');
-      console.log('✅ Highlight detection worker started');
-      console.log('✅ Assessment detection worker started');
-      console.log('✅ Comment detection worker started');
-      console.log('✅ Tag detection worker started');
-
-    } catch (error) {
-      console.error('⚠️ Failed to initialize job queue and start workers:', error);
     }
   });
 }

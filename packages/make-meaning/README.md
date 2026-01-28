@@ -21,6 +21,30 @@ This package transforms raw resources into meaningful, interconnected knowledge 
 npm install @semiont/make-meaning
 ```
 
+### Start Make-Meaning Service
+
+The simplest way to use make-meaning infrastructure is through the service module:
+
+```typescript
+import { startMakeMeaning } from '@semiont/make-meaning';
+import type { EnvironmentConfig } from '@semiont/core';
+
+// Start all infrastructure (job queue, workers, graph consumer)
+const makeMeaning = await startMakeMeaning(config);
+
+// Access job queue for route handlers
+const jobQueue = makeMeaning.jobQueue;
+
+// Graceful shutdown
+await makeMeaning.stop();
+```
+
+This single call initializes:
+- Job queue
+- All 6 detection/generation workers
+- Graph consumer (event-to-graph synchronization)
+- Shared event store connection
+
 ### Assemble Resource Context
 
 ```typescript
@@ -94,7 +118,9 @@ const paths = await GraphContext.findPath(fromResourceId, toResourceId, config, 
 const results = await GraphContext.searchResources('neural networks', config, 10);
 ```
 
-### Use Job Workers
+### Use Individual Workers (Advanced)
+
+For fine-grained control, workers can be instantiated directly:
 
 ```typescript
 import {
@@ -108,7 +134,7 @@ import { createEventStore } from '@semiont/event-sourcing';
 // Create shared dependencies
 const jobQueue = new JobQueue({ dataDir: './data' });
 await jobQueue.initialize();
-const eventStore = await createEventStore(config);
+const eventStore = createEventStore('./data', 'http://localhost:3000');
 
 // Create workers with explicit dependencies
 const referenceWorker = new ReferenceDetectionWorker(jobQueue, config, eventStore);
@@ -122,6 +148,8 @@ await Promise.all([
   generationWorker.start(),
 ]);
 ```
+
+**Note**: In most cases, use `startMakeMeaning()` instead, which handles all initialization automatically.
 
 ## Documentation
 
@@ -169,6 +197,12 @@ See [Architecture](./docs/architecture.md) for complete details.
 
 ## Exports
 
+### Service Module (Primary)
+
+- `startMakeMeaning(config)` - Initialize all make-meaning infrastructure
+- `MakeMeaningService` - Type for service return value
+- `GraphDBConsumer` - Graph consumer class (for advanced use)
+
 ### Context Assembly
 
 - `ResourceContext` - Resource metadata and content
@@ -179,7 +213,7 @@ See [Architecture](./docs/architecture.md) for complete details.
 
 - `AnnotationDetection` - AI-powered semantic pattern detection
 
-### Job Workers
+### Job Workers (Advanced)
 
 - `ReferenceDetectionWorker` - Entity reference detection
 - `GenerationWorker` - AI content generation
@@ -187,6 +221,8 @@ See [Architecture](./docs/architecture.md) for complete details.
 - `CommentDetectionWorker` - Comment detection
 - `AssessmentDetectionWorker` - Assessment detection
 - `TagDetectionWorker` - Structured tag detection
+
+**Note**: Workers are typically managed by `startMakeMeaning()`, not instantiated directly.
 
 See [Job Workers](./docs/job-workers.md) for implementation details.
 

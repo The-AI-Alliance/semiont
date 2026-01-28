@@ -49,9 +49,6 @@ export class ResourceOperations {
     // Store content
     const storedRep = await this.storeContent(input.content, input.format, input.language, config);
 
-    // Subscribe GraphDB consumer BEFORE emitting event
-    await this.subscribeGraphConsumer(rId, config);
-
     // Validate creation method
     const validatedCreationMethod = this.validateCreationMethod(input.creationMethod);
 
@@ -100,23 +97,6 @@ export class ResourceOperations {
     });
   }
 
-  /**
-   * Subscribe GraphDB consumer to new resource
-   * Consumer will receive resource.created event and sync to Neo4j
-   */
-  private static async subscribeGraphConsumer(
-    resourceId: ResourceId,
-    config: EnvironmentConfig
-  ): Promise<void> {
-    try {
-      const { getGraphConsumer } = await import('../events/consumers/graph-consumer');
-      const consumer = await getGraphConsumer(config);
-      await consumer.subscribeToResource(resourceId);
-    } catch (error) {
-      console.error('[ResourceOperations] Failed to subscribe GraphDB consumer:', error);
-      // Don't fail the request - consumer can catch up later
-    }
-  }
 
   /**
    * Validate creation method or use default
