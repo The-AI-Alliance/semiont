@@ -15,12 +15,12 @@ import { JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore } from '@semiont/event-sourcing';
 import type { EnvironmentConfig } from '@semiont/core';
 import { resourceId as makeResourceId } from '@semiont/core';
-import { ReferenceDetectionWorker } from './jobs/workers/reference-detection-worker';
-import { GenerationWorker } from './jobs/workers/generation-worker';
-import { HighlightDetectionWorker } from './jobs/workers/highlight-detection-worker';
-import { AssessmentDetectionWorker } from './jobs/workers/assessment-detection-worker';
-import { CommentDetectionWorker } from './jobs/workers/comment-detection-worker';
-import { TagDetectionWorker } from './jobs/workers/tag-detection-worker';
+import { ReferenceDetectionWorker } from './jobs/reference-detection-worker';
+import { GenerationWorker } from './jobs/generation-worker';
+import { HighlightDetectionWorker } from './jobs/highlight-detection-worker';
+import { AssessmentDetectionWorker } from './jobs/assessment-detection-worker';
+import { CommentDetectionWorker } from './jobs/comment-detection-worker';
+import { TagDetectionWorker } from './jobs/tag-detection-worker';
 import { GraphDBConsumer } from './graph/consumer';
 
 export interface MakeMeaningService {

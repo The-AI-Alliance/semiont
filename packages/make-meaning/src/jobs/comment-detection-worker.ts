@@ -1,20 +1,20 @@
 /**
- * Assessment Detection Worker
+ * Comment Detection Worker
  *
- * Processes assessment-detection jobs: runs AI inference to assess/evaluate
- * passages in the text and creates assessment annotations.
+ * Processes comment-detection jobs: runs AI inference to identify passages
+ * that would benefit from explanatory comments and creates comment annotations.
  */
 
 import { JobWorker } from '@semiont/jobs';
-import type { AnyJob, AssessmentDetectionJob, JobQueue, RunningJob, AssessmentDetectionParams, AssessmentDetectionProgress } from '@semiont/jobs';
-import { ResourceContext, AnnotationDetection } from '../..';
+import type { AnyJob, CommentDetectionJob, JobQueue, RunningJob, CommentDetectionParams, CommentDetectionProgress } from '@semiont/jobs';
+import { ResourceContext, AnnotationDetection } from '..';
 import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
 import { resourceIdToURI } from '@semiont/core';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
-import type { AssessmentMatch } from '@semiont/inference';
+import type { CommentMatch } from '@semiont/inference';
 
-export class AssessmentDetectionWorker extends JobWorker {
+export class CommentDetectionWorker extends JobWorker {
   private isFirstProgress = true;
 
   constructor(
@@ -26,15 +26,15 @@ export class AssessmentDetectionWorker extends JobWorker {
   }
 
   protected getWorkerName(): string {
-    return 'AssessmentDetectionWorker';
+    return 'CommentDetectionWorker';
   }
 
   protected canProcessJob(job: AnyJob): boolean {
-    return job.metadata.type === 'assessment-detection';
+    return job.metadata.type === 'comment-detection';
   }
 
   protected async executeJob(job: AnyJob): Promise<void> {
-    if (job.metadata.type !== 'assessment-detection') {
+    if (job.metadata.type !== 'comment-detection') {
       throw new Error(`Invalid job type: ${job.metadata.type}`);
     }
 
@@ -45,7 +45,7 @@ export class AssessmentDetectionWorker extends JobWorker {
 
     // Reset progress tracking
     this.isFirstProgress = true;
-    await this.processAssessmentDetectionJob(job as RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>);
+    await this.processCommentDetectionJob(job as RunningJob<CommentDetectionParams, CommentDetectionProgress>);
   }
 
   /**
@@ -55,23 +55,23 @@ export class AssessmentDetectionWorker extends JobWorker {
     // Call parent to update filesystem
     await super.updateJobProgress(job);
 
-    if (job.metadata.type !== 'assessment-detection') return;
+    if (job.metadata.type !== 'comment-detection') return;
 
     // Type guard: only running jobs have progress
     if (job.status !== 'running') {
       return;
     }
 
-    const assJob = job as RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>;
+    const cdJob = job as RunningJob<CommentDetectionParams, CommentDetectionProgress>;
 
     const baseEvent = {
-      resourceId: assJob.params.resourceId,
-      userId: assJob.metadata.userId,
+      resourceId: cdJob.params.resourceId,
+      userId: cdJob.metadata.userId,
       version: 1,
     };
 
     // Determine if this is completion (100% and has result)
-    const isComplete = assJob.progress.percentage === 100;
+    const isComplete = cdJob.progress.percentage === 100;
 
     if (this.isFirstProgress) {
       // First progress update - emit job.started
@@ -80,8 +80,8 @@ export class AssessmentDetectionWorker extends JobWorker {
         type: 'job.started',
         ...baseEvent,
         payload: {
-          jobId: assJob.metadata.id,
-          jobType: assJob.metadata.type,
+          jobId: cdJob.metadata.id,
+          jobType: cdJob.metadata.type,
         },
       });
     } else if (isComplete) {
@@ -90,8 +90,8 @@ export class AssessmentDetectionWorker extends JobWorker {
         type: 'job.completed',
         ...baseEvent,
         payload: {
-          jobId: assJob.metadata.id,
-          jobType: assJob.metadata.type,
+          jobId: cdJob.metadata.id,
+          jobType: cdJob.metadata.type,
           // Note: result would come from job.result, but that's handled by base class
         },
       });
@@ -101,9 +101,9 @@ export class AssessmentDetectionWorker extends JobWorker {
         type: 'job.progress',
         ...baseEvent,
         payload: {
-          jobId: assJob.metadata.id,
-          jobType: assJob.metadata.type,
-          progress: assJob.progress,
+          jobId: cdJob.metadata.id,
+          jobType: cdJob.metadata.type,
+          progress: cdJob.progress,
         },
       });
     }
@@ -114,27 +114,27 @@ export class AssessmentDetectionWorker extends JobWorker {
     await super.handleJobFailure(job, error);
 
     // If job permanently failed, emit job.failed event
-    if (job.status === 'failed' && job.metadata.type === 'assessment-detection') {
-      const aJob = job as AssessmentDetectionJob;
+    if (job.status === 'failed' && job.metadata.type === 'comment-detection') {
+      const cdJob = job as CommentDetectionJob;
 
       // Log the full error details to backend logs (already logged by parent)
       // Send generic error message to frontend
       await this.eventStore.appendEvent({
         type: 'job.failed',
-        resourceId: aJob.params.resourceId,
-        userId: aJob.metadata.userId,
+        resourceId: cdJob.params.resourceId,
+        userId: cdJob.metadata.userId,
         version: 1,
         payload: {
-          jobId: aJob.metadata.id,
-          jobType: aJob.metadata.type,
-          error: 'Assessment detection failed. Please try again later.',
+          jobId: cdJob.metadata.id,
+          jobType: cdJob.metadata.type,
+          error: 'Comment detection failed. Please try again later.',
         },
       });
     }
   }
 
-  private async processAssessmentDetectionJob(job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>): Promise<void> {
-    console.log(`[AssessmentDetectionWorker] Processing assessment detection for resource ${job.params.resourceId} (job: ${job.metadata.id})`);
+  private async processCommentDetectionJob(job: RunningJob<CommentDetectionParams, CommentDetectionProgress>): Promise<void> {
+    console.log(`[CommentDetectionWorker] Processing comment detection for resource ${job.params.resourceId} (job: ${job.metadata.id})`);
 
     // Fetch resource content
     const resource = await ResourceContext.getResourceMetadata(job.params.resourceId, this.config);
@@ -144,7 +144,7 @@ export class AssessmentDetectionWorker extends JobWorker {
     }
 
     // Emit job.started and start analyzing
-    let updatedJob: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress> = {
+    let updatedJob: RunningJob<CommentDetectionParams, CommentDetectionProgress> = {
       ...job,
       progress: {
         stage: 'analyzing',
@@ -160,13 +160,13 @@ export class AssessmentDetectionWorker extends JobWorker {
       progress: {
         stage: 'analyzing',
         percentage: 30,
-        message: 'Analyzing text...'
+        message: 'Analyzing text and generating comments...'
       }
     };
     await this.updateJobProgress(updatedJob);
 
-    // Use AI to detect assessments
-    const assessments = await AnnotationDetection.detectAssessments(
+    // Use AI to detect passages needing comments
+    const comments = await AnnotationDetection.detectComments(
       job.params.resourceId,
       this.config,
       job.params.instructions,
@@ -174,7 +174,7 @@ export class AssessmentDetectionWorker extends JobWorker {
       job.params.density
     );
 
-    console.log(`[AssessmentDetectionWorker] Found ${assessments.length} assessments to create`);
+    console.log(`[CommentDetectionWorker] Found ${comments.length} comments to create`);
 
     // Update progress
     updatedJob = {
@@ -182,19 +182,19 @@ export class AssessmentDetectionWorker extends JobWorker {
       progress: {
         stage: 'creating',
         percentage: 60,
-        message: `Creating ${assessments.length} annotations...`
+        message: `Creating ${comments.length} annotations...`
       }
     };
     await this.updateJobProgress(updatedJob);
 
-    // Create annotations for each assessment
+    // Create annotations for each comment
     let created = 0;
-    for (const assessment of assessments) {
+    for (const comment of comments) {
       try {
-        await this.createAssessmentAnnotation(job.params.resourceId, job.metadata.userId, assessment);
+        await this.createCommentAnnotation(job.params.resourceId, job.metadata.userId, comment);
         created++;
       } catch (error) {
-        console.error(`[AssessmentDetectionWorker] Failed to create assessment:`, error);
+        console.error(`[CommentDetectionWorker] Failed to create comment:`, error);
       }
     }
 
@@ -206,64 +206,73 @@ export class AssessmentDetectionWorker extends JobWorker {
       progress: {
         stage: 'creating',
         percentage: 100,
-        message: `Complete! Created ${created} assessments`
+        message: `Complete! Created ${created} comments`
       }
     };
 
     await this.updateJobProgress(updatedJob);
-    console.log(`[AssessmentDetectionWorker] ✅ Created ${created}/${assessments.length} assessments`);
+    console.log(`[CommentDetectionWorker] ✅ Created ${created}/${comments.length} comments`);
   }
 
-  private async createAssessmentAnnotation(
+  private async createCommentAnnotation(
     resourceId: ResourceId,
-    creatorUserId: string,
-    assessment: AssessmentMatch
+    userId_: string,
+    comment: CommentMatch
   ): Promise<void> {
     const backendUrl = this.config.services.backend?.publicURL;
-    if (!backendUrl) throw new Error('Backend publicURL not configured');
 
-    const annotationId = generateAnnotationId(backendUrl);
+    if (!backendUrl) {
+      throw new Error('Backend publicURL not configured');
+    }
+
     const resourceUri = resourceIdToURI(resourceId, backendUrl);
+    const annotationId = generateAnnotationId(backendUrl);
 
-    // Create W3C annotation with motivation: assessing
-    // Use both TextPositionSelector and TextQuoteSelector (with prefix/suffix for fuzzy anchoring)
+    // Create W3C-compliant annotation with motivation: "commenting"
     const annotation = {
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-      'type': 'Annotation' as const,
-      'id': annotationId,
-      'motivation': 'assessing' as const,
-      'creator': userId(creatorUserId),
-      'created': new Date().toISOString(),
-      'target': {
+      type: 'Annotation' as const,
+      id: annotationId,
+      motivation: 'commenting' as const,
+      target: {
         type: 'SpecificResource' as const,
         source: resourceUri,
         selector: [
           {
             type: 'TextPositionSelector' as const,
-            start: assessment.start,
-            end: assessment.end,
+            start: comment.start,
+            end: comment.end
           },
           {
             type: 'TextQuoteSelector' as const,
-            exact: assessment.exact,
-            ...(assessment.prefix && { prefix: assessment.prefix }),
-            ...(assessment.suffix && { suffix: assessment.suffix }),
-          },
+            exact: comment.exact,
+            prefix: comment.prefix || '',
+            suffix: comment.suffix || ''
+          }
         ]
       },
-      'body': {
-        type: 'TextualBody' as const,
-        value: assessment.assessment,
-        format: 'text/plain'
-      }
+      body: [
+        {
+          type: 'TextualBody' as const,
+          value: comment.comment,
+          purpose: 'commenting' as const,
+          format: 'text/plain',
+          language: 'en'
+        }
+      ]
     };
 
+    // Append annotation.added event to Event Store
     await this.eventStore.appendEvent({
       type: 'annotation.added',
       resourceId,
-      userId: userId(creatorUserId),
+      userId: userId(userId_),
       version: 1,
-      payload: { annotation }
+      payload: {
+        annotation
+      }
     });
+
+    console.log(`[CommentDetectionWorker] Created comment annotation ${annotationId} for "${comment.exact.substring(0, 50)}..."`);
   }
 }

@@ -8,7 +8,7 @@
 
 import { JobWorker } from '@semiont/jobs';
 import type { AnyJob, TagDetectionJob, JobQueue, RunningJob, TagDetectionParams, TagDetectionProgress } from '@semiont/jobs';
-import { ResourceContext, AnnotationDetection } from '../..';
+import { ResourceContext, AnnotationDetection } from '..';
 import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
 import { resourceIdToURI } from '@semiont/core';
 import { getTagSchema } from '@semiont/ontology';

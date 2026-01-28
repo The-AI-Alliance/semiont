@@ -9,7 +9,7 @@
 
 import { JobWorker } from '@semiont/jobs';
 import type { AnyJob, DetectionJob, JobQueue, RunningJob, DetectionParams, DetectionProgress } from '@semiont/jobs';
-import { ResourceContext } from '../..';
+import { ResourceContext } from '..';
 import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
 import { resourceIdToURI } from '@semiont/core';
 import type { EnvironmentConfig } from '@semiont/core';

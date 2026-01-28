@@ -27,12 +27,12 @@ export type {
 } from '@semiont/inference';
 
 // Job workers (exported for direct instantiation if needed)
-export { CommentDetectionWorker } from './jobs/workers/comment-detection-worker';
-export { HighlightDetectionWorker } from './jobs/workers/highlight-detection-worker';
-export { AssessmentDetectionWorker } from './jobs/workers/assessment-detection-worker';
-export { TagDetectionWorker } from './jobs/workers/tag-detection-worker';
-export { ReferenceDetectionWorker } from './jobs/workers/reference-detection-worker';
-export { GenerationWorker } from './jobs/workers/generation-worker';
+export { CommentDetectionWorker } from './jobs/comment-detection-worker';
+export { HighlightDetectionWorker } from './jobs/highlight-detection-worker';
+export { AssessmentDetectionWorker } from './jobs/assessment-detection-worker';
+export { TagDetectionWorker } from './jobs/tag-detection-worker';
+export { ReferenceDetectionWorker } from './jobs/reference-detection-worker';
+export { GenerationWorker } from './jobs/generation-worker';
 
 // Reasoning exports (future)
 // export { ResourceReasoning } from './resource-reasoning';
