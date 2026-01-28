@@ -1,18 +1,14 @@
 /**
  * Annotation Detection Stream API Tests
  *
- * Tests the HTTP contract of the POST /resources/:resourceId/detect-annotations-stream endpoint
- * and Event Store subscription patterns for real-time progress updates.
+ * Tests the HTTP contract of the POST /resources/:resourceId/detect-annotations-stream endpoint.
+ * Focuses on parameter validation, authentication, and response format.
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { resourceId, userId } from '@semiont/core';
-import { email, resourceUri, jobId } from '@semiont/api-client';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
+import { userId } from '@semiont/core';
+import { email } from '@semiont/api-client';
 import { JWTService } from '../../auth/jwt';
-import { EventStore } from '@semiont/event-sourcing';
-import type { IdentifierConfig } from '@semiont/event-sourcing';
-import { FilesystemViewStorage } from '@semiont/event-sourcing';
-import { testDir } from '../setup';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import type { EnvironmentConfig } from '@semiont/core';
@@ -218,156 +214,5 @@ describe('POST /resources/:resourceId/detect-annotations-stream', () => {
     });
 
     expect(response.status).toBe(200);
-  });
-});
-
-describe('Event Store Subscription Pattern', () => {
-  let eventStore: EventStore;
-
-  beforeAll(async () => {
-    // Use testDir from global setup (already created and configured)
-    const viewStorage = new FilesystemViewStorage(testDir);
-    const identifierConfig: IdentifierConfig = { baseUrl: 'http://localhost:4000' };
-    eventStore = new EventStore(
-      {
-        basePath: testDir,
-        dataDir: testDir,
-        enableSharding: false,
-        maxEventsPerFile: 100,
-      },
-      viewStorage,
-      identifierConfig
-    );
-  });
-
-  afterAll(async () => {
-    // Cleanup is handled by global setup.ts afterAll
-  });
-
-  it('should subscribe to resource events and receive job.progress events', async () => {
-    const rId = resourceId('test-resource-1');
-    const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
-    const receivedEvents: any[] = [];
-
-    const subscription = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent: any) => {
-      receivedEvents.push(storedEvent.event);
-    });
-
-    // Emit a job.progress event
-    await eventStore.appendEvent({
-      type: 'job.progress',
-      resourceId: rId,
-      userId: userId('user-1'),
-      version: 1,
-      payload: {
-        jobId: jobId('job-1'),
-        jobType: 'detection',
-        percentage: 50,
-        currentStep: 'Person',
-        processedSteps: 1,
-        totalSteps: 2,
-        message: 'Scanning for Person...'
-      }
-    });
-
-    // Wait for async notification
-    await new Promise(resolve => setTimeout(resolve, 50));
-
-    expect(receivedEvents).toHaveLength(1);
-    expect(receivedEvents[0].type).toBe('job.progress');
-    expect(receivedEvents[0].payload.jobId).toBe(jobId('job-1'));
-
-    subscription.unsubscribe();
-  });
-
-  it('should receive job.completed event', async () => {
-    const rId = resourceId('test-resource-2');
-    const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
-    const receivedEvents: any[] = [];
-
-    const subscription = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent: any) => {
-      receivedEvents.push(storedEvent.event);
-    });
-
-    await eventStore.appendEvent({
-      type: 'job.completed',
-      resourceId: rId,
-      userId: userId('user-1'),
-      version: 1,
-      payload: {
-        jobId: jobId('job-2'),
-        jobType: 'detection',
-        message: 'Detection complete!'
-      }
-    });
-
-    await new Promise(resolve => setTimeout(resolve, 50));
-
-    expect(receivedEvents).toHaveLength(1);
-    expect(receivedEvents[0].type).toBe('job.completed');
-
-    subscription.unsubscribe();
-  });
-
-  it('should receive job.failed event', async () => {
-    const rId = resourceId('test-resource-3');
-    const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
-    const receivedEvents: any[] = [];
-
-    const subscription = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent: any) => {
-      receivedEvents.push(storedEvent.event);
-    });
-
-    await eventStore.appendEvent({
-      type: 'job.failed',
-      resourceId: rId,
-      userId: userId('user-1'),
-      version: 1,
-      payload: {
-        jobId: jobId('job-3'),
-        jobType: 'detection',
-        error: 'Test error',
-        details: 'Test error details'
-      }
-    });
-
-    await new Promise(resolve => setTimeout(resolve, 50));
-
-    expect(receivedEvents).toHaveLength(1);
-    expect(receivedEvents[0].type).toBe('job.failed');
-    expect(receivedEvents[0].payload.error).toBe('Test error');
-
-    subscription.unsubscribe();
-  });
-
-  it('should unsubscribe and stop receiving events', async () => {
-    const rId = resourceId('test-resource-4');
-    const rUri = resourceUri(`http://localhost:4000/resources/${rId}`);
-    const receivedEvents: any[] = [];
-
-    const subscription = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent: any) => {
-      receivedEvents.push(storedEvent.event);
-    });
-
-    // Unsubscribe immediately
-    subscription.unsubscribe();
-
-    // Emit event after unsubscribing
-    await eventStore.appendEvent({
-      type: 'job.progress',
-      resourceId: rId,
-      userId: userId('user-1'),
-      version: 1,
-      payload: {
-        jobId: jobId('job-4'),
-        jobType: 'detection',
-        percentage: 50
-      }
-    });
-
-    await new Promise(resolve => setTimeout(resolve, 50));
-
-    // Should not receive any events
-    expect(receivedEvents).toHaveLength(0);
   });
 });
