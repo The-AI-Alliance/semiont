@@ -176,7 +176,6 @@ describe('HighlightDetectionWorker - Event Emission', () => {
     await createTestResource(testResourceId, 'Important findings require highlighting');
 
     // Mock AI response with highlights
-    const { mockCreate } = await import('@semiont/inference');
     mockCreate.mockResolvedValue({
       content: [{
         type: 'text',
@@ -297,7 +296,6 @@ describe('HighlightDetectionWorker - Event Emission', () => {
     await createTestResource(testResourceId, 'Key findings and crucial insights need highlighting');
 
     // Mock AI response with multiple highlights
-    const { mockCreate } = await import('@semiont/inference');
     mockCreate.mockResolvedValue({
       content: [{
         type: 'text',

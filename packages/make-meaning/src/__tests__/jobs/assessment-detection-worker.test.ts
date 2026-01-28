@@ -176,7 +176,6 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
     await createTestResource(testResourceId, 'This claim requires critical evaluation');
 
     // Mock AI response with assessments
-    const { mockCreate } = await import('@semiont/inference');
     mockCreate.mockResolvedValue({
       content: [{
         type: 'text',
@@ -299,7 +298,6 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
     await createTestResource(testResourceId, 'First claim needs review. Second claim also questionable.');
 
     // Mock AI response with multiple assessments
-    const { mockCreate } = await import('@semiont/inference');
     mockCreate.mockResolvedValue({
       content: [{
         type: 'text',

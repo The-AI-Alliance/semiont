@@ -123,21 +123,26 @@ describe('GenerationWorker - Event Emission', () => {
       userId: userId('user-1'),
       version: 1,
       payload: {
-        body: {
-          type: 'TextualBody',
-          value: targetTopic,
-          format: 'text/plain'
-        },
-        target: {
-          source: `http://localhost:4000/resources/${sourceId}`,
-          selector: {
-            type: 'TextQuoteSelector',
-            exact: 'Test',
-            prefix: '',
-            suffix: ''
+        annotation: {
+          '@context': 'http://www.w3.org/ns/anno.jsonld',
+          id: refId,
+          type: 'Annotation',
+          motivation: 'linking',
+          body: {
+            type: 'SpecificResource',
+            source: targetTopic,
+            purpose: 'linking'
+          },
+          target: {
+            source: `http://localhost:4000/resources/${sourceId}`,
+            selector: {
+              type: 'TextQuoteSelector',
+              exact: 'Test',
+              prefix: '',
+              suffix: ''
+            }
           }
-        },
-        motivation: 'linking'
+        }
       }
     });
 
@@ -248,7 +253,7 @@ describe('GenerationWorker - Event Emission', () => {
     expect(progressEvents.length).toBeGreaterThanOrEqual(1);
 
     // Verify stages appear in progress events
-    const stages = progressEvents.map(e => e.event.payload?.message || '');
+    const stages = progressEvents.map((e: any) => e.event.payload?.stage || '');
     expect(stages.some(s => s.includes('Fetching') || s.includes('Generating'))).toBe(true);
   });
 
@@ -344,8 +349,8 @@ describe('GenerationWorker - Event Emission', () => {
     await (worker as unknown as { executeJob: (job: GenerationJob) => Promise<void> }).executeJob(job);
 
     // Check for resource.created events - should include the generated resource
-    const allEvents = await testEventStore.log.getAllEvents();
-    const resourceCreatedEvents = allEvents.filter(e =>
+    const allEvents = await testEventStore.log.getEvents(resourceId(testResourceId));
+    const resourceCreatedEvents = allEvents.filter((e: any) =>
       e.event.type === 'resource.created' &&
       e.event.payload?.creationMethod === 'generation'
     );

@@ -176,7 +176,6 @@ describe('CommentDetectionWorker - Event Emission', () => {
     await createTestResource(testResourceId, 'Test content for progress tracking');
 
     // Mock AI response with comments
-    const { mockCreate } = await import('@semiont/inference');
     mockCreate.mockResolvedValue({
       content: [{
         type: 'text',
@@ -299,7 +298,6 @@ describe('CommentDetectionWorker - Event Emission', () => {
     await createTestResource(testResourceId, 'Content for annotation testing');
 
     // Mock AI response with multiple comments
-    const { mockCreate } = await import('@semiont/inference');
     mockCreate.mockResolvedValue({
       content: [{
         type: 'text',

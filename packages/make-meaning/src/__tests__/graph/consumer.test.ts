@@ -161,21 +161,27 @@ describe('GraphDBConsumer', () => {
       userId: userId('user-1'),
       version: 1,
       payload: {
-        body: {
-          type: 'TextualBody',
-          value: 'Test comment',
-          format: 'text/plain'
-        },
-        target: {
-          source: `http://localhost:4000/resources/${testResourceId}`,
-          selector: {
-            type: 'TextQuoteSelector',
-            exact: 'test',
-            prefix: '',
-            suffix: ''
+        annotation: {
+          '@context': 'http://www.w3.org/ns/anno.jsonld',
+          id: testAnnId,
+          type: 'Annotation',
+          motivation: 'commenting',
+          body: {
+            type: 'TextualBody',
+            value: 'Test comment',
+            format: 'text/plain',
+            purpose: 'commenting'
+          },
+          target: {
+            source: `http://localhost:4000/resources/${testResourceId}`,
+            selector: {
+              type: 'TextQuoteSelector',
+              exact: 'test',
+              prefix: '',
+              suffix: ''
+            }
           }
-        },
-        motivation: 'commenting'
+        }
       }
     });
 
@@ -249,7 +255,7 @@ describe('GraphDBConsumer', () => {
 
     // Update resource
     await eventStore.appendEvent({
-      type: 'resource.name.updated',
+      type: 'resource.updated',
       resourceId: testResourceId,
       userId: userId('user-1'),
       version: 2,

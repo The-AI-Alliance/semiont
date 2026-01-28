@@ -124,25 +124,31 @@ describe('AnnotationContext', () => {
       userId: userId('user-1'),
       version: 1,
       payload: {
-        body: {
-          type: 'TextualBody',
-          value: 'Test comment',
-          format: 'text/plain'
-        },
-        target: {
-          source: `http://localhost:4000/resources/${resId}`,
-          selector: [{
-            type: 'TextPositionSelector',
-            start,
-            end
-          }, {
-            type: 'TextQuoteSelector',
-            exact,
-            prefix: '',
-            suffix: ''
-          }]
-        },
-        motivation: 'commenting'
+        annotation: {
+          '@context': 'http://www.w3.org/ns/anno.jsonld',
+          id: annId,
+          type: 'Annotation',
+          motivation: 'commenting',
+          body: {
+            type: 'TextualBody',
+            value: 'Test comment',
+            format: 'text/plain',
+            purpose: 'commenting'
+          },
+          target: {
+            source: `http://localhost:4000/resources/${resId}`,
+            selector: [{
+              type: 'TextPositionSelector',
+              start,
+              end
+            }, {
+              type: 'TextQuoteSelector',
+              exact,
+              prefix: '',
+              suffix: ''
+            }]
+          }
+        }
       }
     });
 
@@ -290,21 +296,27 @@ describe('AnnotationContext', () => {
       userId: userId('user-1'),
       version: 1,
       payload: {
-        body: {
-          type: 'TextualBody',
-          value: 'Comment without position',
-          format: 'text/plain'
-        },
-        target: {
-          source: `http://localhost:4000/resources/${testResourceId}`,
-          selector: {
-            type: 'TextQuoteSelector',
-            exact: 'testing',
-            prefix: 'for ',
-            suffix: ' missing'
+        annotation: {
+          '@context': 'http://www.w3.org/ns/anno.jsonld',
+          id: testAnnId,
+          type: 'Annotation',
+          motivation: 'commenting',
+          body: {
+            type: 'TextualBody',
+            value: 'Comment without position',
+            format: 'text/plain',
+            purpose: 'commenting'
+          },
+          target: {
+            source: `http://localhost:4000/resources/${testResourceId}`,
+            selector: {
+              type: 'TextQuoteSelector',
+              exact: 'testing',
+              prefix: 'for ',
+              suffix: ' missing'
+            }
           }
-        },
-        motivation: 'commenting'
+        }
       }
     });
 

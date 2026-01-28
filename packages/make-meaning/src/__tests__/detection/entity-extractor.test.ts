@@ -23,7 +23,7 @@ vi.mock('@semiont/inference', () => {
   };
 });
 
-import { extractEntities, type ExtractedEntity } from '../../detection/entity-extractor';
+import { extractEntities } from '../../detection/entity-extractor';
 
 describe('extractEntities', () => {
   let config: EnvironmentConfig;

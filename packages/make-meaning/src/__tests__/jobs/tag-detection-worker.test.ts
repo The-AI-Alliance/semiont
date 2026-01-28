@@ -180,7 +180,6 @@ describe('TagDetectionWorker - Event Emission', () => {
     await createTestResource(testResourceId);
 
     // Mock AI response with tags
-    const { mockCreate } = await import('@semiont/inference');
     mockCreate.mockResolvedValue({
       content: [{
         type: 'text',
@@ -309,7 +308,6 @@ describe('TagDetectionWorker - Event Emission', () => {
     await createTestResource(testResourceId);
 
     // Mock AI response with multiple tags
-    const { mockCreate } = await import('@semiont/inference');
     mockCreate.mockResolvedValue({
       content: [{
         type: 'text',
