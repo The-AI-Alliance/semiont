@@ -1,12 +1,15 @@
 /**
- * Entity Detection Charset Integration Tests
+ * Entity Detection Charset Tests
  *
  * Tests that entity detection correctly handles different charsets
  * to prevent annotation offset bugs.
+ *
+ * MOVED FROM: apps/backend/src/__tests__/routes/entity-detection-charset.test.ts
+ * This test belongs in make-meaning because it tests ReferenceDetectionWorker directly.
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { ReferenceDetectionWorker } from '@semiont/make-meaning';
+import { ReferenceDetectionWorker } from '../../jobs/reference-detection-worker';
 import { JobQueue } from '@semiont/jobs';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import type { components } from '@semiont/api-client';
@@ -31,33 +34,29 @@ vi.mock('@semiont/inference', () => ({
   getInferenceModel: vi.fn().mockReturnValue('claude-sonnet-4-20250514'),
 }));
 
-// Mock the AI entity extractor to just find known entity strings
-vi.mock('@semiont/make-meaning', async (importOriginal) => {
-  const actual = await importOriginal() as any;
-  return {
-    ...actual,
-    extractEntities: vi.fn(async (text: string, entityTypes: string[]) => {
-      // Simple mock: find entity type names in the text
-      const entities: any[] = [];
+// Mock the AI entity extractor to find known entity strings in text
+vi.mock('../../detection/entity-extractor', () => ({
+  extractEntities: vi.fn(async (text: string, entityTypes: string[]) => {
+    // Simple mock: find entity type names in the text
+    const entities: any[] = [];
 
-      for (const entityType of entityTypes) {
-        // Look for the entity type name in the text (case-sensitive)
-        let index = text.indexOf(entityType);
-        while (index !== -1) {
-          entities.push({
-            exact: entityType,
-            entityType: entityType,
-            startOffset: index,
-            endOffset: index + entityType.length,
-          });
-          index = text.indexOf(entityType, index + 1);
-        }
+    for (const entityType of entityTypes) {
+      // Look for the entity type name in the text (case-sensitive)
+      let index = text.indexOf(entityType);
+      while (index !== -1) {
+        entities.push({
+          exact: entityType,
+          entityType: entityType,
+          startOffset: index,
+          endOffset: index + entityType.length,
+        });
+        index = text.indexOf(entityType, index + 1);
       }
+    }
 
-      return entities;
-    })
-  };
-});
+    return entities;
+  })
+}));
 
 describe('Entity Detection - Charset Handling', () => {
   let testDir: string;
@@ -348,7 +347,7 @@ describe('Entity Detection - Charset Handling', () => {
     };
 
     // Mock entity extractor to find "café"
-    const { extractEntities } = await import('@semiont/make-meaning');
+    const { extractEntities } = await import('../../detection/entity-extractor');
     (extractEntities as any).mockImplementationOnce(async (text: string) => {
       const index = text.indexOf('café');
       if (index === -1) return [];

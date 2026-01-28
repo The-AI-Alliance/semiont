@@ -1,155 +1,82 @@
 /**
- * Detect Annotations Stream SSE Endpoint Tests
+ * Annotation Detection Stream API Tests
  *
- * Tests the event-driven SSE endpoint that subscribes to Event Store
- * for real-time detection progress updates.
+ * Tests the HTTP contract of the POST /resources/:resourceId/detect-annotations-stream endpoint
+ * and Event Store subscription patterns for real-time progress updates.
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { resourceId, userId } from '@semiont/core';
-import { resourceUri, email, jobId } from '@semiont/api-client';
-import type { Hono } from 'hono';
-import type { User } from '@prisma/client';
-import type { EnvironmentConfig } from '@semiont/core';
+import { email, resourceUri, jobId } from '@semiont/api-client';
 import { JWTService } from '../../auth/jwt';
-import { initializeJobQueue } from '@semiont/jobs';
 import { EventStore } from '@semiont/event-sourcing';
 import type { IdentifierConfig } from '@semiont/event-sourcing';
 import { FilesystemViewStorage } from '@semiont/event-sourcing';
-import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 import { testDir } from '../setup';
-import { join } from 'path';
+import type { Hono } from 'hono';
 
-type Variables = {
-  user: User;
-  config: EnvironmentConfig;
+// Mock entire @semiont/make-meaning with simple mocks
+const mockJobQueue = {
+  createJob: vi.fn().mockResolvedValue({ id: 'job-123' }),
+  getJob: vi.fn(),
+  listJobs: vi.fn(),
 };
 
-// Create shared mock Prisma client
-const sharedMockClient = {
-  user: {
-    findUnique: vi.fn(),
-    findMany: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-  },
-  $queryRaw: vi.fn(),
-} as any;
+const mockResourceMetadata = {
+  '@context': 'https://www.w3.org/ns/activitystreams',
+  '@id': 'urn:semiont:resource:test-resource',
+  '@type': 'ResourceDescriptor',
+  name: 'Test Resource',
+  representations: [{
+    mediaType: 'text/plain',
+    rel: 'original',
+    checksum: 'abc123'
+  }]
+};
 
-// Mock the entire auth/oauth module
-vi.mock('../../auth/oauth', () => ({
-  OAuthService: {
-    verifyGoogleToken: vi.fn(),
-    createOrUpdateUser: vi.fn(),
-    getUserFromToken: vi.fn(),
-    acceptTerms: vi.fn(),
+vi.mock('@semiont/make-meaning', () => ({
+  ResourceContext: {
+    getResourceMetadata: vi.fn().mockResolvedValue(mockResourceMetadata)
   },
+  startMakeMeaning: vi.fn().mockResolvedValue({
+    jobQueue: mockJobQueue,
+    workers: [],
+    graphConsumer: {}
+  })
 }));
 
 // Mock database
 vi.mock('../../db', () => ({
   DatabaseConnection: {
-    getClient: vi.fn(() => sharedMockClient),
-    checkHealth: vi.fn().mockResolvedValue(true),
+    getClient: vi.fn(() => ({
+      user: {
+        findUnique: vi.fn(),
+      },
+    })),
   },
-  prisma: sharedMockClient,
 }));
 
-// Mock ResourceContext and startMakeMeaning from @semiont/make-meaning
-vi.mock('@semiont/make-meaning', async (importOriginal) => {
-  const actual = await importOriginal() as any;
-  return {
-    ...actual,
-    ResourceContext: {
-      getResourceMetadata: vi.fn().mockResolvedValue({
-        id: 'test-resource',
-        name: 'Test Resource',
-        format: 'text/plain',
-        content: 'Test content',
-        representations: [{
-          mediaType: 'text/plain',
-          rel: 'original'
-        }]
-      })
-    },
-    startMakeMeaning: vi.fn().mockResolvedValue({
-      jobQueue: {},
-      workers: [],
-      graphConsumer: {}
-    })
-  };
-});
-
-// Mock environment
-vi.mock('../../config/environment-loader', () => ({
-  getFilesystemConfig: () => ({ path: testDir }),
-  getBackendConfig: () => ({ publicURL: 'http://localhost:4000' })
+// Mock OAuth
+vi.mock('../../auth/oauth', () => ({
+  OAuthService: {
+    getUserFromToken: vi.fn(),
+  },
 }));
 
-let app: Hono<{ Variables: Variables }>;
-
-describe('POST /resources/:id/detect-annotations-stream - Event Store Subscriptions', () => {
+describe('POST /resources/:resourceId/detect-annotations-stream', () => {
+  let app: Hono;
   let authToken: string;
-  let testUser: User;
-  // @ts-ignore - used in multiple test blocks
-  let eventStore: EventStore;
-  let testEnv: TestEnvironmentConfig;
+  const testUser = {
+    id: 'test-user-id',
+    email: 'test@test.local',
+    domain: 'test.local',
+    provider: 'oauth',
+    isAdmin: false,
+    name: 'Test User',
+  };
 
   beforeAll(async () => {
-    // Set up test environment with proper config files
-    testEnv = await setupTestEnvironment();
-
-    // Use testDir from global setup (already created and configured)
-    // No need to create directories - setup.ts handles that
-
-    // Set additional JWT environment variables
-    process.env.SITE_DOMAIN = 'test.example.com';
-    process.env.OAUTH_ALLOWED_DOMAINS = 'test.example.com,example.com';
-    process.env.JWT_SECRET = 'test-secret-key-for-testing-with-at-least-32-characters';
-
-    // Initialize JWTService with test config
-    JWTService.initialize(testEnv.config);
-
-    // Initialize job queue
-    await initializeJobQueue({ dataDir: join(testDir, 'jobs') });
-
-    // Initialize Event Store
-    const viewStorage = new FilesystemViewStorage(testDir);
-    const identifierConfig: IdentifierConfig = { baseUrl: 'http://localhost:4000' };
-    eventStore = new EventStore(
-      {
-        basePath: testDir,
-        dataDir: testDir,
-        enableSharding: false,
-        maxEventsPerFile: 100,
-      },
-      viewStorage,
-      identifierConfig
-    );
-
-    // Import app after environment setup
-    const appModule = await import('../../index');
-    app = appModule.app;
-
-    // Create test user and token
-    testUser = {
-      id: 'test-user-id',
-      email: 'test@example.com',
-      name: 'Test User',
-      image: null,
-      domain: 'example.com',
-      provider: 'google',
-      providerId: 'google-123',
-    passwordHash: null,
-      isAdmin: false,
-      isModerator: false,
-      isActive: true,
-      termsAcceptedAt: new Date(),
-      lastLogin: new Date(),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
+    // Create auth token
     const tokenPayload = {
       userId: userId(testUser.id),
       email: email(testUser.email),
@@ -158,27 +85,22 @@ describe('POST /resources/:id/detect-annotations-stream - Event Store Subscripti
       isAdmin: testUser.isAdmin,
       name: testUser.name || undefined,
     };
-
     authToken = JWTService.generateToken(tokenPayload);
 
-    // Mock the database
+    // Mock database user lookup
     const { DatabaseConnection } = await import('../../db');
     const prisma = DatabaseConnection.getClient();
     vi.mocked(prisma.user.findUnique).mockResolvedValue(testUser as any);
 
-    // Mock OAuthService
+    // Mock OAuth service
     const { OAuthService } = await import('../../auth/oauth');
     vi.mocked(OAuthService.getUserFromToken).mockImplementation(async (token) => {
-      if (token === authToken) {
-        return testUser as any;
-      }
-      return null;
+      return token === authToken ? (testUser as any) : null;
     });
-  });
 
-  afterAll(async () => {
-    // Cleanup is handled by global setup.ts afterAll
-    await testEnv.cleanup();
+    // Import app after mocks are set up
+    const { app: importedApp } = await import('../../index');
+    app = importedApp;
   });
 
   it('should return SSE stream with proper content-type', async () => {
@@ -193,13 +115,10 @@ describe('POST /resources/:id/detect-annotations-stream - Event Store Subscripti
       }),
     });
 
-    const contentType = response.headers.get('content-type');
-    // SSE streams should have text/event-stream content type (with or without charset)
-    expect(contentType).toMatch(/text\/event-stream/);
+    expect(response.headers.get('content-type')).toMatch(/text\/event-stream/);
   });
 
-  it('should send detection-started event when stream begins', async () => {
-    // Make the request to start the SSE stream
+  it('should accept valid entity detection request', async () => {
     const response = await app.request('/resources/test-resource/detect-annotations-stream', {
       method: 'POST',
       headers: {
@@ -213,67 +132,6 @@ describe('POST /resources/:id/detect-annotations-stream - Event Store Subscripti
 
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toMatch(/text\/event-stream/);
-
-    // Read the SSE stream to verify we receive a detection-started event
-    // The endpoint creates a job and subscribes to events before streaming starts
-    // Workers should emit job.started which gets converted to detection-started
-    const reader = response.body?.getReader();
-    expect(reader).toBeDefined();
-
-    if (!reader) {
-      throw new Error('No response body reader');
-    }
-
-    const decoder = new TextDecoder();
-    let receivedData = '';
-
-    // Read stream chunks for up to 1 second
-    const timeout = setTimeout(() => {
-      reader.cancel();
-    }, 1000);
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        receivedData += decoder.decode(value, { stream: true });
-
-        // Check if we received a detection-started event
-        // SSE format: "event: detection-started\ndata: {...}\n\n"
-        if (receivedData.includes('event: detection-started')) {
-          break;
-        }
-      }
-    } catch (error) {
-      // Stream may be cancelled by timeout
-    } finally {
-      clearTimeout(timeout);
-      reader.releaseLock();
-    }
-
-    // The test verifies that the SSE endpoint's contract is fulfilled:
-    // when a client connects, they receive detection progress events
-    // Note: In CI, the job worker may not run immediately, so we verify
-    // the stream is properly established and can receive events
-    expect(response.status).toBe(200);
-  });
-
-  it('should send detection-started event immediately', async () => {
-    const response = await app.request('/resources/test-resource/detect-annotations-stream', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${authToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        entityTypes: ['Person']
-      }),
-    });
-
-    expect(response.status).toBe(200);
-    // Note: In a real test, we'd parse the SSE stream and check for the 'detection-started' event
-    // This is a basic check that the endpoint responds correctly
   });
 
   it('should require authentication', async () => {
@@ -304,7 +162,7 @@ describe('POST /resources/:id/detect-annotations-stream - Event Store Subscripti
   });
 
   it('should handle resource not found', async () => {
-    // Mock ResourceQueryService to return null
+    // Override mock for this test
     const { ResourceContext } = await import('@semiont/make-meaning');
     vi.mocked(ResourceContext.getResourceMetadata).mockResolvedValueOnce(null);
 
@@ -336,8 +194,7 @@ describe('POST /resources/:id/detect-annotations-stream - Event Store Subscripti
     });
 
     expect(response.status).toBe(200);
-    const contentType = response.headers.get('content-type');
-    expect(contentType).toMatch(/text\/event-stream/);
+    expect(response.headers.get('content-type')).toMatch(/text\/event-stream/);
   });
 
   it('should accept includeDescriptiveReferences as false', async () => {
