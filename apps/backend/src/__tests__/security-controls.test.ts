@@ -9,11 +9,24 @@
  * This addresses weakness #11 "Missing Security Tests" from AUTH-TESTING.md
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import type { EnvironmentConfig } from '@semiont/core';
 import { setupTestEnvironment, type TestEnvironmentConfig } from './_test-setup';
+
+// Mock make-meaning service to avoid graph initialization at import time
+vi.mock('@semiont/make-meaning', async (importOriginal) => {
+  const actual = await importOriginal() as any;
+  return {
+    ...actual,
+    startMakeMeaning: vi.fn().mockResolvedValue({
+      jobQueue: {},
+      workers: [],
+      graphConsumer: {}
+    })
+  };
+});
 
 type Variables = {
   user: User;

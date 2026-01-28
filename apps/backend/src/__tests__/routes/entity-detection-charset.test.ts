@@ -18,29 +18,40 @@ import { join } from 'path';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
-// Mock the AI entity extractor to just find known entity strings
-vi.mock('@semiont/make-meaning', () => ({
-  extractEntities: vi.fn(async (text: string, entityTypes: string[]) => {
-    // Simple mock: find entity type names in the text
-    const entities: any[] = [];
-
-    for (const entityType of entityTypes) {
-      // Look for the entity type name in the text (case-sensitive)
-      let index = text.indexOf(entityType);
-      while (index !== -1) {
-        entities.push({
-          exact: entityType,
-          entityType: entityType,
-          startOffset: index,
-          endOffset: index + entityType.length,
-        });
-        index = text.indexOf(entityType, index + 1);
-      }
-    }
-
-    return entities;
-  }),
+// Mock inference to avoid actual API calls
+vi.mock('@semiont/inference', () => ({
+  generateText: vi.fn().mockResolvedValue('Mock AI response'),
+  getInferenceClient: vi.fn().mockResolvedValue({}),
+  getInferenceModel: vi.fn().mockReturnValue('claude-sonnet-4-20250514'),
 }));
+
+// Mock the AI entity extractor to just find known entity strings
+vi.mock('@semiont/make-meaning', async (importOriginal) => {
+  const actual = await importOriginal() as any;
+  return {
+    ...actual,
+    extractEntities: vi.fn(async (text: string, entityTypes: string[]) => {
+      // Simple mock: find entity type names in the text
+      const entities: any[] = [];
+
+      for (const entityType of entityTypes) {
+        // Look for the entity type name in the text (case-sensitive)
+        let index = text.indexOf(entityType);
+        while (index !== -1) {
+          entities.push({
+            exact: entityType,
+            entityType: entityType,
+            startOffset: index,
+            endOffset: index + entityType.length,
+          });
+          index = text.indexOf(entityType, index + 1);
+        }
+      }
+
+      return entities;
+    })
+  };
+});
 
 describe('Entity Detection - Charset Handling', () => {
   let testDir: string;
@@ -62,6 +73,18 @@ describe('Entity Detection - Charset Handling', () => {
           port: 4000,
           publicURL: 'http://localhost:4000',
           corsOrigin: 'http://localhost:3000'
+        },
+        inference: {
+          platform: { type: 'external' },
+          type: 'anthropic',
+          model: 'claude-sonnet-4-20250514',
+          maxTokens: 8192,
+          endpoint: 'https://api.anthropic.com',
+          apiKey: 'test-api-key'
+        },
+        graph: {
+          platform: { type: 'posix' },
+          type: 'memory'
         }
       },
       site: {

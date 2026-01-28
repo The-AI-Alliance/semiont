@@ -15,7 +15,7 @@ import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { createEventQuery } from '../../services/event-store-service';
 
 // Mock AI entity extraction to avoid external API calls
-vi.mock('@semiont/inference', async (importOriginal) => {
+vi.mock('@semiont/make-meaning', async (importOriginal) => {
   const actual = await importOriginal() as any;
   return {
     ...actual,
@@ -29,6 +29,12 @@ vi.mock('@semiont/inference', async (importOriginal) => {
     ])
   };
 });
+
+vi.mock('@semiont/inference', () => ({
+  generateText: vi.fn().mockResolvedValue('Mock AI response'),
+  getInferenceClient: vi.fn().mockResolvedValue({}),
+  getInferenceModel: vi.fn().mockReturnValue('claude-sonnet-4-20250514'),
+}));
 
 describe('ReferenceDetectionWorker - Event Emission', () => {
   let worker: ReferenceDetectionWorker;

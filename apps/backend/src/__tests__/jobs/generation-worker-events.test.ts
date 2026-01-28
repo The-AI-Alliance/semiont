@@ -30,11 +30,19 @@ const mockGenerationContext: GenerationContext = {
 };
 
 // Mock AI generation to avoid external API calls
+vi.mock('@semiont/make-meaning', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@semiont/make-meaning')>();
+  return {
+    ...actual,
+    generateResourceFromTopic: vi.fn().mockResolvedValue({
+      content: '# Test Resource\n\nGenerated content about test topic.',
+      metadata: { format: 'text/markdown' }
+    })
+  };
+});
+
 vi.mock('@semiont/inference', () => ({
-  generateResourceFromTopic: vi.fn().mockResolvedValue({
-    content: '# Test Resource\n\nGenerated content about test topic.',
-    metadata: { format: 'text/markdown' }
-  })
+  generateText: vi.fn().mockResolvedValue('# Test Title\n\nGenerated content'),
 }));
 
 // Mock AnnotationContextService to avoid requiring actual file content

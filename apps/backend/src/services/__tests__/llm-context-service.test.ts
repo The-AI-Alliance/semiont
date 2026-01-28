@@ -11,9 +11,13 @@ vi.mock('@semiont/graph', () => ({
   getGraphDatabase: vi.fn(),
 }));
 
-vi.mock('@semiont/inference', () => ({
+vi.mock('@semiont/make-meaning', () => ({
   generateResourceSummary: vi.fn(),
   generateReferenceSuggestions: vi.fn(),
+}));
+
+vi.mock('@semiont/inference', () => ({
+  generateText: vi.fn().mockResolvedValue('Mock AI response'),
 }));
 
 vi.mock('@semiont/content', () => ({
