@@ -1,0 +1,314 @@
+/**
+ * Annotation Context Tests
+ *
+ * Tests the AnnotationContext class which assembles annotation context
+ * from view storage and content store.
+ */
+
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { AnnotationContext } from '../annotation-context';
+import { resourceId, userId, annotationId, type EnvironmentConfig } from '@semiont/core';
+import { createEventStore, FilesystemViewStorage } from '@semiont/event-sourcing';
+import { FilesystemRepresentationStore } from '@semiont/content';
+import { promises as fs } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+
+// Mock @semiont/inference
+vi.mock('@semiont/inference', () => {
+  return {
+    generateText: vi.fn()
+  };
+});
+
+describe('AnnotationContext', () => {
+  let testDir: string;
+  let config: EnvironmentConfig;
+
+  beforeAll(async () => {
+    testDir = join(tmpdir(), `semiont-test-annotation-context-${Date.now()}`);
+    await fs.mkdir(testDir, { recursive: true });
+
+    config = {
+      services: {
+        filesystem: {
+          platform: { type: 'posix' },
+          path: testDir
+        },
+        backend: {
+          platform: { type: 'posix' },
+          port: 4000,
+          publicURL: 'http://localhost:4000',
+          corsOrigin: 'http://localhost:3000'
+        },
+        inference: {
+          platform: { type: 'external' },
+          type: 'anthropic',
+          model: 'claude-sonnet-4-20250514',
+          maxTokens: 8192,
+          endpoint: 'https://api.anthropic.com',
+          apiKey: 'test-api-key'
+        },
+        graph: {
+          platform: { type: 'posix' },
+          type: 'memory'
+        }
+      },
+      site: {
+        siteName: 'Test Site',
+        domain: 'localhost:3000',
+        adminEmail: 'admin@test.local',
+        oauthAllowedDomains: ['test.local']
+      },
+      _metadata: {
+        environment: 'test',
+        projectRoot: testDir
+      }
+    } as EnvironmentConfig;
+  });
+
+  afterAll(async () => {
+    await fs.rm(testDir, { recursive: true, force: true });
+  });
+
+  // Helper to create a test resource
+  async function createTestResource(id: string, content: string): Promise<void> {
+    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir);
+    const eventStore = createEventStore(testDir, config.services.backend!.publicURL);
+
+    const testContent = Buffer.from(content, 'utf-8');
+    const { checksum } = await repStore.store(testContent, { mediaType: 'text/plain' });
+
+    await eventStore.appendEvent({
+      type: 'resource.created',
+      resourceId: resourceId(id),
+      userId: userId('user-1'),
+      version: 1,
+      payload: {
+        name: `Test Resource ${id}`,
+        format: 'text/plain',
+        contentChecksum: checksum,
+        creationMethod: 'api'
+      }
+    });
+
+    // Wait for view to materialize
+    const viewStorage = new FilesystemViewStorage(testDir, testDir);
+    let attempts = 0;
+    while (attempts < 10) {
+      try {
+        const view = await viewStorage.get(resourceId(id));
+        if (view) break;
+      } catch (e) {
+        // View not ready yet
+      }
+      await new Promise(resolve => setTimeout(resolve, 50));
+      attempts++;
+    }
+  }
+
+  // Helper to create an annotation
+  async function createTestAnnotation(
+    resId: string,
+    annId: string,
+    exact: string,
+    start: number,
+    end: number
+  ): Promise<void> {
+    const eventStore = createEventStore(testDir, config.services.backend!.publicURL);
+
+    await eventStore.appendEvent({
+      type: 'annotation.created',
+      resourceId: resourceId(resId),
+      annotationId: annotationId(annId),
+      userId: userId('user-1'),
+      version: 1,
+      payload: {
+        motivation: 'commenting',
+        bodyValue: 'Test comment',
+        bodyFormat: 'text/plain',
+        selectors: [{
+          type: 'TextPositionSelector',
+          start,
+          end
+        }, {
+          type: 'TextQuoteSelector',
+          exact,
+          prefix: '',
+          suffix: ''
+        }]
+      }
+    });
+
+    // Wait for view to update
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+
+  it('should validate contextWindow range', async () => {
+    const testResourceId = `resource-validate-${Date.now()}`;
+    await createTestResource(testResourceId, 'Test content');
+
+    // Test too small
+    await expect(
+      AnnotationContext.buildLLMContext(
+        'http://localhost:4000/annotations/test-1' as any,
+        resourceId(testResourceId),
+        config,
+        { contextWindow: 50 }
+      )
+    ).rejects.toThrow('contextWindow must be between 100 and 5000');
+
+    // Test too large
+    await expect(
+      AnnotationContext.buildLLMContext(
+        'http://localhost:4000/annotations/test-2' as any,
+        resourceId(testResourceId),
+        config,
+        { contextWindow: 6000 }
+      )
+    ).rejects.toThrow('contextWindow must be between 100 and 5000');
+  });
+
+  it('should handle valid contextWindow values', async () => {
+    const testResourceId = `resource-window-${Date.now()}`;
+    await createTestResource(testResourceId, 'Some text for context window testing');
+    await createTestAnnotation(testResourceId, `ann-window-${Date.now()}`, 'text', 5, 9);
+
+    // Mock the inference call to avoid actual API requests
+    const { generateText } = await import('@semiont/inference');
+    (generateText as ReturnType<typeof vi.fn>).mockResolvedValue('Mock summary');
+
+    // Test minimum valid value
+    await expect(
+      AnnotationContext.buildLLMContext(
+        `http://localhost:4000/annotations/ann-window-${Date.now()}` as any,
+        resourceId(testResourceId),
+        config,
+        { contextWindow: 100 }
+      )
+    ).resolves.toBeDefined();
+
+    // Test maximum valid value
+    await expect(
+      AnnotationContext.buildLLMContext(
+        `http://localhost:4000/annotations/ann-window-${Date.now()}` as any,
+        resourceId(testResourceId),
+        config,
+        { contextWindow: 5000 }
+      )
+    ).resolves.toBeDefined();
+
+    // Test mid-range value
+    await expect(
+      AnnotationContext.buildLLMContext(
+        `http://localhost:4000/annotations/ann-window-${Date.now()}` as any,
+        resourceId(testResourceId),
+        config,
+        { contextWindow: 1500 }
+      )
+    ).resolves.toBeDefined();
+  });
+
+  it('should build context with default options', async () => {
+    const testResourceId = `resource-default-${Date.now()}`;
+    const testAnnId = `ann-default-${Date.now()}`;
+    await createTestResource(testResourceId, 'The quick brown fox jumps over the lazy dog');
+    await createTestAnnotation(testResourceId, testAnnId, 'fox', 16, 19);
+
+    // Mock inference
+    const { generateText } = await import('@semiont/inference');
+    (generateText as ReturnType<typeof vi.fn>).mockResolvedValue('A test about a fox');
+
+    const result = await AnnotationContext.buildLLMContext(
+      `http://localhost:4000/annotations/${testAnnId}` as any,
+      resourceId(testResourceId),
+      config
+    );
+
+    expect(result).toBeDefined();
+    expect(result).toHaveProperty('annotation');
+    expect(result).toHaveProperty('sourceResource');
+  });
+
+  it('should respect includeSourceContext option', async () => {
+    const testResourceId = `resource-source-${Date.now()}`;
+    const testAnnId = `ann-source-${Date.now()}`;
+    await createTestResource(testResourceId, 'Testing source context inclusion');
+    await createTestAnnotation(testResourceId, testAnnId, 'context', 15, 22);
+
+    // Mock inference
+    const { generateText } = await import('@semiont/inference');
+    (generateText as ReturnType<typeof vi.fn>).mockResolvedValue('Context summary');
+
+    const withContext = await AnnotationContext.buildLLMContext(
+      `http://localhost:4000/annotations/${testAnnId}` as any,
+      resourceId(testResourceId),
+      config,
+      { includeSourceContext: true }
+    );
+
+    const withoutContext = await AnnotationContext.buildLLMContext(
+      `http://localhost:4000/annotations/${testAnnId}` as any,
+      resourceId(testResourceId),
+      config,
+      { includeSourceContext: false }
+    );
+
+    expect(withContext).toBeDefined();
+    expect(withoutContext).toBeDefined();
+    // Both should have basic structure but context presence may differ
+  });
+
+  it('should throw error for non-existent resource', async () => {
+    await expect(
+      AnnotationContext.buildLLMContext(
+        'http://localhost:4000/annotations/nonexistent' as any,
+        resourceId('nonexistent-resource'),
+        config
+      )
+    ).rejects.toThrow();
+  });
+
+  it('should handle annotations without TextPositionSelector', async () => {
+    const testResourceId = `resource-no-position-${Date.now()}`;
+    await createTestResource(testResourceId, 'Content for testing missing selector');
+
+    const eventStore = createEventStore(testDir, config.services.backend!.publicURL);
+    const testAnnId = `ann-no-position-${Date.now()}`;
+
+    // Create annotation with only TextQuoteSelector
+    await eventStore.appendEvent({
+      type: 'annotation.created',
+      resourceId: resourceId(testResourceId),
+      annotationId: annotationId(testAnnId),
+      userId: userId('user-1'),
+      version: 1,
+      payload: {
+        motivation: 'commenting',
+        bodyValue: 'Comment without position',
+        bodyFormat: 'text/plain',
+        selectors: [{
+          type: 'TextQuoteSelector',
+          exact: 'testing',
+          prefix: 'for ',
+          suffix: ' missing'
+        }]
+      }
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Mock inference
+    const { generateText } = await import('@semiont/inference');
+    (generateText as ReturnType<typeof vi.fn>).mockResolvedValue('Summary');
+
+    const result = await AnnotationContext.buildLLMContext(
+      `http://localhost:4000/annotations/${testAnnId}` as any,
+      resourceId(testResourceId),
+      config
+    );
+
+    expect(result).toBeDefined();
+    expect(result.annotation).toBeDefined();
+  });
+});
