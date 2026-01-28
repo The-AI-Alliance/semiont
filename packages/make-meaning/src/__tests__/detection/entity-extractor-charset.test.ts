@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { ReferenceDetectionWorker } from '../../jobs/reference-detection-worker';
+import { ReferenceDetectionWorker } from '../../jobs/workers/reference-detection-worker';
 import { JobQueue } from '@semiont/jobs';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import type { components } from '@semiont/api-client';

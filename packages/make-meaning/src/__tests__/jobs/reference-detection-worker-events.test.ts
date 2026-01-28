@@ -1,24 +1,38 @@
 /**
  * Reference Detection Worker Event Emission Tests
  *
- * Tests that reference detection worker emits proper job progress events to Event Store
+ * Tests that ReferenceDetectionWorker emits proper job progress events to Event Store
  * during entity detection processing.
+ *
+ * MOVED FROM: apps/backend/src/__tests__/jobs/detection-worker-events.test.ts
+ * This test belongs in make-meaning because it tests ReferenceDetectionWorker directly.
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { ReferenceDetectionWorker } from '@semiont/make-meaning';
+import { ReferenceDetectionWorker } from '../../jobs/workers/reference-detection-worker';
 import { JobQueue, type DetectionJob, type RunningJob, type DetectionParams, type DetectionProgress } from '@semiont/jobs';
-import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
-import { resourceId, userId } from '@semiont/core';
+import { resourceId, userId, type EnvironmentConfig } from '@semiont/core';
 import { jobId, entityType } from '@semiont/api-client';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
-import { createEventQuery } from '../../services/event-store-service';
+import { FilesystemRepresentationStore } from '@semiont/content';
+import { promises as fs } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 
-// Mock AI entity extraction to avoid external API calls
-vi.mock('@semiont/make-meaning', async (importOriginal) => {
-  const actual = await importOriginal() as any;
+// Mock @semiont/inference to avoid external API calls
+vi.mock('@semiont/inference', async () => {
+  const actual = await vi.importActual<typeof import('@semiont/inference')>('@semiont/inference');
   return {
     ...actual,
+    generateText: vi.fn().mockResolvedValue('Mock AI response'),
+    getInferenceClient: vi.fn().mockResolvedValue({
+      messages: {
+        create: vi.fn().mockResolvedValue({
+          content: [{ type: 'text', text: 'Mock AI response' }]
+        })
+      }
+    }),
+    getInferenceModel: vi.fn().mockReturnValue('claude-sonnet-4-20250514'),
     extractEntities: vi.fn().mockResolvedValue([
       {
         exact: 'Test',
@@ -30,34 +44,70 @@ vi.mock('@semiont/make-meaning', async (importOriginal) => {
   };
 });
 
-vi.mock('@semiont/inference', () => ({
-  generateText: vi.fn().mockResolvedValue('Mock AI response'),
-  getInferenceClient: vi.fn().mockResolvedValue({}),
-  getInferenceModel: vi.fn().mockReturnValue('claude-sonnet-4-20250514'),
-}));
-
 describe('ReferenceDetectionWorker - Event Emission', () => {
   let worker: ReferenceDetectionWorker;
-  let testEnv: TestEnvironmentConfig;
+  let testDir: string;
   let testEventStore: EventStore;
+  let config: EnvironmentConfig;
 
   beforeAll(async () => {
-    testEnv = await setupTestEnvironment();
-    const jobQueue = new JobQueue({ dataDir: testEnv.config.services.filesystem!.path });
+    // Create temporary test directory
+    testDir = join(tmpdir(), `semiont-test-worker-${Date.now()}`);
+    await fs.mkdir(testDir, { recursive: true });
+
+    // Create test configuration
+    config = {
+      services: {
+        filesystem: {
+          platform: { type: 'posix' },
+          path: testDir
+        },
+        backend: {
+          platform: { type: 'posix' },
+          port: 4000,
+          publicURL: 'http://localhost:4000',
+          corsOrigin: 'http://localhost:3000'
+        },
+        inference: {
+          platform: { type: 'external' },
+          type: 'anthropic',
+          model: 'claude-sonnet-4-20250514',
+          maxTokens: 8192,
+          endpoint: 'https://api.anthropic.com',
+          apiKey: 'test-api-key'
+        },
+        graph: {
+          platform: { type: 'posix' },
+          type: 'memory'
+        }
+      },
+      site: {
+        siteName: 'Test Site',
+        domain: 'localhost:3000',
+        adminEmail: 'admin@test.local',
+        oauthAllowedDomains: ['test.local']
+      },
+      _metadata: {
+        environment: 'test',
+        projectRoot: testDir
+      },
+    } as EnvironmentConfig;
+
+    // Initialize job queue and event store
+    const jobQueue = new JobQueue({ dataDir: testDir });
     await jobQueue.initialize();
-    testEventStore = createEventStore(testEnv.config.services.filesystem!.path, testEnv.config.services.backend!.publicURL);
-    worker = new ReferenceDetectionWorker(jobQueue, testEnv.config, testEventStore);
+    testEventStore = createEventStore(testDir, config.services.backend!.publicURL);
+    worker = new ReferenceDetectionWorker(jobQueue, config, testEventStore);
   });
 
   afterAll(async () => {
-    await testEnv.cleanup();
+    await fs.rm(testDir, { recursive: true, force: true });
   });
 
   // Helper to create a test resource with content
   async function createTestResource(id: string): Promise<void> {
     // Store content in representation store
-    const { FilesystemRepresentationStore } = await import('@semiont/content');
-    const repStore = new FilesystemRepresentationStore({ basePath: testEnv.config.services.filesystem!.path });
+    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir);
 
     const testContent = Buffer.from('Test content for detection', 'utf-8');
     const { checksum } = await repStore.store(testContent, { mediaType: 'text/plain' });
@@ -77,9 +127,14 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
     });
   }
 
+  // Helper to get events for a resource
+  async function getResourceEvents(resId: string) {
+    const allEvents = await testEventStore.log.getEvents(resourceId(resId));
+    return allEvents;
+  }
+
   it('should emit job.started event when detection begins', async () => {
     const testResourceId = `resource-started-${Date.now()}`;
-    // Create test resource first
     await createTestResource(testResourceId);
 
     const job: RunningJob<DetectionParams, DetectionProgress> = {
@@ -107,9 +162,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
 
-    const query = createEventQuery(testEventStore);
-    const events = await query.getResourceEvents(resourceId(testResourceId));
-
+    const events = await getResourceEvents(testResourceId);
     const startedEvents = events.filter(e => e.event.type === 'job.started');
     expect(startedEvents.length).toBeGreaterThanOrEqual(1);
 
@@ -129,7 +182,6 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
 
   it('should emit job.progress events during entity type scanning', async () => {
     const testResourceId = `resource-progress-${Date.now()}`;
-    // Create test resource first
     await createTestResource(testResourceId);
 
     const job: RunningJob<DetectionParams, DetectionProgress> = {
@@ -157,11 +209,9 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
 
-    const query = createEventQuery(testEventStore);
-    const events = await query.getResourceEvents(resourceId(testResourceId));
-
+    const events = await getResourceEvents(testResourceId);
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
-    expect(progressEvents.length).toBeGreaterThanOrEqual(2); // First two entity types emit progress, last emits completed
+    expect(progressEvents.length).toBeGreaterThanOrEqual(2);
 
     // Check first progress event
     expect(progressEvents[0]).toBeDefined();
@@ -182,7 +232,6 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
 
   it('should emit job.completed event when detection finishes successfully', async () => {
     const testResourceId = `resource-completed-${Date.now()}`;
-    // Create test resource first
     await createTestResource(testResourceId);
 
     const job: RunningJob<DetectionParams, DetectionProgress> = {
@@ -210,9 +259,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
 
-    const query = createEventQuery(testEventStore);
-    const events = await query.getResourceEvents(resourceId(testResourceId));
-
+    const events = await getResourceEvents(testResourceId);
     const completedEvents = events.filter(e => e.event.type === 'job.completed');
     expect(completedEvents.length).toBeGreaterThanOrEqual(1);
 
@@ -230,7 +277,6 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
 
   it('should emit annotation.added events for detected entities', async () => {
     const testResourceId = `resource-annotations-${Date.now()}`;
-    // Create test resource first
     await createTestResource(testResourceId);
 
     const job: RunningJob<DetectionParams, DetectionProgress> = {
@@ -258,15 +304,10 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
 
-    const query = createEventQuery(testEventStore);
-    const events = await query.getResourceEvents(resourceId(testResourceId));
-
-    // Note: This test verifies the event schema, not that entities are actually detected
-    // The mocked AI detection may return 0 entities, which is fine for testing event emission
+    const events = await getResourceEvents(testResourceId);
     const annotationEvents = events.filter(e => e.event.type === 'annotation.added');
 
     // Verify that IF entities were detected, they would have the correct schema
-    // This is a schema test, not an integration test
     if (annotationEvents.length > 0) {
       expect(annotationEvents[0]).toBeDefined();
       expect(annotationEvents[0]!.event).toMatchObject({
@@ -284,14 +325,13 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
       });
     }
 
-    // Main assertion: Job completed successfully (which means event emission worked)
+    // Main assertion: Job completed successfully
     const completedEvents = events.filter(e => e.event.type === 'job.completed');
     expect(completedEvents.length).toBeGreaterThan(0);
   });
 
   it('should emit events in correct order', async () => {
     const testResourceId = `resource-order-${Date.now()}`;
-    // Create test resource first
     await createTestResource(testResourceId);
 
     const job: RunningJob<DetectionParams, DetectionProgress> = {
@@ -306,7 +346,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
       },
       params: {
         resourceId: resourceId(testResourceId),
-        entityTypes: [entityType('Person'), entityType('Organization')] // Use multiple types to test progress
+        entityTypes: [entityType('Person'), entityType('Organization')]
       },
       startedAt: new Date().toISOString(),
       progress: {
@@ -319,9 +359,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
 
-    const query = createEventQuery(testEventStore);
-    const events = await query.getResourceEvents(resourceId(testResourceId));
-
+    const events = await getResourceEvents(testResourceId);
     const eventTypes = events.map(e => e.event.type);
 
     // Find job-related events (excluding resource.created from setup)
@@ -333,13 +371,12 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
     // Last job event should be job.completed
     expect(jobEvents[jobEvents.length - 1]).toBe('job.completed');
 
-    // Should have at least one job.progress event (between started and completed)
+    // Should have at least one job.progress event
     expect(jobEvents).toContain('job.progress');
   });
 
   it('should include percentage and foundCount in progress events', async () => {
     const testResourceId = `resource-percentage-${Date.now()}`;
-    // Create test resource first
     await createTestResource(testResourceId);
 
     const job: RunningJob<DetectionParams, DetectionProgress> = {
@@ -367,9 +404,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
 
     await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
 
-    const query = createEventQuery(testEventStore);
-    const events = await query.getResourceEvents(resourceId(testResourceId));
-
+    const events = await getResourceEvents(testResourceId);
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
 
     for (const event of progressEvents) {
