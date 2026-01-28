@@ -14,7 +14,7 @@ import { resourceIdToURI } from '@semiont/core';
 import { getTagSchema } from '@semiont/ontology';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
-import type { TagMatch } from '@semiont/inference';
+import type { TagMatch } from '../detection/motivation-parsers';
 
 export class TagDetectionWorker extends JobWorker {
   private isFirstProgress = true;

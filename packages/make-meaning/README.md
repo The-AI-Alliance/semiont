@@ -175,8 +175,8 @@ Three-layer design separating concerns:
 ```mermaid
 graph TB
     Backend["<b>apps/backend</b><br/>Job orchestration, HTTP APIs, streaming"]
-    MakeMeaning["<b>@semiont/make-meaning</b><br/>Context assembly, pattern detection,<br/>relationship reasoning, job workers"]
-    Inference["<b>@semiont/inference</b><br/>AI primitives: prompts, parsers,<br/>generateText abstraction"]
+    MakeMeaning["<b>@semiont/make-meaning</b><br/>Context assembly, detection/generation,<br/>prompt engineering, response parsing,<br/>job workers"]
+    Inference["<b>@semiont/inference</b><br/>AI primitives only:<br/>generateText, client management"]
 
     Backend --> MakeMeaning
     MakeMeaning --> Inference
@@ -209,9 +209,15 @@ See [Architecture](./docs/architecture.md) for complete details.
 - `AnnotationContext` - Annotation queries and context building
 - `GraphContext` - Graph traversal and search
 
-### Pattern Detection
+### Detection & Generation
 
-- `AnnotationDetection` - AI-powered semantic pattern detection
+- `AnnotationDetection` - AI-powered semantic pattern detection (orchestrates detection pipeline)
+- `MotivationPrompts` - Prompt builders for comment/highlight/assessment/tag detection
+- `MotivationParsers` - Response parsers with offset validation
+- `extractEntities` - Entity extraction with context-based disambiguation
+- `generateResourceFromTopic` - Markdown resource generation with language support
+- `generateResourceSummary` - Resource summarization
+- `generateReferenceSuggestions` - Smart suggestion generation
 
 ### Job Workers (Advanced)
 
@@ -226,7 +232,7 @@ See [Architecture](./docs/architecture.md) for complete details.
 
 See [Job Workers](./docs/job-workers.md) for implementation details.
 
-### Type Re-exports
+### Types
 
 ```typescript
 export type {
@@ -234,7 +240,9 @@ export type {
   HighlightMatch,
   AssessmentMatch,
   TagMatch,
-} from '@semiont/inference';
+} from './detection/motivation-parsers';
+
+export type { ExtractedEntity } from './detection/entity-extractor';
 ```
 
 ## Configuration

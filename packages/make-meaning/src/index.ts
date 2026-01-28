@@ -17,14 +17,23 @@ export { GraphContext } from './graph-context';
 
 // Detection exports
 export { AnnotationDetection } from './annotation-detection';
-
-// Re-export match types from @semiont/inference for convenience
+export { MotivationPrompts } from './detection/motivation-prompts';
+export { MotivationParsers } from './detection/motivation-parsers';
 export type {
   CommentMatch,
   HighlightMatch,
   AssessmentMatch,
   TagMatch,
-} from '@semiont/inference';
+} from './detection/motivation-parsers';
+export { extractEntities } from './detection/entity-extractor';
+export type { ExtractedEntity } from './detection/entity-extractor';
+
+// Generation exports
+export {
+  generateResourceFromTopic,
+  generateResourceSummary,
+  generateReferenceSuggestions,
+} from './generation/resource-generation';
 
 // Job workers (exported for direct instantiation if needed)
 export { CommentDetectionWorker } from './jobs/comment-detection-worker';

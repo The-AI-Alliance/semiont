@@ -15,15 +15,15 @@
 import { ResourceContext } from './resource-context';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import { getPrimaryRepresentation, decodeRepresentation } from '@semiont/api-client';
+import { generateText } from '@semiont/inference';
+import { MotivationPrompts } from './detection/motivation-prompts';
 import {
-  MotivationPrompts,
   MotivationParsers,
-  generateText,
   type CommentMatch,
   type HighlightMatch,
   type AssessmentMatch,
   type TagMatch,
-} from '@semiont/inference';
+} from './detection/motivation-parsers';
 import { getTagSchema, getSchemaCategory } from '@semiont/ontology';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 

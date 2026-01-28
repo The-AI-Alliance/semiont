@@ -19,7 +19,7 @@ import {
   decodeRepresentation,
   validateAndCorrectOffsets,
 } from '@semiont/api-client';
-import { extractEntities } from '@semiont/inference';
+import { extractEntities } from '../detection/entity-extractor';
 import { FilesystemRepresentationStore } from '@semiont/content';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];

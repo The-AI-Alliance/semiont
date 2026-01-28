@@ -9,7 +9,8 @@
  * - Generating AI summaries
  */
 
-import { generateResourceSummary, generateText } from '@semiont/inference';
+import { generateText } from '@semiont/inference';
+import { generateResourceSummary } from './generation/resource-generation';
 import {
   getBodySource,
   getTargetSource,

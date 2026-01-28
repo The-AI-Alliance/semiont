@@ -6,11 +6,21 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/inference.svg)](https://www.npmjs.com/package/@semiont/inference)
 [![License](https://img.shields.io/npm/l/@semiont/inference.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-AI inference for entity extraction, text generation, and resource creation.
+**AI primitives for text generation and client management.**
+
+This package provides the **core AI primitives** for the Semiont platform:
+- Anthropic client singleton management
+- Simple text generation interface
+- Environment variable expansion for API keys
+- Provider abstraction for future extensibility
+
+For **application-specific AI logic** (entity extraction, resource generation, motivation prompts/parsers), see [@semiont/make-meaning](../make-meaning/).
 
 ## Philosophy
 
 This package is named `inference` rather than `ai-inference` to align with Semiont's core tenet: humans and AI agents have equal opportunity to work behind similar interfaces. The abstraction remains open for future human-agent parity.
+
+**Package Responsibility**: AI primitives only. No application logic, no prompt engineering, no response parsing. Those belong in `@semiont/make-meaning`.
 
 ## Installation
 
@@ -21,7 +31,7 @@ npm install @semiont/inference
 ## Quick Start
 
 ```typescript
-import { extractEntities, generateText } from '@semiont/inference';
+import { generateText, getInferenceClient, getInferenceModel } from '@semiont/inference';
 import type { EnvironmentConfig } from '@semiont/core';
 
 const config: EnvironmentConfig = {
@@ -34,83 +44,24 @@ const config: EnvironmentConfig = {
   }
 };
 
-// Extract entities with character offsets
-const entities = await extractEntities(
-  'Paris is the capital of France.',
-  ['Location'],
-  config
-);
-
-// Generate text
+// Generate text using the primitive
 const text = await generateText(
   'Explain quantum computing in simple terms',
-  config
+  config,
+  500,   // maxTokens
+  0.7    // temperature
 );
+
+console.log(text);
 ```
 
 ## API Reference
 
-From [src/index.ts](src/index.ts):
+### Core Primitives
 
-### Entity Extraction
+**`generateText(prompt, config, maxTokens?, temperature?): Promise<string>`**
 
-**`extractEntities(text, entityTypes, config, includeDescriptiveReferences?)`**
-
-Extract entity references from text with precise character offsets.
-
-**Parameters:**
-- `text: string` - Text to analyze
-- `entityTypes: string[] | { type: string; examples?: string[] }[]` - Entity types to detect
-- `config: EnvironmentConfig` - Configuration
-- `includeDescriptiveReferences?: boolean` - Include anaphoric/cataphoric references (default: false)
-
-**Returns:** `Promise<ExtractedEntity[]>`
-
-```typescript
-interface ExtractedEntity {
-  exact: string;           // Actual text span from input
-  entityType: string;     // Detected entity type
-  startOffset: number;    // Character position where entity starts (0-indexed)
-  endOffset: number;      // Character position where entity ends
-  prefix?: string;        // Up to 32 chars before entity (for disambiguation)
-  suffix?: string;        // Up to 32 chars after entity (for disambiguation)
-}
-```
-
-**Implementation Details:**
-
-From [src/entity-extractor.ts:101-102](src/entity-extractor.ts):
-- Uses 4000 max_tokens to handle many entities without truncation
-- Uses temperature 0.3 for consistent extraction
-
-From [src/entity-extractor.ts:131-135](src/entity-extractor.ts):
-- Throws error if response is truncated (stop_reason === 'max_tokens')
-- Validates all character offsets after AI response
-
-From [src/entity-extractor.ts:147-199](src/entity-extractor.ts):
-- Corrects misaligned offsets using prefix/suffix context matching
-- Filters invalid entities (negative offsets, out-of-bounds, mismatches)
-
-**Anaphoric/Cataphoric Reference Support:**
-
-From [src/entity-extractor.ts:48-75](src/entity-extractor.ts):
-
-When `includeDescriptiveReferences` is true, includes:
-- Direct mentions (names, proper nouns)
-- Definite descriptions: "the Nobel laureate", "the tech giant"
-- Role-based references: "the CEO", "the physicist"
-- Epithets with context: "the Cupertino-based company"
-
-Excludes:
-- Simple pronouns: he, she, it, they
-- Generic determiners: this, that, these, those
-- Possessives without substance: his, her, their
-
-### Text Generation
-
-**`generateText(prompt, config, maxTokens?, temperature?)`**
-
-Simple text generation with configurable parameters.
+Simple text generation primitive.
 
 **Parameters:**
 - `prompt: string` - The prompt
@@ -118,95 +69,65 @@ Simple text generation with configurable parameters.
 - `maxTokens?: number` - Maximum tokens (default: 500)
 - `temperature?: number` - Sampling temperature (default: 0.7)
 
-**Returns:** `Promise<string>`
+**Returns:** `Promise<string>` - Generated text
 
-From [src/factory.ts:78-100](src/factory.ts):
+**Implementation** ([src/factory.ts:68-102](src/factory.ts#L68-L102)):
 - Uses Anthropic Messages API
 - Extracts text content from first text block in response
 - Throws error if no text content in response
 
-**`generateResourceFromTopic(topic, entityTypes, config, options?)`**
+**Example:**
+```typescript
+const result = await generateText(
+  'Write a haiku about programming',
+  config,
+  100,
+  0.8
+);
+```
 
-Generate markdown resource content about a topic.
-
-**Parameters:**
-- `topic: string` - Topic to write about
-- `entityTypes: string[]` - Entity types to focus on
-- `config: EnvironmentConfig` - Configuration
-- `userPrompt?: string` - Additional context
-- `locale?: string` - Language locale (e.g., 'es', 'fr')
-- `context?: GenerationContext` - Source document context
-- `temperature?: number` - Sampling temperature (default: 0.7)
-- `maxTokens?: number` - Maximum tokens (default: 500)
-
-**Returns:** `Promise<{ title: string; content: string }>`
-
-From [src/factory.ts:186-189](src/factory.ts):
-- Returns topic as title (not extracted from generated content)
-- Returns generated markdown as content
-
-From [src/factory.ts:136-138](src/factory.ts):
-- Supports non-English languages using locale parameter
-- Converts locale to language name (e.g., 'es' → 'Spanish')
-
-From [src/factory.ts:166-182](src/factory.ts):
-- Automatically strips markdown code fences from response if present
-- Handles ```markdown, ```md, and ``` formats
-
-**`generateResourceSummary(resourceName, content, entityTypes, config)`**
-
-Generate a 2-3 sentence summary of a resource.
-
-**Parameters:**
-- `resourceName: string` - Name of the resource
-- `content: string` - Content to summarize (truncated to 2000 chars)
-- `entityTypes: string[]` - Entity types mentioned
-- `config: EnvironmentConfig` - Configuration
-
-**Returns:** `Promise<string>`
-
-From [src/factory.ts:216-219](src/factory.ts):
-- Truncates content to first 2000 characters to stay within limits
-- Uses temperature 0.7, max_tokens 150
-
-**`generateReferenceSuggestions(referenceTitle, config, entityType?, currentContent?)`**
-
-Generate 3 actionable next steps or related topics.
-
-**Parameters:**
-- `referenceTitle: string` - Title of the reference
-- `config: EnvironmentConfig` - Configuration
-- `entityType?: string` - Optional entity type
-- `currentContent?: string` - Optional current content for context
-
-**Returns:** `Promise<string[] | null>`
-
-From [src/factory.ts:246-249](src/factory.ts):
-- Returns array of 3 suggestions or null on parse error
-- Uses temperature 0.8 for creative suggestions
-
-### Client Factory
-
-**`getInferenceClient(config)`**
+**`getInferenceClient(config): Promise<Anthropic>`**
 
 Get the singleton Anthropic client instance.
 
-**Returns:** `Promise<Anthropic>`
+**Parameters:**
+- `config: EnvironmentConfig` - Configuration
 
-From [src/factory.ts:10-51](src/factory.ts):
+**Returns:** `Promise<Anthropic>` - Anthropic client
+
+**Implementation** ([src/factory.ts:17-52](src/factory.ts#L17-L52)):
 - Singleton pattern - creates client once, caches for reuse
 - Supports environment variable expansion in API keys (e.g., '${ANTHROPIC_API_KEY}')
 - Configurable baseURL with fallback to https://api.anthropic.com
 
-**`getInferenceModel(config)`**
+**Example:**
+```typescript
+const client = await getInferenceClient(config);
+const response = await client.messages.create({
+  model: 'claude-3-5-sonnet-20241022',
+  max_tokens: 100,
+  messages: [{ role: 'user', content: 'Hello' }]
+});
+```
+
+**`getInferenceModel(config): string`**
 
 Get the configured model name.
 
-**Returns:** `string`
+**Parameters:**
+- `config: EnvironmentConfig` - Configuration
+
+**Returns:** `string` - Model name (e.g., 'claude-3-5-sonnet-20241022')
+
+**Example:**
+```typescript
+const model = getInferenceModel(config);
+console.log(`Using model: ${model}`);
+```
 
 ## Configuration
 
-From [src/factory.ts:22-48](src/factory.ts):
+From [src/factory.ts:22-48](src/factory.ts#L22-L48):
 
 ```typescript
 config.services.inference = {
@@ -220,7 +141,7 @@ config.services.inference = {
 
 ### Environment Variable Expansion
 
-From [src/factory.ts:27-36](src/factory.ts):
+From [src/factory.ts:27-36](src/factory.ts#L27-L36):
 
 API keys support ${VAR_NAME} syntax:
 
@@ -230,16 +151,121 @@ config.services.inference = {
 }
 ```
 
-Pattern: starts with '${' and ends with '}'
-Throws error if environment variable is not set.
+**Pattern:** starts with '${' and ends with '}'
+**Behavior:** Throws error if environment variable is not set
+
+## Application-Specific AI Logic
+
+This package provides **primitives only**. For application-specific features, use [@semiont/make-meaning](../make-meaning/):
+
+**Entity Extraction:**
+```typescript
+import { extractEntities } from '@semiont/make-meaning';
+
+const entities = await extractEntities(
+  'Marie Curie worked at the University of Paris.',
+  ['Person', 'Organization'],
+  config
+);
+```
+
+**Resource Generation:**
+```typescript
+import { generateResourceFromTopic } from '@semiont/make-meaning';
+
+const { title, content } = await generateResourceFromTopic(
+  'Quantum Computing',
+  ['Technology', 'Physics'],
+  config
+);
+```
+
+**Motivation Prompts & Parsers:**
+```typescript
+import { MotivationPrompts, MotivationParsers } from '@semiont/make-meaning';
+
+// Build prompt for comment detection
+const prompt = MotivationPrompts.buildCommentPrompt(content, instructions);
+
+// Call generateText from @semiont/inference
+const response = await generateText(prompt, config);
+
+// Parse response
+const comments = MotivationParsers.parseComments(response, content);
+```
+
+**Orchestrated Detection:**
+```typescript
+import { AnnotationDetection } from '@semiont/make-meaning';
+
+const comments = await AnnotationDetection.detectComments(resourceId, config);
+const highlights = await AnnotationDetection.detectHighlights(resourceId, config);
+```
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────┐
+│      @semiont/make-meaning                  │
+│  (Application-specific AI logic)            │
+│  - Entity extraction with validation        │
+│  - Resource generation with templates       │
+│  - Motivation prompts (comment/highlight)   │
+│  - Response parsers with offset correction  │
+│  - Orchestrated detection pipelines         │
+└──────────────────┬──────────────────────────┘
+                   │ uses
+┌──────────────────▼──────────────────────────┐
+│      @semiont/inference                     │
+│  (AI primitives only)                       │
+│  - getInferenceClient()                     │
+│  - getInferenceModel()                      │
+│  - generateText()                           │
+└──────────────────┬──────────────────────────┘
+                   │ uses
+┌──────────────────▼──────────────────────────┐
+│      @anthropic-ai/sdk                      │
+│  (Anthropic Messages API)                   │
+└─────────────────────────────────────────────┘
+```
+
+**Key Principles:**
+- **@semiont/inference**: Provider abstraction, client management, core text generation
+- **@semiont/make-meaning**: Semantic processing, prompt engineering, response parsing
+- **Clean separation**: Adding OpenAI support only affects @semiont/inference
+
+## Provider Extensibility
+
+The package is designed for future provider support:
+
+1. Update `getInferenceClient()` to support `config.services.inference.type`
+2. Add provider-specific client initialization
+3. Update `generateText()` to handle different API formats
+4. Application code in `@semiont/make-meaning` remains unchanged
+
+**Current Support:** Anthropic (Claude) via `@anthropic-ai/sdk`
+**Future:** OpenAI, Google Vertex AI, local models, etc.
 
 ## Dependencies
 
 From [package.json](package.json):
 
 - `@anthropic-ai/sdk` ^0.63.0 - Anthropic API client
-- `@semiont/api-client` * - Types and utilities
 - `@semiont/core` * - Environment configuration
+
+**Note:** No dependency on `@semiont/api-client` - primitives have minimal dependencies
+
+## Testing
+
+```bash
+npm test                # Run tests
+npm run test:watch      # Watch mode
+npm run test:coverage   # Coverage report
+```
+
+## Examples
+
+See [examples/basic.ts](examples/basic.ts) for usage examples.
 
 ## License
 

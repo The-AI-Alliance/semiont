@@ -12,7 +12,7 @@ import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
 import { resourceIdToURI } from '@semiont/core';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
-import type { CommentMatch } from '@semiont/inference';
+import type { CommentMatch } from '../detection/motivation-parsers';
 
 export class CommentDetectionWorker extends JobWorker {
   private isFirstProgress = true;
