@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { ReferenceDetectionWorker } from '../../jobs/workers/reference-detection-worker';
+import { ReferenceDetectionWorker, type DetectedAnnotation } from '../../jobs/reference-detection-worker';
 import { JobQueue } from '@semiont/jobs';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import type { components } from '@semiont/api-client';
@@ -147,7 +147,7 @@ describe('Entity Detection - Charset Handling', () => {
     // Verify entity offsets match original text
     expect(results).toHaveLength(2);
 
-    const personAnnotation = results.find(r => r.annotation.entityTypes.includes('Person'));
+    const personAnnotation = results.find((r: DetectedAnnotation) => r.annotation.entityTypes.includes('Person'));
     expect(personAnnotation).toBeDefined();
     expect(personAnnotation!.annotation.selector.exact).toBe('Person');
     expect(text.substring(
@@ -155,7 +155,7 @@ describe('Entity Detection - Charset Handling', () => {
       personAnnotation!.annotation.selector.end
     )).toBe('Person');
 
-    const locationAnnotation = results.find(r => r.annotation.entityTypes.includes('Location'));
+    const locationAnnotation = results.find((r: DetectedAnnotation) => r.annotation.entityTypes.includes('Location'));
     expect(locationAnnotation).toBeDefined();
     expect(locationAnnotation!.annotation.selector.exact).toBe('Location');
     expect(text.substring(
@@ -202,7 +202,7 @@ describe('Entity Detection - Charset Handling', () => {
     // Verify entity offsets match original text
     expect(results).toHaveLength(2);
 
-    const personAnnotation = results.find(r => r.annotation.entityTypes.includes('Person'));
+    const personAnnotation = results.find((r: DetectedAnnotation) => r.annotation.entityTypes.includes('Person'));
     expect(personAnnotation).toBeDefined();
     expect(personAnnotation!.annotation.selector.exact).toBe('Person');
 
@@ -213,7 +213,7 @@ describe('Entity Detection - Charset Handling', () => {
     );
     expect(personText).toBe('Person');
 
-    const locationAnnotation = results.find(r => r.annotation.entityTypes.includes('Location'));
+    const locationAnnotation = results.find((r: DetectedAnnotation) => r.annotation.entityTypes.includes('Location'));
     expect(locationAnnotation).toBeDefined();
     expect(locationAnnotation!.annotation.selector.exact).toBe('Location');
 
@@ -303,10 +303,10 @@ describe('Entity Detection - Charset Handling', () => {
     // Should find 2 Person entities and 1 Location entity
     expect(results).toHaveLength(3);
 
-    const personResults = results.filter(r => r.annotation.entityTypes.includes('Person'));
+    const personResults = results.filter((r: DetectedAnnotation) => r.annotation.entityTypes.includes('Person'));
     expect(personResults).toHaveLength(2);
 
-    const locationResults = results.filter(r => r.annotation.entityTypes.includes('Location'));
+    const locationResults = results.filter((r: DetectedAnnotation) => r.annotation.entityTypes.includes('Location'));
     expect(locationResults).toHaveLength(1);
 
     // Verify all offsets point to correct text

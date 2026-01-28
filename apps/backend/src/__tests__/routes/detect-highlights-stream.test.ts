@@ -10,6 +10,13 @@ import { userId } from '@semiont/core';
 import { email } from '@semiont/api-client';
 import { JWTService } from '../../auth/jwt';
 import type { Hono } from 'hono';
+import type { User } from '@prisma/client';
+import type { EnvironmentConfig } from '@semiont/core';
+
+type Variables = {
+  user: User;
+  config: EnvironmentConfig;
+};
 
 // Mock entire @semiont/make-meaning with simple mocks
 const mockJobQueue = {
@@ -60,7 +67,7 @@ vi.mock('../../auth/oauth', () => ({
 }));
 
 describe('POST /resources/:resourceId/detect-highlights-stream', () => {
-  let app: Hono;
+  let app: Hono<{ Variables: Variables }>;
   let authToken: string;
   const testUser = {
     id: 'test-user-id',

@@ -14,6 +14,13 @@ import type { IdentifierConfig } from '@semiont/event-sourcing';
 import { FilesystemViewStorage } from '@semiont/event-sourcing';
 import { testDir } from '../setup';
 import type { Hono } from 'hono';
+import type { User } from '@prisma/client';
+import type { EnvironmentConfig } from '@semiont/core';
+
+type Variables = {
+  user: User;
+  config: EnvironmentConfig;
+};
 
 // Mock entire @semiont/make-meaning with simple mocks
 const mockJobQueue = {
@@ -64,7 +71,7 @@ vi.mock('../../auth/oauth', () => ({
 }));
 
 describe('POST /resources/:resourceId/detect-annotations-stream', () => {
-  let app: Hono;
+  let app: Hono<{ Variables: Variables }>;
   let authToken: string;
   const testUser = {
     id: 'test-user-id',
