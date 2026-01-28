@@ -14,20 +14,19 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 
 // Mock @semiont/graph
-vi.mock('@semiont/graph', () => {
-  const mockGraphDb = {
-    setResource: vi.fn(),
-    updateResource: vi.fn(),
-    deleteResource: vi.fn(),
-    addAnnotation: vi.fn(),
-    updateAnnotation: vi.fn(),
-    deleteAnnotation: vi.fn(),
-    addEntityType: vi.fn()
-  };
+const mockGraphDb = {
+  setResource: vi.fn(),
+  updateResource: vi.fn(),
+  deleteResource: vi.fn(),
+  addAnnotation: vi.fn(),
+  updateAnnotation: vi.fn(),
+  deleteAnnotation: vi.fn(),
+  addEntityType: vi.fn()
+};
 
+vi.mock('@semiont/graph', () => {
   return {
-    getGraphDatabase: vi.fn().mockResolvedValue(mockGraphDb),
-    mockGraphDb
+    getGraphDatabase: vi.fn().mockResolvedValue(mockGraphDb)
   };
 });
 
@@ -130,7 +129,6 @@ describe('GraphDBConsumer', () => {
     await new Promise(resolve => setTimeout(resolve, 100));
 
     // Verify graph database was called
-    const { mockGraphDb } = await import('@semiont/graph');
     expect(mockGraphDb.setResource).toHaveBeenCalled();
   });
 
@@ -157,28 +155,33 @@ describe('GraphDBConsumer', () => {
 
     // Create annotation
     await eventStore.appendEvent({
-      type: 'annotation.created',
+      type: 'annotation.added',
       resourceId: testResourceId,
       annotationId: testAnnId,
       userId: userId('user-1'),
       version: 1,
       payload: {
-        motivation: 'commenting',
-        bodyValue: 'Test comment',
-        bodyFormat: 'text/plain',
-        selectors: [{
-          type: 'TextQuoteSelector',
-          exact: 'test',
-          prefix: '',
-          suffix: ''
-        }]
+        body: {
+          type: 'TextualBody',
+          value: 'Test comment',
+          format: 'text/plain'
+        },
+        target: {
+          source: `http://localhost:4000/resources/${testResourceId}`,
+          selector: {
+            type: 'TextQuoteSelector',
+            exact: 'test',
+            prefix: '',
+            suffix: ''
+          }
+        },
+        motivation: 'commenting'
       }
     });
 
     // Wait for async processing
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    const { mockGraphDb } = await import('@semiont/graph');
     expect(mockGraphDb.addAnnotation).toHaveBeenCalled();
   });
 
@@ -258,7 +261,6 @@ describe('GraphDBConsumer', () => {
     // Wait for async processing
     await new Promise(resolve => setTimeout(resolve, 150));
 
-    const { mockGraphDb } = await import('@semiont/graph');
     expect(mockGraphDb.setResource).toHaveBeenCalled();
     expect(mockGraphDb.updateResource).toHaveBeenCalled();
   });

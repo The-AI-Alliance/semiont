@@ -10,17 +10,16 @@ import { GraphContext } from '../graph-context';
 import { resourceId, type EnvironmentConfig } from '@semiont/core';
 
 // Mock @semiont/graph
-vi.mock('@semiont/graph', () => {
-  const mockGraphDb = {
-    getResourceReferencedBy: vi.fn(),
-    findPath: vi.fn(),
-    getResourceConnections: vi.fn(),
-    searchResources: vi.fn()
-  };
+const mockGraphDb = {
+  getResourceReferencedBy: vi.fn(),
+  findPath: vi.fn(),
+  getResourceConnections: vi.fn(),
+  searchResources: vi.fn()
+};
 
+vi.mock('@semiont/graph', () => {
   return {
-    getGraphDatabase: vi.fn().mockResolvedValue(mockGraphDb),
-    mockGraphDb
+    getGraphDatabase: vi.fn().mockResolvedValue(mockGraphDb)
   };
 });
 
@@ -51,7 +50,6 @@ describe('GraphContext', () => {
   } as EnvironmentConfig;
 
   it('should get backlinks for a resource', async () => {
-    const { mockGraphDb } = await import('@semiont/graph');
     mockGraphDb.getResourceReferencedBy.mockResolvedValue([
       {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
@@ -73,7 +71,6 @@ describe('GraphContext', () => {
   });
 
   it('should find path between resources', async () => {
-    const { mockGraphDb } = await import('@semiont/graph');
     mockGraphDb.findPath.mockResolvedValue([
       {
         fromResource: resourceId('res1'),
@@ -106,7 +103,6 @@ describe('GraphContext', () => {
   });
 
   it('should get resource connections', async () => {
-    const { mockGraphDb } = await import('@semiont/graph');
     mockGraphDb.getResourceConnections.mockResolvedValue([
       {
         source: resourceId('test'),
@@ -130,7 +126,6 @@ describe('GraphContext', () => {
   });
 
   it('should search resources by query', async () => {
-    const { mockGraphDb } = await import('@semiont/graph');
     mockGraphDb.searchResources.mockResolvedValue([
       {
         id: 'http://localhost:4000/resources/match1',
@@ -155,7 +150,6 @@ describe('GraphContext', () => {
   });
 
   it('should handle empty backlinks', async () => {
-    const { mockGraphDb } = await import('@semiont/graph');
     mockGraphDb.getResourceReferencedBy.mockResolvedValue([]);
 
     const result = await GraphContext.getBacklinks(resourceId('no-backlinks'), config);
@@ -164,7 +158,6 @@ describe('GraphContext', () => {
   });
 
   it('should handle no path found', async () => {
-    const { mockGraphDb } = await import('@semiont/graph');
     mockGraphDb.findPath.mockResolvedValue([]);
 
     const result = await GraphContext.findPath(
@@ -177,7 +170,6 @@ describe('GraphContext', () => {
   });
 
   it('should handle search with no results', async () => {
-    const { mockGraphDb } = await import('@semiont/graph');
     mockGraphDb.searchResources.mockResolvedValue([]);
 
     const result = await GraphContext.searchResources('nonexistent query', config);
@@ -186,7 +178,6 @@ describe('GraphContext', () => {
   });
 
   it('should call findPath without maxDepth when not provided', async () => {
-    const { mockGraphDb } = await import('@semiont/graph');
     mockGraphDb.findPath.mockResolvedValue([]);
 
     await GraphContext.findPath(
@@ -203,7 +194,6 @@ describe('GraphContext', () => {
   });
 
   it('should call searchResources without limit when not provided', async () => {
-    const { mockGraphDb } = await import('@semiont/graph');
     mockGraphDb.searchResources.mockResolvedValue([]);
 
     await GraphContext.searchResources('query', config);

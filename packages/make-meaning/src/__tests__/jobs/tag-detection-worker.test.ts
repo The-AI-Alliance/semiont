@@ -17,8 +17,8 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 
 // Mock @semiont/inference to avoid external API calls
+const mockCreate = vi.fn();
 vi.mock('@semiont/inference', () => {
-  const mockCreate = vi.fn();
   const mockClient = {
     messages: {
       create: mockCreate
@@ -27,8 +27,7 @@ vi.mock('@semiont/inference', () => {
 
   return {
     getInferenceClient: vi.fn().mockResolvedValue(mockClient),
-    getInferenceModel: vi.fn().mockReturnValue('claude-sonnet-4-20250514'),
-    mockCreate
+    getInferenceModel: vi.fn().mockReturnValue('claude-sonnet-4-20250514')
   };
 });
 
@@ -124,7 +123,6 @@ describe('TagDetectionWorker - Event Emission', () => {
     await createTestResource(testResourceId);
 
     // Mock AI response
-    const { mockCreate } = await import('@semiont/inference');
     mockCreate.mockResolvedValue({
       content: [{
         type: 'text',
@@ -150,10 +148,10 @@ describe('TagDetectionWorker - Event Emission', () => {
       },
       startedAt: new Date().toISOString(),
       progress: {
+        stage: 'analyzing',
+        percentage: 0,
         totalCategories: 4,
         processedCategories: 0,
-        tagsFound: 0,
-        percentage: 0,
         message: 'Initializing'
       }
     };
@@ -216,10 +214,10 @@ describe('TagDetectionWorker - Event Emission', () => {
       },
       startedAt: new Date().toISOString(),
       progress: {
+        stage: 'analyzing',
+        percentage: 0,
         totalCategories: 4,
         processedCategories: 0,
-        tagsFound: 0,
-        percentage: 0,
         message: 'Initializing'
       }
     };
@@ -247,7 +245,6 @@ describe('TagDetectionWorker - Event Emission', () => {
     await createTestResource(testResourceId);
 
     // Mock AI response
-    const { mockCreate } = await import('@semiont/inference');
     mockCreate.mockResolvedValue({
       content: [{
         type: 'text',
@@ -281,10 +278,10 @@ describe('TagDetectionWorker - Event Emission', () => {
       },
       startedAt: new Date().toISOString(),
       progress: {
+        stage: 'analyzing',
+        percentage: 0,
         totalCategories: 4,
         processedCategories: 0,
-        tagsFound: 0,
-        percentage: 0,
         message: 'Initializing'
       }
     };
@@ -367,10 +364,10 @@ describe('TagDetectionWorker - Event Emission', () => {
       },
       startedAt: new Date().toISOString(),
       progress: {
+        stage: 'analyzing',
+        percentage: 0,
         totalCategories: 4,
         processedCategories: 0,
-        tagsFound: 0,
-        percentage: 0,
         message: 'Initializing'
       }
     };
@@ -378,13 +375,13 @@ describe('TagDetectionWorker - Event Emission', () => {
     await (worker as unknown as { executeJob: (job: TagDetectionJob) => Promise<void> }).executeJob(job);
 
     const events = await getResourceEvents(testResourceId);
-    const annotationEvents = events.filter(e => e.event.type === 'annotation.created');
+    const annotationEvents = events.filter(e => e.event.type === 'annotation.added');
     expect(annotationEvents.length).toBe(4);
 
     // All annotations should be tagging motivation
     for (const event of annotationEvents) {
       expect(event.event).toMatchObject({
-        type: 'annotation.created',
+        type: 'annotation.added',
         resourceId: resourceId(testResourceId),
         userId: userId('user-1'),
         payload: {

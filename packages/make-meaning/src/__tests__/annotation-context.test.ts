@@ -118,25 +118,31 @@ describe('AnnotationContext', () => {
     const eventStore = createEventStore(testDir, config.services.backend!.publicURL);
 
     await eventStore.appendEvent({
-      type: 'annotation.created',
+      type: 'annotation.added',
       resourceId: resourceId(resId),
       annotationId: annotationId(annId),
       userId: userId('user-1'),
       version: 1,
       payload: {
-        motivation: 'commenting',
-        bodyValue: 'Test comment',
-        bodyFormat: 'text/plain',
-        selectors: [{
-          type: 'TextPositionSelector',
-          start,
-          end
-        }, {
-          type: 'TextQuoteSelector',
-          exact,
-          prefix: '',
-          suffix: ''
-        }]
+        body: {
+          type: 'TextualBody',
+          value: 'Test comment',
+          format: 'text/plain'
+        },
+        target: {
+          source: `http://localhost:4000/resources/${resId}`,
+          selector: [{
+            type: 'TextPositionSelector',
+            start,
+            end
+          }, {
+            type: 'TextQuoteSelector',
+            exact,
+            prefix: '',
+            suffix: ''
+          }]
+        },
+        motivation: 'commenting'
       }
     });
 
@@ -278,21 +284,27 @@ describe('AnnotationContext', () => {
 
     // Create annotation with only TextQuoteSelector
     await eventStore.appendEvent({
-      type: 'annotation.created',
+      type: 'annotation.added',
       resourceId: resourceId(testResourceId),
       annotationId: annotationId(testAnnId),
       userId: userId('user-1'),
       version: 1,
       payload: {
-        motivation: 'commenting',
-        bodyValue: 'Comment without position',
-        bodyFormat: 'text/plain',
-        selectors: [{
-          type: 'TextQuoteSelector',
-          exact: 'testing',
-          prefix: 'for ',
-          suffix: ' missing'
-        }]
+        body: {
+          type: 'TextualBody',
+          value: 'Comment without position',
+          format: 'text/plain'
+        },
+        target: {
+          source: `http://localhost:4000/resources/${testResourceId}`,
+          selector: {
+            type: 'TextQuoteSelector',
+            exact: 'testing',
+            prefix: 'for ',
+            suffix: ' missing'
+          }
+        },
+        motivation: 'commenting'
       }
     });
 

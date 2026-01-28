@@ -17,8 +17,8 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 
 // Mock @semiont/inference to avoid external API calls
+const mockCreate = vi.fn();
 vi.mock('@semiont/inference', () => {
-  const mockCreate = vi.fn();
   const mockClient = {
     messages: {
       create: mockCreate
@@ -27,8 +27,7 @@ vi.mock('@semiont/inference', () => {
 
   return {
     getInferenceClient: vi.fn().mockResolvedValue(mockClient),
-    getInferenceModel: vi.fn().mockReturnValue('claude-sonnet-4-20250514'),
-    mockCreate
+    getInferenceModel: vi.fn().mockReturnValue('claude-sonnet-4-20250514')
   };
 });
 
@@ -118,21 +117,27 @@ describe('GenerationWorker - Event Emission', () => {
     const refId = `ref-${Date.now()}`;
 
     await testEventStore.appendEvent({
-      type: 'annotation.created',
+      type: 'annotation.added',
       resourceId: resourceId(sourceId),
       annotationId: annotationId(refId),
       userId: userId('user-1'),
       version: 1,
       payload: {
-        motivation: 'linking',
-        bodyValue: targetTopic,
-        bodyFormat: 'text/plain',
-        selectors: [{
-          type: 'TextQuoteSelector',
-          exact: 'Test',
-          prefix: '',
-          suffix: ''
-        }]
+        body: {
+          type: 'TextualBody',
+          value: targetTopic,
+          format: 'text/plain'
+        },
+        target: {
+          source: `http://localhost:4000/resources/${sourceId}`,
+          selector: {
+            type: 'TextQuoteSelector',
+            exact: 'Test',
+            prefix: '',
+            suffix: ''
+          }
+        },
+        motivation: 'linking'
       }
     });
 
@@ -151,7 +156,6 @@ describe('GenerationWorker - Event Emission', () => {
     const refId = await createReferenceAnnotation(testResourceId, 'Test Topic');
 
     // Mock AI response
-    const { mockCreate } = await import('@semiont/inference');
     mockCreate.mockResolvedValue({
       content: [{
         type: 'text',
@@ -171,12 +175,12 @@ describe('GenerationWorker - Event Emission', () => {
         maxRetries: 3
       },
       params: {
-        referenceId: refId,
-        resourceId: resourceId(testResourceId)
+        referenceId: annotationId(refId),
+        sourceResourceId: resourceId(testResourceId)
       },
       startedAt: new Date().toISOString(),
       progress: {
-        stage: 'initializing',
+        stage: 'fetching',
         percentage: 0,
         message: 'Starting generation'
       }
@@ -207,7 +211,6 @@ describe('GenerationWorker - Event Emission', () => {
     const refId = await createReferenceAnnotation(testResourceId, 'Progress Topic');
 
     // Mock AI response
-    const { mockCreate } = await import('@semiont/inference');
     mockCreate.mockResolvedValue({
       content: [{
         type: 'text',
@@ -227,12 +230,12 @@ describe('GenerationWorker - Event Emission', () => {
         maxRetries: 3
       },
       params: {
-        referenceId: refId,
-        resourceId: resourceId(testResourceId)
+        referenceId: annotationId(refId),
+        sourceResourceId: resourceId(testResourceId)
       },
       startedAt: new Date().toISOString(),
       progress: {
-        stage: 'initializing',
+        stage: 'fetching',
         percentage: 0,
         message: 'Starting generation'
       }
@@ -255,7 +258,6 @@ describe('GenerationWorker - Event Emission', () => {
     const refId = await createReferenceAnnotation(testResourceId, 'Complete Topic');
 
     // Mock AI response
-    const { mockCreate } = await import('@semiont/inference');
     mockCreate.mockResolvedValue({
       content: [{
         type: 'text',
@@ -275,12 +277,12 @@ describe('GenerationWorker - Event Emission', () => {
         maxRetries: 3
       },
       params: {
-        referenceId: refId,
-        resourceId: resourceId(testResourceId)
+        referenceId: annotationId(refId),
+        sourceResourceId: resourceId(testResourceId)
       },
       startedAt: new Date().toISOString(),
       progress: {
-        stage: 'initializing',
+        stage: 'fetching',
         percentage: 0,
         message: 'Starting generation'
       }
@@ -309,7 +311,6 @@ describe('GenerationWorker - Event Emission', () => {
     const refId = await createReferenceAnnotation(testResourceId, 'New Resource Topic');
 
     // Mock AI response
-    const { mockCreate } = await import('@semiont/inference');
     mockCreate.mockResolvedValue({
       content: [{
         type: 'text',
@@ -329,12 +330,12 @@ describe('GenerationWorker - Event Emission', () => {
         maxRetries: 3
       },
       params: {
-        referenceId: refId,
-        resourceId: resourceId(testResourceId)
+        referenceId: annotationId(refId),
+        sourceResourceId: resourceId(testResourceId)
       },
       startedAt: new Date().toISOString(),
       progress: {
-        stage: 'initializing',
+        stage: 'fetching',
         percentage: 0,
         message: 'Starting generation'
       }

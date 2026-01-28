@@ -17,8 +17,8 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 
 // Mock @semiont/inference to avoid external API calls
+const mockCreate = vi.fn();
 vi.mock('@semiont/inference', () => {
-  const mockCreate = vi.fn();
   const mockClient = {
     messages: {
       create: mockCreate
@@ -27,8 +27,7 @@ vi.mock('@semiont/inference', () => {
 
   return {
     getInferenceClient: vi.fn().mockResolvedValue(mockClient),
-    getInferenceModel: vi.fn().mockReturnValue('claude-sonnet-4-20250514'),
-    mockCreate
+    getInferenceModel: vi.fn().mockReturnValue('claude-sonnet-4-20250514')
   };
 });
 
@@ -124,7 +123,6 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
     await createTestResource(testResourceId);
 
     // Mock AI response
-    const { mockCreate } = await import('@semiont/inference');
     mockCreate.mockResolvedValue({
       content: [{
         type: 'text',
@@ -148,9 +146,9 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
       },
       startedAt: new Date().toISOString(),
       progress: {
+        stage: 'analyzing',
         percentage: 0,
-        message: 'Initializing',
-        assessmentsFound: 0
+        message: 'Initializing'
       }
     };
 
@@ -211,9 +209,9 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
       },
       startedAt: new Date().toISOString(),
       progress: {
+        stage: 'analyzing',
         percentage: 0,
-        message: 'Initializing',
-        assessmentsFound: 0
+        message: 'Initializing'
       }
     };
 
@@ -240,7 +238,6 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
     await createTestResource(testResourceId);
 
     // Mock AI response
-    const { mockCreate } = await import('@semiont/inference');
     mockCreate.mockResolvedValue({
       content: [{
         type: 'text',
@@ -273,9 +270,9 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
       },
       startedAt: new Date().toISOString(),
       progress: {
+        stage: 'analyzing',
         percentage: 0,
-        message: 'Initializing',
-        assessmentsFound: 0
+        message: 'Initializing'
       }
     };
 
@@ -343,21 +340,21 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
       },
       startedAt: new Date().toISOString(),
       progress: {
+        stage: 'analyzing',
         percentage: 0,
-        message: 'Initializing',
-        assessmentsFound: 0
+        message: 'Initializing'
       }
     };
 
     await (worker as unknown as { executeJob: (job: AssessmentDetectionJob) => Promise<void> }).executeJob(job);
 
     const events = await getResourceEvents(testResourceId);
-    const annotationEvents = events.filter(e => e.event.type === 'annotation.created');
+    const annotationEvents = events.filter(e => e.event.type === 'annotation.added');
     expect(annotationEvents.length).toBe(2);
 
     // Check first assessment annotation
     expect(annotationEvents[0]!.event).toMatchObject({
-      type: 'annotation.created',
+      type: 'annotation.added',
       resourceId: resourceId(testResourceId),
       userId: userId('user-1'),
       payload: {
@@ -368,7 +365,7 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
 
     // Check second assessment annotation
     expect(annotationEvents[1]!.event).toMatchObject({
-      type: 'annotation.created',
+      type: 'annotation.added',
       resourceId: resourceId(testResourceId),
       userId: userId('user-1'),
       payload: {

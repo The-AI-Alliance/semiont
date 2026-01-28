@@ -86,7 +86,7 @@ describe('generateResourceFromTopic', () => {
   it('should include entity types in generation', async () => {
     const { generateText } = await import('@semiont/inference');
     let capturedPrompt = '';
-    (generateText as ReturnType<typeof vi.fn>).mockImplementation(async (prompt: string, options: any) => {
+    (generateText as ReturnType<typeof vi.fn>).mockImplementation(async (prompt: string, _options: any) => {
       capturedPrompt = prompt;
       return '# AI Ethics\n\nAI ethics examines moral implications. It involves people and organizations.\n\nEthical frameworks guide AI development.';
     });
@@ -100,7 +100,7 @@ describe('generateResourceFromTopic', () => {
   it('should handle user prompt', async () => {
     const { generateText } = await import('@semiont/inference');
     let capturedPrompt = '';
-    (generateText as ReturnType<typeof vi.fn>).mockImplementation(async (prompt: string, options: any) => {
+    (generateText as ReturnType<typeof vi.fn>).mockImplementation(async (prompt: string, _options: any) => {
       capturedPrompt = prompt;
       return '# Data Privacy\n\nData privacy protects personal information. Regulations enforce privacy rights.\n\nPrivacy is fundamental.';
     });
@@ -118,7 +118,7 @@ describe('generateResourceFromTopic', () => {
   it('should handle non-English locale', async () => {
     const { generateText } = await import('@semiont/inference');
     let capturedPrompt = '';
-    (generateText as ReturnType<typeof vi.fn>).mockImplementation(async (prompt: string, options: any) => {
+    (generateText as ReturnType<typeof vi.fn>).mockImplementation(async (prompt: string, _options: any) => {
       capturedPrompt = prompt;
       return '# Apprentissage Automatique\n\nL\'apprentissage automatique est une branche de l\'IA. Il utilise des données.\n\nLes algorithmes apprennent automatiquement.';
     });
@@ -138,7 +138,7 @@ describe('generateResourceFromTopic', () => {
   it('should include generation context when provided', async () => {
     const { generateText } = await import('@semiont/inference');
     let capturedPrompt = '';
-    (generateText as ReturnType<typeof vi.fn>).mockImplementation(async (prompt: string, options: any) => {
+    (generateText as ReturnType<typeof vi.fn>).mockImplementation(async (prompt: string, _options: any) => {
       capturedPrompt = prompt;
       return '# Deep Learning\n\nDeep learning uses neural networks. Multiple layers extract features.\n\nDeep models excel at complex tasks.';
     });
@@ -166,7 +166,7 @@ describe('generateResourceFromTopic', () => {
   it('should pass temperature and maxTokens to inference', async () => {
     const { generateText } = await import('@semiont/inference');
     let capturedOptions: any;
-    (generateText as ReturnType<typeof vi.fn>).mockImplementation(async (prompt: string, options: any) => {
+    (generateText as ReturnType<typeof vi.fn>).mockImplementation(async (_prompt: string, options: any) => {
       capturedOptions = options;
       return '# Test Resource\n\nTest content here.\n\nMore test content.';
     });
@@ -189,7 +189,7 @@ describe('generateResourceFromTopic', () => {
   it('should use default temperature and maxTokens when not provided', async () => {
     const { generateText } = await import('@semiont/inference');
     let capturedOptions: any;
-    (generateText as ReturnType<typeof vi.fn>).mockImplementation(async (prompt: string, options: any) => {
+    (generateText as ReturnType<typeof vi.fn>).mockImplementation(async (_prompt: string, options: any) => {
       capturedOptions = options;
       return '# Default Settings\n\nUsing default parameters.\n\nGeneration continues.';
     });

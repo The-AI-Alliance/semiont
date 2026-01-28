@@ -9,8 +9,8 @@ import { describe, it, expect, beforeAll, vi } from 'vitest';
 import type { EnvironmentConfig } from '@semiont/core';
 
 // Mock inference client using factory function
+const mockCreate = vi.fn();
 vi.mock('@semiont/inference', () => {
-  const mockCreate = vi.fn();
   const mockClient = {
     messages: {
       create: mockCreate
@@ -19,14 +19,11 @@ vi.mock('@semiont/inference', () => {
 
   return {
     getInferenceClient: vi.fn().mockResolvedValue(mockClient),
-    getInferenceModel: vi.fn().mockReturnValue('claude-sonnet-4-20250514'),
-    mockCreate, // Export for test access
-    mockClient
+    getInferenceModel: vi.fn().mockReturnValue('claude-sonnet-4-20250514')
   };
 });
 
 import { extractEntities, type ExtractedEntity } from '../../detection/entity-extractor';
-import { mockCreate } from '@semiont/inference';
 
 describe('extractEntities', () => {
   let config: EnvironmentConfig;
