@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { AnnotationContext } from '../annotation-context';
-import { resourceId, userId, annotationId, type EnvironmentConfig } from '@semiont/core';
+import { resourceId, userId, type EnvironmentConfig } from '@semiont/core';
 import { createEventStore, FilesystemViewStorage } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import { promises as fs } from 'fs';
@@ -120,7 +120,6 @@ describe('AnnotationContext', () => {
     await eventStore.appendEvent({
       type: 'annotation.added',
       resourceId: resourceId(resId),
-      annotationId: annotationId(annId),
       userId: userId('user-1'),
       version: 1,
       payload: {
@@ -292,7 +291,6 @@ describe('AnnotationContext', () => {
     await eventStore.appendEvent({
       type: 'annotation.added',
       resourceId: resourceId(testResourceId),
-      annotationId: annotationId(testAnnId),
       userId: userId('user-1'),
       version: 1,
       payload: {

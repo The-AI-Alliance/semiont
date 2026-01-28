@@ -119,7 +119,6 @@ describe('GenerationWorker - Event Emission', () => {
     await testEventStore.appendEvent({
       type: 'annotation.added',
       resourceId: resourceId(sourceId),
-      annotationId: annotationId(refId),
       userId: userId('user-1'),
       version: 1,
       payload: {

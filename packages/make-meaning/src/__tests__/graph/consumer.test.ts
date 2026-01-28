@@ -157,7 +157,6 @@ describe('GraphDBConsumer', () => {
     await eventStore.appendEvent({
       type: 'annotation.added',
       resourceId: testResourceId,
-      annotationId: testAnnId,
       userId: userId('user-1'),
       version: 1,
       payload: {
@@ -253,14 +252,34 @@ describe('GraphDBConsumer', () => {
       }
     });
 
-    // Update resource
+    // Add annotation
     await eventStore.appendEvent({
-      type: 'resource.updated',
+      type: 'annotation.added',
       resourceId: testResourceId,
       userId: userId('user-1'),
       version: 2,
       payload: {
-        name: 'Updated Name'
+        annotation: {
+          '@context': 'http://www.w3.org/ns/anno.jsonld',
+          id: `ann-${Date.now()}`,
+          type: 'Annotation',
+          motivation: 'commenting',
+          body: {
+            type: 'TextualBody',
+            value: 'Test comment',
+            format: 'text/plain',
+            purpose: 'commenting'
+          },
+          target: {
+            source: `http://localhost:4000/resources/${testResourceId}`,
+            selector: {
+              type: 'TextQuoteSelector',
+              exact: 'test',
+              prefix: '',
+              suffix: ''
+            }
+          }
+        }
       }
     });
 
@@ -268,6 +287,6 @@ describe('GraphDBConsumer', () => {
     await new Promise(resolve => setTimeout(resolve, 150));
 
     expect(mockGraphDb.setResource).toHaveBeenCalled();
-    expect(mockGraphDb.updateResource).toHaveBeenCalled();
+    expect(mockGraphDb.addAnnotation).toHaveBeenCalled();
   });
 });

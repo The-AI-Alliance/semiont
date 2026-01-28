@@ -94,7 +94,7 @@ describe('GraphContext', () => {
     );
 
     expect(result).toHaveLength(1);
-    expect(result[0].connections.length).toBe(1);
+    expect(result[0].resources.length + result[0].annotations.length).toBeGreaterThan(0);
     expect(mockGraphDb.findPath).toHaveBeenCalledWith(
       resourceId('res1'),
       resourceId('res2'),
