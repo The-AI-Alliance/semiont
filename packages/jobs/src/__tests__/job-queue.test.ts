@@ -348,6 +348,50 @@ describe('JobQueue', () => {
     });
   });
 
+  describe('cancelJob()', () => {
+    test('should cancel a pending job', async () => {
+      const job = createPendingDetectionJob('job-cancel');
+      await jobQueue.createJob(job);
+
+      const result = await jobQueue.cancelJob(jobId('job-cancel'));
+
+      expect(result).toBe(true);
+
+      const retrieved = await jobQueue.getJob(jobId('job-cancel'));
+      expect(retrieved?.status).toBe('cancelled');
+    });
+
+    test('should cancel a running job', async () => {
+      const job = createRunningDetectionJob('job-cancel-running');
+      await jobQueue.createJob(job);
+
+      const result = await jobQueue.cancelJob(jobId('job-cancel-running'));
+
+      expect(result).toBe(true);
+
+      const retrieved = await jobQueue.getJob(jobId('job-cancel-running'));
+      expect(retrieved?.status).toBe('cancelled');
+      if (retrieved?.status === 'cancelled') {
+        expect(retrieved.startedAt).toBeDefined();
+      }
+    });
+
+    test('should not cancel a completed job', async () => {
+      const job = createCompleteDetectionJob('job-complete');
+      await jobQueue.createJob(job);
+
+      const result = await jobQueue.cancelJob(jobId('job-complete'));
+
+      expect(result).toBe(false);
+    });
+
+    test('should return false for non-existent job', async () => {
+      const result = await jobQueue.cancelJob(jobId('nonexistent'));
+
+      expect(result).toBe(false);
+    });
+  });
+
   describe('cleanupOldJobs()', () => {
     test('should delete completed jobs older than retention period', async () => {
       const oldJob = createCompleteDetectionJob('job-old');
