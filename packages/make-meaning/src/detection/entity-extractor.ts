@@ -1,4 +1,4 @@
-import { getInferenceClient, getInferenceModel } from '@semiont/inference';
+import { getInferenceClient } from '@semiont/inference';
 import type { EnvironmentConfig } from '@semiont/core';
 
 /**
@@ -95,31 +95,19 @@ Do not include markdown formatting or code fences, just the raw JSON array.
 Example output:
 [{"exact":"Alice","entityType":"Person","startOffset":0,"endOffset":5,"prefix":"","suffix":" went to"},{"exact":"Paris","entityType":"Location","startOffset":20,"endOffset":25,"prefix":"went to ","suffix":" yesterday"}]`;
 
-  console.log('Sending entity extraction request to model:', getInferenceModel(config));
-  const response = await client.messages.create({
-    model: getInferenceModel(config),
-    max_tokens: 4000, // Increased to handle many entities without truncation
-    temperature: 0.3, // Lower temperature for more consistent extraction
-    messages: [
-      {
-        role: 'user',
-        content: prompt
-      }
-    ]
-  });
+  console.log('Sending entity extraction request');
+  const response = await client.generateTextWithMetadata(
+    prompt,
+    4000, // Increased to handle many entities without truncation
+    0.3   // Lower temperature for more consistent extraction
+  );
   console.log('Got entity extraction response');
 
-  const textContent = response.content.find(c => c.type === 'text');
-  if (!textContent || textContent.type !== 'text') {
-    console.warn('No text content in entity extraction response');
-    return [];
-  }
-
-  console.log('Entity extraction raw response length:', textContent.text.length);
+  console.log('Entity extraction raw response length:', response.text.length);
 
   try {
     // Clean up response if wrapped in markdown
-    let jsonStr = textContent.text.trim();
+    let jsonStr = response.text.trim();
     if (jsonStr.startsWith('```')) {
       jsonStr = jsonStr.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
     }
@@ -128,7 +116,7 @@ Example output:
     console.log('Parsed', entities.length, 'entities from response');
 
     // Check if response was truncated - this is an ERROR condition
-    if (response.stop_reason === 'max_tokens') {
+    if (response.stopReason === 'max_tokens') {
       const errorMsg = `AI response truncated: Found ${entities.length} entities but response hit max_tokens limit. Increase max_tokens or reduce resource size.`;
       console.error(`❌ ${errorMsg}`);
       throw new Error(errorMsg);

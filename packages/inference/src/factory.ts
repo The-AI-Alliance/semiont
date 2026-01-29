@@ -1,16 +1,57 @@
-import Anthropic from '@anthropic-ai/sdk';
+// Factory for creating inference client instances based on configuration
+
 import type { EnvironmentConfig } from '@semiont/core';
+import { InferenceClient } from './interface.js';
+import { AnthropicInferenceClient } from './implementations/anthropic.js';
+
+export type InferenceClientType = 'anthropic';
+
+export interface InferenceClientConfig {
+  type: InferenceClientType;
+  apiKey?: string;
+  model: string;
+  endpoint?: string;
+  baseURL?: string;
+}
 
 // Singleton instance
-let inferenceClient: Anthropic | null = null;
+let inferenceClientInstance: InferenceClient | null = null;
 
-/**
- * Get or create the inference client
- * Following the singleton pattern from graph factory
- */
-export async function getInferenceClient(config: EnvironmentConfig): Promise<Anthropic> {
-  if (inferenceClient) {
-    return inferenceClient;
+export function createInferenceClient(config: InferenceClientConfig): InferenceClient {
+  switch (config.type) {
+    case 'anthropic': {
+      if (!config.apiKey || config.apiKey.trim() === '') {
+        throw new Error('apiKey is required for Anthropic inference client');
+      }
+      return new AnthropicInferenceClient(
+        config.apiKey,
+        config.model,
+        config.endpoint || config.baseURL
+      );
+    }
+
+    default:
+      throw new Error(`Unsupported inference client type: ${config.type}`);
+  }
+}
+
+// Helper function to evaluate environment variable placeholders
+function evaluateEnvVar(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+
+  // Replace ${VAR_NAME} with actual environment variable value
+  return value.replace(/\$\{([^}]+)\}/g, (match, varName) => {
+    const envValue = process.env[varName];
+    if (!envValue) {
+      throw new Error(`Environment variable ${varName} is not set. Referenced in configuration as ${match}`);
+    }
+    return envValue;
+  });
+}
+
+export async function getInferenceClient(config: EnvironmentConfig): Promise<InferenceClient> {
+  if (inferenceClientInstance) {
+    return inferenceClientInstance;
   }
 
   const inferenceConfig = config.services.inference;
@@ -18,31 +59,29 @@ export async function getInferenceClient(config: EnvironmentConfig): Promise<Ant
     throw new Error('services.inference is required in environment config');
   }
 
-  // Expand environment variables in apiKey
-  let apiKey = inferenceConfig.apiKey;
-  if (apiKey?.startsWith('${') && apiKey.endsWith('}')) {
-    const envVarName = apiKey.slice(2, -1);
-    const envValue = process.env[envVarName];
-    if (!envValue) {
-      throw new Error(`Environment variable ${envVarName} is not set`);
-    }
-    apiKey = envValue;
+  if (!inferenceConfig.model) {
+    throw new Error('services.inference.model is required in environment config');
   }
 
-  console.log('Inference config loaded:', {
-    type: inferenceConfig.type,
+  const clientConfig: InferenceClientConfig = {
+    type: inferenceConfig.type as InferenceClientType,
+    apiKey: evaluateEnvVar(inferenceConfig.apiKey),
     model: inferenceConfig.model,
     endpoint: inferenceConfig.endpoint,
-    hasApiKey: !!apiKey
+    baseURL: inferenceConfig.baseURL,
+  };
+
+  console.log('Inference config loaded:', {
+    type: clientConfig.type,
+    model: clientConfig.model,
+    endpoint: clientConfig.endpoint,
+    hasApiKey: !!clientConfig.apiKey
   });
 
-  inferenceClient = new Anthropic({
-    apiKey: apiKey,
-    baseURL: inferenceConfig.endpoint || inferenceConfig.baseURL || 'https://api.anthropic.com',
-  });
+  inferenceClientInstance = createInferenceClient(clientConfig);
 
   console.log(`Initialized ${inferenceConfig.type} inference client with model ${inferenceConfig.model}`);
-  return inferenceClient;
+  return inferenceClientInstance;
 }
 
 /**
@@ -65,39 +104,13 @@ export async function generateText(
   maxTokens: number = 500,
   temperature: number = 0.7
 ): Promise<string> {
-  console.log('generateText called with prompt length:', prompt.length, 'maxTokens:', maxTokens, 'temp:', temperature);
-
   const client = await getInferenceClient(config);
-
-  const response = await client.messages.create({
-    model: getInferenceModel(config),
-    max_tokens: maxTokens,
-    temperature,
-    messages: [
-      {
-        role: 'user',
-        content: prompt
-      }
-    ]
-  });
-
-  console.log('Inference response received, content blocks:', response.content.length);
-
-  const textContent = response.content.find(c => c.type === 'text');
-
-  if (!textContent || textContent.type !== 'text') {
-    console.error('No text content in response:', response.content);
-    throw new Error('No text content in inference response');
-  }
-
-  console.log('Returning text content of length:', textContent.text.length);
-  return textContent.text;
-
+  return client.generateText(prompt, maxTokens, temperature);
 }
 
 /**
  * Reset the singleton client (for testing only)
  */
 export function resetInferenceClient(): void {
-  inferenceClient = null;
+  inferenceClientInstance = null;
 }

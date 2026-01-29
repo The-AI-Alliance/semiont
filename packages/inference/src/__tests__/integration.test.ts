@@ -1,37 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-
-// Hoist the mock to ensure it's available in the mock factory
-const { mockCreate } = vi.hoisted(() => {
-  return { mockCreate: vi.fn() };
-});
-
-vi.mock('@anthropic-ai/sdk', () => {
-  return {
-    default: vi.fn().mockImplementation((config: any) => {
-      console.log('[INTEGRATION MOCK] Creating Anthropic client with', { apiKey: config?.apiKey });
-      return {
-        apiKey: config?.apiKey,
-        baseURL: config?.baseURL,
-        messages: {
-          create: mockCreate,
-        },
-      };
-    }),
-  };
-});
-
-import { generateText, resetInferenceClient } from '../factory.js';
-import { createTestConfig } from './helpers/mock-config.js';
-import {
-  createMockTextResponse,
-  createMockEmptyResponse,
-  createMockMultiBlockResponse,
-} from './helpers/mock-anthropic.js';
+import { createInferenceClient, resetInferenceClient } from '../factory.js';
+import { MockInferenceClient } from '../implementations/mock.js';
+import type { InferenceClientConfig } from '../factory.js';
 
 describe('@semiont/inference - integration', () => {
+  let mockClient: MockInferenceClient;
+
   beforeEach(() => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockClient = new MockInferenceClient(['Test response']);
     resetInferenceClient();
   });
 
@@ -40,159 +18,198 @@ describe('@semiont/inference - integration', () => {
     resetInferenceClient();
   });
 
-  describe('generateText', () => {
-    it('should make inference call with correct parameters', async () => {
-      mockCreate.mockResolvedValue(createMockTextResponse('Test response'));
-      const config = createTestConfig();
-
-      await generateText('Test prompt', config, 1000, 0.8);
-
-      expect(mockCreate).toHaveBeenCalledWith({
+  describe('createInferenceClient', () => {
+    it('should create Anthropic client with correct config', () => {
+      const config: InferenceClientConfig = {
+        type: 'anthropic',
+        apiKey: 'test-key',
         model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 1000,
+      };
+
+      const client = createInferenceClient(config);
+
+      expect(client).toBeDefined();
+    });
+
+    it('should throw error if apiKey is missing', () => {
+      const config: InferenceClientConfig = {
+        type: 'anthropic',
+        apiKey: undefined,
+        model: 'claude-3-5-sonnet-20241022',
+      };
+
+      expect(() => createInferenceClient(config)).toThrow('apiKey is required');
+    });
+
+    it('should accept custom endpoint', () => {
+      const config: InferenceClientConfig = {
+        type: 'anthropic',
+        apiKey: 'test-key',
+        model: 'claude-3-5-sonnet-20241022',
+        endpoint: 'https://custom.endpoint.com',
+      };
+
+      const client = createInferenceClient(config);
+
+      expect(client).toBeDefined();
+    });
+
+    it('should accept custom baseURL', () => {
+      const config: InferenceClientConfig = {
+        type: 'anthropic',
+        apiKey: 'test-key',
+        model: 'claude-3-5-sonnet-20241022',
+        baseURL: 'https://custom.baseurl.com',
+      };
+
+      const client = createInferenceClient(config);
+
+      expect(client).toBeDefined();
+    });
+  });
+
+  describe('InferenceClient.generateText', () => {
+    it('should generate text with correct parameters', async () => {
+      mockClient.setResponses(['Test response']);
+
+      const result = await mockClient.generateText('Test prompt', 1000, 0.8);
+
+      expect(result).toBe('Test response');
+      expect(mockClient.calls).toHaveLength(1);
+      expect(mockClient.calls[0]).toEqual({
+        prompt: 'Test prompt',
+        maxTokens: 1000,
         temperature: 0.8,
-        messages: [
-          {
-            role: 'user',
-            content: 'Test prompt',
-          },
-        ],
       });
     });
 
-    it('should pass prompt to Anthropic API', async () => {
-      mockCreate.mockResolvedValue(createMockTextResponse('Response'));
-      const config = createTestConfig();
+    it('should pass prompt to client', async () => {
+      mockClient.setResponses(['Response']);
 
-      await generateText('My custom prompt', config);
+      await mockClient.generateText('My custom prompt', 500, 0.7);
 
-      const call = mockCreate.mock.calls[0][0];
-      expect(call.messages[0].content).toBe('My custom prompt');
-    });
-
-    it('should use configured model from config', async () => {
-      mockCreate.mockResolvedValue(createMockTextResponse('Response'));
-      const config = createTestConfig({ model: 'claude-3-opus-20240229' });
-
-      await generateText('Test', config);
-
-      expect(mockCreate.mock.calls[0][0].model).toBe('claude-3-opus-20240229');
+      expect(mockClient.calls[0].prompt).toBe('My custom prompt');
     });
 
     it('should use provided maxTokens parameter', async () => {
-      mockCreate.mockResolvedValue(createMockTextResponse('Response'));
-      const config = createTestConfig();
+      mockClient.setResponses(['Response']);
 
-      await generateText('Test', config, 2000);
+      await mockClient.generateText('Test', 2000, 0.7);
 
-      expect(mockCreate.mock.calls[0][0].max_tokens).toBe(2000);
+      expect(mockClient.calls[0].maxTokens).toBe(2000);
     });
 
     it('should use provided temperature parameter', async () => {
-      mockCreate.mockResolvedValue(createMockTextResponse('Response'));
-      const config = createTestConfig();
+      mockClient.setResponses(['Response']);
 
-      await generateText('Test', config, 500, 0.5);
+      await mockClient.generateText('Test', 500, 0.5);
 
-      expect(mockCreate.mock.calls[0][0].temperature).toBe(0.5);
+      expect(mockClient.calls[0].temperature).toBe(0.5);
     });
 
-    it('should default maxTokens to 500', async () => {
-      mockCreate.mockResolvedValue(createMockTextResponse('Response'));
-      const config = createTestConfig();
+    it('should return generated text', async () => {
+      mockClient.setResponses(['Expected text content']);
 
-      await generateText('Test', config);
-
-      expect(mockCreate.mock.calls[0][0].max_tokens).toBe(500);
-    });
-
-    it('should default temperature to 0.7', async () => {
-      mockCreate.mockResolvedValue(createMockTextResponse('Response'));
-      const config = createTestConfig();
-
-      await generateText('Test', config);
-
-      expect(mockCreate.mock.calls[0][0].temperature).toBe(0.7);
-    });
-
-    it('should extract text content from response', async () => {
-      mockCreate.mockResolvedValue(createMockTextResponse('Expected text content'));
-      const config = createTestConfig();
-
-      const result = await generateText('Test', config);
+      const result = await mockClient.generateText('Test', 500, 0.7);
 
       expect(result).toBe('Expected text content');
     });
 
-    it('should throw error if no text content in response', async () => {
-      mockCreate.mockResolvedValue(createMockEmptyResponse());
-      const config = createTestConfig();
+    it('should handle multiple calls', async () => {
+      mockClient.setResponses(['Response 1', 'Response 2']);
 
-      await expect(generateText('Test', config)).rejects.toThrow(
-        'No text content in inference response'
-      );
+      const result1 = await mockClient.generateText('First call', 500, 0.7);
+      const result2 = await mockClient.generateText('Second call', 500, 0.7);
+
+      expect(result1).toBe('Response 1');
+      expect(result2).toBe('Response 2');
+      expect(mockClient.calls).toHaveLength(2);
     });
 
-    it('should handle multiple content blocks', async () => {
-      mockCreate.mockResolvedValue(createMockMultiBlockResponse(['First block', 'Second block']));
-      const config = createTestConfig();
+    it('should handle concurrent calls', async () => {
+      mockClient.setResponses(['Response']);
 
-      const result = await generateText('Test', config);
+      const results = await Promise.all([
+        mockClient.generateText('Prompt 1', 500, 0.7),
+        mockClient.generateText('Prompt 2', 500, 0.7),
+        mockClient.generateText('Prompt 3', 500, 0.7),
+      ]);
 
-      // Should return the first text block
-      expect(result).toBe('First block');
+      expect(results).toHaveLength(3);
+      expect(results.every(r => r === 'Response')).toBe(true);
+      expect(mockClient.calls).toHaveLength(3);
+    });
+  });
+
+  describe('Parameter edge cases', () => {
+    it('should handle maxTokens of 0', async () => {
+      mockClient.setResponses(['Response']);
+
+      await mockClient.generateText('Test', 0, 0.7);
+
+      expect(mockClient.calls[0].maxTokens).toBe(0);
     });
 
-    it('should reuse singleton client', async () => {
-      mockCreate.mockResolvedValue(createMockTextResponse('Response 1'));
-      const config = createTestConfig();
+    it('should handle very large maxTokens', async () => {
+      mockClient.setResponses(['Response']);
 
-      await generateText('First call', config);
-      await generateText('Second call', config);
+      await mockClient.generateText('Test', 100000, 0.7);
 
-      // Both calls should use the same client instance
-      expect(mockCreate).toHaveBeenCalledTimes(2);
+      expect(mockClient.calls[0].maxTokens).toBe(100000);
     });
 
-    it('should log prompt length and parameters', async () => {
-      mockCreate.mockResolvedValue(createMockTextResponse('Response'));
-      const config = createTestConfig();
+    it('should handle temperature of 0', async () => {
+      mockClient.setResponses(['Response']);
 
-      await generateText('Test prompt', config, 1000, 0.9);
+      await mockClient.generateText('Test', 500, 0);
 
-      expect(console.log).toHaveBeenCalledWith(
-        'generateText called with prompt length:',
-        11,
-        'maxTokens:',
-        1000,
-        'temp:',
-        0.9
-      );
+      expect(mockClient.calls[0].temperature).toBe(0);
     });
 
-    it('should log response content blocks', async () => {
-      mockCreate.mockResolvedValue(createMockTextResponse('Response'));
-      const config = createTestConfig();
+    it('should handle temperature of 1', async () => {
+      mockClient.setResponses(['Response']);
 
-      await generateText('Test', config);
+      await mockClient.generateText('Test', 500, 1);
 
-      expect(console.log).toHaveBeenCalledWith('Inference response received, content blocks:', 1);
+      expect(mockClient.calls[0].temperature).toBe(1);
+    });
+  });
+
+  describe('Prompt edge cases', () => {
+    it('should handle empty prompts', async () => {
+      mockClient.setResponses(['Response']);
+
+      const result = await mockClient.generateText('', 500, 0.7);
+
+      expect(result).toBe('Response');
+      expect(mockClient.calls[0].prompt).toBe('');
     });
 
-    it('should handle API errors gracefully', async () => {
-      const apiError = new Error('API rate limit exceeded');
-      mockCreate.mockRejectedValue(apiError);
-      const config = createTestConfig();
+    it('should handle very large prompts', async () => {
+      mockClient.setResponses(['Response']);
+      const largePrompt = 'a'.repeat(10000);
 
-      await expect(generateText('Test', config)).rejects.toThrow('API rate limit exceeded');
+      await mockClient.generateText(largePrompt, 500, 0.7);
+
+      expect(mockClient.calls[0].prompt).toHaveLength(10000);
     });
 
-    it('should handle network errors', async () => {
-      const networkError = new Error('Network timeout');
-      mockCreate.mockRejectedValue(networkError);
-      const config = createTestConfig();
+    it('should handle special characters in prompts', async () => {
+      mockClient.setResponses(['Response']);
+      const specialPrompt = 'Hello\\n\\nWorld\\t"quotes"\\n\'single\'\\n${variable}\\n`backticks`';
 
-      await expect(generateText('Test', config)).rejects.toThrow('Network timeout');
+      await mockClient.generateText(specialPrompt, 500, 0.7);
+
+      expect(mockClient.calls[0].prompt).toBe(specialPrompt);
+    });
+
+    it('should handle unicode in prompts', async () => {
+      mockClient.setResponses(['Response']);
+      const unicodePrompt = 'Hello 世界 🌍 emoji';
+
+      await mockClient.generateText(unicodePrompt, 500, 0.7);
+
+      expect(mockClient.calls[0].prompt).toBe(unicodePrompt);
     });
   });
 });

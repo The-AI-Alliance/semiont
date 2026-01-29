@@ -10,7 +10,7 @@
  * motivation prompts/parsers), see @semiont/make-meaning examples.
  */
 
-import { generateText, getInferenceClient, getInferenceModel } from '@semiont/inference';
+import { generateText, getInferenceClient } from '@semiont/inference';
 import type { EnvironmentConfig } from '@semiont/core';
 
 // Example configuration
@@ -38,27 +38,19 @@ async function main() {
   console.log('Response:', result);
   console.log('Length:', result.length, 'characters\n');
 
-  // 2. Direct client access (advanced use)
-  console.log('🔧 Using getInferenceClient() directly...\n');
+  // 2. Direct client access with metadata (advanced use)
+  console.log('🔧 Using getInferenceClient() with metadata...\n');
 
   const client = await getInferenceClient(config);
-  const model = getInferenceModel(config);
 
-  const response = await client.messages.create({
-    model,
-    max_tokens: 100,
-    messages: [
-      {
-        role: 'user',
-        content: 'Write a haiku about programming',
-      },
-    ],
-  });
+  const response = await client.generateTextWithMetadata(
+    'Write a haiku about programming',
+    100,
+    0.7
+  );
 
-  const textContent = response.content.find((c) => c.type === 'text');
-  if (textContent && textContent.type === 'text') {
-    console.log('Haiku:', textContent.text);
-  }
+  console.log('Haiku:', response.text);
+  console.log('Stop reason:', response.stopReason);
 
   console.log('\n✨ Example complete');
   console.log('\n💡 For application-specific AI features, see @semiont/make-meaning:');
