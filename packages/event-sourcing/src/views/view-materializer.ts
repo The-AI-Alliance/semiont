@@ -356,8 +356,8 @@ export class ViewMaterializer {
     const entityTypesPath = path.join(
       this.config.basePath,
       'projections',
-      'entity-types',
-      'entity-types.json'
+      '__system__',
+      'entitytypes.json'
     );
 
 
