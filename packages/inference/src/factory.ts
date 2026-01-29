@@ -94,3 +94,10 @@ export async function generateText(
   return textContent.text;
 
 }
+
+/**
+ * Reset the singleton client (for testing only)
+ */
+export function resetInferenceClient(): void {
+  inferenceClient = null;
+}
