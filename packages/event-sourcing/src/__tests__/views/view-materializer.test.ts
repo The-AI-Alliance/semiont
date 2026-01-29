@@ -1,0 +1,885 @@
+/**
+ * ViewMaterializer Tests
+ * Tests for complex view materialization logic
+ */
+
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { ViewMaterializer } from '../../views/view-materializer';
+import { FilesystemViewStorage } from '../../storage/view-storage';
+import { resourceId, userId } from '@semiont/core';
+import type { StoredEvent } from '@semiont/core';
+import { promises as fs } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+
+describe('ViewMaterializer', () => {
+  let materializer: ViewMaterializer;
+  let viewStorage: FilesystemViewStorage;
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = join(tmpdir(), `semiont-test-materializer-${Date.now()}`);
+    await fs.mkdir(testDir, { recursive: true });
+
+    viewStorage = new FilesystemViewStorage(testDir);
+    materializer = new ViewMaterializer(viewStorage, {
+      basePath: testDir,
+      backendUrl: 'http://localhost:4000',
+    });
+  });
+
+  afterEach(async () => {
+    await fs.rm(testDir, { recursive: true, force: true });
+  });
+
+  describe('materialize() - Full rebuild from events', () => {
+    it('should rebuild view from resource.created event', async () => {
+      const rid = resourceId('doc1');
+      const events: StoredEvent[] = [
+        {
+          event: {
+            id: 'event1',
+            type: 'resource.created',
+            timestamp: new Date().toISOString(),
+            userId: userId('user1'),
+            resourceId: rid,
+            version: 1,
+            payload: {
+              name: 'Test Document',
+              format: 'text/plain' as const,
+              contentChecksum: 'checksum1',
+              creationMethod: 'api' as const,
+            },
+          },
+          metadata: {
+            sequenceNumber: 1,
+            previousHash: null,
+            eventHash: 'hash1',
+          },
+        },
+      ];
+
+      const view = await materializer.materialize(events, rid);
+
+      expect(view).not.toBeNull();
+      expect(view?.resource.name).toBe('Test Document');
+      expect(view?.resource.format).toBe('text/plain');
+    });
+
+    it('should handle resource.updated event', async () => {
+      const rid = resourceId('doc1');
+      const events: StoredEvent[] = [
+        {
+          event: {
+            id: 'event1',
+            type: 'resource.created',
+            timestamp: new Date().toISOString(),
+            userId: userId('user1'),
+            resourceId: rid,
+            version: 1,
+            payload: {
+              name: 'Original Name',
+              format: 'text/plain' as const,
+              contentChecksum: 'checksum1',
+              creationMethod: 'api' as const,
+            },
+          },
+          metadata: {
+            sequenceNumber: 1,
+            previousHash: null,
+            eventHash: 'hash1',
+          },
+        },
+        {
+          event: {
+            id: 'event2',
+            type: 'resource.updated',
+            timestamp: new Date().toISOString(),
+            userId: userId('user1'),
+            resourceId: rid,
+            version: 2,
+            payload: {
+              name: 'Updated Name',
+              format: 'text/markdown' as const,
+            },
+          },
+          metadata: {
+            sequenceNumber: 2,
+            previousHash: 'hash1',
+            eventHash: 'hash2',
+          },
+        },
+      ];
+
+      const view = await materializer.materialize(events, rid);
+
+      expect(view?.resource.name).toBe('Updated Name');
+      expect(view?.resource.format).toBe('text/markdown');
+    });
+
+    it('should handle representation.added event', async () => {
+      const rid = resourceId('doc1');
+      const events: StoredEvent[] = [
+        {
+          event: {
+            id: 'event1',
+            type: 'resource.created',
+            timestamp: new Date().toISOString(),
+            userId: userId('user1'),
+            resourceId: rid,
+            version: 1,
+            payload: {
+              name: 'Test Document',
+              format: 'text/plain' as const,
+              contentChecksum: 'checksum1',
+              creationMethod: 'api' as const,
+            },
+          },
+          metadata: {
+            sequenceNumber: 1,
+            previousHash: null,
+            eventHash: 'hash1',
+          },
+        },
+        {
+          event: {
+            id: 'event2',
+            type: 'representation.added',
+            timestamp: new Date().toISOString(),
+            userId: userId('user1'),
+            resourceId: rid,
+            version: 2,
+            payload: {
+              representation: {
+                '@id': 'checksum1',
+                mediaType: 'text/plain',
+                byteSize: 100,
+                checksum: 'checksum1',
+                created: new Date().toISOString(),
+              },
+            },
+          },
+          metadata: {
+            sequenceNumber: 2,
+            previousHash: 'hash1',
+            eventHash: 'hash2',
+          },
+        },
+      ];
+
+      const view = await materializer.materialize(events, rid);
+
+      expect(view?.resource.representations).toHaveLength(1);
+      expect(view?.resource.representations[0].checksum).toBe('checksum1');
+    });
+
+    it('should handle representation.removed event', async () => {
+      const rid = resourceId('doc1');
+      const events: StoredEvent[] = [
+        {
+          event: {
+            id: 'event1',
+            type: 'resource.created',
+            timestamp: new Date().toISOString(),
+            userId: userId('user1'),
+            resourceId: rid,
+            version: 1,
+            payload: {
+              name: 'Test Document',
+              format: 'text/plain' as const,
+              contentChecksum: 'checksum1',
+              creationMethod: 'api' as const,
+            },
+          },
+          metadata: {
+            sequenceNumber: 1,
+            previousHash: null,
+            eventHash: 'hash1',
+          },
+        },
+        {
+          event: {
+            id: 'event2',
+            type: 'representation.added',
+            timestamp: new Date().toISOString(),
+            userId: userId('user1'),
+            resourceId: rid,
+            version: 2,
+            payload: {
+              representation: {
+                '@id': 'checksum1',
+                mediaType: 'text/plain',
+                byteSize: 100,
+                checksum: 'checksum1',
+                created: new Date().toISOString(),
+              },
+            },
+          },
+          metadata: {
+            sequenceNumber: 2,
+            previousHash: 'hash1',
+            eventHash: 'hash2',
+          },
+        },
+        {
+          event: {
+            id: 'event3',
+            type: 'representation.removed',
+            timestamp: new Date().toISOString(),
+            userId: userId('user1'),
+            resourceId: rid,
+            version: 3,
+            payload: {
+              checksum: 'checksum1',
+            },
+          },
+          metadata: {
+            sequenceNumber: 3,
+            previousHash: 'hash2',
+            eventHash: 'hash3',
+          },
+        },
+      ];
+
+      const view = await materializer.materialize(events, rid);
+
+      expect(view?.resource.representations).toHaveLength(0);
+    });
+
+    it('should handle annotation.added event', async () => {
+      const rid = resourceId('doc1');
+      const events: StoredEvent[] = [
+        {
+          event: {
+            id: 'event1',
+            type: 'resource.created',
+            timestamp: new Date().toISOString(),
+            userId: userId('user1'),
+            resourceId: rid,
+            version: 1,
+            payload: {
+              name: 'Test Document',
+              format: 'text/plain' as const,
+              contentChecksum: 'checksum1',
+              creationMethod: 'api' as const,
+            },
+          },
+          metadata: {
+            sequenceNumber: 1,
+            previousHash: null,
+            eventHash: 'hash1',
+          },
+        },
+        {
+          event: {
+            id: 'event2',
+            type: 'annotation.added',
+            timestamp: new Date().toISOString(),
+            userId: userId('user1'),
+            resourceId: rid,
+            version: 2,
+            payload: {
+              annotation: {
+                '@context': 'http://www.w3.org/ns/anno.jsonld',
+                id: 'http://localhost:4000/annotations/anno1',
+                type: 'Annotation',
+                body: [],
+                target: 'http://localhost:4000/resources/doc1',
+                created: new Date().toISOString(),
+                creator: { id: 'http://localhost:4000/users/user1', type: 'Person' },
+              },
+            },
+          },
+          metadata: {
+            sequenceNumber: 2,
+            previousHash: 'hash1',
+            eventHash: 'hash2',
+          },
+        },
+      ];
+
+      const view = await materializer.materialize(events, rid);
+
+      expect(view?.annotations.annotations).toHaveLength(1);
+      expect(view?.annotations.total).toBe(1);
+    });
+
+    it('should handle annotation.updated event', async () => {
+      const rid = resourceId('doc1');
+      const events: StoredEvent[] = [
+        {
+          event: {
+            id: 'event1',
+            type: 'resource.created',
+            timestamp: new Date().toISOString(),
+            userId: userId('user1'),
+            resourceId: rid,
+            version: 1,
+            payload: {
+              name: 'Test Document',
+              format: 'text/plain' as const,
+              contentChecksum: 'checksum1',
+              creationMethod: 'api' as const,
+            },
+          },
+          metadata: {
+            sequenceNumber: 1,
+            previousHash: null,
+            eventHash: 'hash1',
+          },
+        },
+        {
+          event: {
+            id: 'event2',
+            type: 'annotation.added',
+            timestamp: new Date().toISOString(),
+            userId: userId('user1'),
+            resourceId: rid,
+            version: 2,
+            payload: {
+              annotation: {
+                '@context': 'http://www.w3.org/ns/anno.jsonld',
+                id: 'http://localhost:4000/annotations/anno1',
+                type: 'Annotation',
+                body: [],
+                target: 'http://localhost:4000/resources/doc1',
+                created: new Date().toISOString(),
+                creator: { id: 'http://localhost:4000/users/user1', type: 'Person' },
+              },
+            },
+          },
+          metadata: {
+            sequenceNumber: 2,
+            previousHash: 'hash1',
+            eventHash: 'hash2',
+          },
+        },
+        {
+          event: {
+            id: 'event3',
+            type: 'annotation.updated',
+            timestamp: new Date().toISOString(),
+            userId: userId('user1'),
+            resourceId: rid,
+            version: 3,
+            payload: {
+              annotation: {
+                '@context': 'http://www.w3.org/ns/anno.jsonld',
+                id: 'http://localhost:4000/annotations/anno1',
+                type: 'Annotation',
+                body: [
+                  {
+                    type: 'TextualBody',
+                    value: 'Updated comment',
+                    purpose: 'commenting',
+                  },
+                ],
+                target: 'http://localhost:4000/resources/doc1',
+                created: new Date().toISOString(),
+                modified: new Date().toISOString(),
+                creator: { id: 'http://localhost:4000/users/user1', type: 'Person' },
+              },
+            },
+          },
+          metadata: {
+            sequenceNumber: 3,
+            previousHash: 'hash2',
+            eventHash: 'hash3',
+          },
+        },
+      ];
+
+      const view = await materializer.materialize(events, rid);
+
+      expect(view?.annotations.annotations).toHaveLength(1);
+      expect(view?.annotations.annotations[0].body).toHaveLength(1);
+    });
+
+    it('should handle annotation.deleted event', async () => {
+      const rid = resourceId('doc1');
+      const events: StoredEvent[] = [
+        {
+          event: {
+            id: 'event1',
+            type: 'resource.created',
+            timestamp: new Date().toISOString(),
+            userId: userId('user1'),
+            resourceId: rid,
+            version: 1,
+            payload: {
+              name: 'Test Document',
+              format: 'text/plain' as const,
+              contentChecksum: 'checksum1',
+              creationMethod: 'api' as const,
+            },
+          },
+          metadata: {
+            sequenceNumber: 1,
+            previousHash: null,
+            eventHash: 'hash1',
+          },
+        },
+        {
+          event: {
+            id: 'event2',
+            type: 'annotation.added',
+            timestamp: new Date().toISOString(),
+            userId: userId('user1'),
+            resourceId: rid,
+            version: 2,
+            payload: {
+              annotation: {
+                '@context': 'http://www.w3.org/ns/anno.jsonld',
+                id: 'http://localhost:4000/annotations/anno1',
+                type: 'Annotation',
+                body: [],
+                target: 'http://localhost:4000/resources/doc1',
+                created: new Date().toISOString(),
+                creator: { id: 'http://localhost:4000/users/user1', type: 'Person' },
+              },
+            },
+          },
+          metadata: {
+            sequenceNumber: 2,
+            previousHash: 'hash1',
+            eventHash: 'hash2',
+          },
+        },
+        {
+          event: {
+            id: 'event3',
+            type: 'annotation.deleted',
+            timestamp: new Date().toISOString(),
+            userId: userId('user1'),
+            resourceId: rid,
+            version: 3,
+            payload: {
+              annotationId: 'http://localhost:4000/annotations/anno1',
+            },
+          },
+          metadata: {
+            sequenceNumber: 3,
+            previousHash: 'hash2',
+            eventHash: 'hash3',
+          },
+        },
+      ];
+
+      const view = await materializer.materialize(events, rid);
+
+      expect(view?.annotations.annotations).toHaveLength(0);
+      expect(view?.annotations.total).toBe(0);
+    });
+
+    it('should return null for empty event list', async () => {
+      const rid = resourceId('doc1');
+      const view = await materializer.materialize([], rid);
+
+      expect(view).toBeNull();
+    });
+  });
+
+  describe('materializeIncremental() - Incremental updates', () => {
+    it('should incrementally update existing view', async () => {
+      const rid = resourceId('doc1');
+
+      // Create initial view
+      const createEvent = {
+        id: 'event1',
+        type: 'resource.created' as const,
+        timestamp: new Date().toISOString(),
+        userId: userId('user1'),
+        resourceId: rid,
+        version: 1,
+        payload: {
+          name: 'Original Name',
+          format: 'text/plain' as const,
+          contentChecksum: 'checksum1',
+          creationMethod: 'api' as const,
+        },
+      };
+
+      await materializer.materializeIncremental(rid, createEvent, async () => [
+        {
+          event: createEvent,
+          metadata: { sequenceNumber: 1, previousHash: null, eventHash: 'hash1' },
+        },
+      ]);
+
+      // Update incrementally
+      const updateEvent = {
+        id: 'event2',
+        type: 'resource.updated' as const,
+        timestamp: new Date().toISOString(),
+        userId: userId('user1'),
+        resourceId: rid,
+        version: 2,
+        payload: {
+          name: 'Updated Name',
+        },
+      };
+
+      await materializer.materializeIncremental(rid, updateEvent, async () => [
+        {
+          event: createEvent,
+          metadata: { sequenceNumber: 1, previousHash: null, eventHash: 'hash1' },
+        },
+        {
+          event: updateEvent,
+          metadata: { sequenceNumber: 2, previousHash: 'hash1', eventHash: 'hash2' },
+        },
+      ]);
+
+      const view = await viewStorage.get(rid);
+      expect(view?.resource.name).toBe('Updated Name');
+    });
+
+    it('should rebuild from scratch if view does not exist', async () => {
+      const rid = resourceId('doc1');
+
+      const event = {
+        id: 'event1',
+        type: 'resource.created' as const,
+        timestamp: new Date().toISOString(),
+        userId: userId('user1'),
+        resourceId: rid,
+        version: 1,
+        payload: {
+          name: 'Test Document',
+          format: 'text/plain' as const,
+          contentChecksum: 'checksum1',
+          creationMethod: 'api' as const,
+        },
+      };
+
+      await materializer.materializeIncremental(rid, event, async () => [
+        {
+          event,
+          metadata: { sequenceNumber: 1, previousHash: null, eventHash: 'hash1' },
+        },
+      ]);
+
+      const view = await viewStorage.get(rid);
+      expect(view?.resource.name).toBe('Test Document');
+    });
+  });
+
+  describe('materializeEntityTypes() - System views', () => {
+    it('should create entity types view', async () => {
+      const entityType = {
+        '@id': 'http://example.com/entitytypes/Document',
+        name: 'Document',
+        description: 'A document entity type',
+      };
+
+      await materializer.materializeEntityTypes(entityType);
+
+      // Read the entity types file
+      const entityTypesPath = join(testDir, 'projections', '__system__', 'entitytypes.json');
+      const content = await fs.readFile(entityTypesPath, 'utf-8');
+      const view = JSON.parse(content);
+
+      expect(view.entityTypes).toContain(entityType);
+    });
+
+    it('should handle multiple entity types', async () => {
+      const entityType1 = {
+        '@id': 'http://example.com/entitytypes/Document',
+        name: 'Document',
+      };
+      const entityType2 = {
+        '@id': 'http://example.com/entitytypes/Image',
+        name: 'Image',
+      };
+
+      await materializer.materializeEntityTypes(entityType1);
+      await materializer.materializeEntityTypes(entityType2);
+
+      // Read the entity types file
+      const entityTypesPath = join(testDir, 'projections', '__system__', 'entitytypes.json');
+      const content = await fs.readFile(entityTypesPath, 'utf-8');
+      const view = JSON.parse(content);
+
+      expect(view.entityTypes).toHaveLength(2);
+      expect(view.entityTypes).toContain(entityType1);
+      expect(view.entityTypes).toContain(entityType2);
+    });
+
+    it('should be idempotent - adding same entity type twice', async () => {
+      const entityType = {
+        '@id': 'http://example.com/entitytypes/Document',
+        name: 'Document',
+      };
+
+      await materializer.materializeEntityTypes(entityType);
+      await materializer.materializeEntityTypes(entityType);
+
+      // Read the entity types file
+      const entityTypesPath = join(testDir, 'projections', '__system__', 'entitytypes.json');
+      const content = await fs.readFile(entityTypesPath, 'utf-8');
+      const view = JSON.parse(content);
+
+      // Should only have one copy
+      expect(view.entityTypes).toHaveLength(1);
+    });
+  });
+
+  describe('Edge cases', () => {
+    it('should handle multiple representations', async () => {
+      const rid = resourceId('doc1');
+      const events: StoredEvent[] = [
+        {
+          event: {
+            id: 'event1',
+            type: 'resource.created',
+            timestamp: new Date().toISOString(),
+            userId: userId('user1'),
+            resourceId: rid,
+            version: 1,
+            payload: {
+              name: 'Test Document',
+              format: 'text/plain' as const,
+              contentChecksum: 'checksum1',
+              creationMethod: 'api' as const,
+            },
+          },
+          metadata: {
+            sequenceNumber: 1,
+            previousHash: null,
+            eventHash: 'hash1',
+          },
+        },
+        {
+          event: {
+            id: 'event2',
+            type: 'representation.added',
+            timestamp: new Date().toISOString(),
+            userId: userId('user1'),
+            resourceId: rid,
+            version: 2,
+            payload: {
+              representation: {
+                '@id': 'checksum1',
+                mediaType: 'text/plain',
+                byteSize: 100,
+                checksum: 'checksum1',
+                created: new Date().toISOString(),
+              },
+            },
+          },
+          metadata: {
+            sequenceNumber: 2,
+            previousHash: 'hash1',
+            eventHash: 'hash2',
+          },
+        },
+        {
+          event: {
+            id: 'event3',
+            type: 'representation.added',
+            timestamp: new Date().toISOString(),
+            userId: userId('user1'),
+            resourceId: rid,
+            version: 3,
+            payload: {
+              representation: {
+                '@id': 'checksum2',
+                mediaType: 'text/html',
+                byteSize: 200,
+                checksum: 'checksum2',
+                created: new Date().toISOString(),
+              },
+            },
+          },
+          metadata: {
+            sequenceNumber: 3,
+            previousHash: 'hash2',
+            eventHash: 'hash3',
+          },
+        },
+      ];
+
+      const view = await materializer.materialize(events, rid);
+
+      expect(view?.resource.representations).toHaveLength(2);
+    });
+
+    it('should prevent duplicate representations', async () => {
+      const rid = resourceId('doc1');
+      const events: StoredEvent[] = [
+        {
+          event: {
+            id: 'event1',
+            type: 'resource.created',
+            timestamp: new Date().toISOString(),
+            userId: userId('user1'),
+            resourceId: rid,
+            version: 1,
+            payload: {
+              name: 'Test Document',
+              format: 'text/plain' as const,
+              contentChecksum: 'checksum1',
+              creationMethod: 'api' as const,
+            },
+          },
+          metadata: {
+            sequenceNumber: 1,
+            previousHash: null,
+            eventHash: 'hash1',
+          },
+        },
+        {
+          event: {
+            id: 'event2',
+            type: 'representation.added',
+            timestamp: new Date().toISOString(),
+            userId: userId('user1'),
+            resourceId: rid,
+            version: 2,
+            payload: {
+              representation: {
+                '@id': 'checksum1',
+                mediaType: 'text/plain',
+                byteSize: 100,
+                checksum: 'checksum1',
+                created: new Date().toISOString(),
+              },
+            },
+          },
+          metadata: {
+            sequenceNumber: 2,
+            previousHash: 'hash1',
+            eventHash: 'hash2',
+          },
+        },
+        {
+          event: {
+            id: 'event3',
+            type: 'representation.added',
+            timestamp: new Date().toISOString(),
+            userId: userId('user1'),
+            resourceId: rid,
+            version: 3,
+            payload: {
+              representation: {
+                '@id': 'checksum1',
+                mediaType: 'text/plain',
+                byteSize: 100,
+                checksum: 'checksum1',
+                created: new Date().toISOString(),
+              },
+            },
+          },
+          metadata: {
+            sequenceNumber: 3,
+            previousHash: 'hash2',
+            eventHash: 'hash3',
+          },
+        },
+      ];
+
+      const view = await materializer.materialize(events, rid);
+
+      // Should only have one representation (duplicates ignored)
+      expect(view?.resource.representations).toHaveLength(1);
+    });
+
+    it('should handle removing non-existent representation gracefully', async () => {
+      const rid = resourceId('doc1');
+      const events: StoredEvent[] = [
+        {
+          event: {
+            id: 'event1',
+            type: 'resource.created',
+            timestamp: new Date().toISOString(),
+            userId: userId('user1'),
+            resourceId: rid,
+            version: 1,
+            payload: {
+              name: 'Test Document',
+              format: 'text/plain' as const,
+              contentChecksum: 'checksum1',
+              creationMethod: 'api' as const,
+            },
+          },
+          metadata: {
+            sequenceNumber: 1,
+            previousHash: null,
+            eventHash: 'hash1',
+          },
+        },
+        {
+          event: {
+            id: 'event2',
+            type: 'representation.removed',
+            timestamp: new Date().toISOString(),
+            userId: userId('user1'),
+            resourceId: rid,
+            version: 2,
+            payload: {
+              checksum: 'nonexistent',
+            },
+          },
+          metadata: {
+            sequenceNumber: 2,
+            previousHash: 'hash1',
+            eventHash: 'hash2',
+          },
+        },
+      ];
+
+      const view = await materializer.materialize(events, rid);
+
+      expect(view?.resource.representations).toHaveLength(0);
+    });
+
+    it('should handle deleting non-existent annotation gracefully', async () => {
+      const rid = resourceId('doc1');
+      const events: StoredEvent[] = [
+        {
+          event: {
+            id: 'event1',
+            type: 'resource.created',
+            timestamp: new Date().toISOString(),
+            userId: userId('user1'),
+            resourceId: rid,
+            version: 1,
+            payload: {
+              name: 'Test Document',
+              format: 'text/plain' as const,
+              contentChecksum: 'checksum1',
+              creationMethod: 'api' as const,
+            },
+          },
+          metadata: {
+            sequenceNumber: 1,
+            previousHash: null,
+            eventHash: 'hash1',
+          },
+        },
+        {
+          event: {
+            id: 'event2',
+            type: 'annotation.deleted',
+            timestamp: new Date().toISOString(),
+            userId: userId('user1'),
+            resourceId: rid,
+            version: 2,
+            payload: {
+              annotationId: 'http://localhost:4000/annotations/nonexistent',
+            },
+          },
+          metadata: {
+            sequenceNumber: 2,
+            previousHash: 'hash1',
+            eventHash: 'hash2',
+          },
+        },
+      ];
+
+      const view = await materializer.materialize(events, rid);
+
+      expect(view?.annotations.annotations).toHaveLength(0);
+    });
+  });
+});
