@@ -6,7 +6,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EventBus } from '../event-bus';
 import { resourceId, userId } from '@semiont/core';
-import type { StoredEvent } from '@semiont/core';
+import type { StoredEvent, EventMetadata } from '@semiont/core';
+
+// Helper to create minimal EventMetadata for tests
+function createEventMetadata(sequenceNumber: number, prevHash?: string): EventMetadata {
+  return {
+    sequenceNumber,
+    streamPosition: sequenceNumber * 100, // Fake stream position
+    timestamp: new Date().toISOString(),
+    prevEventHash: prevHash,
+  };
+}
 
 describe('EventBus', () => {
   let bus: EventBus;
@@ -53,11 +63,7 @@ describe('EventBus', () => {
             creationMethod: 'api' as const,
           },
         },
-        metadata: {
-          sequenceNumber: 1,
-          previousHash: null,
-          eventHash: 'hash1',
-        },
+        metadata: createEventMetadata(1),
       };
 
       await bus.publish(event);
@@ -79,17 +85,10 @@ describe('EventBus', () => {
           userId: userId('system'),
           version: 1,
           payload: {
-            entityType: {
-              '@id': 'http://example.com/entitytypes/Document',
-              name: 'Document',
-            },
+            entityType: 'Document',
           },
         },
-        metadata: {
-          sequenceNumber: 1,
-          previousHash: null,
-          eventHash: 'hash1',
-        },
+        metadata: createEventMetadata(1),
       };
 
       await bus.publish(event);
@@ -113,9 +112,9 @@ describe('EventBus', () => {
           timestamp: new Date().toISOString(),
           userId: userId('system'),
           version: 1,
-          payload: { entityType: { '@id': 'http://example.com/entitytypes/Document', name: 'Document' } },
+          payload: { entityType: 'Document' },
         },
-        metadata: { sequenceNumber: 1, previousHash: null, eventHash: 'hash1' },
+        metadata: { sequenceNumber: 1, prevEventHash: undefined, eventHash: 'hash1' },
       };
 
       await bus.publish(systemEvent);

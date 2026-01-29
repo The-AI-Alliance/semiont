@@ -7,9 +7,33 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { FilesystemViewStorage } from '../../storage/view-storage';
 import type { ResourceView } from '../../storage/view-storage';
 import { resourceId } from '@semiont/core';
+import type { ResourceId } from '@semiont/core';
+import type { Motivation } from '@semiont/api-client';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+
+// Helper to create minimal ResourceDescriptor for tests
+function createResourceDescriptor(id: string, name: string, overrides = {}) {
+  return {
+    '@context': 'https://www.w3.org/ns/activitystreams',
+    '@id': `http://localhost:4000/resources/${id}`,
+    name,
+    representations: [],
+    ...overrides,
+  };
+}
+
+// Helper to create minimal ResourceAnnotations for tests
+function createResourceAnnotations(rid: ResourceId, overrides = {}) {
+  return {
+    resourceId: rid,
+    version: 0,
+    updatedAt: new Date().toISOString(),
+    annotations: [],
+    ...overrides,
+  };
+}
 
 describe('FilesystemViewStorage', () => {
   let testDir: string;
@@ -46,16 +70,10 @@ describe('FilesystemViewStorage', () => {
     it('should save a resource view', async () => {
       const rid = resourceId('doc1');
       const view: ResourceView = {
-        resource: {
-          '@id': 'http://localhost:4000/resources/doc1',
-          name: 'Test Document',
+        resource: createResourceDescriptor('doc1', 'Test Document', {
           format: 'text/plain',
-          representations: [],
-        },
-        annotations: {
-          annotations: [],
-          total: 0,
-        },
+        }),
+        annotations: createResourceAnnotations(rid),
       };
 
       await storage.save(rid, view);
@@ -68,23 +86,17 @@ describe('FilesystemViewStorage', () => {
     it('should overwrite existing view', async () => {
       const rid = resourceId('doc1');
       const view1: ResourceView = {
-        resource: {
-          '@id': 'http://localhost:4000/resources/doc1',
-          name: 'Version 1',
+        resource: createResourceDescriptor('doc1', 'Version 1', {
           format: 'text/plain',
-          representations: [],
-        },
-        annotations: { annotations: [], total: 0 },
+        }),
+        annotations: createResourceAnnotations(rid),
       };
 
       const view2: ResourceView = {
-        resource: {
-          '@id': 'http://localhost:4000/resources/doc1',
-          name: 'Version 2',
+        resource: createResourceDescriptor('doc1', 'Version 2', {
           format: 'text/plain',
-          representations: [],
-        },
-        annotations: { annotations: [], total: 0 },
+        }),
+        annotations: createResourceAnnotations(rid),
       };
 
       await storage.save(rid, view1);
@@ -99,9 +111,7 @@ describe('FilesystemViewStorage', () => {
     it('should retrieve saved view', async () => {
       const rid = resourceId('doc1');
       const view: ResourceView = {
-        resource: {
-          '@id': 'http://localhost:4000/resources/doc1',
-          name: 'Test Document',
+        resource: createResourceDescriptor('doc1', 'Test Document', {
           format: 'text/plain',
           representations: [{
             '@id': 'checksum1',
@@ -110,11 +120,8 @@ describe('FilesystemViewStorage', () => {
             checksum: 'checksum1',
             created: new Date().toISOString(),
           }],
-        },
-        annotations: {
-          annotations: [],
-          total: 0,
-        },
+        }),
+        annotations: createResourceAnnotations(rid),
       };
 
       await storage.save(rid, view);
@@ -137,13 +144,10 @@ describe('FilesystemViewStorage', () => {
     it('should delete a view', async () => {
       const rid = resourceId('doc1');
       const view: ResourceView = {
-        resource: {
-          '@id': 'http://localhost:4000/resources/doc1',
-          name: 'To Delete',
+        resource: createResourceDescriptor('doc1', 'To Delete', {
           format: 'text/plain',
-          representations: [],
-        },
-        annotations: { annotations: [], total: 0 },
+        }),
+        annotations: createResourceAnnotations(rid),
       };
 
       await storage.save(rid, view);
@@ -163,13 +167,10 @@ describe('FilesystemViewStorage', () => {
     it('should return true for existing view', async () => {
       const rid = resourceId('doc1');
       const view: ResourceView = {
-        resource: {
-          '@id': 'http://localhost:4000/resources/doc1',
-          name: 'Test',
+        resource: createResourceDescriptor('doc1', 'Test', {
           format: 'text/plain',
-          representations: [],
-        },
-        annotations: { annotations: [], total: 0 },
+        }),
+        annotations: createResourceAnnotations(rid),
       };
 
       await storage.save(rid, view);
@@ -190,23 +191,17 @@ describe('FilesystemViewStorage', () => {
       const rid2 = resourceId('doc2');
 
       const view1: ResourceView = {
-        resource: {
-          '@id': 'http://localhost:4000/resources/doc1',
-          name: 'Doc 1',
+        resource: createResourceDescriptor('doc1', 'Doc 1', {
           format: 'text/plain',
-          representations: [],
-        },
-        annotations: { annotations: [], total: 0 },
+        }),
+        annotations: createResourceAnnotations(rid1),
       };
 
       const view2: ResourceView = {
-        resource: {
-          '@id': 'http://localhost:4000/resources/doc2',
-          name: 'Doc 2',
+        resource: createResourceDescriptor('doc2', 'Doc 2', {
           format: 'text/plain',
-          representations: [],
-        },
-        annotations: { annotations: [], total: 0 },
+        }),
+        annotations: createResourceAnnotations(rid2),
       };
 
       await storage.save(rid1, view1);
@@ -230,9 +225,7 @@ describe('FilesystemViewStorage', () => {
     it('should handle view with multiple representations', async () => {
       const rid = resourceId('doc1');
       const view: ResourceView = {
-        resource: {
-          '@id': 'http://localhost:4000/resources/doc1',
-          name: 'Multi-Rep Document',
+        resource: createResourceDescriptor('doc1', 'Multi-Rep Document', {
           format: 'text/plain',
           representations: [
             {
@@ -250,8 +243,8 @@ describe('FilesystemViewStorage', () => {
               created: new Date().toISOString(),
             },
           ],
-        },
-        annotations: { annotations: [], total: 0 },
+        }),
+        annotations: createResourceAnnotations(rid),
       };
 
       await storage.save(rid, view);
@@ -265,42 +258,39 @@ describe('FilesystemViewStorage', () => {
     it('should handle view with multiple annotations', async () => {
       const rid = resourceId('doc1');
       const view: ResourceView = {
-        resource: {
-          '@id': 'http://localhost:4000/resources/doc1',
-          name: 'Annotated Document',
+        resource: createResourceDescriptor('doc1', 'Annotated Document', {
           format: 'text/plain',
-          representations: [],
-        },
-        annotations: {
+        }),
+        annotations: createResourceAnnotations(rid, {
           annotations: [
             {
-              '@context': 'http://www.w3.org/ns/anno.jsonld',
+              '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
               id: 'http://localhost:4000/annotations/anno1',
-              type: 'Annotation',
+              type: 'Annotation' as const,
+              motivation: 'commenting' satisfies Motivation,
               body: [],
               target: 'http://localhost:4000/resources/doc1',
               created: new Date().toISOString(),
               creator: { id: 'http://localhost:4000/users/user1', type: 'Person' },
             },
             {
-              '@context': 'http://www.w3.org/ns/anno.jsonld',
+              '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
               id: 'http://localhost:4000/annotations/anno2',
-              type: 'Annotation',
+              type: 'Annotation' as const,
+              motivation: 'commenting' satisfies Motivation,
               body: [],
               target: 'http://localhost:4000/resources/doc1',
               created: new Date().toISOString(),
               creator: { id: 'http://localhost:4000/users/user1', type: 'Person' },
             },
           ],
-          total: 2,
-        },
+        }),
       };
 
       await storage.save(rid, view);
       const retrieved = await storage.get(rid);
 
       expect(retrieved?.annotations.annotations).toHaveLength(2);
-      expect(retrieved?.annotations.total).toBe(2);
     });
   });
 });

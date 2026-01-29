@@ -6,6 +6,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { EventLog } from '../event-log';
 import { resourceId, userId } from '@semiont/core';
+import type { Motivation } from '@semiont/api-client';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -78,13 +79,12 @@ describe('EventLog', () => {
         version: 1,
         payload: {
           annotation: {
-            '@context': 'http://www.w3.org/ns/anno.jsonld',
+            '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
             id: 'http://example.com/annotations/anno1',
-            type: 'Annotation',
+            type: 'Annotation' as const,
+            motivation: 'commenting' satisfies Motivation,
             body: [],
             target: 'http://example.com/resources/doc1',
-            created: new Date().toISOString(),
-            creator: { id: 'http://example.com/users/user1', type: 'Person' },
           },
         },
       };
@@ -231,13 +231,12 @@ describe('EventLog', () => {
         version: 1,
         payload: {
           annotation: {
-            '@context': 'http://www.w3.org/ns/anno.jsonld',
+            '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
             id: 'http://example.com/annotations/anno1',
-            type: 'Annotation',
+            type: 'Annotation' as const,
+            motivation: 'commenting' satisfies Motivation,
             body: [],
             target: 'http://example.com/resources/doc1',
-            created: new Date().toISOString(),
-            creator: { id: 'http://example.com/users/user2', type: 'Person' },
           },
         },
       }, rid);

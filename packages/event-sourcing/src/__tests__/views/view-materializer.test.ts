@@ -6,11 +6,22 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { ViewMaterializer } from '../../views/view-materializer';
 import { FilesystemViewStorage } from '../../storage/view-storage';
-import { resourceId, userId } from '@semiont/core';
-import type { StoredEvent } from '@semiont/core';
+import { resourceId, userId, annotationId } from '@semiont/core';
+import type { StoredEvent, EventMetadata } from '@semiont/core';
+import type { Motivation } from '@semiont/api-client';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+
+// Helper to create minimal EventMetadata for tests
+function createEventMetadata(sequenceNumber: number, prevHash?: string): EventMetadata {
+  return {
+    sequenceNumber,
+    streamPosition: sequenceNumber * 100,
+    timestamp: new Date().toISOString(),
+    prevEventHash: prevHash,
+  };
+}
 
 describe('ViewMaterializer', () => {
   let materializer: ViewMaterializer;
@@ -51,11 +62,7 @@ describe('ViewMaterializer', () => {
               creationMethod: 'api' as const,
             },
           },
-          metadata: {
-            sequenceNumber: 1,
-            previousHash: null,
-            eventHash: 'hash1',
-          },
+          metadata: createEventMetadata(1),
         },
       ];
 
@@ -84,11 +91,7 @@ describe('ViewMaterializer', () => {
               creationMethod: 'api' as const,
             },
           },
-          metadata: {
-            sequenceNumber: 1,
-            previousHash: null,
-            eventHash: 'hash1',
-          },
+          metadata: createEventMetadata(1),
         },
         {
           event: {
@@ -103,11 +106,7 @@ describe('ViewMaterializer', () => {
               format: 'text/markdown' as const,
             },
           },
-          metadata: {
-            sequenceNumber: 2,
-            previousHash: 'hash1',
-            eventHash: 'hash2',
-          },
+          metadata: createEventMetadata(2, 'hash1'),
         },
       ];
 
@@ -135,11 +134,7 @@ describe('ViewMaterializer', () => {
               creationMethod: 'api' as const,
             },
           },
-          metadata: {
-            sequenceNumber: 1,
-            previousHash: null,
-            eventHash: 'hash1',
-          },
+          metadata: createEventMetadata(1),
         },
         {
           event: {
@@ -159,18 +154,15 @@ describe('ViewMaterializer', () => {
               },
             },
           },
-          metadata: {
-            sequenceNumber: 2,
-            previousHash: 'hash1',
-            eventHash: 'hash2',
-          },
+          metadata: createEventMetadata(2, 'hash1'),
         },
       ];
 
       const view = await materializer.materialize(events, rid);
 
       expect(view?.resource.representations).toHaveLength(1);
-      expect(view?.resource.representations[0].checksum).toBe('checksum1');
+      const reps = Array.isArray(view?.resource.representations) ? view.resource.representations : [view?.resource.representations];
+      expect(reps[0]?.checksum).toBe('checksum1');
     });
 
     it('should handle representation.removed event', async () => {
@@ -191,11 +183,7 @@ describe('ViewMaterializer', () => {
               creationMethod: 'api' as const,
             },
           },
-          metadata: {
-            sequenceNumber: 1,
-            previousHash: null,
-            eventHash: 'hash1',
-          },
+          metadata: createEventMetadata(1),
         },
         {
           event: {
@@ -215,11 +203,7 @@ describe('ViewMaterializer', () => {
               },
             },
           },
-          metadata: {
-            sequenceNumber: 2,
-            previousHash: 'hash1',
-            eventHash: 'hash2',
-          },
+          metadata: createEventMetadata(2, 'hash1'),
         },
         {
           event: {
@@ -233,11 +217,7 @@ describe('ViewMaterializer', () => {
               checksum: 'checksum1',
             },
           },
-          metadata: {
-            sequenceNumber: 3,
-            previousHash: 'hash2',
-            eventHash: 'hash3',
-          },
+          metadata: createEventMetadata(3, 'hash2'),
         },
       ];
 
@@ -264,11 +244,7 @@ describe('ViewMaterializer', () => {
               creationMethod: 'api' as const,
             },
           },
-          metadata: {
-            sequenceNumber: 1,
-            previousHash: null,
-            eventHash: 'hash1',
-          },
+          metadata: createEventMetadata(1),
         },
         {
           event: {
@@ -280,28 +256,22 @@ describe('ViewMaterializer', () => {
             version: 2,
             payload: {
               annotation: {
-                '@context': 'http://www.w3.org/ns/anno.jsonld',
+                '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
                 id: 'http://localhost:4000/annotations/anno1',
-                type: 'Annotation',
+                type: 'Annotation' as const,
+                motivation: 'commenting' satisfies Motivation,
                 body: [],
                 target: 'http://localhost:4000/resources/doc1',
-                created: new Date().toISOString(),
-                creator: { id: 'http://localhost:4000/users/user1', type: 'Person' },
               },
             },
           },
-          metadata: {
-            sequenceNumber: 2,
-            previousHash: 'hash1',
-            eventHash: 'hash2',
-          },
+          metadata: createEventMetadata(2, 'hash1'),
         },
       ];
 
       const view = await materializer.materialize(events, rid);
 
       expect(view?.annotations.annotations).toHaveLength(1);
-      expect(view?.annotations.total).toBe(1);
     });
 
     it('should handle annotation.updated event', async () => {
@@ -322,11 +292,7 @@ describe('ViewMaterializer', () => {
               creationMethod: 'api' as const,
             },
           },
-          metadata: {
-            sequenceNumber: 1,
-            previousHash: null,
-            eventHash: 'hash1',
-          },
+          metadata: createEventMetadata(1),
         },
         {
           event: {
@@ -338,21 +304,16 @@ describe('ViewMaterializer', () => {
             version: 2,
             payload: {
               annotation: {
-                '@context': 'http://www.w3.org/ns/anno.jsonld',
+                '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
                 id: 'http://localhost:4000/annotations/anno1',
-                type: 'Annotation',
+                type: 'Annotation' as const,
+                motivation: 'commenting' satisfies Motivation,
                 body: [],
                 target: 'http://localhost:4000/resources/doc1',
-                created: new Date().toISOString(),
-                creator: { id: 'http://localhost:4000/users/user1', type: 'Person' },
               },
             },
           },
-          metadata: {
-            sequenceNumber: 2,
-            previousHash: 'hash1',
-            eventHash: 'hash2',
-          },
+          metadata: createEventMetadata(2, 'hash1'),
         },
         {
           event: {
@@ -364,9 +325,10 @@ describe('ViewMaterializer', () => {
             version: 3,
             payload: {
               annotation: {
-                '@context': 'http://www.w3.org/ns/anno.jsonld',
+                '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
                 id: 'http://localhost:4000/annotations/anno1',
-                type: 'Annotation',
+                type: 'Annotation' as const,
+                motivation: 'commenting' satisfies Motivation,
                 body: [
                   {
                     type: 'TextualBody',
@@ -375,17 +337,11 @@ describe('ViewMaterializer', () => {
                   },
                 ],
                 target: 'http://localhost:4000/resources/doc1',
-                created: new Date().toISOString(),
                 modified: new Date().toISOString(),
-                creator: { id: 'http://localhost:4000/users/user1', type: 'Person' },
               },
             },
           },
-          metadata: {
-            sequenceNumber: 3,
-            previousHash: 'hash2',
-            eventHash: 'hash3',
-          },
+          metadata: createEventMetadata(3, 'hash2'),
         },
       ];
 
@@ -413,11 +369,7 @@ describe('ViewMaterializer', () => {
               creationMethod: 'api' as const,
             },
           },
-          metadata: {
-            sequenceNumber: 1,
-            previousHash: null,
-            eventHash: 'hash1',
-          },
+          metadata: createEventMetadata(1),
         },
         {
           event: {
@@ -429,21 +381,16 @@ describe('ViewMaterializer', () => {
             version: 2,
             payload: {
               annotation: {
-                '@context': 'http://www.w3.org/ns/anno.jsonld',
+                '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
                 id: 'http://localhost:4000/annotations/anno1',
-                type: 'Annotation',
+                type: 'Annotation' as const,
+                motivation: 'commenting' satisfies Motivation,
                 body: [],
                 target: 'http://localhost:4000/resources/doc1',
-                created: new Date().toISOString(),
-                creator: { id: 'http://localhost:4000/users/user1', type: 'Person' },
               },
             },
           },
-          metadata: {
-            sequenceNumber: 2,
-            previousHash: 'hash1',
-            eventHash: 'hash2',
-          },
+          metadata: createEventMetadata(2, 'hash1'),
         },
         {
           event: {
@@ -454,21 +401,16 @@ describe('ViewMaterializer', () => {
             resourceId: rid,
             version: 3,
             payload: {
-              annotationId: 'http://localhost:4000/annotations/anno1',
+              annotationId: annotationId('anno1'),
             },
           },
-          metadata: {
-            sequenceNumber: 3,
-            previousHash: 'hash2',
-            eventHash: 'hash3',
-          },
+          metadata: createEventMetadata(3, 'hash2'),
         },
       ];
 
       const view = await materializer.materialize(events, rid);
 
       expect(view?.annotations.annotations).toHaveLength(0);
-      expect(view?.annotations.total).toBe(0);
     });
 
     it('should return null for empty event list', async () => {
@@ -502,7 +444,7 @@ describe('ViewMaterializer', () => {
       await materializer.materializeIncremental(rid, createEvent, async () => [
         {
           event: createEvent,
-          metadata: { sequenceNumber: 1, previousHash: null, eventHash: 'hash1' },
+          metadata: createEventMetadata(1),
         },
       ]);
 
@@ -522,11 +464,11 @@ describe('ViewMaterializer', () => {
       await materializer.materializeIncremental(rid, updateEvent, async () => [
         {
           event: createEvent,
-          metadata: { sequenceNumber: 1, previousHash: null, eventHash: 'hash1' },
+          metadata: createEventMetadata(1),
         },
         {
           event: updateEvent,
-          metadata: { sequenceNumber: 2, previousHash: 'hash1', eventHash: 'hash2' },
+          metadata: createEventMetadata(2, 'hash1'),
         },
       ]);
 
@@ -555,7 +497,7 @@ describe('ViewMaterializer', () => {
       await materializer.materializeIncremental(rid, event, async () => [
         {
           event,
-          metadata: { sequenceNumber: 1, previousHash: null, eventHash: 'hash1' },
+          metadata: createEventMetadata(1),
         },
       ]);
 
@@ -566,34 +508,24 @@ describe('ViewMaterializer', () => {
 
   describe('materializeEntityTypes() - System views', () => {
     it('should create entity types view', async () => {
-      const entityType = {
-        '@id': 'http://example.com/entitytypes/Document',
-        name: 'Document',
-        description: 'A document entity type',
-      };
+      const entityTypeId = 'http://example.com/entitytypes/Document';
 
-      await materializer.materializeEntityTypes(entityType);
+      await materializer.materializeEntityTypes(entityTypeId);
 
       // Read the entity types file
       const entityTypesPath = join(testDir, 'projections', '__system__', 'entitytypes.json');
       const content = await fs.readFile(entityTypesPath, 'utf-8');
       const view = JSON.parse(content);
 
-      expect(view.entityTypes).toContain(entityType);
+      expect(view.entityTypes).toContain(entityTypeId);
     });
 
     it('should handle multiple entity types', async () => {
-      const entityType1 = {
-        '@id': 'http://example.com/entitytypes/Document',
-        name: 'Document',
-      };
-      const entityType2 = {
-        '@id': 'http://example.com/entitytypes/Image',
-        name: 'Image',
-      };
+      const entityTypeId1 = 'http://example.com/entitytypes/Document';
+      const entityTypeId2 = 'http://example.com/entitytypes/Image';
 
-      await materializer.materializeEntityTypes(entityType1);
-      await materializer.materializeEntityTypes(entityType2);
+      await materializer.materializeEntityTypes(entityTypeId1);
+      await materializer.materializeEntityTypes(entityTypeId2);
 
       // Read the entity types file
       const entityTypesPath = join(testDir, 'projections', '__system__', 'entitytypes.json');
@@ -601,18 +533,15 @@ describe('ViewMaterializer', () => {
       const view = JSON.parse(content);
 
       expect(view.entityTypes).toHaveLength(2);
-      expect(view.entityTypes).toContain(entityType1);
-      expect(view.entityTypes).toContain(entityType2);
+      expect(view.entityTypes).toContain(entityTypeId1);
+      expect(view.entityTypes).toContain(entityTypeId2);
     });
 
     it('should be idempotent - adding same entity type twice', async () => {
-      const entityType = {
-        '@id': 'http://example.com/entitytypes/Document',
-        name: 'Document',
-      };
+      const entityTypeId = 'http://example.com/entitytypes/Document';
 
-      await materializer.materializeEntityTypes(entityType);
-      await materializer.materializeEntityTypes(entityType);
+      await materializer.materializeEntityTypes(entityTypeId);
+      await materializer.materializeEntityTypes(entityTypeId);
 
       // Read the entity types file
       const entityTypesPath = join(testDir, 'projections', '__system__', 'entitytypes.json');
@@ -643,11 +572,7 @@ describe('ViewMaterializer', () => {
               creationMethod: 'api' as const,
             },
           },
-          metadata: {
-            sequenceNumber: 1,
-            previousHash: null,
-            eventHash: 'hash1',
-          },
+          metadata: createEventMetadata(1),
         },
         {
           event: {
@@ -667,11 +592,7 @@ describe('ViewMaterializer', () => {
               },
             },
           },
-          metadata: {
-            sequenceNumber: 2,
-            previousHash: 'hash1',
-            eventHash: 'hash2',
-          },
+          metadata: createEventMetadata(2, 'hash1'),
         },
         {
           event: {
@@ -691,11 +612,7 @@ describe('ViewMaterializer', () => {
               },
             },
           },
-          metadata: {
-            sequenceNumber: 3,
-            previousHash: 'hash2',
-            eventHash: 'hash3',
-          },
+          metadata: createEventMetadata(3, 'hash2'),
         },
       ];
 
@@ -722,11 +639,7 @@ describe('ViewMaterializer', () => {
               creationMethod: 'api' as const,
             },
           },
-          metadata: {
-            sequenceNumber: 1,
-            previousHash: null,
-            eventHash: 'hash1',
-          },
+          metadata: createEventMetadata(1),
         },
         {
           event: {
@@ -746,11 +659,7 @@ describe('ViewMaterializer', () => {
               },
             },
           },
-          metadata: {
-            sequenceNumber: 2,
-            previousHash: 'hash1',
-            eventHash: 'hash2',
-          },
+          metadata: createEventMetadata(2, 'hash1'),
         },
         {
           event: {
@@ -770,11 +679,7 @@ describe('ViewMaterializer', () => {
               },
             },
           },
-          metadata: {
-            sequenceNumber: 3,
-            previousHash: 'hash2',
-            eventHash: 'hash3',
-          },
+          metadata: createEventMetadata(3, 'hash2'),
         },
       ];
 
@@ -802,11 +707,7 @@ describe('ViewMaterializer', () => {
               creationMethod: 'api' as const,
             },
           },
-          metadata: {
-            sequenceNumber: 1,
-            previousHash: null,
-            eventHash: 'hash1',
-          },
+          metadata: createEventMetadata(1),
         },
         {
           event: {
@@ -820,11 +721,7 @@ describe('ViewMaterializer', () => {
               checksum: 'nonexistent',
             },
           },
-          metadata: {
-            sequenceNumber: 2,
-            previousHash: 'hash1',
-            eventHash: 'hash2',
-          },
+          metadata: createEventMetadata(2, 'hash1'),
         },
       ];
 
@@ -851,11 +748,7 @@ describe('ViewMaterializer', () => {
               creationMethod: 'api' as const,
             },
           },
-          metadata: {
-            sequenceNumber: 1,
-            previousHash: null,
-            eventHash: 'hash1',
-          },
+          metadata: createEventMetadata(1),
         },
         {
           event: {
@@ -866,14 +759,10 @@ describe('ViewMaterializer', () => {
             resourceId: rid,
             version: 2,
             payload: {
-              annotationId: 'http://localhost:4000/annotations/nonexistent',
+              annotationId: annotationId('nonexistent'),
             },
           },
-          metadata: {
-            sequenceNumber: 2,
-            previousHash: 'hash1',
-            eventHash: 'hash2',
-          },
+          metadata: createEventMetadata(2, 'hash1'),
         },
       ];
 

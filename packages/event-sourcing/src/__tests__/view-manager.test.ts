@@ -7,10 +7,20 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ViewManager } from '../view-manager';
 import type { ViewStorage, ResourceView } from '../storage/view-storage';
 import { resourceId, userId } from '@semiont/core';
-import type { StoredEvent } from '@semiont/core';
+import type { StoredEvent, EventMetadata } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+
+// Helper to create minimal EventMetadata for tests
+function createEventMetadata(sequenceNumber: number, prevHash?: string): EventMetadata {
+  return {
+    sequenceNumber,
+    streamPosition: sequenceNumber * 100,
+    timestamp: new Date().toISOString(),
+    prevEventHash: prevHash,
+  };
+}
 
 describe('ViewManager', () => {
   let manager: ViewManager;
@@ -67,11 +77,7 @@ describe('ViewManager', () => {
 
       const getAllEvents = vi.fn().mockResolvedValue([{
         event,
-        metadata: {
-          sequenceNumber: 1,
-          previousHash: null,
-          eventHash: 'hash1',
-        },
+        metadata: createEventMetadata(1),
       }]);
 
       await manager.materializeResource(rid, event, getAllEvents);
@@ -116,11 +122,11 @@ describe('ViewManager', () => {
               creationMethod: 'api' as const,
             },
           },
-          metadata: { sequenceNumber: 1, previousHash: null, eventHash: 'hash0' },
+          metadata: createEventMetadata(1),
         },
         {
           event,
-          metadata: { sequenceNumber: 2, previousHash: 'hash0', eventHash: 'hash1' },
+          metadata: createEventMetadata(2, 'hash0'),
         },
       ]);
 
@@ -188,11 +194,7 @@ describe('ViewManager', () => {
               creationMethod: 'api' as const,
             },
           },
-          metadata: {
-            sequenceNumber: 1,
-            previousHash: null,
-            eventHash: 'hash1',
-          },
+          metadata: createEventMetadata(1),
         },
       ];
 
@@ -206,14 +208,17 @@ describe('ViewManager', () => {
       const rid = resourceId('doc1');
       const cachedView: ResourceView = {
         resource: {
+          '@context': 'https://www.w3.org/ns/activitystreams',
           '@id': 'http://localhost:4000/resources/doc1',
           name: 'Test',
           format: 'text/plain',
           representations: [],
         },
         annotations: {
+          resourceId: rid,
+          version: 0,
+          updatedAt: new Date().toISOString(),
           annotations: [],
-          total: 0,
         },
       };
 
@@ -246,7 +251,7 @@ describe('ViewManager', () => {
 
       const getAllEvents = vi.fn().mockResolvedValue([{
         event,
-        metadata: { sequenceNumber: 1, previousHash: null, eventHash: 'hash1' },
+        metadata: createEventMetadata(1),
       }]);
 
       // Spy on materializer method

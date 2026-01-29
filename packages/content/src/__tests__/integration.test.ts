@@ -154,7 +154,7 @@ describe('FilesystemRepresentationStore - Integration', () => {
       const ab = checksum.substring(0, 2);
       const cd = checksum.substring(2, 4);
 
-      const stored = await store.store(content, {
+      await store.store(content, {
         mediaType: 'text/plain',
         rel: 'original',
       });
