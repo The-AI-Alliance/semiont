@@ -274,7 +274,7 @@ describe('ViewMaterializer', () => {
       expect(view?.annotations.annotations).toHaveLength(1);
     });
 
-    it('should handle annotation.updated event', async () => {
+    it('should handle annotation.body.updated event', async () => {
       const rid = resourceId('doc1');
       const events: StoredEvent[] = [
         {
@@ -318,27 +318,23 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event3',
-            type: 'annotation.updated',
+            type: 'annotation.body.updated',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
             version: 3,
             payload: {
-              annotation: {
-                '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-                id: 'http://localhost:4000/annotations/anno1',
-                type: 'Annotation' as const,
-                motivation: 'commenting' satisfies Motivation,
-                body: [
-                  {
-                    type: 'TextualBody',
+              annotationId: annotationId('anno1'),
+              operations: [
+                {
+                  op: 'add' as const,
+                  item: {
+                    type: 'TextualBody' as const,
                     value: 'Updated comment',
-                    purpose: 'commenting',
+                    purpose: 'commenting' as const,
                   },
-                ],
-                target: 'http://localhost:4000/resources/doc1',
-                modified: new Date().toISOString(),
-              },
+                },
+              ],
             },
           },
           metadata: createEventMetadata(3, 'hash2'),
