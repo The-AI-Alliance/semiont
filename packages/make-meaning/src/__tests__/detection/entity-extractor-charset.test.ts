@@ -22,17 +22,14 @@ import { join } from 'path';
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 // Mock inference to avoid actual API calls
-vi.mock('@semiont/inference', () => ({
-  generateText: vi.fn().mockResolvedValue('Mock AI response'),
-  getInferenceClient: vi.fn().mockResolvedValue({
-    messages: {
-      create: vi.fn().mockResolvedValue({
-        content: [{ type: 'text', text: 'Mock AI response' }]
-      })
-    }
-  }),
-  getInferenceModel: vi.fn().mockReturnValue('claude-sonnet-4-20250514'),
-}));
+vi.mock('@semiont/inference', async () => {
+  const { MockInferenceClient } = await import('@semiont/inference');
+  return {
+    generateText: vi.fn().mockResolvedValue('Mock AI response'),
+    getInferenceClient: vi.fn().mockResolvedValue(new MockInferenceClient(['Mock AI response'])),
+    MockInferenceClient
+  };
+});
 
 // Mock the AI entity extractor to find known entity strings in text
 vi.mock('../../detection/entity-extractor', () => ({

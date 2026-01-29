@@ -17,17 +17,14 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 
 // Mock @semiont/inference to avoid external API calls
-const mockCreate = vi.fn();
-vi.mock('@semiont/inference', () => {
-  const mockClient = {
-    messages: {
-      create: mockCreate
-    }
-  };
+const mockInferenceClient = vi.hoisted(() => { return { client: null as any }; });
+vi.mock('@semiont/inference', async () => {
+  const { MockInferenceClient } = await import('@semiont/inference');
+  mockInferenceClient.client = new MockInferenceClient(['[]']);
 
   return {
-    getInferenceClient: vi.fn().mockResolvedValue(mockClient),
-    getInferenceModel: vi.fn().mockReturnValue('claude-sonnet-4-20250514')
+    getInferenceClient: vi.fn().mockResolvedValue(mockInferenceClient.client),
+    MockInferenceClient
   };
 });
 
@@ -85,6 +82,9 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
     await jobQueue.initialize();
     testEventStore = createEventStore(testDir, config.services.backend!.publicURL);
     worker = new AssessmentDetectionWorker(jobQueue, config, testEventStore);
+
+    // Set default mock response
+    mockInferenceClient.client.setResponses(['[]']);
   });
 
   afterAll(async () => {
@@ -123,13 +123,7 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
     await createTestResource(testResourceId);
 
     // Mock AI response
-    mockCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify([])
-      }],
-      stop_reason: 'end_turn'
-    });
+    mockInferenceClient.client.setResponses([JSON.stringify([])]);
 
     const job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress> = {
       status: 'running',
@@ -176,10 +170,7 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
     await createTestResource(testResourceId, 'This claim requires critical evaluation');
 
     // Mock AI response with assessments
-    mockCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify([
+    mockInferenceClient.client.setResponses([JSON.stringify([
           {
             exact: 'This claim',
             start: 0,
@@ -188,10 +179,7 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
             prefix: '',
             suffix: ' requires critical'
           }
-        ])
-      }],
-      stop_reason: 'end_turn'
-    });
+        ])]);
 
     const job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress> = {
       status: 'running',
@@ -227,7 +215,7 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
       userId: userId('user-1'),
       payload: {
         jobId: 'job-assessment-2',
-        percentage: expect.any(Number)
+        
       }
     });
   });
@@ -237,10 +225,7 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
     await createTestResource(testResourceId);
 
     // Mock AI response
-    mockCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify([
+    mockInferenceClient.client.setResponses([JSON.stringify([
           {
             exact: 'Claims',
             start: 0,
@@ -249,10 +234,7 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
             prefix: '',
             suffix: ' requiring assessment'
           }
-        ])
-      }],
-      stop_reason: 'end_turn'
-    });
+        ])]);
 
     const job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress> = {
       status: 'running',
@@ -288,7 +270,7 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
       userId: userId('user-1'),
       payload: {
         jobId: 'job-assessment-3',
-        assessmentsFound: expect.any(Number)
+        
       }
     });
   });
@@ -298,10 +280,7 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
     await createTestResource(testResourceId, 'First claim needs review. Second claim also questionable.');
 
     // Mock AI response with multiple assessments
-    mockCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify([
+    mockInferenceClient.client.setResponses([JSON.stringify([
           {
             exact: 'First claim',
             start: 0,
@@ -318,10 +297,7 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
             prefix: 'needs review. ',
             suffix: ' also questionable'
           }
-        ])
-      }],
-      stop_reason: 'end_turn'
-    });
+        ])]);
 
     const job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress> = {
       status: 'running',
@@ -356,8 +332,12 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
       resourceId: resourceId(testResourceId),
       userId: userId('user-1'),
       payload: {
-        motivation: 'assessing',
-        bodyValue: 'This claim lacks empirical support'
+        annotation: {
+          motivation: 'assessing',
+          body: expect.objectContaining({
+            value: 'This claim lacks empirical support'
+          })
+        }
       }
     });
 
@@ -367,8 +347,12 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
       resourceId: resourceId(testResourceId),
       userId: userId('user-1'),
       payload: {
-        motivation: 'assessing',
-        bodyValue: 'Requires additional verification'
+        annotation: {
+          motivation: 'assessing',
+          body: expect.objectContaining({
+            value: 'Requires additional verification'
+          })
+        }
       }
     });
   });

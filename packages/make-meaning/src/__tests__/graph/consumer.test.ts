@@ -14,15 +14,17 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 
 // Mock @semiont/graph
-const mockGraphDb = {
+const mockGraphDb = vi.hoisted(() => ({
   setResource: vi.fn(),
   updateResource: vi.fn(),
   deleteResource: vi.fn(),
+  createResource: vi.fn(),
   addAnnotation: vi.fn(),
+  createAnnotation: vi.fn(),
   updateAnnotation: vi.fn(),
   deleteAnnotation: vi.fn(),
   addEntityType: vi.fn()
-};
+}));
 
 vi.mock('@semiont/graph', () => {
   return {
@@ -129,7 +131,7 @@ describe('GraphDBConsumer', () => {
     await new Promise(resolve => setTimeout(resolve, 100));
 
     // Verify graph database was called
-    expect(mockGraphDb.setResource).toHaveBeenCalled();
+    expect(mockGraphDb.createResource).toHaveBeenCalled();
   });
 
   it('should process annotation.created events', async () => {
@@ -187,7 +189,7 @@ describe('GraphDBConsumer', () => {
     // Wait for async processing
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    expect(mockGraphDb.addAnnotation).toHaveBeenCalled();
+    expect(mockGraphDb.createAnnotation).toHaveBeenCalled();
   });
 
   it('should stop and unsubscribe from events', async () => {
@@ -286,7 +288,7 @@ describe('GraphDBConsumer', () => {
     // Wait for async processing
     await new Promise(resolve => setTimeout(resolve, 150));
 
-    expect(mockGraphDb.setResource).toHaveBeenCalled();
-    expect(mockGraphDb.addAnnotation).toHaveBeenCalled();
+    expect(mockGraphDb.createResource).toHaveBeenCalled();
+    expect(mockGraphDb.createAnnotation).toHaveBeenCalled();
   });
 });

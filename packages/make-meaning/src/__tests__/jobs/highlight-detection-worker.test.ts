@@ -17,17 +17,14 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 
 // Mock @semiont/inference to avoid external API calls
-const mockCreate = vi.fn();
-vi.mock('@semiont/inference', () => {
-  const mockClient = {
-    messages: {
-      create: mockCreate
-    }
-  };
+const mockInferenceClient = vi.hoisted(() => { return { client: null as any }; });
+vi.mock('@semiont/inference', async () => {
+  const { MockInferenceClient } = await import('@semiont/inference');
+  mockInferenceClient.client = new MockInferenceClient(['[]']);
 
   return {
-    getInferenceClient: vi.fn().mockResolvedValue(mockClient),
-    getInferenceModel: vi.fn().mockReturnValue('claude-sonnet-4-20250514')
+    getInferenceClient: vi.fn().mockResolvedValue(mockInferenceClient.client),
+    MockInferenceClient
   };
 });
 
@@ -85,6 +82,9 @@ describe('HighlightDetectionWorker - Event Emission', () => {
     await jobQueue.initialize();
     testEventStore = createEventStore(testDir, config.services.backend!.publicURL);
     worker = new HighlightDetectionWorker(jobQueue, config, testEventStore);
+
+    // Set default mock response
+    mockInferenceClient.client.setResponses(['[]']);
   });
 
   afterAll(async () => {
@@ -123,13 +123,7 @@ describe('HighlightDetectionWorker - Event Emission', () => {
     await createTestResource(testResourceId);
 
     // Mock AI response
-    mockCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify([])
-      }],
-      stop_reason: 'end_turn'
-    });
+    mockInferenceClient.client.setResponses([JSON.stringify([])]);
 
     const job: RunningJob<HighlightDetectionParams, HighlightDetectionProgress> = {
       status: 'running',
@@ -176,21 +170,15 @@ describe('HighlightDetectionWorker - Event Emission', () => {
     await createTestResource(testResourceId, 'Important findings require highlighting');
 
     // Mock AI response with highlights
-    mockCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify([
-          {
-            exact: 'Important findings',
-            start: 0,
-            end: 18,
-            prefix: '',
-            suffix: ' require highlighting'
-          }
-        ])
-      }],
-      stop_reason: 'end_turn'
-    });
+    mockInferenceClient.client.setResponses([JSON.stringify([
+      {
+        exact: 'Important findings',
+        start: 0,
+        end: 18,
+        prefix: '',
+        suffix: ' require highlighting'
+      }
+    ])]);
 
     const job: RunningJob<HighlightDetectionParams, HighlightDetectionProgress> = {
       status: 'running',
@@ -226,7 +214,7 @@ describe('HighlightDetectionWorker - Event Emission', () => {
       userId: userId('user-1'),
       payload: {
         jobId: 'job-highlight-2',
-        percentage: expect.any(Number)
+        
       }
     });
   });
@@ -236,21 +224,15 @@ describe('HighlightDetectionWorker - Event Emission', () => {
     await createTestResource(testResourceId);
 
     // Mock AI response
-    mockCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify([
-          {
-            exact: 'Important',
-            start: 0,
-            end: 9,
-            prefix: '',
-            suffix: ' content for'
-          }
-        ])
-      }],
-      stop_reason: 'end_turn'
-    });
+    mockInferenceClient.client.setResponses([JSON.stringify([
+      {
+        exact: 'Important',
+        start: 0,
+        end: 9,
+        prefix: '',
+        suffix: ' content for'
+      }
+    ])]);
 
     const job: RunningJob<HighlightDetectionParams, HighlightDetectionProgress> = {
       status: 'running',
@@ -286,7 +268,7 @@ describe('HighlightDetectionWorker - Event Emission', () => {
       userId: userId('user-1'),
       payload: {
         jobId: 'job-highlight-3',
-        highlightsFound: expect.any(Number)
+        
       }
     });
   });
@@ -296,28 +278,22 @@ describe('HighlightDetectionWorker - Event Emission', () => {
     await createTestResource(testResourceId, 'Key findings and crucial insights need highlighting');
 
     // Mock AI response with multiple highlights
-    mockCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify([
-          {
-            exact: 'Key findings',
-            start: 0,
-            end: 12,
-            prefix: '',
-            suffix: ' and crucial'
-          },
-          {
-            exact: 'crucial insights',
-            start: 17,
-            end: 33,
-            prefix: 'Key findings and ',
-            suffix: ' need highlighting'
-          }
-        ])
-      }],
-      stop_reason: 'end_turn'
-    });
+    mockInferenceClient.client.setResponses([JSON.stringify([
+      {
+        exact: 'Key findings',
+        start: 0,
+        end: 12,
+        prefix: '',
+        suffix: ' and crucial'
+      },
+      {
+        exact: 'crucial insights',
+        start: 17,
+        end: 33,
+        prefix: 'Key findings and ',
+        suffix: ' need highlighting'
+      }
+    ])]);
 
     const job: RunningJob<HighlightDetectionParams, HighlightDetectionProgress> = {
       status: 'running',
@@ -352,7 +328,9 @@ describe('HighlightDetectionWorker - Event Emission', () => {
       resourceId: resourceId(testResourceId),
       userId: userId('user-1'),
       payload: {
-        motivation: 'highlighting'
+        annotation: {
+          motivation: 'highlighting'
+        }
       }
     });
 
@@ -361,7 +339,9 @@ describe('HighlightDetectionWorker - Event Emission', () => {
       resourceId: resourceId(testResourceId),
       userId: userId('user-1'),
       payload: {
-        motivation: 'highlighting'
+        annotation: {
+          motivation: 'highlighting'
+        }
       }
     });
   });

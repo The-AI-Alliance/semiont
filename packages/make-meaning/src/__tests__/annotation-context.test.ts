@@ -5,7 +5,7 @@
  * from view storage and content store.
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { AnnotationContext } from '../annotation-context';
 import { resourceId, userId, type EnvironmentConfig } from '@semiont/core';
 import { createEventStore, FilesystemViewStorage } from '@semiont/event-sourcing';
@@ -15,15 +15,25 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 
 // Mock @semiont/inference
-vi.mock('@semiont/inference', () => {
+const mockInferenceClient = vi.hoisted(() => ({ client: null as any }));
+
+vi.mock('@semiont/inference', async () => {
+  const { MockInferenceClient } = await import('@semiont/inference');
+  mockInferenceClient.client = new MockInferenceClient(['']);
+
   return {
-    generateText: vi.fn()
+    getInferenceClient: vi.fn().mockResolvedValue(mockInferenceClient.client),
+    MockInferenceClient
   };
 });
 
 describe('AnnotationContext', () => {
   let testDir: string;
   let config: EnvironmentConfig;
+
+  beforeEach(() => {
+    mockInferenceClient.client.reset();
+  });
 
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-test-annotation-context-${Date.now()}`);
@@ -125,7 +135,7 @@ describe('AnnotationContext', () => {
       payload: {
         annotation: {
           '@context': 'http://www.w3.org/ns/anno.jsonld',
-          id: annId,
+          id: `http://localhost:4000/annotations/${annId}`,
           type: 'Annotation',
           motivation: 'commenting',
           body: {
@@ -182,17 +192,17 @@ describe('AnnotationContext', () => {
 
   it('should handle valid contextWindow values', async () => {
     const testResourceId = `resource-window-${Date.now()}`;
+    const testAnnId = `ann-window-${Date.now()}`;
     await createTestResource(testResourceId, 'Some text for context window testing');
-    await createTestAnnotation(testResourceId, `ann-window-${Date.now()}`, 'text', 5, 9);
+    await createTestAnnotation(testResourceId, testAnnId, 'text', 5, 9);
 
     // Mock the inference call to avoid actual API requests
-    const { generateText } = await import('@semiont/inference');
-    (generateText as ReturnType<typeof vi.fn>).mockResolvedValue('Mock summary');
+    mockInferenceClient.client.setResponses(['Mock summary']);
 
     // Test minimum valid value
     await expect(
       AnnotationContext.buildLLMContext(
-        `http://localhost:4000/annotations/ann-window-${Date.now()}` as any,
+        `http://localhost:4000/annotations/${testAnnId}` as any,
         resourceId(testResourceId),
         config,
         { contextWindow: 100 }
@@ -202,7 +212,7 @@ describe('AnnotationContext', () => {
     // Test maximum valid value
     await expect(
       AnnotationContext.buildLLMContext(
-        `http://localhost:4000/annotations/ann-window-${Date.now()}` as any,
+        `http://localhost:4000/annotations/${testAnnId}` as any,
         resourceId(testResourceId),
         config,
         { contextWindow: 5000 }
@@ -212,7 +222,7 @@ describe('AnnotationContext', () => {
     // Test mid-range value
     await expect(
       AnnotationContext.buildLLMContext(
-        `http://localhost:4000/annotations/ann-window-${Date.now()}` as any,
+        `http://localhost:4000/annotations/${testAnnId}` as any,
         resourceId(testResourceId),
         config,
         { contextWindow: 1500 }
@@ -227,8 +237,7 @@ describe('AnnotationContext', () => {
     await createTestAnnotation(testResourceId, testAnnId, 'fox', 16, 19);
 
     // Mock inference
-    const { generateText } = await import('@semiont/inference');
-    (generateText as ReturnType<typeof vi.fn>).mockResolvedValue('A test about a fox');
+    mockInferenceClient.client.setResponses(['A test about a fox']);
 
     const result = await AnnotationContext.buildLLMContext(
       `http://localhost:4000/annotations/${testAnnId}` as any,
@@ -248,8 +257,7 @@ describe('AnnotationContext', () => {
     await createTestAnnotation(testResourceId, testAnnId, 'context', 15, 22);
 
     // Mock inference
-    const { generateText } = await import('@semiont/inference');
-    (generateText as ReturnType<typeof vi.fn>).mockResolvedValue('Context summary');
+    mockInferenceClient.client.setResponses(['Context summary']);
 
     const withContext = await AnnotationContext.buildLLMContext(
       `http://localhost:4000/annotations/${testAnnId}` as any,
@@ -282,10 +290,10 @@ describe('AnnotationContext', () => {
 
   it('should handle annotations without TextPositionSelector', async () => {
     const testResourceId = `resource-no-position-${Date.now()}`;
+    const testAnnId = `ann-no-position-${Date.now()}`;
     await createTestResource(testResourceId, 'Content for testing missing selector');
 
     const eventStore = createEventStore(testDir, config.services.backend!.publicURL);
-    const testAnnId = `ann-no-position-${Date.now()}`;
 
     // Create annotation with only TextQuoteSelector
     await eventStore.appendEvent({
@@ -296,7 +304,7 @@ describe('AnnotationContext', () => {
       payload: {
         annotation: {
           '@context': 'http://www.w3.org/ns/anno.jsonld',
-          id: testAnnId,
+          id: `http://localhost:4000/annotations/${testAnnId}`,
           type: 'Annotation',
           motivation: 'commenting',
           body: {
@@ -321,8 +329,7 @@ describe('AnnotationContext', () => {
     await new Promise(resolve => setTimeout(resolve, 100));
 
     // Mock inference
-    const { generateText } = await import('@semiont/inference');
-    (generateText as ReturnType<typeof vi.fn>).mockResolvedValue('Summary');
+    mockInferenceClient.client.setResponses(['Summary']);
 
     const result = await AnnotationContext.buildLLMContext(
       `http://localhost:4000/annotations/${testAnnId}` as any,

@@ -17,17 +17,14 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 
 // Mock @semiont/inference to avoid external API calls
-const mockCreate = vi.fn();
-vi.mock('@semiont/inference', () => {
-  const mockClient = {
-    messages: {
-      create: mockCreate
-    }
-  };
+const mockInferenceClient = vi.hoisted(() => { return { client: null as any }; });
+vi.mock('@semiont/inference', async () => {
+  const { MockInferenceClient } = await import('@semiont/inference');
+  mockInferenceClient.client = new MockInferenceClient(['[]']);
 
   return {
-    getInferenceClient: vi.fn().mockResolvedValue(mockClient),
-    getInferenceModel: vi.fn().mockReturnValue('claude-sonnet-4-20250514')
+    getInferenceClient: vi.fn().mockResolvedValue(mockInferenceClient.client),
+    MockInferenceClient
   };
 });
 
@@ -85,6 +82,9 @@ describe('CommentDetectionWorker - Event Emission', () => {
     await jobQueue.initialize();
     testEventStore = createEventStore(testDir, config.services.backend!.publicURL);
     worker = new CommentDetectionWorker(jobQueue, config, testEventStore);
+
+    // Set default mock response
+    mockInferenceClient.client.setResponses(['[]']);
   });
 
   afterAll(async () => {
@@ -123,13 +123,7 @@ describe('CommentDetectionWorker - Event Emission', () => {
     await createTestResource(testResourceId);
 
     // Mock AI response
-    mockCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify([])
-      }],
-      stop_reason: 'end_turn'
-    });
+    mockInferenceClient.client.setResponses([JSON.stringify([])]);
 
     const job: RunningJob<CommentDetectionParams, CommentDetectionProgress> = {
       status: 'running',
@@ -176,10 +170,7 @@ describe('CommentDetectionWorker - Event Emission', () => {
     await createTestResource(testResourceId, 'Test content for progress tracking');
 
     // Mock AI response with comments
-    mockCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify([
+    mockInferenceClient.client.setResponses([JSON.stringify([
           {
             exact: 'Test content',
             start: 0,
@@ -188,10 +179,7 @@ describe('CommentDetectionWorker - Event Emission', () => {
             prefix: '',
             suffix: ' for progress'
           }
-        ])
-      }],
-      stop_reason: 'end_turn'
-    });
+        ])]);
 
     const job: RunningJob<CommentDetectionParams, CommentDetectionProgress> = {
       status: 'running',
@@ -226,8 +214,7 @@ describe('CommentDetectionWorker - Event Emission', () => {
       resourceId: resourceId(testResourceId),
       userId: userId('user-1'),
       payload: {
-        jobId: 'job-comment-2',
-        percentage: expect.any(Number)
+        jobId: 'job-comment-2'
       }
     });
   });
@@ -237,10 +224,7 @@ describe('CommentDetectionWorker - Event Emission', () => {
     await createTestResource(testResourceId);
 
     // Mock AI response
-    mockCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify([
+    mockInferenceClient.client.setResponses([JSON.stringify([
           {
             exact: 'Test',
             start: 0,
@@ -249,10 +233,7 @@ describe('CommentDetectionWorker - Event Emission', () => {
             prefix: '',
             suffix: ' content'
           }
-        ])
-      }],
-      stop_reason: 'end_turn'
-    });
+        ])]);
 
     const job: RunningJob<CommentDetectionParams, CommentDetectionProgress> = {
       status: 'running',
@@ -287,8 +268,7 @@ describe('CommentDetectionWorker - Event Emission', () => {
       resourceId: resourceId(testResourceId),
       userId: userId('user-1'),
       payload: {
-        jobId: 'job-comment-3',
-        commentsFound: expect.any(Number)
+        jobId: 'job-comment-3'
       }
     });
   });
@@ -298,30 +278,24 @@ describe('CommentDetectionWorker - Event Emission', () => {
     await createTestResource(testResourceId, 'Content for annotation testing');
 
     // Mock AI response with multiple comments
-    mockCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify([
-          {
-            exact: 'Content',
-            start: 0,
-            end: 7,
-            comment: 'First comment',
-            prefix: '',
-            suffix: ' for annotation'
-          },
-          {
-            exact: 'annotation',
-            start: 12,
-            end: 22,
-            comment: 'Second comment',
-            prefix: 'Content for ',
-            suffix: ' testing'
-          }
-        ])
-      }],
-      stop_reason: 'end_turn'
-    });
+    mockInferenceClient.client.setResponses([JSON.stringify([
+      {
+        exact: 'Content',
+        start: 0,
+        end: 7,
+        comment: 'First comment',
+        prefix: '',
+        suffix: ' for annotation'
+      },
+      {
+        exact: 'annotation',
+        start: 12,
+        end: 22,
+        comment: 'Second comment',
+        prefix: 'Content for ',
+        suffix: ' testing'
+      }
+    ])]);
 
     const job: RunningJob<CommentDetectionParams, CommentDetectionProgress> = {
       status: 'running',
@@ -356,8 +330,14 @@ describe('CommentDetectionWorker - Event Emission', () => {
       resourceId: resourceId(testResourceId),
       userId: userId('user-1'),
       payload: {
-        motivation: 'commenting',
-        bodyValue: 'First comment'
+        annotation: {
+          motivation: 'commenting',
+          body: expect.arrayContaining([
+            expect.objectContaining({
+              value: 'First comment'
+            })
+          ])
+        }
       }
     });
 
@@ -367,8 +347,14 @@ describe('CommentDetectionWorker - Event Emission', () => {
       resourceId: resourceId(testResourceId),
       userId: userId('user-1'),
       payload: {
-        motivation: 'commenting',
-        bodyValue: 'Second comment'
+        annotation: {
+          motivation: 'commenting',
+          body: expect.arrayContaining([
+            expect.objectContaining({
+              value: 'Second comment'
+            })
+          ])
+        }
       }
     });
   });

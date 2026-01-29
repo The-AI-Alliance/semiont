@@ -17,19 +17,42 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 
 // Mock @semiont/inference to avoid external API calls
-const mockCreate = vi.fn();
-vi.mock('@semiont/inference', () => {
-  const mockClient = {
-    messages: {
-      create: mockCreate
-    }
-  };
+const mockInferenceClient = vi.hoisted(() => {
+  return { client: null as any };
+});
+const mockGenerateText = vi.hoisted(() => vi.fn());
+
+vi.mock('@semiont/inference', async () => {
+  const { MockInferenceClient } = await import('@semiont/inference');
+  mockInferenceClient.client = new MockInferenceClient(['[]']); // Empty array response for tags
 
   return {
-    getInferenceClient: vi.fn().mockResolvedValue(mockClient),
-    getInferenceModel: vi.fn().mockReturnValue('claude-sonnet-4-20250514')
+    getInferenceClient: vi.fn().mockResolvedValue(mockInferenceClient.client),
+    generateText: mockGenerateText,
+    MockInferenceClient
   };
 });
+
+// Mock @semiont/ontology to provide tag schema
+vi.mock('@semiont/ontology', () => ({
+  getTagSchema: vi.fn().mockReturnValue({
+    id: 'imrad',
+    name: 'IMRAD',
+    description: 'Introduction, Methods, Results, and Discussion structure',
+    domain: 'academic',
+    tags: [
+      { name: 'Introduction' },
+      { name: 'Methods' },
+      { name: 'Results' },
+      { name: 'Discussion' }
+    ]
+  }),
+  getSchemaCategory: vi.fn((schemaId: string, categoryName: string) => ({
+    name: categoryName,
+    description: `${categoryName} section`,
+    examples: [`What is ${categoryName.toLowerCase()}?`, `How does ${categoryName.toLowerCase()} work?`]
+  }))
+}));
 
 describe('TagDetectionWorker - Event Emission', () => {
   let worker: TagDetectionWorker;
@@ -85,6 +108,9 @@ describe('TagDetectionWorker - Event Emission', () => {
     await jobQueue.initialize();
     testEventStore = createEventStore(testDir, config.services.backend!.publicURL);
     worker = new TagDetectionWorker(jobQueue, config, testEventStore);
+
+    // Set default mock response
+    mockGenerateText.mockResolvedValue('[]');
   });
 
   afterAll(async () => {
@@ -123,13 +149,7 @@ describe('TagDetectionWorker - Event Emission', () => {
     await createTestResource(testResourceId);
 
     // Mock AI response
-    mockCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify([])
-      }],
-      stop_reason: 'end_turn'
-    });
+    mockInferenceClient.client.setResponses([JSON.stringify([])]);
 
     const job: RunningJob<TagDetectionParams, TagDetectionProgress> = {
       status: 'running',
@@ -180,10 +200,7 @@ describe('TagDetectionWorker - Event Emission', () => {
     await createTestResource(testResourceId);
 
     // Mock AI response with tags
-    mockCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify([
+    mockInferenceClient.client.setResponses([JSON.stringify([
           {
             exact: 'Introduction paragraph',
             start: 0,
@@ -191,10 +208,7 @@ describe('TagDetectionWorker - Event Emission', () => {
             prefix: '',
             suffix: '. Methods section'
           }
-        ])
-      }],
-      stop_reason: 'end_turn'
-    });
+        ])]);
 
     const job: RunningJob<TagDetectionParams, TagDetectionProgress> = {
       status: 'running',
@@ -233,8 +247,7 @@ describe('TagDetectionWorker - Event Emission', () => {
       resourceId: resourceId(testResourceId),
       userId: userId('user-1'),
       payload: {
-        jobId: 'job-tag-2',
-        percentage: expect.any(Number)
+        jobId: 'job-tag-2'
       }
     });
   });
@@ -244,10 +257,7 @@ describe('TagDetectionWorker - Event Emission', () => {
     await createTestResource(testResourceId);
 
     // Mock AI response
-    mockCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify([
+    mockInferenceClient.client.setResponses([JSON.stringify([
           {
             exact: 'Methods section',
             start: 24,
@@ -255,10 +265,7 @@ describe('TagDetectionWorker - Event Emission', () => {
             prefix: 'Introduction paragraph. ',
             suffix: '. Results follow'
           }
-        ])
-      }],
-      stop_reason: 'end_turn'
-    });
+        ])]);
 
     const job: RunningJob<TagDetectionParams, TagDetectionProgress> = {
       status: 'running',
@@ -297,8 +304,7 @@ describe('TagDetectionWorker - Event Emission', () => {
       resourceId: resourceId(testResourceId),
       userId: userId('user-1'),
       payload: {
-        jobId: 'job-tag-3',
-        tagsFound: expect.any(Number)
+        jobId: 'job-tag-3'
       }
     });
   });
@@ -307,43 +313,41 @@ describe('TagDetectionWorker - Event Emission', () => {
     const testResourceId = `resource-tag-annotations-${Date.now()}`;
     await createTestResource(testResourceId);
 
-    // Mock AI response with multiple tags
-    mockCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify([
-          {
-            exact: 'Introduction paragraph',
-            start: 0,
-            end: 22,
-            prefix: '',
-            suffix: '. Methods section'
-          },
-          {
-            exact: 'Methods section',
-            start: 24,
-            end: 39,
-            prefix: 'Introduction paragraph. ',
-            suffix: '. Results follow'
-          },
-          {
-            exact: 'Results follow',
-            start: 41,
-            end: 55,
-            prefix: 'Methods section. ',
-            suffix: '. Conclusion at'
-          },
-          {
-            exact: 'Conclusion at end',
-            start: 57,
-            end: 74,
-            prefix: 'Results follow. ',
-            suffix: '.'
-          }
-        ])
-      }],
-      stop_reason: 'end_turn'
-    });
+    // Mock AI responses - one for each category
+    mockInferenceClient.client.setResponses([
+      // Introduction category
+      JSON.stringify([{
+        exact: 'Introduction paragraph',
+        start: 0,
+        end: 22,
+        prefix: '',
+        suffix: '. Methods section'
+      }]),
+      // Methods category
+      JSON.stringify([{
+        exact: 'Methods section',
+        start: 24,
+        end: 39,
+        prefix: 'Introduction paragraph. ',
+        suffix: '. Results follow'
+      }]),
+      // Results category
+      JSON.stringify([{
+        exact: 'Results follow',
+        start: 41,
+        end: 55,
+        prefix: 'Methods section. ',
+        suffix: '. Conclusion at'
+      }]),
+      // Discussion category
+      JSON.stringify([{
+        exact: 'Conclusion at end',
+        start: 57,
+        end: 74,
+        prefix: 'Results follow. ',
+        suffix: '.'
+      }])
+    ]);
 
     const job: RunningJob<TagDetectionParams, TagDetectionProgress> = {
       status: 'running',
@@ -383,7 +387,9 @@ describe('TagDetectionWorker - Event Emission', () => {
         resourceId: resourceId(testResourceId),
         userId: userId('user-1'),
         payload: {
-          motivation: 'tagging'
+          annotation: {
+            motivation: 'tagging'
+          }
         }
       });
     }

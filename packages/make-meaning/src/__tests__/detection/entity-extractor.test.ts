@@ -9,17 +9,15 @@ import { describe, it, expect, beforeAll, vi } from 'vitest';
 import type { EnvironmentConfig } from '@semiont/core';
 
 // Mock inference client using factory function
-const mockCreate = vi.fn();
-vi.mock('@semiont/inference', () => {
-  const mockClient = {
-    messages: {
-      create: mockCreate
-    }
-  };
+const mockInferenceClient = vi.hoisted(() => ({ client: null as any }));
+
+vi.mock('@semiont/inference', async () => {
+  const { MockInferenceClient } = await import('@semiont/inference');
+  mockInferenceClient.client = new MockInferenceClient(['[]']);
 
   return {
-    getInferenceClient: vi.fn().mockResolvedValue(mockClient),
-    getInferenceModel: vi.fn().mockReturnValue('claude-sonnet-4-20250514')
+    getInferenceClient: vi.fn().mockResolvedValue(mockInferenceClient.client),
+    MockInferenceClient
   };
 });
 
@@ -64,13 +62,7 @@ describe('extractEntities', () => {
       }
     ];
 
-    mockCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify(mockResponse)
-      }],
-      stop_reason: 'end_turn'
-    });
+    mockInferenceClient.client.setResponses([JSON.stringify(mockResponse)]);
 
     const result = await extractEntities(text, ['Person', 'Location'], config);
 
@@ -90,13 +82,7 @@ describe('extractEntities', () => {
   });
 
   it('should handle empty text', async () => {
-    mockCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: '[]'
-      }],
-      stop_reason: 'end_turn'
-    });
+    mockInferenceClient.client.setResponses(['[]']);
 
     const result = await extractEntities('', ['Person'], config);
 
@@ -104,13 +90,7 @@ describe('extractEntities', () => {
   });
 
   it('should handle no entities found', async () => {
-    mockCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: '[]'
-      }],
-      stop_reason: 'end_turn'
-    });
+    mockInferenceClient.client.setResponses(['[]']);
 
     const result = await extractEntities('The sky is blue', ['Person'], config);
 
@@ -131,13 +111,7 @@ describe('extractEntities', () => {
       }
     ];
 
-    mockCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify(mockResponse)
-      }],
-      stop_reason: 'end_turn'
-    });
+    mockInferenceClient.client.setResponses([JSON.stringify(mockResponse)]);
 
     const result = await extractEntities(text, ['Person'], config);
 
@@ -169,13 +143,7 @@ describe('extractEntities', () => {
       }
     ];
 
-    mockCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify(mockResponse)
-      }],
-      stop_reason: 'end_turn'
-    });
+    mockInferenceClient.client.setResponses([JSON.stringify(mockResponse)]);
 
     const result = await extractEntities(text, ['Person'], config);
 
@@ -194,13 +162,7 @@ describe('extractEntities', () => {
       }
     ];
 
-    mockCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: '```json\n' + JSON.stringify(mockResponse) + '\n```'
-      }],
-      stop_reason: 'end_turn'
-    });
+    mockInferenceClient.client.setResponses(['```json\n' + JSON.stringify(mockResponse) + '\n```']);
 
     const result = await extractEntities(text, ['Person'], config);
 
@@ -221,17 +183,18 @@ describe('extractEntities', () => {
       }
     ];
 
-    mockCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify(mockResponse)
-      }],
-      stop_reason: 'max_tokens' // Indicates truncation
-    });
+    // Set response with max_tokens stop reason to simulate truncation
+    mockInferenceClient.client.setResponses([JSON.stringify(mockResponse)], ['max_tokens']);
 
     // When truncated, extractEntities throws but catch block returns []
-    const result = await extractEntities(text, ['Person'], config);
-    expect(result).toEqual([]);
+    try {
+      const result = await extractEntities(text, ['Person'], config);
+      expect(result).toEqual([]);
+    } catch (error) {
+      // If it throws, that's also acceptable - the catch block should return []
+      // But the test expects [] to be returned, not thrown
+      throw error;
+    }
   });
 
   it('should handle entity types with examples', async () => {
@@ -245,13 +208,7 @@ describe('extractEntities', () => {
       }
     ];
 
-    mockCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify(mockResponse)
-      }],
-      stop_reason: 'end_turn'
-    });
+    mockInferenceClient.client.setResponses([JSON.stringify(mockResponse)]);
 
     const result = await extractEntities(
       text,
@@ -283,13 +240,7 @@ describe('extractEntities', () => {
       }
     ];
 
-    mockCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: JSON.stringify(mockResponse)
-      }],
-      stop_reason: 'end_turn'
-    });
+    mockInferenceClient.client.setResponses([JSON.stringify(mockResponse)]);
 
     const result = await extractEntities(text, ['Person'], config, true);
 
@@ -299,13 +250,7 @@ describe('extractEntities', () => {
   });
 
   it('should handle malformed JSON gracefully', async () => {
-    mockCreate.mockResolvedValue({
-      content: [{
-        type: 'text',
-        text: 'This is not JSON'
-      }],
-      stop_reason: 'end_turn'
-    });
+    mockInferenceClient.client.setResponses(['This is not JSON']);
 
     const result = await extractEntities('Alice went to Paris.', ['Person'], config);
 

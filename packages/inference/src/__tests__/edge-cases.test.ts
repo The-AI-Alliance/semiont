@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { getInferenceClient, createInferenceClient, resetInferenceClient } from '../factory.js';
+import { getInferenceClient, createInferenceClient } from '../factory.js';
 import { createConfigWithEnvVar } from './helpers/mock-config.js';
 import type { InferenceClientConfig } from '../factory.js';
 
@@ -7,13 +7,11 @@ describe('@semiont/inference - edge cases', () => {
   beforeEach(() => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    resetInferenceClient();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
-    resetInferenceClient();
   });
 
   describe('Configuration edge cases', () => {
@@ -92,7 +90,6 @@ describe('@semiont/inference - edge cases', () => {
       const config = createConfigWithEnvVar('TEST_KEY');
 
       const client1 = await getInferenceClient(config);
-      resetInferenceClient();
       const client2 = await getInferenceClient(config);
 
       expect(client1).not.toBe(client2);

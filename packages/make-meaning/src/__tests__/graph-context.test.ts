@@ -10,12 +10,12 @@ import { GraphContext } from '../graph-context';
 import { resourceId, type EnvironmentConfig } from '@semiont/core';
 
 // Mock @semiont/graph
-const mockGraphDb = {
+const mockGraphDb = vi.hoisted(() => ({
   getResourceReferencedBy: vi.fn(),
   findPath: vi.fn(),
   getResourceConnections: vi.fn(),
   searchResources: vi.fn()
-};
+}));
 
 vi.mock('@semiont/graph', () => {
   return {
@@ -94,7 +94,11 @@ describe('GraphContext', () => {
     );
 
     expect(result).toHaveLength(1);
-    expect(result[0].resources.length + result[0].annotations.length).toBeGreaterThan(0);
+    expect(result[0]).toMatchObject({
+      fromResource: resourceId('res1'),
+      toResource: resourceId('res2'),
+      depth: 1
+    });
     expect(mockGraphDb.findPath).toHaveBeenCalledWith(
       resourceId('res1'),
       resourceId('res2'),

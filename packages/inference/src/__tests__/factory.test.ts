@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { getInferenceClient, getInferenceModel, resetInferenceClient } from '../factory.js';
+import { getInferenceClient, getInferenceModel } from '../factory.js';
 import {
   createTestConfig,
   createConfigWithoutInference,
@@ -11,13 +11,11 @@ describe('@semiont/inference - factory', () => {
   beforeEach(() => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    resetInferenceClient();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
-    resetInferenceClient();
   });
 
   describe('getInferenceModel', () => {

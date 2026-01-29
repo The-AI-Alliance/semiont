@@ -22,17 +22,13 @@ import { join } from 'path';
 // Mock @semiont/inference to avoid external API calls
 vi.mock('@semiont/inference', async () => {
   const actual = await vi.importActual<typeof import('@semiont/inference')>('@semiont/inference');
+  const { MockInferenceClient } = actual;
+
+  const mockClient = new MockInferenceClient(['[]']); // Empty JSON array response
+
   return {
     ...actual,
-    generateText: vi.fn().mockResolvedValue('Mock AI response'),
-    getInferenceClient: vi.fn().mockResolvedValue({
-      messages: {
-        create: vi.fn().mockResolvedValue({
-          content: [{ type: 'text', text: 'Mock AI response' }]
-        })
-      }
-    }),
-    getInferenceModel: vi.fn().mockReturnValue('claude-sonnet-4-20250514'),
+    getInferenceClient: vi.fn().mockResolvedValue(mockClient),
     extractEntities: vi.fn().mockResolvedValue([
       {
         exact: 'Test',
