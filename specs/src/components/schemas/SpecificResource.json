@@ -10,10 +10,7 @@
       "description": "IRI of the target resource"
     },
     "purpose": {
-      "type": "string",
-      "enum": [
-        "linking"
-      ],
+      "$ref": "./Motivation.json",
       "description": "Why this body is included"
     }
   },

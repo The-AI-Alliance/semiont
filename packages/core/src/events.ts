@@ -18,6 +18,7 @@ import type { ResourceId, AnnotationId, UserId } from './identifiers';
 // Import OpenAPI types
 type Annotation = components['schemas']['Annotation'];
 type ContentFormat = components['schemas']['ContentFormat'];
+type Motivation = components['schemas']['Motivation'];
 
 export interface BaseEvent {
   id: string;                    // Unique event ID (UUID)
@@ -123,8 +124,8 @@ export interface AnnotationRemovedEvent extends BaseEvent {
 
 // Body operation types for fine-grained annotation body modifications
 export type BodyItem =
-  | { type: 'TextualBody'; value: string; purpose: 'tagging' | 'commenting' | 'describing' | 'classifying'; format?: string; language?: string }
-  | { type: 'SpecificResource'; source: string; purpose: 'linking' };
+  | { type: 'TextualBody'; value: string; purpose?: Motivation; format?: string; language?: string }
+  | { type: 'SpecificResource'; source: string; purpose?: Motivation };
 
 export type BodyOperation =
   | { op: 'add'; item: BodyItem }

@@ -56,7 +56,7 @@ export function createTestHighlight(
       type: 'TextualBody',
       value: 'This is a highlight',
       format: 'text/plain',
-      purpose: 'commenting',
+      purpose: 'highlighting',
     },
     creator: {
       name: `User ${uuidv4()}`,

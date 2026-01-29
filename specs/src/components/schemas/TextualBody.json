@@ -10,13 +10,7 @@
       "description": "The text content (e.g., entity type name)"
     },
     "purpose": {
-      "type": "string",
-      "enum": [
-        "tagging",
-        "describing",
-        "commenting",
-        "classifying"
-      ],
+      "$ref": "./Motivation.json",
       "description": "Why this body is included"
     },
     "format": {

@@ -283,7 +283,7 @@ describe('GraphDatabase Interface Contract', () => {
         type: 'TextualBody' as const,
         value: 'Updated highlight',
         format: 'text/plain' as const,
-        purpose: 'commenting' as const,
+        purpose: 'highlighting' as const,
       };
 
       const updated = await db.updateAnnotation(created.id as AnnotationUri, { body: newBody });
@@ -489,12 +489,14 @@ describe('GraphDatabase Interface Contract', () => {
 
     it('getEntityReferences() should filter by entity types', async () => {
       const resource1 = createTestResource();
-      const resource2 = createTestResource();
+      const resource2Person = createTestResource({ entityTypes: ['Person'] });
+      const resource2Org = createTestResource({ entityTypes: ['Organization'] });
       await db.createResource(resource1);
-      await db.createResource(resource2);
+      await db.createResource(resource2Person);
+      await db.createResource(resource2Org);
 
-      await db.createAnnotation(createTestEntityReference(resource1['@id'], resource2['@id'], ['Person']));
-      await db.createAnnotation(createTestEntityReference(resource1['@id'], resource2['@id'], ['Organization']));
+      await db.createAnnotation(createTestEntityReference(resource1['@id'], resource2Person['@id']));
+      await db.createAnnotation(createTestEntityReference(resource1['@id'], resource2Org['@id']));
 
       const personRefs = await db.getEntityReferences(uriToResourceId(resource1['@id']), ['Person']);
 

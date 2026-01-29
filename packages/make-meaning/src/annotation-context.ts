@@ -294,7 +294,7 @@ export class AnnotationContext {
       if (ann.motivation === 'linking' && ann.body) {
         const body = Array.isArray(ann.body) ? ann.body : [ann.body];
         for (const item of body) {
-          if (item.purpose === 'linking' && item.source) {
+          if (item.type === 'SpecificResource' && item.purpose === 'linking' && item.source) {
             resolvedUris.add(item.source);
           }
         }
@@ -344,7 +344,7 @@ export class AnnotationContext {
       if (ann.motivation === 'linking' && ann.body) {
         const body = Array.isArray(ann.body) ? ann.body : [ann.body];
         for (const item of body) {
-          if (item.purpose === 'linking' && item.source) {
+          if (item.type === 'SpecificResource' && item.purpose === 'linking' && item.source) {
             const metadata = uriToMetadata.get(item.source);
             if (metadata) {
               return {
