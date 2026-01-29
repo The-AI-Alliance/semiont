@@ -11,7 +11,7 @@
 import { getLocaleEnglishName } from '@semiont/api-client';
 import type { GenerationContext } from '@semiont/api-client';
 import type { EnvironmentConfig } from '@semiont/core';
-import { generateText } from '@semiont/inference';
+import { getInferenceClient } from '@semiont/inference';
 
 function getLanguageName(locale: string): string {
   return getLocaleEnglishName(locale) || locale;
@@ -107,7 +107,8 @@ Requirements:
   };
 
   console.log('Sending prompt to inference (length:', prompt.length, 'chars)', 'temp:', finalTemperature, 'maxTokens:', finalMaxTokens);
-  const response = await generateText(prompt, config, finalMaxTokens, finalTemperature);
+  const client = await getInferenceClient(config);
+  const response = await client.generateText(prompt, finalMaxTokens, finalTemperature);
   console.log('Got raw response (length:', response.length, 'chars)');
 
   const result = parseResponse(response);
@@ -143,7 +144,8 @@ ${truncatedContent}
 
 Write a 2-3 sentence summary that captures the key points and would help someone understand what this resource contains.`;
 
-  return await generateText(prompt, config, 150, 0.5);
+  const client = await getInferenceClient(config);
+  return await client.generateText(prompt, 150, 0.5);
 }
 
 /**
@@ -159,7 +161,8 @@ export async function generateReferenceSuggestions(
 
 Format as a simple list, one suggestion per line.`;
 
-  const response = await generateText(prompt, config, 200, 0.8);
+  const client = await getInferenceClient(config);
+  const response = await client.generateText(prompt, 200, 0.8);
   if (!response) {
     return null;
   }

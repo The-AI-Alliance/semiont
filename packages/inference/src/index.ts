@@ -2,9 +2,7 @@
 export {
   getInferenceClient,
   getInferenceModel,
-  generateText,
   createInferenceClient,
-  resetInferenceClient,
   type InferenceClientConfig,
   type InferenceClientType,
 } from './factory';

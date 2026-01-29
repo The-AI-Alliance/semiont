@@ -37,8 +37,9 @@ export class MockInferenceClient implements InferenceClient {
     this.responseIndex = 0;
   }
 
-  setResponses(responses: string[]): void {
+  setResponses(responses: string[], stopReasons?: string[]): void {
     this.responses = responses;
+    this.stopReasons = stopReasons || responses.map(() => 'end_turn');
     this.responseIndex = 0;
   }
 }

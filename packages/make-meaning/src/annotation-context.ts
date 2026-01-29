@@ -9,7 +9,7 @@
  * - Generating AI summaries
  */
 
-import { generateText } from '@semiont/inference';
+import { getInferenceClient } from '@semiont/inference';
 import { generateResourceSummary } from './generation/resource-generation';
 import {
   getBodySource,
@@ -584,6 +584,7 @@ Context after: "${context.after.substring(0, 200)}"
 Resource: ${resource.name}
 Entity types: ${entityTypes.join(', ')}`;
 
-    return await generateText(summaryPrompt, config, 500, 0.5);
+    const client = await getInferenceClient(config);
+    return await client.generateText(summaryPrompt, 500, 0.5);
   }
 }

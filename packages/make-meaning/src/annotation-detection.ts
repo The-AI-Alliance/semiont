@@ -15,7 +15,7 @@
 import { ResourceContext } from './resource-context';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import { getPrimaryRepresentation, decodeRepresentation } from '@semiont/api-client';
-import { generateText } from '@semiont/inference';
+import { getInferenceClient } from '@semiont/inference';
 import { MotivationPrompts } from './detection/motivation-prompts';
 import {
   MotivationParsers,
@@ -61,9 +61,9 @@ export class AnnotationDetection {
     const prompt = MotivationPrompts.buildCommentPrompt(content, instructions, tone, density);
 
     // 4. Call AI inference
-    const response = await generateText(
+    const client = await getInferenceClient(config);
+    const response = await client.generateText(
       prompt,
-      config,
       3000,  // maxTokens: Higher than highlights/assessments due to comment text
       0.4    // temperature: Slightly higher to allow creative context
     );
@@ -103,9 +103,9 @@ export class AnnotationDetection {
     const prompt = MotivationPrompts.buildHighlightPrompt(content, instructions, density);
 
     // 4. Call AI inference
-    const response = await generateText(
+    const client = await getInferenceClient(config);
+    const response = await client.generateText(
       prompt,
-      config,
       2000,  // maxTokens: Lower than comments/assessments (no body text)
       0.3    // temperature: Low for consistent importance judgments
     );
@@ -147,9 +147,9 @@ export class AnnotationDetection {
     const prompt = MotivationPrompts.buildAssessmentPrompt(content, instructions, tone, density);
 
     // 4. Call AI inference
-    const response = await generateText(
+    const client = await getInferenceClient(config);
+    const response = await client.generateText(
       prompt,
-      config,
       3000,  // maxTokens: Higher for assessment text
       0.3    // temperature: Lower for analytical consistency
     );
@@ -208,9 +208,9 @@ export class AnnotationDetection {
     );
 
     // 4. Call AI inference
-    const response = await generateText(
+    const client = await getInferenceClient(config);
+    const response = await client.generateText(
       prompt,
-      config,
       4000,  // maxTokens: Higher for full document analysis
       0.2    // temperature: Lower for structural consistency
     );

@@ -14,9 +14,6 @@ export interface InferenceClientConfig {
   baseURL?: string;
 }
 
-// Singleton instance
-let inferenceClientInstance: InferenceClient | null = null;
-
 export function createInferenceClient(config: InferenceClientConfig): InferenceClient {
   switch (config.type) {
     case 'anthropic': {
@@ -50,10 +47,6 @@ function evaluateEnvVar(value: string | undefined): string | undefined {
 }
 
 export async function getInferenceClient(config: EnvironmentConfig): Promise<InferenceClient> {
-  if (inferenceClientInstance) {
-    return inferenceClientInstance;
-  }
-
   const inferenceConfig = config.services.inference;
   if (!inferenceConfig) {
     throw new Error('services.inference is required in environment config');
@@ -78,10 +71,10 @@ export async function getInferenceClient(config: EnvironmentConfig): Promise<Inf
     hasApiKey: !!clientConfig.apiKey
   });
 
-  inferenceClientInstance = createInferenceClient(clientConfig);
+  const client = createInferenceClient(clientConfig);
 
   console.log(`Initialized ${inferenceConfig.type} inference client with model ${inferenceConfig.model}`);
-  return inferenceClientInstance;
+  return client;
 }
 
 /**
@@ -95,22 +88,3 @@ export function getInferenceModel(config: EnvironmentConfig): string {
   return inferenceConfig.model;
 }
 
-/**
- * Helper function to make a simple inference call
- */
-export async function generateText(
-  prompt: string,
-  config: EnvironmentConfig,
-  maxTokens: number = 500,
-  temperature: number = 0.7
-): Promise<string> {
-  const client = await getInferenceClient(config);
-  return client.generateText(prompt, maxTokens, temperature);
-}
-
-/**
- * Reset the singleton client (for testing only)
- */
-export function resetInferenceClient(): void {
-  inferenceClientInstance = null;
-}
