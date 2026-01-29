@@ -10,8 +10,9 @@
  *   npm run rebuild-graph <resourceId> # Rebuild specific resource
  */
 
-import { getGraphConsumer } from '../events/consumers/graph-consumer';
+import { GraphDBConsumer } from '@semiont/make-meaning';
 import { loadEnvironmentConfig, resourceId as makeResourceId } from '@semiont/core';
+import { createEventStore } from '../services/event-store-service';
 
 async function rebuildGraph(rId?: string) {
   console.log('🔄 Rebuilding Neo4j graph from events...\n');
@@ -21,8 +22,10 @@ async function rebuildGraph(rId?: string) {
   const environment = process.env.SEMIONT_ENV || 'development';
   const config = loadEnvironmentConfig(projectRoot, environment);
 
-  // Get graph consumer
-  const consumer = await getGraphConsumer(config);
+  // Create event store and graph consumer
+  const eventStore = await createEventStore(config);
+  const consumer = new GraphDBConsumer(config, eventStore);
+  await consumer.initialize();
 
   if (rId) {
     // Rebuild single resource

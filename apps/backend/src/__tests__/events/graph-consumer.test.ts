@@ -3,11 +3,13 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
-import { GraphDBConsumer } from '../../events/consumers/graph-consumer';
+import { GraphDBConsumer } from '@semiont/make-meaning';
 import type { StoredEvent, ResourceEvent, ResourceCreatedEvent, ResourceClonedEvent } from '@semiont/core';
 import { resourceId, userId, annotationId } from '@semiont/core';
 import { CREATION_METHODS } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
+import type { EventStore } from '@semiont/event-sourcing';
+import { createEventStore } from '../../services/event-store-service';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 
 // Mock GraphDB
@@ -123,9 +125,11 @@ describe('GraphDBConsumer', () => {
   let consumer: GraphDBConsumer;
   let mockGraphDB: GraphDatabase;
   let testEnv: TestEnvironmentConfig;
+  let eventStore: EventStore;
 
   beforeAll(async () => {
     testEnv = await setupTestEnvironment();
+    eventStore = await createEventStore(testEnv.config);
   });
 
   afterAll(async () => {
@@ -134,7 +138,7 @@ describe('GraphDBConsumer', () => {
 
   beforeEach(async () => {
     mockGraphDB = createMockGraphDB();
-    consumer = new GraphDBConsumer(testEnv.config);
+    consumer = new GraphDBConsumer(testEnv.config, eventStore);
 
     // Inject mock GraphDB
     consumer['graphDb'] = mockGraphDB;

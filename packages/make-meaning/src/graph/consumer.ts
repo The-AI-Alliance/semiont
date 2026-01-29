@@ -5,7 +5,7 @@
  * Makes GraphDB a projection of Event Store events (single source of truth)
  */
 
-import { createEventStore, createEventQuery } from '../../services/event-store-service';
+import { EventQuery, type EventStore } from '@semiont/event-sourcing';
 import { getGraphDatabase } from '@semiont/graph';
 import { didToAgent } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
@@ -25,7 +25,10 @@ export class GraphDBConsumer {
   private processing: Map<string, Promise<void>> = new Map();
   private lastProcessed: Map<string, number> = new Map();
 
-  constructor(private config: EnvironmentConfig) {}
+  constructor(
+    private config: EnvironmentConfig,
+    private eventStore: EventStore
+  ) {}
 
   async initialize() {
     if (!this.graphDb) {
@@ -42,9 +45,7 @@ export class GraphDBConsumer {
    * This allows the consumer to react to events like entitytype.added
    */
   private async subscribeToGlobalEvents() {
-    const eventStore = await createEventStore( this.config);
-
-    this._globalSubscription = eventStore.bus.subscriptions.subscribeGlobal(async (storedEvent) => {
+    this._globalSubscription = this.eventStore.bus.subscriptions.subscribeGlobal(async (storedEvent: StoredEvent) => {
       console.log(`[GraphDBConsumer] Received global event: ${storedEvent.event.type}`);
       await this.processEvent(storedEvent);
     });
@@ -65,18 +66,40 @@ export class GraphDBConsumer {
    */
   async subscribeToResource(resourceId: ResourceId) {
     this.ensureInitialized();
-    const eventStore = await createEventStore( this.config);
 
     // Convert plain ID to full URI for subscription (EventSubscriptions uses ResourceUri branded type)
     const publicURL = this.config.services.backend!.publicURL;
     const rUri = resourceUri(`${publicURL}/resources/${resourceId}`);
 
-    const subscription = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent) => {
+    const subscription = this.eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent: StoredEvent) => {
       await this.processEvent(storedEvent);
     });
 
     this.subscriptions.set(resourceId, subscription);
     console.log(`[GraphDBConsumer] Subscribed to ${resourceId}`);
+  }
+
+  /**
+   * Stop the consumer and unsubscribe from all events
+   */
+  async stop() {
+    console.log('[GraphDBConsumer] Stopping...');
+
+    // Unsubscribe from all resource subscriptions
+    for (const subscription of this.subscriptions.values()) {
+      if (subscription && typeof subscription.unsubscribe === 'function') {
+        subscription.unsubscribe();
+      }
+    }
+    this.subscriptions.clear();
+
+    // Unsubscribe from global subscription
+    if (this._globalSubscription && typeof this._globalSubscription.unsubscribe === 'function') {
+      this._globalSubscription.unsubscribe();
+    }
+    this._globalSubscription = null;
+
+    console.log('[GraphDBConsumer] Stopped');
   }
 
   /**
@@ -326,8 +349,7 @@ export class GraphDBConsumer {
     }
 
     // Replay all events
-    const eventStore = await createEventStore( this.config);
-    const query = createEventQuery(eventStore);
+    const query = new EventQuery(this.eventStore.log.storage);
     const events = await query.getResourceEvents(resourceId);
 
     for (const storedEvent of events) {
@@ -350,9 +372,8 @@ export class GraphDBConsumer {
     await graphDb.clearDatabase();
 
     // Get all resource IDs by scanning event shards
-    const eventStore = await createEventStore( this.config);
-    const query = createEventQuery(eventStore);
-    const allResourceIds = await eventStore.log.getAllResourceIds();
+    const query = new EventQuery(this.eventStore.log.storage);
+    const allResourceIds = await this.eventStore.log.getAllResourceIds();
 
     console.log(`[GraphDBConsumer] Found ${allResourceIds.length} resources to rebuild`);
 
@@ -447,36 +468,4 @@ export class GraphDBConsumer {
     }
     console.log('[GraphDBConsumer] Shut down');
   }
-}
-
-// Singleton instance
-let graphConsumer: GraphDBConsumer | null = null;
-
-export async function getGraphConsumer(config: EnvironmentConfig): Promise<GraphDBConsumer> {
-  if (!graphConsumer) {
-    graphConsumer = new GraphDBConsumer(config);
-    await graphConsumer.initialize();
-  }
-  return graphConsumer;
-}
-
-/**
- * Start consumer for existing resources
- * Called on app initialization
- */
-export async function startGraphConsumer(config: EnvironmentConfig): Promise<void> {
-  const consumer = await getGraphConsumer(config);
-  const eventStore = await createEventStore( config);
-
-  // Get all existing resource IDs
-  const allResourceIds = await eventStore.log.getAllResourceIds();
-
-  console.log(`[GraphDBConsumer] Starting consumer for ${allResourceIds.length} resources`);
-
-  // Subscribe to each resource
-  for (const resourceId of allResourceIds) {
-    await consumer.subscribeToResource(makeResourceId(resourceId as string));
-  }
-
-  console.log('[GraphDBConsumer] Consumer started');
 }

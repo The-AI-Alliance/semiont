@@ -19,7 +19,7 @@ Workers extend the `JobWorker` base class from `@semiont/jobs` and implement dom
 
 **Job Type**: `'detection'`
 
-**Implementation**: [src/jobs/workers/reference-detection-worker.ts](../src/jobs/workers/reference-detection-worker.ts)
+**Implementation**: [src/jobs/reference-detection-worker.ts](../src/jobs/reference-detection-worker.ts)
 
 **Key Features**:
 - Processes multiple entity types per job
@@ -52,7 +52,7 @@ await worker.start();
 
 **Job Type**: `'generation'`
 
-**Implementation**: [src/jobs/workers/generation-worker.ts](../src/jobs/workers/generation-worker.ts)
+**Implementation**: [src/jobs/generation-worker.ts](../src/jobs/generation-worker.ts)
 
 **Key Features**:
 - Fetches annotation and source context
@@ -80,7 +80,7 @@ await worker.start();
 
 **Job Type**: `'highlight-detection'`
 
-**Implementation**: [src/jobs/workers/highlight-detection-worker.ts](../src/jobs/workers/highlight-detection-worker.ts)
+**Implementation**: [src/jobs/highlight-detection-worker.ts](../src/jobs/highlight-detection-worker.ts)
 
 **Detection Logic**: Calls `AnnotationDetection.detectHighlights()`
 
@@ -95,7 +95,7 @@ await worker.start();
 
 **Job Type**: `'comment-detection'`
 
-**Implementation**: [src/jobs/workers/comment-detection-worker.ts](../src/jobs/workers/comment-detection-worker.ts)
+**Implementation**: [src/jobs/comment-detection-worker.ts](../src/jobs/comment-detection-worker.ts)
 
 **Detection Logic**: Calls `AnnotationDetection.detectComments()`
 
@@ -110,7 +110,7 @@ await worker.start();
 
 **Job Type**: `'assessment-detection'`
 
-**Implementation**: [src/jobs/workers/assessment-detection-worker.ts](../src/jobs/workers/assessment-detection-worker.ts)
+**Implementation**: [src/jobs/assessment-detection-worker.ts](../src/jobs/assessment-detection-worker.ts)
 
 **Detection Logic**: Calls `AnnotationDetection.detectAssessments()`
 
@@ -125,7 +125,7 @@ await worker.start();
 
 **Job Type**: `'tag-detection'`
 
-**Implementation**: [src/jobs/workers/tag-detection-worker.ts](../src/jobs/workers/tag-detection-worker.ts)
+**Implementation**: [src/jobs/tag-detection-worker.ts](../src/jobs/tag-detection-worker.ts)
 
 **Detection Logic**: Calls `AnnotationDetection.detectTags()` for each category
 

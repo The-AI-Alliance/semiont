@@ -1,4 +1,4 @@
-import { getInferenceClient, getInferenceModel } from './factory';
+import { getInferenceClient, getInferenceModel } from '@semiont/inference';
 import type { EnvironmentConfig } from '@semiont/core';
 
 /**

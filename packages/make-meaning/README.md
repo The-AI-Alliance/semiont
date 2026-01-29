@@ -21,6 +21,30 @@ This package transforms raw resources into meaningful, interconnected knowledge 
 npm install @semiont/make-meaning
 ```
 
+### Start Make-Meaning Service
+
+The simplest way to use make-meaning infrastructure is through the service module:
+
+```typescript
+import { startMakeMeaning } from '@semiont/make-meaning';
+import type { EnvironmentConfig } from '@semiont/core';
+
+// Start all infrastructure (job queue, workers, graph consumer)
+const makeMeaning = await startMakeMeaning(config);
+
+// Access job queue for route handlers
+const jobQueue = makeMeaning.jobQueue;
+
+// Graceful shutdown
+await makeMeaning.stop();
+```
+
+This single call initializes:
+- Job queue
+- All 6 detection/generation workers
+- Graph consumer (event-to-graph synchronization)
+- Shared event store connection
+
 ### Assemble Resource Context
 
 ```typescript
@@ -94,7 +118,9 @@ const paths = await GraphContext.findPath(fromResourceId, toResourceId, config, 
 const results = await GraphContext.searchResources('neural networks', config, 10);
 ```
 
-### Use Job Workers
+### Use Individual Workers (Advanced)
+
+For fine-grained control, workers can be instantiated directly:
 
 ```typescript
 import {
@@ -108,7 +134,7 @@ import { createEventStore } from '@semiont/event-sourcing';
 // Create shared dependencies
 const jobQueue = new JobQueue({ dataDir: './data' });
 await jobQueue.initialize();
-const eventStore = await createEventStore(config);
+const eventStore = createEventStore('./data', 'http://localhost:3000');
 
 // Create workers with explicit dependencies
 const referenceWorker = new ReferenceDetectionWorker(jobQueue, config, eventStore);
@@ -122,6 +148,8 @@ await Promise.all([
   generationWorker.start(),
 ]);
 ```
+
+**Note**: In most cases, use `startMakeMeaning()` instead, which handles all initialization automatically.
 
 ## Documentation
 
@@ -147,8 +175,8 @@ Three-layer design separating concerns:
 ```mermaid
 graph TB
     Backend["<b>apps/backend</b><br/>Job orchestration, HTTP APIs, streaming"]
-    MakeMeaning["<b>@semiont/make-meaning</b><br/>Context assembly, pattern detection,<br/>relationship reasoning, job workers"]
-    Inference["<b>@semiont/inference</b><br/>AI primitives: prompts, parsers,<br/>generateText abstraction"]
+    MakeMeaning["<b>@semiont/make-meaning</b><br/>Context assembly, detection/generation,<br/>prompt engineering, response parsing,<br/>job workers"]
+    Inference["<b>@semiont/inference</b><br/>AI primitives only:<br/>generateText, client management"]
 
     Backend --> MakeMeaning
     MakeMeaning --> Inference
@@ -169,17 +197,29 @@ See [Architecture](./docs/architecture.md) for complete details.
 
 ## Exports
 
+### Service Module (Primary)
+
+- `startMakeMeaning(config)` - Initialize all make-meaning infrastructure
+- `MakeMeaningService` - Type for service return value
+- `GraphDBConsumer` - Graph consumer class (for advanced use)
+
 ### Context Assembly
 
 - `ResourceContext` - Resource metadata and content
 - `AnnotationContext` - Annotation queries and context building
 - `GraphContext` - Graph traversal and search
 
-### Pattern Detection
+### Detection & Generation
 
-- `AnnotationDetection` - AI-powered semantic pattern detection
+- `AnnotationDetection` - AI-powered semantic pattern detection (orchestrates detection pipeline)
+- `MotivationPrompts` - Prompt builders for comment/highlight/assessment/tag detection
+- `MotivationParsers` - Response parsers with offset validation
+- `extractEntities` - Entity extraction with context-based disambiguation
+- `generateResourceFromTopic` - Markdown resource generation with language support
+- `generateResourceSummary` - Resource summarization
+- `generateReferenceSuggestions` - Smart suggestion generation
 
-### Job Workers
+### Job Workers (Advanced)
 
 - `ReferenceDetectionWorker` - Entity reference detection
 - `GenerationWorker` - AI content generation
@@ -188,9 +228,11 @@ See [Architecture](./docs/architecture.md) for complete details.
 - `AssessmentDetectionWorker` - Assessment detection
 - `TagDetectionWorker` - Structured tag detection
 
+**Note**: Workers are typically managed by `startMakeMeaning()`, not instantiated directly.
+
 See [Job Workers](./docs/job-workers.md) for implementation details.
 
-### Type Re-exports
+### Types
 
 ```typescript
 export type {
@@ -198,7 +240,9 @@ export type {
   HighlightMatch,
   AssessmentMatch,
   TagMatch,
-} from '@semiont/inference';
+} from './detection/motivation-parsers';
+
+export type { ExtractedEntity } from './detection/entity-extractor';
 ```
 
 ## Configuration

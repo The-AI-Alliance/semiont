@@ -1,12 +1,15 @@
 /**
- * Entity Detection Charset Integration Tests
+ * Entity Detection Charset Tests
  *
  * Tests that entity detection correctly handles different charsets
  * to prevent annotation offset bugs.
+ *
+ * MOVED FROM: apps/backend/src/__tests__/routes/entity-detection-charset.test.ts
+ * This test belongs in make-meaning because it tests ReferenceDetectionWorker directly.
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { ReferenceDetectionWorker } from '@semiont/make-meaning';
+import { ReferenceDetectionWorker, type DetectedAnnotation } from '../../jobs/reference-detection-worker';
 import { JobQueue } from '@semiont/jobs';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import type { components } from '@semiont/api-client';
@@ -18,8 +21,21 @@ import { join } from 'path';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
-// Mock the AI entity extractor to just find known entity strings
+// Mock inference to avoid actual API calls
 vi.mock('@semiont/inference', () => ({
+  generateText: vi.fn().mockResolvedValue('Mock AI response'),
+  getInferenceClient: vi.fn().mockResolvedValue({
+    messages: {
+      create: vi.fn().mockResolvedValue({
+        content: [{ type: 'text', text: 'Mock AI response' }]
+      })
+    }
+  }),
+  getInferenceModel: vi.fn().mockReturnValue('claude-sonnet-4-20250514'),
+}));
+
+// Mock the AI entity extractor to find known entity strings in text
+vi.mock('../../detection/entity-extractor', () => ({
   extractEntities: vi.fn(async (text: string, entityTypes: string[]) => {
     // Simple mock: find entity type names in the text
     const entities: any[] = [];
@@ -39,7 +55,7 @@ vi.mock('@semiont/inference', () => ({
     }
 
     return entities;
-  }),
+  })
 }));
 
 describe('Entity Detection - Charset Handling', () => {
@@ -62,6 +78,18 @@ describe('Entity Detection - Charset Handling', () => {
           port: 4000,
           publicURL: 'http://localhost:4000',
           corsOrigin: 'http://localhost:3000'
+        },
+        inference: {
+          platform: { type: 'external' },
+          type: 'anthropic',
+          model: 'claude-sonnet-4-20250514',
+          maxTokens: 8192,
+          endpoint: 'https://api.anthropic.com',
+          apiKey: 'test-api-key'
+        },
+        graph: {
+          platform: { type: 'posix' },
+          type: 'memory'
         }
       },
       site: {
@@ -119,7 +147,7 @@ describe('Entity Detection - Charset Handling', () => {
     // Verify entity offsets match original text
     expect(results).toHaveLength(2);
 
-    const personAnnotation = results.find(r => r.annotation.entityTypes.includes('Person'));
+    const personAnnotation = results.find((r: DetectedAnnotation) => r.annotation.entityTypes.includes('Person'));
     expect(personAnnotation).toBeDefined();
     expect(personAnnotation!.annotation.selector.exact).toBe('Person');
     expect(text.substring(
@@ -127,7 +155,7 @@ describe('Entity Detection - Charset Handling', () => {
       personAnnotation!.annotation.selector.end
     )).toBe('Person');
 
-    const locationAnnotation = results.find(r => r.annotation.entityTypes.includes('Location'));
+    const locationAnnotation = results.find((r: DetectedAnnotation) => r.annotation.entityTypes.includes('Location'));
     expect(locationAnnotation).toBeDefined();
     expect(locationAnnotation!.annotation.selector.exact).toBe('Location');
     expect(text.substring(
@@ -174,7 +202,7 @@ describe('Entity Detection - Charset Handling', () => {
     // Verify entity offsets match original text
     expect(results).toHaveLength(2);
 
-    const personAnnotation = results.find(r => r.annotation.entityTypes.includes('Person'));
+    const personAnnotation = results.find((r: DetectedAnnotation) => r.annotation.entityTypes.includes('Person'));
     expect(personAnnotation).toBeDefined();
     expect(personAnnotation!.annotation.selector.exact).toBe('Person');
 
@@ -185,7 +213,7 @@ describe('Entity Detection - Charset Handling', () => {
     );
     expect(personText).toBe('Person');
 
-    const locationAnnotation = results.find(r => r.annotation.entityTypes.includes('Location'));
+    const locationAnnotation = results.find((r: DetectedAnnotation) => r.annotation.entityTypes.includes('Location'));
     expect(locationAnnotation).toBeDefined();
     expect(locationAnnotation!.annotation.selector.exact).toBe('Location');
 
@@ -275,10 +303,10 @@ describe('Entity Detection - Charset Handling', () => {
     // Should find 2 Person entities and 1 Location entity
     expect(results).toHaveLength(3);
 
-    const personResults = results.filter(r => r.annotation.entityTypes.includes('Person'));
+    const personResults = results.filter((r: DetectedAnnotation) => r.annotation.entityTypes.includes('Person'));
     expect(personResults).toHaveLength(2);
 
-    const locationResults = results.filter(r => r.annotation.entityTypes.includes('Location'));
+    const locationResults = results.filter((r: DetectedAnnotation) => r.annotation.entityTypes.includes('Location'));
     expect(locationResults).toHaveLength(1);
 
     // Verify all offsets point to correct text
@@ -319,7 +347,7 @@ describe('Entity Detection - Charset Handling', () => {
     };
 
     // Mock entity extractor to find "café"
-    const { extractEntities } = await import('@semiont/inference');
+    const { extractEntities } = await import('../../detection/entity-extractor');
     (extractEntities as any).mockImplementationOnce(async (text: string) => {
       const index = text.indexOf('café');
       if (index === -1) return [];

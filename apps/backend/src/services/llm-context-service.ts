@@ -6,7 +6,7 @@
  */
 
 import { getGraphDatabase } from '@semiont/graph';
-import { generateResourceSummary, generateReferenceSuggestions } from '@semiont/inference';
+import { generateResourceSummary, generateReferenceSuggestions } from '@semiont/make-meaning';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import {
   getResourceId,

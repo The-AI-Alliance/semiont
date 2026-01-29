@@ -10,8 +10,8 @@
 import { JobWorker } from '@semiont/jobs';
 import type { AnyJob, JobQueue, RunningJob, GenerationParams, GenerationProgress } from '@semiont/jobs';
 import { FilesystemRepresentationStore } from '@semiont/content';
-import { ResourceContext } from '../..';
-import { generateResourceFromTopic } from '@semiont/inference';
+import { ResourceContext } from '..';
+import { generateResourceFromTopic } from '../generation/resource-generation';
 import {
   getTargetSelector,
   getExactText,

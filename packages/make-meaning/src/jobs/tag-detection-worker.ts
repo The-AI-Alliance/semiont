@@ -8,13 +8,13 @@
 
 import { JobWorker } from '@semiont/jobs';
 import type { AnyJob, TagDetectionJob, JobQueue, RunningJob, TagDetectionParams, TagDetectionProgress } from '@semiont/jobs';
-import { ResourceContext, AnnotationDetection } from '../..';
+import { ResourceContext, AnnotationDetection } from '..';
 import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
 import { resourceIdToURI } from '@semiont/core';
 import { getTagSchema } from '@semiont/ontology';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
-import type { TagMatch } from '@semiont/inference';
+import type { TagMatch } from '../detection/motivation-parsers';
 
 export class TagDetectionWorker extends JobWorker {
   private isFirstProgress = true;

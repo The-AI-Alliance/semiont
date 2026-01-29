@@ -1,20 +1,20 @@
 /**
- * Highlight Detection Worker
+ * Comment Detection Worker
  *
- * Processes highlight-detection jobs: runs AI inference to find passages
- * that should be highlighted and creates highlight annotations.
+ * Processes comment-detection jobs: runs AI inference to identify passages
+ * that would benefit from explanatory comments and creates comment annotations.
  */
 
 import { JobWorker } from '@semiont/jobs';
-import type { AnyJob, HighlightDetectionJob, JobQueue, RunningJob, HighlightDetectionParams, HighlightDetectionProgress } from '@semiont/jobs';
-import { ResourceContext, AnnotationDetection } from '../..';
+import type { AnyJob, CommentDetectionJob, JobQueue, RunningJob, CommentDetectionParams, CommentDetectionProgress } from '@semiont/jobs';
+import { ResourceContext, AnnotationDetection } from '..';
 import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
 import { resourceIdToURI } from '@semiont/core';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
-import type { HighlightMatch } from '@semiont/inference';
+import type { CommentMatch } from '../detection/motivation-parsers';
 
-export class HighlightDetectionWorker extends JobWorker {
+export class CommentDetectionWorker extends JobWorker {
   private isFirstProgress = true;
 
   constructor(
@@ -26,15 +26,15 @@ export class HighlightDetectionWorker extends JobWorker {
   }
 
   protected getWorkerName(): string {
-    return 'HighlightDetectionWorker';
+    return 'CommentDetectionWorker';
   }
 
   protected canProcessJob(job: AnyJob): boolean {
-    return job.metadata.type === 'highlight-detection';
+    return job.metadata.type === 'comment-detection';
   }
 
   protected async executeJob(job: AnyJob): Promise<void> {
-    if (job.metadata.type !== 'highlight-detection') {
+    if (job.metadata.type !== 'comment-detection') {
       throw new Error(`Invalid job type: ${job.metadata.type}`);
     }
 
@@ -45,7 +45,7 @@ export class HighlightDetectionWorker extends JobWorker {
 
     // Reset progress tracking
     this.isFirstProgress = true;
-    await this.processHighlightDetectionJob(job as RunningJob<HighlightDetectionParams, HighlightDetectionProgress>);
+    await this.processCommentDetectionJob(job as RunningJob<CommentDetectionParams, CommentDetectionProgress>);
   }
 
   /**
@@ -55,23 +55,23 @@ export class HighlightDetectionWorker extends JobWorker {
     // Call parent to update filesystem
     await super.updateJobProgress(job);
 
-    if (job.metadata.type !== 'highlight-detection') return;
+    if (job.metadata.type !== 'comment-detection') return;
 
     // Type guard: only running jobs have progress
     if (job.status !== 'running') {
       return;
     }
 
-    const hlJob = job as RunningJob<HighlightDetectionParams, HighlightDetectionProgress>;
+    const cdJob = job as RunningJob<CommentDetectionParams, CommentDetectionProgress>;
 
     const baseEvent = {
-      resourceId: hlJob.params.resourceId,
-      userId: hlJob.metadata.userId,
+      resourceId: cdJob.params.resourceId,
+      userId: cdJob.metadata.userId,
       version: 1,
     };
 
     // Determine if this is completion (100% and has result)
-    const isComplete = hlJob.progress.percentage === 100;
+    const isComplete = cdJob.progress.percentage === 100;
 
     if (this.isFirstProgress) {
       // First progress update - emit job.started
@@ -80,8 +80,8 @@ export class HighlightDetectionWorker extends JobWorker {
         type: 'job.started',
         ...baseEvent,
         payload: {
-          jobId: hlJob.metadata.id,
-          jobType: hlJob.metadata.type,
+          jobId: cdJob.metadata.id,
+          jobType: cdJob.metadata.type,
         },
       });
     } else if (isComplete) {
@@ -90,8 +90,8 @@ export class HighlightDetectionWorker extends JobWorker {
         type: 'job.completed',
         ...baseEvent,
         payload: {
-          jobId: hlJob.metadata.id,
-          jobType: hlJob.metadata.type,
+          jobId: cdJob.metadata.id,
+          jobType: cdJob.metadata.type,
           // Note: result would come from job.result, but that's handled by base class
         },
       });
@@ -101,9 +101,9 @@ export class HighlightDetectionWorker extends JobWorker {
         type: 'job.progress',
         ...baseEvent,
         payload: {
-          jobId: hlJob.metadata.id,
-          jobType: hlJob.metadata.type,
-          progress: hlJob.progress,
+          jobId: cdJob.metadata.id,
+          jobType: cdJob.metadata.type,
+          progress: cdJob.progress,
         },
       });
     }
@@ -114,27 +114,27 @@ export class HighlightDetectionWorker extends JobWorker {
     await super.handleJobFailure(job, error);
 
     // If job permanently failed, emit job.failed event
-    if (job.status === 'failed' && job.metadata.type === 'highlight-detection') {
-      const hlJob = job as HighlightDetectionJob;
+    if (job.status === 'failed' && job.metadata.type === 'comment-detection') {
+      const cdJob = job as CommentDetectionJob;
 
       // Log the full error details to backend logs (already logged by parent)
       // Send generic error message to frontend
       await this.eventStore.appendEvent({
         type: 'job.failed',
-        resourceId: hlJob.params.resourceId,
-        userId: hlJob.metadata.userId,
+        resourceId: cdJob.params.resourceId,
+        userId: cdJob.metadata.userId,
         version: 1,
         payload: {
-          jobId: hlJob.metadata.id,
-          jobType: hlJob.metadata.type,
-          error: 'Highlight detection failed. Please try again later.',
+          jobId: cdJob.metadata.id,
+          jobType: cdJob.metadata.type,
+          error: 'Comment detection failed. Please try again later.',
         },
       });
     }
   }
 
-  private async processHighlightDetectionJob(job: RunningJob<HighlightDetectionParams, HighlightDetectionProgress>): Promise<void> {
-    console.log(`[HighlightDetectionWorker] Processing highlight detection for resource ${job.params.resourceId} (job: ${job.metadata.id})`);
+  private async processCommentDetectionJob(job: RunningJob<CommentDetectionParams, CommentDetectionProgress>): Promise<void> {
+    console.log(`[CommentDetectionWorker] Processing comment detection for resource ${job.params.resourceId} (job: ${job.metadata.id})`);
 
     // Fetch resource content
     const resource = await ResourceContext.getResourceMetadata(job.params.resourceId, this.config);
@@ -144,7 +144,7 @@ export class HighlightDetectionWorker extends JobWorker {
     }
 
     // Emit job.started and start analyzing
-    let updatedJob: RunningJob<HighlightDetectionParams, HighlightDetectionProgress> = {
+    let updatedJob: RunningJob<CommentDetectionParams, CommentDetectionProgress> = {
       ...job,
       progress: {
         stage: 'analyzing',
@@ -160,20 +160,21 @@ export class HighlightDetectionWorker extends JobWorker {
       progress: {
         stage: 'analyzing',
         percentage: 30,
-        message: 'Analyzing text...'
+        message: 'Analyzing text and generating comments...'
       }
     };
     await this.updateJobProgress(updatedJob);
 
-    // Use AI to detect highlights
-    const highlights = await AnnotationDetection.detectHighlights(
+    // Use AI to detect passages needing comments
+    const comments = await AnnotationDetection.detectComments(
       job.params.resourceId,
       this.config,
       job.params.instructions,
+      job.params.tone,
       job.params.density
     );
 
-    console.log(`[HighlightDetectionWorker] Found ${highlights.length} highlights to create`);
+    console.log(`[CommentDetectionWorker] Found ${comments.length} comments to create`);
 
     // Update progress
     updatedJob = {
@@ -181,19 +182,19 @@ export class HighlightDetectionWorker extends JobWorker {
       progress: {
         stage: 'creating',
         percentage: 60,
-        message: `Creating ${highlights.length} annotations...`
+        message: `Creating ${comments.length} annotations...`
       }
     };
     await this.updateJobProgress(updatedJob);
 
-    // Create annotations for each highlight
+    // Create annotations for each comment
     let created = 0;
-    for (const highlight of highlights) {
+    for (const comment of comments) {
       try {
-        await this.createHighlightAnnotation(job.params.resourceId, job.metadata.userId, highlight);
+        await this.createCommentAnnotation(job.params.resourceId, job.metadata.userId, comment);
         created++;
       } catch (error) {
-        console.error(`[HighlightDetectionWorker] Failed to create highlight:`, error);
+        console.error(`[CommentDetectionWorker] Failed to create comment:`, error);
       }
     }
 
@@ -205,60 +206,73 @@ export class HighlightDetectionWorker extends JobWorker {
       progress: {
         stage: 'creating',
         percentage: 100,
-        message: `Complete! Created ${created} highlights`
+        message: `Complete! Created ${created} comments`
       }
     };
 
     await this.updateJobProgress(updatedJob);
-    console.log(`[HighlightDetectionWorker] ✅ Created ${created}/${highlights.length} highlights`);
+    console.log(`[CommentDetectionWorker] ✅ Created ${created}/${comments.length} comments`);
   }
 
-  private async createHighlightAnnotation(
+  private async createCommentAnnotation(
     resourceId: ResourceId,
-    creatorUserId: string,
-    highlight: HighlightMatch
+    userId_: string,
+    comment: CommentMatch
   ): Promise<void> {
     const backendUrl = this.config.services.backend?.publicURL;
-    if (!backendUrl) throw new Error('Backend publicURL not configured');
 
-    const annotationId = generateAnnotationId(backendUrl);
+    if (!backendUrl) {
+      throw new Error('Backend publicURL not configured');
+    }
+
     const resourceUri = resourceIdToURI(resourceId, backendUrl);
+    const annotationId = generateAnnotationId(backendUrl);
 
-    // Create W3C annotation with motivation: highlighting
-    // Use both TextPositionSelector and TextQuoteSelector (with prefix/suffix for fuzzy anchoring)
+    // Create W3C-compliant annotation with motivation: "commenting"
     const annotation = {
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-      'type': 'Annotation' as const,
-      'id': annotationId,
-      'motivation': 'highlighting' as const,
-      'creator': userId(creatorUserId),
-      'created': new Date().toISOString(),
-      'target': {
+      type: 'Annotation' as const,
+      id: annotationId,
+      motivation: 'commenting' as const,
+      target: {
         type: 'SpecificResource' as const,
         source: resourceUri,
         selector: [
           {
             type: 'TextPositionSelector' as const,
-            start: highlight.start,
-            end: highlight.end,
+            start: comment.start,
+            end: comment.end
           },
           {
             type: 'TextQuoteSelector' as const,
-            exact: highlight.exact,
-            ...(highlight.prefix && { prefix: highlight.prefix }),
-            ...(highlight.suffix && { suffix: highlight.suffix }),
-          },
+            exact: comment.exact,
+            prefix: comment.prefix || '',
+            suffix: comment.suffix || ''
+          }
         ]
       },
-      'body': []  // Empty body for highlights
+      body: [
+        {
+          type: 'TextualBody' as const,
+          value: comment.comment,
+          purpose: 'commenting' as const,
+          format: 'text/plain',
+          language: 'en'
+        }
+      ]
     };
 
+    // Append annotation.added event to Event Store
     await this.eventStore.appendEvent({
       type: 'annotation.added',
       resourceId,
-      userId: userId(creatorUserId),
+      userId: userId(userId_),
       version: 1,
-      payload: { annotation }
+      payload: {
+        annotation
+      }
     });
+
+    console.log(`[CommentDetectionWorker] Created comment annotation ${annotationId} for "${comment.exact.substring(0, 50)}..."`);
   }
 }

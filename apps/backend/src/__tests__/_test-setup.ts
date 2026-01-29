@@ -87,6 +87,12 @@ export async function setupTestEnvironment(envName?: string): Promise<TestEnviro
     apiKey: 'test-api-key'
   };
 
+  // 5. Add graph config for tests (required by make-meaning service)
+  envConfig.services.graph = {
+    platform: { type: 'posix' },
+    type: 'memory'
+  };
+
   await fs.writeFile(
     join(envDir, `${environment}.json`),
     JSON.stringify(envConfig, null, 2)

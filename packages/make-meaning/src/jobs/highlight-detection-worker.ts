@@ -1,20 +1,20 @@
 /**
- * Assessment Detection Worker
+ * Highlight Detection Worker
  *
- * Processes assessment-detection jobs: runs AI inference to assess/evaluate
- * passages in the text and creates assessment annotations.
+ * Processes highlight-detection jobs: runs AI inference to find passages
+ * that should be highlighted and creates highlight annotations.
  */
 
 import { JobWorker } from '@semiont/jobs';
-import type { AnyJob, AssessmentDetectionJob, JobQueue, RunningJob, AssessmentDetectionParams, AssessmentDetectionProgress } from '@semiont/jobs';
-import { ResourceContext, AnnotationDetection } from '../..';
+import type { AnyJob, HighlightDetectionJob, JobQueue, RunningJob, HighlightDetectionParams, HighlightDetectionProgress } from '@semiont/jobs';
+import { ResourceContext, AnnotationDetection } from '..';
 import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
 import { resourceIdToURI } from '@semiont/core';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
-import type { AssessmentMatch } from '@semiont/inference';
+import type { HighlightMatch } from '../detection/motivation-parsers';
 
-export class AssessmentDetectionWorker extends JobWorker {
+export class HighlightDetectionWorker extends JobWorker {
   private isFirstProgress = true;
 
   constructor(
@@ -26,15 +26,15 @@ export class AssessmentDetectionWorker extends JobWorker {
   }
 
   protected getWorkerName(): string {
-    return 'AssessmentDetectionWorker';
+    return 'HighlightDetectionWorker';
   }
 
   protected canProcessJob(job: AnyJob): boolean {
-    return job.metadata.type === 'assessment-detection';
+    return job.metadata.type === 'highlight-detection';
   }
 
   protected async executeJob(job: AnyJob): Promise<void> {
-    if (job.metadata.type !== 'assessment-detection') {
+    if (job.metadata.type !== 'highlight-detection') {
       throw new Error(`Invalid job type: ${job.metadata.type}`);
     }
 
@@ -45,7 +45,7 @@ export class AssessmentDetectionWorker extends JobWorker {
 
     // Reset progress tracking
     this.isFirstProgress = true;
-    await this.processAssessmentDetectionJob(job as RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>);
+    await this.processHighlightDetectionJob(job as RunningJob<HighlightDetectionParams, HighlightDetectionProgress>);
   }
 
   /**
@@ -55,23 +55,23 @@ export class AssessmentDetectionWorker extends JobWorker {
     // Call parent to update filesystem
     await super.updateJobProgress(job);
 
-    if (job.metadata.type !== 'assessment-detection') return;
+    if (job.metadata.type !== 'highlight-detection') return;
 
     // Type guard: only running jobs have progress
     if (job.status !== 'running') {
       return;
     }
 
-    const assJob = job as RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>;
+    const hlJob = job as RunningJob<HighlightDetectionParams, HighlightDetectionProgress>;
 
     const baseEvent = {
-      resourceId: assJob.params.resourceId,
-      userId: assJob.metadata.userId,
+      resourceId: hlJob.params.resourceId,
+      userId: hlJob.metadata.userId,
       version: 1,
     };
 
     // Determine if this is completion (100% and has result)
-    const isComplete = assJob.progress.percentage === 100;
+    const isComplete = hlJob.progress.percentage === 100;
 
     if (this.isFirstProgress) {
       // First progress update - emit job.started
@@ -80,8 +80,8 @@ export class AssessmentDetectionWorker extends JobWorker {
         type: 'job.started',
         ...baseEvent,
         payload: {
-          jobId: assJob.metadata.id,
-          jobType: assJob.metadata.type,
+          jobId: hlJob.metadata.id,
+          jobType: hlJob.metadata.type,
         },
       });
     } else if (isComplete) {
@@ -90,8 +90,8 @@ export class AssessmentDetectionWorker extends JobWorker {
         type: 'job.completed',
         ...baseEvent,
         payload: {
-          jobId: assJob.metadata.id,
-          jobType: assJob.metadata.type,
+          jobId: hlJob.metadata.id,
+          jobType: hlJob.metadata.type,
           // Note: result would come from job.result, but that's handled by base class
         },
       });
@@ -101,9 +101,9 @@ export class AssessmentDetectionWorker extends JobWorker {
         type: 'job.progress',
         ...baseEvent,
         payload: {
-          jobId: assJob.metadata.id,
-          jobType: assJob.metadata.type,
-          progress: assJob.progress,
+          jobId: hlJob.metadata.id,
+          jobType: hlJob.metadata.type,
+          progress: hlJob.progress,
         },
       });
     }
@@ -114,27 +114,27 @@ export class AssessmentDetectionWorker extends JobWorker {
     await super.handleJobFailure(job, error);
 
     // If job permanently failed, emit job.failed event
-    if (job.status === 'failed' && job.metadata.type === 'assessment-detection') {
-      const aJob = job as AssessmentDetectionJob;
+    if (job.status === 'failed' && job.metadata.type === 'highlight-detection') {
+      const hlJob = job as HighlightDetectionJob;
 
       // Log the full error details to backend logs (already logged by parent)
       // Send generic error message to frontend
       await this.eventStore.appendEvent({
         type: 'job.failed',
-        resourceId: aJob.params.resourceId,
-        userId: aJob.metadata.userId,
+        resourceId: hlJob.params.resourceId,
+        userId: hlJob.metadata.userId,
         version: 1,
         payload: {
-          jobId: aJob.metadata.id,
-          jobType: aJob.metadata.type,
-          error: 'Assessment detection failed. Please try again later.',
+          jobId: hlJob.metadata.id,
+          jobType: hlJob.metadata.type,
+          error: 'Highlight detection failed. Please try again later.',
         },
       });
     }
   }
 
-  private async processAssessmentDetectionJob(job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>): Promise<void> {
-    console.log(`[AssessmentDetectionWorker] Processing assessment detection for resource ${job.params.resourceId} (job: ${job.metadata.id})`);
+  private async processHighlightDetectionJob(job: RunningJob<HighlightDetectionParams, HighlightDetectionProgress>): Promise<void> {
+    console.log(`[HighlightDetectionWorker] Processing highlight detection for resource ${job.params.resourceId} (job: ${job.metadata.id})`);
 
     // Fetch resource content
     const resource = await ResourceContext.getResourceMetadata(job.params.resourceId, this.config);
@@ -144,7 +144,7 @@ export class AssessmentDetectionWorker extends JobWorker {
     }
 
     // Emit job.started and start analyzing
-    let updatedJob: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress> = {
+    let updatedJob: RunningJob<HighlightDetectionParams, HighlightDetectionProgress> = {
       ...job,
       progress: {
         stage: 'analyzing',
@@ -165,16 +165,15 @@ export class AssessmentDetectionWorker extends JobWorker {
     };
     await this.updateJobProgress(updatedJob);
 
-    // Use AI to detect assessments
-    const assessments = await AnnotationDetection.detectAssessments(
+    // Use AI to detect highlights
+    const highlights = await AnnotationDetection.detectHighlights(
       job.params.resourceId,
       this.config,
       job.params.instructions,
-      job.params.tone,
       job.params.density
     );
 
-    console.log(`[AssessmentDetectionWorker] Found ${assessments.length} assessments to create`);
+    console.log(`[HighlightDetectionWorker] Found ${highlights.length} highlights to create`);
 
     // Update progress
     updatedJob = {
@@ -182,19 +181,19 @@ export class AssessmentDetectionWorker extends JobWorker {
       progress: {
         stage: 'creating',
         percentage: 60,
-        message: `Creating ${assessments.length} annotations...`
+        message: `Creating ${highlights.length} annotations...`
       }
     };
     await this.updateJobProgress(updatedJob);
 
-    // Create annotations for each assessment
+    // Create annotations for each highlight
     let created = 0;
-    for (const assessment of assessments) {
+    for (const highlight of highlights) {
       try {
-        await this.createAssessmentAnnotation(job.params.resourceId, job.metadata.userId, assessment);
+        await this.createHighlightAnnotation(job.params.resourceId, job.metadata.userId, highlight);
         created++;
       } catch (error) {
-        console.error(`[AssessmentDetectionWorker] Failed to create assessment:`, error);
+        console.error(`[HighlightDetectionWorker] Failed to create highlight:`, error);
       }
     }
 
@@ -206,18 +205,18 @@ export class AssessmentDetectionWorker extends JobWorker {
       progress: {
         stage: 'creating',
         percentage: 100,
-        message: `Complete! Created ${created} assessments`
+        message: `Complete! Created ${created} highlights`
       }
     };
 
     await this.updateJobProgress(updatedJob);
-    console.log(`[AssessmentDetectionWorker] ✅ Created ${created}/${assessments.length} assessments`);
+    console.log(`[HighlightDetectionWorker] ✅ Created ${created}/${highlights.length} highlights`);
   }
 
-  private async createAssessmentAnnotation(
+  private async createHighlightAnnotation(
     resourceId: ResourceId,
     creatorUserId: string,
-    assessment: AssessmentMatch
+    highlight: HighlightMatch
   ): Promise<void> {
     const backendUrl = this.config.services.backend?.publicURL;
     if (!backendUrl) throw new Error('Backend publicURL not configured');
@@ -225,13 +224,13 @@ export class AssessmentDetectionWorker extends JobWorker {
     const annotationId = generateAnnotationId(backendUrl);
     const resourceUri = resourceIdToURI(resourceId, backendUrl);
 
-    // Create W3C annotation with motivation: assessing
+    // Create W3C annotation with motivation: highlighting
     // Use both TextPositionSelector and TextQuoteSelector (with prefix/suffix for fuzzy anchoring)
     const annotation = {
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
       'type': 'Annotation' as const,
       'id': annotationId,
-      'motivation': 'assessing' as const,
+      'motivation': 'highlighting' as const,
       'creator': userId(creatorUserId),
       'created': new Date().toISOString(),
       'target': {
@@ -240,22 +239,18 @@ export class AssessmentDetectionWorker extends JobWorker {
         selector: [
           {
             type: 'TextPositionSelector' as const,
-            start: assessment.start,
-            end: assessment.end,
+            start: highlight.start,
+            end: highlight.end,
           },
           {
             type: 'TextQuoteSelector' as const,
-            exact: assessment.exact,
-            ...(assessment.prefix && { prefix: assessment.prefix }),
-            ...(assessment.suffix && { suffix: assessment.suffix }),
+            exact: highlight.exact,
+            ...(highlight.prefix && { prefix: highlight.prefix }),
+            ...(highlight.suffix && { suffix: highlight.suffix }),
           },
         ]
       },
-      'body': {
-        type: 'TextualBody' as const,
-        value: assessment.assessment,
-        format: 'text/plain'
-      }
+      'body': []  // Empty body for highlights
     };
 
     await this.eventStore.appendEvent({
