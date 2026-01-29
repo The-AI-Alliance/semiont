@@ -3,7 +3,7 @@
  * Tests for content-addressed representation storage
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { FilesystemRepresentationStore } from '../representation-store';
 import { calculateChecksum } from '@semiont/core';
 import { promises as fs } from 'fs';
@@ -22,6 +22,33 @@ describe('FilesystemRepresentationStore', () => {
 
   afterAll(async () => {
     await fs.rm(testDir, { recursive: true, force: true });
+  });
+
+  describe('Constructor', () => {
+    it('should accept absolute basePath', () => {
+      const absolutePath = join(tmpdir(), 'test-absolute');
+      const testStore = new FilesystemRepresentationStore({ basePath: absolutePath });
+      expect(testStore).toBeDefined();
+    });
+
+    it('should resolve relative basePath against projectRoot', () => {
+      const projectRoot = tmpdir();
+      const relativePath = 'data/representations';
+      const testStore = new FilesystemRepresentationStore({ basePath: relativePath }, projectRoot);
+      expect(testStore).toBeDefined();
+    });
+
+    it('should resolve relative basePath against cwd when no projectRoot', () => {
+      const relativePath = 'data';
+      const testStore = new FilesystemRepresentationStore({ basePath: relativePath });
+      expect(testStore).toBeDefined();
+    });
+
+    it('should normalize paths with trailing slashes', () => {
+      const pathWithSlash = join(tmpdir(), 'test-trailing/');
+      const testStore = new FilesystemRepresentationStore({ basePath: pathWithSlash });
+      expect(testStore).toBeDefined();
+    });
   });
 
   describe('store()', () => {
@@ -241,6 +268,166 @@ describe('FilesystemRepresentationStore', () => {
       expect(retrieved).toEqual(binaryContent);
       expect(retrieved[0]).toBe(0x00);
       expect(retrieved[1]).toBe(0xFF);
+    });
+  });
+
+  describe('Edge cases', () => {
+    it('should reject invalid checksums in store', async () => {
+      const checksumModule = await import('@semiont/core');
+
+      // Test empty checksum
+      vi.spyOn(checksumModule, 'calculateChecksum').mockReturnValueOnce('');
+      await expect(
+        store.store(Buffer.from('test'), { mediaType: 'text/plain', rel: 'original' })
+      ).rejects.toThrow(/invalid checksum/i);
+
+      // Test checksum too short
+      vi.spyOn(checksumModule, 'calculateChecksum').mockReturnValueOnce('abc');
+      await expect(
+        store.store(Buffer.from('test'), { mediaType: 'text/plain', rel: 'original' })
+      ).rejects.toThrow(/invalid checksum/i);
+
+      vi.restoreAllMocks();
+    });
+
+    it('should handle filesystem errors beyond ENOENT', async () => {
+      const content = Buffer.from('Test content');
+      const stored = await store.store(content, {
+        mediaType: 'text/plain',
+        rel: 'original',
+      });
+
+      // Mock fs.readFile to throw a non-ENOENT error
+      const fsModule = await import('fs');
+      const error = new Error('Permission denied');
+      (error as any).code = 'EACCES';
+      vi.spyOn(fsModule.promises, 'readFile').mockRejectedValueOnce(error);
+
+      await expect(
+        store.retrieve(stored.checksum, 'text/plain')
+      ).rejects.toThrow('Permission denied');
+
+      vi.restoreAllMocks();
+    });
+
+    it('should handle empty content (zero bytes)', async () => {
+      const emptyContent = Buffer.from('');
+
+      const stored = await store.store(emptyContent, {
+        mediaType: 'application/octet-stream',
+        rel: 'original',
+      });
+
+      expect(stored.byteSize).toBe(0);
+
+      const retrieved = await store.retrieve(stored.checksum, 'application/octet-stream');
+      expect(retrieved.length).toBe(0);
+    });
+
+    it('should handle content with null bytes', async () => {
+      const contentWithNulls = Buffer.from([0x00, 0x00, 0x61, 0x00, 0x62]);
+
+      const stored = await store.store(contentWithNulls, {
+        mediaType: 'application/octet-stream',
+        rel: 'original',
+      });
+
+      const retrieved = await store.retrieve(stored.checksum, 'application/octet-stream');
+      expect(retrieved).toEqual(contentWithNulls);
+    });
+
+    it('should store with charset parameter in mediaType', async () => {
+      const content = Buffer.from('Test content with charset');
+
+      const stored = await store.store(content, {
+        mediaType: 'text/plain; charset=utf-8',
+        rel: 'original',
+      });
+
+      expect(stored.mediaType).toBe('text/plain; charset=utf-8');
+
+      // Should be retrievable with same mediaType
+      const retrieved = await store.retrieve(stored.checksum, 'text/plain; charset=utf-8');
+      expect(retrieved.toString()).toBe(content.toString());
+    });
+
+    it('should store with multiple parameters in mediaType', async () => {
+      const content = Buffer.from('Boundary test');
+
+      const stored = await store.store(content, {
+        mediaType: 'multipart/form-data; boundary=----WebKitFormBoundary; charset=utf-8',
+        rel: 'original',
+      });
+
+      expect(stored.mediaType).toContain('boundary');
+      expect(stored.mediaType).toContain('charset');
+    });
+
+    it('should handle whitespace in mediaType on retrieve', async () => {
+      const content = Buffer.from('Whitespace test');
+
+      const stored = await store.store(content, {
+        mediaType: 'text/plain',
+        rel: 'original',
+      });
+
+      // Should work with whitespace
+      const retrieved = await store.retrieve(stored.checksum, '  text/plain  ');
+      expect(retrieved.toString()).toBe(content.toString());
+    });
+
+    it('should reject empty checksum', async () => {
+      await expect(
+        store.retrieve('', 'text/plain')
+      ).rejects.toThrow(/invalid checksum/i);
+    });
+
+    it('should reject checksum that is too short', async () => {
+      await expect(
+        store.retrieve('abc', 'text/plain')
+      ).rejects.toThrow(/invalid checksum/i);
+    });
+
+    it('should handle concurrent store operations', async () => {
+      const content1 = Buffer.from('Concurrent test 1');
+      const content2 = Buffer.from('Concurrent test 2');
+      const content3 = Buffer.from('Concurrent test 3');
+
+      const [stored1, stored2, stored3] = await Promise.all([
+        store.store(content1, { mediaType: 'text/plain', rel: 'original' }),
+        store.store(content2, { mediaType: 'text/plain', rel: 'original' }),
+        store.store(content3, { mediaType: 'text/plain', rel: 'original' }),
+      ]);
+
+      expect(stored1.checksum).not.toBe(stored2.checksum);
+      expect(stored2.checksum).not.toBe(stored3.checksum);
+
+      // All should be retrievable
+      const retrieved1 = await store.retrieve(stored1.checksum, 'text/plain');
+      const retrieved2 = await store.retrieve(stored2.checksum, 'text/plain');
+      const retrieved3 = await store.retrieve(stored3.checksum, 'text/plain');
+
+      expect(retrieved1.toString()).toBe('Concurrent test 1');
+      expect(retrieved2.toString()).toBe('Concurrent test 2');
+      expect(retrieved3.toString()).toBe('Concurrent test 3');
+    });
+
+    it('should handle concurrent stores of same content (idempotency)', async () => {
+      const content = Buffer.from('Duplicate concurrent');
+
+      const [stored1, stored2, stored3] = await Promise.all([
+        store.store(content, { mediaType: 'text/plain', rel: 'original' }),
+        store.store(content, { mediaType: 'text/plain', rel: 'original' }),
+        store.store(content, { mediaType: 'text/plain', rel: 'original' }),
+      ]);
+
+      // All should have same checksum
+      expect(stored1.checksum).toBe(stored2.checksum);
+      expect(stored2.checksum).toBe(stored3.checksum);
+
+      // Content should be retrievable
+      const retrieved = await store.retrieve(stored1.checksum, 'text/plain');
+      expect(retrieved.toString()).toBe('Duplicate concurrent');
     });
   });
 });
