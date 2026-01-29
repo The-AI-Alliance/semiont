@@ -47,7 +47,7 @@ vi.mock('@semiont/ontology', () => ({
       { name: 'Discussion' }
     ]
   }),
-  getSchemaCategory: vi.fn((schemaId: string, categoryName: string) => ({
+  getSchemaCategory: vi.fn((_schemaId: string, categoryName: string) => ({
     name: categoryName,
     description: `${categoryName} section`,
     examples: [`What is ${categoryName.toLowerCase()}?`, `How does ${categoryName.toLowerCase()} work?`]
