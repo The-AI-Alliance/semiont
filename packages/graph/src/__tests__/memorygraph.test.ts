@@ -7,8 +7,8 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { MemoryGraphDatabase } from '../implementations/memorygraph';
-import { resourceId, annotationId, uriToResourceId } from '@semiont/core';
-import { resourceUri } from '@semiont/api-client';
+import { annotationId, uriToResourceId } from '@semiont/core';
+import { resourceUri, type ResourceUri, type AnnotationUri } from '@semiont/api-client';
 import {
   createTestResource,
   createTestHighlight,
@@ -36,7 +36,7 @@ describe('MemoryGraphDatabase Implementation', () => {
       await db.createResource(resource);
 
       // Access internals to verify Map storage
-      const retrieved = await db.getResource(resource['@id']);
+      const retrieved = await db.getResource(resource['@id'] as ResourceUri);
       expect(retrieved).toEqual(resource);
     });
 
@@ -47,7 +47,7 @@ describe('MemoryGraphDatabase Implementation', () => {
       const input = createTestHighlight(resource['@id']);
       const annotation = await db.createAnnotation(input);
 
-      const retrieved = await db.getAnnotation(annotation.id);
+      const retrieved = await db.getAnnotation(annotation.id as AnnotationUri);
       expect(retrieved).toEqual(annotation);
     });
 
@@ -69,8 +69,8 @@ describe('MemoryGraphDatabase Implementation', () => {
       await db.createAnnotation(input);
 
       // Retrieve multiple times
-      const retrieved1 = await db.getResource(resource['@id']);
-      const retrieved2 = await db.getResource(resource['@id']);
+      const retrieved1 = await db.getResource(resource['@id'] as ResourceUri);
+      const retrieved2 = await db.getResource(resource['@id'] as ResourceUri);
 
       expect(retrieved1).toEqual(resource);
       expect(retrieved2).toEqual(resource);
@@ -88,10 +88,10 @@ describe('MemoryGraphDatabase Implementation', () => {
       await db1.createResource(resource1);
       await db2.createResource(resource2);
 
-      const retrieved1 = await db1.getResource(resource1['@id']);
-      const retrieved2 = await db2.getResource(resource2['@id']);
-      const cross1 = await db1.getResource(resource2['@id']);
-      const cross2 = await db2.getResource(resource1['@id']);
+      const retrieved1 = await db1.getResource(resource1['@id'] as ResourceUri);
+      const retrieved2 = await db2.getResource(resource2['@id'] as ResourceUri);
+      const cross1 = await db1.getResource(resource2['@id'] as ResourceUri);
+      const cross2 = await db2.getResource(resource1['@id'] as ResourceUri);
 
       expect(retrieved1).toEqual(resource1);
       expect(retrieved2).toEqual(resource2);
@@ -234,7 +234,7 @@ describe('MemoryGraphDatabase Implementation', () => {
       // Create annotation with resource1 as body source
       await db.createAnnotation(createTestEntityReference(resource2['@id'], resource1['@id']));
 
-      await db.deleteResource(resource1['@id']);
+      await db.deleteResource(resource1['@id'] as ResourceUri);
 
       // All annotations should be deleted
       const stats = await db.getStats();
@@ -248,7 +248,7 @@ describe('MemoryGraphDatabase Implementation', () => {
       await db.createResource(resource2);
 
       await db.createAnnotation(createTestHighlight(resource1['@id']));
-      await db.deleteResource(resource2['@id']);
+      await db.deleteResource(resource2['@id'] as ResourceUri);
 
       const annotations = await db.getResourceAnnotations(uriToResourceId(resource1['@id']));
       expect(annotations).toHaveLength(1);
@@ -321,7 +321,7 @@ describe('MemoryGraphDatabase Implementation', () => {
 
       await db.resolveReference(annotationId(created.id), uriToResourceId(resource2['@id']));
 
-      const retrieved = await db.getAnnotation(created.id);
+      const retrieved = await db.getAnnotation(created.id as AnnotationUri);
       expect(retrieved?.body).not.toEqual([]);
       expect((retrieved?.body as any).source).toBe(resource2['@id']);
     });
@@ -342,8 +342,8 @@ describe('MemoryGraphDatabase Implementation', () => {
         { annotationId: annotationId(ref2.id), source: uriToResourceId(resource3['@id']) },
       ]);
 
-      const retrieved1 = await db.getAnnotation(ref1.id);
-      const retrieved2 = await db.getAnnotation(ref2.id);
+      const retrieved1 = await db.getAnnotation(ref1.id as AnnotationUri);
+      const retrieved2 = await db.getAnnotation(ref2.id as AnnotationUri);
 
       expect((retrieved1?.body as any).source).toBe(resource2['@id']);
       expect((retrieved2?.body as any).source).toBe(resource3['@id']);

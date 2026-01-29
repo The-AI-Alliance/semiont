@@ -41,9 +41,9 @@ export function createTestHighlight(
   overrides: Partial<CreateAnnotationInternal> = {}
 ): CreateAnnotationInternal {
   return {
+    id: uuidv4(),
     motivation: 'highlighting',
     target: {
-      type: 'SpecificResource',
       source: resourceUri(resourceId),
       selector: {
         type: 'TextQuoteSelector',
@@ -56,9 +56,11 @@ export function createTestHighlight(
       type: 'TextualBody',
       value: 'This is a highlight',
       format: 'text/plain',
-      purpose: 'highlighting',
+      purpose: 'commenting',
     },
-    creator: `http://example.com/users/${uuidv4()}`,
+    creator: {
+      name: `User ${uuidv4()}`,
+    },
     ...overrides,
   };
 }
@@ -71,9 +73,9 @@ export function createTestReference(
   overrides: Partial<CreateAnnotationInternal> = {}
 ): CreateAnnotationInternal {
   return {
+    id: uuidv4(),
     motivation: 'linking',
     target: {
-      type: 'SpecificResource',
       source: resourceUri(targetResourceId),
       selector: {
         type: 'TextQuoteSelector',
@@ -83,7 +85,9 @@ export function createTestReference(
       },
     },
     body: [], // Stub - will be resolved later
-    creator: `http://example.com/users/${uuidv4()}`,
+    creator: {
+      name: `User ${uuidv4()}`,
+    },
     ...overrides,
   };
 }
@@ -94,13 +98,13 @@ export function createTestReference(
 export function createTestEntityReference(
   targetResourceId: string,
   sourceResourceId: string,
-  entityTypes: string[] = ['Person'],
+  _entityTypes: string[] = ['Person'],
   overrides: Partial<CreateAnnotationInternal> = {}
 ): CreateAnnotationInternal {
   return {
+    id: uuidv4(),
     motivation: 'linking',
     target: {
-      type: 'SpecificResource',
       source: resourceUri(targetResourceId),
       selector: {
         type: 'TextQuoteSelector',
@@ -113,9 +117,10 @@ export function createTestEntityReference(
       type: 'SpecificResource',
       source: resourceUri(sourceResourceId),
       purpose: 'linking',
-      entityTypes,
     },
-    creator: `http://example.com/users/${uuidv4()}`,
+    creator: {
+      name: `User ${uuidv4()}`,
+    },
     ...overrides,
   };
 }

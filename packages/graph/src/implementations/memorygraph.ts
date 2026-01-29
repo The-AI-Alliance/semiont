@@ -16,7 +16,7 @@ import type {
   ResourceId,
   AnnotationId,
 } from '@semiont/core';
-import { resourceId as makeResourceId, uriToResourceId, uriToAnnotationId } from '@semiont/core';
+import { resourceId as makeResourceId, uriToResourceId } from '@semiont/core';
 import type { ResourceUri, AnnotationUri } from '@semiont/api-client';
 import { resourceUri } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
