@@ -351,7 +351,7 @@ describe('ViewMaterializer', () => {
       expect(view?.annotations.annotations[0].body).toHaveLength(1);
     });
 
-    it('should handle annotation.deleted event', async () => {
+    it('should handle annotation.removed event', async () => {
       const rid = resourceId('doc1');
       const events: StoredEvent[] = [
         {
@@ -395,7 +395,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event3',
-            type: 'annotation.deleted',
+            type: 'annotation.removed',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
@@ -753,7 +753,7 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event2',
-            type: 'annotation.deleted',
+            type: 'annotation.removed',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
