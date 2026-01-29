@@ -98,7 +98,7 @@ export function createTestReference(
 export function createTestEntityReference(
   targetResourceId: string,
   sourceResourceId: string,
-  _entityTypes: string[] = ['Person'],
+  entityTypes: string[] = ['Person'],
   overrides: Partial<CreateAnnotationInternal> = {}
 ): CreateAnnotationInternal {
   return {
@@ -117,7 +117,8 @@ export function createTestEntityReference(
       type: 'SpecificResource',
       source: resourceUri(sourceResourceId),
       purpose: 'linking',
-    },
+      entityTypes,
+    } as any,
     creator: {
       name: `User ${uuidv4()}`,
     },

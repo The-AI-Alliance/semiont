@@ -489,14 +489,12 @@ describe('GraphDatabase Interface Contract', () => {
 
     it('getEntityReferences() should filter by entity types', async () => {
       const resource1 = createTestResource();
-      const resource2Person = createTestResource({ entityTypes: ['Person'] });
-      const resource2Org = createTestResource({ entityTypes: ['Organization'] });
+      const resource2 = createTestResource();
       await db.createResource(resource1);
-      await db.createResource(resource2Person);
-      await db.createResource(resource2Org);
+      await db.createResource(resource2);
 
-      await db.createAnnotation(createTestEntityReference(resource1['@id'], resource2Person['@id']));
-      await db.createAnnotation(createTestEntityReference(resource1['@id'], resource2Org['@id']));
+      await db.createAnnotation(createTestEntityReference(resource1['@id'], resource2['@id'], ['Person']));
+      await db.createAnnotation(createTestEntityReference(resource1['@id'], resource2['@id'], ['Organization']));
 
       const personRefs = await db.getEntityReferences(uriToResourceId(resource1['@id']), ['Person']);
 
