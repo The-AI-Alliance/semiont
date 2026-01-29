@@ -1,4 +1,25 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+// Hoist the mock to ensure it's available in the mock factory
+const { mockCreate } = vi.hoisted(() => {
+  return { mockCreate: vi.fn() };
+});
+
+vi.mock('@anthropic-ai/sdk', () => {
+  return {
+    default: vi.fn().mockImplementation((config: any) => {
+      console.log('[INTEGRATION MOCK] Creating Anthropic client with', { apiKey: config?.apiKey });
+      return {
+        apiKey: config?.apiKey,
+        baseURL: config?.baseURL,
+        messages: {
+          create: mockCreate,
+        },
+      };
+    }),
+  };
+});
+
 import { generateText, resetInferenceClient } from '../factory.js';
 import { createTestConfig } from './helpers/mock-config.js';
 import {
@@ -6,7 +27,6 @@ import {
   createMockEmptyResponse,
   createMockMultiBlockResponse,
 } from './helpers/mock-anthropic.js';
-import { mockCreate } from './setup.js';
 
 describe('@semiont/inference - integration', () => {
   beforeEach(() => {

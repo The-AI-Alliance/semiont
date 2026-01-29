@@ -15,7 +15,7 @@ export function createTestConfig(overrides: {
       inference: {
         type: overrides.type ?? 'anthropic',
         model: overrides.model ?? 'claude-3-5-sonnet-20241022',
-        apiKey: overrides.apiKey ?? 'test-api-key-12345',
+        apiKey: 'apiKey' in overrides ? overrides.apiKey : 'test-api-key-12345',
         endpoint: overrides.endpoint,
         baseURL: overrides.baseURL,
       },

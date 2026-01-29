@@ -1,18 +1,4 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-
-// Mock Anthropic SDK - must be before imports
-vi.mock('@anthropic-ai/sdk', () => {
-  return {
-    default: vi.fn().mockImplementation((config: any) => ({
-      apiKey: config?.apiKey,
-      baseURL: config?.baseURL,
-      messages: {
-        create: vi.fn(),
-      },
-    })),
-  };
-});
-
 import { getInferenceClient, getInferenceModel, resetInferenceClient } from '../factory.js';
 import {
   createTestConfig,
