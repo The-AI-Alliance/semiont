@@ -75,6 +75,36 @@ export interface ResourceUnarchivedEvent extends BaseEvent {
   payload: Record<string, never>;  // Empty payload
 }
 
+// Representation events (multi-format support)
+export interface RepresentationAddedEvent extends BaseEvent {
+  type: 'representation.added';
+  resourceId: ResourceId;  // Required - resource-scoped event
+  payload: {
+    representation: {
+      '@id': string;           // Unique ID (content hash)
+      mediaType: string;       // MIME type (e.g., 'text/markdown', 'application/pdf')
+      byteSize: number;        // Size in bytes
+      checksum: string;        // Content hash (SHA-256)
+      created: string;         // ISO 8601 timestamp
+      rel?: 'original' | 'thumbnail' | 'preview' | 'optimized' | 'derived' | 'other';
+      storageUri?: string;     // Where bytes are stored (optional)
+      filename?: string;       // Original filename (optional)
+      language?: string;       // IETF BCP 47 language tag (optional, for translations)
+      width?: number;          // Pixels (images/video)
+      height?: number;         // Pixels (images/video)
+      duration?: number;       // Seconds (audio/video)
+    };
+  };
+}
+
+export interface RepresentationRemovedEvent extends BaseEvent {
+  type: 'representation.removed';
+  resourceId: ResourceId;  // Required - resource-scoped event
+  payload: {
+    checksum: string;  // Which representation to remove
+  };
+}
+
 // Unified annotation events
 // Single principle: An annotation is an annotation. The motivation field tells you what kind it is.
 export interface AnnotationAddedEvent extends BaseEvent {
@@ -195,6 +225,8 @@ export type ResourceEvent =
   | ResourceClonedEvent
   | ResourceArchivedEvent
   | ResourceUnarchivedEvent
+  | RepresentationAddedEvent      // Multi-format support
+  | RepresentationRemovedEvent    // Multi-format support
   | AnnotationAddedEvent
   | AnnotationRemovedEvent
   | AnnotationBodyUpdatedEvent

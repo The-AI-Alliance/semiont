@@ -42,6 +42,10 @@ export function formatEventType(type: ResourceEventType, t: TranslateFn): string
       return t('resourceArchived');
     case 'resource.unarchived':
       return t('resourceUnarchived');
+    case 'representation.added':
+      return t('representationAdded');
+    case 'representation.removed':
+      return t('representationRemoved');
     case 'annotation.added':
       return t('annotationAdded');
     case 'annotation.removed':
@@ -98,6 +102,10 @@ export function getEventEmoji(type: ResourceEventType, event?: StoredEvent): str
     case 'resource.archived':
     case 'resource.unarchived':
       return '📄';
+    case 'representation.added':
+      return '📎';  // Paperclip for attachment/file
+    case 'representation.removed':
+      return '🗑️';  // Trash can for removal
     case 'annotation.added':
       if (event) {
         const payload = event.event.payload as AnnotationAddedEvent['payload'];

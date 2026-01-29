@@ -194,6 +194,39 @@ export class ViewMaterializer {
         resource.archived = false;
         break;
 
+      case 'representation.added': {
+        const { representation } = event.payload;
+
+        // Add to representations array (avoid duplicates by checksum)
+        if (!resource.representations) {
+          resource.representations = [];
+        }
+
+        const repsArray = Array.isArray(resource.representations)
+          ? resource.representations
+          : [resource.representations];
+
+        // Check if representation already exists
+        const exists = repsArray.some(r => r.checksum === representation.checksum);
+        if (!exists) {
+          resource.representations = [...repsArray, representation];
+        }
+        break;
+      }
+
+      case 'representation.removed': {
+        const { checksum } = event.payload;
+
+        if (resource.representations) {
+          const repsArray = Array.isArray(resource.representations)
+            ? resource.representations
+            : [resource.representations];
+
+          resource.representations = repsArray.filter(r => r.checksum !== checksum);
+        }
+        break;
+      }
+
       case 'entitytag.added':
         if (!resource.entityTypes) resource.entityTypes = [];
         if (!resource.entityTypes.includes(event.payload.entityType)) {
@@ -213,6 +246,13 @@ export class ViewMaterializer {
       case 'annotation.added':
       case 'annotation.removed':
       case 'annotation.body.updated':
+        break;
+
+      // Job events don't affect resource metadata
+      case 'job.started':
+      case 'job.progress':
+      case 'job.completed':
+      case 'job.failed':
         break;
 
       // System events don't affect resource metadata
@@ -290,8 +330,17 @@ export class ViewMaterializer {
       case 'resource.cloned':
       case 'resource.archived':
       case 'resource.unarchived':
+      case 'representation.added':
+      case 'representation.removed':
       case 'entitytag.added':
       case 'entitytag.removed':
+        break;
+
+      // Job events don't affect annotations
+      case 'job.started':
+      case 'job.progress':
+      case 'job.completed':
+      case 'job.failed':
         break;
 
       // System events don't affect annotations

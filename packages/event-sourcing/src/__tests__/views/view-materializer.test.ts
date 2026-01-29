@@ -70,10 +70,13 @@ describe('ViewMaterializer', () => {
 
       expect(view).not.toBeNull();
       expect(view?.resource.name).toBe('Test Document');
-      expect(view?.resource.format).toBe('text/plain');
+      // Format is now in representations array, not as a direct field
+      const reps = Array.isArray(view?.resource.representations) ? view.resource.representations : [view?.resource.representations];
+      expect(reps[0]?.mediaType).toBe('text/plain');
+      expect(reps[0]?.rel).toBe('original');
     });
 
-    it('should handle resource.updated event', async () => {
+    it('should handle multiple representation.added events', async () => {
       const rid = resourceId('doc1');
       const events: StoredEvent[] = [
         {
@@ -85,7 +88,7 @@ describe('ViewMaterializer', () => {
             resourceId: rid,
             version: 1,
             payload: {
-              name: 'Original Name',
+              name: 'Test Document',
               format: 'text/plain' as const,
               contentChecksum: 'checksum1',
               creationMethod: 'api' as const,
@@ -96,14 +99,20 @@ describe('ViewMaterializer', () => {
         {
           event: {
             id: 'event2',
-            type: 'resource.updated',
+            type: 'representation.added',
             timestamp: new Date().toISOString(),
             userId: userId('user1'),
             resourceId: rid,
             version: 2,
             payload: {
-              name: 'Updated Name',
-              format: 'text/markdown' as const,
+              representation: {
+                '@id': 'checksum2',
+                mediaType: 'text/markdown',
+                byteSize: 150,
+                checksum: 'checksum2',
+                created: new Date().toISOString(),
+                rel: 'derived' as const,
+              },
             },
           },
           metadata: createEventMetadata(2, 'hash1'),
@@ -112,8 +121,17 @@ describe('ViewMaterializer', () => {
 
       const view = await materializer.materialize(events, rid);
 
-      expect(view?.resource.name).toBe('Updated Name');
-      expect(view?.resource.format).toBe('text/markdown');
+      // Resource name remains immutable from creation event
+      expect(view?.resource.name).toBe('Test Document');
+      // We have original representation plus the added markdown representation
+      expect(view?.resource.representations).toHaveLength(2);
+      const reps = Array.isArray(view?.resource.representations) ? view.resource.representations : [view?.resource.representations];
+      // First is original from resource.created
+      expect(reps[0]?.mediaType).toBe('text/plain');
+      expect(reps[0]?.rel).toBe('original');
+      // Second is derived markdown from representation.added
+      expect(reps[1]?.mediaType).toBe('text/markdown');
+      expect(reps[1]?.rel).toBe('derived');
     });
 
     it('should handle representation.added event', async () => {
@@ -418,7 +436,7 @@ describe('ViewMaterializer', () => {
   });
 
   describe('materializeIncremental() - Incremental updates', () => {
-    it('should incrementally update existing view', async () => {
+    it('should incrementally add representation to existing view', async () => {
       const rid = resourceId('doc1');
 
       // Create initial view
@@ -430,7 +448,7 @@ describe('ViewMaterializer', () => {
         resourceId: rid,
         version: 1,
         payload: {
-          name: 'Original Name',
+          name: 'Test Document',
           format: 'text/plain' as const,
           contentChecksum: 'checksum1',
           creationMethod: 'api' as const,
@@ -444,32 +462,45 @@ describe('ViewMaterializer', () => {
         },
       ]);
 
-      // Update incrementally
-      const updateEvent = {
+      // Add representation incrementally
+      const addRepEvent = {
         id: 'event2',
-        type: 'resource.updated' as const,
+        type: 'representation.added' as const,
         timestamp: new Date().toISOString(),
         userId: userId('user1'),
         resourceId: rid,
         version: 2,
         payload: {
-          name: 'Updated Name',
+          representation: {
+            '@id': 'checksum2',
+            mediaType: 'application/pdf',
+            byteSize: 2048,
+            checksum: 'checksum2',
+            created: new Date().toISOString(),
+            rel: 'derived' as const,
+          },
         },
       };
 
-      await materializer.materializeIncremental(rid, updateEvent, async () => [
+      await materializer.materializeIncremental(rid, addRepEvent, async () => [
         {
           event: createEvent,
           metadata: createEventMetadata(1),
         },
         {
-          event: updateEvent,
+          event: addRepEvent,
           metadata: createEventMetadata(2, 'hash1'),
         },
       ]);
 
       const view = await viewStorage.get(rid);
-      expect(view?.resource.name).toBe('Updated Name');
+      expect(view?.resource.name).toBe('Test Document');
+      expect(view?.resource.representations).toHaveLength(2);
+      const reps = Array.isArray(view?.resource.representations) ? view.resource.representations : [view?.resource.representations];
+      // First is original from resource.created
+      expect(reps[0]?.mediaType).toBe('text/plain');
+      // Second is derived PDF from representation.added
+      expect(reps[1]?.mediaType).toBe('application/pdf');
     });
 
     it('should rebuild from scratch if view does not exist', async () => {
@@ -723,7 +754,11 @@ describe('ViewMaterializer', () => {
 
       const view = await materializer.materialize(events, rid);
 
-      expect(view?.resource.representations).toHaveLength(0);
+      // Original representation from resource.created is still there
+      expect(view?.resource.representations).toHaveLength(1);
+      const reps = Array.isArray(view?.resource.representations) ? view.resource.representations : [view?.resource.representations];
+      expect(reps[0]?.mediaType).toBe('text/plain');
+      expect(reps[0]?.checksum).toBe('checksum1');
     });
 
     it('should handle deleting non-existent annotation gracefully', async () => {
