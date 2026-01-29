@@ -6,7 +6,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { EventLog } from '../event-log';
 import { resourceId, userId } from '@semiont/core';
-import type { Motivation } from '@semiont/api-client';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -82,7 +81,7 @@ describe('EventLog', () => {
             '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
             id: 'http://example.com/annotations/anno1',
             type: 'Annotation' as const,
-            motivation: 'commenting' satisfies Motivation,
+            motivation: 'commenting' as const,
             body: [],
             target: 'http://example.com/resources/doc1',
           },
@@ -234,7 +233,7 @@ describe('EventLog', () => {
             '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
             id: 'http://example.com/annotations/anno1',
             type: 'Annotation' as const,
-            motivation: 'commenting' satisfies Motivation,
+            motivation: 'commenting' as const,
             body: [],
             target: 'http://example.com/resources/doc1',
           },

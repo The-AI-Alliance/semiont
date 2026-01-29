@@ -114,7 +114,7 @@ describe('EventBus', () => {
           version: 1,
           payload: { entityType: 'Document' },
         },
-        metadata: { sequenceNumber: 1, prevEventHash: undefined, eventHash: 'hash1' },
+        metadata: createEventMetadata(1),
       };
 
       await bus.publish(systemEvent);
@@ -305,7 +305,7 @@ describe('EventBus', () => {
       const sub1 = bus.subscribe(rid, callback);
       sub1.unsubscribe();
 
-      const sub2 = bus.subscribe(rid, callback);
+      bus.subscribe(rid, callback);
       expect(bus.getSubscriberCount(rid)).toBe(1);
     });
   });

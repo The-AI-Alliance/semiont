@@ -251,8 +251,9 @@ describe('FilesystemViewStorage', () => {
       const retrieved = await storage.get(rid);
 
       expect(retrieved?.resource.representations).toHaveLength(2);
-      expect(retrieved?.resource.representations[0].mediaType).toBe('text/plain');
-      expect(retrieved?.resource.representations[1].mediaType).toBe('text/html');
+      const reps = Array.isArray(retrieved?.resource.representations) ? retrieved.resource.representations : [retrieved?.resource.representations];
+      expect(reps[0]?.mediaType).toBe('text/plain');
+      expect(reps[1]?.mediaType).toBe('text/html');
     });
 
     it('should handle view with multiple annotations', async () => {
