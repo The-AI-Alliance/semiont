@@ -16,7 +16,7 @@ import type {
   ResourceId,
   AnnotationId,
 } from '@semiont/core';
-import { resourceId as makeResourceId } from '@semiont/core';
+import { resourceId as makeResourceId, uriToResourceId, uriToAnnotationId } from '@semiont/core';
 import type { ResourceUri, AnnotationUri } from '@semiont/api-client';
 import { resourceUri } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
@@ -85,7 +85,13 @@ export class MemoryGraphDatabase implements GraphDatabase {
     //   g.V().hasLabel('Resource').has('id', id).valueMap(true)
     // `, { id });
 
-    return this.resources.get(id) || null;
+    // Extract UUID from the URI for map lookup
+    try {
+      const resourceId = uriToResourceId(id);
+      return this.resources.get(resourceId) || null;
+    } catch {
+      return null;
+    }
   }
 
   async updateResource(id: ResourceUri, input: UpdateResourceInput): Promise<ResourceDescriptor> {
@@ -94,7 +100,9 @@ export class MemoryGraphDatabase implements GraphDatabase {
       throw new Error('Resources are immutable. Only archiving is allowed.');
     }
 
-    const doc = this.resources.get(id);
+    // Extract UUID from the URI for map lookup
+    const resourceId = uriToResourceId(id);
+    const doc = resourceId ? this.resources.get(resourceId) : null;
     if (!doc) throw new Error('Resource not found');
 
     doc.archived = input.archived;
@@ -108,9 +116,13 @@ export class MemoryGraphDatabase implements GraphDatabase {
     //   g.V().has('id', id).drop()
     //   graph.tx().commit()
     // `, { id });
-    
-    this.resources.delete(id);
-    
+
+    // Extract UUID from the URI for map lookup
+    const resourceId = uriToResourceId(id);
+    if (resourceId) {
+      this.resources.delete(resourceId);
+    }
+
     // Delete annotations
     for (const [selId, sel] of this.annotations) {
       if (getTargetSource(sel.target) === id || getBodySource(sel.body) === id) {
@@ -213,7 +225,9 @@ export class MemoryGraphDatabase implements GraphDatabase {
       const resourceIdStr = String(filter.resourceId);
       results = results.filter(a => {
         const targetSource = getTargetSource(a.target);
-        return targetSource === resourceIdStr || targetSource === resourceUri(resourceIdStr);
+        // Extract UUID from target source and compare with incoming ResourceId
+        const targetResourceId = targetSource ? uriToResourceId(targetSource) : null;
+        return targetResourceId === resourceIdStr;
       });
     }
 
@@ -232,7 +246,9 @@ export class MemoryGraphDatabase implements GraphDatabase {
     const highlights = Array.from(this.annotations.values())
       .filter(sel => {
         const targetSource = getTargetSource(sel.target);
-        return (targetSource === resourceIdStr || targetSource === resourceUri(resourceIdStr)) && sel.motivation === 'highlighting';
+        // Extract UUID from target source and compare with incoming ResourceId
+        const targetResourceId = targetSource ? uriToResourceId(targetSource) : null;
+        return targetResourceId === resourceIdStr && sel.motivation === 'highlighting';
       });
     console.log(`Memory: getHighlights for ${resourceId} found ${highlights.length} highlights`);
     return highlights;
@@ -242,12 +258,16 @@ export class MemoryGraphDatabase implements GraphDatabase {
     const annotation = this.annotations.get(annotationId);
     if (!annotation) throw new Error('Annotation not found');
 
+    // Look up the resource to get its full URI
+    const sourceResource = this.resources.get(String(source));
+    if (!sourceResource) throw new Error('Source resource not found');
+
     // Convert stub (empty array) to resolved SpecificResource
     const updated: Annotation = {
       ...annotation,
       body: {
         type: 'SpecificResource',
-        source,
+        source: sourceResource['@id'],
         purpose: 'linking',
       },
     };
@@ -261,7 +281,9 @@ export class MemoryGraphDatabase implements GraphDatabase {
     const references = Array.from(this.annotations.values())
       .filter(sel => {
         const targetSource = getTargetSource(sel.target);
-        return (targetSource === resourceIdStr || targetSource === resourceUri(resourceIdStr)) && sel.motivation === 'linking';
+        // Extract UUID from target source and compare with incoming ResourceId
+        const targetResourceId = targetSource ? uriToResourceId(targetSource) : null;
+        return targetResourceId === resourceIdStr && sel.motivation === 'linking';
       });
     console.log(`Memory: getReferences for ${resourceId} found ${references.length} references`);
     references.forEach(ref => {
@@ -275,19 +297,25 @@ export class MemoryGraphDatabase implements GraphDatabase {
   }
 
   async getEntityReferences(resourceId: ResourceId, entityTypes?: string[]): Promise<Annotation[]> {
-    // TODO Extract entity types from body
+    // Extract entity types from annotation body
     const resourceIdStr = String(resourceId);
     let refs = Array.from(this.annotations.values())
       .filter(sel => {
-        const selEntityTypes = getEntityTypes(sel);
         const targetSource = getTargetSource(sel.target);
-        return (targetSource === resourceIdStr || targetSource === resourceUri(resourceIdStr)) && selEntityTypes.length > 0;
+        // Extract UUID from target source and compare with incoming ResourceId
+        const targetResourceId = targetSource ? uriToResourceId(targetSource) : null;
+
+        // Check if annotation body has entityTypes field
+        const bodyEntityTypes = (sel.body as any)?.entityTypes;
+        const hasEntityTypes = Array.isArray(bodyEntityTypes) && bodyEntityTypes.length > 0;
+
+        return targetResourceId === resourceIdStr && hasEntityTypes;
       });
 
     if (entityTypes && entityTypes.length > 0) {
       refs = refs.filter(sel => {
-        const selEntityTypes = getEntityTypes(sel);
-        return selEntityTypes.some((type: string) => entityTypes.includes(type));
+        const bodyEntityTypes = (sel.body as any)?.entityTypes || [];
+        return bodyEntityTypes.some((type: string) => entityTypes.includes(type));
       });
     }
 
@@ -299,7 +327,9 @@ export class MemoryGraphDatabase implements GraphDatabase {
     return Array.from(this.annotations.values())
       .filter(sel => {
         const targetSource = getTargetSource(sel.target);
-        return targetSource === resourceIdStr || targetSource === resourceUri(resourceIdStr);
+        // Extract UUID from target source and compare with incoming ResourceId
+        const targetResourceId = targetSource ? uriToResourceId(targetSource) : null;
+        return targetResourceId === resourceIdStr;
       });
   }
 
@@ -325,18 +355,24 @@ export class MemoryGraphDatabase implements GraphDatabase {
       if (bodySource) {
         const targetDoc = await this.getResource(resourceUri(bodySource));
         if (targetDoc) {
-          const reverseRefs = await this.getReferences(makeResourceId(bodySource));
-          const resourceIdStr = String(resourceId);
-          const bidirectional = reverseRefs.some(r => {
-            const reverseBodySource = getBodySource(r.body);
-            return reverseBodySource === resourceIdStr || reverseBodySource === resourceUri(resourceIdStr);
-          });
+          // Extract UUID from body source for getReferences call
+          const bodySourceId = uriToResourceId(bodySource);
+          if (bodySourceId) {
+            const reverseRefs = await this.getReferences(makeResourceId(bodySourceId));
+            const resourceIdStr = String(resourceId);
+            const bidirectional = reverseRefs.some(r => {
+              const reverseBodySource = getBodySource(r.body);
+              // Extract UUID from reverse body source and compare
+              const reverseBodyResourceId = reverseBodySource ? uriToResourceId(reverseBodySource) : null;
+              return reverseBodyResourceId === resourceIdStr;
+            });
 
-          connections.push({
-            targetResource: targetDoc,
-            annotations: [ref],
-            bidirectional,
-          });
+            connections.push({
+              targetResource: targetDoc,
+              annotations: [ref],
+              bidirectional,
+            });
+          }
         }
       }
     }
@@ -356,14 +392,20 @@ export class MemoryGraphDatabase implements GraphDatabase {
     // `, { fromResourceId, toResourceId, maxDepth });
 
     // Using BFS implementation for stub
+    // Extract UUIDs from incoming URIs
+    const fromUuid = uriToResourceId(fromResourceId);
+    const toUuid = uriToResourceId(toResourceId);
+
+    if (!fromUuid || !toUuid) return [];
+
     const visited = new Set<string>();
     const queue: { docId: string; path: ResourceDescriptor[]; sels: Annotation[] }[] = [];
     const fromDoc = await this.getResource(resourceUri(fromResourceId));
 
     if (!fromDoc) return [];
 
-    queue.push({ docId: fromResourceId, path: [fromDoc], sels: [] });
-    visited.add(fromResourceId);
+    queue.push({ docId: fromUuid, path: [fromDoc], sels: [] });
+    visited.add(fromUuid);
 
     const paths: GraphPath[] = [];
 
@@ -372,7 +414,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
 
       if (path.length > maxDepth) continue;
 
-      if (docId === toResourceId) {
+      if (docId === toUuid) {
         paths.push({ resources: path, annotations: sels });
         continue;
       }
@@ -444,8 +486,11 @@ export class MemoryGraphDatabase implements GraphDatabase {
     // Use motivation to distinguish types
     const highlightCount = annotations.filter(a => a.motivation === 'highlighting').length;
     const referenceCount = annotations.filter(a => a.motivation === 'linking').length;
-    // TODO Extract entity types from body
-    const entityReferenceCount = annotations.filter(a => a.motivation === 'linking' && getEntityTypes(a).length > 0).length;
+    // Extract entity types from annotation body
+    const entityReferenceCount = annotations.filter(a => {
+      const bodyEntityTypes = (a.body as any)?.entityTypes;
+      return a.motivation === 'linking' && Array.isArray(bodyEntityTypes) && bodyEntityTypes.length > 0;
+    }).length;
     
     return {
       resourceCount: this.resources.size,
