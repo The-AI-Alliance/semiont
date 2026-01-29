@@ -209,9 +209,12 @@ export class AnnotationContext {
         const targetContent = await repStore.retrieve(targetRep.checksum, targetRep.mediaType);
         const contentStr = decodeRepresentation(targetContent, targetRep.mediaType);
 
+        // Create inference client for this request (HTTP handler context)
+        const client = await getInferenceClient(config);
+
         targetContext = {
           content: contentStr.slice(0, contextWindow * 2),
-          summary: await generateResourceSummary(targetDoc.name, contentStr, getResourceEntityTypes(targetDoc), config),
+          summary: await generateResourceSummary(targetDoc.name, contentStr, getResourceEntityTypes(targetDoc), client),
         };
       }
     }
@@ -568,6 +571,7 @@ export class AnnotationContext {
 
   /**
    * Generate LLM summary of annotation in context
+   * Creates inference client per-request (HTTP handler context)
    */
   private static async generateSummary(
     resource: ResourceDescriptor,
@@ -584,6 +588,7 @@ Context after: "${context.after.substring(0, 200)}"
 Resource: ${resource.name}
 Entity types: ${entityTypes.join(', ')}`;
 
+    // Create client for this HTTP request
     const client = await getInferenceClient(config);
     return await client.generateText(summaryPrompt, 500, 0.5);
   }

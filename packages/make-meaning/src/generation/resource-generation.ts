@@ -10,8 +10,7 @@
 
 import { getLocaleEnglishName } from '@semiont/api-client';
 import type { GenerationContext } from '@semiont/api-client';
-import type { EnvironmentConfig } from '@semiont/core';
-import { getInferenceClient } from '@semiont/inference';
+import type { InferenceClient } from '@semiont/inference';
 
 function getLanguageName(locale: string): string {
   return getLocaleEnglishName(locale) || locale;
@@ -23,7 +22,7 @@ function getLanguageName(locale: string): string {
 export async function generateResourceFromTopic(
   topic: string,
   entityTypes: string[],
-  config: EnvironmentConfig,
+  client: InferenceClient,
   userPrompt?: string,
   locale?: string,
   context?: GenerationContext,
@@ -39,10 +38,6 @@ export async function generateResourceFromTopic(
     temperature,
     maxTokens
   });
-
-  const inferenceConfig = config.services.inference;
-  const provider = inferenceConfig?.type || 'anthropic';
-  console.log('Using provider:', provider, 'with model:', inferenceConfig?.model);
 
   // Use provided values or defaults
   const finalTemperature = temperature ?? 0.7;
@@ -107,7 +102,6 @@ Requirements:
   };
 
   console.log('Sending prompt to inference (length:', prompt.length, 'chars)', 'temp:', finalTemperature, 'maxTokens:', finalMaxTokens);
-  const client = await getInferenceClient(config);
   const response = await client.generateText(prompt, finalMaxTokens, finalTemperature);
   console.log('Got raw response (length:', response.length, 'chars)');
 
@@ -129,7 +123,7 @@ export async function generateResourceSummary(
   resourceName: string,
   content: string,
   entityTypes: string[],
-  config: EnvironmentConfig
+  client: InferenceClient
 ): Promise<string> {
   // Truncate content if too long
   const truncatedContent = content.length > 2000
@@ -144,7 +138,6 @@ ${truncatedContent}
 
 Write a 2-3 sentence summary that captures the key points and would help someone understand what this resource contains.`;
 
-  const client = await getInferenceClient(config);
   return await client.generateText(prompt, 150, 0.5);
 }
 
@@ -153,7 +146,7 @@ Write a 2-3 sentence summary that captures the key points and would help someone
  */
 export async function generateReferenceSuggestions(
   referenceTitle: string,
-  config: EnvironmentConfig,
+  client: InferenceClient,
   entityType?: string,
   currentContent?: string
 ): Promise<string[] | null> {
@@ -161,7 +154,6 @@ export async function generateReferenceSuggestions(
 
 Format as a simple list, one suggestion per line.`;
 
-  const client = await getInferenceClient(config);
   const response = await client.generateText(prompt, 200, 0.8);
   if (!response) {
     return null;

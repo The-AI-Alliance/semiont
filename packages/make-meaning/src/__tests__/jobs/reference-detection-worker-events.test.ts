@@ -19,16 +19,16 @@ import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-// Mock @semiont/inference to avoid external API calls
-vi.mock('@semiont/inference', async () => {
-  const actual = await vi.importActual<typeof import('@semiont/inference')>('@semiont/inference');
-  const { MockInferenceClient } = actual;
+// Mock @semiont/inference
+const mockInferenceClient = vi.hoisted(() => ({ client: null as any }));
 
-  const mockClient = new MockInferenceClient(['[]']); // Empty JSON array response
+vi.mock('@semiont/inference', async () => {
+  const { MockInferenceClient } = await import('@semiont/inference');
+  mockInferenceClient.client = new MockInferenceClient(['[]']); // Empty JSON array response
 
   return {
-    ...actual,
-    getInferenceClient: vi.fn().mockResolvedValue(mockClient),
+    getInferenceClient: vi.fn().mockResolvedValue(mockInferenceClient.client),
+    MockInferenceClient,
     extractEntities: vi.fn().mockResolvedValue([
       {
         exact: 'Test',
@@ -93,7 +93,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
     const jobQueue = new JobQueue({ dataDir: testDir });
     await jobQueue.initialize();
     testEventStore = createEventStore(testDir, config.services.backend!.publicURL);
-    worker = new ReferenceDetectionWorker(jobQueue, config, testEventStore);
+    worker = new ReferenceDetectionWorker(jobQueue, config, testEventStore, mockInferenceClient.client);
   });
 
   afterAll(async () => {

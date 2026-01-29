@@ -81,7 +81,7 @@ describe('GenerationWorker - Event Emission', () => {
     const jobQueue = new JobQueue({ dataDir: testDir });
     await jobQueue.initialize();
     testEventStore = createEventStore(testDir, config.services.backend!.publicURL);
-    worker = new GenerationWorker(jobQueue, config, testEventStore);
+    worker = new GenerationWorker(jobQueue, config, testEventStore, mockInferenceClient.client);
 
     // Set default mock response
     mockInferenceClient.client.setResponses(['# Test Title\n\nTest content']);

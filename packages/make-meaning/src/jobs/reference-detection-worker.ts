@@ -21,6 +21,7 @@ import {
 } from '@semiont/api-client';
 import { extractEntities } from '../detection/entity-extractor';
 import { FilesystemRepresentationStore } from '@semiont/content';
+import type { InferenceClient } from '@semiont/inference';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
@@ -41,7 +42,8 @@ export class ReferenceDetectionWorker extends JobWorker {
   constructor(
     jobQueue: JobQueue,
     private config: EnvironmentConfig,
-    private eventStore: EventStore
+    private eventStore: EventStore,
+    private inferenceClient: InferenceClient
   ) {
     super(jobQueue);
   }
@@ -100,7 +102,7 @@ export class ReferenceDetectionWorker extends JobWorker {
       const content = decodeRepresentation(contentBuffer, primaryRep.mediaType);
 
       // Use AI to extract entities (with optional anaphoric/cataphoric references)
-      const extractedEntities = await extractEntities(content, entityTypes, this.config, includeDescriptiveReferences);
+      const extractedEntities = await extractEntities(content, entityTypes, this.inferenceClient, includeDescriptiveReferences);
 
       // Validate and correct AI's offsets, then extract proper context
       // AI sometimes returns offsets that don't match the actual text position

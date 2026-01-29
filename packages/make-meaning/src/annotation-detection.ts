@@ -15,7 +15,7 @@
 import { ResourceContext } from './resource-context';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import { getPrimaryRepresentation, decodeRepresentation } from '@semiont/api-client';
-import { getInferenceClient } from '@semiont/inference';
+import type { InferenceClient } from '@semiont/inference';
 import { MotivationPrompts } from './detection/motivation-prompts';
 import {
   MotivationParsers,
@@ -33,6 +33,7 @@ export class AnnotationDetection {
    *
    * @param resourceId - The resource to analyze
    * @param config - Environment configuration
+   * @param client - Inference client for AI operations
    * @param instructions - Optional user instructions for comment generation
    * @param tone - Optional tone guidance (e.g., "academic", "conversational")
    * @param density - Optional target number of comments per 2000 words
@@ -41,6 +42,7 @@ export class AnnotationDetection {
   static async detectComments(
     resourceId: ResourceId,
     config: EnvironmentConfig,
+    client: InferenceClient,
     instructions?: string,
     tone?: string,
     density?: number
@@ -61,7 +63,6 @@ export class AnnotationDetection {
     const prompt = MotivationPrompts.buildCommentPrompt(content, instructions, tone, density);
 
     // 4. Call AI inference
-    const client = await getInferenceClient(config);
     const response = await client.generateText(
       prompt,
       3000,  // maxTokens: Higher than highlights/assessments due to comment text
@@ -77,6 +78,7 @@ export class AnnotationDetection {
    *
    * @param resourceId - The resource to analyze
    * @param config - Environment configuration
+   * @param client - Inference client for AI operations
    * @param instructions - Optional user instructions for highlight selection
    * @param density - Optional target number of highlights per 2000 words
    * @returns Array of validated highlight matches
@@ -84,6 +86,7 @@ export class AnnotationDetection {
   static async detectHighlights(
     resourceId: ResourceId,
     config: EnvironmentConfig,
+    client: InferenceClient,
     instructions?: string,
     density?: number
   ): Promise<HighlightMatch[]> {
@@ -103,7 +106,6 @@ export class AnnotationDetection {
     const prompt = MotivationPrompts.buildHighlightPrompt(content, instructions, density);
 
     // 4. Call AI inference
-    const client = await getInferenceClient(config);
     const response = await client.generateText(
       prompt,
       2000,  // maxTokens: Lower than comments/assessments (no body text)
@@ -119,6 +121,7 @@ export class AnnotationDetection {
    *
    * @param resourceId - The resource to analyze
    * @param config - Environment configuration
+   * @param client - Inference client for AI operations
    * @param instructions - Optional user instructions for assessment generation
    * @param tone - Optional tone guidance (e.g., "critical", "supportive")
    * @param density - Optional target number of assessments per 2000 words
@@ -127,6 +130,7 @@ export class AnnotationDetection {
   static async detectAssessments(
     resourceId: ResourceId,
     config: EnvironmentConfig,
+    client: InferenceClient,
     instructions?: string,
     tone?: string,
     density?: number
@@ -147,7 +151,6 @@ export class AnnotationDetection {
     const prompt = MotivationPrompts.buildAssessmentPrompt(content, instructions, tone, density);
 
     // 4. Call AI inference
-    const client = await getInferenceClient(config);
     const response = await client.generateText(
       prompt,
       3000,  // maxTokens: Higher for assessment text
@@ -163,6 +166,7 @@ export class AnnotationDetection {
    *
    * @param resourceId - The resource to analyze
    * @param config - Environment configuration
+   * @param client - Inference client for AI operations
    * @param schemaId - The tag schema identifier (e.g., "irac", "imrad")
    * @param category - The specific category to detect
    * @returns Array of validated tag matches
@@ -170,6 +174,7 @@ export class AnnotationDetection {
   static async detectTags(
     resourceId: ResourceId,
     config: EnvironmentConfig,
+    client: InferenceClient,
     schemaId: string,
     category: string
   ): Promise<TagMatch[]> {
@@ -208,7 +213,6 @@ export class AnnotationDetection {
     );
 
     // 4. Call AI inference
-    const client = await getInferenceClient(config);
     const response = await client.generateText(
       prompt,
       4000,  // maxTokens: Higher for full document analysis

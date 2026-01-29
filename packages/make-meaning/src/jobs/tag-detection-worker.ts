@@ -15,6 +15,7 @@ import { getTagSchema } from '@semiont/ontology';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
 import type { TagMatch } from '../detection/motivation-parsers';
+import type { InferenceClient } from '@semiont/inference';
 
 export class TagDetectionWorker extends JobWorker {
   private isFirstProgress = true;
@@ -22,7 +23,8 @@ export class TagDetectionWorker extends JobWorker {
   constructor(
     jobQueue: JobQueue,
     private config: EnvironmentConfig,
-    private eventStore: EventStore
+    private eventStore: EventStore,
+    private inferenceClient: InferenceClient
   ) {
     super(jobQueue);
   }
@@ -192,6 +194,7 @@ export class TagDetectionWorker extends JobWorker {
       const tags = await AnnotationDetection.detectTags(
         job.params.resourceId,
         this.config,
+        this.inferenceClient,
         job.params.schemaId,
         category
       );

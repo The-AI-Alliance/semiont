@@ -22,11 +22,15 @@ import { join } from 'path';
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 // Mock inference to avoid actual API calls
+const mockInferenceClient = vi.hoisted(() => ({ client: null as any }));
+
 vi.mock('@semiont/inference', async () => {
   const { MockInferenceClient } = await import('@semiont/inference');
+  mockInferenceClient.client = new MockInferenceClient(['Mock AI response']);
+
   return {
     generateText: vi.fn().mockResolvedValue('Mock AI response'),
-    getInferenceClient: vi.fn().mockResolvedValue(new MockInferenceClient(['Mock AI response'])),
+    getInferenceClient: vi.fn().mockResolvedValue(mockInferenceClient.client),
     MockInferenceClient
   };
 });
@@ -104,7 +108,7 @@ describe('Entity Detection - Charset Handling', () => {
     const jobQueue = new JobQueue({ dataDir: config.services.filesystem!.path });
     await jobQueue.initialize();
     const eventStore = createEventStore(config.services.filesystem!.path, config.services.backend!.publicURL);
-    worker = new ReferenceDetectionWorker(jobQueue, config, eventStore);
+    worker = new ReferenceDetectionWorker(jobQueue, config, eventStore, mockInferenceClient.client);
   });
 
   afterAll(async () => {

@@ -1,5 +1,4 @@
-import { getInferenceClient } from '@semiont/inference';
-import type { EnvironmentConfig } from '@semiont/core';
+import type { InferenceClient } from '@semiont/inference';
 
 /**
  * Entity reference extracted from text
@@ -18,22 +17,20 @@ export interface ExtractedEntity {
  *
  * @param text - The text to analyze
  * @param entityTypes - Array of entity types to detect (optionally with examples)
- * @param config - Application configuration
+ * @param client - Inference client for AI operations
  * @param includeDescriptiveReferences - Include anaphoric/cataphoric references (default: false)
  * @returns Array of extracted entities with their character offsets
  */
 export async function extractEntities(
   exact: string,
   entityTypes: string[] | { type: string; examples?: string[] }[],
-  config: EnvironmentConfig,
+  client: InferenceClient,
   includeDescriptiveReferences: boolean = false
 ): Promise<ExtractedEntity[]> {
   console.log('extractEntities called with:', {
     textLength: exact.length,
     entityTypes: Array.isArray(entityTypes) ? entityTypes.map(et => typeof et === 'string' ? et : et.type) : []
   });
-
-  const client = await getInferenceClient(config);
 
   // Format entity types for the prompt
   const entityTypesDescription = entityTypes.map(et => {

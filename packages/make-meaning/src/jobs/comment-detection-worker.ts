@@ -13,6 +13,7 @@ import { resourceIdToURI } from '@semiont/core';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
 import type { CommentMatch } from '../detection/motivation-parsers';
+import type { InferenceClient } from '@semiont/inference';
 
 export class CommentDetectionWorker extends JobWorker {
   private isFirstProgress = true;
@@ -20,7 +21,8 @@ export class CommentDetectionWorker extends JobWorker {
   constructor(
     jobQueue: JobQueue,
     private config: EnvironmentConfig,
-    private eventStore: EventStore
+    private eventStore: EventStore,
+    private inferenceClient: InferenceClient
   ) {
     super(jobQueue);
   }
@@ -169,6 +171,7 @@ export class CommentDetectionWorker extends JobWorker {
     const comments = await AnnotationDetection.detectComments(
       job.params.resourceId,
       this.config,
+      this.inferenceClient,
       job.params.instructions,
       job.params.tone,
       job.params.density

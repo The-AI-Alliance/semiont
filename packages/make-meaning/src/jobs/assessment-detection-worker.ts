@@ -13,6 +13,7 @@ import { resourceIdToURI } from '@semiont/core';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
 import type { AssessmentMatch } from '../detection/motivation-parsers';
+import type { InferenceClient } from '@semiont/inference';
 
 export class AssessmentDetectionWorker extends JobWorker {
   private isFirstProgress = true;
@@ -20,7 +21,8 @@ export class AssessmentDetectionWorker extends JobWorker {
   constructor(
     jobQueue: JobQueue,
     private config: EnvironmentConfig,
-    private eventStore: EventStore
+    private eventStore: EventStore,
+    private inferenceClient: InferenceClient
   ) {
     super(jobQueue);
   }
@@ -169,6 +171,7 @@ export class AssessmentDetectionWorker extends JobWorker {
     const assessments = await AnnotationDetection.detectAssessments(
       job.params.resourceId,
       this.config,
+      this.inferenceClient,
       job.params.instructions,
       job.params.tone,
       job.params.density

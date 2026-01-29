@@ -28,12 +28,14 @@ import {
 } from '@semiont/core';
 import { EventStore } from '@semiont/event-sourcing';
 import type { EnvironmentConfig } from '@semiont/core';
+import type { InferenceClient } from '@semiont/inference';
 
 export class GenerationWorker extends JobWorker {
   constructor(
     jobQueue: JobQueue,
     private config: EnvironmentConfig,
-    private eventStore: EventStore
+    private eventStore: EventStore,
+    private inferenceClient: InferenceClient
   ) {
     super(jobQueue);
   }
@@ -134,7 +136,7 @@ export class GenerationWorker extends JobWorker {
     const generatedContent = await generateResourceFromTopic(
       resourceName,
       job.params.entityTypes || annotationEntityTypes,
-      this.config,
+      this.inferenceClient,
       prompt,
       job.params.language,
       job.params.context,      // NEW - context from job (passed from modal)

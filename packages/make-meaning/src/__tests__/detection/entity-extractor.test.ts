@@ -5,41 +5,14 @@
  * Focuses on extraction logic, offset validation, and response parsing.
  */
 
-import { describe, it, expect, beforeAll, vi } from 'vitest';
-import type { EnvironmentConfig } from '@semiont/core';
-
-// Mock inference client using factory function
-const mockInferenceClient = vi.hoisted(() => ({ client: null as any }));
-
-vi.mock('@semiont/inference', async () => {
-  const { MockInferenceClient } = await import('@semiont/inference');
-  mockInferenceClient.client = new MockInferenceClient(['[]']);
-
-  return {
-    getInferenceClient: vi.fn().mockResolvedValue(mockInferenceClient.client),
-    MockInferenceClient
-  };
-});
-
+import { describe, it, expect } from 'vitest';
+import { MockInferenceClient } from '@semiont/inference';
 import { extractEntities } from '../../detection/entity-extractor';
 
-describe('extractEntities', () => {
-  let config: EnvironmentConfig;
+// Create mock client directly
+const mockInferenceClient = new MockInferenceClient(['[]']);
 
-  beforeAll(() => {
-    config = {
-      services: {
-        inference: {
-          platform: { type: 'external' },
-          type: 'anthropic',
-          model: 'claude-sonnet-4-20250514',
-          maxTokens: 8192,
-          endpoint: 'https://api.anthropic.com',
-          apiKey: 'test-api-key'
-        }
-      }
-    } as EnvironmentConfig;
-  });
+describe('extractEntities', () => {
 
   it('should extract entities with correct offsets', async () => {
     const text = 'Alice went to Paris yesterday.';
@@ -62,9 +35,9 @@ describe('extractEntities', () => {
       }
     ];
 
-    mockInferenceClient.client.setResponses([JSON.stringify(mockResponse)]);
+    mockInferenceClient.setResponses([JSON.stringify(mockResponse)]);
 
-    const result = await extractEntities(text, ['Person', 'Location'], config);
+    const result = await extractEntities(text, ['Person', 'Location'], mockInferenceClient);
 
     expect(result).toHaveLength(2);
     expect(result[0]).toMatchObject({
@@ -82,17 +55,17 @@ describe('extractEntities', () => {
   });
 
   it('should handle empty text', async () => {
-    mockInferenceClient.client.setResponses(['[]']);
+    mockInferenceClient.setResponses(['[]']);
 
-    const result = await extractEntities('', ['Person'], config);
+    const result = await extractEntities('', ['Person'], mockInferenceClient);
 
     expect(result).toEqual([]);
   });
 
   it('should handle no entities found', async () => {
-    mockInferenceClient.client.setResponses(['[]']);
+    mockInferenceClient.setResponses(['[]']);
 
-    const result = await extractEntities('The sky is blue', ['Person'], config);
+    const result = await extractEntities('The sky is blue', ['Person'], mockInferenceClient);
 
     expect(result).toEqual([]);
   });
@@ -111,9 +84,9 @@ describe('extractEntities', () => {
       }
     ];
 
-    mockInferenceClient.client.setResponses([JSON.stringify(mockResponse)]);
+    mockInferenceClient.setResponses([JSON.stringify(mockResponse)]);
 
-    const result = await extractEntities(text, ['Person'], config);
+    const result = await extractEntities(text, ['Person'], mockInferenceClient);
 
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({
@@ -143,9 +116,9 @@ describe('extractEntities', () => {
       }
     ];
 
-    mockInferenceClient.client.setResponses([JSON.stringify(mockResponse)]);
+    mockInferenceClient.setResponses([JSON.stringify(mockResponse)]);
 
-    const result = await extractEntities(text, ['Person'], config);
+    const result = await extractEntities(text, ['Person'], mockInferenceClient);
 
     expect(result).toHaveLength(1);
     expect(result[0].exact).toBe('Alice');
@@ -162,9 +135,9 @@ describe('extractEntities', () => {
       }
     ];
 
-    mockInferenceClient.client.setResponses(['```json\n' + JSON.stringify(mockResponse) + '\n```']);
+    mockInferenceClient.setResponses(['```json\n' + JSON.stringify(mockResponse) + '\n```']);
 
-    const result = await extractEntities(text, ['Person'], config);
+    const result = await extractEntities(text, ['Person'], mockInferenceClient);
 
     expect(result).toHaveLength(1);
     expect(result[0].exact).toBe('Alice');
@@ -184,11 +157,11 @@ describe('extractEntities', () => {
     ];
 
     // Set response with max_tokens stop reason to simulate truncation
-    mockInferenceClient.client.setResponses([JSON.stringify(mockResponse)], ['max_tokens']);
+    mockInferenceClient.setResponses([JSON.stringify(mockResponse)], ['max_tokens']);
 
     // When truncated, extractEntities throws but catch block returns []
     try {
-      const result = await extractEntities(text, ['Person'], config);
+      const result = await extractEntities(text, ['Person'], mockInferenceClient);
       expect(result).toEqual([]);
     } catch (error) {
       // If it throws, that's also acceptable - the catch block should return []
@@ -208,12 +181,12 @@ describe('extractEntities', () => {
       }
     ];
 
-    mockInferenceClient.client.setResponses([JSON.stringify(mockResponse)]);
+    mockInferenceClient.setResponses([JSON.stringify(mockResponse)]);
 
     const result = await extractEntities(
       text,
       [{ type: 'Organization', examples: ['Apple', 'Google', 'Microsoft'] }],
-      config
+      mockInferenceClient
     );
 
     expect(result).toHaveLength(1);
@@ -240,9 +213,9 @@ describe('extractEntities', () => {
       }
     ];
 
-    mockInferenceClient.client.setResponses([JSON.stringify(mockResponse)]);
+    mockInferenceClient.setResponses([JSON.stringify(mockResponse)]);
 
-    const result = await extractEntities(text, ['Person'], config, true);
+    const result = await extractEntities(text, ['Person'], mockInferenceClient, true);
 
     expect(result).toHaveLength(2);
     expect(result[0].exact).toBe('Marie Curie');
@@ -250,9 +223,9 @@ describe('extractEntities', () => {
   });
 
   it('should handle malformed JSON gracefully', async () => {
-    mockInferenceClient.client.setResponses(['This is not JSON']);
+    mockInferenceClient.setResponses(['This is not JSON']);
 
-    const result = await extractEntities('Alice went to Paris.', ['Person'], config);
+    const result = await extractEntities('Alice went to Paris.', ['Person'], mockInferenceClient);
 
     expect(result).toEqual([]);
   });

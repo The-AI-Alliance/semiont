@@ -81,7 +81,7 @@ describe('HighlightDetectionWorker - Event Emission', () => {
     const jobQueue = new JobQueue({ dataDir: testDir });
     await jobQueue.initialize();
     testEventStore = createEventStore(testDir, config.services.backend!.publicURL);
-    worker = new HighlightDetectionWorker(jobQueue, config, testEventStore);
+    worker = new HighlightDetectionWorker(jobQueue, config, testEventStore, mockInferenceClient.client);
 
     // Set default mock response
     mockInferenceClient.client.setResponses(['[]']);

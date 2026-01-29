@@ -107,7 +107,7 @@ describe('TagDetectionWorker - Event Emission', () => {
     const jobQueue = new JobQueue({ dataDir: testDir });
     await jobQueue.initialize();
     testEventStore = createEventStore(testDir, config.services.backend!.publicURL);
-    worker = new TagDetectionWorker(jobQueue, config, testEventStore);
+    worker = new TagDetectionWorker(jobQueue, config, testEventStore, mockInferenceClient.client);
 
     // Set default mock response
     mockGenerateText.mockResolvedValue('[]');

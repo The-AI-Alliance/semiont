@@ -81,7 +81,7 @@ describe('CommentDetectionWorker - Event Emission', () => {
     const jobQueue = new JobQueue({ dataDir: testDir });
     await jobQueue.initialize();
     testEventStore = createEventStore(testDir, config.services.backend!.publicURL);
-    worker = new CommentDetectionWorker(jobQueue, config, testEventStore);
+    worker = new CommentDetectionWorker(jobQueue, config, testEventStore, mockInferenceClient.client);
 
     // Set default mock response
     mockInferenceClient.client.setResponses(['[]']);

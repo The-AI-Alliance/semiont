@@ -15,6 +15,7 @@ import { JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore } from '@semiont/event-sourcing';
 import type { EnvironmentConfig } from '@semiont/core';
 import { resourceId as makeResourceId } from '@semiont/core';
+import { getInferenceClient } from '@semiont/inference';
 import { ReferenceDetectionWorker } from './jobs/reference-detection-worker';
 import { GenerationWorker } from './jobs/generation-worker';
 import { HighlightDetectionWorker } from './jobs/highlight-detection-worker';
@@ -72,7 +73,12 @@ export async function startMakeMeaning(config: EnvironmentConfig): Promise<MakeM
   console.log('📊 Creating event store connection...');
   const eventStore = createEventStoreCore(basePath, baseUrl);
 
-  // 4. Start graph consumer
+  // 4. Create inference client (shared across all workers)
+  console.log('🤖 Creating inference client...');
+  const inferenceClient = await getInferenceClient(config);
+  console.log('✅ Inference client created');
+
+  // 5. Start graph consumer
   console.log('🔄 Starting graph consumer...');
   const graphConsumer = new GraphDBConsumer(config, eventStore);
   await graphConsumer.initialize();
@@ -85,18 +91,18 @@ export async function startMakeMeaning(config: EnvironmentConfig): Promise<MakeM
   }
   console.log('✅ Graph consumer started');
 
-  // 5. Instantiate workers
+  // 6. Instantiate workers
   console.log('👷 Creating workers...');
   const workers = {
-    detection: new ReferenceDetectionWorker(jobQueue, config, eventStore),
-    generation: new GenerationWorker(jobQueue, config, eventStore),
-    highlight: new HighlightDetectionWorker(jobQueue, config, eventStore),
-    assessment: new AssessmentDetectionWorker(jobQueue, config, eventStore),
-    comment: new CommentDetectionWorker(jobQueue, config, eventStore),
-    tag: new TagDetectionWorker(jobQueue, config, eventStore),
+    detection: new ReferenceDetectionWorker(jobQueue, config, eventStore, inferenceClient),
+    generation: new GenerationWorker(jobQueue, config, eventStore, inferenceClient),
+    highlight: new HighlightDetectionWorker(jobQueue, config, eventStore, inferenceClient),
+    assessment: new AssessmentDetectionWorker(jobQueue, config, eventStore, inferenceClient),
+    comment: new CommentDetectionWorker(jobQueue, config, eventStore, inferenceClient),
+    tag: new TagDetectionWorker(jobQueue, config, eventStore, inferenceClient),
   };
 
-  // 6. Start all workers (non-blocking)
+  // 7. Start all workers (non-blocking)
   console.log('🚀 Starting workers...');
   workers.detection.start().catch((error: unknown) => {
     console.error('⚠️ Detection worker stopped:', error);
