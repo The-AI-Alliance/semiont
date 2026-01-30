@@ -1,6 +1,6 @@
 # Backend Testing Guide
 
-Backend testing guide focused on Jest, unit testing patterns, and backend-specific testing strategies.
+Backend testing guide focused on Vitest, HTTP contract testing, and backend-specific testing strategies.
 
 **Related Documentation:**
 - **[System Testing Guide](../../../docs/TESTING.md)** - **Read this first!** Complete testing strategy including Vitest, MSW v2, frontend testing, and test orchestration
@@ -8,83 +8,77 @@ Backend testing guide focused on Jest, unit testing patterns, and backend-specif
 - [Development Guide](./DEVELOPMENT.md) - Local development setup
 - [Contributing Guide](./CONTRIBUTING.md) - Code style and patterns
 
-**Scope**: This document covers backend-specific testing using Jest, testing TypeScript services, Prisma database tests, and API endpoint testing. For system-wide testing including Vitest, MSW, and frontend testing, see the [System Testing Guide](../../../docs/TESTING.md).
+**Scope**: This document covers backend-specific testing using Vitest, HTTP contract testing, and API endpoint validation. For system-wide testing including frontend testing, see the [System Testing Guide](../../../docs/TESTING.md).
 
 ## Backend Testing Philosophy
 
-The backend uses **Jest** with a focus on **simple, focused unit tests**:
+The backend uses **Vitest** with a focus on **HTTP contract testing**:
 
-1. **Test functions directly** - Avoid complex HTTP mocking
-2. **Fast execution** - Unit tests run in milliseconds
-3. **TypeScript strict mode** - All tests fully typed
-4. **Pure business logic testing** - Test services, not framework code
-
-## Running Backend Tests
-
-### Using Semiont CLI (Recommended)
-
-```bash
-# Run all backend tests with coverage
-semiont test --service backend
-
-# Run specific test suites
-semiont test --service backend --suite unit         # Unit tests only
-semiont test --service backend --suite integration  # Integration tests
-semiont test --service backend --suite security     # Security tests
-
-# Watch mode for development
-semiont test --service backend --suite unit --watch
-
-# Skip coverage for faster runs
-semiont test --service backend --no-coverage
-```
-
-### Direct npm Scripts
-
-```bash
-# Run all tests
-npm test
-
-# Run specific test types
-npm run test:unit          # Unit tests (excludes integration)
-npm run test:integration   # Integration tests only
-npm run test:api           # API endpoint tests
-npm run test:security      # Security-focused tests
-
-# Coverage and watch mode
-npm run test:coverage      # Generate coverage report
-npm run test:watch         # Watch mode for TDD
-
-# Type checking
-npm run type-check         # TypeScript validation
-npm run build              # Full build with type check
-```
+1. **Test the HTTP layer** - Status codes, headers, authentication, request/response validation
+2. **Delegate business logic** - Subsystem logic tested in package tests (`@semiont/make-meaning`, `@semiont/event-sourcing`, etc.)
+3. **Fast execution** - HTTP contract tests run in milliseconds with mocked subsystems
+4. **TypeScript strict mode** - All tests fully typed
+5. **Mock make-meaning** - Backend tests focus on HTTP exposure, not event-sourcing internals
 
 ## Test Organization
 
-### Unit Tests (Jest)
+### HTTP Contract Tests (apps/backend/src/__tests__/routes/)
+
+Tests focus on HTTP layer only - status codes, authentication, response structure:
 
 ```
-src/__tests__/
-├── auth/
-│   ├── jwt.test.ts              # JWT token validation
-│   └── oauth.test.ts            # OAuth service logic
-├── middleware/
-│   └── auth.test.ts             # Auth middleware tests
-├── validation/
-│   └── schemas.test.ts          # Zod schema validation
-├── config/
-│   ├── config.test.ts           # App configuration
-│   └── env.test.ts              # Environment validation
-└── db.test.ts                   # Database connection
+src/__tests__/routes/
+├── resources-crud.test.ts              # POST/GET/PATCH resources
+├── annotations-crud.test.ts            # GET/PUT/DELETE annotations
+├── resource-discovery.test.ts          # referenced-by, llm-context
+└── detect-annotations-stream.test.ts   # Detection stream endpoints
 ```
 
-### Integration Tests
+**Pattern**: Test HTTP contract, mock `@semiont/make-meaning`:
 
-```
-src/__tests__/integration/
-├── api-endpoints.test.ts        # Multi-service flows
-└── contract-tests.test.ts       # API contract validation
+```typescript
+// Mock make-meaning subsystems
+vi.mock('@semiont/make-meaning', () => ({
+  ResourceContext: {
+    getResourceMetadata: vi.fn().mockResolvedValue({
+      '@id': 'urn:semiont:resource:test',
+      name: 'Test Resource',
+    }),
+  },
+  startMakeMeaning: vi.fn().mockResolvedValue({
+    eventStore: { append: vi.fn() },
+    repStore: { store: vi.fn() },
+    jobQueue: { createJob: vi.fn() },
+    workers: [],
+    graphConsumer: {}
+  })
+}));
+
+// Test HTTP contract only
+describe('POST /resources', () => {
+  it('should return 201 with Location header', async () => {
+    const response = await app.request('/resources', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ content: 'Test', format: 'text/plain' }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(response.headers.get('Location')).toMatch(/^urn:semiont:resource:/);
+  });
+
+  it('should return 401 without authentication', async () => {
+    const response = await app.request('/resources', {
+      method: 'POST',
+      body: JSON.stringify({ content: 'Test', format: 'text/plain' }),
+    });
+
+    expect(response.status).toBe(401);
+  });
+});
 ```
 
 ### Security Tests
@@ -93,337 +87,366 @@ src/__tests__/integration/
 src/__tests__/
 ├── route-auth-coverage.test.ts  # Comprehensive route authentication testing
 ├── backend-security.test.ts     # Security requirements documentation
-├── security-controls.test.ts    # CORS and security headers
-└── api/
-    ├── admin-endpoints.test.ts  # Admin access control
-    └── documentation.test.ts    # API docs validation
+└── security-controls.test.ts    # CORS and security headers
 ```
 
 **Key Security Tests**:
 
-- **route-auth-coverage.test.ts** (615 lines) - **Critical comprehensive test**
+- **route-auth-coverage.test.ts** - **Critical comprehensive test**
   - Tests ALL registered Hono routes dynamically
   - Uses OpenAPI spec as single source of truth for public routes
   - Validates all non-public routes return 401 without authentication
   - Tests invalid tokens, malformed tokens, expired tokens
   - Auto-detects route patterns and catch-all routes
-  - Provides coverage statistics (tested vs skipped routes)
   - **Prevents authentication regressions** when adding/modifying routes
 
-## Backend Testing Patterns
+### Subsystem Tests (packages/*/src/__tests__/)
 
-### Unit Test Pattern
+Business logic tests belong in package tests, not backend:
 
-Test services directly without HTTP layer:
+```
+packages/make-meaning/src/__tests__/
+├── detection/
+│   ├── entity-extractor.test.ts       # Entity detection algorithms
+│   └── entity-extractor-charset.test.ts
+├── generation/
+│   └── resource-generation.test.ts    # Resource generation logic
+├── jobs/
+│   ├── assessment-detection-worker.test.ts
+│   ├── comment-detection-worker.test.ts
+│   ├── highlight-detection-worker.test.ts
+│   └── tag-detection-worker.test.ts
+└── graph/
+    └── consumer.test.ts                # Graph database consumer
+
+packages/event-sourcing/src/__tests__/
+└── view-materializer.test.ts           # Event projection logic
+```
+
+**Pattern**: Test business logic directly, no HTTP layer:
 
 ```typescript
-// Good: Direct function testing
-import { describe, it, expect, beforeEach } from '@jest/globals';
+// Test business logic in packages
+describe('EntityExtractor', () => {
+  it('should extract entity references from text', () => {
+    const text = 'The AI Alliance is a global consortium.';
+    const entities = extractEntities(text);
+
+    expect(entities).toContainEqual({
+      type: 'Organization',
+      text: 'The AI Alliance',
+      startOffset: 0,
+      endOffset: 16
+    });
+  });
+});
+```
+
+## Running Backend Tests
+
+### Using npm Scripts
+
+```bash
+# Run all backend tests
+npm test
+
+# Run specific test files
+npm test -- src/__tests__/routes/resources-crud.test.ts
+
+# Watch mode for development
+npm run test:watch
+
+# Coverage report
+npm run test:coverage
+
+# Type checking
+npm run typecheck
+```
+
+## What to Test Where
+
+### ✅ Backend HTTP Contract Tests (apps/backend/src/__tests__/routes/)
+
+Test HTTP exposure:
+
+```typescript
+// ✅ GOOD: HTTP contract test
+it('should return 404 for non-existent resource', async () => {
+  const { ResourceContext } = await import('@semiont/make-meaning');
+  vi.mocked(ResourceContext.getResourceMetadata).mockResolvedValueOnce(null);
+
+  const response = await app.request('/resources/nonexistent', {
+    headers: { 'Authorization': `Bearer ${authToken}` }
+  });
+
+  expect(response.status).toBe(404);
+});
+
+it('should return 401 without authentication', async () => {
+  const response = await app.request('/resources/test', {
+    method: 'PATCH',
+    body: JSON.stringify({ archived: true })
+  });
+
+  expect(response.status).toBe(401);
+});
+
+it('should return 400 for invalid content type', async () => {
+  const response = await app.request('/resources', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${authToken}` },
+    body: JSON.stringify({
+      content: 'Test',
+      format: 'invalid/mime-type'
+    })
+  });
+
+  expect(response.status).toBe(400);
+});
+```
+
+### ✅ Package Subsystem Tests (packages/*/src/__tests__/)
+
+Test business logic:
+
+```typescript
+// ✅ GOOD: Subsystem logic test (in packages/make-meaning)
+it('should materialize view from resource.created event', async () => {
+  const event: ResourceCreatedEvent = {
+    type: 'resource.created',
+    resourceId: resourceId('test-resource'),
+    userId: userId('user-123'),
+    version: 1,
+    payload: {
+      name: 'Test Resource',
+      format: 'text/plain',
+      checksum: 'abc123'
+    }
+  };
+
+  const view = await materializer.apply(null, event);
+
+  expect(view).toEqual({
+    '@id': 'urn:semiont:resource:test-resource',
+    name: 'Test Resource',
+    representations: [{
+      mediaType: 'text/plain',
+      checksum: 'abc123',
+      rel: 'original'
+    }]
+  });
+});
+```
+
+### ❌ What NOT to Test
+
+```typescript
+// ❌ BAD: Testing business logic in backend tests
+// This belongs in packages/make-meaning tests
+describe('POST /resources', () => {
+  it('should extract entities from content', async () => {
+    // Testing entity extraction algorithm - WRONG PLACE!
+  });
+
+  it('should materialize view correctly', async () => {
+    // Testing event-sourcing logic - WRONG PLACE!
+  });
+});
+
+// ❌ BAD: Integration tests between subsystems
+// Backend tests should mock subsystems
+describe('Resource Creation Flow', () => {
+  it('should create resource and update graph database', async () => {
+    // Testing subsystem integration - WRONG PLACE!
+    // Use package tests or E2E tests instead
+  });
+});
+```
+
+## Current Test Coverage
+
+### HTTP Contract Tests (apps/backend)
+
+1. **resources-crud.test.ts** (12 tests)
+   - POST /resources (create) - 201, 401, 400 validation
+   - GET /resources (list) - 200, 401, pagination, filtering
+   - PATCH /resources/:id (update) - 200, 404, 401, archiving
+
+2. **annotations-crud.test.ts** (15 tests)
+   - GET /resources/:id/annotations (list) - 200, 401, W3C format
+   - PUT /resources/:resourceId/annotations/:annotationId/body - 200, 404, 401
+   - DELETE /resources/:resourceId/annotations/:annotationId - 204, 404, 401
+
+3. **resource-discovery.test.ts** (6 tests)
+   - GET /resources/:id/referenced-by - 200, 404, 401, filtering
+   - POST /resources/:id/llm-context - 200, 404, 401
+
+4. **detect-annotations-stream.test.ts** (existing)
+   - POST /resources/:id/detect-*-stream endpoints
+
+### Security Tests
+
+- **route-auth-coverage.test.ts** - Comprehensive authentication coverage
+- All routes tested for 401 without authentication
+- OpenAPI spec validation
+
+### Subsystem Tests (packages)
+
+- **packages/make-meaning** - 456 tests (detection, generation, jobs, graph)
+- **packages/event-sourcing** - 225 tests (view materialization, projections)
+- **packages/content** - Content processing tests
+
+## Writing New HTTP Contract Tests
+
+### 1. Create Test File
+
+```typescript
+// src/__tests__/routes/my-feature.test.ts
+import { describe, it, expect, beforeAll, vi } from 'vitest';
+import { userId, email } from '@semiont/api-client';
 import { JWTService } from '../../auth/jwt';
+import type { Hono } from 'hono';
+import type { EnvironmentConfig } from '@semiont/core';
 
-describe('JWTService', () => {
-  beforeEach(() => {
-    process.env.SEMIONT_ENV = 'test';
+// Mock subsystems
+vi.mock('@semiont/make-meaning', () => ({
+  ResourceContext: {
+    getResourceMetadata: vi.fn().mockResolvedValue({ /* ... */ })
+  },
+  startMakeMeaning: vi.fn().mockResolvedValue({ /* ... */ })
+}));
+
+vi.mock('../../db', () => ({ /* ... */ }));
+vi.mock('../../auth/oauth', () => ({ /* ... */ }));
+
+describe('My Feature HTTP Contract', () => {
+  let app: Hono;
+  let authToken: string;
+
+  beforeAll(async () => {
+    // Initialize JWTService
+    const mockConfig: EnvironmentConfig = { /* ... */ };
+    JWTService.initialize(mockConfig);
+
+    authToken = JWTService.generateToken({ /* ... */ });
+
+    // Mock database and OAuth
+    // ...
+
+    // Import app after mocks
+    const { app: importedApp } = await import('../../index');
+    app = importedApp;
   });
 
-  it('should validate allowed domains', () => {
-    expect(JWTService.isAllowedDomain('user@test.example.com')).toBe(true);
-    expect(JWTService.isAllowedDomain('user@example.org')).toBe(true);
-    expect(JWTService.isAllowedDomain('invalid@notallowed.com')).toBe(false);
-  });
+  describe('POST /my-endpoint', () => {
+    it('should return 200 on success', async () => {
+      const response = await app.request('/my-endpoint', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ /* ... */ }),
+      });
 
-  it('should create valid JWT tokens', () => {
-    const token = JWTService.createToken({
-      sub: 'user-123',
-      email: 'test@example.com',
-      isAdmin: false
+      expect(response.status).toBe(200);
     });
 
-    expect(typeof token).toBe('string');
-    expect(token.split('.')).toHaveLength(3);
-  });
-});
-```
+    it('should return 401 without authentication', async () => {
+      const response = await app.request('/my-endpoint', {
+        method: 'POST',
+        body: JSON.stringify({ /* ... */ }),
+      });
 
-### Prisma Database Testing
-
-Test database operations directly:
-
-```typescript
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
-
-describe('User Database Operations', () => {
-  it('should find users', async () => {
-    const users = await prisma.user.findMany();
-    expect(Array.isArray(users)).toBe(true);
-  });
-
-  it('should create user', async () => {
-    const user = await prisma.user.create({
-      data: {
-        email: 'test@example.com',
-        name: 'Test User',
-        provider: 'google',
-        providerId: 'test-id'
-      }
+      expect(response.status).toBe(401);
     });
 
-    expect(user.email).toBe('test@example.com');
-  });
-});
-```
+    it('should return 400 for invalid input', async () => {
+      const response = await app.request('/my-endpoint', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ /* invalid data */ }),
+      });
 
-### Zod Schema Testing
-
-Validate all request/response schemas:
-
-```typescript
-import { CreateDocumentSchema } from '../../validation/schemas';
-
-describe('CreateDocumentSchema', () => {
-  it('should validate correct input', () => {
-    const result = CreateDocumentSchema.safeParse({
-      name: 'Test Document',
-      content: 'Document content',
-      contentType: 'text/markdown'
+      expect(response.status).toBe(400);
     });
-
-    expect(result.success).toBe(true);
   });
+});
+```
 
-  it('should reject invalid input', () => {
-    const result = CreateDocumentSchema.safeParse({
-      name: '',  // Invalid: empty name
-      content: 'Document content'
+### 2. Follow HTTP Contract Testing Principles
+
+**DO test**:
+- ✅ HTTP status codes (200, 201, 204, 400, 401, 404, 500)
+- ✅ Authentication enforcement (401 without token)
+- ✅ Response structure (JSON shape, required fields)
+- ✅ Content-Type headers
+- ✅ Location headers (for resource creation)
+- ✅ Request validation (400 for invalid input)
+
+**DON'T test**:
+- ❌ Business logic algorithms
+- ❌ Event-sourcing mechanics
+- ❌ Database queries
+- ❌ Worker behavior
+- ❌ Graph database operations
+
+### 3. Run Tests
+
+```bash
+npm test -- src/__tests__/routes/my-feature.test.ts
+```
+
+## Key Implementation Details
+
+### Archive Pattern (No DELETE Route)
+
+Resources are archived via PATCH, not DELETE:
+
+```typescript
+// ✅ Archive via PATCH
+PATCH /resources/:id
+Body: { archived: true }
+Response: 200 with updated resource
+
+// ❌ NO DELETE route
+// DELETE /resources/:id is NOT implemented
+// Archive is a state change, not deletion (event sourcing)
+```
+
+**Why PATCH instead of DELETE**:
+1. Event-sourcing pattern (preserve audit trail)
+2. Reversible operation (can unarchive)
+3. UI uses PATCH for Archive button
+4. More RESTful for soft-delete semantics
+
+**Frontend implementation**: [apps/frontend/src/app/[locale]/know/resource/[id]/page.tsx:222-236](../../../apps/frontend/src/app/[locale]/know/resource/[id]/page.tsx#L222-L236)
+
+```typescript
+const handleArchive = useCallback(async () => {
+  await updateDocMutation.mutateAsync({
+    rUri,
+    data: { archived: true }  // PATCH, not DELETE
+  });
+  await refetchDocument();
+  showSuccess('Document archived');
+}, [resource, rUri, updateDocMutation, refetchDocument, showSuccess, showError]);
+```
+
+**Backend implementation**: [apps/backend/src/routes/resources/routes/update.ts:50-60](../routes/resources/routes/update.ts#L50-L60)
+
+```typescript
+if (body.archived !== undefined && body.archived !== doc.archived) {
+  if (body.archived) {
+    await eventStore.appendEvent({
+      type: 'resource.archived',
+      resourceId: resourceId(id),
+      userId: userId(user.id),
+      version: 1,
+      payload: { reason: undefined },
     });
-
-    expect(result.success).toBe(false);
-  });
-});
-```
-
-### Authentication Middleware Testing
-
-Test JWT validation logic:
-
-```typescript
-import { authMiddleware } from '../../middleware/auth';
-
-describe('Auth Middleware', () => {
-  it('should reject missing token', async () => {
-    const mockContext = {
-      req: {
-        header: () => null
-      },
-      json: jest.fn()
-    };
-
-    await authMiddleware(mockContext as any, jest.fn());
-
-    expect(mockContext.json).toHaveBeenCalledWith(
-      { error: 'Unauthorized' },
-      401
-    );
-  });
-});
-```
-
-## What NOT to Test
-
-**Avoid complex mocking**:
-
-```typescript
-// ❌ BAD: Complex HTTP + OAuth mocking
-// These tests are fragile and hard to maintain
-describe('OAuth Flow', () => {
-  it('should handle full OAuth flow', async () => {
-    // Mocking HTTP requests, OAuth providers, database calls...
-    // Too complex, test at integration level instead
-  });
-});
-```
-
-**Instead, test business logic directly**:
-
-```typescript
-// ✅ GOOD: Test the service function
-describe('OAuthService', () => {
-  it('should validate OAuth token', () => {
-    const isValid = OAuthService.validateToken('token-data');
-    expect(isValid).toBe(true);
-  });
-});
-```
-
-## Key Backend Test Coverage
-
-Current focus areas:
-
-1. **Route Authentication** - Comprehensive coverage via route-auth-coverage.test.ts
-   - All routes tested for proper authentication
-   - OpenAPI spec validation
-   - Invalid/expired token handling
-   - Auto-detects new routes (no hardcoded lists)
-
-2. **JWT Service** - Token creation, validation, domain checking
-   - HMAC SHA256 signature verification
-   - Token expiration handling
-   - Payload structure validation
-
-3. **Validation Schemas** - 100% coverage of Zod schemas
-   - Request body validation
-   - Response schema validation
-   - Error message validation
-
-4. **Auth Middleware** - Token validation and user context
-   - Bearer token extraction
-   - User database lookup
-   - Context injection
-
-5. **Prisma Operations** - Database CRUD operations
-6. **Environment Config** - Configuration validation
-
-### Security Test Coverage Goals
-
-- **Authentication**: 100% coverage (critical security) ✅
-- **Route Protection**: 100% coverage via route-auth-coverage.test.ts ✅
-- **Validation**: 100% coverage (all Zod schemas)
-- **Business Logic**: >80% coverage
-- **Integration Points**: Contract tests for all APIs
-
-## Writing New Tests
-
-### Add a Unit Test
-
-1. Create test file in `src/__tests__/`:
-
-```typescript
-// src/__tests__/services/document-service.test.ts
-import { describe, it, expect } from '@jest/globals';
-import { DocumentService } from '../../services/document-service';
-
-describe('DocumentService', () => {
-  it('should validate document name', () => {
-    const isValid = DocumentService.isValidName('My Document');
-    expect(isValid).toBe(true);
-  });
-});
-```
-
-2. Run the test:
-
-```bash
-npm run test:unit
-```
-
-### Add an Integration Test
-
-1. Create test in `src/__tests__/integration/`:
-
-```typescript
-// src/__tests__/integration/document-flow.test.ts
-import { describe, it, expect } from '@jest/globals';
-
-describe('Document Creation Flow', () => {
-  it('should create document and update projections', async () => {
-    // Test event store → projection update
-  });
-});
-```
-
-2. Run integration tests:
-
-```bash
-npm run test:integration
-```
-
-## Test Environment Configuration
-
-### Jest Configuration
-
-Backend uses Jest with TypeScript support:
-
-```javascript
-// jest.config.js
-module.exports = {
-  preset: 'ts-jest',
-  testEnvironment: 'node',
-  roots: ['<rootDir>/src'],
-  testMatch: ['**/__tests__/**/*.test.ts'],
-  collectCoverageFrom: [
-    'src/**/*.ts',
-    '!src/**/*.test.ts',
-    '!src/__tests__/**'
-  ]
-};
-```
-
-### Test Environment Variables
-
-```env
-# Set in tests
-SEMIONT_ENV=test
-JWT_SECRET=test-secret-at-least-32-characters-long
-DATABASE_URL=postgresql://test:test@localhost:5432/test_db
-```
-
-## Debugging Backend Tests
-
-### Run Single Test File
-
-```bash
-npm test -- jwt.test.ts
-```
-
-### Run Tests Matching Pattern
-
-```bash
-npm test -- --testNamePattern="JWT validation"
-```
-
-### Enable Verbose Output
-
-```bash
-npm test -- --verbose
-```
-
-### VS Code Debugging
-
-Add to `.vscode/launch.json`:
-
-```json
-{
-  "type": "node",
-  "request": "launch",
-  "name": "Jest Current File",
-  "program": "${workspaceFolder}/node_modules/.bin/jest",
-  "args": [
-    "${fileBasename}",
-    "--config=jest.config.js",
-    "--runInBand"
-  ],
-  "console": "integratedTerminal",
-  "internalConsoleOptions": "neverOpen"
+  }
 }
-```
-
-## Manual API Testing
-
-Test endpoints manually during development:
-
-```bash
-# Health check
-curl http://localhost:4000/api/health
-
-# API documentation
-curl http://localhost:4000/api
-
-# Protected endpoint (requires JWT)
-TOKEN="your-jwt-token"
-curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:4000/api/documents
 ```
 
 ## Running Security Tests
@@ -432,14 +455,11 @@ Security tests are critical and run automatically in CI/CD:
 
 ```bash
 # Run all security tests
-npm run test:security
+npm test -- src/__tests__/route-auth-coverage.test.ts
+npm test -- src/__tests__/backend-security.test.ts
+npm test -- src/__tests__/security-controls.test.ts
 
-# Run specific security test files
-npm test route-auth-coverage.test.ts
-npm test backend-security.test.ts
-npm test security-controls.test.ts
-
-# Run security tests in watch mode
+# Watch mode
 npm run test:watch -- --testNamePattern=security
 ```
 
@@ -457,8 +477,7 @@ const routes = app.routes;
 // Tests each route
 for (const route of routes) {
   if (isPublicRoute(route.path, publicRoutes)) {
-    // Skip - documented as public
-    continue;
+    continue; // Skip - documented as public
   }
 
   // Test without authentication - MUST return 401
@@ -473,70 +492,16 @@ for (const route of routes) {
 - No hardcoded route lists (tests adapt to codebase changes)
 - Prevents accidental exposure of protected endpoints
 
-## Performance Optimization
-
-### Fast Test Execution
-
-- **Unit tests only**: ~500ms for full suite
-- **All tests**: ~2-3 seconds
-- **Watch mode**: Only re-runs changed tests
-
-### Test Isolation
-
-Each test should be independent:
-
-```typescript
-describe('UserService', () => {
-  beforeEach(() => {
-    // Reset state before each test
-    jest.clearAllMocks();
-  });
-
-  it('test 1', () => {
-    // Isolated test
-  });
-
-  it('test 2', () => {
-    // Doesn't depend on test 1
-  });
-});
-```
-
-## Comparison with Frontend Testing
-
-**Backend (Jest)**:
-- Node.js environment
-- Direct function testing
-- Prisma database tests
-- No DOM/browser APIs
-
-**Frontend (Vitest - see [System Testing Guide](../../../docs/TESTING.md))**:
-- Browser environment with jsdom
-- React component testing
-- MSW v2 for API mocking
-- DOM interactions
-
-## Related Documentation
-
-- **[System Testing Guide](../../../docs/TESTING.md)** - Complete testing strategy including frontend (Vitest, MSW v2, React Testing Library)
-- [Development Guide](./DEVELOPMENT.md) - Setting up test environment
-- [Contributing Guide](./CONTRIBUTING.md) - Testing requirements for PRs
-- [API Reference](./API.md) - API endpoints to test
-
 ## Adding Routes: Security Test Checklist
 
 When adding new backend routes:
 
 1. **Apply authentication middleware**:
    ```typescript
-   // Add to existing protected router (automatic auth)
-   router.post('/api/resources/:id/my-action', async (c) => {
+   // Routes registered on authenticated router automatically protected
+   router.post('/resources/:id/my-action', async (c) => {
      const user = c.get('user'); // Available automatically
    });
-
-   // OR create new router with auth
-   export const myRouter = new Hono<{ Variables: { user: User } }>();
-   myRouter.use('/api/my-feature/*', authMiddleware);
    ```
 
 2. **Document in OpenAPI spec**:
@@ -544,25 +509,29 @@ When adding new backend routes:
    {
      "post": {
        "summary": "My action",
-       "security": [{ "bearerAuth": [] }],  // Protected route
-       "responses": { ... }
+       "security": [{ "bearerAuth": [] }],
+       "responses": { "200": { ... } }
      }
    }
    ```
 
-3. **Run security tests**:
-   ```bash
-   npm run test:security
+3. **Add HTTP contract tests**:
+   ```typescript
+   describe('POST /resources/:id/my-action', () => {
+     it('should return 200 on success', async () => { /* ... */ });
+     it('should return 401 without authentication', async () => { /* ... */ });
+     it('should return 404 for non-existent resource', async () => { /* ... */ });
+   });
    ```
 
-4. **Verify coverage**:
-   - route-auth-coverage.test.ts should automatically test your new route
-   - Check test output for "Tested: X routes" to confirm coverage
-   - If route is public, ensure it has NO `security` field in OpenAPI spec
+4. **Run security tests**:
+   ```bash
+   npm test -- route-auth-coverage.test.ts
+   ```
 
 **For admin/moderator routes**:
 ```typescript
-router.post('/api/admin/my-action', async (c) => {
+router.post('/admin/my-action', async (c) => {
   const user = c.get('user');
   if (!user.isAdmin) {
     return c.json({ error: 'Forbidden: Admin access required' }, 403);
@@ -571,7 +540,43 @@ router.post('/api/admin/my-action', async (c) => {
 });
 ```
 
+## Debugging Tests
+
+### Run Single Test File
+
+```bash
+npm test -- resources-crud.test.ts
+```
+
+### Run Tests Matching Pattern
+
+```bash
+npm test -- --testNamePattern="should return 401"
+```
+
+### Enable Verbose Output
+
+```bash
+npm test -- --reporter=verbose
+```
+
+### Watch Mode for TDD
+
+```bash
+npm run test:watch
+```
+
+## Related Documentation
+
+- **[System Testing Guide](../../../docs/TESTING.md)** - Complete testing strategy including frontend (Vitest, MSW v2, React Testing Library)
+- **[TEST-BACKEND.md](../../../TEST-BACKEND.md)** - Backend testing reorganization plan
+- [Development Guide](./DEVELOPMENT.md) - Setting up test environment
+- [Contributing Guide](./CONTRIBUTING.md) - Testing requirements for PRs
+- [API Reference](./API.md) - API endpoints to test
+
 ---
 
-**Last Updated**: 2026-01-21
-**Scope**: Backend testing with Vitest (Node.js, TypeScript, Prisma, Security)
+**Last Updated**: 2026-01-30
+**Scope**: Backend HTTP contract testing with Vitest (Node.js, TypeScript, Security)
+**Test Framework**: Vitest (not Jest)
+**Testing Pattern**: HTTP contract tests (backend) + business logic tests (packages)
