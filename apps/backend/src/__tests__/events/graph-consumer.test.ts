@@ -141,10 +141,7 @@ describe('GraphDBConsumer', () => {
 
   beforeEach(async () => {
     mockGraphDB = createMockGraphDB();
-    consumer = new GraphDBConsumer(testEnv.config, eventStore);
-
-    // Inject mock GraphDB
-    consumer['graphDb'] = mockGraphDB;
+    consumer = new GraphDBConsumer(testEnv.config, eventStore, mockGraphDB as any);
   });
 
   afterEach(async () => {

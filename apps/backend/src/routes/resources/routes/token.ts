@@ -53,7 +53,6 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
       throw new HTTPException(404, { message: 'Token expired' });
     }
 
-    const config = c.get('config');
     const { graphDb } = c.get('makeMeaning');
     const sourceDoc = await graphDb.getResource(resourceUri(tokenData.resourceId));
     if (!sourceDoc) {
@@ -82,8 +81,6 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
     async (c) => {
       const body = c.get('validatedBody') as CreateResourceFromTokenRequest;
       const user = c.get('user');
-      const config = c.get('config');
-      const basePath = config.services.filesystem!.path;
 
       const token = makeCloneToken(body.token);
       const tokenData = cloneTokens.get(token);
@@ -182,7 +179,6 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
    */
   router.post('/resources/:id/clone-with-token', async (c) => {
     const { id } = c.req.param();
-    const config = c.get('config');
     const { graphDb, repStore } = c.get('makeMeaning');
 
     const sourceDoc = await graphDb.getResource(resourceUri(resourceUri(id)));

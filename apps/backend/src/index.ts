@@ -76,10 +76,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Import graph database for initialization
-import { getGraphDatabase } from '@semiont/graph';
-// Import inference client for initialization
-import { getInferenceClient } from '@semiont/inference';
+// Graph database and inference client are accessed via makeMeaning service
 // Import security headers middleware
 import { securityHeaders } from './middleware/security-headers';
 // Import logging middleware
@@ -252,30 +249,19 @@ if (nodeEnv !== 'test') {
       // Continue running even if bootstrap fails
     }
 
-    // Initialize graph database and seed tag collections
+    // Pre-populate tag collections from graph database
+    // Uses graphDb from MakeMeaningService (already initialized)
     try {
-      console.log('🔧 Initializing graph database...');
-      const graphDb = await getGraphDatabase(config);
-
-      // Pre-populate tag collections by calling getters
-      // This ensures defaults are loaded on startup
-      const entityTypes = await graphDb.getEntityTypes();
-
-      console.log(`✅ Graph database initialized with ${entityTypes.length} entity types`);
+      console.log('🔧 Pre-loading entity types from graph database...');
+      const entityTypes = await makeMeaning.graphDb.getEntityTypes();
+      console.log(`✅ Graph database warmed up with ${entityTypes.length} entity types`);
     } catch (error) {
-      console.error('⚠️ Failed to initialize graph database:', error);
-      // Continue running even if graph initialization fails
+      console.error('⚠️ Failed to pre-load entity types:', error);
+      // Continue running even if warmup fails
     }
 
-    // Initialize inference client
-    try {
-      console.log('🤖 Initializing inference client...');
-      await getInferenceClient(config);
-      console.log('✅ Inference client initialized');
-    } catch (error) {
-      console.error('⚠️ Failed to initialize inference client:', error);
-      // Continue running even if inference initialization fails
-    }
+    // Note: InferenceClient is already initialized in MakeMeaningService
+    console.log('✅ Inference client ready (initialized in MakeMeaningService)');
   });
 }
 
