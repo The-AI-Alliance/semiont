@@ -17,12 +17,12 @@ import type {
   AnnotationBodyUpdatedEvent,
   EntityTagAddedEvent,
   EntityTagRemovedEvent,
-} from './events';
-import type { CreationMethod } from './creation-methods';
+} from '@semiont/core';
+import type { CreationMethod } from '@semiont/core';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/ontology';
-import type { AnnotationId } from './identifiers';
+import type { AnnotationId } from '@semiont/core';
 
 // Import OpenAPI types
 type Annotation = components['schemas']['Annotation'];

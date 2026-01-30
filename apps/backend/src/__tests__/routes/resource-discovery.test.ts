@@ -9,9 +9,9 @@
  */
 
 import { describe, it, expect, beforeAll, vi } from 'vitest';
-import { userId, email } from '@semiont/api-client';
+import { userId } from '@semiont/core';
+import { email } from '@semiont/api-client';
 import { JWTService } from '../../auth/jwt';
-import type { Hono } from 'hono';
 import type { EnvironmentConfig } from '@semiont/core';
 
 // Standard test setup
@@ -49,7 +49,7 @@ const setupMocks = () => {
 setupMocks();
 
 describe('Resource Discovery HTTP Contract', () => {
-  let app: Hono;
+  let app: any; // Use any to avoid Hono type complexity in tests
   let authToken: string;
   const testUser = {
     id: 'test-user-id',
@@ -106,7 +106,7 @@ describe('Resource Discovery HTTP Contract', () => {
       });
 
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await response.json() as any;
       expect(data).toHaveProperty('referencedBy');
       expect(Array.isArray(data.referencedBy)).toBe(true);
     });

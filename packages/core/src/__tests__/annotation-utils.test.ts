@@ -56,32 +56,32 @@ describe('@semiont/core - annotation-utils', () => {
 
   describe('findBodyItem', () => {
     it('should find TextualBody item in array', () => {
-      const body = [
+      const body: BodyItem[] = [
         { type: 'TextualBody', value: 'First comment', purpose: 'commenting' },
         { type: 'TextualBody', value: 'Second comment', purpose: 'commenting' },
       ];
       const targetItem: BodyItem = { type: 'TextualBody', value: 'Second comment', purpose: 'commenting' };
 
-      expect(findBodyItem(body, targetItem)).toBe(1);
+      expect(findBodyItem(body as any, targetItem)).toBe(1);
     });
 
     it('should find SpecificResource item in array', () => {
-      const body = [
+      const body: BodyItem[] = [
         { type: 'TextualBody', value: 'Comment', purpose: 'commenting' },
         { type: 'SpecificResource', source: 'https://example.com/ref', purpose: 'linking' },
       ];
       const targetItem: BodyItem = { type: 'SpecificResource', source: 'https://example.com/ref', purpose: 'linking' };
 
-      expect(findBodyItem(body, targetItem)).toBe(1);
+      expect(findBodyItem(body as any, targetItem)).toBe(1);
     });
 
     it('should return -1 when item not found', () => {
-      const body = [
+      const body: BodyItem[] = [
         { type: 'TextualBody', value: 'First comment', purpose: 'commenting' },
       ];
       const targetItem: BodyItem = { type: 'TextualBody', value: 'Not found', purpose: 'commenting' };
 
-      expect(findBodyItem(body, targetItem)).toBe(-1);
+      expect(findBodyItem(body as any, targetItem)).toBe(-1);
     });
 
     it('should return -1 for non-array body', () => {

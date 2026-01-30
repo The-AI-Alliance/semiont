@@ -212,7 +212,7 @@ describe('Resource CRUD HTTP Contract', () => {
       });
 
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await response.json() as any;
       expect(data).toHaveProperty('resources');
       expect(Array.isArray(data.resources)).toBe(true);
     });
@@ -307,7 +307,7 @@ describe('Resource CRUD HTTP Contract', () => {
       });
 
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await response.json() as any;
       expect(data.resource.archived).toBe(true);
     });
   });

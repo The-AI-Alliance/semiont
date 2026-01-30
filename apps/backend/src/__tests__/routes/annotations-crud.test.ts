@@ -155,7 +155,7 @@ describe('Annotation CRUD HTTP Contract', () => {
       });
 
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await response.json() as any;
       expect(data).toHaveProperty('@context');
       expect(data).toHaveProperty('type');
       expect(data).toHaveProperty('items');
