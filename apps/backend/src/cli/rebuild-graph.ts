@@ -10,7 +10,7 @@
  *   npm run rebuild-graph <resourceId> # Rebuild specific resource
  */
 
-import { getGraphConsumer } from '../events/consumers/graph-consumer';
+import { startMakeMeaning } from '@semiont/make-meaning';
 import { loadEnvironmentConfig, resourceId as makeResourceId } from '@semiont/core';
 
 async function rebuildGraph(rId?: string) {
@@ -21,8 +21,9 @@ async function rebuildGraph(rId?: string) {
   const environment = process.env.SEMIONT_ENV || 'development';
   const config = loadEnvironmentConfig(projectRoot, environment);
 
-  // Get graph consumer
-  const consumer = await getGraphConsumer(config);
+  // Start make-meaning to get eventStore and graphConsumer
+  const makeMeaning = await startMakeMeaning(config);
+  const { graphConsumer: consumer } = makeMeaning;
 
   if (rId) {
     // Rebuild single resource
@@ -57,8 +58,8 @@ async function rebuildGraph(rId?: string) {
     }
   }
 
-  // Shutdown consumer
-  await consumer.shutdown();
+  // Shutdown make-meaning
+  await makeMeaning.stop();
 
   console.log(`\n✅ Done!`);
 }

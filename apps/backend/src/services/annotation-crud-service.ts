@@ -5,7 +5,7 @@
  * Orchestrates: ID generation + event emission + response building
  */
 
-import { createEventStore } from './event-store-service';
+import type { EventStore } from '@semiont/event-sourcing';
 import {
   type components,
   getTextPositionSelector,
@@ -35,6 +35,7 @@ export class AnnotationCrudService {
   static async createAnnotation(
     request: CreateAnnotationRequest,
     user: User,
+    eventStore: EventStore,
     config: EnvironmentConfig
   ): Promise<CreateAnnotationResponse> {
     // Generate annotation ID
@@ -47,7 +48,7 @@ export class AnnotationCrudService {
     const annotation = this.buildAnnotation(newAnnotationId, request);
 
     // Emit annotation.added event
-    await this.emitAnnotationAdded(annotation, request.target.source, user, config);
+    await this.emitAnnotationAdded(annotation, request.target.source, user, eventStore);
 
     // Build and return response
     return {
@@ -66,6 +67,7 @@ export class AnnotationCrudService {
     id: string,
     request: UpdateAnnotationBodyRequest,
     user: User,
+    eventStore: EventStore,
     config: EnvironmentConfig
   ): Promise<UpdateAnnotationBodyResponse> {
     // Get annotation from view storage
@@ -80,7 +82,7 @@ export class AnnotationCrudService {
     }
 
     // Emit annotation.body.updated event
-    await this.emitBodyUpdated(id, annotation, request.operations, user, config);
+    await this.emitBodyUpdated(id, annotation, request.operations, user, eventStore);
 
     // Apply operations optimistically for response
     const updatedBody = this.applyBodyOperations(annotation.body, request.operations);
@@ -100,6 +102,7 @@ export class AnnotationCrudService {
     id: string,
     resourceIdUri: string,
     user: User,
+    eventStore: EventStore,
     config: EnvironmentConfig
   ): Promise<void> {
     const resourceId = uriToResourceId(resourceIdUri);
@@ -113,7 +116,7 @@ export class AnnotationCrudService {
     }
 
     // Emit annotation.removed event
-    await this.emitAnnotationRemoved(id, resourceId, user, config);
+    await this.emitAnnotationRemoved(id, resourceId, user, eventStore);
   }
 
   /**
@@ -166,9 +169,8 @@ export class AnnotationCrudService {
     annotation: Omit<Annotation, 'creator' | 'created'>,
     targetSource: string,
     user: User,
-    config: EnvironmentConfig
+    eventStore: EventStore
   ): Promise<void> {
-    const eventStore = await createEventStore(config);
     const eventPayload: Omit<AnnotationAddedEvent, 'id' | 'timestamp'> = {
       type: 'annotation.added',
       resourceId: uriToResourceId(targetSource),
@@ -189,9 +191,8 @@ export class AnnotationCrudService {
     annotation: Annotation,
     operations: UpdateAnnotationBodyRequest['operations'],
     user: User,
-    config: EnvironmentConfig
+    eventStore: EventStore
   ): Promise<void> {
-    const eventStore = await createEventStore(config);
     await eventStore.appendEvent({
       type: 'annotation.body.updated',
       resourceId: uriToResourceId(getTargetSource(annotation.target)),
@@ -211,9 +212,8 @@ export class AnnotationCrudService {
     id: string,
     resourceId: ResourceId,
     user: User,
-    config: EnvironmentConfig
+    eventStore: EventStore
   ): Promise<void> {
-    const eventStore = await createEventStore(config);
     console.log('[DeleteAnnotation] Emitting annotation.removed event for:', id);
     const storedEvent = await eventStore.appendEvent({
       type: 'annotation.removed',

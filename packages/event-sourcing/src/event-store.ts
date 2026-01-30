@@ -35,12 +35,16 @@ export class EventStore {
   readonly log: EventLog;
   readonly bus: EventBus;
   readonly views: ViewManager;
+  readonly viewStorage: ViewStorage;
 
   constructor(
     config: EventStorageConfig,
     viewStorage: ViewStorage,
     identifierConfig: IdentifierConfig
   ) {
+    // Store viewStorage for direct access
+    this.viewStorage = viewStorage;
+
     // Initialize focused components
     const logConfig: EventLogConfig = {
       basePath: config.basePath,

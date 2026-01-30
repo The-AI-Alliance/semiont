@@ -2,32 +2,24 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { LLMContextService, type LLMContextOptions } from '../llm-context-service';
 import type { EnvironmentConfig } from '@semiont/core';
 import type { components } from '@semiont/api-client';
+import type { InferenceClient } from '@semiont/inference';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
 
 // Mock dependencies
-vi.mock('@semiont/graph', () => ({
-  getGraphDatabase: vi.fn(),
-}));
-
-vi.mock('@semiont/inference', () => ({
+vi.mock('@semiont/make-meaning', () => ({
   generateResourceSummary: vi.fn(),
   generateReferenceSuggestions: vi.fn(),
 }));
 
-vi.mock('@semiont/content', () => ({
-  FilesystemRepresentationStore: vi.fn(),
-}));
-
-import { getGraphDatabase } from '@semiont/graph';
-import { generateResourceSummary, generateReferenceSuggestions } from '@semiont/inference';
-import { FilesystemRepresentationStore } from '@semiont/content';
+import { generateResourceSummary, generateReferenceSuggestions } from '@semiont/make-meaning';
 
 describe('LLMContextService', () => {
   let mockConfig: EnvironmentConfig;
   let mockGraphDb: any;
   let mockRepStore: any;
+  let mockInferenceClient: InferenceClient;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -52,8 +44,11 @@ describe('LLMContextService', () => {
       retrieve: vi.fn(),
     };
 
-    vi.mocked(getGraphDatabase).mockResolvedValue(mockGraphDb);
-    vi.mocked(FilesystemRepresentationStore).mockImplementation(() => mockRepStore);
+    // Mock inference client
+    mockInferenceClient = {
+      generateText: vi.fn().mockResolvedValue('Generated text'),
+      generateTextWithMetadata: vi.fn().mockResolvedValue({ text: 'Generated text', stopReason: 'end_turn' }),
+    };
   });
 
   describe('getResourceLLMContext', () => {
@@ -130,7 +125,7 @@ describe('LLMContextService', () => {
       };
 
       // Act
-      const result = await LLMContextService.getResourceLLMContext('test-123', options, mockConfig);
+      const result = await LLMContextService.getResourceLLMContext('test-123', options, mockConfig, mockInferenceClient, mockGraphDb, mockRepStore);
 
       // Assert
       expect(result.mainResource).toEqual(mockMainResource);
@@ -158,7 +153,7 @@ describe('LLMContextService', () => {
       };
 
       // Act
-      const result = await LLMContextService.getResourceLLMContext('test-123', options, mockConfig);
+      const result = await LLMContextService.getResourceLLMContext('test-123', options, mockConfig, mockInferenceClient, mockGraphDb, mockRepStore);
 
       // Assert
       expect(result.mainResourceContent).toBe('Test content');
@@ -181,7 +176,7 @@ describe('LLMContextService', () => {
       };
 
       // Act
-      const result = await LLMContextService.getResourceLLMContext('test-123', options, mockConfig);
+      const result = await LLMContextService.getResourceLLMContext('test-123', options, mockConfig, mockInferenceClient, mockGraphDb, mockRepStore);
 
       // Assert
       expect(result.summary).toBe('Generated summary');
@@ -189,7 +184,7 @@ describe('LLMContextService', () => {
         'Test Resource',
         'Test content',
         ['Document'],
-        mockConfig
+        mockInferenceClient
       );
     });
 
@@ -209,11 +204,11 @@ describe('LLMContextService', () => {
       };
 
       // Act
-      const result = await LLMContextService.getResourceLLMContext('test-123', options, mockConfig);
+      const result = await LLMContextService.getResourceLLMContext('test-123', options, mockConfig, mockInferenceClient, mockGraphDb, mockRepStore);
 
       // Assert
       expect(result.suggestedReferences).toEqual(['Ref 1', 'Ref 2']);
-      expect(generateReferenceSuggestions).toHaveBeenCalledWith('Test content', mockConfig);
+      expect(generateReferenceSuggestions).toHaveBeenCalledWith('Test content', mockInferenceClient);
     });
 
     it('should limit related resources based on maxResources', async () => {
@@ -239,7 +234,7 @@ describe('LLMContextService', () => {
       };
 
       // Act
-      const result = await LLMContextService.getResourceLLMContext('test-123', options, mockConfig);
+      const result = await LLMContextService.getResourceLLMContext('test-123', options, mockConfig, mockInferenceClient, mockGraphDb, mockRepStore);
 
       // Assert
       // maxResources - 1 because main resource counts as one
@@ -259,7 +254,7 @@ describe('LLMContextService', () => {
 
       // Act & Assert
       await expect(
-        LLMContextService.getResourceLLMContext('nonexistent', options, mockConfig)
+        LLMContextService.getResourceLLMContext('nonexistent', options, mockConfig, mockInferenceClient, mockGraphDb, mockRepStore)
       ).rejects.toThrow('Resource not found');
     });
 
@@ -282,7 +277,7 @@ describe('LLMContextService', () => {
       };
 
       // Act
-      const result = await LLMContextService.getResourceLLMContext('test-123', options, mockConfig);
+      const result = await LLMContextService.getResourceLLMContext('test-123', options, mockConfig, mockInferenceClient, mockGraphDb, mockRepStore);
 
       // Assert
       expect(result.mainResourceContent).toBeUndefined();
@@ -305,7 +300,7 @@ describe('LLMContextService', () => {
       };
 
       // Act
-      const result = await LLMContextService.getResourceLLMContext('test-123', options, mockConfig);
+      const result = await LLMContextService.getResourceLLMContext('test-123', options, mockConfig, mockInferenceClient, mockGraphDb, mockRepStore);
 
       // Assert
       expect(result.graph.nodes).toEqual([
@@ -353,7 +348,7 @@ describe('LLMContextService', () => {
       };
 
       // Act
-      const result = await LLMContextService.getResourceLLMContext('test-123', options, mockConfig);
+      const result = await LLMContextService.getResourceLLMContext('test-123', options, mockConfig, mockInferenceClient, mockGraphDb, mockRepStore);
 
       // Assert
       expect(result.mainResourceContent).toBe('Main content');
@@ -382,7 +377,7 @@ describe('LLMContextService', () => {
       };
 
       // Act
-      const result = await LLMContextService.getResourceLLMContext('test-123', options, mockConfig);
+      const result = await LLMContextService.getResourceLLMContext('test-123', options, mockConfig, mockInferenceClient, mockGraphDb, mockRepStore);
 
       // Assert
       expect(result.mainResourceContent).toBe('Main content');

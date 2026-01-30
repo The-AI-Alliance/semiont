@@ -10,7 +10,6 @@
 
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import { createEventStore } from '../../../services/event-store-service';
 import { ResourceContext } from '@semiont/make-meaning';
 import { AnnotationContext } from '@semiont/make-meaning';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
@@ -45,7 +44,7 @@ export function registerUpdateResource(router: ResourcesRouterType) {
         throw new HTTPException(404, { message: 'Resource not found' });
       }
 
-      const eventStore = await createEventStore( config);
+      const { eventStore } = c.get('makeMeaning');
 
       // Emit archived/unarchived events (event store updates view storage, graph consumer updates Graph Database)
       if (body.archived !== undefined && body.archived !== doc.archived) {

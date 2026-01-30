@@ -50,6 +50,8 @@ export type {
   ResourceClonedEvent,
   ResourceArchivedEvent,
   ResourceUnarchivedEvent,
+  RepresentationAddedEvent,
+  RepresentationRemovedEvent,
   AnnotationAddedEvent,
   AnnotationRemovedEvent,
   AnnotationBodyUpdatedEvent,

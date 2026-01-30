@@ -8,7 +8,6 @@
  * - OpenAPI spec is the source of truth
  */
 
-import { getGraphDatabase } from '@semiont/graph';
 import {
   getExactText,
   getTargetSource,
@@ -37,7 +36,7 @@ export function registerGetReferencedBy(router: ResourcesRouterType) {
     const { id } = c.req.param();
     const motivation = c.req.query('motivation');
     const config = c.get('config');
-    const graphDb = await getGraphDatabase(config);
+    const { graphDb } = c.get('makeMeaning');
 
     // Get all annotations that reference this resource
     // Convert to full URI for graph database lookup

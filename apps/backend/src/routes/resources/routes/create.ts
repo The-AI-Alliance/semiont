@@ -62,6 +62,7 @@ export function registerCreateResource(router: ResourcesRouterType) {
     const contentBuffer = Buffer.from(arrayBuffer);
 
     // Delegate to service for resource creation
+    const { eventStore, repStore } = c.get('makeMeaning');
     const response = await ResourceOperations.createResource(
       {
         name,
@@ -72,6 +73,8 @@ export function registerCreateResource(router: ResourcesRouterType) {
         creationMethod: (creationMethod || undefined) as CreationMethod | undefined,
       },
       user,
+      eventStore,
+      repStore,
       config
     );
 

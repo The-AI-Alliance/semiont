@@ -14,9 +14,9 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { authMiddleware } from '../middleware/auth';
 import { validateRequestBody } from '../middleware/validate-openapi';
-import { createEventStore } from '../services/event-store-service';
 import type { components } from '@semiont/api-client';
 import { userId, type EnvironmentConfig } from '@semiont/core';
+import type { startMakeMeaning } from '@semiont/make-meaning';
 
 type AddEntityTypeRequest = components['schemas']['AddEntityTypeRequest'];
 type AddEntityTypeResponse = components['schemas']['AddEntityTypeResponse'];
@@ -60,7 +60,7 @@ async function getEntityTypesFromLayer3(config: EnvironmentConfig): Promise<stri
 }
 
 // Create router with auth middleware
-export const entityTypesRouter = new Hono<{ Variables: { user: User; config: EnvironmentConfig } }>();
+export const entityTypesRouter = new Hono<{ Variables: { user: User; config: EnvironmentConfig; makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>> } }>();
 entityTypesRouter.use('/api/entity-types/*', authMiddleware);
 
 /**
@@ -98,7 +98,7 @@ entityTypesRouter.post('/api/entity-types',
     const body = c.get('validatedBody') as AddEntityTypeRequest;
 
     // Emit event (no resourceId for system-level events)
-    const eventStore = await createEventStore( config);
+    const { eventStore } = c.get('makeMeaning');
     await eventStore.appendEvent({
       type: 'entitytype.added',
       // resourceId: undefined - system-level event
@@ -133,7 +133,7 @@ entityTypesRouter.post('/api/entity-types/bulk',
     }
 
     const body = c.get('validatedBody') as BulkAddEntityTypesRequest;
-    const eventStore = await createEventStore( config);
+    const { eventStore } = c.get('makeMeaning');
 
     // Emit one event per entity type (no resourceId)
     for (const tag of body.tags) {

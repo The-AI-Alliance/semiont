@@ -28,8 +28,11 @@ describe('SSE Event Flow - End-to-End', () => {
     const environment = process.env.SEMIONT_ENV || 'test';
     const config = loadEnvironmentConfig(projectRoot, environment);
 
-    const { createEventStore } = await import('../../services/event-store-service');
-    eventStore = await createEventStore( config, {
+    const { createEventStore } = await import('@semiont/event-sourcing');
+    eventStore = createEventStore(
+      config.services.filesystem!.path,
+      config.services.backend!.publicURL,
+      {
       enableSharding: false,
       maxEventsPerFile: 100,
     });

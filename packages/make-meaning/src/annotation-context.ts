@@ -9,7 +9,8 @@
  * - Generating AI summaries
  */
 
-import { generateResourceSummary, generateText } from '@semiont/inference';
+import { getInferenceClient } from '@semiont/inference';
+import { generateResourceSummary } from './generation/resource-generation';
 import {
   getBodySource,
   getTargetSource,
@@ -208,9 +209,12 @@ export class AnnotationContext {
         const targetContent = await repStore.retrieve(targetRep.checksum, targetRep.mediaType);
         const contentStr = decodeRepresentation(targetContent, targetRep.mediaType);
 
+        // Create inference client for this request (HTTP handler context)
+        const client = await getInferenceClient(config);
+
         targetContext = {
           content: contentStr.slice(0, contextWindow * 2),
-          summary: await generateResourceSummary(targetDoc.name, contentStr, getResourceEntityTypes(targetDoc), config),
+          summary: await generateResourceSummary(targetDoc.name, contentStr, getResourceEntityTypes(targetDoc), client),
         };
       }
     }
@@ -293,7 +297,7 @@ export class AnnotationContext {
       if (ann.motivation === 'linking' && ann.body) {
         const body = Array.isArray(ann.body) ? ann.body : [ann.body];
         for (const item of body) {
-          if (item.purpose === 'linking' && item.source) {
+          if (item.type === 'SpecificResource' && item.purpose === 'linking' && item.source) {
             resolvedUris.add(item.source);
           }
         }
@@ -343,7 +347,7 @@ export class AnnotationContext {
       if (ann.motivation === 'linking' && ann.body) {
         const body = Array.isArray(ann.body) ? ann.body : [ann.body];
         for (const item of body) {
-          if (item.purpose === 'linking' && item.source) {
+          if (item.type === 'SpecificResource' && item.purpose === 'linking' && item.source) {
             const metadata = uriToMetadata.get(item.source);
             if (metadata) {
               return {
@@ -567,6 +571,7 @@ export class AnnotationContext {
 
   /**
    * Generate LLM summary of annotation in context
+   * Creates inference client per-request (HTTP handler context)
    */
   private static async generateSummary(
     resource: ResourceDescriptor,
@@ -583,6 +588,8 @@ Context after: "${context.after.substring(0, 200)}"
 Resource: ${resource.name}
 Entity types: ${entityTypes.join(', ')}`;
 
-    return await generateText(summaryPrompt, config, 500, 0.5);
+    // Create client for this HTTP request
+    const client = await getInferenceClient(config);
+    return await client.generateText(summaryPrompt, 500, 0.5);
   }
 }

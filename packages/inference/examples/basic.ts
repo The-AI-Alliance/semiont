@@ -1,103 +1,63 @@
 /**
  * Basic Inference Example
  *
- * This example demonstrates:
- * - Text generation
- * - Entity detection
- * - Streaming responses
- * - Using different providers
+ * This example demonstrates the AI primitives provided by @semiont/inference:
+ * - getInferenceClient: Get the Anthropic client singleton
+ * - getInferenceModel: Get the configured model name
+ * - generateText: Simple text generation
+ *
+ * For application-specific AI logic (entity extraction, resource generation,
+ * motivation prompts/parsers), see @semiont/make-meaning examples.
  */
 
-import {
-  generateText,
-  generateStream,
-  detectEntities,
-  PromptTemplate
-} from '@semiont/inference';
+import { generateText, getInferenceClient } from '@semiont/inference';
+import type { EnvironmentConfig } from '@semiont/core';
+
+// Example configuration
+const config: EnvironmentConfig = {
+  services: {
+    inference: {
+      type: 'anthropic',
+      model: 'claude-3-5-sonnet-20241022',
+      apiKey: '${ANTHROPIC_API_KEY}', // Expands from environment variable
+    },
+  },
+};
 
 async function main() {
-  // 1. Simple text generation
-  console.log('🤖 Generating text...\n');
+  // 1. Simple text generation (the core primitive)
+  console.log('🤖 Generating text with generateText()...\n');
 
-  const result = await generateText({
-    prompt: 'Explain photosynthesis in simple terms',
-    model: 'claude-sonnet-4',
-    maxTokens: 200,
-    temperature: 0.7,
-    provider: 'anthropic'
-  });
+  const result = await generateText(
+    'Explain photosynthesis in simple terms',
+    config,
+    200,  // maxTokens
+    0.7   // temperature
+  );
 
-  console.log('Response:', result.text);
-  console.log('Tokens used:', result.usage);
+  console.log('Response:', result);
+  console.log('Length:', result.length, 'characters\n');
 
-  // 2. Entity detection
-  console.log('\n🔍 Detecting entities...\n');
+  // 2. Direct client access with metadata (advanced use)
+  console.log('🔧 Using getInferenceClient() with metadata...\n');
 
-  const text = 'Marie Curie worked at the University of Paris and won the Nobel Prize in 1903.';
-  const entities = await detectEntities({
-    text,
-    entityTypes: ['Person', 'Organization', 'Date', 'Award'],
-    provider: 'anthropic'
-  });
+  const client = await getInferenceClient(config);
 
-  console.log('Found entities:');
-  entities.forEach(entity => {
-    console.log(`  - ${entity.type}: "${entity.text}" at [${entity.start}:${entity.end}]`);
-  });
+  const response = await client.generateTextWithMetadata(
+    'Write a haiku about programming',
+    100,
+    0.7
+  );
 
-  // 3. Using prompt templates
-  console.log('\n📝 Using prompt template...\n');
-
-  const template = new PromptTemplate({
-    template: 'Write a {length} summary about {topic} for a {audience} audience.',
-    variables: ['length', 'topic', 'audience']
-  });
-
-  const prompt = template.render({
-    length: 'brief',
-    topic: 'quantum computing',
-    audience: 'high school'
-  });
-
-  const summary = await generateText({
-    prompt,
-    provider: 'anthropic',
-    maxTokens: 300
-  });
-
-  console.log('Generated summary:', summary.text);
-
-  // 4. Streaming generation
-  console.log('\n🌊 Streaming response...\n');
-
-  const stream = await generateStream({
-    prompt: 'Write a haiku about programming',
-    model: 'claude-sonnet-4',
-    provider: 'anthropic'
-  });
-
-  process.stdout.write('Haiku: ');
-  for await (const chunk of stream) {
-    process.stdout.write(chunk.text);
-  }
-  console.log('\n');
-
-  // 5. Error handling example
-  console.log('⚠️ Demonstrating error handling...\n');
-
-  try {
-    await generateText({
-      prompt: 'Test prompt',
-      provider: 'anthropic',
-      maxTokens: 1000000 // Too many tokens
-    });
-  } catch (error) {
-    if (error.name === 'TokenLimitError') {
-      console.log('Caught token limit error:', error.message);
-    }
-  }
+  console.log('Haiku:', response.text);
+  console.log('Stop reason:', response.stopReason);
 
   console.log('\n✨ Example complete');
+  console.log('\n💡 For application-specific AI features, see @semiont/make-meaning:');
+  console.log('   - Entity extraction: extractEntities()');
+  console.log('   - Resource generation: generateResourceFromTopic()');
+  console.log('   - Motivation prompts: MotivationPrompts');
+  console.log('   - Response parsers: MotivationParsers');
 }
 
 // Note: Set environment variables before running:

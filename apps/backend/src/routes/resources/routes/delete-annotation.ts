@@ -7,7 +7,6 @@
 
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import { createEventStore } from '../../../services/event-store-service';
 import type { components } from '@semiont/api-client';
 import { annotationUri } from '@semiont/api-client';
 import { resourceId, annotationId, userId } from '@semiont/core';
@@ -43,7 +42,7 @@ export function registerDeleteAnnotation(router: ResourcesRouterType) {
     }
 
     // Emit unified annotation.removed event
-    const eventStore = await createEventStore(config);
+    const { eventStore } = c.get('makeMeaning');
     console.log('[DeleteAnnotation] Emitting annotation.removed event for:', annotationIdParam);
     const storedEvent = await eventStore.appendEvent({
       type: 'annotation.removed',

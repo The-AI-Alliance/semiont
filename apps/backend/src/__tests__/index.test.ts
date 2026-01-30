@@ -17,6 +17,7 @@ import { setupTestEnvironment, type TestEnvironmentConfig } from './_test-setup'
 type Variables = {
   user: User;
   config: EnvironmentConfig;
+  makeMeaning: any;
 };
 
 interface HealthResponse {
@@ -26,6 +27,19 @@ interface HealthResponse {
   environment?: string;
   timestamp?: string;
 }
+
+// Mock make-meaning service to avoid graph initialization at import time
+vi.mock('@semiont/make-meaning', async (importOriginal) => {
+  const actual = await importOriginal() as any;
+  return {
+    ...actual,
+    startMakeMeaning: vi.fn().mockResolvedValue({
+      jobQueue: {},
+      workers: [],
+      graphConsumer: {}
+    })
+  };
+});
 
 // Mock the database before any imports to avoid connection attempts
 vi.mock('../db', () => ({

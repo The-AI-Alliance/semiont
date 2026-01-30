@@ -39,11 +39,12 @@ crudRouter.post('/api/annotations',
   async (c) => {
     const request = c.get('validatedBody') as CreateAnnotationRequest;
     const user = c.get('user');
+    const { eventStore } = c.get('makeMeaning');
     const config = c.get('config');
 
     // Delegate to service for annotation creation
     try {
-      const response = await AnnotationCrudService.createAnnotation(request, user, config);
+      const response = await AnnotationCrudService.createAnnotation(request, user, eventStore, config);
       return c.json(response, 201);
     } catch (error) {
       if (error instanceof Error && error.message === 'Backend publicURL not configured') {
@@ -71,13 +72,14 @@ crudRouter.put('/api/annotations/:id/body',
     const { id } = c.req.param();
     const request = c.get('validatedBody') as UpdateAnnotationBodyRequest;
     const user = c.get('user');
+    const { eventStore } = c.get('makeMeaning');
     const config = c.get('config');
 
     console.log(`[BODY UPDATE HANDLER] Called for annotation ${id}, operations:`, request.operations);
 
     // Delegate to service for body update
     try {
-      const response = await AnnotationCrudService.updateAnnotationBody(id, request, user, config);
+      const response = await AnnotationCrudService.updateAnnotationBody(id, request, user, eventStore, config);
       console.log(`[BODY UPDATE HANDLER] Successfully updated annotation ${id}`);
       return c.json(response);
     } catch (error) {
@@ -131,11 +133,12 @@ crudRouter.delete('/api/annotations/:id',
     const { id } = c.req.param();
     const request = c.get('validatedBody') as DeleteAnnotationRequest;
     const user = c.get('user');
+    const { eventStore } = c.get('makeMeaning');
     const config = c.get('config');
 
     // Delegate to service for annotation deletion
     try {
-      await AnnotationCrudService.deleteAnnotation(id, request.resourceId, user, config);
+      await AnnotationCrudService.deleteAnnotation(id, request.resourceId, user, eventStore, config);
       return c.body(null, 204);
     } catch (error) {
       if (error instanceof Error && error.message === 'Annotation not found in resource') {

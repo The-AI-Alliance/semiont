@@ -7,7 +7,6 @@
 
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import { createEventStore } from '../../../services/event-store-service';
 import type { components } from '@semiont/api-client';
 import { getTextPositionSelector, getSvgSelector, validateSvgMarkup } from '@semiont/api-client';
 import type { AnnotationAddedEvent } from '@semiont/core';
@@ -78,7 +77,7 @@ export function registerCreateAnnotation(router: ResourcesRouterType) {
       };
 
       // Emit unified annotation.added event
-      const eventStore = await createEventStore(config);
+      const { eventStore } = c.get('makeMeaning');
       const eventPayload: Omit<AnnotationAddedEvent, 'id' | 'timestamp'> = {
         type: 'annotation.added',
         resourceId: resourceId(id),

@@ -1,147 +1,104 @@
 /**
- * Detect Comments Stream SSE Endpoint Tests
+ * Comment Detection Stream API Tests
  *
- * Tests the comment detection endpoint with tone and density parameter support.
+ * Tests the HTTP contract of the POST /resources/:resourceId/detect-comments-stream endpoint.
+ * Focuses on parameter validation, authentication, and response format.
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { userId } from '@semiont/core';
 import { email } from '@semiont/api-client';
+import { JWTService } from '../../auth/jwt';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import type { EnvironmentConfig } from '@semiont/core';
-import { JWTService } from '../../auth/jwt';
-import { initializeJobQueue } from '@semiont/jobs';
-import { EventStore } from '@semiont/event-sourcing';
-import type { IdentifierConfig } from '@semiont/event-sourcing';
-import { FilesystemViewStorage } from '@semiont/event-sourcing';
-import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
-import { testDir } from '../setup';
-import { join } from 'path';
 
 type Variables = {
   user: User;
   config: EnvironmentConfig;
+  makeMeaning: any;
 };
 
-// Create shared mock Prisma client
-const sharedMockClient = {
-  user: {
-    findUnique: vi.fn(),
-    findMany: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-  },
-  $queryRaw: vi.fn(),
-} as any;
+// Mock entire @semiont/make-meaning with simple mocks
+const mockJobQueue = {
+  createJob: vi.fn().mockResolvedValue({ id: 'job-123' }),
+  getJob: vi.fn(),
+  listJobs: vi.fn(),
+};
 
-// Mock the entire auth/oauth module
-vi.mock('../../auth/oauth', () => ({
-  OAuthService: {
-    verifyGoogleToken: vi.fn(),
-    createOrUpdateUser: vi.fn(),
-    getUserFromToken: vi.fn(),
-    acceptTerms: vi.fn(),
+const mockResourceMetadata = {
+  '@context': 'https://www.w3.org/ns/activitystreams',
+  '@id': 'urn:semiont:resource:test-resource',
+  '@type': 'ResourceDescriptor',
+  name: 'Test Resource',
+  representations: [{
+    mediaType: 'text/plain',
+    rel: 'original',
+    checksum: 'abc123'
+  }]
+};
+
+vi.mock('@semiont/make-meaning', () => ({
+  ResourceContext: {
+    getResourceMetadata: vi.fn().mockResolvedValue(mockResourceMetadata)
   },
+  startMakeMeaning: vi.fn().mockResolvedValue({
+    jobQueue: mockJobQueue,
+    workers: [],
+    graphConsumer: {}
+  })
 }));
 
 // Mock database
 vi.mock('../../db', () => ({
   DatabaseConnection: {
-    getClient: vi.fn(() => sharedMockClient),
-    checkHealth: vi.fn().mockResolvedValue(true),
+    getClient: vi.fn(() => ({
+      user: {
+        findUnique: vi.fn(),
+      },
+    })),
   },
-  prisma: sharedMockClient,
 }));
 
-// Mock ResourceContext from @semiont/make-meaning
-vi.mock('@semiont/make-meaning', async (importOriginal) => {
-  const actual = await importOriginal() as any;
-  return {
-    ...actual,
-    ResourceContext: {
-      getResourceMetadata: vi.fn().mockResolvedValue({
-        id: 'test-resource',
-        name: 'Test Resource',
-        format: 'text/plain',
-        content: 'Test content',
-        representations: [{
-          mediaType: 'text/plain',
-          rel: 'original'
-        }]
-      })
-    }
-  };
-});
-
-// Mock environment
-vi.mock('../../config/environment-loader', () => ({
-  getFilesystemConfig: () => ({ path: testDir }),
-  getBackendConfig: () => ({ publicURL: 'http://localhost:4000' })
+// Mock OAuth
+vi.mock('../../auth/oauth', () => ({
+  OAuthService: {
+    getUserFromToken: vi.fn(),
+  },
 }));
 
-let app: Hono<{ Variables: Variables }>;
-
-describe('POST /resources/:id/detect-comments-stream', () => {
+describe('POST /resources/:resourceId/detect-comments-stream', () => {
+  let app: Hono<{ Variables: Variables }>;
   let authToken: string;
-  let testUser: User;
-  let testEnv: TestEnvironmentConfig;
+  const testUser = {
+    id: 'test-user-id',
+    email: 'test@test.local',
+    domain: 'test.local',
+    provider: 'oauth',
+    isAdmin: false,
+    name: 'Test User',
+  };
 
   beforeAll(async () => {
-    // Set up test environment with proper config files
-    testEnv = await setupTestEnvironment();
-
-    // Use testDir from global setup (already created and configured)
-    // No need to create directories - setup.ts handles that
-
-    // Set additional JWT environment variables
-    process.env.SITE_DOMAIN = 'test.example.com';
-    process.env.OAUTH_ALLOWED_DOMAINS = 'test.example.com,example.com';
-    process.env.JWT_SECRET = 'test-secret-key-for-testing-with-at-least-32-characters';
-
-    // Initialize JWTService with test config
-    JWTService.initialize(testEnv.config);
-
-    // Initialize job queue
-    await initializeJobQueue({ dataDir: join(testDir, 'jobs') });
-
-    // Initialize Event Store
-    const viewStorage = new FilesystemViewStorage(testDir);
-    const identifierConfig: IdentifierConfig = { baseUrl: 'http://localhost:4000' };
-    new EventStore(
-      {
-        basePath: testDir,
-        dataDir: testDir,
-        enableSharding: false,
-        maxEventsPerFile: 100,
+    // Initialize JWTService
+    const mockConfig: EnvironmentConfig = {
+      site: {
+        domain: 'test.local',
+        oauthAllowedDomains: ['test.local'],
       },
-      viewStorage,
-      identifierConfig
-    );
+      services: {
+        backend: {
+          publicURL: 'http://localhost:4000',
+          platform: { type: 'posix' },
+          port: 4000,
+          corsOrigin: '*',
+          jwtSecret: 'test-secret-key-at-least-32-characters-long',
+        },
+      },
+    } as EnvironmentConfig;
+    JWTService.initialize(mockConfig);
 
-    // Import app after environment setup
-    const appModule = await import('../../index');
-    app = appModule.app;
-
-    // Create test user and token
-    testUser = {
-      id: 'test-user-id',
-      email: 'test@example.com',
-      name: 'Test User',
-      image: null,
-      domain: 'example.com',
-      provider: 'google',
-      providerId: 'google-123',
-      passwordHash: null,
-      isAdmin: false,
-      isModerator: false,
-      isActive: true,
-      termsAcceptedAt: new Date(),
-      lastLogin: new Date(),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
+    // Create auth token
     const tokenPayload = {
       userId: userId(testUser.id),
       email: email(testUser.email),
@@ -150,27 +107,22 @@ describe('POST /resources/:id/detect-comments-stream', () => {
       isAdmin: testUser.isAdmin,
       name: testUser.name || undefined,
     };
-
     authToken = JWTService.generateToken(tokenPayload);
 
-    // Mock the database
+    // Mock database user lookup
     const { DatabaseConnection } = await import('../../db');
     const prisma = DatabaseConnection.getClient();
     vi.mocked(prisma.user.findUnique).mockResolvedValue(testUser as any);
 
-    // Mock OAuthService
+    // Mock OAuth service
     const { OAuthService } = await import('../../auth/oauth');
     vi.mocked(OAuthService.getUserFromToken).mockImplementation(async (token) => {
-      if (token === authToken) {
-        return testUser as any;
-      }
-      return null;
+      return token === authToken ? (testUser as any) : null;
     });
-  });
 
-  afterAll(async () => {
-    // Cleanup is handled by global setup.ts afterAll
-    await testEnv.cleanup();
+    // Import app after mocks are set up
+    const { app: importedApp } = await import('../../index');
+    app = importedApp;
   });
 
   it('should return SSE stream with proper content-type', async () => {
@@ -183,8 +135,7 @@ describe('POST /resources/:id/detect-comments-stream', () => {
       body: JSON.stringify({}),
     });
 
-    const contentType = response.headers.get('content-type');
-    expect(contentType).toMatch(/text\/event-stream/);
+    expect(response.headers.get('content-type')).toMatch(/text\/event-stream/);
   });
 
   it('should accept detection without parameters', async () => {
@@ -380,7 +331,7 @@ describe('POST /resources/:id/detect-comments-stream', () => {
   });
 
   it('should handle resource not found', async () => {
-    // Mock ResourceQueryService to return null
+    // Override mock for this test
     const { ResourceContext } = await import('@semiont/make-meaning');
     vi.mocked(ResourceContext.getResourceMetadata).mockResolvedValueOnce(null);
 

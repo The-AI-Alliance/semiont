@@ -19,6 +19,7 @@ type GetReferencedByResponse = components['schemas']['GetReferencedByResponse'];
 type Variables = {
   user: User;
   config: EnvironmentConfig;
+  makeMeaning: any;
 };
 
 let app: Hono<{ Variables: Variables }>;

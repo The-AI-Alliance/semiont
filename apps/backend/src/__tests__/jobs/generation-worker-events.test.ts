@@ -12,8 +12,9 @@ import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup
 import { resourceId, userId, annotationId } from '@semiont/core';
 import { jobId, entityType } from '@semiont/api-client';
 import type { GenerationContext } from '@semiont/api-client';
-import { createEventStore, type EventStore } from '@semiont/event-sourcing';
-import { createEventQuery } from '../../services/event-store-service';
+import { createEventStore, type EventStore, EventQuery } from '@semiont/event-sourcing';
+import type { InferenceClient } from '@semiont/inference';
+
 
 // Mock GenerationContext for tests
 const mockGenerationContext: GenerationContext = {
@@ -30,11 +31,19 @@ const mockGenerationContext: GenerationContext = {
 };
 
 // Mock AI generation to avoid external API calls
+vi.mock('@semiont/make-meaning', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@semiont/make-meaning')>();
+  return {
+    ...actual,
+    generateResourceFromTopic: vi.fn().mockResolvedValue({
+      content: '# Test Resource\n\nGenerated content about test topic.',
+      metadata: { format: 'text/markdown' }
+    })
+  };
+});
+
 vi.mock('@semiont/inference', () => ({
-  generateResourceFromTopic: vi.fn().mockResolvedValue({
-    content: '# Test Resource\n\nGenerated content about test topic.',
-    metadata: { format: 'text/markdown' }
-  })
+  generateText: vi.fn().mockResolvedValue('# Test Title\n\nGenerated content'),
 }));
 
 // Mock AnnotationContextService to avoid requiring actual file content
@@ -119,7 +128,11 @@ describe('GenerationWorker - Event Emission', () => {
     await jobQueue.initialize();
 
     testEventStore = createEventStore(testEnv.config.services.filesystem!.path, testEnv.config.services.backend!.publicURL);
-    worker = new GenerationWorker(jobQueue, testEnv.config, testEventStore);
+    const mockInferenceClient: InferenceClient = {
+      generateText: vi.fn().mockResolvedValue('Generated text'),
+      generateTextWithMetadata: vi.fn().mockResolvedValue({ text: 'Generated text', stopReason: 'end_turn' }),
+    };
+    worker = new GenerationWorker(jobQueue, testEnv.config, testEventStore, mockInferenceClient);
   });
 
   afterAll(async () => {
@@ -155,7 +168,7 @@ describe('GenerationWorker - Event Emission', () => {
     await (worker as any).executeJob(job);
 
     // Query events from Event Store using the same instance as the worker
-    const query = createEventQuery(testEventStore);
+    const query = new EventQuery(testEventStore.log.storage);
     const events = await query.getResourceEvents(resourceId('source-resource-1'));
 
     const startedEvents = events.filter(e => e.event.type === 'job.started');
@@ -203,7 +216,7 @@ describe('GenerationWorker - Event Emission', () => {
     await (worker as any).executeJob(job);
 
     // Query events from Event Store
-    const query = createEventQuery(testEventStore);
+    const query = new EventQuery(testEventStore.log.storage);
     const events = await query.getResourceEvents(resourceId('source-resource-2'));
 
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
@@ -245,7 +258,7 @@ describe('GenerationWorker - Event Emission', () => {
     await (worker as any).executeJob(job);
 
     // Query events from Event Store
-    const query = createEventQuery(testEventStore);
+    const query = new EventQuery(testEventStore.log.storage);
     const events = await query.getResourceEvents(resourceId('source-resource-3'));
 
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
@@ -305,7 +318,7 @@ describe('GenerationWorker - Event Emission', () => {
     await (worker as any).executeJob(job);
 
     // Query events from Event Store
-    const query = createEventQuery(testEventStore);
+    const query = new EventQuery(testEventStore.log.storage);
     const events = await query.getResourceEvents(resourceId('source-resource-4'));
 
     const completedEvents = events.filter(e => e.event.type === 'job.completed');
@@ -352,7 +365,7 @@ describe('GenerationWorker - Event Emission', () => {
     await (worker as any).executeJob(job);
 
     // Get the resultResourceId from job.completed event
-    const query = createEventQuery(testEventStore);
+    const query = new EventQuery(testEventStore.log.storage);
     const sourceEvents = await query.getResourceEvents(resourceId('source-resource-5'));
 
     const completedEvents = sourceEvents.filter(e => e.event.type === 'job.completed');
@@ -411,7 +424,7 @@ describe('GenerationWorker - Event Emission', () => {
     await (worker as any).executeJob(job);
 
     // Query events from Event Store
-    const query = createEventQuery(testEventStore);
+    const query = new EventQuery(testEventStore.log.storage);
     const events = await query.getResourceEvents(resourceId('source-resource-6'));
 
     const eventTypes = events.map(e => e.event.type);
@@ -456,7 +469,7 @@ describe('GenerationWorker - Event Emission', () => {
     await (worker as any).executeJob(job);
 
     // Query events from Event Store
-    const query = createEventQuery(testEventStore);
+    const query = new EventQuery(testEventStore.log.storage);
     const events = await query.getResourceEvents(resourceId('source-resource-7'));
 
     const progressEvents = events.filter(e => e.event.type === 'job.progress');

@@ -43,11 +43,25 @@
       "host": "localhost",
       "port": 5432
     },
+    "graph": {
+      "platform": {
+        "type": "posix"
+      },
+      "type": "memory"
+    },
     "mcp": {
       "platform": {
         "type": "posix"
       },
       "dependsOn": ["backend"]
+    },
+    "inference": {
+      "platform": {
+        "type": "posix"
+      },
+      "type": "anthropic",
+      "model": "claude-3-5-sonnet-20241022",
+      "apiKey": "sk-ant-test-key-for-ci-environment-do-not-use"
     }
   }
 }

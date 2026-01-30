@@ -11,12 +11,10 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import { createEventStore } from '../../../services/event-store-service';
 import { EventQuery } from '@semiont/event-sourcing';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
 import { getFrontendUrl } from '../../../middleware/content-negotiation';
-import { FilesystemRepresentationStore } from '@semiont/content';
 import { getPrimaryRepresentation, getPrimaryMediaType, decodeRepresentation } from '@semiont/api-client';
 import { ResourceContext } from '@semiont/make-meaning';
 import { resourceId } from '@semiont/core';
@@ -37,6 +35,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
   router.get('/resources/:id', async (c) => {
     const { id } = c.req.param();
     const config = c.get('config');
+    const { repStore } = c.get('makeMeaning');
 
     // Check for explicit view=semiont query parameter
     const view = c.req.query('view');
@@ -49,12 +48,9 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
 
     // Check Accept header for content negotiation
     const acceptHeader = c.req.header('Accept') || 'application/ld+json';
-    const basePath = config.services.filesystem!.path;
 
     // If requesting raw representation (text/plain, text/markdown, images, etc.)
     if (acceptHeader.includes('text/') || acceptHeader.includes('image/') || acceptHeader.includes('application/pdf')) {
-      const projectRoot = config._metadata?.projectRoot;
-      const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
 
       // Get resource metadata from view storage
       const resource = await ResourceContext.getResourceMetadata(resourceId(id), config);
@@ -92,7 +88,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
     // Otherwise, return JSON-LD metadata (default)
 
     // Read from event store: materializes view from events
-    const eventStore = await createEventStore(config);
+    const { eventStore } = c.get('makeMeaning');
     const query = new EventQuery(eventStore.log.storage);
     const events = await query.getResourceEvents(resourceId(id));
     const stored = await eventStore.views.materializer.materialize(events, resourceId(id));

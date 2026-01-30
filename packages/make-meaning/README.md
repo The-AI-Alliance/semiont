@@ -21,6 +21,30 @@ This package transforms raw resources into meaningful, interconnected knowledge 
 npm install @semiont/make-meaning
 ```
 
+### Start Make-Meaning Service
+
+The simplest way to use make-meaning infrastructure is through the service module:
+
+```typescript
+import { startMakeMeaning } from '@semiont/make-meaning';
+import type { EnvironmentConfig } from '@semiont/core';
+
+// Start all infrastructure (job queue, workers, graph consumer)
+const makeMeaning = await startMakeMeaning(config);
+
+// Access job queue for route handlers
+const jobQueue = makeMeaning.jobQueue;
+
+// Graceful shutdown
+await makeMeaning.stop();
+```
+
+This single call initializes:
+- Job queue
+- All 6 detection/generation workers
+- Graph consumer (event-to-graph synchronization)
+- Shared event store connection
+
 ### Assemble Resource Context
 
 ```typescript
@@ -94,7 +118,9 @@ const paths = await GraphContext.findPath(fromResourceId, toResourceId, config, 
 const results = await GraphContext.searchResources('neural networks', config, 10);
 ```
 
-### Use Job Workers
+### Use Individual Workers (Advanced)
+
+For fine-grained control, workers can be instantiated directly:
 
 ```typescript
 import {
@@ -108,7 +134,7 @@ import { createEventStore } from '@semiont/event-sourcing';
 // Create shared dependencies
 const jobQueue = new JobQueue({ dataDir: './data' });
 await jobQueue.initialize();
-const eventStore = await createEventStore(config);
+const eventStore = createEventStore('./data', 'http://localhost:3000');
 
 // Create workers with explicit dependencies
 const referenceWorker = new ReferenceDetectionWorker(jobQueue, config, eventStore);
@@ -122,6 +148,8 @@ await Promise.all([
   generationWorker.start(),
 ]);
 ```
+
+**Note**: In most cases, use `startMakeMeaning()` instead, which handles all initialization automatically.
 
 ## Documentation
 
@@ -140,6 +168,59 @@ Resources don't exist in isolation. A document becomes meaningful when we unders
 
 This is the "applied meaning-making" layer - it sits between low-level AI primitives ([@semiont/inference](../inference/)) and high-level application orchestration ([apps/backend](../../apps/backend/)).
 
+## Infrastructure Ownership
+
+**MakeMeaningService is the single source of truth for all infrastructure:**
+
+```typescript
+import { startMakeMeaning } from '@semiont/make-meaning';
+
+// Create ALL infrastructure once at startup
+const makeMeaning = await startMakeMeaning(config);
+
+// Access infrastructure components
+const { eventStore, graphDb, repStore, inferenceClient, jobQueue } = makeMeaning;
+```
+
+**What MakeMeaningService Owns:**
+
+1. **EventStore** - Event log and materialized views (single source of truth)
+2. **GraphDatabase** - Graph database connection for relationships and traversal
+3. **RepresentationStore** - Content-addressed document storage
+4. **InferenceClient** - LLM client for AI operations
+5. **JobQueue** - Background job processing queue
+6. **Workers** - All 6 detection/generation workers
+7. **GraphDBConsumer** - Event-to-graph synchronization
+
+**Critical Design Rule:**
+
+```typescript
+// ✅ CORRECT: Access infrastructure from MakeMeaningService
+const { graphDb } = makeMeaning;
+
+// ❌ WRONG: NEVER create infrastructure outside of startMakeMeaning()
+const graphDb = await getGraphDatabase(config);  // NEVER DO THIS
+const repStore = new FilesystemRepresentationStore(...);  // NEVER DO THIS
+const eventStore = createEventStore(...);  // NEVER DO THIS
+```
+
+**Why This Matters:**
+
+- **Single initialization** - All infrastructure created once, shared everywhere
+- **No resource leaks** - Single connection per resource type (database, storage, etc.)
+- **Consistent configuration** - Same config across all components
+- **Testability** - Single injection point for mocking
+- **Lifecycle management** - Centralized shutdown via `makeMeaning.stop()`
+
+**Implementation Pattern:**
+
+- Backend creates MakeMeaningService in [apps/backend/src/index.ts:56](../../apps/backend/src/index.ts#L56)
+- Routes access via Hono context: `c.get('makeMeaning')`
+- Services receive infrastructure as parameters (dependency injection)
+- Workers receive EventStore and InferenceClient via constructor
+
+This architectural pattern prevents duplicate connections, ensures consistent state, and provides clear ownership boundaries across the entire system.
+
 ## Architecture
 
 Three-layer design separating concerns:
@@ -147,8 +228,8 @@ Three-layer design separating concerns:
 ```mermaid
 graph TB
     Backend["<b>apps/backend</b><br/>Job orchestration, HTTP APIs, streaming"]
-    MakeMeaning["<b>@semiont/make-meaning</b><br/>Context assembly, pattern detection,<br/>relationship reasoning, job workers"]
-    Inference["<b>@semiont/inference</b><br/>AI primitives: prompts, parsers,<br/>generateText abstraction"]
+    MakeMeaning["<b>@semiont/make-meaning</b><br/>Context assembly, detection/generation,<br/>prompt engineering, response parsing,<br/>job workers"]
+    Inference["<b>@semiont/inference</b><br/>AI primitives only:<br/>generateText, client management"]
 
     Backend --> MakeMeaning
     MakeMeaning --> Inference
@@ -160,14 +241,22 @@ graph TB
 
 **Key principles:**
 
+- **Centralized infrastructure**: All infrastructure owned by MakeMeaningService (single initialization point)
 - **Event-sourced context**: Resources and annotations assembled from event streams
 - **Content-addressed storage**: Content retrieved using checksums (deduplication, caching)
 - **Graph-backed relationships**: @semiont/graph provides traversal for backlinks, paths, connections
-- **Explicit dependencies**: Workers receive JobQueue and EventStore via constructor (no singletons)
+- **Explicit dependencies**: Workers receive infrastructure via constructor (dependency injection, no singletons)
+- **No ad-hoc creation**: Routes and services NEVER create their own infrastructure instances
 
 See [Architecture](./docs/architecture.md) for complete details.
 
 ## Exports
+
+### Service Module (Primary)
+
+- `startMakeMeaning(config)` - Initialize all make-meaning infrastructure
+- `MakeMeaningService` - Type for service return value
+- `GraphDBConsumer` - Graph consumer class (for advanced use)
 
 ### Context Assembly
 
@@ -175,11 +264,17 @@ See [Architecture](./docs/architecture.md) for complete details.
 - `AnnotationContext` - Annotation queries and context building
 - `GraphContext` - Graph traversal and search
 
-### Pattern Detection
+### Detection & Generation
 
-- `AnnotationDetection` - AI-powered semantic pattern detection
+- `AnnotationDetection` - AI-powered semantic pattern detection (orchestrates detection pipeline)
+- `MotivationPrompts` - Prompt builders for comment/highlight/assessment/tag detection
+- `MotivationParsers` - Response parsers with offset validation
+- `extractEntities` - Entity extraction with context-based disambiguation
+- `generateResourceFromTopic` - Markdown resource generation with language support
+- `generateResourceSummary` - Resource summarization
+- `generateReferenceSuggestions` - Smart suggestion generation
 
-### Job Workers
+### Job Workers (Advanced)
 
 - `ReferenceDetectionWorker` - Entity reference detection
 - `GenerationWorker` - AI content generation
@@ -188,9 +283,11 @@ See [Architecture](./docs/architecture.md) for complete details.
 - `AssessmentDetectionWorker` - Assessment detection
 - `TagDetectionWorker` - Structured tag detection
 
+**Note**: Workers are typically managed by `startMakeMeaning()`, not instantiated directly.
+
 See [Job Workers](./docs/job-workers.md) for implementation details.
 
-### Type Re-exports
+### Types
 
 ```typescript
 export type {
@@ -198,7 +295,9 @@ export type {
   HighlightMatch,
   AssessmentMatch,
   TagMatch,
-} from '@semiont/inference';
+} from './detection/motivation-parsers';
+
+export type { ExtractedEntity } from './detection/entity-extractor';
 ```
 
 ## Configuration

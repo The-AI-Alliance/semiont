@@ -29,6 +29,7 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
     const { id } = c.req.param();
     const query = c.req.query();
     const config = c.get('config');
+    const makeMeaning = c.get('makeMeaning');
 
     // Parse and validate query parameters
     const depth = query.depth ? Number(query.depth) : 2;
@@ -56,7 +57,10 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
           includeContent,
           includeSummary,
         },
-        config
+        config,
+        makeMeaning.inferenceClient,
+        makeMeaning.graphDb,
+        makeMeaning.repStore
       );
 
       return c.json(response);
