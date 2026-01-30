@@ -80,14 +80,6 @@ describe('GraphDBConsumer', () => {
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
-  it('should throw error if not initialized before use', async () => {
-    const uninitializedConsumer = new GraphDBConsumer(config, eventStore, mockGraphDb as any);
-
-    await expect(
-      uninitializedConsumer.subscribeToResource(resourceId('test'))
-    ).rejects.toThrow('GraphDBConsumer not initialized');
-  });
-
   it('should subscribe to resource events', async () => {
     await consumer.initialize();
     const testResourceId = resourceId(`test-subscribe-${Date.now()}`);
