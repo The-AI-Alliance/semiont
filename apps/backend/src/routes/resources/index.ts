@@ -69,7 +69,7 @@ registerTokenRoutes(resourcesRouter);  // GET /api/resources/token/:token, POST 
 
   // Generic routes with :id parameter - MUST BE LAST
   registerGetResourceUri(resourcesRouter);  // W3C content negotiation for /resources/:id - handles both metadata and raw representations
-  registerUpdateResource(resourcesRouter);
+  registerUpdateResource(resourcesRouter);  // PATCH /resources/:id (handles archive via {archived: true})
 
   return resourcesRouter;
 }
