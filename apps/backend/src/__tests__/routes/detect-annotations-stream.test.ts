@@ -89,7 +89,7 @@ describe('POST /resources/:resourceId/detect-annotations-stream', () => {
       services: {
         backend: {
           publicURL: 'http://localhost:4000',
-          platform: 'node' as const,
+          platform: { type: 'posix' },
           port: 4000,
           corsOrigin: '*',
           jwtSecret: 'test-secret-key-at-least-32-characters-long',
