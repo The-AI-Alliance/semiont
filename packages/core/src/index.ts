@@ -92,8 +92,6 @@ export type { GoogleAuthRequest } from './auth-types';
 export * from './type-guards';
 export * from './crypto';
 export * from './errors';
-export * from './http-client';
-export * from './annotation-history-utils';
 export * from './did-utils';
 
 // Configuration loading
