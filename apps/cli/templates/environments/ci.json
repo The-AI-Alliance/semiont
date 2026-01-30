@@ -48,6 +48,14 @@
         "type": "posix"
       },
       "dependsOn": ["backend"]
+    },
+    "inference": {
+      "platform": {
+        "type": "posix"
+      },
+      "type": "anthropic",
+      "model": "claude-3-5-sonnet-20241022",
+      "apiKey": "${ANTHROPIC_API_KEY}"
     }
   }
 }
