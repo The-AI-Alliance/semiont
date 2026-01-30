@@ -168,6 +168,59 @@ Resources don't exist in isolation. A document becomes meaningful when we unders
 
 This is the "applied meaning-making" layer - it sits between low-level AI primitives ([@semiont/inference](../inference/)) and high-level application orchestration ([apps/backend](../../apps/backend/)).
 
+## Infrastructure Ownership
+
+**MakeMeaningService is the single source of truth for all infrastructure:**
+
+```typescript
+import { startMakeMeaning } from '@semiont/make-meaning';
+
+// Create ALL infrastructure once at startup
+const makeMeaning = await startMakeMeaning(config);
+
+// Access infrastructure components
+const { eventStore, graphDb, repStore, inferenceClient, jobQueue } = makeMeaning;
+```
+
+**What MakeMeaningService Owns:**
+
+1. **EventStore** - Event log and materialized views (single source of truth)
+2. **GraphDatabase** - Graph database connection for relationships and traversal
+3. **RepresentationStore** - Content-addressed document storage
+4. **InferenceClient** - LLM client for AI operations
+5. **JobQueue** - Background job processing queue
+6. **Workers** - All 6 detection/generation workers
+7. **GraphDBConsumer** - Event-to-graph synchronization
+
+**Critical Design Rule:**
+
+```typescript
+// ✅ CORRECT: Access infrastructure from MakeMeaningService
+const { graphDb } = makeMeaning;
+
+// ❌ WRONG: NEVER create infrastructure outside of startMakeMeaning()
+const graphDb = await getGraphDatabase(config);  // NEVER DO THIS
+const repStore = new FilesystemRepresentationStore(...);  // NEVER DO THIS
+const eventStore = createEventStore(...);  // NEVER DO THIS
+```
+
+**Why This Matters:**
+
+- **Single initialization** - All infrastructure created once, shared everywhere
+- **No resource leaks** - Single connection per resource type (database, storage, etc.)
+- **Consistent configuration** - Same config across all components
+- **Testability** - Single injection point for mocking
+- **Lifecycle management** - Centralized shutdown via `makeMeaning.stop()`
+
+**Implementation Pattern:**
+
+- Backend creates MakeMeaningService in [apps/backend/src/index.ts:56](../../apps/backend/src/index.ts#L56)
+- Routes access via Hono context: `c.get('makeMeaning')`
+- Services receive infrastructure as parameters (dependency injection)
+- Workers receive EventStore and InferenceClient via constructor
+
+This architectural pattern prevents duplicate connections, ensures consistent state, and provides clear ownership boundaries across the entire system.
+
 ## Architecture
 
 Three-layer design separating concerns:
@@ -188,10 +241,12 @@ graph TB
 
 **Key principles:**
 
+- **Centralized infrastructure**: All infrastructure owned by MakeMeaningService (single initialization point)
 - **Event-sourced context**: Resources and annotations assembled from event streams
 - **Content-addressed storage**: Content retrieved using checksums (deduplication, caching)
 - **Graph-backed relationships**: @semiont/graph provides traversal for backlinks, paths, connections
-- **Explicit dependencies**: Workers receive JobQueue and EventStore via constructor (no singletons)
+- **Explicit dependencies**: Workers receive infrastructure via constructor (dependency injection, no singletons)
+- **No ad-hoc creation**: Routes and services NEVER create their own infrastructure instances
 
 See [Architecture](./docs/architecture.md) for complete details.
 

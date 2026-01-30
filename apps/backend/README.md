@@ -5,6 +5,7 @@ A type-safe Node.js backend API providing comprehensive document management, W3C
 ## Quick Links
 
 ### 📚 Documentation
+- **[Architecture](./docs/ARCHITECTURE.md)** - Infrastructure management patterns, design principles
 - **[Development Guide](./docs/DEVELOPMENT.md)** - Local development, CLI usage, manual setup
 - **[API Reference](../../specs/docs/API.md)** - API endpoints, request/response formats
 - **[Authentication](./docs/AUTHENTICATION.md)** - JWT tokens, OAuth, MCP authentication
@@ -12,7 +13,6 @@ A type-safe Node.js backend API providing comprehensive document management, W3C
 - **[Logging](./docs/LOGGING.md)** - Winston logging, log levels, debugging 401s
 - **[Testing Guide](./docs/TESTING.md)** - Running tests, writing tests, coverage
 - **[Deployment Guide](./docs/DEPLOYMENT.md)** - Production deployment, rollbacks, monitoring
-- **[Contributing Guide](./docs/CONTRIBUTING.md)** - Code style, development patterns, PR requirements
 
 ### 🔗 Related Resources
 - **[W3C Web Annotation Implementation](../../specs/docs/W3C-WEB-ANNOTATION.md)** - How annotations flow through all backend layers (event store, materialized views, graph database)
@@ -219,27 +219,65 @@ Note: OpenAPI specification source is maintained at `../../specs/src/` (project 
 
 ## Core Design Principles
 
-### 1. Type Safety First
+### 1. Centralized Infrastructure Management
+
+**All infrastructure components are created once and managed by MakeMeaningService:**
+
+```typescript
+// ✅ CORRECT: Access infrastructure via context
+const { eventStore, graphDb, repStore, inferenceClient } = c.get('makeMeaning');
+
+// ❌ WRONG: Never create infrastructure in routes or services
+const graphDb = await getGraphDatabase(config);  // NEVER DO THIS
+const repStore = new FilesystemRepresentationStore(...);  // NEVER DO THIS
+```
+
+**Architecture:**
+- **MakeMeaningService** (`@semiont/make-meaning`) owns ALL infrastructure:
+  - `eventStore: EventStore` - Immutable event log and materialized views
+  - `graphDb: GraphDatabase` - Graph database for relationships and traversal
+  - `repStore: RepresentationStore` - Content-addressed document storage
+  - `inferenceClient: InferenceClient` - LLM inference for AI operations
+  - `jobQueue: JobQueue` - Background job processing
+  - `workers: { ... }` - All background workers (6 types)
+  - `graphConsumer: GraphDBConsumer` - Event-to-graph synchronization
+
+**Implementation Pattern:**
+- Infrastructure created ONCE in [index.ts:56](src/index.ts#L56) via `startMakeMeaning(config)`
+- Routes access via `c.get('makeMeaning')` from Hono context
+- Services receive infrastructure as parameters (dependency injection)
+- NO route or service creates its own infrastructure instances
+
+**Why This Matters:**
+- Prevents duplicate connections and resource leaks
+- Ensures consistent configuration across the application
+- Simplifies testing with single mock injection point
+- Clear ownership and lifecycle management
+- Centralized shutdown via `makeMeaning.stop()`
+
+See [Make-Meaning Package](../../packages/make-meaning/) for implementation details.
+
+### 2. Type Safety First
 - TypeScript throughout with strict mode
 - Compile-time validation
 - Type-safe API client generation
 
-### 2. Runtime Validation
+### 3. Runtime Validation
 - All inputs validated with Zod schemas
 - Fail-fast on invalid data
 - Detailed error messages
 
-### 3. Functional Programming
+### 4. Functional Programming
 - Pure functions preferred
 - Immutable data structures
 - No side effects in business logic
 
-### 4. Event Sourcing
+### 5. Event Sourcing
 - Immutable event log as source of truth
 - Projections for fast queries
 - Complete audit trail
 
-### 5. Security by Default
+### 6. Security by Default
 - All routes protected unless explicitly public
 - Multi-layer JWT validation
 - Environment variable validation at startup
@@ -316,11 +354,12 @@ See [Deployment Guide](./docs/DEPLOYMENT.md) for complete procedures.
 
 We welcome contributions! Please read:
 
-1. [Contributing Guide](./docs/CONTRIBUTING.md) - Code style, patterns, PR requirements
+1. [Architecture](./docs/ARCHITECTURE.md) - **Critical design patterns and constraints**
 2. [Development Guide](./docs/DEVELOPMENT.md) - Setting up local environment
 3. [Testing Guide](./docs/TESTING.md) - Writing and running tests
 
 **Key Requirements**:
+- **Follow infrastructure management pattern** - NEVER create EventStore, GraphDatabase, RepresentationStore, or InferenceClient instances (see [Architecture](./docs/ARCHITECTURE.md))
 - Functional programming (pure functions, no mutations)
 - All tests must pass
 - TypeScript must compile without errors (strict mode)
@@ -351,6 +390,7 @@ For detailed troubleshooting, see [Development Guide](./docs/DEVELOPMENT.md#trou
 ## Further Reading
 
 ### Backend Documentation
+- [Architecture](./docs/ARCHITECTURE.md) - **Infrastructure management patterns (REQUIRED READING)**
 - [Development Guide](./docs/DEVELOPMENT.md) - Complete local development setup
 - [API Reference](./docs/API.md) - All API endpoints and examples
 - [Authentication](./docs/AUTHENTICATION.md) - JWT, OAuth, MCP implementation
@@ -361,7 +401,6 @@ For detailed troubleshooting, see [Development Guide](./docs/DEVELOPMENT.md#trou
 - [Logging](./docs/LOGGING.md) - Winston logging, log levels, debugging
 - [Testing](./docs/TESTING.md) - Testing philosophy and patterns
 - [Deployment](./docs/DEPLOYMENT.md) - Production deployment guide
-- [Contributing](./docs/CONTRIBUTING.md) - How to contribute
 
 ### System Documentation
 - [System Architecture](../../docs/ARCHITECTURE.md) - Overall platform architecture
