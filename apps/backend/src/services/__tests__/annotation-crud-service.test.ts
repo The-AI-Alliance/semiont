@@ -9,10 +9,6 @@ type UpdateAnnotationBodyRequest = components['schemas']['UpdateAnnotationBodyRe
 type Annotation = components['schemas']['Annotation'];
 
 // Mock dependencies
-vi.mock('../event-store-service', () => ({
-  createEventStore: vi.fn(),
-}));
-
 vi.mock('@semiont/make-meaning', () => ({
   AnnotationContext: {
     getAnnotation: vi.fn(),
@@ -32,7 +28,6 @@ vi.mock('@semiont/core', async () => {
   };
 });
 
-import { createEventStore } from '@semiont/event-sourcing';
 import { AnnotationContext } from '@semiont/make-meaning';
 import { generateAnnotationId } from '@semiont/event-sourcing';
 import { userToAgent } from '@semiont/core';
@@ -62,7 +57,6 @@ describe('AnnotationCrudService', () => {
       appendEvent: vi.fn().mockResolvedValue({ metadata: { sequenceNumber: 1 } }),
     };
 
-    vi.mocked(createEventStore).mockResolvedValue(mockEventStore);
     vi.mocked(generateAnnotationId).mockReturnValue('http://localhost:4000/annotations/anno-123');
     vi.mocked(userToAgent).mockReturnValue({
       type: 'Person',

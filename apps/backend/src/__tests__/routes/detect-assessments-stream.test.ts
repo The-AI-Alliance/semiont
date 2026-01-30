@@ -80,6 +80,24 @@ describe('POST /resources/:resourceId/detect-assessments-stream', () => {
   };
 
   beforeAll(async () => {
+    // Initialize JWTService
+    const mockConfig: EnvironmentConfig = {
+      site: {
+        domain: 'test.local',
+        oauthAllowedDomains: ['test.local'],
+      },
+      services: {
+        backend: {
+          publicURL: 'http://localhost:4000',
+          platform: { type: 'posix' },
+          port: 4000,
+          corsOrigin: '*',
+          jwtSecret: 'test-secret-key-at-least-32-characters-long',
+        },
+      },
+    } as EnvironmentConfig;
+    JWTService.initialize(mockConfig);
+
     // Create auth token
     const tokenPayload = {
       userId: userId(testUser.id),

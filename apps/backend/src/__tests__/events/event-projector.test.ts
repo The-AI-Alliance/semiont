@@ -514,7 +514,7 @@ describe('ViewMaterializer', () => {
       await projector.materializeEntityTypes('Person');
       await projector.materializeEntityTypes('Organization');
 
-      const path = join(testDir, 'projections', 'entity-types', 'entity-types.json');
+      const path = join(testDir, 'projections', '__system__', 'entitytypes.json');
       const content = await fs.readFile(path, 'utf-8');
       const view = JSON.parse(content);
 
@@ -527,7 +527,7 @@ describe('ViewMaterializer', () => {
       await projector.materializeEntityTypes('Apple');
       await projector.materializeEntityTypes('Mango');
 
-      const path = join(testDir, 'projections', 'entity-types', 'entity-types.json');
+      const path = join(testDir, 'projections', '__system__', 'entitytypes.json');
       const content = await fs.readFile(path, 'utf-8');
       const view = JSON.parse(content);
 
@@ -539,7 +539,7 @@ describe('ViewMaterializer', () => {
       await projector.materializeEntityTypes('Person');
       await projector.materializeEntityTypes('Person');
 
-      const path = join(testDir, 'projections', 'entity-types', 'entity-types.json');
+      const path = join(testDir, 'projections', '__system__', 'entitytypes.json');
       const content = await fs.readFile(path, 'utf-8');
       const view = JSON.parse(content);
 

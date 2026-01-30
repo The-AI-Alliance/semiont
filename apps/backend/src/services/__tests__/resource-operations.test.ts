@@ -4,14 +4,6 @@ import type { EnvironmentConfig } from '@semiont/core';
 import type { User } from '@prisma/client';
 
 // Mock dependencies
-vi.mock('../event-store-service', () => ({
-  createEventStore: vi.fn(),
-}));
-
-vi.mock('@semiont/content', () => ({
-  FilesystemRepresentationStore: vi.fn(),
-}));
-
 vi.mock('@semiont/core', async () => {
   const actual = await vi.importActual('@semiont/core');
   return {
@@ -20,12 +12,6 @@ vi.mock('@semiont/core', async () => {
   };
 });
 
-vi.mock('../../events/consumers/graph-consumer', () => ({
-  getGraphConsumer: vi.fn(),
-}));
-
-import { createEventStore } from '@semiont/event-sourcing';
-import { FilesystemRepresentationStore } from '@semiont/content';
 import { userToAgent } from '@semiont/core';
 
 describe('ResourceOperations', () => {
@@ -69,8 +55,6 @@ describe('ResourceOperations', () => {
       }),
     };
 
-    vi.mocked(createEventStore).mockResolvedValue(mockEventStore);
-    vi.mocked(FilesystemRepresentationStore).mockImplementation(() => mockRepStore);
     vi.mocked(userToAgent).mockReturnValue({
       type: 'Person',
       id: 'http://localhost:4000/users/user-123',
@@ -99,13 +83,9 @@ describe('ResourceOperations', () => {
       expect(result.annotations).toEqual([]);
     });
 
-    it('should store content to FilesystemRepresentationStore', async () => {
+    it('should store content to RepresentationStore', async () => {
       await ResourceOperations.createResource(validInput, mockUser, mockEventStore, mockRepStore, mockConfig);
 
-      expect(FilesystemRepresentationStore).toHaveBeenCalledWith(
-        { basePath: '/test/data' },
-        '/test/project'
-      );
       expect(mockRepStore.store).toHaveBeenCalledWith(
         validInput.content,
         expect.objectContaining({
