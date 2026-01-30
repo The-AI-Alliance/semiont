@@ -55,7 +55,7 @@
       },
       "type": "anthropic",
       "model": "claude-3-5-sonnet-20241022",
-      "apiKey": "${ANTHROPIC_API_KEY}"
+      "apiKey": "sk-ant-test-key-for-ci-environment-do-not-use"
     }
   }
 }
