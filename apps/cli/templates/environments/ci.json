@@ -43,6 +43,12 @@
       "host": "localhost",
       "port": 5432
     },
+    "graph": {
+      "platform": {
+        "type": "posix"
+      },
+      "type": "memory"
+    },
     "mcp": {
       "platform": {
         "type": "posix"
