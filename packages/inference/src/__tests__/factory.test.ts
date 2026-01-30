@@ -49,13 +49,18 @@ describe('@semiont/inference - factory', () => {
       expect(client).toBeDefined();
     });
 
-    it('should return cached client on subsequent calls (singleton)', async () => {
+    it('should create new client instance on each call', async () => {
       const config = createTestConfig();
 
       const client1 = await getInferenceClient(config);
       const client2 = await getInferenceClient(config);
 
-      expect(client1).toBe(client2);
+      // Should be different instances (no singleton pattern)
+      // Singleton behavior is managed by MakeMeaningService
+      expect(client1).not.toBe(client2);
+      // But both should be valid clients
+      expect(client1).toBeDefined();
+      expect(client2).toBeDefined();
     });
 
     it('should throw error if services.inference missing', async () => {

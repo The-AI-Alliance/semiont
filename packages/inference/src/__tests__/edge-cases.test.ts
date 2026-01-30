@@ -74,25 +74,20 @@ describe('@semiont/inference - edge cases', () => {
     });
   });
 
-  describe('Singleton behavior', () => {
-    it('should return same instance on multiple calls', async () => {
+  describe('Instance creation behavior', () => {
+    it('should create new instance on each call (no singleton)', async () => {
       vi.stubEnv('TEST_KEY', 'test-value');
       const config = createConfigWithEnvVar('TEST_KEY');
 
       const client1 = await getInferenceClient(config);
       const client2 = await getInferenceClient(config);
 
-      expect(client1).toBe(client2);
-    });
-
-    it('should create new instance after reset', async () => {
-      vi.stubEnv('TEST_KEY', 'test-value');
-      const config = createConfigWithEnvVar('TEST_KEY');
-
-      const client1 = await getInferenceClient(config);
-      const client2 = await getInferenceClient(config);
-
+      // No singleton pattern - each call creates new instance
+      // Singleton behavior is managed by MakeMeaningService
       expect(client1).not.toBe(client2);
+      // But both should be valid clients
+      expect(client1).toBeDefined();
+      expect(client2).toBeDefined();
     });
   });
 });
