@@ -99,7 +99,7 @@ export function validateSiteConfig(data: unknown): ValidationResult {
 /**
  * Format validation errors into human-readable message
  */
-function formatErrors(errors: ErrorObject[]): string {
+export function formatErrors(errors: ErrorObject[]): string {
   if (errors.length === 0) return 'Validation failed';
 
   const messages = errors.map(err => {

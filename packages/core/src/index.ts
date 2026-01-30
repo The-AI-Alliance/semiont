@@ -94,23 +94,42 @@ export * from './crypto';
 export * from './errors';
 export * from './did-utils';
 
-// Configuration loading
+// Configuration loading - Pure functions (testable without filesystem)
 export {
-  loadEnvironmentConfig,
-  getAvailableEnvironments,
+  deepMerge,
+  resolveEnvVars,
+  parseAndMergeConfigs,
+  listEnvironmentNames,
   getNodeEnvForEnvironment,
+  hasAWSConfig,
+  displayConfiguration,
+  // Types
   type EnvironmentConfig,
   type ServiceConfig,
   type AWSConfig,
   type SiteConfig,
   type AppConfig,
 } from './config/environment-loader';
+
+// Configuration loading - Filesystem wrappers (for application code)
 export {
+  loadEnvironmentConfig,
+  getAvailableEnvironments,
   isValidEnvironment,
+} from './config/environment-loader-fs';
+
+export {
   parseEnvironment,
   validateEnvironment,
   type Environment,
 } from './config/environment-validator';
+export {
+  formatErrors,
+  validateSemiontConfig,
+  validateEnvironmentConfig,
+  validateSiteConfig,
+  type ValidationResult,
+} from './config/config-validator';
 export { ConfigurationError } from './config/configuration-error';
 export type { ProxyServiceConfig } from './config/config.types';
 export {
@@ -139,14 +158,6 @@ export type {
   GraphDatabaseType,
   ServicePlatformConfig
 } from './config/config.types';
-
-// Configuration validation
-export {
-  validateSemiontConfig,
-  validateEnvironmentConfig,
-  validateSiteConfig,
-  type ValidationResult,
-} from './config/config-validator';
 
 // Version information
 export const CORE_TYPES_VERSION = '0.1.0';
