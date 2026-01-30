@@ -1,6 +1,6 @@
 {
   "name": "@semiont/inference",
-  "version": "0.2.31",
+  "version": "0.2.32",
   "type": "module",
   "description": "AI inference capabilities for entity extraction, text generation, and resource creation",
   "main": "./dist/index.js",
