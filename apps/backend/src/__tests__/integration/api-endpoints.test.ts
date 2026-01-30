@@ -14,6 +14,7 @@ import { JWTService } from '../../auth/jwt';
 type Variables = {
   user: User;
   config: EnvironmentConfig;
+  makeMeaning: any;
 };
 
 // Delay app import until after test setup to avoid Prisma validation errors

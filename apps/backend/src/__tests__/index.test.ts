@@ -17,6 +17,7 @@ import { setupTestEnvironment, type TestEnvironmentConfig } from './_test-setup'
 type Variables = {
   user: User;
   config: EnvironmentConfig;
+  makeMeaning: any;
 };
 
 interface HealthResponse {

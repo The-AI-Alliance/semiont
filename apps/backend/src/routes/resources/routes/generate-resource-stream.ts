@@ -16,7 +16,6 @@ import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
-import { createEventStore } from '../../../services/event-store-service';
 import type { components } from '@semiont/api-client';
 import { getExactText } from '@semiont/api-client';
 import { AnnotationContext } from '@semiont/make-meaning';
@@ -98,7 +97,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
       console.log(`[GenerateResource] Found matching annotation:`, reference.id);
 
       // Create Event Store instance for event subscriptions
-      const eventStore = await createEventStore(config);
+      const { eventStore } = c.get('makeMeaning');
 
       // Construct full resource URI for event subscriptions
       const rUri = resourceUri(`${config.services.backend!.publicURL}/resources/${resourceIdParam}`);

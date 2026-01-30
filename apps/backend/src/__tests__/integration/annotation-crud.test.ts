@@ -11,7 +11,7 @@ import { CREATION_METHODS } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 type AnnotationBody = components['schemas']['AnnotationBody'];
-import { createEventStore } from '../../services/event-store-service';
+import { createEventStore } from '@semiont/event-sourcing';
 import { AnnotationContext } from '@semiont/make-meaning';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 
@@ -26,7 +26,10 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
     config = testEnv.config;
 
     // Create test resources in event store
-    const eventStore = await createEventStore( testEnv.config);
+    const eventStore = await createEventStore(
+      testEnv.config.services.filesystem!.path,
+      testEnv.config.services.backend!.publicURL
+    );
 
     const docEvent1: Omit<ResourceCreatedEvent, 'id' | 'timestamp'> = {
       type: 'resource.created',
@@ -68,7 +71,10 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
   describe('Create Annotation with Entity Tags (stub reference)', () => {
     it('should create annotation with empty body array', async () => {
       // Use SAME path from beforeAll
-      const eventStore = await createEventStore( testEnv.config);
+      const eventStore = await createEventStore(
+      testEnv.config.services.filesystem!.path,
+      testEnv.config.services.backend!.publicURL
+    );
 
       const annotation: Omit<Annotation, 'creator' | 'created'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
@@ -114,7 +120,10 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
     it('should create annotation with TextualBody entity tags', async () => {
       // Use SAME path from beforeAll
-      const eventStore = await createEventStore( testEnv.config);
+      const eventStore = await createEventStore(
+      testEnv.config.services.filesystem!.path,
+      testEnv.config.services.backend!.publicURL
+    );
 
       const annotation: Omit<Annotation, 'creator' | 'created'> = {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
@@ -186,7 +195,10 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
   describe('Resolve Annotation (add SpecificResource)', () => {
     it('should add SpecificResource to existing entity tags', async () => {
       // Use SAME path from beforeAll
-      const eventStore = await createEventStore( testEnv.config);
+      const eventStore = await createEventStore(
+      testEnv.config.services.filesystem!.path,
+      testEnv.config.services.backend!.publicURL
+    );
 
       // Create stub annotation with entity tags
       const stubId = annotationId('test-resolve-stub-' + Date.now());
@@ -286,7 +298,10 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
     it('should resolve annotation with empty body to have only SpecificResource', async () => {
       // Use SAME path from beforeAll
-      const eventStore = await createEventStore( testEnv.config);
+      const eventStore = await createEventStore(
+      testEnv.config.services.filesystem!.path,
+      testEnv.config.services.backend!.publicURL
+    );
 
       // Create stub with empty body
       const stubId = annotationId('test-resolve-empty-' + Date.now());
@@ -397,7 +412,10 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
   describe('Delete Annotation', () => {
     it('should delete annotation with multi-body', async () => {
       // Use SAME path from beforeAll
-      const eventStore = await createEventStore( testEnv.config);
+      const eventStore = await createEventStore(
+      testEnv.config.services.filesystem!.path,
+      testEnv.config.services.backend!.publicURL
+    );
 
       // Create annotation
       const deleteId = annotationId('test-delete-' + Date.now());
@@ -471,7 +489,10 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
   describe('W3C Compliance in Integration', () => {
     it('should maintain W3C structure through event sourcing', async () => {
       // Use SAME path from beforeAll
-      const eventStore = await createEventStore( testEnv.config);
+      const eventStore = await createEventStore(
+      testEnv.config.services.filesystem!.path,
+      testEnv.config.services.backend!.publicURL
+    );
 
       const w3cId = 'test-w3c-' + Date.now();
       const annotation: Omit<Annotation, 'creator' | 'created'> = {

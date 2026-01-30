@@ -9,7 +9,7 @@ import { resourceId, userId, annotationId } from '@semiont/core';
 import { CREATION_METHODS } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
 import type { EventStore } from '@semiont/event-sourcing';
-import { createEventStore } from '../../services/event-store-service';
+import { createEventStore } from '@semiont/event-sourcing';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 
 // Mock GraphDB
@@ -129,7 +129,10 @@ describe('GraphDBConsumer', () => {
 
   beforeAll(async () => {
     testEnv = await setupTestEnvironment();
-    eventStore = await createEventStore(testEnv.config);
+    eventStore = await createEventStore(
+      testEnv.config.services.filesystem!.path,
+      testEnv.config.services.backend!.publicURL
+    );
   });
 
   afterAll(async () => {

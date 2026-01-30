@@ -32,7 +32,7 @@ vi.mock('@semiont/core', async () => {
   };
 });
 
-import { createEventStore } from '../event-store-service';
+import { createEventStore } from '@semiont/event-sourcing';
 import { AnnotationContext } from '@semiont/make-meaning';
 import { generateAnnotationId } from '@semiont/event-sourcing';
 import { userToAgent } from '@semiont/core';
@@ -93,7 +93,7 @@ describe('AnnotationCrudService', () => {
       const result = await AnnotationCrudService.createAnnotation(
         validRequest,
         mockUser,
-        mockConfig
+        mockEventStore, mockConfig
       );
 
       expect(result.annotation.id).toBe('http://localhost:4000/annotations/anno-123');
@@ -109,7 +109,7 @@ describe('AnnotationCrudService', () => {
     });
 
     it('should emit annotation.added event', async () => {
-      await AnnotationCrudService.createAnnotation(validRequest, mockUser, mockConfig);
+      await AnnotationCrudService.createAnnotation(validRequest, mockUser, mockEventStore, mockConfig);
 
       expect(mockEventStore.appendEvent).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -139,7 +139,7 @@ describe('AnnotationCrudService', () => {
       };
 
       await expect(
-        AnnotationCrudService.createAnnotation(invalidRequest as any, mockUser, mockConfig)
+        AnnotationCrudService.createAnnotation(invalidRequest as any, mockUser, mockEventStore, mockConfig)
       ).rejects.toThrow('TextPositionSelector required');
     });
 
@@ -150,7 +150,7 @@ describe('AnnotationCrudService', () => {
       };
 
       await expect(
-        AnnotationCrudService.createAnnotation(invalidRequest as any, mockUser, mockConfig)
+        AnnotationCrudService.createAnnotation(invalidRequest as any, mockUser, mockEventStore, mockConfig)
       ).rejects.toThrow('motivation is required');
     });
 
@@ -160,12 +160,12 @@ describe('AnnotationCrudService', () => {
       } as EnvironmentConfig;
 
       await expect(
-        AnnotationCrudService.createAnnotation(validRequest, mockUser, invalidConfig)
+        AnnotationCrudService.createAnnotation(validRequest, mockUser, mockEventStore, invalidConfig)
       ).rejects.toThrow('Backend publicURL not configured');
     });
 
     it('should generate unique annotation ID', async () => {
-      await AnnotationCrudService.createAnnotation(validRequest, mockUser, mockConfig);
+      await AnnotationCrudService.createAnnotation(validRequest, mockUser, mockEventStore, mockConfig);
 
       expect(generateAnnotationId).toHaveBeenCalledWith('http://localhost:4000');
     });
@@ -174,7 +174,7 @@ describe('AnnotationCrudService', () => {
       const result = await AnnotationCrudService.createAnnotation(
         validRequest,
         mockUser,
-        mockConfig
+        mockEventStore, mockConfig
       );
 
       expect(result.annotation['@context']).toBe('http://www.w3.org/ns/anno.jsonld');
@@ -193,7 +193,7 @@ describe('AnnotationCrudService', () => {
       const result = await AnnotationCrudService.createAnnotation(
         requestWithMultipleBodies,
         mockUser,
-        mockConfig
+        mockEventStore, mockConfig
       );
 
       expect(Array.isArray(result.annotation.body)).toBe(true);
@@ -240,7 +240,7 @@ describe('AnnotationCrudService', () => {
         'anno-123',
         updateRequest,
         mockUser,
-        mockConfig
+        mockEventStore, mockConfig
       );
 
       expect(Array.isArray(result.annotation.body)).toBe(true);
@@ -259,7 +259,7 @@ describe('AnnotationCrudService', () => {
         'anno-123',
         updateRequest,
         mockUser,
-        mockConfig
+        mockEventStore, mockConfig
       );
 
       expect(mockEventStore.appendEvent).toHaveBeenCalledWith(
@@ -291,7 +291,7 @@ describe('AnnotationCrudService', () => {
         'anno-123',
         removeRequest,
         mockUser,
-        mockConfig
+        mockEventStore, mockConfig
       );
 
       expect((result.annotation.body as any[]).length).toBe(0);
@@ -315,7 +315,7 @@ describe('AnnotationCrudService', () => {
         'anno-123',
         replaceRequest,
         mockUser,
-        mockConfig
+        mockEventStore, mockConfig
       );
 
       expect((result.annotation.body as any[])[0].value).toBe('Updated Comment');
@@ -325,7 +325,7 @@ describe('AnnotationCrudService', () => {
       vi.mocked(AnnotationContext.getAnnotation).mockResolvedValue(null);
 
       await expect(
-        AnnotationCrudService.updateAnnotationBody('nonexistent', updateRequest, mockUser, mockConfig)
+        AnnotationCrudService.updateAnnotationBody('nonexistent', updateRequest, mockUser, mockEventStore, mockConfig)
       ).rejects.toThrow('Annotation not found');
     });
 
@@ -343,7 +343,7 @@ describe('AnnotationCrudService', () => {
         'anno-123',
         updateRequest,
         mockUser,
-        mockConfig
+        mockEventStore, mockConfig
       );
 
       // Should not add Comment 2 again
@@ -369,7 +369,7 @@ describe('AnnotationCrudService', () => {
         'http://localhost:4000/annotations/anno-123',
         'http://localhost:4000/resources/res-123',
         mockUser,
-        mockConfig
+        mockEventStore, mockConfig
       );
 
       expect(mockEventStore.appendEvent).toHaveBeenCalledWith(
@@ -393,7 +393,7 @@ describe('AnnotationCrudService', () => {
           'http://localhost:4000/annotations/nonexistent',
           'http://localhost:4000/resources/res-123',
           mockUser,
-          mockConfig
+          mockEventStore, mockConfig
         )
       ).rejects.toThrow('Annotation not found in resource');
     });
@@ -405,7 +405,7 @@ describe('AnnotationCrudService', () => {
         'http://localhost:4000/annotations/anno-123',
         'http://localhost:4000/resources/res-123',
         mockUser,
-        mockConfig
+        mockEventStore, mockConfig
       );
 
       expect(mockEventStore.appendEvent).toHaveBeenCalledWith(

@@ -8,7 +8,7 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { createEventStore } from '../services/event-store-service';
+import type { EventStore } from '@semiont/event-sourcing';
 import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
 import { userId, type EnvironmentConfig } from '@semiont/core';
 
@@ -19,7 +19,7 @@ let bootstrapCompleted = false;
  * Bootstrap entity types projection if it doesn't exist.
  * Uses a system user ID (00000000-0000-0000-0000-000000000000) for bootstrap events.
  */
-export async function bootstrapEntityTypes(config: EnvironmentConfig): Promise<void> {
+export async function bootstrapEntityTypes(eventStore: EventStore, config: EnvironmentConfig): Promise<void> {
   if (bootstrapCompleted) {
     console.log('[EntityTypesBootstrap] Already completed, skipping');
     return;
@@ -61,8 +61,6 @@ export async function bootstrapEntityTypes(config: EnvironmentConfig): Promise<v
 
   // System user ID for bootstrap events
   const SYSTEM_USER_ID = userId('00000000-0000-0000-0000-000000000000');
-
-  const eventStore = await createEventStore( config);
 
   // Emit one entitytype.added event for each default entity type
   for (const entityType of DEFAULT_ENTITY_TYPES) {

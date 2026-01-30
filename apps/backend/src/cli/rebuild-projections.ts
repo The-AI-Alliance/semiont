@@ -10,7 +10,8 @@
  *   npm run rebuild-projections <resourceId> # Rebuild specific resource
  */
 
-import { createEventStore, createEventQuery, createEventValidator } from '../services/event-store-service';
+import { startMakeMeaning } from '@semiont/make-meaning';
+import { EventQuery, EventValidator } from '@semiont/event-sourcing';
 import { loadEnvironmentConfig, resourceId as makeResourceId } from '@semiont/core';
 
 async function rebuildProjections(rId?: string) {
@@ -21,9 +22,11 @@ async function rebuildProjections(rId?: string) {
   const environment = process.env.SEMIONT_ENV || 'development';
   const config = loadEnvironmentConfig(projectRoot, environment);
 
-  const eventStore = await createEventStore( config);
-  const query = createEventQuery(eventStore);
-  const validator = createEventValidator();
+  // Start make-meaning to get eventStore
+  const makeMeaning = await startMakeMeaning(config);
+  const { eventStore } = makeMeaning;
+  const query = new EventQuery(eventStore.log.storage);
+  const validator = new EventValidator();
 
   if (rId) {
     // Rebuild single resource
@@ -73,6 +76,9 @@ async function rebuildProjections(rId?: string) {
     console.log(`   3. Views are automatically saved to ViewStorage\n`);
     console.log(`   For now, rebuild individual resources by ID.`);
   }
+
+  // Shutdown make-meaning
+  await makeMeaning.stop();
 
   console.log(`\n✅ Done!`);
 }

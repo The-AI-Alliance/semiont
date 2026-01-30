@@ -24,7 +24,7 @@ vi.mock('../../events/consumers/graph-consumer', () => ({
   getGraphConsumer: vi.fn(),
 }));
 
-import { createEventStore } from '../event-store-service';
+import { createEventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import { userToAgent } from '@semiont/core';
 
@@ -89,7 +89,7 @@ describe('ResourceOperations', () => {
     };
 
     it('should create resource successfully', async () => {
-      const result = await ResourceOperations.createResource(validInput, mockUser, mockConfig);
+      const result = await ResourceOperations.createResource(validInput, mockUser, mockEventStore, mockConfig);
 
       expect(result.resource.name).toBe('Test Document');
       expect(result.resource.entityTypes).toEqual(['Document']);
@@ -100,7 +100,7 @@ describe('ResourceOperations', () => {
     });
 
     it('should store content to FilesystemRepresentationStore', async () => {
-      await ResourceOperations.createResource(validInput, mockUser, mockConfig);
+      await ResourceOperations.createResource(validInput, mockUser, mockEventStore, mockConfig);
 
       expect(FilesystemRepresentationStore).toHaveBeenCalledWith(
         { basePath: '/test/data' },
@@ -117,7 +117,7 @@ describe('ResourceOperations', () => {
     });
 
     it('should emit resource.created event', async () => {
-      await ResourceOperations.createResource(validInput, mockUser, mockConfig);
+      await ResourceOperations.createResource(validInput, mockUser, mockEventStore, mockConfig);
 
       expect(mockEventStore.appendEvent).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -138,13 +138,13 @@ describe('ResourceOperations', () => {
     });
 
     it('should generate unique resource ID', async () => {
-      const result = await ResourceOperations.createResource(validInput, mockUser, mockConfig);
+      const result = await ResourceOperations.createResource(validInput, mockUser, mockEventStore, mockConfig);
 
       expect(result.resource['@id']).toMatch(/^http:\/\/localhost:4000\/resources\/.+/);
     });
 
     it('should include representation metadata in response', async () => {
-      const result = await ResourceOperations.createResource(validInput, mockUser, mockConfig);
+      const result = await ResourceOperations.createResource(validInput, mockUser, mockEventStore, mockConfig);
 
       expect(Array.isArray(result.resource.representations)).toBe(true);
       if (Array.isArray(result.resource.representations)) {
@@ -160,7 +160,7 @@ describe('ResourceOperations', () => {
     });
 
     it('should set wasAttributedTo with user agent', async () => {
-      const result = await ResourceOperations.createResource(validInput, mockUser, mockConfig);
+      const result = await ResourceOperations.createResource(validInput, mockUser, mockEventStore, mockConfig);
 
       expect(result.resource.wasAttributedTo).toEqual({
         type: 'Person',
@@ -172,7 +172,7 @@ describe('ResourceOperations', () => {
     it('should use default creationMethod when not provided', async () => {
       const inputWithoutMethod = { ...validInput, creationMethod: undefined };
 
-      const result = await ResourceOperations.createResource(inputWithoutMethod, mockUser, mockConfig);
+      const result = await ResourceOperations.createResource(inputWithoutMethod, mockUser, mockEventStore, mockConfig);
 
       expect(result.resource.creationMethod).toBe('api');
     });
@@ -186,6 +186,7 @@ describe('ResourceOperations', () => {
       const result = await ResourceOperations.createResource(
         inputWithInvalidMethod,
         mockUser,
+        mockEventStore,
         mockConfig
       );
 
@@ -198,7 +199,7 @@ describe('ResourceOperations', () => {
 
       for (const method of methods) {
         const input = { ...validInput, creationMethod: method as any };
-        const result = await ResourceOperations.createResource(input, mockUser, mockConfig);
+        const result = await ResourceOperations.createResource(input, mockUser, mockEventStore, mockConfig);
         expect(result.resource.creationMethod).toBe(method);
       }
     });
@@ -206,7 +207,7 @@ describe('ResourceOperations', () => {
     it('should default entityTypes to empty array', async () => {
       const inputWithoutTypes = { ...validInput, entityTypes: undefined };
 
-      const result = await ResourceOperations.createResource(inputWithoutTypes, mockUser, mockConfig);
+      const result = await ResourceOperations.createResource(inputWithoutTypes, mockUser, mockEventStore, mockConfig);
 
       expect(result.resource.entityTypes).toEqual([]);
     });
@@ -214,7 +215,7 @@ describe('ResourceOperations', () => {
     it('should handle content without language', async () => {
       const inputWithoutLang = { ...validInput, language: undefined };
 
-      await ResourceOperations.createResource(inputWithoutLang, mockUser, mockConfig);
+      await ResourceOperations.createResource(inputWithoutLang, mockUser, mockEventStore, mockConfig);
 
       expect(mockRepStore.store).toHaveBeenCalledWith(
         expect.any(Buffer),
@@ -232,12 +233,12 @@ describe('ResourceOperations', () => {
       } as EnvironmentConfig;
 
       await expect(
-        ResourceOperations.createResource(validInput, mockUser, invalidConfig)
+        ResourceOperations.createResource(validInput, mockUser, mockEventStore, invalidConfig)
       ).rejects.toThrow('Backend publicURL not configured');
     });
 
     it('should set Schema.org context', async () => {
-      const result = await ResourceOperations.createResource(validInput, mockUser, mockConfig);
+      const result = await ResourceOperations.createResource(validInput, mockUser, mockEventStore, mockConfig);
 
       expect(result.resource['@context']).toBe('https://schema.org/');
     });
@@ -248,7 +249,7 @@ describe('ResourceOperations', () => {
         entityTypes: ['Document', 'Article', 'ScholarlyArticle'],
       };
 
-      const result = await ResourceOperations.createResource(inputWithTypes, mockUser, mockConfig);
+      const result = await ResourceOperations.createResource(inputWithTypes, mockUser, mockEventStore, mockConfig);
 
       expect(result.resource.entityTypes).toEqual(['Document', 'Article', 'ScholarlyArticle']);
     });
@@ -260,7 +261,7 @@ describe('ResourceOperations', () => {
         format: 'text/plain' as const,
       };
 
-      await ResourceOperations.createResource(inputWithoutOptionals, mockUser, mockConfig);
+      await ResourceOperations.createResource(inputWithoutOptionals, mockUser, mockEventStore, mockConfig);
 
       expect(mockEventStore.appendEvent).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -280,7 +281,7 @@ describe('ResourceOperations', () => {
 
       // Should not throw error, just log and continue
       await expect(
-        ResourceOperations.createResource(validInput, mockUser, mockConfig)
+        ResourceOperations.createResource(validInput, mockUser, mockEventStore, mockConfig)
       ).resolves.toBeDefined();
     });
 
@@ -301,6 +302,7 @@ describe('ResourceOperations', () => {
       const result = await ResourceOperations.createResource(
         validInput,
         mockUser,
+        mockEventStore,
         configWithTrailingSlash
       );
 
@@ -314,7 +316,7 @@ describe('ResourceOperations', () => {
         format: 'application/pdf' as const,
       };
 
-      await ResourceOperations.createResource(pdfInput, mockUser, mockConfig);
+      await ResourceOperations.createResource(pdfInput, mockUser, mockEventStore, mockConfig);
 
       expect(mockRepStore.store).toHaveBeenCalledWith(
         expect.any(Buffer),
@@ -325,7 +327,7 @@ describe('ResourceOperations', () => {
     });
 
     it('should include version in event', async () => {
-      await ResourceOperations.createResource(validInput, mockUser, mockConfig);
+      await ResourceOperations.createResource(validInput, mockUser, mockEventStore, mockConfig);
 
       expect(mockEventStore.appendEvent).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -335,7 +337,7 @@ describe('ResourceOperations', () => {
     });
 
     it('should set isDraft to false', async () => {
-      await ResourceOperations.createResource(validInput, mockUser, mockConfig);
+      await ResourceOperations.createResource(validInput, mockUser, mockEventStore, mockConfig);
 
       expect(mockEventStore.appendEvent).toHaveBeenCalledWith(
         expect.objectContaining({

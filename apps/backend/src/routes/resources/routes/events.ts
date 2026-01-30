@@ -8,9 +8,9 @@
  * - OpenAPI spec is the source of truth
  */
 
+import { EventQuery } from '@semiont/event-sourcing';
 import type { ResourcesRouterType } from '../shared';
-import { createEventStore, createEventQuery } from '../../../services/event-store-service';
-import type { EventQuery, StoredEvent } from '@semiont/core';
+import type { StoredEvent, EventQuery as EventQueryType } from '@semiont/core';
 import { resourceId } from '@semiont/core';
 import type { components } from '@semiont/api-client';
 import { HTTPException } from 'hono/http-exception';
@@ -49,7 +49,6 @@ export function registerGetEvents(router: ResourcesRouterType) {
   router.get('/resources/:id/events', async (c) => {
     const { id } = c.req.param();
     const queryParams = c.req.query();
-    const config = c.get('config');
 
     // Parse and validate query parameters
     const type = queryParams.type;
@@ -66,12 +65,12 @@ export function registerGetEvents(router: ResourcesRouterType) {
       throw new HTTPException(400, { message: 'Query parameter "limit" must be between 1 and 1000' });
     }
 
-    const eventStore = await createEventStore( config);
-    const eventQuery = createEventQuery(eventStore);
+    const { eventStore } = c.get('makeMeaning');
+    const eventQuery = new EventQuery(eventStore.log.storage);
 
     // Build query filters - type is validated by this point
     const validatedType = type && isValidEventType(type) ? type : undefined;
-    const filters: EventQuery = {
+    const filters: EventQueryType = {
       resourceId: resourceId(id),
       ...(validatedType && { eventTypes: [validatedType] }),
     };

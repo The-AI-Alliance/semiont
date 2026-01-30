@@ -31,6 +31,7 @@ vi.mock('@semiont/make-meaning', async (importOriginal) => {
 type Variables = {
   user: User;
   config: EnvironmentConfig;
+  makeMeaning: any;
 };
 
 type ErrorResponse = {

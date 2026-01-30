@@ -16,7 +16,6 @@ import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { ResourceContext } from '@semiont/make-meaning';
-import { createEventStore } from '../../../services/event-store-service';
 import type { JobQueue, PendingJob, TagDetectionParams } from '@semiont/jobs';
 import { nanoid } from 'nanoid';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
@@ -96,7 +95,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
       }
 
       // Create Event Store instance for event subscriptions
-      const eventStore = await createEventStore(config);
+      const { eventStore } = c.get('makeMeaning');
 
       // Construct full resource URI for event subscriptions
       const rUri = resourceUri(`${config.services.backend!.publicURL}/resources/${id}`);

@@ -1,3 +1,5 @@
+import { EventQuery } from '@semiont/event-sourcing';
+
 /**
  * Resource Events Stream Route - Spec-First Version
  *
@@ -16,7 +18,6 @@
 import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import { createEventStore, createEventQuery } from '../../../services/event-store-service';
 import { resourceId } from '@semiont/core';
 import { resourceUri } from '@semiont/api-client';
 
@@ -48,8 +49,8 @@ export function registerGetEventStream(router: ResourcesRouterType) {
     console.log(`[EventStream] Subscribing to events for resource URI: ${rUri}`);
 
     // Verify resource exists in event store (Event Store - source of truth)
-    const eventStore = await createEventStore( config);
-    const query = createEventQuery(eventStore);
+    const { eventStore } = c.get('makeMeaning');
+    const query = new EventQuery(eventStore.log.storage);
     const events = await query.getResourceEvents(resourceId(id));
     if (events.length === 0) {
       console.log(`[EventStream] Resource ${id} not found - no events exist`);

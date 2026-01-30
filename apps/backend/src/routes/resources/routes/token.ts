@@ -9,7 +9,6 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import { getGraphDatabase } from '@semiont/graph';
 import {
   CREATION_METHODS,
   generateUuid,
@@ -23,7 +22,6 @@ import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
-import { FilesystemRepresentationStore } from '@semiont/content';
 import { getPrimaryRepresentation, getResourceId, getResourceEntityTypes } from '@semiont/api-client';
 
 type GetResourceByTokenResponse = components['schemas']['GetResourceByTokenResponse'];
@@ -56,7 +54,7 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
     }
 
     const config = c.get('config');
-    const graphDb = await getGraphDatabase(config);
+    const { graphDb } = c.get('makeMeaning');
     const sourceDoc = await graphDb.getResource(resourceUri(tokenData.resourceId));
     if (!sourceDoc) {
       throw new HTTPException(404, { message: 'Source resource not found' });
@@ -97,9 +95,8 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
         cloneTokens.delete(token);
         throw new HTTPException(404, { message: 'Token expired' });
       }
-    const graphDb = await getGraphDatabase(config);
-      const projectRoot = config._metadata?.projectRoot;
-      const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
+
+      const { graphDb, repStore } = c.get('makeMeaning');
 
       // Get source resource
       const sourceDoc = await graphDb.getResource(resourceUri(tokenData.resourceId));
@@ -186,10 +183,7 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
   router.post('/resources/:id/clone-with-token', async (c) => {
     const { id } = c.req.param();
     const config = c.get('config');
-    const basePath = config.services.filesystem!.path;
-    const graphDb = await getGraphDatabase(config);
-    const projectRoot = config._metadata?.projectRoot;
-    const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
+    const { graphDb, repStore } = c.get('makeMeaning');
 
     const sourceDoc = await graphDb.getResource(resourceUri(resourceUri(id)));
     if (!sourceDoc) {

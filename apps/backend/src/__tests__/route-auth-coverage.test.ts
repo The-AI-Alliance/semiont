@@ -30,6 +30,7 @@ vi.mock('@semiont/make-meaning', async (importOriginal) => {
 type Variables = {
   user: User;
   config: EnvironmentConfig;
+  makeMeaning: any;
 };
 
 // Meta-routes that serve the API documentation itself (self-referential, not in spec)

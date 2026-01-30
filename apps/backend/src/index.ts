@@ -91,6 +91,7 @@ import { errorLoggerMiddleware } from './middleware/error-logger';
 type Variables = {
   user: User;
   config: EnvironmentConfig;
+  makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>>;
 };
 
 // Initialize Winston logger with log level from environment config
@@ -113,9 +114,10 @@ app.use('*', requestIdMiddleware);       // Generate request ID first
 app.use('*', errorLoggerMiddleware);     // Catch errors second
 app.use('*', requestLoggerMiddleware);   // Log requests third
 
-// Inject config into context for all routes
+// Inject config and makeMeaning into context for all routes
 app.use('*', async (c, next) => {
   c.set('config', config);
+  c.set('makeMeaning', makeMeaning);
   await next();
 });
 
@@ -243,7 +245,7 @@ if (nodeEnv !== 'test') {
     try {
       console.log('🌱 Bootstrapping entity types...');
       const { bootstrapEntityTypes } = await import('./bootstrap/entity-types-bootstrap');
-      await bootstrapEntityTypes(config);
+      await bootstrapEntityTypes(makeMeaning.eventStore, config);
       console.log('✅ Entity types bootstrap complete');
     } catch (error) {
       console.error('⚠️ Failed to bootstrap entity types:', error);

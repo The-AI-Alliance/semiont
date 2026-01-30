@@ -15,8 +15,8 @@ import {
   type EnvironmentConfig,
   userToAgent,
 } from '@semiont/core';
-import { FilesystemRepresentationStore } from '@semiont/content';
-import { createEventStore } from './event-store-service';
+import type { RepresentationStore } from '@semiont/content';
+import type { EventStore } from '@semiont/event-sourcing';
 import type { components } from '@semiont/api-client';
 import type { User } from '@prisma/client';
 
@@ -41,13 +41,15 @@ export class ResourceOperations {
   static async createResource(
     input: CreateResourceInput,
     user: User,
+    eventStore: EventStore,
+    repStore: RepresentationStore,
     config: EnvironmentConfig
   ): Promise<CreateResourceResponse> {
     // Generate resource ID
     const rId = resourceId(generateUuid());
 
     // Store content
-    const storedRep = await this.storeContent(input.content, input.format, input.language, config);
+    const storedRep = await this.storeContent(input.content, input.format, input.language, repStore);
 
     // Validate creation method
     const validatedCreationMethod = this.validateCreationMethod(input.creationMethod);
@@ -62,7 +64,7 @@ export class ResourceOperations {
       input.language,
       storedRep,
       validatedCreationMethod,
-      config
+      eventStore
     );
 
     // Build and return response
@@ -84,12 +86,8 @@ export class ResourceOperations {
     content: Buffer,
     format: ContentFormat,
     language: string | undefined,
-    config: EnvironmentConfig
+    repStore: RepresentationStore
   ) {
-    const basePath = config.services.filesystem!.path;
-    const projectRoot = config._metadata?.projectRoot;
-    const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
-
     return await repStore.store(content, {
       mediaType: format,
       language: language || undefined,
@@ -120,9 +118,8 @@ export class ResourceOperations {
     language: string | undefined,
     storedRep: { checksum: string; byteSize: number },
     creationMethod: CreationMethod,
-    config: EnvironmentConfig
+    eventStore: EventStore
   ): Promise<void> {
-    const eventStore = await createEventStore(config);
     await eventStore.appendEvent({
       type: 'resource.created',
       resourceId,

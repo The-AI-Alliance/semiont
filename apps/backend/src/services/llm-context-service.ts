@@ -5,9 +5,10 @@
  * Orchestrates: graph queries + content retrieval + annotation fetching + LLM operations
  */
 
-import { getGraphDatabase } from '@semiont/graph';
+import type { GraphDatabase } from '@semiont/graph';
 import { generateResourceSummary, generateReferenceSuggestions } from '@semiont/make-meaning';
-import { FilesystemRepresentationStore } from '@semiont/content';
+import type { RepresentationStore } from '@semiont/content';
+import type { InferenceClient } from '@semiont/inference';
 import {
   getResourceId,
   getPrimaryRepresentation,
@@ -50,13 +51,11 @@ export class LLMContextService {
   static async getResourceLLMContext(
     resourceId: string,
     options: LLMContextOptions,
-    config: EnvironmentConfig
+    config: EnvironmentConfig,
+    inferenceClient: InferenceClient,
+    graphDb: GraphDatabase,
+    repStore: RepresentationStore
   ): Promise<ResourceLLMContextResponse> {
-    const basePath = config.services.filesystem!.path;
-    const projectRoot = config._metadata?.projectRoot;
-
-    const graphDb = await getGraphDatabase(config);
-    const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
 
     // Get main resource from graph
     const mainDoc = await this.getMainResource(resourceId, graphDb, config);
@@ -95,13 +94,13 @@ export class LLMContextService {
           mainDoc.name,
           mainContent,
           getResourceEntityTypes(mainDoc),
-          config
+          inferenceClient
         )
       : undefined;
 
     // Generate reference suggestions if we have content
     const suggestedReferences = mainContent
-      ? await generateReferenceSuggestions(mainContent, config)
+      ? await generateReferenceSuggestions(mainContent, inferenceClient)
       : undefined;
 
     // Build response
@@ -122,7 +121,7 @@ export class LLMContextService {
    */
   private static async getMainResource(
     resourceId: string,
-    graphDb: Awaited<ReturnType<typeof getGraphDatabase>>,
+    graphDb: GraphDatabase,
     config: EnvironmentConfig
   ): Promise<ResourceDescriptor> {
     const publicURL = config.services.backend!.publicURL;
@@ -140,7 +139,7 @@ export class LLMContextService {
    */
   private static async getResourceContent(
     doc: ResourceDescriptor,
-    repStore: FilesystemRepresentationStore
+    repStore: RepresentationStore
   ): Promise<string | undefined> {
     const primaryRep = getPrimaryRepresentation(doc);
     if (primaryRep?.checksum && primaryRep?.mediaType) {
@@ -156,7 +155,7 @@ export class LLMContextService {
   private static async getRelatedResources(
     resourceId: string,
     maxResources: number,
-    graphDb: Awaited<ReturnType<typeof getGraphDatabase>>
+    graphDb: GraphDatabase
   ) {
     const connections = await graphDb.getResourceConnections(makeResourceId(resourceId));
     const relatedDocs = connections.map(conn => conn.targetResource);
@@ -170,7 +169,7 @@ export class LLMContextService {
    */
   private static async getRelatedResourcesContent(
     relatedDocs: ResourceDescriptor[],
-    repStore: FilesystemRepresentationStore
+    repStore: RepresentationStore
   ): Promise<{ [id: string]: string }> {
     const relatedResourcesContent: { [id: string]: string } = {};
 
@@ -198,7 +197,7 @@ export class LLMContextService {
    */
   private static async getAnnotations(
     resourceId: string,
-    graphDb: Awaited<ReturnType<typeof getGraphDatabase>>
+    graphDb: GraphDatabase
   ): Promise<Annotation[]> {
     const result = await graphDb.listAnnotations({ resourceId: makeResourceId(resourceId) });
     return result.annotations;

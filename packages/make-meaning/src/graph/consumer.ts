@@ -6,7 +6,6 @@
  */
 
 import { EventQuery, type EventStore } from '@semiont/event-sourcing';
-import { getGraphDatabase } from '@semiont/graph';
 import { didToAgent } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
 import type { components } from '@semiont/api-client';
@@ -19,7 +18,6 @@ type Annotation = components['schemas']['Annotation'];
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 export class GraphDBConsumer {
-  private graphDb: GraphDatabase | null = null;
   private subscriptions: Map<string, any> = new Map();
   private _globalSubscription: any = null;  // Subscription to system-level events (kept for cleanup)
   private processing: Map<string, Promise<void>> = new Map();
@@ -27,17 +25,14 @@ export class GraphDBConsumer {
 
   constructor(
     private config: EnvironmentConfig,
-    private eventStore: EventStore
+    private eventStore: EventStore,
+    private graphDb: GraphDatabase
   ) {}
 
   async initialize() {
-    if (!this.graphDb) {
-      this.graphDb = await getGraphDatabase(this.config);
-      console.log('[GraphDBConsumer] Initialized');
-
-      // Subscribe to global system-level events
-      await this.subscribeToGlobalEvents();
-    }
+    console.log('[GraphDBConsumer] Initialized');
+    // Subscribe to global system-level events
+    await this.subscribeToGlobalEvents();
   }
 
   /**
@@ -54,9 +49,6 @@ export class GraphDBConsumer {
   }
 
   private ensureInitialized(): GraphDatabase {
-    if (!this.graphDb) {
-      throw new Error('GraphDBConsumer not initialized. Call initialize() first.');
-    }
     return this.graphDb;
   }
 
@@ -462,10 +454,7 @@ export class GraphDBConsumer {
       console.log('[GraphDBConsumer] Unsubscribed from global events');
     }
 
-    if (this.graphDb) {
-      await this.graphDb.disconnect();
-      this.graphDb = null;
-    }
+    // GraphDB disconnect is handled by MakeMeaningService.stop()
     console.log('[GraphDBConsumer] Shut down');
   }
 }

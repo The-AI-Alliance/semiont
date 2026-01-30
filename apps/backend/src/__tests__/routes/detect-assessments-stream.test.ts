@@ -16,6 +16,7 @@ import type { EnvironmentConfig } from '@semiont/core';
 type Variables = {
   user: User;
   config: EnvironmentConfig;
+  makeMeaning: any;
 };
 
 // Mock entire @semiont/make-meaning with simple mocks

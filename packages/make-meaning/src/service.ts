@@ -12,10 +12,12 @@
 
 import * as path from 'path';
 import { JobQueue } from '@semiont/jobs';
-import { createEventStore as createEventStoreCore } from '@semiont/event-sourcing';
+import { createEventStore as createEventStoreCore, type EventStore } from '@semiont/event-sourcing';
+import { FilesystemRepresentationStore, type RepresentationStore } from '@semiont/content';
 import type { EnvironmentConfig } from '@semiont/core';
 import { resourceId as makeResourceId } from '@semiont/core';
-import { getInferenceClient } from '@semiont/inference';
+import { getInferenceClient, type InferenceClient } from '@semiont/inference';
+import { getGraphDatabase, type GraphDatabase } from '@semiont/graph';
 import { ReferenceDetectionWorker } from './jobs/reference-detection-worker';
 import { GenerationWorker } from './jobs/generation-worker';
 import { HighlightDetectionWorker } from './jobs/highlight-detection-worker';
@@ -26,6 +28,10 @@ import { GraphDBConsumer } from './graph/consumer';
 
 export interface MakeMeaningService {
   jobQueue: JobQueue;
+  eventStore: EventStore;
+  repStore: RepresentationStore;
+  inferenceClient: InferenceClient;
+  graphDb: GraphDatabase;
   workers: {
     detection: ReferenceDetectionWorker;
     generation: GenerationWorker;
@@ -73,14 +79,24 @@ export async function startMakeMeaning(config: EnvironmentConfig): Promise<MakeM
   console.log('📊 Creating event store connection...');
   const eventStore = createEventStoreCore(basePath, baseUrl);
 
-  // 4. Create inference client (shared across all workers)
+  // 4. Create shared representation store
+  console.log('📦 Creating representation store...');
+  const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
+  console.log('✅ Representation store created');
+
+  // 5. Create inference client (shared across all workers)
   console.log('🤖 Creating inference client...');
   const inferenceClient = await getInferenceClient(config);
   console.log('✅ Inference client created');
 
-  // 5. Start graph consumer
+  // 6. Create graph database connection
+  console.log('📊 Connecting to graph database...');
+  const graphDb = await getGraphDatabase(config);
+  console.log('✅ Graph database connected');
+
+  // 7. Start graph consumer
   console.log('🔄 Starting graph consumer...');
-  const graphConsumer = new GraphDBConsumer(config, eventStore);
+  const graphConsumer = new GraphDBConsumer(config, eventStore, graphDb);
   await graphConsumer.initialize();
 
   // Subscribe to all existing resources
@@ -91,7 +107,7 @@ export async function startMakeMeaning(config: EnvironmentConfig): Promise<MakeM
   }
   console.log('✅ Graph consumer started');
 
-  // 6. Instantiate workers
+  // 8. Instantiate workers
   console.log('👷 Creating workers...');
   const workers = {
     detection: new ReferenceDetectionWorker(jobQueue, config, eventStore, inferenceClient),
@@ -102,7 +118,7 @@ export async function startMakeMeaning(config: EnvironmentConfig): Promise<MakeM
     tag: new TagDetectionWorker(jobQueue, config, eventStore, inferenceClient),
   };
 
-  // 7. Start all workers (non-blocking)
+  // 8. Start all workers (non-blocking)
   console.log('🚀 Starting workers...');
   workers.detection.start().catch((error: unknown) => {
     console.error('⚠️ Detection worker stopped:', error);
@@ -128,6 +144,10 @@ export async function startMakeMeaning(config: EnvironmentConfig): Promise<MakeM
 
   return {
     jobQueue,
+    eventStore,
+    repStore,
+    inferenceClient,
+    graphDb,
     workers,
     graphConsumer,
     stop: async () => {
@@ -141,6 +161,7 @@ export async function startMakeMeaning(config: EnvironmentConfig): Promise<MakeM
         workers.tag.stop(),
       ]);
       await graphConsumer.stop();
+      await graphDb.disconnect();
       console.log('✅ Make-Meaning service stopped');
     },
   };

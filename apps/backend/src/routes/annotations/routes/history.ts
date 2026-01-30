@@ -1,3 +1,5 @@
+import { EventQuery } from '@semiont/event-sourcing';
+
 /**
  * Annotation History Route - Spec-First Version
  *
@@ -10,7 +12,6 @@
 
 import { HTTPException } from 'hono/http-exception';
 import type { AnnotationsRouterType } from '../shared';
-import { createEventStore, createEventQuery } from '../../../services/event-store-service';
 import { AnnotationContext } from '@semiont/make-meaning';
 import { getTargetSource } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
@@ -40,8 +41,8 @@ export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
       throw new HTTPException(404, { message: 'Annotation does not belong to this resource' });
     }
 
-    const eventStore = await createEventStore( config);
-    const query = createEventQuery(eventStore);
+    const { eventStore } = c.get('makeMeaning');
+    const query = new EventQuery(eventStore.log.storage);
 
     // Get all events for this resource
     const allEvents = await query.queryEvents({

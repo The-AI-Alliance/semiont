@@ -72,7 +72,7 @@ describe('GraphDBConsumer', () => {
     } as EnvironmentConfig;
 
     eventStore = createEventStore(testDir, config.services.backend!.publicURL);
-    consumer = new GraphDBConsumer(config, eventStore);
+    consumer = new GraphDBConsumer(config, eventStore, mockGraphDb as any);
   });
 
   afterAll(async () => {
@@ -80,15 +80,8 @@ describe('GraphDBConsumer', () => {
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
-  it('should initialize graph database', async () => {
-    await consumer.initialize();
-
-    const { getGraphDatabase } = await import('@semiont/graph');
-    expect(getGraphDatabase).toHaveBeenCalledWith(config);
-  });
-
   it('should throw error if not initialized before use', async () => {
-    const uninitializedConsumer = new GraphDBConsumer(config, eventStore);
+    const uninitializedConsumer = new GraphDBConsumer(config, eventStore, mockGraphDb as any);
 
     await expect(
       uninitializedConsumer.subscribeToResource(resourceId('test'))
@@ -193,7 +186,7 @@ describe('GraphDBConsumer', () => {
   });
 
   it('should stop and unsubscribe from events', async () => {
-    const testConsumer = new GraphDBConsumer(config, eventStore);
+    const testConsumer = new GraphDBConsumer(config, eventStore, mockGraphDb as any);
     await testConsumer.initialize();
 
     const testResourceId = resourceId(`test-stop-${Date.now()}`);

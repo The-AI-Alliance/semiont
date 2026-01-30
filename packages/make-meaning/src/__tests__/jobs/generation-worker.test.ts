@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { GenerationWorker } from '../../jobs/generation-worker';
 import { JobQueue, type GenerationJob, type RunningJob, type GenerationParams, type GenerationProgress } from '@semiont/jobs';
-import { resourceId, userId, annotationId, type EnvironmentConfig } from '@semiont/core';
+import { resourceId, userId, annotationId, type EnvironmentConfig, type JobCompletedEvent, type StoredEvent } from '@semiont/core';
 import { jobId } from '@semiont/api-client';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore } from '@semiont/content';
@@ -354,12 +354,19 @@ describe('GenerationWorker - Event Emission', () => {
 
     // Get the job.completed event to find the generated resource ID
     const sourceEvents = await testEventStore.log.getEvents(resourceId(testResourceId));
-    const completedEvents = sourceEvents.filter((e: any) => e.event.type === 'job.completed');
+    const completedEvents = sourceEvents.filter((e): e is StoredEvent<JobCompletedEvent> =>
+      e.event.type === 'job.completed'
+    );
     expect(completedEvents.length).toBeGreaterThanOrEqual(1);
 
     const completedEvent = completedEvents[0];
-    const generatedResourceId = completedEvent.event.payload?.resultResourceId;
+    const generatedResourceId = completedEvent.event.payload.resultResourceId;
     expect(generatedResourceId).toBeDefined();
+
+    // Type assertion after checking it's defined
+    if (!generatedResourceId) {
+      throw new Error('generatedResourceId should be defined');
+    }
 
     // Check for resource.created event on the generated resource
     const generatedEvents = await testEventStore.log.getEvents(resourceId(generatedResourceId));
