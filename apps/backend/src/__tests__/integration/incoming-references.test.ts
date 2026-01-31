@@ -110,7 +110,7 @@ describe('Incoming References Integration Tests', () => {
     const { OAuthService } = await import('../../auth/oauth');
     vi.mocked(OAuthService.getUserFromToken).mockImplementation(async (token) => {
       if (token === testToken) {
-        return testUser as any;
+        return testUser as User;
       }
       throw new Error('Invalid token');
     });

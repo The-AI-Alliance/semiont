@@ -42,6 +42,13 @@ vi.mock('@semiont/make-meaning', () => ({
   ResourceContext: {
     getResourceMetadata: vi.fn().mockResolvedValue(mockResourceMetadata)
   },
+  AnnotationContext: {
+    buildLLMContext: vi.fn().mockResolvedValue({
+      sourceContext: null,
+      targetContext: null
+    }),
+    getAllAnnotations: vi.fn().mockResolvedValue([])
+  },
   startMakeMeaning: vi.fn().mockResolvedValue({
     jobQueue: mockJobQueue,
     workers: [],
@@ -112,12 +119,12 @@ describe('POST /resources/:resourceId/detect-assessments-stream', () => {
     // Mock database user lookup
     const { DatabaseConnection } = await import('../../db');
     const prisma = DatabaseConnection.getClient();
-    vi.mocked(prisma.user.findUnique).mockResolvedValue(testUser as any);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(testUser as User);
 
     // Mock OAuth service
     const { OAuthService } = await import('../../auth/oauth');
     vi.mocked(OAuthService.getUserFromToken).mockImplementation(async (token) => {
-      return token === authToken ? (testUser as any) : null;
+      return token === authToken ? (testUser as User) : undefined!;
     });
 
     // Import app after mocks are set up

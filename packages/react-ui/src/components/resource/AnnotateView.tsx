@@ -13,6 +13,12 @@ import { findTextWithContext } from '@semiont/api-client';
 type Annotation = components['schemas']['Annotation'];
 import { CodeMirrorRenderer } from '../CodeMirrorRenderer';
 import type { TextSegment } from '../CodeMirrorRenderer';
+import type { EditorView } from '@codemirror/view';
+
+// Type augmentation for custom DOM properties
+interface EnrichedHTMLElement extends HTMLElement {
+  __cmView?: EditorView;
+}
 import { AnnotateToolbar, type SelectionMotivation, type ClickAction, type ShapeType } from '../annotation/AnnotateToolbar';
 import type { AnnotationsCollection, AnnotationHandlers, AnnotationCreationHandler, AnnotationUIState, UICreateAnnotationParams } from '../../types/annotation-props';
 
@@ -264,7 +270,7 @@ export function AnnotateView({
 
       // Get the CodeMirror EditorView instance stored on the CodeMirror container
       const cmContainer = container.querySelector('.codemirror-renderer');
-      const view = (cmContainer as any)?.__cmView;
+      const view = (cmContainer as EnrichedHTMLElement | null)?.__cmView;
       if (!view || !view.posAtDOM) {
         // Fallback: try to find text in source (won't work for duplicates)
         const start = content.indexOf(text);

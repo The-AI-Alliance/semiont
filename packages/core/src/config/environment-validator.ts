@@ -2,7 +2,7 @@
  * Environment validation utilities
  */
 
-import { getAvailableEnvironments } from './environment-loader';
+import { getAvailableEnvironments } from './environment-loader-fs';
 
 export type Environment = string; // Allow any environment name discovered from filesystem
 

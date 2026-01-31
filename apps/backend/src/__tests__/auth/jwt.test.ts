@@ -13,6 +13,7 @@ import { email } from '@semiont/api-client';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { JWTService } from '../../auth/jwt';
 import { User } from '@prisma/client';
+import type { JWTPayload } from '../../types/jwt-types';
 
 // Mock jsonwebtoken - must be defined inline in the factory due to hoisting
 vi.mock('jsonwebtoken', () => {
@@ -392,7 +393,7 @@ describe('JWT Service', () => {
 
       const callArgs = vi.mocked(jwt.sign).mock.calls[0];
       const [payload] = callArgs || [];
-      expect((payload as any)?.isAdmin).toBe(false);
+      expect((payload as JWTPayload)?.isAdmin).toBe(false);
     });
   });
 });

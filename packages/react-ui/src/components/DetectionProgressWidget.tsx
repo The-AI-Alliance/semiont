@@ -7,6 +7,11 @@ import type { components } from '@semiont/api-client';
 
 type Motivation = components['schemas']['Motivation'];
 
+// Extended DetectionProgress with optional request parameters
+interface EnrichedDetectionProgress extends DetectionProgress {
+  requestParams?: Array<{ label: string; value: string }>;
+}
+
 interface DetectionProgressWidgetProps {
   progress: DetectionProgress | null;
   onCancel?: () => void;
@@ -42,16 +47,19 @@ export function DetectionProgressWidget({ progress, onCancel, annotationType = '
       </div>
 
       {/* Request Parameters */}
-      {(progress as any).requestParams && (progress as any).requestParams.length > 0 && (
-        <div className="semiont-detection-progress__params">
-          <div className="semiont-detection-progress__params-title">Request Parameters:</div>
-          {(progress as any).requestParams.map((param: { label: string; value: string }, idx: number) => (
-            <div key={idx} className="semiont-detection-progress__param">
-              <span className="semiont-detection-progress__param-label">{param.label}:</span> {param.value}
-            </div>
-          ))}
-        </div>
-      )}
+      {(() => {
+        const enrichedProgress = progress as EnrichedDetectionProgress;
+        return enrichedProgress.requestParams && enrichedProgress.requestParams.length > 0 && (
+          <div className="semiont-detection-progress__params">
+            <div className="semiont-detection-progress__params-title">Request Parameters:</div>
+            {enrichedProgress.requestParams.map((param, idx) => (
+              <div key={idx} className="semiont-detection-progress__param">
+                <span className="semiont-detection-progress__param-label">{param.label}:</span> {param.value}
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Completed entity types log */}
       {progress.completedEntityTypes && progress.completedEntityTypes.length > 0 && (

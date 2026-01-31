@@ -78,6 +78,9 @@ export function registerCreateResource(router: ResourcesRouterType) {
       config
     );
 
+    // Set Location header to the resource URI
+    c.header('Location', response.resource['@id']);
+
     return c.json(response, 201);
   });
 }

@@ -83,7 +83,7 @@ export function mergeDataAttributes<T extends Record<string, any>>(
   props: T,
   dataAttributes: Record<string, string | undefined>
 ): T {
-  const merged = { ...props } as any;
+  const merged: Record<string, any> = { ...props };
 
   Object.entries(dataAttributes).forEach(([key, value]) => {
     if (value !== undefined) {

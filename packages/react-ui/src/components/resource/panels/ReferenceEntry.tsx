@@ -10,6 +10,12 @@ import { getResourceIcon } from '../../../lib/resource-utils';
 
 type Annotation = components['schemas']['Annotation'];
 
+// Extended annotation type with runtime properties added by backend enrichment
+interface EnrichedAnnotation extends Annotation {
+  _resolvedDocumentName?: string;
+  _resolvedDocumentMediaType?: string;
+}
+
 interface ReferenceEntryProps {
   reference: Annotation;
   isFocused: boolean;
@@ -82,8 +88,9 @@ export function ReferenceEntry({
   const entityTypes = getEntityTypes(reference);
 
   // Extract resolved document name and media type if enriched by backend
-  const resolvedDocumentName = (reference as any)._resolvedDocumentName as string | undefined;
-  const resolvedDocumentMediaType = (reference as any)._resolvedDocumentMediaType as string | undefined;
+  const enrichedReference = reference as EnrichedAnnotation;
+  const resolvedDocumentName = enrichedReference._resolvedDocumentName;
+  const resolvedDocumentMediaType = enrichedReference._resolvedDocumentMediaType;
   const resourceIcon = getResourceIcon(resolvedDocumentMediaType);
 
   const handleOpen = () => {

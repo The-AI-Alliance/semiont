@@ -5,10 +5,8 @@
  * Handles semiont.json base config and environment-specific overrides.
  */
 
-import * as fs from 'fs';
 import * as path from 'path';
 import { ConfigurationError } from './configuration-error';
-import { findProjectRoot } from './project-discovery';
 import { PlatformType } from './platform-types';
 import { isObject } from '../index';
 import { validateEnvironmentConfig } from './config-validator';
@@ -93,8 +91,9 @@ export interface AWSConfig {
 
 /**
  * Deep merge utility for configuration objects
+ * Pure function - no side effects
  */
-function deepMerge(target: any, ...sources: any[]): any {
+export function deepMerge(target: any, ...sources: any[]): any {
   if (!sources.length) return target;
   const source = sources.shift();
 
@@ -115,27 +114,29 @@ function deepMerge(target: any, ...sources: any[]): any {
 
 /**
  * Recursively resolve environment variable placeholders in configuration
- * Replaces ${VAR_NAME} with the value from process.env
+ * Replaces ${VAR_NAME} with the value from the provided env object
+ * Pure function - accepts env as parameter instead of using process.env
  *
  * @param obj - Configuration object to process
+ * @param env - Environment variables object
  * @returns Configuration with resolved environment variables
  */
-function resolveEnvVars(obj: any): any {
+export function resolveEnvVars(obj: any, env: Record<string, string | undefined>): any {
   if (typeof obj === 'string') {
     // Replace ${VAR_NAME} with actual environment variable value
     return obj.replace(/\$\{([^}]+)\}/g, (match, varName) => {
-      return process.env[varName] || match;
+      return env[varName] || match;
     });
   }
 
   if (Array.isArray(obj)) {
-    return obj.map(item => resolveEnvVars(item));
+    return obj.map(item => resolveEnvVars(item, env));
   }
 
   if (obj && typeof obj === 'object') {
     const resolved: any = {};
     for (const key in obj) {
-      resolved[key] = resolveEnvVars(obj[key]);
+      resolved[key] = resolveEnvVars(obj[key], env);
     }
     return resolved;
   }
@@ -144,38 +145,34 @@ function resolveEnvVars(obj: any): any {
 }
 
 /**
- * Load environment configuration
- * Merges semiont.json with environment-specific config
+ * Parse and merge configuration files
+ * Pure function - accepts file contents as strings instead of reading from filesystem
  *
- * @param projectRoot - Absolute path to project directory containing semiont.json
- * @param environment - Environment name (must match a file in environments/)
- * @returns Merged environment configuration
- * @throws ConfigurationError if files are missing or invalid
+ * @param baseContent - Contents of semiont.json (null if file doesn't exist)
+ * @param envContent - Contents of environment-specific JSON file
+ * @param env - Environment variables object
+ * @param environment - Environment name
+ * @param projectRoot - Project root path (for metadata only)
+ * @returns Merged and validated environment configuration
+ * @throws ConfigurationError if parsing or validation fails
  */
-export function loadEnvironmentConfig(projectRoot: string, environment: string): EnvironmentConfig {
+export function parseAndMergeConfigs(
+  baseContent: string | null,
+  envContent: string,
+  env: Record<string, string | undefined>,
+  environment: string,
+  projectRoot: string
+): EnvironmentConfig {
   try {
-    // Load base semiont.json
-    const baseConfigPath = path.join(projectRoot, 'semiont.json');
+    // Parse base config
     let baseConfig: any = {};
-    if (fs.existsSync(baseConfigPath)) {
-      const baseContent = fs.readFileSync(baseConfigPath, 'utf-8');
+    if (baseContent) {
       baseConfig = JSON.parse(baseContent);
     }
 
-    // Load environment-specific config
-    const envPath = path.join(projectRoot, 'environments', `${environment}.json`);
-
-    if (!fs.existsSync(envPath)) {
-      throw new ConfigurationError(
-        `Environment configuration missing: ${envPath}`,
-        environment,
-        `Create the configuration file or use: semiont init`
-      );
-    }
-    
-    const envContent = fs.readFileSync(envPath, 'utf-8');
+    // Parse environment config
     const envConfig = JSON.parse(envContent);
-    
+
     // Merge configurations: base defaults -> environment config
     const merged = deepMerge(
       {},
@@ -185,7 +182,7 @@ export function loadEnvironmentConfig(projectRoot: string, environment: string):
     );
 
     // Resolve environment variables in the merged configuration
-    const resolved = resolveEnvVars(merged);
+    const resolved = resolveEnvVars(merged, env);
 
     // Ensure services exists (even if empty)
     if (!resolved.services) {
@@ -229,7 +226,7 @@ export function loadEnvironmentConfig(projectRoot: string, environment: string):
     if (error instanceof ConfigurationError) {
       throw error; // Re-throw our custom errors
     }
-    
+
     if (error instanceof SyntaxError && error.message.includes('JSON')) {
       throw new ConfigurationError(
         `Invalid JSON syntax in configuration file`,
@@ -237,12 +234,12 @@ export function loadEnvironmentConfig(projectRoot: string, environment: string):
         `Check for missing commas, quotes, or brackets. Use a JSON validator to verify syntax.`
       );
     }
-    
+
     const message = error instanceof Error ? error.message : String(error);
     throw new ConfigurationError(
-      `Failed to load environment configuration: ${message}`,
+      `Failed to parse environment configuration: ${message}`,
       environment,
-      `Check the configuration files exist and are valid JSON`
+      `Check the configuration files are valid JSON`
     );
   }
 }
@@ -261,36 +258,17 @@ export function getNodeEnvForEnvironment(config: EnvironmentConfig): 'developmen
 }
 
 /**
- * Get available environments by scanning environments directory
- * 
- * @returns Array of environment names
+ * List environment names from filenames
+ * Pure function - accepts array of filenames instead of reading from filesystem
+ *
+ * @param files - Array of filenames from environments directory
+ * @returns Sorted array of environment names
  */
-export function getAvailableEnvironments(): string[] {
-  try {
-    const projectRoot = findProjectRoot();
-    const configDir = path.join(projectRoot, 'environments');
-    
-    if (!fs.existsSync(configDir)) {
-      return [];
-    }
-    
-    return fs.readdirSync(configDir)
-      .filter(file => file.endsWith('.json'))
-      .map(file => path.basename(file, '.json'))
-      .sort();
-  } catch (error) {
-    return [];
-  }
-}
-
-/**
- * Check if an environment exists
- * 
- * @param environment - Environment name to check
- * @returns True if environment exists
- */
-export function isValidEnvironment(environment: string): boolean {
-  return getAvailableEnvironments().includes(environment);
+export function listEnvironmentNames(files: string[]): string[] {
+  return files
+    .filter(file => file.endsWith('.json'))
+    .map(file => path.basename(file, '.json'))
+    .sort();
 }
 
 /**
