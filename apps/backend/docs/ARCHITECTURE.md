@@ -25,7 +25,11 @@ const inferenceClient = await getInferenceClient(config);   // VIOLATION
 
 #### What MakeMeaningService Owns
 
-The `MakeMeaningService` created in [src/index.ts:56](../src/index.ts#L56) owns **all infrastructure**:
+The `MakeMeaningService` created in [src/index.ts:56](../src/index.ts#L56) via `startMakeMeaning()` owns **all infrastructure**.
+
+See [@semiont/make-meaning](../../../packages/make-meaning/) for the implementation of `startMakeMeaning()` and detailed infrastructure ownership documentation.
+
+**Infrastructure Components:**
 
 1. **EventStore** - Event log and materialized views
    - Single source of truth for all data
