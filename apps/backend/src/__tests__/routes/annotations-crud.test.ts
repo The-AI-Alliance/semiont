@@ -28,7 +28,9 @@ type Variables = {
 // Mock @semiont/make-meaning
 const mockEventStore = {
   append: vi.fn().mockResolvedValue(undefined),
-  appendEvent: vi.fn().mockResolvedValue(undefined),
+  appendEvent: vi.fn().mockResolvedValue({
+    metadata: { sequenceNumber: 1 }
+  }),
   getEvents: vi.fn().mockResolvedValue([]),
   query: vi.fn().mockResolvedValue([]),
   getView: vi.fn().mockResolvedValue({
@@ -66,7 +68,27 @@ vi.mock('@semiont/make-meaning', () => ({
       sourceContext: null,
       targetContext: null
     }),
-    getAllAnnotations: vi.fn().mockResolvedValue([])
+    getAllAnnotations: vi.fn().mockResolvedValue([]),
+    getAnnotation: vi.fn().mockResolvedValue({
+      '@context': 'http://www.w3.org/ns/anno.jsonld',
+      id: 'http://localhost:4000/annotations/test-annotation',
+      type: 'Annotation',
+      motivation: 'highlighting',
+      body: [],
+      target: { source: 'urn:semiont:resource:test-resource' },
+      created: new Date().toISOString(),
+      modified: new Date().toISOString()
+    }),
+    getResourceAnnotations: vi.fn().mockResolvedValue({
+      annotations: [{
+        '@context': 'http://www.w3.org/ns/anno.jsonld',
+        id: 'http://localhost:4000/annotations/test-annotation',
+        type: 'Annotation',
+        motivation: 'highlighting',
+        body: [],
+        target: { source: 'urn:semiont:resource:test-resource' }
+      }]
+    })
   },
   startMakeMeaning: vi.fn().mockResolvedValue({
     eventStore: mockEventStore,
@@ -212,9 +234,9 @@ describe('Annotation CRUD HTTP Contract', () => {
     });
   });
 
-  describe('GET /resources/:id/annotation/:annotationId (get)', () => {
+  describe('GET /resources/:id/annotations/:annotationId (get)', () => {
     it('should return 200 with W3C annotation', async () => {
-      const response = await app.request('/resources/test-resource/annotation/test-annotation', {
+      const response = await app.request('/resources/test-resource/annotations/test-annotation', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${authToken}`,
@@ -222,12 +244,13 @@ describe('Annotation CRUD HTTP Contract', () => {
       });
 
       expect(response.status).toBe(200);
-      const annotation = await response.json();
-      expect(annotation).toHaveProperty('@context', 'http://www.w3.org/ns/anno.jsonld');
-      expect(annotation).toHaveProperty('type', 'Annotation');
-      expect(annotation).toHaveProperty('id');
-      expect(annotation).toHaveProperty('motivation');
-      expect(annotation).toHaveProperty('target');
+      const data = await response.json();
+      expect(data).toHaveProperty('annotation');
+      expect(data.annotation).toHaveProperty('@context', 'http://www.w3.org/ns/anno.jsonld');
+      expect(data.annotation).toHaveProperty('type', 'Annotation');
+      expect(data.annotation).toHaveProperty('id');
+      expect(data.annotation).toHaveProperty('motivation');
+      expect(data.annotation).toHaveProperty('target');
     });
 
     it('should return 404 for non-existent annotation', async () => {
@@ -261,7 +284,7 @@ describe('Annotation CRUD HTTP Contract', () => {
     });
 
     it('should return 401 without authentication', async () => {
-      const response = await app.request('/resources/test-resource/annotation/test-annotation', {
+      const response = await app.request('/resources/test-resource/annotations/test-annotation', {
         method: 'GET',
       });
 
@@ -271,13 +294,14 @@ describe('Annotation CRUD HTTP Contract', () => {
 
   describe('PUT /resources/:id/annotation/:annotationId/body (update)', () => {
     it('should return 200 on successful body update', async () => {
-      const response = await app.request('/resources/test-resource/annotation/test-annotation/body', {
+      const response = await app.request('/resources/test-resource/annotations/test-annotation/body', {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          resourceId: 'test-resource',
           operations: [{
             op: 'add',
             item: {
@@ -316,7 +340,7 @@ describe('Annotation CRUD HTTP Contract', () => {
     });
 
     it('should return 400 for invalid body structure', async () => {
-      const response = await app.request('/resources/test-resource/annotation/test-annotation/body', {
+      const response = await app.request('/resources/test-resource/annotations/test-annotation/body', {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${authToken}`,
@@ -331,7 +355,7 @@ describe('Annotation CRUD HTTP Contract', () => {
     });
 
     it('should return 401 without authentication', async () => {
-      const response = await app.request('/resources/test-resource/annotation/test-annotation/body', {
+      const response = await app.request('/resources/test-resource/annotations/test-annotation/body', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -345,7 +369,7 @@ describe('Annotation CRUD HTTP Contract', () => {
 
   describe('DELETE /resources/:id/annotation/:annotationId (delete)', () => {
     it('should return 204 on successful deletion', async () => {
-      const response = await app.request('/resources/test-resource/annotation/test-annotation', {
+      const response = await app.request('/resources/test-resource/annotations/test-annotation', {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${authToken}`,
@@ -372,7 +396,7 @@ describe('Annotation CRUD HTTP Contract', () => {
     });
 
     it('should return 401 without authentication', async () => {
-      const response = await app.request('/resources/test-resource/annotation/test-annotation', {
+      const response = await app.request('/resources/test-resource/annotations/test-annotation', {
         method: 'DELETE',
       });
 

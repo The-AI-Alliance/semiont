@@ -27,12 +27,26 @@ const setupMocks = () => {
       buildLLMContext: vi.fn().mockResolvedValue({
         sourceContext: { content: 'test', annotations: [] },
         targetContext: null
+      }),
+      getAnnotation: vi.fn().mockResolvedValue({
+        '@context': 'http://www.w3.org/ns/anno.jsonld',
+        id: 'http://localhost:4000/annotations/test-annotation',
+        type: 'Annotation',
+        body: [],
+        target: { source: 'urn:semiont:resource:test-resource' }
       })
     },
     startMakeMeaning: vi.fn().mockResolvedValue({
       eventStore: { getView: vi.fn().mockResolvedValue({ resource: {}, annotations: { annotations: [] } }) },
       graphDb: {
         getResourceReferencedBy: vi.fn().mockResolvedValue([]),
+        getResource: vi.fn().mockResolvedValue({
+          '@id': 'urn:semiont:resource:test-resource',
+          name: 'Test Resource',
+        }),
+        getAnnotations: vi.fn().mockResolvedValue([]),
+        getResourceConnections: vi.fn().mockResolvedValue([]),
+        listAnnotations: vi.fn().mockResolvedValue([]),
       },
       repStore: { get: vi.fn(), store: vi.fn() },
       jobQueue: { createJob: vi.fn() },
@@ -140,18 +154,12 @@ describe('Resource Discovery HTTP Contract', () => {
     });
   });
 
-  describe('POST /resources/:id/llm-context', () => {
+  describe('GET /resources/:id/llm-context', () => {
     it('should return 200 with LLM context structure', async () => {
       const response = await app.request('/resources/test-resource/llm-context', {
-        method: 'POST',
         headers: {
           'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          includeAnnotations: true,
-          includeBacklinks: false
-        }),
       });
 
       expect(response.status).toBe(200);
@@ -160,29 +168,21 @@ describe('Resource Discovery HTTP Contract', () => {
     });
 
     it('should return 404 for non-existent resource', async () => {
-      const { ResourceContext } = await import('@semiont/make-meaning');
-      const { AnnotationContext } = await import('@semiont/make-meaning');
-      vi.mocked(ResourceContext.getResourceMetadata).mockResolvedValueOnce(null);
-      vi.mocked(AnnotationContext.buildLLMContext).mockResolvedValueOnce({ sourceContext: undefined, targetContext: undefined } as any);
+      const { startMakeMeaning } = await import('@semiont/make-meaning');
+      const mockMakeMeaning = await vi.mocked(startMakeMeaning)();
+      vi.mocked(mockMakeMeaning.graphDb.getResource).mockResolvedValueOnce(null);
 
       const response = await app.request('/resources/nonexistent/llm-context', {
-        method: 'POST',
         headers: {
           'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({}),
       });
 
       expect(response.status).toBe(404);
     });
 
     it('should return 401 without authentication', async () => {
-      const response = await app.request('/resources/test-resource/llm-context', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
+      const response = await app.request('/resources/test-resource/llm-context');
 
       expect(response.status).toBe(401);
     });
