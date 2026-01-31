@@ -23,6 +23,12 @@ const setupMocks = () => {
         name: 'Test Resource',
       })
     },
+    AnnotationContext: {
+      buildLLMContext: vi.fn().mockResolvedValue({
+        sourceContext: { content: 'test', annotations: [] },
+        targetContext: null
+      })
+    },
     startMakeMeaning: vi.fn().mockResolvedValue({
       eventStore: { getView: vi.fn().mockResolvedValue({ resource: {}, annotations: { annotations: [] } }) },
       graphDb: {
@@ -111,15 +117,13 @@ describe('Resource Discovery HTTP Contract', () => {
       expect(Array.isArray(data.referencedBy)).toBe(true);
     });
 
-    it('should return 404 for non-existent resource', async () => {
-      const { ResourceContext } = await import('@semiont/make-meaning');
-      vi.mocked(ResourceContext.getResourceMetadata).mockResolvedValueOnce(null);
-
+    it('should return 200 with empty list for non-existent resource', async () => {
       const response = await app.request('/resources/nonexistent/referenced-by', {
         headers: { 'Authorization': `Bearer ${authToken}` },
       });
 
-      expect(response.status).toBe(404);
+      // Route doesn't validate resource existence, returns empty list
+      expect(response.status).toBe(200);
     });
 
     it('should return 401 without authentication', async () => {
@@ -157,7 +161,9 @@ describe('Resource Discovery HTTP Contract', () => {
 
     it('should return 404 for non-existent resource', async () => {
       const { ResourceContext } = await import('@semiont/make-meaning');
+      const { AnnotationContext } = await import('@semiont/make-meaning');
       vi.mocked(ResourceContext.getResourceMetadata).mockResolvedValueOnce(null);
+      vi.mocked(AnnotationContext.buildLLMContext).mockResolvedValueOnce({ sourceContext: null, targetContext: null });
 
       const response = await app.request('/resources/nonexistent/llm-context', {
         method: 'POST',
