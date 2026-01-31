@@ -14,10 +14,13 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { userId } from '@semiont/core';
 import { email } from '@semiont/api-client';
+import type { components } from '@semiont/api-client';
 import { JWTService } from '../../auth/jwt';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import type { EnvironmentConfig } from '@semiont/core';
+
+type GetAnnotationResponse = components['schemas']['GetAnnotationResponse'];
 
 type Variables = {
   user: User;
@@ -244,7 +247,7 @@ describe('Annotation CRUD HTTP Contract', () => {
       });
 
       expect(response.status).toBe(200);
-      const data = await response.json();
+      const data = await response.json() as GetAnnotationResponse;
       expect(data).toHaveProperty('annotation');
       expect(data.annotation).toHaveProperty('@context', 'http://www.w3.org/ns/anno.jsonld');
       expect(data.annotation).toHaveProperty('type', 'Annotation');

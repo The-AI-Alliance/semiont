@@ -40,9 +40,15 @@ const setupMocks = () => {
       eventStore: { getView: vi.fn().mockResolvedValue({ resource: {}, annotations: { annotations: [] } }) },
       graphDb: {
         getResourceReferencedBy: vi.fn().mockResolvedValue([]),
-        getResource: vi.fn().mockResolvedValue({
-          '@id': 'urn:semiont:resource:test-resource',
-          name: 'Test Resource',
+        getResource: vi.fn().mockImplementation(async (uri: string) => {
+          // Return resource for test-resource, null for others
+          if (uri.includes('test-resource')) {
+            return {
+              '@id': 'urn:semiont:resource:test-resource',
+              name: 'Test Resource',
+            };
+          }
+          return null;
         }),
         getAnnotations: vi.fn().mockResolvedValue([]),
         getResourceConnections: vi.fn().mockResolvedValue([]),
@@ -168,10 +174,8 @@ describe('Resource Discovery HTTP Contract', () => {
     });
 
     it('should return 404 for non-existent resource', async () => {
-      const { startMakeMeaning } = await import('@semiont/make-meaning');
-      const mockMakeMeaning = await vi.mocked(startMakeMeaning)();
-      vi.mocked(mockMakeMeaning.graphDb.getResource).mockResolvedValueOnce(null);
-
+      // The route will get 404 because LLMContextService.getResourceLLMContext throws "Resource not found"
+      // when graphDb.getResource returns null, which is the default mock behavior for non-test-resource IDs
       const response = await app.request('/resources/nonexistent/llm-context', {
         headers: {
           'Authorization': `Bearer ${authToken}`,
