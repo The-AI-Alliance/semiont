@@ -163,7 +163,7 @@ describe('Resource Discovery HTTP Contract', () => {
       const { ResourceContext } = await import('@semiont/make-meaning');
       const { AnnotationContext } = await import('@semiont/make-meaning');
       vi.mocked(ResourceContext.getResourceMetadata).mockResolvedValueOnce(null);
-      vi.mocked(AnnotationContext.buildLLMContext).mockResolvedValueOnce({ sourceContext: null, targetContext: null });
+      vi.mocked(AnnotationContext.buildLLMContext).mockResolvedValueOnce({ sourceContext: undefined, targetContext: undefined } as any);
 
       const response = await app.request('/resources/nonexistent/llm-context', {
         method: 'POST',
