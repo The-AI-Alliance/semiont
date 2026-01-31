@@ -4,54 +4,94 @@
 
 Modular packages for the Semiont platform, organized in a layered architecture from low-level primitives to high-level application logic.
 
-## Dependency Graph
+## Architecture Overview
+
+### Layered Dependency Graph
 
 ```mermaid
 graph BT
-    core["@semiont/core"]
-    api["@semiont/api-client"]
-    ontology["@semiont/ontology"]
-    content["@semiont/content"]
-    event["@semiont/event-sourcing"]
-    graph_pkg["@semiont/graph"]
-    inference["@semiont/inference"]
-    jobs["@semiont/jobs"]
-    meaning["@semiont/make-meaning"]
-    react["@semiont/react-ui"]
-    backend["Backend workers"]
+    %% Layer 4: Application Consumers
+    backend["apps/backend<br/><i>Hono API server</i>"]
+    frontend["apps/frontend<br/><i>Next.js web app</i>"]
+    cli["apps/cli<br/><i>Environment management</i>"]
 
-    api --> core
-    ontology --> api
-    content --> core
-    event --> core
-    event --> api
-    graph_pkg --> core
-    graph_pkg --> api
-    graph_pkg --> ontology
+    %% Layer 3: Application Logic
+    meaning["@semiont/make-meaning<br/><b>startMakeMeaning()</b><br/><i>Infrastructure orchestrator</i><br/>EventStore, GraphDB, RepStore,<br/>InferenceClient, JobQueue, Workers"]
+    react["@semiont/react-ui<br/><i>React components & hooks</i>"]
+
+    %% Layer 2: AI & Infrastructure
+    inference["@semiont/inference<br/><i>LLM abstraction</i>"]
+    jobs["@semiont/jobs<br/><i>Job queue</i>"]
+    graph_pkg["@semiont/graph<br/><i>Graph DB abstraction</i>"]
+    event["@semiont/event-sourcing<br/><i>Event store & views</i>"]
+    content["@semiont/content<br/><i>Content-addressed storage</i>"]
+
+    %% Layer 1: Domain Primitives
+    ontology["@semiont/ontology<br/><i>Entity schemas & W3C</i>"]
+
+    %% Layer 0: Foundation
+    api["@semiont/api-client<br/><i>OpenAPI types</i>"]
+    core["@semiont/core<br/><i>Core types & utilities</i>"]
+
+    %% Application dependencies
+    backend --> meaning
+    frontend --> react
+    frontend --> api
+    cli --> core
+
+    %% Application logic dependencies
+    meaning --> event
+    meaning --> graph_pkg
+    meaning --> content
+    meaning --> ontology
+    meaning --> inference
+    meaning --> jobs
+    react --> api
+    react --> ontology
+
+    %% Infrastructure dependencies
     inference --> core
     inference --> api
     jobs --> core
     jobs --> api
-    meaning --> inference
-    meaning --> graph_pkg
-    meaning --> ontology
-    meaning --> content
-    react --> api
-    react --> ontology
-    backend --> meaning
+    graph_pkg --> core
+    graph_pkg --> api
+    graph_pkg --> ontology
+    event --> core
+    event --> api
+    content --> core
 
-    classDef foundation fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    classDef domain fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
-    classDef ai fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    classDef app fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
-    classDef ui fill:#fce4ec,stroke:#880e4f,stroke-width:2px
+    %% Domain dependencies
+    ontology --> api
 
-    class core,api foundation
-    class ontology,content,event,graph_pkg domain
-    class inference,jobs,meaning ai
-    class backend app
-    class react ui
+    %% Foundation dependencies
+    api --> core
+
+    %% Styling by layer
+    classDef layer0 fill:#e1f5fe,stroke:#01579b,stroke-width:3px
+    classDef layer1 fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef layer2 fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef layer3 fill:#ffe0b2,stroke:#e65100,stroke-width:3px
+    classDef layer4 fill:#e8f5e9,stroke:#1b5e20,stroke-width:3px
+
+    class core,api layer0
+    class ontology,content,event,graph_pkg layer1
+    class inference,jobs layer2
+    class meaning,react layer3
+    class backend,frontend,cli layer4
 ```
+
+### Key Architectural Principles
+
+1. **Single Orchestration Point**: `@semiont/make-meaning`'s `startMakeMeaning()` function is the **infrastructure owner** - it initializes and manages the lifecycle of ALL subsystems (EventStore, GraphDB, RepStore, InferenceClient, JobQueue, Workers, GraphConsumer)
+
+2. **Strict API Boundary**: `apps/frontend` NEVER imports backend packages directly - only `@semiont/api-client` and `@semiont/react-ui`
+
+3. **Layered Dependencies**: Packages can only depend on packages in lower layers (no circular dependencies)
+
+4. **Dependency Injection**: Infrastructure components are created once by `startMakeMeaning()` and passed to all consumers via constructor injection or Hono context
+
+5. **Platform Independence**: Foundation and domain packages work in both browser and Node.js (infrastructure packages are Node-only)
 
 ## Published Packages
 

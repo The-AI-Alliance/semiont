@@ -16,6 +16,12 @@ This package provides the **core AI primitives** for the Semiont platform:
 
 For **application-specific AI logic** (entity extraction, resource generation, motivation prompts/parsers), see [@semiont/make-meaning](../make-meaning/).
 
+## Architecture Context
+
+**Infrastructure Ownership**: In production applications, inference client instances are **created and managed by [@semiont/make-meaning](../make-meaning/)'s `startMakeMeaning()` function**, which serves as the single orchestration point for all infrastructure components (EventStore, GraphDB, RepStore, InferenceClient, JobQueue, Workers).
+
+The API shown below can be used directly for **testing, CLI tools, or standalone scripts**. For backend integration, access the inference client through the `makeMeaning` context object.
+
 ## Philosophy
 
 This package is named `inference` rather than `ai-inference` to align with Semiont's core tenet: humans and AI agents have equal opportunity to work behind similar interfaces. The abstraction remains open for future human-agent parity.

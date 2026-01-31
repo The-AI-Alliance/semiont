@@ -28,6 +28,12 @@ npm install @semiont/event-sourcing
 - Node.js >= 20.18.1
 - `@semiont/core` and `@semiont/api-client` (peer dependencies)
 
+## Architecture Context
+
+**Infrastructure Ownership**: In production applications, the event store is **created and managed by [@semiont/make-meaning](../make-meaning/)'s `startMakeMeaning()` function**, which serves as the single orchestration point for all infrastructure components (EventStore, GraphDB, RepStore, InferenceClient, JobQueue, Workers).
+
+The quick start example below shows direct instantiation for **testing, CLI tools, or event replay scripts**. For backend integration, access the event store through the `makeMeaning` context object.
+
 ## Quick Start
 
 ```typescript

@@ -14,6 +14,12 @@ Content-addressed storage using SHA-256 checksums with automatic deduplication a
 npm install @semiont/content
 ```
 
+## Architecture Context
+
+**Infrastructure Ownership**: In production applications, the representation store is **created and managed by [@semiont/make-meaning](../make-meaning/)'s `startMakeMeaning()` function**, which serves as the single orchestration point for all infrastructure components (EventStore, GraphDB, RepStore, InferenceClient, JobQueue, Workers).
+
+The quick start example below shows direct instantiation for **testing, CLI tools, or content management scripts**. For backend integration, access the representation store through the `makeMeaning` context object.
+
 ## Quick Start
 
 ```typescript
