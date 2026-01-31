@@ -28,6 +28,7 @@ type Variables = {
 // Mock @semiont/make-meaning
 const mockEventStore = {
   append: vi.fn().mockResolvedValue(undefined),
+  appendEvent: vi.fn().mockResolvedValue(undefined),
   getEvents: vi.fn().mockResolvedValue([]),
   query: vi.fn().mockResolvedValue([]),
   getView: vi.fn().mockResolvedValue({
@@ -58,6 +59,13 @@ vi.mock('@semiont/make-meaning', () => ({
       '@id': 'urn:semiont:resource:test-resource',
       '@type': 'ResourceDescriptor',
       name: 'Test Resource',
+    })
+  },
+  AnnotationContext: {
+    buildLLMContext: vi.fn().mockResolvedValue({
+    getAllAnnotations: vi.fn().mockResolvedValue([])
+      sourceContext: null,
+      targetContext: null
     })
   },
   startMakeMeaning: vi.fn().mockResolvedValue({

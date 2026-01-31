@@ -42,6 +42,13 @@ vi.mock('@semiont/make-meaning', () => ({
   ResourceContext: {
     getResourceMetadata: vi.fn().mockResolvedValue(mockResourceMetadata)
   },
+  AnnotationContext: {
+    buildLLMContext: vi.fn().mockResolvedValue({
+    getAllAnnotations: vi.fn().mockResolvedValue([])
+      sourceContext: null,
+      targetContext: null
+    })
+  },
   startMakeMeaning: vi.fn().mockResolvedValue({
     jobQueue: mockJobQueue,
     workers: [],
