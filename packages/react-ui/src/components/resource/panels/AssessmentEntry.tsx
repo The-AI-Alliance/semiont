@@ -7,6 +7,14 @@ import { getAnnotationExactText } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
 
+// W3C Annotation TextualBody type
+interface TextualBody {
+  type: 'TextualBody';
+  value: string;
+  format?: string;
+  language?: string;
+}
+
 interface AssessmentEntryProps {
   assessment: Annotation;
   isFocused: boolean;
@@ -32,17 +40,28 @@ function formatRelativeTime(isoString: string): string {
   return date.toLocaleDateString();
 }
 
+function isTextualBody(body: unknown): body is TextualBody {
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    'type' in body &&
+    body.type === 'TextualBody' &&
+    'value' in body &&
+    typeof body.value === 'string'
+  );
+}
+
 function getAssessmentText(annotation: Annotation): string | null {
   if (!annotation.body) return null;
 
   // Handle TextualBody directly
-  if (typeof annotation.body === 'object' && 'value' in annotation.body && 'type' in annotation.body && annotation.body.type === 'TextualBody') {
-    return (annotation.body as any).value || null;
+  if (isTextualBody(annotation.body)) {
+    return annotation.body.value || null;
   }
 
   // Handle array of bodies
   if (Array.isArray(annotation.body) && annotation.body.length > 0) {
-    const textBody = annotation.body.find((b: any) => b.type === 'TextualBody') as any;
+    const textBody = annotation.body.find(isTextualBody);
     return textBody?.value || null;
   }
 

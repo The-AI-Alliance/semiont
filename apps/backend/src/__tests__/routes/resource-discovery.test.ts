@@ -13,6 +13,10 @@ import { userId } from '@semiont/core';
 import { email } from '@semiont/api-client';
 import { JWTService } from '../../auth/jwt';
 import type { EnvironmentConfig } from '@semiont/core';
+import type { components } from '@semiont/api-client';
+import type { User } from '@prisma/client';
+
+type GetReferencedByResponse = components['schemas']['GetReferencedByResponse'];
 
 // Standard test setup
 const setupMocks = () => {
@@ -114,11 +118,11 @@ describe('Resource Discovery HTTP Contract', () => {
     });
 
     const { DatabaseConnection } = await import('../../db');
-    vi.mocked(DatabaseConnection.getClient().user.findUnique).mockResolvedValue(testUser as any);
+    vi.mocked(DatabaseConnection.getClient().user.findUnique).mockResolvedValue(testUser as User);
 
     const { OAuthService } = await import('../../auth/oauth');
     vi.mocked(OAuthService.getUserFromToken).mockImplementation(async (token) =>
-      token === authToken ? (testUser as any) : null
+      token === authToken ? (testUser as User) : undefined!
     );
 
     const { app: importedApp } = await import('../../index');
@@ -132,7 +136,7 @@ describe('Resource Discovery HTTP Contract', () => {
       });
 
       expect(response.status).toBe(200);
-      const data = await response.json() as any;
+      const data = await response.json() as GetReferencedByResponse;
       expect(data).toHaveProperty('referencedBy');
       expect(Array.isArray(data.referencedBy)).toBe(true);
     });

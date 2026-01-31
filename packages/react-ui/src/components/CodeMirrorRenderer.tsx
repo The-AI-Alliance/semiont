@@ -11,6 +11,12 @@ import type { components } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
 
+// Type augmentation for custom DOM properties used to store CodeMirror state
+interface EnrichedHTMLElement extends HTMLElement {
+  __lastHoveredAnnotation?: string | null;
+  __cmView?: EditorView;
+}
+
 export interface TextSegment {
   exact: string;
   annotation?: Annotation;
@@ -383,9 +389,10 @@ export function CodeMirrorRenderer({
             const annotationId = annotationElement?.getAttribute('data-annotation-id');
 
             // Track last hovered ID to avoid redundant calls
-            const lastHovered = (view.dom as any).__lastHoveredAnnotation;
+            const enrichedDom = view.dom as EnrichedHTMLElement;
+            const lastHovered = enrichedDom.__lastHoveredAnnotation;
             if (annotationId !== lastHovered) {
-              (view.dom as any).__lastHoveredAnnotation = annotationId || null;
+              enrichedDom.__lastHoveredAnnotation = annotationId || null;
               if (callbacksRef.current.onAnnotationHover) {
                 callbacksRef.current.onAnnotationHover(annotationId || null);
               }
@@ -446,7 +453,7 @@ export function CodeMirrorRenderer({
     contentRef.current = content;
 
     // Store the view on the container for position calculation
-    (containerRef.current as any).__cmView = view;
+    (containerRef.current as EnrichedHTMLElement).__cmView = view;
 
     return () => {
       view.destroy();

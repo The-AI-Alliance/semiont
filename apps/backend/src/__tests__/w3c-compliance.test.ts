@@ -220,7 +220,8 @@ describe('W3C Web Annotation Compliance', () => {
         const specificResource = resolvedAnnotation.body.find(b => b.type === 'SpecificResource');
         expect(specificResource).toBeDefined();
         if (specificResource) {
-          const body = specificResource as any;
+          // Use Record to safely check for properties that shouldn't exist
+          const body = specificResource as Record<string, unknown>;
           expect(body.value).toBeUndefined();
           expect('value' in body).toBe(false);
         }

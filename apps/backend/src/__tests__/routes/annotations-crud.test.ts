@@ -21,6 +21,7 @@ import type { User } from '@prisma/client';
 import type { EnvironmentConfig } from '@semiont/core';
 
 type GetAnnotationResponse = components['schemas']['GetAnnotationResponse'];
+type GetAnnotationsResponse = components['schemas']['GetAnnotationsResponse'];
 
 type Variables = {
   user: User;
@@ -165,12 +166,12 @@ describe('Annotation CRUD HTTP Contract', () => {
     // Mock database user lookup
     const { DatabaseConnection } = await import('../../db');
     const prisma = DatabaseConnection.getClient();
-    vi.mocked(prisma.user.findUnique).mockResolvedValue(testUser as any);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(testUser as User);
 
     // Mock OAuth service
     const { OAuthService } = await import('../../auth/oauth');
     vi.mocked(OAuthService.getUserFromToken).mockImplementation(async (token) => {
-      return token === authToken ? (testUser as any) : null;
+      return token === authToken ? (testUser as User) : undefined!;
     });
 
     // Import app after mocks are set up
@@ -188,7 +189,7 @@ describe('Annotation CRUD HTTP Contract', () => {
       });
 
       expect(response.status).toBe(200);
-      const data = await response.json() as any;
+      const data = await response.json() as GetAnnotationsResponse;
       expect(data).toHaveProperty('annotations');
       expect(data).toHaveProperty('total');
       expect(Array.isArray(data.annotations)).toBe(true);

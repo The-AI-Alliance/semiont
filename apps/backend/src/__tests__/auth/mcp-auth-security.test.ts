@@ -173,8 +173,8 @@ describe('MCP Authentication security', () => {
       const refreshPayload = JWTService.verifyToken(refreshToken);
       
       // Access token should have much shorter expiration
-      const accessExp = (accessPayload as any).exp;
-      const refreshExp = (refreshPayload as any).exp;
+      const accessExp = accessPayload.exp!;
+      const refreshExp = refreshPayload.exp!;
       const now = Math.floor(Date.now() / 1000);
       
       // Access token expires in ~1 hour
@@ -276,7 +276,7 @@ describe('MCP Authentication security', () => {
       const payload = JWTService.verifyToken(accessToken);
       
       // Verify short expiration (1 hour from now)
-      const expTime = (payload as any).exp * 1000; // Convert to milliseconds
+      const expTime = payload.exp! * 1000; // Convert to milliseconds
       const now = Date.now();
       const oneHourInMs = 60 * 60 * 1000;
       
@@ -320,8 +320,8 @@ describe('MCP Authentication security', () => {
       // Should include required claims
       expect(payload.userId).toBeDefined();
       expect(payload.email).toBeDefined();
-      expect((payload as any).iat).toBeDefined(); // Issued at
-      expect((payload as any).exp).toBeDefined(); // Expiration
+      expect(payload.iat!).toBeDefined(); // Issued at
+      expect(payload.exp!).toBeDefined(); // Expiration
     });
 
     it('security: should separate refresh and access token permissions', () => {
@@ -355,8 +355,8 @@ describe('MCP Authentication security', () => {
       expect(accessPayload.isAdmin).toBeDefined();
       
       // Differentiated by expiration time
-      const refreshExp = (refreshPayload as any).exp;
-      const accessExp = (accessPayload as any).exp;
+      const refreshExp = refreshPayload.exp!;
+      const accessExp = accessPayload.exp!;
       expect(refreshExp).toBeGreaterThan(accessExp); // Refresh token lasts longer
     });
 

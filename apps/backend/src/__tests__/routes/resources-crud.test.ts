@@ -18,6 +18,10 @@ import { JWTService } from '../../auth/jwt';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import type { EnvironmentConfig } from '@semiont/core';
+import type { components } from '@semiont/api-client';
+
+type ListResourcesResponse = components['schemas']['ListResourcesResponse'];
+type GetResourceResponse = components['schemas']['GetResourceResponse'];
 
 type Variables = {
   user: User;
@@ -132,12 +136,12 @@ describe('Resource CRUD HTTP Contract', () => {
     // Mock database user lookup
     const { DatabaseConnection } = await import('../../db');
     const prisma = DatabaseConnection.getClient();
-    vi.mocked(prisma.user.findUnique).mockResolvedValue(testUser as any);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(testUser as User);
 
     // Mock OAuth service
     const { OAuthService } = await import('../../auth/oauth');
     vi.mocked(OAuthService.getUserFromToken).mockImplementation(async (token) => {
-      return token === authToken ? (testUser as any) : null;
+      return token === authToken ? (testUser as User) : undefined!;
     });
 
     // Import app after mocks are set up
@@ -222,7 +226,7 @@ describe('Resource CRUD HTTP Contract', () => {
       });
 
       expect(response.status).toBe(200);
-      const data = await response.json() as any;
+      const data = await response.json() as ListResourcesResponse;
       expect(data).toHaveProperty('resources');
       expect(Array.isArray(data.resources)).toBe(true);
     });
@@ -317,7 +321,7 @@ describe('Resource CRUD HTTP Contract', () => {
       });
 
       expect(response.status).toBe(200);
-      const data = await response.json() as any;
+      const data = await response.json() as GetResourceResponse;
       expect(data.resource.archived).toBe(true);
     });
   });
