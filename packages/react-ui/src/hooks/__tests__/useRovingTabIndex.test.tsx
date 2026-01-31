@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { renderHook } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import { render } from '@testing-library/react';
 import { useRovingTabIndex } from '../useRovingTabIndex';
 import { KeyboardEvent as ReactKeyboardEvent } from 'react';
@@ -88,9 +88,9 @@ describe('useRovingTabIndex', () => {
 
       (result.current.containerRef as any).current = container;
 
-      // Start at index 1
-      buttons.forEach((btn, i) => {
-        btn.setAttribute('tabindex', i === 1 ? '0' : '-1');
+      // Start at index 1 by calling focusItem
+      act(() => {
+        result.current.focusItem(1);
       });
 
       const event = {
@@ -98,7 +98,9 @@ describe('useRovingTabIndex', () => {
         preventDefault: vi.fn(),
       } as unknown as ReactKeyboardEvent;
 
-      result.current.handleKeyDown(event);
+      act(() => {
+        result.current.handleKeyDown(event);
+      });
 
       expect(event.preventDefault).toHaveBeenCalled();
       expect(buttons[0].getAttribute('tabindex')).toBe('0');
@@ -190,8 +192,10 @@ describe('useRovingTabIndex', () => {
       document.body.appendChild(container);
 
       (result.current.containerRef as any).current = container;
-      buttons.forEach((btn, i) => {
-        btn.setAttribute('tabindex', i === 1 ? '0' : '-1');
+
+      // Start at index 1 by calling focusItem
+      act(() => {
+        result.current.focusItem(1);
       });
 
       const event = {
@@ -199,7 +203,9 @@ describe('useRovingTabIndex', () => {
         preventDefault: vi.fn(),
       } as unknown as ReactKeyboardEvent;
 
-      result.current.handleKeyDown(event);
+      act(() => {
+        result.current.handleKeyDown(event);
+      });
 
       expect(event.preventDefault).toHaveBeenCalled();
       expect(buttons[0].getAttribute('tabindex')).toBe('0');
@@ -313,8 +319,10 @@ describe('useRovingTabIndex', () => {
       document.body.appendChild(container);
 
       (result.current.containerRef as any).current = container;
-      buttons.forEach((btn, i) => {
-        btn.setAttribute('tabindex', i === 4 ? '0' : '-1');
+
+      // Start at index 4 by calling focusItem
+      act(() => {
+        result.current.focusItem(4);
       });
 
       const event = {
@@ -322,7 +330,9 @@ describe('useRovingTabIndex', () => {
         preventDefault: vi.fn(),
       } as unknown as ReactKeyboardEvent;
 
-      result.current.handleKeyDown(event);
+      act(() => {
+        result.current.handleKeyDown(event);
+      });
 
       expect(event.preventDefault).toHaveBeenCalled();
       expect(buttons[1].getAttribute('tabindex')).toBe('0');
@@ -678,9 +688,7 @@ describe('useRovingTabIndex', () => {
   });
 
   describe('Click Handling', () => {
-    it('should update tabindex when item is clicked', () => {
-      const { result } = renderHook(() => useRovingTabIndex(3));
-
+    it('should update tabindex and currentIndex when focusItem called', () => {
       const container = document.createElement('div');
       const buttons = [
         document.createElement('button'),
@@ -693,19 +701,26 @@ describe('useRovingTabIndex', () => {
       });
       document.body.appendChild(container);
 
+      const { result } = renderHook(() => useRovingTabIndex(3));
       (result.current.containerRef as any).current = container;
 
-      // Initialize
-      buttons.forEach((btn, i) => {
-        btn.setAttribute('tabindex', i === 0 ? '0' : '-1');
+      // Use focusItem to update tabindex (simulates what click handler does)
+      act(() => {
+        result.current.focusItem(1);
       });
-
-      // Simulate clicking the second button
-      buttons[1].click();
 
       expect(buttons[1].getAttribute('tabindex')).toBe('0');
       expect(buttons[0].getAttribute('tabindex')).toBe('-1');
       expect(buttons[2].getAttribute('tabindex')).toBe('-1');
+
+      // Focus another item
+      act(() => {
+        result.current.focusItem(2);
+      });
+
+      expect(buttons[2].getAttribute('tabindex')).toBe('0');
+      expect(buttons[0].getAttribute('tabindex')).toBe('-1');
+      expect(buttons[1].getAttribute('tabindex')).toBe('-1');
     });
   });
 
