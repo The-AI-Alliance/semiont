@@ -63,10 +63,10 @@ vi.mock('@semiont/make-meaning', () => ({
   },
   AnnotationContext: {
     buildLLMContext: vi.fn().mockResolvedValue({
-    getAllAnnotations: vi.fn().mockResolvedValue([])
       sourceContext: null,
       targetContext: null
-    })
+    }),
+    getAllAnnotations: vi.fn().mockResolvedValue([])
   },
   startMakeMeaning: vi.fn().mockResolvedValue({
     eventStore: mockEventStore,
