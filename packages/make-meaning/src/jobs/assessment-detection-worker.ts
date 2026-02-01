@@ -6,7 +6,7 @@
  */
 
 import { JobWorker } from '@semiont/jobs';
-import type { AnyJob, AssessmentDetectionJob, JobQueue, RunningJob, AssessmentDetectionParams, AssessmentDetectionProgress } from '@semiont/jobs';
+import type { AnyJob, AssessmentDetectionJob, JobQueue, RunningJob, AssessmentDetectionParams, AssessmentDetectionProgress, AssessmentDetectionResult } from '@semiont/jobs';
 import { ResourceContext, AnnotationDetection } from '..';
 import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
 import { resourceIdToURI } from '@semiont/core';
@@ -35,7 +35,7 @@ export class AssessmentDetectionWorker extends JobWorker {
     return job.metadata.type === 'assessment-detection';
   }
 
-  protected async executeJob(job: AnyJob): Promise<void> {
+  protected async executeJob(job: AnyJob): Promise<AssessmentDetectionResult> {
     if (job.metadata.type !== 'assessment-detection') {
       throw new Error(`Invalid job type: ${job.metadata.type}`);
     }
@@ -47,7 +47,27 @@ export class AssessmentDetectionWorker extends JobWorker {
 
     // Reset progress tracking
     this.isFirstProgress = true;
-    await this.processAssessmentDetectionJob(job as RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>);
+    return await this.processAssessmentDetectionJob(job as RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>);
+  }
+
+  /**
+   * Emit completion event with result data
+   * Override base class to emit job.completed event
+   */
+  protected override async emitCompletionEvent(
+    job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>,
+    _result: AssessmentDetectionResult
+  ): Promise<void> {
+    await this.eventStore.appendEvent({
+      type: 'job.completed',
+      resourceId: job.params.resourceId,
+      userId: job.metadata.userId,
+      version: 1,
+      payload: {
+        jobId: job.metadata.id,
+        jobType: 'assessment-detection',
+      },
+    });
   }
 
   /**
@@ -72,9 +92,6 @@ export class AssessmentDetectionWorker extends JobWorker {
       version: 1,
     };
 
-    // Determine if this is completion (100% and has result)
-    const isComplete = assJob.progress.percentage === 100;
-
     if (this.isFirstProgress) {
       // First progress update - emit job.started
       this.isFirstProgress = false;
@@ -86,19 +103,9 @@ export class AssessmentDetectionWorker extends JobWorker {
           jobType: assJob.metadata.type,
         },
       });
-    } else if (isComplete) {
-      // Final update - emit job.completed
-      await this.eventStore.appendEvent({
-        type: 'job.completed',
-        ...baseEvent,
-        payload: {
-          jobId: assJob.metadata.id,
-          jobType: assJob.metadata.type,
-          // Note: result would come from job.result, but that's handled by base class
-        },
-      });
     } else {
       // Intermediate progress - emit job.progress
+      // Note: job.completed is now handled by emitCompletionEvent()
       await this.eventStore.appendEvent({
         type: 'job.progress',
         ...baseEvent,
@@ -135,7 +142,7 @@ export class AssessmentDetectionWorker extends JobWorker {
     }
   }
 
-  private async processAssessmentDetectionJob(job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>): Promise<void> {
+  private async processAssessmentDetectionJob(job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>): Promise<AssessmentDetectionResult> {
     console.log(`[AssessmentDetectionWorker] Processing assessment detection for resource ${job.params.resourceId} (job: ${job.metadata.id})`);
 
     // Fetch resource content
@@ -201,9 +208,6 @@ export class AssessmentDetectionWorker extends JobWorker {
       }
     }
 
-    // Note: JobWorker base class will create the CompleteJob with result
-    // We don't set job.result here - that's handled by the base class
-
     updatedJob = {
       ...updatedJob,
       progress: {
@@ -215,6 +219,12 @@ export class AssessmentDetectionWorker extends JobWorker {
 
     await this.updateJobProgress(updatedJob);
     console.log(`[AssessmentDetectionWorker] ✅ Created ${created}/${assessments.length} assessments`);
+
+    // Return result - base class will use this for CompleteJob and emitCompletionEvent
+    return {
+      assessmentsFound: assessments.length,
+      assessmentsCreated: created
+    };
   }
 
   private async createAssessmentAnnotation(

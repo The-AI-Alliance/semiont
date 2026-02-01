@@ -2,6 +2,8 @@
 
 This package exports job workers that process asynchronous AI tasks. Workers were moved from `apps/backend` to `@semiont/make-meaning` to separate detection logic from orchestration concerns.
 
+**See also**: [@semiont/jobs Type System Guide](../../jobs/docs/TYPES.md) for job state architecture and discriminated union patterns.
+
 ## Overview
 
 Workers extend the `JobWorker` base class from `@semiont/jobs` and implement domain-specific detection logic. Each worker:

@@ -269,6 +269,8 @@ class CustomWorker extends JobWorker {
 
 📝 **[Job Types Guide](./docs/JobTypes.md)** - All job type definitions and usage
 
+🔷 **[Type System Guide](./docs/TYPES.md)** - Discriminated unions and type safety
+
 ⚙️ **[Configuration Guide](./docs/Configuration.md)** - Setup and options
 
 ## Key Features

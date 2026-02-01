@@ -111,17 +111,20 @@ export abstract class JobWorker {
 
       console.log(`[${this.getWorkerName()}] 🔄 Processing job ${job.metadata.id} (type: ${job.metadata.type})`);
 
-      // Execute job-specific logic (passing running job)
-      await this.executeJob(runningJob);
+      // Execute job-specific logic (passing running job) and get result
+      const result = await this.executeJob(runningJob);
 
-      // Move to complete state
+      // Allow subclasses to emit completion events with result data
+      await this.emitCompletionEvent(runningJob, result);
+
+      // Move to complete state with result
       const completeJob: CompleteJob<any, any> = {
         status: 'complete',
         metadata: runningJob.metadata,
         params: runningJob.params,
         startedAt: runningJob.startedAt,
         completedAt: new Date().toISOString(),
-        result: {}, // Subclass should set this via updateJobProgress
+        result: result ?? {}, // Use returned result or empty object
       };
 
       await this.jobQueue.updateJob(completeJob, 'running');
@@ -194,6 +197,15 @@ export abstract class JobWorker {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
+  /**
+   * Emit completion event (optional hook for subclasses)
+   * Override this to emit job-specific completion events (e.g., job.completed)
+   */
+  protected async emitCompletionEvent(_job: RunningJob<any, any>, _result: any): Promise<void> {
+    // Default: do nothing
+    // Subclasses can override to emit events
+  }
+
   // Abstract methods to be implemented by subclasses
 
   /**
@@ -209,7 +221,8 @@ export abstract class JobWorker {
   /**
    * Execute the job (job-specific logic)
    * This is where the actual work happens
+   * Return the result object (or void for jobs without results)
    * Throw an error to trigger retry logic
    */
-  protected abstract executeJob(job: AnyJob): Promise<void>;
+  protected abstract executeJob(job: AnyJob): Promise<any>;
 }
