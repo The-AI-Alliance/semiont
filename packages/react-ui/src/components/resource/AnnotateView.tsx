@@ -7,6 +7,7 @@ import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMi
 import { getAnnotator } from '../../lib/annotation-registry';
 import { ImageViewer } from '../viewers';
 import { PdfViewer } from '../viewers/PdfViewer';
+import { PdfAnnotationCanvas } from '../pdf-annotation/PdfAnnotationCanvas';
 import { SvgDrawingCanvas, type DrawingMode } from '../image-annotation/SvgDrawingCanvas';
 import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
 import { findTextWithContext } from '@semiont/api-client';
@@ -433,11 +434,45 @@ export function AnnotateView({
     case 'image':
       // MIME-specific viewer selection within spatial annotation category
       if (isPdfMimeType(mimeType)) {
-        // Phase 1: PDF viewing only (no annotations yet)
+        // Phase 2: PDF annotation support
         return (
           <div className="semiont-annotate-view" data-mime-type="pdf" ref={containerRef}>
+            <AnnotateToolbar
+              selectedMotivation={selectedMotivation}
+              selectedClick={selectedClick}
+              onSelectionChange={onSelectionChange}
+              onClickChange={onClickChange}
+              showShapeGroup={true}
+              selectedShape={selectedShape}
+              onShapeChange={onShapeChange}
+              annotateMode={annotateMode}
+              onAnnotateModeToggle={onAnnotateModeToggle}
+            />
             <div className="semiont-annotate-view__content">
-              {resourceUri && <PdfViewer resourceUri={toResourceUri(resourceUri)} />}
+              {resourceUri && (
+                <PdfAnnotationCanvas
+                  resourceUri={toResourceUri(resourceUri)}
+                  existingAnnotations={allAnnotations}
+                  drawingMode={selectedMotivation && selectedShape === 'rectangle' ? 'rectangle' : null}
+                  selectedMotivation={selectedMotivation}
+                  onAnnotationCreate={async (fragmentSelector) => {
+                    // Use unified onCreate handler for PDF annotations
+                    if (selectedMotivation && onCreate) {
+                      onCreate({
+                        motivation: selectedMotivation,
+                        selector: {
+                          type: 'FragmentSelector',
+                          conformsTo: 'http://tools.ietf.org/rfc/rfc3778',
+                          value: fragmentSelector
+                        }
+                      });
+                    }
+                  }}
+                  {...(onAnnotationClick && { onAnnotationClick })}
+                  {...(onAnnotationHover && { onAnnotationHover: handleAnnotationHover })}
+                  hoveredAnnotationId={hoveredCommentId || hoveredAnnotationId || null}
+                />
+              )}
             </div>
           </div>
         );

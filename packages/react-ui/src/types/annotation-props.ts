@@ -47,10 +47,10 @@ export interface UICreateAnnotationParams {
   /** The motivation for creating this annotation */
   motivation: import('@semiont/react-ui').SelectionMotivation;
 
-  /** Selector information - either text or SVG */
+  /** Selector information - text, SVG, or fragment */
   selector: {
     /** Selector type */
-    type: 'TextQuoteSelector' | 'SvgSelector';
+    type: 'TextQuoteSelector' | 'SvgSelector' | 'FragmentSelector';
 
     /** For TextQuoteSelector: the exact text selected */
     exact?: string;
@@ -69,6 +69,9 @@ export interface UICreateAnnotationParams {
 
     /** For SvgSelector: the SVG shape string */
     value?: string;
+
+    /** For FragmentSelector: conformsTo URI (RFC 3778 for PDF) */
+    conformsTo?: string;
   };
 
   /** Optional position for popup placement (text: near selection, image: shape center) */

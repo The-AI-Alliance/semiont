@@ -1,0 +1,92 @@
+/**
+ * PDF Annotation Canvas Styles
+ *
+ * Provides consistent styling for PDF annotation interface,
+ * matching the existing viewer component patterns.
+ */
+
+.semiont-pdf-annotation-canvas {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+.semiont-pdf-annotation-canvas__loading,
+.semiont-pdf-annotation-canvas__error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.semiont-pdf-annotation-canvas__error {
+  color: var(--error-color);
+}
+
+.semiont-pdf-annotation-canvas__container {
+  position: relative;
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 1rem;
+  cursor: crosshair;
+}
+
+.semiont-pdf-annotation-canvas__container[data-drawing-mode="null"] {
+  cursor: default;
+}
+
+.semiont-pdf-annotation-canvas__overlay {
+  pointer-events: none;
+}
+
+.semiont-pdf-annotation-canvas__overlay rect {
+  pointer-events: auto;
+}
+
+.semiont-pdf-annotation-canvas__controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.semiont-pdf-annotation-canvas__controls button {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.semiont-pdf-annotation-canvas__controls button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.semiont-pdf-annotation-canvas__controls span {
+  font-size: 0.875rem;
+}
+
+/* React-PDF overrides */
+.semiont-pdf-annotation-canvas .react-pdf__Document {
+  display: flex;
+  justify-content: center;
+}
+
+.semiont-pdf-annotation-canvas .react-pdf__Page {
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+}
+
+.semiont-pdf-annotation-canvas .react-pdf__Page__canvas {
+  max-width: 100%;
+  height: auto !important;
+}
+
+.semiont-pdf-annotation-canvas .react-pdf__Page__textContent {
+  user-select: none;
+}

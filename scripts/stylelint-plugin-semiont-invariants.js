@@ -120,6 +120,8 @@ function shouldSkipFile(filename) {
     'mock',
     'status-display.css', // Has intentional status colors - TODO: refactor to use variables
     'toast.css', // Has intentional toast colors - TODO: refactor to use variables
+    'PdfViewer.css', // Contains react-pdf library class overrides
+    'PdfAnnotationCanvas.css', // Contains react-pdf library class overrides
   ];
 
   return skipPatterns.some(pattern => filename.includes(pattern));
@@ -137,6 +139,7 @@ function isValidSemiontClass(className) {
     'sidebar-navigation', // Sidebar navigation classes (including BEM variants)
     'quick-actions-widget',
     'animate-', // Animation classes
+    'react-pdf__', // React-PDF library classes
   ];
 
   // Check exceptions

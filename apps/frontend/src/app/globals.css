@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Import @semiont/react-ui styles */
+/* Import @semiont/react-ui styles (includes react-pdf CSS) */
 @import '@semiont/react-ui/styles';
 
 /* Light mode (default) */

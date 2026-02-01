@@ -79,6 +79,9 @@ const baseConfig = {
   // Enable standalone output for container deployment
   output: 'standalone',
 
+  // Transpile packages that need client-side transformation
+  transpilePackages: ['react-pdf'],
+
   // Security headers
   async headers() {
     return [

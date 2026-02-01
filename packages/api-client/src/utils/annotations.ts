@@ -19,10 +19,11 @@ type ReferenceAnnotation = Annotation;
 type TextPositionSelector = components['schemas']['TextPositionSelector'];
 type TextQuoteSelector = components['schemas']['TextQuoteSelector'];
 type SvgSelector = components['schemas']['SvgSelector'];
-type Selector = TextPositionSelector | TextQuoteSelector | SvgSelector;
+type FragmentSelector = components['schemas']['FragmentSelector'];
+type Selector = TextPositionSelector | TextQuoteSelector | SvgSelector | FragmentSelector;
 
 // Re-export selector types for convenience
-export type { TextPositionSelector, TextQuoteSelector, SvgSelector, Selector };
+export type { TextPositionSelector, TextQuoteSelector, SvgSelector, FragmentSelector, Selector };
 
 /**
  * Get the source from an annotation body (null if stub)
@@ -289,6 +290,19 @@ export function getSvgSelector(selector: Selector | Selector[] | undefined): Svg
   const found = selectors.find(s => s.type === 'SvgSelector');
   if (!found) return null;
   return found.type === 'SvgSelector' ? found : null;
+}
+
+/**
+ * Get FragmentSelector from a selector (single or array)
+ *
+ * Returns the first FragmentSelector found, or null if none exists.
+ */
+export function getFragmentSelector(selector: Selector | Selector[] | undefined): FragmentSelector | null {
+  if (!selector) return null;
+  const selectors = Array.isArray(selector) ? selector : [selector];
+  const found = selectors.find(s => s.type === 'FragmentSelector');
+  if (!found) return null;
+  return found.type === 'FragmentSelector' ? found : null;
 }
 
 /**
