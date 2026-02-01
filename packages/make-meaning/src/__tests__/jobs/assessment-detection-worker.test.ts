@@ -146,7 +146,8 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
       }
     };
 
-    await (worker as unknown as { executeJob: (job: AssessmentDetectionJob) => Promise<void> }).executeJob(job);
+    const result = await (worker as unknown as { executeJob: (job: AssessmentDetectionJob) => Promise<any> }).executeJob(job);
+    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
     const events = await getResourceEvents(testResourceId);
     const startedEvents = events.filter(e => e.event.type === 'job.started');
@@ -202,7 +203,8 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
       }
     };
 
-    await (worker as unknown as { executeJob: (job: AssessmentDetectionJob) => Promise<void> }).executeJob(job);
+    const result = await (worker as unknown as { executeJob: (job: AssessmentDetectionJob) => Promise<any> }).executeJob(job);
+    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
     const events = await getResourceEvents(testResourceId);
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
@@ -257,7 +259,8 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
       }
     };
 
-    await (worker as unknown as { executeJob: (job: AssessmentDetectionJob) => Promise<void> }).executeJob(job);
+    const result = await (worker as unknown as { executeJob: (job: AssessmentDetectionJob) => Promise<any> }).executeJob(job);
+    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
     const events = await getResourceEvents(testResourceId);
     const completedEvents = events.filter(e => e.event.type === 'job.completed');
@@ -320,7 +323,8 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
       }
     };
 
-    await (worker as unknown as { executeJob: (job: AssessmentDetectionJob) => Promise<void> }).executeJob(job);
+    const result = await (worker as unknown as { executeJob: (job: AssessmentDetectionJob) => Promise<any> }).executeJob(job);
+    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
     const events = await getResourceEvents(testResourceId);
     const annotationEvents = events.filter(e => e.event.type === 'annotation.added');

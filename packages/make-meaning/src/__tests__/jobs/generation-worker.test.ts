@@ -192,7 +192,8 @@ describe('GenerationWorker - Event Emission', () => {
       }
     };
 
-    await (worker as unknown as { executeJob: (job: GenerationJob) => Promise<void> }).executeJob(job);
+    const result = await (worker as unknown as { executeJob: (job: GenerationJob) => Promise<any> }).executeJob(job);
+    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<GenerationParams, GenerationProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
     const events = await getResourceEvents(testResourceId);
     const startedEvents = events.filter(e => e.event.type === 'job.started');
@@ -248,7 +249,8 @@ describe('GenerationWorker - Event Emission', () => {
       }
     };
 
-    await (worker as unknown as { executeJob: (job: GenerationJob) => Promise<void> }).executeJob(job);
+    const result = await (worker as unknown as { executeJob: (job: GenerationJob) => Promise<any> }).executeJob(job);
+    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<GenerationParams, GenerationProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
     const events = await getResourceEvents(testResourceId);
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
@@ -296,7 +298,8 @@ describe('GenerationWorker - Event Emission', () => {
       }
     };
 
-    await (worker as unknown as { executeJob: (job: GenerationJob) => Promise<void> }).executeJob(job);
+    const result = await (worker as unknown as { executeJob: (job: GenerationJob) => Promise<any> }).executeJob(job);
+    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<GenerationParams, GenerationProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
     const events = await getResourceEvents(testResourceId);
     const completedEvents = events.filter(e => e.event.type === 'job.completed');
@@ -350,7 +353,8 @@ describe('GenerationWorker - Event Emission', () => {
       }
     };
 
-    await (worker as unknown as { executeJob: (job: GenerationJob) => Promise<void> }).executeJob(job);
+    const result = await (worker as unknown as { executeJob: (job: GenerationJob) => Promise<any> }).executeJob(job);
+    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<GenerationParams, GenerationProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
     // Get the job.completed event to find the generated resource ID
     const sourceEvents = await testEventStore.log.getEvents(resourceId(testResourceId));
