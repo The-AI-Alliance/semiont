@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect } from 'react';
 import type { components, ResourceUri, ContentFormat } from '@semiont/api-client';
-import { isImageMimeType, LOCALES } from '@semiont/api-client';
+import { isImageMimeType, isPdfMimeType, LOCALES } from '@semiont/api-client';
 import { buttonStyles, CodeMirrorRenderer } from '@semiont/react-ui';
 import { useFormAnnouncements } from '@semiont/react-ui';
 
@@ -179,8 +179,8 @@ export function ResourceComposePage({
       setNewResourceName(nameWithoutExt);
     }
 
-    // For images, create preview URL
-    if (isImageMimeType(file.type)) {
+    // For images and PDFs, create preview URL
+    if (isImageMimeType(file.type) || isPdfMimeType(file.type)) {
       const previewUrl = URL.createObjectURL(file);
       setFilePreviewUrl(previewUrl);
     } else {
@@ -441,7 +441,7 @@ export function ResourceComposePage({
                     <div className="semiont-form__upload-area">
                       <input
                         type="file"
-                        accept="text/plain,text/markdown,image/png,image/jpeg"
+                        accept="text/plain,text/markdown,image/png,image/jpeg,application/pdf"
                         onChange={handleFileUpload}
                         className="semiont-form__upload-input"
                         disabled={isCreating}

@@ -6,6 +6,7 @@
  * - text/markdown
  * - image/png
  * - image/jpeg
+ * - application/pdf
  */
 
 /**
@@ -17,6 +18,7 @@ export function getExtensionForMimeType(mimeType: string): string {
     'text/markdown': 'md',
     'image/png': 'png',
     'image/jpeg': 'jpg',
+    'application/pdf': 'pdf',
   };
 
   return map[mimeType] || 'dat'; // fallback to .dat for unknown types
@@ -37,7 +39,20 @@ export function isTextMimeType(mimeType: string): boolean {
 }
 
 /**
+ * Detect if MIME type is PDF
+ */
+export function isPdfMimeType(mimeType: string): boolean {
+  return mimeType === 'application/pdf';
+}
+
+/**
  * Get category for MIME type (for routing to appropriate viewer)
+ *
+ * Categories represent annotation models, not file formats:
+ * - 'text': Text-based annotations (TextPositionSelector, TextQuoteSelector)
+ * - 'image': Spatial coordinate annotations (SvgSelector, FragmentSelector)
+ *
+ * PDFs use spatial coordinates for annotations, so they belong to 'image' category.
  */
 export type MimeCategory = 'text' | 'image' | 'unsupported';
 
@@ -45,7 +60,7 @@ export function getMimeCategory(mimeType: string): MimeCategory {
   if (isTextMimeType(mimeType)) {
     return 'text';
   }
-  if (isImageMimeType(mimeType)) {
+  if (isImageMimeType(mimeType) || isPdfMimeType(mimeType)) {
     return 'image';
   }
   return 'unsupported';
