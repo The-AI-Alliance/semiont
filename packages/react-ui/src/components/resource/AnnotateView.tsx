@@ -3,9 +3,10 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
 import type { components } from '@semiont/api-client';
-import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMimeCategory, resourceUri as toResourceUri } from '@semiont/api-client';
+import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMimeCategory, isPdfMimeType, resourceUri as toResourceUri } from '@semiont/api-client';
 import { getAnnotator } from '../../lib/annotation-registry';
 import { ImageViewer } from '../viewers';
+import { PdfViewer } from '../viewers/PdfViewer';
 import { SvgDrawingCanvas, type DrawingMode } from '../image-annotation/SvgDrawingCanvas';
 import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
 import { findTextWithContext } from '@semiont/api-client';
@@ -430,6 +431,19 @@ export function AnnotateView({
       );
 
     case 'image':
+      // MIME-specific viewer selection within spatial annotation category
+      if (isPdfMimeType(mimeType)) {
+        // Phase 1: PDF viewing only (no annotations yet)
+        return (
+          <div className="semiont-annotate-view" data-mime-type="pdf" ref={containerRef}>
+            <div className="semiont-annotate-view__content">
+              {resourceUri && <PdfViewer resourceUri={toResourceUri(resourceUri)} />}
+            </div>
+          </div>
+        );
+      }
+
+      // PNG, JPEG, etc. - full annotation support
       return (
         <div className="semiont-annotate-view" data-mime-type="image" ref={containerRef}>
           <AnnotateToolbar

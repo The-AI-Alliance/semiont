@@ -74,6 +74,7 @@
     "@testing-library/react": "^14.1.2",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@types/react-pdf": "^6.2.0",
     "@vitest/coverage-v8": "^3.0.0",
     "autoprefixer": "^10.4.23",
     "axe-core": "^4.11.0",
@@ -96,5 +97,9 @@
     "type": "git",
     "url": "https://github.com/The-AI-Alliance/semiont.git",
     "directory": "packages/react-ui"
+  },
+  "dependencies": {
+    "pdfjs-dist": "^5.4.530",
+    "react-pdf": "^10.3.0"
   }
 }

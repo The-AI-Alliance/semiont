@@ -1,0 +1,32 @@
+.semiont-pdf-viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+.semiont-pdf-viewer canvas {
+  max-width: 100%;
+  height: auto;
+}
+
+.semiont-pdf-viewer__controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.semiont-pdf-viewer__loading,
+.semiont-pdf-viewer__error {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+}
+
+.semiont-pdf-viewer__error {
+  color: var(--error-color);
+}
