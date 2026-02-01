@@ -6,7 +6,7 @@
  */
 
 import { JobWorker } from '@semiont/jobs';
-import type { AnyJob, HighlightDetectionJob, JobQueue, RunningJob, HighlightDetectionParams, HighlightDetectionProgress } from '@semiont/jobs';
+import type { AnyJob, HighlightDetectionJob, JobQueue, RunningJob, HighlightDetectionParams, HighlightDetectionProgress, HighlightDetectionResult } from '@semiont/jobs';
 import { ResourceContext, AnnotationDetection } from '..';
 import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
 import { resourceIdToURI } from '@semiont/core';
@@ -35,7 +35,7 @@ export class HighlightDetectionWorker extends JobWorker {
     return job.metadata.type === 'highlight-detection';
   }
 
-  protected async executeJob(job: AnyJob): Promise<void> {
+  protected async executeJob(job: AnyJob): Promise<HighlightDetectionResult> {
     if (job.metadata.type !== 'highlight-detection') {
       throw new Error(`Invalid job type: ${job.metadata.type}`);
     }
@@ -47,7 +47,27 @@ export class HighlightDetectionWorker extends JobWorker {
 
     // Reset progress tracking
     this.isFirstProgress = true;
-    await this.processHighlightDetectionJob(job as RunningJob<HighlightDetectionParams, HighlightDetectionProgress>);
+    return await this.processHighlightDetectionJob(job as RunningJob<HighlightDetectionParams, HighlightDetectionProgress>);
+  }
+
+  /**
+   * Emit completion event with result data
+   * Override base class to emit job.completed event
+   */
+  protected override async emitCompletionEvent(
+    job: RunningJob<HighlightDetectionParams, HighlightDetectionProgress>,
+    _result: HighlightDetectionResult
+  ): Promise<void> {
+    await this.eventStore.appendEvent({
+      type: 'job.completed',
+      resourceId: job.params.resourceId,
+      userId: job.metadata.userId,
+      version: 1,
+      payload: {
+        jobId: job.metadata.id,
+        jobType: 'highlight-detection',
+      },
+    });
   }
 
   /**
@@ -72,9 +92,6 @@ export class HighlightDetectionWorker extends JobWorker {
       version: 1,
     };
 
-    // Determine if this is completion (100% and has result)
-    const isComplete = hlJob.progress.percentage === 100;
-
     if (this.isFirstProgress) {
       // First progress update - emit job.started
       this.isFirstProgress = false;
@@ -86,19 +103,9 @@ export class HighlightDetectionWorker extends JobWorker {
           jobType: hlJob.metadata.type,
         },
       });
-    } else if (isComplete) {
-      // Final update - emit job.completed
-      await this.eventStore.appendEvent({
-        type: 'job.completed',
-        ...baseEvent,
-        payload: {
-          jobId: hlJob.metadata.id,
-          jobType: hlJob.metadata.type,
-          // Note: result would come from job.result, but that's handled by base class
-        },
-      });
     } else {
       // Intermediate progress - emit job.progress
+      // Note: job.completed is now handled by emitCompletionEvent()
       await this.eventStore.appendEvent({
         type: 'job.progress',
         ...baseEvent,
@@ -135,7 +142,7 @@ export class HighlightDetectionWorker extends JobWorker {
     }
   }
 
-  private async processHighlightDetectionJob(job: RunningJob<HighlightDetectionParams, HighlightDetectionProgress>): Promise<void> {
+  private async processHighlightDetectionJob(job: RunningJob<HighlightDetectionParams, HighlightDetectionProgress>): Promise<HighlightDetectionResult> {
     console.log(`[HighlightDetectionWorker] Processing highlight detection for resource ${job.params.resourceId} (job: ${job.metadata.id})`);
 
     // Fetch resource content
@@ -200,9 +207,6 @@ export class HighlightDetectionWorker extends JobWorker {
       }
     }
 
-    // Note: JobWorker base class will create the CompleteJob with result
-    // We don't set job.result here - that's handled by the base class
-
     updatedJob = {
       ...updatedJob,
       progress: {
@@ -214,6 +218,12 @@ export class HighlightDetectionWorker extends JobWorker {
 
     await this.updateJobProgress(updatedJob);
     console.log(`[HighlightDetectionWorker] ✅ Created ${created}/${highlights.length} highlights`);
+
+    // Return result - base class will use this for CompleteJob and emitCompletionEvent
+    return {
+      highlightsFound: highlights.length,
+      highlightsCreated: created
+    };
   }
 
   private async createHighlightAnnotation(

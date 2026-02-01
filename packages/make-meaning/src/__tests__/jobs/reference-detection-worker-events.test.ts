@@ -156,7 +156,8 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
       }
     };
 
-    await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
+    const result = await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<any> }).executeJob(job);
+    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<DetectionParams, DetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
     const events = await getResourceEvents(testResourceId);
     const startedEvents = events.filter(e => e.event.type === 'job.started');
@@ -203,7 +204,8 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
       }
     };
 
-    await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
+    const result = await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<any> }).executeJob(job);
+    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<DetectionParams, DetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
     const events = await getResourceEvents(testResourceId);
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
@@ -253,7 +255,8 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
       }
     };
 
-    await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
+    const result = await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<any> }).executeJob(job);
+    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<DetectionParams, DetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
     const events = await getResourceEvents(testResourceId);
     const completedEvents = events.filter(e => e.event.type === 'job.completed');
@@ -298,7 +301,8 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
       }
     };
 
-    await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
+    const result = await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<any> }).executeJob(job);
+    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<DetectionParams, DetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
     const events = await getResourceEvents(testResourceId);
     const annotationEvents = events.filter(e => e.event.type === 'annotation.added');
@@ -353,7 +357,8 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
       }
     };
 
-    await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
+    const result = await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<any> }).executeJob(job);
+    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<DetectionParams, DetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
     const events = await getResourceEvents(testResourceId);
     const eventTypes = events.map(e => e.event.type);
@@ -398,7 +403,8 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
       }
     };
 
-    await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<void> }).executeJob(job);
+    const result = await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<any> }).executeJob(job);
+    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<DetectionParams, DetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
     const events = await getResourceEvents(testResourceId);
     const progressEvents = events.filter(e => e.event.type === 'job.progress');

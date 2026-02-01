@@ -176,7 +176,8 @@ describe('TagDetectionWorker - Event Emission', () => {
       }
     };
 
-    await (worker as unknown as { executeJob: (job: TagDetectionJob) => Promise<void> }).executeJob(job);
+    const result = await (worker as unknown as { executeJob: (job: TagDetectionJob) => Promise<any> }).executeJob(job);
+    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<TagDetectionParams, TagDetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
     const events = await getResourceEvents(testResourceId);
     const startedEvents = events.filter(e => e.event.type === 'job.started');
@@ -235,7 +236,8 @@ describe('TagDetectionWorker - Event Emission', () => {
       }
     };
 
-    await (worker as unknown as { executeJob: (job: TagDetectionJob) => Promise<void> }).executeJob(job);
+    const result = await (worker as unknown as { executeJob: (job: TagDetectionJob) => Promise<any> }).executeJob(job);
+    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<TagDetectionParams, TagDetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
     const events = await getResourceEvents(testResourceId);
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
@@ -292,7 +294,8 @@ describe('TagDetectionWorker - Event Emission', () => {
       }
     };
 
-    await (worker as unknown as { executeJob: (job: TagDetectionJob) => Promise<void> }).executeJob(job);
+    const result = await (worker as unknown as { executeJob: (job: TagDetectionJob) => Promise<any> }).executeJob(job);
+    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<TagDetectionParams, TagDetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
     const events = await getResourceEvents(testResourceId);
     const completedEvents = events.filter(e => e.event.type === 'job.completed');
@@ -374,7 +377,8 @@ describe('TagDetectionWorker - Event Emission', () => {
       }
     };
 
-    await (worker as unknown as { executeJob: (job: TagDetectionJob) => Promise<void> }).executeJob(job);
+    const result = await (worker as unknown as { executeJob: (job: TagDetectionJob) => Promise<any> }).executeJob(job);
+    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<TagDetectionParams, TagDetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
     const events = await getResourceEvents(testResourceId);
     const annotationEvents = events.filter(e => e.event.type === 'annotation.added');

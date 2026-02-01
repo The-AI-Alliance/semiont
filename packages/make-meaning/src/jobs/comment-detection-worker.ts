@@ -6,7 +6,7 @@
  */
 
 import { JobWorker } from '@semiont/jobs';
-import type { AnyJob, CommentDetectionJob, JobQueue, RunningJob, CommentDetectionParams, CommentDetectionProgress } from '@semiont/jobs';
+import type { AnyJob, CommentDetectionJob, JobQueue, RunningJob, CommentDetectionParams, CommentDetectionProgress, CommentDetectionResult } from '@semiont/jobs';
 import { ResourceContext, AnnotationDetection } from '..';
 import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
 import { resourceIdToURI } from '@semiont/core';
@@ -35,7 +35,7 @@ export class CommentDetectionWorker extends JobWorker {
     return job.metadata.type === 'comment-detection';
   }
 
-  protected async executeJob(job: AnyJob): Promise<void> {
+  protected async executeJob(job: AnyJob): Promise<CommentDetectionResult> {
     if (job.metadata.type !== 'comment-detection') {
       throw new Error(`Invalid job type: ${job.metadata.type}`);
     }
@@ -47,7 +47,27 @@ export class CommentDetectionWorker extends JobWorker {
 
     // Reset progress tracking
     this.isFirstProgress = true;
-    await this.processCommentDetectionJob(job as RunningJob<CommentDetectionParams, CommentDetectionProgress>);
+    return await this.processCommentDetectionJob(job as RunningJob<CommentDetectionParams, CommentDetectionProgress>);
+  }
+
+  /**
+   * Emit completion event with result data
+   * Override base class to emit job.completed event
+   */
+  protected override async emitCompletionEvent(
+    job: RunningJob<CommentDetectionParams, CommentDetectionProgress>,
+    _result: CommentDetectionResult
+  ): Promise<void> {
+    await this.eventStore.appendEvent({
+      type: 'job.completed',
+      resourceId: job.params.resourceId,
+      userId: job.metadata.userId,
+      version: 1,
+      payload: {
+        jobId: job.metadata.id,
+        jobType: 'comment-detection',
+      },
+    });
   }
 
   /**
@@ -72,9 +92,6 @@ export class CommentDetectionWorker extends JobWorker {
       version: 1,
     };
 
-    // Determine if this is completion (100% and has result)
-    const isComplete = cdJob.progress.percentage === 100;
-
     if (this.isFirstProgress) {
       // First progress update - emit job.started
       this.isFirstProgress = false;
@@ -86,19 +103,9 @@ export class CommentDetectionWorker extends JobWorker {
           jobType: cdJob.metadata.type,
         },
       });
-    } else if (isComplete) {
-      // Final update - emit job.completed
-      await this.eventStore.appendEvent({
-        type: 'job.completed',
-        ...baseEvent,
-        payload: {
-          jobId: cdJob.metadata.id,
-          jobType: cdJob.metadata.type,
-          // Note: result would come from job.result, but that's handled by base class
-        },
-      });
     } else {
       // Intermediate progress - emit job.progress
+      // Note: job.completed is now handled by emitCompletionEvent()
       await this.eventStore.appendEvent({
         type: 'job.progress',
         ...baseEvent,
@@ -135,7 +142,7 @@ export class CommentDetectionWorker extends JobWorker {
     }
   }
 
-  private async processCommentDetectionJob(job: RunningJob<CommentDetectionParams, CommentDetectionProgress>): Promise<void> {
+  private async processCommentDetectionJob(job: RunningJob<CommentDetectionParams, CommentDetectionProgress>): Promise<CommentDetectionResult> {
     console.log(`[CommentDetectionWorker] Processing comment detection for resource ${job.params.resourceId} (job: ${job.metadata.id})`);
 
     // Fetch resource content
@@ -201,9 +208,6 @@ export class CommentDetectionWorker extends JobWorker {
       }
     }
 
-    // Note: JobWorker base class will create the CompleteJob with result
-    // We don't set job.result here - that's handled by the base class
-
     updatedJob = {
       ...updatedJob,
       progress: {
@@ -215,6 +219,12 @@ export class CommentDetectionWorker extends JobWorker {
 
     await this.updateJobProgress(updatedJob);
     console.log(`[CommentDetectionWorker] ✅ Created ${created}/${comments.length} comments`);
+
+    // Return result - base class will use this for CompleteJob and emitCompletionEvent
+    return {
+      commentsFound: comments.length,
+      commentsCreated: created
+    };
   }
 
   private async createCommentAnnotation(

@@ -2,6 +2,8 @@
 
 Workers are long-running processes that poll the job queue and execute jobs. The `JobWorker` abstract base class provides the polling loop, error handling, and lifecycle management - you implement the business logic.
 
+**See also**: [Type System Guide](./TYPES.md) for job state architecture and type narrowing patterns.
+
 ## Table of Contents
 
 - [Overview](#overview)

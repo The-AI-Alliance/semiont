@@ -8,7 +8,7 @@
  */
 
 import { JobWorker } from '@semiont/jobs';
-import type { AnyJob, JobQueue, RunningJob, GenerationParams, GenerationProgress } from '@semiont/jobs';
+import type { AnyJob, JobQueue, RunningJob, GenerationParams, GenerationProgress, GenerationResult } from '@semiont/jobs';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import { ResourceContext } from '..';
 import { generateResourceFromTopic } from '../generation/resource-generation';
@@ -48,7 +48,7 @@ export class GenerationWorker extends JobWorker {
     return job.metadata.type === 'generation';
   }
 
-  protected async executeJob(job: AnyJob): Promise<void> {
+  protected async executeJob(job: AnyJob): Promise<GenerationResult> {
     if (job.metadata.type !== 'generation') {
       throw new Error(`Invalid job type: ${job.metadata.type}`);
     }
@@ -58,10 +58,10 @@ export class GenerationWorker extends JobWorker {
       throw new Error(`Job must be in running state to execute, got: ${job.status}`);
     }
 
-    await this.processGenerationJob(job as RunningJob<GenerationParams, GenerationProgress>);
+    return await this.processGenerationJob(job as RunningJob<GenerationParams, GenerationProgress>);
   }
 
-  private async processGenerationJob(job: RunningJob<GenerationParams, GenerationProgress>): Promise<void> {
+  private async processGenerationJob(job: RunningJob<GenerationParams, GenerationProgress>): Promise<GenerationResult> {
     console.log(`[GenerationWorker] Processing generation for reference ${job.params.referenceId} (job: ${job.metadata.id})`);
 
     const basePath = this.config.services.filesystem!.path;
@@ -205,8 +205,7 @@ export class GenerationWorker extends JobWorker {
       progress: {
         stage: 'linking',
         percentage: 95,
-        message: 'Linking reference...',
-        resultResourceId: rId  // Store for job.completed event
+        message: 'Linking reference...'
       }
     };
     console.log(`[GenerationWorker] 🔗 ${updatedJob.progress.message}`);
@@ -240,21 +239,46 @@ export class GenerationWorker extends JobWorker {
     });
     console.log(`[GenerationWorker] ✅ Emitted annotation.body.updated event linking ${job.params.referenceId} → ${rId}`);
 
-    // Note: JobWorker base class will create the CompleteJob with result
-    // We don't set job.result here - that's handled by the base class
-
+    // Final progress update
     updatedJob = {
       ...updatedJob,
       progress: {
         stage: 'linking',
         percentage: 100,
-        message: 'Complete!',
-        resultResourceId: rId  // Store for job.completed event
+        message: 'Complete!'
       }
     };
     await this.updateJobProgress(updatedJob);
 
     console.log(`[GenerationWorker] ✅ Generation complete: created resource ${rId}`);
+
+    // Return result - base class will use this for CompleteJob and emitCompletionEvent
+    return {
+      resourceId: rId,
+      resourceName: resourceName
+    };
+  }
+
+  /**
+   * Emit completion event with result data
+   * Override base class to emit job.completed event with resultResourceId
+   */
+  protected override async emitCompletionEvent(
+    job: RunningJob<GenerationParams, GenerationProgress>,
+    result: GenerationResult
+  ): Promise<void> {
+    await this.eventStore.appendEvent({
+      type: 'job.completed',
+      resourceId: job.params.sourceResourceId,
+      userId: job.metadata.userId,
+      version: 1,
+      payload: {
+        jobId: job.metadata.id,
+        jobType: 'generation',
+        resultResourceId: result.resourceId,
+        annotationUri: annotationUri(`${this.config.services.backend!.publicURL}/annotations/${job.params.referenceId}`),
+      },
+    });
   }
 
   /**
@@ -295,20 +319,9 @@ export class GenerationWorker extends JobWorker {
           totalSteps: 5, // fetching, generating, creating, linking, complete
         },
       });
-    } else if (genJob.progress.stage === 'linking' && genJob.progress.percentage === 100) {
-      // Final progress update - emit job.completed
-      await this.eventStore.appendEvent({
-        type: 'job.completed',
-        ...baseEvent,
-        payload: {
-          jobId: genJob.metadata.id,
-          jobType: genJob.metadata.type,
-          resultResourceId: genJob.progress.resultResourceId,
-          annotationUri: annotationUri(`${this.config.services.backend!.publicURL}/annotations/${genJob.params.referenceId}`),
-        },
-      });
     } else {
       // Intermediate progress - emit job.progress
+      // Note: job.completed is now handled by emitCompletionEvent()
       await this.eventStore.appendEvent({
         type: 'job.progress',
         ...baseEvent,

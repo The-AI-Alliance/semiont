@@ -2,6 +2,8 @@
 
 Semiont supports multiple job types for different async tasks. All jobs use discriminated unions based on status for type safety and to prevent accessing fields that don't exist in the current state.
 
+**See also**: [Type System Guide](./TYPES.md) for architecture and implementation patterns.
+
 ## Table of Contents
 
 - [Discriminated Union Structure](#discriminated-union-structure)

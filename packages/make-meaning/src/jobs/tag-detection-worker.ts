@@ -7,7 +7,7 @@
  */
 
 import { JobWorker } from '@semiont/jobs';
-import type { AnyJob, TagDetectionJob, JobQueue, RunningJob, TagDetectionParams, TagDetectionProgress } from '@semiont/jobs';
+import type { AnyJob, TagDetectionJob, JobQueue, RunningJob, TagDetectionParams, TagDetectionProgress, TagDetectionResult } from '@semiont/jobs';
 import { ResourceContext, AnnotationDetection } from '..';
 import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
 import { resourceIdToURI } from '@semiont/core';
@@ -37,7 +37,7 @@ export class TagDetectionWorker extends JobWorker {
     return job.metadata.type === 'tag-detection';
   }
 
-  protected async executeJob(job: AnyJob): Promise<void> {
+  protected async executeJob(job: AnyJob): Promise<TagDetectionResult> {
     if (job.metadata.type !== 'tag-detection') {
       throw new Error(`Invalid job type: ${job.metadata.type}`);
     }
@@ -49,7 +49,27 @@ export class TagDetectionWorker extends JobWorker {
 
     // Reset progress tracking
     this.isFirstProgress = true;
-    await this.processTagDetectionJob(job as RunningJob<TagDetectionParams, TagDetectionProgress>);
+    return await this.processTagDetectionJob(job as RunningJob<TagDetectionParams, TagDetectionProgress>);
+  }
+
+  /**
+   * Emit completion event with result data
+   * Override base class to emit job.completed event
+   */
+  protected override async emitCompletionEvent(
+    job: RunningJob<TagDetectionParams, TagDetectionProgress>,
+    _result: TagDetectionResult
+  ): Promise<void> {
+    await this.eventStore.appendEvent({
+      type: 'job.completed',
+      resourceId: job.params.resourceId,
+      userId: job.metadata.userId,
+      version: 1,
+      payload: {
+        jobId: job.metadata.id,
+        jobType: 'tag-detection',
+      },
+    });
   }
 
   /**
@@ -74,9 +94,6 @@ export class TagDetectionWorker extends JobWorker {
       version: 1,
     };
 
-    // Determine if this is completion (100% and has result)
-    const isComplete = tdJob.progress.percentage === 100;
-
     if (this.isFirstProgress) {
       // First progress update - emit job.started
       this.isFirstProgress = false;
@@ -88,19 +105,9 @@ export class TagDetectionWorker extends JobWorker {
           jobType: tdJob.metadata.type,
         },
       });
-    } else if (isComplete) {
-      // Final update - emit job.completed
-      await this.eventStore.appendEvent({
-        type: 'job.completed',
-        ...baseEvent,
-        payload: {
-          jobId: tdJob.metadata.id,
-          jobType: tdJob.metadata.type,
-          // Note: result would come from job.result, but that's handled by base class
-        },
-      });
     } else {
       // Intermediate progress - emit job.progress
+      // Note: job.completed is now handled by emitCompletionEvent()
       await this.eventStore.appendEvent({
         type: 'job.progress',
         ...baseEvent,
@@ -135,7 +142,7 @@ export class TagDetectionWorker extends JobWorker {
     }
   }
 
-  private async processTagDetectionJob(job: RunningJob<TagDetectionParams, TagDetectionProgress>): Promise<void> {
+  private async processTagDetectionJob(job: RunningJob<TagDetectionParams, TagDetectionProgress>): Promise<TagDetectionResult> {
     console.log(`[TagDetectionWorker] Processing tag detection for resource ${job.params.resourceId} (job: ${job.metadata.id})`);
 
     // Validate schema
@@ -227,9 +234,6 @@ export class TagDetectionWorker extends JobWorker {
       }
     }
 
-    // Note: JobWorker base class will create the CompleteJob with result
-    // We don't set job.result here - that's handled by the base class
-
     updatedJob = {
       ...updatedJob,
       progress: {
@@ -243,6 +247,13 @@ export class TagDetectionWorker extends JobWorker {
 
     await this.updateJobProgress(updatedJob);
     console.log(`[TagDetectionWorker] ✅ Created ${created}/${allTags.length} tags across ${job.params.categories.length} categories`);
+
+    // Return result - base class will use this for CompleteJob and emitCompletionEvent
+    return {
+      tagsFound: allTags.length,
+      tagsCreated: created,
+      byCategory
+    };
   }
 
   private async createTagAnnotation(
