@@ -62,6 +62,7 @@ export {
   getExtensionForMimeType,
   isImageMimeType,
   isTextMimeType,
+  isPdfMimeType,
   getMimeCategory,
   type MimeCategory
 } from './mime-utils';
