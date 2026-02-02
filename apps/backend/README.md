@@ -95,7 +95,7 @@ See [Container Documentation](./docs/CONTAINER.md) for advanced usage, Docker Co
 - **Authentication**: JWT with OAuth 2.0 (Google)
 - **Validation**: [Ajv](https://ajv.js.org/) for OpenAPI schema validation
 - **API Documentation**: Hand-written OpenAPI 3.0 specification (spec-first approach)
-- **Document Processing**: Markdown parsing with wiki-link and entity detection
+- **Document Processing**: Multi-format support (text, markdown, images, PDFs) with wiki-link and annotation detection for text formats
 - **MCP Integration**: Model Context Protocol server for AI assistant access
 
 ## Architecture Highlights
@@ -129,7 +129,7 @@ Event Store (immutable event log, source of truth)
 Content Storage (binary/text documents, sharded)
 ```
 
-**Job Worker Integration**: Background workers process long-running AI operations (entity detection, document generation) and emit events to the Event Store, which materializes views and updates the graph database via the event-driven architecture.
+**Job Worker Integration**: Background workers process long-running AI operations (annotation detection, document generation) and emit events to the Event Store, which materializes views and updates the graph database via the event-driven architecture.
 
 See [Architecture Overview](../../docs/ARCHITECTURE.md) for complete details.
 
@@ -140,7 +140,7 @@ Asynchronous job processing for long-running AI operations that can't block HTTP
 **Current Status**: Prototype implementation embedded in backend process (not yet a standalone CLI-managed service)
 
 **Job Types**:
-- **Entity Detection**: Find entities in documents using AI inference, emit `annotation.added` events
+- **Annotation Detection**: Detect annotations in documents using AI inference (highlights, assessments, comments, tags, entity references), emit `annotation.added` events
 - **Document Generation**: Create new documents from annotations using AI, emit `document.created` events
 
 **Architecture**:

@@ -6,18 +6,18 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/api-client.svg)](https://www.npmjs.com/package/@semiont/api-client)
 [![License](https://img.shields.io/npm/l/@semiont/api-client.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-TypeScript SDK for [Semiont](https://github.com/The-AI-Alliance/semiont) - a knowledge management system for semantic annotations, AI-powered entity detection, and collaborative document analysis.
+TypeScript SDK for [Semiont](https://github.com/The-AI-Alliance/semiont) - a knowledge management system for semantic annotations, AI-powered annotation detection, and collaborative document analysis.
 
 ## What is Semiont?
 
 Semiont lets you:
 
-- **Store and manage documents** (text, markdown, code)
+- **Store and manage documents** (text, markdown, images, PDFs)
 - **Create semantic annotations** using W3C Web Annotation standard
 - **Link and reference** between documents
 - **Track provenance** with event sourcing
 - **Collaborate in real-time** via SSE streams
-- **Detect entities** using AI (people, organizations, concepts)
+- **Detect annotations** using AI for text formats (highlights, assessments, comments, tags, entity references)
 - **Retrieve context** for LLMs via graph traversal
 - **Generate new documents** from annotations with AI
 
@@ -59,13 +59,13 @@ const { resource } = await client.createResource({
 
 console.log('Created resource:', resource['@id']);
 
-// Detect entities with AI
+// Detect annotations with AI (text/markdown formats only)
 const stream = client.sse.detectAnnotations(resourceUri(resource['@id']), {
   entityTypes: ['Animal', 'Color']
 });
 
 stream.onProgress((p) => console.log(`Scanning: ${p.currentEntityType}`));
-stream.onComplete((result) => console.log(`Found ${result.foundCount} entities`));
+stream.onComplete((result) => console.log(`Found ${result.foundCount} annotations`));
 
 // Get annotations
 const annotations = await client.getResourceAnnotations(resourceUri(resource['@id']));

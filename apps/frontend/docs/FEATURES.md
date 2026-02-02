@@ -7,9 +7,10 @@ User-facing features of the Semiont frontend, including document management, ann
 ## Table of Contents
 
 - [Overview](#overview)
+- [Supported Formats](#supported-formats)
 - [Document Operations](#document-operations)
 - [Selection System](#selection-system)
-- [Markdown Support](#markdown-support)
+- [Format-Specific Features](#format-specific-features)
 - [User Interface Components](#user-interface-components)
 - [Asynchronous AI Features](#asynchronous-ai-features)
 - [Related Documentation](#related-documentation)
@@ -18,11 +19,36 @@ User-facing features of the Semiont frontend, including document management, ann
 
 The Semiont frontend provides a rich document management and annotation experience built on W3C Web Annotation standards. Users can:
 
-- Create and manage markdown documents
-- Annotate text with highlights, references, and entity tags
+- Create and manage documents in multiple formats (text, markdown, images, PDFs)
+- Annotate content with highlights, references, and entity tags
 - Build a semantic knowledge graph through annotations
 - Search and discover related documents
 - Export annotations as JSON-LD
+
+## Supported Formats
+
+Semiont supports multiple document formats, each with format-appropriate annotation capabilities:
+
+### Text Formats
+- **Plain Text** (`text/plain`) - Raw text documents with text-based annotations
+- **Markdown** (`text/markdown`) - Formatted documents with GitHub Flavored Markdown support
+
+### Image Formats
+- **PNG** (`image/png`) - Raster images with spatial coordinate annotations
+- **JPEG** (`image/jpeg`) - Compressed images with spatial coordinate annotations
+
+### Document Formats
+- **PDF** (`application/pdf`) - Portable documents with spatial coordinate annotations
+
+### Annotation Support by Format
+
+| Format            | View | Annotate | Annotation Detection |
+|-------------------|------|----------|----------------------|
+| Text/Markdown     | ✅   | ✅       | ✅                   |
+| Images (PNG/JPEG) | ✅   | ✅       | ⚠️ Future            |
+| PDF               | ✅   | ✅       | ⚠️ Future            |
+
+**Note**: Text-based formats use `TextPositionSelector` and `TextQuoteSelector` for precise character-based annotations. Image and PDF formats use `FragmentSelector` (RFC 3778) for spatial coordinate-based annotations.
 
 ## Document Operations
 
@@ -154,35 +180,74 @@ Select "Albert Einstein" and create:
 
 See [API Integration Guide](./API-INTEGRATION.md#w3c-web-annotation-model) for technical details.
 
-## Markdown Support
+## Format-Specific Features
+
+### Text and Markdown
 
 Full markdown rendering with extended features:
 
-### GitHub Flavored Markdown
+#### GitHub Flavored Markdown
 - **Tables**: Pipe-delimited tables with alignment
 - **Task Lists**: `- [ ]` checkbox lists
 - **Strikethrough**: `~~deleted text~~`
 - **Autolinks**: Automatic URL linking
 
-### Wiki-Style Links
+#### Wiki-Style Links
 - **Syntax**: `[[page name]]`
 - **Navigation**: Click to navigate internally
 - **Auto-complete**: Suggestions while typing
 - **Stub Detection**: Highlight broken links
 
-### Syntax Highlighting
+#### Syntax Highlighting
 - Code blocks with language-specific highlighting
 - Inline code formatting
 - Line numbers (optional)
 - Copy-to-clipboard buttons
 
-### Interactive Elements
+#### Interactive Elements
 - External links open in new tabs
 - Wiki links navigate internally
 - Table of contents auto-generation (future)
 - Collapsible sections (future)
 
 See [REACT-MARKDOWN.md](./REACT-MARKDOWN.md) for markdown rendering details.
+
+### Images (PNG/JPEG)
+
+Image viewing with spatial annotation support:
+
+#### Viewing Features
+- Native image rendering with zoom controls
+- Responsive scaling to fit viewport
+- Pan and zoom for detailed inspection
+- High-resolution image support
+
+#### Annotation Features
+- **Rectangular regions**: Draw boxes on images to annotate specific areas
+- **Spatial coordinates**: Annotations use SVG coordinate system
+- **Visual indicators**: Highlighted regions with hover states
+- **Multiple annotations**: Support for overlapping regions
+
+**Future Work**: AI-powered annotation detection for images (object recognition, OCR for text in images)
+
+### PDF Documents
+
+PDF viewing and annotation with page-by-page navigation:
+
+#### Viewing Features
+- Multi-page PDF rendering
+- Page navigation (next/previous controls)
+- Zoom and scale controls
+- Text layer rendering for searchability
+
+#### Annotation Features
+- **Rectangular regions**: Draw boxes on PDF pages to annotate specific areas
+- **RFC 3778 compliance**: FragmentSelector with `page=N&viewrect=left,top,width,height`
+- **Page-specific annotations**: Annotations tied to specific PDF pages
+- **Visual indicators**: Highlighted regions with hover states
+- **Coordinate transformation**: Automatic conversion between PDF and canvas coordinates
+
+**Future Work**: AI-powered annotation detection for PDFs (text extraction, entity recognition, layout analysis)
 
 ## User Interface Components
 
@@ -275,9 +340,9 @@ Browse and explore entities across all documents.
 
 Some features use background AI processing with real-time progress tracking.
 
-### Entity Detection
+### Annotation Detection
 
-Automatically find entities in documents using AI.
+Automatically detect annotations in documents using AI (highlights, assessments, comments, tags, entity references).
 
 **How It Works**:
 1. User clicks "Detect Entities" button
