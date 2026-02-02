@@ -7,7 +7,6 @@
 import { describe, test, expect } from 'vitest';
 import * as fc from 'fast-check';
 import { getFragmentSelector } from '../utils/annotations';
-import type { FragmentSelector, TextPositionSelector, SvgSelector, Selector } from '../utils/annotations';
 
 // Arbitrary generators for different selector types
 const fragmentSelectorArb = fc.record({
