@@ -27,6 +27,8 @@
   padding: 2rem;
 }
 
+/* stylelint-disable semiont/accessibility -- Error indicator added by semantic-indicators.css */
 .semiont-pdf-viewer__error {
   color: var(--error-color);
 }
+/* stylelint-enable semiont/accessibility */

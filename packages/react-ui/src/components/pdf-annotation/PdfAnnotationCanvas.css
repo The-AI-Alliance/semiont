@@ -20,9 +20,11 @@
   padding: 2rem;
 }
 
+/* stylelint-disable semiont/accessibility -- Error indicator added by semantic-indicators.css */
 .semiont-pdf-annotation-canvas__error {
   color: var(--error-color);
 }
+/* stylelint-enable semiont/accessibility */
 
 .semiont-pdf-annotation-canvas__container {
   position: relative;
@@ -61,6 +63,11 @@
   border: 1px solid var(--border-color);
   border-radius: 4px;
   cursor: pointer;
+}
+
+.semiont-pdf-annotation-canvas__controls button:focus-visible {
+  outline: 2px solid var(--focus-color, #0066cc);
+  outline-offset: 2px;
 }
 
 .semiont-pdf-annotation-canvas__controls button:disabled {

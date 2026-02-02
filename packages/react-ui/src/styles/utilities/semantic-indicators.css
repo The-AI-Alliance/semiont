@@ -26,6 +26,8 @@
 .semiont-document-viewer__error-title::before,
 .semiont-document-viewer__error-message::before,
 .semiont-document-viewer__error-button::before,
+.semiont-pdf-annotation-canvas__error::before,
+.semiont-pdf-viewer__error::before,
 .semiont-stat-card__icon--error::before,
 [data-state="error"]::before,
 [data-status="error"]::before {
