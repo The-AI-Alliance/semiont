@@ -24,6 +24,10 @@
 .semiont-pdf-annotation-canvas__error {
   color: var(--error-color);
 }
+
+[data-theme="dark"] .semiont-pdf-annotation-canvas__error {
+  color: var(--error-color);
+}
 /* stylelint-enable semiont/accessibility */
 
 .semiont-pdf-annotation-canvas__container {
@@ -50,6 +54,10 @@
   height: auto;
   box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
   user-select: none;
+}
+
+[data-theme="dark"] .semiont-pdf-annotation-canvas__image {
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3);
 }
 
 .semiont-pdf-annotation-canvas__overlay-container {
