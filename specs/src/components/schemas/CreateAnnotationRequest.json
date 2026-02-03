@@ -43,6 +43,9 @@
               "$ref": "./SvgSelector.json"
             },
             {
+              "$ref": "./FragmentSelector.json"
+            },
+            {
               "type": "array",
               "items": {
                 "anyOf": [
@@ -75,6 +78,9 @@
                   },
                   {
                     "$ref": "./SvgSelector.json"
+                  },
+                  {
+                    "$ref": "./FragmentSelector.json"
                   }
                 ]
               }

@@ -20,6 +20,8 @@ Semiont generates new resources from reference annotations (motivation: `linking
 4. Updates the reference annotation body to link to the new resource
 5. Broadcasts real-time updates via SSE so UI reflects changes immediately
 
+**Supported Formats**: Currently available for text-based formats (`text/plain`, `text/markdown`). Generated resources are always created as `text/plain`. Support for generating from annotations in images and PDFs is planned for future releases
+
 ## Reference Annotation Structure
 
 **Unresolved Reference** (needs generation):

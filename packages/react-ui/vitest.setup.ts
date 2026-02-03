@@ -9,6 +9,27 @@ expect.extend(matchers);
 // Extend Vitest's expect with jest-axe matchers
 expect.extend(toHaveNoViolations);
 
+// Mock DOMMatrix for PDF.js in test environment
+if (typeof globalThis !== 'undefined' && !(globalThis as any).DOMMatrix) {
+  (globalThis as any).DOMMatrix = class DOMMatrix {
+    constructor() {
+      // Minimal implementation for PDF.js compatibility
+      this.a = 1;
+      this.b = 0;
+      this.c = 0;
+      this.d = 1;
+      this.e = 0;
+      this.f = 0;
+    }
+    a: number;
+    b: number;
+    c: number;
+    d: number;
+    e: number;
+    f: number;
+  };
+}
+
 // Polyfill for HTMLElement.focus to fix @headlessui/react Dialog focus issues in jsdom
 // jsdom's focus is read-only and doesn't properly set document.activeElement
 if (typeof globalThis !== 'undefined' && (globalThis as any).HTMLElement) {

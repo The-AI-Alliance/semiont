@@ -1,14 +1,17 @@
 'use client';
 
-import React, { useRef, useState, useCallback, useEffect } from 'react';
+import React, { useRef, useState, useCallback, useEffect, lazy, Suspense } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
 import type { components } from '@semiont/api-client';
-import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMimeCategory, resourceUri as toResourceUri } from '@semiont/api-client';
+import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMimeCategory, isPdfMimeType, resourceUri as toResourceUri } from '@semiont/api-client';
 import { getAnnotator } from '../../lib/annotation-registry';
 import { ImageViewer } from '../viewers';
 import { SvgDrawingCanvas, type DrawingMode } from '../image-annotation/SvgDrawingCanvas';
 import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
 import { findTextWithContext } from '@semiont/api-client';
+
+// Lazy load PDF component to avoid SSR issues with browser PDF.js loading
+const PdfAnnotationCanvas = lazy(() => import('../pdf-annotation/PdfAnnotationCanvas.client').then(mod => ({ default: mod.PdfAnnotationCanvas })));
 
 type Annotation = components['schemas']['Annotation'];
 import { CodeMirrorRenderer } from '../CodeMirrorRenderer';
@@ -430,6 +433,55 @@ export function AnnotateView({
       );
 
     case 'image':
+      // MIME-specific viewer selection within spatial annotation category
+      if (isPdfMimeType(mimeType)) {
+        // Phase 2: PDF annotation support
+        return (
+          <div className="semiont-annotate-view" data-mime-type="pdf" ref={containerRef}>
+            <AnnotateToolbar
+              selectedMotivation={selectedMotivation}
+              selectedClick={selectedClick}
+              onSelectionChange={onSelectionChange}
+              onClickChange={onClickChange}
+              showShapeGroup={true}
+              selectedShape={selectedShape}
+              onShapeChange={onShapeChange}
+              annotateMode={annotateMode}
+              onAnnotateModeToggle={onAnnotateModeToggle}
+            />
+            <div className="semiont-annotate-view__content">
+              {resourceUri && (
+                <Suspense fallback={<div className="semiont-annotate-view__loading">Loading PDF viewer...</div>}>
+                  <PdfAnnotationCanvas
+                    resourceUri={toResourceUri(resourceUri)}
+                    existingAnnotations={allAnnotations}
+                    drawingMode={selectedMotivation && selectedShape === 'rectangle' ? 'rectangle' : null}
+                    selectedMotivation={selectedMotivation}
+                    onAnnotationCreate={async (fragmentSelector) => {
+                      // Use unified onCreate handler for PDF annotations
+                      if (selectedMotivation && onCreate) {
+                        onCreate({
+                          motivation: selectedMotivation,
+                          selector: {
+                            type: 'FragmentSelector',
+                            conformsTo: 'http://tools.ietf.org/rfc/rfc3778',
+                            value: fragmentSelector
+                          }
+                        });
+                      }
+                    }}
+                    {...(onAnnotationClick && { onAnnotationClick })}
+                    {...(onAnnotationHover && { onAnnotationHover: handleAnnotationHover })}
+                    hoveredAnnotationId={hoveredCommentId || hoveredAnnotationId || null}
+                  />
+                </Suspense>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      // PNG, JPEG, etc. - full annotation support
       return (
         <div className="semiont-annotate-view" data-mime-type="image" ref={containerRef}>
           <AnnotateToolbar

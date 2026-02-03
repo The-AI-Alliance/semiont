@@ -17,6 +17,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
+
   // Get user session for authentication
   const session = await getServerSession(authOptions);
 
@@ -24,7 +26,6 @@ export async function GET(
     return new NextResponse('Unauthorized', { status: 401 });
   }
 
-  const { id } = await params;
   const backendUrl = SERVER_API_URL;
 
   // Get Accept header and strip JSON-LD/JSON values
@@ -36,7 +37,7 @@ export async function GET(
   acceptHeader = acceptHeader
     .split(',')
     .map(type => type.trim())
-    .filter(type => !type.includes('application/ld+json') && !type.includes('application/json'))
+    .filter(type => type !== 'application/ld+json' && type !== 'application/json')
     .join(', ') || '*/*';
 
   try {

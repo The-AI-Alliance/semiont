@@ -1,6 +1,6 @@
 # Semiont Frontend
 
-A type-safe React frontend built with Next.js 14, featuring W3C Web Annotation support, real-time document collaboration, and AI-powered entity detection and generation.
+A type-safe React frontend built with Next.js 14, featuring W3C Web Annotation support, real-time document collaboration, and AI-powered annotation detection and generation.
 
 ## Overview
 
@@ -8,8 +8,10 @@ The Semiont frontend provides a rich annotation experience for building semantic
 
 **Key Features**:
 - W3C Web Annotation compliance
-- Markdown documents with wiki-style linking
-- AI-powered entity detection (asynchronous)
+- Multi-format document support (text, markdown, images, PDFs)
+- Text-based annotations for text/markdown documents
+- Spatial annotations for images and PDFs
+- AI-powered annotation detection for text (asynchronous)
 - AI-powered document generation (asynchronous)
 - Type-safe API integration with `@semiont/api-client`
 - Real-time progress tracking via Server-Sent Events (SSE)
@@ -103,6 +105,7 @@ The frontend uses **[@semiont/react-ui](../../packages/react-ui)** - a framework
 - **Authentication Components**: SignInForm, SignUpForm, AuthErrorDisplay, WelcomePage
 - **Layout Components**: PageLayout, UnifiedHeader, LeftSidebar, Footer
 - **Resource Components**: ResourceViewer, BrowseView, AnnotateView
+- **Format-Specific Viewers**: PdfViewer, PdfAnnotationCanvas for PDF documents
 - **Annotation Components**: Annotation panels, toolbars, and widgets
 - **React Query Hooks**: Type-safe API integration hooks
 - **Built-in Translations**: English and Spanish included with dynamic loading
@@ -164,8 +167,8 @@ src/
 
 Some operations run asynchronously via background job workers:
 
-**Entity Detection** - Find entities in documents using AI:
-- Select entity types to detect (Person, Organization, etc.)
+**Annotation Detection** - Detect annotations in documents using AI:
+- Multiple detection types: highlights, assessments, comments, tags, entity references
 - Real-time progress via SSE
 - Automatic annotation creation
 

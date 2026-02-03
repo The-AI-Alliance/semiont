@@ -13,6 +13,27 @@ if (typeof global.AbortController === 'undefined') {
   global.AbortSignal = AbortSignal;
 }
 
+// Mock DOMMatrix for PDF.js in test environment
+if (typeof globalThis !== 'undefined' && !(globalThis as any).DOMMatrix) {
+  (globalThis as any).DOMMatrix = class DOMMatrix {
+    constructor() {
+      // Minimal implementation for PDF.js compatibility
+      this.a = 1;
+      this.b = 0;
+      this.c = 0;
+      this.d = 1;
+      this.e = 0;
+      this.f = 0;
+    }
+    a: number;
+    b: number;
+    c: number;
+    d: number;
+    e: number;
+    f: number;
+  };
+}
+
 // Mock window.matchMedia for theme detection
 Object.defineProperty(window, 'matchMedia', {
   writable: true,

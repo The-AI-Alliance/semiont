@@ -21,6 +21,8 @@ Semiont uses AI to automatically detect and create W3C-compliant annotations in 
 3. **Backend Event Architecture** - Event Store → View Storage → Graph Database flow with <50ms latency
 4. **Frontend UI** - Real-time progress display with SSE streaming and visual feedback
 
+**Supported Formats**: Currently available for text-based formats (`text/plain`, `text/markdown`). Support for images and PDFs is planned for future releases
+
 ## Supported Detection Types
 
 | Motivation | W3C Spec | Purpose | Body Content | User Control |

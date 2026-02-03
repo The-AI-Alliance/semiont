@@ -33,18 +33,24 @@ export function usePanelWidth({
   maxWidth = 800,     // 50rem
   storageKey = 'semiont-panel-width'
 }: UsePanelWidthOptions = {}) {
-  // Initialize width from localStorage or use default
-  const [width, setWidthInternal] = useState<number>(() => {
-    if (typeof window === 'undefined') return defaultWidth;
+  // Always initialize with defaultWidth to avoid hydration mismatch
+  // localStorage value will be synced in useEffect
+  const [width, setWidthInternal] = useState<number>(defaultWidth);
+
+  // Sync with localStorage on mount (client-side only)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
 
     const saved = localStorage.getItem(storageKey);
     if (saved) {
       const parsed = parseInt(saved, 10);
       // Ensure saved value is within constraints
-      return Math.max(minWidth, Math.min(maxWidth, parsed));
+      const constrained = Math.max(minWidth, Math.min(maxWidth, parsed));
+      if (constrained !== defaultWidth) {
+        setWidthInternal(constrained);
+      }
     }
-    return defaultWidth;
-  });
+  }, []); // Empty deps - only run once on mount
 
   // Setter that enforces min/max constraints
   const setWidth = (newWidth: number) => {

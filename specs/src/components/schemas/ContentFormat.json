@@ -8,6 +8,7 @@
     "text/markdown",
     "text/markdown; charset=windows-1252",
     "image/png",
-    "image/jpeg"
+    "image/jpeg",
+    "application/pdf"
   ]
 }

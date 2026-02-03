@@ -212,13 +212,13 @@ Property-based tests verify:
 ## Related Documentation
 
 ### Implementation Details
-- [CODEMIRROR-INTEGRATION.md](./CODEMIRROR-INTEGRATION.md) - CodeMirror rendering implementation
-- [ANNOTATIONS.md](./ANNOTATIONS.md) - UI patterns and user workflows
-- [RENDERING-ARCHITECTURE.md](./RENDERING-ARCHITECTURE.md) - Complete rendering pipeline
+- See `src/lib/annotation-registry.ts` - Annotation rendering logic
+- See `src/components/resource/AnnotateView.tsx` - Main annotation UI
 
 ### Data Model & API
 - [W3C-WEB-ANNOTATION.md](../../../specs/docs/W3C-WEB-ANNOTATION.md) - W3C annotation structure and full-stack implementation
-- [../../backend/README.md](../../backend/README.md) - Backend API endpoints
+- See `@semiont/api-client` package - API client and utilities
 
 ### Testing
-- `apps/frontend/src/__tests__/annotation-rendering.test.ts` - Property-based tests implementing these axioms
+- `src/lib/__tests__/annotation-rendering.test.tsx` - Property-based tests implementing these axioms
+- `src/lib/__tests__/pdf-coordinates.test.ts` - Property-based tests for PDF coordinate transformations

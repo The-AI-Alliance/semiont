@@ -439,7 +439,7 @@ Annotations are styled using CSS classes from `/src/lib/annotation-styles.ts`:
 ## Testing
 
 The rendering system is tested through:
-1. Property-based tests verifying axioms (see [ANNOTATION-RENDERING-PRINCIPLES.md](./ANNOTATION-RENDERING-PRINCIPLES.md))
+1. Property-based tests verifying axioms (see [ANNOTATION-RENDERING-PRINCIPLES.md](../../../packages/react-ui/docs/ANNOTATION-RENDERING-PRINCIPLES.md))
 2. Integration tests with real markdown documents
 3. Visual regression tests for annotation styling
 4. Performance benchmarks for large documents
@@ -457,7 +457,7 @@ The rendering system is tested through:
 - [ANNOTATIONS.md](./ANNOTATIONS.md) - Annotation UI/UX and workflows
 - [CODEMIRROR-INTEGRATION.md](./CODEMIRROR-INTEGRATION.md) - AnnotateView rendering implementation
 - [REACT-MARKDOWN.md](./REACT-MARKDOWN.md) - BrowseView rendering implementation
-- [ANNOTATION-RENDERING-PRINCIPLES.md](./ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms and correctness properties
+- [ANNOTATION-RENDERING-PRINCIPLES.md](../../../packages/react-ui/docs/ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms and correctness properties
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - Overall frontend architecture
 - [ADDING-LANGUAGE.md](./ADDING-LANGUAGE.md) - How to add new content types
 - [PERFORMANCE.md](./PERFORMANCE.md) - Performance optimization strategies
