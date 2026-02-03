@@ -2,11 +2,11 @@
 
 ## Overview
 
-The frontend includes an authenticated proxy route at `/api/resources/[id]` that forwards browser requests for images, PDFs, and other resource representations to the backend with proper authentication. This document explains why this proxy is necessary and why the architecture is sound.
+The frontend includes an authenticated proxy route at `/api/resources/[id]` that forwards browser requests for images, PDFs, and other resource representations to the backend with proper authentication. This document explains why this proxy is necessary and how it enables browser-based components like `<img>` tags and PDF.js to access authenticated resources.
 
-## The Problem: Browser Elements Can't Send Auth Headers
+## The Problem: Browser Elements and PDF.js Can't Send Auth Headers
 
-HTML elements like `<img>`, `<iframe>`, `<video>`, and `<embed>` **cannot send custom HTTP headers**:
+HTML elements like `<img>`, `<iframe>`, `<video>`, and `<embed>` **cannot send custom HTTP headers**. Similarly, **PDF.js** (used by `PdfAnnotationCanvas`) fetches PDFs using the `fetch` API, but cannot access the server-side NextAuth JWT token:
 
 ```html
 <!-- ❌ This doesn't work - no way to add Authorization header -->
@@ -17,11 +17,19 @@ HTML elements like `<img>`, `<iframe>`, `<video>`, and `<embed>` **cannot send c
      headers='{"Authorization": "Bearer xyz"}' />
 ```
 
+```typescript
+// ❌ PDF.js cannot access httpOnly session cookie
+const pdf = await pdfjsLib.getDocument({
+  url: 'https://backend.semiont.com/resources/123',
+  // No way to add Authorization header without exposing JWT
+}).promise;
+```
+
 The only headers these elements send are:
-- **Cookies** for the domain
+- **Cookies** for the domain (but backend expects Bearer tokens, not NextAuth sessions)
 - Standard headers (`Accept`, `User-Agent`, `Referer`, etc.)
 
-Since Semiont requires authentication for resource access, browser elements cannot directly load authenticated resources from the backend.
+Since Semiont requires authentication for resource access, browser elements and PDF.js cannot directly load authenticated resources from the backend.
 
 ## The Solution: Authenticated Proxy
 
@@ -36,6 +44,23 @@ Next.js Proxy (/api/resources/[id])
 Backend (/resources/123)
   ↓ (validates JWT)
   ↓ (returns image/PDF/content)
+```
+
+**For PDF annotations**, the flow is identical:
+
+```typescript
+// PdfAnnotationCanvas.tsx
+const resourceId = resourceUri.split('/').pop();
+const pdfUrl = `/api/resources/${resourceId}`; // ✅ Proxy route
+
+// Browser-side PDF.js fetch
+const response = await fetch(pdfUrl, {
+  credentials: 'include', // ✅ Sends NextAuth session cookie
+  headers: { 'Accept': 'application/pdf' }
+});
+
+// Proxy extracts JWT, forwards to backend with Authorization header
+// Backend returns PDF binary with Content-Type: application/pdf
 ```
 
 ### Implementation
@@ -153,10 +178,10 @@ return new NextResponse(stream, {
 
 This is critical for large files:
 - Images (can be several MB)
-- PDFs (can be 10s of MB)
+- **PDFs (can be 10s of MB)** - especially important for `PdfAnnotationCanvas`
 - Videos (can be 100s of MB)
 
-Without streaming, each request would load the entire file into Node.js memory before sending to client.
+Without streaming, each request would load the entire file into Node.js memory before sending to client. For a 20MB PDF, this would consume 20MB of server memory per concurrent request.
 
 ### 4. Standard Pattern
 
@@ -329,10 +354,17 @@ const res = await app.request('/resources/123', {
 
 **Frontend tests** (can mock the proxy):
 ```typescript
-// Mock the proxy route in MSW
+// Mock the proxy route in MSW for images
 http.get('/api/resources/:id', () => {
   return HttpResponse.arrayBuffer(mockImageBuffer, {
     headers: { 'Content-Type': 'image/png' }
+  });
+});
+
+// Mock for PDFs (used by PdfAnnotationCanvas)
+http.get('/api/resources/:id', () => {
+  return HttpResponse.arrayBuffer(mockPdfBuffer, {
+    headers: { 'Content-Type': 'application/pdf' }
   });
 });
 ```
@@ -352,6 +384,41 @@ The resource proxy is a **75-line route** that provides:
 
 The proxy is not a workaround - it's the **correct architectural solution** for authenticated resources in browser applications.
 
+## Usage Examples
+
+### Image Tags
+
+```typescript
+// ImageViewer.tsx
+<img
+  src={`/api/resources/${resourceId}`}
+  alt="Resource"
+/>
+```
+
+### PDF Annotation Canvas
+
+```typescript
+// PdfAnnotationCanvas.tsx
+const resourceId = resourceUri.split('/').pop();
+const pdfUrl = `/api/resources/${resourceId}`;
+
+// PDF.js loads the PDF
+const response = await fetch(pdfUrl, {
+  credentials: 'include',
+  headers: { 'Accept': 'application/pdf' }
+});
+const arrayBuffer = await response.arrayBuffer();
+const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+```
+
+The proxy automatically:
+1. Validates the user's session
+2. Extracts the JWT from the encrypted session cookie
+3. Forwards the request to the backend with `Authorization: Bearer {jwt}`
+4. Streams the PDF binary back to the browser
+5. Sets proper caching headers for content-addressed resources
+
 ## Related Documentation
 
 - [Frontend Authentication Architecture](./AUTHENTICATION.md) - Complete authentication system
@@ -360,5 +427,9 @@ The proxy is not a workaround - it's the **correct architectural solution** for 
 
 ---
 
-**Last Updated**: 2026-01-21
+**Last Updated**: 2026-02-03
 **Implementation**: `apps/frontend/src/app/api/resources/[id]/route.ts` (69 lines)
+**Key Components**:
+- `apps/frontend/src/app/api/resources/[id]/route.ts` - Proxy route
+- `packages/react-ui/src/components/pdf-annotation/PdfAnnotationCanvas.tsx` - PDF usage
+- `packages/react-ui/src/lib/browser-pdfjs.ts` - PDF.js wrapper
