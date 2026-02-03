@@ -11,7 +11,7 @@
     "semiont/invariants": true,
     "semiont/accessibility": true,
     "at-rule-no-unknown": true,
-    "selector-class-pattern": "^(semiont-[a-z][a-z0-9]*((-|--|__)[a-z0-9]+)*|annotation-[a-z][a-z0-9-]*|red-underline|md-[a-z][a-z0-9-]*|animate-[a-zA-Z-]+|quick-actions-widget|sidebar-navigation[a-z0-9-_]*|cm-[a-zA-Z-]+|react-pdf__[a-zA-Z_]+|sr-only)$",
+    "selector-class-pattern": "^(semiont-[a-z][a-z0-9]*((-|--|__)[a-z0-9]+)*|annotation-[a-z][a-z0-9-]*|red-underline|md-[a-z][a-z0-9-]*|animate-[a-zA-Z-]+|quick-actions-widget|sidebar-navigation[a-z0-9-_]*|cm-[a-zA-Z-]+|sr-only)$",
     "selector-pseudo-class-no-unknown": [
       true,
       {

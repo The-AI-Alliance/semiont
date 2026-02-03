@@ -76,8 +76,8 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
         c.header('Content-Type', mediaType);
       }
 
-      // For images, return binary data; for text, decode with correct charset
-      if (mediaType?.startsWith('image/')) {
+      // For binary formats (images, PDFs), return binary data; for text, decode with correct charset
+      if (mediaType?.startsWith('image/') || mediaType === 'application/pdf') {
         // Convert Buffer to Uint8Array for Hono compatibility
         return c.newResponse(new Uint8Array(content), 200, { 'Content-Type': mediaType });
       } else {

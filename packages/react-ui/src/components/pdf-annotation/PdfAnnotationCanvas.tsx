@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useRef, useState, useCallback } from 'react';
-import { Document, Page, pdfjs } from 'react-pdf';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
 import type { components, ResourceUri } from '@semiont/api-client';
 import { getTargetSelector } from '@semiont/api-client';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
@@ -13,12 +12,15 @@ import {
   getPageFromFragment,
   type CanvasRectangle
 } from '../../lib/pdf-coordinates';
+import {
+  loadPdfDocument,
+  renderPdfPageToDataUrl,
+  type PDFDocumentProxy,
+  type PDFPageProxy
+} from '../../lib/browser-pdfjs';
 import './PdfAnnotationCanvas.css';
 
 type Annotation = components['schemas']['Annotation'];
-
-// Configure PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
 export type DrawingMode = 'rectangle' | null;
 
@@ -53,6 +55,7 @@ interface PdfAnnotationCanvasProps {
   onAnnotationClick?: (annotation: Annotation) => void;
   onAnnotationHover?: (annotationId: string | null) => void;
   hoveredAnnotationId?: string | null;
+  selectedAnnotationId?: string | null;
 }
 
 export function PdfAnnotationCanvas({
@@ -63,53 +66,148 @@ export function PdfAnnotationCanvas({
   onAnnotationCreate,
   onAnnotationClick,
   onAnnotationHover,
-  hoveredAnnotationId
+  hoveredAnnotationId,
+  selectedAnnotationId
 }: PdfAnnotationCanvasProps) {
   const resourceId = resourceUri.split('/').pop();
   const pdfUrl = `/api/resources/${resourceId}`;
 
+  // PDF state
+  const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null);
   const [numPages, setNumPages] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState(1);
+  const [currentPage, setCurrentPage] = useState<PDFPageProxy | null>(null);
+  const [pageImageUrl, setPageImageUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pageDimensions, setPageDimensions] = useState<{ width: number; height: number } | null>(null);
-  const [scale, setScale] = useState(1.0);
+  const [displayDimensions, setDisplayDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [scale] = useState(1.5); // Fixed scale for better quality
 
   // Drawing state
   const [isDrawing, setIsDrawing] = useState(false);
   const [selection, setSelection] = useState<CanvasRectangle | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
 
-  // Load PDF
-  function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
-    setNumPages(numPages);
-    setIsLoading(false);
-  }
+  // Load PDF document on mount
+  useEffect(() => {
+    let cancelled = false;
 
-  function onDocumentLoadError(err: Error) {
-    console.error('Error loading PDF:', err);
-    setError('Failed to load PDF');
-    setIsLoading(false);
-  }
+    async function loadPdf() {
+      try {
+        setIsLoading(true);
+        setError(null);
 
-  // Track page dimensions when rendered
-  const onPageLoadSuccess = useCallback((page: any) => {
-    const viewport = page.getViewport({ scale: 1.0 });
-    setPageDimensions({
-      width: viewport.width,
-      height: viewport.height
-    });
-  }, []);
+        const doc = await loadPdfDocument(pdfUrl);
+
+        if (cancelled) return;
+
+        setPdfDoc(doc);
+        setNumPages(doc.numPages);
+        setIsLoading(false);
+      } catch (err) {
+        if (cancelled) return;
+
+        console.error('Error loading PDF:', err);
+        setError('Failed to load PDF');
+        setIsLoading(false);
+      }
+    }
+
+    loadPdf();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pdfUrl]);
+
+  // Load current page when page number changes
+  useEffect(() => {
+    if (!pdfDoc) return;
+
+    let cancelled = false;
+    const doc = pdfDoc;
+
+    async function loadPage() {
+      try {
+        const page = await doc.getPage(pageNumber);
+
+        if (cancelled) return;
+
+        setCurrentPage(page);
+
+        // Get page dimensions (at scale 1.0)
+        const viewport = page.getViewport({ scale: 1.0 });
+        setPageDimensions({
+          width: viewport.width,
+          height: viewport.height
+        });
+
+        // Render page to image
+        const { dataUrl } = await renderPdfPageToDataUrl(page, scale);
+
+        if (cancelled) return;
+
+        setPageImageUrl(dataUrl);
+      } catch (err) {
+        if (cancelled) return;
+
+        console.error('Error loading page:', err);
+        setError('Failed to load page');
+      }
+    }
+
+    loadPage();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pdfDoc, pageNumber, scale]);
+
+  // Update display dimensions when image loads or resizes
+  useEffect(() => {
+    const updateDisplayDimensions = () => {
+      if (imageRef.current) {
+        setDisplayDimensions({
+          width: imageRef.current.clientWidth,
+          height: imageRef.current.clientHeight
+        });
+      }
+    };
+
+    updateDisplayDimensions();
+
+    // Use ResizeObserver to detect image element size changes
+    let resizeObserver: ResizeObserver | null = null;
+
+    try {
+      resizeObserver = new ResizeObserver(updateDisplayDimensions);
+      if (imageRef.current) {
+        resizeObserver.observe(imageRef.current);
+      }
+    } catch (error) {
+      // Fallback for browsers without ResizeObserver support
+      console.warn('ResizeObserver not supported, falling back to window resize listener');
+      window.addEventListener('resize', updateDisplayDimensions);
+    }
+
+    return () => {
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      } else {
+        window.removeEventListener('resize', updateDisplayDimensions);
+      }
+    };
+  }, [pageImageUrl]);
 
   // Mouse event handlers for drawing
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (!drawingMode || drawingMode !== 'rectangle') return;
+    if (!imageRef.current) return;
 
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-
+    const rect = imageRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
@@ -123,10 +221,9 @@ export function PdfAnnotationCanvas({
   }, [drawingMode]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isDrawing || !selection) return;
+    if (!isDrawing || !selection || !imageRef.current) return;
 
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
+    const rect = imageRef.current.getBoundingClientRect();
 
     setSelection({
       ...selection,
@@ -136,19 +233,83 @@ export function PdfAnnotationCanvas({
   }, [isDrawing, selection]);
 
   const handleMouseUp = useCallback(() => {
-    if (!isDrawing || !selection || !pageDimensions || !onAnnotationCreate) {
+    if (!isDrawing || !selection || !pageDimensions || !displayDimensions || !onAnnotationCreate) {
       setIsDrawing(false);
       setSelection(null);
       return;
     }
 
+    // Calculate drag distance
+    const dragDistance = Math.sqrt(
+      Math.pow(selection.endX - selection.startX, 2) +
+      Math.pow(selection.endY - selection.startY, 2)
+    );
+
+    // Minimum drag threshold in pixels (10px)
+    const MIN_DRAG_DISTANCE = 10;
+
+    if (dragDistance < MIN_DRAG_DISTANCE) {
+      // This was a click, not a drag - check if we clicked an existing annotation
+      if (onAnnotationClick && existingAnnotations.length > 0) {
+        const clickedAnnotation = pageAnnotations.find(ann => {
+          const fragmentSel = getFragmentSelector(ann.target);
+          if (!fragmentSel) return false;
+
+          const pdfCoord = parseFragmentSelector(fragmentSel.value);
+          if (!pdfCoord) return false;
+
+          const rect = pdfToCanvasCoordinates(pdfCoord, pageDimensions.height, 1.0);
+
+          // Scale to display coordinates
+          const scaleX = displayDimensions.width / pageDimensions.width;
+          const scaleY = displayDimensions.height / pageDimensions.height;
+
+          const displayX = rect.x * scaleX;
+          const displayY = rect.y * scaleY;
+          const displayWidth = rect.width * scaleX;
+          const displayHeight = rect.height * scaleY;
+
+          return (
+            selection.endX >= displayX &&
+            selection.endX <= displayX + displayWidth &&
+            selection.endY >= displayY &&
+            selection.endY <= displayY + displayHeight
+          );
+        });
+
+        if (clickedAnnotation) {
+          onAnnotationClick(clickedAnnotation);
+          setIsDrawing(false);
+          setSelection(null);
+          return;
+        }
+      }
+
+      // Click on empty space - do nothing
+      setIsDrawing(false);
+      setSelection(null);
+      return;
+    }
+
+    // This was a drag - create new annotation
+    // Scale selection from display coordinates to native page coordinates
+    const scaleX = pageDimensions.width / displayDimensions.width;
+    const scaleY = pageDimensions.height / displayDimensions.height;
+
+    const nativeSelection: CanvasRectangle = {
+      startX: selection.startX * scaleX,
+      startY: selection.startY * scaleY,
+      endX: selection.endX * scaleX,
+      endY: selection.endY * scaleY
+    };
+
     // Convert canvas coordinates to PDF coordinates
     const pdfCoord = canvasToPdfCoordinates(
-      selection,
+      nativeSelection,
       pageNumber,
       pageDimensions.width,
       pageDimensions.height,
-      scale
+      1.0 // Use scale 1.0 since we already scaled to native coords
     );
 
     // Create FragmentSelector
@@ -158,7 +319,7 @@ export function PdfAnnotationCanvas({
     // Reset drawing state
     setIsDrawing(false);
     setSelection(null);
-  }, [isDrawing, selection, pageNumber, pageDimensions, scale, onAnnotationCreate]);
+  }, [isDrawing, selection, pageNumber, pageDimensions, displayDimensions, onAnnotationCreate, onAnnotationClick, existingAnnotations]);
 
   // Helper to get FragmentSelector from annotation target
   const getFragmentSelector = (target: Annotation['target']) => {
@@ -201,100 +362,117 @@ export function PdfAnnotationCanvas({
             setSelection(null);
           }
         }}
+        data-drawing-mode={drawingMode || 'none'}
       >
-        <Document
-          file={pdfUrl}
-          onLoadSuccess={onDocumentLoadSuccess}
-          onLoadError={onDocumentLoadError}
-          loading={<div>Loading PDF...</div>}
-        >
-          <Page
-            pageNumber={pageNumber}
-            renderTextLayer={true}
-            renderAnnotationLayer={false}
-            onLoadSuccess={onPageLoadSuccess}
-            canvasRef={canvasRef}
-            scale={scale}
+        {/* PDF page rendered as image */}
+        {pageImageUrl && (
+          <img
+            ref={imageRef}
+            src={pageImageUrl}
+            alt={`PDF page ${pageNumber}`}
+            className="semiont-pdf-annotation-canvas__image"
+            draggable={false}
           />
-        </Document>
+        )}
 
         {/* SVG overlay for annotations */}
-        {pageDimensions && (
-          <svg
-            className="semiont-pdf-annotation-canvas__overlay"
-            style={{
-              width: pageDimensions.width * scale,
-              height: pageDimensions.height * scale,
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              pointerEvents: 'none'
-            }}
-          >
-            {/* Render existing annotations for this page */}
-            {pageAnnotations.map(ann => {
-              const fragmentSel = getFragmentSelector(ann.target);
-              if (!fragmentSel) return null;
+        {displayDimensions && pageDimensions && (
+          <div className="semiont-pdf-annotation-canvas__overlay-container">
+            <div
+              className="semiont-pdf-annotation-canvas__overlay"
+              style={{
+                width: displayDimensions.width,
+                height: displayDimensions.height
+              }}
+            >
+              <svg
+                className="semiont-pdf-annotation-canvas__svg"
+                style={{
+                  width: displayDimensions.width,
+                  height: displayDimensions.height
+                }}
+              >
+                {/* Render existing annotations for this page */}
+                {pageAnnotations.map(ann => {
+                  const fragmentSel = getFragmentSelector(ann.target);
+                  if (!fragmentSel) return null;
 
-              const pdfCoord = parseFragmentSelector(fragmentSel.value);
-              if (!pdfCoord) return null;
+                  const pdfCoord = parseFragmentSelector(fragmentSel.value);
+                  if (!pdfCoord) return null;
 
-              const rect = pdfToCanvasCoordinates(pdfCoord, pageDimensions.height, scale);
-              const isHovered = ann.id === hoveredAnnotationId;
+                  const rect = pdfToCanvasCoordinates(pdfCoord, pageDimensions.height, 1.0);
 
-              return (
-                <rect
-                  key={ann.id}
-                  x={rect.x}
-                  y={rect.y}
-                  width={rect.width}
-                  height={rect.height}
-                  stroke={stroke}
-                  strokeWidth={isHovered ? 3 : 2}
-                  fill={fill}
-                  style={{ pointerEvents: 'auto', cursor: 'pointer' }}
-                  onClick={() => onAnnotationClick?.(ann)}
-                  onMouseEnter={() => onAnnotationHover?.(ann.id)}
-                  onMouseLeave={() => onAnnotationHover?.(null)}
-                />
-              );
-            })}
+                  // Scale to display coordinates
+                  const scaleX = displayDimensions.width / pageDimensions.width;
+                  const scaleY = displayDimensions.height / pageDimensions.height;
 
-            {/* Render current selection while drawing */}
-            {selection && isDrawing && (
-              <rect
-                x={Math.min(selection.startX, selection.endX)}
-                y={Math.min(selection.startY, selection.endY)}
-                width={Math.abs(selection.endX - selection.startX)}
-                height={Math.abs(selection.endY - selection.startY)}
-                stroke={stroke}
-                strokeWidth={2}
-                fill={fill}
-                pointerEvents="none"
-              />
-            )}
-          </svg>
+                  const isHovered = ann.id === hoveredAnnotationId;
+                  const isSelected = ann.id === selectedAnnotationId;
+
+                  return (
+                    <rect
+                      key={ann.id}
+                      x={rect.x * scaleX}
+                      y={rect.y * scaleY}
+                      width={rect.width * scaleX}
+                      height={rect.height * scaleY}
+                      stroke={stroke}
+                      strokeWidth={isSelected ? 4 : isHovered ? 3 : 2}
+                      fill={fill}
+                      style={{
+                        pointerEvents: 'auto',
+                        cursor: 'pointer',
+                        opacity: isSelected ? 1 : isHovered ? 0.9 : 0.7
+                      }}
+                      onClick={() => onAnnotationClick?.(ann)}
+                      onMouseEnter={() => onAnnotationHover?.(ann.id)}
+                      onMouseLeave={() => onAnnotationHover?.(null)}
+                    />
+                  );
+                })}
+
+                {/* Render current selection while drawing */}
+                {selection && isDrawing && (
+                  <rect
+                    x={Math.min(selection.startX, selection.endX)}
+                    y={Math.min(selection.startY, selection.endY)}
+                    width={Math.abs(selection.endX - selection.startX)}
+                    height={Math.abs(selection.endY - selection.startY)}
+                    stroke={stroke}
+                    strokeWidth={2}
+                    strokeDasharray="5,5"
+                    fill={fill}
+                    pointerEvents="none"
+                  />
+                )}
+              </svg>
+            </div>
+          </div>
         )}
       </div>
 
       {/* Page navigation controls */}
-      <div className="semiont-pdf-annotation-canvas__controls">
-        <button
-          disabled={pageNumber <= 1}
-          onClick={() => setPageNumber(pageNumber - 1)}
-        >
-          Previous
-        </button>
-        <span>
-          Page {pageNumber} of {numPages}
-        </span>
-        <button
-          disabled={pageNumber >= numPages}
-          onClick={() => setPageNumber(pageNumber + 1)}
-        >
-          Next
-        </button>
-      </div>
+      {numPages > 0 && (
+        <div className="semiont-pdf-annotation-canvas__controls">
+          <button
+            disabled={pageNumber <= 1}
+            onClick={() => setPageNumber(pageNumber - 1)}
+            className="semiont-pdf-annotation-canvas__button"
+          >
+            Previous
+          </button>
+          <span className="semiont-pdf-annotation-canvas__page-info">
+            Page {pageNumber} of {numPages}
+          </span>
+          <button
+            disabled={pageNumber >= numPages}
+            onClick={() => setPageNumber(pageNumber + 1)}
+            className="semiont-pdf-annotation-canvas__button"
+          >
+            Next
+          </button>
+        </div>
+      )}
     </div>
   );
 }

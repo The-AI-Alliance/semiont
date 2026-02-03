@@ -91,6 +91,10 @@ public/apple-touch-icon.png
 public/android-chrome-*.png
 public/site.webmanifest
 
+# PDF.js library files
+# Downloaded from CDN during build/dev by copy-pdfjs.js
+public/pdfjs/
+
 # Merged translation files
 # Generated from messages-source/ and packages/react-ui/translations/ by merge-translations.js
 messages/*.json

@@ -91,8 +91,3 @@
 /* Patterns */
 @import './patterns/loading.css';
 @import './patterns/errors.css';
-
-/* Third-party Dependencies */
-/* react-pdf styles for PDF rendering */
-@import 'react-pdf/dist/Page/AnnotationLayer.css';
-@import 'react-pdf/dist/Page/TextLayer.css';
