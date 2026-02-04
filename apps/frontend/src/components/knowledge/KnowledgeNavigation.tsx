@@ -77,8 +77,6 @@ export function KnowledgeNavigation({ isCollapsed, onToggleCollapse, navigationM
       onNavigate={handleNavigate}
       getResourceHref={getResourceHref}
       className="knowledge-navigation"
-      activeClassName="semiont-nav-link semiont-nav-link--active"
-      inactiveClassName="semiont-nav-link"
       translations={{
         title: t('title')
       }}

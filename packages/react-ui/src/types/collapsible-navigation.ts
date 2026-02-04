@@ -69,8 +69,6 @@ export interface CollapsibleResourceNavigationProps {
 
   // Styling
   className?: string;
-  activeClassName?: string;
-  inactiveClassName?: string;
 
   // Translations
   translations: {

@@ -229,8 +229,8 @@
   /* ========================================
      Navigation Components
      ======================================== */
+  /* NOTE: .semiont-nav-link was removed in commit 1b5f262e */
 
-  .semiont-nav-link,
   .semiont-breadcrumb__link,
   .semiont-pagination__button {
     transition: none !important;

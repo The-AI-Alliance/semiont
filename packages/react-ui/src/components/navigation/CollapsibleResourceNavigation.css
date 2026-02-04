@@ -21,37 +21,21 @@
 
 /* Title in expanded state */
 .semiont-collapsible-nav__title {
-  /* This is using semiont-nav-header__title class from sidebar-navigation.css */
+  /* Matches the section header styling */
 }
 
-/* Clickable title variant - makes the header title interactive for dropdown */
-.semiont-nav-header__title--clickable {
-  cursor: pointer;
-  padding: 0.25rem 0.5rem;
-  margin: -0.25rem -0.5rem;
-  border-radius: var(--semiont-radius-md);
-  transition: background var(--semiont-duration-base);
-  background: none;
-  border: none;
-  text-align: left;
-  width: auto;
+/* Navigation header title (e.g., "Resources", "Compose") */
+.semiont-nav-header__title {
+  font-size: 0.75rem; /* 12px - same as text-xs */
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--semiont-color-gray-400);
+  flex: 1;
 }
 
-.semiont-nav-header__title--clickable:hover {
-  background: var(--semiont-bg-tertiary);
-}
-
-[data-theme="dark"] .semiont-nav-header__title--clickable:hover {
-  background: var(--semiont-bg-tertiary);
-}
-
-.semiont-nav-header__title--clickable:focus-visible {
-  outline: 2px solid var(--semiont-color-primary-500);
-  outline-offset: 2px;
-}
-
-[data-theme="dark"] .semiont-nav-header__title--clickable:focus-visible {
-  outline-color: var(--semiont-color-primary-400);
+[data-theme="dark"] .semiont-nav-header__title {
+  color: var(--semiont-color-gray-500);
 }
 
 /* Dropdown menu for collapsible navigation */
