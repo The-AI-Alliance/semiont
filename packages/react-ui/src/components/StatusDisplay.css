@@ -21,78 +21,78 @@
 
 /* Status variants */
 .semiont-status-display[data-status="success"] {
-  background-color: #dbeafe;
-  color: #1e40af;
+  background-color: var(--semiont-color-blue-100);
+  color: var(--semiont-color-blue-800);
 }
 
 .semiont-status-display[data-status="error"] {
-  background-color: #fee2e2;
-  color: #991b1b;
+  background-color: var(--semiont-color-red-100);
+  color: var(--semiont-color-red-800);
 }
 
 .semiont-status-display[data-status="warning"] {
-  background-color: #fed7aa;
-  color: #9a3412;
+  background-color: var(--semiont-color-orange-200);
+  color: var(--semiont-color-orange-800);
 }
 
 .semiont-status-display[data-status="loading"] {
-  background-color: #fef3c7;
-  color: #92400e;
+  background-color: var(--semiont-color-yellow-100);
+  color: var(--semiont-color-yellow-900);
 }
 
 .semiont-status-display[data-status="info"] {
   background-color: var(--semiont-bg-tertiary);
-  color: #1f2937;
+  color: var(--semiont-color-gray-800);
 }
 
 .semiont-status-display[data-status="success"] .semiont-status-hint {
-  color: #1e3a8a;
+  color: var(--semiont-color-blue-900);
 }
 
 .semiont-status-display[data-status="error"] .semiont-status-error-hint {
-  color: #dc2626;
+  color: var(--semiont-color-red-600);
 }
 
 .semiont-status-display[data-status="info"] .semiont-status-hint {
-  color: #4b5563;
+  color: var(--semiont-color-gray-600);
 }
 
 /* Dark mode status variants - Fixed to respect data-theme attribute */
 [data-theme="dark"] .semiont-status-display[data-status="success"] {
   background-color: rgba(59, 130, 246, 0.1);
-  color: #93c5fd;
+  color: var(--semiont-color-blue-300);
 }
 
 [data-theme="dark"] .semiont-status-display[data-status="error"] {
   background-color: rgba(239, 68, 68, 0.1);
-  color: #fca5a5;
+  color: var(--semiont-color-red-300);
 }
 
 [data-theme="dark"] .semiont-status-display[data-status="warning"] {
   background-color: rgba(251, 146, 60, 0.1);
-  color: #fdba74;
+  color: var(--semiont-color-orange-300);
 }
 
 [data-theme="dark"] .semiont-status-display[data-status="loading"] {
   background-color: rgba(245, 158, 11, 0.1);
-  color: #fcd34d;
+  color: var(--semiont-color-yellow-300);
 }
 
 [data-theme="dark"] .semiont-status-display[data-status="info"] {
   background-color: rgba(156, 163, 175, 0.1);
-  color: #e5e7eb;
+  color: var(--semiont-color-gray-200);
 }
 
 [data-theme="dark"] .semiont-status-display[data-status="success"] .semiont-status-hint {
-  color: #60a5fa;
+  color: var(--semiont-color-blue-400);
 }
 
 [data-theme="dark"] .semiont-status-display[data-status="error"] .semiont-status-error-hint {
-  color: #f87171;
+  color: var(--semiont-color-red-400);
 }
 
 [data-theme="dark"] .semiont-status-display[data-status="info"] .semiont-status-hint {
-  color: #9ca3af;
+  color: var(--semiont-color-gray-400);
 }
 
 /* UserMenuSkeleton Component */
