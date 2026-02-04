@@ -7,6 +7,7 @@ import { HighlightEntry } from './HighlightEntry';
 import { useAnnotationPanel } from '../../../hooks/useAnnotationPanel';
 import { DetectSection } from './DetectSection';
 import { PanelHeader } from './PanelHeader';
+import './HighlightPanel.css';
 
 type Annotation = components['schemas']['Annotation'];
 

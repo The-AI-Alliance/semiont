@@ -11,6 +11,7 @@ import { ReferencesPanel } from './ReferencesPanel';
 import { AssessmentPanel } from './AssessmentPanel';
 import { CommentsPanel } from './CommentsPanel';
 import { TaggingPanel } from './TaggingPanel';
+import './UnifiedAnnotationsPanel.css';
 
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation'];

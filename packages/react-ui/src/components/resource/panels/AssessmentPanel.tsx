@@ -7,6 +7,7 @@ import { AssessmentEntry } from './AssessmentEntry';
 import { useAnnotationPanel } from '../../../hooks/useAnnotationPanel';
 import { DetectSection } from './DetectSection';
 import { PanelHeader } from './PanelHeader';
+import './AssessmentPanel.css';
 
 type Annotation = components['schemas']['Annotation'];
 

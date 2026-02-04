@@ -9,6 +9,7 @@ import type { components, paths } from '@semiont/api-client';
 import { useAnnotationPanel } from '../../../hooks/useAnnotationPanel';
 import { PanelHeader } from './PanelHeader';
 import { supportsDetection } from '../../../lib/resource-utils';
+import './ReferencesPanel.css';
 
 type Annotation = components['schemas']['Annotation'];
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;

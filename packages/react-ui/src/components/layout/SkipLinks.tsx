@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import './SkipLinks.css';
 
 /**
  * Skip links for keyboard navigation accessibility

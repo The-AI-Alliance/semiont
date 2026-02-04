@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useRef, useCallback, useEffect, useState } from 'react';
+import './layout/ResizeHandle.css';
 
 interface ResizeHandleProps {
   /** Callback fired when resize occurs */

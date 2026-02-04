@@ -5,6 +5,7 @@ import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components } from '@semiont/api-client';
 import { isBodyResolved } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/ontology';
+import './StatisticsPanel.css';
 
 type Annotation = components['schemas']['Annotation'];
 

@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import './Branding.css';
 
 type TranslateFn = (key: string) => string;
 

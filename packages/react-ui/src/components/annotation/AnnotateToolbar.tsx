@@ -3,6 +3,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
 import { ANNOTATORS } from '../../lib/annotation-registry';
+import './annotations.css';
+import './annotation-entries.css';
+import './references.css';
 
 export type SelectionMotivation = 'linking' | 'highlighting' | 'assessing' | 'commenting' | 'tagging';
 export type ClickAction = 'detail' | 'follow' | 'jsonld' | 'deleting';

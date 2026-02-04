@@ -7,6 +7,7 @@
 
 import React from 'react';
 import { buttonStyles, SemiontBranding } from '@semiont/react-ui';
+import '../auth.css';
 
 export interface SignInFormProps {
   /**

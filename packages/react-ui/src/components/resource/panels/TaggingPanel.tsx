@@ -7,6 +7,7 @@ import { TagEntry } from './TagEntry';
 import { useAnnotationPanel } from '../../../hooks/useAnnotationPanel';
 import { PanelHeader } from './PanelHeader';
 import { getAllTagSchemas, type TagSchema } from '../../../lib/tag-schemas';
+import './TaggingPanel.css';
 
 type Annotation = components['schemas']['Annotation'];
 

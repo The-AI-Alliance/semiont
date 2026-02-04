@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import './Toast.css';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 

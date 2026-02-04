@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { ANNOTATORS } from '../../../lib/annotation-registry';
+import './DetectSection.css';
 
 interface DetectSectionProps {
   annotationType: 'highlight' | 'assessment' | 'comment';

@@ -18,6 +18,7 @@ import {
   type PDFDocumentProxy,
   type PDFPageProxy
 } from '../../lib/browser-pdfjs';
+import './PdfAnnotationCanvas.css';
 
 type Annotation = components['schemas']['Annotation'];
 

@@ -2,6 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
+import './CollaborationPanel.css';
 
 interface Props {
   isConnected: boolean;

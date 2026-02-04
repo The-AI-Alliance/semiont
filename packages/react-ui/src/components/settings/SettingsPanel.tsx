@@ -4,6 +4,7 @@ import React, { useTransition, useEffect } from 'react';
 import { LOCALES } from '@semiont/api-client';
 import { useTranslations } from '../../contexts/TranslationContext';
 import { useLanguageChangeAnnouncements } from '../LiveRegion';
+import './SettingsPanel.css';
 
 interface SettingsPanelProps {
   showLineNumbers: boolean;

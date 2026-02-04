@@ -9,6 +9,7 @@ import { syntaxHighlighting } from '@codemirror/language';
 import { jsonLightTheme, jsonLightHighlightStyle } from '../../../lib/codemirror-json-theme';
 import { useLineNumbers } from '../../../hooks/useLineNumbers';
 import type { components } from '@semiont/api-client';
+import './JsonLdPanel.css';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 

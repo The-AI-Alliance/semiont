@@ -7,6 +7,7 @@ import { CommentEntry } from './CommentEntry';
 import { useAnnotationPanel } from '../../../hooks/useAnnotationPanel';
 import { DetectSection } from './DetectSection';
 import { PanelHeader } from './PanelHeader';
+import './CommentsPanel.css';
 
 type Annotation = components['schemas']['Annotation'];
 
