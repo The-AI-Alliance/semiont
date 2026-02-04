@@ -18,11 +18,10 @@ import {
   type PDFDocumentProxy,
   type PDFPageProxy
 } from '../../lib/browser-pdfjs';
-import './PdfAnnotationCanvas.css';
 
 type Annotation = components['schemas']['Annotation'];
 
-export type DrawingMode = 'rectangle' | null;
+export type DrawingMode = 'rectangle' | 'circle' | 'polygon' | null;
 
 /**
  * Get color for annotation based on motivation
@@ -71,6 +70,13 @@ export function PdfAnnotationCanvas({
 }: PdfAnnotationCanvasProps) {
   const resourceId = resourceUri.split('/').pop();
   const pdfUrl = `/api/resources/${resourceId}`;
+
+  console.log('[PdfAnnotationCanvas] Render with props:', {
+    drawingMode,
+    selectedMotivation,
+    hasOnAnnotationCreate: !!onAnnotationCreate,
+    existingAnnotationsCount: existingAnnotations.length
+  });
 
   // PDF state
   const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null);
@@ -169,12 +175,24 @@ export function PdfAnnotationCanvas({
   // Update display dimensions when image loads or resizes
   useEffect(() => {
     const updateDisplayDimensions = () => {
-      if (imageRef.current) {
-        setDisplayDimensions({
-          width: imageRef.current.clientWidth,
-          height: imageRef.current.clientHeight
+      // Use double RAF to ensure browser layout is complete
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (imageRef.current) {
+            // Use getBoundingClientRect for accurate rendered dimensions
+            const rect = imageRef.current.getBoundingClientRect();
+            const dims = {
+              width: rect.width,
+              height: rect.height
+            };
+            console.log('[PdfAnnotationCanvas] getBoundingClientRect dimensions:', dims, 'clientWH:', {
+              width: imageRef.current.clientWidth,
+              height: imageRef.current.clientHeight
+            });
+            setDisplayDimensions(dims);
+          }
         });
-      }
+      });
     };
 
     updateDisplayDimensions();
@@ -204,12 +222,38 @@ export function PdfAnnotationCanvas({
 
   // Mouse event handlers for drawing
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (!drawingMode || drawingMode !== 'rectangle') return;
-    if (!imageRef.current) return;
+    console.log('[PdfAnnotationCanvas] handleMouseDown called', {
+      drawingMode,
+      hasImageRef: !!imageRef.current,
+      clientX: e.clientX,
+      clientY: e.clientY
+    });
+
+    if (!drawingMode) {
+      console.log('[PdfAnnotationCanvas] No drawing mode, returning');
+      return;
+    }
+    if (!imageRef.current) {
+      console.log('[PdfAnnotationCanvas] No imageRef, returning');
+      return;
+    }
 
     const rect = imageRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+
+    console.log('[PdfAnnotationCanvas] Starting drawing', {
+      x, y,
+      clientX: e.clientX,
+      clientY: e.clientY,
+      rect: {
+        top: rect.top,
+        left: rect.left,
+        width: rect.width,
+        height: rect.height
+      },
+      displayDimensions
+    });
 
     setIsDrawing(true);
     setSelection({
@@ -342,6 +386,14 @@ export function PdfAnnotationCanvas({
   // Calculate motivation color
   const { stroke, fill } = getMotivationColor(selectedMotivation ?? null);
 
+  console.log('[PdfAnnotationCanvas] Before render:', {
+    drawingMode,
+    dataDrawingMode: drawingMode || 'none',
+    hasContainerRef: !!containerRef.current,
+    displayDimensions,
+    pageDimensions
+  });
+
   if (error) {
     return <div className="semiont-pdf-annotation-canvas__error">{error}</div>;
   }
@@ -353,7 +405,11 @@ export function PdfAnnotationCanvas({
       <div
         ref={containerRef}
         className="semiont-pdf-annotation-canvas__container"
-        onMouseDown={handleMouseDown}
+        style={{ display: isLoading ? 'none' : undefined }}
+        onMouseDown={(e) => {
+          console.log('[PdfAnnotationCanvas] DIV onMouseDown event fired!', e);
+          handleMouseDown(e);
+        }}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={() => {
@@ -361,6 +417,15 @@ export function PdfAnnotationCanvas({
             setIsDrawing(false);
             setSelection(null);
           }
+        }}
+        onClick={() => {
+          console.log('[PdfAnnotationCanvas] DIV onClick fired! Container dimensions:', {
+            offsetWidth: containerRef.current?.offsetWidth,
+            offsetHeight: containerRef.current?.offsetHeight,
+            clientWidth: containerRef.current?.clientWidth,
+            clientHeight: containerRef.current?.clientHeight,
+            scrollHeight: containerRef.current?.scrollHeight
+          });
         }}
         data-drawing-mode={drawingMode || 'none'}
       >
@@ -372,25 +437,35 @@ export function PdfAnnotationCanvas({
             alt={`PDF page ${pageNumber}`}
             className="semiont-pdf-annotation-canvas__image"
             draggable={false}
+            style={{ pointerEvents: 'none' }}
+            onLoad={() => {
+              // Use double RAF to ensure layout is complete even in onLoad
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  if (imageRef.current) {
+                    // Use getBoundingClientRect for accurate rendered dimensions
+                    const rect = imageRef.current.getBoundingClientRect();
+                    const dims = {
+                      width: rect.width,
+                      height: rect.height
+                    };
+                    console.log('[PdfAnnotationCanvas] Image onLoad (getBoundingClientRect) - setting displayDimensions:', dims);
+                    setDisplayDimensions(dims);
+                  }
+                });
+              });
+            }}
           />
         )}
 
         {/* SVG overlay for annotations */}
         {displayDimensions && pageDimensions && (
           <div className="semiont-pdf-annotation-canvas__overlay-container">
-            <div
-              className="semiont-pdf-annotation-canvas__overlay"
-              style={{
-                width: displayDimensions.width,
-                height: displayDimensions.height
-              }}
-            >
+            <div className="semiont-pdf-annotation-canvas__overlay">
               <svg
                 className="semiont-pdf-annotation-canvas__svg"
-                style={{
-                  width: displayDimensions.width,
-                  height: displayDimensions.height
-                }}
+                width={displayDimensions.width}
+                height={displayDimensions.height}
               >
                 {/* Render existing annotations for this page */}
                 {pageAnnotations.map(ann => {
@@ -432,19 +507,30 @@ export function PdfAnnotationCanvas({
                 })}
 
                 {/* Render current selection while drawing */}
-                {selection && isDrawing && (
-                  <rect
-                    x={Math.min(selection.startX, selection.endX)}
-                    y={Math.min(selection.startY, selection.endY)}
-                    width={Math.abs(selection.endX - selection.startX)}
-                    height={Math.abs(selection.endY - selection.startY)}
-                    stroke={stroke}
-                    strokeWidth={2}
-                    strokeDasharray="5,5"
-                    fill={fill}
-                    pointerEvents="none"
-                  />
-                )}
+                {selection && isDrawing && (() => {
+                  const rectX = Math.min(selection.startX, selection.endX);
+                  const rectY = Math.min(selection.startY, selection.endY);
+                  const rectWidth = Math.abs(selection.endX - selection.startX);
+                  const rectHeight = Math.abs(selection.endY - selection.startY);
+                  console.log('[PdfAnnotationCanvas] Rendering selection rect:', {
+                    rectX, rectY, rectWidth, rectHeight,
+                    selection,
+                    displayDimensions
+                  });
+                  return (
+                    <rect
+                      x={rectX}
+                      y={rectY}
+                      width={rectWidth}
+                      height={rectHeight}
+                      stroke={stroke}
+                      strokeWidth={2}
+                      strokeDasharray="5,5"
+                      fill={fill}
+                      pointerEvents="none"
+                    />
+                  );
+                })()}
               </svg>
             </div>
           </div>

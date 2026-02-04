@@ -199,8 +199,16 @@ export function AnnotateView({
   // Extract UI state
   const { selectedMotivation, selectedClick, selectedShape, hoveredAnnotationId, hoveredCommentId, scrollToAnnotationId } = uiState;
 
+  console.log('[AnnotateView] Current UI state:', {
+    selectedMotivation,
+    selectedShape,
+    selectedClick,
+    annotateMode
+  });
+
   // UI state change handlers
   const onSelectionChange = (motivation: SelectionMotivation | null) => {
+    console.log('[AnnotateView] onSelectionChange called with:', motivation);
     onUIStateChange?.({ selectedMotivation: motivation });
   };
   const onClickChange = (motivation: ClickAction) => {
@@ -455,7 +463,7 @@ export function AnnotateView({
                   <PdfAnnotationCanvas
                     resourceUri={toResourceUri(resourceUri)}
                     existingAnnotations={allAnnotations}
-                    drawingMode={selectedMotivation && selectedShape === 'rectangle' ? 'rectangle' : null}
+                    drawingMode={selectedMotivation ? selectedShape : null}
                     selectedMotivation={selectedMotivation}
                     onAnnotationCreate={async (fragmentSelector) => {
                       // Use unified onCreate handler for PDF annotations
