@@ -4,14 +4,66 @@
 
 The Semiont React UI package uses a modular, semantic CSS architecture with zero utility framework dependencies. All styles are organized into logical modules using BEM methodology and CSS custom properties.
 
+## Using the Styles in Your App
+
+### Import Styles
+
+Add this to your app's main CSS file:
+
+```css
+/* app/globals.css (Next.js) or src/index.css (Vite/CRA) */
+@import '@semiont/react-ui/styles';
+```
+
+### Requirements
+
+Your build system must support:
+- **PostCSS** with the **`postcss-import`** plugin
+- This is standard in Next.js, Vite, and most modern React frameworks
+
+### What Happens
+
+1. Your build system resolves `@import '@semiont/react-ui/styles'` to `node_modules/@semiont/react-ui/src/styles/index.css`
+2. PostCSS processes all nested `@import` statements (including component CSS)
+3. All CSS is bundled into a single optimized file
+
+### No Configuration Needed
+
+- ✅ Next.js: Works out of the box
+- ✅ Vite: Works out of the box
+- ✅ Create React App: Works out of the box
+- ✅ Remix: Works out of the box
+
+The package exports **source CSS files**, not built CSS, so your framework's build system processes them.
+
 ## Architecture
+
+### CSS Organization Pattern
+
+The package uses **component-level CSS** with source export:
+
+1. **Component CSS files live next to components** (e.g., `PdfAnnotationCanvas.css` next to `PdfAnnotationCanvas.tsx`)
+2. **Main stylesheet imports component CSS** via `@import` statements
+3. **Package exports source CSS**, not built CSS
+4. **Your app's build system processes the CSS** with PostCSS
+
+This pattern provides:
+- ✅ Better developer experience (styles co-located with components)
+- ✅ No build complexity in react-ui (TypeScript only)
+- ✅ Industry-standard approach
+- ✅ Framework compatibility (works with Next.js, Vite, etc.)
 
 ### Directory Structure
 
 ```
-packages/react-ui/src/styles/
-├── index.css                 # Main entry point
-├── variables.css              # Design tokens and CSS custom properties
+packages/react-ui/src/
+├── components/               # Components with co-located CSS
+│   └── pdf-annotation/
+│       ├── PdfAnnotationCanvas.tsx
+│       └── PdfAnnotationCanvas.css  # Component-level CSS
+├── styles/
+│   ├── index.css             # Main entry point (imports all CSS)
+│   ├── variables.css          # Design tokens and CSS custom properties
 ├── base/                      # Foundation styles
 │   ├── reset.css             # CSS reset/normalize
 │   └── utilities.css         # Semantic utility classes
@@ -490,21 +542,39 @@ Each CSS file should have a single, clear purpose. If a file grows beyond 500 li
 When adding new components or features:
 
 1. **Choose the right location**:
-   - Fundamental UI elements → `core/`
-   - Complex composed components → `components/`
-   - Panel layouts → `panels/`
-   - Feature-specific styles → `features/`
-   - W3C motivation styles → `motivations/`
-   - Layout patterns → `layout/`
-   - State patterns → `patterns/`
-   - Accessibility utilities → `utilities/`
+   - **Component-level CSS** (preferred for new components):
+     - Create `.css` file next to component `.tsx` file
+     - Example: `src/components/video-annotation/VideoAnnotationCanvas.css`
+   - **Consolidated styles** (existing patterns):
+     - Fundamental UI elements → `core/`
+     - Complex composed components → `components/`
+     - Panel layouts → `panels/`
+     - Feature-specific styles → `features/`
+     - W3C motivation styles → `motivations/`
+     - Layout patterns → `layout/`
+     - State patterns → `patterns/`
+     - Accessibility utilities → `utilities/`
 
-2. **Determine if it's core or component**:
-   - **Core**: Atomic, fundamental elements (button, toggle, slider)
-   - **Component**: Composed of multiple elements (form, modal, card)
-   - **Panel**: Layout container for content sections
+2. **For component-level CSS** (preferred pattern):
+   ```bash
+   # 1. Create CSS file next to component
+   src/components/video-annotation/
+   ├── VideoAnnotationCanvas.tsx
+   └── VideoAnnotationCanvas.css  # New file
+   ```
 
-3. **Create a new file** if the component is substantial:
+   ```typescript
+   // 2. Import CSS in component (type hint only)
+   import './VideoAnnotationCanvas.css';
+   ```
+
+   ```css
+   /* 3. Add import to main stylesheet */
+   /* src/styles/index.css */
+   @import '../components/video-annotation/VideoAnnotationCanvas.css';
+   ```
+
+3. **For consolidated styles** (existing pattern):
    ```css
    /* core/new-element.css or components/new-component.css */
    /**
@@ -514,8 +584,8 @@ When adding new components or features:
     */
    ```
 
-4. **Import in appropriate index file**:
    ```css
+   /* Import in appropriate index file */
    /* For core elements, add to core/index.css */
    @import './new-element.css';
 
@@ -523,19 +593,19 @@ When adding new components or features:
    @import './components/new-component.css';
    ```
 
-5. **Follow naming convention**:
+4. **Follow naming convention**:
    ```css
    .semiont-new-component { }
    .semiont-new-component__element { }
    .semiont-new-component--modifier { }
    ```
 
-6. **Include dark mode support**:
+5. **Include dark mode support**:
    ```css
    [data-theme="dark"] .semiont-new-component { }
    ```
 
-7. **Use design tokens**:
+6. **Use design tokens**:
    ```css
    .semiont-new-component {
      padding: var(--semiont-spacing-md);
@@ -543,6 +613,8 @@ When adding new components or features:
      background: var(--semiont-bg-primary);
    }
    ```
+
+**Important:** Whether using component-level CSS or consolidated styles, always add the `@import` to `src/styles/index.css` so the CSS gets included in the bundle.
 
 ## Performance Considerations
 
@@ -595,9 +667,118 @@ To maintain a manageable codebase:
 - **Feature files**: ~300-500 lines
 - **Maximum file size**: ~500 lines (split if larger)
 
+## CSS Quality & Linting
+
+The package uses custom Stylelint rules to enforce code quality and accessibility standards.
+
+### Running the Linter
+
+```bash
+npm run lint:css
+```
+
+### Custom Linter Rules
+
+#### semiont/invariants
+Enforces design system consistency:
+- **No hardcoded colors** - Must use CSS variables instead of hex values
+- **Dark mode required** - All components must have `[data-theme="dark"]` variants
+- **Design tokens** - Enforces usage of predefined CSS custom properties
+
+#### semiont/accessibility
+Ensures WCAG 2.1 AA compliance:
+- **Reduced motion support** - Animations must respect `prefers-reduced-motion`
+- **Color contrast** - Validates contrast ratios (4.5:1 for text, 3:1 for large text)
+- **Focus indicators** - Interactive elements must have visible focus states
+- **Semantic indicators** - Status states need non-color cues (icons, patterns)
+
+#### semiont/theme-selectors
+Validates dark mode patterns:
+- Enforces `[data-theme="dark"]` selector pattern
+- Prevents incorrect theme implementation
+
+### Global Accessibility Support
+
+The package includes comprehensive global accessibility utilities that apply to all components:
+
+**Reduced Motion** (`src/styles/utilities/motion-overrides.css`):
+- Global `@media (prefers-reduced-motion: reduce)` rule
+- Disables all animations and transitions automatically
+- Components inherit this support - no per-component overrides needed
+- Linter recognizes global support for `src/styles/`, `src/components/`, `src/features/`
+
+**High Contrast** (`src/styles/utilities/contrast.css`):
+- Supports `prefers-contrast: high` media query
+- Enhances borders, outlines, and focus indicators
+
+**Semantic Indicators** (`src/styles/utilities/semantic-indicators.css`):
+- Icons and patterns for status states
+- Ensures accessibility beyond color alone
+
+### Linting Best Practices
+
+1. **Always use CSS variables for colors:**
+   ```css
+   /* Good */
+   color: var(--semiont-color-blue-600);
+
+   /* Bad */
+   color: #2563eb;
+   ```
+
+2. **Always provide dark mode variants:**
+   ```css
+   .semiont-component {
+     background-color: var(--semiont-color-gray-100);
+   }
+
+   [data-theme="dark"] .semiont-component {
+     background-color: var(--semiont-color-gray-800);
+   }
+   ```
+
+3. **Animations inherit global reduced-motion support:**
+   - Components in `src/components/` and `src/features/` automatically inherit global motion overrides
+   - No need to add per-component `@media (prefers-reduced-motion: reduce)` rules
+   - Global overrides in `motion-overrides.css` handle all animations/transitions
+
+4. **Use semantic class names with proper focus states:**
+   ```css
+   .semiont-button {
+     /* Base styles */
+   }
+
+   .semiont-button:focus-visible {
+     outline: 2px solid var(--semiont-color-blue-500);
+     outline-offset: 2px;
+   }
+   ```
+
+### Fixing Linter Errors
+
+**Hardcoded color error:**
+```bash
+✖ Hardcoded color #3b82f6. Use var(--semiont-color-blue-500)
+```
+Fix: Replace hex color with appropriate CSS variable from `variables.css`
+
+**Missing dark mode variant:**
+```bash
+⚠ Missing dark theme variant for ".semiont-component"
+```
+Fix: Add `[data-theme="dark"] .semiont-component { }` selector
+
+**Animation without reduced motion:**
+```bash
+⚠ Animation "transition" should respect prefers-reduced-motion
+```
+Note: This warning should not appear for files in `src/components/` or `src/features/` as they inherit global motion overrides. If you see this, verify the file is in the correct location.
+
 ## Resources
 
 - [BEM Methodology](http://getbem.com/)
 - [CSS Custom Properties](https://developer.mozilla.org/en-US/docs/Web/CSS/Using_CSS_custom_properties)
 - [Dark Mode Best Practices](https://web.dev/prefers-color-scheme/)
 - [CSS Performance](https://developer.mozilla.org/en-US/docs/Learn/Performance/CSS)
+- [WCAG 2.1 Guidelines](https://www.w3.org/WAI/WCAG21/quickref/)
+- [Stylelint](https://stylelint.io/)
