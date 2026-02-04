@@ -75,6 +75,7 @@
 @import '../components/settings/SettingsPanel.css';
 @import '../components/navigation/CollapsibleResourceNavigation.css';
 @import '../components/navigation/NavigationMenu.css';
+@import '../components/navigation/NavigationTabs.css';
 @import '../components/modals/modals.css';
 @import '../components/modals/SearchModal.css';
 @import '../components/layout/LeftSidebar.css';
