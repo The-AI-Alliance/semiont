@@ -23,6 +23,7 @@ export * from './lib/auth-events';
 export * from './lib/button-styles';
 export * from './lib/codemirror-json-theme';
 export * from './lib/codemirror-widgets';
+export * from './lib/media-shapes';
 export * from './lib/query-keys';
 export * from './lib/rehype-render-annotations';
 export * from './lib/remark-annotations';

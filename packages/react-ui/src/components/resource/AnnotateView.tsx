@@ -392,6 +392,7 @@ export function AnnotateView({
             selectedClick={selectedClick}
             onSelectionChange={onSelectionChange || (() => {})}
             onClickChange={onClickChange || (() => {})}
+            mediaType={mimeType}
             annotateMode={annotateMode}
             onAnnotateModeToggle={onAnnotateModeToggle}
           />
@@ -454,6 +455,7 @@ export function AnnotateView({
               showShapeGroup={true}
               selectedShape={selectedShape}
               onShapeChange={onShapeChange}
+              mediaType={mimeType}
               annotateMode={annotateMode}
               onAnnotateModeToggle={onAnnotateModeToggle}
             />
@@ -500,6 +502,7 @@ export function AnnotateView({
             showShapeGroup={true}
             selectedShape={selectedShape}
             onShapeChange={onShapeChange}
+            mediaType={mimeType}
             annotateMode={annotateMode}
             onAnnotateModeToggle={onAnnotateModeToggle}
           />

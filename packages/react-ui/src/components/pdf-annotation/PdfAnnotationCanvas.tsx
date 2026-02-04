@@ -513,11 +513,9 @@ export function PdfAnnotationCanvas({
                   const rectY = Math.min(selection.startY, selection.endY);
                   const rectWidth = Math.abs(selection.endX - selection.startX);
                   const rectHeight = Math.abs(selection.endY - selection.startY);
-                  console.log('[PdfAnnotationCanvas] Rendering selection rect:', {
-                    rectX, rectY, rectWidth, rectHeight,
-                    selection,
-                    displayDimensions
-                  });
+
+                  // PDF only supports rectangle shapes (FragmentSelector with viewrect)
+                  // Circle/polygon are disabled in the UI for PDF media types
                   return (
                     <rect
                       x={rectX}

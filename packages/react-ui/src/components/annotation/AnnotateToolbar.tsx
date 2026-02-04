@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
 import { ANNOTATORS } from '../../lib/annotation-registry';
+import { getSupportedShapes } from '../../lib/media-shapes';
 import './annotations.css';
 import './annotation-entries.css';
 import './references.css';
@@ -28,6 +29,7 @@ interface AnnotateToolbarProps {
   showShapeGroup?: boolean;
   selectedShape?: ShapeType;
   onShapeChange?: (shape: ShapeType) => void;
+  mediaType?: string | null;  // MIME type to determine supported shapes
 
   // Mode props
   annotateMode: boolean;
@@ -114,6 +116,7 @@ export function AnnotateToolbar({
   showShapeGroup = false,
   selectedShape = 'rectangle',
   onShapeChange,
+  mediaType,
   annotateMode = false,
   onAnnotateModeToggle
 }: AnnotateToolbarProps) {
@@ -270,12 +273,16 @@ export function AnnotateToolbar({
     { motivation: 'tagging', label: t('tagging') },
   ];
 
-  // Shape types data
-  const shapeTypes: Array<{ shape: ShapeType; icon: string; label: string }> = [
+  // Shape types data - filter based on media type
+  const allShapeTypes: Array<{ shape: ShapeType; icon: string; label: string }> = [
     { shape: 'rectangle', icon: '▭', label: t('rectangle') },
     { shape: 'circle', icon: '○', label: t('circle') },
     { shape: 'polygon', icon: '⬡', label: t('polygon') },
   ];
+
+  // Filter shapes based on media type (PDF only supports rectangles)
+  const supportedShapes = getSupportedShapes(mediaType);
+  const shapeTypes = allShapeTypes.filter(st => supportedShapes.includes(st.shape));
 
   return (
     <div className="semiont-annotate-toolbar">
