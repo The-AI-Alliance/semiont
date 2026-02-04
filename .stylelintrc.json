@@ -1,5 +1,7 @@
 {
-  "extends": ["stylelint-config-standard"],
+  "extends": [
+    "stylelint-config-standard"
+  ],
   "plugins": [
     "stylelint-order",
     "./scripts/stylelint-plugin-theme-selectors.js",
@@ -15,7 +17,9 @@
     "selector-pseudo-class-no-unknown": [
       true,
       {
-        "ignorePseudoClasses": ["global"]
+        "ignorePseudoClasses": [
+          "global"
+        ]
       }
     ],
     "function-no-unknown": true,
@@ -37,11 +41,20 @@
     "selector-no-qualifying-type": [
       true,
       {
-        "ignore": ["attribute"]
+        "ignore": [
+          "attribute"
+        ]
       }
     ],
     "declaration-no-important": null,
-    "property-no-deprecated": [true, { "ignoreProperties": ["clip"] }],
+    "property-no-deprecated": [
+      true,
+      {
+        "ignoreProperties": [
+          "clip"
+        ]
+      }
+    ],
     "alpha-value-notation": null,
     "color-function-notation": null,
     "color-function-alias-notation": null,
@@ -52,7 +65,9 @@
     "value-keyword-case": [
       "lower",
       {
-        "ignoreKeywords": ["currentColor"]
+        "ignoreKeywords": [
+          "currentColor"
+        ]
       }
     ],
     "keyframes-name-pattern": null,
@@ -61,14 +76,18 @@
   },
   "overrides": [
     {
-      "files": ["**/*.module.css"],
+      "files": [
+        "**/*.module.css"
+      ],
       "rules": {
         "selector-class-pattern": null,
         "semiont/invariants": null
       }
     },
     {
-      "files": ["**/packages/react-ui/**/*.css"],
+      "files": [
+        "**/packages/react-ui/**/*.css"
+      ],
       "rules": {
         "at-rule-no-unknown": [
           true,
@@ -85,19 +104,31 @@
       }
     },
     {
-      "files": ["**/apps/**/*.css", "**/apps/**/*.scss"],
+      "files": [
+        "**/apps/**/*.css",
+        "**/apps/**/*.scss"
+      ],
       "rules": {
         "semiont/invariants": null,
         "at-rule-no-unknown": [
           true,
           {
-            "ignoreAtRules": ["tailwind", "layer", "apply", "variants", "responsive", "screen"]
+            "ignoreAtRules": [
+              "tailwind",
+              "layer",
+              "apply",
+              "variants",
+              "responsive",
+              "screen"
+            ]
           }
         ],
         "function-no-unknown": [
           true,
           {
-            "ignoreFunctions": ["theme"]
+            "ignoreFunctions": [
+              "theme"
+            ]
           }
         ],
         "selector-class-pattern": null
