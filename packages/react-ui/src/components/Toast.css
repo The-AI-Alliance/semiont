@@ -26,6 +26,10 @@
   animation: slideIn var(--semiont-duration-base) var(--semiont-ease);
 }
 
+[data-theme="dark"] .semiont-toast {
+  box-shadow: var(--semiont-shadow-lg);
+}
+
 @keyframes slideIn {
   from {
     transform: translateX(100%);

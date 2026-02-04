@@ -343,67 +343,57 @@
 }
 
 /* Dark mode for ErrorBoundary */
-@media (prefers-color-scheme: dark) {
-  [data-theme="dark"] .semiont-error-boundary-container,
-  .semiont-error-boundary-container {
-    background-color: var(--semiont-bg-inverse);
-  }
+[data-theme="dark"] .semiont-error-boundary-container {
+  background-color: var(--semiont-bg-inverse);
+}
 
-  [data-theme="dark"] .semiont-error-boundary-title,
-  .semiont-error-boundary-title {
-    color: var(--semiont-color-neutral-0);
-  }
+[data-theme="dark"] .semiont-error-boundary-title {
+  color: var(--semiont-color-neutral-0);
+}
 
-  [data-theme="dark"] .semiont-error-boundary-message,
-  .semiont-error-boundary-message {
-    color: var(--semiont-color-neutral-400);
-  }
+[data-theme="dark"] .semiont-error-boundary-message {
+  color: var(--semiont-color-neutral-400);
+}
 
-  [data-theme="dark"] .semiont-error-boundary-details,
-  .semiont-error-boundary-details {
-    background-color: rgba(239, 68, 68, 0.2);
-    border-color: var(--semiont-color-danger-800);
-  }
+[data-theme="dark"] .semiont-error-boundary-details {
+  background-color: rgba(239, 68, 68, 0.2);
+  border-color: var(--semiont-color-danger-800);
+}
 
-  [data-theme="dark"] .semiont-error-boundary-details-title,
-  .semiont-error-boundary-details-title {
-    color: var(--semiont-color-danger-300);
-  }
+[data-theme="dark"] .semiont-error-boundary-details-title {
+  color: var(--semiont-color-danger-300);
+}
 
-  [data-theme="dark"] .semiont-error-boundary-details-message,
-  .semiont-error-boundary-details-message {
-    color: var(--semiont-color-danger-400);
-  }
+[data-theme="dark"] .semiont-error-boundary-details-message {
+  color: var(--semiont-color-danger-400);
+}
 
-  [data-theme="dark"] .semiont-error-boundary-stack,
-  .semiont-error-boundary-stack {
-    color: var(--semiont-color-danger-500);
-  }
+[data-theme="dark"] .semiont-error-boundary-stack {
+  color: var(--semiont-color-danger-500);
+}
 
-  [data-theme="dark"] .semiont-async-error-boundary,
-  .semiont-async-error-boundary {
-    background-color: rgba(245, 158, 11, 0.2);
-    border-color: var(--semiont-color-warning-800);
-  }
+[data-theme="dark"] .semiont-async-error-boundary {
+  background-color: rgba(245, 158, 11, 0.2);
+  border-color: var(--semiont-color-warning-800);
+}
 
-  [data-theme="dark"] .semiont-async-error-title,
-  .semiont-async-error-title {
-    color: var(--semiont-color-warning-300);
-  }
+[data-theme="dark"] .semiont-icon-warning {
+  color: var(--semiont-color-warning-400);
+}
 
-  [data-theme="dark"] .semiont-async-error-message,
-  .semiont-async-error-message {
-    color: var(--semiont-color-warning-400);
-  }
+[data-theme="dark"] .semiont-async-error-title {
+  color: var(--semiont-color-warning-300);
+}
 
-  [data-theme="dark"] .semiont-async-error-retry,
-  .semiont-async-error-retry {
-    color: var(--semiont-color-warning-400);
-  }
+[data-theme="dark"] .semiont-async-error-message {
+  color: var(--semiont-color-warning-400);
+}
 
-  [data-theme="dark"] .semiont-async-error-retry:hover,
-  .semiont-async-error-retry:hover {
-    color: var(--semiont-color-warning-300);
-  }
+[data-theme="dark"] .semiont-async-error-retry {
+  color: var(--semiont-color-warning-400);
+}
+
+[data-theme="dark"] .semiont-async-error-retry:hover {
+  color: var(--semiont-color-warning-300);
 }
 
