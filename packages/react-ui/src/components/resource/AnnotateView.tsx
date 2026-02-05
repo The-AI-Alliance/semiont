@@ -467,7 +467,7 @@ export function AnnotateView({
                     existingAnnotations={allAnnotations}
                     drawingMode={selectedMotivation ? selectedShape : null}
                     selectedMotivation={selectedMotivation}
-                    onAnnotationCreate={async (fragmentSelector) => {
+                    onAnnotationCreate={async (fragmentSelector, position) => {
                       // Use unified onCreate handler for PDF annotations
                       if (selectedMotivation && onCreate) {
                         onCreate({
@@ -476,7 +476,8 @@ export function AnnotateView({
                             type: 'FragmentSelector',
                             conformsTo: 'http://tools.ietf.org/rfc/rfc3778',
                             value: fragmentSelector
-                          }
+                          },
+                          ...(position && { position })
                         });
                       }
                     }}

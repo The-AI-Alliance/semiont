@@ -51,7 +51,7 @@ interface PdfAnnotationCanvasProps {
   existingAnnotations?: Annotation[];
   drawingMode: DrawingMode;
   selectedMotivation?: SelectionMotivation | null;
-  onAnnotationCreate?: (fragmentSelector: string) => void;
+  onAnnotationCreate?: (fragmentSelector: string, position?: { x: number; y: number }) => void;
   onAnnotationClick?: (annotation: Annotation) => void;
   onAnnotationHover?: (annotationId: string | null) => void;
   hoveredAnnotationId?: string | null;
@@ -72,12 +72,7 @@ export function PdfAnnotationCanvas({
   const resourceId = resourceUri.split('/').pop();
   const pdfUrl = `/api/resources/${resourceId}`;
 
-  console.log('[PdfAnnotationCanvas] Render with props:', {
-    drawingMode,
-    selectedMotivation,
-    hasOnAnnotationCreate: !!onAnnotationCreate,
-    existingAnnotationsCount: existingAnnotations.length
-  });
+  // Removed excessive logging
 
   // PDF state
   const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null);
@@ -173,32 +168,21 @@ export function PdfAnnotationCanvas({
     };
   }, [pdfDoc, pageNumber, scale]);
 
-  // Update display dimensions when image loads or resizes
+  // Update display dimensions on resize
   useEffect(() => {
     const updateDisplayDimensions = () => {
-      // Use double RAF to ensure browser layout is complete
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          if (imageRef.current) {
-            // Use getBoundingClientRect for accurate rendered dimensions
-            const rect = imageRef.current.getBoundingClientRect();
-            const dims = {
-              width: rect.width,
-              height: rect.height
-            };
-            console.log('[PdfAnnotationCanvas] getBoundingClientRect dimensions:', dims, 'clientWH:', {
-              width: imageRef.current.clientWidth,
-              height: imageRef.current.clientHeight
-            });
-            setDisplayDimensions(dims);
-          }
+      if (imageRef.current) {
+        setDisplayDimensions({
+          width: imageRef.current.clientWidth,
+          height: imageRef.current.clientHeight
         });
-      });
+      }
     };
 
     updateDisplayDimensions();
 
     // Use ResizeObserver to detect image element size changes
+    // This catches: sidebar open/close, window resize, font size changes, etc.
     let resizeObserver: ResizeObserver | null = null;
 
     try {
@@ -223,39 +207,14 @@ export function PdfAnnotationCanvas({
 
   // Mouse event handlers for drawing
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    console.log('[PdfAnnotationCanvas] handleMouseDown called', {
-      drawingMode,
-      hasImageRef: !!imageRef.current,
-      clientX: e.clientX,
-      clientY: e.clientY
-    });
-
-    if (!drawingMode) {
-      console.log('[PdfAnnotationCanvas] No drawing mode, returning');
-      return;
-    }
-    if (!imageRef.current) {
-      console.log('[PdfAnnotationCanvas] No imageRef, returning');
-      return;
-    }
+    if (!drawingMode) return;
+    if (!imageRef.current) return;
 
     const rect = imageRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    console.log('[PdfAnnotationCanvas] Starting drawing', {
-      x, y,
-      clientX: e.clientX,
-      clientY: e.clientY,
-      rect: {
-        top: rect.top,
-        left: rect.left,
-        width: rect.width,
-        height: rect.height
-      },
-      displayDimensions
-    });
-
+    // Clear any previous selection when starting new drawing
     setIsDrawing(true);
     setSelection({
       startX: x,
@@ -359,11 +318,23 @@ export function PdfAnnotationCanvas({
 
     // Create FragmentSelector
     const fragmentSelector = createFragmentSelector(pdfCoord);
-    onAnnotationCreate(fragmentSelector);
 
-    // Reset drawing state
+    // Calculate center position for popup placement (in screen coordinates)
+    const centerX = (selection.startX + selection.endX) / 2;
+    const centerY = (selection.startY + selection.endY) / 2;
+    const rect = imageRef.current?.getBoundingClientRect();
+    const screenPosition = rect ? {
+      x: rect.left + centerX,
+      y: rect.top + centerY
+    } : undefined;
+
+    onAnnotationCreate(fragmentSelector, screenPosition);
+
+    // Keep drawing state active to show preview until annotation is persisted
+    // The parent component should clear this by changing drawingMode after save
     setIsDrawing(false);
-    setSelection(null);
+    // Note: We keep selection so the preview remains visible
+    // It will be cleared when drawingMode changes or user starts new selection
   }, [isDrawing, selection, pageNumber, pageDimensions, displayDimensions, onAnnotationCreate, onAnnotationClick, existingAnnotations]);
 
   // Helper to get FragmentSelector from annotation target
@@ -371,6 +342,7 @@ export function PdfAnnotationCanvas({
     const selector = getTargetSelector(target);
     if (!selector) return null;
     const selectors = Array.isArray(selector) ? selector : [selector];
+
     const found = selectors.find(s => s.type === 'FragmentSelector');
     if (!found || found.type !== 'FragmentSelector') return null;
     return found as { type: 'FragmentSelector'; value: string; conformsTo?: string };
@@ -387,13 +359,10 @@ export function PdfAnnotationCanvas({
   // Calculate motivation color
   const { stroke, fill } = getMotivationColor(selectedMotivation ?? null);
 
-  console.log('[PdfAnnotationCanvas] Before render:', {
-    drawingMode,
-    dataDrawingMode: drawingMode || 'none',
-    hasContainerRef: !!containerRef.current,
-    displayDimensions,
-    pageDimensions
-  });
+  // Error logging for missing dimensions
+  if (pageAnnotations.length > 0 && (!displayDimensions || !pageDimensions)) {
+    console.error('[PdfAnnotationCanvas] Cannot render annotations - missing dimensions:', { displayDimensions, pageDimensions });
+  }
 
   if (error) {
     return <div className="semiont-pdf-annotation-canvas__error">{error}</div>;
@@ -407,10 +376,7 @@ export function PdfAnnotationCanvas({
         ref={containerRef}
         className="semiont-pdf-annotation-canvas__container"
         style={{ display: isLoading ? 'none' : undefined }}
-        onMouseDown={(e) => {
-          console.log('[PdfAnnotationCanvas] DIV onMouseDown event fired!', e);
-          handleMouseDown(e);
-        }}
+        onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={() => {
@@ -418,15 +384,6 @@ export function PdfAnnotationCanvas({
             setIsDrawing(false);
             setSelection(null);
           }
-        }}
-        onClick={() => {
-          console.log('[PdfAnnotationCanvas] DIV onClick fired! Container dimensions:', {
-            offsetWidth: containerRef.current?.offsetWidth,
-            offsetHeight: containerRef.current?.offsetHeight,
-            clientWidth: containerRef.current?.clientWidth,
-            clientHeight: containerRef.current?.clientHeight,
-            scrollHeight: containerRef.current?.scrollHeight
-          });
         }}
         data-drawing-mode={drawingMode || 'none'}
       >
@@ -444,14 +401,10 @@ export function PdfAnnotationCanvas({
               requestAnimationFrame(() => {
                 requestAnimationFrame(() => {
                   if (imageRef.current) {
-                    // Use getBoundingClientRect for accurate rendered dimensions
-                    const rect = imageRef.current.getBoundingClientRect();
-                    const dims = {
-                      width: rect.width,
-                      height: rect.height
-                    };
-                    console.log('[PdfAnnotationCanvas] Image onLoad (getBoundingClientRect) - setting displayDimensions:', dims);
-                    setDisplayDimensions(dims);
+                    setDisplayDimensions({
+                      width: imageRef.current.clientWidth,
+                      height: imageRef.current.clientHeight
+                    });
                   }
                 });
               });
@@ -507,8 +460,8 @@ export function PdfAnnotationCanvas({
                   );
                 })}
 
-                {/* Render current selection while drawing */}
-                {selection && isDrawing && (() => {
+                {/* Render current selection while drawing or awaiting save */}
+                {selection && (() => {
                   const rectX = Math.min(selection.startX, selection.endX);
                   const rectY = Math.min(selection.startY, selection.endY);
                   const rectWidth = Math.abs(selection.endX - selection.startX);

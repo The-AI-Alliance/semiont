@@ -8,7 +8,7 @@
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
-import { getTextPositionSelector, getSvgSelector, validateSvgMarkup } from '@semiont/api-client';
+import { getTextPositionSelector, getSvgSelector, getFragmentSelector, validateSvgMarkup } from '@semiont/api-client';
 import type { AnnotationAddedEvent } from '@semiont/core';
 import { resourceId, userId, userToAgent } from '@semiont/core';
 import { generateAnnotationId } from '@semiont/event-sourcing';
@@ -44,12 +44,13 @@ export function registerCreateAnnotation(router: ResourcesRouterType) {
         throw new HTTPException(500, { message: 'Failed to create annotation' });
       }
 
-      // Validate selector: must have either TextPositionSelector or SvgSelector
+      // Validate selector: must have either TextPositionSelector, SvgSelector, or FragmentSelector
       const posSelector = getTextPositionSelector(request.target.selector);
       const svgSelector = getSvgSelector(request.target.selector);
+      const fragmentSelector = getFragmentSelector(request.target.selector);
 
-      if (!posSelector && !svgSelector) {
-        throw new HTTPException(400, { message: 'Either TextPositionSelector or SvgSelector is required for creating annotations' });
+      if (!posSelector && !svgSelector && !fragmentSelector) {
+        throw new HTTPException(400, { message: 'Either TextPositionSelector, SvgSelector, or FragmentSelector is required for creating annotations' });
       }
 
       // Validate SVG markup if SvgSelector is provided

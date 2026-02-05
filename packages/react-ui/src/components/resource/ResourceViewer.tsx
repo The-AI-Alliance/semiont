@@ -304,6 +304,19 @@ export function ResourceViewer({
               []
             );
             onRefetchAnnotations?.();
+          } else if (selector.type === 'FragmentSelector' && selector.value) {
+            // PDF annotations use FragmentSelector
+            await createAnnotation(
+              rUri,
+              motivation,
+              {
+                type: 'FragmentSelector',
+                value: selector.value,
+                ...(selector.conformsTo && { conformsTo: selector.conformsTo })
+              },
+              []
+            );
+            onRefetchAnnotations?.();
           }
           break;
 
@@ -323,6 +336,22 @@ export function ResourceViewer({
               rUri,
               motivation,
               { type: 'SvgSelector', value: selector.value },
+              []
+            );
+            if (annotation && onCommentClick) {
+              onCommentClick(annotation.id);
+            }
+            onRefetchAnnotations?.();
+          } else if (selector.type === 'FragmentSelector' && selector.value) {
+            // PDF: create annotation, then open panel
+            const annotation = await createAnnotation(
+              rUri,
+              motivation,
+              {
+                type: 'FragmentSelector',
+                value: selector.value,
+                ...(selector.conformsTo && { conformsTo: selector.conformsTo })
+              },
               []
             );
             if (annotation && onCommentClick) {
@@ -354,11 +383,27 @@ export function ResourceViewer({
               onTagClick(annotation.id);
             }
             onRefetchAnnotations?.();
+          } else if (selector.type === 'FragmentSelector' && selector.value) {
+            // PDF: create annotation, then open panel
+            const annotation = await createAnnotation(
+              rUri,
+              motivation,
+              {
+                type: 'FragmentSelector',
+                value: selector.value,
+                ...(selector.conformsTo && { conformsTo: selector.conformsTo })
+              },
+              []
+            );
+            if (annotation && onTagClick) {
+              onTagClick(annotation.id);
+            }
+            onRefetchAnnotations?.();
           }
           break;
 
         case 'linking':
-          // Call onReferenceCreationRequested for both text and image selections
+          // Call onReferenceCreationRequested for text, image, and PDF selections
           if (onReferenceCreationRequested) {
             if (selector.type === 'TextQuoteSelector' && selector.exact) {
               const selection = {
@@ -375,6 +420,15 @@ export function ResourceViewer({
                 start: 0,
                 end: 0,
                 svgSelector: selector.value
+              };
+              onReferenceCreationRequested(selection);
+            } else if (selector.type === 'FragmentSelector' && selector.value) {
+              const selection = {
+                exact: '',  // PDFs don't have exact text
+                start: 0,
+                end: 0,
+                fragmentSelector: selector.value,
+                ...(selector.conformsTo && { conformsTo: selector.conformsTo })
               };
               onReferenceCreationRequested(selection);
             }

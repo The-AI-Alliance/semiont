@@ -39,6 +39,8 @@ interface InternalTextSelection {
   prefix?: string;
   suffix?: string;
   svgSelector?: string;
+  fragmentSelector?: string;
+  conformsTo?: string;
 }
 
 import type { DetectionProgress } from '@semiont/react-ui';
@@ -653,21 +655,27 @@ export function ResourceViewerPage({
                   onHover: setHoveredAnnotationId,
                   onCreate: async (entityType?: string) => {
                     if (pendingReferenceSelection) {
-                      const selector = pendingReferenceSelection.svgSelector
-                        ? { type: 'SvgSelector' as const, value: pendingReferenceSelection.svgSelector }
-                        : [
-                            {
-                              type: 'TextPositionSelector' as const,
-                              start: pendingReferenceSelection.start,
-                              end: pendingReferenceSelection.end
-                            },
-                            {
-                              type: 'TextQuoteSelector' as const,
-                              exact: pendingReferenceSelection.exact,
-                              ...(pendingReferenceSelection.prefix && { prefix: pendingReferenceSelection.prefix }),
-                              ...(pendingReferenceSelection.suffix && { suffix: pendingReferenceSelection.suffix })
-                            }
-                          ];
+                      const selector = pendingReferenceSelection.fragmentSelector
+                        ? {
+                            type: 'FragmentSelector' as const,
+                            value: pendingReferenceSelection.fragmentSelector,
+                            ...(pendingReferenceSelection.conformsTo && { conformsTo: pendingReferenceSelection.conformsTo })
+                          }
+                        : pendingReferenceSelection.svgSelector
+                          ? { type: 'SvgSelector' as const, value: pendingReferenceSelection.svgSelector }
+                          : [
+                              {
+                                type: 'TextPositionSelector' as const,
+                                start: pendingReferenceSelection.start,
+                                end: pendingReferenceSelection.end
+                              },
+                              {
+                                type: 'TextQuoteSelector' as const,
+                                exact: pendingReferenceSelection.exact,
+                                ...(pendingReferenceSelection.prefix && { prefix: pendingReferenceSelection.prefix }),
+                                ...(pendingReferenceSelection.suffix && { suffix: pendingReferenceSelection.suffix })
+                              }
+                            ];
 
                       await onCreateAnnotation(
                         rUri,
