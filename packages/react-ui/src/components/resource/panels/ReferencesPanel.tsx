@@ -53,6 +53,8 @@ interface Props {
     prefix?: string;
     suffix?: string;
     svgSelector?: string;
+    fragmentSelector?: string;
+    conformsTo?: string;
   } | null;
 }
 
@@ -160,9 +162,11 @@ export function ReferencesPanel({
       {pendingSelection && onCreate && (
         <div className="semiont-annotation-prompt" data-type="reference">
           <div className="semiont-annotation-prompt__quote">
-            {pendingSelection.svgSelector
-              ? tRef('imageRegionSelected')
-              : `"${pendingSelection.exact.substring(0, 100)}${pendingSelection.exact.length > 100 ? '...' : ''}"`
+            {pendingSelection.fragmentSelector
+              ? tRef('fragmentSelected')
+              : pendingSelection.svgSelector
+                ? tRef('imageRegionSelected')
+                : `"${pendingSelection.exact.substring(0, 100)}${pendingSelection.exact.length > 100 ? '...' : ''}"`
             }
           </div>
 

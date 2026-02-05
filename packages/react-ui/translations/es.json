@@ -217,6 +217,7 @@
     "noText": "Sin texto",
     "createReference": "Crear Referencia",
     "entityTypesOptional": "Tipos de Entidad (Opcional)",
+    "fragmentSelected": "Fragmento seleccionado",
     "imageRegionSelected": "Región de imagen seleccionada",
     "includeDescriptiveReferences": "Incluir referencias descriptivas",
     "descriptiveReferencesTooltip": "También encontrar frases como 'el CEO', 'el gigante tecnológico', 'el físico' (además de nombres)"

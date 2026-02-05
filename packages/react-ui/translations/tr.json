@@ -217,6 +217,7 @@
     "noText": "No text",
     "createReference": "Create Reference",
     "entityTypesOptional": "Entity Types (Optional)",
+    "fragmentSelected": "Fragment selected",
     "imageRegionSelected": "Image region selected",
     "includeDescriptiveReferences": "Include descriptive references",
     "descriptiveReferencesTooltip": "Also find phrases like 'the CEO', 'the tech giant', 'the physicist' (in addition to names)"
