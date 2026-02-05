@@ -433,6 +433,10 @@ export function PdfAnnotationCanvas({
                   const isHovered = ann.id === hoveredAnnotationId;
                   const isSelected = ann.id === selectedAnnotationId;
 
+                  // Get color for this annotation's motivation (not the selected motivation)
+                  const annMotivation = ann.motivation as SelectionMotivation | null;
+                  const { stroke: annStroke, fill: annFill } = getMotivationColor(annMotivation);
+
                   return (
                     <rect
                       key={ann.id}
@@ -440,9 +444,9 @@ export function PdfAnnotationCanvas({
                       y={rect.y * scaleY}
                       width={rect.width * scaleX}
                       height={rect.height * scaleY}
-                      stroke={stroke}
+                      stroke={annStroke}
                       strokeWidth={isSelected ? 4 : isHovered ? 3 : 2}
-                      fill={fill}
+                      fill={annFill}
                       style={{
                         pointerEvents: 'auto',
                         cursor: 'pointer',
