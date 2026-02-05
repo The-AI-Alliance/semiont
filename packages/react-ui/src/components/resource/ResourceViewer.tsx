@@ -12,6 +12,7 @@ import { getExactText, getTargetSelector, resourceUri, isHighlight, isAssessment
 import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
 import { getAnnotator } from '../../lib/annotation-registry';
 import type { AnnotationsCollection } from '../../types/annotation-props';
+import { getSelectorType, getSelectedShapeForSelectorType, saveSelectedShapeForSelectorType } from '../../lib/media-shapes';
 
 type Annotation = components['schemas']['Annotation'];
 type SemiontResource = components['schemas']['ResourceDescriptor'];
@@ -120,14 +121,12 @@ export function ResourceViewer({
     return 'detail';
   });
 
+  // Get selector type for current media type
+  const selectorType = getSelectorType(mimeType);
+
+  // Get selected shape for this selector type
   const [selectedShape, setSelectedShape] = useState<ShapeType>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('semiont-toolbar-shape');
-      if (stored && ['rectangle', 'circle', 'polygon'].includes(stored)) {
-        return stored as ShapeType;
-      }
-    }
-    return 'rectangle';
+    return getSelectedShapeForSelectorType(selectorType);
   });
 
   // Persist toolbar state to localStorage
@@ -143,9 +142,18 @@ export function ResourceViewer({
     localStorage.setItem('semiont-toolbar-click', selectedClick);
   }, [selectedClick]);
 
+  // Persist shape selection per selector type
   useEffect(() => {
-    localStorage.setItem('semiont-toolbar-shape', selectedShape);
-  }, [selectedShape]);
+    saveSelectedShapeForSelectorType(selectorType, selectedShape);
+  }, [selectorType, selectedShape]);
+
+  // Update selected shape when selector type changes (e.g., switching between PDF and image)
+  useEffect(() => {
+    const shapeForType = getSelectedShapeForSelectorType(selectorType);
+    if (shapeForType !== selectedShape) {
+      setSelectedShape(shapeForType);
+    }
+  }, [selectorType]);
 
   // JSON-LD view state
   const [showJsonLdView, setShowJsonLdView] = useState(false);

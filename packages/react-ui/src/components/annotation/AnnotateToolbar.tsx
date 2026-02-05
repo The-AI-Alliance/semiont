@@ -390,7 +390,7 @@ export function AnnotateToolbar({
       {showShapeGroup && <div className="semiont-toolbar-separator" />}
 
       {/* Shape Group */}
-      {showShapeGroup && (
+      {showShapeGroup && shapeTypes.length > 0 && (
         <DropdownGroup
           label={t('shapeGroup')}
           isExpanded={shapeExpanded}
