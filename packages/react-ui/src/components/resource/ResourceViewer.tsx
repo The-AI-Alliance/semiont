@@ -7,7 +7,7 @@ import { AnnotateView, type SelectionMotivation, type ClickAction, type ShapeTyp
 import { BrowseView } from './BrowseView';
 import { PopupContainer } from '../annotation-popups/SharedPopupElements';
 import { JsonLdView } from '../annotation-popups/JsonLdView';
-import type { components, ResourceUri } from '@semiont/api-client';
+import type { components, ResourceUri, Selector } from '@semiont/api-client';
 import { getExactText, getTargetSelector, resourceUri, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/api-client';
 import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
 import { getAnnotator } from '../../lib/annotation-registry';
@@ -16,6 +16,13 @@ import { getSelectorType, getSelectedShapeForSelectorType, saveSelectedShapeForS
 
 type Annotation = components['schemas']['Annotation'];
 type SemiontResource = components['schemas']['ResourceDescriptor'];
+type Motivation = components['schemas']['Motivation'];
+
+// Unified pending annotation type - all human-created annotations flow through this
+interface PendingAnnotation {
+  selector: Selector | Selector[];
+  motivation: Motivation;
+}
 
 interface Props {
   resource: SemiontResource & { content: string };
@@ -30,8 +37,10 @@ interface Props {
   hoveredCommentId?: string | null;
   scrollToAnnotationId?: string | null;
   showLineNumbers?: boolean;
-  onCommentCreationRequested?: (selection: { exact: string; start: number; end: number }) => void;
-  onTagCreationRequested?: (selection: { exact: string; start: number; end: number }) => void;
+  onAnnotationRequested?: (pending: PendingAnnotation) => void;
+  onCommentCreationRequested?: (selection: { exact: string; start: number; end: number; svgSelector?: string; fragmentSelector?: string; conformsTo?: string }) => void;
+  onTagCreationRequested?: (selection: { exact: string; start: number; end: number; svgSelector?: string; fragmentSelector?: string; conformsTo?: string }) => void;
+  onAssessmentCreationRequested?: (selection: { exact: string; start: number; end: number; svgSelector?: string; fragmentSelector?: string; conformsTo?: string }) => void;
   onReferenceCreationRequested?: (selection: {
     exact: string;
     start: number;
@@ -39,6 +48,8 @@ interface Props {
     prefix?: string;
     suffix?: string;
     svgSelector?: string;
+    fragmentSelector?: string;
+    conformsTo?: string;
   }) => void;
   onCommentClick?: (commentId: string) => void;
   onReferenceClick?: (referenceId: string) => void;
@@ -60,8 +71,10 @@ export function ResourceViewer({
   hoveredCommentId,
   scrollToAnnotationId,
   showLineNumbers = false,
+  onAnnotationRequested,
   onCommentCreationRequested,
   onTagCreationRequested,
+  onAssessmentCreationRequested,
   onReferenceCreationRequested,
   onCommentClick,
   onReferenceClick,
@@ -493,6 +506,11 @@ export function ResourceViewer({
           showLineNumbers={showLineNumbers}
           annotateMode={annotateMode}
           onAnnotateModeToggle={onAnnotateModeToggle}
+          {...(onAnnotationRequested && { onAnnotationRequested })}
+          {...(onCommentCreationRequested && { onCommentCreationRequested })}
+          {...(onTagCreationRequested && { onTagCreationRequested })}
+          {...(onAssessmentCreationRequested && { onAssessmentCreationRequested })}
+          {...(onReferenceCreationRequested && { onReferenceCreationRequested })}
         />
       ) : (
         <BrowseView

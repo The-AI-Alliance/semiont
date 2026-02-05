@@ -2,7 +2,7 @@
 
 import React, { useRef, useState, useCallback, useEffect, lazy, Suspense } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
-import type { components } from '@semiont/api-client';
+import type { components, Selector } from '@semiont/api-client';
 import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMimeCategory, isPdfMimeType, resourceUri as toResourceUri } from '@semiont/api-client';
 import { getAnnotator } from '../../lib/annotation-registry';
 import { ImageViewer } from '../viewers';
@@ -14,6 +14,14 @@ import { findTextWithContext } from '@semiont/api-client';
 const PdfAnnotationCanvas = lazy(() => import('../pdf-annotation/PdfAnnotationCanvas.client').then(mod => ({ default: mod.PdfAnnotationCanvas })));
 
 type Annotation = components['schemas']['Annotation'];
+type Motivation = components['schemas']['Motivation'];
+
+// Unified pending annotation type - all human-created annotations flow through this
+interface PendingAnnotation {
+  selector: Selector | Selector[];
+  motivation: Motivation;
+}
+
 import { CodeMirrorRenderer } from '../CodeMirrorRenderer';
 import type { TextSegment } from '../CodeMirrorRenderer';
 import type { EditorView } from '@codemirror/view';
@@ -48,6 +56,11 @@ interface Props {
   showLineNumbers?: boolean;
   annotateMode: boolean;
   onAnnotateModeToggle: () => void;
+  onAnnotationRequested?: (pending: PendingAnnotation) => void;
+  onCommentCreationRequested?: (selection: { exact: string; start: number; end: number; svgSelector?: string; fragmentSelector?: string; conformsTo?: string }) => void;
+  onTagCreationRequested?: (selection: { exact: string; start: number; end: number; svgSelector?: string; fragmentSelector?: string; conformsTo?: string }) => void;
+  onAssessmentCreationRequested?: (selection: { exact: string; start: number; end: number; svgSelector?: string; fragmentSelector?: string; conformsTo?: string }) => void;
+  onReferenceCreationRequested?: (selection: { exact: string; start: number; end: number; prefix?: string; suffix?: string; svgSelector?: string; fragmentSelector?: string; conformsTo?: string }) => void;
 }
 
 /**
@@ -72,8 +85,8 @@ function extractContext(content: string, start: number, end: number): { prefix?:
 }
 
 // Segment text with annotations - uses fuzzy anchoring when available!
-function segmentTextWithAnnotations(exact: string, annotations: Annotation[]): TextSegment[] {
-  if (!exact) {
+function segmentTextWithAnnotations(content: string, annotations: Annotation[]): TextSegment[] {
+  if (!content) {
     return [{ exact: '', start: 0, end: 0 }];
   }
 
@@ -89,7 +102,7 @@ function segmentTextWithAnnotations(exact: string, annotations: Annotation[]): T
         // Use fuzzy anchoring when prefix/suffix context is available
         // This helps when content changes or same text appears multiple times
         position = findTextWithContext(
-          exact,
+          content,
           quoteSelector.exact,
           quoteSelector.prefix,
           quoteSelector.suffix
@@ -106,11 +119,11 @@ function segmentTextWithAnnotations(exact: string, annotations: Annotation[]): T
         end
       };
     })
-    .filter(a => a.start >= 0 && a.end <= exact.length && a.start < a.end)
+    .filter(a => a.start >= 0 && a.end <= content.length && a.start < a.end)
     .sort((a, b) => a.start - b.start);
 
   if (normalizedAnnotations.length === 0) {
-    return [{ exact, start: 0, end: exact.length }];
+    return [{ exact: content, start: 0, end: content.length }];
   }
 
   const segments: TextSegment[] = [];
@@ -122,7 +135,7 @@ function segmentTextWithAnnotations(exact: string, annotations: Annotation[]): T
     // Add text before annotation
     if (start > position) {
       segments.push({
-        exact: exact.slice(position, start),
+        exact: content.slice(position, start),
         start: position,
         end: start
       });
@@ -130,7 +143,7 @@ function segmentTextWithAnnotations(exact: string, annotations: Annotation[]): T
 
     // Add annotated segment
     segments.push({
-      exact: exact.slice(start, end),
+      exact: content.slice(start, end),
       annotation,
       start,
       end
@@ -140,11 +153,11 @@ function segmentTextWithAnnotations(exact: string, annotations: Annotation[]): T
   }
 
   // Add remaining text
-  if (position < exact.length) {
+  if (position < content.length) {
     segments.push({
-      exact: exact.slice(position),
+      exact: content.slice(position),
       start: position,
-      end: exact.length
+      end: content.length
     });
   }
 
@@ -170,7 +183,12 @@ export function AnnotateView({
   onDeleteAnnotation,
   showLineNumbers = false,
   annotateMode,
-  onAnnotateModeToggle
+  onAnnotateModeToggle,
+  onAnnotationRequested,
+  onCommentCreationRequested,
+  onTagCreationRequested,
+  onAssessmentCreationRequested,
+  onReferenceCreationRequested
 }: Props) {
   const t = useTranslations('AnnotateView');
   const { newAnnotationIds, createAnnotation } = useResourceAnnotations();
@@ -293,37 +311,27 @@ export function AnnotateView({
         // Extract context for TextQuoteSelector
         const context = extractContext(content, start, end);
 
-        // Use unified onCreate handler
-        if (selectedMotivation && onCreate) {
-          // Calculate popup position for Quick Reference (if needed)
-          let position: { x: number; y: number } | undefined;
-          if (selectedMotivation === 'linking' && rects.length > 0) {
-            const lastRect = rects[rects.length - 1];
-            if (lastRect) {
-              position = { x: lastRect.left, y: lastRect.bottom + 10 };
-            }
-          }
-
-          onCreate({
-            motivation: selectedMotivation,
-            selector: {
-              type: 'TextQuoteSelector',
-              exact: text,
-              ...(context.prefix && { prefix: context.prefix }),
-              ...(context.suffix && { suffix: context.suffix }),
-              start,
-              end
-            },
-            ...(position && { position })
+        // Unified flow: all text annotations use BOTH TextPositionSelector and TextQuoteSelector
+        if (selectedMotivation && onAnnotationRequested) {
+          onAnnotationRequested({
+            selector: [
+              {
+                type: 'TextPositionSelector',
+                start,
+                end
+              },
+              {
+                type: 'TextQuoteSelector',
+                exact: text,
+                ...(context.prefix && { prefix: context.prefix }),
+                ...(context.suffix && { suffix: context.suffix })
+              }
+            ],
+            motivation: selectedMotivation
           });
 
-          // Clear selection for immediate creates (highlighting, assessing)
-          if (selectedMotivation === 'highlighting' || selectedMotivation === 'assessing') {
-            selection.removeAllRanges();
-          } else {
-            // Keep visual selection for commenting and linking
-            setSelectionState({ exact: text, start, end, rects });
-          }
+          // Clear selection after creating annotation
+          selection.removeAllRanges();
           return;
         }
         return;
@@ -337,37 +345,27 @@ export function AnnotateView({
         // Extract context for TextQuoteSelector
         const context = extractContext(content, start, end);
 
-        // Use unified onCreate handler
-        if (selectedMotivation && onCreate) {
-          // Calculate popup position for Quick Reference (if needed)
-          let position: { x: number; y: number } | undefined;
-          if (selectedMotivation === 'linking' && rects.length > 0) {
-            const lastRect = rects[rects.length - 1];
-            if (lastRect) {
-              position = { x: lastRect.left, y: lastRect.bottom + 10 };
-            }
-          }
-
-          onCreate({
-            motivation: selectedMotivation,
-            selector: {
-              type: 'TextQuoteSelector',
-              exact: text,
-              ...(context.prefix && { prefix: context.prefix }),
-              ...(context.suffix && { suffix: context.suffix }),
-              start,
-              end
-            },
-            ...(position && { position })
+        // Unified flow: all text annotations use BOTH TextPositionSelector and TextQuoteSelector
+        if (selectedMotivation && onAnnotationRequested) {
+          onAnnotationRequested({
+            selector: [
+              {
+                type: 'TextPositionSelector',
+                start,
+                end
+              },
+              {
+                type: 'TextQuoteSelector',
+                exact: text,
+                ...(context.prefix && { prefix: context.prefix }),
+                ...(context.suffix && { suffix: context.suffix })
+              }
+            ],
+            motivation: selectedMotivation
           });
 
-          // Clear selection for immediate creates (highlighting, assessing)
-          if (selectedMotivation === 'highlighting' || selectedMotivation === 'assessing') {
-            selection.removeAllRanges();
-          } else {
-            // Keep visual selection for commenting and linking
-            setSelectionState({ exact: text, start, end, rects });
-          }
+          // Clear selection after creating annotation
+          selection.removeAllRanges();
           return;
         }
       }
@@ -467,19 +465,18 @@ export function AnnotateView({
                     existingAnnotations={allAnnotations}
                     drawingMode={selectedMotivation ? selectedShape : null}
                     selectedMotivation={selectedMotivation}
-                    onAnnotationCreate={async (fragmentSelector, position) => {
-                      // Use unified onCreate handler for PDF annotations
-                      if (selectedMotivation && onCreate) {
-                        onCreate({
-                          motivation: selectedMotivation,
-                          selector: {
-                            type: 'FragmentSelector',
-                            conformsTo: 'http://tools.ietf.org/rfc/rfc3778',
-                            value: fragmentSelector
-                          },
-                          ...(position && { position })
-                        });
-                      }
+                    onAnnotationCreate={async (fragmentSelector) => {
+                      if (!selectedMotivation) return;
+
+                      // Unified flow: all annotations go through pending state
+                      onAnnotationRequested?.({
+                        selector: {
+                          type: 'FragmentSelector',
+                          conformsTo: 'http://tools.ietf.org/rfc/rfc3778',
+                          value: fragmentSelector
+                        },
+                        motivation: selectedMotivation
+                      });
                     }}
                     {...(onAnnotationClick && { onAnnotationClick })}
                     {...(onAnnotationHover && { onAnnotationHover: handleAnnotationHover })}
@@ -514,18 +511,17 @@ export function AnnotateView({
                 existingAnnotations={allAnnotations}
                 drawingMode={selectedMotivation ? selectedShape : null}
                 selectedMotivation={selectedMotivation}
-                onAnnotationCreate={async (svg, position) => {
-                  // Use unified onCreate handler for image annotations
-                  if (selectedMotivation && onCreate) {
-                    onCreate({
-                      motivation: selectedMotivation,
-                      selector: {
-                        type: 'SvgSelector',
-                        value: svg
-                      },
-                      ...(position && { position })
-                    });
-                  }
+                onAnnotationCreate={async (svg) => {
+                  if (!selectedMotivation) return;
+
+                  // Unified flow: all annotations go through pending state
+                  onAnnotationRequested?.({
+                    selector: {
+                      type: 'SvgSelector',
+                      value: svg
+                    },
+                    motivation: selectedMotivation
+                  });
                 }}
                 {...(onAnnotationClick && { onAnnotationClick })}
                 {...(onAnnotationHover && { onAnnotationHover: handleAnnotationHover })}

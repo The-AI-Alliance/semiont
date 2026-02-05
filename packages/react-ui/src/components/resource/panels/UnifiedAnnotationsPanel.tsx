@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import type { components } from '@semiont/api-client';
+import type { components, Selector } from '@semiont/api-client';
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
 import { groupAnnotationsByType, type Annotator, ANNOTATORS } from '../../../lib/annotation-registry';
 import { StatisticsPanel } from './StatisticsPanel';
@@ -17,6 +17,12 @@ type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation'];
 type AnnotatorKey = keyof typeof ANNOTATORS;
 type TabKey = 'statistics' | AnnotatorKey;
+
+// Unified pending annotation type
+interface PendingAnnotation {
+  selector: Selector | Selector[];
+  motivation: Motivation;
+}
 
 // Tab display order - statistics first, then matches AnnotateToolbar selection group order
 const TAB_ORDER: TabKey[] = ['statistics', 'reference', 'highlight', 'assessment', 'comment', 'tag'];
@@ -68,27 +74,8 @@ interface UnifiedAnnotationsPanelProps {
     totalCategories?: number;
   } | null;
 
-  // Pending selections (for creating new annotations)
-  pendingCommentSelection?: {
-    exact: string;
-    start: number;
-    end: number;
-  } | null;
-
-  pendingTagSelection?: {
-    exact: string;
-    start: number;
-    end: number;
-  } | null;
-
-  pendingReferenceSelection?: {
-    exact: string;
-    start: number;
-    end: number;
-    prefix?: string;
-    suffix?: string;
-    svgSelector?: string;
-  } | null;
+  // Unified pending annotation (for creating new annotations)
+  pendingAnnotation: PendingAnnotation | null;
 
   // Reference-specific props (TODO: refactor these into annotator handlers)
   allEntityTypes?: string[];
@@ -163,22 +150,21 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
 
   // Auto-switch to the appropriate tab when creating a new annotation
   useEffect(() => {
-    if (props.pendingCommentSelection) {
-      setActiveTab('comment');
+    if (props.pendingAnnotation) {
+      // Map motivation to tab (only for motivations with corresponding tabs)
+      const motivationToTab: Partial<Record<Motivation, AnnotatorKey>> = {
+        'linking': 'reference',
+        'commenting': 'comment',
+        'tagging': 'tag',
+        'assessing': 'assessment',
+        'highlighting': 'highlight'
+      };
+      const tab = motivationToTab[props.pendingAnnotation.motivation];
+      if (tab) {
+        setActiveTab(tab);
+      }
     }
-  }, [props.pendingCommentSelection]);
-
-  useEffect(() => {
-    if (props.pendingTagSelection) {
-      setActiveTab('tag');
-    }
-  }, [props.pendingTagSelection]);
-
-  useEffect(() => {
-    if (props.pendingReferenceSelection) {
-      setActiveTab('reference');
-    }
-  }, [props.pendingReferenceSelection]);
+  }, [props.pendingAnnotation]);
 
   const handleTabClick = (tab: TabKey) => {
     setActiveTab(tab);
@@ -267,6 +253,8 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
             hoveredAnnotationId: props.hoveredAnnotationId,
             onAnnotationHover: annotator.handlers?.onHover,
             onDetect: annotator.handlers?.onDetect,
+            onCreate: annotator.handlers?.onCreate,
+            pendingAnnotation: props.pendingAnnotation,
             isDetecting,
             detectionProgress,
             annotateMode: props.annotateMode
@@ -277,8 +265,6 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
             return (
               <PanelComponent
                 {...commonProps}
-                onCreate={annotator.handlers?.onCreate}
-                pendingSelection={props.pendingReferenceSelection}
                 allEntityTypes={props.allEntityTypes || []}
                 onCancelDetection={props.onCancelDetection || (() => {})}
                 onGenerateDocument={props.onGenerateDocument}
@@ -302,24 +288,11 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
               <PanelComponent
                 {...commonProps}
                 onUpdate={annotator.handlers.onUpdate}
-                onCreate={annotator.handlers?.onCreate}
-                pendingSelection={props.pendingCommentSelection}
               />
             );
           }
 
-          // Tag panel needs onCreate and pendingSelection
-          if (activeTab === 'tag') {
-            return (
-              <PanelComponent
-                {...commonProps}
-                onCreate={annotator.handlers?.onCreate}
-                pendingSelection={props.pendingTagSelection}
-              />
-            );
-          }
-
-          // Highlight and Assessment panels use commonProps only
+          // All other panels (tag, assessment, highlight) use commonProps only
           return <PanelComponent {...commonProps} />;
         })()}
       </div>

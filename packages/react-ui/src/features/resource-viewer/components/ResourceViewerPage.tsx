@@ -10,7 +10,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { QUERY_KEYS } from '@semiont/react-ui';
 import { ResourceViewer } from '@semiont/react-ui';
 import { buttonStyles } from '@semiont/react-ui';
-import type { components, ResourceUri, GenerationContext } from '@semiont/api-client';
+import type { components, ResourceUri, GenerationContext, Selector } from '@semiont/api-client';
 import { getResourceId, getLanguage, getPrimaryMediaType, getPrimaryRepresentation, annotationUri, resourceUri, resourceAnnotationUri } from '@semiont/api-client';
 import { groupAnnotationsByType, withHandlers, createDetectionHandler, createCancelDetectionHandler, ANNOTATORS } from '@semiont/react-ui';
 import { supportsDetection } from '@semiont/react-ui';
@@ -41,6 +41,12 @@ interface InternalTextSelection {
   svgSelector?: string;
   fragmentSelector?: string;
   conformsTo?: string;
+}
+
+// Unified pending annotation type - all human-created annotations flow through this
+interface PendingAnnotation {
+  selector: Selector | Selector[];
+  motivation: Motivation;
 }
 
 import type { DetectionProgress } from '@semiont/react-ui';
@@ -262,10 +268,8 @@ export function ResourceViewerPage({
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
 
-  // Pending selections for creating annotations
-  const [pendingCommentSelection, setPendingCommentSelection] = useState<InternalTextSelection | null>(null);
-  const [pendingTagSelection, setPendingTagSelection] = useState<InternalTextSelection | null>(null);
-  const [pendingReferenceSelection, setPendingReferenceSelection] = useState<InternalTextSelection | null>(null);
+  // Unified pending annotation - all human-created annotations flow through this
+  const [pendingAnnotation, setPendingAnnotation] = useState<PendingAnnotation | null>(null);
 
   // Search state
   const [searchModalOpen, setSearchModalOpen] = useState(false);
@@ -468,28 +472,42 @@ export function ResourceViewerPage({
     }
   }, [contentLoading, content, resource.name, announceResourceLoading, announceResourceLoaded]);
 
+  // Unified annotation request handler - all human-created annotations flow through this
+  const handleAnnotationRequested = useCallback((pending: PendingAnnotation) => {
+    // Route to appropriate panel tab based on motivation
+    const MOTIVATION_TO_TAB: Record<Motivation, string> = {
+      highlighting: 'annotations',
+      commenting: 'annotations',
+      assessing: 'annotations',
+      tagging: 'annotations',
+      linking: 'annotations',
+      bookmarking: 'annotations',
+      classifying: 'annotations',
+      describing: 'annotations',
+      editing: 'annotations',
+      identifying: 'annotations',
+      moderating: 'annotations',
+      questioning: 'annotations',
+      replying: 'annotations',
+    };
+
+    setActivePanel(MOTIVATION_TO_TAB[pending.motivation] || 'annotations');
+    setPendingAnnotation(pending);
+  }, []);
+
   // Manual tag creation handler
   const handleCreateTag = useCallback(async (
-    selection: { exact: string; start: number; end: number },
     schemaId: string,
     category: string
   ) => {
+    if (!pendingAnnotation || pendingAnnotation.motivation !== 'tagging') return;
+
     try {
       // Create tag annotation with dual-body structure
       await onCreateAnnotation(
         rUri,
         'tagging',
-        [
-          {
-            type: 'TextPositionSelector',
-            start: selection.start,
-            end: selection.end
-          },
-          {
-            type: 'TextQuoteSelector',
-            exact: selection.exact
-          }
-        ],
+        pendingAnnotation.selector,
         [
           {
             type: 'TextualBody',
@@ -504,14 +522,14 @@ export function ResourceViewerPage({
         ]
       );
 
-      setPendingTagSelection(null);
+      setPendingAnnotation(null);
       await onRefetchAnnotations();
       showSuccess(`Tag "${category}" created`);
     } catch (error) {
       console.error('Failed to create tag:', error);
       showError('Failed to create tag');
     }
-  }, [onCreateAnnotation, rUri, onRefetchAnnotations, showSuccess, showError]);
+  }, [pendingAnnotation, onCreateAnnotation, rUri, onRefetchAnnotations, showSuccess, showError]);
 
   // Document rendering
   return (
@@ -561,18 +579,7 @@ export function ResourceViewerPage({
                 }}
                 annotateMode={annotateMode}
                 onAnnotateModeToggle={handleAnnotateModeToggle}
-                onCommentCreationRequested={(selection) => {
-                  setPendingCommentSelection(selection);
-                  setActivePanel('annotations');
-                }}
-                onTagCreationRequested={(selection) => {
-                  setPendingTagSelection(selection);
-                  setActivePanel('annotations');
-                }}
-                onReferenceCreationRequested={(selection) => {
-                  setPendingReferenceSelection(selection);
-                  setActivePanel('annotations');
-                }}
+                onAnnotationRequested={handleAnnotationRequested}
                 onCommentClick={(commentId) => {
                   setActivePanel('annotations');
                   setFocusedAnnotationId(commentId);
@@ -645,6 +652,13 @@ export function ResourceViewerPage({
                     setTimeout(() => setHoveredAnnotationId(null), 1500);
                   },
                   onHover: setHoveredAnnotationId,
+                  onCreate: async (selector: Selector | Selector[]) => {
+                    if (pendingAnnotation && pendingAnnotation.motivation === 'highlighting') {
+                      await onCreateAnnotation(rUri, 'highlighting', selector, []);
+                      setPendingAnnotation(null);
+                      await onRefetchAnnotations();
+                    }
+                  },
                   ...(supportsDetection(primaryMediaType) ? { onDetect: createDetectionHandler(ANNOTATORS.highlight!, detectionContext) } : {})
                 },
                 reference: {
@@ -654,40 +668,18 @@ export function ResourceViewerPage({
                   },
                   onHover: setHoveredAnnotationId,
                   onCreate: async (entityType?: string) => {
-                    if (pendingReferenceSelection) {
-                      const selector = pendingReferenceSelection.fragmentSelector
-                        ? {
-                            type: 'FragmentSelector' as const,
-                            value: pendingReferenceSelection.fragmentSelector,
-                            ...(pendingReferenceSelection.conformsTo && { conformsTo: pendingReferenceSelection.conformsTo })
-                          }
-                        : pendingReferenceSelection.svgSelector
-                          ? { type: 'SvgSelector' as const, value: pendingReferenceSelection.svgSelector }
-                          : [
-                              {
-                                type: 'TextPositionSelector' as const,
-                                start: pendingReferenceSelection.start,
-                                end: pendingReferenceSelection.end
-                              },
-                              {
-                                type: 'TextQuoteSelector' as const,
-                                exact: pendingReferenceSelection.exact,
-                                ...(pendingReferenceSelection.prefix && { prefix: pendingReferenceSelection.prefix }),
-                                ...(pendingReferenceSelection.suffix && { suffix: pendingReferenceSelection.suffix })
-                              }
-                            ];
-
+                    if (pendingAnnotation && pendingAnnotation.motivation === 'linking') {
                       await onCreateAnnotation(
                         rUri,
                         'linking',
-                        selector,
+                        pendingAnnotation.selector,
                         entityType ? [{
                           type: 'TextualBody',
                           purpose: 'tagging',
                           value: entityType
                         }] : []
                       );
-                      setPendingReferenceSelection(null);
+                      setPendingAnnotation(null);
                       await onRefetchAnnotations();
                     }
                   },
@@ -711,24 +703,14 @@ export function ResourceViewerPage({
                     // TODO: Implement update comment mutation
                   },
                   onCreate: async (commentText: string) => {
-                    if (pendingCommentSelection) {
-                      await onCreateAnnotation(rUri, 'commenting', [
-                        {
-                          type: 'TextPositionSelector',
-                          start: pendingCommentSelection.start,
-                          end: pendingCommentSelection.end,
-                        },
-                        {
-                          type: 'TextQuoteSelector',
-                          exact: pendingCommentSelection.exact,
-                        }
-                      ], [{
+                    if (pendingAnnotation && pendingAnnotation.motivation === 'commenting') {
+                      await onCreateAnnotation(rUri, 'commenting', pendingAnnotation.selector, [{
                         type: 'TextualBody',
                         value: commentText,
                         format: 'text/plain',
                         purpose: 'commenting',
                       }]);
-                      setPendingCommentSelection(null);
+                      setPendingAnnotation(null);
                     }
                   },
                   ...(supportsDetection(primaryMediaType) ? { onDetect: createDetectionHandler(ANNOTATORS.comment!, detectionContext) } : {})
@@ -753,9 +735,7 @@ export function ResourceViewerPage({
                   annotateMode={annotateMode}
                   detectingMotivation={detectingMotivation}
                   detectionProgress={motivationDetectionProgress}
-                  pendingCommentSelection={pendingCommentSelection}
-                  pendingTagSelection={pendingTagSelection}
-                  pendingReferenceSelection={pendingReferenceSelection}
+                  pendingAnnotation={pendingAnnotation}
                   allEntityTypes={allEntityTypes}
                   onGenerateDocument={handleGenerateDocument}
                   onCreateDocument={handleCreateDocument}

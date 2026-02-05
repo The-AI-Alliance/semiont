@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import type { components } from '@semiont/api-client';
+import type { components, Selector } from '@semiont/api-client';
 import { TagEntry } from './TagEntry';
 import { useAnnotationPanel } from '../../../hooks/useAnnotationPanel';
 import { PanelHeader } from './PanelHeader';
@@ -10,6 +10,30 @@ import { getAllTagSchemas, type TagSchema } from '../../../lib/tag-schemas';
 import './TaggingPanel.css';
 
 type Annotation = components['schemas']['Annotation'];
+type Motivation = components['schemas']['Motivation'];
+
+// Unified pending annotation type
+interface PendingAnnotation {
+  selector: Selector | Selector[];
+  motivation: Motivation;
+}
+
+// Helper to extract display text from selector
+function getSelectorDisplayText(selector: Selector | Selector[]): string | null {
+  if (Array.isArray(selector)) {
+    // Text selectors: array of [TextPositionSelector, TextQuoteSelector]
+    const quoteSelector = selector.find(s => s.type === 'TextQuoteSelector');
+    if (quoteSelector && 'exact' in quoteSelector) {
+      return quoteSelector.exact;
+    }
+  } else {
+    // Single selector
+    if (selector.type === 'TextQuoteSelector' && 'exact' in selector) {
+      return selector.exact;
+    }
+  }
+  return null;
+}
 
 interface TaggingPanelProps {
   annotations: Annotation[];
@@ -19,7 +43,7 @@ interface TaggingPanelProps {
   onAnnotationHover?: (annotationId: string | null) => void;
   annotateMode?: boolean;
   onDetect?: (schemaId: string, categories: string[]) => void | Promise<void>;
-  onCreate?: (selection: { exact: string; start: number; end: number }, schemaId: string, category: string) => void | Promise<void>;
+  onCreate: (schemaId: string, category: string) => void | Promise<void>;
   isDetecting?: boolean;
   detectionProgress?: {
     status: string;
@@ -30,11 +54,7 @@ interface TaggingPanelProps {
     message?: string;
     requestParams?: Array<{ label: string; value: string }>;
   } | null;
-  pendingSelection?: {
-    exact: string;
-    start: number;
-    end: number;
-  } | null;
+  pendingAnnotation: PendingAnnotation | null;
 }
 
 export function TaggingPanel({
@@ -48,7 +68,7 @@ export function TaggingPanel({
   onCreate,
   isDetecting = false,
   detectionProgress,
-  pendingSelection
+  pendingAnnotation
 }: TaggingPanelProps) {
   const t = useTranslations('TaggingPanel');
   const [selectedSchemaId, setSelectedSchemaId] = useState<string>('legal-irac');
@@ -113,15 +133,22 @@ export function TaggingPanel({
 
       {/* Scrollable content area */}
       <div ref={containerRef} className="semiont-panel__content">
-        {/* Pending Manual Tag Creation */}
-        {pendingSelection && onCreate && (
+        {/* Pending Manual Tag Creation - shown when there's a pending annotation with tagging motivation */}
+        {pendingAnnotation && pendingAnnotation.motivation === 'tagging' && (
           <div className="semiont-annotation-prompt" data-type="tag">
             <h3 className="semiont-annotation-prompt__title">
               {t('createTagForSelection')}
             </h3>
             <div className="semiont-annotation-prompt__quote">
               <p className="semiont-annotation-prompt__text">
-                "{pendingSelection.exact.substring(0, 100)}{pendingSelection.exact.length > 100 ? '...' : ''}"
+                {(() => {
+                  const displayText = getSelectorDisplayText(pendingAnnotation.selector);
+                  if (displayText) {
+                    return `"${displayText.substring(0, 100)}${displayText.length > 100 ? '...' : ''}"`;
+                  }
+                  // Generic labels for PDF/image annotations without text
+                  return t('fragmentSelected');
+                })()}
               </p>
             </div>
 
@@ -152,7 +179,7 @@ export function TaggingPanel({
                   className="semiont-select"
                   onChange={(e) => {
                     if (e.target.value) {
-                      onCreate(pendingSelection, selectedSchemaId, e.target.value);
+                      onCreate(selectedSchemaId, e.target.value);
                     }
                   }}
                   defaultValue=""

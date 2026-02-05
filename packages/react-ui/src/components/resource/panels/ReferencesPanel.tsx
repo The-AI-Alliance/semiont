@@ -5,15 +5,39 @@ import { useTranslations } from '../../../contexts/TranslationContext';
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
 import { DetectionProgressWidget } from '../../DetectionProgressWidget';
 import { ReferenceEntry } from './ReferenceEntry';
-import type { components, paths } from '@semiont/api-client';
+import type { components, paths, Selector } from '@semiont/api-client';
 import { useAnnotationPanel } from '../../../hooks/useAnnotationPanel';
 import { PanelHeader } from './PanelHeader';
 import { supportsDetection } from '../../../lib/resource-utils';
 import './ReferencesPanel.css';
 
 type Annotation = components['schemas']['Annotation'];
+type Motivation = components['schemas']['Motivation'];
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } } ? R : never;
 type ReferencedBy = ResponseContent<paths['/resources/{id}/referenced-by']['get']>['referencedBy'][number];
+
+// Unified pending annotation type
+interface PendingAnnotation {
+  selector: Selector | Selector[];
+  motivation: Motivation;
+}
+
+// Helper to extract display text from selector
+function getSelectorDisplayText(selector: Selector | Selector[]): string | null {
+  if (Array.isArray(selector)) {
+    // Text selectors: array of [TextPositionSelector, TextQuoteSelector]
+    const quoteSelector = selector.find(s => s.type === 'TextQuoteSelector');
+    if (quoteSelector && 'exact' in quoteSelector) {
+      return quoteSelector.exact;
+    }
+  } else {
+    // Single selector
+    if (selector.type === 'TextQuoteSelector' && 'exact' in selector) {
+      return selector.exact;
+    }
+  }
+  return null;
+}
 
 interface DetectionLog {
   entityType: string;
@@ -28,7 +52,7 @@ interface Props {
   hoveredAnnotationId?: string | null;
   onAnnotationHover?: (annotationId: string | null) => void;
   onDetect: (selectedTypes: string[], includeDescriptiveReferences?: boolean) => void;
-  onCreate?: (entityType?: string) => void;
+  onCreate: (entityType?: string) => void;
   isDetecting: boolean;
   detectionProgress: any; // TODO: type this properly
   annotateMode?: boolean;
@@ -46,16 +70,7 @@ interface Props {
   mediaType?: string | undefined;
   referencedBy?: ReferencedBy[];
   referencedByLoading?: boolean;
-  pendingSelection?: {
-    exact: string;
-    start: number;
-    end: number;
-    prefix?: string;
-    suffix?: string;
-    svgSelector?: string;
-    fragmentSelector?: string;
-    conformsTo?: string;
-  } | null;
+  pendingAnnotation: PendingAnnotation | null;
 }
 
 export function ReferencesPanel({
@@ -81,7 +96,7 @@ export function ReferencesPanel({
   mediaType,
   referencedBy = [],
   referencedByLoading = false,
-  pendingSelection,
+  pendingAnnotation,
 }: Props) {
   const t = useTranslations('DetectPanel');
   const tRef = useTranslations('ReferencesPanel');
@@ -147,27 +162,27 @@ export function ReferencesPanel({
   };
 
   const handleCreateReference = () => {
-    if (onCreate) {
-      const entityType = pendingEntityTypes.join(',') || undefined;
-      onCreate(entityType);
-      setPendingEntityTypes([]);
-    }
+    const entityType = pendingEntityTypes.join(',') || undefined;
+    onCreate(entityType);
+    setPendingEntityTypes([]);
   };
 
   return (
     <div className="semiont-panel">
       <PanelHeader annotationType="reference" count={annotations.length} title={tRef('referencesTitle')} />
 
-      {/* New reference creation - shown when there's a pending selection */}
-      {pendingSelection && onCreate && (
+      {/* New reference creation - shown when there's a pending annotation with linking motivation */}
+      {pendingAnnotation && pendingAnnotation.motivation === 'linking' && (
         <div className="semiont-annotation-prompt" data-type="reference">
           <div className="semiont-annotation-prompt__quote">
-            {pendingSelection.fragmentSelector
-              ? tRef('fragmentSelected')
-              : pendingSelection.svgSelector
-                ? tRef('imageRegionSelected')
-                : `"${pendingSelection.exact.substring(0, 100)}${pendingSelection.exact.length > 100 ? '...' : ''}"`
-            }
+            {(() => {
+              const displayText = getSelectorDisplayText(pendingAnnotation.selector);
+              if (displayText) {
+                return `"${displayText.substring(0, 100)}${displayText.length > 100 ? '...' : ''}"`;
+              }
+              // Generic labels for PDF/image annotations without text
+              return tRef('fragmentSelected');
+            })()}
           </div>
 
           {/* Entity Types Multi-Select */}
