@@ -4,7 +4,7 @@ import React, { useEffect, useRef } from 'react';
 import type { RouteBuilder } from '../../../contexts/RoutingContext';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components } from '@semiont/api-client';
-import { getAnnotationExactText, isBodyResolved, getBodySource } from '@semiont/api-client';
+import { getAnnotationExactText, isBodyResolved, getBodySource, getFragmentSelector, getSvgSelector, getTargetSelector } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/ontology';
 import { getResourceIcon } from '../../../lib/resource-utils';
 
@@ -87,6 +87,12 @@ export function ReferenceEntry({
   const resolvedResourceUri = isResolved ? getBodySource(reference.body) : null;
   const entityTypes = getEntityTypes(reference);
 
+  // Determine annotation type for non-text annotations
+  const selector = getTargetSelector(reference.target);
+  const hasFragmentSelector = getFragmentSelector(selector);
+  const hasSvgSelector = getSvgSelector(selector);
+  const annotationType = hasFragmentSelector ? 'Fragment annotation' : hasSvgSelector ? 'Image annotation' : 'Annotation';
+
   // Extract resolved document name and media type if enriched by backend
   const enrichedReference = reference as EnrichedAnnotation;
   const resolvedDocumentName = enrichedReference._resolvedDocumentName;
@@ -149,7 +155,7 @@ export function ReferenceEntry({
           )}
           {!selectedText && (
             <div className="semiont-annotation-entry__meta">
-              Image annotation
+              {annotationType}
             </div>
           )}
           {resolvedDocumentName && (
