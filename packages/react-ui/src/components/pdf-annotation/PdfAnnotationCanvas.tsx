@@ -359,11 +359,6 @@ export function PdfAnnotationCanvas({
   // Calculate motivation color
   const { stroke, fill } = getMotivationColor(selectedMotivation ?? null);
 
-  // Error logging for missing dimensions
-  if (pageAnnotations.length > 0 && (!displayDimensions || !pageDimensions)) {
-    console.error('[PdfAnnotationCanvas] Cannot render annotations - missing dimensions:', { displayDimensions, pageDimensions });
-  }
-
   if (error) {
     return <div className="semiont-pdf-annotation-canvas__error">{error}</div>;
   }
