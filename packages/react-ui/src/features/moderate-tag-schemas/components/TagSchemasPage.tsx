@@ -7,12 +7,11 @@
 
 import React from 'react';
 import {
-  BookOpenIcon,
   AcademicCapIcon,
   ScaleIcon,
   LightBulbIcon
 } from '@heroicons/react/24/outline';
-import type { TagSchema, TagCategory } from '@semiont/react-ui';
+import type { TagSchema } from '@semiont/react-ui';
 
 export interface TagSchemasPageProps {
   // Data props

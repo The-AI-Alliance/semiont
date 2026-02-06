@@ -1,8 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { ANNOTATORS } from '../../../lib/annotation-registry';
 import './DetectSection.css';
 
 interface DetectSectionProps {
@@ -44,7 +43,6 @@ export function DetectSection({
   const defaultDensity = annotationType === 'comment' ? 5 : annotationType === 'assessment' ? 4 : annotationType === 'highlight' ? 5 : 5;
   const [density, setDensity] = useState(defaultDensity);
   const [useDensity, setUseDensity] = useState(true); // Enabled by default
-  const metadata = ANNOTATORS[annotationType]!;
 
   // Collapsible section state - load from localStorage, default expanded
   const [isExpanded, setIsExpanded] = useState(() => {

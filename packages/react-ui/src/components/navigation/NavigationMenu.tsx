@@ -24,7 +24,6 @@ export function NavigationMenu({
   t,
   isAdmin = false,
   isModerator = false,
-  brandingLink = '/',
   onItemClick,
   className = "",
   currentPath

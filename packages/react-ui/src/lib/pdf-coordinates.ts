@@ -46,7 +46,7 @@ export interface CanvasRectangle {
 export function canvasToPdfCoordinates(
   canvasRect: CanvasRectangle,
   page: number,
-  pageWidth: number,
+  _pageWidth: number,
   pageHeight: number,
   scale: number = 1
 ): PdfCoordinate {
@@ -61,7 +61,6 @@ export function canvasToPdfCoordinates(
   const pdfWidth = (x2 - x1) / scale;
 
   // Flip Y coordinate (canvas top-left to PDF bottom-left)
-  const canvasHeight = pageHeight * scale;
   const pdfY = pageHeight - (y2 / scale);
   const pdfHeight = (y2 - y1) / scale;
 

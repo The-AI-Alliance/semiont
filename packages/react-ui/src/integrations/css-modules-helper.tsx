@@ -20,7 +20,7 @@ export function createSemiontClassName(
   baseClass: string
 ) {
   return function buildClassName(
-    dataAttributes: Record<string, string | boolean | undefined>,
+    _dataAttributes: Record<string, string | boolean | undefined>,
     additionalClasses?: string
   ): string {
     const classes = [baseClass];
@@ -141,7 +141,7 @@ export const cssModulesConfig = {
             if (rule.selector.includes('[data-')) {
               rule.selector = rule.selector.replace(
                 /\.([a-zA-Z][a-zA-Z0-9-_]*)/g,
-                (match: string, className: string) => {
+                (_match: string, className: string) => {
                   // Keep the class name but mark it as global
                   return `:global(.${className})`;
                 }
@@ -161,8 +161,8 @@ export const cssModulesConfig = {
         localIdentName: '[name]__[local]___[hash:base64:5]',
         // Preserve data-attribute selectors
         getLocalIdent: (
-          context: any,
-          localIdentName: string,
+          _context: any,
+          _localIdentName: string,
           localName: string
         ) => {
           // Don't hash Semiont base classes

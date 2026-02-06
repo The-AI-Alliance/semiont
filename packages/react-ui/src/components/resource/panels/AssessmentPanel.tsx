@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components, Selector } from '@semiont/api-client';
 import { AssessmentEntry } from './AssessmentEntry';

@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
-import { useTranslations } from '../../../contexts/TranslationContext';
+import { useEffect, useRef } from 'react';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText } from '@semiont/api-client';
 
@@ -75,7 +74,6 @@ export function AssessmentEntry({
   onAssessmentRef,
   onAssessmentHover,
 }: AssessmentEntryProps) {
-  const t = useTranslations('AssessmentPanel');
   const assessmentRef = useRef<HTMLDivElement>(null);
 
   // Register ref with parent

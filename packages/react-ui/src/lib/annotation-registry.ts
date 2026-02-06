@@ -14,7 +14,7 @@
 
 import type { MutableRefObject } from 'react';
 import type { components } from '@semiont/api-client';
-import { isHighlight, isComment, isReference, isTag, entityType } from '@semiont/api-client';
+import { entityType, isHighlight, isComment, isReference, isTag } from '@semiont/api-client';
 import type { CacheManager } from '../types/CacheManager';
 
 type Annotation = components['schemas']['Annotation'];
@@ -42,10 +42,22 @@ export interface DetectionConfig {
 }
 
 /**
+ * Creation configuration - describes how to create annotations of this type
+ */
+export interface CreateConfig {
+  // How to build the annotation body from the creation arguments
+  bodyBuilder: 'empty' | 'text' | 'entityTag' | 'dualTag';
+
+  // Whether to refetch annotations after creation
+  refetchAfter: boolean;
+
+  // Optional success message template (for tags)
+  successMessage?: string;
+}
+
+/**
  * Annotator: Encapsulates all motivation-specific behavior
  * Handles clicks, hovers, detection, and other operations for one annotation type
- *
- * Metadata is static (defined in registry), handlers are injected at runtime (from page.tsx)
  */
 export interface Annotator {
   // Metadata (static)
@@ -72,19 +84,12 @@ export interface Annotator {
   // Detection configuration (optional - only for types that support AI detection)
   detection?: DetectionConfig;
 
-  // Handlers (injected at runtime)
-  handlers?: {
-    onClick?: (annotation: Annotation) => void;
-    onHover?: (annotationId: string | null) => void;
-    onDetect?: (...args: any[]) => void | Promise<void>;
-    onUpdate?: (annotationId: string, ...args: any[]) => void | Promise<void>;
-    onCreate?: (...args: any[]) => void | Promise<void>;
-  };
+  // Creation configuration - describes how to create this annotation type
+  create: CreateConfig;
 }
 
 /**
- * Registry of all annotators (motivation handlers)
- * Metadata is defined here, handlers are injected at runtime
+ * Static annotator definitions - single source of truth
  */
 export const ANNOTATORS: Record<string, Annotator> = {
   highlight: {
@@ -97,27 +102,25 @@ export const ANNOTATORS: Record<string, Annotator> = {
     isClickable: true,
     hasHoverInteraction: true,
     hasSidePanel: true,
-    matchesAnnotation: (ann) => isHighlight(ann),
+    matchesAnnotation: (ann: Annotation) => isHighlight(ann),
     announceOnCreate: 'Highlight created',
+    create: {
+      bodyBuilder: 'empty',
+      refetchAfter: false
+    },
     detection: {
       sseMethod: 'detectHighlights',
       countField: 'createdCount',
       displayNamePlural: 'highlights',
       displayNameSingular: 'highlight',
-      formatRequestParams: (args) => {
+      formatRequestParams: (args: any[]) => {
         const params: Array<{ label: string; value: string }> = [];
-        if (args[0]) {
-          params.push({ label: 'Instructions', value: args[0] });
-        }
-        // args[2] is density (args[1] is tone which is unused for highlights)
-        if (args[2] !== undefined) {
-          params.push({ label: 'Density', value: `${args[2]} per 2000 words` });
-        }
+        if (args[0]) params.push({ label: 'Instructions', value: args[0] });
+        if (args[2] !== undefined) params.push({ label: 'Density', value: `${args[2]} per 2000 words` });
         return params;
       }
     }
   },
-
   comment: {
     motivation: 'commenting',
     internalType: 'comment',
@@ -128,29 +131,26 @@ export const ANNOTATORS: Record<string, Annotator> = {
     isClickable: true,
     hasHoverInteraction: true,
     hasSidePanel: true,
-    matchesAnnotation: (ann) => isComment(ann),
+    matchesAnnotation: (ann: Annotation) => isComment(ann),
     announceOnCreate: 'Comment created',
+    create: {
+      bodyBuilder: 'text',
+      refetchAfter: false
+    },
     detection: {
       sseMethod: 'detectComments',
       countField: 'createdCount',
       displayNamePlural: 'comments',
       displayNameSingular: 'comment',
-      formatRequestParams: (args) => {
+      formatRequestParams: (args: any[]) => {
         const params: Array<{ label: string; value: string }> = [];
-        if (args[0]) {
-          params.push({ label: 'Instructions', value: args[0] });
-        }
-        if (args[1]) {
-          params.push({ label: 'Tone', value: args[1] });
-        }
-        if (args[2] !== undefined) {
-          params.push({ label: 'Density', value: `${args[2]} per 2000 words` });
-        }
+        if (args[0]) params.push({ label: 'Instructions', value: args[0] });
+        if (args[1]) params.push({ label: 'Tone', value: args[1] });
+        if (args[2] !== undefined) params.push({ label: 'Density', value: `${args[2]} per 2000 words` });
         return params;
       }
     }
   },
-
   assessment: {
     motivation: 'assessing',
     internalType: 'assessment',
@@ -161,29 +161,26 @@ export const ANNOTATORS: Record<string, Annotator> = {
     isClickable: true,
     hasHoverInteraction: true,
     hasSidePanel: true,
-    matchesAnnotation: (ann) => ann.motivation === 'assessing',
+    matchesAnnotation: (ann: Annotation) => ann.motivation === 'assessing',
     announceOnCreate: 'Assessment created',
+    create: {
+      bodyBuilder: 'text',
+      refetchAfter: false
+    },
     detection: {
       sseMethod: 'detectAssessments',
       countField: 'createdCount',
       displayNamePlural: 'assessments',
       displayNameSingular: 'assessment',
-      formatRequestParams: (args) => {
+      formatRequestParams: (args: any[]) => {
         const params: Array<{ label: string; value: string }> = [];
-        if (args[0]) {
-          params.push({ label: 'Instructions', value: args[0] });
-        }
-        if (args[1]) {
-          params.push({ label: 'Tone', value: args[1] });
-        }
-        if (args[2] !== undefined) {
-          params.push({ label: 'Density', value: `${args[2]} per 2000 words` });
-        }
+        if (args[0]) params.push({ label: 'Instructions', value: args[0] });
+        if (args[1]) params.push({ label: 'Tone', value: args[1] });
+        if (args[2] !== undefined) params.push({ label: 'Density', value: `${args[2]} per 2000 words` });
         return params;
       }
     }
   },
-
   reference: {
     motivation: 'linking',
     internalType: 'reference',
@@ -194,19 +191,22 @@ export const ANNOTATORS: Record<string, Annotator> = {
     isClickable: true,
     hasHoverInteraction: true,
     hasSidePanel: true,
-    matchesAnnotation: (ann) => isReference(ann),
+    matchesAnnotation: (ann: Annotation) => isReference(ann),
     announceOnCreate: 'Reference created',
+    create: {
+      bodyBuilder: 'entityTag',
+      refetchAfter: true
+    },
     detection: {
       sseMethod: 'detectAnnotations',
       countField: 'foundCount',
       displayNamePlural: 'entity references',
       displayNameSingular: 'entity reference',
-      formatRequestParams: (args) => {
+      formatRequestParams: (args: any[]) => {
         const params: Array<{ label: string; value: string }> = [];
         if (args[0] && Array.isArray(args[0]) && args[0].length > 0) {
           params.push({ label: 'Entity Types', value: args[0].join(', ') });
         }
-        // args[1] is includeDescriptiveReferences: boolean
         if (args[1] === true) {
           params.push({ label: 'Include Descriptive References', value: 'Yes' });
         }
@@ -214,7 +214,6 @@ export const ANNOTATORS: Record<string, Annotator> = {
       }
     }
   },
-
   tag: {
     motivation: 'tagging',
     internalType: 'tag',
@@ -225,17 +224,21 @@ export const ANNOTATORS: Record<string, Annotator> = {
     isClickable: true,
     hasHoverInteraction: true,
     hasSidePanel: true,
-    matchesAnnotation: (ann) => isTag(ann),
+    matchesAnnotation: (ann: Annotation) => isTag(ann),
     announceOnCreate: 'Tag created',
+    create: {
+      bodyBuilder: 'dualTag',
+      refetchAfter: false,
+      successMessage: 'Tag "{value}" created'
+    },
     detection: {
       sseMethod: 'detectTags',
       countField: 'tagsCreated',
       displayNamePlural: 'tags',
       displayNameSingular: 'tag',
-      formatRequestParams: (args) => {
+      formatRequestParams: (args: any[]) => {
         const params: Array<{ label: string; value: string }> = [];
         if (args[0]) {
-          // Map schema ID to friendly name
           const schemaNames: Record<string, string> = {
             'legal-irac': 'Legal (IRAC)',
             'scientific-imrad': 'Scientific (IMRAD)',
@@ -251,80 +254,6 @@ export const ANNOTATORS: Record<string, Annotator> = {
     }
   }
 };
-
-/**
- * Get annotator for an annotation by checking all registered types
- * Returns null if annotation doesn't match any registered type
- */
-export function getAnnotator(annotation: Annotation): Annotator | null {
-  for (const annotator of Object.values(ANNOTATORS)) {
-    if (annotator.matchesAnnotation(annotation)) {
-      return annotator;
-    }
-  }
-  return null;
-}
-
-/**
- * Get CSS className for an annotation
- * Falls back to highlight style if no match found
- */
-export function getAnnotationClassName(annotation: Annotation): string {
-  const annotator = getAnnotator(annotation);
-  return annotator?.className ?? ANNOTATORS.highlight!.className;
-}
-
-/**
- * Get internal type string for an annotation (e.g., 'highlight', 'comment')
- * Falls back to 'highlight' if no match found
- */
-export function getAnnotationInternalType(annotation: Annotation): string {
-  const annotator = getAnnotator(annotation);
-  return annotator?.internalType ?? 'highlight';
-}
-
-/**
- * Group annotations by their internal type
- * Returns a record with keys like 'highlight', 'comment', 'assessment', 'reference'
- * Each value is an array of annotations of that type
- */
-export function groupAnnotationsByType(annotations: Annotation[]): Record<string, Annotation[]> {
-  const groups: Record<string, Annotation[]> = {};
-
-  // Initialize empty arrays for all registered types
-  for (const annotator of Object.values(ANNOTATORS)) {
-    groups[annotator.internalType] = [];
-  }
-
-  // Group annotations by type
-  for (const ann of annotations) {
-    const annotator = getAnnotator(ann);
-    if (annotator) {
-      groups[annotator.internalType]!.push(ann);
-    }
-  }
-
-  return groups;
-}
-
-/**
- * Create a copy of annotators with handlers injected
- * Use this in page.tsx to inject runtime handlers into the registry
- */
-export function withHandlers(
-  handlers: Record<string, Annotator['handlers']>
-): Record<string, Annotator> {
-  const annotatorsWithHandlers: Record<string, Annotator> = {};
-
-  for (const [key, annotator] of Object.entries(ANNOTATORS)) {
-    annotatorsWithHandlers[key] = {
-      ...annotator,
-      ...(handlers[key] ? { handlers: handlers[key] } : {})
-    };
-  }
-
-  return annotatorsWithHandlers;
-}
 
 /**
  * Generic detection handler factory

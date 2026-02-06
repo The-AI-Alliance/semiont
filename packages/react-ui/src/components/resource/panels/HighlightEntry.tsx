@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
-import { useTranslations } from '../../../contexts/TranslationContext';
+import { useEffect, useRef } from 'react';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText } from '@semiont/api-client';
 
@@ -39,7 +38,6 @@ export function HighlightEntry({
   onHighlightRef,
   onHighlightHover,
 }: HighlightEntryProps) {
-  const t = useTranslations('HighlightPanel');
   const highlightRef = useRef<HTMLDivElement>(null);
 
   // Register ref with parent

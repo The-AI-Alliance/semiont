@@ -51,7 +51,7 @@ interface Props {
   focusedAnnotationId?: string | null;
   hoveredAnnotationId?: string | null;
   onAnnotationHover?: (annotationId: string | null) => void;
-  onDetect: (selectedTypes: string[], includeDescriptiveReferences?: boolean) => void;
+  onDetect?: (selectedTypes: string[], includeDescriptiveReferences?: boolean) => void;
   onCreate: (entityType?: string) => void;
   isDetecting: boolean;
   detectionProgress: any; // TODO: type this properly
@@ -63,7 +63,6 @@ interface Props {
   allEntityTypes: string[];
   onCancelDetection: () => void;
   onSearchDocuments?: (referenceId: string, searchTerm: string) => void;
-  onUpdate?: (referenceId: string, updates: Partial<Annotation>) => void;
   onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
   onCreateDocument?: (annotationUri: string, title: string, entityTypes: string[]) => void;
   generatingReferenceId?: string | null;
@@ -89,7 +88,6 @@ export function ReferencesPanel({
   allEntityTypes,
   onCancelDetection,
   onSearchDocuments,
-  onUpdate,
   onGenerateDocument,
   onCreateDocument,
   generatingReferenceId,
@@ -126,6 +124,7 @@ export function ReferencesPanel({
 
   // Clear log when starting new detection
   const handleDetect = () => {
+    if (!onDetect) return;
     setLastDetectionLog(null);
     onDetect(selectedEntityTypes, includeDescriptiveReferences);
   };
@@ -374,7 +373,6 @@ export function ReferencesPanel({
                   {...(onGenerateDocument && { onGenerateDocument })}
                   {...(onCreateDocument && { onCreateDocument })}
                   {...(onSearchDocuments && { onSearchDocuments })}
-                  {...(onUpdate && { onUpdateReference: onUpdate })}
                 />
               ))
             )}

@@ -78,6 +78,7 @@ export function CollapsibleResourceNavigation({
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
+    return undefined;
   }, [isDropdownOpen]);
 
   // Setup drag and drop sensors

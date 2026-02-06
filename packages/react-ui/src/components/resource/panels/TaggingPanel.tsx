@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components, Selector } from '@semiont/api-client';
 import { TagEntry } from './TagEntry';
 import { useAnnotationPanel } from '../../../hooks/useAnnotationPanel';
 import { PanelHeader } from './PanelHeader';
-import { getAllTagSchemas, type TagSchema } from '../../../lib/tag-schemas';
+import { getAllTagSchemas } from '../../../lib/tag-schemas';
 import './TaggingPanel.css';
 
 type Annotation = components['schemas']['Annotation'];

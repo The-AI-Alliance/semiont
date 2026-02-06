@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components, Selector } from '@semiont/api-client';
 import { HighlightEntry } from './HighlightEntry';
@@ -60,7 +60,8 @@ export function HighlightPanel({
     if (pendingAnnotation && pendingAnnotation.motivation === 'highlighting') {
       onCreate(pendingAnnotation.selector);
     }
-  }, [pendingAnnotation, onCreate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAnnotation]); // Only depend on pendingAnnotation, not onCreate (which is recreated on every render)
 
   return (
     <div className="semiont-panel">

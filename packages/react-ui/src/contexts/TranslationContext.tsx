@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, ReactNode, useState, useEffect, useMemo } from 'react';
+import { createContext, useContext, ReactNode, useState, useEffect, useMemo } from 'react';
 import type { TranslationManager } from '../types/TranslationManager';
 
 // Static import for default English only - always needed as fallback

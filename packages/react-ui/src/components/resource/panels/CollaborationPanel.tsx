@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import './CollaborationPanel.css';
 

@@ -1,4 +1,3 @@
-import React from 'react';
 import type { ResourceUri } from '@semiont/api-client';
 
 interface ImageViewerProps {
@@ -7,7 +6,7 @@ interface ImageViewerProps {
   alt?: string;
 }
 
-export function ImageViewer({ resourceUri, mimeType, alt = 'Resource image' }: ImageViewerProps) {
+export function ImageViewer({ resourceUri, alt = 'Resource image' }: ImageViewerProps) {
   // Extract resource ID from W3C canonical URI (last segment of path)
   const resourceId = resourceUri.split('/').pop();
 

@@ -3,11 +3,6 @@
 import { useState, useCallback } from 'react';
 import { useLiveRegion } from '../components/LiveRegion';
 
-interface ValidationError {
-  field: string;
-  message: string;
-}
-
 interface UseFormValidationOptions {
   announceErrors?: boolean;
 }
@@ -40,7 +35,7 @@ export function useFormValidation(options: UseFormValidationOptions = {}) {
 
   const validateField = useCallback(
     (field: string, value: any, rules: Record<string, (value: any) => string | null>) => {
-      for (const [ruleName, validator] of Object.entries(rules)) {
+      for (const [_ruleName, validator] of Object.entries(rules)) {
         const errorMessage = validator(value);
         if (errorMessage) {
           setFieldError(field, errorMessage);

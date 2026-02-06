@@ -52,7 +52,6 @@ export interface EntityTagsPageProps {
 
 export function EntityTagsPage({
   entityTypes,
-  isLoading,
   error,
   newTag,
   onNewTagChange,

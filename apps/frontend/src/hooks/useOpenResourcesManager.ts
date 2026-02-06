@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { arrayMove } from '@dnd-kit/sortable';
 import type { OpenResource, OpenResourcesManager } from '@semiont/react-ui';
 
@@ -100,11 +100,14 @@ export function useOpenResourcesManager(): OpenResourcesManager {
     });
   }, []);
 
-  return {
-    openResources,
-    addResource,
-    removeResource,
-    updateResourceName,
-    reorderResources
-  };
+  return useMemo(
+    () => ({
+      openResources,
+      addResource,
+      removeResource,
+      updateResourceName,
+      reorderResources
+    }),
+    [openResources, addResource, removeResource, updateResourceName, reorderResources]
+  );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components, Selector } from '@semiont/api-client';
 import { CommentEntry } from './CommentEntry';
@@ -38,7 +38,6 @@ function getSelectorDisplayText(selector: Selector | Selector[]): string | null 
 interface CommentsPanelProps {
   annotations: Annotation[];
   onAnnotationClick: (annotation: Annotation) => void;
-  onUpdate: (annotationId: string, newText: string) => void;
   onCreate: (commentText: string) => void;
   focusedAnnotationId: string | null;
   hoveredAnnotationId?: string | null;
@@ -57,7 +56,6 @@ interface CommentsPanelProps {
 export function CommentsPanel({
   annotations,
   onAnnotationClick,
-  onUpdate,
   onCreate,
   focusedAnnotationId,
   hoveredAnnotationId,
@@ -148,7 +146,6 @@ export function CommentsPanel({
                 comment={comment}
                 isFocused={comment.id === focusedAnnotationId}
                 onClick={() => onAnnotationClick(comment)}
-                onUpdate={(newText) => onUpdate(comment.id, newText)}
                 onCommentRef={handleAnnotationRef}
                 {...(onAnnotationHover && { onAnnotationHover })}
                 annotateMode={annotateMode}

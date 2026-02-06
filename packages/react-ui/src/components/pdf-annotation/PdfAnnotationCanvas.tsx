@@ -15,8 +15,7 @@ import {
 import {
   loadPdfDocument,
   renderPdfPageToDataUrl,
-  type PDFDocumentProxy,
-  type PDFPageProxy
+  type PDFDocumentProxy
 } from '../../lib/browser-pdfjs';
 import './PdfAnnotationCanvas.css';
 
@@ -78,7 +77,6 @@ export function PdfAnnotationCanvas({
   const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null);
   const [numPages, setNumPages] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState(1);
-  const [currentPage, setCurrentPage] = useState<PDFPageProxy | null>(null);
   const [pageImageUrl, setPageImageUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -137,8 +135,6 @@ export function PdfAnnotationCanvas({
         const page = await doc.getPage(pageNumber);
 
         if (cancelled) return;
-
-        setCurrentPage(page);
 
         // Get page dimensions (at scale 1.0)
         const viewport = page.getViewport({ scale: 1.0 });

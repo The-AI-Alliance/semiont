@@ -2,8 +2,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
-import { ANNOTATORS } from '../../lib/annotation-registry';
 import { getSupportedShapes } from '../../lib/media-shapes';
+import type { Annotator } from '../../lib/annotation-registry';
 import './annotations.css';
 import './annotation-entries.css';
 import './references.css';
@@ -11,13 +11,6 @@ import './references.css';
 export type SelectionMotivation = 'linking' | 'highlighting' | 'assessing' | 'commenting' | 'tagging';
 export type ClickAction = 'detail' | 'follow' | 'jsonld' | 'deleting';
 export type ShapeType = 'rectangle' | 'circle' | 'polygon';
-
-// Helper to get emoji from registry by motivation (with fallback for safety)
-const getMotivationEmoji = (motivation: SelectionMotivation): string => {
-  // Find annotator by motivation
-  const annotator = Object.values(ANNOTATORS).find(a => a.motivation === motivation);
-  return annotator?.iconEmoji || '❓';
-};
 
 interface AnnotateToolbarProps {
   selectedMotivation: SelectionMotivation | null;
@@ -34,6 +27,9 @@ interface AnnotateToolbarProps {
   // Mode props
   annotateMode: boolean;
   onAnnotateModeToggle: () => void;
+
+  // Annotators for emoji lookup
+  annotators: Record<string, Annotator>;
 }
 
 interface DropdownGroupProps {
@@ -118,9 +114,16 @@ export function AnnotateToolbar({
   onShapeChange,
   mediaType,
   annotateMode = false,
-  onAnnotateModeToggle
+  onAnnotateModeToggle,
+  annotators
 }: AnnotateToolbarProps) {
   const t = useTranslations('AnnotateToolbar');
+
+  // Helper to get emoji from annotators by motivation (with fallback for safety)
+  const getMotivationEmoji = (motivation: SelectionMotivation): string => {
+    const annotator = Object.values(annotators).find(a => a.motivation === motivation);
+    return annotator?.iconEmoji || '❓';
+  };
 
   // State for each group
   const [modeHovered, setModeHovered] = useState(false);

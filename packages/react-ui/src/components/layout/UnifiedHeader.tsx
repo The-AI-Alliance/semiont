@@ -29,7 +29,6 @@ export function UnifiedHeader({
   t,
   tHome,
   showBranding = true,
-  showAuthLinks = true,
   brandingLink = '/',
   variant = 'standalone',
   isAuthenticated = false,

@@ -133,6 +133,7 @@ export function ResizeHandle({
         document.body.style.cursor = '';
       };
     }
+    return undefined;
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
   return (

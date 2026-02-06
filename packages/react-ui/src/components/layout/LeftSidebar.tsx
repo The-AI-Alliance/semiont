@@ -41,7 +41,6 @@ export function LeftSidebar({
   brandingLink = '/',
   collapsible = false,
   storageKey = 'leftSidebarCollapsed',
-  isAuthenticated = false,
   isAdmin = false,
   isModerator = false,
   currentPath

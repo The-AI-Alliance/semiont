@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, ReactNode } from 'react';
+import { createContext, useContext, ReactNode } from 'react';
 import type { ApiClientManager } from '../types/ApiClientManager';
 
 const ApiClientContext = createContext<ApiClientManager | null>(null);

@@ -1,12 +1,10 @@
 'use client';
 
-import React, { useRef, useState, useCallback, useEffect, lazy, Suspense } from 'react';
-import { useTranslations } from '../../contexts/TranslationContext';
+import { useRef, useCallback, useEffect, lazy, Suspense } from 'react';
 import type { components, Selector } from '@semiont/api-client';
 import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMimeCategory, isPdfMimeType, resourceUri as toResourceUri } from '@semiont/api-client';
-import { getAnnotator } from '../../lib/annotation-registry';
-import { ImageViewer } from '../viewers';
-import { SvgDrawingCanvas, type DrawingMode } from '../image-annotation/SvgDrawingCanvas';
+import type { Annotator } from '../../lib/annotation-registry';
+import { SvgDrawingCanvas } from '../image-annotation/SvgDrawingCanvas';
 import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
 import { findTextWithContext } from '@semiont/api-client';
 
@@ -31,7 +29,7 @@ interface EnrichedHTMLElement extends HTMLElement {
   __cmView?: EditorView;
 }
 import { AnnotateToolbar, type SelectionMotivation, type ClickAction, type ShapeType } from '../annotation/AnnotateToolbar';
-import type { AnnotationsCollection, AnnotationHandlers, AnnotationCreationHandler, AnnotationUIState, UICreateAnnotationParams } from '../../types/annotation-props';
+import type { AnnotationsCollection, AnnotationHandlers, AnnotationCreationHandler, AnnotationUIState } from '../../types/annotation-props';
 
 // Re-export for convenience
 export type { SelectionMotivation, ClickAction, ShapeType };
@@ -61,6 +59,7 @@ interface Props {
   onTagCreationRequested?: (selection: { exact: string; start: number; end: number; svgSelector?: string; fragmentSelector?: string; conformsTo?: string }) => void;
   onAssessmentCreationRequested?: (selection: { exact: string; start: number; end: number; svgSelector?: string; fragmentSelector?: string; conformsTo?: string }) => void;
   onReferenceCreationRequested?: (selection: { exact: string; start: number; end: number; prefix?: string; suffix?: string; svgSelector?: string; fragmentSelector?: string; conformsTo?: string }) => void;
+  annotators: Record<string, Annotator>;
 }
 
 /**
@@ -173,7 +172,6 @@ export function AnnotateView({
   creationHandler,
   uiState,
   onUIStateChange,
-  editable = false,
   enableWidgets = false,
   onEntityTypeClick,
   onReferenceNavigate,
@@ -185,20 +183,10 @@ export function AnnotateView({
   annotateMode,
   onAnnotateModeToggle,
   onAnnotationRequested,
-  onCommentCreationRequested,
-  onTagCreationRequested,
-  onAssessmentCreationRequested,
-  onReferenceCreationRequested
+  annotators
 }: Props) {
-  const t = useTranslations('AnnotateView');
-  const { newAnnotationIds, createAnnotation } = useResourceAnnotations();
+  const { newAnnotationIds } = useResourceAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
-  const [annotationState, setSelectionState] = useState<{
-    exact: string;
-    start: number;
-    end: number;
-    rects: DOMRect[];
-  } | null>(null);
 
   const category = getMimeCategory(mimeType);
 
@@ -240,7 +228,7 @@ export function AnnotateView({
   const handleAnnotationHover = useCallback((annotationId: string | null) => {
     if (annotationId) {
       const annotation = allAnnotations.find(a => a.id === annotationId);
-      const metadata = annotation ? getAnnotator(annotation) : null;
+      const metadata = annotation ? Object.values(annotators).find(a => a.matchesAnnotation(annotation!)) : null;
 
       // Route to side panel if annotation type has one
       if (metadata?.hasSidePanel) {
@@ -258,7 +246,7 @@ export function AnnotateView({
     // Clear both when null
     if (onAnnotationHover) onAnnotationHover(null);
     if (onCommentHover) onCommentHover(null);
-  }, [allAnnotations, onAnnotationHover, onCommentHover]);
+  }, [allAnnotations, onAnnotationHover, onCommentHover, annotators]);
 
   // Handle text annotation with sparkle or immediate creation
   useEffect(() => {
@@ -273,14 +261,13 @@ export function AnnotateView({
       clickedOnAnnotation = !!target.closest('[data-annotation-id]');
 
       if (!target.closest('[data-annotation-ui]')) {
-        setSelectionState(null);
+        // Removed unused selection state
       }
     };
 
-    const handleMouseUp = (e: MouseEvent) => {
+    const handleMouseUp = (_e: MouseEvent) => {
       const selection = window.getSelection();
       if (!selection || selection.isCollapsed || !selection.toString()) {
-        setSelectionState(null);
         clickedOnAnnotation = false;
         return;
       }
@@ -294,7 +281,6 @@ export function AnnotateView({
       clickedOnAnnotation = false;
 
       const range = selection.getRangeAt(0);
-      const rects = Array.from(range.getClientRects());
       const text = selection.toString();
 
       // Get the CodeMirror EditorView instance stored on the CodeMirror container
@@ -393,6 +379,7 @@ export function AnnotateView({
             mediaType={mimeType}
             annotateMode={annotateMode}
             onAnnotateModeToggle={onAnnotateModeToggle}
+            annotators={annotators}
           />
           <div className="semiont-annotate-view__content">
             <CodeMirrorRenderer
@@ -414,27 +401,9 @@ export function AnnotateView({
             {...(getTargetDocumentName && { getTargetDocumentName })}
             {...(generatingReferenceId !== undefined && { generatingReferenceId })}
             {...(onDeleteAnnotation && { onDeleteAnnotation })}
+            annotators={annotators}
           />
 
-          {/* Visual selection indicator for linking mode */}
-          {annotationState && (
-            <>
-              {/* Dashed ring around selection */}
-              {annotationState.rects.map((rect, index) => (
-                <div
-                  key={index}
-                  className="semiont-annotate-view__selection-indicator"
-                  data-active
-                  style={{
-                    left: `${rect.left - containerRef.current!.getBoundingClientRect().left}px`,
-                    top: `${rect.top - containerRef.current!.getBoundingClientRect().top}px`,
-                    width: `${rect.width}px`,
-                    height: `${rect.height}px`
-                  }}
-                />
-              ))}
-            </>
-          )}
           </div>
         </div>
       );
@@ -456,6 +425,7 @@ export function AnnotateView({
               mediaType={mimeType}
               annotateMode={annotateMode}
               onAnnotateModeToggle={onAnnotateModeToggle}
+              annotators={annotators}
             />
             <div className="semiont-annotate-view__content">
               {resourceUri && (
@@ -503,6 +473,7 @@ export function AnnotateView({
             mediaType={mimeType}
             annotateMode={annotateMode}
             onAnnotateModeToggle={onAnnotateModeToggle}
+            annotators={annotators}
           />
           <div className="semiont-annotate-view__content">
             {resourceUri && (

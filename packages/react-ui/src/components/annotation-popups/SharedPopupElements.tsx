@@ -1,7 +1,7 @@
 'use client';
 
 import React, { Fragment } from 'react';
-import { Dialog, DialogPanel, DialogTitle, DialogDescription, Transition, TransitionChild } from '@headlessui/react';
+import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react';
 
 interface SelectedTextDisplayProps {
   exact: string;
