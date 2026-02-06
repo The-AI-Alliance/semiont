@@ -30,6 +30,7 @@
   "files": [
     "dist",
     "src/styles",
+    "src/components",
     "src/integrations",
     "src/examples",
     "translations",
