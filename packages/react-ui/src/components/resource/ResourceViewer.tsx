@@ -485,7 +485,7 @@ export function ResourceViewer({
     } catch (err) {
       console.error('Failed to create annotation:', err);
     }
-  }, [rUri, createAnnotation, onRefetchAnnotations, onCommentCreationRequested, onTagCreationRequested, onReferenceCreationRequested, onCommentClick, onTagClick, onHighlightClick, onAssessmentClick]);
+  }, [rUri, createAnnotation]);
 
   // Quick action: Delete annotation from widget
   const handleDeleteAnnotationWidget = useCallback(async (annotation: Annotation) => {
