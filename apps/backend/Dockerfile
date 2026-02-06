@@ -27,9 +27,9 @@ RUN npm install \
   @semiont/ontology@${SEMIONT_VERSION} \
   --workspace=apps/backend
 
-# Then install all other dependencies
+# Then install all other dependencies including devDependencies for build
 # Use npm install (not npm ci) because package-lock.json is now out of sync
-RUN npm install --workspace=apps/backend
+RUN npm install --include=dev --workspace=apps/backend
 
 # Copy backend source only
 COPY apps/backend ./apps/backend
