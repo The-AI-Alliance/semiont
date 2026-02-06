@@ -13,10 +13,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/backend/package.json ./apps/backend/
 
-# Install all dependencies first
-RUN npm ci
-
-# Then override with semiont packages from npm at specified version
+# Install semiont packages from npm at specified version first
 # This replaces workspace dependencies with published packages
 RUN npm install \
   @semiont/api-client@${SEMIONT_VERSION} \
@@ -29,6 +26,10 @@ RUN npm install \
   @semiont/make-meaning@${SEMIONT_VERSION} \
   @semiont/ontology@${SEMIONT_VERSION} \
   --workspace=apps/backend
+
+# Then install all other dependencies
+# Use npm install (not npm ci) because package-lock.json is now out of sync
+RUN npm install --workspace=apps/backend
 
 # Copy backend source only
 COPY apps/backend ./apps/backend
@@ -54,10 +55,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/backend/package.json ./apps/backend/
 
-# Install production dependencies first
-RUN npm ci --omit=dev
-
-# Then override with semiont packages from npm at specified version
+# Install semiont packages from npm at specified version first
 RUN npm install \
   @semiont/api-client@${SEMIONT_VERSION} \
   @semiont/content@${SEMIONT_VERSION} \
@@ -69,6 +67,10 @@ RUN npm install \
   @semiont/make-meaning@${SEMIONT_VERSION} \
   @semiont/ontology@${SEMIONT_VERSION} \
   --workspace=apps/backend
+
+# Then install all other production dependencies
+# Use npm install (not npm ci) because package-lock.json is now out of sync
+RUN npm install --omit=dev --workspace=apps/backend
 
 # Copy built artifacts from builder
 COPY --from=builder /app/apps/backend/dist ./apps/backend/dist

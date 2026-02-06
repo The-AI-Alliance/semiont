@@ -68,9 +68,8 @@ jobs:
           echo "Expected backend version: $EXPECTED_VERSION"
           echo "Semiont packages version: $SEMIONT_VERSION"
 
-          # Build image locally to verify (with SEMIONT_VERSION, no cache)
+          # Build image locally to verify (with SEMIONT_VERSION)
           docker build \
-            --no-cache \
             -t semiont-backend-verify \
             -f ./apps/backend/Dockerfile \
             --build-arg SEMIONT_VERSION=$SEMIONT_VERSION \
