@@ -31,6 +31,7 @@
     "dist",
     "src/styles",
     "src/components",
+    "src/features",
     "src/integrations",
     "src/examples",
     "translations",
