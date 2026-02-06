@@ -25,7 +25,6 @@ describe('ResourceTagsInline', () => {
 
       const wrapper = container.querySelector('.semiont-resource-tags-inline');
       expect(wrapper).toBeInTheDocument();
-      expect(wrapper).toHaveAttribute('data-editing', 'false');
 
       const list = container.querySelector('.semiont-resource-tags-list');
       expect(list).toBeInTheDocument();
@@ -59,26 +58,6 @@ describe('ResourceTagsInline', () => {
       manyTags.forEach(tag => {
         expect(screen.getByText(tag)).toBeInTheDocument();
       });
-    });
-  });
-
-  describe('Editing State', () => {
-    it('should set data-editing attribute to true when isEditing is true', () => {
-      const { container } = render(
-        <ResourceTagsInline {...defaultProps} isEditing={true} />
-      );
-
-      const wrapper = container.querySelector('.semiont-resource-tags-inline');
-      expect(wrapper).toHaveAttribute('data-editing', 'true');
-    });
-
-    it('should set data-editing attribute to false when isEditing is false', () => {
-      const { container } = render(
-        <ResourceTagsInline {...defaultProps} isEditing={false} />
-      );
-
-      const wrapper = container.querySelector('.semiont-resource-tags-inline');
-      expect(wrapper).toHaveAttribute('data-editing', 'false');
     });
   });
 

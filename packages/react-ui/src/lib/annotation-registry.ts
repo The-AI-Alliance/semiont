@@ -378,7 +378,7 @@ export function createDetectionHandler(
       });
 
       stream.onComplete((result: any) => {
-        const count = result[detection.countField];
+        const count = result?.[detection.countField] ?? 0;
         context.setMotivationDetectionProgress({
           status: 'complete',
           percentage: 100,

@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { vi } from 'vitest';
 import { NextIntlClientProvider } from 'next-intl';
 import { AnnotateToolbar, type SelectionMotivation, type ClickAction } from '../AnnotateToolbar';
+import { ANNOTATORS } from '../../../lib/annotation-registry';
 
 // Mock translations
 const messages = {
@@ -43,7 +44,8 @@ describe('AnnotateToolbar', () => {
     onSelectionChange: vi.fn(),
     onClickChange: vi.fn(),
     annotateMode: false,
-    onAnnotateModeToggle: vi.fn()
+    onAnnotateModeToggle: vi.fn(),
+    annotators: ANNOTATORS
   };
 
   beforeEach(() => {
