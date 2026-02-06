@@ -7,8 +7,6 @@
 
 import React from 'react';
 import {
-  ChartBarIcon,
-  ServerIcon,
   CommandLineIcon
 } from '@heroicons/react/24/outline';
 

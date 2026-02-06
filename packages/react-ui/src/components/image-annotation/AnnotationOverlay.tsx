@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import type { components } from '@semiont/api-client';
 import { getSvgSelector, isHighlight, isReference, isAssessment, isComment, isTag, isBodyResolved, isResolvedReference } from '@semiont/api-client';
 import { parseSvgSelector } from '@semiont/api-client';

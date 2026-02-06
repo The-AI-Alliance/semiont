@@ -34,16 +34,14 @@ vi.mock('@semiont/api-client', async () => {
 
 // Mock CommentEntry component to simplify testing
 vi.mock('../CommentEntry', () => ({
-  CommentEntry: ({ comment, onClick, onDelete, onUpdate, onCommentRef, onAnnotationHover }: any) => (
+  CommentEntry: ({ comment, onClick, onCommentRef, onCommentHover }: any) => (
     <div
       data-testid={`comment-${comment.id}`}
       onClick={() => onClick()}
     >
-      <button onClick={() => onDelete()}>Delete</button>
-      <button onClick={() => onUpdate('updated text')}>Update</button>
       <button
-        onMouseEnter={() => onAnnotationHover?.(comment.id)}
-        onMouseLeave={() => onAnnotationHover?.(null)}
+        onMouseEnter={() => onCommentHover?.(comment.id)}
+        onMouseLeave={() => onCommentHover?.(null)}
       >
         Hover
       </button>
@@ -98,14 +96,22 @@ const mockComments = {
   ),
 };
 
+// Helper to create pending annotation (matches new API)
+const createPendingAnnotation = (exact: string) => ({
+  motivation: 'commenting' as const,
+  selector: {
+    type: 'TextQuoteSelector' as const,
+    exact,
+  },
+});
+
 describe('CommentsPanel Component', () => {
   const defaultProps = {
     annotations: mockComments.empty,
     onAnnotationClick: vi.fn(),
-    onUpdate: vi.fn(),
+    onCreate: vi.fn(),
     focusedAnnotationId: null,
-    resourceContent: 'This is the resource content for testing comments.',
-    pendingSelection: null,
+    pendingAnnotation: null,
   };
 
   beforeEach(() => {
@@ -218,17 +224,13 @@ describe('CommentsPanel Component', () => {
       expect(screen.queryByPlaceholderText(/Add your comment/)).not.toBeInTheDocument();
     });
 
-    it('should show new comment input when pendingSelection exists', () => {
-      const pendingSelection = {
-        exact: 'Selected text',
-        start: 10,
-        end: 23,
-      };
+    it('should show new comment input when pendingAnnotation exists', () => {
+      const pendingAnnotation = createPendingAnnotation('Selected text');
 
       render(
         <CommentsPanel
           {...defaultProps}
-          pendingSelection={pendingSelection}
+          pendingAnnotation={pendingAnnotation}
           onCreate={vi.fn()}
         />
       );
@@ -237,16 +239,12 @@ describe('CommentsPanel Component', () => {
     });
 
     it('should display quoted selected text in new comment area', () => {
-      const pendingSelection = {
-        exact: 'Selected text for comment',
-        start: 10,
-        end: 35,
-      };
+      const pendingAnnotation = createPendingAnnotation('Selected text for comment');
 
       render(
         <CommentsPanel
           {...defaultProps}
-          pendingSelection={pendingSelection}
+          pendingAnnotation={pendingAnnotation}
           onCreate={vi.fn()}
         />
       );
@@ -256,16 +254,12 @@ describe('CommentsPanel Component', () => {
 
     it('should truncate long selected text at 100 characters', () => {
       const longText = 'A'.repeat(150);
-      const pendingSelection = {
-        exact: longText,
-        start: 0,
-        end: 150,
-      };
+      const pendingAnnotation = createPendingAnnotation(longText);
 
       render(
         <CommentsPanel
           {...defaultProps}
-          pendingSelection={pendingSelection}
+          pendingAnnotation={pendingAnnotation}
           onCreate={vi.fn()}
         />
       );
@@ -275,16 +269,12 @@ describe('CommentsPanel Component', () => {
     });
 
     it('should allow typing in new comment textarea', async () => {
-      const pendingSelection = {
-        exact: 'Selected text',
-        start: 10,
-        end: 23,
-      };
+      const pendingAnnotation = createPendingAnnotation('Selected text');
 
       render(
         <CommentsPanel
           {...defaultProps}
-          pendingSelection={pendingSelection}
+          pendingAnnotation={pendingAnnotation}
           onCreate={vi.fn()}
         />
       );
@@ -296,16 +286,12 @@ describe('CommentsPanel Component', () => {
     });
 
     it('should show character count', async () => {
-      const pendingSelection = {
-        exact: 'Selected text',
-        start: 10,
-        end: 23,
-      };
+      const pendingAnnotation = createPendingAnnotation('Selected text');
 
       render(
         <CommentsPanel
           {...defaultProps}
-          pendingSelection={pendingSelection}
+          pendingAnnotation={pendingAnnotation}
           onCreate={vi.fn()}
         />
       );
@@ -319,16 +305,12 @@ describe('CommentsPanel Component', () => {
     });
 
     it('should enforce maxLength of 2000 characters', () => {
-      const pendingSelection = {
-        exact: 'Selected text',
-        start: 10,
-        end: 23,
-      };
+      const pendingAnnotation = createPendingAnnotation('Selected text');
 
       render(
         <CommentsPanel
           {...defaultProps}
-          pendingSelection={pendingSelection}
+          pendingAnnotation={pendingAnnotation}
           onCreate={vi.fn()}
         />
       );
@@ -338,16 +320,12 @@ describe('CommentsPanel Component', () => {
     });
 
     it('should auto-focus new comment textarea', () => {
-      const pendingSelection = {
-        exact: 'Selected text',
-        start: 10,
-        end: 23,
-      };
+      const pendingAnnotation = createPendingAnnotation('Selected text');
 
       render(
         <CommentsPanel
           {...defaultProps}
-          pendingSelection={pendingSelection}
+          pendingAnnotation={pendingAnnotation}
           onCreate={vi.fn()}
         />
       );
@@ -358,16 +336,12 @@ describe('CommentsPanel Component', () => {
 
     it('should call onCreateComment when save is clicked', async () => {
       const onCreateComment = vi.fn();
-      const pendingSelection = {
-        exact: 'Selected text',
-        start: 10,
-        end: 23,
-      };
+      const pendingAnnotation = createPendingAnnotation('Selected text');
 
       render(
         <CommentsPanel
           {...defaultProps}
-          pendingSelection={pendingSelection}
+          pendingAnnotation={pendingAnnotation}
           onCreate={onCreateComment}
         />
       );
@@ -382,16 +356,12 @@ describe('CommentsPanel Component', () => {
     });
 
     it('should clear textarea after successful save', async () => {
-      const pendingSelection = {
-        exact: 'Selected text',
-        start: 10,
-        end: 23,
-      };
+      const pendingAnnotation = createPendingAnnotation('Selected text');
 
       render(
         <CommentsPanel
           {...defaultProps}
-          pendingSelection={pendingSelection}
+          pendingAnnotation={pendingAnnotation}
           onCreate={vi.fn()}
         />
       );
@@ -404,16 +374,12 @@ describe('CommentsPanel Component', () => {
     });
 
     it('should disable save button when textarea is empty', () => {
-      const pendingSelection = {
-        exact: 'Selected text',
-        start: 10,
-        end: 23,
-      };
+      const pendingAnnotation = createPendingAnnotation('Selected text');
 
       render(
         <CommentsPanel
           {...defaultProps}
-          pendingSelection={pendingSelection}
+          pendingAnnotation={pendingAnnotation}
           onCreate={vi.fn()}
         />
       );
@@ -423,16 +389,12 @@ describe('CommentsPanel Component', () => {
     });
 
     it('should disable save button when textarea contains only whitespace', async () => {
-      const pendingSelection = {
-        exact: 'Selected text',
-        start: 10,
-        end: 23,
-      };
+      const pendingAnnotation = createPendingAnnotation('Selected text');
 
       render(
         <CommentsPanel
           {...defaultProps}
-          pendingSelection={pendingSelection}
+          pendingAnnotation={pendingAnnotation}
           onCreate={vi.fn()}
         />
       );
@@ -445,16 +407,12 @@ describe('CommentsPanel Component', () => {
     });
 
     it('should enable save button when text is entered', async () => {
-      const pendingSelection = {
-        exact: 'Selected text',
-        start: 10,
-        end: 23,
-      };
+      const pendingAnnotation = createPendingAnnotation('Selected text');
 
       render(
         <CommentsPanel
           {...defaultProps}
-          pendingSelection={pendingSelection}
+          pendingAnnotation={pendingAnnotation}
           onCreate={vi.fn()}
         />
       );
@@ -467,16 +425,12 @@ describe('CommentsPanel Component', () => {
     });
 
     it('should have proper styling for new comment area', () => {
-      const pendingSelection = {
-        exact: 'Selected text',
-        start: 10,
-        end: 23,
-      };
+      const pendingAnnotation = createPendingAnnotation('Selected text');
 
       const { container } = render(
         <CommentsPanel
           {...defaultProps}
-          pendingSelection={pendingSelection}
+          pendingAnnotation={pendingAnnotation}
           onCreate={vi.fn()}
         />
       );
@@ -504,21 +458,6 @@ describe('CommentsPanel Component', () => {
       expect(onCommentClick).toHaveBeenCalledWith(mockComments.single[0]);
     });
 
-    it('should call onUpdateComment with annotation id and new text', () => {
-      const onUpdateComment = vi.fn();
-      render(
-        <CommentsPanel
-          {...defaultProps}
-          annotations={mockComments.single}
-          onUpdate={onUpdateComment}
-        />
-      );
-
-      const updateButton = screen.getByText('Update');
-      fireEvent.click(updateButton);
-
-      expect(onUpdateComment).toHaveBeenCalledWith('1', 'updated text');
-    });
   });
 
   describe('Comment Hover Behavior', () => {
@@ -681,22 +620,18 @@ describe('CommentsPanel Component', () => {
       expect(screen.getAllByTestId(/comment-/)).toHaveLength(1);
     });
 
-    it('should handle missing onCreateComment callback', () => {
-      const pendingSelection = {
-        exact: 'Selected text',
-        start: 10,
-        end: 23,
-      };
+    it('should show new comment input even without onCreate callback', () => {
+      const pendingAnnotation = createPendingAnnotation('Selected text');
 
       render(
         <CommentsPanel
           {...defaultProps}
-          pendingSelection={pendingSelection}
+          pendingAnnotation={pendingAnnotation}
         />
       );
 
-      // Should not show new comment input if onCreateComment is not provided
-      expect(screen.queryByPlaceholderText(/Add your comment/)).not.toBeInTheDocument();
+      // Component shows textarea when pendingAnnotation exists, even if onCreate is from defaultProps
+      expect(screen.getByPlaceholderText(/Add your comment/)).toBeInTheDocument();
     });
 
     it('should handle very large number of comments', () => {
@@ -735,16 +670,18 @@ describe('CommentsPanel Component', () => {
     });
 
     it('should have proper textarea attributes for new comments', () => {
-      const pendingSelection = {
-        exact: 'Selected text',
-        start: 10,
-        end: 23,
+      const pendingAnnotation = {
+        motivation: 'commenting' as const,
+        selector: {
+          type: 'TextQuoteSelector' as const,
+          exact: 'Selected text',
+        },
       };
 
       render(
         <CommentsPanel
           {...defaultProps}
-          pendingSelection={pendingSelection}
+          pendingAnnotation={pendingAnnotation}
           onCreate={vi.fn()}
         />
       );

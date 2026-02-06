@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import type { RouteBuilder, LinkComponentProps } from '../../contexts/RoutingContext';
+import '../layout/Footer.css';
 
 type TranslateFn = (key: string, params?: Record<string, any>) => string;
 

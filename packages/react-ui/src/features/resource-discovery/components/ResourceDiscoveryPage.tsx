@@ -8,7 +8,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import type { components } from '@semiont/api-client';
 import { getResourceId } from '@semiont/api-client';
-import { useRovingTabIndex, Toolbar, useDebounce } from '@semiont/react-ui';
+import { useRovingTabIndex, Toolbar } from '@semiont/react-ui';
 import { ResourceCard } from './ResourceCard';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
@@ -77,9 +77,6 @@ export function ResourceDiscoveryPage({
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEntityType, setSelectedEntityType] = useState<string>('');
-
-  // Debounced search query
-  const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   const hasSearchQuery = searchQuery.trim() !== '';
   const hasSearchResults = searchDocuments.length > 0;

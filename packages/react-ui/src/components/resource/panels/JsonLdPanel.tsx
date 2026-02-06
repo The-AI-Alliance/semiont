@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { EditorView, lineNumbers } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
 import { json } from '@codemirror/lang-json';
@@ -9,6 +9,7 @@ import { syntaxHighlighting } from '@codemirror/language';
 import { jsonLightTheme, jsonLightHighlightStyle } from '../../../lib/codemirror-json-theme';
 import { useLineNumbers } from '../../../hooks/useLineNumbers';
 import type { components } from '@semiont/api-client';
+import './JsonLdPanel.css';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 

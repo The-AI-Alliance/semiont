@@ -4,8 +4,6 @@
  * Simple loading state display for the compose page.
  */
 
-import React from 'react';
-
 export interface ComposeLoadingStateProps {
   message: string;
 }

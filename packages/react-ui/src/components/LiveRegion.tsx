@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect, useState, createContext, useContext, useCallback } from 'react';
+import React, { useState, createContext, useContext, useCallback } from 'react';
 import type { components } from '@semiont/api-client';
-import { getAnnotator } from '../lib/annotation-registry';
+import type { Annotator } from '../lib/annotation-registry';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -88,7 +88,7 @@ export function useSearchAnnouncements() {
   };
 }
 
-export function useDocumentAnnouncements() {
+export function useDocumentAnnouncements(annotators?: Record<string, Annotator>) {
   const { announce } = useLiveRegion();
 
   const announceDocumentSaved = useCallback(() => {
@@ -100,20 +100,20 @@ export function useDocumentAnnouncements() {
   }, [announce]);
 
   const announceAnnotationCreated = useCallback((annotation: Annotation) => {
-    const annotator = getAnnotator(annotation);
-    const message = annotator?.announceOnCreate ?? 'Annotation created';
+    const metadata = annotators ? Object.values(annotators).find(a => a.matchesAnnotation(annotation)) : null;
+    const message = metadata?.announceOnCreate ?? 'Annotation created';
     announce(message, 'polite');
-  }, [announce]);
+  }, [announce, annotators]);
 
   const announceAnnotationDeleted = useCallback(() => {
     announce('Annotation deleted', 'polite');
   }, [announce]);
 
   const announceAnnotationUpdated = useCallback((annotation: Annotation) => {
-    const annotator = getAnnotator(annotation);
-    const message = `${annotator?.displayName ?? 'Annotation'} updated`;
+    const metadata = annotators ? Object.values(annotators).find(a => a.matchesAnnotation(annotation)) : null;
+    const message = `${metadata?.displayName ?? 'Annotation'} updated`;
     announce(message, 'polite');
-  }, [announce]);
+  }, [announce, annotators]);
 
   const announceError = useCallback((message: string) => {
     announce(`Error: ${message}`, 'assertive');

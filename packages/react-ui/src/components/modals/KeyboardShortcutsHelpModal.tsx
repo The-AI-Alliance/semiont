@@ -3,6 +3,7 @@
 import React, { Fragment } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
+import './modals.css';
 
 interface KeyboardShortcutsHelpModalProps {
   isOpen: boolean;

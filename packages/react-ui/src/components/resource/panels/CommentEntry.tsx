@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText, getCommentText } from '@semiont/api-client';
@@ -11,7 +11,6 @@ interface CommentEntryProps {
   comment: Annotation;
   isFocused: boolean;
   onClick: () => void;
-  onUpdate: (newText: string) => void;
   onCommentRef: (commentId: string, el: HTMLElement | null) => void;
   onCommentHover?: (commentId: string | null) => void;
   annotateMode?: boolean;
@@ -38,7 +37,6 @@ export function CommentEntry({
   comment,
   isFocused,
   onClick,
-  onUpdate,
   onCommentRef,
   onCommentHover,
   annotateMode = true,
@@ -72,7 +70,7 @@ export function CommentEntry({
   };
 
   const handleSave = () => {
-    onUpdate(editText);
+    // TODO: implement update handler via UpdateConfig
     setIsEditing(false);
   };
 

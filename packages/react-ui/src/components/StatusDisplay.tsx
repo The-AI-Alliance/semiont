@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react';
 import { useHealth } from '../lib/api-hooks';
+import './StatusDisplay.css';
 
 interface StatusDisplayProps {
   isFullyAuthenticated?: boolean;

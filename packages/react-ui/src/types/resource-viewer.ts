@@ -2,7 +2,7 @@
  * Type definitions for resource viewer feature
  */
 
-import type { components, ResourceUri, ContentFormat, GenerationContext } from '@semiont/api-client';
+import type { components, GenerationContext } from '@semiont/api-client';
 
 export type SemiontResource = components['schemas']['ResourceDescriptor'];
 export type Annotation = components['schemas']['Annotation'];

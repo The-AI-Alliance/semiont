@@ -91,7 +91,9 @@
     "toneTechnical": "Technical",
     "densityLabel": "Density",
     "densitySparse": "Sparse",
-    "densityDense": "Dense"
+    "densityDense": "Dense",
+    "fragmentSelected": "Fragment selected",
+    "imageRegionSelected": "Image region selected"
   },
   "HighlightPanel": {
     "title": "Highlights",
@@ -110,13 +112,15 @@
   "AssessmentPanel": {
     "title": "Assessments",
     "noAssessments": "No assessments yet. Use AI detection to evaluate passages.",
+    "assessmentPlaceholder": "Type your assessment here...",
+    "save": "Save",
+    "cancel": "Cancel",
     "detectAssessments": "Detect Assessments",
     "instructions": "Instructions",
     "optional": "(optional)",
     "instructionsPlaceholder": "e.g., Evaluate claims for accuracy and evidence...",
     "detect": "Detect",
     "detecting": "Detecting...",
-    "cancel": "Cancel",
     "toneLabel": "Tone",
     "toneOptional": "(optional)",
     "toneAnalytical": "Analytical",
@@ -125,7 +129,9 @@
     "toneConstructive": "Constructive",
     "densityLabel": "Density",
     "densitySparse": "Sparse",
-    "densityDense": "Dense"
+    "densityDense": "Dense",
+    "fragmentSelected": "Fragment selected",
+    "imageRegionSelected": "Image region selected"
   },
   "TaggingPanel": {
     "title": "Tags",
@@ -157,7 +163,9 @@
     "categoriesSelected": "{count, plural, =0 {No categories selected} =1 {1 category selected} other {# categories selected}}",
     "createTagForSelection": "Create Tag for Selection",
     "selectCategory": "Select Category",
-    "chooseCategory": "Choose a category..."
+    "chooseCategory": "Choose a category...",
+    "fragmentSelected": "Fragment selected",
+    "imageRegionSelected": "Image region selected"
   },
   "UnifiedAnnotationsPanel": {
     "title": "Annotations",
@@ -217,6 +225,7 @@
     "noText": "No text",
     "createReference": "Create Reference",
     "entityTypesOptional": "Entity Types (Optional)",
+    "fragmentSelected": "Fragment selected",
     "imageRegionSelected": "Image region selected",
     "includeDescriptiveReferences": "Include descriptive references",
     "descriptiveReferencesTooltip": "Also find phrases like 'the CEO', 'the tech giant', 'the physicist' (in addition to names)"

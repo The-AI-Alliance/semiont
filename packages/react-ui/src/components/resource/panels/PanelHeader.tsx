@@ -1,10 +1,7 @@
 'use client';
 
-import React from 'react';
-import { ANNOTATORS } from '../../../lib/annotation-registry';
-
 interface PanelHeaderProps {
-  annotationType: keyof typeof ANNOTATORS;
+  annotationType: 'highlight' | 'reference' | 'assessment' | 'comment' | 'tag';
   count: number;
   title: string;
 }
@@ -14,9 +11,7 @@ interface PanelHeaderProps {
  *
  * Displays the annotation icon, translated title, and count in a consistent format
  */
-export function PanelHeader({ annotationType, count, title }: PanelHeaderProps) {
-  const metadata = ANNOTATORS[annotationType];
-
+export function PanelHeader({ count, title }: PanelHeaderProps) {
   return (
     <div className="semiont-panel-header">
       <h2 className="semiont-panel-header__title">

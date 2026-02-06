@@ -1,28 +1,48 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import type { components } from '@semiont/api-client';
+import type { components, Selector } from '@semiont/api-client';
 import { CommentEntry } from './CommentEntry';
 import { useAnnotationPanel } from '../../../hooks/useAnnotationPanel';
 import { DetectSection } from './DetectSection';
 import { PanelHeader } from './PanelHeader';
+import './CommentsPanel.css';
 
 type Annotation = components['schemas']['Annotation'];
+type Motivation = components['schemas']['Motivation'];
+
+// Unified pending annotation type
+interface PendingAnnotation {
+  selector: Selector | Selector[];
+  motivation: Motivation;
+}
+
+// Helper to extract display text from selector
+function getSelectorDisplayText(selector: Selector | Selector[]): string | null {
+  if (Array.isArray(selector)) {
+    // Text selectors: array of [TextPositionSelector, TextQuoteSelector]
+    const quoteSelector = selector.find(s => s.type === 'TextQuoteSelector');
+    if (quoteSelector && 'exact' in quoteSelector) {
+      return quoteSelector.exact;
+    }
+  } else {
+    // Single selector
+    if (selector.type === 'TextQuoteSelector' && 'exact' in selector) {
+      return selector.exact;
+    }
+  }
+  return null;
+}
 
 interface CommentsPanelProps {
   annotations: Annotation[];
   onAnnotationClick: (annotation: Annotation) => void;
-  onUpdate: (annotationId: string, newText: string) => void;
-  onCreate?: (commentText: string) => void;
+  onCreate: (commentText: string) => void;
   focusedAnnotationId: string | null;
   hoveredAnnotationId?: string | null;
   onAnnotationHover?: (annotationId: string | null) => void;
-  pendingSelection?: {
-    exact: string;
-    start: number;
-    end: number;
-  } | null;
+  pendingAnnotation: PendingAnnotation | null;
   annotateMode?: boolean;
   onDetect?: (instructions?: string, tone?: string) => void | Promise<void>;
   isDetecting?: boolean;
@@ -36,12 +56,11 @@ interface CommentsPanelProps {
 export function CommentsPanel({
   annotations,
   onAnnotationClick,
-  onUpdate,
   onCreate,
   focusedAnnotationId,
   hoveredAnnotationId,
   onAnnotationHover,
-  pendingSelection,
+  pendingAnnotation,
   annotateMode = true,
   onDetect,
   isDetecting = false,
@@ -54,7 +73,7 @@ export function CommentsPanel({
     useAnnotationPanel(annotations, hoveredAnnotationId);
 
   const handleSaveNewComment = () => {
-    if (onCreate && newCommentText.trim()) {
+    if (newCommentText.trim()) {
       onCreate(newCommentText);
       setNewCommentText('');
     }
@@ -64,11 +83,18 @@ export function CommentsPanel({
     <div className="semiont-panel">
       <PanelHeader annotationType="comment" count={annotations.length} title={t('title')} />
 
-      {/* New comment input - shown when there's a pending selection */}
-      {pendingSelection && onCreate && (
+      {/* New comment input - shown when there's a pending annotation with commenting motivation */}
+      {pendingAnnotation && pendingAnnotation.motivation === 'commenting' && (
         <div className="semiont-annotation-prompt" data-type="comment">
           <div className="semiont-annotation-prompt__quote">
-            "{pendingSelection.exact.substring(0, 100)}{pendingSelection.exact.length > 100 ? '...' : ''}"
+            {(() => {
+              const displayText = getSelectorDisplayText(pendingAnnotation.selector);
+              if (displayText) {
+                return `"${displayText.substring(0, 100)}${displayText.length > 100 ? '...' : ''}"`;
+              }
+              // Generic labels for PDF/image annotations without text
+              return t('fragmentSelected');
+            })()}
           </div>
           <textarea
             value={newCommentText}
@@ -120,9 +146,8 @@ export function CommentsPanel({
                 comment={comment}
                 isFocused={comment.id === focusedAnnotationId}
                 onClick={() => onAnnotationClick(comment)}
-                onUpdate={(newText) => onUpdate(comment.id, newText)}
                 onCommentRef={handleAnnotationRef}
-                {...(onAnnotationHover && { onAnnotationHover })}
+                {...(onAnnotationHover && { onCommentHover: onAnnotationHover })}
                 annotateMode={annotateMode}
               />
             ))

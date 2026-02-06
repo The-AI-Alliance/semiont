@@ -47,6 +47,25 @@ npm install @semiont/react-ui @semiont/api-client @tanstack/react-query
 }
 ```
 
+### CSS Setup
+
+Import the styles in your app's main CSS file:
+
+```css
+/* Your app's main CSS file (e.g., globals.css, app.css) */
+@import '@semiont/react-ui/styles';
+```
+
+**Requirements:**
+- Your build system must support PostCSS with `postcss-import` plugin
+- This is standard in Next.js, Vite, and most modern build tools
+- The package exports source CSS files, which your build system will process
+
+**What this does:**
+- Imports all component styles, design tokens, and CSS variables
+- Your build tool processes the `@import` statements and bundles the CSS
+- No additional configuration needed in most frameworks
+
 ## Quick Start
 
 ### 1. Set Up Providers

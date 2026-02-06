@@ -5,6 +5,7 @@ import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/re
 // import { useResources } from '../../hooks/useResources';
 import { useSearchAnnouncements } from '../../hooks/useSearchAnnouncements';
 import { getResourceId } from '@semiont/api-client';
+import './SearchModal.css';
 
 interface SearchModalProps {
   isOpen: boolean;

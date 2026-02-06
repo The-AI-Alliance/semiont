@@ -7,9 +7,9 @@
  * - Entity type badges
  */
 
-import { WidgetType, Decoration, EditorView } from '@codemirror/view';
+import { WidgetType } from '@codemirror/view';
 import type { components } from '@semiont/api-client';
-import { isResolvedReference, getBodySource, isBodyResolved } from '@semiont/api-client';
+import { isResolvedReference, getBodySource } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
 

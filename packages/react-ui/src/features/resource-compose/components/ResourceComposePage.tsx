@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import type { components, ResourceUri, ContentFormat } from '@semiont/api-client';
+import type { components } from '@semiont/api-client';
 import { isImageMimeType, isPdfMimeType, LOCALES } from '@semiont/api-client';
 import { buttonStyles, CodeMirrorRenderer } from '@semiont/react-ui';
 import { useFormAnnouncements } from '@semiont/react-ui';
@@ -534,6 +534,7 @@ export function ResourceComposePage({
                     sourceView={true}
                     showLineNumbers={showLineNumbers}
                     onChange={(newContent) => setNewResourceContent(newContent)}
+                    annotators={{}}
                   />
                 </div>
               </div>

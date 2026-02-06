@@ -21,7 +21,6 @@ export function SortableResourceTab({
   totalCount,
   LinkComponent,
   translations = {},
-  dragHandleProps,
   isDragging = false
 }: SortableResourceTabProps) {
   const {
@@ -54,9 +53,6 @@ export function SortableResourceTab({
       }
     }
   }, [onReorder, resource.id]);
-
-  const canMoveUp = index !== undefined && index > 0;
-  const canMoveDown = index !== undefined && totalCount !== undefined && index < totalCount - 1;
 
   return (
     <div

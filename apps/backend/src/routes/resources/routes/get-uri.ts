@@ -53,7 +53,16 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
     if (acceptHeader.includes('text/') || acceptHeader.includes('image/') || acceptHeader.includes('application/pdf')) {
 
       // Get resource metadata from view storage
-      const resource = await ResourceContext.getResourceMetadata(resourceId(id), config);
+      let resource: any;
+      try {
+        resource = await ResourceContext.getResourceMetadata(resourceId(id), config);
+      } catch (error: any) {
+        console.error(`[GET /resources/${id}] Failed to get resource metadata:`, error);
+        throw new HTTPException(500, {
+          message: 'Failed to retrieve resource'
+        });
+      }
+
       if (!resource) {
         throw new HTTPException(404, { message: 'Resource not found' });
       }
@@ -91,7 +100,17 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
     const { eventStore } = c.get('makeMeaning');
     const query = new EventQuery(eventStore.log.storage);
     const events = await query.getResourceEvents(resourceId(id));
-    const stored = await eventStore.views.materializer.materialize(events, resourceId(id));
+
+    let stored: any;
+    try {
+      stored = await eventStore.views.materializer.materialize(events, resourceId(id));
+    } catch (error: any) {
+      // Handle corrupted views or broken event chains gracefully
+      console.error(`[GET /resources/${id}] Failed to materialize view:`, error);
+      throw new HTTPException(500, {
+        message: 'Failed to retrieve resource'
+      });
+    }
 
     if (!stored) {
       throw new HTTPException(404, { message: 'Resource not found' });

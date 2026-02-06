@@ -1,8 +1,8 @@
 'use client';
 
-import React from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { formatLocaleDisplay } from '@semiont/api-client';
+import './ResourceInfoPanel.css';
 
 interface Props {
   documentEntityTypes: string[];

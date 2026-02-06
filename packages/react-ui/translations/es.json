@@ -91,7 +91,9 @@
     "toneTechnical": "Técnico",
     "densityLabel": "Densidad",
     "densitySparse": "Escasa",
-    "densityDense": "Densa"
+    "densityDense": "Densa",
+    "fragmentSelected": "Fragmento seleccionado",
+    "imageRegionSelected": "Región de imagen seleccionada"
   },
   "HighlightPanel": {
     "title": "Destacados",
@@ -110,13 +112,15 @@
   "AssessmentPanel": {
     "title": "Evaluaciones",
     "noAssessments": "Aún no hay evaluaciones. Usa detección por IA para evaluar pasajes.",
+    "assessmentPlaceholder": "Escriba su evaluación aquí...",
+    "save": "Guardar",
+    "cancel": "Cancelar",
     "detectAssessments": "Detectar Evaluaciones",
     "instructions": "Instrucciones",
     "optional": "(opcional)",
     "instructionsPlaceholder": "ej., Evalúa afirmaciones por exactitud y evidencia...",
     "detect": "Detectar",
     "detecting": "Detectando...",
-    "cancel": "Cancelar",
     "toneLabel": "Tono",
     "toneOptional": "(opcional)",
     "toneAnalytical": "Analítico",
@@ -125,7 +129,9 @@
     "toneConstructive": "Constructivo",
     "densityLabel": "Densidad",
     "densitySparse": "Escasa",
-    "densityDense": "Densa"
+    "densityDense": "Densa",
+    "fragmentSelected": "Fragmento seleccionado",
+    "imageRegionSelected": "Región de imagen seleccionada"
   },
   "TaggingPanel": {
     "title": "Etiquetas",
@@ -157,7 +163,9 @@
     "categoriesSelected": "{count, plural, =0 {Ninguna categoría seleccionada} =1 {1 categoría seleccionada} other {# categorías seleccionadas}}",
     "createTagForSelection": "Crear Etiqueta para Selección",
     "selectCategory": "Seleccionar Categoría",
-    "chooseCategory": "Elegir una categoría..."
+    "chooseCategory": "Elegir una categoría...",
+    "fragmentSelected": "Fragmento seleccionado",
+    "imageRegionSelected": "Región de imagen seleccionada"
   },
   "UnifiedAnnotationsPanel": {
     "title": "Anotaciones",
@@ -217,6 +225,7 @@
     "noText": "Sin texto",
     "createReference": "Crear Referencia",
     "entityTypesOptional": "Tipos de Entidad (Opcional)",
+    "fragmentSelected": "Fragmento seleccionado",
     "imageRegionSelected": "Región de imagen seleccionada",
     "includeDescriptiveReferences": "Incluir referencias descriptivas",
     "descriptiveReferencesTooltip": "También encontrar frases como 'el CEO', 'el gigante tecnológico', 'el físico' (además de nombres)"

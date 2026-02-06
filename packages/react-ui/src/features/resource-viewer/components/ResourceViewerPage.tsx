@@ -5,20 +5,13 @@
  * This component handles the UI rendering and state management for the resource viewer.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { QUERY_KEYS } from '@semiont/react-ui';
-import { ResourceViewer } from '@semiont/react-ui';
-import { buttonStyles } from '@semiont/react-ui';
-import type { components, ResourceUri, GenerationContext } from '@semiont/api-client';
-import { getResourceId, getLanguage, getPrimaryMediaType, getPrimaryRepresentation, annotationUri, resourceUri, resourceAnnotationUri } from '@semiont/api-client';
-import { groupAnnotationsByType, withHandlers, createDetectionHandler, createCancelDetectionHandler, ANNOTATORS } from '@semiont/react-ui';
-import { supportsDetection } from '@semiont/react-ui';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import type { components, ResourceUri, GenerationContext, Selector } from '@semiont/api-client';
+import { getLanguage, getPrimaryRepresentation, annotationUri, resourceUri, resourceAnnotationUri } from '@semiont/api-client';
+import { createCancelDetectionHandler, ANNOTATORS } from '@semiont/react-ui';
 import { ErrorBoundary } from '@semiont/react-ui';
-import { DetectionProgressWidget } from '@semiont/react-ui';
 import { useGenerationProgress } from '@semiont/react-ui';
 import { AnnotationHistory } from '@semiont/react-ui';
-import { useDebouncedCallback } from '@semiont/react-ui';
 import { UnifiedAnnotationsPanel } from '@semiont/react-ui';
 import { ResourceInfoPanel } from '@semiont/react-ui';
 import { CollaborationPanel } from '@semiont/react-ui';
@@ -26,19 +19,16 @@ import { JsonLdPanel } from '@semiont/react-ui';
 import { Toolbar } from '@semiont/react-ui';
 import { useResourceLoadingAnnouncements } from '@semiont/react-ui';
 import type { GenerationOptions } from '@semiont/react-ui';
+import { ResourceViewer } from '@semiont/react-ui';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation'];
 
-// Internal selection type used by viewer components
-interface InternalTextSelection {
-  exact: string;
-  start: number;
-  end: number;
-  prefix?: string;
-  suffix?: string;
-  svgSelector?: string;
+// Unified pending annotation type - all human-created annotations flow through this
+interface PendingAnnotation {
+  selector: Selector | Selector[];
+  motivation: Motivation;
 }
 
 import type { DetectionProgress } from '@semiont/react-ui';
@@ -112,7 +102,6 @@ export interface ResourceViewerPageProps {
   /**
    * Callbacks for resource actions
    */
-  onUpdateDocumentTags: (tags: string[]) => Promise<void>;
   onArchive: () => Promise<void>;
   onUnarchive: () => Promise<void>;
   onClone: () => Promise<void>;
@@ -128,7 +117,6 @@ export interface ResourceViewerPageProps {
     selector: any,
     body: any[]
   ) => Promise<void>;
-  onDeleteAnnotation: (annotationId: string) => Promise<void>;
   onTriggerSparkleAnimation: (annotationId: string) => void;
   onClearNewAnnotationId: (annotationId: string) => void;
 
@@ -137,18 +125,6 @@ export interface ResourceViewerPageProps {
    */
   showSuccess: (message: string) => void;
   showError: (message: string) => void;
-
-  /**
-   * Real-time event handlers
-   */
-  onAnnotationAdded: (event: any) => void;
-  onAnnotationRemoved: (event: any) => void;
-  onAnnotationBodyUpdated: (event: any) => void;
-  onDocumentArchived: (event: any) => void;
-  onDocumentUnarchived: (event: any) => void;
-  onEntityTagAdded: (event: any) => void;
-  onEntityTagRemoved: (event: any) => void;
-  onEventError: (error: any) => void;
 
   /**
    * Cache manager for detection
@@ -195,26 +171,16 @@ export function ResourceViewerPage({
   activePanel,
   onPanelToggle,
   setActivePanel,
-  onUpdateDocumentTags,
   onArchive,
   onUnarchive,
   onClone,
   onUpdateAnnotationBody,
   onRefetchAnnotations,
   onCreateAnnotation,
-  onDeleteAnnotation,
   onTriggerSparkleAnimation,
   onClearNewAnnotationId,
   showSuccess,
   showError,
-  onAnnotationAdded,
-  onAnnotationRemoved,
-  onAnnotationBodyUpdated,
-  onDocumentArchived,
-  onDocumentUnarchived,
-  onEntityTagAdded,
-  onEntityTagRemoved,
-  onEventError,
   cacheManager,
   client,
   Link,
@@ -223,22 +189,11 @@ export function ResourceViewerPage({
   SearchResourcesModal,
   GenerationConfigModal,
 }: ResourceViewerPageProps) {
-  const queryClient = useQueryClient();
-
   // Resource loading announcements
   const {
     announceResourceLoading,
-    announceResourceLoaded,
-    announceResourceLoadError
+    announceResourceLoaded
   } = useResourceLoadingAnnouncements();
-
-  // Group annotations by type using centralized registry
-  const groups = groupAnnotationsByType(annotations);
-  const highlights = groups.highlight || [];
-  const references = groups.reference || [];
-  const assessments = groups.assessment || [];
-  const comments = groups.comment || [];
-  const tags = groups.tag || [];
 
   // Derived state
   const documentEntityTypes = resource.entityTypes || [];
@@ -260,10 +215,8 @@ export function ResourceViewerPage({
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
 
-  // Pending selections for creating annotations
-  const [pendingCommentSelection, setPendingCommentSelection] = useState<InternalTextSelection | null>(null);
-  const [pendingTagSelection, setPendingTagSelection] = useState<InternalTextSelection | null>(null);
-  const [pendingReferenceSelection, setPendingReferenceSelection] = useState<InternalTextSelection | null>(null);
+  // Unified pending annotation - all human-created annotations flow through this
+  const [pendingAnnotation, setPendingAnnotation] = useState<PendingAnnotation | null>(null);
 
   // Search state
   const [searchModalOpen, setSearchModalOpen] = useState(false);
@@ -310,7 +263,7 @@ export function ResourceViewerPage({
     startGeneration,
     clearProgress
   } = useGenerationProgress({
-    onComplete: (progress) => {
+    onComplete: () => {
       // Clear progress widget
       setTimeout(() => clearProgress(), 1000);
     },
@@ -320,7 +273,9 @@ export function ResourceViewerPage({
   });
 
   // Generic detection context for all annotation types
-  const detectionContext = {
+  // Memoized to keep stable reference
+  // Note: State setters (setDetectingMotivation, setMotivationDetectionProgress) are stable and don't need deps
+  const detectionContext = useMemo(() => ({
     client,
     rUri,
     setDetectingMotivation,
@@ -329,7 +284,7 @@ export function ResourceViewerPage({
     cacheManager,
     showSuccess,
     showError
-  };
+  }), [client, rUri, cacheManager, showSuccess, showError]);
 
   // Generic cancel handler (works for all detection types)
   const handleCancelDetection = React.useMemo(
@@ -407,55 +362,6 @@ export function ResourceViewerPage({
     setSearchModalOpen(true);
   }, []);
 
-  // Handle unlinking a reference (clearing the body)
-  const handleUpdateReference = useCallback(async (referenceId: string, updates: Partial<Annotation>) => {
-    try {
-      // Extract short annotation ID from the full URI
-      const annotationIdShort = referenceId.split('/').pop();
-      if (!annotationIdShort) {
-        throw new Error('Invalid reference ID');
-      }
-
-      // Construct the nested URI format required by the API
-      const resourceIdSegment = rUri.split('/').pop() || '';
-      const nestedUri = `${window.location.origin}/resources/${resourceIdSegment}/annotations/${annotationIdShort}`;
-
-      // Check if we're clearing the body (unlinking)
-      const isClearing = Array.isArray(updates.body) && updates.body.length === 0;
-
-      if (isClearing) {
-        // Find the actual reference to get its body items
-        const reference = references.find(r => r.id === referenceId);
-        if (!reference) {
-          throw new Error('Reference not found');
-        }
-
-        // Extract body items with purpose === 'linking' and create remove operations
-        const bodyArray = Array.isArray(reference.body) ? reference.body : [];
-        const operations = bodyArray
-          .filter((item: any) => item.purpose === 'linking')
-          .map((item: any) => ({
-            op: 'remove' as const,
-            item,
-          }));
-
-        if (operations.length === 0) {
-          throw new Error('No linking body items found to remove');
-        }
-
-        await onUpdateAnnotationBody(resourceAnnotationUri(nestedUri), {
-          resourceId: resourceIdSegment,
-          operations,
-        });
-        showSuccess('Reference unlinked successfully');
-      }
-
-      await onRefetchAnnotations();
-    } catch (error) {
-      console.error('Failed to update reference:', error);
-      showError('Failed to update reference');
-    }
-  }, [rUri, references, onUpdateAnnotationBody, onRefetchAnnotations, showSuccess, showError]);
 
   // Announce content loading state changes
   useEffect(() => {
@@ -466,50 +372,157 @@ export function ResourceViewerPage({
     }
   }, [contentLoading, content, resource.name, announceResourceLoading, announceResourceLoaded]);
 
-  // Manual tag creation handler
-  const handleCreateTag = useCallback(async (
-    selection: { exact: string; start: number; end: number },
-    schemaId: string,
-    category: string
-  ) => {
-    try {
-      // Create tag annotation with dual-body structure
-      await onCreateAnnotation(
-        rUri,
-        'tagging',
-        [
-          {
-            type: 'TextPositionSelector',
-            start: selection.start,
-            end: selection.end
-          },
-          {
-            type: 'TextQuoteSelector',
-            exact: selection.exact
-          }
-        ],
-        [
-          {
-            type: 'TextualBody',
-            purpose: 'tagging',
-            value: category
-          },
-          {
-            type: 'TextualBody',
-            purpose: 'classifying',
-            value: schemaId
-          }
-        ]
-      );
+  // Unified annotation request handler - all human-created annotations flow through this
+  const handleAnnotationRequested = useCallback((pending: PendingAnnotation) => {
+    // Route to appropriate panel tab based on motivation
+    const MOTIVATION_TO_TAB: Record<Motivation, string> = {
+      highlighting: 'annotations',
+      commenting: 'annotations',
+      assessing: 'annotations',
+      tagging: 'annotations',
+      linking: 'annotations',
+      bookmarking: 'annotations',
+      classifying: 'annotations',
+      describing: 'annotations',
+      editing: 'annotations',
+      identifying: 'annotations',
+      moderating: 'annotations',
+      questioning: 'annotations',
+      replying: 'annotations',
+    };
 
-      setPendingTagSelection(null);
-      await onRefetchAnnotations();
-      showSuccess(`Tag "${category}" created`);
+    setActivePanel(MOTIVATION_TO_TAB[pending.motivation] || 'annotations');
+    setPendingAnnotation(pending);
+  }, []);
+
+  // Manual tag creation handler
+  // Shared UI handlers - same across all annotation types
+  const handleAnnotationClick = useCallback((annotation: Annotation) => {
+    setHoveredAnnotationId(annotation.id);
+    setTimeout(() => setHoveredAnnotationId(null), 1500);
+  }, []);
+
+  const handleAnnotationHover = useCallback((annotationId: string | null) => {
+    setHoveredAnnotationId(annotationId);
+  }, []);
+
+  // Single generic annotation creation handler - reads config from ANNOTATORS
+  const handleCreateAnnotation = useCallback(async (
+    motivation: Motivation,
+    ...args: any[]
+  ) => {
+    if (!pendingAnnotation || pendingAnnotation.motivation !== motivation) return;
+
+    // Find the config for this motivation
+    const annotatorConfig = Object.values(ANNOTATORS).find(a => a.motivation === motivation);
+    if (!annotatorConfig) return;
+
+    try {
+      let body: any[] = [];
+      let selector = pendingAnnotation.selector;
+
+      // Build body based on config
+      switch (annotatorConfig.create.bodyBuilder) {
+        case 'empty':
+          // args[0] might be selector for highlight/assessment
+          if (args[0]) selector = args[0];
+          body = [];
+          break;
+
+        case 'text':
+          // args[0] is commentText
+          body = [{
+            type: 'TextualBody',
+            value: args[0],
+            format: 'text/plain',
+            purpose: 'commenting'
+          }];
+          break;
+
+        case 'entityTag':
+          // args[0] is optional entityType
+          if (args[0]) {
+            body = [{
+              type: 'TextualBody',
+              purpose: 'tagging',
+              value: args[0]
+            }];
+          }
+          break;
+
+        case 'dualTag':
+          // args[0] is schemaId, args[1] is category
+          body = [
+            {
+              type: 'TextualBody',
+              purpose: 'tagging',
+              value: args[1] // category
+            },
+            {
+              type: 'TextualBody',
+              purpose: 'classifying',
+              value: args[0] // schemaId
+            }
+          ];
+          break;
+      }
+
+      await onCreateAnnotation(rUri, motivation, selector, body);
+      setPendingAnnotation(null);
+
+      if (annotatorConfig.create.refetchAfter) {
+        await onRefetchAnnotations();
+      }
+
+      if (annotatorConfig.create.successMessage) {
+        const message = annotatorConfig.create.successMessage.replace('{value}', args[1] || '');
+        showSuccess(message);
+      }
     } catch (error) {
-      console.error('Failed to create tag:', error);
-      showError('Failed to create tag');
+      console.error(`Failed to create ${annotatorConfig.internalType}:`, error);
+      showError(`Failed to create ${annotatorConfig.displayName.toLowerCase()}`);
     }
-  }, [onCreateAnnotation, rUri, onRefetchAnnotations, showSuccess, showError]);
+  }, [pendingAnnotation, onCreateAnnotation, rUri, onRefetchAnnotations, showSuccess, showError]);
+
+  // Group annotations by type using static ANNOTATORS
+  const groups = useMemo(() => {
+    const result = {
+      highlights: [] as Annotation[],
+      references: [] as Annotation[],
+      assessments: [] as Annotation[],
+      comments: [] as Annotation[],
+      tags: [] as Annotation[]
+    };
+
+    for (const ann of annotations) {
+      const annotator = Object.values(ANNOTATORS).find(a => a.matchesAnnotation(ann));
+      if (annotator) {
+        const key = annotator.internalType + 's'; // highlight -> highlights
+        if (result[key as keyof typeof result]) {
+          result[key as keyof typeof result].push(ann);
+        }
+      }
+    }
+
+    return result;
+  }, [annotations]);
+
+  // Memoize resource with content to prevent infinite re-renders
+  const resourceWithContent = useMemo(
+    () => ({ ...resource, content }),
+    [resource, content]
+  );
+
+  // Memoize annotation click handlers to prevent infinite re-renders
+  const handleRefetchAnnotations = useCallback(() => {
+    // Don't refetch immediately - the SSE event will trigger invalidation after projection is updated
+  }, []);
+
+  const handleAnnotationClickAndFocus = useCallback((annotationId: string) => {
+    setActivePanel('annotations');
+    setFocusedAnnotationId(annotationId);
+    setTimeout(() => setFocusedAnnotationId(null), 3000);
+  }, []);
 
   // Document rendering
   return (
@@ -552,50 +565,17 @@ export function ResourceViewerPage({
                 </div>
               ) : (
                 <ResourceViewer
-                  resource={{ ...resource, content }}
-                annotations={{ highlights, references, assessments, comments, tags }}
-                onRefetchAnnotations={() => {
-                  // Don't refetch immediately - the SSE event will trigger invalidation after projection is updated
-                }}
+                  resource={resourceWithContent}
+                annotations={groups}
+                onRefetchAnnotations={handleRefetchAnnotations}
                 annotateMode={annotateMode}
                 onAnnotateModeToggle={handleAnnotateModeToggle}
-                onCommentCreationRequested={(selection) => {
-                  setPendingCommentSelection(selection);
-                  setActivePanel('annotations');
-                }}
-                onTagCreationRequested={(selection) => {
-                  setPendingTagSelection(selection);
-                  setActivePanel('annotations');
-                }}
-                onReferenceCreationRequested={(selection) => {
-                  setPendingReferenceSelection(selection);
-                  setActivePanel('annotations');
-                }}
-                onCommentClick={(commentId) => {
-                  setActivePanel('annotations');
-                  setFocusedAnnotationId(commentId);
-                  setTimeout(() => setFocusedAnnotationId(null), 3000);
-                }}
-                onReferenceClick={(referenceId) => {
-                  setActivePanel('annotations');
-                  setFocusedAnnotationId(referenceId);
-                  setTimeout(() => setFocusedAnnotationId(null), 3000);
-                }}
-                onHighlightClick={(highlightId) => {
-                  setActivePanel('annotations');
-                  setFocusedAnnotationId(highlightId);
-                  setTimeout(() => setFocusedAnnotationId(null), 3000);
-                }}
-                onAssessmentClick={(assessmentId) => {
-                  setActivePanel('annotations');
-                  setFocusedAnnotationId(assessmentId);
-                  setTimeout(() => setFocusedAnnotationId(null), 3000);
-                }}
-                onTagClick={(tagId) => {
-                  setActivePanel('annotations');
-                  setFocusedAnnotationId(tagId);
-                  setTimeout(() => setFocusedAnnotationId(null), 3000);
-                }}
+                onAnnotationRequested={handleAnnotationRequested}
+                onCommentClick={handleAnnotationClickAndFocus}
+                onReferenceClick={handleAnnotationClickAndFocus}
+                onHighlightClick={handleAnnotationClickAndFocus}
+                onAssessmentClick={handleAnnotationClickAndFocus}
+                onTagClick={handleAnnotationClickAndFocus}
                 generatingReferenceId={generationProgress?.referenceId ?? null}
                 onAnnotationHover={setHoveredAnnotationId}
                 onCommentHover={setHoveredAnnotationId}
@@ -603,6 +583,7 @@ export function ResourceViewerPage({
                 hoveredCommentId={hoveredAnnotationId}
                 scrollToAnnotationId={scrollToAnnotationId}
                 showLineNumbers={showLineNumbers}
+                annotators={ANNOTATORS}
               />
               )}
             </ErrorBoundary>
@@ -634,136 +615,34 @@ export function ResourceViewerPage({
             )}
 
             {/* Unified Annotations Panel */}
-            {activePanel === 'annotations' && !resource.archived && (() => {
-              // Create annotators with injected handlers
-              const annotators = withHandlers({
-                highlight: {
-                  onClick: (annotation) => {
-                    setHoveredAnnotationId(annotation.id);
-                    setTimeout(() => setHoveredAnnotationId(null), 1500);
-                  },
-                  onHover: setHoveredAnnotationId,
-                  ...(supportsDetection(primaryMediaType) ? { onDetect: createDetectionHandler(ANNOTATORS.highlight!, detectionContext) } : {})
-                },
-                reference: {
-                  onClick: (annotation) => {
-                    setHoveredAnnotationId(annotation.id);
-                    setTimeout(() => setHoveredAnnotationId(null), 1500);
-                  },
-                  onHover: setHoveredAnnotationId,
-                  onCreate: async (entityType?: string) => {
-                    if (pendingReferenceSelection) {
-                      const selector = pendingReferenceSelection.svgSelector
-                        ? { type: 'SvgSelector' as const, value: pendingReferenceSelection.svgSelector }
-                        : [
-                            {
-                              type: 'TextPositionSelector' as const,
-                              start: pendingReferenceSelection.start,
-                              end: pendingReferenceSelection.end
-                            },
-                            {
-                              type: 'TextQuoteSelector' as const,
-                              exact: pendingReferenceSelection.exact,
-                              ...(pendingReferenceSelection.prefix && { prefix: pendingReferenceSelection.prefix }),
-                              ...(pendingReferenceSelection.suffix && { suffix: pendingReferenceSelection.suffix })
-                            }
-                          ];
-
-                      await onCreateAnnotation(
-                        rUri,
-                        'linking',
-                        selector,
-                        entityType ? [{
-                          type: 'TextualBody',
-                          purpose: 'tagging',
-                          value: entityType
-                        }] : []
-                      );
-                      setPendingReferenceSelection(null);
-                      await onRefetchAnnotations();
-                    }
-                  },
-                  ...(supportsDetection(primaryMediaType) ? { onDetect: createDetectionHandler(ANNOTATORS.reference!, detectionContext) } : {})
-                },
-                assessment: {
-                  onClick: (annotation) => {
-                    setHoveredAnnotationId(annotation.id);
-                    setTimeout(() => setHoveredAnnotationId(null), 1500);
-                  },
-                  onHover: setHoveredAnnotationId,
-                  ...(supportsDetection(primaryMediaType) ? { onDetect: createDetectionHandler(ANNOTATORS.assessment!, detectionContext) } : {})
-                },
-                comment: {
-                  onClick: (annotation) => {
-                    setHoveredAnnotationId(annotation.id);
-                    setTimeout(() => setHoveredAnnotationId(null), 1500);
-                  },
-                  onHover: setHoveredAnnotationId,
-                  onUpdate: async (annotationIdStr: string, newText: string) => {
-                    // TODO: Implement update comment mutation
-                  },
-                  onCreate: async (commentText: string) => {
-                    if (pendingCommentSelection) {
-                      await onCreateAnnotation(rUri, 'commenting', [
-                        {
-                          type: 'TextPositionSelector',
-                          start: pendingCommentSelection.start,
-                          end: pendingCommentSelection.end,
-                        },
-                        {
-                          type: 'TextQuoteSelector',
-                          exact: pendingCommentSelection.exact,
-                        }
-                      ], [{
-                        type: 'TextualBody',
-                        value: commentText,
-                        format: 'text/plain',
-                        purpose: 'commenting',
-                      }]);
-                      setPendingCommentSelection(null);
-                    }
-                  },
-                  ...(supportsDetection(primaryMediaType) ? { onDetect: createDetectionHandler(ANNOTATORS.comment!, detectionContext) } : {})
-                },
-                tag: {
-                  onClick: (annotation) => {
-                    setHoveredAnnotationId(annotation.id);
-                    setTimeout(() => setHoveredAnnotationId(null), 1500);
-                  },
-                  onHover: setHoveredAnnotationId,
-                  ...(supportsDetection(primaryMediaType) ? { onDetect: createDetectionHandler(ANNOTATORS.tag!, detectionContext) } : {}),
-                  ...(supportsDetection(primaryMediaType) ? { onCreate: handleCreateTag } : {})
-                }
-              });
-
-              return (
-                <UnifiedAnnotationsPanel
-                  annotations={[...highlights, ...references, ...assessments, ...comments, ...tags]}
-                  annotators={annotators}
-                  focusedAnnotationId={focusedAnnotationId}
-                  hoveredAnnotationId={hoveredAnnotationId}
-                  annotateMode={annotateMode}
-                  detectingMotivation={detectingMotivation}
-                  detectionProgress={motivationDetectionProgress}
-                  pendingCommentSelection={pendingCommentSelection}
-                  pendingTagSelection={pendingTagSelection}
-                  pendingReferenceSelection={pendingReferenceSelection}
-                  allEntityTypes={allEntityTypes}
-                  onGenerateDocument={handleGenerateDocument}
-                  onCreateDocument={handleCreateDocument}
-                  generatingReferenceId={generationProgress?.referenceId ?? null}
-                  onSearchDocuments={handleSearchDocuments}
-                  onUpdateReference={handleUpdateReference}
-                  onCancelDetection={handleCancelDetection}
-                  {...(primaryMediaType ? { mediaType: primaryMediaType } : {})}
-                  referencedBy={referencedBy}
-                  referencedByLoading={referencedByLoading}
-                  resourceId={rUri.split('/').pop() || ''}
-                  Link={Link}
-                  routes={routes}
-                />
-              );
-            })()}
+            {activePanel === 'annotations' && !resource.archived && (
+              <UnifiedAnnotationsPanel
+                annotations={annotations}
+                annotators={ANNOTATORS}
+                onCreateAnnotation={handleCreateAnnotation}
+                detectionContext={detectionContext}
+                focusedAnnotationId={focusedAnnotationId}
+                hoveredAnnotationId={hoveredAnnotationId}
+                onAnnotationClick={handleAnnotationClick}
+                onAnnotationHover={handleAnnotationHover}
+                annotateMode={annotateMode}
+                detectingMotivation={detectingMotivation}
+                detectionProgress={motivationDetectionProgress}
+                pendingAnnotation={pendingAnnotation}
+                allEntityTypes={allEntityTypes}
+                onGenerateDocument={handleGenerateDocument}
+                onCreateDocument={handleCreateDocument}
+                generatingReferenceId={generationProgress?.referenceId ?? null}
+                onSearchDocuments={handleSearchDocuments}
+                onCancelDetection={handleCancelDetection}
+                {...(primaryMediaType ? { mediaType: primaryMediaType } : {})}
+                referencedBy={referencedBy}
+                referencedByLoading={referencedByLoading}
+                resourceId={rUri.split('/').pop() || ''}
+                Link={Link}
+                routes={routes}
+              />
+            )}
 
             {/* History Panel */}
             {activePanel === 'history' && (

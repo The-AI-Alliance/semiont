@@ -1,14 +1,22 @@
 'use client';
 
-import React from 'react';
+import { useEffect } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import type { components } from '@semiont/api-client';
+import type { components, Selector } from '@semiont/api-client';
 import { HighlightEntry } from './HighlightEntry';
 import { useAnnotationPanel } from '../../../hooks/useAnnotationPanel';
 import { DetectSection } from './DetectSection';
 import { PanelHeader } from './PanelHeader';
+import './HighlightPanel.css';
 
 type Annotation = components['schemas']['Annotation'];
+type Motivation = components['schemas']['Motivation'];
+
+// Unified pending annotation type
+interface PendingAnnotation {
+  selector: Selector | Selector[];
+  motivation: Motivation;
+}
 
 interface HighlightPanelProps {
   annotations: Annotation[];
@@ -17,6 +25,8 @@ interface HighlightPanelProps {
   hoveredAnnotationId?: string | null;
   onAnnotationHover?: (annotationId: string | null) => void;
   onDetect?: (instructions?: string) => void | Promise<void>;
+  onCreate: (selector: Selector | Selector[]) => void;
+  pendingAnnotation: PendingAnnotation | null;
   isDetecting?: boolean;
   detectionProgress?: {
     status: string;
@@ -33,6 +43,8 @@ export function HighlightPanel({
   hoveredAnnotationId,
   onAnnotationHover,
   onDetect,
+  onCreate,
+  pendingAnnotation,
   isDetecting = false,
   detectionProgress,
   annotateMode = true,
@@ -41,6 +53,15 @@ export function HighlightPanel({
 
   const { sortedAnnotations, containerRef, handleAnnotationRef } =
     useAnnotationPanel(annotations, hoveredAnnotationId);
+
+  // Highlights auto-create: when pendingAnnotation arrives with highlighting motivation,
+  // immediately call onCreate without showing a form
+  useEffect(() => {
+    if (pendingAnnotation && pendingAnnotation.motivation === 'highlighting') {
+      onCreate(pendingAnnotation.selector);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAnnotation]); // Only depend on pendingAnnotation, not onCreate (which is recreated on every render)
 
   return (
     <div className="semiont-panel">

@@ -1,9 +1,8 @@
 'use client';
 
-import React from 'react';
 import { useTranslations } from '../contexts/TranslationContext';
+import './toolbar/Toolbar.css';
 
-type ToolbarPanel = 'history' | 'info' | 'annotations' | 'settings' | 'collaboration' | 'user' | 'jsonld';
 type ToolbarContext = 'document' | 'simple';
 
 interface Props<T extends string = string> {

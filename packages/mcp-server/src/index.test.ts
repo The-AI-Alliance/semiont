@@ -5,7 +5,6 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 
 // Mock environment variables
 beforeEach(() => {
@@ -137,7 +136,7 @@ describe('MCP Server', () => {
         expect.anything()
       );
 
-      const data = await response.json();
+      const data = await response.json() as { message: string };
       expect(data.message).toContain(testName);
     });
 

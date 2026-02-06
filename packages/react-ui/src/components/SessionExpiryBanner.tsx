@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useSessionExpiry } from '@semiont/react-ui';
 import { useFormattedTime } from '@semiont/react-ui';
 

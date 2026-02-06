@@ -38,7 +38,6 @@ export interface RecentDocumentsPageProps {
 }
 
 export function RecentDocumentsPage({
-  hasDocuments,
   isLoading,
   theme,
   onThemeChange,

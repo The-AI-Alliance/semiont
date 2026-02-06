@@ -166,7 +166,10 @@ function ResourceViewWrapper({
 
   // Fetch all annotations with a single request
   const { data: annotationsData, refetch: refetchAnnotations } = resources.annotations.useQuery(rUri);
-  const annotations = annotationsData?.annotations || [];
+  const annotations = React.useMemo(
+    () => annotationsData?.annotations || [],
+    [annotationsData?.annotations]
+  );
 
   // Create debounced invalidation for real-time events (batches rapid updates)
   const debouncedInvalidateAnnotations = useDebouncedCallback(
@@ -380,7 +383,6 @@ function ResourceViewWrapper({
         activePanel={activePanel}
         onPanelToggle={togglePanel}
         setActivePanel={setActivePanel}
-        onUpdateDocumentTags={handleUpdateDocumentTags}
         onArchive={handleArchive}
         onUnarchive={handleUnarchive}
         onClone={handleClone}
@@ -389,25 +391,14 @@ function ResourceViewWrapper({
         onCreateAnnotation={async (rUri, motivation, selector, body) => {
           await createAnnotation(rUri, motivation as any, selector, body);
         }}
-        onDeleteAnnotation={async (annotationId) => {
-          await deleteAnnotation(annotationId, rUri);
-        }}
-        onTriggerSparkleAnimation={(annotationId) => {
+        onTriggerSparkleAnimation={(annotationId: string) => {
           triggerSparkleAnimation(annotationId as any);
         }}
-        onClearNewAnnotationId={(annotationId) => {
+        onClearNewAnnotationId={(annotationId: string) => {
           clearNewAnnotationId(annotationId as any);
         }}
         showSuccess={showSuccess}
         showError={showError}
-        onAnnotationAdded={(event) => debouncedInvalidateAnnotations()}
-        onAnnotationRemoved={(event) => debouncedInvalidateAnnotations()}
-        onAnnotationBodyUpdated={(event) => {}}
-        onDocumentArchived={(event) => {}}
-        onDocumentUnarchived={(event) => {}}
-        onEntityTagAdded={(event) => {}}
-        onEntityTagRemoved={(event) => {}}
-        onEventError={(error) => {}}
         cacheManager={cacheManager}
         client={client}
         Link={Link}

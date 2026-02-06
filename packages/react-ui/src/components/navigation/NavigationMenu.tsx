@@ -2,6 +2,7 @@
 
 import React from 'react';
 import type { RouteBuilder, LinkComponentProps } from '../../contexts/RoutingContext';
+import './NavigationMenu.css';
 
 type TranslateFn = (key: string, params?: Record<string, any>) => string;
 
@@ -23,7 +24,6 @@ export function NavigationMenu({
   t,
   isAdmin = false,
   isModerator = false,
-  brandingLink = '/',
   onItemClick,
   className = "",
   currentPath

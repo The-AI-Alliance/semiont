@@ -1,7 +1,5 @@
 'use client';
 
-import React from 'react';
-
 interface ResourceTagsInlineProps {
   documentId: string;
   tags: string[];
@@ -11,11 +9,7 @@ interface ResourceTagsInlineProps {
 }
 
 export function ResourceTagsInline({
-  documentId,
-  tags,
-  isEditing,
-  onUpdate,
-  disabled = false
+  tags
 }: ResourceTagsInlineProps) {
   // If no tags, don't show anything
   if (tags.length === 0) {
@@ -23,7 +17,7 @@ export function ResourceTagsInline({
   }
 
   return (
-    <div className="semiont-resource-tags-inline" data-editing={isEditing}>
+    <div className="semiont-resource-tags-inline">
       <div className="semiont-resource-tags-list">
         {/* Display existing tags */}
         {tags.map((tag) => (

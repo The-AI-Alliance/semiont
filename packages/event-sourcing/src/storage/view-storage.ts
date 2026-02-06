@@ -74,6 +74,18 @@ export class FilesystemViewStorage implements ViewStorage {
       if (error.code === 'ENOENT') {
         return null;
       }
+      // Auto-delete corrupted view files (views are derived data, can be rebuilt from events)
+      // This only handles JSON parsing errors, not broken event chains
+      if (error instanceof SyntaxError) {
+        console.error(`[ViewStorage] Corrupted view file detected for ${resourceId}: ${error.message}`);
+        console.error(`[ViewStorage] Deleting corrupted view file: ${projPath}`);
+        try {
+          await fs.unlink(projPath);
+        } catch (unlinkError) {
+          console.error(`[ViewStorage] Failed to delete corrupted file:`, unlinkError);
+        }
+        return null;
+      }
       throw error;
     }
   }

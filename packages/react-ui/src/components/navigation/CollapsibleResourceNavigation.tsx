@@ -20,6 +20,7 @@ import { SortableResourceTab } from './SortableResourceTab';
 import { useDragAnnouncements } from '../../hooks/useDragAnnouncements';
 import { useTranslations } from '../../contexts/TranslationContext';
 import type { CollapsibleResourceNavigationProps } from '../../types/collapsible-navigation';
+import './CollapsibleResourceNavigation.css';
 
 /**
  * A comprehensive collapsible navigation component with fixed items and dynamic resource tabs.
@@ -77,6 +78,7 @@ export function CollapsibleResourceNavigation({
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
+    return undefined;
   }, [isDropdownOpen]);
 
   // Setup drag and drop sensors

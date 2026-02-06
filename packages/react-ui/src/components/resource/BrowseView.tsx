@@ -1,16 +1,19 @@
 'use client';
 
-import React, { useMemo, useEffect, useRef, useCallback } from 'react';
+import { useMemo, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { remarkAnnotations, type PreparedAnnotation } from '../../lib/remark-annotations';
 import { rehypeRenderAnnotations } from '../../lib/rehype-render-annotations';
 import type { components } from '@semiont/api-client';
-import { getExactText, getTextPositionSelector, isReference, isStubReference, getTargetSelector, getBodySource, getMimeCategory, type MimeCategory } from '@semiont/api-client';
-import { getAnnotationInternalType, getAnnotator } from '../../lib/annotation-registry';
+import { getExactText, getTextPositionSelector, getTargetSelector, getBodySource, getMimeCategory, isPdfMimeType, resourceUri as toResourceUri } from '@semiont/api-client';
+import type { Annotator } from '../../lib/annotation-registry';
 import { ImageViewer } from '../viewers';
 import { AnnotateToolbar, type ClickAction } from '../annotation/AnnotateToolbar';
 import type { AnnotationsCollection, AnnotationHandlers } from '../../types/annotation-props';
+
+// Lazy load PDF component to avoid SSR issues with browser PDF.js loading
+const PdfAnnotationCanvas = lazy(() => import('../pdf-annotation/PdfAnnotationCanvas.client').then(mod => ({ default: mod.PdfAnnotationCanvas })));
 
 type Annotation = components['schemas']['Annotation'];
 import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
@@ -27,13 +30,14 @@ interface Props {
   onClickChange?: (motivation: ClickAction) => void;
   annotateMode: boolean;
   onAnnotateModeToggle: () => void;
+  annotators: Record<string, Annotator>;
 }
 
 /**
  * Convert W3C Annotations to simplified format for remark plugin.
  * Extracts position info and converts start/end to offset/length.
  */
-function prepareAnnotations(annotations: Annotation[]): PreparedAnnotation[] {
+function prepareAnnotations(annotations: Annotation[], annotators: Record<string, Annotator>): PreparedAnnotation[] {
   return annotations
     .map(ann => {
       const targetSelector = getTargetSelector(ann.target);
@@ -41,8 +45,8 @@ function prepareAnnotations(annotations: Annotation[]): PreparedAnnotation[] {
       const start = posSelector?.start ?? 0;
       const end = posSelector?.end ?? 0;
 
-      // Use centralized registry to determine type
-      const type = getAnnotationInternalType(ann);
+      // Use annotators to determine type
+      const type = Object.values(annotators).find(a => a.matchesAnnotation(ann))?.internalType || 'highlight';
 
       return {
         id: ann.id,
@@ -66,7 +70,8 @@ export function BrowseView({
   selectedClick = 'detail',
   onClickChange,
   annotateMode,
-  onAnnotateModeToggle
+  onAnnotateModeToggle,
+  annotators
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -86,8 +91,8 @@ export function BrowseView({
   );
 
   const preparedAnnotations = useMemo(() =>
-    prepareAnnotations(allAnnotations),
-    [allAnnotations]
+    prepareAnnotations(allAnnotations, annotators),
+    [allAnnotations, annotators]
   );
 
   // Create a map of annotation ID -> full annotation for click handling
@@ -103,7 +108,7 @@ export function BrowseView({
   const handleAnnotationHover = useCallback((annotationId: string | null) => {
     if (annotationId) {
       const annotation = annotationMap.get(annotationId);
-      const metadata = annotation ? getAnnotator(annotation) : null;
+      const metadata = annotation ? Object.values(annotators).find(a => a.matchesAnnotation(annotation!)) : null;
 
       // Route to side panel if annotation type has one
       if (metadata?.hasSidePanel) {
@@ -121,7 +126,7 @@ export function BrowseView({
     // Clear both when null
     if (onAnnotationHover) onAnnotationHover(null);
     if (onCommentHover) onCommentHover(null);
-  }, [annotationMap, onAnnotationHover, onCommentHover]);
+  }, [annotationMap, onAnnotationHover, onCommentHover, annotators]);
 
   // Attach click handlers, hover handlers, and animations after render
   useEffect(() => {
@@ -299,6 +304,7 @@ export function BrowseView({
             showDeleteButton={false}
             annotateMode={annotateMode}
             onAnnotateModeToggle={onAnnotateModeToggle}
+            annotators={annotators}
           />
           <div ref={containerRef} className="semiont-browse-view__content">
             <ReactMarkdown
@@ -317,6 +323,40 @@ export function BrowseView({
       );
 
     case 'image':
+      // Check if it's actually a PDF (categorized as 'image' for spatial annotations)
+      if (isPdfMimeType(mimeType)) {
+        return (
+          <div className="semiont-browse-view" data-mime-type="pdf">
+            <AnnotateToolbar
+              selectedMotivation={null}
+              selectedClick={selectedClick}
+              onSelectionChange={() => {}}
+              onClickChange={onClickChange || (() => {})}
+              showSelectionGroup={false}
+              showDeleteButton={false}
+              annotateMode={annotateMode}
+              onAnnotateModeToggle={onAnnotateModeToggle}
+              annotators={annotators}
+            />
+            <div ref={containerRef} className="semiont-browse-view__content">
+              <Suspense fallback={<div className="semiont-browse-view__loading">Loading PDF viewer...</div>}>
+                <PdfAnnotationCanvas
+                  resourceUri={toResourceUri(resourceUri)}
+                  existingAnnotations={allAnnotations}
+                  drawingMode={null}
+                  selectedMotivation={null}
+                  onAnnotationCreate={() => {}}
+                  {...(onAnnotationClick && { onAnnotationClick })}
+                  {...(onAnnotationHover && { onAnnotationHover })}
+                  hoveredAnnotationId={hoveredCommentId || hoveredAnnotationId || null}
+                />
+              </Suspense>
+            </div>
+          </div>
+        );
+      }
+
+      // Regular image
       return (
         <div className="semiont-browse-view" data-mime-type="image">
           <AnnotateToolbar
@@ -328,6 +368,7 @@ export function BrowseView({
             showDeleteButton={false}
             annotateMode={annotateMode}
             onAnnotateModeToggle={onAnnotateModeToggle}
+            annotators={annotators}
           />
           <div ref={containerRef} className="semiont-browse-view__content">
             <ImageViewer

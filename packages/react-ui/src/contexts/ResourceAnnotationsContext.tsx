@@ -1,8 +1,8 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { useAnnotations } from '../lib/api-hooks';
-import type { components, AnnotationUri, ResourceUri, ResourceAnnotationUri, Selector } from '@semiont/api-client';
+import type { components, AnnotationUri, ResourceUri, Selector } from '@semiont/api-client';
 import { resourceAnnotationUri } from '@semiont/api-client';
 import { useDocumentAnnouncements } from '../components/LiveRegion';
 
@@ -142,16 +142,19 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
     }, 6000);
   }, []);
 
+  const contextValue = useMemo(
+    () => ({
+      newAnnotationIds,
+      createAnnotation,
+      deleteAnnotation,
+      clearNewAnnotationId,
+      triggerSparkleAnimation,
+    }),
+    [newAnnotationIds, createAnnotation, deleteAnnotation, clearNewAnnotationId, triggerSparkleAnimation]
+  );
+
   return (
-    <ResourceAnnotationsContext.Provider
-      value={{
-        newAnnotationIds,
-        createAnnotation,
-        deleteAnnotation,
-        clearNewAnnotationId,
-        triggerSparkleAnimation,
-      }}
-    >
+    <ResourceAnnotationsContext.Provider value={contextValue}>
       {children}
     </ResourceAnnotationsContext.Provider>
   );

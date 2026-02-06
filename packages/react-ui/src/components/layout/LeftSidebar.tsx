@@ -7,6 +7,7 @@ import { ResizeHandle } from '../ResizeHandle';
 import { usePanelWidth } from '../../hooks/usePanelWidth';
 import type { LinkComponentProps, RouteBuilder } from '../../contexts/RoutingContext';
 import type { TranslateFn } from '../../types/translation';
+import './LeftSidebar.css';
 
 export interface NavigationMenuHelper {
   (onClose: () => void): React.ReactNode;
@@ -40,7 +41,6 @@ export function LeftSidebar({
   brandingLink = '/',
   collapsible = false,
   storageKey = 'leftSidebarCollapsed',
-  isAuthenticated = false,
   isAdmin = false,
   isModerator = false,
   currentPath

@@ -6,6 +6,7 @@ import { NavigationMenu } from '../navigation/NavigationMenu';
 import { useDropdown } from '../../hooks/useUI';
 import type { LinkComponentProps, RouteBuilder } from '../../contexts/RoutingContext';
 import type { TranslateFn } from '../../types/translation';
+import './Header.css';
 
 interface UnifiedHeaderProps {
   Link: React.ComponentType<LinkComponentProps>;
@@ -28,7 +29,6 @@ export function UnifiedHeader({
   t,
   tHome,
   showBranding = true,
-  showAuthLinks = true,
   brandingLink = '/',
   variant = 'standalone',
   isAuthenticated = false,

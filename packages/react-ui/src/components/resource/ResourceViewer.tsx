@@ -7,14 +7,22 @@ import { AnnotateView, type SelectionMotivation, type ClickAction, type ShapeTyp
 import { BrowseView } from './BrowseView';
 import { PopupContainer } from '../annotation-popups/SharedPopupElements';
 import { JsonLdView } from '../annotation-popups/JsonLdView';
-import type { components, ResourceUri } from '@semiont/api-client';
+import type { components, Selector } from '@semiont/api-client';
 import { getExactText, getTargetSelector, resourceUri, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/api-client';
 import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
-import { getAnnotator } from '../../lib/annotation-registry';
+import type { Annotator } from '../../lib/annotation-registry';
 import type { AnnotationsCollection } from '../../types/annotation-props';
+import { getSelectorType, getSelectedShapeForSelectorType, saveSelectedShapeForSelectorType } from '../../lib/media-shapes';
 
 type Annotation = components['schemas']['Annotation'];
 type SemiontResource = components['schemas']['ResourceDescriptor'];
+type Motivation = components['schemas']['Motivation'];
+
+// Unified pending annotation type - all human-created annotations flow through this
+interface PendingAnnotation {
+  selector: Selector | Selector[];
+  motivation: Motivation;
+}
 
 interface Props {
   resource: SemiontResource & { content: string };
@@ -29,8 +37,10 @@ interface Props {
   hoveredCommentId?: string | null;
   scrollToAnnotationId?: string | null;
   showLineNumbers?: boolean;
-  onCommentCreationRequested?: (selection: { exact: string; start: number; end: number }) => void;
-  onTagCreationRequested?: (selection: { exact: string; start: number; end: number }) => void;
+  onAnnotationRequested?: (pending: PendingAnnotation) => void;
+  onCommentCreationRequested?: (selection: { exact: string; start: number; end: number; svgSelector?: string; fragmentSelector?: string; conformsTo?: string }) => void;
+  onTagCreationRequested?: (selection: { exact: string; start: number; end: number; svgSelector?: string; fragmentSelector?: string; conformsTo?: string }) => void;
+  onAssessmentCreationRequested?: (selection: { exact: string; start: number; end: number; svgSelector?: string; fragmentSelector?: string; conformsTo?: string }) => void;
   onReferenceCreationRequested?: (selection: {
     exact: string;
     start: number;
@@ -38,12 +48,15 @@ interface Props {
     prefix?: string;
     suffix?: string;
     svgSelector?: string;
+    fragmentSelector?: string;
+    conformsTo?: string;
   }) => void;
   onCommentClick?: (commentId: string) => void;
   onReferenceClick?: (referenceId: string) => void;
   onHighlightClick?: (highlightId: string) => void;
   onAssessmentClick?: (assessmentId: string) => void;
   onTagClick?: (tagId: string) => void;
+  annotators: Record<string, Annotator>;
 }
 
 export function ResourceViewer({
@@ -59,17 +72,44 @@ export function ResourceViewer({
   hoveredCommentId,
   scrollToAnnotationId,
   showLineNumbers = false,
+  onAnnotationRequested,
   onCommentCreationRequested,
   onTagCreationRequested,
+  onAssessmentCreationRequested,
   onReferenceCreationRequested,
   onCommentClick,
   onReferenceClick,
   onHighlightClick,
   onAssessmentClick,
-  onTagClick
+  onTagClick,
+  annotators
 }: Props) {
   const t = useTranslations('ResourceViewer');
   const documentViewerRef = useRef<HTMLDivElement>(null);
+
+  // Use refs for function props to prevent infinite rerenders
+  const onRefetchAnnotationsRef = useRef(onRefetchAnnotations);
+  const onCommentCreationRequestedRef = useRef(onCommentCreationRequested);
+  const onTagCreationRequestedRef = useRef(onTagCreationRequested);
+  const onReferenceCreationRequestedRef = useRef(onReferenceCreationRequested);
+  const onCommentClickRef = useRef(onCommentClick);
+  const onReferenceClickRef = useRef(onReferenceClick);
+  const onHighlightClickRef = useRef(onHighlightClick);
+  const onAssessmentClickRef = useRef(onAssessmentClick);
+  const onTagClickRef = useRef(onTagClick);
+
+  // Keep refs up to date
+  useEffect(() => {
+    onRefetchAnnotationsRef.current = onRefetchAnnotations;
+    onCommentCreationRequestedRef.current = onCommentCreationRequested;
+    onTagCreationRequestedRef.current = onTagCreationRequested;
+    onReferenceCreationRequestedRef.current = onReferenceCreationRequested;
+    onCommentClickRef.current = onCommentClick;
+    onReferenceClickRef.current = onReferenceClick;
+    onHighlightClickRef.current = onHighlightClick;
+    onAssessmentClickRef.current = onAssessmentClick;
+    onTagClickRef.current = onTagClick;
+  });
 
   const { highlights, references, assessments, comments, tags } = annotations;
 
@@ -120,14 +160,12 @@ export function ResourceViewer({
     return 'detail';
   });
 
+  // Get selector type for current media type
+  const selectorType = getSelectorType(mimeType);
+
+  // Get selected shape for this selector type
   const [selectedShape, setSelectedShape] = useState<ShapeType>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('semiont-toolbar-shape');
-      if (stored && ['rectangle', 'circle', 'polygon'].includes(stored)) {
-        return stored as ShapeType;
-      }
-    }
-    return 'rectangle';
+    return getSelectedShapeForSelectorType(selectorType);
   });
 
   // Persist toolbar state to localStorage
@@ -143,9 +181,18 @@ export function ResourceViewer({
     localStorage.setItem('semiont-toolbar-click', selectedClick);
   }, [selectedClick]);
 
+  // Persist shape selection per selector type
   useEffect(() => {
-    localStorage.setItem('semiont-toolbar-shape', selectedShape);
-  }, [selectedShape]);
+    saveSelectedShapeForSelectorType(selectorType, selectedShape);
+  }, [selectorType, selectedShape]);
+
+  // Update selected shape when selector type changes (e.g., switching between PDF and image)
+  useEffect(() => {
+    const shapeForType = getSelectedShapeForSelectorType(selectorType);
+    if (shapeForType !== selectedShape) {
+      setSelectedShape(shapeForType);
+    }
+  }, [selectorType]);
 
   // JSON-LD view state
   const [showJsonLdView, setShowJsonLdView] = useState(false);
@@ -174,39 +221,39 @@ export function ResourceViewer({
   const handleDeleteAnnotation = useCallback(async (id: string) => {
     try {
       await deleteAnnotation(id, rUri);
-      onRefetchAnnotations?.();
+      onRefetchAnnotationsRef.current?.();
     } catch (err) {
       console.error('Failed to delete annotation:', err);
     }
-  }, [deleteAnnotation, rUri, onRefetchAnnotations]);
+  }, [deleteAnnotation, rUri]);
 
   // Handle annotation clicks - memoized
   const handleAnnotationClick = useCallback((annotation: Annotation, event?: React.MouseEvent) => {
-    const metadata = getAnnotator(annotation);
+    const metadata = Object.values(annotators).find(a => a.matchesAnnotation(annotation));
 
     // If annotation has a side panel, only open it when Detail mode is active
     // For delete/jsonld/follow modes, let those handlers below process it
     if (metadata?.hasSidePanel) {
       if (selectedClick === 'detail') {
         // Route to appropriate panel based on annotation type
-        if (isComment(annotation) && onCommentClick) {
-          onCommentClick(annotation.id);
+        if (isComment(annotation) && onCommentClickRef.current) {
+          onCommentClickRef.current(annotation.id);
           return;
         }
-        if (isReference(annotation) && onReferenceClick) {
-          onReferenceClick(annotation.id);
+        if (isReference(annotation) && onReferenceClickRef.current) {
+          onReferenceClickRef.current(annotation.id);
           return;
         }
-        if (isHighlight(annotation) && onHighlightClick) {
-          onHighlightClick(annotation.id);
+        if (isHighlight(annotation) && onHighlightClickRef.current) {
+          onHighlightClickRef.current(annotation.id);
           return;
         }
-        if (isAssessment(annotation) && onAssessmentClick) {
-          onAssessmentClick(annotation.id);
+        if (isAssessment(annotation) && onAssessmentClickRef.current) {
+          onAssessmentClickRef.current(annotation.id);
           return;
         }
-        if (isTag(annotation) && onTagClick) {
-          onTagClick(annotation.id);
+        if (isTag(annotation) && onTagClickRef.current) {
+          onTagClickRef.current(annotation.id);
           return;
         }
       }
@@ -252,11 +299,11 @@ export function ResourceViewer({
       setDeleteConfirmation({ annotation, position });
       return;
     }
-  }, [annotateMode, onCommentClick, onReferenceClick, onHighlightClick, onAssessmentClick, onTagClick, selectedClick, handleDeleteAnnotation]);
+  }, [annotateMode, selectedClick, handleDeleteAnnotation, annotators]);
 
   // Unified annotation creation handler - works for both text and images
   const handleAnnotationCreate = useCallback(async (params: import('../../types/annotation-props').UICreateAnnotationParams) => {
-    const { motivation, selector, position } = params;
+    const { motivation, selector } = params;
 
     try {
       switch (motivation) {
@@ -288,13 +335,13 @@ export function ResourceViewer({
 
             // Focus the new annotation to trigger panel tab switch
             if (annotation) {
-              if (motivation === 'highlighting' && onHighlightClick) {
-                onHighlightClick(annotation.id);
-              } else if (motivation === 'assessing' && onAssessmentClick) {
-                onAssessmentClick(annotation.id);
+              if (motivation === 'highlighting' && onHighlightClickRef.current) {
+                onHighlightClickRef.current(annotation.id);
+              } else if (motivation === 'assessing' && onAssessmentClickRef.current) {
+                onAssessmentClickRef.current(annotation.id);
               }
             }
-            onRefetchAnnotations?.();
+            onRefetchAnnotationsRef.current?.();
           } else if (selector.type === 'SvgSelector' && selector.value) {
             // Image annotations use generic createAnnotation
             await createAnnotation(
@@ -303,15 +350,28 @@ export function ResourceViewer({
               { type: 'SvgSelector', value: selector.value },
               []
             );
-            onRefetchAnnotations?.();
+            onRefetchAnnotationsRef.current?.();
+          } else if (selector.type === 'FragmentSelector' && selector.value) {
+            // PDF annotations use FragmentSelector
+            await createAnnotation(
+              rUri,
+              motivation,
+              {
+                type: 'FragmentSelector',
+                value: selector.value,
+                ...(selector.conformsTo && { conformsTo: selector.conformsTo })
+              },
+              []
+            );
+            onRefetchAnnotationsRef.current?.();
           }
           break;
 
         case 'commenting':
           if (selector.type === 'TextQuoteSelector' && selector.exact) {
             // Text: notify parent to open Comments Panel
-            if (onCommentCreationRequested) {
-              onCommentCreationRequested({
+            if (onCommentCreationRequestedRef.current) {
+              onCommentCreationRequestedRef.current({
                 exact: selector.exact,
                 start: selector.start || 0,
                 end: selector.end || 0
@@ -325,18 +385,34 @@ export function ResourceViewer({
               { type: 'SvgSelector', value: selector.value },
               []
             );
-            if (annotation && onCommentClick) {
-              onCommentClick(annotation.id);
+            if (annotation && onCommentClickRef.current) {
+              onCommentClickRef.current(annotation.id);
             }
-            onRefetchAnnotations?.();
+            onRefetchAnnotationsRef.current?.();
+          } else if (selector.type === 'FragmentSelector' && selector.value) {
+            // PDF: create annotation, then open panel
+            const annotation = await createAnnotation(
+              rUri,
+              motivation,
+              {
+                type: 'FragmentSelector',
+                value: selector.value,
+                ...(selector.conformsTo && { conformsTo: selector.conformsTo })
+              },
+              []
+            );
+            if (annotation && onCommentClickRef.current) {
+              onCommentClickRef.current(annotation.id);
+            }
+            onRefetchAnnotationsRef.current?.();
           }
           break;
 
         case 'tagging':
           if (selector.type === 'TextQuoteSelector' && selector.exact) {
             // Text: notify parent to open Tags Panel
-            if (onTagCreationRequested) {
-              onTagCreationRequested({
+            if (onTagCreationRequestedRef.current) {
+              onTagCreationRequestedRef.current({
                 exact: selector.exact,
                 start: selector.start || 0,
                 end: selector.end || 0
@@ -350,16 +426,32 @@ export function ResourceViewer({
               { type: 'SvgSelector', value: selector.value },
               []
             );
-            if (annotation && onTagClick) {
-              onTagClick(annotation.id);
+            if (annotation && onTagClickRef.current) {
+              onTagClickRef.current(annotation.id);
             }
-            onRefetchAnnotations?.();
+            onRefetchAnnotationsRef.current?.();
+          } else if (selector.type === 'FragmentSelector' && selector.value) {
+            // PDF: create annotation, then open panel
+            const annotation = await createAnnotation(
+              rUri,
+              motivation,
+              {
+                type: 'FragmentSelector',
+                value: selector.value,
+                ...(selector.conformsTo && { conformsTo: selector.conformsTo })
+              },
+              []
+            );
+            if (annotation && onTagClickRef.current) {
+              onTagClickRef.current(annotation.id);
+            }
+            onRefetchAnnotationsRef.current?.();
           }
           break;
 
         case 'linking':
-          // Call onReferenceCreationRequested for both text and image selections
-          if (onReferenceCreationRequested) {
+          // Call onReferenceCreationRequested for text, image, and PDF selections
+          if (onReferenceCreationRequestedRef.current) {
             if (selector.type === 'TextQuoteSelector' && selector.exact) {
               const selection = {
                 exact: selector.exact,
@@ -368,7 +460,7 @@ export function ResourceViewer({
                 ...(selector.prefix && { prefix: selector.prefix }),
                 ...(selector.suffix && { suffix: selector.suffix })
               };
-              onReferenceCreationRequested(selection);
+              onReferenceCreationRequestedRef.current(selection);
             } else if (selector.type === 'SvgSelector' && selector.value) {
               const selection = {
                 exact: '',  // Images don't have exact text
@@ -376,7 +468,16 @@ export function ResourceViewer({
                 end: 0,
                 svgSelector: selector.value
               };
-              onReferenceCreationRequested(selection);
+              onReferenceCreationRequestedRef.current(selection);
+            } else if (selector.type === 'FragmentSelector' && selector.value) {
+              const selection = {
+                exact: '',  // PDFs don't have exact text
+                start: 0,
+                end: 0,
+                fragmentSelector: selector.value,
+                ...(selector.conformsTo && { conformsTo: selector.conformsTo })
+              };
+              onReferenceCreationRequestedRef.current(selection);
             }
           }
           break;
@@ -384,12 +485,52 @@ export function ResourceViewer({
     } catch (err) {
       console.error('Failed to create annotation:', err);
     }
-  }, [rUri, createAnnotation, onRefetchAnnotations, onCommentCreationRequested, onTagCreationRequested, onReferenceCreationRequested, onCommentClick, onTagClick, onHighlightClick, onAssessmentClick]);
+  }, [rUri, createAnnotation]);
 
   // Quick action: Delete annotation from widget
   const handleDeleteAnnotationWidget = useCallback(async (annotation: Annotation) => {
     await handleDeleteAnnotation(annotation.id);
   }, [handleDeleteAnnotation]);
+
+  // Memoize objects to prevent infinite re-renders
+  const annotationsCollection = useMemo(
+    () => ({ highlights, references, assessments, comments, tags }),
+    [highlights, references, assessments, comments, tags]
+  );
+
+  const handlersForAnnotate = useMemo(
+    () => ({
+      onClick: handleAnnotationClick,
+      ...(onAnnotationHover && { onHover: onAnnotationHover }),
+      ...(onCommentHover && { onCommentHover })
+    }),
+    [handleAnnotationClick, onAnnotationHover, onCommentHover]
+  );
+
+  const handlersForBrowse = useMemo(
+    () => ({
+      onClick: handleAnnotationClick,
+      ...(onCommentHover && { onCommentHover })
+    }),
+    [handleAnnotationClick, onCommentHover]
+  );
+
+  const creationHandler = useMemo(
+    () => ({ onCreate: handleAnnotationCreate }),
+    [handleAnnotationCreate]
+  );
+
+  const uiState = useMemo(
+    () => ({
+      selectedMotivation,
+      selectedClick,
+      selectedShape,
+      ...(hoveredAnnotationId !== undefined && { hoveredAnnotationId }),
+      ...(hoveredCommentId !== undefined && { hoveredCommentId }),
+      ...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })
+    }),
+    [selectedMotivation, selectedClick, selectedShape, hoveredAnnotationId, hoveredCommentId, scrollToAnnotationId]
+  );
 
   return (
     <div ref={documentViewerRef} className="semiont-resource-viewer">
@@ -399,23 +540,10 @@ export function ResourceViewer({
           content={resource.content}
           mimeType={mimeType}
           resourceUri={resource['@id']}
-          annotations={{ highlights, references, assessments, comments, tags }}
-          handlers={{
-            onClick: handleAnnotationClick,
-            ...(onAnnotationHover && { onHover: onAnnotationHover }),
-            ...(onCommentHover && { onCommentHover })
-          }}
-          creationHandler={{
-            onCreate: handleAnnotationCreate
-          }}
-          uiState={{
-            selectedMotivation,
-            selectedClick,
-            selectedShape,
-            ...(hoveredAnnotationId !== undefined && { hoveredAnnotationId }),
-            ...(hoveredCommentId !== undefined && { hoveredCommentId }),
-            ...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })
-          }}
+          annotations={annotationsCollection}
+          handlers={handlersForAnnotate}
+          creationHandler={creationHandler}
+          uiState={uiState}
           onUIStateChange={(updates) => {
             if ('selectedMotivation' in updates) setSelectedMotivation(updates.selectedMotivation!);
             if ('selectedClick' in updates) setSelectedClick(updates.selectedClick!);
@@ -431,22 +559,26 @@ export function ResourceViewer({
           showLineNumbers={showLineNumbers}
           annotateMode={annotateMode}
           onAnnotateModeToggle={onAnnotateModeToggle}
+          {...(onAnnotationRequested && { onAnnotationRequested })}
+          {...(onCommentCreationRequested && { onCommentCreationRequested })}
+          {...(onTagCreationRequested && { onTagCreationRequested })}
+          {...(onAssessmentCreationRequested && { onAssessmentCreationRequested })}
+          {...(onReferenceCreationRequested && { onReferenceCreationRequested })}
+          annotators={annotators}
         />
       ) : (
         <BrowseView
           content={resource.content}
           mimeType={mimeType}
           resourceUri={resource['@id']}
-          annotations={{ highlights, references, assessments, comments, tags }}
-          handlers={{
-            onClick: handleAnnotationClick,
-            ...(onCommentHover && { onCommentHover })
-          }}
+          annotations={annotationsCollection}
+          handlers={handlersForBrowse}
           {...(hoveredCommentId !== undefined && { hoveredCommentId })}
           selectedClick={selectedClick}
           onClickChange={setSelectedClick}
           annotateMode={annotateMode}
           onAnnotateModeToggle={onAnnotateModeToggle}
+          annotators={annotators}
         />
       )}
 
@@ -471,7 +603,7 @@ export function ResourceViewer({
       {/* Delete Confirmation Modal */}
       {deleteConfirmation && (() => {
         const annotation = deleteConfirmation.annotation;
-        const metadata = getAnnotator(annotation);
+        const metadata = Object.values(annotators).find(a => a.matchesAnnotation(annotation));
         const targetSelector = getTargetSelector(annotation.target);
         const selectedText = getExactText(targetSelector);
         const motivationEmoji = metadata?.iconEmoji || '📝';

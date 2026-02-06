@@ -185,7 +185,7 @@ export const StyledButton = styled(SemiontButton)`
 `;
 
 // Example usage with theme
-const theme = {
+/* const _theme = {
   colors: {
     primary: '#0080ff',
     primaryDark: '#0066cc',
@@ -203,7 +203,7 @@ const theme = {
   fonts: {
     sans: 'Inter, system-ui, -apple-system, sans-serif',
   }
-};
+}; */
 
 // Example component using styled button
 export function ExampleStyledButton() {

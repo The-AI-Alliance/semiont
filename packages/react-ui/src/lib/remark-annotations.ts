@@ -23,8 +23,7 @@ interface RemarkAnnotationsOptions {
 export function remarkAnnotations(options: RemarkAnnotationsOptions) {
   const { annotations } = options;
 
-  return (tree: Root, file: VFile) => {
-    const source = String(file);
+  return (tree: Root, _file: VFile) => {
 
     visit(tree, (node) => {
       if (!node.position) return;

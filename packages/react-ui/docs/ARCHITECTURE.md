@@ -655,9 +655,87 @@ Not breaking:
 
 ---
 
+## Styling Architecture
+
+### Component-Level CSS Pattern
+
+**Principle:** Styles should live next to components when practical.
+
+**Why:**
+- Better developer experience (co-location of concerns)
+- Easier to find and maintain styles
+- Industry-standard pattern
+- No build complexity in react-ui package
+
+**How It Works:**
+
+1. **Component CSS lives next to component:**
+   ```
+   src/components/pdf-annotation/
+   ├── PdfAnnotationCanvas.tsx
+   └── PdfAnnotationCanvas.css
+   ```
+
+2. **Component imports its CSS** (type hint only, doesn't bundle):
+   ```typescript
+   // PdfAnnotationCanvas.tsx
+   import './PdfAnnotationCanvas.css';
+   ```
+
+3. **Main stylesheet imports component CSS:**
+   ```css
+   /* src/styles/index.css */
+   @import '../components/pdf-annotation/PdfAnnotationCanvas.css';
+   ```
+
+4. **Package exports source CSS** (not built):
+   ```json
+   { "exports": { "./styles": "./src/styles/index.css" } }
+   ```
+
+5. **Frontend processes everything:**
+   - Imports `@semiont/react-ui/styles`
+   - PostCSS with `postcss-import` resolves all `@import` statements
+   - Bundles into single CSS file
+
+### CSS Build System
+
+- **react-ui:** tsup builds TypeScript only (no CSS bundling)
+- **Frontend:** Next.js PostCSS processes CSS with `postcss-import`
+- **Key insight:** `import './Component.css'` in TypeScript is a type hint - doesn't bundle anything
+
+### CSS Quality Standards
+
+The codebase enforces strict CSS quality standards via custom Stylelint plugins:
+
+**Custom Linter Rules:**
+- `semiont/invariants` - Enforces CSS variables instead of hardcoded colors, requires dark mode variants
+- `semiont/accessibility` - Ensures WCAG 2.1 AA compliance, reduced motion support, proper focus indicators
+- `semiont/theme-selectors` - Validates dark mode implementation patterns
+
+**Reduced Motion Support:**
+- Global reduced-motion overrides in `src/styles/utilities/motion-overrides.css`
+- Automatically disables all animations/transitions when `prefers-reduced-motion: reduce`
+- Linter recognizes global support for files in `src/styles/`, `src/components/`, and `src/features/`
+
+**Dark Mode Requirements:**
+- All components must have `[data-theme="dark"]` variants
+- Use CSS variables for colors (never hardcoded hex values)
+- Linter enforces consistent dark mode patterns
+
+**Running CSS Linter:**
+```bash
+npm run lint:css
+```
+
+See [STYLES.md](STYLES.md) for comprehensive CSS architecture and conventions.
+
+---
+
 ## See Also
 
 - [PROVIDERS.md](PROVIDERS.md) - Provider Pattern implementation
 - [API-INTEGRATION.md](API-INTEGRATION.md) - API architecture
 - [TESTING.md](TESTING.md) - Testing architecture
+- [STYLES.md](STYLES.md) - CSS architecture and conventions
 - [CLAUDE.md](../../CLAUDE.md) - Project-wide code standards

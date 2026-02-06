@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import './Toast.css';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
@@ -109,25 +110,30 @@ const ToastContext = React.createContext<ToastContextType | undefined>(undefined
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  const showToast = (message: string, type: ToastType = 'info', duration?: number) => {
+  const showToast = React.useCallback((message: string, type: ToastType = 'info', duration?: number) => {
     const id = Date.now().toString();
-    const newToast: ToastMessage = duration !== undefined 
+    const newToast: ToastMessage = duration !== undefined
       ? { id, message, type, duration }
       : { id, message, type };
     setToasts((prev) => [...prev, newToast]);
-  };
+  }, []);
 
-  const showSuccess = (message: string, duration?: number) => showToast(message, 'success', duration);
-  const showError = (message: string, duration?: number) => showToast(message, 'error', duration);
-  const showWarning = (message: string, duration?: number) => showToast(message, 'warning', duration);
-  const showInfo = (message: string, duration?: number) => showToast(message, 'info', duration);
+  const showSuccess = React.useCallback((message: string, duration?: number) => showToast(message, 'success', duration), [showToast]);
+  const showError = React.useCallback((message: string, duration?: number) => showToast(message, 'error', duration), [showToast]);
+  const showWarning = React.useCallback((message: string, duration?: number) => showToast(message, 'warning', duration), [showToast]);
+  const showInfo = React.useCallback((message: string, duration?: number) => showToast(message, 'info', duration), [showToast]);
 
-  const handleClose = (id: string) => {
+  const handleClose = React.useCallback((id: string) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
-  };
+  }, []);
+
+  const contextValue = React.useMemo(
+    () => ({ showToast, showSuccess, showError, showWarning, showInfo }),
+    [showToast, showSuccess, showError, showWarning, showInfo]
+  );
 
   return (
-    <ToastContext.Provider value={{ showToast, showSuccess, showError, showWarning, showInfo }}>
+    <ToastContext.Provider value={contextValue}>
       {children}
       <ToastContainer toasts={toasts} onClose={handleClose} />
     </ToastContext.Provider>

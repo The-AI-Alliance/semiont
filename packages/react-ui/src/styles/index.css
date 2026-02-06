@@ -28,31 +28,6 @@
 /* Core UI Elements */
 @import './core/index.css';
 
-/* Core Components */
-@import './components/auth.css';
-@import './components/tables.css';
-@import './components/toast.css';
-@import './components/status-display.css';
-@import './components/panels-base.css';
-@import './components/panel-sections.css';
-@import './components/modals.css';
-@import './components/search-modal.css';
-@import './components/branding.css';
-@import './components/toolbar.css';
-@import './components/cards.css';
-@import './components/detection-widget.css';
-@import './components/references.css';
-@import './components/navigation-tabs.css';
-@import './components/collapsible-resource-navigation.css';
-@import './components/annotations.css';
-@import './components/annotation-entries.css';
-@import './components/skip-links.css';
-@import './components/header.css';
-@import './components/footer.css';
-@import './components/left-sidebar.css';
-@import './components/navigation-menu.css';
-@import './components/resize-handle.css';
-
 /* Motivation-Specific Styles (W3C Web Annotation) */
 @import './motivations/motivation-reference.css';
 @import './motivations/motivation-highlight.css';
@@ -60,18 +35,7 @@
 @import './motivations/motivation-comment.css';
 @import './motivations/motivation-tag.css';
 
-/* Individual Panel Styles */
-@import './panels/collaboration-panel.css';
-@import './panels/jsonld-panel.css';
-@import './panels/references-panel.css';
-@import './panels/settings-panel.css';
-@import './panels/unified-annotations-panel.css';
-@import './panels/resource-info-panel.css';
-@import './panels/tagging-panel.css';
-@import './panels/highlight-panel.css';
-@import './panels/comments-panel.css';
-@import './panels/assessment-panel.css';
-@import './panels/statistics-panel.css';
+/* Keep remaining panel styles if any */
 @import './panels/history-panel.css';
 @import './panels/user-panel.css';
 
@@ -88,6 +52,44 @@
 @import './features/static-pages.css';
 @import './features/welcome.css';
 
-/* Patterns */
-@import './patterns/loading.css';
-@import './patterns/errors.css';
+/* Patterns - Reusable Design System Patterns */
+@import './patterns/panels-base.css';
+@import './patterns/panel-sections.css';
+@import './patterns/panel-helpers.css';
+@import './patterns/cards.css';
+@import './patterns/tables.css';
+
+/* Component-Level CSS */
+@import '../components/pdf-annotation/PdfAnnotationCanvas.css';
+@import '../components/resource/panels/AssessmentPanel.css';
+@import '../components/resource/panels/CollaborationPanel.css';
+@import '../components/resource/panels/CommentsPanel.css';
+@import '../components/resource/panels/HighlightPanel.css';
+@import '../components/resource/panels/JsonLdPanel.css';
+@import '../components/resource/panels/ReferencesPanel.css';
+@import '../components/resource/panels/ResourceInfoPanel.css';
+@import '../components/resource/panels/StatisticsPanel.css';
+@import '../components/resource/panels/TaggingPanel.css';
+@import '../components/resource/panels/UnifiedAnnotationsPanel.css';
+@import '../components/resource/panels/DetectSection.css';
+@import '../components/settings/SettingsPanel.css';
+@import '../components/navigation/CollapsibleResourceNavigation.css';
+@import '../components/navigation/NavigationMenu.css';
+@import '../components/navigation/NavigationTabs.css';
+@import '../components/modals/modals.css';
+@import '../components/modals/SearchModal.css';
+@import '../components/layout/LeftSidebar.css';
+@import '../components/layout/Header.css';
+@import '../components/layout/Footer.css';
+@import '../components/layout/ResizeHandle.css';
+@import '../components/layout/SkipLinks.css';
+@import '../components/branding/Branding.css';
+@import '../components/toolbar/Toolbar.css';
+@import '../components/annotation/annotations.css';
+@import '../components/annotation/annotation-entries.css';
+@import '../components/annotation/references.css';
+@import '../components/Toast.css';
+@import '../components/StatusDisplay.css';
+@import '../components/loading-states/loading.css';
+@import '../components/error-states/errors.css';
+@import '../features/auth/auth.css';
