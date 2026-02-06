@@ -147,7 +147,7 @@ export function CommentsPanel({
                 isFocused={comment.id === focusedAnnotationId}
                 onClick={() => onAnnotationClick(comment)}
                 onCommentRef={handleAnnotationRef}
-                {...(onAnnotationHover && { onAnnotationHover })}
+                {...(onAnnotationHover && { onCommentHover: onAnnotationHover })}
                 annotateMode={annotateMode}
               />
             ))

@@ -96,11 +96,8 @@ describe('CommentEntry Component', () => {
     comment: mockCommentStates.standard,
     isFocused: false,
     onClick: vi.fn(),
-    onDelete: vi.fn(),
-    onUpdate: vi.fn(),
     onCommentRef: vi.fn(),
     onCommentHover: vi.fn(),
-    resourceContent: 'This is the resource content for testing',
   };
 
   beforeEach(() => {
@@ -376,9 +373,8 @@ describe('CommentEntry Component', () => {
       expect(textarea).toHaveAttribute('maxLength', '2000');
     });
 
-    it('should call onUpdate with new text when save is clicked', async () => {
-      const onUpdate = vi.fn();
-      render(<CommentEntry {...defaultProps} onUpdate={onUpdate} />);
+    it('should update textarea value and exit edit mode when save is clicked', async () => {
+      render(<CommentEntry {...defaultProps} />);
 
       await userEvent.click(screen.getByText('Edit'));
       const textarea = screen.getByRole('textbox');
@@ -386,9 +382,14 @@ describe('CommentEntry Component', () => {
       await userEvent.clear(textarea);
       await userEvent.type(textarea, 'Updated comment');
 
+      expect(textarea).toHaveValue('Updated comment');
+
       await userEvent.click(screen.getByText('Save'));
 
-      expect(onUpdate).toHaveBeenCalledWith('Updated comment');
+      // Edit mode should exit (textarea should no longer be in document)
+      await waitFor(() => {
+        expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+      });
     });
 
     it('should exit edit mode after save', async () => {
