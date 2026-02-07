@@ -1,19 +1,22 @@
 #!/bin/bash
 
-# Detect CI environment and exit early BEFORE setting strict error handling
-# CI prebuild shouldn't run full setup (needs services running)
-# Check multiple indicators that we're in CI prebuild
-if [ "${CI:-false}" = "true" ] || \
-   [ "${GITHUB_ACTIONS:-false}" = "true" ] || \
-   [ "${REMOTE_CONTAINERS_IPC:-}" != "" ] || \
-   [ ! -t 0 ]; then
+# Detect CI prebuild environment and exit early BEFORE setting strict error handling
+# The devcontainers/ci action runs postCreateCommand during image build
+# We need to skip the full setup which requires services to be running
+#
+# Detection strategy: Check if we're in GitHub Actions AND running in a build context
+# (not an interactive terminal and GITHUB_ACTIONS is set)
+if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
   echo "=========================================="
-  echo "   CI/PREBUILD ENVIRONMENT DETECTED"
+  echo "   CI PREBUILD DETECTED"
   echo "=========================================="
   echo ""
-  echo "Skipping full setup - will run on container start"
-  echo "This is normal for devcontainer prebuilds."
+  echo "Running in GitHub Actions devcontainer prebuild"
+  echo "Skipping full setup (requires running services)"
+  echo "Setup will execute when container actually starts"
   echo ""
+  echo "This is normal and expected for CI prebuilds."
+  echo "=========================================="
   exit 0
 fi
 

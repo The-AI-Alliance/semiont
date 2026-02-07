@@ -1,6 +1,23 @@
 #!/bin/bash
 
-# Enhanced error handling
+# Detect CI prebuild environment and exit early BEFORE setting strict error handling
+# The devcontainers/ci action runs postStartCommand during image build
+# We need to skip service startup which would block forever with tail -f
+if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+  echo "=========================================="
+  echo "   CI PREBUILD DETECTED"
+  echo "=========================================="
+  echo ""
+  echo "Running in GitHub Actions devcontainer prebuild"
+  echo "Skipping service startup (would block container build)"
+  echo "Services will start when container actually runs"
+  echo ""
+  echo "This is normal and expected for CI prebuilds."
+  echo "=========================================="
+  exit 0
+fi
+
+# Enhanced error handling (only set after CI check)
 set -euo pipefail
 
 # Force unbuffered output so logs appear immediately
