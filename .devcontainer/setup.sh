@@ -1,27 +1,21 @@
 #!/bin/bash
 
-# Detect CI prebuild environment and exit early BEFORE setting strict error handling
-# The devcontainers/ci action runs postCreateCommand during image build
-# We need to skip the full setup which requires services to be running
-#
-# Detection strategy: Check if we're in GitHub Actions AND running in a build context
-# (not an interactive terminal and GITHUB_ACTIONS is set)
-if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
-  echo "=========================================="
-  echo "   CI PREBUILD DETECTED"
-  echo "=========================================="
-  echo ""
-  echo "Running in GitHub Actions devcontainer prebuild"
-  echo "Skipping full setup (requires running services)"
-  echo "Setup will execute when container actually starts"
-  echo ""
-  echo "This is normal and expected for CI prebuilds."
-  echo "=========================================="
-  exit 0
-fi
-
-# Enhanced error handling (only set after CI check)
+# Enhanced error handling
 set -euo pipefail
+
+# Detect environment and log for debugging
+echo "=========================================="
+echo "   SETUP.SH ENVIRONMENT CHECK"
+echo "=========================================="
+echo "PWD: $(pwd)"
+echo "USER: $(whoami)"
+echo "GITHUB_ACTIONS: ${GITHUB_ACTIONS:-<not set>}"
+echo "CI: ${CI:-<not set>}"
+echo "TERM: ${TERM:-<not set>}"
+echo "Skip marker exists: $([ -f /tmp/.skip-startup ] && echo 'yes' || echo 'no')"
+echo "PostgreSQL running: $(pg_isready -q 2>/dev/null && echo 'yes' || echo 'no')"
+echo "=========================================="
+echo ""
 
 # Force unbuffered output so logs appear immediately
 exec 2>&1
