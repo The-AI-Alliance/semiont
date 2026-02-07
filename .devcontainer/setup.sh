@@ -38,9 +38,6 @@ LOG_FILE="/tmp/semiont-setup.log"
 echo "Starting semiont setup at $(date)" > $LOG_FILE
 echo "Generated admin email: $ADMIN_EMAIL" >> $LOG_FILE
 
-# Clear the screen for clean output
-clear
-
 echo "=========================================="
 echo "   SEMIONT DEVCONTAINER SETUP"
 echo "=========================================="
