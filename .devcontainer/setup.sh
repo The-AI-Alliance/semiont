@@ -7,6 +7,14 @@ set -euo pipefail
 exec 2>&1
 export PYTHONUNBUFFERED=1
 
+# Detect CI environment and exit early
+# CI prebuild shouldn't run full setup (needs services running)
+if [ "${CI:-false}" = "true" ] || [ "${GITHUB_ACTIONS:-false}" = "true" ]; then
+  echo "CI environment detected - skipping full setup"
+  echo "Setup will run on first dev container start"
+  exit 0
+fi
+
 # Generate random admin email and password for this environment
 # Uses random hex string for uniqueness (not guessable)
 RANDOM_ID=$(openssl rand -hex 8)
