@@ -10,6 +10,12 @@
   // Start PostgreSQL before running setup
   "onCreateCommand": "sudo /usr/local/bin/start-postgres.sh",
 
+  // One-time setup after container is created (runs once)
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+
+  // Start services every time container starts (keeps running)
+  "postStartCommand": "bash .devcontainer/start-services.sh",
+
   // Use 'forwardPorts' to make a list of ports inside the container available locally
   "forwardPorts": [8080, 3000, 4000, 9901],
 
@@ -33,12 +39,6 @@
     }
   },
 
-  // Use 'postCreateCommand' to run commands after the container is created
-  // Note: Output is buffered by Codespaces - use Cmd/Ctrl+Shift+P -> "View Creation Log" to see progress
-  // "postCreateCommand": "bash .devcontainer/make-meaning.sh",
-
-  // Show setup instructions and offer to run setup when VS Code attaches
-  "postAttachCommand": "bash /workspace/.devcontainer/prompt-setup.sh",
 
   // Configure tool-specific properties
   "customizations": {

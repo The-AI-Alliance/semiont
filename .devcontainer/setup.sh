@@ -14,8 +14,8 @@ ADMIN_EMAIL="dev-${RANDOM_ID}@example.com"
 ADMIN_PASSWORD=$(openssl rand -base64 16)
 
 # Create a log file for debugging if needed
-LOG_FILE="/tmp/make-meaning.log"
-echo "Starting make-meaning setup at $(date)" > $LOG_FILE
+LOG_FILE="/tmp/semiont-setup.log"
+echo "Starting semiont setup at $(date)" > $LOG_FILE
 echo "Generated admin email: $ADMIN_EMAIL" >> $LOG_FILE
 
 # Clear the screen for clean output
@@ -34,7 +34,6 @@ echo "  • Initialize project"
 echo "  • Provision services"
 echo "  • Build applications"
 echo "  • Setup database"
-echo "  • Start services (backend, frontend, Envoy)"
 echo ""
 echo "⏱️  Estimated time: 5-7 minutes"
 echo "------------------------------------------"
@@ -408,158 +407,18 @@ echo "if [ -d /workspace ]; then" >> /home/node/.bashrc
 echo "    cd /workspace" >> /home/node/.bashrc
 echo "fi" >> /home/node/.bashrc
 
-# Start the backend and frontend services
-print_status "Starting services..."
-cd $SEMIONT_ROOT || exit 1
-
-# Stop any existing services first
-print_status "Stopping any existing services..."
-semiont stop >> $LOG_FILE 2>&1 || {
-    print_warning "No services to stop or stop failed - continuing"
-}
-
-# Start backend service
-semiont start --service backend >> $LOG_FILE 2>&1 || {
-    print_error "Backend service failed to start - check $LOG_FILE"
-    exit 1
-}
-print_success "Backend service started"
-
-# Start frontend service
-semiont start --service frontend >> $LOG_FILE 2>&1 || {
-    print_error "Frontend service failed to start - check $LOG_FILE"
-    exit 1
-}
-print_success "Frontend service started"
-
-# Start Envoy proxy for path-based routing
-print_status "Starting Envoy proxy..."
-# Double-fork wrapper script daemonizes Envoy (reparents to init/PID 1)
-ENVOY_LOG="/tmp/envoy.log"
-chmod +x /workspace/.devcontainer/start-envoy.sh
-/workspace/.devcontainer/start-envoy.sh
-
-# Give Envoy a moment to start
-sleep 3
-
-# Verify Envoy is listening on port 8080
-if netstat -tln | grep -q ':8080.*LISTEN'; then
-    print_success "Envoy proxy started and listening on port 8080"
-    print_info "Envoy logs: $ENVOY_LOG"
-else
-    print_error "Envoy failed to start - check $ENVOY_LOG"
-    exit 1
-fi
-
-# Check service status (non-fatal)
-print_status "Checking service status..."
-if semiont check >> $LOG_FILE 2>&1; then
-    print_success "All services running"
-else
-    print_warning "Some services may not be fully ready yet"
-    print_info "You can check status manually with: semiont check"
-fi
-
-# Change to workspace directory for user
-cd /workspace
-
-# Display welcome message
-echo ""
-cat /workspace/.devcontainer/welcome.txt
-
-# Call to action
-echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo ""
-if [ -n "$CODESPACE_NAME" ]; then
-    ENVOY_URL="https://${CODESPACE_NAME}-8080.app.github.dev"
-    FRONTEND_URL="https://${CODESPACE_NAME}-3000.app.github.dev"
-    BACKEND_HEALTH_URL="https://${CODESPACE_NAME}-4000.app.github.dev/api/health"
-
-    echo "📋 SETUP STEPS (Codespaces):"
-    echo ""
-    echo "1. Make port 8080 public (Envoy proxy - main entry point):"
-    echo "   • Open the 'Ports' panel (View → Ports)"
-    echo "   • Right-click port 8080 → Port Visibility → Public"
-    echo ""
-    echo "2. Open the application via Envoy (recommended):"
-    echo "   $ENVOY_URL"
-    echo ""
-    echo "3. Alternative: Direct access to services"
-    echo "   • Frontend: $FRONTEND_URL"
-    echo "   • Backend health: $BACKEND_HEALTH_URL"
-    echo ""
-    echo "4. Sign in with your admin credentials:"
-    echo ""
-    echo "   Email:    $ADMIN_EMAIL"
-    echo "   Password: $ADMIN_PASSWORD"
-    echo ""
-    echo "   (These credentials are unique to this Codespace)"
-    echo ""
-    # Write credentials to JSON file
-    CREDS_FILE="/workspace/credentials.json"
-    cat > "$CREDS_FILE" << EOF
-{
-  "email": "$ADMIN_EMAIL",
-  "password": "$ADMIN_PASSWORD",
-  "environment": "codespace",
-  "codespace_name": "$CODESPACE_NAME",
-  "created_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-}
+# Save credentials to a file that start-services.sh can read
+CREDS_FILE="/tmp/semiont-credentials.txt"
+cat > "$CREDS_FILE" << EOF
+ADMIN_EMAIL=$ADMIN_EMAIL
+ADMIN_PASSWORD=$ADMIN_PASSWORD
 EOF
-    echo "   📄 Credentials saved to: credentials.json"
-    echo ""
-    echo "📌 Note: Path-based routing via Envoy:"
-    echo "   • /resources/*, /annotations/*, etc. → Backend"
-    echo "   • /api/auth/*, /api/cookies/* → Frontend"
-    echo "   • /* → Frontend pages"
-else
-    echo "🚀 Ready to start! Open the application:"
-    echo ""
-    echo "   http://localhost:8080 (Envoy proxy - recommended)"
-    echo "   http://localhost:3000 (Frontend direct)"
-    echo "   http://localhost:4000/api/health (Backend health check)"
-    echo ""
-    echo "   Sign in with your admin credentials:"
-    echo ""
-    echo "   Email:    $ADMIN_EMAIL"
-    echo "   Password: $ADMIN_PASSWORD"
-    echo ""
-    # Write credentials to JSON file
-    CREDS_FILE="/workspace/credentials.json"
-    cat > "$CREDS_FILE" << EOF
-{
-  "email": "$ADMIN_EMAIL",
-  "password": "$ADMIN_PASSWORD",
-  "environment": "localhost",
-  "created_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-}
-EOF
-    echo "   📄 Credentials saved to: credentials.json"
-    echo ""
-    echo "📌 Note: Path-based routing via Envoy:"
-    echo "   • /resources/*, /annotations/*, etc. → Backend (port 4000)"
-    echo "   • /api/auth/*, /api/cookies/* → Frontend (port 3000)"
-    echo "   • /* → Frontend pages"
-fi
+
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "=========================================="
+echo "  ✅ ONE-TIME SETUP COMPLETED"
+echo "=========================================="
 echo ""
-echo "⚙️  Environment: $SEMIONT_ENV"
-echo ""
-if [ "$SEMIONT_ENV" = "local-production" ]; then
-    echo "   Running in PRODUCTION mode (builds enabled)"
-    echo "   To switch to DEVELOPMENT mode (faster, skip builds):"
-    echo "   • Edit .devcontainer/devcontainer.json"
-    echo "   • Change SEMIONT_ENV to 'local'"
-    echo "   • Rebuild the devcontainer"
-else
-    echo "   Running in DEVELOPMENT mode (builds skipped)"
-    echo "   To switch to PRODUCTION mode (validate builds):"
-    echo "   • Edit .devcontainer/devcontainer.json"
-    echo "   • Change SEMIONT_ENV to 'local-production'"
-    echo "   • Rebuild the devcontainer"
-fi
-echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+print_success "Services will start automatically"
+print_info "Check postStartCommand progress in container logs"
 echo ""
