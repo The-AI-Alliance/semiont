@@ -40,8 +40,8 @@ export async function bootstrapEntityTypes(eventStore: EventStore, config: Envir
   const projectionPath = path.join(
     basePath,
     'projections',
-    'entity-types',
-    'entity-types.json'
+    '__system__',
+    'entitytypes.json'
   );
 
   try {
