@@ -1,19 +1,28 @@
 #!/bin/bash
 
-# Enhanced error handling
+# Detect CI environment and exit early BEFORE setting strict error handling
+# CI prebuild shouldn't run full setup (needs services running)
+# Check multiple indicators that we're in CI prebuild
+if [ "${CI:-false}" = "true" ] || \
+   [ "${GITHUB_ACTIONS:-false}" = "true" ] || \
+   [ "${REMOTE_CONTAINERS_IPC:-}" != "" ] || \
+   [ ! -t 0 ]; then
+  echo "=========================================="
+  echo "   CI/PREBUILD ENVIRONMENT DETECTED"
+  echo "=========================================="
+  echo ""
+  echo "Skipping full setup - will run on container start"
+  echo "This is normal for devcontainer prebuilds."
+  echo ""
+  exit 0
+fi
+
+# Enhanced error handling (only set after CI check)
 set -euo pipefail
 
 # Force unbuffered output so logs appear immediately
 exec 2>&1
 export PYTHONUNBUFFERED=1
-
-# Detect CI environment and exit early
-# CI prebuild shouldn't run full setup (needs services running)
-if [ "${CI:-false}" = "true" ] || [ "${GITHUB_ACTIONS:-false}" = "true" ]; then
-  echo "CI environment detected - skipping full setup"
-  echo "Setup will run on first dev container start"
-  exit 0
-fi
 
 # Generate random admin email and password for this environment
 # Uses random hex string for uniqueness (not guessable)
