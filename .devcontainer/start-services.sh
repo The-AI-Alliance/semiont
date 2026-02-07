@@ -1,19 +1,20 @@
 #!/bin/bash
 
-# Detect CI prebuild environment and exit early BEFORE setting strict error handling
-# The devcontainers/ci action runs postStartCommand during image build
-# We need to skip service startup which would block forever with tail -f
-if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+# Check for skip marker file (baked into image for CI prebuild)
+# This file exists in the prebuild image to prevent blocking during CI
+# Delete it and exit on first encounter (prebuild), then run normally on subsequent starts
+if [ -f /tmp/.skip-startup ]; then
   echo "=========================================="
-  echo "   CI PREBUILD DETECTED"
+  echo "   SKIP MARKER DETECTED"
   echo "=========================================="
   echo ""
-  echo "Running in GitHub Actions devcontainer prebuild"
-  echo "Skipping service startup (would block container build)"
-  echo "Services will start when container actually runs"
+  echo "Found /tmp/.skip-startup marker file (from prebuild)"
+  echo "Removing marker and skipping service startup this time"
+  echo "Services will start on next container start"
   echo ""
-  echo "This is normal and expected for CI prebuilds."
+  echo "This is normal for first run after CI prebuild."
   echo "=========================================="
+  rm -f /tmp/.skip-startup
   exit 0
 fi
 
