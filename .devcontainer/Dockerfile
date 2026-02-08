@@ -68,7 +68,8 @@ WORKDIR /workspace
 
 # Create skip-startup marker file for CI prebuild
 # This prevents start-services.sh from blocking during devcontainer prebuild
-# The file will be deleted on first actual container start
+# The file remains permanently in CI prebuild images
+# For development containers, delete it manually: rm /tmp/.skip-startup
 RUN touch /tmp/.skip-startup
 
 # Switch to node user for development
