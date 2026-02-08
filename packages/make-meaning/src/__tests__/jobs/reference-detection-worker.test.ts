@@ -15,7 +15,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { ReferenceDetectionWorker } from '../../jobs/reference-detection-worker';
 import { JobQueue, type RunningJob, type DetectionParams, type DetectionProgress } from '@semiont/jobs';
-import { resourceId, userId, type EnvironmentConfig, type JobCompletedEvent } from '@semiont/core';
+import { resourceId, userId, type EnvironmentConfig } from '@semiont/core';
 import { jobId, entityType } from '@semiont/api-client';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore } from '@semiont/content';
@@ -528,13 +528,15 @@ describe('ReferenceDetectionWorker - Full Lifecycle', () => {
       await (worker as any).emitCompletionEvent(job, result);
 
       const events = await eventStore.log.getEvents(resourceId(testResourceId));
-      const completedEvent = events.find((e): e is { event: JobCompletedEvent } => e.event.type === 'job.completed');
+      const completedEvent = events.find(e => e.event.type === 'job.completed');
 
       expect(completedEvent).toBeDefined();
-      expect(completedEvent!.event.payload.result).toBeDefined();
-      expect(completedEvent!.event.payload.result.totalFound).toBe(10);
-      expect(completedEvent!.event.payload.result.totalEmitted).toBe(8);
-      expect(completedEvent!.event.payload.result.errors).toBe(2);
+      if (completedEvent!.event.type === 'job.completed') {
+        expect(completedEvent!.event.payload.result).toBeDefined();
+        expect(completedEvent!.event.payload.result.totalFound).toBe(10);
+        expect(completedEvent!.event.payload.result.totalEmitted).toBe(8);
+        expect(completedEvent!.event.payload.result.errors).toBe(2);
+      }
     });
   });
 
@@ -576,9 +578,11 @@ describe('ReferenceDetectionWorker - Full Lifecycle', () => {
 
       // Verify completion event was emitted
       const events = await eventStore.log.getEvents(resourceId(testResourceId));
-      const completedEvents = events.filter((e): e is { event: JobCompletedEvent } => e.event.type === 'job.completed');
+      const completedEvents = events.filter(e => e.event.type === 'job.completed');
       expect(completedEvents.length).toBe(1);
-      expect(completedEvents[0]!.event.payload.result).toEqual(result);
+      if (completedEvents[0]!.event.type === 'job.completed') {
+        expect(completedEvents[0]!.event.payload.result).toEqual(result);
+      }
     });
 
     it('should handle worker methods via canProcessJob', async () => {

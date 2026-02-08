@@ -14,7 +14,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { bootstrapEntityTypes, resetBootstrap } from '../../bootstrap/entity-types';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
-import { userId, type EnvironmentConfig, type EntityTypeAddedEvent } from '@semiont/core';
+import { userId, type EnvironmentConfig } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -104,10 +104,15 @@ describe('Entity Types Bootstrap', () => {
       await bootstrapEntityTypes(eventStore, config);
 
       const systemEvents = await eventStore.log.getEvents('__system__' as any);
-      const addedEvents = systemEvents.filter((e): e is { event: EntityTypeAddedEvent } => e.event.type === 'entitytype.added');
+      const addedEvents = systemEvents.filter(e => e.event.type === 'entitytype.added');
 
       // Events should be in same order as DEFAULT_ENTITY_TYPES
-      const emittedTypes = addedEvents.map(e => e.event.payload.entityType);
+      const emittedTypes = addedEvents.map(e => {
+        if (e.event.type === 'entitytype.added') {
+          return e.event.payload.entityType;
+        }
+        throw new Error('Unexpected event type');
+      });
       expect(emittedTypes).toEqual(DEFAULT_ENTITY_TYPES);
     });
 
@@ -115,13 +120,15 @@ describe('Entity Types Bootstrap', () => {
       await bootstrapEntityTypes(eventStore, config);
 
       const systemEvents = await eventStore.log.getEvents('__system__' as any);
-      const addedEvents = systemEvents.filter((e): e is { event: EntityTypeAddedEvent } => e.event.type === 'entitytype.added');
+      const addedEvents = systemEvents.filter(e => e.event.type === 'entitytype.added');
 
       addedEvents.forEach(event => {
         expect(event.event.type).toBe('entitytype.added');
-        expect(event.event.payload).toHaveProperty('entityType');
-        expect(typeof event.event.payload.entityType).toBe('string');
-        expect(event.event.payload.entityType.length).toBeGreaterThan(0);
+        if (event.event.type === 'entitytype.added') {
+          expect(event.event.payload).toHaveProperty('entityType');
+          expect(typeof event.event.payload.entityType).toBe('string');
+          expect(event.event.payload.entityType.length).toBeGreaterThan(0);
+        }
       });
     });
 
