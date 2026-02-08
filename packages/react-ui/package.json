@@ -96,5 +96,8 @@
     "type": "git",
     "url": "https://github.com/The-AI-Alliance/semiont.git",
     "directory": "packages/react-ui"
+  },
+  "dependencies": {
+    "mitt": "^3.0.1"
   }
 }
