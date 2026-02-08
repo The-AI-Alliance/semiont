@@ -46,7 +46,7 @@ describe('Authentication Integration', () => {
         },
         frontend: {
           platform: { type: 'posix' },
-          url: 'http://localhost:3000',
+          publicURL: 'http://localhost:3000',
           port: 3000,
           siteName: 'Test Site'
         }
