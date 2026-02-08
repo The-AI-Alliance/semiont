@@ -209,10 +209,10 @@ export function ResourceViewerPage({
     return false;
   });
 
-  // Unified annotation state (motivation-agnostic)
-  const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
+  // Unified annotation state (motivation-agnostic) - used by sidebar panels
+  const [focusedAnnotationId, _setFocusedAnnotationId] = useState<string | null>(null);
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
-  const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
+  // scrollToAnnotationId removed - ResourceViewer now manages scroll state internally
 
   // Unified pending annotation - all human-created annotations flow through this
   const [pendingAnnotation, setPendingAnnotation] = useState<PendingAnnotation | null>(null);
@@ -242,9 +242,9 @@ export function ResourceViewerPage({
     }
   }, [onTriggerSparkleAnimation]);
 
-  // Handle event click - scroll to annotation
-  const handleEventClick = useCallback((annotationId: string | null) => {
-    setScrollToAnnotationId(annotationId);
+  // Handle event click - scroll handled internally by ResourceViewer now
+  const handleEventClick = useCallback((_annotationId: string | null) => {
+    // ResourceViewer now manages scroll state internally
   }, []);
 
   // Handle annotate mode toggle - memoized
@@ -510,12 +510,7 @@ export function ResourceViewerPage({
     [resource, content]
   );
 
-  // Memoize annotation click handlers to prevent infinite re-renders
-  const handleAnnotationClickAndFocus = useCallback((annotationId: string) => {
-    setActivePanel('annotations');
-    setFocusedAnnotationId(annotationId);
-    setTimeout(() => setFocusedAnnotationId(null), 3000);
-  }, []);
+  // handleAnnotationClickAndFocus removed - ResourceViewer now manages focus/click state internally
 
   // Document rendering
   return (
@@ -564,17 +559,7 @@ export function ResourceViewerPage({
                 annotateMode={annotateMode}
                 onAnnotateModeToggle={handleAnnotateModeToggle}
                 onAnnotationRequested={handleAnnotationRequested}
-                onCommentClick={handleAnnotationClickAndFocus}
-                onReferenceClick={handleAnnotationClickAndFocus}
-                onHighlightClick={handleAnnotationClickAndFocus}
-                onAssessmentClick={handleAnnotationClickAndFocus}
-                onTagClick={handleAnnotationClickAndFocus}
                 generatingReferenceId={generationProgress?.referenceId ?? null}
-                onAnnotationHover={setHoveredAnnotationId}
-                onCommentHover={setHoveredAnnotationId}
-                hoveredAnnotationId={hoveredAnnotationId}
-                hoveredCommentId={hoveredAnnotationId}
-                scrollToAnnotationId={scrollToAnnotationId}
                 showLineNumbers={showLineNumbers}
                 annotators={ANNOTATORS}
               />

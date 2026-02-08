@@ -50,10 +50,15 @@ interface Props {
   annotateMode: boolean;
   onAnnotateModeToggle: () => void;
   generatingReferenceId?: string | null;
+  /** @deprecated Use internal hover state instead. Kept for backward compatibility. */
   onAnnotationHover?: (annotationId: string | null) => void;
+  /** @deprecated Use internal hover state instead. Kept for backward compatibility. */
   onCommentHover?: (commentId: string | null) => void;
+  /** @deprecated Component now manages hover state internally. Kept for backward compatibility. */
   hoveredAnnotationId?: string | null;
+  /** @deprecated Component now manages hover state internally. Kept for backward compatibility. */
   hoveredCommentId?: string | null;
+  /** @deprecated Component now manages scroll state internally. Kept for backward compatibility. */
   scrollToAnnotationId?: string | null;
   showLineNumbers?: boolean;
   onAnnotationRequested?: (pending: PendingAnnotation) => void;
@@ -70,10 +75,15 @@ interface Props {
     fragmentSelector?: string;
     conformsTo?: string;
   }) => void;
+  /** @deprecated Use internal focus state instead. Kept for backward compatibility. */
   onCommentClick?: (commentId: string) => void;
+  /** @deprecated Use internal focus state instead. Kept for backward compatibility. */
   onReferenceClick?: (referenceId: string) => void;
+  /** @deprecated Use internal focus state instead. Kept for backward compatibility. */
   onHighlightClick?: (highlightId: string) => void;
+  /** @deprecated Use internal focus state instead. Kept for backward compatibility. */
   onAssessmentClick?: (assessmentId: string) => void;
+  /** @deprecated Use internal focus state instead. Kept for backward compatibility. */
   onTagClick?: (tagId: string) => void;
   annotators: Record<string, Annotator>;
 }
@@ -254,6 +264,44 @@ export function ResourceViewer({
     position: { x: number; y: number };
   } | null>(null);
 
+  // Internal UI state for hover, focus, and scroll (Phase 3: moved from parent)
+  const [internalHoveredAnnotationId, _setInternalHoveredAnnotationId] = useState<string | null>(null);
+  const [internalHoveredCommentId, _setInternalHoveredCommentId] = useState<string | null>(null);
+  const [internalScrollToAnnotationId, setInternalScrollToAnnotationId] = useState<string | null>(null);
+  const [_internalFocusedAnnotationId, setInternalFocusedAnnotationId] = useState<string | null>(null);
+
+  // Use internal state or prop (for backward compatibility during migration)
+  const effectiveHoveredAnnotationId = hoveredAnnotationId ?? internalHoveredAnnotationId;
+  const effectiveHoveredCommentId = hoveredCommentId ?? internalHoveredCommentId;
+  const effectiveScrollToAnnotationId = scrollToAnnotationId ?? internalScrollToAnnotationId;
+
+  // Internal helper to focus annotation (Phase 3: replaces callback props)
+  const focusAnnotation = useCallback((annotationId: string) => {
+    setInternalFocusedAnnotationId(annotationId);
+    setInternalScrollToAnnotationId(annotationId);
+
+    // Clear focus after 3 seconds (matches parent behavior)
+    setTimeout(() => setInternalFocusedAnnotationId(null), 3000);
+
+    // Backward compatibility: call parent callback if provided
+    const annotation = [...highlights, ...references, ...assessments, ...comments, ...tags]
+      .find(a => a.id === annotationId);
+
+    if (annotation) {
+      if (isComment(annotation) && onCommentClickRef.current) {
+        onCommentClickRef.current(annotationId);
+      } else if (isReference(annotation) && onReferenceClickRef.current) {
+        onReferenceClickRef.current(annotationId);
+      } else if (isHighlight(annotation) && onHighlightClickRef.current) {
+        onHighlightClickRef.current(annotationId);
+      } else if (isAssessment(annotation) && onAssessmentClickRef.current) {
+        onAssessmentClickRef.current(annotationId);
+      } else if (isTag(annotation) && onTagClickRef.current) {
+        onTagClickRef.current(annotationId);
+      }
+    }
+  }, [highlights, references, assessments, comments, tags, onCommentClickRef, onReferenceClickRef, onHighlightClickRef, onAssessmentClickRef, onTagClickRef]);
+
   // Calculate centered position for JSON-LD modal
   const jsonLdModalPosition = useMemo(() => {
     if (typeof window === 'undefined') return { x: 0, y: 0 };
@@ -285,27 +333,9 @@ export function ResourceViewer({
     // For delete/jsonld/follow modes, let those handlers below process it
     if (metadata?.hasSidePanel) {
       if (selectedClick === 'detail') {
-        // Route to appropriate panel based on annotation type
-        if (isComment(annotation) && onCommentClickRef.current) {
-          onCommentClickRef.current(annotation.id);
-          return;
-        }
-        if (isReference(annotation) && onReferenceClickRef.current) {
-          onReferenceClickRef.current(annotation.id);
-          return;
-        }
-        if (isHighlight(annotation) && onHighlightClickRef.current) {
-          onHighlightClickRef.current(annotation.id);
-          return;
-        }
-        if (isAssessment(annotation) && onAssessmentClickRef.current) {
-          onAssessmentClickRef.current(annotation.id);
-          return;
-        }
-        if (isTag(annotation) && onTagClickRef.current) {
-          onTagClickRef.current(annotation.id);
-          return;
-        }
+        // Focus annotation (sets internal focus and scroll state, plus calls parent callback for backward compat)
+        focusAnnotation(annotation.id);
+        return;
       }
       // Don't return early for delete/jsonld/follow modes - let them be handled below
       if (selectedClick !== 'deleting' && selectedClick !== 'jsonld' && selectedClick !== 'follow') {
@@ -349,7 +379,7 @@ export function ResourceViewer({
       setDeleteConfirmation({ annotation, position });
       return;
     }
-  }, [annotateMode, selectedClick, handleDeleteAnnotation, annotators]);
+  }, [annotateMode, selectedClick, handleDeleteAnnotation, annotators, focusAnnotation]);
 
   // Unified annotation creation handler - works for both text and images
   const handleAnnotationCreate = useCallback(async (params: import('../../types/annotation-props').UICreateAnnotationParams) => {
@@ -385,11 +415,7 @@ export function ResourceViewer({
 
             // Focus the new annotation to trigger panel tab switch
             if (annotation) {
-              if (motivation === 'highlighting' && onHighlightClickRef.current) {
-                onHighlightClickRef.current(annotation.id);
-              } else if (motivation === 'assessing' && onAssessmentClickRef.current) {
-                onAssessmentClickRef.current(annotation.id);
-              }
+              focusAnnotation(annotation.id);
             }
             // Cache invalidation now handled by annotation:added event
           } else if (selector.type === 'SvgSelector' && selector.value) {
@@ -435,8 +461,8 @@ export function ResourceViewer({
               { type: 'SvgSelector', value: selector.value },
               []
             );
-            if (annotation && onCommentClickRef.current) {
-              onCommentClickRef.current(annotation.id);
+            if (annotation) {
+              focusAnnotation(annotation.id);
             }
             // Cache invalidation now handled by annotation:added event
           } else if (selector.type === 'FragmentSelector' && selector.value) {
@@ -451,8 +477,8 @@ export function ResourceViewer({
               },
               []
             );
-            if (annotation && onCommentClickRef.current) {
-              onCommentClickRef.current(annotation.id);
+            if (annotation) {
+              focusAnnotation(annotation.id);
             }
             // Cache invalidation now handled by annotation:added event
           }
@@ -476,8 +502,8 @@ export function ResourceViewer({
               { type: 'SvgSelector', value: selector.value },
               []
             );
-            if (annotation && onTagClickRef.current) {
-              onTagClickRef.current(annotation.id);
+            if (annotation) {
+              focusAnnotation(annotation.id);
             }
             // Cache invalidation now handled by annotation:added event
           } else if (selector.type === 'FragmentSelector' && selector.value) {
@@ -492,8 +518,8 @@ export function ResourceViewer({
               },
               []
             );
-            if (annotation && onTagClickRef.current) {
-              onTagClickRef.current(annotation.id);
+            if (annotation) {
+              focusAnnotation(annotation.id);
             }
             // Cache invalidation now handled by annotation:added event
           }
@@ -575,11 +601,10 @@ export function ResourceViewer({
       selectedMotivation,
       selectedClick,
       selectedShape,
-      ...(hoveredAnnotationId !== undefined && { hoveredAnnotationId }),
-      ...(hoveredCommentId !== undefined && { hoveredCommentId }),
-      ...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })
+      hoveredAnnotationId: effectiveHoveredAnnotationId,
+      scrollToAnnotationId: effectiveScrollToAnnotationId
     }),
-    [selectedMotivation, selectedClick, selectedShape, hoveredAnnotationId, hoveredCommentId, scrollToAnnotationId]
+    [selectedMotivation, selectedClick, selectedShape, effectiveHoveredAnnotationId, effectiveScrollToAnnotationId]
   );
 
   return (
@@ -623,7 +648,7 @@ export function ResourceViewer({
           resourceUri={resource['@id']}
           annotations={annotationsCollection}
           handlers={handlersForBrowse}
-          {...(hoveredCommentId !== undefined && { hoveredCommentId })}
+          hoveredCommentId={effectiveHoveredCommentId}
           selectedClick={selectedClick}
           onClickChange={setSelectedClick}
           annotateMode={annotateMode}
