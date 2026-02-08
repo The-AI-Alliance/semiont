@@ -20,6 +20,7 @@ import { Toolbar } from '@semiont/react-ui';
 import { useResourceLoadingAnnouncements } from '@semiont/react-ui';
 import type { GenerationOptions } from '@semiont/react-ui';
 import { ResourceViewer } from '@semiont/react-ui';
+import { MakeMeaningEventBusProvider } from '@semiont/react-ui';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
@@ -106,7 +107,6 @@ export interface ResourceViewerPageProps {
   onUnarchive: () => Promise<void>;
   onClone: () => Promise<void>;
   onUpdateAnnotationBody: (annotationUri: string, data: any) => Promise<void>;
-  onRefetchAnnotations: () => Promise<void>;
 
   /**
    * Annotation CRUD callbacks
@@ -175,7 +175,6 @@ export function ResourceViewerPage({
   onUnarchive,
   onClone,
   onUpdateAnnotationBody,
-  onRefetchAnnotations,
   onCreateAnnotation,
   onTriggerSparkleAnimation,
   onClearNewAnnotationId,
@@ -470,9 +469,7 @@ export function ResourceViewerPage({
       await onCreateAnnotation(rUri, motivation, selector, body);
       setPendingAnnotation(null);
 
-      if (annotatorConfig.create.refetchAfter) {
-        await onRefetchAnnotations();
-      }
+      // Cache invalidation now handled by annotation:added event
 
       if (annotatorConfig.create.successMessage) {
         const message = annotatorConfig.create.successMessage.replace('{value}', args[1] || '');
@@ -482,7 +479,7 @@ export function ResourceViewerPage({
       console.error(`Failed to create ${annotatorConfig.internalType}:`, error);
       showError(`Failed to create ${annotatorConfig.displayName.toLowerCase()}`);
     }
-  }, [pendingAnnotation, onCreateAnnotation, rUri, onRefetchAnnotations, showSuccess, showError]);
+  }, [pendingAnnotation, onCreateAnnotation, rUri, showSuccess, showError]);
 
   // Group annotations by type using static ANNOTATORS
   const groups = useMemo(() => {
@@ -514,10 +511,6 @@ export function ResourceViewerPage({
   );
 
   // Memoize annotation click handlers to prevent infinite re-renders
-  const handleRefetchAnnotations = useCallback(() => {
-    // Don't refetch immediately - the SSE event will trigger invalidation after projection is updated
-  }, []);
-
   const handleAnnotationClickAndFocus = useCallback((annotationId: string) => {
     setActivePanel('annotations');
     setFocusedAnnotationId(annotationId);
@@ -526,7 +519,8 @@ export function ResourceViewerPage({
 
   // Document rendering
   return (
-    <div className={`semiont-document-viewer${activePanel ? ' semiont-document-viewer--panel-open' : ''}`}>
+    <MakeMeaningEventBusProvider rUri={rUri}>
+      <div className={`semiont-document-viewer${activePanel ? ' semiont-document-viewer--panel-open' : ''}`}>
       {/* Main Content - Fills remaining height */}
       <div className="semiont-document-viewer__main">
         {/* Document Content - Left Side */}
@@ -567,7 +561,6 @@ export function ResourceViewerPage({
                 <ResourceViewer
                   resource={resourceWithContent}
                 annotations={groups}
-                onRefetchAnnotations={handleRefetchAnnotations}
                 annotateMode={annotateMode}
                 onAnnotateModeToggle={handleAnnotateModeToggle}
                 onAnnotationRequested={handleAnnotationRequested}
@@ -724,7 +717,7 @@ export function ResourceViewerPage({
                 }],
               });
               showSuccess('Reference linked successfully');
-              await onRefetchAnnotations();
+              // Cache invalidation now handled by annotation:updated event
               setSearchModalOpen(false);
               setPendingReferenceId(null);
             } catch (error) {
@@ -752,6 +745,7 @@ export function ResourceViewerPage({
         resourceUri={rUri}
         defaultTitle={generationDefaultTitle}
       />
-    </div>
+      </div>
+    </MakeMeaningEventBusProvider>
   );
 }

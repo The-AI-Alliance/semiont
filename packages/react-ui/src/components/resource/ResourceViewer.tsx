@@ -47,8 +47,6 @@ interface PendingAnnotation {
 interface Props {
   resource: SemiontResource & { content: string };
   annotations: AnnotationsCollection;
-  /** @deprecated Use event-based cache invalidation instead. Still supported for backward compatibility. */
-  onRefetchAnnotations?: () => void;
   annotateMode: boolean;
   onAnnotateModeToggle: () => void;
   generatingReferenceId?: string | null;
@@ -83,7 +81,6 @@ interface Props {
 export function ResourceViewer({
   resource,
   annotations,
-  onRefetchAnnotations,
   annotateMode,
   onAnnotateModeToggle,
   generatingReferenceId,
@@ -109,7 +106,6 @@ export function ResourceViewer({
   const documentViewerRef = useRef<HTMLDivElement>(null);
 
   // Use refs for function props to prevent infinite rerenders
-  const onRefetchAnnotationsRef = useRef(onRefetchAnnotations);
   const onCommentCreationRequestedRef = useRef(onCommentCreationRequested);
   const onTagCreationRequestedRef = useRef(onTagCreationRequested);
   const onReferenceCreationRequestedRef = useRef(onReferenceCreationRequested);
@@ -121,7 +117,6 @@ export function ResourceViewer({
 
   // Keep refs up to date
   useEffect(() => {
-    onRefetchAnnotationsRef.current = onRefetchAnnotations;
     onCommentCreationRequestedRef.current = onCommentCreationRequested;
     onTagCreationRequestedRef.current = onTagCreationRequested;
     onReferenceCreationRequestedRef.current = onReferenceCreationRequested;
