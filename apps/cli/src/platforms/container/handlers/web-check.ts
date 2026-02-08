@@ -94,7 +94,22 @@ const checkWebContainer = async (context: ContainerCheckHandlerContext): Promise
       } else {
         // Frontend service - check root endpoint
         const frontendConfig = config as FrontendServiceConfig;
-        const healthUrl = frontendConfig.url;
+        const healthUrl = frontendConfig.publicURL;
+
+        if (!healthUrl) {
+          return {
+            success: true,
+            status: 'running',
+            health: {
+              healthy: false,
+              details: {
+                error: 'Frontend publicURL not configured',
+                containerHealth: 'running'
+              }
+            },
+            metadata: { containerStatus: 'running', containerId }
+          };
+        }
 
         try {
           const response = await fetch(healthUrl, {

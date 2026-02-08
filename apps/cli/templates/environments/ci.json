@@ -25,7 +25,7 @@
         "type": "posix"
       },
       "port": 3000,
-      "url": "http://localhost:3000",
+      "publicURL": "http://localhost:3000",
       "siteName": "CI Test Site"
     },
     "filesystem": {

@@ -66,6 +66,11 @@ RUN apt-get update && \
 # Set working directory
 WORKDIR /workspace
 
+# Create skip-startup marker file for CI prebuild
+# This prevents start-services.sh from blocking during devcontainer prebuild
+# The file will be deleted on first actual container start
+RUN touch /tmp/.skip-startup
+
 # Switch to node user for development
 USER node
 

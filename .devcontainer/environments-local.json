@@ -29,7 +29,7 @@
       },
       "devMode": true,
       "port": 3000,
-      "url": "http://localhost:3000",
+      "publicURL": "http://localhost:8080",
       "siteName": "Semiont"
     },
     "database": {

@@ -124,7 +124,7 @@ Each environment configuration file follows this structure:
 
 **Optional But Common**:
 - `services.backend.corsOrigin` - CORS allowed origin
-- `services.frontend.url` - Frontend base URL
+- `services.frontend.publicURL` - Frontend public URL (for NextAuth, OAuth callbacks)
 - `services.inference` - AI service configuration
 
 ### 4. **Configuration Loading Process**

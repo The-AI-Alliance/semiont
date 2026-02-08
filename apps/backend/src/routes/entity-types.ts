@@ -42,8 +42,8 @@ async function getEntityTypesFromLayer3(config: EnvironmentConfig): Promise<stri
   const entityTypesPath = path.join(
     basePath,
     'projections',
-    'entity-types',
-    'entity-types.json'
+    '__system__',
+    'entitytypes.json'
   );
 
   try {

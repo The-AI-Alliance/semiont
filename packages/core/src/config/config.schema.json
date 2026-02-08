@@ -305,9 +305,6 @@
         "port": {
           "type": "integer"
         },
-        "url": {
-          "type": "string"
-        },
         "siteName": {
           "type": "string"
         },
@@ -448,7 +445,6 @@
       "required": [
         "platform",
         "port",
-        "url",
         "siteName"
       ],
       "additionalProperties": false

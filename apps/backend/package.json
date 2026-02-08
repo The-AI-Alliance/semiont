@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsup --watch & node --watch dist/index.js",
+    "dev": "tsup && node --watch --conditions=development dist/index.js",
     "build": "npm run build:app",
     "build:app": "prisma generate && npm run typecheck && tsup",
     "build:clean": "npm run clean && prisma generate && npm run typecheck && tsup",

@@ -105,10 +105,10 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   
   // Get URLs from environment config
   const frontendService = service.environmentConfig.services?.frontend;
-  if (!frontendService?.url) {
-    throw new Error('Frontend URL not configured in environment');
+  if (!frontendService?.publicURL) {
+    throw new Error('Frontend publicURL not configured in environment');
   }
-  const frontendUrl = frontendService.url;
+  const frontendUrl = frontendService.publicURL;
 
   const backendUrl = config.publicURL;
   if (!backendUrl) {
