@@ -13,9 +13,6 @@
   // One-time setup after container is created (runs once)
   "postCreateCommand": "bash .devcontainer/setup.sh",
 
-  // Start services every time container starts (keeps running)
-  "postStartCommand": "bash .devcontainer/start-services.sh",
-
   // Use 'forwardPorts' to make a list of ports inside the container available locally
   "forwardPorts": [8080, 3000, 4000, 9901],
 
