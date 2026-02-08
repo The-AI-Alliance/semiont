@@ -204,7 +204,6 @@ export interface FrontendServiceConfig {
   devMode?: boolean;
   command?: string;
   port: number;
-  url: string;
   siteName: string;
   image?: string;
   semiontRepo?: string;
