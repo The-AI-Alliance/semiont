@@ -1,14 +1,29 @@
 /**
  * Resource Operations
  *
- * Business logic for resource updates including:
+ * Business logic for resource operations including:
+ * - Resource creation (ID generation, content storage, event emission)
  * - Archive/unarchive operations
  * - Entity type tagging (add/remove)
  * - Computing diffs and emitting appropriate events
  */
 
 import type { EventStore } from '@semiont/event-sourcing';
-import type { ResourceId, UserId } from '@semiont/core';
+import type { RepresentationStore } from '@semiont/content';
+import type { components } from '@semiont/api-client';
+import {
+  CREATION_METHODS,
+  type CreationMethod,
+  generateUuid,
+  resourceId,
+  type UserId,
+  type ResourceId,
+  type EnvironmentConfig,
+} from '@semiont/core';
+
+type CreateResourceResponse = components['schemas']['CreateResourceResponse'];
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+type ContentFormat = components['schemas']['ContentFormat'];
 
 export interface UpdateResourceInput {
   resourceId: ResourceId;
@@ -19,7 +34,95 @@ export interface UpdateResourceInput {
   updatedEntityTypes?: string[];
 }
 
+export interface CreateResourceInput {
+  name: string;
+  content: Buffer;
+  format: ContentFormat;
+  language?: string;
+  entityTypes?: string[];
+  creationMethod?: CreationMethod;
+}
+
 export class ResourceOperations {
+  /**
+   * Create a new resource
+   * Orchestrates: content storage → event emission → response building
+   */
+  static async createResource(
+    input: CreateResourceInput,
+    userId: UserId,
+    eventStore: EventStore,
+    repStore: RepresentationStore,
+    config: EnvironmentConfig
+  ): Promise<CreateResourceResponse> {
+    // Generate resource ID
+    const rId = resourceId(generateUuid());
+
+    // Store content
+    const storedRep = await repStore.store(input.content, {
+      mediaType: input.format,
+      language: input.language || undefined,
+      rel: 'original',
+    });
+
+    // Validate creation method
+    const validCreationMethods = Object.values(CREATION_METHODS) as string[];
+    const validatedCreationMethod = input.creationMethod && validCreationMethods.includes(input.creationMethod)
+      ? (input.creationMethod as CreationMethod)
+      : CREATION_METHODS.API;
+
+    // Emit resource.created event
+    await eventStore.appendEvent({
+      type: 'resource.created',
+      resourceId: rId,
+      userId,
+      version: 1,
+      payload: {
+        name: input.name,
+        format: input.format,
+        contentChecksum: storedRep.checksum,
+        contentByteSize: storedRep.byteSize,
+        creationMethod: validatedCreationMethod,
+        entityTypes: input.entityTypes || [],
+        language: input.language || undefined,
+        isDraft: false,
+        generatedFrom: undefined,
+        generationPrompt: undefined,
+      },
+    });
+
+    // Build and return response
+    const backendUrl = config.services.backend?.publicURL;
+    if (!backendUrl) {
+      throw new Error('Backend publicURL not configured');
+    }
+    const normalizedBase = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl;
+
+    const resourceMetadata: ResourceDescriptor = {
+      '@context': 'https://schema.org/',
+      '@id': `${normalizedBase}/resources/${rId}`,
+      name: input.name,
+      archived: false,
+      entityTypes: input.entityTypes || [],
+      creationMethod: validatedCreationMethod,
+      dateCreated: new Date().toISOString(),
+      representations: [
+        {
+          mediaType: storedRep.mediaType,
+          checksum: storedRep.checksum,
+          byteSize: storedRep.byteSize,
+          rel: 'original',
+          language: storedRep.language,
+        },
+      ],
+    };
+
+    return {
+      resource: resourceMetadata,
+      annotations: [],
+    };
+  }
+
   /**
    * Update resource metadata by computing diffs and emitting events
    * Handles: archived status changes, entity type additions/removals

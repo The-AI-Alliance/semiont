@@ -16,7 +16,7 @@ export { GraphDBConsumer } from './graph/consumer';
 
 // Resource operations
 export { ResourceOperations } from './resource-operations';
-export type { UpdateResourceInput } from './resource-operations';
+export type { UpdateResourceInput, CreateResourceInput } from './resource-operations';
 
 // Annotation operations
 export { AnnotationOperations } from './annotation-operations';
