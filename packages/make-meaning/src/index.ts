@@ -14,6 +14,10 @@ export { readEntityTypesProjection } from './views/entity-types-reader';
 // Graph Consumer
 export { GraphDBConsumer } from './graph/consumer';
 
+// Resource operations
+export { ResourceOperations } from './resource-operations';
+export type { UpdateResourceInput } from './resource-operations';
+
 // Context assembly exports
 export { ResourceContext } from './resource-context';
 export type { ListResourcesFilters } from './resource-context';

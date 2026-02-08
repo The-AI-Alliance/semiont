@@ -10,8 +10,7 @@
 
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import { ResourceContext } from '@semiont/make-meaning';
-import { AnnotationContext } from '@semiont/make-meaning';
+import { ResourceContext, AnnotationContext, ResourceOperations } from '@semiont/make-meaning';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 import { userId, resourceId } from '@semiont/core';
@@ -46,57 +45,18 @@ export function registerUpdateResource(router: ResourcesRouterType) {
 
       const { eventStore } = c.get('makeMeaning');
 
-      // Emit archived/unarchived events (event store updates view storage, graph consumer updates Graph Database)
-      if (body.archived !== undefined && body.archived !== doc.archived) {
-        if (body.archived) {
-          await eventStore.appendEvent({
-            type: 'resource.archived',
-            resourceId: resourceId(id),
-            userId: userId(user.id),
-            version: 1,
-            payload: {
-              reason: undefined,
-            },
-          });
-        } else {
-          await eventStore.appendEvent({
-            type: 'resource.unarchived',
-            resourceId: resourceId(id),
-            userId: userId(user.id),
-            version: 1,
-            payload: {},
-          });
-        }
-      }
-
-      // Emit entity tag change events (event store updates view storage, graph consumer updates Graph Database)
-      if (body.entityTypes && doc.entityTypes) {
-        const added = body.entityTypes.filter((et: string) => !(doc.entityTypes || []).includes(et));
-        const removed = (doc.entityTypes || []).filter((et: string) => !body.entityTypes!.includes(et));
-
-        for (const entityType of added) {
-          await eventStore.appendEvent({
-            type: 'entitytag.added',
-            resourceId: resourceId(id),
-            userId: userId(user.id),
-            version: 1,
-            payload: {
-              entityType,
-            },
-          });
-        }
-        for (const entityType of removed) {
-          await eventStore.appendEvent({
-            type: 'entitytag.removed',
-            resourceId: resourceId(id),
-            userId: userId(user.id),
-            version: 1,
-            payload: {
-              entityType,
-            },
-          });
-        }
-      }
+      // Delegate to make-meaning service for business logic
+      await ResourceOperations.updateResource(
+        {
+          resourceId: resourceId(id),
+          userId: userId(user.id),
+          currentArchived: doc.archived,
+          updatedArchived: body.archived,
+          currentEntityTypes: doc.entityTypes,
+          updatedEntityTypes: body.entityTypes,
+        },
+        eventStore
+      );
 
       // Read annotations from view storage
       const annotations = await AnnotationContext.getAllAnnotations(resourceId(id), config);
