@@ -5,6 +5,12 @@
 export { startMakeMeaning } from './service';
 export type { MakeMeaningService } from './service';
 
+// Bootstrap
+export { bootstrapEntityTypes, resetBootstrap } from './bootstrap/entity-types';
+
+// Views
+export { readEntityTypesProjection } from './views/entity-types-reader';
+
 // Graph Consumer
 export { GraphDBConsumer } from './graph/consumer';
 

@@ -25,6 +25,7 @@ import { AssessmentDetectionWorker } from './jobs/assessment-detection-worker';
 import { CommentDetectionWorker } from './jobs/comment-detection-worker';
 import { TagDetectionWorker } from './jobs/tag-detection-worker';
 import { GraphDBConsumer } from './graph/consumer';
+import { bootstrapEntityTypes } from './bootstrap/entity-types';
 
 export interface MakeMeaningService {
   jobQueue: JobQueue;
@@ -79,22 +80,27 @@ export async function startMakeMeaning(config: EnvironmentConfig): Promise<MakeM
   console.log('📊 Creating event store connection...');
   const eventStore = createEventStoreCore(basePath, baseUrl);
 
-  // 4. Create shared representation store
+  // 4. Bootstrap entity types (if projection doesn't exist)
+  console.log('🌱 Bootstrapping entity types...');
+  await bootstrapEntityTypes(eventStore, config);
+  console.log('✅ Entity types bootstrap complete');
+
+  // 5. Create shared representation store
   console.log('📦 Creating representation store...');
   const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
   console.log('✅ Representation store created');
 
-  // 5. Create inference client (shared across all workers)
+  // 6. Create inference client (shared across all workers)
   console.log('🤖 Creating inference client...');
   const inferenceClient = await getInferenceClient(config);
   console.log('✅ Inference client created');
 
-  // 6. Create graph database connection
+  // 7. Create graph database connection
   console.log('📊 Connecting to graph database...');
   const graphDb = await getGraphDatabase(config);
   console.log('✅ Graph database connected');
 
-  // 7. Start graph consumer
+  // 8. Start graph consumer
   console.log('🔄 Starting graph consumer...');
   const graphConsumer = new GraphDBConsumer(config, eventStore, graphDb);
   await graphConsumer.initialize();
@@ -107,7 +113,7 @@ export async function startMakeMeaning(config: EnvironmentConfig): Promise<MakeM
   }
   console.log('✅ Graph consumer started');
 
-  // 8. Instantiate workers
+  // 9. Instantiate workers
   console.log('👷 Creating workers...');
   const workers = {
     detection: new ReferenceDetectionWorker(jobQueue, config, eventStore, inferenceClient),
@@ -118,7 +124,7 @@ export async function startMakeMeaning(config: EnvironmentConfig): Promise<MakeM
     tag: new TagDetectionWorker(jobQueue, config, eventStore, inferenceClient),
   };
 
-  // 8. Start all workers (non-blocking)
+  // 10. Start all workers (non-blocking)
   console.log('🚀 Starting workers...');
   workers.detection.start().catch((error: unknown) => {
     console.error('⚠️ Detection worker stopped:', error);
