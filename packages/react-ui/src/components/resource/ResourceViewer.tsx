@@ -10,6 +10,8 @@ import { JsonLdView } from '../annotation-popups/JsonLdView';
 import type { components, Selector } from '@semiont/api-client';
 import { getExactText, getTargetSelector, resourceUri, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/api-client';
 import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
+import { useMakeMeaningEvents } from '../../contexts/MakeMeaningEventBusContext';
+import { useCacheManager } from '../../contexts/CacheContext';
 import type { Annotator } from '../../lib/annotation-registry';
 import type { AnnotationsCollection } from '../../types/annotation-props';
 import { getSelectorType, getSelectedShapeForSelectorType, saveSelectedShapeForSelectorType } from '../../lib/media-shapes';
@@ -24,9 +26,28 @@ interface PendingAnnotation {
   motivation: Motivation;
 }
 
+/**
+ * ResourceViewer - Display and interact with resource content and annotations
+ *
+ * This component uses event-driven architecture for real-time updates:
+ * - Subscribes to make-meaning events (annotation:added, annotation:removed, annotation:updated)
+ * - Automatically invalidates cache when annotations change
+ * - No manual refetch needed - events handle cache invalidation
+ *
+ * Requirements:
+ * - Must be wrapped in MakeMeaningEventBusProvider (provides event bus)
+ * - Must be wrapped in CacheContext (provides cache manager)
+ *
+ * Event flow:
+ *   make-meaning → EventLog → SSE → EventBus → ResourceViewer → Cache invalidation
+ *
+ * Phase 2 complete: Event-based cache invalidation replaces manual refetch
+ * Phase 3 (future): Remove callback props, use events for all interactions
+ */
 interface Props {
   resource: SemiontResource & { content: string };
   annotations: AnnotationsCollection;
+  /** @deprecated Use event-based cache invalidation instead. Still supported for backward compatibility. */
   onRefetchAnnotations?: () => void;
   annotateMode: boolean;
   onAnnotateModeToggle: () => void;
@@ -138,6 +159,40 @@ export function ResourceViewer({
     createAnnotation
   } = useResourceAnnotations();
 
+  // Event-based cache invalidation - subscribe to make-meaning events
+  // This replaces manual onRefetchAnnotations calls with automatic updates
+  const eventBus = useMakeMeaningEvents();
+  const cacheManager = useCacheManager();
+
+  useEffect(() => {
+    if (!eventBus || !cacheManager) return;
+
+    // Annotation events - invalidate cache when annotations change
+    const handleAnnotationAdded = () => {
+      cacheManager.invalidateAnnotations(rUri);
+    };
+
+    const handleAnnotationRemoved = () => {
+      cacheManager.invalidateAnnotations(rUri);
+    };
+
+    const handleAnnotationUpdated = () => {
+      cacheManager.invalidateAnnotations(rUri);
+    };
+
+    // Subscribe to make-meaning annotation events
+    eventBus.on('annotation:added', handleAnnotationAdded);
+    eventBus.on('annotation:removed', handleAnnotationRemoved);
+    eventBus.on('annotation:updated', handleAnnotationUpdated);
+
+    // Cleanup subscriptions
+    return () => {
+      eventBus.off('annotation:added', handleAnnotationAdded);
+      eventBus.off('annotation:removed', handleAnnotationRemoved);
+      eventBus.off('annotation:updated', handleAnnotationUpdated);
+    };
+  }, [eventBus, cacheManager, rUri]);
+
   // Annotation toolbar state - persisted in localStorage
   const [selectedMotivation, setSelectedMotivation] = useState<SelectionMotivation | null>(() => {
     if (typeof window !== 'undefined') {
@@ -221,7 +276,7 @@ export function ResourceViewer({
   const handleDeleteAnnotation = useCallback(async (id: string) => {
     try {
       await deleteAnnotation(id, rUri);
-      onRefetchAnnotationsRef.current?.();
+      // Cache invalidation now handled by annotation:removed event
     } catch (err) {
       console.error('Failed to delete annotation:', err);
     }
@@ -341,7 +396,7 @@ export function ResourceViewer({
                 onAssessmentClickRef.current(annotation.id);
               }
             }
-            onRefetchAnnotationsRef.current?.();
+            // Cache invalidation now handled by annotation:added event
           } else if (selector.type === 'SvgSelector' && selector.value) {
             // Image annotations use generic createAnnotation
             await createAnnotation(
@@ -350,7 +405,7 @@ export function ResourceViewer({
               { type: 'SvgSelector', value: selector.value },
               []
             );
-            onRefetchAnnotationsRef.current?.();
+            // Cache invalidation now handled by annotation:added event
           } else if (selector.type === 'FragmentSelector' && selector.value) {
             // PDF annotations use FragmentSelector
             await createAnnotation(
@@ -363,7 +418,7 @@ export function ResourceViewer({
               },
               []
             );
-            onRefetchAnnotationsRef.current?.();
+            // Cache invalidation now handled by annotation:added event
           }
           break;
 
@@ -388,7 +443,7 @@ export function ResourceViewer({
             if (annotation && onCommentClickRef.current) {
               onCommentClickRef.current(annotation.id);
             }
-            onRefetchAnnotationsRef.current?.();
+            // Cache invalidation now handled by annotation:added event
           } else if (selector.type === 'FragmentSelector' && selector.value) {
             // PDF: create annotation, then open panel
             const annotation = await createAnnotation(
@@ -404,7 +459,7 @@ export function ResourceViewer({
             if (annotation && onCommentClickRef.current) {
               onCommentClickRef.current(annotation.id);
             }
-            onRefetchAnnotationsRef.current?.();
+            // Cache invalidation now handled by annotation:added event
           }
           break;
 
@@ -429,7 +484,7 @@ export function ResourceViewer({
             if (annotation && onTagClickRef.current) {
               onTagClickRef.current(annotation.id);
             }
-            onRefetchAnnotationsRef.current?.();
+            // Cache invalidation now handled by annotation:added event
           } else if (selector.type === 'FragmentSelector' && selector.value) {
             // PDF: create annotation, then open panel
             const annotation = await createAnnotation(
@@ -445,7 +500,7 @@ export function ResourceViewer({
             if (annotation && onTagClickRef.current) {
               onTagClickRef.current(annotation.id);
             }
-            onRefetchAnnotationsRef.current?.();
+            // Cache invalidation now handled by annotation:added event
           }
           break;
 

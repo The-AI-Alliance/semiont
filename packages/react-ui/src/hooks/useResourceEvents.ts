@@ -121,10 +121,10 @@ export function useResourceEvents({
       case 'entitytag.removed':
         onEntityTagRemovedRef.current?.(event);
         break;
-      case 'document.archived':
+      case 'resource.archived':
         onDocumentArchivedRef.current?.(event);
         break;
-      case 'document.unarchived':
+      case 'resource.unarchived':
         onDocumentUnarchivedRef.current?.(event);
         break;
     }
@@ -163,12 +163,12 @@ export function useResourceEvents({
       // Handle progress events (all resource events)
       stream.onProgress((event) => {
         // Ignore keep-alive messages (if they come through as events)
-        if (event.type === 'keep-alive') {
+        if ((event as any).type === 'keep-alive') {
           return;
         }
 
         // Handle stream-connected event
-        if (event.type === 'stream-connected') {
+        if ((event as any).type === 'stream-connected') {
           setStatus('connected');
           reconnectAttemptsRef.current = 0; // Reset reconnect counter
           return;
