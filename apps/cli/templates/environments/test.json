@@ -27,7 +27,7 @@
       },
       "image": "semiont-frontend:test",
       "port": 3000,
-      "url": "http://localhost:3000",
+      "publicURL": "http://localhost:3000",
       "siteName": "Test Site"
     },
     "filesystem": {
