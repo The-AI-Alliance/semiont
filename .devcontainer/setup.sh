@@ -289,7 +289,7 @@ cp /workspace/.devcontainer/environments-local.json environments/local.json
 cp /workspace/.devcontainer/environments-local-production.json environments/local-production.json
 
 # Update URLs for Codespaces if running in GitHub Codespaces
-if [ -n "$CODESPACE_NAME" ]; then
+if [ -n "${CODESPACE_NAME:-}" ]; then
     print_status "Detected GitHub Codespaces environment, updating URLs..."
 
     # GitHub Codespaces URL format: https://$CODESPACE_NAME-$PORT.app.github.dev
