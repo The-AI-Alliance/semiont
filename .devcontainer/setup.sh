@@ -336,14 +336,24 @@ print_success "Database already running via docker-compose"
 
 # Provision backend service (this creates the proper .env file)
 semiont provision --service backend >> $LOG_FILE 2>&1 || {
-    print_error "Backend provisioning failed - check $LOG_FILE"
+    print_error "Backend provisioning failed"
+    echo ""
+    echo "Last 50 lines of $LOG_FILE:"
+    echo "----------------------------------------"
+    tail -n 50 $LOG_FILE
+    echo "----------------------------------------"
     exit 1
 }
 print_success "Backend provisioned"
 
 # Provision frontend service (this creates the proper .env.local file)
 semiont provision --service frontend >> $LOG_FILE 2>&1 || {
-    print_error "Frontend provisioning failed - check $LOG_FILE"
+    print_error "Frontend provisioning failed"
+    echo ""
+    echo "Last 50 lines of $LOG_FILE:"
+    echo "----------------------------------------"
+    tail -n 50 $LOG_FILE
+    echo "----------------------------------------"
     exit 1
 }
 print_success "Frontend provisioned"
@@ -355,7 +365,12 @@ cd $SEMIONT_ROOT || {
     exit 1
 }
 semiont publish --service backend >> $LOG_FILE 2>&1 || {
-    print_error "Backend publish failed - check $LOG_FILE"
+    print_error "Backend publish failed"
+    echo ""
+    echo "Last 50 lines of $LOG_FILE:"
+    echo "----------------------------------------"
+    tail -n 50 $LOG_FILE
+    echo "----------------------------------------"
     exit 1
 }
 print_success "Backend published"
@@ -367,7 +382,12 @@ cd $SEMIONT_ROOT || {
     exit 1
 }
 semiont publish --service frontend >> $LOG_FILE 2>&1 || {
-    print_error "Frontend publish failed - check $LOG_FILE"
+    print_error "Frontend publish failed"
+    echo ""
+    echo "Last 50 lines of $LOG_FILE:"
+    echo "----------------------------------------"
+    tail -n 50 $LOG_FILE
+    echo "----------------------------------------"
     exit 1
 }
 print_success "Frontend published"
