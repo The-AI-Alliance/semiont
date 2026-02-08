@@ -138,6 +138,7 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     'NEXTAUTH_SECRET': nextAuthSecret,
     'SERVER_API_URL': backendUrl,
     'NEXT_PUBLIC_SITE_NAME': siteName,
+    'NEXT_PUBLIC_BASE_URL': frontendUrl,
     'NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS': oauthAllowedDomains.join(','),
     'NEXT_PUBLIC_ALLOWED_ORIGINS': allowedOrigins.join(',')
   };
@@ -185,6 +186,9 @@ SERVER_API_URL=${backendUrl}
 
 # Site name (from frontend.siteName in environment config)
 NEXT_PUBLIC_SITE_NAME=${siteName}
+
+# Base URL for frontend (from frontend.publicURL in environment config)
+NEXT_PUBLIC_BASE_URL=${frontendUrl}
 
 # OAuth allowed domains (comma-separated)
 NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=${oauthAllowedDomains.join(',')}
