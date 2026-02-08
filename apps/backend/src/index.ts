@@ -45,9 +45,6 @@ if (!config.services?.backend) {
 if (!config.services.backend.corsOrigin) {
   throw new Error('services.backend.corsOrigin is required in environment config');
 }
-if (!config.services?.frontend?.url) {
-  throw new Error('services.frontend.url is required in environment config');
-}
 
 const backendService = config.services.backend;
 
