@@ -2,19 +2,19 @@
 
 # Check for skip marker file (baked into image for CI prebuild)
 # This file exists in the prebuild image to prevent blocking during CI
-# Delete it and exit on first encounter (prebuild), then run normally on subsequent starts
+# If it exists, we're in CI prebuild - just exit without deleting the marker
 if [ -f /tmp/.skip-startup ]; then
   echo "=========================================="
-  echo "   SKIP MARKER DETECTED"
+  echo "   CI PREBUILD DETECTED"
   echo "=========================================="
   echo ""
-  echo "Found /tmp/.skip-startup marker file (from prebuild)"
-  echo "Removing marker and skipping service startup this time"
-  echo "Services will start on next container start"
+  echo "Found /tmp/.skip-startup marker file"
+  echo "Skipping service startup (CI prebuild mode)"
   echo ""
-  echo "This is normal for first run after CI prebuild."
+  echo "This marker file is permanent in the prebuild image."
+  echo "For actual development containers, delete it manually:"
+  echo "  rm /tmp/.skip-startup"
   echo "=========================================="
-  rm -f /tmp/.skip-startup
   exit 0
 fi
 
