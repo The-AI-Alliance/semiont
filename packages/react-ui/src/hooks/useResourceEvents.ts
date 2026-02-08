@@ -18,13 +18,13 @@ export type StreamStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 interface UseResourceEventsOptions {
   rUri: ResourceUri;
   onEvent?: (event: ResourceEvent) => void;
-  onAnnotationAdded?: (event: ResourceEvent) => void;
-  onAnnotationRemoved?: (event: ResourceEvent) => void;
-  onAnnotationBodyUpdated?: (event: ResourceEvent) => void;
-  onEntityTagAdded?: (event: ResourceEvent) => void;
-  onEntityTagRemoved?: (event: ResourceEvent) => void;
-  onDocumentArchived?: (event: ResourceEvent) => void;
-  onDocumentUnarchived?: (event: ResourceEvent) => void;
+  onAnnotationAdded?: (event: Extract<ResourceEvent, { type: 'annotation.added' }>) => void;
+  onAnnotationRemoved?: (event: Extract<ResourceEvent, { type: 'annotation.removed' }>) => void;
+  onAnnotationBodyUpdated?: (event: Extract<ResourceEvent, { type: 'annotation.body.updated' }>) => void;
+  onEntityTagAdded?: (event: Extract<ResourceEvent, { type: 'entitytag.added' }>) => void;
+  onEntityTagRemoved?: (event: Extract<ResourceEvent, { type: 'entitytag.removed' }>) => void;
+  onDocumentArchived?: (event: Extract<ResourceEvent, { type: 'resource.archived' }>) => void;
+  onDocumentUnarchived?: (event: Extract<ResourceEvent, { type: 'resource.unarchived' }>) => void;
   onError?: (error: string) => void;
   autoConnect?: boolean; // Default: true
 }
