@@ -104,4 +104,24 @@ export class ResourceContext {
       })
     );
   }
+
+  /**
+   * Get full content for a resource
+   * Retrieves and decodes the primary representation
+   */
+  static async getResourceContent(
+    resource: ResourceDescriptor,
+    config: EnvironmentConfig
+  ): Promise<string | undefined> {
+    const basePath = config.services.filesystem!.path;
+    const projectRoot = config._metadata?.projectRoot;
+    const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
+
+    const primaryRep = getPrimaryRepresentation(resource);
+    if (primaryRep?.checksum && primaryRep?.mediaType) {
+      const contentBuffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
+      return decodeRepresentation(contentBuffer, primaryRep.mediaType);
+    }
+    return undefined;
+  }
 }

@@ -280,7 +280,7 @@ export class ReferenceDetectionWorker extends JobWorker {
 
   /**
    * Emit completion event with result data
-   * Override base class to emit job.completed event with foundCount
+   * Override base class to emit job.completed event
    */
   protected override async emitCompletionEvent(
     job: RunningJob<DetectionParams, DetectionProgress>,
@@ -294,7 +294,7 @@ export class ReferenceDetectionWorker extends JobWorker {
       payload: {
         jobId: job.metadata.id,
         jobType: 'detection',
-        foundCount: result.totalFound,
+        result,
       },
     });
   }

@@ -56,7 +56,7 @@ export class HighlightDetectionWorker extends JobWorker {
    */
   protected override async emitCompletionEvent(
     job: RunningJob<HighlightDetectionParams, HighlightDetectionProgress>,
-    _result: HighlightDetectionResult
+    result: HighlightDetectionResult
   ): Promise<void> {
     await this.eventStore.appendEvent({
       type: 'job.completed',
@@ -66,6 +66,7 @@ export class HighlightDetectionWorker extends JobWorker {
       payload: {
         jobId: job.metadata.id,
         jobType: 'highlight-detection',
+        result,
       },
     });
   }

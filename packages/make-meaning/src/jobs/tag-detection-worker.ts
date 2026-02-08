@@ -58,7 +58,7 @@ export class TagDetectionWorker extends JobWorker {
    */
   protected override async emitCompletionEvent(
     job: RunningJob<TagDetectionParams, TagDetectionProgress>,
-    _result: TagDetectionResult
+    result: TagDetectionResult
   ): Promise<void> {
     await this.eventStore.appendEvent({
       type: 'job.completed',
@@ -68,6 +68,7 @@ export class TagDetectionWorker extends JobWorker {
       payload: {
         jobId: job.metadata.id,
         jobType: 'tag-detection',
+        result,
       },
     });
   }

@@ -56,7 +56,7 @@ export class CommentDetectionWorker extends JobWorker {
    */
   protected override async emitCompletionEvent(
     job: RunningJob<CommentDetectionParams, CommentDetectionProgress>,
-    _result: CommentDetectionResult
+    result: CommentDetectionResult
   ): Promise<void> {
     await this.eventStore.appendEvent({
       type: 'job.completed',
@@ -66,6 +66,7 @@ export class CommentDetectionWorker extends JobWorker {
       payload: {
         jobId: job.metadata.id,
         jobType: 'comment-detection',
+        result,
       },
     });
   }

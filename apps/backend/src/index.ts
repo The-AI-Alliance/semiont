@@ -235,17 +235,6 @@ if (nodeEnv !== 'test') {
       // Continue running even if JWT initialization fails
     }
 
-    // Bootstrap entity types projection if it doesn't exist
-    try {
-      console.log('🌱 Bootstrapping entity types...');
-      const { bootstrapEntityTypes } = await import('./bootstrap/entity-types-bootstrap');
-      await bootstrapEntityTypes(makeMeaning.eventStore, config);
-      console.log('✅ Entity types bootstrap complete');
-    } catch (error) {
-      console.error('⚠️ Failed to bootstrap entity types:', error);
-      // Continue running even if bootstrap fails
-    }
-
     // Pre-populate tag collections from graph database
     // Uses graphDb from MakeMeaningService (already initialized)
     try {

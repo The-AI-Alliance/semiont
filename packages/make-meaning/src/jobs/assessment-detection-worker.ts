@@ -56,7 +56,7 @@ export class AssessmentDetectionWorker extends JobWorker {
    */
   protected override async emitCompletionEvent(
     job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>,
-    _result: AssessmentDetectionResult
+    result: AssessmentDetectionResult
   ): Promise<void> {
     await this.eventStore.appendEvent({
       type: 'job.completed',
@@ -66,6 +66,7 @@ export class AssessmentDetectionWorker extends JobWorker {
       payload: {
         jobId: job.metadata.id,
         jobType: 'assessment-detection',
+        result,
       },
     });
   }

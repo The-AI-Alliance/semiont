@@ -188,15 +188,16 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
             } else if (event.type === 'job.completed' && event.payload.jobId === job.metadata.id) {
               console.log(`[DetectAnnotations] Job ${job.metadata.id} completed`);
               try {
+                const result = event.payload.result;
                 await stream.writeSSE({
                   data: JSON.stringify({
                     status: 'complete',
                     resourceId: resourceId(id),
                     totalEntityTypes: entityTypes.length,
                     processedEntityTypes: entityTypes.length,
-                    foundCount: event.payload.foundCount,
-                    message: event.payload.foundCount !== undefined
-                      ? `Detection complete! Found ${event.payload.foundCount} entities`
+                    foundCount: result?.totalFound,
+                    message: result?.totalFound !== undefined
+                      ? `Detection complete! Found ${result.totalFound} entities`
                       : 'Detection complete!'
                   } as DetectionProgress),
                   event: 'detection-complete',

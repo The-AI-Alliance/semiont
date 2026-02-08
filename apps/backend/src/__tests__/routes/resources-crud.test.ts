@@ -64,6 +64,37 @@ vi.mock('@semiont/make-meaning', () => ({
     }),
     getAllAnnotations: vi.fn().mockResolvedValue([])
   },
+  ResourceOperations: {
+    createResource: vi.fn().mockResolvedValue({
+      resource: {
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        '@id': 'http://localhost:4000/resources/new-resource',
+        '@type': 'ResourceDescriptor',
+        name: 'New Resource',
+        archived: false
+      }
+    }),
+    updateResource: vi.fn().mockResolvedValue({
+      resource: {
+        '@context': 'https://www.w3.org/ns/activitystreams',
+        '@id': 'http://localhost:4000/resources/test-resource',
+        '@type': 'ResourceDescriptor',
+        name: 'Updated Resource',
+        archived: false
+      }
+    })
+  },
+  AnnotationOperations: {
+    createAnnotation: vi.fn().mockResolvedValue({
+      annotation: {
+        '@context': 'http://www.w3.org/ns/anno.jsonld',
+        id: 'http://localhost:4000/annotations/new-annotation',
+        type: 'Annotation',
+        body: [],
+        target: {}
+      }
+    })
+  },
   startMakeMeaning: vi.fn().mockResolvedValue({
     eventStore: mockEventStore,
     repStore: mockRepStore,

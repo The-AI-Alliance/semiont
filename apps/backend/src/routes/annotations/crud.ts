@@ -17,10 +17,9 @@
 import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
 import { type components } from '@semiont/api-client';
-import { resourceId } from '@semiont/core';
+import { resourceId, userId } from '@semiont/core';
 import { validateRequestBody } from '../../middleware/validate-openapi';
-import { AnnotationCrudService } from '../../services/annotation-crud-service';
-import { AnnotationContext } from '@semiont/make-meaning';
+import { AnnotationOperations, AnnotationContext } from '@semiont/make-meaning';
 
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
 type UpdateAnnotationBodyRequest = components['schemas']['UpdateAnnotationBodyRequest'];
@@ -42,9 +41,14 @@ crudRouter.post('/api/annotations',
     const { eventStore } = c.get('makeMeaning');
     const config = c.get('config');
 
-    // Delegate to service for annotation creation
+    // Delegate to make-meaning for annotation creation
     try {
-      const response = await AnnotationCrudService.createAnnotation(request, user, eventStore, config);
+      const response = await AnnotationOperations.createAnnotation(
+        request,
+        userId(user.id),
+        eventStore,
+        config
+      );
       return c.json(response, 201);
     } catch (error) {
       if (error instanceof Error && error.message === 'Backend publicURL not configured') {
@@ -77,9 +81,15 @@ crudRouter.put('/api/annotations/:id/body',
 
     console.log(`[BODY UPDATE HANDLER] Called for annotation ${id}, operations:`, request.operations);
 
-    // Delegate to service for body update
+    // Delegate to make-meaning for body update
     try {
-      const response = await AnnotationCrudService.updateAnnotationBody(id, request, user, eventStore, config);
+      const response = await AnnotationOperations.updateAnnotationBody(
+        id,
+        request,
+        userId(user.id),
+        eventStore,
+        config
+      );
       console.log(`[BODY UPDATE HANDLER] Successfully updated annotation ${id}`);
       return c.json(response);
     } catch (error) {
@@ -136,9 +146,15 @@ crudRouter.delete('/api/annotations/:id',
     const { eventStore } = c.get('makeMeaning');
     const config = c.get('config');
 
-    // Delegate to service for annotation deletion
+    // Delegate to make-meaning for annotation deletion
     try {
-      await AnnotationCrudService.deleteAnnotation(id, request.resourceId, user, eventStore, config);
+      await AnnotationOperations.deleteAnnotation(
+        id,
+        request.resourceId,
+        userId(user.id),
+        eventStore,
+        config
+      );
       return c.body(null, 204);
     } catch (error) {
       if (error instanceof Error && error.message === 'Annotation not found in resource') {

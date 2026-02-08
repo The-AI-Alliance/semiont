@@ -5,8 +5,22 @@
 export { startMakeMeaning } from './service';
 export type { MakeMeaningService } from './service';
 
+// Bootstrap
+export { bootstrapEntityTypes, resetBootstrap } from './bootstrap/entity-types';
+
+// Views
+export { readEntityTypesProjection } from './views/entity-types-reader';
+
 // Graph Consumer
 export { GraphDBConsumer } from './graph/consumer';
+
+// Resource operations
+export { ResourceOperations } from './resource-operations';
+export type { UpdateResourceInput, CreateResourceInput } from './resource-operations';
+
+// Annotation operations
+export { AnnotationOperations } from './annotation-operations';
+export type { CreateAnnotationResult, UpdateAnnotationBodyResult } from './annotation-operations';
 
 // Context assembly exports
 export { ResourceContext } from './resource-context';
@@ -14,6 +28,9 @@ export type { ListResourcesFilters } from './resource-context';
 export { AnnotationContext } from './annotation-context';
 export type { BuildContextOptions } from './annotation-context';
 export { GraphContext } from './graph-context';
+export type { GraphNode, GraphEdge, GraphRepresentation } from './graph-context';
+export { LLMContext } from './llm-context';
+export type { LLMContextOptions } from './llm-context';
 
 // Detection exports
 export { AnnotationDetection } from './annotation-detection';

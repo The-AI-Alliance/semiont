@@ -10,7 +10,8 @@
 
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import { LLMContextService } from '../../../services/llm-context-service';
+import { LLMContext } from '@semiont/make-meaning';
+import { resourceId } from '@semiont/core';
 
 export function registerGetResourceLLMContext(router: ResourcesRouterType) {
   /**
@@ -47,10 +48,10 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
       throw new HTTPException(400, { message: 'Query parameter "maxResources" must be between 1 and 20' });
     }
 
-    // Delegate to service for LLM context building
+    // Delegate to make-meaning for LLM context building
     try {
-      const response = await LLMContextService.getResourceLLMContext(
-        id,
+      const response = await LLMContext.getResourceContext(
+        resourceId(id),
         {
           depth,
           maxResources,
@@ -58,9 +59,7 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
           includeSummary,
         },
         config,
-        makeMeaning.inferenceClient,
-        makeMeaning.graphDb,
-        makeMeaning.repStore
+        makeMeaning.inferenceClient
       );
 
       return c.json(response);

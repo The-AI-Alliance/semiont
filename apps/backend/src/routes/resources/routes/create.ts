@@ -10,10 +10,10 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import type { CreationMethod } from '@semiont/core';
+import { userId, type CreationMethod } from '@semiont/core';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/api-client';
-import { ResourceOperations } from '../../../services/resource-operations';
+import { ResourceOperations } from '@semiont/make-meaning';
 
 type ContentFormat = components['schemas']['ContentFormat'];
 
@@ -61,7 +61,7 @@ export function registerCreateResource(router: ResourcesRouterType) {
     const arrayBuffer = await file.arrayBuffer();
     const contentBuffer = Buffer.from(arrayBuffer);
 
-    // Delegate to service for resource creation
+    // Delegate to make-meaning for resource creation
     const { eventStore, repStore } = c.get('makeMeaning');
     const response = await ResourceOperations.createResource(
       {
@@ -72,7 +72,7 @@ export function registerCreateResource(router: ResourcesRouterType) {
         entityTypes,
         creationMethod: (creationMethod || undefined) as CreationMethod | undefined,
       },
-      user,
+      userId(user.id),
       eventStore,
       repStore,
       config

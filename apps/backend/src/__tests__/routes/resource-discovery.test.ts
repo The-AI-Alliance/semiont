@@ -40,6 +40,24 @@ const setupMocks = () => {
         target: { source: 'urn:semiont:resource:test-resource' }
       })
     },
+    LLMContext: {
+      getResourceContext: vi.fn().mockImplementation(async (resId: any) => {
+        // Throw error for non-existent resources
+        if (!resId.includes('test-resource')) {
+          throw new Error('Resource not found');
+        }
+        return {
+          mainResource: {
+            '@id': 'urn:semiont:resource:test-resource',
+            name: 'Test Resource',
+            content: 'test content',
+            annotations: []
+          },
+          relatedResources: [],
+          graph: null
+        };
+      })
+    },
     startMakeMeaning: vi.fn().mockResolvedValue({
       eventStore: { getView: vi.fn().mockResolvedValue({ resource: {}, annotations: { annotations: [] } }) },
       graphDb: {

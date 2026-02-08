@@ -269,7 +269,10 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
       payload: {
         jobId: 'job-test-3',
         jobType: 'detection',
-        foundCount: expect.any(Number)
+        result: expect.objectContaining({
+          totalFound: expect.any(Number),
+          totalEmitted: expect.any(Number)
+        })
       }
     });
   });
