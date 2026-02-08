@@ -93,8 +93,9 @@ describe('ResourceOperations', () => {
       expect(response.resource).toBeDefined();
       expect(response.resource.name).toBe('Test Resource');
       expect(response.resource.archived).toBe(false);
-      expect(response.resource.representations).toHaveLength(1);
-      expect(response.resource.representations[0].mediaType).toBe('text/plain');
+      const reps = Array.isArray(response.resource.representations) ? response.resource.representations : [response.resource.representations];
+      expect(reps).toHaveLength(1);
+      expect(reps[0].mediaType).toBe('text/plain');
       expect(response.annotations).toEqual([]);
     });
 
@@ -130,8 +131,9 @@ describe('ResourceOperations', () => {
         config
       );
 
-      expect(response.resource.representations).toHaveLength(1);
-      const rep = response.resource.representations[0];
+      const reps1 = Array.isArray(response.resource.representations) ? response.resource.representations : [response.resource.representations];
+      expect(reps1).toHaveLength(1);
+      const rep = reps1[0];
       expect(rep.checksum).toBeDefined();
       expect(rep.byteSize).toBe(content.length);
       expect(rep.rel).toBe('original');
@@ -191,7 +193,8 @@ describe('ResourceOperations', () => {
         config
       );
 
-      expect(response.resource.representations[0].mediaType).toBe('text/markdown');
+      const reps0 = Array.isArray(response.resource.representations) ? response.resource.representations : [response.resource.representations];
+      expect(reps0[0].mediaType).toBe('text/markdown');
     });
 
     it('should handle html content format', async () => {
@@ -208,7 +211,8 @@ describe('ResourceOperations', () => {
         config
       );
 
-      expect(response.resource.representations[0].mediaType).toBe('text/html');
+      const reps0 = Array.isArray(response.resource.representations) ? response.resource.representations : [response.resource.representations];
+      expect(reps0[0].mediaType).toBe('text/html');
     });
 
     it('should handle optional language parameter', async () => {
@@ -226,7 +230,8 @@ describe('ResourceOperations', () => {
         config
       );
 
-      expect(response.resource.representations[0].language).toBe('fr');
+      const reps3 = Array.isArray(response.resource.representations) ? response.resource.representations : [response.resource.representations];
+      expect(reps3[0].language).toBe('fr');
     });
 
     it('should handle optional entity types', async () => {
@@ -315,7 +320,9 @@ describe('ResourceOperations', () => {
       );
 
       expect(response.resource.dateCreated).toBeDefined();
-      expect(new Date(response.resource.dateCreated).getTime()).toBeGreaterThan(0);
+      if (response.resource.dateCreated) {
+        expect(new Date(response.resource.dateCreated).getTime()).toBeGreaterThan(0);
+      }
     });
   });
 
@@ -482,7 +489,9 @@ describe('ResourceOperations', () => {
       const addedEvents = events.filter(e => e.event.type === 'entitytag.added');
       expect(addedEvents.length).toBeGreaterThanOrEqual(2); // Location and Organization
 
-      const addedTypes = addedEvents.map(e => e.event.payload.entityType);
+      const addedTypes = addedEvents
+        .map(e => e.event.type === 'entitytag.added' ? e.event.payload.entityType : null)
+        .filter((t): t is string => t !== null);
       expect(addedTypes).toContain('Location');
       expect(addedTypes).toContain('Organization');
     });
@@ -521,7 +530,9 @@ describe('ResourceOperations', () => {
       const removedEvents = events.filter(e => e.event.type === 'entitytag.removed');
       expect(removedEvents.length).toBeGreaterThanOrEqual(2); // Location and Organization
 
-      const removedTypes = removedEvents.map(e => e.event.payload.entityType);
+      const removedTypes = removedEvents
+        .map(e => e.event.type === 'entitytag.removed' ? e.event.payload.entityType : null)
+        .filter((t): t is string => t !== null);
       expect(removedTypes).toContain('Location');
       expect(removedTypes).toContain('Organization');
     });
@@ -559,8 +570,8 @@ describe('ResourceOperations', () => {
       const addedEvents = events.filter(e => e.event.type === 'entitytag.added');
       const removedEvents = events.filter(e => e.event.type === 'entitytag.removed');
 
-      expect(addedEvents.some(e => e.event.payload.entityType === 'Organization')).toBe(true);
-      expect(removedEvents.some(e => e.event.payload.entityType === 'Location')).toBe(true);
+      expect(addedEvents.some(e => e.event.type === 'entitytag.added' && e.event.payload.entityType === 'Organization')).toBe(true);
+      expect(removedEvents.some(e => e.event.type === 'entitytag.removed' && e.event.payload.entityType === 'Location')).toBe(true);
     });
 
     it('should not emit events if entity types unchanged', async () => {

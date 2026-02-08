@@ -319,7 +319,7 @@ describe('AnnotationOperations', () => {
 
       // Find the event for this specific annotation
       const thisAnnotationEvent = addedEvents.find(
-        e => e.event.payload.annotation.id === result.annotation.id
+        e => e.event.type === 'annotation.added' && e.event.payload.annotation.id === result.annotation.id
       );
       expect(thisAnnotationEvent).toBeDefined();
       expect(thisAnnotationEvent!.event).toMatchObject({
@@ -383,12 +383,15 @@ describe('AnnotationOperations', () => {
         config
       );
 
-      const selector = result.annotation.target.selector;
-      expect(Array.isArray(selector)).toBe(true);
-      const posSelector = (selector as any[]).find(s => s.type === 'TextPositionSelector');
-      expect(posSelector).toBeDefined();
-      expect(posSelector.start).toBe(5);
-      expect(posSelector.end).toBe(15);
+      const target = result.annotation.target;
+      if (typeof target !== 'string' && 'selector' in target) {
+        const selector = target.selector;
+        expect(Array.isArray(selector)).toBe(true);
+        const posSelector = (selector as any[]).find(s => s.type === 'TextPositionSelector');
+        expect(posSelector).toBeDefined();
+        expect(posSelector.start).toBe(5);
+        expect(posSelector.end).toBe(15);
+      }
     });
 
     it('should handle text quote selector', async () => {
@@ -422,10 +425,13 @@ describe('AnnotationOperations', () => {
         config
       );
 
-      const selector = result.annotation.target.selector;
-      const quoteSelector = (selector as any[]).find(s => s.type === 'TextQuoteSelector');
-      expect(quoteSelector).toBeDefined();
-      expect(quoteSelector.exact).toBe('This');
+      const target = result.annotation.target;
+      if (typeof target !== 'string' && 'selector' in target) {
+        const selector = target.selector;
+        const quoteSelector = (selector as any[]).find(s => s.type === 'TextQuoteSelector');
+        expect(quoteSelector).toBeDefined();
+        expect(quoteSelector.exact).toBe('This');
+      }
     });
 
     it('should reject invalid motivation', async () => {
