@@ -311,7 +311,6 @@ if [ -n "${CODESPACE_NAME:-}" ]; then
       const config = JSON.parse(fs.readFileSync(envFile, 'utf-8'));
       config.site.domain = siteDomain;
       config.site.oauthAllowedDomains = [siteDomain, ...baseConfig.site.oauthAllowedDomains];
-      config.services.frontend.url = '${FRONTEND_URL}';
       config.services.frontend.publicURL = '${ENVOY_URL}';
       config.services.backend.publicURL = '${ENVOY_URL}';
       config.services.backend.corsOrigin = '${ENVOY_URL}';
