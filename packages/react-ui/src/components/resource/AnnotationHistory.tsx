@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
 import type { RouteBuilder, LinkComponentProps } from '../../contexts/RoutingContext';
 import { useResources } from '../../lib/api-hooks';
@@ -36,17 +36,14 @@ export function AnnotationHistory({ rUri, hoveredAnnotationId, onEventHover, onE
 
   // Sort events by oldest first (most recent at bottom)
   // Filter out all job events - they're represented by annotation.body.updated events instead
-  const events = useMemo(() => {
-    if (!eventsData?.events) return [];
-    return [...eventsData.events]
-      .filter((e: StoredEvent) => {
-        const eventType = e.event.type;
-        return eventType !== 'job.started' && eventType !== 'job.progress' && eventType !== 'job.completed';
-      })
-      .sort((a: StoredEvent, b: StoredEvent) =>
-        a.metadata.sequenceNumber - b.metadata.sequenceNumber
-      );
-  }, [eventsData]);
+  const events = !eventsData?.events ? [] : [...eventsData.events]
+    .filter((e: StoredEvent) => {
+      const eventType = e.event.type;
+      return eventType !== 'job.started' && eventType !== 'job.progress' && eventType !== 'job.completed';
+    })
+    .sort((a: StoredEvent, b: StoredEvent) =>
+      a.metadata.sequenceNumber - b.metadata.sequenceNumber
+    );
 
   // Scroll to bottom when History is first shown or when events change
   useEffect(() => {

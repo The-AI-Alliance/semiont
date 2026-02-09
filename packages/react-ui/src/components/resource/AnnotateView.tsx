@@ -55,10 +55,6 @@ interface Props {
   annotateMode: boolean;
   onAnnotateModeToggle: () => void;
   onAnnotationRequested?: (pending: PendingAnnotation) => void;
-  onCommentCreationRequested?: (selection: { exact: string; start: number; end: number; svgSelector?: string; fragmentSelector?: string; conformsTo?: string }) => void;
-  onTagCreationRequested?: (selection: { exact: string; start: number; end: number; svgSelector?: string; fragmentSelector?: string; conformsTo?: string }) => void;
-  onAssessmentCreationRequested?: (selection: { exact: string; start: number; end: number; svgSelector?: string; fragmentSelector?: string; conformsTo?: string }) => void;
-  onReferenceCreationRequested?: (selection: { exact: string; start: number; end: number; prefix?: string; suffix?: string; svgSelector?: string; fragmentSelector?: string; conformsTo?: string }) => void;
   annotators: Record<string, Annotator>;
 }
 

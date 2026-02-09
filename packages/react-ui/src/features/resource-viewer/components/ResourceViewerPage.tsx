@@ -5,7 +5,7 @@
  * This component handles the UI rendering and state management for the resource viewer.
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { components, ResourceUri, GenerationContext, Selector } from '@semiont/api-client';
 import { getLanguage, getPrimaryRepresentation, annotationUri, resourceUri, resourceAnnotationUri } from '@semiont/api-client';
 import { createCancelDetectionHandler, ANNOTATORS } from '@semiont/react-ui';
@@ -268,9 +268,7 @@ function ResourceViewerPageInner({
   });
 
   // Generic detection context for all annotation types
-  // Memoized to keep stable reference
-  // Note: State setters (setDetectingMotivation, setMotivationDetectionProgress) are stable and don't need deps
-  const detectionContext = useMemo(() => ({
+  const detectionContext = {
     client,
     rUri,
     setDetectingMotivation,
@@ -279,15 +277,15 @@ function ResourceViewerPageInner({
     cacheManager,
     showSuccess,
     showError
-  }), [client, rUri, cacheManager, showSuccess, showError]);
+  };
 
   // Generic cancel handler (works for all detection types)
-  const handleCancelDetection = React.useMemo(
+  const handleCancelDetection = useCallback(
     () => createCancelDetectionHandler({
       detectionStreamRef,
       setDetectingMotivation,
       setMotivationDetectionProgress
-    }),
+    })(),
     []
   );
 
@@ -567,33 +565,28 @@ function ResourceViewerPageInner({
   }, [pendingAnnotation, onCreateAnnotation, rUri, showSuccess, showError]);
 
   // Group annotations by type using static ANNOTATORS
-  const groups = useMemo(() => {
-    const result = {
-      highlights: [] as Annotation[],
-      references: [] as Annotation[],
-      assessments: [] as Annotation[],
-      comments: [] as Annotation[],
-      tags: [] as Annotation[]
-    };
+  const result = {
+    highlights: [] as Annotation[],
+    references: [] as Annotation[],
+    assessments: [] as Annotation[],
+    comments: [] as Annotation[],
+    tags: [] as Annotation[]
+  };
 
-    for (const ann of annotations) {
-      const annotator = Object.values(ANNOTATORS).find(a => a.matchesAnnotation(ann));
-      if (annotator) {
-        const key = annotator.internalType + 's'; // highlight -> highlights
-        if (result[key as keyof typeof result]) {
-          result[key as keyof typeof result].push(ann);
-        }
+  for (const ann of annotations) {
+    const annotator = Object.values(ANNOTATORS).find(a => a.matchesAnnotation(ann));
+    if (annotator) {
+      const key = annotator.internalType + 's'; // highlight -> highlights
+      if (result[key as keyof typeof result]) {
+        result[key as keyof typeof result].push(ann);
       }
     }
+  }
 
-    return result;
-  }, [annotations]);
+  const groups = result;
 
-  // Memoize resource with content to prevent infinite re-renders
-  const resourceWithContent = useMemo(
-    () => ({ ...resource, content }),
-    [resource, content]
-  );
+  // Combine resource with content
+  const resourceWithContent = { ...resource, content };
 
   // handleAnnotationClickAndFocus removed - ResourceViewer now manages focus/click state internally
 

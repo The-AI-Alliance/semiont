@@ -108,27 +108,25 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
   const t = useTranslations('UnifiedAnnotationsPanel');
 
   // Group annotations by type using annotators
-  const grouped = React.useMemo(() => {
-    const groups: Record<string, Annotation[]> = {
-      highlight: [],
-      comment: [],
-      assessment: [],
-      reference: [],
-      tag: []
-    };
+  const groups: Record<string, Annotation[]> = {
+    highlight: [],
+    comment: [],
+    assessment: [],
+    reference: [],
+    tag: []
+  };
 
-    for (const ann of props.annotations) {
-      const annotator = Object.values(props.annotators).find(a => a.matchesAnnotation(ann));
-      if (annotator) {
-        if (!groups[annotator.internalType]) {
-          groups[annotator.internalType] = [];
-        }
-        groups[annotator.internalType].push(ann);
+  for (const ann of props.annotations) {
+    const annotator = Object.values(props.annotators).find(a => a.matchesAnnotation(ann));
+    if (annotator) {
+      if (!groups[annotator.internalType]) {
+        groups[annotator.internalType] = [];
       }
+      groups[annotator.internalType].push(ann);
     }
+  }
 
-    return groups;
-  }, [props.annotations, props.annotators]);
+  const grouped = groups;
 
   // Load tab from localStorage (per-resource)
   const [activeTab, setActiveTab] = useState<TabKey>(() => {

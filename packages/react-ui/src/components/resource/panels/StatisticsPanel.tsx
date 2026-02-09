@@ -1,6 +1,5 @@
 'use client';
 
-import { useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components } from '@semiont/api-client';
 import { isBodyResolved } from '@semiont/api-client';
@@ -27,28 +26,19 @@ export function StatisticsPanel({
   const t = useTranslations('StatisticsPanel');
 
   // Count stub vs resolved references
-  const stubCount = useMemo(
-    () => references.filter((r) => !isBodyResolved(r.body)).length,
-    [references]
-  );
-
-  const resolvedCount = useMemo(
-    () => references.filter((r) => isBodyResolved(r.body)).length,
-    [references]
-  );
+  const stubCount = references.filter((r) => !isBodyResolved(r.body)).length;
+  const resolvedCount = references.filter((r) => isBodyResolved(r.body)).length;
 
   // Count entity types from references (at annotation level)
-  const entityTypesList = useMemo(() => {
-    const entityTypeCounts = new Map<string, number>();
-    references.forEach((ref) => {
-      const entityTypes = getEntityTypes(ref);
-      entityTypes.forEach((type: string) => {
-        entityTypeCounts.set(type, (entityTypeCounts.get(type) || 0) + 1);
-      });
+  const entityTypeCounts = new Map<string, number>();
+  references.forEach((ref) => {
+    const entityTypes = getEntityTypes(ref);
+    entityTypes.forEach((type: string) => {
+      entityTypeCounts.set(type, (entityTypeCounts.get(type) || 0) + 1);
     });
+  });
 
-    return Array.from(entityTypeCounts.entries()).sort((a, b) => b[1] - a[1]); // Sort by count descending
-  }, [references]);
+  const entityTypesList = Array.from(entityTypeCounts.entries()).sort((a, b) => b[1] - a[1]); // Sort by count descending
 
   return (
     <div className="semiont-statistics-panel">

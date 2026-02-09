@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 
 export type Theme = 'light' | 'dark' | 'system';
 export type ResolvedTheme = 'light' | 'dark';
@@ -22,9 +22,7 @@ export function useTheme() {
   });
 
   // Calculate resolved theme
-  const resolvedTheme = useMemo<ResolvedTheme>(() => {
-    return theme === 'system' ? systemTheme : theme;
-  }, [theme, systemTheme]);
+  const resolvedTheme: ResolvedTheme = theme === 'system' ? systemTheme : theme;
 
   useEffect(() => {
     const root = window.document.documentElement;

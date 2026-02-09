@@ -1,6 +1,5 @@
 'use client';
 
-import { useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import './CollaborationPanel.css';
 
@@ -18,9 +17,10 @@ export function CollaborationPanel({
   const t = useTranslations('CollaborationPanel');
 
   // Format last sync time
-  const lastSyncText = useMemo(() => {
-    if (!lastEventTimestamp) return t('noActivity');
-
+  let lastSyncText: string;
+  if (!lastEventTimestamp) {
+    lastSyncText = t('noActivity');
+  } else {
     const now = new Date();
     const eventTime = new Date(lastEventTimestamp);
     const diffMs = now.getTime() - eventTime.getTime();
@@ -28,15 +28,22 @@ export function CollaborationPanel({
     const diffMins = Math.floor(diffSecs / 60);
     const diffHours = Math.floor(diffMins / 60);
 
-    if (diffSecs < 10) return t('justNow');
-    if (diffSecs < 60) return t('secondsAgo', { count: diffSecs });
-    if (diffMins === 1) return t('minuteAgo');
-    if (diffMins < 60) return t('minutesAgo', { count: diffMins });
-    if (diffHours === 1) return t('hourAgo');
-    if (diffHours < 24) return t('hoursAgo', { count: diffHours });
-
-    return eventTime.toLocaleDateString();
-  }, [lastEventTimestamp, t]);
+    if (diffSecs < 10) {
+      lastSyncText = t('justNow');
+    } else if (diffSecs < 60) {
+      lastSyncText = t('secondsAgo', { count: diffSecs });
+    } else if (diffMins === 1) {
+      lastSyncText = t('minuteAgo');
+    } else if (diffMins < 60) {
+      lastSyncText = t('minutesAgo', { count: diffMins });
+    } else if (diffHours === 1) {
+      lastSyncText = t('hourAgo');
+    } else if (diffHours < 24) {
+      lastSyncText = t('hoursAgo', { count: diffHours });
+    } else {
+      lastSyncText = eventTime.toLocaleDateString();
+    }
+  }
 
   return (
     <div className="semiont-collaboration-panel">
