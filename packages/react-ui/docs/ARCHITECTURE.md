@@ -110,6 +110,139 @@ export function useResources() {
 
 ---
 
+### Event-Driven Architecture
+
+**Principle:** Components communicate via events, not callback props.
+
+**Why:**
+
+- Eliminates callback prop drilling (0 layers vs 4+ layers)
+- No ref stabilization needed
+- Type-safe with discriminated unions
+- Automatic cache invalidation via events
+- Foundation for real-time collaboration
+- Components can be anywhere in the tree (no parent-child requirement)
+
+**How:**
+
+- Unified event bus for both backend SSE events and UI interaction events
+- `MakeMeaningEventBusProvider` creates resource-scoped event bus
+- Components emit events instead of calling callback props
+- Components subscribe to events instead of receiving callback props
+- React Query cache invalidates automatically via event subscriptions
+
+**Backend Events (from Make-Meaning via SSE):**
+
+- Detection lifecycle: `detection:started`, `detection:progress`, `detection:completed`
+- Generation lifecycle: `generation:started`, `generation:progress`, `generation:completed`
+- Annotation lifecycle: `annotation:added`, `annotation:removed`, `annotation:updated`
+- Entity tags: `entity-tag:added`, `entity-tag:removed`
+- Resource changes: `resource:archived`, `resource:unarchived`
+
+**UI Events (Local User Interactions):**
+
+- Selection events: `ui:selection:comment-requested`, `ui:selection:tag-requested`, `ui:selection:assessment-requested`, `ui:selection:reference-requested`
+
+**Example - Before (Callback Props):**
+
+```tsx
+// ❌ WRONG - Callback prop drilling (4 layers deep)
+interface ResourceViewerProps {
+  onCommentRequested: (selection: Selection) => void;
+  onTagRequested: (selection: Selection) => void;
+  onAssessmentRequested: (selection: Selection) => void;
+  // ... 14 more callback props
+}
+
+function ResourceViewer({ onCommentRequested, ...callbacks }: ResourceViewerProps) {
+  return <TextSelector onCommentRequested={onCommentRequested} />;
+}
+
+// TextSelector must receive callback as prop
+function TextSelector({ onCommentRequested }: { onCommentRequested: (sel: Selection) => void }) {
+  const handleSelection = (sel: Selection) => {
+    onCommentRequested(sel); // Call parent's callback
+  };
+  return <div onMouseUp={handleSelection}>...</div>;
+}
+```
+
+**Example - After (Events):**
+
+```tsx
+// ✅ CORRECT - Event emission (0 layers)
+function TextSelector() {
+  const eventBus = useMakeMeaningEvents();
+
+  const handleSelection = (selection: Selection) => {
+    // Emit event - no callback props needed
+    eventBus.emit('ui:selection:comment-requested', {
+      exact: selection.exact,
+      start: selection.start,
+      end: selection.end,
+      prefix: extractPrefix(selection.start),
+      suffix: extractSuffix(selection.end)
+    });
+  };
+
+  return <div onMouseUp={handleSelection}>...</div>;
+}
+
+// Another component subscribes to the event (can be anywhere in tree)
+function AnnotationPanel() {
+  const eventBus = useMakeMeaningEvents();
+  const [pendingAnnotation, setPendingAnnotation] = useState(null);
+
+  useEffect(() => {
+    const handler = (selection) => {
+      setPendingAnnotation({
+        selector: {
+          type: 'TextQuoteSelector',
+          exact: selection.exact,
+          start: selection.start,
+          end: selection.end,
+          prefix: selection.prefix,
+          suffix: selection.suffix
+        },
+        motivation: 'commenting'
+      });
+    };
+
+    eventBus.on('ui:selection:comment-requested', handler);
+    return () => eventBus.off('ui:selection:comment-requested', handler);
+  }, [eventBus]);
+
+  return <div>{/* Render annotation form */}</div>;
+}
+```
+
+**Real Results:**
+
+- **ResourceViewer:** 17 callback props → 0 callback props (100% elimination)
+- **ResourceViewer:** 9 useRef (callback stabilization) → 0 useRef (100% elimination)
+- **ResourceViewer:** 30+ total props → 6 props (80% reduction)
+- **Event-based cache invalidation:** Zero manual `refetch()` calls
+
+**Setup:**
+
+```tsx
+import { MakeMeaningEventBusProvider } from '@semiont/react-ui';
+
+export default function ResourcePage({ params }: { params: { id: string } }) {
+  const rUri = resourceUri(params.id);
+
+  return (
+    <MakeMeaningEventBusProvider rUri={rUri}>
+      <ResourceViewerPage rUri={rUri} />
+    </MakeMeaningEventBusProvider>
+  );
+}
+```
+
+See [EVENTS.md](EVENTS.md) for complete documentation.
+
+---
+
 ### TypeScript First
 
 **Principle:** Full type safety throughout. No `any` without explicit permission.
@@ -734,6 +867,7 @@ See [STYLES.md](STYLES.md) for comprehensive CSS architecture and conventions.
 
 ## See Also
 
+- [EVENTS.md](EVENTS.md) - Event-driven architecture and event bus usage
 - [PROVIDERS.md](PROVIDERS.md) - Provider Pattern implementation
 - [API-INTEGRATION.md](API-INTEGRATION.md) - API architecture
 - [TESTING.md](TESTING.md) - Testing architecture

@@ -249,7 +249,7 @@ const annotators = withHandlers({
 
 ### Detection Context
 
-The annotation registry supports AI-powered entity detection via SSE (Server-Sent Events):
+The annotation registry supports AI-powered entity detection via SSE (Server-Sent Events). Detection events flow through the unified event bus:
 
 ```typescript
 import { createDetectionHandler, ANNOTATORS } from '@semiont/react-ui';
@@ -271,6 +271,39 @@ const annotators = withHandlers({
   }
 });
 ```
+
+### Detection Lifecycle Events
+
+Detection jobs emit events through the `MakeMeaningEventBusProvider`:
+
+- `detection:started` - Detection job initiated
+- `detection:progress` - Progress updates during detection
+- `detection:entity-found` - New entity annotation detected
+- `detection:completed` - Detection job finished successfully
+- `detection:failed` - Detection job failed
+
+Components subscribe to these events for automatic cache invalidation:
+
+```typescript
+import { useMakeMeaningEvents } from '@semiont/react-ui';
+
+function DetectionMonitor() {
+  const eventBus = useMakeMeaningEvents();
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const handler = () => {
+      // Automatically invalidate cache when detection completes
+      queryClient.invalidateQueries(['annotations', rUri]);
+    };
+
+    eventBus.on('detection:completed', handler);
+    return () => eventBus.off('detection:completed', handler);
+  }, [eventBus, queryClient, rUri]);
+}
+```
+
+See [EVENTS.md](EVENTS.md) for complete event documentation.
 
 ### Detection Configuration
 
@@ -509,12 +542,60 @@ See test files for comprehensive examples:
 
 ## Performance Considerations
 
-### Cache Invalidation
+### Event-Based Cache Invalidation
 
-The `CacheManager` interface allows apps to control cache invalidation strategy:
+The annotation system uses **event-driven cache invalidation** instead of manual refetch calls. Backend events flow through the `MakeMeaningEventBusProvider` and trigger automatic cache updates:
 
 ```typescript
-// Example: React Query implementation
+import { useMakeMeaningEvents } from '@semiont/react-ui';
+import { useQueryClient } from '@tanstack/react-query';
+
+function AnnotationCacheManager({ rUri }: { rUri: ResourceUri }) {
+  const eventBus = useMakeMeaningEvents();
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    // Automatically invalidate cache when annotations change
+    const handleAnnotationAdded = () => {
+      queryClient.invalidateQueries(['annotations', rUri]);
+    };
+
+    const handleAnnotationRemoved = () => {
+      queryClient.invalidateQueries(['annotations', rUri]);
+    };
+
+    const handleAnnotationUpdated = () => {
+      queryClient.invalidateQueries(['annotations', rUri]);
+    };
+
+    eventBus.on('annotation:added', handleAnnotationAdded);
+    eventBus.on('annotation:removed', handleAnnotationRemoved);
+    eventBus.on('annotation:updated', handleAnnotationUpdated);
+
+    return () => {
+      eventBus.off('annotation:added', handleAnnotationAdded);
+      eventBus.off('annotation:removed', handleAnnotationRemoved);
+      eventBus.off('annotation:updated', handleAnnotationUpdated);
+    };
+  }, [eventBus, queryClient, rUri]);
+
+  return null;
+}
+```
+
+**Benefits:**
+
+- ✅ Zero manual `refetch()` calls
+- ✅ Automatic cache updates from backend changes
+- ✅ Real-time collaboration support
+- ✅ Consistent cache state across components
+
+### Legacy CacheManager (Deprecated)
+
+The `CacheManager` interface is deprecated in favor of event-based cache invalidation:
+
+```typescript
+// ❌ OLD: Manual cache invalidation via CacheManager
 const cacheManager: CacheManager = {
   invalidateAnnotations: (rUri) => {
     queryClient.invalidateQueries({ queryKey: ['annotations', rUri] });
@@ -523,31 +604,50 @@ const cacheManager: CacheManager = {
     queryClient.invalidateQueries({ queryKey: ['documents', 'events', rUri] });
   }
 };
+
+// ✅ NEW: Event-based cache invalidation
+// Subscribe to events, no manual invalidation needed
 ```
 
-### Debounced Invalidation
+### Real-Time Collaboration
 
-For real-time events, use debouncing to batch rapid updates:
+The event bus architecture enables real-time collaboration by broadcasting UI events to peers:
 
 ```typescript
-import { useDebouncedCallback } from '@semiont/react-ui';
+import { useMakeMeaningEvents } from '@semiont/react-ui';
 
-const debouncedInvalidate = useDebouncedCallback(
-  () => cacheManager.invalidateAnnotations(rUri),
-  500 // Wait 500ms after last event
-);
+// Local component emits selection event
+function TextSelector() {
+  const eventBus = useMakeMeaningEvents();
+
+  const handleSelection = (selection) => {
+    // Emit locally
+    eventBus.emit('ui:selection:comment-requested', selection);
+
+    // Future: Broadcast to peers for real-time collaboration
+    // peerConnection.broadcast('ui:selection:comment-requested', selection);
+  };
+
+  return <div onMouseUp={handleSelection}>...</div>;
+}
+
+// Other components (local or remote) subscribe to the same event
+function CollaborativeAnnotationPanel() {
+  const eventBus = useMakeMeaningEvents();
+
+  useEffect(() => {
+    const handler = (selection) => {
+      // Show peer's selection/annotation in real-time
+      showPeerActivity(selection);
+    };
+
+    eventBus.on('ui:selection:comment-requested', handler);
+    return () => eventBus.off('ui:selection:comment-requested', handler);
+  }, [eventBus]);
+}
 ```
 
-### Memoization
-
-Use `useMemo` for stable references:
-
-```typescript
-const annotators = useMemo(
-  () => withHandlers({ highlight: { onClick: handleClick } }),
-  [handleClick]
-);
-```
+See [EVENTS.md](EVENTS.md) for complete real-time collaboration architecture.
 
 ---
 
@@ -581,6 +681,7 @@ const annotators = useMemo(
 
 ## See Also
 
+- [EVENTS.md](EVENTS.md) - Event-driven architecture and event bus
 - [PROVIDERS.md](PROVIDERS.md) - Provider Pattern architecture
 - [API-INTEGRATION.md](API-INTEGRATION.md) - API client integration
 - [TESTING.md](TESTING.md) - Testing strategies

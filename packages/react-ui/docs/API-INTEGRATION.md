@@ -735,8 +735,223 @@ if (isLoading) return <Spinner />;
 return <div>{data?.map(...) ?? []}</div>;
 ```
 
+### ✅ Do: Use event-based cache invalidation
+
+```tsx
+// ❌ OLD: Manual cache invalidation after mutations
+const { mutate } = annotations.create.useMutation();
+
+mutate(data, {
+  onSuccess: () => {
+    // Manual refetch after every mutation
+    queryClient.invalidateQueries({ queryKey: ['annotations', rUri] });
+  }
+});
+
+// ✅ NEW: Event-based cache invalidation (automatic)
+import { useMakeMeaningEvents } from '@semiont/react-ui';
+
+function AnnotationCacheSync({ rUri }: { rUri: ResourceUri }) {
+  const eventBus = useMakeMeaningEvents();
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    // Backend events automatically trigger cache invalidation
+    const handleAnnotationAdded = () => {
+      queryClient.invalidateQueries(['annotations', rUri]);
+    };
+
+    eventBus.on('annotation:added', handleAnnotationAdded);
+    return () => eventBus.off('annotation:added', handleAnnotationAdded);
+  }, [eventBus, queryClient, rUri]);
+
+  return null;
+}
+
+// No more manual invalidation in mutation callbacks!
+const { mutate } = annotations.create.useMutation();
+mutate(data); // Cache updates automatically via events
+```
+
+**Benefits:**
+
+- ✅ Zero manual `refetch()` calls in mutation callbacks
+- ✅ Automatic cache updates from backend SSE events
+- ✅ Real-time updates when other users make changes
+- ✅ Consistent cache state across all components
+
+See [EVENTS.md](EVENTS.md) for complete event-driven architecture documentation.
+
+---
+
+## Event-Based Cache Invalidation
+
+The library uses **event-driven cache invalidation** instead of manual refetch calls. Backend events flow through the `MakeMeaningEventBusProvider` and automatically trigger React Query cache updates.
+
+### Backend Events
+
+These events are emitted by the backend via SSE and automatically invalidate relevant caches:
+
+**Detection Events:**
+- `detection:started` → Show detection progress
+- `detection:progress` → Update progress indicators
+- `detection:entity-found` → Invalidate annotations cache
+- `detection:completed` → Invalidate annotations cache
+- `detection:failed` → Show error notification
+
+**Generation Events:**
+- `generation:started` → Show generation progress
+- `generation:progress` → Update progress indicators
+- `generation:resource-created` → Invalidate resources list
+- `generation:completed` → Invalidate resources list
+
+**Annotation Events:**
+- `annotation:added` → Invalidate annotations cache
+- `annotation:removed` → Invalidate annotations cache
+- `annotation:updated` → Invalidate annotation detail cache
+
+**Entity Tag Events:**
+- `entity-tag:added` → Invalidate annotations cache
+- `entity-tag:removed` → Invalidate annotations cache
+
+**Resource Events:**
+- `resource:archived` → Invalidate resource cache
+- `resource:unarchived` → Invalidate resource cache
+
+### Setup Event-Based Invalidation
+
+Wrap resource pages with `MakeMeaningEventBusProvider` and subscribe to events:
+
+```tsx
+import { MakeMeaningEventBusProvider, useMakeMeaningEvents } from '@semiont/react-ui';
+import { useQueryClient } from '@tanstack/react-query';
+
+// 1. Wrap resource page with event bus provider
+export default function ResourcePage({ params }: { params: { id: string } }) {
+  const rUri = resourceUri(params.id);
+
+  return (
+    <MakeMeaningEventBusProvider rUri={rUri}>
+      <ResourceCacheSync rUri={rUri} />
+      <ResourceViewerPage rUri={rUri} />
+    </MakeMeaningEventBusProvider>
+  );
+}
+
+// 2. Create cache sync component that subscribes to events
+function ResourceCacheSync({ rUri }: { rUri: ResourceUri }) {
+  const eventBus = useMakeMeaningEvents();
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    // Annotation events
+    const handleAnnotationChange = () => {
+      queryClient.invalidateQueries(['annotations', rUri]);
+    };
+
+    // Detection events
+    const handleDetectionComplete = () => {
+      queryClient.invalidateQueries(['annotations', rUri]);
+    };
+
+    // Resource events
+    const handleResourceChange = () => {
+      queryClient.invalidateQueries(['resources', rUri]);
+    };
+
+    // Subscribe to all relevant events
+    eventBus.on('annotation:added', handleAnnotationChange);
+    eventBus.on('annotation:removed', handleAnnotationChange);
+    eventBus.on('annotation:updated', handleAnnotationChange);
+    eventBus.on('detection:completed', handleDetectionComplete);
+    eventBus.on('resource:archived', handleResourceChange);
+    eventBus.on('resource:unarchived', handleResourceChange);
+
+    return () => {
+      // Cleanup all subscriptions
+      eventBus.off('annotation:added', handleAnnotationChange);
+      eventBus.off('annotation:removed', handleAnnotationChange);
+      eventBus.off('annotation:updated', handleAnnotationChange);
+      eventBus.off('detection:completed', handleDetectionComplete);
+      eventBus.off('resource:archived', handleResourceChange);
+      eventBus.off('resource:unarchived', handleResourceChange);
+    };
+  }, [eventBus, queryClient, rUri]);
+
+  return null;
+}
+```
+
+### Migration from Manual Invalidation
+
+**Before (Manual Refetch):**
+
+```tsx
+// ❌ OLD: Manual cache invalidation in every mutation
+const { mutate: createAnnotation } = annotations.create.useMutation();
+const { mutate: deleteAnnotation } = annotations.delete.useMutation();
+const { mutate: updateAnnotation } = annotations.updateBody.useMutation();
+
+// Each mutation manually invalidates cache
+createAnnotation(data, {
+  onSuccess: () => {
+    queryClient.invalidateQueries(['annotations', rUri]);
+  }
+});
+
+deleteAnnotation(annotationUri, {
+  onSuccess: () => {
+    queryClient.invalidateQueries(['annotations', rUri]);
+  }
+});
+
+updateAnnotation(data, {
+  onSuccess: () => {
+    queryClient.invalidateQueries(['annotations', rUri]);
+  }
+});
+```
+
+**After (Event-Based):**
+
+```tsx
+// ✅ NEW: Zero manual invalidation, events handle it
+const { mutate: createAnnotation } = annotations.create.useMutation();
+const { mutate: deleteAnnotation } = annotations.delete.useMutation();
+const { mutate: updateAnnotation } = annotations.updateBody.useMutation();
+
+// Just call mutations - events handle cache invalidation automatically
+createAnnotation(data);
+deleteAnnotation(annotationUri);
+updateAnnotation(data);
+
+// Backend emits events → EventBus → ResourceCacheSync → Cache invalidated
+```
+
+**Key Differences:**
+
+- **Before:** Every mutation needs `onSuccess` callback with manual `invalidateQueries()`
+- **After:** Mutations have no `onSuccess` callbacks, events automatically invalidate cache
+- **Before:** Developers must remember to invalidate cache in every mutation
+- **After:** Cache invalidation happens automatically via events (can't forget)
+- **Before:** No real-time updates when other users make changes
+- **After:** Real-time updates via SSE events from backend
+
+### Real-Time Collaboration
+
+Event-based cache invalidation enables real-time collaboration:
+
+1. **User A** creates an annotation
+2. **Backend** emits `annotation:added` event via SSE
+3. **EventBus** receives event and broadcasts to all subscribers
+4. **User B's cache** automatically invalidates via event subscription
+5. **User B sees update** without manual refresh
+
+This architecture is the foundation for P2P real-time collaboration.
+
 ## See Also
 
+- [EVENTS.md](EVENTS.md) - Event-driven architecture and event-based cache invalidation
 - [PROVIDERS.md](PROVIDERS.md) - ApiClientProvider setup
 - [TESTING.md](TESTING.md) - Testing API hooks
 - [@semiont/api-client](../../api-client) - API client documentation
