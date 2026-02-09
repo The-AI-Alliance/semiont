@@ -11,15 +11,20 @@ import { ResourceViewerPage } from '../components/ResourceViewerPage';
 import type { ResourceViewerPageProps } from '../components/ResourceViewerPage';
 
 // Mock dependencies that ResourceViewerPage imports
-vi.mock('@tanstack/react-query', () => ({
-  useQueryClient: () => ({
-    invalidateQueries: vi.fn(),
-    setQueryData: vi.fn(),
-  }),
-}));
+vi.mock('@tanstack/react-query', async () => {
+  const actual = await vi.importActual('@tanstack/react-query');
+  return {
+    ...actual,
+    useQueryClient: () => ({
+      invalidateQueries: vi.fn(),
+      setQueryData: vi.fn(),
+    }),
+  };
+});
 
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual('@semiont/react-ui');
+  const mitt = await import('mitt');
   return {
     ...actual,
     ResourceViewer: ({ resource }: any) => <div data-testid="resource-viewer">{resource.name}</div>,
@@ -39,6 +44,8 @@ vi.mock('@semiont/react-ui', async () => {
     }),
     useDebouncedCallback: (fn: any) => fn,
     supportsDetection: () => false,
+    MakeMeaningEventBusProvider: ({ children }: any) => children,
+    useMakeMeaningEvents: () => mitt.default(),
   };
 });
 
