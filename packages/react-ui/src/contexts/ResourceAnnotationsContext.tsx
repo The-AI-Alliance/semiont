@@ -15,12 +15,6 @@ type CreateAnnotationRequest = Omit<Annotation, 'id' | 'created' | 'modified' | 
   };
 } & Partial<Pick<Annotation, '@context' | 'type'>>;
 
-export interface SelectionData {
-  exact: string;
-  start: number;
-  end: number;
-}
-
 interface ResourceAnnotationsContextType {
   // UI state only - data comes from React Query hooks in components
   newAnnotationIds: Set<string>; // Track recently created annotations for sparkle animations

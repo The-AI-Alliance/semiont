@@ -7,40 +7,60 @@ import type { ResourceEvent } from '@semiont/core';
 import type { ResourceUri } from '@semiont/api-client';
 
 /**
- * Event map for make-meaning events
+ * Selection data for annotation creation
+ */
+export interface SelectionData {
+  exact: string;
+  start: number;
+  end: number;
+  svgSelector?: string;
+  fragmentSelector?: string;
+  conformsTo?: string;
+  prefix?: string;
+  suffix?: string;
+}
+
+/**
+ * Unified event map for all events (backend + UI)
  *
- * These are NOT frontend events - they are make-meaning's domain events
- * exposed directly to the UI. The frontend thinks in make-meaning semantics.
+ * Backend events: Make-meaning's event-sourced domain events from SSE
+ * UI events: Local user interactions that will enable real-time collaboration
  */
 type MakeMeaningEventMap = {
   // Generic event (all types)
   'make-meaning:event': ResourceEvent;
 
-  // Detection semantics
+  // Detection semantics (backend events)
   'detection:started': Extract<ResourceEvent, { type: 'job.started' }>;
   'detection:progress': Extract<ResourceEvent, { type: 'job.progress' }>;
   'detection:entity-found': Extract<ResourceEvent, { type: 'annotation.added' }>;
   'detection:completed': Extract<ResourceEvent, { type: 'job.completed' }>;
   'detection:failed': Extract<ResourceEvent, { type: 'job.failed' }>;
 
-  // Generation semantics
+  // Generation semantics (backend events)
   'generation:started': Extract<ResourceEvent, { type: 'job.started' }>;
   'generation:progress': Extract<ResourceEvent, { type: 'job.progress' }>;
   'generation:resource-created': Extract<ResourceEvent, { type: 'resource.created' }>;
   'generation:completed': Extract<ResourceEvent, { type: 'job.completed' }>;
 
-  // Annotation semantics (direct make-meaning events)
+  // Annotation semantics (backend events)
   'annotation:added': Extract<ResourceEvent, { type: 'annotation.added' }>;
   'annotation:removed': Extract<ResourceEvent, { type: 'annotation.removed' }>;
   'annotation:updated': Extract<ResourceEvent, { type: 'annotation.body.updated' }>;
 
-  // Entity tag semantics
+  // Entity tag semantics (backend events)
   'entity-tag:added': Extract<ResourceEvent, { type: 'entitytag.added' }>;
   'entity-tag:removed': Extract<ResourceEvent, { type: 'entitytag.removed' }>;
 
-  // Resource semantics
+  // Resource semantics (backend events)
   'resource:archived': Extract<ResourceEvent, { type: 'resource.archived' }>;
   'resource:unarchived': Extract<ResourceEvent, { type: 'resource.unarchived' }>;
+
+  // UI events - Local user interactions (will enable real-time collaboration)
+  'ui:selection:comment-requested': SelectionData;
+  'ui:selection:tag-requested': SelectionData;
+  'ui:selection:assessment-requested': SelectionData;
+  'ui:selection:reference-requested': SelectionData;
 };
 
 type EventBus = ReturnType<typeof mitt<MakeMeaningEventMap>>;
@@ -53,10 +73,16 @@ export interface MakeMeaningEventBusProviderProps {
 }
 
 /**
- * Provides event bus for make-meaning events
+ * Unified event bus provider for all events (backend + UI)
  *
- * This is NOT a generic event bus - it specifically exposes make-meaning's
- * event-sourced semantics to React components.
+ * Backend events: Make-meaning's event-sourced domain events from SSE
+ * UI events: Local user interactions (enables real-time collaboration)
+ *
+ * This unified bus allows:
+ * 1. Components to emit UI events (selections, requests)
+ * 2. Other components to react to those events
+ * 3. Backend events to flow through the same bus
+ * 4. Foundation for peer-to-peer real-time collaboration
  */
 export function MakeMeaningEventBusProvider({
   rUri,

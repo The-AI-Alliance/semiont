@@ -20,7 +20,7 @@ import { Toolbar } from '@semiont/react-ui';
 import { useResourceLoadingAnnouncements } from '@semiont/react-ui';
 import type { GenerationOptions } from '@semiont/react-ui';
 import { ResourceViewer } from '@semiont/react-ui';
-import { MakeMeaningEventBusProvider } from '@semiont/react-ui';
+import { MakeMeaningEventBusProvider, useMakeMeaningEvents } from '@semiont/react-ui';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
@@ -154,7 +154,8 @@ export interface ResourceViewerPageProps {
   GenerationConfigModal: React.ComponentType<any>;
 }
 
-export function ResourceViewerPage({
+// Inner component that has access to event bus
+function ResourceViewerPageInner({
   resource,
   rUri,
   content,
@@ -188,6 +189,8 @@ export function ResourceViewerPage({
   SearchResourcesModal,
   GenerationConfigModal,
 }: ResourceViewerPageProps) {
+  // Get unified event bus for subscribing to UI events
+  const eventBus = useMakeMeaningEvents();
   // Resource loading announcements
   const {
     announceResourceLoading,
@@ -202,7 +205,9 @@ export function ResourceViewerPage({
   const primaryMediaType = primaryRep?.mediaType;
   const primaryByteSize = primaryRep?.byteSize;
 
-  const [annotateMode, setAnnotateMode] = useState(() => {
+  // Annotate mode state - read-only copy for sidebar panel coordination
+  // ResourceViewer manages the authoritative state and persists to localStorage
+  const [annotateMode, _setAnnotateMode] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('annotateMode') === 'true';
     }
@@ -246,15 +251,6 @@ export function ResourceViewerPage({
   const handleEventClick = useCallback((_annotationId: string | null) => {
     // ResourceViewer now manages scroll state internally
   }, []);
-
-  // Handle annotate mode toggle - memoized
-  const handleAnnotateModeToggle = useCallback(() => {
-    const newMode = !annotateMode;
-    setAnnotateMode(newMode);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('annotateMode', newMode.toString());
-    }
-  }, [annotateMode]);
 
   // Use SSE-based document generation progress - provides inline sparkle animation
   const {
@@ -392,7 +388,96 @@ export function ResourceViewerPage({
 
     setActivePanel(MOTIVATION_TO_TAB[pending.motivation] || 'annotations');
     setPendingAnnotation(pending);
-  }, []);
+  }, [setActivePanel]);
+
+  // Subscribe to UI events from ResourceViewer
+  useEffect(() => {
+    const handleCommentRequested = (selection: any) => {
+      handleAnnotationRequested({
+        selector: {
+          type: 'TextQuoteSelector',
+          exact: selection.exact,
+          start: selection.start,
+          end: selection.end,
+          ...(selection.prefix && { prefix: selection.prefix }),
+          ...(selection.suffix && { suffix: selection.suffix })
+        },
+        motivation: 'commenting'
+      });
+    };
+
+    const handleTagRequested = (selection: any) => {
+      handleAnnotationRequested({
+        selector: {
+          type: 'TextQuoteSelector',
+          exact: selection.exact,
+          start: selection.start,
+          end: selection.end,
+          ...(selection.prefix && { prefix: selection.prefix }),
+          ...(selection.suffix && { suffix: selection.suffix })
+        },
+        motivation: 'tagging'
+      });
+    };
+
+    const handleAssessmentRequested = (selection: any) => {
+      handleAnnotationRequested({
+        selector: {
+          type: 'TextQuoteSelector',
+          exact: selection.exact,
+          start: selection.start,
+          end: selection.end,
+          ...(selection.prefix && { prefix: selection.prefix }),
+          ...(selection.suffix && { suffix: selection.suffix })
+        },
+        motivation: 'assessing'
+      });
+    };
+
+    const handleReferenceRequested = (selection: any) => {
+      // Build selector based on what's present in the selection
+      let selector: any;
+
+      if (selection.svgSelector) {
+        selector = {
+          type: 'SvgSelector',
+          value: selection.svgSelector
+        };
+      } else if (selection.fragmentSelector) {
+        selector = {
+          type: 'FragmentSelector',
+          value: selection.fragmentSelector,
+          ...(selection.conformsTo && { conformsTo: selection.conformsTo })
+        };
+      } else {
+        selector = {
+          type: 'TextQuoteSelector',
+          exact: selection.exact,
+          start: selection.start,
+          end: selection.end,
+          ...(selection.prefix && { prefix: selection.prefix }),
+          ...(selection.suffix && { suffix: selection.suffix })
+        };
+      }
+
+      handleAnnotationRequested({
+        selector,
+        motivation: 'linking'
+      });
+    };
+
+    eventBus.on('ui:selection:comment-requested', handleCommentRequested);
+    eventBus.on('ui:selection:tag-requested', handleTagRequested);
+    eventBus.on('ui:selection:assessment-requested', handleAssessmentRequested);
+    eventBus.on('ui:selection:reference-requested', handleReferenceRequested);
+
+    return () => {
+      eventBus.off('ui:selection:comment-requested', handleCommentRequested);
+      eventBus.off('ui:selection:tag-requested', handleTagRequested);
+      eventBus.off('ui:selection:assessment-requested', handleAssessmentRequested);
+      eventBus.off('ui:selection:reference-requested', handleReferenceRequested);
+    };
+  }, [eventBus, handleAnnotationRequested]);
 
   // Manual tag creation handler
   // Shared UI handlers - same across all annotation types
@@ -514,8 +599,7 @@ export function ResourceViewerPage({
 
   // Document rendering
   return (
-    <MakeMeaningEventBusProvider rUri={rUri}>
-      <div className={`semiont-document-viewer${activePanel ? ' semiont-document-viewer--panel-open' : ''}`}>
+    <div className={`semiont-document-viewer${activePanel ? ' semiont-document-viewer--panel-open' : ''}`}>
       {/* Main Content - Fills remaining height */}
       <div className="semiont-document-viewer__main">
         {/* Document Content - Left Side */}
@@ -556,8 +640,6 @@ export function ResourceViewerPage({
                 <ResourceViewer
                   resource={resourceWithContent}
                 annotations={groups}
-                annotateMode={annotateMode}
-                onAnnotateModeToggle={handleAnnotateModeToggle}
                 onAnnotationRequested={handleAnnotationRequested}
                 generatingReferenceId={generationProgress?.referenceId ?? null}
                 showLineNumbers={showLineNumbers}
@@ -730,7 +812,15 @@ export function ResourceViewerPage({
         resourceUri={rUri}
         defaultTitle={generationDefaultTitle}
       />
-      </div>
+    </div>
+  );
+}
+
+// Outer component that wraps MakeMeaningEventBusProvider
+export function ResourceViewerPage(props: ResourceViewerPageProps) {
+  return (
+    <MakeMeaningEventBusProvider rUri={props.rUri}>
+      <ResourceViewerPageInner {...props} />
     </MakeMeaningEventBusProvider>
   );
 }
