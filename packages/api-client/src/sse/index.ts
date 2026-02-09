@@ -13,7 +13,6 @@ import type {
   AssessmentDetectionProgress,
   CommentDetectionProgress,
   TagDetectionProgress,
-  ResourceEvent,
   SSEStream
 } from './types';
 import type { ResourceUri, AnnotationUri } from '../branded-types';
@@ -523,11 +522,11 @@ export class SSEClient {
    * stream.close();
    * ```
    */
-  resourceEvents(resourceId: ResourceUri): SSEStream<ResourceEvent, never> {
+  resourceEvents(resourceId: ResourceUri): SSEStream<any, never> {
     const id = this.extractId(resourceId);
     const url = `${this.baseUrl}/resources/${id}/events/stream`;
 
-    return createSSEStream<ResourceEvent, never>(
+    return createSSEStream<any, never>(
       url,
       {
         method: 'GET',

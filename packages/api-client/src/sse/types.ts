@@ -214,15 +214,13 @@ export interface TagDetectionProgress {
  *
  * @example
  * ```typescript
- * stream.onEvent((event: ResourceEvent) => {
+ * stream.onEvent((event) => {
  *   console.log(`Event: ${event.type}`);
  *   console.log(`User: ${event.userId}`);
  *   console.log(`Payload:`, event.payload);
- *   console.log(`Sequence: ${event.metadata.sequenceNumber}`);
  * });
  * ```
  */
-export type { ResourceEvent } from '@semiont/core';
 
 /**
  * SSE stream controller interface

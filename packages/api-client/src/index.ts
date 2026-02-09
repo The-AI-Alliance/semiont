@@ -46,7 +46,6 @@ export type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMC
 export type {
   DetectionProgress,
   GenerationProgress,
-  ResourceEvent,
   SSEStream
 } from './sse/types';
 export { SSEClient } from './sse/index';

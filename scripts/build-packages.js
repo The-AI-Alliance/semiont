@@ -4,8 +4,8 @@
  * Build all packages in dependency order with proper error handling
  *
  * Build order (SPEC-FIRST ARCHITECTURE):
- * 1. @semiont/core - Core event types and utilities - NO DEPENDENCIES
- * 2. @semiont/api-client - Generates types from openapi.json (spec-first) - depends on @semiont/core for ResourceEvent
+ * 1. @semiont/api-client - Generates types from openapi.json (spec-first) - NO DEPENDENCIES
+ * 2. @semiont/core - Core event types and utilities - depends on @semiont/api-client for OpenAPI types
  * 3. @semiont/ontology - Entity types, tag schemas, vocabularies (depends on @semiont/api-client only)
  * 4. @semiont/content - Content-addressed storage (depends on @semiont/core only)
  * 5. @semiont/event-sourcing - Event sourcing infrastructure (depends on @semiont/core and @semiont/api-client)
@@ -13,7 +13,7 @@
  * 7. @semiont/graph - Graph database abstraction (depends on @semiont/core, @semiont/api-client, and @semiont/ontology)
  * 8. @semiont/inference - AI inference for entity extraction and text generation (depends on @semiont/core and @semiont/api-client)
  * 9. @semiont/make-meaning - Context assembly, pattern detection, and relationship reasoning (depends on @semiont/inference, @semiont/graph, @semiont/ontology)
- * 10. @semiont/react-ui - React components and hooks for Semiont applications (depends on @semiont/api-client, @semiont/ontology)
+ * 10. @semiont/react-ui - React components and hooks for Semiont applications (depends on @semiont/api-client, @semiont/core, @semiont/ontology)
  * 11. Backend - Consumes types from @semiont/api-client, @semiont/core, @semiont/ontology, @semiont/content, @semiont/event-sourcing, @semiont/jobs, @semiont/graph, @semiont/inference, and @semiont/make-meaning
  * 12. @semiont/test-utils - Testing utilities
  * 13. @semiont/mcp-server - MCP server (depends on @semiont/api-client)
@@ -43,14 +43,14 @@ try {
 
 const buildSteps = [
   {
-    name: '@semiont/core',
-    type: 'package',
-    description: 'Core event types and utilities (NO DEPENDENCIES)'
-  },
-  {
     name: '@semiont/api-client',
     type: 'package',
-    description: 'API client (generates types from openapi.json - SPEC-FIRST, depends on @semiont/core)'
+    description: 'API client (generates types from openapi.json - SPEC-FIRST, NO DEPENDENCIES)'
+  },
+  {
+    name: '@semiont/core',
+    type: 'package',
+    description: 'Core event types and utilities (depends on @semiont/api-client for OpenAPI types)'
   },
   {
     name: '@semiont/ontology',
@@ -90,7 +90,7 @@ const buildSteps = [
   {
     name: '@semiont/react-ui',
     type: 'package',
-    description: 'React components and hooks for Semiont applications (depends on @semiont/api-client, @semiont/ontology)'
+    description: 'React components and hooks for Semiont applications (depends on @semiont/api-client, @semiont/core, @semiont/ontology)'
   },
   {
     name: 'semiont-backend',

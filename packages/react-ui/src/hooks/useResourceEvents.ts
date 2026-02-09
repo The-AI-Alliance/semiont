@@ -1,14 +1,9 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-import type { ResourceUri, ResourceEvent as ApiResourceEvent, SSEStream } from '@semiont/api-client';
+import type { ResourceUri, SSEStream } from '@semiont/api-client';
+import type { ResourceEvent } from '@semiont/core';
 import { useApiClient } from '../contexts/ApiClientContext';
-
-/**
- * Resource event structure from the event store
- * (Re-exported from api-client for consistency)
- */
-export type ResourceEvent = ApiResourceEvent;
 
 /**
  * Stream connection status
@@ -67,7 +62,7 @@ export function useResourceEvents({
   const [status, setStatus] = useState<StreamStatus>('disconnected');
   const [lastEvent, setLastEvent] = useState<ResourceEvent | null>(null);
   const [eventCount, setEventCount] = useState(0);
-  const streamRef = useRef<SSEStream<ApiResourceEvent, never> | null>(null);
+  const streamRef = useRef<SSEStream<ResourceEvent, never> | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const connectingRef = useRef(false);
