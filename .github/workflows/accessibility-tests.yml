@@ -37,22 +37,16 @@ jobs:
           npm install
           npm run openapi:bundle
           npm run build --workspace=@semiont/api-client
-          npm run build --workspace=@semiont/ontology
           npm run build --workspace=@semiont/core
+          npm run build --workspace=@semiont/ontology
           npm run build --workspace=@semiont/react-ui
-
-      - name: Install axe-core testing packages
-        run: |
-          cd packages/react-ui
-          npm install --save-dev jest-axe axe-core @axe-core/cli
 
       - name: Run accessibility tests
         id: a11y-tests
         run: |
-          cd packages/react-ui
           # Run accessibility tests in split mode to avoid memory issues
           # This only runs tests with "Accessibility" in the name
-          npm run test:a11y
+          npm run test:a11y --workspace=@semiont/react-ui
         continue-on-error: false
         env:
           CI: true
@@ -60,8 +54,7 @@ jobs:
       - name: Generate accessibility report
         if: always()
         run: |
-          cd packages/react-ui
-          npm run test:coverage -- --reporter=json --outputFile=a11y-report.json
+          npm run test:coverage --workspace=@semiont/react-ui -- --reporter=json --outputFile=a11y-report.json
         continue-on-error: true
 
       - name: Upload accessibility test results
@@ -105,14 +98,9 @@ jobs:
           npm install
           npm run openapi:bundle
           npm run build --workspace=@semiont/api-client
-          npm run build --workspace=@semiont/ontology
           npm run build --workspace=@semiont/core
+          npm run build --workspace=@semiont/ontology
           npm run build --workspace=@semiont/react-ui
-
-      - name: Install axe-core testing packages
-        run: |
-          cd apps/frontend
-          npm install --save-dev jest-axe axe-core @axe-core/cli
 
       - name: Run accessibility tests
         id: a11y-tests
@@ -179,8 +167,8 @@ jobs:
           npm install
           npm run openapi:bundle
           npm run build --workspace=@semiont/api-client
-          npm run build --workspace=@semiont/ontology
           npm run build --workspace=@semiont/core
+          npm run build --workspace=@semiont/ontology
           npm run build --workspace=@semiont/react-ui
 
       - name: Build frontend

@@ -66,15 +66,11 @@
     "test:split:coverage": "NODE_OPTIONS=--max-old-space-size=8192 vitest run --coverage src/components/resource/panels && NODE_OPTIONS=--max-old-space-size=8192 vitest run --coverage src/components/navigation && NODE_OPTIONS=--max-old-space-size=8192 vitest run --coverage src/components/layout src/components/branding && NODE_OPTIONS=--max-old-space-size=8192 vitest run --coverage src/components/error-states src/components/loading-states && NODE_OPTIONS=--max-old-space-size=8192 vitest run --coverage src/components/modals && NODE_OPTIONS=--max-old-space-size=8192 vitest run --coverage src/components/annotation src/components/Button src/components/resource/__tests__ src/components/__tests__ && NODE_OPTIONS=--max-old-space-size=8192 vitest run --coverage src/features && NODE_OPTIONS=--max-old-space-size=8192 vitest run --coverage src/contexts src/hooks src/lib src/assets"
   },
   "peerDependencies": {
-    "@semiont/api-client": "*",
-    "@semiont/core": "*",
     "@tanstack/react-query": "^5.0.0",
     "react": "^18.0.0",
     "react-dom": "^18.0.0"
   },
   "devDependencies": {
-    "@semiont/api-client": "*",
-    "@semiont/core": "*",
     "@testing-library/jest-dom": "^6.1.5",
     "@testing-library/react": "^14.1.2",
     "@types/react": "^18.3.12",
@@ -101,6 +97,8 @@
     "directory": "packages/react-ui"
   },
   "dependencies": {
+    "@semiont/api-client": "*",
+    "@semiont/core": "*",
     "mitt": "^3.0.1"
   }
 }
