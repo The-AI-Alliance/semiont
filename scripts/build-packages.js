@@ -43,19 +43,19 @@ try {
 
 const buildSteps = [
   {
+    name: '@semiont/core',
+    type: 'package',
+    description: 'Core event types and utilities (NO DEPENDENCIES)'
+  },
+  {
     name: '@semiont/api-client',
     type: 'package',
-    description: 'API client (generates types from openapi.json - SPEC-FIRST)'
+    description: 'API client (generates types from openapi.json - SPEC-FIRST, depends on @semiont/core)'
   },
   {
     name: '@semiont/ontology',
     type: 'package',
     description: 'Domain ontology (entity types, tag schemas, vocabularies)'
-  },
-  {
-    name: '@semiont/core',
-    type: 'package',
-    description: 'Core SDK package (depends on @semiont/api-client and @semiont/ontology)'
   },
   {
     name: '@semiont/content',
