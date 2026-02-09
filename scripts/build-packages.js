@@ -4,9 +4,9 @@
  * Build all packages in dependency order with proper error handling
  *
  * Build order (SPEC-FIRST ARCHITECTURE):
- * 1. @semiont/api-client - Generates types from openapi.json (spec-first) - NO DEPENDENCIES
- * 2. @semiont/ontology - Entity types, tag schemas, vocabularies (depends on @semiont/api-client only)
- * 3. @semiont/core - Depends on @semiont/api-client and @semiont/ontology for types
+ * 1. @semiont/core - Core event types and utilities - NO DEPENDENCIES
+ * 2. @semiont/api-client - Generates types from openapi.json (spec-first) - depends on @semiont/core for ResourceEvent
+ * 3. @semiont/ontology - Entity types, tag schemas, vocabularies (depends on @semiont/api-client only)
  * 4. @semiont/content - Content-addressed storage (depends on @semiont/core only)
  * 5. @semiont/event-sourcing - Event sourcing infrastructure (depends on @semiont/core and @semiont/api-client)
  * 6. @semiont/jobs - Job queue and worker infrastructure (depends on @semiont/core and @semiont/api-client)
