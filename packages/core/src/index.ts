@@ -70,6 +70,7 @@ export type {
   ResourceAnnotations,
 } from './events';
 export {
+  isResourceEvent,
   isSystemEvent,
   isResourceScopedEvent,
   getEventType,
@@ -79,7 +80,7 @@ export {
 export {
   getAnnotationUriFromEvent,
   isEventRelatedToAnnotation,
-  isResourceEvent,
+  isResourceEvent as isStoredEvent,
 } from './event-utils';
 
 // Backend-specific annotation utilities
