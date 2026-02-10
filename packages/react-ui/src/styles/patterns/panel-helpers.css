@@ -32,6 +32,11 @@
   color: var(--semiont-text-tertiary);
 }
 
+.semiont-annotation-prompt__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
 /* Panel Button Layouts (kept for backward compatibility) */
 .semiont-panel-button-full {
   width: 100%;

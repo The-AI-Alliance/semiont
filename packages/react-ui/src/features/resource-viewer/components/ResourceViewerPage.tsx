@@ -464,16 +464,23 @@ function ResourceViewerPageInner({
       });
     };
 
+    // Handle cancel pending annotation
+    const handleCancelPending = () => {
+      setPendingAnnotation(null);
+    };
+
     eventBus.on('ui:selection:comment-requested', handleCommentRequested);
     eventBus.on('ui:selection:tag-requested', handleTagRequested);
     eventBus.on('ui:selection:assessment-requested', handleAssessmentRequested);
     eventBus.on('ui:selection:reference-requested', handleReferenceRequested);
+    eventBus.on('ui:annotation:cancel-pending', handleCancelPending);
 
     return () => {
       eventBus.off('ui:selection:comment-requested', handleCommentRequested);
       eventBus.off('ui:selection:tag-requested', handleTagRequested);
       eventBus.off('ui:selection:assessment-requested', handleAssessmentRequested);
       eventBus.off('ui:selection:reference-requested', handleReferenceRequested);
+      eventBus.off('ui:annotation:cancel-pending', handleCancelPending);
     };
   }, [eventBus, handleAnnotationRequested]);
 

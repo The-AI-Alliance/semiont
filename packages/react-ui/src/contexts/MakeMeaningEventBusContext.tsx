@@ -61,6 +61,7 @@ type MakeMeaningEventMap = {
   'ui:selection:tag-requested': SelectionData;
   'ui:selection:assessment-requested': SelectionData;
   'ui:selection:reference-requested': SelectionData;
+  'ui:annotation:cancel-pending': void;
 };
 
 type EventBus = ReturnType<typeof mitt<MakeMeaningEventMap>>;
