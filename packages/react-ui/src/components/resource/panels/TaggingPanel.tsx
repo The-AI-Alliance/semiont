@@ -38,8 +38,6 @@ function getSelectorDisplayText(selector: Selector | Selector[]): string | null 
 
 interface TaggingPanelProps {
   annotations: Annotation[];
-  onAnnotationClick: (annotation: Annotation) => void;
-  focusedAnnotationId: string | null;
   annotateMode?: boolean;
   onDetect?: (schemaId: string, categories: string[]) => void | Promise<void>;
   onCreate: (schemaId: string, category: string) => void | Promise<void>;
@@ -58,8 +56,6 @@ interface TaggingPanelProps {
 
 export function TaggingPanel({
   annotations,
-  onAnnotationClick,
-  focusedAnnotationId,
   annotateMode = true,
   onDetect,
   onCreate,
@@ -71,6 +67,7 @@ export function TaggingPanel({
   const eventBus = useMakeMeaningEvents();
   const [selectedSchemaId, setSelectedSchemaId] = useState<string>('legal-irac');
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
+  const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
 
   // Collapsible detection section state - load from localStorage, default expanded
   const [isDetectExpanded, setIsDetectExpanded] = useState(() => {
@@ -84,6 +81,17 @@ export function TaggingPanel({
     if (typeof window === 'undefined') return;
     localStorage.setItem('detect-section-expanded-tag', String(isDetectExpanded));
   }, [isDetectExpanded]);
+
+  // Subscribe to click events - update focused state
+  useEffect(() => {
+    const handler = ({ annotationId }: { annotationId: string }) => {
+      setFocusedAnnotationId(annotationId);
+      setTimeout(() => setFocusedAnnotationId(null), 3000);
+    };
+
+    eventBus.on('ui:annotation:click', handler);
+    return () => eventBus.off('ui:annotation:click', handler);
+  }, [eventBus]);
 
   const { sortedAnnotations, containerRef, handleAnnotationRef } =
     useAnnotationPanel(annotations);
@@ -386,7 +394,6 @@ export function TaggingPanel({
                 key={tag.id}
                 tag={tag}
                 isFocused={tag.id === focusedAnnotationId}
-                onClick={() => onAnnotationClick(tag)}
                 onTagRef={handleAnnotationRef}
               />
             ))

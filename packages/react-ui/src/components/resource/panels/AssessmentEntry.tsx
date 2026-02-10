@@ -18,9 +18,7 @@ interface TextualBody {
 interface AssessmentEntryProps {
   assessment: Annotation;
   isFocused: boolean;
-  onClick: () => void;
   onAssessmentRef: (assessmentId: string, el: HTMLElement | null) => void;
-  onAssessmentHover?: (assessmentId: string | null) => void;
 }
 
 function formatRelativeTime(isoString: string): string {
@@ -71,9 +69,7 @@ function getAssessmentText(annotation: Annotation): string | null {
 export function AssessmentEntry({
   assessment,
   isFocused,
-  onClick,
   onAssessmentRef,
-  onAssessmentHover,
 }: AssessmentEntryProps) {
   const eventBus = useMakeMeaningEvents();
   const assessmentRef = useRef<HTMLDivElement>(null);
@@ -102,14 +98,14 @@ export function AssessmentEntry({
       className="semiont-annotation-entry"
       data-type="assessment"
       data-focused={isFocused ? 'true' : 'false'}
-      onClick={onClick}
+      onClick={() => {
+        eventBus.emit('ui:annotation:click', { annotationId: assessment.id });
+      }}
       onMouseEnter={() => {
         eventBus.emit('ui:annotation:hover', { annotationId: assessment.id });
-        onAssessmentHover?.(assessment.id); // Backward compat
       }}
       onMouseLeave={() => {
         eventBus.emit('ui:annotation:hover', { annotationId: null });
-        onAssessmentHover?.(null); // Backward compat
       }}
     >
       {/* Selected text quote */}

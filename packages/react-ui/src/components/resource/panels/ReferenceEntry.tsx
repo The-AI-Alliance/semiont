@@ -20,10 +20,8 @@ interface EnrichedAnnotation extends Annotation {
 interface ReferenceEntryProps {
   reference: Annotation;
   isFocused: boolean;
-  onClick: () => void;
   routes: RouteBuilder;
   onReferenceRef: (referenceId: string, el: HTMLElement | null) => void;
-  onReferenceHover?: (referenceId: string | null) => void;
   onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
   onCreateDocument?: (annotationUri: string, title: string, entityTypes: string[]) => void;
   onSearchDocuments?: (referenceId: string, searchTerm: string) => void;
@@ -35,10 +33,8 @@ interface ReferenceEntryProps {
 export function ReferenceEntry({
   reference,
   isFocused,
-  onClick,
   routes,
   onReferenceRef,
-  onReferenceHover,
   onGenerateDocument,
   onCreateDocument,
   onSearchDocuments,
@@ -140,14 +136,14 @@ export function ReferenceEntry({
       className="semiont-annotation-entry"
       data-type="reference"
       data-focused={isFocused ? 'true' : 'false'}
-      onClick={onClick}
+      onClick={() => {
+        eventBus.emit('ui:annotation:click', { annotationId: reference.id });
+      }}
       onMouseEnter={() => {
         eventBus.emit('ui:annotation:hover', { annotationId: reference.id });
-        onReferenceHover?.(reference.id); // Backward compat
       }}
       onMouseLeave={() => {
         eventBus.emit('ui:annotation:hover', { annotationId: null });
-        onReferenceHover?.(null); // Backward compat
       }}
     >
       {/* Status indicator and text quote */}

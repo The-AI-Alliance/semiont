@@ -10,9 +10,7 @@ type Annotation = components['schemas']['Annotation'];
 interface HighlightEntryProps {
   highlight: Annotation;
   isFocused: boolean;
-  onClick: () => void;
   onHighlightRef: (highlightId: string, el: HTMLElement | null) => void;
-  onHighlightHover?: (highlightId: string | null) => void;
 }
 
 function formatRelativeTime(isoString: string): string {
@@ -35,9 +33,7 @@ function formatRelativeTime(isoString: string): string {
 export function HighlightEntry({
   highlight,
   isFocused,
-  onClick,
   onHighlightRef,
-  onHighlightHover,
 }: HighlightEntryProps) {
   const eventBus = useMakeMeaningEvents();
   const highlightRef = useRef<HTMLDivElement>(null);
@@ -65,14 +61,14 @@ export function HighlightEntry({
       className="semiont-annotation-entry"
       data-type="highlight"
       data-focused={isFocused ? 'true' : 'false'}
-      onClick={onClick}
+      onClick={() => {
+        eventBus.emit('ui:annotation:click', { annotationId: highlight.id });
+      }}
       onMouseEnter={() => {
         eventBus.emit('ui:annotation:hover', { annotationId: highlight.id });
-        onHighlightHover?.(highlight.id); // Backward compat
       }}
       onMouseLeave={() => {
         eventBus.emit('ui:annotation:hover', { annotationId: null });
-        onHighlightHover?.(null); // Backward compat
       }}
     >
       {/* Highlighted text */}

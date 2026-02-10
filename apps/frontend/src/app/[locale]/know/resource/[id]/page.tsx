@@ -19,7 +19,6 @@ import { resourceUri, decodeWithCharset, getPrimaryMediaType, resourceAnnotation
 import { useOpenResources, useResourceAnnotations } from '@semiont/react-ui';
 import { useToast } from '@semiont/react-ui';
 import { useTheme } from '@semiont/react-ui';
-import { useToolbar } from '@semiont/react-ui';
 import { useLineNumbers } from '@semiont/react-ui';
 import { useResourceEvents } from '@semiont/react-ui';
 import { useDebouncedCallback } from '@semiont/react-ui';
@@ -193,7 +192,6 @@ function ResourceViewWrapper({
   const generateCloneTokenMutation = resources.generateCloneToken.useMutation();
 
   const { theme, setTheme } = useTheme();
-  const { activePanel, togglePanel, setActivePanel } = useToolbar({ persistToStorage: true });
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
   // Add resource to open tabs when it loads
@@ -380,9 +378,6 @@ function ResourceViewWrapper({
         onThemeChange={setTheme}
         showLineNumbers={showLineNumbers}
         onLineNumbersToggle={toggleLineNumbers}
-        activePanel={activePanel}
-        onPanelToggle={togglePanel}
-        setActivePanel={setActivePanel}
         onArchive={handleArchive}
         onUnarchive={handleUnarchive}
         onClone={handleClone}

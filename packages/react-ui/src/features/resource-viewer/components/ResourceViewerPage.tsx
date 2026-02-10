@@ -94,13 +94,6 @@ export interface ResourceViewerPageProps {
   onLineNumbersToggle: () => void;
 
   /**
-   * Active toolbar panel
-   */
-  activePanel: any;
-  onPanelToggle: (panel: any) => void;
-  setActivePanel: (panel: any) => void;
-
-  /**
    * Callbacks for resource actions
    */
   onArchive: () => Promise<void>;
@@ -169,9 +162,6 @@ function ResourceViewerPageInner({
   onThemeChange,
   showLineNumbers,
   onLineNumbersToggle,
-  activePanel,
-  onPanelToggle,
-  setActivePanel,
   onArchive,
   onUnarchive,
   onClone,
@@ -215,9 +205,19 @@ function ResourceViewerPageInner({
   });
 
   // Unified annotation state (motivation-agnostic) - used by sidebar panels
-  const [focusedAnnotationId, _setFocusedAnnotationId] = useState<string | null>(null);
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
+  // focusedAnnotationId removed - now managed internally by each panel via event bus
   // scrollToAnnotationId removed - ResourceViewer now manages scroll state internally
+
+  // Panel state - managed internally via event bus
+  const [activePanel, setActivePanelInternal] = useState<string | null>(() => {
+    // Load from localStorage if available (for persistence across page reloads)
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('activeToolbarPanel');
+      return saved || null;
+    }
+    return null;
+  });
 
   // Unified pending annotation - all human-created annotations flow through this
   const [pendingAnnotation, setPendingAnnotation] = useState<PendingAnnotation | null>(null);
@@ -397,9 +397,10 @@ function ResourceViewerPageInner({
       replying: 'annotations',
     };
 
-    setActivePanel(MOTIVATION_TO_TAB[pending.motivation] || 'annotations');
+    // Emit event to open the appropriate panel
+    eventBus.emit('ui:panel:open', { panel: MOTIVATION_TO_TAB[pending.motivation] || 'annotations' });
     setPendingAnnotation(pending);
-  }, [setActivePanel]);
+  }, [eventBus]);
 
   // Subscribe to UI events from ResourceViewer
   useEffect(() => {
@@ -482,11 +483,63 @@ function ResourceViewerPageInner({
       setPendingAnnotation(null);
     };
 
+    // Handle annotation click - emit focus event for scroll coordination
+    const handleClick = ({ annotationId }: { annotationId: string }) => {
+      eventBus.emit('ui:annotation:focus', { annotationId });
+      setHoveredAnnotationId(annotationId);
+      setTimeout(() => setHoveredAnnotationId(null), 1500);
+    };
+
+    // Handle panel toggle - toggle between open/closed
+    const handlePanelToggle = ({ panel }: { panel: string }) => {
+      setActivePanelInternal(current => {
+        const newPanel = current === panel ? null : panel;
+        // Persist to localStorage
+        if (typeof window !== 'undefined') {
+          if (newPanel) {
+            localStorage.setItem('activeToolbarPanel', newPanel);
+          } else {
+            localStorage.removeItem('activeToolbarPanel');
+          }
+        }
+        return newPanel;
+      });
+    };
+
+    // Handle panel open - always open the specified panel
+    const handlePanelOpen = ({ panel }: { panel: string }) => {
+      setActivePanelInternal(panel);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('activeToolbarPanel', panel);
+      }
+    };
+
+    // Handle panel close - close the active panel
+    const handlePanelClose = () => {
+      setActivePanelInternal(null);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('activeToolbarPanel');
+      }
+    };
+
+    // Handle job cancellation request
+    const handleJobCancelRequested = ({ jobType }: { jobType: 'detection' | 'generation' }) => {
+      if (jobType === 'detection') {
+        handleCancelDetection();
+      }
+      // Generation cancellation can be added here when needed
+    };
+
     eventBus.on('ui:selection:comment-requested', handleCommentRequested);
     eventBus.on('ui:selection:tag-requested', handleTagRequested);
     eventBus.on('ui:selection:assessment-requested', handleAssessmentRequested);
     eventBus.on('ui:selection:reference-requested', handleReferenceRequested);
     eventBus.on('ui:annotation:cancel-pending', handleCancelPending);
+    eventBus.on('ui:annotation:click', handleClick);
+    eventBus.on('ui:panel:toggle', handlePanelToggle);
+    eventBus.on('ui:panel:open', handlePanelOpen);
+    eventBus.on('ui:panel:close', handlePanelClose);
+    eventBus.on('ui:job:cancel-requested', handleJobCancelRequested);
 
     return () => {
       eventBus.off('ui:selection:comment-requested', handleCommentRequested);
@@ -494,15 +547,21 @@ function ResourceViewerPageInner({
       eventBus.off('ui:selection:assessment-requested', handleAssessmentRequested);
       eventBus.off('ui:selection:reference-requested', handleReferenceRequested);
       eventBus.off('ui:annotation:cancel-pending', handleCancelPending);
+      eventBus.off('ui:annotation:click', handleClick);
+      eventBus.off('ui:panel:toggle', handlePanelToggle);
+      eventBus.off('ui:panel:open', handlePanelOpen);
+      eventBus.off('ui:panel:close', handlePanelClose);
+      eventBus.off('ui:job:cancel-requested', handleJobCancelRequested);
     };
-  }, [eventBus, handleAnnotationRequested]);
+  }, [eventBus, handleAnnotationRequested, handleCancelDetection]);
 
   // Manual tag creation handler
-  // Shared UI handlers - same across all annotation types
-  const handleAnnotationClick = useCallback((annotation: Annotation) => {
-    setHoveredAnnotationId(annotation.id);
-    setTimeout(() => setHoveredAnnotationId(null), 1500);
-  }, []);
+  // Note: handleAnnotationClick removed - now handled via event bus subscriptions
+
+  // Panel toggle handler - emits event for toolbar buttons
+  const handlePanelToggle = useCallback((panel: string) => {
+    eventBus.emit('ui:panel:toggle', { panel });
+  }, [eventBus]);
 
   // Single generic annotation creation handler - reads config from ANNOTATORS
   const handleCreateAnnotation = useCallback(async (
@@ -690,8 +749,6 @@ function ResourceViewerPageInner({
                 annotators={ANNOTATORS}
                 onCreateAnnotation={handleCreateAnnotation}
                 detectionContext={detectionContext}
-                focusedAnnotationId={focusedAnnotationId}
-                onAnnotationClick={handleAnnotationClick}
                 annotateMode={annotateMode}
                 detectingMotivation={detectingMotivation}
                 detectionProgress={motivationDetectionProgress}
@@ -701,7 +758,6 @@ function ResourceViewerPageInner({
                 onCreateDocument={handleCreateDocument}
                 generatingReferenceId={generationProgress?.referenceId ?? null}
                 onSearchDocuments={handleSearchDocuments}
-                onCancelDetection={handleCancelDetection}
                 {...(primaryMediaType ? { mediaType: primaryMediaType } : {})}
                 referencedBy={referencedBy}
                 referencedByLoading={referencedByLoading}
@@ -756,7 +812,7 @@ function ResourceViewerPageInner({
             context="document"
             activePanel={activePanel}
             isArchived={resource.archived ?? false}
-            onPanelToggle={onPanelToggle}
+            onPanelToggle={handlePanelToggle}
           />
         </div>
       </div>

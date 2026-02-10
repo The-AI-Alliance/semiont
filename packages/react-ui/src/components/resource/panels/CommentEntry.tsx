@@ -11,9 +11,7 @@ type Annotation = components['schemas']['Annotation'];
 interface CommentEntryProps {
   comment: Annotation;
   isFocused: boolean;
-  onClick: () => void;
   onCommentRef: (commentId: string, el: HTMLElement | null) => void;
-  onCommentHover?: (commentId: string | null) => void;
   annotateMode?: boolean;
 }
 
@@ -37,9 +35,7 @@ function formatRelativeTime(isoString: string): string {
 export function CommentEntry({
   comment,
   isFocused,
-  onClick,
   onCommentRef,
-  onCommentHover,
   annotateMode = true,
 }: CommentEntryProps) {
   const t = useTranslations('CommentsPanel');
@@ -87,14 +83,14 @@ export function CommentEntry({
       className="semiont-annotation-entry"
       data-type="comment"
       data-focused={isFocused ? 'true' : 'false'}
-      onClick={onClick}
+      onClick={() => {
+        eventBus.emit('ui:annotation:click', { annotationId: comment.id });
+      }}
       onMouseEnter={() => {
         eventBus.emit('ui:comment:hover', { commentId: comment.id });
-        onCommentHover?.(comment.id); // Backward compat
       }}
       onMouseLeave={() => {
         eventBus.emit('ui:comment:hover', { commentId: null });
-        onCommentHover?.(null); // Backward compat
       }}
     >
       {/* Selected text quote - only for text annotations */}

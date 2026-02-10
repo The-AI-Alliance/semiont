@@ -12,17 +12,13 @@ type Annotation = components['schemas']['Annotation'];
 interface TagEntryProps {
   tag: Annotation;
   isFocused: boolean;
-  onClick: () => void;
   onTagRef: (tagId: string, el: HTMLElement | null) => void;
-  onTagHover?: (tagId: string | null) => void;
 }
 
 export function TagEntry({
   tag,
   isFocused,
-  onClick,
   onTagRef,
-  onTagHover,
 }: TagEntryProps) {
   const eventBus = useMakeMeaningEvents();
   const tagRef = useRef<HTMLDivElement>(null);
@@ -50,14 +46,14 @@ export function TagEntry({
   return (
     <div
       ref={tagRef}
-      onClick={onClick}
+      onClick={() => {
+        eventBus.emit('ui:annotation:click', { annotationId: tag.id });
+      }}
       onMouseEnter={() => {
         eventBus.emit('ui:annotation:hover', { annotationId: tag.id });
-        onTagHover?.(tag.id); // Backward compat
       }}
       onMouseLeave={() => {
         eventBus.emit('ui:annotation:hover', { annotationId: null });
-        onTagHover?.(null); // Backward compat
       }}
       className="semiont-annotation-entry"
       data-type="tag"

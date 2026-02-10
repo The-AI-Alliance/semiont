@@ -38,9 +38,7 @@ function getSelectorDisplayText(selector: Selector | Selector[]): string | null 
 
 interface CommentsPanelProps {
   annotations: Annotation[];
-  onAnnotationClick: (annotation: Annotation) => void;
   onCreate: (commentText: string) => void;
-  focusedAnnotationId: string | null;
   pendingAnnotation: PendingAnnotation | null;
   annotateMode?: boolean;
   onDetect?: (instructions?: string, tone?: string) => void | Promise<void>;
@@ -54,9 +52,7 @@ interface CommentsPanelProps {
 
 export function CommentsPanel({
   annotations,
-  onAnnotationClick,
   onCreate,
-  focusedAnnotationId,
   pendingAnnotation,
   annotateMode = true,
   onDetect,
@@ -66,9 +62,21 @@ export function CommentsPanel({
   const t = useTranslations('CommentsPanel');
   const eventBus = useMakeMeaningEvents();
   const [newCommentText, setNewCommentText] = useState('');
+  const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
 
   const { sortedAnnotations, containerRef, handleAnnotationRef } =
     useAnnotationPanel(annotations);
+
+  // Subscribe to click events - update focused state
+  useEffect(() => {
+    const handler = ({ annotationId }: { annotationId: string }) => {
+      setFocusedAnnotationId(annotationId);
+      setTimeout(() => setFocusedAnnotationId(null), 3000);
+    };
+
+    eventBus.on('ui:annotation:click', handler);
+    return () => eventBus.off('ui:annotation:click', handler);
+  }, [eventBus]);
 
   const handleSaveNewComment = () => {
     if (newCommentText.trim()) {
@@ -170,7 +178,6 @@ export function CommentsPanel({
                 key={comment.id}
                 comment={comment}
                 isFocused={comment.id === focusedAnnotationId}
-                onClick={() => onAnnotationClick(comment)}
                 onCommentRef={handleAnnotationRef}
                 annotateMode={annotateMode}
               />

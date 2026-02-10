@@ -56,12 +56,6 @@ interface UnifiedAnnotationsPanelProps {
     showError: (message: string) => void;
   };
 
-  // Unified state (motivation-agnostic)
-  focusedAnnotationId: string | null;
-
-  // Shared UI handlers (same for all annotation types)
-  onAnnotationClick: (annotation: Annotation) => void;
-
   // Single generic creation handler
   onCreateAnnotation: (motivation: Motivation, ...args: any[]) => void;
 
@@ -89,7 +83,6 @@ interface UnifiedAnnotationsPanelProps {
   onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
   onCreateDocument?: (annotationUri: string, title: string, entityTypes: string[]) => void;
   onSearchDocuments?: (referenceId: string, searchTerm: string) => void;
-  onCancelDetection?: () => void;
   mediaType?: string;
   referencedBy?: any[];
   referencedByLoading?: boolean;
@@ -154,23 +147,6 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
     localStorage.setItem(storageKey, activeTab);
   }, [activeTab, props.resourceId]);
 
-  // Auto-switch to the appropriate tab when an annotation is focused
-  useEffect(() => {
-    if (!props.focusedAnnotationId) return;
-
-    // Find which annotation type this focused annotation belongs to
-    const focusedAnnotation = props.annotations.find(ann => ann.id === props.focusedAnnotationId);
-    if (!focusedAnnotation) return;
-
-    // Determine the annotator key for this annotation
-    for (const [key, annotator] of Object.entries(props.annotators)) {
-      if (annotator.matchesAnnotation(focusedAnnotation)) {
-        setActiveTab(key as TabKey);
-        break;
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.focusedAnnotationId]);
 
   // Auto-switch to the appropriate tab when creating a new annotation
   useEffect(() => {
@@ -285,8 +261,6 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
 
           const commonProps = {
             annotations,
-            onAnnotationClick: props.onAnnotationClick,
-            focusedAnnotationId: props.focusedAnnotationId,
             onDetect,
             onCreate,
             pendingAnnotation: props.pendingAnnotation,
@@ -300,7 +274,6 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
             return (
               <HighlightPanel
                 {...commonProps}
-                onAnnotationClick={commonProps.onAnnotationClick!}
                 onCreate={onCreate}
               />
             );
@@ -310,8 +283,6 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
             return (
               <ReferencesPanel
                 annotations={commonProps.annotations}
-                onAnnotationClick={commonProps.onAnnotationClick!}
-                focusedAnnotationId={commonProps.focusedAnnotationId}
                 onDetect={onDetect}
                 onCreate={onCreate}
                 pendingAnnotation={commonProps.pendingAnnotation}
@@ -319,7 +290,6 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
                 detectionProgress={commonProps.detectionProgress}
                 annotateMode={commonProps.annotateMode}
                 allEntityTypes={props.allEntityTypes || []}
-                onCancelDetection={props.onCancelDetection || (() => {})}
                 onGenerateDocument={props.onGenerateDocument}
                 onCreateDocument={props.onCreateDocument}
                 onSearchDocuments={props.onSearchDocuments}
@@ -336,7 +306,6 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
             return (
               <AssessmentPanel
                 {...commonProps}
-                onAnnotationClick={commonProps.onAnnotationClick!}
                 onCreate={onCreate}
               />
             );
@@ -346,7 +315,6 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
             return (
               <CommentsPanel
                 {...commonProps}
-                onAnnotationClick={commonProps.onAnnotationClick!}
                 onCreate={onCreate}
               />
             );
@@ -356,7 +324,6 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
             return (
               <TaggingPanel
                 {...commonProps}
-                onAnnotationClick={commonProps.onAnnotationClick!}
                 onCreate={onCreate}
               />
             );

@@ -47,8 +47,6 @@ interface DetectionLog {
 interface Props {
   // Generic panel props
   annotations?: Annotation[];
-  onAnnotationClick?: (annotation: Annotation) => void;
-  focusedAnnotationId?: string | null;
   onDetect?: (selectedTypes: string[], includeDescriptiveReferences?: boolean) => void;
   onCreate: (entityType?: string) => void;
   isDetecting: boolean;
@@ -59,7 +57,6 @@ interface Props {
 
   // Reference-specific props
   allEntityTypes: string[];
-  onCancelDetection: () => void;
   onSearchDocuments?: (referenceId: string, searchTerm: string) => void;
   onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
   onCreateDocument?: (annotationUri: string, title: string, entityTypes: string[]) => void;
@@ -71,8 +68,6 @@ interface Props {
 
 export function ReferencesPanel({
   annotations = [],
-  onAnnotationClick,
-  focusedAnnotationId,
   onDetect,
   onCreate,
   isDetecting,
@@ -81,7 +76,6 @@ export function ReferencesPanel({
   Link,
   routes,
   allEntityTypes,
-  onCancelDetection,
   onSearchDocuments,
   onGenerateDocument,
   onCreateDocument,
@@ -97,6 +91,7 @@ export function ReferencesPanel({
   const [lastDetectionLog, setLastDetectionLog] = useState<DetectionLog[] | null>(null);
   const [pendingEntityTypes, setPendingEntityTypes] = useState<string[]>([]);
   const [includeDescriptiveReferences, setIncludeDescriptiveReferences] = useState(false);
+  const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
 
   // Collapsible detection section state - load from localStorage, default expanded
   const [isDetectExpanded, setIsDetectExpanded] = useState(() => {
@@ -113,6 +108,17 @@ export function ReferencesPanel({
 
   const { sortedAnnotations, containerRef, handleAnnotationRef } =
     useAnnotationPanel(annotations);
+
+  // Subscribe to click events - update focused state
+  useEffect(() => {
+    const handler = ({ annotationId }: { annotationId: string }) => {
+      setFocusedAnnotationId(annotationId);
+      setTimeout(() => setFocusedAnnotationId(null), 3000);
+    };
+
+    eventBus.on('ui:annotation:click', handler);
+    return () => eventBus.off('ui:annotation:click', handler);
+  }, [eventBus]);
 
   // Clear log when starting new detection
   const handleDetect = () => {
@@ -334,7 +340,6 @@ export function ReferencesPanel({
           {detectionProgress && (
             <DetectionProgressWidget
               progress={detectionProgress}
-              onCancel={onCancelDetection}
               annotationType="reference"
             />
           )}
@@ -385,7 +390,6 @@ export function ReferencesPanel({
                   key={reference.id}
                   reference={reference}
                   isFocused={reference.id === focusedAnnotationId}
-                  onClick={() => onAnnotationClick?.(reference)}
                   routes={routes}
                   onReferenceRef={handleAnnotationRef}
                   annotateMode={annotateMode}

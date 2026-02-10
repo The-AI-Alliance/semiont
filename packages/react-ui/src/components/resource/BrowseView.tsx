@@ -280,6 +280,51 @@ export function BrowseView({
     return () => eventBus.off('ui:comment:hover', handleCommentHover);
   }, [eventBus]);
 
+  // Subscribe to focus events - scroll annotation into view
+  useEffect(() => {
+    const handleFocus = ({ annotationId }: { annotationId: string | null }) => {
+      if (!containerRef.current || !annotationId) return;
+
+      const element = containerRef.current.querySelector(
+        `[data-annotation-id="${CSS.escape(annotationId)}"]`
+      ) as HTMLElement;
+
+      if (!element) return;
+
+      // Find the scroll container
+      const scrollContainer = element.closest('.semiont-browse-view__content') as HTMLElement;
+
+      if (scrollContainer) {
+        // Check visibility within the scroll container
+        const elementRect = element.getBoundingClientRect();
+        const containerRect = scrollContainer.getBoundingClientRect();
+
+        const isVisible =
+          elementRect.top >= containerRect.top &&
+          elementRect.bottom <= containerRect.bottom;
+
+        if (!isVisible) {
+          // Scroll using container.scrollTo to avoid scrolling ancestors
+          const elementTop = element.offsetTop;
+          const containerHeight = scrollContainer.clientHeight;
+          const elementHeight = element.offsetHeight;
+          const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
+
+          scrollContainer.scrollTo({ top: scrollTo, behavior: 'smooth' });
+        }
+      }
+
+      // Add focus highlight briefly
+      element.classList.add('annotation-pulse');
+      setTimeout(() => {
+        element.classList.remove('annotation-pulse');
+      }, 2000);
+    };
+
+    eventBus.on('ui:annotation:focus', handleFocus);
+    return () => eventBus.off('ui:annotation:focus', handleFocus);
+  }, [eventBus]);
+
   // Route to appropriate viewer based on MIME type category
   switch (category) {
     case 'text':

@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
+import { useMakeMeaningEvents } from '../../../contexts/MakeMeaningEventBusContext';
 import type { components, Selector } from '@semiont/api-client';
 import { HighlightEntry } from './HighlightEntry';
 import { useAnnotationPanel } from '../../../hooks/useAnnotationPanel';
@@ -20,8 +21,6 @@ interface PendingAnnotation {
 
 interface HighlightPanelProps {
   annotations: Annotation[];
-  onAnnotationClick: (annotation: Annotation) => void;
-  focusedAnnotationId: string | null;
   onDetect?: (instructions?: string) => void | Promise<void>;
   onCreate: (selector: Selector | Selector[]) => void;
   pendingAnnotation: PendingAnnotation | null;
@@ -36,8 +35,6 @@ interface HighlightPanelProps {
 
 export function HighlightPanel({
   annotations,
-  onAnnotationClick,
-  focusedAnnotationId,
   onDetect,
   onCreate,
   pendingAnnotation,
@@ -46,9 +43,22 @@ export function HighlightPanel({
   annotateMode = true,
 }: HighlightPanelProps) {
   const t = useTranslations('HighlightPanel');
+  const eventBus = useMakeMeaningEvents();
+  const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
 
   const { sortedAnnotations, containerRef, handleAnnotationRef } =
     useAnnotationPanel(annotations);
+
+  // Subscribe to click events - update focused state
+  useEffect(() => {
+    const handler = ({ annotationId }: { annotationId: string }) => {
+      setFocusedAnnotationId(annotationId);
+      setTimeout(() => setFocusedAnnotationId(null), 3000);
+    };
+
+    eventBus.on('ui:annotation:click', handler);
+    return () => eventBus.off('ui:annotation:click', handler);
+  }, [eventBus]);
 
   // Highlights auto-create: when pendingAnnotation arrives with highlighting motivation,
   // immediately call onCreate without showing a form
@@ -87,7 +97,6 @@ export function HighlightPanel({
                 key={highlight.id}
                 highlight={highlight}
                 isFocused={highlight.id === focusedAnnotationId}
-                onClick={() => onAnnotationClick(highlight)}
                 onHighlightRef={handleAnnotationRef}
               />
             ))

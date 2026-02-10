@@ -4,6 +4,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { ReferencesPanel } from '../ReferencesPanel';
+import { useMakeMeaningEvents } from '../../../../contexts/MakeMeaningEventBusContext';
 
 // Mock MakeMeaningEventBusContext
 vi.mock('../../../../contexts/MakeMeaningEventBusContext', () => ({
@@ -56,7 +57,6 @@ describe('ReferencesPanel Component', () => {
     isDetecting: false,
     detectionProgress: null,
     onDetect: vi.fn(),
-    onCancelDetection: vi.fn(),
     mediaType: 'text/plain',
     annotateMode: true,
   };
@@ -358,22 +358,26 @@ describe('ReferencesPanel Component', () => {
       expect(screen.queryByText('Person')).not.toBeInTheDocument();
     });
 
-    it('should allow canceling detection', async () => {
-      const onCancelDetection = vi.fn();
+    it('should emit cancel event when detection is canceled', async () => {
+      const mockEmit = vi.fn();
+      vi.mocked(useMakeMeaningEvents).mockReturnValue({
+        emit: mockEmit,
+        on: vi.fn(),
+        off: vi.fn(),
+      } as any);
 
       render(
         <ReferencesPanel
           {...defaultProps}
           isDetecting={true}
           detectionProgress={{ completedEntityTypes: [] }}
-          onCancelDetection={onCancelDetection}
         />
       );
 
-      const cancelButton = screen.getByText('Cancel Detection');
+      const cancelButton = screen.getByTitle('Cancel Detection');
       await userEvent.click(cancelButton);
 
-      expect(onCancelDetection).toHaveBeenCalledOnce();
+      expect(mockEmit).toHaveBeenCalledWith('ui:job:cancel-requested', { jobType: 'detection' });
     });
   });
 

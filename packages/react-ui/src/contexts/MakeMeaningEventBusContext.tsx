@@ -64,6 +64,12 @@ type MakeMeaningEventMap = {
   'ui:annotation:cancel-pending': void;
   'ui:annotation:hover': { annotationId: string | null };
   'ui:comment:hover': { commentId: string | null };
+  'ui:annotation:click': { annotationId: string };
+  'ui:annotation:focus': { annotationId: string | null };
+  'ui:panel:toggle': { panel: string };
+  'ui:panel:open': { panel: string };
+  'ui:panel:close': void;
+  'ui:job:cancel-requested': { jobType: 'detection' | 'generation' };
 };
 
 type EventBus = ReturnType<typeof mitt<MakeMeaningEventMap>>;

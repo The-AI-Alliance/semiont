@@ -38,8 +38,6 @@ function getSelectorDisplayText(selector: Selector | Selector[]): string | null 
 
 interface AssessmentPanelProps {
   annotations: Annotation[];
-  onAnnotationClick: (annotation: Annotation) => void;
-  focusedAnnotationId: string | null;
   onCreate: (assessmentText: string) => void;
   pendingAnnotation: PendingAnnotation | null;
   onDetect?: (instructions?: string) => void | Promise<void>;
@@ -54,8 +52,6 @@ interface AssessmentPanelProps {
 
 export function AssessmentPanel({
   annotations,
-  onAnnotationClick,
-  focusedAnnotationId,
   onCreate,
   pendingAnnotation,
   onDetect,
@@ -66,6 +62,7 @@ export function AssessmentPanel({
   const t = useTranslations('AssessmentPanel');
   const eventBus = useMakeMeaningEvents();
   const [newAssessmentText, setNewAssessmentText] = useState('');
+  const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
 
   const { sortedAnnotations, containerRef, handleAnnotationRef } =
     useAnnotationPanel(annotations);
@@ -91,6 +88,17 @@ export function AssessmentPanel({
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
   }, [pendingAnnotation, eventBus]);
+
+  // Subscribe to click events - update focused state
+  useEffect(() => {
+    const handler = ({ annotationId }: { annotationId: string }) => {
+      setFocusedAnnotationId(annotationId);
+      setTimeout(() => setFocusedAnnotationId(null), 3000);
+    };
+
+    eventBus.on('ui:annotation:click', handler);
+    return () => eventBus.off('ui:annotation:click', handler);
+  }, [eventBus]);
 
   return (
     <div className="semiont-panel">
@@ -169,7 +177,6 @@ export function AssessmentPanel({
                 key={assessment.id}
                 assessment={assessment}
                 isFocused={assessment.id === focusedAnnotationId}
-                onClick={() => onAnnotationClick(assessment)}
                 onAssessmentRef={handleAnnotationRef}
               />
             ))

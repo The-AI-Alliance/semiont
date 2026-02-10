@@ -1,6 +1,7 @@
 'use client';
 
 import { useTranslations } from '../contexts/TranslationContext';
+import { useMakeMeaningEvents } from '../contexts/MakeMeaningEventBusContext';
 import type { DetectionProgress } from '../hooks/useDetectionProgress';
 import type { components } from '@semiont/api-client';
 
@@ -13,12 +14,17 @@ interface EnrichedDetectionProgress extends DetectionProgress {
 
 interface DetectionProgressWidgetProps {
   progress: DetectionProgress | null;
-  onCancel?: () => void;
   annotationType?: Motivation | 'reference';
 }
 
-export function DetectionProgressWidget({ progress, onCancel, annotationType = 'reference' }: DetectionProgressWidgetProps) {
+export function DetectionProgressWidget({ progress, annotationType = 'reference' }: DetectionProgressWidgetProps) {
   const t = useTranslations('DetectionProgressWidget');
+  const eventBus = useMakeMeaningEvents();
+
+  const handleCancel = () => {
+    // Emit event for job cancellation
+    eventBus.emit('ui:job:cancel-requested', { jobType: 'detection' });
+  };
 
   if (!progress) return null;
 
@@ -34,9 +40,9 @@ export function DetectionProgressWidget({ progress, onCancel, annotationType = '
           <span className="semiont-detection-sparkle">✨</span>
           {t('title')}
         </h3>
-        {progress.status !== 'complete' && onCancel && (
+        {progress.status !== 'complete' && (
           <button
-            onClick={onCancel}
+            onClick={handleCancel}
             className="semiont-detection-cancel"
             title={t('cancelDetection')}
           >
