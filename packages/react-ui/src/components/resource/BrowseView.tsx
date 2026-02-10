@@ -66,8 +66,6 @@ export function BrowseView({
   resourceUri,
   annotations,
   handlers,
-  hoveredAnnotationId,
-  hoveredCommentId,
   selectedClick = 'detail',
   onClickChange,
   annotateMode,
@@ -84,8 +82,6 @@ export function BrowseView({
 
   // Extract individual handlers from grouped object
   const onAnnotationClick = handlers?.onClick;
-  const onAnnotationHover = handlers?.onHover;
-  const onCommentHover = handlers?.onCommentHover;
 
   const allAnnotations = [...highlights, ...references, ...assessments, ...comments, ...tags];
 
@@ -341,8 +337,6 @@ export function BrowseView({
                   selectedMotivation={null}
                   onAnnotationCreate={() => {}}
                   {...(onAnnotationClick && { onAnnotationClick })}
-                  {...(onAnnotationHover && { onAnnotationHover })}
-                  hoveredAnnotationId={hoveredCommentId || hoveredAnnotationId || null}
                 />
               </Suspense>
             </div>

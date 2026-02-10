@@ -34,7 +34,7 @@ const TAB_ORDER: TabKey[] = ['statistics', 'reference', 'highlight', 'assessment
  * Key simplifications:
  * - Single annotations array (grouped internally by motivation)
  * - Single focusedAnnotationId (motivation-agnostic)
- * - Single hoveredAnnotationId (motivation-agnostic)
+ * - Hover state managed via event bus (no props needed)
  * - Single onCreateAnnotation handler (motivation-based dispatch)
  */
 interface UnifiedAnnotationsPanelProps {
@@ -58,11 +58,9 @@ interface UnifiedAnnotationsPanelProps {
 
   // Unified state (motivation-agnostic)
   focusedAnnotationId: string | null;
-  hoveredAnnotationId?: string | null;
 
   // Shared UI handlers (same for all annotation types)
   onAnnotationClick: (annotation: Annotation) => void;
-  onAnnotationHover?: (annotationId: string | null) => void;
 
   // Single generic creation handler
   onCreateAnnotation: (motivation: Motivation, ...args: any[]) => void;
@@ -289,8 +287,6 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
             annotations,
             onAnnotationClick: props.onAnnotationClick,
             focusedAnnotationId: props.focusedAnnotationId,
-            hoveredAnnotationId: props.hoveredAnnotationId,
-            onAnnotationHover: props.onAnnotationHover,
             onDetect,
             onCreate,
             pendingAnnotation: props.pendingAnnotation,
@@ -316,8 +312,6 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
                 annotations={commonProps.annotations}
                 onAnnotationClick={commonProps.onAnnotationClick!}
                 focusedAnnotationId={commonProps.focusedAnnotationId}
-                hoveredAnnotationId={commonProps.hoveredAnnotationId}
-                onAnnotationHover={commonProps.onAnnotationHover}
                 onDetect={onDetect}
                 onCreate={onCreate}
                 pendingAnnotation={commonProps.pendingAnnotation}

@@ -41,8 +41,6 @@ interface CommentsPanelProps {
   onAnnotationClick: (annotation: Annotation) => void;
   onCreate: (commentText: string) => void;
   focusedAnnotationId: string | null;
-  hoveredAnnotationId?: string | null;
-  onAnnotationHover?: (annotationId: string | null) => void;
   pendingAnnotation: PendingAnnotation | null;
   annotateMode?: boolean;
   onDetect?: (instructions?: string, tone?: string) => void | Promise<void>;
@@ -59,8 +57,6 @@ export function CommentsPanel({
   onAnnotationClick,
   onCreate,
   focusedAnnotationId,
-  hoveredAnnotationId,
-  onAnnotationHover,
   pendingAnnotation,
   annotateMode = true,
   onDetect,
@@ -72,7 +68,7 @@ export function CommentsPanel({
   const [newCommentText, setNewCommentText] = useState('');
 
   const { sortedAnnotations, containerRef, handleAnnotationRef } =
-    useAnnotationPanel(annotations, hoveredAnnotationId);
+    useAnnotationPanel(annotations);
 
   const handleSaveNewComment = () => {
     if (newCommentText.trim()) {
@@ -176,7 +172,6 @@ export function CommentsPanel({
                 isFocused={comment.id === focusedAnnotationId}
                 onClick={() => onAnnotationClick(comment)}
                 onCommentRef={handleAnnotationRef}
-                {...(onAnnotationHover && { onCommentHover: onAnnotationHover })}
                 annotateMode={annotateMode}
               />
             ))

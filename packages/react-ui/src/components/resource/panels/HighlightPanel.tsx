@@ -22,8 +22,6 @@ interface HighlightPanelProps {
   annotations: Annotation[];
   onAnnotationClick: (annotation: Annotation) => void;
   focusedAnnotationId: string | null;
-  hoveredAnnotationId?: string | null;
-  onAnnotationHover?: (annotationId: string | null) => void;
   onDetect?: (instructions?: string) => void | Promise<void>;
   onCreate: (selector: Selector | Selector[]) => void;
   pendingAnnotation: PendingAnnotation | null;
@@ -40,8 +38,6 @@ export function HighlightPanel({
   annotations,
   onAnnotationClick,
   focusedAnnotationId,
-  hoveredAnnotationId,
-  onAnnotationHover,
   onDetect,
   onCreate,
   pendingAnnotation,
@@ -52,7 +48,7 @@ export function HighlightPanel({
   const t = useTranslations('HighlightPanel');
 
   const { sortedAnnotations, containerRef, handleAnnotationRef } =
-    useAnnotationPanel(annotations, hoveredAnnotationId);
+    useAnnotationPanel(annotations);
 
   // Highlights auto-create: when pendingAnnotation arrives with highlighting motivation,
   // immediately call onCreate without showing a form
@@ -93,7 +89,6 @@ export function HighlightPanel({
                 isFocused={highlight.id === focusedAnnotationId}
                 onClick={() => onAnnotationClick(highlight)}
                 onHighlightRef={handleAnnotationRef}
-                {...(onAnnotationHover && { onHighlightHover: onAnnotationHover })}
               />
             ))
           )}

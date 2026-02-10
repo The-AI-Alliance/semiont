@@ -504,10 +504,6 @@ function ResourceViewerPageInner({
     setTimeout(() => setHoveredAnnotationId(null), 1500);
   }, []);
 
-  const handleAnnotationHover = useCallback((annotationId: string | null) => {
-    setHoveredAnnotationId(annotationId);
-  }, []);
-
   // Single generic annotation creation handler - reads config from ANNOTATORS
   const handleCreateAnnotation = useCallback(async (
     motivation: Motivation,
@@ -695,9 +691,7 @@ function ResourceViewerPageInner({
                 onCreateAnnotation={handleCreateAnnotation}
                 detectionContext={detectionContext}
                 focusedAnnotationId={focusedAnnotationId}
-                hoveredAnnotationId={hoveredAnnotationId}
                 onAnnotationClick={handleAnnotationClick}
-                onAnnotationHover={handleAnnotationHover}
                 annotateMode={annotateMode}
                 detectingMotivation={detectingMotivation}
                 detectionProgress={motivationDetectionProgress}

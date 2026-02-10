@@ -40,8 +40,6 @@ interface AssessmentPanelProps {
   annotations: Annotation[];
   onAnnotationClick: (annotation: Annotation) => void;
   focusedAnnotationId: string | null;
-  hoveredAnnotationId?: string | null;
-  onAnnotationHover?: (annotationId: string | null) => void;
   onCreate: (assessmentText: string) => void;
   pendingAnnotation: PendingAnnotation | null;
   onDetect?: (instructions?: string) => void | Promise<void>;
@@ -58,8 +56,6 @@ export function AssessmentPanel({
   annotations,
   onAnnotationClick,
   focusedAnnotationId,
-  hoveredAnnotationId,
-  onAnnotationHover,
   onCreate,
   pendingAnnotation,
   onDetect,
@@ -72,7 +68,7 @@ export function AssessmentPanel({
   const [newAssessmentText, setNewAssessmentText] = useState('');
 
   const { sortedAnnotations, containerRef, handleAnnotationRef } =
-    useAnnotationPanel(annotations, hoveredAnnotationId);
+    useAnnotationPanel(annotations);
 
   const handleSaveNewAssessment = () => {
     if (newAssessmentText.trim()) {
@@ -175,7 +171,6 @@ export function AssessmentPanel({
                 isFocused={assessment.id === focusedAnnotationId}
                 onClick={() => onAnnotationClick(assessment)}
                 onAssessmentRef={handleAnnotationRef}
-                {...(onAnnotationHover && { onAssessmentHover: onAnnotationHover })}
               />
             ))
           )}

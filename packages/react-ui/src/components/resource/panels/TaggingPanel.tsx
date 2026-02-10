@@ -40,8 +40,6 @@ interface TaggingPanelProps {
   annotations: Annotation[];
   onAnnotationClick: (annotation: Annotation) => void;
   focusedAnnotationId: string | null;
-  hoveredAnnotationId?: string | null;
-  onAnnotationHover?: (annotationId: string | null) => void;
   annotateMode?: boolean;
   onDetect?: (schemaId: string, categories: string[]) => void | Promise<void>;
   onCreate: (schemaId: string, category: string) => void | Promise<void>;
@@ -62,8 +60,6 @@ export function TaggingPanel({
   annotations,
   onAnnotationClick,
   focusedAnnotationId,
-  hoveredAnnotationId,
-  onAnnotationHover,
   annotateMode = true,
   onDetect,
   onCreate,
@@ -90,7 +86,7 @@ export function TaggingPanel({
   }, [isDetectExpanded]);
 
   const { sortedAnnotations, containerRef, handleAnnotationRef } =
-    useAnnotationPanel(annotations, hoveredAnnotationId);
+    useAnnotationPanel(annotations);
 
   const schemas = getAllTagSchemas();
   const selectedSchema = schemas.find(s => s.id === selectedSchemaId);
@@ -392,7 +388,6 @@ export function TaggingPanel({
                 isFocused={tag.id === focusedAnnotationId}
                 onClick={() => onAnnotationClick(tag)}
                 onTagRef={handleAnnotationRef}
-                {...(onAnnotationHover && { onTagHover: onAnnotationHover })}
               />
             ))
           )}

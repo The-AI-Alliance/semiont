@@ -28,6 +28,16 @@
   z-index: 10;
 }
 
+/* Pulse effect for hover synchronization */
+.semiont-annotation-pulse {
+  background: var(--semiont-bg-hover) !important;
+  transition: background 0.3s ease-in-out;
+}
+
+[data-theme="dark"] .semiont-annotation-pulse {
+  background: var(--semiont-bg-hover) !important;
+}
+
 /* Motivation-specific styles are handled in /styles/motivations/*.css */
 
 /* Entry structure */

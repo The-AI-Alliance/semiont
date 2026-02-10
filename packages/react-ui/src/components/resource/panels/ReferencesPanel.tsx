@@ -49,8 +49,6 @@ interface Props {
   annotations?: Annotation[];
   onAnnotationClick?: (annotation: Annotation) => void;
   focusedAnnotationId?: string | null;
-  hoveredAnnotationId?: string | null;
-  onAnnotationHover?: (annotationId: string | null) => void;
   onDetect?: (selectedTypes: string[], includeDescriptiveReferences?: boolean) => void;
   onCreate: (entityType?: string) => void;
   isDetecting: boolean;
@@ -75,8 +73,6 @@ export function ReferencesPanel({
   annotations = [],
   onAnnotationClick,
   focusedAnnotationId,
-  hoveredAnnotationId,
-  onAnnotationHover,
   onDetect,
   onCreate,
   isDetecting,
@@ -116,7 +112,7 @@ export function ReferencesPanel({
   }, [isDetectExpanded]);
 
   const { sortedAnnotations, containerRef, handleAnnotationRef } =
-    useAnnotationPanel(annotations, hoveredAnnotationId);
+    useAnnotationPanel(annotations);
 
   // Clear log when starting new detection
   const handleDetect = () => {
@@ -394,7 +390,6 @@ export function ReferencesPanel({
                   onReferenceRef={handleAnnotationRef}
                   annotateMode={annotateMode}
                   isGenerating={reference.id === generatingReferenceId}
-                  {...(onAnnotationHover && { onReferenceHover: onAnnotationHover })}
                   {...(onGenerateDocument && { onGenerateDocument })}
                   {...(onCreateDocument && { onCreateDocument })}
                   {...(onSearchDocuments && { onSearchDocuments })}
