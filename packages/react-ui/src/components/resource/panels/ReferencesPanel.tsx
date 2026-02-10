@@ -9,7 +9,6 @@ import { ReferenceEntry } from './ReferenceEntry';
 import type { components, paths, Selector } from '@semiont/api-client';
 import { useAnnotationPanel } from '../../../hooks/useAnnotationPanel';
 import { PanelHeader } from './PanelHeader';
-import { supportsDetection } from '../../../lib/resource-utils';
 import './ReferencesPanel.css';
 
 type Annotation = components['schemas']['Annotation'];
@@ -67,7 +66,6 @@ interface Props {
   onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
   onCreateDocument?: (annotationUri: string, title: string, entityTypes: string[]) => void;
   generatingReferenceId?: string | null;
-  mediaType?: string | undefined;
   referencedBy?: ReferencedBy[];
   referencedByLoading?: boolean;
   pendingAnnotation: PendingAnnotation | null;
@@ -92,7 +90,6 @@ export function ReferencesPanel({
   onGenerateDocument,
   onCreateDocument,
   generatingReferenceId,
-  mediaType,
   referencedBy = [],
   referencedByLoading = false,
   pendingAnnotation,
@@ -120,9 +117,6 @@ export function ReferencesPanel({
 
   const { sortedAnnotations, containerRef, handleAnnotationRef } =
     useAnnotationPanel(annotations, hoveredAnnotationId);
-
-  // Check if detection is supported for this media type
-  const isTextResource = supportsDetection(mediaType);
 
   // Clear log when starting new detection
   const handleDetect = () => {
@@ -249,7 +243,7 @@ export function ReferencesPanel({
       {/* Scrollable content area */}
       <div ref={containerRef} className="semiont-panel__content">
         {/* Detection Section - only in Annotate mode and for text resources */}
-        {annotateMode && isTextResource && (
+        {annotateMode && onDetect && (
           <div className="semiont-panel__section">
             <button
               onClick={() => setIsDetectExpanded(!isDetectExpanded)}

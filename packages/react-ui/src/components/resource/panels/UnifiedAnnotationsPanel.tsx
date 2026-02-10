@@ -6,6 +6,7 @@ import type { components, Selector } from '@semiont/api-client';
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
 import type { Annotator } from '../../../lib/annotation-registry';
 import { createDetectionHandler } from '../../../lib/annotation-registry';
+import { supportsDetection } from '../../../lib/resource-utils';
 import { StatisticsPanel } from './StatisticsPanel';
 import { HighlightPanel } from './HighlightPanel';
 import { ReferencesPanel } from './ReferencesPanel';
@@ -268,8 +269,17 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
           const detectionProgress = isDetecting ? props.detectionProgress : null;
 
           // Common props for all annotation panels
-          // Create detection handler on-demand if detection is supported and context is provided
-          const onDetect = (annotator.detection && props.detectionContext)
+          // Create detection handler on-demand if:
+          // 1. Annotator supports detection (has detection config)
+          // 2. Detection context is provided (API client, state handlers)
+          // 3. API client is available (not undefined/null)
+          // 4. Resource supports detection (is a text/* media type)
+          const onDetect = (
+            annotator.detection &&
+            props.detectionContext &&
+            props.detectionContext.client &&
+            supportsDetection(props.mediaType)
+          )
             ? createDetectionHandler(annotator, props.detectionContext)
             : undefined;
 
@@ -321,7 +331,6 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
                 onCreateDocument={props.onCreateDocument}
                 onSearchDocuments={props.onSearchDocuments}
                 generatingReferenceId={props.generatingReferenceId}
-                mediaType={props.mediaType}
                 referencedBy={props.referencedBy}
                 referencedByLoading={props.referencedByLoading}
                 Link={props.Link}
