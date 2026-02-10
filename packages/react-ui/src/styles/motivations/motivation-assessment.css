@@ -140,6 +140,34 @@
 }
 
 /* ============================================
+   Annotation Prompt (Pending State)
+   ============================================ */
+.semiont-annotation-prompt[data-type="assessment"] {
+  background: var(--semiont-motivation-assessment-panel-bg);
+  padding: var(--semiont-panel-padding);
+  border-radius: var(--semiont-radius-md);
+  border: 2px dashed var(--semiont-motivation-assessment-border);
+}
+
+[data-theme="dark"] .semiont-annotation-prompt[data-type="assessment"] {
+  background: var(--semiont-motivation-assessment-panel-bg-dark);
+  border-color: var(--semiont-motivation-assessment-border);
+}
+
+.semiont-annotation-prompt__quote[data-type="assessment"] {
+  background: var(--semiont-bg-primary);
+  padding: var(--semiont-panel-padding-sm);
+  border-radius: var(--semiont-radius-sm);
+  border-left: 3px solid var(--semiont-motivation-assessment-primary);
+  margin-bottom: var(--semiont-panel-gap-sm);
+}
+
+[data-theme="dark"] .semiont-annotation-prompt__quote[data-type="assessment"] {
+  background: var(--semiont-bg-secondary);
+  border-left-color: var(--semiont-motivation-assessment-dark-primary);
+}
+
+/* ============================================
    Button Styling
    ============================================ */
 .semiont-motivation-assessment-button,

@@ -111,7 +111,6 @@ export function AssessmentPanel({
             </span>
             <button
               onClick={handleSaveNewAssessment}
-              disabled={!newAssessmentText.trim()}
               className="semiont-button semiont-button--primary"
               data-type="assessment"
             >

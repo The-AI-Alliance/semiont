@@ -11,6 +11,27 @@
    - panels/*.css (individual panel styles)
    ============================================ */
 
+/* ============================================
+   Annotation Prompt (Pending Annotation Forms)
+   Shared footer and char-count styles
+   ============================================ */
+.semiont-annotation-prompt__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+
+.semiont-annotation-prompt__char-count {
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-text-tertiary);
+  margin-left: 0.5rem;
+}
+
+[data-theme="dark"] .semiont-annotation-prompt__char-count {
+  color: var(--semiont-text-tertiary);
+}
+
 /* Panel Button Layouts (kept for backward compatibility) */
 .semiont-panel-button-full {
   width: 100%;
