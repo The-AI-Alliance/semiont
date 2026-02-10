@@ -266,7 +266,13 @@ export function getNodeEnvForEnvironment(config: EnvironmentConfig): 'developmen
 export function listEnvironmentNames(files: string[]): string[] {
   return files
     .filter(file => file.endsWith('.json'))
-    .map(file => file.slice(0, -5)) // Remove '.json' suffix
+    .map(file => {
+      // Extract filename from path (handle directory separators)
+      const lastSlash = Math.max(file.lastIndexOf('/'), file.lastIndexOf('\\'));
+      const filename = lastSlash >= 0 ? file.substring(lastSlash + 1) : file;
+      // Remove '.json' suffix
+      return filename.slice(0, -5);
+    })
     .sort();
 }
 
