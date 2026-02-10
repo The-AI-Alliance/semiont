@@ -62,6 +62,8 @@ type MakeMeaningEventMap = {
   'ui:selection:assessment-requested': SelectionData;
   'ui:selection:reference-requested': SelectionData;
   'ui:annotation:cancel-pending': void;
+  'ui:annotation:hover': { annotationId: string | null };
+  'ui:comment:hover': { commentId: string | null };
 };
 
 type EventBus = ReturnType<typeof mitt<MakeMeaningEventMap>>;

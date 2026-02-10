@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText } from '@semiont/api-client';
+import { useMakeMeaningEvents } from '../../../contexts/MakeMeaningEventBusContext';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -38,6 +39,7 @@ export function HighlightEntry({
   onHighlightRef,
   onHighlightHover,
 }: HighlightEntryProps) {
+  const eventBus = useMakeMeaningEvents();
   const highlightRef = useRef<HTMLDivElement>(null);
 
   // Register ref with parent
@@ -64,8 +66,14 @@ export function HighlightEntry({
       data-type="highlight"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={onClick}
-      onMouseEnter={() => onHighlightHover?.(highlight.id)}
-      onMouseLeave={() => onHighlightHover?.(null)}
+      onMouseEnter={() => {
+        eventBus.emit('ui:annotation:hover', { annotationId: highlight.id });
+        onHighlightHover?.(highlight.id); // Backward compat
+      }}
+      onMouseLeave={() => {
+        eventBus.emit('ui:annotation:hover', { annotationId: null });
+        onHighlightHover?.(null); // Backward compat
+      }}
     >
       {/* Highlighted text */}
       {selectedText && (

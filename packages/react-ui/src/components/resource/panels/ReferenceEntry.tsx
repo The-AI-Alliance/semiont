@@ -7,6 +7,7 @@ import type { components } from '@semiont/api-client';
 import { getAnnotationExactText, isBodyResolved, getBodySource, getFragmentSelector, getSvgSelector, getTargetSelector } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/ontology';
 import { getResourceIcon } from '../../../lib/resource-utils';
+import { useMakeMeaningEvents } from '../../../contexts/MakeMeaningEventBusContext';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -46,6 +47,7 @@ export function ReferenceEntry({
   isGenerating = false,
 }: ReferenceEntryProps) {
   const t = useTranslations('ReferencesPanel');
+  const eventBus = useMakeMeaningEvents();
   const referenceRef = useRef<HTMLDivElement>(null);
 
   // Register ref with parent
@@ -139,8 +141,14 @@ export function ReferenceEntry({
       data-type="reference"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={onClick}
-      onMouseEnter={() => onReferenceHover?.(reference.id)}
-      onMouseLeave={() => onReferenceHover?.(null)}
+      onMouseEnter={() => {
+        eventBus.emit('ui:annotation:hover', { annotationId: reference.id });
+        onReferenceHover?.(reference.id); // Backward compat
+      }}
+      onMouseLeave={() => {
+        eventBus.emit('ui:annotation:hover', { annotationId: null });
+        onReferenceHover?.(null); // Backward compat
+      }}
     >
       {/* Status indicator and text quote */}
       <div className="semiont-annotation-entry__header">

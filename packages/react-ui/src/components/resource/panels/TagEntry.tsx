@@ -5,6 +5,7 @@ import type { components } from '@semiont/api-client';
 import { getAnnotationExactText } from '@semiont/api-client';
 import { getTagCategory, getTagSchemaId } from '@semiont/ontology';
 import { getTagSchema } from '../../../lib/tag-schemas';
+import { useMakeMeaningEvents } from '../../../contexts/MakeMeaningEventBusContext';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -23,6 +24,7 @@ export function TagEntry({
   onTagRef,
   onTagHover,
 }: TagEntryProps) {
+  const eventBus = useMakeMeaningEvents();
   const tagRef = useRef<HTMLDivElement>(null);
 
   // Register ref with parent
@@ -49,8 +51,14 @@ export function TagEntry({
     <div
       ref={tagRef}
       onClick={onClick}
-      onMouseEnter={() => onTagHover?.(tag.id)}
-      onMouseLeave={() => onTagHover?.(null)}
+      onMouseEnter={() => {
+        eventBus.emit('ui:annotation:hover', { annotationId: tag.id });
+        onTagHover?.(tag.id); // Backward compat
+      }}
+      onMouseLeave={() => {
+        eventBus.emit('ui:annotation:hover', { annotationId: null });
+        onTagHover?.(null); // Backward compat
+      }}
       className="semiont-annotation-entry"
       data-type="tag"
       data-focused={isFocused ? 'true' : 'false'}

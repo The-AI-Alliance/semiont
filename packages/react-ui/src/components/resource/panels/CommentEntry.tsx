@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText, getCommentText } from '@semiont/api-client';
+import { useMakeMeaningEvents } from '../../../contexts/MakeMeaningEventBusContext';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -42,6 +43,7 @@ export function CommentEntry({
   annotateMode = true,
 }: CommentEntryProps) {
   const t = useTranslations('CommentsPanel');
+  const eventBus = useMakeMeaningEvents();
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState('');
   const commentRef = useRef<HTMLDivElement>(null);
@@ -86,8 +88,14 @@ export function CommentEntry({
       data-type="comment"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={onClick}
-      onMouseEnter={() => onCommentHover?.(comment.id)}
-      onMouseLeave={() => onCommentHover?.(null)}
+      onMouseEnter={() => {
+        eventBus.emit('ui:comment:hover', { commentId: comment.id });
+        onCommentHover?.(comment.id); // Backward compat
+      }}
+      onMouseLeave={() => {
+        eventBus.emit('ui:comment:hover', { commentId: null });
+        onCommentHover?.(null); // Backward compat
+      }}
     >
       {/* Selected text quote - only for text annotations */}
       {selectedText && (

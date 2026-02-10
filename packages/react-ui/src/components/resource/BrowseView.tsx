@@ -17,6 +17,7 @@ const PdfAnnotationCanvas = lazy(() => import('../pdf-annotation/PdfAnnotationCa
 
 type Annotation = components['schemas']['Annotation'];
 import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
+import { useMakeMeaningEvents } from '../../contexts/MakeMeaningEventBusContext';
 
 interface Props {
   content: string;
@@ -74,6 +75,7 @@ export function BrowseView({
   annotators
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();
+  const eventBus = useMakeMeaningEvents();
   const containerRef = useRef<HTMLDivElement>(null);
 
   const category = getMimeCategory(mimeType);
@@ -104,21 +106,21 @@ export function BrowseView({
 
       // Route to side panel if annotation type has one
       if (metadata?.hasSidePanel) {
-        // Clear the other hover state when switching
-        if (onAnnotationHover) onAnnotationHover(null);
-        if (onCommentHover) onCommentHover(annotationId);
+        // Emit comment hover event
+        eventBus.emit('ui:comment:hover', { commentId: annotationId });
+        eventBus.emit('ui:annotation:hover', { annotationId: null });
         return;
       } else {
-        // Clear the other hover state when switching
-        if (onCommentHover) onCommentHover(null);
-        if (onAnnotationHover) onAnnotationHover(annotationId);
+        // Emit annotation hover event
+        eventBus.emit('ui:annotation:hover', { annotationId });
+        eventBus.emit('ui:comment:hover', { commentId: null });
         return;
       }
     }
     // Clear both when null
-    if (onAnnotationHover) onAnnotationHover(null);
-    if (onCommentHover) onCommentHover(null);
-  }, [annotationMap, onAnnotationHover, onCommentHover, annotators]);
+    eventBus.emit('ui:annotation:hover', { annotationId: null });
+    eventBus.emit('ui:comment:hover', { commentId: null });
+  }, [annotationMap, eventBus, annotators]);
 
   // Attach click handlers, hover handlers, and animations after render
   useEffect(() => {
@@ -194,93 +196,93 @@ export function BrowseView({
     };
   }, [content, allAnnotations, onAnnotationClick, annotationMap, newAnnotationIds, handleAnnotationHover]);
 
-  // Handle hoveredAnnotationId - scroll and pulse
+  // Subscribe to hover events - scroll and pulse annotation into view
   useEffect(() => {
-    if (!containerRef.current || !hoveredAnnotationId) return undefined;
+    const handleHover = ({ annotationId }: { annotationId: string | null }) => {
+      if (!containerRef.current || !annotationId) return;
 
-    const element = containerRef.current.querySelector(
-      `[data-annotation-id="${CSS.escape(hoveredAnnotationId)}"]`
-    ) as HTMLElement;
+      const element = containerRef.current.querySelector(
+        `[data-annotation-id="${CSS.escape(annotationId)}"]`
+      ) as HTMLElement;
 
-    if (!element) return undefined;
+      if (!element) return;
 
-    // Find the scroll container
-    const scrollContainer = element.closest('.semiont-browse-view__content') as HTMLElement;
+      // Find the scroll container
+      const scrollContainer = element.closest('.semiont-browse-view__content') as HTMLElement;
 
-    if (scrollContainer) {
-      // Check visibility within the scroll container
-      const elementRect = element.getBoundingClientRect();
-      const containerRect = scrollContainer.getBoundingClientRect();
+      if (scrollContainer) {
+        // Check visibility within the scroll container
+        const elementRect = element.getBoundingClientRect();
+        const containerRect = scrollContainer.getBoundingClientRect();
 
-      const isVisible =
-        elementRect.top >= containerRect.top &&
-        elementRect.bottom <= containerRect.bottom;
+        const isVisible =
+          elementRect.top >= containerRect.top &&
+          elementRect.bottom <= containerRect.bottom;
 
-      if (!isVisible) {
-        // Scroll using container.scrollTo to avoid scrolling ancestors
-        const elementTop = element.offsetTop;
-        const containerHeight = scrollContainer.clientHeight;
-        const elementHeight = element.offsetHeight;
-        const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
+        if (!isVisible) {
+          // Scroll using container.scrollTo to avoid scrolling ancestors
+          const elementTop = element.offsetTop;
+          const containerHeight = scrollContainer.clientHeight;
+          const elementHeight = element.offsetHeight;
+          const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
 
-        scrollContainer.scrollTo({ top: scrollTo, behavior: 'smooth' });
+          scrollContainer.scrollTo({ top: scrollTo, behavior: 'smooth' });
+        }
       }
-    }
 
-    // Add pulse effect
-    const timeoutId = setTimeout(() => {
-      element.classList.add('annotation-pulse');
-    }, 100);
-
-    return () => {
-      clearTimeout(timeoutId);
-      element.classList.remove('annotation-pulse');
+      // Add pulse effect
+      setTimeout(() => {
+        element.classList.add('annotation-pulse');
+      }, 100);
     };
-  }, [hoveredAnnotationId]);
 
-  // Handle hoveredCommentId - scroll and pulse
+    eventBus.on('ui:annotation:hover', handleHover);
+    return () => eventBus.off('ui:annotation:hover', handleHover);
+  }, [eventBus]);
+
+  // Subscribe to comment hover events - scroll and pulse comment into view
   useEffect(() => {
-    if (!containerRef.current || !hoveredCommentId) return undefined;
+    const handleCommentHover = ({ commentId }: { commentId: string | null }) => {
+      if (!containerRef.current || !commentId) return;
 
-    const element = containerRef.current.querySelector(
-      `[data-annotation-id="${CSS.escape(hoveredCommentId)}"]`
-    ) as HTMLElement;
+      const element = containerRef.current.querySelector(
+        `[data-annotation-id="${CSS.escape(commentId)}"]`
+      ) as HTMLElement;
 
-    if (!element) return undefined;
+      if (!element) return;
 
-    // Find the scroll container
-    const scrollContainer = element.closest('.semiont-browse-view__content') as HTMLElement;
+      // Find the scroll container
+      const scrollContainer = element.closest('.semiont-browse-view__content') as HTMLElement;
 
-    if (scrollContainer) {
-      // Check visibility within the scroll container
-      const elementRect = element.getBoundingClientRect();
-      const containerRect = scrollContainer.getBoundingClientRect();
+      if (scrollContainer) {
+        // Check visibility within the scroll container
+        const elementRect = element.getBoundingClientRect();
+        const containerRect = scrollContainer.getBoundingClientRect();
 
-      const isVisible =
-        elementRect.top >= containerRect.top &&
-        elementRect.bottom <= containerRect.bottom;
+        const isVisible =
+          elementRect.top >= containerRect.top &&
+          elementRect.bottom <= containerRect.bottom;
 
-      if (!isVisible) {
-        // Scroll using container.scrollTo to avoid scrolling ancestors
-        const elementTop = element.offsetTop;
-        const containerHeight = scrollContainer.clientHeight;
-        const elementHeight = element.offsetHeight;
-        const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
+        if (!isVisible) {
+          // Scroll using container.scrollTo to avoid scrolling ancestors
+          const elementTop = element.offsetTop;
+          const containerHeight = scrollContainer.clientHeight;
+          const elementHeight = element.offsetHeight;
+          const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
 
-        scrollContainer.scrollTo({ top: scrollTo, behavior: 'smooth' });
+          scrollContainer.scrollTo({ top: scrollTo, behavior: 'smooth' });
+        }
       }
-    }
 
-    // Add pulse effect
-    const timeoutId = setTimeout(() => {
-      element.classList.add('annotation-pulse');
-    }, 100);
-
-    return () => {
-      clearTimeout(timeoutId);
-      element.classList.remove('annotation-pulse');
+      // Add pulse effect
+      setTimeout(() => {
+        element.classList.add('annotation-pulse');
+      }, 100);
     };
-  }, [hoveredCommentId]);
+
+    eventBus.on('ui:comment:hover', handleCommentHover);
+    return () => eventBus.off('ui:comment:hover', handleCommentHover);
+  }, [eventBus]);
 
   // Route to appropriate viewer based on MIME type category
   switch (category) {

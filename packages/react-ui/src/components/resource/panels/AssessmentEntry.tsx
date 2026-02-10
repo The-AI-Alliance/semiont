@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText } from '@semiont/api-client';
+import { useMakeMeaningEvents } from '../../../contexts/MakeMeaningEventBusContext';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -74,6 +75,7 @@ export function AssessmentEntry({
   onAssessmentRef,
   onAssessmentHover,
 }: AssessmentEntryProps) {
+  const eventBus = useMakeMeaningEvents();
   const assessmentRef = useRef<HTMLDivElement>(null);
 
   // Register ref with parent
@@ -101,8 +103,14 @@ export function AssessmentEntry({
       data-type="assessment"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={onClick}
-      onMouseEnter={() => onAssessmentHover?.(assessment.id)}
-      onMouseLeave={() => onAssessmentHover?.(null)}
+      onMouseEnter={() => {
+        eventBus.emit('ui:annotation:hover', { annotationId: assessment.id });
+        onAssessmentHover?.(assessment.id); // Backward compat
+      }}
+      onMouseLeave={() => {
+        eventBus.emit('ui:annotation:hover', { annotationId: null });
+        onAssessmentHover?.(null); // Backward compat
+      }}
     >
       {/* Selected text quote */}
       {selectedText && (
