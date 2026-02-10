@@ -272,12 +272,11 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
           // Create detection handler on-demand if:
           // 1. Annotator supports detection (has detection config)
           // 2. Detection context is provided (API client, state handlers)
-          // 3. API client is available (not undefined/null)
-          // 4. Resource supports detection (is a text/* media type)
+          // 3. Resource supports detection (is a text/* media type)
+          // Note: We don't check client availability here - the handler gracefully handles null clients
           const onDetect = (
             annotator.detection &&
             props.detectionContext &&
-            props.detectionContext.client &&
             supportsDetection(props.mediaType)
           )
             ? createDetectionHandler(annotator, props.detectionContext)
