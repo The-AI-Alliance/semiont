@@ -250,11 +250,5 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-# Keep the container running by tailing /dev/null
-# This ensures the services don't get killed when the script exits
-print_info "Service manager keeping container alive..."
-echo "[$(date '+%H:%M:%S')] Service manager entering wait loop" >> $LOG_FILE
-
-# Use tail -f /dev/null to keep the process running indefinitely
-# This is the standard way to keep a container alive
-tail -f /dev/null
+print_success "Services started successfully!"
+echo "[$(date '+%H:%M:%S')] Service startup complete" >> $LOG_FILE
