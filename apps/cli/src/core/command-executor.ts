@@ -100,6 +100,7 @@ export async function executeCommand(
           const env = options.environment || process.env.SEMIONT_ENV;
           const projectRoot = process.env.SEMIONT_ROOT || findProjectRoot();
           const envConfig = loadEnvironmentConfig(projectRoot, env);
+          const availableEnvironments = getAvailableEnvironments();
 
           const resolvedServices = await resolveServiceSelector(
             options.service as string,
@@ -115,7 +116,7 @@ export async function executeCommand(
               deployment.platform,
               {
                 projectRoot,
-                environment: parseEnvironment(env),
+                environment: parseEnvironment(env, availableEnvironments),
                 verbose: false,
                 quiet: true,
                 dryRun: false

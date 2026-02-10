@@ -61,6 +61,10 @@ async function checkServiceSupportsCommand(
       return false;
     }
 
+    // Get available environments for validation
+    const { getAvailableEnvironments } = await import('../core/config-loader.js');
+    const availableEnvironments = getAvailableEnvironments();
+
     // Create service instance to check its requirements
     const deployment = deployments[0];
     const service = ServiceFactory.create(
@@ -68,7 +72,7 @@ async function checkServiceSupportsCommand(
       deployment.platform,
       {
         projectRoot,
-        environment: parseEnvironment(environment),
+        environment: parseEnvironment(environment, availableEnvironments),
         verbose: false,
         quiet: true,
         dryRun: false
