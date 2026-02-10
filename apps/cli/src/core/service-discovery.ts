@@ -21,7 +21,7 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
-import { findProjectRoot } from '@semiont/core';
+import { findProjectRoot } from './config-loader.js';
 
 /**
  * Built-in services that are always available

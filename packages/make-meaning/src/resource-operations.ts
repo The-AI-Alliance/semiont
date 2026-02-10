@@ -14,12 +14,12 @@ import type { components } from '@semiont/api-client';
 import {
   CREATION_METHODS,
   type CreationMethod,
-  generateUuid,
   resourceId,
   type UserId,
   type ResourceId,
   type EnvironmentConfig,
 } from '@semiont/core';
+import { generateUuid } from './id-generation';
 
 type CreateResourceResponse = components['schemas']['CreateResourceResponse'];
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];

@@ -11,11 +11,11 @@
 import { HTTPException } from 'hono/http-exception';
 import {
   CREATION_METHODS,
-  generateUuid,
   resourceId as makeResourceId,
   type ResourceId,
   userToAgent,
 } from '@semiont/core';
+import { generateUuid } from '@semiont/make-meaning';
 import { resourceUri, type CloneToken, cloneToken as makeCloneToken } from '@semiont/api-client';
 import type { ResourcesRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';

@@ -63,6 +63,9 @@ export { GenerationWorker } from './jobs/generation-worker';
 // Reasoning exports (future)
 // export { ResourceReasoning } from './resource-reasoning';
 
+// ID generation
+export { generateUuid } from './id-generation';
+
 // Placeholder for initial build
 export const PACKAGE_NAME = '@semiont/make-meaning';
 export const VERSION = '0.1.0';

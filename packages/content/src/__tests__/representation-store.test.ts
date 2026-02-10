@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { FilesystemRepresentationStore } from '../representation-store';
-import { calculateChecksum } from '@semiont/core';
+import { calculateChecksum } from '../checksum';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -273,7 +273,7 @@ describe('FilesystemRepresentationStore', () => {
 
   describe('Edge cases', () => {
     it('should reject invalid checksums in store', async () => {
-      const checksumModule = await import('@semiont/core');
+      const checksumModule = await import('../checksum');
 
       // Test empty checksum
       vi.spyOn(checksumModule, 'calculateChecksum').mockReturnValueOnce('');

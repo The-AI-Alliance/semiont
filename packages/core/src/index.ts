@@ -97,7 +97,6 @@ export type { GoogleAuthRequest } from './auth-types';
 
 // Utility functions
 export * from './type-guards';
-export * from './crypto';
 export * from './errors';
 export * from './did-utils';
 
@@ -118,13 +117,6 @@ export {
   type AppConfig,
 } from './config/environment-loader';
 
-// Configuration loading - Filesystem wrappers (for application code)
-export {
-  loadEnvironmentConfig,
-  getAvailableEnvironments,
-  isValidEnvironment,
-} from './config/environment-loader-fs';
-
 export {
   parseEnvironment,
   validateEnvironment,
@@ -139,12 +131,6 @@ export {
 } from './config/config-validator';
 export { ConfigurationError } from './config/configuration-error';
 export type { ProxyServiceConfig } from './config/config.types';
-export {
-  findProjectRoot,
-  isProjectRoot,
-  getEnvironmentsPath,
-  getSemiontConfigPath,
-} from './config/project-discovery';
 export {
   type PlatformType,
   isValidPlatformType,

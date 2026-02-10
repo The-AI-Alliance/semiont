@@ -50,7 +50,7 @@ describe('Security Controls', () => {
     app = importedApp;
 
     // Load config to verify CORS settings
-    const { loadEnvironmentConfig, findProjectRoot } = await import('@semiont/core');
+    const { loadEnvironmentConfig, findProjectRoot } = await import('../config-loader');
     const env = process.env.SEMIONT_ENV || 'unit';
     const projectRoot = findProjectRoot();
     config = loadEnvironmentConfig(projectRoot, env);

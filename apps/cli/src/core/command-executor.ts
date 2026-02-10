@@ -27,7 +27,7 @@ import type { ServiceConfig } from './cli-config.js';
 import { loadCommand, loadAllCommands } from './command-discovery.js';
 import { validateServiceSelector, resolveServiceSelector } from './command-service-matcher.js';
 import { createArgParser, generateHelp } from './io/arg-parser.js';
-import { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig, findProjectRoot } from '@semiont/core';
+import { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig, findProjectRoot } from './config-loader.js';
 import { resolveServiceDeployments } from './service-resolver.js';
 import { formatResults } from './io/output-formatter.js';
 import { printError } from './io/cli-logger.js';

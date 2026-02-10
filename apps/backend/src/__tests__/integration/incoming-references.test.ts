@@ -8,7 +8,8 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { userId, loadEnvironmentConfig, findProjectRoot, type EnvironmentConfig } from '@semiont/core';
+import { userId, type EnvironmentConfig } from '@semiont/core';
+import { loadEnvironmentConfig, findProjectRoot } from '../../config-loader';
 import { email } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
 import type { Hono } from 'hono';

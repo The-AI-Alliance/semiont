@@ -28,7 +28,8 @@ import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { swaggerUI } from '@hono/swagger-ui';
-import { loadEnvironmentConfig, findProjectRoot, type EnvironmentConfig } from '@semiont/core';
+import type { EnvironmentConfig } from '@semiont/core';
+import { loadEnvironmentConfig, findProjectRoot } from './config-loader';
 import { startMakeMeaning } from '@semiont/make-meaning';
 
 import { User } from '@prisma/client';
