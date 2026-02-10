@@ -5,6 +5,15 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { ReferencesPanel } from '../ReferencesPanel';
 
+// Mock MakeMeaningEventBusContext
+vi.mock('../../../../contexts/MakeMeaningEventBusContext', () => ({
+  useMakeMeaningEvents: vi.fn(() => ({
+    emit: vi.fn(),
+    on: vi.fn(),
+    off: vi.fn(),
+  })),
+}));
+
 // Mock TranslationContext
 vi.mock('../../../../contexts/TranslationContext', () => ({
   useTranslations: vi.fn(() => (key: string, params?: Record<string, any>) => {
@@ -20,6 +29,7 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
       more: 'Detect More',
       includeDescriptiveReferences: 'Include descriptive references',
       descriptiveReferencesTooltip: 'Also find phrases like \'the CEO\', \'the tech giant\', \'the physicist\' (in addition to names)',
+      cancel: 'Cancel',
     };
     let result = translations[key] || key;
     // Replace {count} with actual count value if provided

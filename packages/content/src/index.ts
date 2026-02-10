@@ -18,3 +18,9 @@ export {
   getExtensionForMimeType,
   hasKnownExtension
 } from './mime-extensions';
+
+// Checksum utilities
+export {
+  calculateChecksum,
+  verifyChecksum
+} from './checksum';

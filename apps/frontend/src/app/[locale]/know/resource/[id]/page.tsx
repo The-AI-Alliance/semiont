@@ -387,7 +387,6 @@ function ResourceViewWrapper({
         onUnarchive={handleUnarchive}
         onClone={handleClone}
         onUpdateAnnotationBody={handleUpdateAnnotationBody}
-        onRefetchAnnotations={async () => { await refetchAnnotations(); }}
         onCreateAnnotation={async (rUri, motivation, selector, body) => {
           await createAnnotation(rUri, motivation as any, selector, body);
         }}

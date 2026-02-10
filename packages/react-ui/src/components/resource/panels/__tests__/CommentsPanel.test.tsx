@@ -9,6 +9,15 @@ import type { components } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
 
+// Mock MakeMeaningEventBusContext
+vi.mock('../../../../contexts/MakeMeaningEventBusContext', () => ({
+  useMakeMeaningEvents: vi.fn(() => ({
+    emit: vi.fn(),
+    on: vi.fn(),
+    off: vi.fn(),
+  })),
+}));
+
 // Mock TranslationContext
 vi.mock('../../../../contexts/TranslationContext', () => ({
   useTranslations: vi.fn(() => (key: string) => {
@@ -17,6 +26,7 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
       noComments: 'No comments yet. Select text to add a comment.',
       commentPlaceholder: 'Add your comment...',
       save: 'Save',
+      cancel: 'Cancel',
     };
     return translations[key] || key;
   }),

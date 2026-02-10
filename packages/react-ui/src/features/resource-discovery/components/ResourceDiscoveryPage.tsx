@@ -5,7 +5,7 @@
  * All dependencies passed as props - no Next.js hooks!
  */
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import type { components } from '@semiont/api-client';
 import { getResourceId } from '@semiont/api-client';
 import { useRovingTabIndex, Toolbar } from '@semiont/react-ui';
@@ -81,20 +81,13 @@ export function ResourceDiscoveryPage({
   const hasSearchQuery = searchQuery.trim() !== '';
   const hasSearchResults = searchDocuments.length > 0;
 
-  // Memoized filtered documents
-  const filteredResources = useMemo(() => {
-    // If we have search results, show them; otherwise show recent
-    // This ensures we show recent docs even when search returns nothing
-    const baseDocuments = hasSearchResults
-      ? searchDocuments
-      : recentDocuments;
-
-    if (!selectedEntityType) return baseDocuments;
-
-    return baseDocuments.filter((resource: ResourceDescriptor) =>
-      resource.entityTypes && resource.entityTypes.includes(selectedEntityType)
-    );
-  }, [recentDocuments, searchDocuments, selectedEntityType, hasSearchResults]);
+  // Filtered documents
+  const baseDocuments = hasSearchResults ? searchDocuments : recentDocuments;
+  const filteredResources = !selectedEntityType
+    ? baseDocuments
+    : baseDocuments.filter((resource: ResourceDescriptor) =>
+        resource.entityTypes && resource.entityTypes.includes(selectedEntityType)
+      );
 
   // Roving tabindex for entity type filters
   const entityFilterRoving = useRovingTabIndex<HTMLDivElement>(

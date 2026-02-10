@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SSEClient } from '../sse';
-import type { DetectionProgress, GenerationProgress, ResourceEvent } from '../sse/types';
+import type { DetectionProgress, GenerationProgress } from '../sse/types';
 import type { ResourceUri, AnnotationUri } from '../branded-types';
 import { baseUrl, accessToken, entityType } from '../branded-types';
 
@@ -465,7 +465,7 @@ data: {"id":"evt-2","type":"annotation.added","timestamp":"2025-01-01T00:01:00Z"
         body: createSSEReadableStream(sseText)
       });
 
-      const eventCallback = vi.fn<(event: ResourceEvent) => void>();
+      const eventCallback = vi.fn<(event: any) => void>();
 
       const stream = client.resourceEvents(testResourceUri('doc-123'));
 
@@ -505,7 +505,7 @@ data: {"id":"evt-2","type":"annotation.added","timestamp":"2025-01-01T00:01:00Z"
         body: createSSEReadableStream(sseText)
       });
 
-      const eventCallback = vi.fn<(event: ResourceEvent) => void>();
+      const eventCallback = vi.fn<(event: any) => void>();
       const completeCallback = vi.fn();
 
       const stream = client.resourceEvents(testResourceUri('doc-123'));

@@ -41,38 +41,35 @@ vi.mock('../db', () => ({
 // Use a unique directory per worker thread to avoid race conditions
 const testDir = `/tmp/semiont-test-${process.pid}-${Date.now()}`;
 
-vi.mock('@semiont/core', async () => {
-  const actual = await vi.importActual('@semiont/core');
-  return {
-    ...actual,
-    findProjectRoot: vi.fn(() => '/tmp/test-project'),
-    loadEnvironmentConfig: vi.fn(() => ({
-      site: { domain: 'test.local', oauthAllowedDomains: ['test.local'] },
-      env: {
-        NODE_ENV: 'test'
+// Mock the config-loader module (where findProjectRoot and loadEnvironmentConfig now live)
+vi.mock('../config-loader', () => ({
+  findProjectRoot: vi.fn(() => '/tmp/test-project'),
+  loadEnvironmentConfig: vi.fn(() => ({
+    site: { domain: 'test.local', oauthAllowedDomains: ['test.local'] },
+    env: {
+      NODE_ENV: 'test'
+    },
+    services: {
+      backend: {
+        platform: { type: 'posix' },
+        corsOrigin: 'http://localhost:3000',
+        publicURL: 'http://localhost:4000',
+        port: 4000
       },
-      services: {
-        backend: {
-          platform: { type: 'posix' },
-          corsOrigin: 'http://localhost:3000',
-          publicURL: 'http://localhost:4000',
-          port: 4000
-        },
-        frontend: {
-          platform: { type: 'posix' },
-          url: 'http://localhost:3000',
-          port: 3000,
-          siteName: 'Test Site'
-        },
-        filesystem: {
-          platform: { type: 'posix' },
-          path: testDir
-        }
+      frontend: {
+        platform: { type: 'posix' },
+        url: 'http://localhost:3000',
+        port: 3000,
+        siteName: 'Test Site'
       },
-      app: {}
-    })),
-  };
-});
+      filesystem: {
+        platform: { type: 'posix' },
+        path: testDir
+      }
+    },
+    app: {}
+  })),
+}));
 
 // Set minimal required environment variables
 process.env.NODE_ENV = 'test';

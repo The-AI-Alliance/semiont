@@ -27,7 +27,7 @@ import type { ServiceConfig } from './cli-config.js';
 import { loadCommand, loadAllCommands } from './command-discovery.js';
 import { validateServiceSelector, resolveServiceSelector } from './command-service-matcher.js';
 import { createArgParser, generateHelp } from './io/arg-parser.js';
-import { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig, findProjectRoot } from '@semiont/core';
+import { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig, findProjectRoot } from './config-loader.js';
 import { resolveServiceDeployments } from './service-resolver.js';
 import { formatResults } from './io/output-formatter.js';
 import { printError } from './io/cli-logger.js';
@@ -100,6 +100,7 @@ export async function executeCommand(
           const env = options.environment || process.env.SEMIONT_ENV;
           const projectRoot = process.env.SEMIONT_ROOT || findProjectRoot();
           const envConfig = loadEnvironmentConfig(projectRoot, env);
+          const availableEnvironments = getAvailableEnvironments();
 
           const resolvedServices = await resolveServiceSelector(
             options.service as string,
@@ -115,7 +116,7 @@ export async function executeCommand(
               deployment.platform,
               {
                 projectRoot,
-                environment: parseEnvironment(env),
+                environment: parseEnvironment(env, availableEnvironments),
                 verbose: false,
                 quiet: true,
                 dryRun: false

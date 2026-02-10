@@ -2,13 +2,13 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
+import { useMakeMeaningEvents } from '../../../contexts/MakeMeaningEventBusContext';
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
 import { DetectionProgressWidget } from '../../DetectionProgressWidget';
 import { ReferenceEntry } from './ReferenceEntry';
 import type { components, paths, Selector } from '@semiont/api-client';
 import { useAnnotationPanel } from '../../../hooks/useAnnotationPanel';
 import { PanelHeader } from './PanelHeader';
-import { supportsDetection } from '../../../lib/resource-utils';
 import './ReferencesPanel.css';
 
 type Annotation = components['schemas']['Annotation'];
@@ -66,7 +66,6 @@ interface Props {
   onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
   onCreateDocument?: (annotationUri: string, title: string, entityTypes: string[]) => void;
   generatingReferenceId?: string | null;
-  mediaType?: string | undefined;
   referencedBy?: ReferencedBy[];
   referencedByLoading?: boolean;
   pendingAnnotation: PendingAnnotation | null;
@@ -91,13 +90,13 @@ export function ReferencesPanel({
   onGenerateDocument,
   onCreateDocument,
   generatingReferenceId,
-  mediaType,
   referencedBy = [],
   referencedByLoading = false,
   pendingAnnotation,
 }: Props) {
   const t = useTranslations('DetectPanel');
   const tRef = useTranslations('ReferencesPanel');
+  const eventBus = useMakeMeaningEvents();
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
   const [lastDetectionLog, setLastDetectionLog] = useState<DetectionLog[] | null>(null);
   const [pendingEntityTypes, setPendingEntityTypes] = useState<string[]>([]);
@@ -118,9 +117,6 @@ export function ReferencesPanel({
 
   const { sortedAnnotations, containerRef, handleAnnotationRef } =
     useAnnotationPanel(annotations, hoveredAnnotationId);
-
-  // Check if detection is supported for this media type
-  const isTextResource = supportsDetection(mediaType);
 
   // Clear log when starting new detection
   const handleDetect = () => {
@@ -166,6 +162,21 @@ export function ReferencesPanel({
     setPendingEntityTypes([]);
   };
 
+  // Escape key handler for cancelling pending annotation
+  useEffect(() => {
+    if (!pendingAnnotation) return;
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        eventBus.emit('ui:annotation:cancel-pending');
+        setPendingEntityTypes([]);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [pendingAnnotation, eventBus]);
+
   return (
     <div className="semiont-panel">
       <PanelHeader annotationType="reference" count={annotations.length} title={tRef('referencesTitle')} />
@@ -205,20 +216,34 @@ export function ReferencesPanel({
             </div>
           )}
 
-          <button
-            onClick={handleCreateReference}
-            className="semiont-button semiont-button--primary"
-            data-type="reference"
-          >
-            🔗 {tRef('createReference')}
-          </button>
+          <div className="semiont-annotation-prompt__footer">
+            <div className="semiont-annotation-prompt__actions">
+              <button
+                onClick={() => {
+                  eventBus.emit('ui:annotation:cancel-pending');
+                  setPendingEntityTypes([]);
+                }}
+                className="semiont-button semiont-button--secondary"
+                data-type="reference"
+              >
+                {tRef('cancel')}
+              </button>
+              <button
+                onClick={handleCreateReference}
+                className="semiont-button semiont-button--primary"
+                data-type="reference"
+              >
+                🔗 {tRef('createReference')}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
       {/* Scrollable content area */}
       <div ref={containerRef} className="semiont-panel__content">
         {/* Detection Section - only in Annotate mode and for text resources */}
-        {annotateMode && isTextResource && (
+        {annotateMode && onDetect && (
           <div className="semiont-panel__section">
             <button
               onClick={() => setIsDetectExpanded(!isDetectExpanded)}

@@ -76,8 +76,15 @@ export {
   getEventType,
 } from './events';
 
+// Event utilities
+export {
+  getAnnotationUriFromEvent,
+  isEventRelatedToAnnotation,
+  isResourceEvent as isStoredEvent,
+} from './event-utils';
+
 // Backend-specific annotation utilities
-export { bodyItemsMatch, findBodyItem } from './annotation-utils';
+export { findBodyItem } from './annotation-utils';
 
 // Resource types
 export type { UpdateResourceInput, ResourceFilter } from './resource-types';
@@ -90,7 +97,6 @@ export type { GoogleAuthRequest } from './auth-types';
 
 // Utility functions
 export * from './type-guards';
-export * from './crypto';
 export * from './errors';
 export * from './did-utils';
 
@@ -111,13 +117,6 @@ export {
   type AppConfig,
 } from './config/environment-loader';
 
-// Configuration loading - Filesystem wrappers (for application code)
-export {
-  loadEnvironmentConfig,
-  getAvailableEnvironments,
-  isValidEnvironment,
-} from './config/environment-loader-fs';
-
 export {
   parseEnvironment,
   validateEnvironment,
@@ -132,12 +131,6 @@ export {
 } from './config/config-validator';
 export { ConfigurationError } from './config/configuration-error';
 export type { ProxyServiceConfig } from './config/config.types';
-export {
-  findProjectRoot,
-  isProjectRoot,
-  getEnvironmentsPath,
-  getSemiontConfigPath,
-} from './config/project-discovery';
 export {
   type PlatformType,
   isValidPlatformType,

@@ -174,9 +174,13 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
       throw new Error('Project root is required in envConfig._metadata');
     }
 
+    // Get available environments for validation
+    const { getAvailableEnvironments } = await import('../core/config-loader.js');
+    const availableEnvironments = getAvailableEnvironments();
+
     const config: Config = {
       projectRoot,
-      environment: parseEnvironment(environment),
+      environment: parseEnvironment(environment, availableEnvironments),
       verbose: options.verbose || false,
       quiet: options.quiet || false,
       dryRun: options.dryRun || false

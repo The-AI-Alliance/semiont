@@ -209,39 +209,18 @@ export interface TagDetectionProgress {
  * as it occurs. Used for real-time collaboration - multiple users see each
  * other's changes as they happen.
  *
+ * Re-exported from @semiont/core (authoritative source).
+ * The discriminated union type provides type-safe event handling.
+ *
  * @example
  * ```typescript
- * stream.onEvent((event: ResourceEvent) => {
+ * stream.onEvent((event) => {
  *   console.log(`Event: ${event.type}`);
  *   console.log(`User: ${event.userId}`);
  *   console.log(`Payload:`, event.payload);
- *   console.log(`Sequence: ${event.metadata.sequenceNumber}`);
  * });
  * ```
  */
-export interface ResourceEvent {
-  /** Event ID (unique) */
-  id: string;
-  /** Event type (e.g., 'resource.created', 'annotation.created', etc.) */
-  type: string;
-  /** ISO 8601 timestamp */
-  timestamp: string;
-  /** User ID who triggered the event */
-  userId: string;
-  /** Resource ID this event relates to */
-  resourceId: string;
-  /** Event-specific payload (varies by event type) */
-  payload: any;
-  /** Event store metadata */
-  metadata: {
-    /** Monotonically increasing sequence number */
-    sequenceNumber: number;
-    /** SHA-256 hash of previous event (for integrity) */
-    prevEventHash: string;
-    /** SHA-256 checksum of this event */
-    checksum: string;
-  };
-}
 
 /**
  * SSE stream controller interface

@@ -251,6 +251,127 @@ See [API-INTEGRATION.md](API-INTEGRATION.md) for details.
 
 ---
 
+### MakeMeaningEventBusProvider
+
+Provides unified event bus for backend SSE events and UI interaction events.
+
+**Interface:**
+
+```typescript
+interface MakeMeaningEventBus {
+  on<T extends ResourceEvent['type']>(
+    type: T,
+    handler: (event: Extract<ResourceEvent, { type: T }>) => void
+  ): void;
+  off<T extends ResourceEvent['type']>(
+    type: T,
+    handler: (event: Extract<ResourceEvent, { type: T }>) => void
+  ): void;
+  emit<T extends ResourceEvent['type']>(
+    type: T,
+    data: Extract<ResourceEvent, { type: T }>['data']
+  ): void;
+}
+```
+
+**Props:**
+
+```typescript
+interface MakeMeaningEventBusProviderProps {
+  rUri: ResourceUri;
+  children: React.ReactNode;
+}
+```
+
+**Usage:**
+
+```tsx
+import { MakeMeaningEventBusProvider, useMakeMeaningEvents } from '@semiont/react-ui';
+import { resourceUri } from '@semiont/api-client';
+
+// Wrap resource page with provider
+export default function ResourcePage({ params }: { params: { id: string } }) {
+  const rUri = resourceUri(params.id);
+
+  return (
+    <MakeMeaningEventBusProvider rUri={rUri}>
+      <ResourceViewerPage rUri={rUri} />
+    </MakeMeaningEventBusProvider>
+  );
+}
+
+// Emit UI events in components
+function TextSelector() {
+  const eventBus = useMakeMeaningEvents();
+
+  const handleSelection = (selection: Selection) => {
+    eventBus.emit('ui:selection:comment-requested', {
+      exact: selection.exact,
+      start: selection.start,
+      end: selection.end,
+      prefix: extractPrefix(selection.start),
+      suffix: extractSuffix(selection.end)
+    });
+  };
+
+  return <div onMouseUp={handleSelection}>...</div>;
+}
+
+// Subscribe to events in other components
+function AnnotationPanel() {
+  const eventBus = useMakeMeaningEvents();
+  const [pendingAnnotation, setPendingAnnotation] = useState(null);
+
+  useEffect(() => {
+    const handler = (selection) => {
+      setPendingAnnotation({
+        selector: {
+          type: 'TextQuoteSelector',
+          exact: selection.exact,
+          start: selection.start,
+          end: selection.end,
+          prefix: selection.prefix,
+          suffix: selection.suffix
+        },
+        motivation: 'commenting'
+      });
+    };
+
+    eventBus.on('ui:selection:comment-requested', handler);
+    return () => eventBus.off('ui:selection:comment-requested', handler);
+  }, [eventBus]);
+
+  return <div>{/* Render annotation form */}</div>;
+}
+```
+
+**Key Features:**
+
+- **Resource-scoped:** Each resource page gets its own event bus instance (not global)
+- **Backend events:** Automatically receives SSE events from make-meaning (detection, generation, annotation lifecycle)
+- **UI events:** Components emit local user interaction events (text selection, annotation requests)
+- **Type-safe:** Full TypeScript support with discriminated unions
+- **Automatic cache invalidation:** Backend events trigger React Query cache invalidation
+- **Real-time collaboration foundation:** UI events ready for P2P broadcast
+
+**Event Types:**
+
+Backend Events:
+- Detection: `detection:started`, `detection:progress`, `detection:entity-found`, `detection:completed`, `detection:failed`
+- Generation: `generation:started`, `generation:progress`, `generation:resource-created`, `generation:completed`
+- Annotation: `annotation:added`, `annotation:removed`, `annotation:updated`
+- Entity Tags: `entity-tag:added`, `entity-tag:removed`
+- Resource: `resource:archived`, `resource:unarchived`
+
+UI Events:
+- Selection: `ui:selection:comment-requested`, `ui:selection:tag-requested`, `ui:selection:assessment-requested`, `ui:selection:reference-requested`
+
+**Important:** This provider is resource-scoped, not application-scoped. It should wrap individual resource pages, not the entire app. Multiple resource pages can have independent event buses.
+
+See [EVENTS.md](EVENTS.md) for complete documentation.
+
+---
+
 ### OpenResourcesProvider
 
 Manages recently opened resources (e.g., for "Open Documents" list).
@@ -528,6 +649,7 @@ return {
 
 ## See Also
 
+- [EVENTS.md](EVENTS.md) - Event-driven architecture and MakeMeaningEventBusProvider
 - [INTERNATIONALIZATION.md](INTERNATIONALIZATION.md) - Translation details
 - [API-INTEGRATION.md](API-INTEGRATION.md) - API client usage
 - [ROUTING.md](ROUTING.md) - Routing configuration

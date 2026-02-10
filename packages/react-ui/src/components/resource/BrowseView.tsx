@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import { useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { remarkAnnotations, type PreparedAnnotation } from '../../lib/remark-annotations';
@@ -85,24 +85,16 @@ export function BrowseView({
   const onAnnotationHover = handlers?.onHover;
   const onCommentHover = handlers?.onCommentHover;
 
-  const allAnnotations = useMemo(() =>
-    [...highlights, ...references, ...assessments, ...comments, ...tags],
-    [highlights, references, assessments, comments, tags]
-  );
+  const allAnnotations = [...highlights, ...references, ...assessments, ...comments, ...tags];
 
-  const preparedAnnotations = useMemo(() =>
-    prepareAnnotations(allAnnotations, annotators),
-    [allAnnotations, annotators]
-  );
+  const preparedAnnotations = prepareAnnotations(allAnnotations, annotators);
 
   // Create a map of annotation ID -> full annotation for click handling
-  const annotationMap = useMemo(() => {
-    const map = new Map<string, Annotation>();
-    for (const ann of allAnnotations) {
-      map.set(ann.id, ann);
-    }
-    return map;
-  }, [allAnnotations]);
+  const map = new Map<string, Annotation>();
+  for (const ann of allAnnotations) {
+    map.set(ann.id, ann);
+  }
+  const annotationMap = map;
 
   // Wrapper for annotation hover that routes based on registry metadata
   const handleAnnotationHover = useCallback((annotationId: string | null) => {

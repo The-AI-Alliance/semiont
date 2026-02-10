@@ -45,6 +45,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@semiont/core": "*",
     "ky": "^1.2.0"
   },
   "devDependencies": {

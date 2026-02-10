@@ -6,7 +6,6 @@
  */
 
 export * from './annotations';
-export * from './events';
 export * from './fuzzy-anchor';
 export * from './locales';
 export * from './resources';

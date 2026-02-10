@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { FilesystemRepresentationStore } from '../representation-store';
-import { calculateChecksum } from '@semiont/core';
+import { calculateChecksum } from '../checksum';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';

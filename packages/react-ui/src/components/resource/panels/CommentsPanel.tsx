@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
+import { useMakeMeaningEvents } from '../../../contexts/MakeMeaningEventBusContext';
 import type { components, Selector } from '@semiont/api-client';
 import { CommentEntry } from './CommentEntry';
 import { useAnnotationPanel } from '../../../hooks/useAnnotationPanel';
@@ -67,6 +68,7 @@ export function CommentsPanel({
   detectionProgress,
 }: CommentsPanelProps) {
   const t = useTranslations('CommentsPanel');
+  const eventBus = useMakeMeaningEvents();
   const [newCommentText, setNewCommentText] = useState('');
 
   const { sortedAnnotations, containerRef, handleAnnotationRef } =
@@ -78,6 +80,21 @@ export function CommentsPanel({
       setNewCommentText('');
     }
   };
+
+  // Escape key handler for cancelling pending annotation
+  useEffect(() => {
+    if (!pendingAnnotation) return;
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        eventBus.emit('ui:annotation:cancel-pending');
+        setNewCommentText('');
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [pendingAnnotation, eventBus]);
 
   return (
     <div className="semiont-panel">
@@ -109,14 +126,26 @@ export function CommentsPanel({
             <span className="semiont-annotation-prompt__char-count">
               {newCommentText.length}/2000
             </span>
-            <button
-              onClick={handleSaveNewComment}
-              disabled={!newCommentText.trim()}
-              className="semiont-button semiont-button--primary"
-              data-type="comment"
-            >
-              {t('save')}
-            </button>
+            <div className="semiont-annotation-prompt__actions">
+              <button
+                onClick={() => {
+                  eventBus.emit('ui:annotation:cancel-pending');
+                  setNewCommentText('');
+                }}
+                className="semiont-button semiont-button--secondary"
+                data-type="comment"
+              >
+                {t('cancel')}
+              </button>
+              <button
+                onClick={handleSaveNewComment}
+                disabled={!newCommentText.trim()}
+                className="semiont-button semiont-button--primary"
+                data-type="comment"
+              >
+                {t('save')}
+              </button>
+            </div>
           </div>
         </div>
       )}

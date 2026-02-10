@@ -34,7 +34,7 @@
 
 import { promises as fs } from 'fs';
 import path from 'path';
-import { calculateChecksum } from '@semiont/core';
+import { calculateChecksum } from './checksum';
 import { getExtensionForMimeType } from './mime-extensions';
 
 /**

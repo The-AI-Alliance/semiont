@@ -5,7 +5,7 @@
  * This component handles the UI rendering and state management for the resource viewer.
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { components, ResourceUri, GenerationContext, Selector } from '@semiont/api-client';
 import { getLanguage, getPrimaryRepresentation, annotationUri, resourceUri, resourceAnnotationUri } from '@semiont/api-client';
 import { createCancelDetectionHandler, ANNOTATORS } from '@semiont/react-ui';
@@ -20,6 +20,7 @@ import { Toolbar } from '@semiont/react-ui';
 import { useResourceLoadingAnnouncements } from '@semiont/react-ui';
 import type { GenerationOptions } from '@semiont/react-ui';
 import { ResourceViewer } from '@semiont/react-ui';
+import { MakeMeaningEventBusProvider, useMakeMeaningEvents } from '@semiont/react-ui';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
@@ -106,7 +107,6 @@ export interface ResourceViewerPageProps {
   onUnarchive: () => Promise<void>;
   onClone: () => Promise<void>;
   onUpdateAnnotationBody: (annotationUri: string, data: any) => Promise<void>;
-  onRefetchAnnotations: () => Promise<void>;
 
   /**
    * Annotation CRUD callbacks
@@ -154,7 +154,8 @@ export interface ResourceViewerPageProps {
   GenerationConfigModal: React.ComponentType<any>;
 }
 
-export function ResourceViewerPage({
+// Inner component that has access to event bus
+function ResourceViewerPageInner({
   resource,
   rUri,
   content,
@@ -175,7 +176,6 @@ export function ResourceViewerPage({
   onUnarchive,
   onClone,
   onUpdateAnnotationBody,
-  onRefetchAnnotations,
   onCreateAnnotation,
   onTriggerSparkleAnimation,
   onClearNewAnnotationId,
@@ -189,6 +189,8 @@ export function ResourceViewerPage({
   SearchResourcesModal,
   GenerationConfigModal,
 }: ResourceViewerPageProps) {
+  // Get unified event bus for subscribing to UI events
+  const eventBus = useMakeMeaningEvents();
   // Resource loading announcements
   const {
     announceResourceLoading,
@@ -203,17 +205,19 @@ export function ResourceViewerPage({
   const primaryMediaType = primaryRep?.mediaType;
   const primaryByteSize = primaryRep?.byteSize;
 
-  const [annotateMode, setAnnotateMode] = useState(() => {
+  // Annotate mode state - read-only copy for sidebar panel coordination
+  // ResourceViewer manages the authoritative state and persists to localStorage
+  const [annotateMode, _setAnnotateMode] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('annotateMode') === 'true';
     }
     return false;
   });
 
-  // Unified annotation state (motivation-agnostic)
-  const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
+  // Unified annotation state (motivation-agnostic) - used by sidebar panels
+  const [focusedAnnotationId, _setFocusedAnnotationId] = useState<string | null>(null);
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
-  const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
+  // scrollToAnnotationId removed - ResourceViewer now manages scroll state internally
 
   // Unified pending annotation - all human-created annotations flow through this
   const [pendingAnnotation, setPendingAnnotation] = useState<PendingAnnotation | null>(null);
@@ -243,19 +247,10 @@ export function ResourceViewerPage({
     }
   }, [onTriggerSparkleAnimation]);
 
-  // Handle event click - scroll to annotation
-  const handleEventClick = useCallback((annotationId: string | null) => {
-    setScrollToAnnotationId(annotationId);
+  // Handle event click - scroll handled internally by ResourceViewer now
+  const handleEventClick = useCallback((_annotationId: string | null) => {
+    // ResourceViewer now manages scroll state internally
   }, []);
-
-  // Handle annotate mode toggle - memoized
-  const handleAnnotateModeToggle = useCallback(() => {
-    const newMode = !annotateMode;
-    setAnnotateMode(newMode);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('annotateMode', newMode.toString());
-    }
-  }, [annotateMode]);
 
   // Use SSE-based document generation progress - provides inline sparkle animation
   const {
@@ -273,9 +268,7 @@ export function ResourceViewerPage({
   });
 
   // Generic detection context for all annotation types
-  // Memoized to keep stable reference
-  // Note: State setters (setDetectingMotivation, setMotivationDetectionProgress) are stable and don't need deps
-  const detectionContext = useMemo(() => ({
+  const detectionContext = {
     client,
     rUri,
     setDetectingMotivation,
@@ -284,15 +277,15 @@ export function ResourceViewerPage({
     cacheManager,
     showSuccess,
     showError
-  }), [client, rUri, cacheManager, showSuccess, showError]);
+  };
 
   // Generic cancel handler (works for all detection types)
-  const handleCancelDetection = React.useMemo(
+  const handleCancelDetection = useCallback(
     () => createCancelDetectionHandler({
       detectionStreamRef,
       setDetectingMotivation,
       setMotivationDetectionProgress
-    }),
+    })(),
     []
   );
 
@@ -393,7 +386,103 @@ export function ResourceViewerPage({
 
     setActivePanel(MOTIVATION_TO_TAB[pending.motivation] || 'annotations');
     setPendingAnnotation(pending);
-  }, []);
+  }, [setActivePanel]);
+
+  // Subscribe to UI events from ResourceViewer
+  useEffect(() => {
+    const handleCommentRequested = (selection: any) => {
+      handleAnnotationRequested({
+        selector: {
+          type: 'TextQuoteSelector',
+          exact: selection.exact,
+          start: selection.start,
+          end: selection.end,
+          ...(selection.prefix && { prefix: selection.prefix }),
+          ...(selection.suffix && { suffix: selection.suffix })
+        },
+        motivation: 'commenting'
+      });
+    };
+
+    const handleTagRequested = (selection: any) => {
+      handleAnnotationRequested({
+        selector: {
+          type: 'TextQuoteSelector',
+          exact: selection.exact,
+          start: selection.start,
+          end: selection.end,
+          ...(selection.prefix && { prefix: selection.prefix }),
+          ...(selection.suffix && { suffix: selection.suffix })
+        },
+        motivation: 'tagging'
+      });
+    };
+
+    const handleAssessmentRequested = (selection: any) => {
+      handleAnnotationRequested({
+        selector: {
+          type: 'TextQuoteSelector',
+          exact: selection.exact,
+          start: selection.start,
+          end: selection.end,
+          ...(selection.prefix && { prefix: selection.prefix }),
+          ...(selection.suffix && { suffix: selection.suffix })
+        },
+        motivation: 'assessing'
+      });
+    };
+
+    const handleReferenceRequested = (selection: any) => {
+      // Build selector based on what's present in the selection
+      let selector: any;
+
+      if (selection.svgSelector) {
+        selector = {
+          type: 'SvgSelector',
+          value: selection.svgSelector
+        };
+      } else if (selection.fragmentSelector) {
+        selector = {
+          type: 'FragmentSelector',
+          value: selection.fragmentSelector,
+          ...(selection.conformsTo && { conformsTo: selection.conformsTo })
+        };
+      } else {
+        selector = {
+          type: 'TextQuoteSelector',
+          exact: selection.exact,
+          start: selection.start,
+          end: selection.end,
+          ...(selection.prefix && { prefix: selection.prefix }),
+          ...(selection.suffix && { suffix: selection.suffix })
+        };
+      }
+
+      handleAnnotationRequested({
+        selector,
+        motivation: 'linking'
+      });
+    };
+
+    // Handle cancel pending annotation
+    const handleCancelPending = () => {
+      setPendingAnnotation(null);
+    };
+
+    eventBus.on('ui:selection:comment-requested', handleCommentRequested);
+    eventBus.on('ui:selection:tag-requested', handleTagRequested);
+    eventBus.on('ui:selection:assessment-requested', handleAssessmentRequested);
+    eventBus.on('ui:selection:reference-requested', handleReferenceRequested);
+    eventBus.on('ui:annotation:cancel-pending', handleCancelPending);
+
+    return () => {
+      eventBus.off('ui:selection:comment-requested', handleCommentRequested);
+      eventBus.off('ui:selection:tag-requested', handleTagRequested);
+      eventBus.off('ui:selection:assessment-requested', handleAssessmentRequested);
+      eventBus.off('ui:selection:reference-requested', handleReferenceRequested);
+      eventBus.off('ui:annotation:cancel-pending', handleCancelPending);
+    };
+  }, [eventBus, handleAnnotationRequested]);
 
   // Manual tag creation handler
   // Shared UI handlers - same across all annotation types
@@ -470,9 +559,7 @@ export function ResourceViewerPage({
       await onCreateAnnotation(rUri, motivation, selector, body);
       setPendingAnnotation(null);
 
-      if (annotatorConfig.create.refetchAfter) {
-        await onRefetchAnnotations();
-      }
+      // Cache invalidation now handled by annotation:added event
 
       if (annotatorConfig.create.successMessage) {
         const message = annotatorConfig.create.successMessage.replace('{value}', args[1] || '');
@@ -482,47 +569,33 @@ export function ResourceViewerPage({
       console.error(`Failed to create ${annotatorConfig.internalType}:`, error);
       showError(`Failed to create ${annotatorConfig.displayName.toLowerCase()}`);
     }
-  }, [pendingAnnotation, onCreateAnnotation, rUri, onRefetchAnnotations, showSuccess, showError]);
+  }, [pendingAnnotation, onCreateAnnotation, rUri, showSuccess, showError]);
 
   // Group annotations by type using static ANNOTATORS
-  const groups = useMemo(() => {
-    const result = {
-      highlights: [] as Annotation[],
-      references: [] as Annotation[],
-      assessments: [] as Annotation[],
-      comments: [] as Annotation[],
-      tags: [] as Annotation[]
-    };
+  const result = {
+    highlights: [] as Annotation[],
+    references: [] as Annotation[],
+    assessments: [] as Annotation[],
+    comments: [] as Annotation[],
+    tags: [] as Annotation[]
+  };
 
-    for (const ann of annotations) {
-      const annotator = Object.values(ANNOTATORS).find(a => a.matchesAnnotation(ann));
-      if (annotator) {
-        const key = annotator.internalType + 's'; // highlight -> highlights
-        if (result[key as keyof typeof result]) {
-          result[key as keyof typeof result].push(ann);
-        }
+  for (const ann of annotations) {
+    const annotator = Object.values(ANNOTATORS).find(a => a.matchesAnnotation(ann));
+    if (annotator) {
+      const key = annotator.internalType + 's'; // highlight -> highlights
+      if (result[key as keyof typeof result]) {
+        result[key as keyof typeof result].push(ann);
       }
     }
+  }
 
-    return result;
-  }, [annotations]);
+  const groups = result;
 
-  // Memoize resource with content to prevent infinite re-renders
-  const resourceWithContent = useMemo(
-    () => ({ ...resource, content }),
-    [resource, content]
-  );
+  // Combine resource with content
+  const resourceWithContent = { ...resource, content };
 
-  // Memoize annotation click handlers to prevent infinite re-renders
-  const handleRefetchAnnotations = useCallback(() => {
-    // Don't refetch immediately - the SSE event will trigger invalidation after projection is updated
-  }, []);
-
-  const handleAnnotationClickAndFocus = useCallback((annotationId: string) => {
-    setActivePanel('annotations');
-    setFocusedAnnotationId(annotationId);
-    setTimeout(() => setFocusedAnnotationId(null), 3000);
-  }, []);
+  // handleAnnotationClickAndFocus removed - ResourceViewer now manages focus/click state internally
 
   // Document rendering
   return (
@@ -567,21 +640,8 @@ export function ResourceViewerPage({
                 <ResourceViewer
                   resource={resourceWithContent}
                 annotations={groups}
-                onRefetchAnnotations={handleRefetchAnnotations}
-                annotateMode={annotateMode}
-                onAnnotateModeToggle={handleAnnotateModeToggle}
                 onAnnotationRequested={handleAnnotationRequested}
-                onCommentClick={handleAnnotationClickAndFocus}
-                onReferenceClick={handleAnnotationClickAndFocus}
-                onHighlightClick={handleAnnotationClickAndFocus}
-                onAssessmentClick={handleAnnotationClickAndFocus}
-                onTagClick={handleAnnotationClickAndFocus}
                 generatingReferenceId={generationProgress?.referenceId ?? null}
-                onAnnotationHover={setHoveredAnnotationId}
-                onCommentHover={setHoveredAnnotationId}
-                hoveredAnnotationId={hoveredAnnotationId}
-                hoveredCommentId={hoveredAnnotationId}
-                scrollToAnnotationId={scrollToAnnotationId}
                 showLineNumbers={showLineNumbers}
                 annotators={ANNOTATORS}
               />
@@ -724,7 +784,7 @@ export function ResourceViewerPage({
                 }],
               });
               showSuccess('Reference linked successfully');
-              await onRefetchAnnotations();
+              // Cache invalidation now handled by annotation:updated event
               setSearchModalOpen(false);
               setPendingReferenceId(null);
             } catch (error) {
@@ -753,5 +813,14 @@ export function ResourceViewerPage({
         defaultTitle={generationDefaultTitle}
       />
     </div>
+  );
+}
+
+// Outer component that wraps MakeMeaningEventBusProvider
+export function ResourceViewerPage(props: ResourceViewerPageProps) {
+  return (
+    <MakeMeaningEventBusProvider rUri={props.rUri}>
+      <ResourceViewerPageInner {...props} />
+    </MakeMeaningEventBusProvider>
   );
 }

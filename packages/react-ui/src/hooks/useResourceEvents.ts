@@ -1,14 +1,9 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-import type { ResourceUri, ResourceEvent as ApiResourceEvent, SSEStream } from '@semiont/api-client';
+import type { ResourceUri, SSEStream } from '@semiont/api-client';
+import type { ResourceEvent } from '@semiont/core';
 import { useApiClient } from '../contexts/ApiClientContext';
-
-/**
- * Resource event structure from the event store
- * (Re-exported from api-client for consistency)
- */
-export type ResourceEvent = ApiResourceEvent;
 
 /**
  * Stream connection status
@@ -18,13 +13,13 @@ export type StreamStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 interface UseResourceEventsOptions {
   rUri: ResourceUri;
   onEvent?: (event: ResourceEvent) => void;
-  onAnnotationAdded?: (event: ResourceEvent) => void;
-  onAnnotationRemoved?: (event: ResourceEvent) => void;
-  onAnnotationBodyUpdated?: (event: ResourceEvent) => void;
-  onEntityTagAdded?: (event: ResourceEvent) => void;
-  onEntityTagRemoved?: (event: ResourceEvent) => void;
-  onDocumentArchived?: (event: ResourceEvent) => void;
-  onDocumentUnarchived?: (event: ResourceEvent) => void;
+  onAnnotationAdded?: (event: Extract<ResourceEvent, { type: 'annotation.added' }>) => void;
+  onAnnotationRemoved?: (event: Extract<ResourceEvent, { type: 'annotation.removed' }>) => void;
+  onAnnotationBodyUpdated?: (event: Extract<ResourceEvent, { type: 'annotation.body.updated' }>) => void;
+  onEntityTagAdded?: (event: Extract<ResourceEvent, { type: 'entitytag.added' }>) => void;
+  onEntityTagRemoved?: (event: Extract<ResourceEvent, { type: 'entitytag.removed' }>) => void;
+  onDocumentArchived?: (event: Extract<ResourceEvent, { type: 'resource.archived' }>) => void;
+  onDocumentUnarchived?: (event: Extract<ResourceEvent, { type: 'resource.unarchived' }>) => void;
   onError?: (error: string) => void;
   autoConnect?: boolean; // Default: true
 }
@@ -67,7 +62,7 @@ export function useResourceEvents({
   const [status, setStatus] = useState<StreamStatus>('disconnected');
   const [lastEvent, setLastEvent] = useState<ResourceEvent | null>(null);
   const [eventCount, setEventCount] = useState(0);
-  const streamRef = useRef<SSEStream<ApiResourceEvent, never> | null>(null);
+  const streamRef = useRef<SSEStream<ResourceEvent, never> | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const connectingRef = useRef(false);
@@ -121,10 +116,10 @@ export function useResourceEvents({
       case 'entitytag.removed':
         onEntityTagRemovedRef.current?.(event);
         break;
-      case 'document.archived':
+      case 'resource.archived':
         onDocumentArchivedRef.current?.(event);
         break;
-      case 'document.unarchived':
+      case 'resource.unarchived':
         onDocumentUnarchivedRef.current?.(event);
         break;
     }
@@ -163,12 +158,12 @@ export function useResourceEvents({
       // Handle progress events (all resource events)
       stream.onProgress((event) => {
         // Ignore keep-alive messages (if they come through as events)
-        if (event.type === 'keep-alive') {
+        if ((event as any).type === 'keep-alive') {
           return;
         }
 
         // Handle stream-connected event
-        if (event.type === 'stream-connected') {
+        if ((event as any).type === 'stream-connected') {
           setStatus('connected');
           reconnectAttemptsRef.current = 0; // Reset reconnect counter
           return;

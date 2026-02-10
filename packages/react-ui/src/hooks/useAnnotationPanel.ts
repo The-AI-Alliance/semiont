@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import type { components } from '@semiont/api-client';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
 
@@ -24,14 +24,12 @@ export function useAnnotationPanel<T extends Annotation>(
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Sort annotations by their position in the resource
-  const sortedAnnotations = useMemo(() => {
-    return [...annotations].sort((a, b) => {
-      const aSelector = getTextPositionSelector(getTargetSelector(a.target));
-      const bSelector = getTextPositionSelector(getTargetSelector(b.target));
-      if (!aSelector || !bSelector) return 0;
-      return aSelector.start - bSelector.start;
-    });
-  }, [annotations]);
+  const sortedAnnotations = [...annotations].sort((a, b) => {
+    const aSelector = getTextPositionSelector(getTargetSelector(a.target));
+    const bSelector = getTextPositionSelector(getTargetSelector(b.target));
+    if (!aSelector || !bSelector) return 0;
+    return aSelector.start - bSelector.start;
+  });
 
   // Handle hover: scroll to annotation and pulse highlight
   useEffect(() => {

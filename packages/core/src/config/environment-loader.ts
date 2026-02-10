@@ -1,11 +1,10 @@
 /**
  * Environment Loader Module
- * 
+ *
  * Responsible for loading and merging environment configurations.
  * Handles semiont.json base config and environment-specific overrides.
  */
 
-import * as path from 'path';
 import { ConfigurationError } from './configuration-error';
 import { PlatformType } from './platform-types';
 import { isObject } from '../index';
@@ -267,7 +266,13 @@ export function getNodeEnvForEnvironment(config: EnvironmentConfig): 'developmen
 export function listEnvironmentNames(files: string[]): string[] {
   return files
     .filter(file => file.endsWith('.json'))
-    .map(file => path.basename(file, '.json'))
+    .map(file => {
+      // Extract filename from path (handle directory separators)
+      const lastSlash = Math.max(file.lastIndexOf('/'), file.lastIndexOf('\\'));
+      const filename = lastSlash >= 0 ? file.substring(lastSlash + 1) : file;
+      // Remove '.json' suffix
+      return filename.slice(0, -5);
+    })
     .sort();
 }
 

@@ -2,17 +2,16 @@
 
 import React, { useRef, useCallback } from 'react';
 import type { RouteBuilder, LinkComponentProps } from '../../contexts/RoutingContext';
+import type { StoredEvent, ResourceEventType } from '@semiont/core';
+import { getAnnotationUriFromEvent } from '@semiont/core';
 import {
-  type StoredEvent,
-  type ResourceEventType,
   formatEventType,
   getEventEmoji,
   formatRelativeTime,
   getEventDisplayContent,
   getEventEntityTypes,
   getResourceCreationDetails,
-  getAnnotationUriFromEvent,
-} from '@semiont/api-client';
+} from './event-formatting';
 
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
 

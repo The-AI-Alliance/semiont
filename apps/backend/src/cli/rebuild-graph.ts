@@ -11,7 +11,8 @@
  */
 
 import { startMakeMeaning } from '@semiont/make-meaning';
-import { loadEnvironmentConfig, resourceId as makeResourceId } from '@semiont/core';
+import { resourceId as makeResourceId } from '@semiont/core';
+import { loadEnvironmentConfig } from '../config-loader';
 
 async function rebuildGraph(rId?: string) {
   console.log('🔄 Rebuilding Neo4j graph from events...\n');

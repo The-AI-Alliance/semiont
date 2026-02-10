@@ -217,6 +217,7 @@
     "generate": "Generate",
     "find": "Find",
     "create": "Create",
+    "cancel": "Cancel",
     "incomingReferences": "Incoming References",
     "loading": "loading...",
     "loadingEllipsis": "Loading...",

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
+import { useMakeMeaningEvents } from '../../../contexts/MakeMeaningEventBusContext';
 import type { components, Selector } from '@semiont/api-client';
 import { TagEntry } from './TagEntry';
 import { useAnnotationPanel } from '../../../hooks/useAnnotationPanel';
@@ -71,6 +72,7 @@ export function TaggingPanel({
   pendingAnnotation
 }: TaggingPanelProps) {
   const t = useTranslations('TaggingPanel');
+  const eventBus = useMakeMeaningEvents();
   const [selectedSchemaId, setSelectedSchemaId] = useState<string>('legal-irac');
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
 
@@ -124,6 +126,20 @@ export function TaggingPanel({
       setSelectedCategories(new Set()); // Reset after detection
     }
   };
+
+  // Escape key handler for cancelling pending annotation
+  useEffect(() => {
+    if (!pendingAnnotation) return;
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        eventBus.emit('ui:annotation:cancel-pending');
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [pendingAnnotation, eventBus]);
 
   // Color schemes are now handled via CSS data attributes
 
@@ -191,6 +207,17 @@ export function TaggingPanel({
                 </select>
               </div>
             )}
+
+            {/* Cancel button */}
+            <div className="semiont-annotation-prompt__footer">
+              <button
+                onClick={() => eventBus.emit('ui:annotation:cancel-pending')}
+                className="semiont-button semiont-button--secondary"
+                data-type="tag"
+              >
+                {t('cancel')}
+              </button>
+            </div>
           </div>
         )}
 

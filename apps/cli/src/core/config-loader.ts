@@ -1,28 +1,53 @@
 /**
- * Filesystem-based wrapper for environment loading
+ * Configuration Loader for CLI
  *
- * This module provides convenient filesystem-based wrappers around the pure
- * configuration functions. These are intended for application code that needs
- * to load config from disk.
- *
- * The pure functions (parseAndMergeConfigs, etc.) remain testable without
- * filesystem mocking.
+ * Filesystem wrapper around @semiont/core's pure config functions.
+ * This keeps fs operations out of the core package.
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { parseAndMergeConfigs, listEnvironmentNames, type EnvironmentConfig } from './environment-loader';
-import { findProjectRoot } from './project-discovery';
-import { ConfigurationError } from './configuration-error';
+import { parseAndMergeConfigs, listEnvironmentNames, ConfigurationError, type EnvironmentConfig } from '@semiont/core';
+
+/**
+ * Find project root from SEMIONT_ROOT environment variable
+ */
+export function findProjectRoot(): string {
+  const root = process.env.SEMIONT_ROOT;
+
+  if (!root) {
+    throw new ConfigurationError(
+      'SEMIONT_ROOT environment variable is not set',
+      undefined,
+      'Set SEMIONT_ROOT to your project directory, or use the semiont CLI which sets it automatically'
+    );
+  }
+
+  if (!fs.existsSync(root)) {
+    throw new ConfigurationError(
+      `SEMIONT_ROOT points to non-existent directory: ${root}`,
+      undefined,
+      'Check that SEMIONT_ROOT environment variable is set correctly'
+    );
+  }
+
+  // Verify it's a valid project root
+  const hasSemiontJson = fs.existsSync(path.join(root, 'semiont.json'));
+  const hasEnvironments = fs.existsSync(path.join(root, 'environments'));
+
+  if (!hasSemiontJson && !hasEnvironments) {
+    throw new ConfigurationError(
+      `SEMIONT_ROOT does not point to a valid Semiont project: ${root}`,
+      undefined,
+      'Ensure SEMIONT_ROOT points to a directory containing semiont.json or environments/'
+    );
+  }
+
+  return root;
+}
 
 /**
  * Load environment configuration from filesystem
- * Convenience wrapper around parseAndMergeConfigs for application code
- *
- * @param projectRoot - Absolute path to project directory containing semiont.json
- * @param environment - Environment name (must match a file in environments/)
- * @returns Merged environment configuration
- * @throws ConfigurationError if files are missing or invalid
  */
 export function loadEnvironmentConfig(projectRoot: string, environment: string): EnvironmentConfig {
   // Load base semiont.json
@@ -43,15 +68,12 @@ export function loadEnvironmentConfig(projectRoot: string, environment: string):
 
   const envContent = fs.readFileSync(envPath, 'utf-8');
 
-  // Use pure function with filesystem inputs
+  // Use pure function from @semiont/core with filesystem inputs
   return parseAndMergeConfigs(baseContent, envContent, process.env, environment, projectRoot);
 }
 
 /**
  * Get available environments by scanning environments directory
- * Convenience wrapper around listEnvironmentNames for application code
- *
- * @returns Array of environment names
  */
 export function getAvailableEnvironments(): string[] {
   try {
@@ -71,9 +93,6 @@ export function getAvailableEnvironments(): string[] {
 
 /**
  * Check if an environment exists
- *
- * @param environment - Environment name to check
- * @returns True if environment exists
  */
 export function isValidEnvironment(environment: string): boolean {
   return getAvailableEnvironments().includes(environment);

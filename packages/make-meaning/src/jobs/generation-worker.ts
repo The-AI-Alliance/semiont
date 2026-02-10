@@ -21,11 +21,11 @@ import {
 import { getEntityTypes } from '@semiont/ontology';
 import {
   CREATION_METHODS,
-  generateUuid,
   type BodyOperation,
   resourceId,
   annotationId,
 } from '@semiont/core';
+import { generateUuid } from '../id-generation';
 import { EventStore } from '@semiont/event-sourcing';
 import type { EnvironmentConfig } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
