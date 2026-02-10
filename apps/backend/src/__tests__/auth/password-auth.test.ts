@@ -5,6 +5,34 @@
 
 import { describe, it, expect, beforeEach, beforeAll, vi } from 'vitest';
 
+// Mock config-loader to avoid needing SEMIONT_ROOT
+vi.mock('../../config-loader', () => ({
+  findProjectRoot: vi.fn(() => '/tmp/test-project'),
+  loadEnvironmentConfig: vi.fn(() => ({
+    site: { domain: 'test.local', oauthAllowedDomains: ['test.local'] },
+    env: { NODE_ENV: 'test' },
+    services: {
+      backend: {
+        platform: { type: 'posix' },
+        corsOrigin: 'http://localhost:3000',
+        publicURL: 'http://localhost:4000',
+        port: 4000
+      },
+      frontend: {
+        platform: { type: 'posix' },
+        url: 'http://localhost:3000',
+        port: 3000,
+        siteName: 'Test Site'
+      },
+      filesystem: {
+        platform: { type: 'posix' },
+        path: `/tmp/semiont-test-${process.pid}-${Date.now()}`
+      }
+    },
+    app: {}
+  })),
+}));
+
 // Mock make-meaning service to avoid graph initialization at import time
 vi.mock('@semiont/make-meaning', async (importOriginal) => {
   const actual = await importOriginal() as any;
