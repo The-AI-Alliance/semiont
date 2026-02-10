@@ -482,7 +482,7 @@ describe('TaggingPanel Component', () => {
         />
       );
 
-      const detectButton = screen.getByRole('button', { name: /^Detect$/i });
+      const detectButton = screen.getByRole('button', { name: /✨ Detect/i });
       expect(detectButton).toBeDisabled();
     });
 
@@ -498,7 +498,7 @@ describe('TaggingPanel Component', () => {
       const issueCheckbox = screen.getByLabelText(/Issue/);
       await userEvent.click(issueCheckbox);
 
-      const detectButton = screen.getByRole('button', { name: /^Detect$/i });
+      const detectButton = screen.getByRole('button', { name: /✨ Detect/i });
       expect(detectButton).not.toBeDisabled();
     });
 
@@ -518,7 +518,7 @@ describe('TaggingPanel Component', () => {
       await userEvent.click(issueCheckbox);
       await userEvent.click(ruleCheckbox);
 
-      const detectButton = screen.getByRole('button', { name: /^Detect$/i });
+      const detectButton = screen.getByRole('button', { name: /✨ Detect/i });
       await userEvent.click(detectButton);
 
       expect(onDetect).toHaveBeenCalledWith('legal-irac', ['Issue', 'Rule']);
