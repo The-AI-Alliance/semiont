@@ -84,7 +84,7 @@ export {
 } from './event-utils';
 
 // Backend-specific annotation utilities
-export { bodyItemsMatch, findBodyItem } from './annotation-utils';
+export { findBodyItem } from './annotation-utils';
 
 // Resource types
 export type { UpdateResourceInput, ResourceFilter } from './resource-types';
