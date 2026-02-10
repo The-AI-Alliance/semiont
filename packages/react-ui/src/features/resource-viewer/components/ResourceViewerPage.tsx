@@ -258,12 +258,25 @@ function ResourceViewerPageInner({
     startGeneration,
     clearProgress
   } = useGenerationProgress({
-    onComplete: () => {
-      // Clear progress widget
-      setTimeout(() => clearProgress(), 1000);
+    onComplete: (progress) => {
+      // Show success notification
+      if (progress.resourceName) {
+        showSuccess(`Resource "${progress.resourceName}" created successfully!`);
+      } else {
+        showSuccess('Resource created successfully!');
+      }
+
+      // Refetch annotations to show the reference is now resolved
+      if (cacheManager) {
+        cacheManager.invalidate('annotations');
+      }
+
+      // Clear progress widget after a delay to show completion state
+      setTimeout(() => clearProgress(), 2000);
     },
     onError: (error) => {
       console.error('[Generation] Error:', error);
+      showError(`Resource generation failed: ${error}`);
     }
   });
 
