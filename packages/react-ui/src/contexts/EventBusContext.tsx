@@ -262,8 +262,3 @@ export function useEvents(): EventBus {
   }
   return bus;
 }
-
-// Legacy exports for backward compatibility during migration
-export const useMakeMeaningEvents = useEvents;
-export const useNavigationEvents = useEvents;
-export const useGlobalSettingsEvents = useEvents;
