@@ -2,23 +2,39 @@
 
 import { useCallback } from 'react';
 import { useNavigationEvents } from '../contexts/NavigationEventBusContext';
-import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 
 /**
- * Hook that wraps Next.js router with event emission for observability
+ * Generic router interface - works with any router that has push/replace methods
+ * (Next.js App Router, Next.js Pages Router, React Router, etc.)
+ */
+interface Router {
+  push: (path: string) => void;
+  replace?: (path: string) => void;
+  [key: string]: any;
+}
+
+/**
+ * Hook that wraps any router with event emission for observability
  *
- * Use this instead of useRouter() from next/navigation when you want
+ * Use this to wrap your router (Next.js, React Router, etc.) when you want
  * navigation actions to be observable through the NavigationEventBus.
  *
  * @example
  * ```typescript
- * const router = useObservableRouter();
+ * // Next.js App Router
+ * import { useRouter } from 'next/navigation';
+ * const nextRouter = useRouter();
+ * const router = useObservableRouter(nextRouter);
+ * router.push('/know/discover', { reason: 'resource-closed' });
  *
- * // This will emit 'navigation:router-push' event before navigating
+ * // React Router
+ * import { useNavigate } from 'react-router-dom';
+ * const navigate = useNavigate();
+ * const router = useObservableRouter({ push: navigate });
  * router.push('/know/discover', { reason: 'resource-closed' });
  * ```
  */
-export function useObservableRouter(baseRouter: AppRouterInstance) {
+export function useObservableRouter<T extends Router>(baseRouter: T): T {
   const eventBus = useNavigationEvents();
 
   const push = useCallback((path: string, options?: { reason?: string }) => {
@@ -33,6 +49,9 @@ export function useObservableRouter(baseRouter: AppRouterInstance) {
   }, [baseRouter, eventBus]);
 
   const replace = useCallback((path: string, options?: { reason?: string }) => {
+    // Only wrap replace if the router has it
+    if (!baseRouter.replace) return;
+
     // Emit event for observability
     eventBus.emit('navigation:router-push', {
       path,
@@ -46,8 +65,8 @@ export function useObservableRouter(baseRouter: AppRouterInstance) {
   return {
     ...baseRouter,
     push,
-    replace
-  };
+    ...(baseRouter.replace && { replace })
+  } as T;
 }
 
 /**
