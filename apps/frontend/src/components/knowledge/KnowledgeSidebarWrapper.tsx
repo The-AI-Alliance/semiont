@@ -25,10 +25,9 @@ export function KnowledgeSidebarWrapper() {
       isAdmin={isAdmin}
       isModerator={isModerator}
     >
-      {(isCollapsed, toggleCollapsed, navigationMenu) => (
+      {(isCollapsed, _toggleCollapsed, navigationMenu) => (
         <KnowledgeNavigation
           isCollapsed={isCollapsed}
-          onToggleCollapse={toggleCollapsed}
           navigationMenu={navigationMenu}
         />
       )}

@@ -8,6 +8,7 @@
  */
 
 import { useTranslations } from 'next-intl';
+import { useEffect } from 'react';
 import {
   ChartBarIcon,
   ServerIcon,
@@ -15,7 +16,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { StatusDisplay, Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, useToolbar, useLineNumbers } from '@semiont/react-ui';
+import { useTheme, useToolbar, useLineNumbers, useGlobalSettingsEvents } from '@semiont/react-ui';
 import { AdminDevOpsPage } from '@semiont/react-ui';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -35,13 +36,23 @@ export default function DevOpsPage() {
   const t = useTranslations('AdminDevOps');
 
   // Toolbar and settings state
-  const { activePanel, togglePanel } = useToolbar();
+  const { activePanel } = useToolbar();
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
+  const settingsEventBus = useGlobalSettingsEvents();
 
-  const handlePanelToggle = (panel: string | null) => {
-    if (panel) togglePanel(panel as any);
-  };
+  useEffect(() => {
+    const handleThemeChange = ({ theme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(theme);
+    const handleLineNumbersToggle = () => toggleLineNumbers();
+
+    settingsEventBus.on('settings:theme-changed', handleThemeChange);
+    settingsEventBus.on('settings:line-numbers-toggled', handleLineNumbersToggle);
+
+    return () => {
+      settingsEventBus.off('settings:theme-changed', handleThemeChange);
+      settingsEventBus.off('settings:line-numbers-toggled', handleLineNumbersToggle);
+    };
+  }, [settingsEventBus, setTheme, toggleLineNumbers]);
 
   const suggestedFeatures = [
     {
@@ -68,11 +79,8 @@ export default function DevOpsPage() {
     <AdminDevOpsPage
       suggestedFeatures={suggestedFeatures}
       theme={theme}
-      onThemeChange={setTheme}
       showLineNumbers={showLineNumbers}
-      onLineNumbersToggle={toggleLineNumbers}
       activePanel={activePanel}
-      onPanelToggle={handlePanelToggle}
       translations={{
         title: t('title'),
         subtitle: t('subtitle'),

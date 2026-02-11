@@ -7,10 +7,10 @@
  * and delegates rendering to the pure React ResourceDiscoveryPage component.
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
-import { useResources, useEntityTypes, useTheme, useToolbar, useLineNumbers } from '@semiont/react-ui';
+import { useResources, useEntityTypes, useTheme, useToolbar, useLineNumbers, useGlobalSettingsEvents } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { ResourceDiscoveryPage } from '@semiont/react-ui';
 
@@ -22,13 +22,23 @@ export default function DiscoverPage() {
   const router = useRouter();
 
   // Toolbar and settings state
-  const { activePanel, togglePanel } = useToolbar();
+  const { activePanel } = useToolbar();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
+  const settingsEventBus = useGlobalSettingsEvents();
 
-  const handlePanelToggle = (panel: string | null) => {
-    if (panel) togglePanel(panel as any);
-  };
+  useEffect(() => {
+    const handleThemeChange = ({ theme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(theme);
+    const handleLineNumbersToggle = () => toggleLineNumbers();
+
+    settingsEventBus.on('settings:theme-changed', handleThemeChange);
+    settingsEventBus.on('settings:line-numbers-toggled', handleLineNumbersToggle);
+
+    return () => {
+      settingsEventBus.off('settings:theme-changed', handleThemeChange);
+      settingsEventBus.off('settings:line-numbers-toggled', handleLineNumbersToggle);
+    };
+  }, [settingsEventBus, setTheme, toggleLineNumbers]);
 
   // API hooks
   const resources = useResources();
@@ -62,11 +72,8 @@ export default function DiscoverPage() {
       isLoadingRecent={isLoadingRecent}
       isSearching={isSearching}
       theme={resolvedTheme}
-      onThemeChange={setTheme}
       showLineNumbers={showLineNumbers}
-      onLineNumbersToggle={toggleLineNumbers}
       activePanel={activePanel}
-      onPanelToggle={handlePanelToggle}
       onNavigateToResource={(resourceId) => {
         router.push(`/know/resource/${encodeURIComponent(resourceId)}`);
       }}

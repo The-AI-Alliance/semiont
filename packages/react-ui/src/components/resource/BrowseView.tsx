@@ -30,7 +30,6 @@ interface Props {
   selectedClick?: ClickAction;
   onClickChange?: (motivation: ClickAction) => void;
   annotateMode: boolean;
-  onAnnotateModeToggle: () => void;
   annotators: Record<string, Annotator>;
 }
 
@@ -69,7 +68,6 @@ export function BrowseView({
   selectedClick = 'detail',
   onClickChange,
   annotateMode,
-  onAnnotateModeToggle,
   annotators
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();
@@ -338,7 +336,6 @@ export function BrowseView({
             showSelectionGroup={false}
             showDeleteButton={false}
             annotateMode={annotateMode}
-            onAnnotateModeToggle={onAnnotateModeToggle}
             annotators={annotators}
           />
           <div ref={containerRef} className="semiont-browse-view__content">
@@ -370,8 +367,7 @@ export function BrowseView({
               showSelectionGroup={false}
               showDeleteButton={false}
               annotateMode={annotateMode}
-              onAnnotateModeToggle={onAnnotateModeToggle}
-              annotators={annotators}
+                annotators={annotators}
             />
             <div ref={containerRef} className="semiont-browse-view__content">
               <Suspense fallback={<div className="semiont-browse-view__loading">Loading PDF viewer...</div>}>
@@ -400,7 +396,6 @@ export function BrowseView({
             showSelectionGroup={false}
             showDeleteButton={false}
             annotateMode={annotateMode}
-            onAnnotateModeToggle={onAnnotateModeToggle}
             annotators={annotators}
           />
           <div ref={containerRef} className="semiont-browse-view__content">

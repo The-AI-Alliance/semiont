@@ -1,8 +1,22 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ResourceInfoPanel } from '../ResourceInfoPanel';
+
+// Mock event bus
+const mockEmit = vi.fn();
+const mockEventBus = {
+  emit: mockEmit,
+  on: vi.fn(),
+  off: vi.fn(),
+  all: new Map(),
+};
+
+// Mock MakeMeaningEventBusContext
+vi.mock('../../../../contexts/MakeMeaningEventBusContext', () => ({
+  useMakeMeaningEvents: () => mockEventBus,
+}));
 
 // Mock TranslationContext
 vi.mock('../../../../contexts/TranslationContext', () => ({
@@ -50,6 +64,10 @@ describe('ResourceInfoPanel Component', () => {
     primaryMediaType: undefined,
     primaryByteSize: undefined,
   };
+
+  beforeEach(() => {
+    mockEmit.mockClear();
+  });
 
   describe('Rendering', () => {
     it('should render locale section', () => {
@@ -162,12 +180,10 @@ describe('ResourceInfoPanel Component', () => {
   });
 
   describe('Clone Action', () => {
-    it('should render clone button when handler provided', () => {
-      const onClone = vi.fn();
+    it('should render clone button', () => {
       render(
         <ResourceInfoPanel
           {...defaultProps}
-          onClone={onClone}
         />
       );
 
@@ -175,39 +191,25 @@ describe('ResourceInfoPanel Component', () => {
       expect(screen.getByText('Generate a shareable clone link for this resource')).toBeInTheDocument();
     });
 
-    it('should call onClone when clone button clicked', () => {
-      const onClone = vi.fn();
+    it('should emit resource:clone event when clone button clicked', () => {
       render(
         <ResourceInfoPanel
           {...defaultProps}
-          onClone={onClone}
         />
       );
 
       const button = screen.getByRole('button', { name: /Clone/i });
       fireEvent.click(button);
-      expect(onClone).toHaveBeenCalledTimes(1);
-    });
-
-    it('should not render clone button when handler not provided', () => {
-      render(
-        <ResourceInfoPanel
-          {...defaultProps}
-        />
-      );
-
-      expect(screen.queryByText('Clone')).not.toBeInTheDocument();
+      expect(mockEmit).toHaveBeenCalledWith('resource:clone');
     });
   });
 
   describe('Archive Actions', () => {
     it('should render archive button when not archived', () => {
-      const onArchive = vi.fn();
       render(
         <ResourceInfoPanel
           {...defaultProps}
           isArchived={false}
-          onArchive={onArchive}
         />
       );
 
@@ -216,12 +218,10 @@ describe('ResourceInfoPanel Component', () => {
     });
 
     it('should render unarchive button when archived', () => {
-      const onUnarchive = vi.fn();
       render(
         <ResourceInfoPanel
           {...defaultProps}
           isArchived={true}
-          onUnarchive={onUnarchive}
         />
       );
 
@@ -229,46 +229,30 @@ describe('ResourceInfoPanel Component', () => {
       expect(screen.getByText('Restore this resource to active status')).toBeInTheDocument();
     });
 
-    it('should call onArchive when archive button clicked', () => {
-      const onArchive = vi.fn();
+    it('should emit resource:archive event when archive button clicked', () => {
       render(
         <ResourceInfoPanel
           {...defaultProps}
           isArchived={false}
-          onArchive={onArchive}
         />
       );
 
       const button = screen.getByRole('button', { name: /Archive/i });
       fireEvent.click(button);
-      expect(onArchive).toHaveBeenCalledTimes(1);
+      expect(mockEmit).toHaveBeenCalledWith('resource:archive');
     });
 
-    it('should call onUnarchive when unarchive button clicked', () => {
-      const onUnarchive = vi.fn();
+    it('should emit resource:unarchive event when unarchive button clicked', () => {
       render(
         <ResourceInfoPanel
           {...defaultProps}
           isArchived={true}
-          onUnarchive={onUnarchive}
         />
       );
 
       const button = screen.getByRole('button', { name: /Unarchive/i });
       fireEvent.click(button);
-      expect(onUnarchive).toHaveBeenCalledTimes(1);
-    });
-
-    it('should not render archive buttons when handlers not provided', () => {
-      render(
-        <ResourceInfoPanel
-          {...defaultProps}
-          isArchived={false}
-        />
-      );
-
-      expect(screen.queryByText('Archive')).not.toBeInTheDocument();
-      expect(screen.queryByText('Unarchive')).not.toBeInTheDocument();
+      expect(mockEmit).toHaveBeenCalledWith('resource:unarchive');
     });
   });
 });

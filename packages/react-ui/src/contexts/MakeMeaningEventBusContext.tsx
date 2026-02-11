@@ -66,6 +66,11 @@ export type MakeMeaningEventMap = {
   'resource:archived': Extract<ResourceEvent, { type: 'resource.archived' }>;
   'resource:unarchived': Extract<ResourceEvent, { type: 'resource.unarchived' }>;
 
+  // Resource operation events (user-initiated API calls)
+  'resource:archive': void;
+  'resource:unarchive': void;
+  'resource:clone': void;
+
   // Selection events - User highlighting text/regions
   'selection:comment-requested': SelectionData;
   'selection:tag-requested': SelectionData;
@@ -79,11 +84,15 @@ export type MakeMeaningEventMap = {
   'annotation:click': { annotationId: string };
   'annotation:focus': { annotationId: string | null };
   'annotation:ref-update': { annotationId: string; element: HTMLElement | null };
+  'annotation:sparkle': { annotationId: string };
 
   // Panel management events
   'panel:toggle': { panel: string };
   'panel:open': { panel: string };
   'panel:close': void;
+
+  // View mode events
+  'view:mode-toggled': void;
 
   // Job control events
   'job:cancel-requested': { jobType: 'detection' | 'generation' };

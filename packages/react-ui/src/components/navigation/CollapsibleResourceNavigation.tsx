@@ -19,6 +19,7 @@ import {
 import { SortableResourceTab } from './SortableResourceTab';
 import { useDragAnnouncements } from '../../hooks/useDragAnnouncements';
 import { useTranslations } from '../../contexts/TranslationContext';
+import { useNavigationEvents } from '../../contexts/NavigationEventBusContext';
 import type { CollapsibleResourceNavigationProps } from '../../types/collapsible-navigation';
 import './CollapsibleResourceNavigation.css';
 
@@ -31,9 +32,6 @@ export function CollapsibleResourceNavigation({
   fixedItems,
   resources,
   isCollapsed,
-  onToggleCollapse,
-  onResourceClose,
-  onResourceReorder,
   currentPath,
   LinkComponent,
   onNavigate,
@@ -51,6 +49,7 @@ export function CollapsibleResourceNavigation({
 
   const { announcePickup, announceDrop, announceKeyboardReorder, announceCannotMove } = useDragAnnouncements();
   const t = useTranslations('CollapsibleResourceNavigation');
+  const eventBus = useNavigationEvents();
 
   // Use translations from context, with fallback to props for backward compatibility
   const mergedTranslations = {
@@ -106,20 +105,21 @@ export function CollapsibleResourceNavigation({
       return;
     }
 
-    // Perform reorder
-    onResourceReorder(currentIndex, newIndex);
+    // Emit event
+    eventBus.emit('navigation:resource-reorder', { oldIndex: currentIndex, newIndex });
 
     // Announce the change
     const resource = resources[currentIndex];
     announceKeyboardReorder(resource.name, direction, newIndex + 1, resources.length);
-  }, [resources, onResourceReorder, announceKeyboardReorder, announceCannotMove]);
+  }, [resources, eventBus, announceKeyboardReorder, announceCannotMove]);
 
   // Handle resource close
   const handleResourceClose = (resourceId: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
-    onResourceClose(resourceId);
+    // Emit event
+    eventBus.emit('navigation:resource-close', { resourceId });
 
     // If we're closing the currently viewed resource, navigate to first fixed item or trigger callback
     const resourceHref = getResourceHref(resourceId);
@@ -146,7 +146,8 @@ export function CollapsibleResourceNavigation({
       const oldIndex = resources.findIndex((resource) => resource.id === active.id);
       const newIndex = resources.findIndex((resource) => resource.id === over.id);
       if (oldIndex !== -1 && newIndex !== -1) {
-        onResourceReorder(oldIndex, newIndex);
+        // Emit event
+        eventBus.emit('navigation:resource-reorder', { oldIndex, newIndex });
         const resource = resources[oldIndex];
         announceDrop(resource.name, newIndex + 1, resources.length);
       }
@@ -184,7 +185,7 @@ export function CollapsibleResourceNavigation({
               <span className="semiont-nav-section__header-text">{mergedTranslations.title}</span>
             )}
             <button
-              onClick={onToggleCollapse}
+              onClick={() => eventBus.emit('navigation:sidebar-toggle')}
               className="semiont-nav-section__header-icon"
               title={isCollapsed ? mergedTranslations.expandSidebar : mergedTranslations.collapseSidebar}
               aria-label={isCollapsed ? mergedTranslations.expandSidebar : mergedTranslations.collapseSidebar}

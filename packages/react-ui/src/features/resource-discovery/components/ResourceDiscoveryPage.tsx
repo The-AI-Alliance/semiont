@@ -23,11 +23,8 @@ export interface ResourceDiscoveryPageProps {
 
   // UI state props
   theme: 'light' | 'dark';
-  onThemeChange: (theme: 'light' | 'dark') => void;
   showLineNumbers: boolean;
-  onLineNumbersToggle: () => void;
   activePanel: string | null;
-  onPanelToggle: (panel: string) => void;
 
   // Navigation props
   onNavigateToResource: (resourceId: string) => void;
@@ -64,11 +61,8 @@ export function ResourceDiscoveryPage({
   isLoadingRecent,
   isSearching,
   theme,
-  onThemeChange,
   showLineNumbers,
-  onLineNumbersToggle,
   activePanel,
-  onPanelToggle,
   onNavigateToResource,
   onNavigateToCompose,
   translations: t,
@@ -267,16 +261,13 @@ export function ResourceDiscoveryPage({
         <ToolbarPanels
           activePanel={activePanel}
           theme={theme}
-          onThemeChange={onThemeChange}
           showLineNumbers={showLineNumbers}
-          onLineNumbersToggle={onLineNumbersToggle}
         />
 
         {/* Toolbar - Always visible on the right */}
         <Toolbar
           context="simple"
           activePanel={activePanel}
-          onPanelToggle={onPanelToggle}
         />
       </div>
     </div>

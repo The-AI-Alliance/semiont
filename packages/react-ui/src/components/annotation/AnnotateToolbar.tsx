@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
+import { useMakeMeaningEvents } from '../../contexts/MakeMeaningEventBusContext';
 import { getSupportedShapes } from '../../lib/media-shapes';
 import type { Annotator } from '../../lib/annotation-registry';
 import './annotations.css';
@@ -26,7 +27,6 @@ interface AnnotateToolbarProps {
 
   // Mode props
   annotateMode: boolean;
-  onAnnotateModeToggle: () => void;
 
   // Annotators for emoji lookup
   annotators: Record<string, Annotator>;
@@ -114,10 +114,10 @@ export function AnnotateToolbar({
   onShapeChange,
   mediaType,
   annotateMode = false,
-  onAnnotateModeToggle,
   annotators
 }: AnnotateToolbarProps) {
   const t = useTranslations('AnnotateToolbar');
+  const eventBus = useMakeMeaningEvents();
 
   // Helper to get emoji from annotators by motivation (with fallback for safety)
   const getMotivationEmoji = (motivation: SelectionMotivation): string => {
@@ -212,7 +212,7 @@ export function AnnotateToolbar({
   };
 
   const handleModeToggle = () => {
-    onAnnotateModeToggle();
+    eventBus.emit('view:mode-toggled');
     setModePinned(false);
     setModeHovered(false);
   };

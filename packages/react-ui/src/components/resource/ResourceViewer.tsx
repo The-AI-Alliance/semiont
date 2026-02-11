@@ -102,10 +102,15 @@ export function ResourceViewer({
     }
   }, [annotateMode]);
 
-  // Toggle handler
-  const toggleAnnotateMode = useCallback(() => {
-    setAnnotateMode(prev => !prev);
-  }, []);
+  // Subscribe to view mode toggle events
+  useEffect(() => {
+    const handleModeToggle = () => {
+      setAnnotateMode(prev => !prev);
+    };
+
+    eventBus.on('view:mode-toggled', handleModeToggle);
+    return () => eventBus.off('view:mode-toggled', handleModeToggle);
+  }, [eventBus]);
 
   // Determine active view based on annotate mode
   const activeView = annotateMode ? 'annotate' : 'browse';
@@ -535,7 +540,6 @@ export function ResourceViewer({
           onDeleteAnnotation={handleDeleteAnnotationWidget}
           showLineNumbers={showLineNumbers}
           annotateMode={annotateMode}
-          onAnnotateModeToggle={toggleAnnotateMode}
           {...(onAnnotationRequested && { onAnnotationRequested })}
           annotators={annotators}
         />
@@ -550,7 +554,6 @@ export function ResourceViewer({
           selectedClick={selectedClick}
           onClickChange={setSelectedClick}
           annotateMode={annotateMode}
-          onAnnotateModeToggle={toggleAnnotateMode}
           annotators={annotators}
         />
       )}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useTranslations } from '../../../contexts/TranslationContext';
+import { useMakeMeaningEvents } from '../../../contexts/MakeMeaningEventBusContext';
 import { formatLocaleDisplay } from '@semiont/api-client';
 import './ResourceInfoPanel.css';
 
@@ -10,9 +11,6 @@ interface Props {
   primaryMediaType?: string | undefined;
   primaryByteSize?: number | undefined;
   isArchived?: boolean;
-  onArchive?: () => void;
-  onUnarchive?: () => void;
-  onClone?: () => void;
 }
 
 export function ResourceInfoPanel({
@@ -21,11 +19,9 @@ export function ResourceInfoPanel({
   primaryMediaType,
   primaryByteSize,
   isArchived = false,
-  onArchive,
-  onUnarchive,
-  onClone
 }: Props) {
   const t = useTranslations('ResourceInfoPanel');
+  const eventBus = useMakeMeaningEvents();
 
   return (
     <div className="semiont-resource-info-panel">
@@ -92,50 +88,46 @@ export function ResourceInfoPanel({
       )}
 
       {/* Clone Action */}
-      {onClone && (
-        <div className="semiont-resource-info-panel__action-section">
-          <button
-            onClick={onClone}
-            className="semiont-resource-button semiont-resource-button--secondary"
-          >
-            🔗 {t('clone')}
-          </button>
-          <p className="semiont-resource-info-panel__description">
-            {t('cloneDescription')}
-          </p>
-        </div>
-      )}
+      <div className="semiont-resource-info-panel__action-section">
+        <button
+          onClick={() => eventBus.emit('resource:clone')}
+          className="semiont-resource-button semiont-resource-button--secondary"
+        >
+          🔗 {t('clone')}
+        </button>
+        <p className="semiont-resource-info-panel__description">
+          {t('cloneDescription')}
+        </p>
+      </div>
 
       {/* Archive/Unarchive Actions */}
-      {(onArchive || onUnarchive) && (
-        <div className="semiont-resource-info-panel__action-section">
-          {isArchived ? (
-            <>
-              <button
-                onClick={onUnarchive}
-                className="semiont-resource-button semiont-resource-button--secondary"
-              >
-                📤 {t('unarchive')}
-              </button>
-              <p className="semiont-resource-info-panel__description">
-                {t('unarchiveDescription')}
-              </p>
-            </>
-          ) : (
-            <>
-              <button
-                onClick={onArchive}
-                className="semiont-resource-button semiont-resource-button--archive"
-              >
-                📦 {t('archive')}
-              </button>
-              <p className="semiont-resource-info-panel__description">
-                {t('archiveDescription')}
-              </p>
-            </>
-          )}
-        </div>
-      )}
+      <div className="semiont-resource-info-panel__action-section">
+        {isArchived ? (
+          <>
+            <button
+              onClick={() => eventBus.emit('resource:unarchive')}
+              className="semiont-resource-button semiont-resource-button--secondary"
+            >
+              📤 {t('unarchive')}
+            </button>
+            <p className="semiont-resource-info-panel__description">
+              {t('unarchiveDescription')}
+            </p>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={() => eventBus.emit('resource:archive')}
+              className="semiont-resource-button semiont-resource-button--archive"
+            >
+              📦 {t('archive')}
+            </button>
+            <p className="semiont-resource-info-panel__description">
+              {t('archiveDescription')}
+            </p>
+          </>
+        )}
+      </div>
     </div>
   );
 }

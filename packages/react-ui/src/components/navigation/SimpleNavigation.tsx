@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigationEvents } from '../../contexts/NavigationEventBusContext';
 
 export interface SimpleNavigationItem {
   name: string;
@@ -16,7 +17,6 @@ export interface SimpleNavigationProps {
   LinkComponent: React.ComponentType<any>;
   dropdownContent?: (onClose: () => void) => React.ReactNode;
   isCollapsed: boolean;
-  onToggleCollapse: () => void;
   icons: {
     chevronLeft: React.ComponentType<{ className?: string }>;
     bars: React.ComponentType<{ className?: string }>;
@@ -36,7 +36,6 @@ export function SimpleNavigation({
   LinkComponent,
   dropdownContent,
   isCollapsed,
-  onToggleCollapse,
   icons,
   collapseSidebarLabel,
   expandSidebarLabel
@@ -46,6 +45,7 @@ export function SimpleNavigation({
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const eventBus = useNavigationEvents();
 
   const toggleDropdown = () => setIsDropdownOpen(!isDropdownOpen);
   const closeDropdown = () => setIsDropdownOpen(false);
@@ -81,7 +81,7 @@ export function SimpleNavigation({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onToggleCollapse();
+              eventBus.emit('navigation:sidebar-toggle');
             }}
             className="semiont-nav-section__header-icon"
             title={isCollapsed ? expandSidebarLabel : collapseSidebarLabel}

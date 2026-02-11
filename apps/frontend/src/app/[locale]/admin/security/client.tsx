@@ -7,12 +7,12 @@
  * and delegates rendering to the pure React AdminSecurityPage component.
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { useAdmin, Toolbar } from '@semiont/react-ui';
 import type { paths } from '@semiont/api-client';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, useToolbar, useLineNumbers } from '@semiont/react-ui';
+import { useTheme, useToolbar, useLineNumbers, useGlobalSettingsEvents } from '@semiont/react-ui';
 import { AdminSecurityPage } from '@semiont/react-ui';
 import type { OAuthProvider } from '@semiont/react-ui';
 
@@ -23,13 +23,23 @@ export default function AdminSecurity() {
   const t = useTranslations('AdminSecurity');
 
   // Toolbar and settings state
-  const { activePanel, togglePanel } = useToolbar();
+  const { activePanel } = useToolbar();
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
+  const settingsEventBus = useGlobalSettingsEvents();
 
-  const handlePanelToggle = (panel: string | null) => {
-    if (panel) togglePanel(panel as any);
-  };
+  useEffect(() => {
+    const handleThemeChange = ({ theme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(theme);
+    const handleLineNumbersToggle = () => toggleLineNumbers();
+
+    settingsEventBus.on('settings:theme-changed', handleThemeChange);
+    settingsEventBus.on('settings:line-numbers-toggled', handleLineNumbersToggle);
+
+    return () => {
+      settingsEventBus.off('settings:theme-changed', handleThemeChange);
+      settingsEventBus.off('settings:line-numbers-toggled', handleLineNumbersToggle);
+    };
+  }, [settingsEventBus, setTheme, toggleLineNumbers]);
 
   // Get OAuth configuration from API
   const adminAPI = useAdmin();
@@ -44,11 +54,8 @@ export default function AdminSecurity() {
       allowedDomains={allowedDomains}
       isLoading={oauthLoading}
       theme={theme}
-      onThemeChange={setTheme}
       showLineNumbers={showLineNumbers}
-      onLineNumbersToggle={toggleLineNumbers}
       activePanel={activePanel}
-      onPanelToggle={handlePanelToggle}
       translations={{
         title: t('title'),
         subtitle: t('subtitle'),

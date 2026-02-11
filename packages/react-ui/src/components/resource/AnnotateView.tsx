@@ -53,7 +53,6 @@ interface Props {
   onDeleteAnnotation?: (annotation: Annotation) => void;
   showLineNumbers?: boolean;
   annotateMode: boolean;
-  onAnnotateModeToggle: () => void;
   onAnnotationRequested?: (pending: PendingAnnotation) => void;
   annotators: Record<string, Annotator>;
 }
@@ -177,7 +176,6 @@ export function AnnotateView({
   onDeleteAnnotation,
   showLineNumbers = false,
   annotateMode,
-  onAnnotateModeToggle,
   onAnnotationRequested,
   annotators
 }: Props) {
@@ -374,7 +372,6 @@ export function AnnotateView({
             onClickChange={onClickChange || (() => {})}
             mediaType={mimeType}
             annotateMode={annotateMode}
-            onAnnotateModeToggle={onAnnotateModeToggle}
             annotators={annotators}
           />
           <div className="semiont-annotate-view__content">
@@ -420,8 +417,7 @@ export function AnnotateView({
               onShapeChange={onShapeChange}
               mediaType={mimeType}
               annotateMode={annotateMode}
-              onAnnotateModeToggle={onAnnotateModeToggle}
-              annotators={annotators}
+                annotators={annotators}
             />
             <div className="semiont-annotate-view__content">
               {resourceUri && (
@@ -468,7 +464,6 @@ export function AnnotateView({
             onShapeChange={onShapeChange}
             mediaType={mimeType}
             annotateMode={annotateMode}
-            onAnnotateModeToggle={onAnnotateModeToggle}
             annotators={annotators}
           />
           <div className="semiont-annotate-view__content">

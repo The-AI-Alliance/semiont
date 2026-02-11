@@ -46,6 +46,13 @@ vi.mock('@semiont/react-ui', async () => {
     supportsDetection: () => false,
     MakeMeaningEventBusProvider: ({ children }: any) => children,
     useMakeMeaningEvents: () => mitt.default(),
+    useResourceAnnotations: () => ({
+      clearNewAnnotationId: vi.fn(),
+      newAnnotationIds: new Set(),
+      createAnnotation: vi.fn(),
+      deleteAnnotation: vi.fn(),
+      triggerSparkleAnimation: vi.fn(),
+    }),
   };
 });
 
@@ -88,18 +95,7 @@ const createMockProps = (overrides?: Partial<ResourceViewerPageProps>): Resource
   allEntityTypes: ['Document', 'Article', 'Book'],
   locale: 'en',
   theme: 'light',
-  onThemeChange: vi.fn(),
   showLineNumbers: false,
-  onLineNumbersToggle: vi.fn(),
-  onPanelToggle: vi.fn(),
-  setActivePanel: vi.fn(),
-  onArchive: vi.fn(),
-  onUnarchive: vi.fn(),
-  onClone: vi.fn(),
-  onUpdateAnnotationBody: vi.fn(),
-  onRefetchAnnotations: vi.fn(),
-  onTriggerSparkleAnimation: vi.fn(),
-  onClearNewAnnotationId: vi.fn(),
   showSuccess: vi.fn(),
   showError: vi.fn(),
   cacheManager: {},

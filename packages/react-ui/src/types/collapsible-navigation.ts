@@ -52,12 +52,6 @@ export interface CollapsibleResourceNavigationProps {
 
   // Collapse state
   isCollapsed: boolean;
-  onToggleCollapse: () => void;
-
-  // Resource management
-  onResourceClose: (id: string) => void;
-  onResourceReorder: (oldIndex: number, newIndex: number) => void;
-  onResourceSelect?: (id: string) => void;
 
   // Navigation
   currentPath: string;

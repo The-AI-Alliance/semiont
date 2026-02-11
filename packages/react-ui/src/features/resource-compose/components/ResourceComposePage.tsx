@@ -40,11 +40,8 @@ export interface ResourceComposePageProps {
 
   // UI state
   theme: 'light' | 'dark';
-  onThemeChange: (theme: 'light' | 'dark') => void;
   showLineNumbers: boolean;
-  onLineNumbersToggle: () => void;
   activePanel: string | null;
-  onPanelToggle: (panel: string) => void;
 
   // Actions
   onSaveResource: (params: SaveResourceParams) => Promise<void>;
@@ -111,11 +108,8 @@ export function ResourceComposePage({
   availableEntityTypes,
   initialLocale,
   theme,
-  onThemeChange,
   showLineNumbers,
-  onLineNumbersToggle,
   activePanel,
-  onPanelToggle,
   onSaveResource,
   onCancel,
   translations: t,
@@ -610,16 +604,13 @@ export function ResourceComposePage({
         <ToolbarPanels
           activePanel={activePanel}
           theme={theme}
-          onThemeChange={onThemeChange}
           showLineNumbers={showLineNumbers}
-          onLineNumbersToggle={onLineNumbersToggle}
         />
 
         {/* Toolbar - Always visible on the right */}
         <Toolbar
           context="simple"
           activePanel={activePanel}
-          onPanelToggle={onPanelToggle}
         />
       </div>
     </div>

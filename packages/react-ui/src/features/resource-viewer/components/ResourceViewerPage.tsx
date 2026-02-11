@@ -21,6 +21,7 @@ import { useResourceLoadingAnnouncements } from '@semiont/react-ui';
 import type { GenerationOptions } from '@semiont/react-ui';
 import { ResourceViewer } from '@semiont/react-ui';
 import { useMakeMeaningEvents } from '@semiont/react-ui';
+import { useResourceAnnotations } from '@semiont/react-ui';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
@@ -85,27 +86,11 @@ export interface ResourceViewerPageProps {
    * Theme state
    */
   theme: any;
-  onThemeChange: (theme: any) => void;
 
   /**
    * Line numbers state
    */
   showLineNumbers: boolean;
-  onLineNumbersToggle: () => void;
-
-  /**
-   * Callbacks for resource actions
-   */
-  onArchive: () => Promise<void>;
-  onUnarchive: () => Promise<void>;
-  onClone: () => Promise<void>;
-  onUpdateAnnotationBody: (annotationUri: string, data: any) => Promise<void>;
-
-  /**
-   * Annotation callbacks
-   */
-  onTriggerSparkleAnimation: (annotationId: string) => void;
-  onClearNewAnnotationId: (annotationId: string) => void;
 
   /**
    * Toast notifications
@@ -148,15 +133,7 @@ function ResourceViewerPageInner({
   allEntityTypes,
   locale,
   theme,
-  onThemeChange,
   showLineNumbers,
-  onLineNumbersToggle,
-  onArchive,
-  onUnarchive,
-  onClone,
-  onUpdateAnnotationBody,
-  onTriggerSparkleAnimation,
-  onClearNewAnnotationId,
   showSuccess,
   showError,
   cacheManager,
@@ -173,6 +150,9 @@ function ResourceViewerPageInner({
     announceResourceLoading,
     announceResourceLoaded
   } = useResourceLoadingAnnouncements();
+
+  // Access annotation context
+  const { clearNewAnnotationId } = useResourceAnnotations();
 
   // Derived state
   const documentEntityTypes = resource.entityTypes || [];
@@ -229,9 +209,9 @@ function ResourceViewerPageInner({
   const handleEventHover = useCallback((annotationId: string | null) => {
     setHoveredAnnotationId(annotationId);
     if (annotationId) {
-      onTriggerSparkleAnimation(annotationId);
+      eventBus.emit('annotation:sparkle', { annotationId });
     }
-  }, [onTriggerSparkleAnimation]);
+  }, [eventBus]);
 
   // Handle event click - scroll handled internally by ResourceViewer now
   const handleEventClick = useCallback((_annotationId: string | null) => {
@@ -300,7 +280,7 @@ function ResourceViewerPageInner({
     if (!resource) return;
 
     // Clear CSS sparkle animation if reference was recently created
-    onClearNewAnnotationId(annotationUri(referenceId));
+    clearNewAnnotationId(annotationUri(referenceId));
 
     // Use full resource URI (W3C Web Annotation spec requires URIs)
     const resourceUriStr = resource['@id'];
@@ -310,7 +290,7 @@ function ResourceViewerPageInner({
       language: options.language || locale,
       context: options.context
     });
-  }, [startGeneration, resource, onClearNewAnnotationId, locale]);
+  }, [startGeneration, resource, clearNewAnnotationId, locale]);
 
 
 
@@ -512,12 +492,6 @@ function ResourceViewerPageInner({
   // Manual tag creation handler
   // Note: handleAnnotationClick removed - now handled via event bus subscriptions
 
-  // Panel toggle handler - emits event for toolbar buttons
-  const handlePanelToggle = useCallback((panel: string) => {
-    eventBus.emit('panel:toggle', { panel });
-  }, [eventBus]);
-
-
   // Group annotations by type using static ANNOTATORS
   const result = {
     highlights: [] as Annotation[],
@@ -603,9 +577,7 @@ function ResourceViewerPageInner({
           <ToolbarPanels
             activePanel={activePanel}
             theme={theme}
-            onThemeChange={onThemeChange}
             showLineNumbers={showLineNumbers}
-            onLineNumbersToggle={onLineNumbersToggle}
             width={
               activePanel === 'jsonld' ? 'w-[600px]' :
               activePanel === 'annotations' ? 'w-[400px]' :
@@ -660,9 +632,6 @@ function ResourceViewerPageInner({
                 primaryMediaType={primaryMediaType}
                 primaryByteSize={primaryByteSize}
                 isArchived={resource.archived ?? false}
-                onClone={onClone}
-                onArchive={onArchive}
-                onUnarchive={onUnarchive}
               />
             )}
 
@@ -685,7 +654,6 @@ function ResourceViewerPageInner({
             context="document"
             activePanel={activePanel}
             isArchived={resource.archived ?? false}
-            onPanelToggle={handlePanelToggle}
           />
         </div>
       </div>
@@ -708,7 +676,8 @@ function ResourceViewerPageInner({
               const resourceIdSegment = rUri.split('/').pop() || '';
               const nestedUri = `${window.location.origin}/resources/${resourceIdSegment}/annotations/${annotationIdShort}`;
 
-              await onUpdateAnnotationBody(resourceAnnotationUri(nestedUri), {
+              eventBus.emit('annotation:update-body', {
+                annotationUri: resourceAnnotationUri(nestedUri),
                 resourceId: resourceIdSegment,
                 operations: [{
                   op: 'add',

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { usePathname } from '@/i18n/routing';
-import { SimpleNavigation } from '@semiont/react-ui';
+import { SimpleNavigation, useNavigationEvents } from '@semiont/react-ui';
 import type { SimpleNavigationItem } from '@semiont/react-ui';
 import {
   ClockIcon,
@@ -22,6 +22,7 @@ export function ModerationNavigation({ navigationMenu }: ModerationNavigationPro
   const t = useTranslations('Moderation');
   const tSidebar = useTranslations('Sidebar');
   const pathname = usePathname();
+  const eventBus = useNavigationEvents();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -33,12 +34,17 @@ export function ModerationNavigation({ navigationMenu }: ModerationNavigationPro
     }
   }, []);
 
-  // Save collapse state to localStorage
-  const handleToggleCollapse = () => {
-    const newState = !isCollapsed;
-    setIsCollapsed(newState);
-    localStorage.setItem('moderation-sidebar-collapsed', newState.toString());
-  };
+  // Subscribe to sidebar toggle events
+  useEffect(() => {
+    const handleToggle = () => {
+      const newState = !isCollapsed;
+      setIsCollapsed(newState);
+      localStorage.setItem('moderation-sidebar-collapsed', newState.toString());
+    };
+
+    eventBus.on('navigation:sidebar-toggle', handleToggle);
+    return () => eventBus.off('navigation:sidebar-toggle', handleToggle);
+  }, [eventBus, isCollapsed]);
 
   const navigation: SimpleNavigationItem[] = [
     {
@@ -69,7 +75,6 @@ export function ModerationNavigation({ navigationMenu }: ModerationNavigationPro
       LinkComponent={Link as any}
       {...(navigationMenu && { dropdownContent: navigationMenu })}
       isCollapsed={isCollapsed}
-      onToggleCollapse={handleToggleCollapse}
       icons={{
         chevronLeft: ChevronLeftIcon as React.ComponentType<{ className?: string }>,
         bars: Bars3Icon as React.ComponentType<{ className?: string }>

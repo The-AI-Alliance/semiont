@@ -1,12 +1,13 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { usePathname, useRouter } from '@/i18n/routing';
 import { PlusIcon, ChevronLeftIcon, Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
 import {
   useOpenResources,
+  useNavigationEvents,
   CollapsibleResourceNavigation,
   type NavigationItem,
   type OpenResource
@@ -19,15 +20,15 @@ const TelescopeIcon = ({ className }: { className?: string }) => (
 
 interface KnowledgeNavigationProps {
   isCollapsed: boolean;
-  onToggleCollapse: () => void;
   navigationMenu?: (onClose: () => void) => React.ReactNode;
 }
 
-export function KnowledgeNavigation({ isCollapsed, onToggleCollapse, navigationMenu }: KnowledgeNavigationProps) {
+export function KnowledgeNavigation({ isCollapsed, navigationMenu }: KnowledgeNavigationProps) {
   const t = useTranslations('Sidebar');
   const pathname = usePathname();
   const router = useRouter();
   const { openResources, removeResource, reorderResources } = useOpenResources();
+  const eventBus = useNavigationEvents();
 
   const fixedNavigation: NavigationItem[] = [
     {
@@ -44,15 +45,29 @@ export function KnowledgeNavigation({ isCollapsed, onToggleCollapse, navigationM
     }
   ];
 
-  // Handle resource close
-  const handleResourceClose = (resourceId: string) => {
-    removeResource(resourceId);
+  // Subscribe to navigation events
+  useEffect(() => {
+    const handleResourceClose = ({ resourceId }: { resourceId: string }) => {
+      removeResource(resourceId);
 
-    // If we're closing the currently viewed document, navigate to Discover
-    if (pathname === `/know/resource/${resourceId}`) {
-      router.push('/know/discover');
-    }
-  };
+      // If we're closing the currently viewed document, navigate to Discover
+      if (pathname === `/know/resource/${resourceId}`) {
+        router.push('/know/discover');
+      }
+    };
+
+    const handleResourceReorder = ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
+      reorderResources(oldIndex, newIndex);
+    };
+
+    eventBus.on('navigation:resource-close', handleResourceClose);
+    eventBus.on('navigation:resource-reorder', handleResourceReorder);
+
+    return () => {
+      eventBus.off('navigation:resource-close', handleResourceClose);
+      eventBus.off('navigation:resource-reorder', handleResourceReorder);
+    };
+  }, [eventBus, removeResource, reorderResources, pathname, router]);
 
   // Handle navigation
   const handleNavigate = (path: string) => {
@@ -69,9 +84,6 @@ export function KnowledgeNavigation({ isCollapsed, onToggleCollapse, navigationM
       fixedItems={fixedNavigation}
       resources={openResources as OpenResource[]}
       isCollapsed={isCollapsed}
-      onToggleCollapse={onToggleCollapse}
-      onResourceClose={handleResourceClose}
-      onResourceReorder={reorderResources}
       currentPath={pathname}
       LinkComponent={Link as any}
       onNavigate={handleNavigate}

@@ -26,7 +26,7 @@ import { Link, routes } from '@/lib/routing';
 import { useCacheManager } from '@/hooks/useCacheManager';
 
 // Feature components
-import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage, TranslationProvider, MakeMeaningEventBusProvider } from '@semiont/react-ui';
+import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage, TranslationProvider, MakeMeaningEventBusProvider, useMakeMeaningEvents, useGlobalSettingsEvents } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { SearchResourcesModal } from '@/components/modals/SearchResourcesModal';
 import { GenerationConfigModal } from '@/components/modals/GenerationConfigModal';
@@ -269,14 +269,6 @@ function ResourceViewWrapper({
     }
   }, [resource, rUri, generateCloneTokenMutation, showSuccess, showError]);
 
-  // Handle annotation body updates
-  const handleUpdateAnnotationBody = useCallback(async (annotationUri: string, data: any) => {
-    await updateAnnotationBodyMutation.mutateAsync({
-      annotationUri: resourceAnnotationUri(annotationUri),
-      data,
-    });
-  }, [updateAnnotationBodyMutation]);
-
   // Real-time document events
   const { status: eventStreamStatus, isConnected, eventCount, lastEvent } = useResourceEvents({
     rUri,
@@ -361,30 +353,69 @@ function ResourceViewWrapper({
     }, []),
   });
 
-  // Render the pure component with all props
-  return (
-    <TranslationProvider>
-      <MakeMeaningEventBusProvider
-        rUri={rUri}
-        {...(client ? { client } : {})}
-        onAnnotationCreated={(annotation) => {
-          triggerSparkleAnimation(annotation.id as any);
-          debouncedInvalidateAnnotations();
-        }}
-        onAnnotationDeleted={(annotationId: string) => {
-          debouncedInvalidateAnnotations();
-        }}
-        onDetectionProgress={(progress: any) => {
-          // Progress is already shown via detectionProgress state
-        }}
-        onError={(error: Error, operation: string) => {
-          showError(`${operation} failed: ${error.message}`);
-        }}
-        onSuccess={(message: string) => {
-          showSuccess(message);
-        }}
-      >
-        <ResourceViewerPage
+  // Inner component with event subscriptions
+  function ResourceViewerWithEventHandlers() {
+    const eventBus = useMakeMeaningEvents();
+    const settingsEventBus = useGlobalSettingsEvents();
+
+    // Subscribe to resource operation events
+    useEffect(() => {
+      const onArchive = () => handleArchive();
+      const onUnarchive = () => handleUnarchive();
+      const onClone = () => handleClone();
+      const onSparkle = ({ annotationId }: { annotationId: string }) => {
+        triggerSparkleAnimation(annotationId as any);
+      };
+
+      eventBus.on('resource:archive', onArchive);
+      eventBus.on('resource:unarchive', onUnarchive);
+      eventBus.on('resource:clone', onClone);
+      eventBus.on('annotation:sparkle', onSparkle);
+
+      return () => {
+        eventBus.off('resource:archive', onArchive);
+        eventBus.off('resource:unarchive', onUnarchive);
+        eventBus.off('resource:clone', onClone);
+        eventBus.off('annotation:sparkle', onSparkle);
+      };
+    }, [eventBus]);
+
+    // Subscribe to settings events
+    useEffect(() => {
+      const onThemeChange = ({ theme }: { theme: any }) => setTheme(theme);
+      const onLineNumbersToggle = () => toggleLineNumbers();
+
+      settingsEventBus.on('settings:theme-changed', onThemeChange);
+      settingsEventBus.on('settings:line-numbers-toggled', onLineNumbersToggle);
+
+      return () => {
+        settingsEventBus.off('settings:theme-changed', onThemeChange);
+        settingsEventBus.off('settings:line-numbers-toggled', onLineNumbersToggle);
+      };
+    }, [settingsEventBus]);
+
+    // Subscribe to annotation lifecycle events
+    useEffect(() => {
+      const onAnnotationCreated = ({ annotation }: { annotation: any }) => {
+        triggerSparkleAnimation(annotation.id as any);
+        debouncedInvalidateAnnotations();
+      };
+
+      const onAnnotationDeleted = () => {
+        debouncedInvalidateAnnotations();
+      };
+
+      eventBus.on('annotation:created', onAnnotationCreated);
+      eventBus.on('annotation:deleted', onAnnotationDeleted);
+
+      return () => {
+        eventBus.off('annotation:created', onAnnotationCreated);
+        eventBus.off('annotation:deleted', onAnnotationDeleted);
+      };
+    }, [eventBus, triggerSparkleAnimation, debouncedInvalidateAnnotations]);
+
+    return (
+      <ResourceViewerPage
           resource={resource}
           rUri={rUri}
           content={content}
@@ -395,19 +426,7 @@ function ResourceViewWrapper({
           allEntityTypes={allEntityTypes}
           locale={locale}
           theme={theme}
-          onThemeChange={setTheme}
           showLineNumbers={showLineNumbers}
-          onLineNumbersToggle={toggleLineNumbers}
-          onArchive={handleArchive}
-          onUnarchive={handleUnarchive}
-          onClone={handleClone}
-          onUpdateAnnotationBody={handleUpdateAnnotationBody}
-          onTriggerSparkleAnimation={(annotationId: string) => {
-            triggerSparkleAnimation(annotationId as any);
-          }}
-          onClearNewAnnotationId={(annotationId: string) => {
-            clearNewAnnotationId(annotationId as any);
-          }}
           showSuccess={showSuccess}
           showError={showError}
           cacheManager={cacheManager}
@@ -417,6 +436,26 @@ function ResourceViewWrapper({
           SearchResourcesModal={SearchResourcesModal}
           GenerationConfigModal={GenerationConfigModal}
         />
+    );
+  }
+
+  // Render the pure component with all props
+  return (
+    <TranslationProvider>
+      <MakeMeaningEventBusProvider
+        rUri={rUri}
+        {...(client ? { client } : {})}
+        onDetectionProgress={(progress: any) => {
+          // Progress is already shown via detectionProgress state
+        }}
+        onError={(error: Error, operation: string) => {
+          showError(`${operation} failed: ${error.message}`);
+        }}
+        onSuccess={(message: string) => {
+          showSuccess(message);
+        }}
+      >
+        <ResourceViewerWithEventHandlers />
       </MakeMeaningEventBusProvider>
     </TranslationProvider>
   );

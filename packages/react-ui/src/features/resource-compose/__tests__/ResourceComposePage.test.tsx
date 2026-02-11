@@ -69,11 +69,8 @@ const createMockProps = (overrides?: Partial<ResourceComposePageProps>): Resourc
   availableEntityTypes: ['Document', 'Article', 'Report'],
   initialLocale: 'en',
   theme: 'light',
-  onThemeChange: vi.fn(),
   showLineNumbers: false,
-  onLineNumbersToggle: vi.fn(),
   activePanel: null,
-  onPanelToggle: vi.fn(),
   onSaveResource: vi.fn().mockResolvedValue(undefined),
   onCancel: vi.fn(),
   translations: createMockTranslations(),
@@ -440,7 +437,6 @@ describe('ResourceComposePage', () => {
       const ToolbarPanels = vi.fn(() => <div data-testid="toolbar-panels" />);
       const props = createMockProps({
         theme: 'dark',
-        onThemeChange: vi.fn(),
         ToolbarPanels,
       });
 
@@ -449,7 +445,6 @@ describe('ResourceComposePage', () => {
       expect(ToolbarPanels).toHaveBeenCalledWith(
         expect.objectContaining({
           theme: 'dark',
-          onThemeChange: expect.any(Function),
         }),
         expect.anything()
       );

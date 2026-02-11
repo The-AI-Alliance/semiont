@@ -9,6 +9,7 @@ import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme } from '@semiont/react-ui';
 import { useToolbar } from '@semiont/react-ui';
 import { useLineNumbers } from '@semiont/react-ui';
+import { useGlobalSettingsEvents } from '@semiont/react-ui';
 import { getAllTagSchemas } from '@semiont/ontology';
 import { TagSchemasPage } from '@semiont/react-ui';
 
@@ -17,13 +18,23 @@ export default function TagSchemasPageWrapper() {
   const { data: session, status } = useSession();
 
   // Toolbar and settings state
-  const { activePanel, togglePanel } = useToolbar();
+  const { activePanel } = useToolbar();
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
+  const settingsEventBus = useGlobalSettingsEvents();
 
-  const handlePanelToggle = (panel: string | null) => {
-    if (panel) togglePanel(panel as any);
-  };
+  useEffect(() => {
+    const handleThemeChange = ({ theme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(theme);
+    const handleLineNumbersToggle = () => toggleLineNumbers();
+
+    settingsEventBus.on('settings:theme-changed', handleThemeChange);
+    settingsEventBus.on('settings:line-numbers-toggled', handleLineNumbersToggle);
+
+    return () => {
+      settingsEventBus.off('settings:theme-changed', handleThemeChange);
+      settingsEventBus.off('settings:line-numbers-toggled', handleLineNumbersToggle);
+    };
+  }, [settingsEventBus, setTheme, toggleLineNumbers]);
 
   // Get all tag schemas
   const schemas = getAllTagSchemas();
@@ -58,11 +69,8 @@ export default function TagSchemasPageWrapper() {
       schemas={schemas}
       isLoading={false}
       theme={theme}
-      onThemeChange={setTheme}
       showLineNumbers={showLineNumbers}
-      onLineNumbersToggle={toggleLineNumbers}
       activePanel={activePanel}
-      onPanelToggle={handlePanelToggle}
       translations={{
         pageTitle: t('pageTitle'),
         pageDescription: t('pageDescription'),

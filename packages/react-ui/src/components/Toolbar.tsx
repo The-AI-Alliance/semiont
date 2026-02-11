@@ -1,6 +1,7 @@
 'use client';
 
 import { useTranslations } from '../contexts/TranslationContext';
+import { useMakeMeaningEvents } from '../contexts/MakeMeaningEventBusContext';
 import './toolbar/Toolbar.css';
 
 type ToolbarContext = 'document' | 'simple';
@@ -8,7 +9,6 @@ type ToolbarContext = 'document' | 'simple';
 interface Props<T extends string = string> {
   context: ToolbarContext;
   activePanel: T | null;
-  onPanelToggle: (panel: T) => void;
 
   // Document context specific
   isArchived?: boolean;
@@ -17,10 +17,14 @@ interface Props<T extends string = string> {
 export function Toolbar<T extends string = string>({
   context,
   activePanel,
-  onPanelToggle,
   isArchived = false
 }: Props<T>) {
   const t = useTranslations('Toolbar');
+  const eventBus = useMakeMeaningEvents();
+
+  const handlePanelToggle = (panel: string) => {
+    eventBus.emit('panel:toggle', { panel });
+  };
 
   return (
     <div className="semiont-toolbar" data-context={context}>
@@ -30,7 +34,7 @@ export function Toolbar<T extends string = string>({
           {/* Annotations Icon - unified panel for all annotation types */}
           {!isArchived && (
             <button
-              onClick={() => onPanelToggle('annotations' as T)}
+              onClick={() => handlePanelToggle('annotations')}
               className="semiont-toolbar-button"
               data-active={activePanel === 'annotations'}
               data-panel="annotations"
@@ -44,7 +48,7 @@ export function Toolbar<T extends string = string>({
 
           {/* Document Info Icon */}
           <button
-            onClick={() => onPanelToggle('info' as T)}
+            onClick={() => handlePanelToggle('info')}
             className="semiont-toolbar-button"
             data-active={activePanel === 'info'}
             data-panel="info"
@@ -57,7 +61,7 @@ export function Toolbar<T extends string = string>({
 
           {/* History Icon */}
           <button
-            onClick={() => onPanelToggle('history' as T)}
+            onClick={() => handlePanelToggle('history')}
             className="semiont-toolbar-button"
             data-active={activePanel === 'history'}
             data-panel="history"
@@ -70,7 +74,7 @@ export function Toolbar<T extends string = string>({
 
           {/* Collaboration Icon */}
           <button
-            onClick={() => onPanelToggle('collaboration' as T)}
+            onClick={() => handlePanelToggle('collaboration')}
             className="semiont-toolbar-button"
             data-active={activePanel === 'collaboration'}
             data-panel="collaboration"
@@ -83,7 +87,7 @@ export function Toolbar<T extends string = string>({
 
           {/* JSON-LD Icon */}
           <button
-            onClick={() => onPanelToggle('jsonld' as T)}
+            onClick={() => handlePanelToggle('jsonld')}
             className="semiont-toolbar-button"
             data-active={activePanel === 'jsonld'}
             data-panel="jsonld"
@@ -98,7 +102,7 @@ export function Toolbar<T extends string = string>({
 
       {/* User Icon - always visible, appears above settings */}
       <button
-        onClick={() => onPanelToggle('user' as T)}
+        onClick={() => handlePanelToggle('user')}
         className="semiont-toolbar-button"
         data-active={activePanel === 'user'}
         data-panel="user"
@@ -111,7 +115,7 @@ export function Toolbar<T extends string = string>({
 
       {/* Settings Icon - always visible without scrolling */}
       <button
-        onClick={() => onPanelToggle('settings' as T)}
+        onClick={() => handlePanelToggle('settings')}
         className="semiont-toolbar-button"
         data-active={activePanel === 'settings'}
         data-panel="settings"

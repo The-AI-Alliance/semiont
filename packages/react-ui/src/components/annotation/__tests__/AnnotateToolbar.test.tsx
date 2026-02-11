@@ -5,6 +5,20 @@ import { NextIntlClientProvider } from 'next-intl';
 import { AnnotateToolbar, type SelectionMotivation, type ClickAction } from '../AnnotateToolbar';
 import { ANNOTATORS } from '../../../lib/annotation-registry';
 
+// Mock event bus
+const mockEmit = vi.fn();
+const mockEventBus = {
+  emit: mockEmit,
+  on: vi.fn(),
+  off: vi.fn(),
+  all: new Map(),
+};
+
+// Mock MakeMeaningEventBusContext
+vi.mock('../../../contexts/MakeMeaningEventBusContext', () => ({
+  useMakeMeaningEvents: () => mockEventBus,
+}));
+
 // Mock translations
 const messages = {
   AnnotateToolbar: {
@@ -44,12 +58,12 @@ describe('AnnotateToolbar', () => {
     onSelectionChange: vi.fn(),
     onClickChange: vi.fn(),
     annotateMode: false,
-    onAnnotateModeToggle: vi.fn(),
     annotators: ANNOTATORS
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockEmit.mockClear();
   });
 
   describe('Rendering', () => {
@@ -113,7 +127,6 @@ describe('AnnotateToolbar', () => {
         <AnnotateToolbar
           {...defaultProps}
           annotateMode={false}
-          onAnnotateModeToggle={vi.fn()}
         />
       );
       expect(screen.getByText('Browse')).toBeInTheDocument();
@@ -123,8 +136,7 @@ describe('AnnotateToolbar', () => {
           <AnnotateToolbar
             {...defaultProps}
             annotateMode={true}
-            onAnnotateModeToggle={vi.fn()}
-          />
+            />
         </NextIntlClientProvider>
       );
       expect(screen.getByText('Annotate')).toBeInTheDocument();
@@ -135,7 +147,6 @@ describe('AnnotateToolbar', () => {
         <AnnotateToolbar
           {...defaultProps}
           annotateMode={false}
-          onAnnotateModeToggle={vi.fn()}
         />
       );
 
@@ -151,13 +162,11 @@ describe('AnnotateToolbar', () => {
       });
     });
 
-    it('calls onAnnotateModeToggle when Browse is clicked in Annotate mode', async () => {
-      const handleToggle = vi.fn();
+    it('emits view:mode-toggled event when Browse is clicked in Annotate mode', async () => {
       renderWithIntl(
         <AnnotateToolbar
           {...defaultProps}
           annotateMode={true}
-          onAnnotateModeToggle={handleToggle}
         />
       );
 
@@ -169,16 +178,14 @@ describe('AnnotateToolbar', () => {
         fireEvent.click(browseButton);
       });
 
-      expect(handleToggle).toHaveBeenCalledTimes(1);
+      expect(mockEmit).toHaveBeenCalledWith('view:mode-toggled');
     });
 
-    it('calls onAnnotateModeToggle when Annotate is clicked in Browse mode', async () => {
-      const handleToggle = vi.fn();
+    it('emits view:mode-toggled event when Annotate is clicked in Browse mode', async () => {
       renderWithIntl(
         <AnnotateToolbar
           {...defaultProps}
           annotateMode={false}
-          onAnnotateModeToggle={handleToggle}
         />
       );
 
@@ -190,16 +197,14 @@ describe('AnnotateToolbar', () => {
         fireEvent.click(annotateButton);
       });
 
-      expect(handleToggle).toHaveBeenCalledTimes(1);
+      expect(mockEmit).toHaveBeenCalledWith('view:mode-toggled');
     });
 
     it('closes dropdown after selection', async () => {
-      const handleToggle = vi.fn();
       const { rerender } = renderWithIntl(
         <AnnotateToolbar
           {...defaultProps}
           annotateMode={false}
-          onAnnotateModeToggle={handleToggle}
         />
       );
 
@@ -213,8 +218,8 @@ describe('AnnotateToolbar', () => {
       const annotateButton = screen.getByText('Annotate');
       fireEvent.click(annotateButton);
 
-      // Verify the toggle was called
-      expect(handleToggle).toHaveBeenCalledTimes(1);
+      // Verify the event was emitted
+      expect(mockEmit).toHaveBeenCalledWith('view:mode-toggled');
 
       // Simulate mode change by rerendering with new mode
       rerender(
@@ -222,7 +227,6 @@ describe('AnnotateToolbar', () => {
           <AnnotateToolbar
             {...defaultProps}
             annotateMode={true}
-            onAnnotateModeToggle={handleToggle}
           />
         </NextIntlClientProvider>
       );
@@ -356,7 +360,6 @@ describe('AnnotateToolbar', () => {
         <AnnotateToolbar
           {...defaultProps}
           annotateMode={false}
-          onAnnotateModeToggle={vi.fn()}
         />
       );
 
