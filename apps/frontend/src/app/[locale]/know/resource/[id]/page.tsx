@@ -26,7 +26,7 @@ import { Link, routes } from '@/lib/routing';
 import { useCacheManager } from '@/hooks/useCacheManager';
 
 // Feature components
-import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage, TranslationProvider } from '@semiont/react-ui';
+import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage, TranslationProvider, MakeMeaningEventBusProvider } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { SearchResourcesModal } from '@/components/modals/SearchResourcesModal';
 import { GenerationConfigModal } from '@/components/modals/GenerationConfigModal';
@@ -364,43 +364,60 @@ function ResourceViewWrapper({
   // Render the pure component with all props
   return (
     <TranslationProvider>
-      <ResourceViewerPage
-        resource={resource}
+      <MakeMeaningEventBusProvider
         rUri={rUri}
-        content={content}
-        contentLoading={contentLoading}
-        annotations={annotations}
-        referencedBy={referencedBy}
-        referencedByLoading={referencedByLoading}
-        allEntityTypes={allEntityTypes}
-        locale={locale}
-        theme={theme}
-        onThemeChange={setTheme}
-        showLineNumbers={showLineNumbers}
-        onLineNumbersToggle={toggleLineNumbers}
-        onArchive={handleArchive}
-        onUnarchive={handleUnarchive}
-        onClone={handleClone}
-        onUpdateAnnotationBody={handleUpdateAnnotationBody}
-        onCreateAnnotation={async (rUri, motivation, selector, body) => {
-          await createAnnotation(rUri, motivation as any, selector, body);
+        {...(client ? { client } : {})}
+        onAnnotationCreated={(annotation) => {
+          triggerSparkleAnimation(annotation.id as any);
+          debouncedInvalidateAnnotations();
         }}
-        onTriggerSparkleAnimation={(annotationId: string) => {
-          triggerSparkleAnimation(annotationId as any);
+        onAnnotationDeleted={(annotationId: string) => {
+          debouncedInvalidateAnnotations();
         }}
-        onClearNewAnnotationId={(annotationId: string) => {
-          clearNewAnnotationId(annotationId as any);
+        onDetectionProgress={(progress: any) => {
+          // Progress is already shown via detectionProgress state
         }}
-        showSuccess={showSuccess}
-        showError={showError}
-        cacheManager={cacheManager}
-        client={client}
-        Link={Link}
-        routes={routes}
-        ToolbarPanels={ToolbarPanels}
-        SearchResourcesModal={SearchResourcesModal}
-        GenerationConfigModal={GenerationConfigModal}
-      />
+        onError={(error: Error, operation: string) => {
+          showError(`${operation} failed: ${error.message}`);
+        }}
+        onSuccess={(message: string) => {
+          showSuccess(message);
+        }}
+      >
+        <ResourceViewerPage
+          resource={resource}
+          rUri={rUri}
+          content={content}
+          contentLoading={contentLoading}
+          annotations={annotations}
+          referencedBy={referencedBy}
+          referencedByLoading={referencedByLoading}
+          allEntityTypes={allEntityTypes}
+          locale={locale}
+          theme={theme}
+          onThemeChange={setTheme}
+          showLineNumbers={showLineNumbers}
+          onLineNumbersToggle={toggleLineNumbers}
+          onArchive={handleArchive}
+          onUnarchive={handleUnarchive}
+          onClone={handleClone}
+          onUpdateAnnotationBody={handleUpdateAnnotationBody}
+          onTriggerSparkleAnimation={(annotationId: string) => {
+            triggerSparkleAnimation(annotationId as any);
+          }}
+          onClearNewAnnotationId={(annotationId: string) => {
+            clearNewAnnotationId(annotationId as any);
+          }}
+          showSuccess={showSuccess}
+          showError={showError}
+          cacheManager={cacheManager}
+          Link={Link}
+          routes={routes}
+          ToolbarPanels={ToolbarPanels}
+          SearchResourcesModal={SearchResourcesModal}
+          GenerationConfigModal={GenerationConfigModal}
+        />
+      </MakeMeaningEventBusProvider>
     </TranslationProvider>
   );
 }

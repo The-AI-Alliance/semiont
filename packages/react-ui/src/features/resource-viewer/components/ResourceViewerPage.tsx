@@ -20,7 +20,7 @@ import { Toolbar } from '@semiont/react-ui';
 import { useResourceLoadingAnnouncements } from '@semiont/react-ui';
 import type { GenerationOptions } from '@semiont/react-ui';
 import { ResourceViewer } from '@semiont/react-ui';
-import { MakeMeaningEventBusProvider, useMakeMeaningEvents } from '@semiont/react-ui';
+import { useMakeMeaningEvents } from '@semiont/react-ui';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
@@ -751,11 +751,7 @@ function ResourceViewerPageInner({
   );
 }
 
-// Outer component that wraps MakeMeaningEventBusProvider
+// Export the component directly - provider setup is done by the app
 export function ResourceViewerPage(props: ResourceViewerPageProps) {
-  return (
-    <MakeMeaningEventBusProvider rUri={props.rUri}>
-      <ResourceViewerPageInner {...props} />
-    </MakeMeaningEventBusProvider>
-  );
+  return <ResourceViewerPageInner {...props} />;
 }
