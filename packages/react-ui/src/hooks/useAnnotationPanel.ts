@@ -108,7 +108,21 @@ export function useAnnotationPanel<T extends Annotation>(
     return () => eventBus.off('comment:hover', handleCommentHover);
   }, [eventBus]);
 
-  // Ref callback for annotation elements
+  // Subscribe to annotation:ref-update events to manage refs
+  useEffect(() => {
+    const handler = ({ annotationId, element }: { annotationId: string; element: HTMLElement | null }) => {
+      if (element) {
+        refs.current.set(annotationId, element);
+      } else {
+        refs.current.delete(annotationId);
+      }
+    };
+
+    eventBus.on('annotation:ref-update', handler);
+    return () => eventBus.off('annotation:ref-update', handler);
+  }, [eventBus]);
+
+  // Ref callback for annotation elements (deprecated - use annotation:ref-update event)
   const handleAnnotationRef = useCallback((id: string, el: HTMLElement | null) => {
     if (el) {
       refs.current.set(id, el);

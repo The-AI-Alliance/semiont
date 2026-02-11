@@ -60,7 +60,7 @@ export function AssessmentPanel({
   const [newAssessmentText, setNewAssessmentText] = useState('');
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
 
-  const { sortedAnnotations, containerRef, handleAnnotationRef } =
+  const { sortedAnnotations, containerRef } =
     useAnnotationPanel(annotations);
 
   const handleSaveNewAssessment = () => {
@@ -176,7 +176,6 @@ export function AssessmentPanel({
                 key={assessment.id}
                 assessment={assessment}
                 isFocused={assessment.id === focusedAnnotationId}
-                onAssessmentRef={handleAnnotationRef}
               />
             ))
           )}

@@ -12,24 +12,28 @@ type Annotation = components['schemas']['Annotation'];
 interface TagEntryProps {
   tag: Annotation;
   isFocused: boolean;
-  onTagRef: (tagId: string, el: HTMLElement | null) => void;
 }
 
 export function TagEntry({
   tag,
   isFocused,
-  onTagRef,
 }: TagEntryProps) {
   const eventBus = useMakeMeaningEvents();
   const tagRef = useRef<HTMLDivElement>(null);
 
-  // Register ref with parent
+  // Register ref with parent via event
   useEffect(() => {
-    onTagRef(tag.id, tagRef.current);
+    eventBus.emit('annotation:ref-update', {
+      annotationId: tag.id,
+      element: tagRef.current
+    });
     return () => {
-      onTagRef(tag.id, null);
+      eventBus.emit('annotation:ref-update', {
+        annotationId: tag.id,
+        element: null
+      });
     };
-  }, [tag.id, onTagRef]);
+  }, [tag.id, eventBus]);
 
   // Scroll to tag when focused
   useEffect(() => {

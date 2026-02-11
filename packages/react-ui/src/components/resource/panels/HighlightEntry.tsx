@@ -10,7 +10,6 @@ type Annotation = components['schemas']['Annotation'];
 interface HighlightEntryProps {
   highlight: Annotation;
   isFocused: boolean;
-  onHighlightRef: (highlightId: string, el: HTMLElement | null) => void;
 }
 
 function formatRelativeTime(isoString: string): string {
@@ -33,18 +32,23 @@ function formatRelativeTime(isoString: string): string {
 export function HighlightEntry({
   highlight,
   isFocused,
-  onHighlightRef,
 }: HighlightEntryProps) {
   const eventBus = useMakeMeaningEvents();
   const highlightRef = useRef<HTMLDivElement>(null);
 
-  // Register ref with parent
+  // Register ref with parent via event
   useEffect(() => {
-    onHighlightRef(highlight.id, highlightRef.current);
+    eventBus.emit('annotation:ref-update', {
+      annotationId: highlight.id,
+      element: highlightRef.current
+    });
     return () => {
-      onHighlightRef(highlight.id, null);
+      eventBus.emit('annotation:ref-update', {
+        annotationId: highlight.id,
+        element: null
+      });
     };
-  }, [highlight.id, onHighlightRef]);
+  }, [highlight.id, eventBus]);
 
   // Scroll to highlight when focused
   useEffect(() => {

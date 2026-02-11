@@ -442,26 +442,25 @@ describe('CommentEntry Component', () => {
   });
 
   describe('Ref Management', () => {
-    it('should call onCommentRef with element on mount', () => {
-      const onCommentRef = vi.fn();
-      render(<CommentEntry {...defaultProps} onCommentRef={onCommentRef} />);
+    it('should emit annotation:ref-update event with element on mount', () => {
+      render(<CommentEntry {...defaultProps} />);
 
-      expect(onCommentRef).toHaveBeenCalledWith(
-        'comment-1',
-        expect.any(HTMLDivElement)
-      );
+      expect(mockEmit).toHaveBeenCalledWith('annotation:ref-update', {
+        annotationId: 'comment-1',
+        element: expect.any(HTMLDivElement)
+      });
     });
 
-    it('should call onCommentRef with null on unmount', () => {
-      const onCommentRef = vi.fn();
-      const { unmount } = render(
-        <CommentEntry {...defaultProps} onCommentRef={onCommentRef} />
-      );
+    it('should emit annotation:ref-update event with null on unmount', () => {
+      const { unmount } = render(<CommentEntry {...defaultProps} />);
 
-      onCommentRef.mockClear();
+      mockEmit.mockClear();
       unmount();
 
-      expect(onCommentRef).toHaveBeenCalledWith('comment-1', null);
+      expect(mockEmit).toHaveBeenCalledWith('annotation:ref-update', {
+        annotationId: 'comment-1',
+        element: null
+      });
     });
   });
 

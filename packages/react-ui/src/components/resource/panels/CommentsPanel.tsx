@@ -60,7 +60,7 @@ export function CommentsPanel({
   const [newCommentText, setNewCommentText] = useState('');
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
 
-  const { sortedAnnotations, containerRef, handleAnnotationRef } =
+  const { sortedAnnotations, containerRef } =
     useAnnotationPanel(annotations);
 
   // Subscribe to click events - update focused state
@@ -177,7 +177,6 @@ export function CommentsPanel({
                 key={comment.id}
                 comment={comment}
                 isFocused={comment.id === focusedAnnotationId}
-                onCommentRef={handleAnnotationRef}
                 annotateMode={annotateMode}
               />
             ))

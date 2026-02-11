@@ -96,7 +96,7 @@ export function ReferencesPanel({
     localStorage.setItem('detect-section-expanded-reference', String(isDetectExpanded));
   }, [isDetectExpanded]);
 
-  const { sortedAnnotations, containerRef, handleAnnotationRef } =
+  const { sortedAnnotations, containerRef } =
     useAnnotationPanel(annotations);
 
   // Subscribe to click events - update focused state
@@ -392,7 +392,6 @@ export function ReferencesPanel({
                   reference={reference}
                   isFocused={reference.id === focusedAnnotationId}
                   routes={routes}
-                  onReferenceRef={handleAnnotationRef}
                   annotateMode={annotateMode}
                   isGenerating={reference.id === generatingReferenceId}
                 />

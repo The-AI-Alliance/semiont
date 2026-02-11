@@ -42,7 +42,7 @@ export function HighlightPanel({
   const eventBus = useMakeMeaningEvents();
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
 
-  const { sortedAnnotations, containerRef, handleAnnotationRef } =
+  const { sortedAnnotations, containerRef } =
     useAnnotationPanel(annotations);
 
   // Subscribe to click events - update focused state
@@ -95,7 +95,6 @@ export function HighlightPanel({
                 key={highlight.id}
                 highlight={highlight}
                 isFocused={highlight.id === focusedAnnotationId}
-                onHighlightRef={handleAnnotationRef}
               />
             ))
           )}

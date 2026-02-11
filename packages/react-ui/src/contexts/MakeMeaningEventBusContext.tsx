@@ -78,6 +78,7 @@ export type MakeMeaningEventMap = {
   'comment:hover': { commentId: string | null };
   'annotation:click': { annotationId: string };
   'annotation:focus': { annotationId: string | null };
+  'annotation:ref-update': { annotationId: string; element: HTMLElement | null };
 
   // Panel management events
   'panel:toggle': { panel: string };

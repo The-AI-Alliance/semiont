@@ -21,7 +21,6 @@ interface ReferenceEntryProps {
   reference: Annotation;
   isFocused: boolean;
   routes: RouteBuilder;
-  onReferenceRef: (referenceId: string, el: HTMLElement | null) => void;
   annotateMode?: boolean;
   isGenerating?: boolean;
 }
@@ -30,7 +29,6 @@ export function ReferenceEntry({
   reference,
   isFocused,
   routes,
-  onReferenceRef,
   annotateMode = true,
   isGenerating = false,
 }: ReferenceEntryProps) {
@@ -38,13 +36,19 @@ export function ReferenceEntry({
   const eventBus = useMakeMeaningEvents();
   const referenceRef = useRef<HTMLDivElement>(null);
 
-  // Register ref with parent
+  // Register ref with parent via event
   useEffect(() => {
-    onReferenceRef(reference.id, referenceRef.current);
+    eventBus.emit('annotation:ref-update', {
+      annotationId: reference.id,
+      element: referenceRef.current
+    });
     return () => {
-      onReferenceRef(reference.id, null);
+      eventBus.emit('annotation:ref-update', {
+        annotationId: reference.id,
+        element: null
+      });
     };
-  }, [reference.id, onReferenceRef]);
+  }, [reference.id, eventBus]);
 
   // Scroll to reference when focused - use container.scrollTo to avoid scrolling ancestors
   useEffect(() => {

@@ -89,7 +89,7 @@ export function TaggingPanel({
     return () => eventBus.off('annotation:click', handler);
   }, [eventBus]);
 
-  const { sortedAnnotations, containerRef, handleAnnotationRef } =
+  const { sortedAnnotations, containerRef } =
     useAnnotationPanel(annotations);
 
   const schemas = getAllTagSchemas();
@@ -407,7 +407,6 @@ export function TaggingPanel({
                 key={tag.id}
                 tag={tag}
                 isFocused={tag.id === focusedAnnotationId}
-                onTagRef={handleAnnotationRef}
               />
             ))
           )}

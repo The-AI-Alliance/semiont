@@ -11,7 +11,6 @@ type Annotation = components['schemas']['Annotation'];
 interface CommentEntryProps {
   comment: Annotation;
   isFocused: boolean;
-  onCommentRef: (commentId: string, el: HTMLElement | null) => void;
   annotateMode?: boolean;
 }
 
@@ -35,7 +34,6 @@ function formatRelativeTime(isoString: string): string {
 export function CommentEntry({
   comment,
   isFocused,
-  onCommentRef,
   annotateMode = true,
 }: CommentEntryProps) {
   const t = useTranslations('CommentsPanel');
@@ -44,13 +42,19 @@ export function CommentEntry({
   const [editText, setEditText] = useState('');
   const commentRef = useRef<HTMLDivElement>(null);
 
-  // Register ref with parent
+  // Register ref with parent via event
   useEffect(() => {
-    onCommentRef(comment.id, commentRef.current);
+    eventBus.emit('annotation:ref-update', {
+      annotationId: comment.id,
+      element: commentRef.current
+    });
     return () => {
-      onCommentRef(comment.id, null);
+      eventBus.emit('annotation:ref-update', {
+        annotationId: comment.id,
+        element: null
+      });
     };
-  }, [comment.id, onCommentRef]);
+  }, [comment.id, eventBus]);
 
   // Scroll to comment when focused
   useEffect(() => {

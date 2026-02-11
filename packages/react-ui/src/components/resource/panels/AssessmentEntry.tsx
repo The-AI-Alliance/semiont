@@ -18,7 +18,6 @@ interface TextualBody {
 interface AssessmentEntryProps {
   assessment: Annotation;
   isFocused: boolean;
-  onAssessmentRef: (assessmentId: string, el: HTMLElement | null) => void;
 }
 
 function formatRelativeTime(isoString: string): string {
@@ -69,18 +68,23 @@ function getAssessmentText(annotation: Annotation): string | null {
 export function AssessmentEntry({
   assessment,
   isFocused,
-  onAssessmentRef,
 }: AssessmentEntryProps) {
   const eventBus = useMakeMeaningEvents();
   const assessmentRef = useRef<HTMLDivElement>(null);
 
-  // Register ref with parent
+  // Register ref with parent via event
   useEffect(() => {
-    onAssessmentRef(assessment.id, assessmentRef.current);
+    eventBus.emit('annotation:ref-update', {
+      annotationId: assessment.id,
+      element: assessmentRef.current
+    });
     return () => {
-      onAssessmentRef(assessment.id, null);
+      eventBus.emit('annotation:ref-update', {
+        annotationId: assessment.id,
+        element: null
+      });
     };
-  }, [assessment.id, onAssessmentRef]);
+  }, [assessment.id, eventBus]);
 
   // Scroll to assessment when focused
   useEffect(() => {
