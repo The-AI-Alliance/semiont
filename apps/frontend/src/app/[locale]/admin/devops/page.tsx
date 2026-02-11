@@ -16,7 +16,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { StatusDisplay, Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, useToolbar, useLineNumbers, useGlobalSettingsEvents } from '@semiont/react-ui';
+import { useTheme, useToolbar, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
 import { AdminDevOpsPage } from '@semiont/react-ui';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -39,20 +39,11 @@ export default function DevOpsPage() {
   const { activePanel } = useToolbar();
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
-  const settingsEventBus = useGlobalSettingsEvents();
 
-  useEffect(() => {
-    const handleThemeChange = ({ theme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(theme);
-    const handleLineNumbersToggle = () => toggleLineNumbers();
-
-    settingsEventBus.on('settings:theme-changed', handleThemeChange);
-    settingsEventBus.on('settings:line-numbers-toggled', handleLineNumbersToggle);
-
-    return () => {
-      settingsEventBus.off('settings:theme-changed', handleThemeChange);
-      settingsEventBus.off('settings:line-numbers-toggled', handleLineNumbersToggle);
-    };
-  }, [settingsEventBus, setTheme, toggleLineNumbers]);
+  useEventSubscriptions({
+    'settings:theme-changed': ({ theme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(theme),
+    'settings:line-numbers-toggled': () => toggleLineNumbers(),
+  });
 
   const suggestedFeatures = [
     {

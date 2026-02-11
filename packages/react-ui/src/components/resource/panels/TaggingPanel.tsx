@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useEvents } from '../../../contexts/EventBusContext';
+import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { components, Selector } from '@semiont/api-client';
 import { TagEntry } from './TagEntry';
 import { useAnnotationPanel } from '../../../hooks/useAnnotationPanel';
@@ -79,15 +80,12 @@ export function TaggingPanel({
   }, [isDetectExpanded]);
 
   // Subscribe to click events - update focused state
-  useEffect(() => {
-    const handler = ({ annotationId }: { annotationId: string }) => {
+  useEventSubscriptions({
+    'annotation:click': ({ annotationId }: { annotationId: string }) => {
       setFocusedAnnotationId(annotationId);
       setTimeout(() => setFocusedAnnotationId(null), 3000);
-    };
-
-    eventBus.on('annotation:click', handler);
-    return () => eventBus.off('annotation:click', handler);
-  }, [eventBus]);
+    },
+  });
 
   const { sortedAnnotations, containerRef } =
     useAnnotationPanel(annotations);

@@ -46,6 +46,7 @@ vi.mock('@semiont/react-ui', async () => {
     supportsDetection: () => false,
     MakeMeaningEventBusProvider: ({ children }: any) => children,
     useEvents: () => mitt.default(),
+    useEventSubscriptions: vi.fn(),
     useResourceAnnotations: () => ({
       clearNewAnnotationId: vi.fn(),
       newAnnotationIds: new Set(),

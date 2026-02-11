@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useEvents } from '../../../contexts/EventBusContext';
+import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { components, Selector } from '@semiont/api-client';
 import { HighlightEntry } from './HighlightEntry';
 import { useAnnotationPanel } from '../../../hooks/useAnnotationPanel';
@@ -46,15 +47,12 @@ export function HighlightPanel({
     useAnnotationPanel(annotations);
 
   // Subscribe to click events - update focused state
-  useEffect(() => {
-    const handler = ({ annotationId }: { annotationId: string }) => {
+  useEventSubscriptions({
+    'annotation:click': ({ annotationId }: { annotationId: string }) => {
       setFocusedAnnotationId(annotationId);
       setTimeout(() => setFocusedAnnotationId(null), 3000);
-    };
-
-    eventBus.on('annotation:click', handler);
-    return () => eventBus.off('annotation:click', handler);
-  }, [eventBus]);
+    },
+  });
 
   // Highlights auto-create: when pendingAnnotation arrives with highlighting motivation,
   // immediately emit annotation:create event

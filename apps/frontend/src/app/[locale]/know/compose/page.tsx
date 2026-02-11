@@ -17,7 +17,7 @@ import { useToast } from '@semiont/react-ui';
 import { useTheme } from '@semiont/react-ui';
 import { useToolbar } from '@semiont/react-ui';
 import { useLineNumbers } from '@semiont/react-ui';
-import { useGlobalSettingsEvents } from '@semiont/react-ui';
+import { useEventSubscriptions } from '@semiont/react-ui';
 import { Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { getPrimaryMediaType, getResourceId, resourceUri, resourceAnnotationUri, type ResourceUri, type ContentFormat, type ResourceAnnotationUri } from '@semiont/api-client';
@@ -58,21 +58,12 @@ function ComposeResourceContent() {
   const { activePanel } = useToolbar();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
-  const settingsEventBus = useGlobalSettingsEvents();
 
   // Subscribe to settings events
-  useEffect(() => {
-    const onThemeChange = ({ theme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(theme);
-    const onLineNumbersToggle = () => toggleLineNumbers();
-
-    settingsEventBus.on('settings:theme-changed', onThemeChange);
-    settingsEventBus.on('settings:line-numbers-toggled', onLineNumbersToggle);
-
-    return () => {
-      settingsEventBus.off('settings:theme-changed', onThemeChange);
-      settingsEventBus.off('settings:line-numbers-toggled', onLineNumbersToggle);
-    };
-  }, [settingsEventBus, setTheme, toggleLineNumbers]);
+  useEventSubscriptions({
+    'settings:theme-changed': ({ theme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(theme),
+    'settings:line-numbers-toggled': () => toggleLineNumbers(),
+  });
 
   // API hooks
   const resources = useResources();

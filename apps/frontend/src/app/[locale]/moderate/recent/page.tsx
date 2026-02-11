@@ -9,7 +9,7 @@ import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme } from '@semiont/react-ui';
 import { useToolbar } from '@semiont/react-ui';
 import { useLineNumbers } from '@semiont/react-ui';
-import { useGlobalSettingsEvents } from '@semiont/react-ui';
+import { useEventSubscriptions } from '@semiont/react-ui';
 import { RecentDocumentsPage } from '@semiont/react-ui';
 
 export default function RecentDocumentsPageWrapper() {
@@ -20,20 +20,11 @@ export default function RecentDocumentsPageWrapper() {
   const { activePanel } = useToolbar();
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
-  const settingsEventBus = useGlobalSettingsEvents();
 
-  useEffect(() => {
-    const handleThemeChange = ({ theme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(theme);
-    const handleLineNumbersToggle = () => toggleLineNumbers();
-
-    settingsEventBus.on('settings:theme-changed', handleThemeChange);
-    settingsEventBus.on('settings:line-numbers-toggled', handleLineNumbersToggle);
-
-    return () => {
-      settingsEventBus.off('settings:theme-changed', handleThemeChange);
-      settingsEventBus.off('settings:line-numbers-toggled', handleLineNumbersToggle);
-    };
-  }, [settingsEventBus, setTheme, toggleLineNumbers]);
+  useEventSubscriptions({
+    'settings:theme-changed': ({ theme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(theme),
+    'settings:line-numbers-toggled': () => toggleLineNumbers(),
+  });
 
   // Check authentication and moderator/admin status
   useEffect(() => {

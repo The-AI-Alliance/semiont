@@ -26,7 +26,7 @@ import { Link, routes } from '@/lib/routing';
 import { useCacheManager } from '@/hooks/useCacheManager';
 
 // Feature components
-import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage, TranslationProvider, EventBusProvider, useEvents, useGlobalSettingsEvents } from '@semiont/react-ui';
+import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage, TranslationProvider, EventBusProvider, useEventSubscriptions } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { SearchResourcesModal } from '@/components/modals/SearchResourcesModal';
 import { GenerationConfigModal } from '@/components/modals/GenerationConfigModal';
@@ -355,64 +355,32 @@ function ResourceViewWrapper({
 
   // Inner component with event subscriptions
   function ResourceViewerWithEventHandlers() {
-    const eventBus = useEvents();
-    const settingsEventBus = useGlobalSettingsEvents();
-
     // Subscribe to resource operation events
-    useEffect(() => {
-      const onArchive = () => handleArchive();
-      const onUnarchive = () => handleUnarchive();
-      const onClone = () => handleClone();
-      const onSparkle = ({ annotationId }: { annotationId: string }) => {
+    useEventSubscriptions({
+      'resource:archive': () => handleArchive(),
+      'resource:unarchive': () => handleUnarchive(),
+      'resource:clone': () => handleClone(),
+      'annotation:sparkle': ({ annotationId }) => {
         triggerSparkleAnimation(annotationId as any);
-      };
-
-      eventBus.on('resource:archive', onArchive);
-      eventBus.on('resource:unarchive', onUnarchive);
-      eventBus.on('resource:clone', onClone);
-      eventBus.on('annotation:sparkle', onSparkle);
-
-      return () => {
-        eventBus.off('resource:archive', onArchive);
-        eventBus.off('resource:unarchive', onUnarchive);
-        eventBus.off('resource:clone', onClone);
-        eventBus.off('annotation:sparkle', onSparkle);
-      };
-    }, [eventBus]);
+      },
+    });
 
     // Subscribe to settings events
-    useEffect(() => {
-      const onThemeChange = ({ theme }: { theme: any }) => setTheme(theme);
-      const onLineNumbersToggle = () => toggleLineNumbers();
-
-      settingsEventBus.on('settings:theme-changed', onThemeChange);
-      settingsEventBus.on('settings:line-numbers-toggled', onLineNumbersToggle);
-
-      return () => {
-        settingsEventBus.off('settings:theme-changed', onThemeChange);
-        settingsEventBus.off('settings:line-numbers-toggled', onLineNumbersToggle);
-      };
-    }, [settingsEventBus]);
+    useEventSubscriptions({
+      'settings:theme-changed': ({ theme }) => setTheme(theme),
+      'settings:line-numbers-toggled': () => toggleLineNumbers(),
+    });
 
     // Subscribe to annotation lifecycle events
-    useEffect(() => {
-      const onAnnotationCreated = ({ annotation }: { annotation: any }) => {
+    useEventSubscriptions({
+      'annotation:created': ({ annotation }) => {
         triggerSparkleAnimation(annotation.id as any);
         debouncedInvalidateAnnotations();
-      };
-
-      const onAnnotationDeleted = () => {
+      },
+      'annotation:deleted': () => {
         debouncedInvalidateAnnotations();
-      };
-
-      eventBus.on('annotation:created', onAnnotationCreated);
-      eventBus.on('annotation:deleted', onAnnotationDeleted);
-
-      return () => {
-        eventBus.off('annotation:created', onAnnotationCreated);
-        eventBus.off('annotation:deleted', onAnnotationDeleted);
-      };
-    }, [eventBus, triggerSparkleAnimation, debouncedInvalidateAnnotations]);
+      },
+    });
 
     return (
       <ResourceViewerPage

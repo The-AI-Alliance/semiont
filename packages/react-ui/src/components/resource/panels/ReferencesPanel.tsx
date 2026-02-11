@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useEvents } from '../../../contexts/EventBusContext';
+import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
 import { DetectionProgressWidget } from '../../DetectionProgressWidget';
 import { ReferenceEntry } from './ReferenceEntry';
@@ -100,15 +101,12 @@ export function ReferencesPanel({
     useAnnotationPanel(annotations);
 
   // Subscribe to click events - update focused state
-  useEffect(() => {
-    const handler = ({ annotationId }: { annotationId: string }) => {
+  useEventSubscriptions({
+    'annotation:click': ({ annotationId }: { annotationId: string }) => {
       setFocusedAnnotationId(annotationId);
       setTimeout(() => setFocusedAnnotationId(null), 3000);
-    };
-
-    eventBus.on('annotation:click', handler);
-    return () => eventBus.off('annotation:click', handler);
-  }, [eventBus]);
+    },
+  });
 
   // Clear log when starting new detection
   const handleDetect = () => {

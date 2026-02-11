@@ -57,6 +57,7 @@ export * from './contexts/AnnotationUIContext';
 export * from './contexts/ApiClientContext';
 export * from './contexts/CacheContext';
 export * from './contexts/EventBusContext';
+export * from './contexts/useEventSubscription';
 export * from './contexts/OpenResourcesContext';
 export * from './contexts/ResourceAnnotationsContext';
 export * from './contexts/RoutingContext';

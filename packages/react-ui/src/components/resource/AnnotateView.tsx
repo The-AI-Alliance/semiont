@@ -23,7 +23,7 @@ interface PendingAnnotation {
 import { CodeMirrorRenderer } from '../CodeMirrorRenderer';
 import type { TextSegment } from '../CodeMirrorRenderer';
 import type { EditorView } from '@codemirror/view';
-import { useEvents } from '../../contexts/EventBusContext';
+import { useEventSubscriptions } from '../../contexts/useEventSubscription';
 
 // Type augmentation for custom DOM properties
 interface EnrichedHTMLElement extends HTMLElement {
@@ -182,7 +182,6 @@ export function AnnotateView({
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
-  const eventBus = useEvents();
 
   const category = getMimeCategory(mimeType);
 
@@ -209,30 +208,18 @@ export function AnnotateView({
   });
 
   // Subscribe to toolbar events
-  useEffect(() => {
-    const handleSelectionChange = ({ motivation }: { motivation: string | null }) => {
+  useEventSubscriptions({
+    'toolbar:selection-changed': ({ motivation }: { motivation: string | null }) => {
       console.log('[AnnotateView] toolbar:selection-changed event with:', motivation);
       onUIStateChange?.({ selectedMotivation: motivation as SelectionMotivation | null });
-    };
-
-    const handleClickChange = ({ action }: { action: string }) => {
+    },
+    'toolbar:click-changed': ({ action }: { action: string }) => {
       onUIStateChange?.({ selectedClick: action as ClickAction });
-    };
-
-    const handleShapeChange = ({ shape }: { shape: string }) => {
+    },
+    'toolbar:shape-changed': ({ shape }: { shape: string }) => {
       onUIStateChange?.({ selectedShape: shape as ShapeType });
-    };
-
-    eventBus.on('toolbar:selection-changed', handleSelectionChange);
-    eventBus.on('toolbar:click-changed', handleClickChange);
-    eventBus.on('toolbar:shape-changed', handleShapeChange);
-
-    return () => {
-      eventBus.off('toolbar:selection-changed', handleSelectionChange);
-      eventBus.off('toolbar:click-changed', handleClickChange);
-      eventBus.off('toolbar:shape-changed', handleShapeChange);
-    };
-  }, [eventBus, onUIStateChange]);
+    },
+  });
 
   // Wrapper for annotation hover that routes based on registry metadata
   const handleAnnotationHover = useCallback((annotationId: string | null) => {

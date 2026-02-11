@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { usePathname, useRouter } from '@/i18n/routing';
 import { PlusIcon, ChevronLeftIcon, Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
 import {
   useOpenResources,
-  useNavigationEvents,
+  useEventSubscriptions,
   CollapsibleResourceNavigation,
   type NavigationItem,
   type OpenResource
@@ -28,7 +28,6 @@ export function KnowledgeNavigation({ isCollapsed, navigationMenu }: KnowledgeNa
   const pathname = usePathname();
   const router = useRouter();
   const { openResources, removeResource, reorderResources } = useOpenResources();
-  const eventBus = useNavigationEvents();
 
   const fixedNavigation: NavigationItem[] = [
     {
@@ -46,28 +45,19 @@ export function KnowledgeNavigation({ isCollapsed, navigationMenu }: KnowledgeNa
   ];
 
   // Subscribe to navigation events
-  useEffect(() => {
-    const handleResourceClose = ({ resourceId }: { resourceId: string }) => {
+  useEventSubscriptions({
+    'navigation:resource-close': ({ resourceId }: { resourceId: string }) => {
       removeResource(resourceId);
 
       // If we're closing the currently viewed document, navigate to Discover
       if (pathname === `/know/resource/${resourceId}`) {
         router.push('/know/discover');
       }
-    };
-
-    const handleResourceReorder = ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
+    },
+    'navigation:resource-reorder': ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
       reorderResources(oldIndex, newIndex);
-    };
-
-    eventBus.on('navigation:resource-close', handleResourceClose);
-    eventBus.on('navigation:resource-reorder', handleResourceReorder);
-
-    return () => {
-      eventBus.off('navigation:resource-close', handleResourceClose);
-      eventBus.off('navigation:resource-reorder', handleResourceReorder);
-    };
-  }, [eventBus, removeResource, reorderResources, pathname, router]);
+    }
+  });
 
   // Handle navigation
   const handleNavigate = (path: string) => {

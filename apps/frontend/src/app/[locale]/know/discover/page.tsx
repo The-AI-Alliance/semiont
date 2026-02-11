@@ -10,7 +10,7 @@
 import React, { useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
-import { useResources, useEntityTypes, useTheme, useToolbar, useLineNumbers, useGlobalSettingsEvents } from '@semiont/react-ui';
+import { useResources, useEntityTypes, useTheme, useToolbar, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { ResourceDiscoveryPage } from '@semiont/react-ui';
 
@@ -25,20 +25,11 @@ export default function DiscoverPage() {
   const { activePanel } = useToolbar();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
-  const settingsEventBus = useGlobalSettingsEvents();
 
-  useEffect(() => {
-    const handleThemeChange = ({ theme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(theme);
-    const handleLineNumbersToggle = () => toggleLineNumbers();
-
-    settingsEventBus.on('settings:theme-changed', handleThemeChange);
-    settingsEventBus.on('settings:line-numbers-toggled', handleLineNumbersToggle);
-
-    return () => {
-      settingsEventBus.off('settings:theme-changed', handleThemeChange);
-      settingsEventBus.off('settings:line-numbers-toggled', handleLineNumbersToggle);
-    };
-  }, [settingsEventBus, setTheme, toggleLineNumbers]);
+  useEventSubscriptions({
+    'settings:theme-changed': ({ theme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(theme),
+    'settings:line-numbers-toggled': () => toggleLineNumbers(),
+  });
 
   // API hooks
   const resources = useResources();

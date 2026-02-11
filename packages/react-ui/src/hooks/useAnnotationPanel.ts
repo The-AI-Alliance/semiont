@@ -3,7 +3,7 @@
 import { useRef, useEffect, useCallback } from 'react';
 import type { components } from '@semiont/api-client';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
-import { useEvents } from '../contexts/EventBusContext';
+import { useEventSubscriptions } from '../contexts/useEventSubscription';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -20,7 +20,6 @@ type Annotation = components['schemas']['Annotation'];
 export function useAnnotationPanel<T extends Annotation>(
   annotations: T[]
 ) {
-  const eventBus = useEvents();
   const refs = useRef<Map<string, HTMLElement>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -32,95 +31,53 @@ export function useAnnotationPanel<T extends Annotation>(
     return aSelector.start - bSelector.start;
   });
 
-  // Subscribe to annotation hover events - scroll panel entry into view
-  useEffect(() => {
-    const handleAnnotationHover = ({ annotationId }: { annotationId: string | null }) => {
-      if (!annotationId) return;
+  // Helper to scroll annotation into view with pulse effect
+  const scrollToAnnotation = useCallback((annotationId: string) => {
+    const element = refs.current.get(annotationId);
+    if (!element || !containerRef.current) return;
 
-      const element = refs.current.get(annotationId);
-      if (element && containerRef.current) {
-        // Only scroll if element is not fully visible within its container
-        const container = containerRef.current;
-        const elementRect = element.getBoundingClientRect();
-        const containerRect = container.getBoundingClientRect();
+    // Only scroll if element is not fully visible within its container
+    const container = containerRef.current;
+    const elementRect = element.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
 
-        const isVisible =
-          elementRect.top >= containerRect.top &&
-          elementRect.bottom <= containerRect.bottom;
+    const isVisible =
+      elementRect.top >= containerRect.top &&
+      elementRect.bottom <= containerRect.bottom;
 
-        if (!isVisible) {
-          // Use container.scrollTo instead of scrollIntoView to avoid scrolling ancestors
-          const elementTop = element.offsetTop;
-          const containerHeight = container.clientHeight;
-          const elementHeight = element.offsetHeight;
-          const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
+    if (!isVisible) {
+      // Use container.scrollTo instead of scrollIntoView to avoid scrolling ancestors
+      const elementTop = element.offsetTop;
+      const containerHeight = container.clientHeight;
+      const elementHeight = element.offsetHeight;
+      const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
 
-          container.scrollTo({ top: scrollTo, behavior: 'smooth' });
-        }
+      container.scrollTo({ top: scrollTo, behavior: 'smooth' });
+    }
 
-        // Use proper CSS class for pulse effect
-        element.classList.add('semiont-annotation-pulse');
-        setTimeout(() => {
-          element.classList.remove('semiont-annotation-pulse');
-        }, 1500);
-      }
-    };
+    // Use proper CSS class for pulse effect
+    element.classList.add('semiont-annotation-pulse');
+    setTimeout(() => {
+      element.classList.remove('semiont-annotation-pulse');
+    }, 1500);
+  }, []);
 
-    eventBus.on('annotation:hover', handleAnnotationHover);
-    return () => eventBus.off('annotation:hover', handleAnnotationHover);
-  }, [eventBus]);
-
-  // Subscribe to comment hover events - scroll panel entry into view
-  useEffect(() => {
-    const handleCommentHover = ({ commentId }: { commentId: string | null }) => {
-      if (!commentId) return;
-
-      const element = refs.current.get(commentId);
-      if (element && containerRef.current) {
-        // Only scroll if element is not fully visible within its container
-        const container = containerRef.current;
-        const elementRect = element.getBoundingClientRect();
-        const containerRect = container.getBoundingClientRect();
-
-        const isVisible =
-          elementRect.top >= containerRect.top &&
-          elementRect.bottom <= containerRect.bottom;
-
-        if (!isVisible) {
-          // Use container.scrollTo instead of scrollIntoView to avoid scrolling ancestors
-          const elementTop = element.offsetTop;
-          const containerHeight = container.clientHeight;
-          const elementHeight = element.offsetHeight;
-          const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
-
-          container.scrollTo({ top: scrollTo, behavior: 'smooth' });
-        }
-
-        // Use proper CSS class for pulse effect
-        element.classList.add('semiont-annotation-pulse');
-        setTimeout(() => {
-          element.classList.remove('semiont-annotation-pulse');
-        }, 1500);
-      }
-    };
-
-    eventBus.on('comment:hover', handleCommentHover);
-    return () => eventBus.off('comment:hover', handleCommentHover);
-  }, [eventBus]);
-
-  // Subscribe to annotation:ref-update events to manage refs
-  useEffect(() => {
-    const handler = ({ annotationId, element }: { annotationId: string; element: HTMLElement | null }) => {
+  // Subscribe to hover and ref update events
+  useEventSubscriptions({
+    'annotation:hover': ({ annotationId }: { annotationId: string | null }) => {
+      if (annotationId) scrollToAnnotation(annotationId);
+    },
+    'comment:hover': ({ commentId }: { commentId: string | null }) => {
+      if (commentId) scrollToAnnotation(commentId);
+    },
+    'annotation:ref-update': ({ annotationId, element }: { annotationId: string; element: HTMLElement | null }) => {
       if (element) {
         refs.current.set(annotationId, element);
       } else {
         refs.current.delete(annotationId);
       }
-    };
-
-    eventBus.on('annotation:ref-update', handler);
-    return () => eventBus.off('annotation:ref-update', handler);
-  }, [eventBus]);
+    },
+  });
 
   // Ref callback for annotation elements (deprecated - use annotation:ref-update event)
   const handleAnnotationRef = useCallback((id: string, el: HTMLElement | null) => {

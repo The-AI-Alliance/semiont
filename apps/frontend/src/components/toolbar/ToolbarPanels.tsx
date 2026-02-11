@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useTransition, useEffect } from 'react';
-import { SettingsPanel, ResizeHandle, usePanelWidth, EventBusProvider, useGlobalSettingsEvents } from '@semiont/react-ui';
+import { SettingsPanel, ResizeHandle, usePanelWidth, EventBusProvider, useEventSubscriptions } from '@semiont/react-ui';
 import { UserPanel } from '../UserPanel';
 import { useLocale } from 'next-intl';
 import { usePathname, useRouter } from '@/i18n/routing';
@@ -55,25 +55,21 @@ export function ToolbarPanels({
   const router = useRouter();
   const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
-  const settingsEventBus = useGlobalSettingsEvents();
 
   // Panel width management with localStorage persistence
   const { width, setWidth, minWidth, maxWidth } = usePanelWidth();
 
   // Subscribe to locale change events
-  useEffect(() => {
-    const handleLocaleChange = ({ locale: newLocale }: { locale: string }) => {
+  useEventSubscriptions({
+    'settings:locale-changed': ({ locale: newLocale }: { locale: string }) => {
       if (!pathname) return;
 
       startTransition(() => {
         // The router from @/i18n/routing is locale-aware and will handle the locale prefix
         router.replace(pathname, { locale: newLocale });
       });
-    };
-
-    settingsEventBus.on('settings:locale-changed', handleLocaleChange);
-    return () => settingsEventBus.off('settings:locale-changed', handleLocaleChange);
-  }, [settingsEventBus, pathname, router]);
+    },
+  });
 
   // Don't render container if no panel is active
   if (!activePanel) {

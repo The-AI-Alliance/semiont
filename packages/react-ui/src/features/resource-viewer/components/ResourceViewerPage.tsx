@@ -21,6 +21,7 @@ import { useResourceLoadingAnnouncements } from '@semiont/react-ui';
 import type { GenerationOptions } from '@semiont/react-ui';
 import { ResourceViewer } from '@semiont/react-ui';
 import { useEvents } from '@semiont/react-ui';
+import { useEventSubscriptions } from '@semiont/react-ui';
 import { useResourceAnnotations } from '@semiont/react-ui';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
@@ -328,8 +329,8 @@ function ResourceViewerPageInner({
   }, [eventBus]);
 
   // Subscribe to UI events from ResourceViewer
-  useEffect(() => {
-    const handleCommentRequested = (selection: any) => {
+  useEventSubscriptions({
+    'selection:comment-requested': (selection: any) => {
       handleAnnotationRequested({
         selector: {
           type: 'TextQuoteSelector',
@@ -341,9 +342,8 @@ function ResourceViewerPageInner({
         },
         motivation: 'commenting'
       });
-    };
-
-    const handleTagRequested = (selection: any) => {
+    },
+    'selection:tag-requested': (selection: any) => {
       handleAnnotationRequested({
         selector: {
           type: 'TextQuoteSelector',
@@ -355,9 +355,8 @@ function ResourceViewerPageInner({
         },
         motivation: 'tagging'
       });
-    };
-
-    const handleAssessmentRequested = (selection: any) => {
+    },
+    'selection:assessment-requested': (selection: any) => {
       handleAnnotationRequested({
         selector: {
           type: 'TextQuoteSelector',
@@ -369,9 +368,8 @@ function ResourceViewerPageInner({
         },
         motivation: 'assessing'
       });
-    };
-
-    const handleReferenceRequested = (selection: any) => {
+    },
+    'selection:reference-requested': (selection: any) => {
       // Build selector based on what's present in the selection
       let selector: any;
 
@@ -401,22 +399,16 @@ function ResourceViewerPageInner({
         selector,
         motivation: 'linking'
       });
-    };
-
-    // Handle cancel pending annotation
-    const handleCancelPending = () => {
+    },
+    'annotation:cancel-pending': () => {
       setPendingAnnotation(null);
-    };
-
-    // Handle annotation click - emit focus event for scroll coordination
-    const handleClick = ({ annotationId }: { annotationId: string }) => {
+    },
+    'annotation:click': ({ annotationId }: { annotationId: string }) => {
       eventBus.emit('annotation:focus', { annotationId });
       setHoveredAnnotationId(annotationId);
       setTimeout(() => setHoveredAnnotationId(null), 1500);
-    };
-
-    // Handle panel toggle - toggle between open/closed
-    const handlePanelToggle = ({ panel }: { panel: string }) => {
+    },
+    'panel:toggle': ({ panel }: { panel: string }) => {
       setActivePanelInternal(current => {
         const newPanel = current === panel ? null : panel;
         // Persist to localStorage
@@ -429,65 +421,31 @@ function ResourceViewerPageInner({
         }
         return newPanel;
       });
-    };
-
-    // Handle panel open - always open the specified panel
-    const handlePanelOpen = ({ panel }: { panel: string }) => {
+    },
+    'panel:open': ({ panel }: { panel: string }) => {
       setActivePanelInternal(panel);
       if (typeof window !== 'undefined') {
         localStorage.setItem('activeToolbarPanel', panel);
       }
-    };
-
-    // Handle panel close - close the active panel
-    const handlePanelClose = () => {
+    },
+    'panel:close': () => {
       setActivePanelInternal(null);
       if (typeof window !== 'undefined') {
         localStorage.removeItem('activeToolbarPanel');
       }
-    };
-
-    // Handle job cancellation request
-    const handleJobCancelRequested = ({ jobType }: { jobType: 'detection' | 'generation' }) => {
+    },
+    'job:cancel-requested': ({ jobType }: { jobType: 'detection' | 'generation' }) => {
       if (jobType === 'detection') {
         handleCancelDetection();
       }
       // Generation cancellation can be added here when needed
-    };
-
-    // Handle search modal open request
-    const handleSearchModalOpen = ({ referenceId }: { referenceId: string; searchTerm: string }) => {
+    },
+    'reference:search-modal-open': ({ referenceId }: { referenceId: string; searchTerm: string }) => {
       setPendingReferenceId(referenceId);
       setSearchModalOpen(true);
       // Note: searchTerm is available in the event but SearchResourcesModal manages its own search state
-    };
-
-    eventBus.on('selection:comment-requested', handleCommentRequested);
-    eventBus.on('selection:tag-requested', handleTagRequested);
-    eventBus.on('selection:assessment-requested', handleAssessmentRequested);
-    eventBus.on('selection:reference-requested', handleReferenceRequested);
-    eventBus.on('annotation:cancel-pending', handleCancelPending);
-    eventBus.on('annotation:click', handleClick);
-    eventBus.on('panel:toggle', handlePanelToggle);
-    eventBus.on('panel:open', handlePanelOpen);
-    eventBus.on('panel:close', handlePanelClose);
-    eventBus.on('job:cancel-requested', handleJobCancelRequested);
-    eventBus.on('reference:search-modal-open', handleSearchModalOpen);
-
-    return () => {
-      eventBus.off('selection:comment-requested', handleCommentRequested);
-      eventBus.off('selection:tag-requested', handleTagRequested);
-      eventBus.off('selection:assessment-requested', handleAssessmentRequested);
-      eventBus.off('selection:reference-requested', handleReferenceRequested);
-      eventBus.off('annotation:cancel-pending', handleCancelPending);
-      eventBus.off('annotation:click', handleClick);
-      eventBus.off('panel:toggle', handlePanelToggle);
-      eventBus.off('panel:open', handlePanelOpen);
-      eventBus.off('panel:close', handlePanelClose);
-      eventBus.off('job:cancel-requested', handleJobCancelRequested);
-      eventBus.off('reference:search-modal-open', handleSearchModalOpen);
-    };
-  }, [eventBus, handleAnnotationRequested, handleCancelDetection]);
+    },
+  });
 
   // Manual tag creation handler
   // Note: handleAnnotationClick removed - now handled via event bus subscriptions

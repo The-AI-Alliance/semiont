@@ -473,9 +473,9 @@ export function CodeMirrorRenderer({
 
     const currentContent = viewRef.current.state.doc.toString();
 
-    // Only update if content is different AND didn't come from user input
-    // (user input already updates the view, so we only need this for external updates)
-    if (content === currentContent || content === contentRef.current) return;
+    // Only update if content is different from what's in the editor
+    // Skip if content matches current editor state (prevents cursor jumping)
+    if (content === currentContent) return;
 
     // Save cursor position
     const selection = viewRef.current.state.selection.main;

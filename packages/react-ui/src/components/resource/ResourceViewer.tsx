@@ -10,6 +10,7 @@ import type { components, Selector } from '@semiont/api-client';
 import { getExactText, getTargetSelector, resourceUri, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/api-client';
 import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
 import { useEvents } from '../../contexts/EventBusContext';
+import { useEventSubscriptions } from '../../contexts/useEventSubscription';
 import { useCacheManager } from '../../contexts/CacheContext';
 import { useObservableExternalNavigation } from '../../hooks/useObservableNavigation';
 import type { Annotator } from '../../lib/annotation-registry';
@@ -106,14 +107,11 @@ export function ResourceViewer({
   }, [annotateMode]);
 
   // Subscribe to view mode toggle events
-  useEffect(() => {
-    const handleModeToggle = () => {
+  useEventSubscriptions({
+    'view:mode-toggled': () => {
       setAnnotateMode(prev => !prev);
-    };
-
-    eventBus.on('view:mode-toggled', handleModeToggle);
-    return () => eventBus.off('view:mode-toggled', handleModeToggle);
-  }, [eventBus]);
+    },
+  });
 
   // Determine active view based on annotate mode
   const activeView = annotateMode ? 'annotate' : 'browse';
@@ -126,34 +124,23 @@ export function ResourceViewer({
   // This replaces manual onRefetchAnnotations calls with automatic updates
   const cacheManager = useCacheManager();
 
-  useEffect(() => {
-    if (!eventBus || !cacheManager) return;
-
-    // Annotation events - invalidate cache when annotations change
-    const handleAnnotationAdded = () => {
-      cacheManager.invalidateAnnotations(rUri);
-    };
-
-    const handleAnnotationRemoved = () => {
-      cacheManager.invalidateAnnotations(rUri);
-    };
-
-    const handleAnnotationUpdated = () => {
-      cacheManager.invalidateAnnotations(rUri);
-    };
-
-    // Subscribe to make-meaning annotation events
-    eventBus.on('annotation:added', handleAnnotationAdded);
-    eventBus.on('annotation:removed', handleAnnotationRemoved);
-    eventBus.on('annotation:updated', handleAnnotationUpdated);
-
-    // Cleanup subscriptions
-    return () => {
-      eventBus.off('annotation:added', handleAnnotationAdded);
-      eventBus.off('annotation:removed', handleAnnotationRemoved);
-      eventBus.off('annotation:updated', handleAnnotationUpdated);
-    };
-  }, [eventBus, cacheManager, rUri]);
+  useEventSubscriptions({
+    'annotation:added': () => {
+      if (cacheManager) {
+        cacheManager.invalidateAnnotations(rUri);
+      }
+    },
+    'annotation:removed': () => {
+      if (cacheManager) {
+        cacheManager.invalidateAnnotations(rUri);
+      }
+    },
+    'annotation:updated': () => {
+      if (cacheManager) {
+        cacheManager.invalidateAnnotations(rUri);
+      }
+    },
+  });
 
   // Annotation toolbar state - persisted in localStorage
   const [selectedMotivation, setSelectedMotivation] = useState<SelectionMotivation | null>(() => {
@@ -186,29 +173,17 @@ export function ResourceViewer({
   });
 
   // Subscribe to toolbar events
-  useEffect(() => {
-    const handleSelectionChange = ({ motivation }: { motivation: string | null }) => {
+  useEventSubscriptions({
+    'toolbar:selection-changed': ({ motivation }) => {
       setSelectedMotivation(motivation as SelectionMotivation | null);
-    };
-
-    const handleClickChange = ({ action }: { action: string }) => {
+    },
+    'toolbar:click-changed': ({ action }) => {
       setSelectedClick(action as ClickAction);
-    };
-
-    const handleShapeChange = ({ shape }: { shape: string }) => {
+    },
+    'toolbar:shape-changed': ({ shape }) => {
       setSelectedShape(shape as ShapeType);
-    };
-
-    eventBus.on('toolbar:selection-changed', handleSelectionChange);
-    eventBus.on('toolbar:click-changed', handleClickChange);
-    eventBus.on('toolbar:shape-changed', handleShapeChange);
-
-    return () => {
-      eventBus.off('toolbar:selection-changed', handleSelectionChange);
-      eventBus.off('toolbar:click-changed', handleClickChange);
-      eventBus.off('toolbar:shape-changed', handleShapeChange);
-    };
-  }, [eventBus]);
+    },
+  });
 
   // Persist toolbar state to localStorage
   useEffect(() => {

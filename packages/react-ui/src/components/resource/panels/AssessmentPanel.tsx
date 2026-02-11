@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useEvents } from '../../../contexts/EventBusContext';
+import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { components, Selector } from '@semiont/api-client';
 import { AssessmentEntry } from './AssessmentEntry';
 import { useAnnotationPanel } from '../../../hooks/useAnnotationPanel';
@@ -90,15 +91,12 @@ export function AssessmentPanel({
   }, [pendingAnnotation, eventBus]);
 
   // Subscribe to click events - update focused state
-  useEffect(() => {
-    const handler = ({ annotationId }: { annotationId: string }) => {
+  useEventSubscriptions({
+    'annotation:click': ({ annotationId }: { annotationId: string }) => {
       setFocusedAnnotationId(annotationId);
       setTimeout(() => setFocusedAnnotationId(null), 3000);
-    };
-
-    eventBus.on('annotation:click', handler);
-    return () => eventBus.off('annotation:click', handler);
-  }, [eventBus]);
+    },
+  });
 
   return (
     <div className="semiont-panel">
