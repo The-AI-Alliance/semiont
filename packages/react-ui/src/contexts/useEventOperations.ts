@@ -443,11 +443,9 @@ export function setupEventOperations(
   config: {
     rUri: ResourceUri;
     client: SemiontApiClient;
-    onAnnotationCreated?: (annotation: Annotation) => void;
-    onAnnotationDeleted?: (annotationId: string) => void;
   }
 ) {
-  const { rUri: resourceUri, client, onAnnotationCreated, onAnnotationDeleted } = config;
+  const { rUri: resourceUri, client } = config;
 
   // Store SSE stream refs for cancellation
   let detectionStreamRef: AbortController | null = null;
@@ -473,7 +471,6 @@ export function setupEventOperations(
       });
 
       if (result.annotation) {
-        onAnnotationCreated?.(result.annotation);
         emitter.emit('annotation:created', { annotation: result.annotation });
       }
     } catch (error) {
@@ -488,7 +485,6 @@ export function setupEventOperations(
       const annotationUri = resourceAnnotationUri(`${resourceUri}/annotations/${annotationIdSegment}`);
 
       await client.deleteAnnotation(annotationUri);
-      onAnnotationDeleted?.(event.annotationId);
       emitter.emit('annotation:deleted', { annotationId: event.annotationId });
     } catch (error) {
       console.error('Failed to delete annotation:', error);

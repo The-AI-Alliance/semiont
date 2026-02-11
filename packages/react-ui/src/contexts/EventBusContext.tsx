@@ -186,8 +186,6 @@ export interface EventBusProviderProps {
   // Optional dependencies for operation handlers (from MakeMeaningEventBus)
   rUri?: ResourceUri;
   client?: SemiontApiClient;
-  onAnnotationCreated?: (annotation: Annotation) => void;
-  onAnnotationDeleted?: (annotationId: string) => void;
 }
 
 /**
@@ -208,8 +206,6 @@ export function EventBusProvider({
   children,
   rUri,
   client,
-  onAnnotationCreated,
-  onAnnotationDeleted,
 }: EventBusProviderProps) {
   const eventBus = useMemo(() => mitt<EventMap>(), []);
 
@@ -222,12 +218,10 @@ export function EventBusProvider({
     const cleanup = setupEventOperations(eventBus, {
       rUri,
       client,
-      onAnnotationCreated,
-      onAnnotationDeleted,
     });
 
     return cleanup;
-  }, [eventBus, rUri, client, onAnnotationCreated, onAnnotationDeleted]);
+  }, [eventBus, rUri, client]);
 
   return (
     <EventBusContext.Provider value={eventBus}>
