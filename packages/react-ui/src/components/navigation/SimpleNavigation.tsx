@@ -69,20 +69,22 @@ export function SimpleNavigation({
     <div className="semiont-simple-nav">
       {/* Section header with collapse/expand button and optional dropdown */}
       <div style={{ position: 'relative' }} ref={dropdownContent ? dropdownRef : undefined}>
-        <button
-          onClick={dropdownContent ? toggleDropdown : undefined}
-          className="semiont-nav-section__header"
-          disabled={!dropdownContent}
-          aria-expanded={dropdownContent ? isDropdownOpen : undefined}
-          aria-haspopup={dropdownContent ? 'true' : undefined}
-          type="button"
-        >
-          {!isCollapsed && <span className="semiont-nav-section__header-text">{title}</span>}
+        <div className="semiont-nav-section__header">
+          {dropdownContent ? (
+            <button
+              onClick={toggleDropdown}
+              className="semiont-nav-section__header-button"
+              aria-expanded={isDropdownOpen}
+              aria-haspopup="true"
+              type="button"
+            >
+              {!isCollapsed && <span className="semiont-nav-section__header-text">{title}</span>}
+            </button>
+          ) : (
+            !isCollapsed && <span className="semiont-nav-section__header-text">{title}</span>
+          )}
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              eventBus.emit('navigation:sidebar-toggle');
-            }}
+            onClick={() => eventBus.emit('navigation:sidebar-toggle')}
             className="semiont-nav-section__header-icon"
             title={isCollapsed ? expandSidebarLabel : collapseSidebarLabel}
             aria-label={isCollapsed ? expandSidebarLabel : collapseSidebarLabel}
@@ -90,7 +92,7 @@ export function SimpleNavigation({
           >
             {!isCollapsed ? <ChevronLeftIcon /> : <BarsIcon />}
           </button>
-        </button>
+        </div>
 
         {isDropdownOpen && dropdownContent && !isCollapsed && (
           <div className="semiont-nav-section__dropdown">

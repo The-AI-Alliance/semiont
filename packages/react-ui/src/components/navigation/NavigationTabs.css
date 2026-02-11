@@ -2,7 +2,7 @@
    Navigation Tabs - Shared styles for all sidebars
    ============================================ */
 
-/* Section Header - clickable title with collapse/expand button */
+/* Section Header - container for title and collapse button */
 .semiont-nav-section__header {
   display: flex;
   align-items: center;
@@ -14,15 +14,40 @@
   color: var(--semiont-text-secondary);
   padding: 0.5rem 0.75rem;
   margin-bottom: 0.75rem;
-  background: none;
-  border: none;
-  text-align: left;
-  width: 100%;
-  cursor: pointer;
   border-radius: var(--semiont-radius-md);
   transition: background var(--semiont-duration-base);
   position: relative;
   z-index: 1; /* Ensure header is above resize handle */
+}
+
+.semiont-nav-section__header-button {
+  flex: 1;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  align-items: center;
+}
+
+.semiont-nav-section__header-button:hover {
+  opacity: 0.8;
+}
+
+.semiont-nav-section__header-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+  border-radius: var(--semiont-radius-sm);
+}
+
+[data-theme="dark"] .semiont-nav-section__header-button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
 }
 
 .semiont-nav-section__header-text {
@@ -88,25 +113,8 @@
   padding: 0.5rem;
 }
 
-.semiont-nav-section__header:hover {
-  background: var(--semiont-bg-tertiary);
-}
-
-.semiont-nav-section__header:focus-visible {
-  outline: 2px solid var(--semiont-color-primary-500);
-  outline-offset: 2px;
-}
-
 [data-theme="dark"] .semiont-nav-section__header {
   color: var(--semiont-text-secondary);
-}
-
-[data-theme="dark"] .semiont-nav-section__header:hover {
-  background: var(--semiont-bg-tertiary);
-}
-
-[data-theme="dark"] .semiont-nav-section__header:focus-visible {
-  outline-color: var(--semiont-color-primary-400);
 }
 
 /* Dropdown menu - appears below section header when clicked */
