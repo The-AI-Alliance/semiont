@@ -2,10 +2,7 @@ import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   EventBusProvider,
-  useEvents,
-  useMakeMeaningEvents,
-  useNavigationEvents,
-  useGlobalSettingsEvents
+  useEvents
 } from '../EventBusContext';
 import type { ResourceUri } from '@semiont/api-client';
 
@@ -188,29 +185,6 @@ describe('EventBusContext', () => {
 
       expect(handler1).not.toHaveBeenCalled();
       expect(handler2).toHaveBeenCalledWith({ annotationId: 'ann-1' });
-    });
-  });
-
-  describe('Legacy hook exports', () => {
-    it('should provide useMakeMeaningEvents as alias for useEvents', () => {
-      const { result } = renderHook(() => useMakeMeaningEvents(), { wrapper });
-
-      expect(result.current).toBeDefined();
-      expect(result.current.emit).toBeDefined();
-    });
-
-    it('should provide useNavigationEvents as alias for useEvents', () => {
-      const { result } = renderHook(() => useNavigationEvents(), { wrapper });
-
-      expect(result.current).toBeDefined();
-      expect(result.current.emit).toBeDefined();
-    });
-
-    it('should provide useGlobalSettingsEvents as alias for useEvents', () => {
-      const { result } = renderHook(() => useGlobalSettingsEvents(), { wrapper });
-
-      expect(result.current).toBeDefined();
-      expect(result.current.emit).toBeDefined();
     });
   });
 
