@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useTransition, useEffect } from 'react';
-import { SettingsPanel, ResizeHandle, usePanelWidth, MakeMeaningEventBusProvider, useGlobalSettingsEvents } from '@semiont/react-ui';
+import { SettingsPanel, ResizeHandle, usePanelWidth, EventBusProvider, useGlobalSettingsEvents } from '@semiont/react-ui';
 import { UserPanel } from '../UserPanel';
 import { useLocale } from 'next-intl';
 import { usePathname, useRouter } from '@/i18n/routing';

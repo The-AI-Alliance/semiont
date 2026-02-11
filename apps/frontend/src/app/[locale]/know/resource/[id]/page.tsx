@@ -26,7 +26,7 @@ import { Link, routes } from '@/lib/routing';
 import { useCacheManager } from '@/hooks/useCacheManager';
 
 // Feature components
-import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage, TranslationProvider, MakeMeaningEventBusProvider, useMakeMeaningEvents, useGlobalSettingsEvents } from '@semiont/react-ui';
+import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage, TranslationProvider, EventBusProvider, useEvents, useGlobalSettingsEvents } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { SearchResourcesModal } from '@/components/modals/SearchResourcesModal';
 import { GenerationConfigModal } from '@/components/modals/GenerationConfigModal';
@@ -355,7 +355,7 @@ function ResourceViewWrapper({
 
   // Inner component with event subscriptions
   function ResourceViewerWithEventHandlers() {
-    const eventBus = useMakeMeaningEvents();
+    const eventBus = useEvents();
     const settingsEventBus = useGlobalSettingsEvents();
 
     // Subscribe to resource operation events
@@ -442,21 +442,12 @@ function ResourceViewWrapper({
   // Render the pure component with all props
   return (
     <TranslationProvider>
-      <MakeMeaningEventBusProvider
+      <EventBusProvider
         rUri={rUri}
         {...(client ? { client } : {})}
-        onDetectionProgress={(progress: any) => {
-          // Progress is already shown via detectionProgress state
-        }}
-        onError={(error: Error, operation: string) => {
-          showError(`${operation} failed: ${error.message}`);
-        }}
-        onSuccess={(message: string) => {
-          showSuccess(message);
-        }}
       >
         <ResourceViewerWithEventHandlers />
-      </MakeMeaningEventBusProvider>
+      </EventBusProvider>
     </TranslationProvider>
   );
 }
