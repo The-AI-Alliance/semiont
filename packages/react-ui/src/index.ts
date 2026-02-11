@@ -40,6 +40,7 @@ export { useFormValidation, validationRules } from './hooks/useFormValidation';
 export * from './hooks/useGenerationProgress';
 export * from './hooks/useKeyboardShortcuts';
 export * from './hooks/useLineNumbers';
+export * from './hooks/useObservableNavigation';
 export * from './hooks/usePanelWidth';
 export * from './hooks/useResourceEvents';
 export * from './hooks/useRovingTabIndex';
@@ -127,6 +128,7 @@ export * from './components/viewers';
 // Components - Navigation
 export * from './components/navigation/Footer';
 export * from './components/navigation/NavigationMenu';
+export * from './components/navigation/ObservableLink';
 export * from './components/navigation/SimpleNavigation';
 export * from './components/navigation/CollapsibleResourceNavigation';
 export * from './components/navigation/SortableResourceTab';

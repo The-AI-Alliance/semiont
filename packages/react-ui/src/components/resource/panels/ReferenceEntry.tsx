@@ -8,6 +8,7 @@ import { getAnnotationExactText, isBodyResolved, getBodySource, getFragmentSelec
 import { getEntityTypes } from '@semiont/ontology';
 import { getResourceIcon } from '../../../lib/resource-utils';
 import { useMakeMeaningEvents } from '../../../contexts/MakeMeaningEventBusContext';
+import { useObservableExternalNavigation } from '../../../hooks/useObservableNavigation';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -34,6 +35,7 @@ export function ReferenceEntry({
 }: ReferenceEntryProps) {
   const t = useTranslations('ReferencesPanel');
   const eventBus = useMakeMeaningEvents();
+  const navigate = useObservableExternalNavigation();
   const referenceRef = useRef<HTMLDivElement>(null);
 
   // Register ref with parent via event
@@ -97,7 +99,8 @@ export function ReferenceEntry({
     if (resolvedResourceUri) {
       const resourceId = resolvedResourceUri.split('/resources/')[1];
       if (resourceId) {
-        window.location.href = routes.resourceDetail(resourceId);
+        // Use observable navigation - emits 'navigation:external-navigate' event
+        navigate(routes.resourceDetail(resourceId), { resourceId });
       }
     }
   };

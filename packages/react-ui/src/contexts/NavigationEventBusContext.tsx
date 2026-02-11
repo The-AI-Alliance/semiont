@@ -9,6 +9,7 @@ import mitt from 'mitt';
  * These events handle navigation-specific UI interactions:
  * - Sidebar collapse/expand state
  * - Resource tab management (close, reorder)
+ * - Navigation awareness (for observability and coordination)
  */
 export type NavigationEventMap = {
   // Sidebar collapse toggle
@@ -17,6 +18,11 @@ export type NavigationEventMap = {
   // Resource tab management
   'navigation:resource-close': { resourceId: string };
   'navigation:resource-reorder': { oldIndex: number; newIndex: number };
+
+  // Navigation awareness events (emitted when routing occurs)
+  'navigation:link-clicked': { href: string; label?: string };
+  'navigation:router-push': { path: string; reason?: string };
+  'navigation:external-navigate': { url: string; resourceId?: string };
 };
 
 type EventBus = ReturnType<typeof mitt<NavigationEventMap>>;

@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-// useRouter removed - using window.location for navigation
 import { useTranslations } from '../../contexts/TranslationContext';
 import { AnnotateView, type SelectionMotivation, type ClickAction, type ShapeType } from './AnnotateView';
 import { BrowseView } from './BrowseView';
@@ -12,6 +11,7 @@ import { getExactText, getTargetSelector, resourceUri, isHighlight, isAssessment
 import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
 import { useMakeMeaningEvents } from '../../contexts/MakeMeaningEventBusContext';
 import { useCacheManager } from '../../contexts/CacheContext';
+import { useObservableExternalNavigation } from '../../hooks/useObservableNavigation';
 import type { Annotator } from '../../lib/annotation-registry';
 import type { AnnotationsCollection } from '../../types/annotation-props';
 import { getSelectorType, getSelectedShapeForSelectorType, saveSelectedShapeForSelectorType } from '../../lib/media-shapes';
@@ -66,6 +66,9 @@ export function ResourceViewer({
 
   // Get unified event bus for emitting UI events
   const eventBus = useMakeMeaningEvents();
+
+  // Get observable navigation for event-driven routing
+  const navigate = useObservableExternalNavigation();
 
   const { highlights, references, assessments, comments, tags } = annotations;
 
@@ -306,10 +309,10 @@ export function ResourceViewer({
     if (selectedClick === 'follow' && isReference(annotation)) {
       const bodySource = getBodySource(annotation.body);
       if (bodySource) {
-        // Navigate to the linked resource
+        // Navigate to the linked resource - emits 'navigation:external-navigate' event
         const resourceId = bodySource.split('/resources/')[1];
         if (resourceId) {
-          window.location.href = `/know/resource/${resourceId}`;
+          navigate(`/know/resource/${resourceId}`, { resourceId });
         }
       }
       return;
@@ -558,7 +561,8 @@ export function ResourceViewer({
           }}
           enableWidgets={true}
           onEntityTypeClick={(entityType) => {
-            window.location.href = `/know?entityType=${encodeURIComponent(entityType)}`;
+            // Navigate to discovery page filtered by entity type - emits 'navigation:external-navigate' event
+            navigate(`/know?entityType=${encodeURIComponent(entityType)}`);
           }}
           onUnresolvedReferenceClick={handleAnnotationClick}
           {...(generatingReferenceId !== undefined && { generatingReferenceId })}
