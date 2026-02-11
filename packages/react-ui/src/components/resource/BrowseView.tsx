@@ -28,7 +28,6 @@ interface Props {
   hoveredAnnotationId?: string | null;
   hoveredCommentId?: string | null;
   selectedClick?: ClickAction;
-  onClickChange?: (motivation: ClickAction) => void;
   annotateMode: boolean;
   annotators: Record<string, Annotator>;
 }
@@ -66,7 +65,6 @@ export function BrowseView({
   annotations,
   handlers,
   selectedClick = 'detail',
-  onClickChange,
   annotateMode,
   annotators
 }: Props) {
@@ -331,8 +329,6 @@ export function BrowseView({
           <AnnotateToolbar
             selectedMotivation={null}
             selectedClick={selectedClick}
-            onSelectionChange={() => {}}
-            onClickChange={onClickChange || (() => {})}
             showSelectionGroup={false}
             showDeleteButton={false}
             annotateMode={annotateMode}
@@ -362,12 +358,10 @@ export function BrowseView({
             <AnnotateToolbar
               selectedMotivation={null}
               selectedClick={selectedClick}
-              onSelectionChange={() => {}}
-              onClickChange={onClickChange || (() => {})}
               showSelectionGroup={false}
               showDeleteButton={false}
               annotateMode={annotateMode}
-                annotators={annotators}
+              annotators={annotators}
             />
             <div ref={containerRef} className="semiont-browse-view__content">
               <Suspense fallback={<div className="semiont-browse-view__loading">Loading PDF viewer...</div>}>
@@ -391,8 +385,6 @@ export function BrowseView({
           <AnnotateToolbar
             selectedMotivation={null}
             selectedClick={selectedClick}
-            onSelectionChange={() => {}}
-            onClickChange={onClickChange || (() => {})}
             showSelectionGroup={false}
             showDeleteButton={false}
             annotateMode={annotateMode}

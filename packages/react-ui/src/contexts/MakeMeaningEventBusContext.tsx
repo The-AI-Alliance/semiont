@@ -94,6 +94,11 @@ export type MakeMeaningEventMap = {
   // View mode events
   'view:mode-toggled': void;
 
+  // Toolbar events (annotation UI controls)
+  'toolbar:selection-changed': { motivation: string | null };
+  'toolbar:click-changed': { action: string };
+  'toolbar:shape-changed': { shape: string };
+
   // Job control events
   'job:cancel-requested': { jobType: 'detection' | 'generation' };
 

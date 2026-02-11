@@ -23,6 +23,7 @@ interface PendingAnnotation {
 import { CodeMirrorRenderer } from '../CodeMirrorRenderer';
 import type { TextSegment } from '../CodeMirrorRenderer';
 import type { EditorView } from '@codemirror/view';
+import { useMakeMeaningEvents } from '../../contexts/MakeMeaningEventBusContext';
 
 // Type augmentation for custom DOM properties
 interface EnrichedHTMLElement extends HTMLElement {
@@ -181,6 +182,7 @@ export function AnnotateView({
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
+  const eventBus = useMakeMeaningEvents();
 
   const category = getMimeCategory(mimeType);
 
@@ -206,17 +208,31 @@ export function AnnotateView({
     annotateMode
   });
 
-  // UI state change handlers
-  const onSelectionChange = (motivation: SelectionMotivation | null) => {
-    console.log('[AnnotateView] onSelectionChange called with:', motivation);
-    onUIStateChange?.({ selectedMotivation: motivation });
-  };
-  const onClickChange = (motivation: ClickAction) => {
-    onUIStateChange?.({ selectedClick: motivation });
-  };
-  const onShapeChange = (shape: ShapeType) => {
-    onUIStateChange?.({ selectedShape: shape });
-  };
+  // Subscribe to toolbar events
+  useEffect(() => {
+    const handleSelectionChange = ({ motivation }: { motivation: string | null }) => {
+      console.log('[AnnotateView] toolbar:selection-changed event with:', motivation);
+      onUIStateChange?.({ selectedMotivation: motivation as SelectionMotivation | null });
+    };
+
+    const handleClickChange = ({ action }: { action: string }) => {
+      onUIStateChange?.({ selectedClick: action as ClickAction });
+    };
+
+    const handleShapeChange = ({ shape }: { shape: string }) => {
+      onUIStateChange?.({ selectedShape: shape as ShapeType });
+    };
+
+    eventBus.on('toolbar:selection-changed', handleSelectionChange);
+    eventBus.on('toolbar:click-changed', handleClickChange);
+    eventBus.on('toolbar:shape-changed', handleShapeChange);
+
+    return () => {
+      eventBus.off('toolbar:selection-changed', handleSelectionChange);
+      eventBus.off('toolbar:click-changed', handleClickChange);
+      eventBus.off('toolbar:shape-changed', handleShapeChange);
+    };
+  }, [eventBus, onUIStateChange]);
 
   // Wrapper for annotation hover that routes based on registry metadata
   const handleAnnotationHover = useCallback((annotationId: string | null) => {
@@ -368,8 +384,6 @@ export function AnnotateView({
           <AnnotateToolbar
             selectedMotivation={selectedMotivation}
             selectedClick={selectedClick}
-            onSelectionChange={onSelectionChange || (() => {})}
-            onClickChange={onClickChange || (() => {})}
             mediaType={mimeType}
             annotateMode={annotateMode}
             annotators={annotators}
@@ -410,14 +424,11 @@ export function AnnotateView({
             <AnnotateToolbar
               selectedMotivation={selectedMotivation}
               selectedClick={selectedClick}
-              onSelectionChange={onSelectionChange}
-              onClickChange={onClickChange}
               showShapeGroup={true}
               selectedShape={selectedShape}
-              onShapeChange={onShapeChange}
               mediaType={mimeType}
               annotateMode={annotateMode}
-                annotators={annotators}
+              annotators={annotators}
             />
             <div className="semiont-annotate-view__content">
               {resourceUri && (
@@ -457,11 +468,8 @@ export function AnnotateView({
           <AnnotateToolbar
             selectedMotivation={selectedMotivation}
             selectedClick={selectedClick}
-            onSelectionChange={onSelectionChange}
-            onClickChange={onClickChange}
             showShapeGroup={true}
             selectedShape={selectedShape}
-            onShapeChange={onShapeChange}
             mediaType={mimeType}
             annotateMode={annotateMode}
             annotators={annotators}

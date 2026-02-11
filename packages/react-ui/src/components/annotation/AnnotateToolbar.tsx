@@ -16,13 +16,10 @@ export type ShapeType = 'rectangle' | 'circle' | 'polygon';
 interface AnnotateToolbarProps {
   selectedMotivation: SelectionMotivation | null;
   selectedClick: ClickAction;
-  onSelectionChange: (motivation: SelectionMotivation | null) => void;
-  onClickChange: (motivation: ClickAction) => void;
   showSelectionGroup?: boolean;
   showDeleteButton?: boolean;
   showShapeGroup?: boolean;
   selectedShape?: ShapeType;
-  onShapeChange?: (shape: ShapeType) => void;
   mediaType?: string | null;  // MIME type to determine supported shapes
 
   // Mode props
@@ -105,13 +102,10 @@ function DropdownGroup({
 export function AnnotateToolbar({
   selectedMotivation,
   selectedClick,
-  onSelectionChange,
-  onClickChange,
   showSelectionGroup = true,
   showDeleteButton = true,
   showShapeGroup = false,
   selectedShape = 'rectangle',
-  onShapeChange,
   mediaType,
   annotateMode = false,
   annotators
@@ -186,9 +180,11 @@ export function AnnotateToolbar({
   const handleSelectionClick = (motivation: SelectionMotivation | null) => {
     // If null is clicked, always deselect. Otherwise toggle.
     if (motivation === null) {
-      onSelectionChange(null);
+      eventBus.emit('toolbar:selection-changed', { motivation: null });
     } else {
-      onSelectionChange(selectedMotivation === motivation ? null : motivation);
+      eventBus.emit('toolbar:selection-changed', {
+        motivation: selectedMotivation === motivation ? null : motivation
+      });
     }
     // Close dropdown after selection
     setSelectionPinned(false);
@@ -196,16 +192,14 @@ export function AnnotateToolbar({
   };
 
   const handleClickClick = (action: ClickAction) => {
-    onClickChange(action);
+    eventBus.emit('toolbar:click-changed', { action });
     // Close dropdown after selection
     setClickPinned(false);
     setClickHovered(false);
   };
 
   const handleShapeClick = (shape: ShapeType) => {
-    if (onShapeChange) {
-      onShapeChange(shape);
-    }
+    eventBus.emit('toolbar:shape-changed', { shape });
     // Close dropdown after selection
     setShapePinned(false);
     setShapeHovered(false);

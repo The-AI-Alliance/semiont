@@ -182,6 +182,31 @@ export function ResourceViewer({
     return getSelectedShapeForSelectorType(selectorType);
   });
 
+  // Subscribe to toolbar events
+  useEffect(() => {
+    const handleSelectionChange = ({ motivation }: { motivation: string | null }) => {
+      setSelectedMotivation(motivation as SelectionMotivation | null);
+    };
+
+    const handleClickChange = ({ action }: { action: string }) => {
+      setSelectedClick(action as ClickAction);
+    };
+
+    const handleShapeChange = ({ shape }: { shape: string }) => {
+      setSelectedShape(shape as ShapeType);
+    };
+
+    eventBus.on('toolbar:selection-changed', handleSelectionChange);
+    eventBus.on('toolbar:click-changed', handleClickChange);
+    eventBus.on('toolbar:shape-changed', handleShapeChange);
+
+    return () => {
+      eventBus.off('toolbar:selection-changed', handleSelectionChange);
+      eventBus.off('toolbar:click-changed', handleClickChange);
+      eventBus.off('toolbar:shape-changed', handleShapeChange);
+    };
+  }, [eventBus]);
+
   // Persist toolbar state to localStorage
   useEffect(() => {
     if (selectedMotivation === null) {
@@ -552,7 +577,6 @@ export function ResourceViewer({
           handlers={handlersForBrowse}
           hoveredCommentId={hoveredCommentId}
           selectedClick={selectedClick}
-          onClickChange={setSelectedClick}
           annotateMode={annotateMode}
           annotators={annotators}
         />
