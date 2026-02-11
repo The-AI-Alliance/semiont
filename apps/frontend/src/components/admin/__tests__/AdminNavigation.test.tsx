@@ -62,13 +62,23 @@ vi.mock('@heroicons/react/24/outline', () => ({
   ),
 }));
 
-// Mock SimpleNavigation component
+// Mock SimpleNavigation component and event bus hooks
 const mockSimpleNavigation = vi.fn();
+const mockEventBus = {
+  on: vi.fn(),
+  off: vi.fn(),
+  emit: vi.fn(),
+};
+
 vi.mock('@semiont/react-ui', () => ({
   SimpleNavigation: (props: SimpleNavigationProps) => {
     mockSimpleNavigation(props);
     return <div data-testid="simple-navigation">Mocked SimpleNavigation</div>;
   },
+  useNavigationEvents: () => mockEventBus,
+  useEvents: () => mockEventBus,
+  useMakeMeaningEvents: () => mockEventBus,
+  useGlobalSettingsEvents: () => mockEventBus,
 }));
 
 describe('AdminNavigation', () => {
@@ -248,45 +258,44 @@ describe('AdminNavigation', () => {
       expect(call.isCollapsed).toBe(false);
     });
 
-    it('should pass onToggleCollapse handler', () => {
+    it('should subscribe to navigation:sidebar-toggle event', () => {
       render(<AdminNavigation />);
 
-      const call = mockSimpleNavigation.mock.calls[0]![0]!;
-      expect(call.onToggleCollapse).toBeDefined();
-      expect(typeof call.onToggleCollapse).toBe('function');
+      expect(mockEventBus.on).toHaveBeenCalledWith(
+        'navigation:sidebar-toggle',
+        expect.any(Function)
+      );
     });
 
-    it('should save collapsed state to localStorage when toggled', () => {
+    it('should save collapsed state to localStorage when event is emitted', () => {
       render(<AdminNavigation />);
 
-      const call = mockSimpleNavigation.mock.calls[0]![0]!;
-      const toggleHandler = call.onToggleCollapse;
+      // Get the event handler that was registered
+      const onCall = mockEventBus.on.mock.calls.find(
+        (call: any[]) => call[0] === 'navigation:sidebar-toggle'
+      );
+      expect(onCall).toBeDefined();
+      const eventHandler = onCall![1];
 
-      // Call the toggle handler
-      toggleHandler();
+      // Trigger the event
+      eventHandler();
 
       expect(localStorage.setItem).toHaveBeenCalledWith('admin-sidebar-collapsed', 'true');
     });
 
-    it('should toggle between true and false states', () => {
-      const { rerender } = render(<AdminNavigation />);
+    it('should update state when event handler is called', () => {
+      render(<AdminNavigation />);
 
-      const firstCall = mockSimpleNavigation.mock.calls[0]![0]!;
-      expect(firstCall.isCollapsed).toBe(false);
+      // Get the event handler that was registered
+      const onCall = mockEventBus.on.mock.calls.find(
+        (call: any[]) => call[0] === 'navigation:sidebar-toggle'
+      );
+      expect(onCall).toBeDefined();
+      const eventHandler = onCall![1];
 
-      // Toggle to collapsed
-      firstCall.onToggleCollapse();
-      rerender(<AdminNavigation />);
-
-      const secondCall = mockSimpleNavigation.mock.calls[mockSimpleNavigation.mock.calls.length - 1]![0]!;
-      expect(secondCall.isCollapsed).toBe(true);
-
-      // Toggle back to expanded
-      secondCall.onToggleCollapse();
-      rerender(<AdminNavigation />);
-
-      const thirdCall = mockSimpleNavigation.mock.calls[mockSimpleNavigation.mock.calls.length - 1]![0]!;
-      expect(thirdCall.isCollapsed).toBe(false);
+      // Calling the event handler should save to localStorage
+      eventHandler();
+      expect(localStorage.setItem).toHaveBeenCalledWith('admin-sidebar-collapsed', expect.any(String));
     });
 
     it('should use admin-sidebar-collapsed as localStorage key', () => {
@@ -294,8 +303,12 @@ describe('AdminNavigation', () => {
 
       expect(localStorage.getItem).toHaveBeenCalledWith('admin-sidebar-collapsed');
 
-      const call = mockSimpleNavigation.mock.calls[0]![0]!;
-      call.onToggleCollapse();
+      // Get and trigger the event handler
+      const onCall = mockEventBus.on.mock.calls.find(
+        (call: any[]) => call[0] === 'navigation:sidebar-toggle'
+      );
+      const eventHandler = onCall![1];
+      eventHandler();
 
       expect(localStorage.setItem).toHaveBeenCalledWith(
         'admin-sidebar-collapsed',
@@ -373,7 +386,6 @@ describe('AdminNavigation', () => {
       expect(call.currentPath).toBeDefined();
       expect(call.LinkComponent).toBeDefined();
       expect(call.isCollapsed).toBeDefined();
-      expect(call.onToggleCollapse).toBeDefined();
       expect(call.icons).toBeDefined();
       expect(call.collapseSidebarLabel).toBeDefined();
       expect(call.expandSidebarLabel).toBeDefined();
@@ -388,7 +400,6 @@ describe('AdminNavigation', () => {
       expect(Array.isArray(call.items)).toBe(true);
       expect(typeof call.currentPath).toBe('string');
       expect(typeof call.isCollapsed).toBe('boolean');
-      expect(typeof call.onToggleCollapse).toBe('function');
       expect(typeof call.icons).toBe('object');
       expect(typeof call.collapseSidebarLabel).toBe('string');
       expect(typeof call.expandSidebarLabel).toBe('string');
@@ -404,7 +415,6 @@ describe('AdminNavigation', () => {
         'currentPath',
         'LinkComponent',
         'isCollapsed',
-        'onToggleCollapse',
         'icons',
         'collapseSidebarLabel',
         'expandSidebarLabel',
