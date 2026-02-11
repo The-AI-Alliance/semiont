@@ -5,7 +5,7 @@ import type { components } from '@semiont/api-client';
 import { getAnnotationExactText } from '@semiont/api-client';
 import { getTagCategory, getTagSchemaId } from '@semiont/ontology';
 import { getTagSchema } from '../../../lib/tag-schemas';
-import { useMakeMeaningEvents } from '../../../contexts/MakeMeaningEventBusContext';
+import { useEvents } from '../../../contexts/EventBusContext';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -18,7 +18,7 @@ export function TagEntry({
   tag,
   isFocused,
 }: TagEntryProps) {
-  const eventBus = useMakeMeaningEvents();
+  const eventBus = useEvents();
   const tagRef = useRef<HTMLDivElement>(null);
 
   // Register ref with parent via event

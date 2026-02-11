@@ -13,9 +13,9 @@ const mockEventBus = {
   all: new Map(),
 };
 
-// Mock MakeMeaningEventBusContext
-vi.mock('../../../../contexts/MakeMeaningEventBusContext', () => ({
-  useMakeMeaningEvents: () => mockEventBus,
+// Mock EventBusContext
+vi.mock('../../../../contexts/EventBusContext', () => ({
+  useEvents: () => mockEventBus,
 }));
 
 // Mock TranslationContext

@@ -4,7 +4,7 @@ import React, { useEffect } from 'react';
 import { LOCALES } from '@semiont/api-client';
 import { useTranslations } from '../../contexts/TranslationContext';
 import { useLanguageChangeAnnouncements } from '../LiveRegion';
-import { useGlobalSettingsEvents } from '../../contexts/GlobalSettingsEventBusContext';
+import { useEvents } from '../../contexts/EventBusContext';
 import './SettingsPanel.css';
 
 interface SettingsPanelProps {
@@ -21,7 +21,7 @@ export function SettingsPanel({
   isPendingLocaleChange = false
 }: SettingsPanelProps) {
   const t = useTranslations('Settings');
-  const eventBus = useGlobalSettingsEvents();
+  const eventBus = useEvents();
   const { announceLanguageChanging, announceLanguageChanged } = useLanguageChangeAnnouncements();
 
   // Track previous locale to detect changes

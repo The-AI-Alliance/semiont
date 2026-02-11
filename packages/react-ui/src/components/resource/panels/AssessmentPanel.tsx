@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useMakeMeaningEvents } from '../../../contexts/MakeMeaningEventBusContext';
+import { useEvents } from '../../../contexts/EventBusContext';
 import type { components, Selector } from '@semiont/api-client';
 import { AssessmentEntry } from './AssessmentEntry';
 import { useAnnotationPanel } from '../../../hooks/useAnnotationPanel';
@@ -56,7 +56,7 @@ export function AssessmentPanel({
   annotateMode = true,
 }: AssessmentPanelProps) {
   const t = useTranslations('AssessmentPanel');
-  const eventBus = useMakeMeaningEvents();
+  const eventBus = useEvents();
   const [newAssessmentText, setNewAssessmentText] = useState('');
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
 

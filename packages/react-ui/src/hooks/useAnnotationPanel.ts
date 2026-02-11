@@ -3,7 +3,7 @@
 import { useRef, useEffect, useCallback } from 'react';
 import type { components } from '@semiont/api-client';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
-import { useMakeMeaningEvents } from '../contexts/MakeMeaningEventBusContext';
+import { useEvents } from '../contexts/EventBusContext';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -20,7 +20,7 @@ type Annotation = components['schemas']['Annotation'];
 export function useAnnotationPanel<T extends Annotation>(
   annotations: T[]
 ) {
-  const eventBus = useMakeMeaningEvents();
+  const eventBus = useEvents();
   const refs = useRef<Map<string, HTMLElement>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
 

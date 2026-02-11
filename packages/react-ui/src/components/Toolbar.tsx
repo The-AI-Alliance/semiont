@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from '../contexts/TranslationContext';
-import { useMakeMeaningEvents } from '../contexts/MakeMeaningEventBusContext';
+import { useEvents } from '../contexts/EventBusContext';
 import './toolbar/Toolbar.css';
 
 type ToolbarContext = 'document' | 'simple';
@@ -20,7 +20,7 @@ export function Toolbar<T extends string = string>({
   isArchived = false
 }: Props<T>) {
   const t = useTranslations('Toolbar');
-  const eventBus = useMakeMeaningEvents();
+  const eventBus = useEvents();
 
   const handlePanelToggle = (panel: string) => {
     eventBus.emit('panel:toggle', { panel });

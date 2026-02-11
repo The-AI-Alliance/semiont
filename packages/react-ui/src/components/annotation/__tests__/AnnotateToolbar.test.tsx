@@ -14,9 +14,9 @@ const mockEventBus = {
   all: new Map(),
 };
 
-// Mock MakeMeaningEventBusContext
-vi.mock('../../../contexts/MakeMeaningEventBusContext', () => ({
-  useMakeMeaningEvents: () => mockEventBus,
+// Mock EventBusContext
+vi.mock('../../../contexts/EventBusContext', () => ({
+  useEvents: () => mockEventBus,
 }));
 
 // Mock translations
@@ -242,10 +242,9 @@ describe('AnnotateToolbar', () => {
   });
 
   describe('CLICK Group Interactions', () => {
-    it('calls onClickChange when clicking an action', async () => {
-      const handleChange = vi.fn();
+    it('emits toolbar:click-changed event when clicking an action', async () => {
       renderWithIntl(
-        <AnnotateToolbar {...defaultProps} onClickChange={handleChange} />
+        <AnnotateToolbar {...defaultProps} />
       );
 
       const clickGroup = screen.getByLabelText('Click');
@@ -255,8 +254,9 @@ describe('AnnotateToolbar', () => {
         expect(screen.getByText('Follow')).toBeInTheDocument();
       });
 
+      mockEmit.mockClear();
       fireEvent.click(screen.getByText('Follow'));
-      expect(handleChange).toHaveBeenCalledWith('follow');
+      expect(mockEmit).toHaveBeenCalledWith('toolbar:click-changed', { action: 'follow' });
     });
 
     it('displays selected action', () => {
@@ -268,10 +268,9 @@ describe('AnnotateToolbar', () => {
   });
 
   describe('MOTIVATION Group Interactions', () => {
-    it('calls onSelectionChange when clicking a motivation', async () => {
-      const handleChange = vi.fn();
+    it('emits toolbar:selection-changed event when clicking a motivation', async () => {
       renderWithIntl(
-        <AnnotateToolbar {...defaultProps} onSelectionChange={handleChange} />
+        <AnnotateToolbar {...defaultProps} />
       );
 
       const motivationGroup = screen.getByLabelText('Motivation');
@@ -281,17 +280,16 @@ describe('AnnotateToolbar', () => {
         expect(screen.getByText('Reference')).toBeInTheDocument();
       });
 
+      mockEmit.mockClear();
       fireEvent.click(screen.getByText('Reference'));
-      expect(handleChange).toHaveBeenCalledWith('linking');
+      expect(mockEmit).toHaveBeenCalledWith('toolbar:selection-changed', { motivation: 'linking' });
     });
 
     it('toggles motivation on/off', async () => {
-      const handleChange = vi.fn();
       const { rerender } = renderWithIntl(
         <AnnotateToolbar
           {...defaultProps}
           selectedMotivation={null}
-          onSelectionChange={handleChange}
         />
       );
 
@@ -304,8 +302,9 @@ describe('AnnotateToolbar', () => {
       });
 
       const dropdown = screen.getByRole('menu');
+      mockEmit.mockClear();
       fireEvent.click(within(dropdown).getByText('Highlight'));
-      expect(handleChange).toHaveBeenCalledWith('highlighting');
+      expect(mockEmit).toHaveBeenCalledWith('toolbar:selection-changed', { motivation: 'highlighting' });
 
       // Simulate selection
       rerender(
@@ -313,7 +312,6 @@ describe('AnnotateToolbar', () => {
           <AnnotateToolbar
             {...defaultProps}
             selectedMotivation="highlighting"
-            onSelectionChange={handleChange}
           />
         </NextIntlClientProvider>
       );
@@ -325,20 +323,19 @@ describe('AnnotateToolbar', () => {
         expect(within(dropdown).getByText('Highlight')).toBeInTheDocument();
       });
       const dropdown2 = screen.getByRole('menu');
+      mockEmit.mockClear();
       fireEvent.click(within(dropdown2).getByText('Highlight'));
-      expect(handleChange).toHaveBeenCalledWith(null);
+      expect(mockEmit).toHaveBeenCalledWith('toolbar:selection-changed', { motivation: null });
     });
   });
 
   describe('SHAPE Group Interactions', () => {
-    it('calls onShapeChange when clicking a shape', async () => {
-      const handleChange = vi.fn();
+    it('emits toolbar:shape-changed event when clicking a shape', async () => {
       renderWithIntl(
         <AnnotateToolbar
           {...defaultProps}
           showShapeGroup={true}
           selectedShape="rectangle"
-          onShapeChange={handleChange}
         />
       );
 
@@ -349,8 +346,9 @@ describe('AnnotateToolbar', () => {
         expect(screen.getByText('Circle')).toBeInTheDocument();
       });
 
+      mockEmit.mockClear();
       fireEvent.click(screen.getByText('Circle'));
-      expect(handleChange).toHaveBeenCalledWith('circle');
+      expect(mockEmit).toHaveBeenCalledWith('toolbar:shape-changed', { shape: 'circle' });
     });
   });
 

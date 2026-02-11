@@ -17,7 +17,7 @@ const PdfAnnotationCanvas = lazy(() => import('../pdf-annotation/PdfAnnotationCa
 
 type Annotation = components['schemas']['Annotation'];
 import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
-import { useMakeMeaningEvents } from '../../contexts/MakeMeaningEventBusContext';
+import { useEvents } from '../../contexts/EventBusContext';
 
 interface Props {
   content: string;
@@ -69,7 +69,7 @@ export function BrowseView({
   annotators
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();
-  const eventBus = useMakeMeaningEvents();
+  const eventBus = useEvents();
   const containerRef = useRef<HTMLDivElement>(null);
 
   const category = getMimeCategory(mimeType);

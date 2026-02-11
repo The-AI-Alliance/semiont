@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback } from 'react';
-import { useNavigationEvents } from '../../contexts/NavigationEventBusContext';
+import { useEvents } from '../../contexts/EventBusContext';
 
 /**
  * Props for ObservableLink component
@@ -58,7 +58,7 @@ export function ObservableLink({
   children,
   ...anchorProps
 }: ObservableLinkProps) {
-  const eventBus = useNavigationEvents();
+  const eventBus = useEvents();
 
   const handleClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
     // Emit event for observability

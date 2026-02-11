@@ -13,9 +13,9 @@ const mockEmit = vi.fn();
 const mockOn = vi.fn();
 const mockOff = vi.fn();
 
-// Mock MakeMeaningEventBusContext
-vi.mock('../../../../contexts/MakeMeaningEventBusContext', () => ({
-  useMakeMeaningEvents: vi.fn(() => ({
+// Mock EventBusContext
+vi.mock('../../../../contexts/EventBusContext', () => ({
+  useEvents: vi.fn(() => ({
     emit: mockEmit,
     on: mockOn,
     off: mockOff,

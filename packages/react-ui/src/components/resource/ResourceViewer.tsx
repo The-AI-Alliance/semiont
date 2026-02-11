@@ -9,7 +9,7 @@ import { JsonLdView } from '../annotation-popups/JsonLdView';
 import type { components, Selector } from '@semiont/api-client';
 import { getExactText, getTargetSelector, resourceUri, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/api-client';
 import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
-import { useMakeMeaningEvents } from '../../contexts/MakeMeaningEventBusContext';
+import { useEvents } from '../../contexts/EventBusContext';
 import { useCacheManager } from '../../contexts/CacheContext';
 import { useObservableExternalNavigation } from '../../hooks/useObservableNavigation';
 import type { Annotator } from '../../lib/annotation-registry';
@@ -65,7 +65,7 @@ export function ResourceViewer({
   const documentViewerRef = useRef<HTMLDivElement>(null);
 
   // Get unified event bus for emitting UI events
-  const eventBus = useMakeMeaningEvents();
+  const eventBus = useEvents();
 
   // Get observable navigation for event-driven routing
   const navigate = useObservableExternalNavigation();

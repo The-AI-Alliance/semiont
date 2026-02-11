@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText } from '@semiont/api-client';
-import { useMakeMeaningEvents } from '../../../contexts/MakeMeaningEventBusContext';
+import { useEvents } from '../../../contexts/EventBusContext';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -69,7 +69,7 @@ export function AssessmentEntry({
   assessment,
   isFocused,
 }: AssessmentEntryProps) {
-  const eventBus = useMakeMeaningEvents();
+  const eventBus = useEvents();
   const assessmentRef = useRef<HTMLDivElement>(null);
 
   // Register ref with parent via event

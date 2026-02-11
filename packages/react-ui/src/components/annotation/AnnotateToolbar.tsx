@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
-import { useMakeMeaningEvents } from '../../contexts/MakeMeaningEventBusContext';
+import { useEvents } from '../../contexts/EventBusContext';
 import { getSupportedShapes } from '../../lib/media-shapes';
 import type { Annotator } from '../../lib/annotation-registry';
 import './annotations.css';
@@ -111,7 +111,7 @@ export function AnnotateToolbar({
   annotators
 }: AnnotateToolbarProps) {
   const t = useTranslations('AnnotateToolbar');
-  const eventBus = useMakeMeaningEvents();
+  const eventBus = useEvents();
 
   // Helper to get emoji from annotators by motivation (with fallback for safety)
   const getMotivationEmoji = (motivation: SelectionMotivation): string => {

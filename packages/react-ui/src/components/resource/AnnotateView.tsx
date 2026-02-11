@@ -23,7 +23,7 @@ interface PendingAnnotation {
 import { CodeMirrorRenderer } from '../CodeMirrorRenderer';
 import type { TextSegment } from '../CodeMirrorRenderer';
 import type { EditorView } from '@codemirror/view';
-import { useMakeMeaningEvents } from '../../contexts/MakeMeaningEventBusContext';
+import { useEvents } from '../../contexts/EventBusContext';
 
 // Type augmentation for custom DOM properties
 interface EnrichedHTMLElement extends HTMLElement {
@@ -182,7 +182,7 @@ export function AnnotateView({
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
-  const eventBus = useMakeMeaningEvents();
+  const eventBus = useEvents();
 
   const category = getMimeCategory(mimeType);
 

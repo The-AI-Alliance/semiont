@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useMakeMeaningEvents } from '../../../contexts/MakeMeaningEventBusContext';
+import { useEvents } from '../../../contexts/EventBusContext';
 import type { Motivation } from '@semiont/api-client';
 import './DetectSection.css';
 
@@ -37,7 +37,7 @@ export function DetectSection({
                      annotationType === 'assessment' ? 'AssessmentPanel' :
                      'CommentsPanel';
   const t = useTranslations(panelName);
-  const eventBus = useMakeMeaningEvents();
+  const eventBus = useEvents();
   const [instructions, setInstructions] = useState('');
   const [tone, setTone] = useState('');
   // Default density depends on annotation type

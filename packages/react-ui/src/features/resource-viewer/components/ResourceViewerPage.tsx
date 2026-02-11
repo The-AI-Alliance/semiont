@@ -20,7 +20,7 @@ import { Toolbar } from '@semiont/react-ui';
 import { useResourceLoadingAnnouncements } from '@semiont/react-ui';
 import type { GenerationOptions } from '@semiont/react-ui';
 import { ResourceViewer } from '@semiont/react-ui';
-import { useMakeMeaningEvents } from '@semiont/react-ui';
+import { useEvents } from '@semiont/react-ui';
 import { useResourceAnnotations } from '@semiont/react-ui';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
@@ -144,7 +144,7 @@ function ResourceViewerPageInner({
   GenerationConfigModal,
 }: ResourceViewerPageProps) {
   // Get unified event bus for subscribing to UI events
-  const eventBus = useMakeMeaningEvents();
+  const eventBus = useEvents();
   // Resource loading announcements
   const {
     announceResourceLoading,

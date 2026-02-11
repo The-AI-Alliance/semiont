@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from '../contexts/TranslationContext';
-import { useMakeMeaningEvents } from '../contexts/MakeMeaningEventBusContext';
+import { useEvents } from '../contexts/EventBusContext';
 import type { DetectionProgress } from '../hooks/useDetectionProgress';
 import type { components } from '@semiont/api-client';
 
@@ -19,7 +19,7 @@ interface DetectionProgressWidgetProps {
 
 export function DetectionProgressWidget({ progress, annotationType = 'reference' }: DetectionProgressWidgetProps) {
   const t = useTranslations('DetectionProgressWidget');
-  const eventBus = useMakeMeaningEvents();
+  const eventBus = useEvents();
 
   const handleCancel = () => {
     // Emit event for job cancellation

@@ -14,9 +14,9 @@ const mockEmit = vi.fn();
 const mockOn = vi.fn();
 const mockOff = vi.fn();
 
-// Mock MakeMeaningEventBusContext
-vi.mock('../../../../contexts/MakeMeaningEventBusContext', () => ({
-  useMakeMeaningEvents: vi.fn(() => ({
+// Mock EventBusContext
+vi.mock('../../../../contexts/EventBusContext', () => ({
+  useEvents: vi.fn(() => ({
     emit: mockEmit,
     on: mockOn,
     off: mockOff,
@@ -57,7 +57,7 @@ vi.mock('../AssessmentEntry', () => ({
   ),
 }));
 
-// Mock DetectSection component - it will internally use the mocked useMakeMeaningEvents
+// Mock DetectSection component - it will internally use the mocked useEvents
 // Just render a simplified version
 vi.mock('../DetectSection', () => ({
   DetectSection: ({ annotationType, isDetecting }: any) => (
