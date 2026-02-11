@@ -153,7 +153,8 @@ describe('CommentsPanel Component', () => {
     it('should render panel header with title and count', () => {
       render(<CommentsPanel {...defaultProps} annotations={mockComments.multiple} />);
 
-      expect(screen.getByText(/Comments/)).toBeInTheDocument();
+      const headings = screen.getAllByText(/Comments/);
+      expect(headings.length).toBeGreaterThan(0);
       expect(screen.getByText(/\(3\)/)).toBeInTheDocument();
     });
 
@@ -495,7 +496,8 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel {...defaultProps} annotations={mockComments.many} />
       );
 
-      const header = screen.getByText(/Comments/).closest('div');
+      const headers = screen.getAllByText(/Comments/);
+      const header = headers[0].closest('div');
       expect(header).toHaveClass('semiont-panel-header');
     });
 
@@ -518,7 +520,8 @@ describe('CommentsPanel Component', () => {
     it('should have proper border styling', () => {
       render(<CommentsPanel {...defaultProps} />);
 
-      const header = screen.getByText(/Comments/).closest('div');
+      const headers = screen.getAllByText(/Comments/);
+      const header = headers[0].closest('div');
       expect(header).toHaveClass('semiont-panel-header');
     });
   });
@@ -606,8 +609,8 @@ describe('CommentsPanel Component', () => {
     it('should have proper heading structure', () => {
       render(<CommentsPanel {...defaultProps} />);
 
-      const heading = screen.getByText(/Comments/);
-      expect(heading).toHaveClass('semiont-panel-header__text');
+      const headings = screen.getAllByText(/Comments/);
+      expect(headings[0]).toHaveClass('semiont-panel-header__text');
     });
 
     it('should have proper textarea attributes for new comments', () => {

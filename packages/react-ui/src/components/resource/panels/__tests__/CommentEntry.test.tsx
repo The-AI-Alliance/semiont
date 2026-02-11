@@ -8,6 +8,20 @@ import type { components } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
 
+// Create mock event bus that we can spy on
+const mockEmit = vi.fn();
+const mockOn = vi.fn();
+const mockOff = vi.fn();
+
+// Mock MakeMeaningEventBusContext
+vi.mock('../../../../contexts/MakeMeaningEventBusContext', () => ({
+  useMakeMeaningEvents: vi.fn(() => ({
+    emit: mockEmit,
+    on: mockOn,
+    off: mockOff,
+  })),
+}));
+
 // Mock TranslationContext
 vi.mock('../../../../contexts/TranslationContext', () => ({
   useTranslations: vi.fn(() => (key: string) => {
@@ -102,6 +116,9 @@ describe('CommentEntry Component', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockEmit.mockClear();
+    mockOn.mockClear();
+    mockOff.mockClear();
     mockGetCommentText.mockReturnValue('This is a test comment');
     mockGetAnnotationExactText.mockReturnValue('This is th');
 

@@ -9,12 +9,17 @@ import type { components } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
 
+// Create mock event bus that we can spy on
+const mockEmit = vi.fn();
+const mockOn = vi.fn();
+const mockOff = vi.fn();
+
 // Mock MakeMeaningEventBusContext
 vi.mock('../../../../contexts/MakeMeaningEventBusContext', () => ({
   useMakeMeaningEvents: vi.fn(() => ({
-    emit: vi.fn(),
-    on: vi.fn(),
-    off: vi.fn(),
+    emit: mockEmit,
+    on: mockOn,
+    off: mockOff,
   })),
 }));
 
@@ -64,17 +69,8 @@ vi.mock('@semiont/api-client', async () => {
 
 // Mock TagEntry component to simplify testing
 vi.mock('../TagEntry', () => ({
-  TagEntry: ({ tag, onClick, onTagRef, onTagHover }: any) => (
-    <div
-      data-testid={`tag-${tag.id}`}
-      onClick={() => onClick()}
-    >
-      <button
-        onMouseEnter={() => onTagHover?.(tag.id)}
-        onMouseLeave={() => onTagHover?.(null)}
-      >
-        Hover
-      </button>
+  TagEntry: ({ tag, onTagRef }: any) => (
+    <div data-testid={`tag-${tag.id}`}>
       <div>{tag.id}</div>
     </div>
   ),
@@ -152,14 +148,14 @@ const createPendingAnnotation = (exact: string) => ({
 describe('TaggingPanel Component', () => {
   const defaultProps = {
     annotations: mockTags.empty,
-    onAnnotationClick: vi.fn(),
-    onCreate: vi.fn(),
-    focusedAnnotationId: null,
     pendingAnnotation: null,
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockEmit.mockClear();
+    mockOn.mockClear();
+    mockOff.mockClear();
 
     // Mock scrollIntoView for jsdom
     Element.prototype.scrollIntoView = vi.fn();
@@ -186,7 +182,8 @@ describe('TaggingPanel Component', () => {
     it('should render panel header with title and count', () => {
       render(<TaggingPanel {...defaultProps} annotations={mockTags.multiple} />);
 
-      expect(screen.getByText(/Tags/)).toBeInTheDocument();
+      const headings = screen.getAllByText(/Tags/);
+      expect(headings.length).toBeGreaterThan(0);
       expect(screen.getByText(/\(3\)/)).toBeInTheDocument();
     });
 
@@ -308,15 +305,13 @@ describe('TaggingPanel Component', () => {
       expect(screen.getByText(/Select category/)).toBeInTheDocument();
     });
 
-    it('should call onCreate when category is selected', async () => {
-      const onCreate = vi.fn();
+    it('should emit annotation:create event when category is selected', async () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
       render(
         <TaggingPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={onCreate}
         />
       );
 
@@ -330,7 +325,18 @@ describe('TaggingPanel Component', () => {
 
       await userEvent.selectOptions(categorySelect!, 'Issue');
 
-      expect(onCreate).toHaveBeenCalledWith('legal-irac', 'Issue');
+      expect(mockEmit).toHaveBeenCalledWith('annotation:create', {
+        motivation: 'tagging',
+        selector: pendingAnnotation.selector,
+        body: [
+          {
+            type: 'TextualBody',
+            value: 'Issue',
+            purpose: 'tagging',
+            schema: 'legal-irac',
+          },
+        ],
+      });
     });
 
     it('should have proper styling for tag creation form', () => {
@@ -350,41 +356,21 @@ describe('TaggingPanel Component', () => {
   });
 
   describe('Tag Interactions', () => {
-    it('should call onAnnotationClick when tag is clicked', () => {
-      const onAnnotationClick = vi.fn();
+    it('should render tag entries', () => {
       render(
         <TaggingPanel
           {...defaultProps}
           annotations={mockTags.single}
-          onAnnotationClick={onAnnotationClick}
         />
       );
 
       const tag = screen.getByTestId('tag-1');
-      fireEvent.click(tag);
-
-      expect(onAnnotationClick).toHaveBeenCalledWith(mockTags.single[0]);
+      expect(tag).toBeInTheDocument();
     });
   });
 
   describe('Tag Hover Behavior', () => {
-    it('should call onAnnotationHover when provided', () => {
-      const onAnnotationHover = vi.fn();
-      render(
-        <TaggingPanel
-          {...defaultProps}
-          annotations={mockTags.single}
-          onAnnotationHover={onAnnotationHover}
-        />
-      );
-
-      const hoverButton = screen.getByText('Hover');
-      fireEvent.mouseEnter(hoverButton);
-
-      expect(onAnnotationHover).toHaveBeenCalledWith('1');
-    });
-
-    it('should not error when onAnnotationHover is not provided', () => {
+    it('should render without errors', () => {
       expect(() => {
         render(
           <TaggingPanel
@@ -397,11 +383,10 @@ describe('TaggingPanel Component', () => {
   });
 
   describe('Detection Section', () => {
-    it('should render detection section when onDetect is provided and annotateMode is true', () => {
+    it('should render detection section when annotateMode is true', () => {
       render(
         <TaggingPanel
           {...defaultProps}
-          onDetect={vi.fn()}
           annotateMode={true}
         />
       );
@@ -409,22 +394,10 @@ describe('TaggingPanel Component', () => {
       expect(screen.getByText(/Detect Tags/)).toBeInTheDocument();
     });
 
-    it('should not render detection section when onDetect is not provided', () => {
-      render(
-        <TaggingPanel
-          {...defaultProps}
-          annotateMode={true}
-        />
-      );
-
-      expect(screen.queryByText(/Detect Tags/)).not.toBeInTheDocument();
-    });
-
     it('should not render detection section when annotateMode is false', () => {
       render(
         <TaggingPanel
           {...defaultProps}
-          onDetect={vi.fn()}
           annotateMode={false}
         />
       );
@@ -436,7 +409,6 @@ describe('TaggingPanel Component', () => {
       render(
         <TaggingPanel
           {...defaultProps}
-          onDetect={vi.fn()}
           annotateMode={true}
         />
       );
@@ -449,7 +421,6 @@ describe('TaggingPanel Component', () => {
       render(
         <TaggingPanel
           {...defaultProps}
-          onDetect={vi.fn()}
           annotateMode={true}
         />
       );
@@ -462,7 +433,6 @@ describe('TaggingPanel Component', () => {
       render(
         <TaggingPanel
           {...defaultProps}
-          onDetect={vi.fn()}
           annotateMode={true}
         />
       );
@@ -477,7 +447,6 @@ describe('TaggingPanel Component', () => {
       render(
         <TaggingPanel
           {...defaultProps}
-          onDetect={vi.fn()}
           annotateMode={true}
         />
       );
@@ -490,7 +459,6 @@ describe('TaggingPanel Component', () => {
       render(
         <TaggingPanel
           {...defaultProps}
-          onDetect={vi.fn()}
           annotateMode={true}
         />
       );
@@ -502,12 +470,10 @@ describe('TaggingPanel Component', () => {
       expect(detectButton).not.toBeDisabled();
     });
 
-    it('should call onDetect with selected schema and categories', async () => {
-      const onDetect = vi.fn();
+    it('should emit detection:start event with selected schema and categories', async () => {
       render(
         <TaggingPanel
           {...defaultProps}
-          onDetect={onDetect}
           annotateMode={true}
         />
       );
@@ -521,7 +487,13 @@ describe('TaggingPanel Component', () => {
       const detectButton = screen.getByRole('button', { name: /✨ Detect/i });
       await userEvent.click(detectButton);
 
-      expect(onDetect).toHaveBeenCalledWith('legal-irac', ['Issue', 'Rule']);
+      expect(mockEmit).toHaveBeenCalledWith('detection:start', {
+        motivation: 'tagging',
+        options: {
+          schemaId: 'legal-irac',
+          categories: ['Issue', 'Rule'],
+        },
+      });
     });
   });
 
@@ -544,15 +516,14 @@ describe('TaggingPanel Component', () => {
     it('should have proper heading structure', () => {
       render(<TaggingPanel {...defaultProps} />);
 
-      const heading = screen.getByText(/Tags/);
-      expect(heading).toHaveClass('semiont-panel-header__text');
+      const headings = screen.getAllByText(/Tags/);
+      expect(headings[0]).toHaveClass('semiont-panel-header__text');
     });
 
     it('should have proper checkbox labels', () => {
       render(
         <TaggingPanel
           {...defaultProps}
-          onDetect={vi.fn()}
           annotateMode={true}
         />
       );
