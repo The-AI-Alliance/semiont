@@ -91,7 +91,6 @@ const createMockProps = (overrides?: Partial<ResourceViewerPageProps>): Resource
   onThemeChange: vi.fn(),
   showLineNumbers: false,
   onLineNumbersToggle: vi.fn(),
-  activePanel: null,
   onPanelToggle: vi.fn(),
   setActivePanel: vi.fn(),
   onArchive: vi.fn(),
@@ -99,16 +98,15 @@ const createMockProps = (overrides?: Partial<ResourceViewerPageProps>): Resource
   onClone: vi.fn(),
   onUpdateAnnotationBody: vi.fn(),
   onRefetchAnnotations: vi.fn(),
-  onCreateAnnotation: vi.fn(),
   onTriggerSparkleAnimation: vi.fn(),
   onClearNewAnnotationId: vi.fn(),
   showSuccess: vi.fn(),
   showError: vi.fn(),
   cacheManager: {},
-  client: {},
   Link: ({ children }: any) => <a>{children}</a>,
   routes: {},
-  ToolbarPanels: ({ children }: any) => <div data-testid="toolbar-panels">{children}</div>,
+  ToolbarPanels: ({ children, activePanel }: any) =>
+    !activePanel ? null : <div data-testid="toolbar-panels">{children}</div>,
   SearchResourcesModal: () => <div data-testid="search-modal">Search Modal</div>,
   GenerationConfigModal: () => <div data-testid="generation-modal">Generation Modal</div>,
   ...overrides,
@@ -163,38 +161,48 @@ describe('ResourceViewerPage', () => {
 
   describe('Panel Visibility', () => {
     it('shows annotations panel when activePanel is annotations', () => {
-      const props = createMockProps({ activePanel: 'annotations' });
+      localStorage.setItem('activeToolbarPanel', 'annotations');
+      const props = createMockProps();
       render(<ResourceViewerPage {...props} />);
 
       expect(screen.getByTestId('annotations-panel')).toBeInTheDocument();
+      localStorage.clear();
     });
 
     it('shows history panel when activePanel is history', () => {
-      const props = createMockProps({ activePanel: 'history' });
+      localStorage.setItem('activeToolbarPanel', 'history');
+      const props = createMockProps();
       render(<ResourceViewerPage {...props} />);
 
       expect(screen.getByTestId('history-panel')).toBeInTheDocument();
+      localStorage.clear();
     });
 
     it('shows info panel when activePanel is info', () => {
-      const props = createMockProps({ activePanel: 'info' });
+      localStorage.setItem('activeToolbarPanel', 'info');
+      const props = createMockProps();
       render(<ResourceViewerPage {...props} />);
 
       expect(screen.getByTestId('info-panel')).toBeInTheDocument();
+      localStorage.clear();
     });
 
     it('shows collaboration panel when activePanel is collaboration', () => {
-      const props = createMockProps({ activePanel: 'collaboration' });
+      localStorage.setItem('activeToolbarPanel', 'collaboration');
+      const props = createMockProps();
       render(<ResourceViewerPage {...props} />);
 
       expect(screen.getByTestId('collaboration-panel')).toBeInTheDocument();
+      localStorage.clear();
     });
 
     it('shows jsonld panel when activePanel is jsonld', () => {
-      const props = createMockProps({ activePanel: 'jsonld' });
+      localStorage.setItem('activeToolbarPanel', 'jsonld');
+      const props = createMockProps();
       render(<ResourceViewerPage {...props} />);
 
       expect(screen.getByTestId('jsonld-panel')).toBeInTheDocument();
+      localStorage.clear();
     });
   });
 

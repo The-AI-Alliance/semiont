@@ -254,16 +254,15 @@ describe('CommentEntry Component', () => {
   });
 
   describe('Click Interactions', () => {
-    it('should call onClick when comment is clicked', async () => {
-      const onClick = vi.fn();
+    it('should emit annotation:click event when comment is clicked', async () => {
       const { container } = render(
-        <CommentEntry {...defaultProps} onClick={onClick} />
+        <CommentEntry {...defaultProps} />
       );
 
       const commentDiv = container.firstChild as HTMLElement;
       await userEvent.click(commentDiv);
 
-      expect(onClick).toHaveBeenCalledOnce();
+      expect(mockEmit).toHaveBeenCalledWith('annotation:click', { annotationId: 'comment-1' });
     });
 
     it('should be clickable with cursor-pointer class', () => {
@@ -275,34 +274,31 @@ describe('CommentEntry Component', () => {
   });
 
   describe('Hover Interactions', () => {
-    it('should call onCommentHover with comment id on mouse enter', () => {
-      const onCommentHover = vi.fn();
+    it('should emit comment:hover event with comment id on mouse enter', () => {
       const { container } = render(
-        <CommentEntry {...defaultProps} onCommentHover={onCommentHover} />
+        <CommentEntry {...defaultProps} />
       );
 
       const commentDiv = container.firstChild as HTMLElement;
       fireEvent.mouseEnter(commentDiv);
 
-      expect(onCommentHover).toHaveBeenCalledWith('comment-1');
+      expect(mockEmit).toHaveBeenCalledWith('comment:hover', { commentId: 'comment-1' });
     });
 
-    it('should call onCommentHover with null on mouse leave', () => {
-      const onCommentHover = vi.fn();
+    it('should emit comment:hover event with null on mouse leave', () => {
       const { container } = render(
-        <CommentEntry {...defaultProps} onCommentHover={onCommentHover} />
+        <CommentEntry {...defaultProps} />
       );
 
       const commentDiv = container.firstChild as HTMLElement;
       fireEvent.mouseLeave(commentDiv);
 
-      expect(onCommentHover).toHaveBeenCalledWith(null);
+      expect(mockEmit).toHaveBeenCalledWith('comment:hover', { commentId: null });
     });
 
-    it('should not error if onCommentHover is not provided', () => {
-      const { onCommentHover, ...propsWithoutHover } = defaultProps;
+    it('should handle hover events without errors', () => {
       const { container } = render(
-        <CommentEntry {...propsWithoutHover} />
+        <CommentEntry {...defaultProps} />
       );
 
       const commentDiv = container.firstChild as HTMLElement;
