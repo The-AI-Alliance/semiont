@@ -38,10 +38,8 @@ function getSelectorDisplayText(selector: Selector | Selector[]): string | null 
 
 interface CommentsPanelProps {
   annotations: Annotation[];
-  onCreate: (commentText: string) => void;
   pendingAnnotation: PendingAnnotation | null;
   annotateMode?: boolean;
-  onDetect?: (instructions?: string, tone?: string) => void | Promise<void>;
   isDetecting?: boolean;
   detectionProgress?: {
     status: string;
@@ -52,10 +50,8 @@ interface CommentsPanelProps {
 
 export function CommentsPanel({
   annotations,
-  onCreate,
   pendingAnnotation,
   annotateMode = true,
-  onDetect,
   isDetecting = false,
   detectionProgress,
 }: CommentsPanelProps) {
@@ -74,13 +70,17 @@ export function CommentsPanel({
       setTimeout(() => setFocusedAnnotationId(null), 3000);
     };
 
-    eventBus.on('ui:annotation:click', handler);
-    return () => eventBus.off('ui:annotation:click', handler);
+    eventBus.on('annotation:click', handler);
+    return () => eventBus.off('annotation:click', handler);
   }, [eventBus]);
 
   const handleSaveNewComment = () => {
-    if (newCommentText.trim()) {
-      onCreate(newCommentText);
+    if (newCommentText.trim() && pendingAnnotation) {
+      eventBus.emit('annotation:create', {
+        motivation: 'commenting',
+        selector: pendingAnnotation.selector,
+        body: [{ type: 'TextualBody', value: newCommentText, purpose: 'commenting' }],
+      });
       setNewCommentText('');
     }
   };
@@ -91,7 +91,7 @@ export function CommentsPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.emit('ui:annotation:cancel-pending');
+        eventBus.emit('annotation:cancel-pending');
         setNewCommentText('');
       }
     };
@@ -133,7 +133,7 @@ export function CommentsPanel({
             <div className="semiont-annotation-prompt__actions">
               <button
                 onClick={() => {
-                  eventBus.emit('ui:annotation:cancel-pending');
+                  eventBus.emit('annotation:cancel-pending');
                   setNewCommentText('');
                 }}
                 className="semiont-button semiont-button--secondary"
@@ -157,12 +157,11 @@ export function CommentsPanel({
       {/* Scrollable content area */}
       <div ref={containerRef} className="semiont-panel__content">
         {/* Detection Section - only in Annotate mode and for text resources */}
-        {annotateMode && onDetect && (
+        {annotateMode && (
           <DetectSection
             annotationType="comment"
             isDetecting={isDetecting}
             detectionProgress={detectionProgress}
-            onDetect={onDetect}
           />
         )}
 

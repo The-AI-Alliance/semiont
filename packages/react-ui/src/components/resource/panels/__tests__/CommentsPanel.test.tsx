@@ -9,12 +9,17 @@ import type { components } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
 
+// Create mock event bus that we can spy on
+const mockEmit = vi.fn();
+const mockOn = vi.fn();
+const mockOff = vi.fn();
+
 // Mock MakeMeaningEventBusContext
 vi.mock('../../../../contexts/MakeMeaningEventBusContext', () => ({
   useMakeMeaningEvents: vi.fn(() => ({
-    emit: vi.fn(),
-    on: vi.fn(),
-    off: vi.fn(),
+    emit: mockEmit,
+    on: mockOn,
+    off: mockOff,
   })),
 }));
 
@@ -118,14 +123,14 @@ const createPendingAnnotation = (exact: string) => ({
 describe('CommentsPanel Component', () => {
   const defaultProps = {
     annotations: mockComments.empty,
-    onAnnotationClick: vi.fn(),
-    onCreate: vi.fn(),
-    focusedAnnotationId: null,
     pendingAnnotation: null,
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockEmit.mockClear();
+    mockOn.mockClear();
+    mockOff.mockClear();
 
     // Mock scrollIntoView for jsdom
     Element.prototype.scrollIntoView = vi.fn();
@@ -241,7 +246,6 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={vi.fn()}
         />
       );
 
@@ -255,7 +259,6 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={vi.fn()}
         />
       );
 
@@ -270,7 +273,6 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={vi.fn()}
         />
       );
 
@@ -285,7 +287,6 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={vi.fn()}
         />
       );
 
@@ -302,7 +303,6 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={vi.fn()}
         />
       );
 
@@ -321,7 +321,6 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={vi.fn()}
         />
       );
 
@@ -336,7 +335,6 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={vi.fn()}
         />
       );
 
@@ -344,15 +342,13 @@ describe('CommentsPanel Component', () => {
       expect(textarea).toHaveFocus();
     });
 
-    it('should call onCreateComment when save is clicked', async () => {
-      const onCreateComment = vi.fn();
+    it('should emit annotation:create event when save is clicked', async () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
       render(
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={onCreateComment}
         />
       );
 
@@ -362,17 +358,21 @@ describe('CommentsPanel Component', () => {
       const saveButton = screen.getByText('Save');
       await userEvent.click(saveButton);
 
-      expect(onCreateComment).toHaveBeenCalledWith('My new comment');
+      // Verify that annotation:create event was emitted with correct payload
+      expect(mockEmit).toHaveBeenCalledWith('annotation:create', {
+        motivation: 'commenting',
+        selector: pendingAnnotation.selector,
+        body: [{ type: 'TextualBody', value: 'My new comment', purpose: 'commenting' }],
+      });
     });
 
-    it('should clear textarea after successful save', async () => {
+    it('should clear textarea after save is clicked', async () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
       render(
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={vi.fn()}
         />
       );
 
@@ -390,7 +390,6 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={vi.fn()}
         />
       );
 
@@ -405,7 +404,6 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={vi.fn()}
         />
       );
 
@@ -423,7 +421,6 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={vi.fn()}
         />
       );
 
@@ -441,7 +438,6 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={vi.fn()}
         />
       );
 
@@ -452,74 +448,22 @@ describe('CommentsPanel Component', () => {
   });
 
   describe('Comment Interactions', () => {
-    it('should call onCommentClick when comment is clicked', () => {
-      const onCommentClick = vi.fn();
+    it('should render comment entries', () => {
       render(
         <CommentsPanel
           {...defaultProps}
           annotations={mockComments.single}
-          onAnnotationClick={onCommentClick}
         />
       );
 
       const comment = screen.getByTestId('comment-1');
-      fireEvent.click(comment);
-
-      expect(onCommentClick).toHaveBeenCalledWith(mockComments.single[0]);
+      expect(comment).toBeInTheDocument();
     });
 
   });
 
   describe('Comment Hover Behavior', () => {
-    it('should call onAnnotationHover when provided', () => {
-      const onAnnotationHover = vi.fn();
-      render(
-        <CommentsPanel
-          {...defaultProps}
-          annotations={mockComments.single}
-          onAnnotationHover={onAnnotationHover}
-        />
-      );
-
-      const hoverButton = screen.getByText('Hover');
-      fireEvent.mouseEnter(hoverButton);
-
-      expect(onAnnotationHover).toHaveBeenCalledWith('1');
-    });
-
-    it('should handle hoveredAnnotationId prop changes', () => {
-      const { rerender } = render(
-        <CommentsPanel
-          {...defaultProps}
-          annotations={mockComments.multiple}
-          hoveredAnnotationId={null}
-        />
-      );
-
-      // Should not error when hoveredAnnotationId changes
-      expect(() => {
-        rerender(
-          <CommentsPanel
-            {...defaultProps}
-            annotations={mockComments.multiple}
-            hoveredAnnotationId="2"
-          />
-        );
-      }).not.toThrow();
-
-      // Should handle being set back to null
-      expect(() => {
-        rerender(
-          <CommentsPanel
-            {...defaultProps}
-            annotations={mockComments.multiple}
-            hoveredAnnotationId={null}
-          />
-        );
-      }).not.toThrow();
-    });
-
-    it('should not error when onAnnotationHover is not provided', () => {
+    it('should render without errors', () => {
       expect(() => {
         render(
           <CommentsPanel
@@ -532,29 +476,16 @@ describe('CommentsPanel Component', () => {
   });
 
   describe('Focus Management', () => {
-    it('should pass focusedAnnotationId to CommentEntry components', () => {
+    it('should render comments', () => {
       render(
         <CommentsPanel
           {...defaultProps}
           annotations={mockComments.multiple}
-          focusedAnnotationId="2"
         />
       );
 
-      // The focused comment should be rendered
+      // Comments should be rendered
       expect(screen.getByTestId('comment-2')).toBeInTheDocument();
-    });
-
-    it('should handle null focusedAnnotationId', () => {
-      expect(() => {
-        render(
-          <CommentsPanel
-            {...defaultProps}
-            annotations={mockComments.multiple}
-            focusedAnnotationId={null}
-          />
-        );
-      }).not.toThrow();
     });
   });
 
@@ -630,7 +561,7 @@ describe('CommentsPanel Component', () => {
       expect(screen.getAllByTestId(/comment-/)).toHaveLength(1);
     });
 
-    it('should show new comment input even without onCreate callback', () => {
+    it('should show new comment input when pendingAnnotation exists', () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
       render(
@@ -640,7 +571,7 @@ describe('CommentsPanel Component', () => {
         />
       );
 
-      // Component shows textarea when pendingAnnotation exists, even if onCreate is from defaultProps
+      // Component shows textarea when pendingAnnotation exists
       expect(screen.getByPlaceholderText(/Add your comment/)).toBeInTheDocument();
     });
 
@@ -692,7 +623,6 @@ describe('CommentsPanel Component', () => {
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={vi.fn()}
         />
       );
 

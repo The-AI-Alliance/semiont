@@ -38,9 +38,7 @@ function getSelectorDisplayText(selector: Selector | Selector[]): string | null 
 
 interface AssessmentPanelProps {
   annotations: Annotation[];
-  onCreate: (assessmentText: string) => void;
   pendingAnnotation: PendingAnnotation | null;
-  onDetect?: (instructions?: string) => void | Promise<void>;
   isDetecting?: boolean;
   detectionProgress?: {
     status: string;
@@ -52,9 +50,7 @@ interface AssessmentPanelProps {
 
 export function AssessmentPanel({
   annotations,
-  onCreate,
   pendingAnnotation,
-  onDetect,
   isDetecting = false,
   detectionProgress,
   annotateMode = true,
@@ -68,8 +64,12 @@ export function AssessmentPanel({
     useAnnotationPanel(annotations);
 
   const handleSaveNewAssessment = () => {
-    if (newAssessmentText.trim()) {
-      onCreate(newAssessmentText);
+    if (newAssessmentText.trim() && pendingAnnotation) {
+      eventBus.emit('annotation:create', {
+        motivation: 'assessing',
+        selector: pendingAnnotation.selector,
+        body: [{ type: 'TextualBody', value: newAssessmentText, purpose: 'assessing' }],
+      });
       setNewAssessmentText('');
     }
   };
@@ -80,7 +80,7 @@ export function AssessmentPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.emit('ui:annotation:cancel-pending');
+        eventBus.emit('annotation:cancel-pending');
         setNewAssessmentText('');
       }
     };
@@ -96,8 +96,8 @@ export function AssessmentPanel({
       setTimeout(() => setFocusedAnnotationId(null), 3000);
     };
 
-    eventBus.on('ui:annotation:click', handler);
-    return () => eventBus.off('ui:annotation:click', handler);
+    eventBus.on('annotation:click', handler);
+    return () => eventBus.off('annotation:click', handler);
   }, [eventBus]);
 
   return (
@@ -133,7 +133,7 @@ export function AssessmentPanel({
             <div className="semiont-annotation-prompt__actions">
               <button
                 onClick={() => {
-                  eventBus.emit('ui:annotation:cancel-pending');
+                  eventBus.emit('annotation:cancel-pending');
                   setNewAssessmentText('');
                 }}
                 className="semiont-button semiont-button--secondary"
@@ -156,12 +156,11 @@ export function AssessmentPanel({
       {/* Scrollable content area */}
       <div ref={containerRef} className="semiont-panel__content">
         {/* Detection Section - only in Annotate mode and for text resources */}
-        {annotateMode && onDetect && (
+        {annotateMode && (
           <DetectSection
             annotationType="assessment"
             isDetecting={isDetecting}
             detectionProgress={detectionProgress}
-            onDetect={onDetect}
           />
         )}
 

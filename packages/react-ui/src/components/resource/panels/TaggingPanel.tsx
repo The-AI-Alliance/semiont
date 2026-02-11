@@ -39,8 +39,6 @@ function getSelectorDisplayText(selector: Selector | Selector[]): string | null 
 interface TaggingPanelProps {
   annotations: Annotation[];
   annotateMode?: boolean;
-  onDetect?: (schemaId: string, categories: string[]) => void | Promise<void>;
-  onCreate: (schemaId: string, category: string) => void | Promise<void>;
   isDetecting?: boolean;
   detectionProgress?: {
     status: string;
@@ -57,8 +55,6 @@ interface TaggingPanelProps {
 export function TaggingPanel({
   annotations,
   annotateMode = true,
-  onDetect,
-  onCreate,
   isDetecting = false,
   detectionProgress,
   pendingAnnotation
@@ -89,8 +85,8 @@ export function TaggingPanel({
       setTimeout(() => setFocusedAnnotationId(null), 3000);
     };
 
-    eventBus.on('ui:annotation:click', handler);
-    return () => eventBus.off('ui:annotation:click', handler);
+    eventBus.on('annotation:click', handler);
+    return () => eventBus.off('annotation:click', handler);
   }, [eventBus]);
 
   const { sortedAnnotations, containerRef, handleAnnotationRef } =
@@ -125,8 +121,14 @@ export function TaggingPanel({
   };
 
   const handleDetect = () => {
-    if (onDetect && selectedCategories.size > 0) {
-      onDetect(selectedSchemaId, Array.from(selectedCategories));
+    if (selectedCategories.size > 0) {
+      eventBus.emit('detection:start', {
+        motivation: 'tagging',
+        options: {
+          schemaId: selectedSchemaId,
+          categories: Array.from(selectedCategories),
+        },
+      });
       setSelectedCategories(new Set()); // Reset after detection
     }
   };
@@ -137,7 +139,7 @@ export function TaggingPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.emit('ui:annotation:cancel-pending');
+        eventBus.emit('annotation:cancel-pending');
       }
     };
 
@@ -198,8 +200,19 @@ export function TaggingPanel({
                 <select
                   className="semiont-select"
                   onChange={(e) => {
-                    if (e.target.value) {
-                      onCreate(selectedSchemaId, e.target.value);
+                    if (e.target.value && pendingAnnotation) {
+                      eventBus.emit('annotation:create', {
+                        motivation: 'tagging',
+                        selector: pendingAnnotation.selector,
+                        body: [
+                          {
+                            type: 'TextualBody',
+                            value: e.target.value,
+                            purpose: 'tagging',
+                            schema: selectedSchemaId,
+                          },
+                        ],
+                      });
                     }
                   }}
                   defaultValue=""
@@ -215,7 +228,7 @@ export function TaggingPanel({
             {/* Cancel button */}
             <div className="semiont-annotation-prompt__footer">
               <button
-                onClick={() => eventBus.emit('ui:annotation:cancel-pending')}
+                onClick={() => eventBus.emit('annotation:cancel-pending')}
                 className="semiont-button semiont-button--secondary"
                 data-type="tag"
               >
@@ -226,7 +239,7 @@ export function TaggingPanel({
         )}
 
         {/* Detection Section - only in Annotate mode */}
-        {annotateMode && onDetect && (
+        {annotateMode && (
           <div className="semiont-panel__section">
             <button
               onClick={() => setIsDetectExpanded(!isDetectExpanded)}

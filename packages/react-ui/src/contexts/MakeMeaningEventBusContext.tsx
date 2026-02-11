@@ -4,7 +4,8 @@ import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'r
 import mitt from 'mitt';
 import { useResourceEvents } from '../hooks/useResourceEvents';
 import type { ResourceEvent } from '@semiont/core';
-import type { ResourceUri } from '@semiont/api-client';
+import type { ResourceUri, SemiontApiClient } from '@semiont/api-client';
+import { useEventOperations } from './useEventOperations';
 
 /**
  * Selection data for annotation creation
@@ -20,30 +21,39 @@ export interface SelectionData {
   suffix?: string;
 }
 
+import type { components, Selector, Motivation } from '@semiont/api-client';
+
+type Annotation = components['schemas']['Annotation'];
+
 /**
- * Unified event map for all events (backend + UI)
+ * Unified event map for all events (backend + UI + operations)
+ *
+ * Event naming philosophy: Events are named by what they represent, not by
+ * implementation category. The line between "UI" and "domain" is blurry and
+ * changes over time - don't encode it in event names.
  *
  * Backend events: Make-meaning's event-sourced domain events from SSE
- * UI events: Local user interactions that will enable real-time collaboration
+ * UI events: Local user interactions (will enable real-time collaboration)
+ * Operation events: User-initiated operations that trigger API calls
  */
-type MakeMeaningEventMap = {
+export type MakeMeaningEventMap = {
   // Generic event (all types)
   'make-meaning:event': ResourceEvent;
 
-  // Detection semantics (backend events)
+  // Detection semantics (backend events from SSE)
   'detection:started': Extract<ResourceEvent, { type: 'job.started' }>;
   'detection:progress': Extract<ResourceEvent, { type: 'job.progress' }>;
   'detection:entity-found': Extract<ResourceEvent, { type: 'annotation.added' }>;
   'detection:completed': Extract<ResourceEvent, { type: 'job.completed' }>;
   'detection:failed': Extract<ResourceEvent, { type: 'job.failed' }>;
 
-  // Generation semantics (backend events)
+  // Generation semantics (backend events from SSE)
   'generation:started': Extract<ResourceEvent, { type: 'job.started' }>;
   'generation:progress': Extract<ResourceEvent, { type: 'job.progress' }>;
   'generation:resource-created': Extract<ResourceEvent, { type: 'resource.created' }>;
   'generation:completed': Extract<ResourceEvent, { type: 'job.completed' }>;
 
-  // Annotation semantics (backend events)
+  // Annotation semantics (backend events from SSE)
   'annotation:added': Extract<ResourceEvent, { type: 'annotation.added' }>;
   'annotation:removed': Extract<ResourceEvent, { type: 'annotation.removed' }>;
   'annotation:updated': Extract<ResourceEvent, { type: 'annotation.body.updated' }>;
@@ -56,20 +66,94 @@ type MakeMeaningEventMap = {
   'resource:archived': Extract<ResourceEvent, { type: 'resource.archived' }>;
   'resource:unarchived': Extract<ResourceEvent, { type: 'resource.unarchived' }>;
 
-  // UI events - Local user interactions (will enable real-time collaboration)
-  'ui:selection:comment-requested': SelectionData;
-  'ui:selection:tag-requested': SelectionData;
-  'ui:selection:assessment-requested': SelectionData;
-  'ui:selection:reference-requested': SelectionData;
-  'ui:annotation:cancel-pending': void;
-  'ui:annotation:hover': { annotationId: string | null };
-  'ui:comment:hover': { commentId: string | null };
-  'ui:annotation:click': { annotationId: string };
-  'ui:annotation:focus': { annotationId: string | null };
-  'ui:panel:toggle': { panel: string };
-  'ui:panel:open': { panel: string };
-  'ui:panel:close': void;
-  'ui:job:cancel-requested': { jobType: 'detection' | 'generation' };
+  // Selection events - User highlighting text/regions
+  'selection:comment-requested': SelectionData;
+  'selection:tag-requested': SelectionData;
+  'selection:assessment-requested': SelectionData;
+  'selection:reference-requested': SelectionData;
+
+  // Annotation interaction events
+  'annotation:cancel-pending': void;
+  'annotation:hover': { annotationId: string | null };
+  'comment:hover': { commentId: string | null };
+  'annotation:click': { annotationId: string };
+  'annotation:focus': { annotationId: string | null };
+
+  // Panel management events
+  'panel:toggle': { panel: string };
+  'panel:open': { panel: string };
+  'panel:close': void;
+
+  // Job control events
+  'job:cancel-requested': { jobType: 'detection' | 'generation' };
+
+  // Annotation operation events (user-initiated API calls)
+  'annotation:create': {
+    motivation: Motivation;
+    selector: Selector | Selector[];
+    body: any[];
+  };
+  'annotation:created': { annotation: Annotation };
+  'annotation:create-failed': { error: Error };
+  'annotation:delete': { annotationId: string };
+  'annotation:deleted': { annotationId: string };
+  'annotation:delete-failed': { error: Error };
+  'annotation:update-body': {
+    annotationUri: string;
+    resourceId: string;
+    operations: Array<{
+      op: 'add' | 'remove' | 'replace';
+      item?: any;
+      oldItem?: any;
+      newItem?: any;
+    }>;
+  };
+  'annotation:body-updated': { annotationUri: string };
+  'annotation:body-update-failed': { error: Error };
+
+  // Detection operation events (user-initiated detection)
+  'detection:start': {
+    motivation: Motivation;
+    options: {
+      // Highlights, Comments, Assessments
+      instructions?: string;
+      tone?: 'neutral' | 'supportive' | 'critical';
+      density?: number;
+
+      // References
+      entityTypes?: string[];
+      includeDescriptiveReferences?: boolean;
+
+      // Tags
+      schemaId?: string;
+      categories?: string[];
+    };
+  };
+  'detection:complete': { motivation: Motivation };
+  'detection:cancelled': void;
+
+  // Reference operation events
+  'reference:generate': {
+    annotationUri: string;
+    resourceUri: string;
+    options: { title: string; prompt?: string; language?: string; temperature?: number; maxTokens?: number };
+  };
+  'reference:generation-progress': { chunk: any };
+  'reference:generation-complete': { annotationUri: string };
+  'reference:generation-failed': { error: Error };
+  'reference:create-manual': {
+    annotationUri: string;
+    title: string;
+    entityTypes: string[];
+  };
+  'reference:link': {
+    annotationUri: string;
+    searchTerm: string;
+  };
+  'reference:search-modal-open': {
+    referenceId: string;
+    searchTerm: string;
+  };
 };
 
 type EventBus = ReturnType<typeof mitt<MakeMeaningEventMap>>;
@@ -79,6 +163,16 @@ const MakeMeaningEventBusContext = createContext<EventBus | null>(null);
 export interface MakeMeaningEventBusProviderProps {
   rUri: ResourceUri;
   children: ReactNode;
+
+  // API dependencies for operation events
+  client?: SemiontApiClient;
+
+  // Callbacks for state updates (React Query invalidation, toasts, etc.)
+  onAnnotationCreated?: (annotation: Annotation) => void;
+  onAnnotationDeleted?: (annotationId: string) => void;
+  onDetectionProgress?: (progress: any) => void;
+  onError?: (error: Error, operation: string) => void;
+  onSuccess?: (message: string) => void;
 }
 
 /**
@@ -95,10 +189,27 @@ export interface MakeMeaningEventBusProviderProps {
  */
 export function MakeMeaningEventBusProvider({
   rUri,
-  children
+  children,
+  client,
+  onAnnotationCreated,
+  onAnnotationDeleted,
+  onDetectionProgress,
+  onError,
+  onSuccess,
 }: MakeMeaningEventBusProviderProps) {
   // Create event bus (one per resource page)
   const eventBus = useMemo(() => mitt<MakeMeaningEventMap>(), []);
+
+  // Set up operation event handlers (coordinates API calls)
+  useEventOperations(eventBus, {
+    client,
+    resourceUri: rUri,
+    onAnnotationCreated,
+    onAnnotationDeleted,
+    onDetectionProgress,
+    onError,
+    onSuccess,
+  });
 
   // Connect to backend SSE (which streams make-meaning events)
   const { status, eventCount } = useResourceEvents({

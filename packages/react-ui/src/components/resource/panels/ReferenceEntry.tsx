@@ -22,10 +22,6 @@ interface ReferenceEntryProps {
   isFocused: boolean;
   routes: RouteBuilder;
   onReferenceRef: (referenceId: string, el: HTMLElement | null) => void;
-  onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
-  onCreateDocument?: (annotationUri: string, title: string, entityTypes: string[]) => void;
-  onSearchDocuments?: (referenceId: string, searchTerm: string) => void;
-  onUpdateReference?: (referenceId: string, updates: Partial<Annotation>) => void;
   annotateMode?: boolean;
   isGenerating?: boolean;
 }
@@ -35,10 +31,6 @@ export function ReferenceEntry({
   isFocused,
   routes,
   onReferenceRef,
-  onGenerateDocument,
-  onCreateDocument,
-  onSearchDocuments,
-  onUpdateReference,
   annotateMode = true,
   isGenerating = false,
 }: ReferenceEntryProps) {
@@ -107,27 +99,43 @@ export function ReferenceEntry({
   };
 
   const handleComposeDocument = () => {
-    if (onCreateDocument) {
-      onCreateDocument(reference.id, selectedText, entityTypes);
-    }
+    eventBus.emit('reference:create-manual', {
+      annotationUri: reference.id,
+      title: selectedText,
+      entityTypes,
+    });
   };
 
   const handleUnlink = () => {
-    if (onUpdateReference) {
-      onUpdateReference(reference.id, { body: [] });
+    // Unlinking removes all body items from the reference annotation
+    const sourceUri = typeof reference.target === 'object' && 'source' in reference.target
+      ? reference.target.source
+      : '';
+    if (sourceUri) {
+      eventBus.emit('annotation:update-body', {
+        annotationUri: reference.id,
+        resourceId: sourceUri.split('/resources/')[1] || '',
+        operations: [{ op: 'remove', item: null }], // Remove all body items
+      });
     }
   };
 
   const handleGenerate = () => {
-    if (onGenerateDocument) {
-      onGenerateDocument(reference.id, { title: selectedText });
-    }
+    const resourceUri = typeof reference.target === 'object' && 'source' in reference.target
+      ? reference.target.source
+      : '';
+    eventBus.emit('reference:generate', {
+      annotationUri: reference.id,
+      resourceUri,
+      options: { title: selectedText },
+    });
   };
 
   const handleSearch = () => {
-    if (onSearchDocuments) {
-      onSearchDocuments(reference.id, selectedText);
-    }
+    eventBus.emit('reference:link', {
+      annotationUri: reference.id,
+      searchTerm: selectedText,
+    });
   };
 
   return (
@@ -137,13 +145,13 @@ export function ReferenceEntry({
       data-type="reference"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        eventBus.emit('ui:annotation:click', { annotationId: reference.id });
+        eventBus.emit('annotation:click', { annotationId: reference.id });
       }}
       onMouseEnter={() => {
-        eventBus.emit('ui:annotation:hover', { annotationId: reference.id });
+        eventBus.emit('annotation:hover', { annotationId: reference.id });
       }}
       onMouseLeave={() => {
-        eventBus.emit('ui:annotation:hover', { annotationId: null });
+        eventBus.emit('annotation:hover', { annotationId: null });
       }}
     >
       {/* Status indicator and text quote */}

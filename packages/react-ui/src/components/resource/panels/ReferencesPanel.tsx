@@ -47,8 +47,6 @@ interface DetectionLog {
 interface Props {
   // Generic panel props
   annotations?: Annotation[];
-  onDetect?: (selectedTypes: string[], includeDescriptiveReferences?: boolean) => void;
-  onCreate: (entityType?: string) => void;
   isDetecting: boolean;
   detectionProgress: any; // TODO: type this properly
   annotateMode?: boolean;
@@ -57,9 +55,6 @@ interface Props {
 
   // Reference-specific props
   allEntityTypes: string[];
-  onSearchDocuments?: (referenceId: string, searchTerm: string) => void;
-  onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
-  onCreateDocument?: (annotationUri: string, title: string, entityTypes: string[]) => void;
   generatingReferenceId?: string | null;
   referencedBy?: ReferencedBy[];
   referencedByLoading?: boolean;
@@ -68,17 +63,12 @@ interface Props {
 
 export function ReferencesPanel({
   annotations = [],
-  onDetect,
-  onCreate,
   isDetecting,
   detectionProgress,
   annotateMode = true,
   Link,
   routes,
   allEntityTypes,
-  onSearchDocuments,
-  onGenerateDocument,
-  onCreateDocument,
   generatingReferenceId,
   referencedBy = [],
   referencedByLoading = false,
@@ -116,15 +106,20 @@ export function ReferencesPanel({
       setTimeout(() => setFocusedAnnotationId(null), 3000);
     };
 
-    eventBus.on('ui:annotation:click', handler);
-    return () => eventBus.off('ui:annotation:click', handler);
+    eventBus.on('annotation:click', handler);
+    return () => eventBus.off('annotation:click', handler);
   }, [eventBus]);
 
   // Clear log when starting new detection
   const handleDetect = () => {
-    if (!onDetect) return;
     setLastDetectionLog(null);
-    onDetect(selectedEntityTypes, includeDescriptiveReferences);
+    eventBus.emit('detection:start', {
+      motivation: 'linking',
+      options: {
+        entityTypes: selectedEntityTypes,
+        includeDescriptiveReferences,
+      },
+    });
   };
 
   // Track whether we've already saved the log for the current detection run
@@ -159,9 +154,15 @@ export function ReferencesPanel({
   };
 
   const handleCreateReference = () => {
-    const entityType = pendingEntityTypes.join(',') || undefined;
-    onCreate(entityType);
-    setPendingEntityTypes([]);
+    if (pendingAnnotation) {
+      const entityType = pendingEntityTypes.join(',') || undefined;
+      eventBus.emit('annotation:create', {
+        motivation: 'linking',
+        selector: pendingAnnotation.selector,
+        body: entityType ? [{ type: 'TextualBody', value: entityType, purpose: 'tagging' }] : [],
+      });
+      setPendingEntityTypes([]);
+    }
   };
 
   // Escape key handler for cancelling pending annotation
@@ -170,7 +171,7 @@ export function ReferencesPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.emit('ui:annotation:cancel-pending');
+        eventBus.emit('annotation:cancel-pending');
         setPendingEntityTypes([]);
       }
     };
@@ -222,7 +223,7 @@ export function ReferencesPanel({
             <div className="semiont-annotation-prompt__actions">
               <button
                 onClick={() => {
-                  eventBus.emit('ui:annotation:cancel-pending');
+                  eventBus.emit('annotation:cancel-pending');
                   setPendingEntityTypes([]);
                 }}
                 className="semiont-button semiont-button--secondary"
@@ -245,7 +246,7 @@ export function ReferencesPanel({
       {/* Scrollable content area */}
       <div ref={containerRef} className="semiont-panel__content">
         {/* Detection Section - only in Annotate mode and for text resources */}
-        {annotateMode && onDetect && (
+        {annotateMode && (
           <div className="semiont-panel__section">
             <button
               onClick={() => setIsDetectExpanded(!isDetectExpanded)}
@@ -394,9 +395,6 @@ export function ReferencesPanel({
                   onReferenceRef={handleAnnotationRef}
                   annotateMode={annotateMode}
                   isGenerating={reference.id === generatingReferenceId}
-                  {...(onGenerateDocument && { onGenerateDocument })}
-                  {...(onCreateDocument && { onCreateDocument })}
-                  {...(onSearchDocuments && { onSearchDocuments })}
                 />
               ))
             )}

@@ -377,7 +377,7 @@ describe('ReferencesPanel Component', () => {
       const cancelButton = screen.getByTitle('Cancel Detection');
       await userEvent.click(cancelButton);
 
-      expect(mockEmit).toHaveBeenCalledWith('ui:job:cancel-requested', { jobType: 'detection' });
+      expect(mockEmit).toHaveBeenCalledWith('job:cancel-requested', { jobType: 'detection' });
     });
   });
 

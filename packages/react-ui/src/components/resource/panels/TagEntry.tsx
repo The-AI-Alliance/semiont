@@ -47,13 +47,13 @@ export function TagEntry({
     <div
       ref={tagRef}
       onClick={() => {
-        eventBus.emit('ui:annotation:click', { annotationId: tag.id });
+        eventBus.emit('annotation:click', { annotationId: tag.id });
       }}
       onMouseEnter={() => {
-        eventBus.emit('ui:annotation:hover', { annotationId: tag.id });
+        eventBus.emit('annotation:hover', { annotationId: tag.id });
       }}
       onMouseLeave={() => {
-        eventBus.emit('ui:annotation:hover', { annotationId: null });
+        eventBus.emit('annotation:hover', { annotationId: null });
       }}
       className="semiont-annotation-entry"
       data-type="tag"

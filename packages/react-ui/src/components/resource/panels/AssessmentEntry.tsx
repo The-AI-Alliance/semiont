@@ -99,13 +99,13 @@ export function AssessmentEntry({
       data-type="assessment"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        eventBus.emit('ui:annotation:click', { annotationId: assessment.id });
+        eventBus.emit('annotation:click', { annotationId: assessment.id });
       }}
       onMouseEnter={() => {
-        eventBus.emit('ui:annotation:hover', { annotationId: assessment.id });
+        eventBus.emit('annotation:hover', { annotationId: assessment.id });
       }}
       onMouseLeave={() => {
-        eventBus.emit('ui:annotation:hover', { annotationId: null });
+        eventBus.emit('annotation:hover', { annotationId: null });
       }}
     >
       {/* Selected text quote */}

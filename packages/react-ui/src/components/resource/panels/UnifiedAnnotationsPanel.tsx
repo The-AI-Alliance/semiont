@@ -5,8 +5,6 @@ import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components, Selector } from '@semiont/api-client';
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
 import type { Annotator } from '../../../lib/annotation-registry';
-import { createDetectionHandler } from '../../../lib/annotation-registry';
-import { supportsDetection } from '../../../lib/resource-utils';
 import { StatisticsPanel } from './StatisticsPanel';
 import { HighlightPanel } from './HighlightPanel';
 import { ReferencesPanel } from './ReferencesPanel';
@@ -29,13 +27,13 @@ interface PendingAnnotation {
 const TAB_ORDER: TabKey[] = ['statistics', 'reference', 'highlight', 'assessment', 'comment', 'tag'];
 
 /**
- * Simplified UnifiedAnnotationsPanel using Annotator abstraction
+ * Simplified UnifiedAnnotationsPanel using event-driven architecture
  *
  * Key simplifications:
  * - Single annotations array (grouped internally by motivation)
  * - Single focusedAnnotationId (motivation-agnostic)
  * - Hover state managed via event bus (no props needed)
- * - Single onCreateAnnotation handler (motivation-based dispatch)
+ * - All operations managed via event bus (no callback props)
  */
 interface UnifiedAnnotationsPanelProps {
   // All annotations (grouped internally by motivation)
@@ -43,21 +41,6 @@ interface UnifiedAnnotationsPanelProps {
 
   // Annotators (pure static data - no handlers)
   annotators: Record<string, Annotator>;
-
-  // Detection context (passed separately so annotators remain stable)
-  detectionContext?: {
-    client: any;
-    rUri: any;
-    setDetectingMotivation: (motivation: Motivation | null) => void;
-    setMotivationDetectionProgress: (progress: any) => void;
-    detectionStreamRef: any;
-    cacheManager: any;
-    showSuccess: (message: string) => void;
-    showError: (message: string) => void;
-  };
-
-  // Single generic creation handler
-  onCreateAnnotation: (motivation: Motivation, ...args: any[]) => void;
 
   // Mode
   annotateMode?: boolean;
@@ -77,13 +60,9 @@ interface UnifiedAnnotationsPanelProps {
   // Unified pending annotation (for creating new annotations)
   pendingAnnotation: PendingAnnotation | null;
 
-  // Reference-specific props (TODO: refactor these into annotator handlers)
+  // Reference-specific props
   allEntityTypes?: string[];
   generatingReferenceId?: string | null;
-  onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
-  onCreateDocument?: (annotationUri: string, title: string, entityTypes: string[]) => void;
-  onSearchDocuments?: (referenceId: string, searchTerm: string) => void;
-  mediaType?: string;
   referencedBy?: any[];
   referencedByLoading?: boolean;
 
@@ -243,26 +222,8 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
           const detectionProgress = isDetecting ? props.detectionProgress : null;
 
           // Common props for all annotation panels
-          // Create detection handler on-demand if:
-          // 1. Annotator supports detection (has detection config)
-          // 2. Detection context is provided (API client, state handlers)
-          // 3. Resource supports detection (is a text/* media type)
-          // Note: We don't check client availability here - the handler gracefully handles null clients
-          const onDetect = (
-            annotator.detection &&
-            props.detectionContext &&
-            supportsDetection(props.mediaType)
-          )
-            ? createDetectionHandler(annotator, props.detectionContext)
-            : undefined;
-
-          // Create wrapper function that calls onCreateAnnotation with the annotator's motivation
-          const onCreate = (...args: any[]) => props.onCreateAnnotation(annotator.motivation, ...args);
-
           const commonProps = {
             annotations,
-            onDetect,
-            onCreate,
             pendingAnnotation: props.pendingAnnotation,
             isDetecting,
             detectionProgress,
@@ -274,7 +235,6 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
             return (
               <HighlightPanel
                 {...commonProps}
-                onCreate={onCreate}
               />
             );
           }
@@ -283,16 +243,11 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
             return (
               <ReferencesPanel
                 annotations={commonProps.annotations}
-                onDetect={onDetect}
-                onCreate={onCreate}
                 pendingAnnotation={commonProps.pendingAnnotation}
                 isDetecting={commonProps.isDetecting}
                 detectionProgress={commonProps.detectionProgress}
                 annotateMode={commonProps.annotateMode}
                 allEntityTypes={props.allEntityTypes || []}
-                onGenerateDocument={props.onGenerateDocument}
-                onCreateDocument={props.onCreateDocument}
-                onSearchDocuments={props.onSearchDocuments}
                 generatingReferenceId={props.generatingReferenceId}
                 referencedBy={props.referencedBy}
                 referencedByLoading={props.referencedByLoading}
@@ -306,7 +261,6 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
             return (
               <AssessmentPanel
                 {...commonProps}
-                onCreate={onCreate}
               />
             );
           }
@@ -315,7 +269,6 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
             return (
               <CommentsPanel
                 {...commonProps}
-                onCreate={onCreate}
               />
             );
           }
@@ -324,7 +277,6 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
             return (
               <TaggingPanel
                 {...commonProps}
-                onCreate={onCreate}
               />
             );
           }

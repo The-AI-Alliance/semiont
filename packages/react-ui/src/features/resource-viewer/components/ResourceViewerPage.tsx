@@ -102,14 +102,8 @@ export interface ResourceViewerPageProps {
   onUpdateAnnotationBody: (annotationUri: string, data: any) => Promise<void>;
 
   /**
-   * Annotation CRUD callbacks
+   * Annotation callbacks
    */
-  onCreateAnnotation: (
-    rUri: ResourceUri,
-    motivation: Motivation,
-    selector: any,
-    body: any[]
-  ) => Promise<void>;
   onTriggerSparkleAnimation: (annotationId: string) => void;
   onClearNewAnnotationId: (annotationId: string) => void;
 
@@ -123,11 +117,6 @@ export interface ResourceViewerPageProps {
    * Cache manager for detection
    */
   cacheManager: any;
-
-  /**
-   * API client
-   */
-  client: any;
 
   /**
    * Link component for routing
@@ -166,13 +155,11 @@ function ResourceViewerPageInner({
   onUnarchive,
   onClone,
   onUpdateAnnotationBody,
-  onCreateAnnotation,
   onTriggerSparkleAnimation,
   onClearNewAnnotationId,
   showSuccess,
   showError,
   cacheManager,
-  client,
   Link,
   routes,
   ToolbarPanels,
@@ -224,7 +211,6 @@ function ResourceViewerPageInner({
 
   // Search state
   const [searchModalOpen, setSearchModalOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   const [pendingReferenceId, setPendingReferenceId] = useState<string | null>(null);
 
   // Generation config modal state
@@ -280,18 +266,6 @@ function ResourceViewerPageInner({
     }
   });
 
-  // Generic detection context for all annotation types
-  const detectionContext = {
-    client,
-    rUri,
-    setDetectingMotivation,
-    setMotivationDetectionProgress,
-    detectionStreamRef,
-    cacheManager,
-    showSuccess,
-    showError
-  };
-
   // Generic cancel handler (works for all detection types)
   const handleCancelDetection = useCallback(
     () => createCancelDetectionHandler({
@@ -338,35 +312,6 @@ function ResourceViewerPageInner({
     });
   }, [startGeneration, resource, onClearNewAnnotationId, locale]);
 
-  // Handle manual document creation from stub reference
-  const handleCreateDocument = useCallback((
-    annotationUri: string,
-    title: string,
-    entityTypes: string[]
-  ) => {
-    if (!resource) return;
-
-    // Extract resource ID from URI
-    const resourceId = rUri.split('/').pop() || '';
-
-    // Navigate to compose page with reference context
-    const entityTypesStr = entityTypes.join(',');
-    const params = new URLSearchParams({
-      name: title,  // Compose page expects 'name' parameter
-      annotationUri,  // Pass full annotation URI, not just ID
-      sourceDocumentId: resourceId,
-      ...(entityTypes.length > 0 ? { entityTypes: entityTypesStr } : {}),
-    });
-
-    window.location.href = `/know/compose?${params.toString()}`;
-  }, [resource, rUri]);
-
-  // Handle search for documents to link to reference
-  const handleSearchDocuments = useCallback((referenceId: string, searchTerm: string) => {
-    setPendingReferenceId(referenceId);
-    setSearchTerm(searchTerm);
-    setSearchModalOpen(true);
-  }, []);
 
 
   // Announce content loading state changes
@@ -398,7 +343,7 @@ function ResourceViewerPageInner({
     };
 
     // Emit event to open the appropriate panel
-    eventBus.emit('ui:panel:open', { panel: MOTIVATION_TO_TAB[pending.motivation] || 'annotations' });
+    eventBus.emit('panel:open', { panel: MOTIVATION_TO_TAB[pending.motivation] || 'annotations' });
     setPendingAnnotation(pending);
   }, [eventBus]);
 
@@ -485,7 +430,7 @@ function ResourceViewerPageInner({
 
     // Handle annotation click - emit focus event for scroll coordination
     const handleClick = ({ annotationId }: { annotationId: string }) => {
-      eventBus.emit('ui:annotation:focus', { annotationId });
+      eventBus.emit('annotation:focus', { annotationId });
       setHoveredAnnotationId(annotationId);
       setTimeout(() => setHoveredAnnotationId(null), 1500);
     };
@@ -530,28 +475,37 @@ function ResourceViewerPageInner({
       // Generation cancellation can be added here when needed
     };
 
-    eventBus.on('ui:selection:comment-requested', handleCommentRequested);
-    eventBus.on('ui:selection:tag-requested', handleTagRequested);
-    eventBus.on('ui:selection:assessment-requested', handleAssessmentRequested);
-    eventBus.on('ui:selection:reference-requested', handleReferenceRequested);
-    eventBus.on('ui:annotation:cancel-pending', handleCancelPending);
-    eventBus.on('ui:annotation:click', handleClick);
-    eventBus.on('ui:panel:toggle', handlePanelToggle);
-    eventBus.on('ui:panel:open', handlePanelOpen);
-    eventBus.on('ui:panel:close', handlePanelClose);
-    eventBus.on('ui:job:cancel-requested', handleJobCancelRequested);
+    // Handle search modal open request
+    const handleSearchModalOpen = ({ referenceId }: { referenceId: string; searchTerm: string }) => {
+      setPendingReferenceId(referenceId);
+      setSearchModalOpen(true);
+      // Note: searchTerm is available in the event but SearchResourcesModal manages its own search state
+    };
+
+    eventBus.on('selection:comment-requested', handleCommentRequested);
+    eventBus.on('selection:tag-requested', handleTagRequested);
+    eventBus.on('selection:assessment-requested', handleAssessmentRequested);
+    eventBus.on('selection:reference-requested', handleReferenceRequested);
+    eventBus.on('annotation:cancel-pending', handleCancelPending);
+    eventBus.on('annotation:click', handleClick);
+    eventBus.on('panel:toggle', handlePanelToggle);
+    eventBus.on('panel:open', handlePanelOpen);
+    eventBus.on('panel:close', handlePanelClose);
+    eventBus.on('job:cancel-requested', handleJobCancelRequested);
+    eventBus.on('reference:search-modal-open', handleSearchModalOpen);
 
     return () => {
-      eventBus.off('ui:selection:comment-requested', handleCommentRequested);
-      eventBus.off('ui:selection:tag-requested', handleTagRequested);
-      eventBus.off('ui:selection:assessment-requested', handleAssessmentRequested);
-      eventBus.off('ui:selection:reference-requested', handleReferenceRequested);
-      eventBus.off('ui:annotation:cancel-pending', handleCancelPending);
-      eventBus.off('ui:annotation:click', handleClick);
-      eventBus.off('ui:panel:toggle', handlePanelToggle);
-      eventBus.off('ui:panel:open', handlePanelOpen);
-      eventBus.off('ui:panel:close', handlePanelClose);
-      eventBus.off('ui:job:cancel-requested', handleJobCancelRequested);
+      eventBus.off('selection:comment-requested', handleCommentRequested);
+      eventBus.off('selection:tag-requested', handleTagRequested);
+      eventBus.off('selection:assessment-requested', handleAssessmentRequested);
+      eventBus.off('selection:reference-requested', handleReferenceRequested);
+      eventBus.off('annotation:cancel-pending', handleCancelPending);
+      eventBus.off('annotation:click', handleClick);
+      eventBus.off('panel:toggle', handlePanelToggle);
+      eventBus.off('panel:open', handlePanelOpen);
+      eventBus.off('panel:close', handlePanelClose);
+      eventBus.off('job:cancel-requested', handleJobCancelRequested);
+      eventBus.off('reference:search-modal-open', handleSearchModalOpen);
     };
   }, [eventBus, handleAnnotationRequested, handleCancelDetection]);
 
@@ -560,84 +514,9 @@ function ResourceViewerPageInner({
 
   // Panel toggle handler - emits event for toolbar buttons
   const handlePanelToggle = useCallback((panel: string) => {
-    eventBus.emit('ui:panel:toggle', { panel });
+    eventBus.emit('panel:toggle', { panel });
   }, [eventBus]);
 
-  // Single generic annotation creation handler - reads config from ANNOTATORS
-  const handleCreateAnnotation = useCallback(async (
-    motivation: Motivation,
-    ...args: any[]
-  ) => {
-    if (!pendingAnnotation || pendingAnnotation.motivation !== motivation) return;
-
-    // Find the config for this motivation
-    const annotatorConfig = Object.values(ANNOTATORS).find(a => a.motivation === motivation);
-    if (!annotatorConfig) return;
-
-    try {
-      let body: any[] = [];
-      let selector = pendingAnnotation.selector;
-
-      // Build body based on config
-      switch (annotatorConfig.create.bodyBuilder) {
-        case 'empty':
-          // args[0] might be selector for highlight/assessment
-          if (args[0]) selector = args[0];
-          body = [];
-          break;
-
-        case 'text':
-          // args[0] is commentText
-          body = [{
-            type: 'TextualBody',
-            value: args[0],
-            format: 'text/plain',
-            purpose: 'commenting'
-          }];
-          break;
-
-        case 'entityTag':
-          // args[0] is optional entityType
-          if (args[0]) {
-            body = [{
-              type: 'TextualBody',
-              purpose: 'tagging',
-              value: args[0]
-            }];
-          }
-          break;
-
-        case 'dualTag':
-          // args[0] is schemaId, args[1] is category
-          body = [
-            {
-              type: 'TextualBody',
-              purpose: 'tagging',
-              value: args[1] // category
-            },
-            {
-              type: 'TextualBody',
-              purpose: 'classifying',
-              value: args[0] // schemaId
-            }
-          ];
-          break;
-      }
-
-      await onCreateAnnotation(rUri, motivation, selector, body);
-      setPendingAnnotation(null);
-
-      // Cache invalidation now handled by annotation:added event
-
-      if (annotatorConfig.create.successMessage) {
-        const message = annotatorConfig.create.successMessage.replace('{value}', args[1] || '');
-        showSuccess(message);
-      }
-    } catch (error) {
-      console.error(`Failed to create ${annotatorConfig.internalType}:`, error);
-      showError(`Failed to create ${annotatorConfig.displayName.toLowerCase()}`);
-    }
-  }, [pendingAnnotation, onCreateAnnotation, rUri, showSuccess, showError]);
 
   // Group annotations by type using static ANNOTATORS
   const result = {
@@ -747,18 +626,12 @@ function ResourceViewerPageInner({
               <UnifiedAnnotationsPanel
                 annotations={annotations}
                 annotators={ANNOTATORS}
-                onCreateAnnotation={handleCreateAnnotation}
-                detectionContext={detectionContext}
                 annotateMode={annotateMode}
                 detectingMotivation={detectingMotivation}
                 detectionProgress={motivationDetectionProgress}
                 pendingAnnotation={pendingAnnotation}
                 allEntityTypes={allEntityTypes}
-                onGenerateDocument={handleGenerateDocument}
-                onCreateDocument={handleCreateDocument}
                 generatingReferenceId={generationProgress?.referenceId ?? null}
-                onSearchDocuments={handleSearchDocuments}
-                {...(primaryMediaType ? { mediaType: primaryMediaType } : {})}
                 referencedBy={referencedBy}
                 referencedByLoading={referencedByLoading}
                 resourceId={rUri.split('/').pop() || ''}
@@ -856,7 +729,6 @@ function ResourceViewerPageInner({
             }
           }
         }}
-        searchTerm={searchTerm}
       />
 
       {/* Generation Config Modal */}

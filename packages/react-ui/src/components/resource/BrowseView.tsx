@@ -103,19 +103,19 @@ export function BrowseView({
       // Route to side panel if annotation type has one
       if (metadata?.hasSidePanel) {
         // Emit comment hover event
-        eventBus.emit('ui:comment:hover', { commentId: annotationId });
-        eventBus.emit('ui:annotation:hover', { annotationId: null });
+        eventBus.emit('comment:hover', { commentId: annotationId });
+        eventBus.emit('annotation:hover', { annotationId: null });
         return;
       } else {
         // Emit annotation hover event
-        eventBus.emit('ui:annotation:hover', { annotationId });
-        eventBus.emit('ui:comment:hover', { commentId: null });
+        eventBus.emit('annotation:hover', { annotationId });
+        eventBus.emit('comment:hover', { commentId: null });
         return;
       }
     }
     // Clear both when null
-    eventBus.emit('ui:annotation:hover', { annotationId: null });
-    eventBus.emit('ui:comment:hover', { commentId: null });
+    eventBus.emit('annotation:hover', { annotationId: null });
+    eventBus.emit('comment:hover', { commentId: null });
   }, [annotationMap, eventBus, annotators]);
 
   // Attach click handlers, hover handlers, and animations after render
@@ -232,8 +232,8 @@ export function BrowseView({
       }, 100);
     };
 
-    eventBus.on('ui:annotation:hover', handleHover);
-    return () => eventBus.off('ui:annotation:hover', handleHover);
+    eventBus.on('annotation:hover', handleHover);
+    return () => eventBus.off('annotation:hover', handleHover);
   }, [eventBus]);
 
   // Subscribe to comment hover events - scroll and pulse comment into view
@@ -276,8 +276,8 @@ export function BrowseView({
       }, 100);
     };
 
-    eventBus.on('ui:comment:hover', handleCommentHover);
-    return () => eventBus.off('ui:comment:hover', handleCommentHover);
+    eventBus.on('comment:hover', handleCommentHover);
+    return () => eventBus.off('comment:hover', handleCommentHover);
   }, [eventBus]);
 
   // Subscribe to focus events - scroll annotation into view
@@ -321,8 +321,8 @@ export function BrowseView({
       }, 2000);
     };
 
-    eventBus.on('ui:annotation:focus', handleFocus);
-    return () => eventBus.off('ui:annotation:focus', handleFocus);
+    eventBus.on('annotation:focus', handleFocus);
+    return () => eventBus.off('annotation:focus', handleFocus);
   }, [eventBus]);
 
   // Route to appropriate viewer based on MIME type category

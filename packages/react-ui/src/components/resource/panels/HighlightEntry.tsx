@@ -62,13 +62,13 @@ export function HighlightEntry({
       data-type="highlight"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        eventBus.emit('ui:annotation:click', { annotationId: highlight.id });
+        eventBus.emit('annotation:click', { annotationId: highlight.id });
       }}
       onMouseEnter={() => {
-        eventBus.emit('ui:annotation:hover', { annotationId: highlight.id });
+        eventBus.emit('annotation:hover', { annotationId: highlight.id });
       }}
       onMouseLeave={() => {
-        eventBus.emit('ui:annotation:hover', { annotationId: null });
+        eventBus.emit('annotation:hover', { annotationId: null });
       }}
     >
       {/* Highlighted text */}

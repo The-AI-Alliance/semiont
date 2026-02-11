@@ -372,7 +372,7 @@ export function ResourceViewer({
         case 'commenting':
           if (selector.type === 'TextQuoteSelector' && selector.exact) {
             // Text: emit UI event for comment creation
-            eventBus.emit('ui:selection:comment-requested', {
+            eventBus.emit('selection:comment-requested', {
               exact: selector.exact,
               start: selector.start || 0,
               end: selector.end || 0
@@ -411,7 +411,7 @@ export function ResourceViewer({
         case 'tagging':
           if (selector.type === 'TextQuoteSelector' && selector.exact) {
             // Text: emit UI event for tag creation
-            eventBus.emit('ui:selection:tag-requested', {
+            eventBus.emit('selection:tag-requested', {
               exact: selector.exact,
               start: selector.start || 0,
               end: selector.end || 0
@@ -450,7 +450,7 @@ export function ResourceViewer({
         case 'linking':
           // Emit UI event for reference creation (text, image, or PDF selections)
           if (selector.type === 'TextQuoteSelector' && selector.exact) {
-            eventBus.emit('ui:selection:reference-requested', {
+            eventBus.emit('selection:reference-requested', {
               exact: selector.exact,
               start: selector.start || 0,
               end: selector.end || 0,
@@ -458,14 +458,14 @@ export function ResourceViewer({
               ...(selector.suffix && { suffix: selector.suffix })
             });
           } else if (selector.type === 'SvgSelector' && selector.value) {
-            eventBus.emit('ui:selection:reference-requested', {
+            eventBus.emit('selection:reference-requested', {
               exact: '',  // Images don't have exact text
               start: 0,
               end: 0,
               svgSelector: selector.value
             });
           } else if (selector.type === 'FragmentSelector' && selector.value) {
-            eventBus.emit('ui:selection:reference-requested', {
+            eventBus.emit('selection:reference-requested', {
               exact: '',  // PDFs don't have exact text
               start: 0,
               end: 0,

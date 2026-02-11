@@ -66,8 +66,8 @@ export function useAnnotationPanel<T extends Annotation>(
       }
     };
 
-    eventBus.on('ui:annotation:hover', handleAnnotationHover);
-    return () => eventBus.off('ui:annotation:hover', handleAnnotationHover);
+    eventBus.on('annotation:hover', handleAnnotationHover);
+    return () => eventBus.off('annotation:hover', handleAnnotationHover);
   }, [eventBus]);
 
   // Subscribe to comment hover events - scroll panel entry into view
@@ -104,8 +104,8 @@ export function useAnnotationPanel<T extends Annotation>(
       }
     };
 
-    eventBus.on('ui:comment:hover', handleCommentHover);
-    return () => eventBus.off('ui:comment:hover', handleCommentHover);
+    eventBus.on('comment:hover', handleCommentHover);
+    return () => eventBus.off('comment:hover', handleCommentHover);
   }, [eventBus]);
 
   // Ref callback for annotation elements

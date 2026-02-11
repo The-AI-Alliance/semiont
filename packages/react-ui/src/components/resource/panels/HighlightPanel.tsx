@@ -21,8 +21,6 @@ interface PendingAnnotation {
 
 interface HighlightPanelProps {
   annotations: Annotation[];
-  onDetect?: (instructions?: string) => void | Promise<void>;
-  onCreate: (selector: Selector | Selector[]) => void;
   pendingAnnotation: PendingAnnotation | null;
   isDetecting?: boolean;
   detectionProgress?: {
@@ -35,8 +33,6 @@ interface HighlightPanelProps {
 
 export function HighlightPanel({
   annotations,
-  onDetect,
-  onCreate,
   pendingAnnotation,
   isDetecting = false,
   detectionProgress,
@@ -56,18 +52,21 @@ export function HighlightPanel({
       setTimeout(() => setFocusedAnnotationId(null), 3000);
     };
 
-    eventBus.on('ui:annotation:click', handler);
-    return () => eventBus.off('ui:annotation:click', handler);
+    eventBus.on('annotation:click', handler);
+    return () => eventBus.off('annotation:click', handler);
   }, [eventBus]);
 
   // Highlights auto-create: when pendingAnnotation arrives with highlighting motivation,
-  // immediately call onCreate without showing a form
+  // immediately emit annotation:create event
   useEffect(() => {
     if (pendingAnnotation && pendingAnnotation.motivation === 'highlighting') {
-      onCreate(pendingAnnotation.selector);
+      eventBus.emit('annotation:create', {
+        motivation: 'highlighting',
+        selector: pendingAnnotation.selector,
+        body: [],
+      });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingAnnotation]); // Only depend on pendingAnnotation, not onCreate (which is recreated on every render)
+  }, [pendingAnnotation, eventBus]);
 
   return (
     <div className="semiont-panel">
@@ -76,12 +75,11 @@ export function HighlightPanel({
       {/* Scrollable content area */}
       <div ref={containerRef} className="semiont-panel__content">
         {/* Detection Section - only in Annotate mode and for text resources */}
-        {annotateMode && onDetect && (
+        {annotateMode && (
           <DetectSection
             annotationType="highlight"
             isDetecting={isDetecting}
             detectionProgress={detectionProgress}
-            onDetect={onDetect}
           />
         )}
 

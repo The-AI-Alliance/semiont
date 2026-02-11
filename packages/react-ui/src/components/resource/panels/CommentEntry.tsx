@@ -84,13 +84,13 @@ export function CommentEntry({
       data-type="comment"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        eventBus.emit('ui:annotation:click', { annotationId: comment.id });
+        eventBus.emit('annotation:click', { annotationId: comment.id });
       }}
       onMouseEnter={() => {
-        eventBus.emit('ui:comment:hover', { commentId: comment.id });
+        eventBus.emit('comment:hover', { commentId: comment.id });
       }}
       onMouseLeave={() => {
-        eventBus.emit('ui:comment:hover', { commentId: null });
+        eventBus.emit('comment:hover', { commentId: null });
       }}
     >
       {/* Selected text quote - only for text annotations */}
