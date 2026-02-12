@@ -279,7 +279,8 @@ describe('AdminNavigation', () => {
       const toggleHandler = subscriptions['navigation:sidebar-toggle'];
 
       // Call the toggle handler
-      toggleHandler(undefined);
+      expect(toggleHandler).toBeDefined();
+      toggleHandler!(undefined);
 
       expect(mockToggleCollapsed).toHaveBeenCalledTimes(1);
     });
