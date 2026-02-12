@@ -65,11 +65,15 @@ export function AssessmentPanel({
   const { sortedAnnotations } = useAnnotationPanel(annotations, containerRef);
 
   const handleSaveNewAssessment = () => {
-    if (newAssessmentText.trim() && pendingAnnotation) {
+    if (pendingAnnotation) {
+      const body = newAssessmentText.trim()
+        ? [{ type: 'TextualBody', value: newAssessmentText, purpose: 'assessing' }]
+        : [];
+
       eventBus.emit('annotation:create', {
         motivation: 'assessing',
         selector: pendingAnnotation.selector,
-        body: [{ type: 'TextualBody', value: newAssessmentText, purpose: 'assessing' }],
+        body,
       });
       setNewAssessmentText('');
     }

@@ -350,7 +350,7 @@ describe('AssessmentPanel Component', () => {
       expect(textarea).toHaveValue('');
     });
 
-    it('should not emit event when saving with empty text', async () => {
+    it('should emit event when saving with empty text (text is optional for assessments)', async () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
       render(
@@ -363,8 +363,11 @@ describe('AssessmentPanel Component', () => {
       const saveButton = screen.getByText('Save');
       await userEvent.click(saveButton);
 
-      // Should NOT emit annotation:create with empty text (handleSaveNewAssessment checks trim())
-      expect(mockEmit).not.toHaveBeenCalledWith(expect.stringContaining('annotation:create'), expect.anything());
+      // Should emit annotation:create with empty body array (text is optional for assessments)
+      expect(mockEmit).toHaveBeenCalledWith('annotation:create', expect.objectContaining({
+        motivation: 'assessing',
+        body: [], // Empty body when no text provided
+      }));
     });
 
     it('should have proper styling for new assessment area', () => {
