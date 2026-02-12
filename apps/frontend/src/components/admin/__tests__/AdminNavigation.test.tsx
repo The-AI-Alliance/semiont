@@ -79,6 +79,7 @@ vi.mock('@semiont/react-ui', () => ({
   useEventBus: () => mockEventBus,
   useMakeMeaningEvents: () => mockEventBus,
   useGlobalSettingsEvents: () => mockEventBus,
+  useEventSubscriptions: vi.fn(),
 }));
 
 describe('AdminNavigation', () => {
