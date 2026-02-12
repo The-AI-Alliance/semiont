@@ -24,7 +24,7 @@ interface EnrichedHTMLElement extends HTMLElement {
   __cmView?: EditorView;
 }
 import { AnnotateToolbar, type SelectionMotivation, type ClickAction, type ShapeType } from '../annotation/AnnotateToolbar';
-import type { AnnotationsCollection, AnnotationHandlers, AnnotationCreationHandler, AnnotationUIState } from '../../types/annotation-props';
+import type { AnnotationsCollection, AnnotationCreationHandler, AnnotationUIState } from '../../types/annotation-props';
 
 // Re-export for convenience
 export type { SelectionMotivation, ClickAction, ShapeType };
@@ -34,15 +34,11 @@ interface Props {
   mimeType?: string;
   resourceUri?: string;
   annotations: AnnotationsCollection;
-  handlers?: AnnotationHandlers;
   creationHandler?: AnnotationCreationHandler;
   uiState: AnnotationUIState;
   onUIStateChange?: (state: Partial<AnnotationUIState>) => void;
   editable?: boolean;
   enableWidgets?: boolean;
-  onEntityTypeClick?: (entityType: string) => void;
-  onReferenceNavigate?: (documentId: string) => void;
-  onUnresolvedReferenceClick?: (annotation: Annotation) => void;
   getTargetDocumentName?: (documentId: string) => string | undefined;
   generatingReferenceId?: string | null;
   showLineNumbers?: boolean;
@@ -155,14 +151,10 @@ export function AnnotateView({
   mimeType = 'text/plain',
   resourceUri,
   annotations,
-  handlers,
   creationHandler,
   uiState,
   onUIStateChange,
   enableWidgets = false,
-  onEntityTypeClick,
-  onReferenceNavigate,
-  onUnresolvedReferenceClick,
   getTargetDocumentName,
   generatingReferenceId,
   showLineNumbers = false,
@@ -178,11 +170,6 @@ export function AnnotateView({
 
   const allAnnotations = [...highlights, ...references, ...assessments, ...comments, ...tags];
   const segments = segmentTextWithAnnotations(content, allAnnotations);
-
-  // Extract individual handlers from grouped objects
-  const onAnnotationClick = handlers?.onClick;
-  const onAnnotationHover = handlers?.onHover;
-  const onCommentHover = handlers?.onCommentHover;
 
   const onCreate = creationHandler?.onCreate;
 
@@ -219,20 +206,20 @@ export function AnnotateView({
       // Route to side panel if annotation type has one
       if (metadata?.hasSidePanel) {
         // Clear the other hover state when switching
-        if (onAnnotationHover) onAnnotationHover(null);
-        if (onCommentHover) onCommentHover(annotationId);
+        eventBus.emit('annotation:hover', { annotationId: null });
+        eventBus.emit('comment:hover', { commentId: annotationId });
         return;
       } else {
         // Clear the other hover state when switching
-        if (onCommentHover) onCommentHover(null);
-        if (onAnnotationHover) onAnnotationHover(annotationId);
+        eventBus.emit('comment:hover', { commentId: null });
+        eventBus.emit('annotation:hover', { annotationId });
         return;
       }
     }
     // Clear both when null
-    if (onAnnotationHover) onAnnotationHover(null);
-    if (onCommentHover) onCommentHover(null);
-  }, [allAnnotations, onAnnotationHover, onCommentHover]);
+    eventBus.emit('annotation:hover', { annotationId: null });
+    eventBus.emit('comment:hover', { commentId: null });
+  }, [allAnnotations, eventBus]);
 
   // Handle text annotation with sparkle or immediate creation
   useEffect(() => {
@@ -368,8 +355,6 @@ export function AnnotateView({
             <CodeMirrorRenderer
             content={content}
             segments={segments}
-            {...(onAnnotationClick && { onAnnotationClick })}
-            onAnnotationHover={handleAnnotationHover}
             editable={false}
             newAnnotationIds={newAnnotationIds}
             {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
@@ -378,9 +363,7 @@ export function AnnotateView({
             sourceView={true}
             showLineNumbers={showLineNumbers}
             enableWidgets={enableWidgets}
-            {...(onEntityTypeClick && { onEntityTypeClick })}
-            {...(onReferenceNavigate && { onReferenceNavigate })}
-            {...(onUnresolvedReferenceClick && { onUnresolvedReferenceClick })}
+            eventBus={eventBus}
             {...(getTargetDocumentName && { getTargetDocumentName })}
             {...(generatingReferenceId !== undefined && { generatingReferenceId })}
           />
@@ -412,21 +395,8 @@ export function AnnotateView({
                     existingAnnotations={allAnnotations}
                     drawingMode={selectedMotivation ? selectedShape : null}
                     selectedMotivation={selectedMotivation}
-                    onAnnotationCreate={async (fragmentSelector) => {
-                      if (!selectedMotivation) return;
-
-                      // Unified flow: all annotations go through pending state
-                      eventBus.emit('annotation:requested', {
-                        selector: {
-                          type: 'FragmentSelector',
-                          conformsTo: 'http://tools.ietf.org/rfc/rfc3778',
-                          value: fragmentSelector
-                        },
-                        motivation: selectedMotivation
-                      });
-                    }}
-                    {...(onAnnotationClick && { onAnnotationClick })}
-                    {...(onAnnotationHover && { onAnnotationHover: handleAnnotationHover })}
+                    eventBus={eventBus}
+                    onAnnotationHover={handleAnnotationHover}
                     hoveredAnnotationId={hoveredCommentId || hoveredAnnotationId || null}
                   />
                 </Suspense>
@@ -455,20 +425,8 @@ export function AnnotateView({
                 existingAnnotations={allAnnotations}
                 drawingMode={selectedMotivation ? selectedShape : null}
                 selectedMotivation={selectedMotivation}
-                onAnnotationCreate={async (svg) => {
-                  if (!selectedMotivation) return;
-
-                  // Unified flow: all annotations go through pending state
-                  eventBus.emit('annotation:requested', {
-                    selector: {
-                      type: 'SvgSelector',
-                      value: svg
-                    },
-                    motivation: selectedMotivation
-                  });
-                }}
-                {...(onAnnotationClick && { onAnnotationClick })}
-                {...(onAnnotationHover && { onAnnotationHover: handleAnnotationHover })}
+                eventBus={eventBus}
+                onAnnotationHover={handleAnnotationHover}
                 hoveredAnnotationId={hoveredCommentId || hoveredAnnotationId || null}
               />
             )}

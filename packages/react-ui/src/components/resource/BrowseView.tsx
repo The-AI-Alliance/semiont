@@ -10,7 +10,7 @@ import { getExactText, getTextPositionSelector, getTargetSelector, getBodySource
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import { ImageViewer } from '../viewers';
 import { AnnotateToolbar, type ClickAction } from '../annotation/AnnotateToolbar';
-import type { AnnotationsCollection, AnnotationHandlers } from '../../types/annotation-props';
+import type { AnnotationsCollection } from '../../types/annotation-props';
 
 // Lazy load PDF component to avoid SSR issues with browser PDF.js loading
 const PdfAnnotationCanvas = lazy(() => import('../pdf-annotation/PdfAnnotationCanvas.client').then(mod => ({ default: mod.PdfAnnotationCanvas })));
@@ -25,7 +25,6 @@ interface Props {
   mimeType: string;
   resourceUri: string;
   annotations: AnnotationsCollection;
-  handlers?: AnnotationHandlers;
   hoveredAnnotationId?: string | null;
   hoveredCommentId?: string | null;
   selectedClick?: ClickAction;
@@ -63,7 +62,6 @@ export function BrowseView({
   mimeType,
   resourceUri,
   annotations,
-  handlers,
   selectedClick = 'detail',
   annotateMode
 }: Props) {
@@ -74,9 +72,6 @@ export function BrowseView({
   const category = getMimeCategory(mimeType);
 
   const { highlights, references, assessments, comments, tags } = annotations;
-
-  // Extract individual handlers from grouped object
-  const onAnnotationClick = handlers?.onClick;
 
   const allAnnotations = [...highlights, ...references, ...assessments, ...comments, ...tags];
 
@@ -128,11 +123,8 @@ export function BrowseView({
       const annotationId = target.getAttribute('data-annotation-id');
       const annotationType = target.getAttribute('data-annotation-type');
 
-      if (annotationId && annotationType === 'reference' && onAnnotationClick) {
-        const annotation = annotationMap.get(annotationId);
-        if (annotation) {
-          onAnnotationClick(annotation);
-        }
+      if (annotationId && annotationType === 'reference') {
+        eventBus.emit('annotation:click', { annotationId });
       }
     };
 
@@ -185,7 +177,7 @@ export function BrowseView({
         element.removeEventListener('mouseleave', leaveHandler);
       });
     };
-  }, [content, allAnnotations, onAnnotationClick, annotationMap, newAnnotationIds, handleAnnotationHover]);
+  }, [content, allAnnotations, eventBus, annotationMap, newAnnotationIds, handleAnnotationHover]);
 
   // Helper to scroll annotation into view with pulse effect
   const scrollToAnnotation = useCallback((annotationId: string | null, removePulse = false) => {
@@ -291,8 +283,6 @@ export function BrowseView({
                   existingAnnotations={allAnnotations}
                   drawingMode={null}
                   selectedMotivation={null}
-                  onAnnotationCreate={() => {}}
-                  {...(onAnnotationClick && { onAnnotationClick })}
                 />
               </Suspense>
             </div>

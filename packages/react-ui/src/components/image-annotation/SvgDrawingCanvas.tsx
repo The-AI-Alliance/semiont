@@ -5,6 +5,7 @@ import type { components, ResourceUri } from '@semiont/api-client';
 import { createRectangleSvg, createCircleSvg, createPolygonSvg, scaleSvgToNative, parseSvgSelector, type Point } from '@semiont/api-client';
 import { AnnotationOverlay } from './AnnotationOverlay';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
+import type { EventBus } from '../../contexts/EventBusContext';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -38,7 +39,7 @@ interface SvgDrawingCanvasProps {
   existingAnnotations?: Annotation[];
   drawingMode: DrawingMode;
   selectedMotivation?: SelectionMotivation | null;
-  onAnnotationCreate?: (svg: string, position?: { x: number; y: number }) => void;
+  eventBus?: EventBus;
   onAnnotationClick?: (annotation: Annotation) => void;
   onAnnotationHover?: (annotationId: string | null) => void;
   hoveredAnnotationId?: string | null;
@@ -50,7 +51,7 @@ export function SvgDrawingCanvas({
   existingAnnotations = [],
   drawingMode,
   selectedMotivation,
-  onAnnotationCreate,
+  eventBus,
   onAnnotationClick,
   onAnnotationHover,
   hoveredAnnotationId,
@@ -273,25 +274,22 @@ export function SvgDrawingCanvas({
       imageDimensions.height
     );
 
-    // Calculate center position for popup placement (in screen coordinates)
-    const centerX = (startPoint.x + endPoint.x) / 2;
-    const centerY = (startPoint.y + endPoint.y) / 2;
-    const rect = imageRef.current?.getBoundingClientRect();
-    const screenPosition = rect ? {
-      x: rect.left + centerX,
-      y: rect.top + centerY
-    } : undefined;
-
-    // Notify parent
-    if (onAnnotationCreate) {
-      onAnnotationCreate(nativeSvg, screenPosition);
+    // Emit annotation:requested event with SvgSelector
+    if (eventBus && selectedMotivation) {
+      eventBus.emit('annotation:requested', {
+        selector: {
+          type: 'SvgSelector',
+          value: nativeSvg
+        },
+        motivation: selectedMotivation
+      });
     }
 
     // Reset drawing state
     setIsDrawing(false);
     setStartPoint(null);
     setCurrentPoint(null);
-  }, [isDrawing, startPoint, drawingMode, displayDimensions, imageDimensions, getRelativeCoordinates, onAnnotationCreate, onAnnotationClick, existingAnnotations]);
+  }, [isDrawing, startPoint, drawingMode, displayDimensions, imageDimensions, getRelativeCoordinates, selectedMotivation, eventBus, onAnnotationClick, existingAnnotations]);
 
   // Cancel drawing on mouse leave
   const handleMouseLeave = useCallback(() => {

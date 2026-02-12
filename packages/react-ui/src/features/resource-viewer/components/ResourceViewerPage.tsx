@@ -153,7 +153,7 @@ function ResourceViewerPageInner({
   } = useResourceLoadingAnnouncements();
 
   // Access annotation context
-  const { clearNewAnnotationId } = useResourceAnnotations();
+  const { clearNewAnnotationId, deleteAnnotation } = useResourceAnnotations();
 
   // Derived state
   const documentEntityTypes = resource.entityTypes || [];
@@ -409,6 +409,14 @@ function ResourceViewerPageInner({
       setHoveredAnnotationId(annotationId);
       setTimeout(() => setHoveredAnnotationId(null), 1500);
     },
+    'annotation:delete': async ({ annotationId }: { annotationId: string }) => {
+      try {
+        await deleteAnnotation(annotationId, rUri);
+        // Cache invalidation now handled by annotation:removed event
+      } catch (err) {
+        console.error('Failed to delete annotation:', err);
+      }
+    },
     'panel:toggle': ({ panel }: { panel: string }) => {
       setActivePanelInternal(current => {
         const newPanel = current === panel ? null : panel;
@@ -445,6 +453,20 @@ function ResourceViewerPageInner({
       setPendingReferenceId(referenceId);
       setSearchModalOpen(true);
       // Note: searchTerm is available in the event but SearchResourcesModal manages its own search state
+    },
+    'navigation:reference-navigate': ({ documentId }: { documentId: string }) => {
+      // Navigate to the referenced document
+      if (routes.resource) {
+        const path = routes.resource.replace('[resourceId]', encodeURIComponent(documentId));
+        eventBus.emit('navigation:router-push', { path, reason: 'reference-link' });
+      }
+    },
+    'navigation:entity-type-clicked': ({ entityType }: { entityType: string }) => {
+      // Navigate to discovery page filtered by entity type
+      if (routes.know) {
+        const path = `${routes.know}?entityType=${encodeURIComponent(entityType)}`;
+        eventBus.emit('navigation:router-push', { path, reason: 'entity-type-filter' });
+      }
     },
   });
 

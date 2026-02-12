@@ -105,7 +105,6 @@ export function ResourceViewer({
   // Determine active view based on annotate mode
   const activeView = annotateMode ? 'annotate' : 'browse';
   const {
-    deleteAnnotation,
     createAnnotation
   } = useResourceAnnotations();
 
@@ -161,7 +160,7 @@ export function ResourceViewer({
     return getSelectedShapeForSelectorType(selectorType);
   });
 
-  // Subscribe to toolbar events
+  // Subscribe to toolbar and annotation events
   useEventSubscriptions({
     'toolbar:selection-changed': ({ motivation }) => {
       setSelectedMotivation(motivation as SelectionMotivation | null);
@@ -171,6 +170,14 @@ export function ResourceViewer({
     },
     'toolbar:shape-changed': ({ shape }) => {
       setSelectedShape(shape as ShapeType);
+    },
+    'annotation:click': ({ annotationId }) => {
+      // Find the annotation in our collections
+      const allAnnotations = [...highlights, ...references, ...assessments, ...comments, ...tags];
+      const annotation = allAnnotations.find(a => a.id === annotationId);
+      if (annotation) {
+        handleAnnotationClick(annotation);
+      }
     },
   });
 
@@ -238,15 +245,10 @@ export function ResourceViewer({
     };
   };
 
-  // Handle deleting annotations - memoized
-  const handleDeleteAnnotation = useCallback(async (id: string) => {
-    try {
-      await deleteAnnotation(id, rUri);
-      // Cache invalidation now handled by annotation:removed event
-    } catch (err) {
-      console.error('Failed to delete annotation:', err);
-    }
-  }, [deleteAnnotation, rUri]);
+  // Handle deleting annotations - emit event instead of direct call
+  const handleDeleteAnnotation = useCallback((id: string) => {
+    eventBus.emit('annotation:delete', { annotationId: id });
+  }, [eventBus]);
 
   // Handle annotation clicks - memoized
   const handleAnnotationClick = useCallback((annotation: Annotation, event?: React.MouseEvent) => {
@@ -481,16 +483,6 @@ export function ResourceViewer({
   // Note: These objects are created inline - React's reconciliation handles re-renders efficiently
   const annotationsCollection = { highlights, references, assessments, comments, tags };
 
-  const handlersForAnnotate = {
-    onClick: handleAnnotationClick
-    // Note: onHover/onCommentHover removed - component now manages hover state internally
-  };
-
-  const handlersForBrowse = {
-    onClick: handleAnnotationClick
-    // Note: onCommentHover removed - component now manages hover state internally
-  };
-
   const creationHandler = { onCreate: handleAnnotationCreate };
 
   const uiState = {
@@ -510,7 +502,6 @@ export function ResourceViewer({
           mimeType={mimeType}
           resourceUri={resource['@id']}
           annotations={annotationsCollection}
-          handlers={handlersForAnnotate}
           creationHandler={creationHandler}
           uiState={uiState}
           onUIStateChange={(updates) => {
@@ -519,11 +510,13 @@ export function ResourceViewer({
             if ('selectedShape' in updates) setSelectedShape(updates.selectedShape!);
           }}
           enableWidgets={true}
-          onEntityTypeClick={(entityType) => {
-            // Navigate to discovery page filtered by entity type - emits 'navigation:external-navigate' event
-            navigate(`/know?entityType=${encodeURIComponent(entityType)}`);
+          getTargetDocumentName={(documentId: string) => {
+            // Look up document name from referencedBy or annotations
+            // This is read-only data lookup, not an action
+            const allRefs = [...references];
+            const referencedResource = allRefs.find((a: Annotation) => getBodySource(a.body) === documentId);
+            return referencedResource ? getExactText(getTargetSelector(referencedResource.target)) : undefined;
           }}
-          onUnresolvedReferenceClick={handleAnnotationClick}
           {...(generatingReferenceId !== undefined && { generatingReferenceId })}
           showLineNumbers={showLineNumbers}
           annotateMode={annotateMode}
@@ -534,7 +527,6 @@ export function ResourceViewer({
           mimeType={mimeType}
           resourceUri={resource['@id']}
           annotations={annotationsCollection}
-          handlers={handlersForBrowse}
           hoveredCommentId={hoveredCommentId}
           selectedClick={selectedClick}
           annotateMode={annotateMode}
@@ -600,8 +592,8 @@ export function ResourceViewer({
                 {t('deleteConfirmationCancel')}
               </button>
               <button
-                onClick={async () => {
-                  await handleDeleteAnnotation(deleteConfirmation.annotation.id);
+                onClick={() => {
+                  handleDeleteAnnotation(deleteConfirmation.annotation.id);
                   setDeleteConfirmation(null);
                 }}
                 className="semiont-button semiont-button--danger"

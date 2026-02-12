@@ -4,6 +4,7 @@ import React, { useRef, useState, useCallback, useEffect } from 'react';
 import type { components, ResourceUri } from '@semiont/api-client';
 import { getTargetSelector } from '@semiont/api-client';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
+import type { EventBus } from '../../contexts/EventBusContext';
 import {
   canvasToPdfCoordinates,
   pdfToCanvasCoordinates,
@@ -50,7 +51,7 @@ interface PdfAnnotationCanvasProps {
   existingAnnotations?: Annotation[];
   drawingMode: DrawingMode;
   selectedMotivation?: SelectionMotivation | null;
-  onAnnotationCreate?: (fragmentSelector: string, position?: { x: number; y: number }) => void;
+  eventBus?: EventBus;
   onAnnotationClick?: (annotation: Annotation) => void;
   onAnnotationHover?: (annotationId: string | null) => void;
   hoveredAnnotationId?: string | null;
@@ -62,7 +63,7 @@ export function PdfAnnotationCanvas({
   existingAnnotations = [],
   drawingMode,
   selectedMotivation,
-  onAnnotationCreate,
+  eventBus,
   onAnnotationClick,
   onAnnotationHover,
   hoveredAnnotationId,
@@ -233,7 +234,7 @@ export function PdfAnnotationCanvas({
   }, [isDrawing, selection]);
 
   const handleMouseUp = useCallback(() => {
-    if (!isDrawing || !selection || !pageDimensions || !displayDimensions || !onAnnotationCreate) {
+    if (!isDrawing || !selection || !pageDimensions || !displayDimensions || !eventBus) {
       setIsDrawing(false);
       setSelection(null);
       return;
@@ -315,23 +316,24 @@ export function PdfAnnotationCanvas({
     // Create FragmentSelector
     const fragmentSelector = createFragmentSelector(pdfCoord);
 
-    // Calculate center position for popup placement (in screen coordinates)
-    const centerX = (selection.startX + selection.endX) / 2;
-    const centerY = (selection.startY + selection.endY) / 2;
-    const rect = imageRef.current?.getBoundingClientRect();
-    const screenPosition = rect ? {
-      x: rect.left + centerX,
-      y: rect.top + centerY
-    } : undefined;
-
-    onAnnotationCreate(fragmentSelector, screenPosition);
+    // Emit annotation:requested event with FragmentSelector
+    if (selectedMotivation) {
+      eventBus.emit('annotation:requested', {
+        selector: {
+          type: 'FragmentSelector',
+          conformsTo: 'http://tools.ietf.org/rfc/rfc3778',
+          value: fragmentSelector
+        },
+        motivation: selectedMotivation
+      });
+    }
 
     // Keep drawing state active to show preview until annotation is persisted
     // The parent component should clear this by changing drawingMode after save
     setIsDrawing(false);
     // Note: We keep selection so the preview remains visible
     // It will be cleared when drawingMode changes or user starts new selection
-  }, [isDrawing, selection, pageNumber, pageDimensions, displayDimensions, onAnnotationCreate, onAnnotationClick, existingAnnotations]);
+  }, [isDrawing, selection, pageNumber, pageDimensions, displayDimensions, selectedMotivation, eventBus, onAnnotationClick, existingAnnotations]);
 
   // Helper to get FragmentSelector from annotation target
   const getFragmentSelector = (target: Annotation['target']) => {
