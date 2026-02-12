@@ -16,6 +16,7 @@ import { useResources, useEntityTypes, useApiClient, useAnnotations } from '@sem
 import { QUERY_KEYS } from '@semiont/react-ui';
 import type { components, ResourceUri, ContentFormat } from '@semiont/api-client';
 import { resourceUri, decodeWithCharset, getPrimaryMediaType, resourceAnnotationUri } from '@semiont/api-client';
+import { uriToAnnotationId } from '@semiont/core';
 import { useOpenResources, useResourceAnnotations } from '@semiont/react-ui';
 import { useToast } from '@semiont/react-ui';
 import { useTheme } from '@semiont/react-ui';
@@ -290,7 +291,7 @@ function ResourceViewWrapper({
         return {
           ...old,
           annotations: old.annotations.map((annotation: any) => {
-            const annotationIdSegment = annotation.id.split('/').pop();
+            const annotationIdSegment = uriToAnnotationId(annotation.id);
             if (annotationIdSegment === event.payload.annotationId) {
               let bodyArray = Array.isArray(annotation.body) ? [...annotation.body] : [];
 

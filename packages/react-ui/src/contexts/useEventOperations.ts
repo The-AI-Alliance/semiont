@@ -4,6 +4,7 @@ import type { EventMap } from './EventBusContext';
 import type { SemiontApiClient, ResourceUri, Motivation, Selector } from '@semiont/api-client';
 import { resourceAnnotationUri } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
+import { uriToAnnotationIdOrPassthrough } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -87,8 +88,7 @@ export function useEventOperations(
      */
     const handleAnnotationDelete = async (event: { annotationId: string }) => {
       try {
-        // Extract annotation ID segment if it's a full URI
-        const annotationIdSegment = event.annotationId.split('/').pop() || event.annotationId;
+        const annotationIdSegment = uriToAnnotationIdOrPassthrough(event.annotationId);
         const annotationUri = resourceAnnotationUri(`${resourceUri}/annotations/${annotationIdSegment}`);
 
         await client.deleteAnnotation(annotationUri);
@@ -120,7 +120,7 @@ export function useEventOperations(
       }>;
     }) => {
       try {
-        const annotationIdSegment = event.annotationUri.split('/').pop() || event.annotationUri;
+        const annotationIdSegment = uriToAnnotationIdOrPassthrough(event.annotationUri);
         const nestedUri = resourceAnnotationUri(`${resourceUri}/annotations/${annotationIdSegment}`);
 
         await client.updateAnnotationBody(nestedUri, {
@@ -481,7 +481,7 @@ export function setupEventOperations(
 
   const handleAnnotationDelete = async (event: { annotationId: string }) => {
     try {
-      const annotationIdSegment = event.annotationId.split('/').pop() || event.annotationId;
+      const annotationIdSegment = uriToAnnotationIdOrPassthrough(event.annotationId);
       const annotationUri = resourceAnnotationUri(`${resourceUri}/annotations/${annotationIdSegment}`);
 
       await client.deleteAnnotation(annotationUri);
@@ -503,7 +503,7 @@ export function setupEventOperations(
     }>;
   }) => {
     try {
-      const annotationIdSegment = event.annotationUri.split('/').pop() || event.annotationUri;
+      const annotationIdSegment = uriToAnnotationIdOrPassthrough(event.annotationUri);
       const nestedUri = resourceAnnotationUri(`${resourceUri}/annotations/${annotationIdSegment}`);
 
       await client.updateAnnotationBody(nestedUri, {

@@ -83,6 +83,33 @@ export function uriToAnnotationId(uri: string): AnnotationId {
 }
 
 /**
+ * Extract annotation ID from URI or pass through if already an ID
+ *
+ * Defensive version of uriToAnnotationId that handles both:
+ * - Full URIs: "https://api.semiont.app/annotations/anno-xyz789" → "anno-xyz789"
+ * - Already IDs: "anno-xyz789" → "anno-xyz789"
+ *
+ * @param uriOrId - Full annotation URI or short ID
+ * @returns Short annotation ID
+ *
+ * @example
+ * uriToAnnotationIdOrPassthrough("https://api.semiont.app/annotations/anno-xyz789")
+ * // => "anno-xyz789"
+ *
+ * uriToAnnotationIdOrPassthrough("anno-xyz789")
+ * // => "anno-xyz789"
+ */
+export function uriToAnnotationIdOrPassthrough(uriOrId: string): AnnotationId {
+  // Try parsing as URI first
+  try {
+    return uriToAnnotationId(uriOrId);
+  } catch {
+    // If it fails, assume it's already an ID and return as-is
+    return annotationId(uriOrId);
+  }
+}
+
+/**
  * Extract resource URI from nested annotation URI
  *
  * @param annotationUri - Nested ResourceAnnotationUri (e.g., "https://api.semiont.app/resources/doc-123/annotations/anno-456")

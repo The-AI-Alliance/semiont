@@ -5,6 +5,7 @@ import { useAnnotations } from '../lib/api-hooks';
 import type { components, AnnotationUri, ResourceUri, Selector } from '@semiont/api-client';
 import { resourceAnnotationUri } from '@semiont/api-client';
 import { useDocumentAnnouncements } from '../components/LiveRegion';
+import { uriToAnnotationIdOrPassthrough } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 // Create annotation request type - narrow target to only the object form (not string)
@@ -100,8 +101,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
 
   const deleteAnnotation = useCallback(async (annotationId: string, rUri: ResourceUri) => {
     try {
-      // annotationId might be a full URI or just a UUID - extract the UUID
-      const annotationIdSegment = annotationId.split('/').pop() || annotationId;
+      const annotationIdSegment = uriToAnnotationIdOrPassthrough(annotationId);
       await deleteAnnotationMutation.mutateAsync({
         annotationUri: resourceAnnotationUri(`${rUri}/annotations/${annotationIdSegment}`),
         resourceUri: rUri

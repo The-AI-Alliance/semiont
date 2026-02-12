@@ -25,7 +25,7 @@ import {
   entityType,
   userDID
 } from '@semiont/api-client';
-import { extractResourceUriFromAnnotationUri } from '@semiont/core';
+import { extractResourceUriFromAnnotationUri, uriToAnnotationId } from '@semiont/core';
 import { QUERY_KEYS } from './query-keys';
 import { useApiClient } from '../contexts/ApiClientContext';
 
@@ -236,7 +236,7 @@ export function useAnnotations() {
             const currentData = queryClient.getQueryData<{ resource: any; annotations: any[] }>(queryKey);
 
             if (currentData) {
-              const annotationId = variables.annotationUri.split('/').pop();
+              const annotationId = uriToAnnotationId(variables.annotationUri);
 
               queryClient.setQueryData(queryKey, {
                 ...currentData,
