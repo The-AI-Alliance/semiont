@@ -7,7 +7,7 @@ import type { components } from '@semiont/api-client';
 import { getAnnotationExactText, isBodyResolved, getBodySource, getFragmentSelector, getSvgSelector, getTargetSelector } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/ontology';
 import { getResourceIcon } from '../../../lib/resource-utils';
-import { useEvents } from '../../../contexts/EventBusContext';
+import { useEventBus } from '../../../contexts/EventBusContext';
 import { useObservableExternalNavigation } from '../../../hooks/useObservableNavigation';
 
 type Annotation = components['schemas']['Annotation'];
@@ -34,7 +34,7 @@ export function ReferenceEntry({
   isGenerating = false,
 }: ReferenceEntryProps) {
   const t = useTranslations('ReferencesPanel');
-  const eventBus = useEvents();
+  const eventBus = useEventBus();
   const navigate = useObservableExternalNavigation();
   const referenceRef = useRef<HTMLDivElement>(null);
 

@@ -2,7 +2,7 @@ import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   EventBusProvider,
-  useEvents
+  useEventBus
 } from '../EventBusContext';
 import type { ResourceUri } from '@semiont/api-client';
 
@@ -19,15 +19,15 @@ describe('EventBusContext', () => {
     </EventBusProvider>
   );
 
-  describe('useEvents', () => {
+  describe('useEventBus', () => {
     it('should throw error when used outside provider', () => {
       expect(() => {
-        renderHook(() => useEvents());
-      }).toThrow('useEvents must be used within EventBusProvider');
+        renderHook(() => useEventBus());
+      }).toThrow('useEventBus must be used within EventBusProvider');
     });
 
     it('should return event bus when used inside provider', () => {
-      const { result } = renderHook(() => useEvents(), { wrapper });
+      const { result } = renderHook(() => useEventBus(), { wrapper });
 
       expect(result.current).toBeDefined();
       expect(result.current.emit).toBeDefined();
@@ -39,7 +39,7 @@ describe('EventBusContext', () => {
   describe('Event emission and subscription', () => {
     it('should allow subscribing to and emitting UI events', () => {
       const handler = vi.fn();
-      const { result } = renderHook(() => useEvents(), { wrapper });
+      const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
         result.current.on('annotation:hover', handler);
@@ -51,7 +51,7 @@ describe('EventBusContext', () => {
 
     it('should allow subscribing to panel toggle events', () => {
       const handler = vi.fn();
-      const { result } = renderHook(() => useEvents(), { wrapper });
+      const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
         result.current.on('panel:toggle', handler);
@@ -63,7 +63,7 @@ describe('EventBusContext', () => {
 
     it('should allow subscribing to toolbar events', () => {
       const handler = vi.fn();
-      const { result } = renderHook(() => useEvents(), { wrapper });
+      const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
         result.current.on('toolbar:selection-changed', handler);
@@ -75,7 +75,7 @@ describe('EventBusContext', () => {
 
     it('should allow subscribing to navigation events', () => {
       const handler = vi.fn();
-      const { result } = renderHook(() => useEvents(), { wrapper });
+      const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
         result.current.on('navigation:sidebar-toggle', handler);
@@ -87,7 +87,7 @@ describe('EventBusContext', () => {
 
     it('should allow subscribing to settings events', () => {
       const handler = vi.fn();
-      const { result } = renderHook(() => useEvents(), { wrapper });
+      const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
         result.current.on('settings:theme-changed', handler);
@@ -99,7 +99,7 @@ describe('EventBusContext', () => {
 
     it('should allow subscribing to API operation events', () => {
       const handler = vi.fn();
-      const { result } = renderHook(() => useEvents(), { wrapper });
+      const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
         result.current.on('annotation:create', handler);
@@ -115,7 +115,7 @@ describe('EventBusContext', () => {
 
     it('should allow subscribing to detection events', () => {
       const handler = vi.fn();
-      const { result } = renderHook(() => useEvents(), { wrapper });
+      const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
         result.current.on('detection:start', handler);
@@ -134,7 +134,7 @@ describe('EventBusContext', () => {
     it('should support multiple subscribers to the same event', () => {
       const handler1 = vi.fn();
       const handler2 = vi.fn();
-      const { result } = renderHook(() => useEvents(), { wrapper });
+      const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
         result.current.on('annotation:hover', handler1);
@@ -150,7 +150,7 @@ describe('EventBusContext', () => {
   describe('Event unsubscription', () => {
     it('should allow unsubscribing from events', () => {
       const handler = vi.fn();
-      const { result } = renderHook(() => useEvents(), { wrapper });
+      const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
         result.current.on('annotation:hover', handler);
@@ -171,7 +171,7 @@ describe('EventBusContext', () => {
     it('should only unsubscribe the specific handler', () => {
       const handler1 = vi.fn();
       const handler2 = vi.fn();
-      const { result } = renderHook(() => useEvents(), { wrapper });
+      const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
         result.current.on('annotation:hover', handler1);
@@ -205,8 +205,8 @@ describe('EventBusContext', () => {
         </EventBusProvider>
       );
 
-      const { result: result1 } = renderHook(() => useEvents(), { wrapper: wrapper1 });
-      const { result: result2 } = renderHook(() => useEvents(), { wrapper: wrapper2 });
+      const { result: result1 } = renderHook(() => useEventBus(), { wrapper: wrapper1 });
+      const { result: result2 } = renderHook(() => useEventBus(), { wrapper: wrapper2 });
 
       act(() => {
         result1.current.on('annotation:hover', handler1);
@@ -227,7 +227,7 @@ describe('EventBusContext', () => {
       const createdHandler = vi.fn();
       const hoverHandler = vi.fn();
 
-      const { result } = renderHook(() => useEvents(), { wrapper });
+      const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
         // Subscribe to annotation events
@@ -268,7 +268,7 @@ describe('EventBusContext', () => {
       const progressHandler = vi.fn();
       const completeHandler = vi.fn();
 
-      const { result } = renderHook(() => useEvents(), { wrapper });
+      const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
         result.current.on('detection:start', startHandler);

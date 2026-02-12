@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback } from 'react';
-import { useEvents } from '../contexts/EventBusContext';
+import { useEventBus } from '../contexts/EventBusContext';
 
 /**
  * Generic router interface - works with any router that has push/replace methods
@@ -35,7 +35,7 @@ interface Router {
  * ```
  */
 export function useObservableRouter<T extends Router>(baseRouter: T): T {
-  const eventBus = useEvents();
+  const eventBus = useEventBus();
 
   const push = useCallback((path: string, options?: { reason?: string }) => {
     // Emit event for observability
@@ -87,7 +87,7 @@ export function useObservableRouter<T extends Router>(baseRouter: T): T {
  *
  * // In app (frontend package) - subscribe and handle with Next.js router
  * const router = useRouter();
- * const eventBus = useEvents();
+ * const eventBus = useEventBus();
  *
  * useEffect(() => {
  *   const handleNav = ({ url }) => {
@@ -99,7 +99,7 @@ export function useObservableRouter<T extends Router>(baseRouter: T): T {
  * ```
  */
 export function useObservableExternalNavigation() {
-  const eventBus = useEvents();
+  const eventBus = useEventBus();
 
   return useCallback((url: string, metadata?: { resourceId?: string }) => {
     // Emit navigation request event

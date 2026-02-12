@@ -45,7 +45,7 @@ vi.mock('@semiont/react-ui', async () => {
     useDebouncedCallback: (fn: any) => fn,
     supportsDetection: () => false,
     MakeMeaningEventBusProvider: ({ children }: any) => children,
-    useEvents: () => mitt.default(),
+    useEventBus: () => mitt.default(),
     useEventSubscriptions: vi.fn(),
     useResourceAnnotations: () => ({
       clearNewAnnotationId: vi.fn(),

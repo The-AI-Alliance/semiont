@@ -16,7 +16,7 @@ const mockOff = vi.fn();
 
 // Mock EventBusContext
 vi.mock('../../../../contexts/EventBusContext', () => ({
-  useEvents: vi.fn(() => ({
+  useEventBus: vi.fn(() => ({
     emit: mockEmit,
     on: mockOn,
     off: mockOff,

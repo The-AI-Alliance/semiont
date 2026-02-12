@@ -76,7 +76,7 @@ vi.mock('@semiont/react-ui', () => ({
     return <div data-testid="simple-navigation">Mocked SimpleNavigation</div>;
   },
   useNavigationEvents: () => mockEventBus,
-  useEvents: () => mockEventBus,
+  useEventBus: () => mockEventBus,
   useMakeMeaningEvents: () => mockEventBus,
   useGlobalSettingsEvents: () => mockEventBus,
 }));

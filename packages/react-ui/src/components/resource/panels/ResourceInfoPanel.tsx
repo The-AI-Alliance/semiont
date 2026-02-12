@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useEvents } from '../../../contexts/EventBusContext';
+import { useEventBus } from '../../../contexts/EventBusContext';
 import { formatLocaleDisplay } from '@semiont/api-client';
 import './ResourceInfoPanel.css';
 
@@ -21,7 +21,7 @@ export function ResourceInfoPanel({
   isArchived = false,
 }: Props) {
   const t = useTranslations('ResourceInfoPanel');
-  const eventBus = useEvents();
+  const eventBus = useEventBus();
 
   return (
     <div className="semiont-resource-info-panel">

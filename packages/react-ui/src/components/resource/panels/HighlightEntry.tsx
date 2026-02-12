@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText } from '@semiont/api-client';
-import { useEvents } from '../../../contexts/EventBusContext';
+import { useEventBus } from '../../../contexts/EventBusContext';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -33,7 +33,7 @@ export function HighlightEntry({
   highlight,
   isFocused,
 }: HighlightEntryProps) {
-  const eventBus = useEvents();
+  const eventBus = useEventBus();
   const highlightRef = useRef<HTMLDivElement>(null);
 
   // Register ref with parent via event

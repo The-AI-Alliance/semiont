@@ -19,7 +19,7 @@ import {
 import { SortableResourceTab } from './SortableResourceTab';
 import { useDragAnnouncements } from '../../hooks/useDragAnnouncements';
 import { useTranslations } from '../../contexts/TranslationContext';
-import { useEvents } from '../../contexts/EventBusContext';
+import { useEventBus } from '../../contexts/EventBusContext';
 import type { CollapsibleResourceNavigationProps } from '../../types/collapsible-navigation';
 import './CollapsibleResourceNavigation.css';
 
@@ -49,7 +49,7 @@ export function CollapsibleResourceNavigation({
 
   const { announcePickup, announceDrop, announceKeyboardReorder, announceCannotMove } = useDragAnnouncements();
   const t = useTranslations('CollapsibleResourceNavigation');
-  const eventBus = useEvents();
+  const eventBus = useEventBus();
 
   // Use translations from context, with fallback to props for backward compatibility
   const mergedTranslations = {

@@ -16,7 +16,7 @@ const mockEventBus = {
 
 // Mock EventBusContext
 vi.mock('../../../contexts/EventBusContext', () => ({
-  useEvents: () => mockEventBus,
+  useEventBus: () => mockEventBus,
 }));
 
 // Mock translations

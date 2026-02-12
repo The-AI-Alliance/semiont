@@ -197,7 +197,7 @@ export interface EventBusProviderProps {
  * - GlobalSettingsEventBus (app-wide settings)
  *
  * Benefits:
- * - Single import: useEvents()
+ * - Single import: useEventBus()
  * - No decision fatigue about which bus to use
  * - Easier cross-domain coordination
  * - Simpler provider hierarchy
@@ -240,7 +240,7 @@ export function EventBusProvider({
  *
  * @example
  * ```typescript
- * const eventBus = useEvents();
+ * const eventBus = useEventBus();
  *
  * // Emit any event
  * eventBus.emit('annotation:hover', { annotationId: '123' });
@@ -255,10 +255,10 @@ export function EventBusProvider({
  * }, [eventBus]);
  * ```
  */
-export function useEvents(): EventBus {
+export function useEventBus(): EventBus {
   const bus = useContext(EventBusContext);
   if (!bus) {
-    throw new Error('useEvents must be used within EventBusProvider');
+    throw new Error('useEventBus must be used within EventBusProvider');
   }
   return bus;
 }

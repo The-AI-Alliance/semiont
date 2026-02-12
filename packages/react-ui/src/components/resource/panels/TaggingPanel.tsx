@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useEvents } from '../../../contexts/EventBusContext';
+import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { components, Selector } from '@semiont/api-client';
 import { TagEntry } from './TagEntry';
@@ -61,7 +61,7 @@ export function TaggingPanel({
   pendingAnnotation
 }: TaggingPanelProps) {
   const t = useTranslations('TaggingPanel');
-  const eventBus = useEvents();
+  const eventBus = useEventBus();
   const [selectedSchemaId, setSelectedSchemaId] = useState<string>('legal-irac');
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);

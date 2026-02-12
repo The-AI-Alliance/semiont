@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useEvents } from '../../../contexts/EventBusContext';
+import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { components, Selector } from '@semiont/api-client';
 import { HighlightEntry } from './HighlightEntry';
@@ -40,7 +40,7 @@ export function HighlightPanel({
   annotateMode = true,
 }: HighlightPanelProps) {
   const t = useTranslations('HighlightPanel');
-  const eventBus = useEvents();
+  const eventBus = useEventBus();
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
 
   const { sortedAnnotations, containerRef } =

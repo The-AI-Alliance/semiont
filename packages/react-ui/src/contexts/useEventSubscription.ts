@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { EventMap } from './EventBusContext';
-import { useEvents } from './EventBusContext';
+import { useEventBus } from './EventBusContext';
 
 /**
  * Subscribe to an event bus event with automatic cleanup.
@@ -20,7 +20,7 @@ export function useEventSubscription<K extends keyof EventMap>(
   eventName: K,
   handler: (payload: EventMap[K]) => void
 ): void {
-  const eventBus = useEvents();
+  const eventBus = useEventBus();
 
   // Store the latest handler in a ref to avoid stale closures
   const handlerRef = useRef(handler);
@@ -60,7 +60,7 @@ export function useEventSubscriptions(
     [K in keyof EventMap]?: (payload: EventMap[K]) => void;
   }
 ): void {
-  const eventBus = useEvents();
+  const eventBus = useEventBus();
 
   // Store the latest handlers in refs
   const handlersRef = useRef(subscriptions);

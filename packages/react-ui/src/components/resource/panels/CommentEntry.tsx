@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText, getCommentText } from '@semiont/api-client';
-import { useEvents } from '../../../contexts/EventBusContext';
+import { useEventBus } from '../../../contexts/EventBusContext';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -37,7 +37,7 @@ export function CommentEntry({
   annotateMode = true,
 }: CommentEntryProps) {
   const t = useTranslations('CommentsPanel');
-  const eventBus = useEvents();
+  const eventBus = useEventBus();
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState('');
   const commentRef = useRef<HTMLDivElement>(null);

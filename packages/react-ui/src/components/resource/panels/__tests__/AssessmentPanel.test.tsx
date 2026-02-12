@@ -16,7 +16,7 @@ const mockOff = vi.fn();
 
 // Mock EventBusContext
 vi.mock('../../../../contexts/EventBusContext', () => ({
-  useEvents: vi.fn(() => ({
+  useEventBus: vi.fn(() => ({
     emit: mockEmit,
     on: mockOn,
     off: mockOff,
@@ -57,7 +57,7 @@ vi.mock('../AssessmentEntry', () => ({
   ),
 }));
 
-// Mock DetectSection component - it will internally use the mocked useEvents
+// Mock DetectSection component - it will internally use the mocked useEventBus
 // Just render a simplified version
 vi.mock('../DetectSection', () => ({
   DetectSection: ({ annotationType, isDetecting }: any) => (

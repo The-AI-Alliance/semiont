@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { useEvents } from '../../contexts/EventBusContext';
+import { useEventBus } from '../../contexts/EventBusContext';
 
 export interface SimpleNavigationItem {
   name: string;
@@ -45,7 +45,7 @@ export function SimpleNavigation({
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const eventBus = useEvents();
+  const eventBus = useEventBus();
 
   const toggleDropdown = () => setIsDropdownOpen(!isDropdownOpen);
   const closeDropdown = () => setIsDropdownOpen(false);

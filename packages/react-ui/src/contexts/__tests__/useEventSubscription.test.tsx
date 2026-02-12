@@ -1,6 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { EventBusProvider, useEvents } from '../EventBusContext';
+import { EventBusProvider, useEventBus } from '../EventBusContext';
 import { useEventSubscription, useEventSubscriptions } from '../useEventSubscription';
 import type { ReactNode } from 'react';
 
@@ -19,7 +19,7 @@ describe('useEventSubscription', () => {
 
       const { result } = renderHook(
         () => {
-          const eventBus = useEvents();
+          const eventBus = useEventBus();
           useEventSubscription('annotation:hover', handler);
           return eventBus;
         },
@@ -40,7 +40,7 @@ describe('useEventSubscription', () => {
 
       const { rerender, result } = renderHook(
         () => {
-          const eventBus = useEvents();
+          const eventBus = useEventBus();
 
           // Handler captures 'message' from current render
           useEventSubscription('annotation:hover', () => {
@@ -76,7 +76,7 @@ describe('useEventSubscription', () => {
 
       const { rerender, result } = renderHook(
         () => {
-          const eventBus = useEvents();
+          const eventBus = useEventBus();
           useEventSubscription('annotation:hover', currentHandler);
           return eventBus;
         },
@@ -106,7 +106,7 @@ describe('useEventSubscription', () => {
 
       const { unmount, result } = renderHook(
         () => {
-          const eventBus = useEvents();
+          const eventBus = useEventBus();
           useEventSubscription('annotation:hover', handler);
           return eventBus;
         },
@@ -137,7 +137,7 @@ describe('useEventSubscription', () => {
 
       const { result } = renderHook(
         () => {
-          const eventBus = useEvents();
+          const eventBus = useEventBus();
 
           useEventSubscriptions({
             'annotation:hover': handler1,
@@ -164,7 +164,7 @@ describe('useEventSubscription', () => {
 
       const { rerender, result } = renderHook(
         () => {
-          const eventBus = useEvents();
+          const eventBus = useEventBus();
 
           useEventSubscriptions({
             'annotation:hover': () => calls.push(`hover:${message}`),
@@ -197,7 +197,7 @@ describe('useEventSubscription', () => {
 
       const { unmount, result } = renderHook(
         () => {
-          const eventBus = useEvents();
+          const eventBus = useEventBus();
 
           useEventSubscriptions({
             'annotation:hover': handler1,
@@ -225,7 +225,7 @@ describe('useEventSubscription', () => {
 
       const { result } = renderHook(
         () => {
-          const eventBus = useEvents();
+          const eventBus = useEventBus();
 
           useEventSubscriptions({
             'annotation:hover': handler1,

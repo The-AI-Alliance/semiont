@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback } from 'react';
-import { useEvents } from '../../contexts/EventBusContext';
+import { useEventBus } from '../../contexts/EventBusContext';
 
 /**
  * Props for ObservableLink component
@@ -58,7 +58,7 @@ export function ObservableLink({
   children,
   ...anchorProps
 }: ObservableLinkProps) {
-  const eventBus = useEvents();
+  const eventBus = useEventBus();
 
   const handleClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
     // Emit event for observability
