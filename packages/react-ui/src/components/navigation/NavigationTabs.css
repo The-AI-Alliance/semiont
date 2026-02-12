@@ -17,7 +17,7 @@
   border-radius: var(--semiont-radius-md);
   transition: background var(--semiont-duration-base);
   position: relative;
-  z-index: 1; /* Ensure header is above resize handle */
+  z-index: 20; /* Ensure header is above resize handle (z-index: 10) */
 }
 
 .semiont-nav-section__header-button {

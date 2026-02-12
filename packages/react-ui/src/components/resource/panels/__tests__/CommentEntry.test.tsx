@@ -274,7 +274,7 @@ describe('CommentEntry Component', () => {
   });
 
   describe('Hover Interactions', () => {
-    it('should emit comment:hover event with comment id on mouse enter', () => {
+    it('should emit annotation-entry:hover event with annotation id on mouse enter', () => {
       const { container } = render(
         <CommentEntry {...defaultProps} />
       );
@@ -282,10 +282,10 @@ describe('CommentEntry Component', () => {
       const commentDiv = container.firstChild as HTMLElement;
       fireEvent.mouseEnter(commentDiv);
 
-      expect(mockEmit).toHaveBeenCalledWith('comment:hover', { commentId: 'comment-1' });
+      expect(mockEmit).toHaveBeenCalledWith('annotation-entry:hover', { annotationId: 'comment-1' });
     });
 
-    it('should emit comment:hover event with null on mouse leave', () => {
+    it('should emit annotation-entry:hover event with null on mouse leave', () => {
       const { container } = render(
         <CommentEntry {...defaultProps} />
       );
@@ -293,7 +293,7 @@ describe('CommentEntry Component', () => {
       const commentDiv = container.firstChild as HTMLElement;
       fireEvent.mouseLeave(commentDiv);
 
-      expect(mockEmit).toHaveBeenCalledWith('comment:hover', { commentId: null });
+      expect(mockEmit).toHaveBeenCalledWith('annotation-entry:hover', { annotationId: null });
     });
 
     it('should handle hover events without errors', () => {

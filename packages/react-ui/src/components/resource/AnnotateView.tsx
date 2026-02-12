@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useCallback, useEffect, lazy, Suspense } from 'react';
+import { useRef, useEffect, lazy, Suspense } from 'react';
 import type { components } from '@semiont/api-client';
 import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMimeCategory, isPdfMimeType, resourceUri as toResourceUri } from '@semiont/api-client';
 import { ANNOTATORS } from '../../lib/annotation-registry';
@@ -176,17 +176,9 @@ export function AnnotateView({
   // Extract UI state
   const { selectedMotivation, selectedClick, selectedShape, hoveredAnnotationId, hoveredCommentId, scrollToAnnotationId } = uiState;
 
-  console.log('[AnnotateView] Current UI state:', {
-    selectedMotivation,
-    selectedShape,
-    selectedClick,
-    annotateMode
-  });
-
   // Subscribe to toolbar events
   useEventSubscriptions({
     'toolbar:selection-changed': ({ motivation }: { motivation: string | null }) => {
-      console.log('[AnnotateView] toolbar:selection-changed event with:', motivation);
       onUIStateChange?.({ selectedMotivation: motivation as SelectionMotivation | null });
     },
     'toolbar:click-changed': ({ action }: { action: string }) => {
@@ -197,29 +189,12 @@ export function AnnotateView({
     },
   });
 
-  // Wrapper for annotation hover that routes based on registry metadata
-  const handleAnnotationHover = useCallback((annotationId: string | null) => {
-    if (annotationId) {
-      const annotation = allAnnotations.find(a => a.id === annotationId);
-      const metadata = annotation ? Object.values(ANNOTATORS).find(a => a.matchesAnnotation(annotation!)) : null;
-
-      // Route to side panel if annotation type has one
-      if (metadata?.hasSidePanel) {
-        // Clear the other hover state when switching
-        eventBus.emit('annotation:hover', { annotationId: null });
-        eventBus.emit('comment:hover', { commentId: annotationId });
-        return;
-      } else {
-        // Clear the other hover state when switching
-        eventBus.emit('comment:hover', { commentId: null });
-        eventBus.emit('annotation:hover', { annotationId });
-        return;
-      }
-    }
-    // Clear both when null
-    eventBus.emit('annotation:hover', { annotationId: null });
-    eventBus.emit('comment:hover', { commentId: null });
-  }, [allAnnotations, eventBus]);
+  // Route DOM hover events to annotation:hover
+  useEventSubscriptions({
+    'annotation:dom-hover': ({ annotationId }) => {
+      eventBus.emit('annotation:hover', { annotationId });
+    },
+  });
 
   // Handle text annotation with sparkle or immediate creation
   useEffect(() => {
@@ -396,7 +371,6 @@ export function AnnotateView({
                     drawingMode={selectedMotivation ? selectedShape : null}
                     selectedMotivation={selectedMotivation}
                     eventBus={eventBus}
-                    onAnnotationHover={handleAnnotationHover}
                     hoveredAnnotationId={hoveredCommentId || hoveredAnnotationId || null}
                   />
                 </Suspense>
@@ -426,7 +400,6 @@ export function AnnotateView({
                 drawingMode={selectedMotivation ? selectedShape : null}
                 selectedMotivation={selectedMotivation}
                 eventBus={eventBus}
-                onAnnotationHover={handleAnnotationHover}
                 hoveredAnnotationId={hoveredCommentId || hoveredAnnotationId || null}
               />
             )}

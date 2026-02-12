@@ -77,88 +77,50 @@ export function BrowseView({
 
   const preparedAnnotations = prepareAnnotations(allAnnotations);
 
-  // Create a map of annotation ID -> full annotation for click handling
-  const map = new Map<string, Annotation>();
-  for (const ann of allAnnotations) {
-    map.set(ann.id, ann);
-  }
-  const annotationMap = map;
-
-  // Wrapper for annotation hover that routes based on registry metadata
-  const handleAnnotationHover = useCallback((annotationId: string | null) => {
-    if (annotationId) {
-      const annotation = annotationMap.get(annotationId);
-      const metadata = annotation ? Object.values(ANNOTATORS).find(a => a.matchesAnnotation(annotation!)) : null;
-
-      // Route to side panel if annotation type has one
-      if (metadata?.hasSidePanel) {
-        // Emit comment hover event
-        eventBus.emit('comment:hover', { commentId: annotationId });
-        eventBus.emit('annotation:hover', { annotationId: null });
-        return;
-      } else {
-        // Emit annotation hover event
-        eventBus.emit('annotation:hover', { annotationId });
-        eventBus.emit('comment:hover', { commentId: null });
-        return;
-      }
-    }
-    // Clear both when null
-    eventBus.emit('annotation:hover', { annotationId: null });
-    eventBus.emit('comment:hover', { commentId: null });
-  }, [annotationMap, eventBus]);
-
-  // Attach click handlers, hover handlers, and animations after render
+  // Attach click handler, hover handler, and animations after render
   useEffect(() => {
     if (!containerRef.current) return;
 
     const container = containerRef.current;
 
-    // Find all annotation spans
-    const annotationSpans = container.querySelectorAll('[data-annotation-id]');
+    // Single click handler for the container
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const annotationElement = target.closest('[data-annotation-id]');
+      if (!annotationElement) return;
 
-    // Attach click handlers
-    const handleClick = (e: Event) => {
-      const target = e.currentTarget as HTMLElement;
-      const annotationId = target.getAttribute('data-annotation-id');
-      const annotationType = target.getAttribute('data-annotation-type');
+      const annotationId = annotationElement.getAttribute('data-annotation-id');
+      const annotationType = annotationElement.getAttribute('data-annotation-type');
 
       if (annotationId && annotationType === 'reference') {
         eventBus.emit('annotation:click', { annotationId });
       }
     };
 
-    // Attach hover handlers
-    const handleMouseEnter = (e: Event) => {
-      const target = e.currentTarget as HTMLElement;
-      const annotationId = target.getAttribute('data-annotation-id');
+    // Single mouseover handler for the container - fires once on enter
+    const handleMouseOver = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const annotationElement = target.closest('[data-annotation-id]');
+      const annotationId = annotationElement?.getAttribute('data-annotation-id');
+
       if (annotationId) {
-        handleAnnotationHover(annotationId);
+        eventBus.emit('annotation:dom-hover', { annotationId });
       }
     };
 
-    const handleMouseLeave = () => {
-      handleAnnotationHover(null);
-    };
+    // Single mouseout handler for the container - fires once on exit
+    const handleMouseOut = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const annotationElement = target.closest('[data-annotation-id]');
 
-    const clickHandlers: Array<{ element: Element; handler: EventListener }> = [];
-    const hoverHandlers: Array<{ element: Element; enterHandler: EventListener; leaveHandler: EventListener }> = [];
-
-    annotationSpans.forEach((span) => {
-      const annotationType = span.getAttribute('data-annotation-type');
-      if (annotationType === 'reference') {
-        span.addEventListener('click', handleClick);
-        clickHandlers.push({ element: span, handler: handleClick });
+      if (annotationElement) {
+        eventBus.emit('annotation:dom-hover', { annotationId: null });
       }
-
-      // Add hover handlers for all annotation types
-      span.addEventListener('mouseenter', handleMouseEnter);
-      span.addEventListener('mouseleave', handleMouseLeave);
-      hoverHandlers.push({ element: span, enterHandler: handleMouseEnter, leaveHandler: handleMouseLeave });
-    });
+    };
 
     // Apply animation classes to new annotations
     if (newAnnotationIds) {
+      const annotationSpans = container.querySelectorAll('[data-annotation-id]');
       annotationSpans.forEach((span) => {
         const annotationId = span.getAttribute('data-annotation-id');
         if (annotationId && newAnnotationIds.has(annotationId)) {
@@ -167,17 +129,16 @@ export function BrowseView({
       });
     }
 
-    // Cleanup
+    container.addEventListener('click', handleClick);
+    container.addEventListener('mouseover', handleMouseOver);
+    container.addEventListener('mouseout', handleMouseOut);
+
     return () => {
-      clickHandlers.forEach(({ element, handler }) => {
-        element.removeEventListener('click', handler);
-      });
-      hoverHandlers.forEach(({ element, enterHandler, leaveHandler }) => {
-        element.removeEventListener('mouseenter', enterHandler);
-        element.removeEventListener('mouseleave', leaveHandler);
-      });
+      container.removeEventListener('click', handleClick);
+      container.removeEventListener('mouseover', handleMouseOver);
+      container.removeEventListener('mouseout', handleMouseOut);
     };
-  }, [content, allAnnotations, eventBus, annotationMap, newAnnotationIds, handleAnnotationHover]);
+  }, [content, allAnnotations, eventBus, newAnnotationIds]);
 
   // Helper to scroll annotation into view with pulse effect
   const scrollToAnnotation = useCallback((annotationId: string | null, removePulse = false) => {
@@ -221,13 +182,16 @@ export function BrowseView({
     }
   }, []);
 
-  // Subscribe to annotation and comment events
+  // Route DOM hover events and panel entry hover events to scrolling
   useEventSubscriptions({
+    'annotation:dom-hover': ({ annotationId }) => {
+      eventBus.emit('annotation:hover', { annotationId });
+    },
     'annotation:hover': ({ annotationId }) => {
       scrollToAnnotation(annotationId);
     },
-    'comment:hover': ({ commentId }) => {
-      scrollToAnnotation(commentId);
+    'annotation-entry:hover': ({ annotationId }) => {
+      scrollToAnnotation(annotationId);
     },
     'annotation:focus': ({ annotationId }) => {
       scrollToAnnotation(annotationId, true);

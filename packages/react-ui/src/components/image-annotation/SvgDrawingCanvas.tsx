@@ -40,8 +40,6 @@ interface SvgDrawingCanvasProps {
   drawingMode: DrawingMode;
   selectedMotivation?: SelectionMotivation | null;
   eventBus?: EventBus;
-  onAnnotationClick?: (annotation: Annotation) => void;
-  onAnnotationHover?: (annotationId: string | null) => void;
   hoveredAnnotationId?: string | null;
   selectedAnnotationId?: string | null;
 }
@@ -52,8 +50,6 @@ export function SvgDrawingCanvas({
   drawingMode,
   selectedMotivation,
   eventBus,
-  onAnnotationClick,
-  onAnnotationHover,
   hoveredAnnotationId,
   selectedAnnotationId
 }: SvgDrawingCanvasProps) {
@@ -173,7 +169,7 @@ export function SvgDrawingCanvas({
 
     if (dragDistance < MIN_DRAG_DISTANCE) {
       // This was a click, not a drag - check if we clicked an existing annotation
-      if (onAnnotationClick && existingAnnotations.length > 0) {
+      if (existingAnnotations.length > 0) {
         // Find annotation at click point
         // Note: We're checking in display coordinates
         const clickedAnnotation = existingAnnotations.find(ann => {
@@ -213,7 +209,7 @@ export function SvgDrawingCanvas({
         });
 
         if (clickedAnnotation) {
-          onAnnotationClick(clickedAnnotation);
+          eventBus?.emit('annotation:click', { annotationId: clickedAnnotation.id });
           setIsDrawing(false);
           setStartPoint(null);
           setCurrentPoint(null);
@@ -289,7 +285,7 @@ export function SvgDrawingCanvas({
     setIsDrawing(false);
     setStartPoint(null);
     setCurrentPoint(null);
-  }, [isDrawing, startPoint, drawingMode, displayDimensions, imageDimensions, getRelativeCoordinates, selectedMotivation, eventBus, onAnnotationClick, existingAnnotations]);
+  }, [isDrawing, startPoint, drawingMode, displayDimensions, imageDimensions, getRelativeCoordinates, selectedMotivation, eventBus, existingAnnotations]);
 
   // Cancel drawing on mouse leave
   const handleMouseLeave = useCallback(() => {
@@ -338,8 +334,7 @@ export function SvgDrawingCanvas({
               imageHeight={imageDimensions.height}
               displayWidth={displayDimensions.width}
               displayHeight={displayDimensions.height}
-              {...(onAnnotationClick && { onAnnotationClick })}
-              {...(onAnnotationHover && { onAnnotationHover })}
+              {...(eventBus && { eventBus })}
               {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
               {...(selectedAnnotationId !== undefined && { selectedAnnotationId })}
             />

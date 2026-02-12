@@ -50,7 +50,7 @@ export function ReferenceEntry({
         element: null
       });
     };
-  }, [reference.id, eventBus]);
+  }, [reference.id]);
 
   // Scroll to reference when focused - use container.scrollTo to avoid scrolling ancestors
   useEffect(() => {
@@ -155,10 +155,10 @@ export function ReferenceEntry({
         eventBus.emit('annotation:click', { annotationId: reference.id });
       }}
       onMouseEnter={() => {
-        eventBus.emit('annotation:hover', { annotationId: reference.id });
+        eventBus.emit('annotation-entry:hover', { annotationId: reference.id });
       }}
       onMouseLeave={() => {
-        eventBus.emit('annotation:hover', { annotationId: null });
+        eventBus.emit('annotation-entry:hover', { annotationId: null });
       }}
     >
       {/* Status indicator and text quote */}

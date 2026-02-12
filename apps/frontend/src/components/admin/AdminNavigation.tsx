@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { usePathname } from '@/i18n/routing';
@@ -15,30 +15,20 @@ import {
 } from '@heroicons/react/24/outline';
 
 interface AdminNavigationProps {
+  isCollapsed: boolean;
+  toggleCollapsed: () => void;
   navigationMenu?: (onClose: () => void) => React.ReactNode;
 }
 
-export function AdminNavigation({ navigationMenu }: AdminNavigationProps = {}) {
+export function AdminNavigation({ isCollapsed, toggleCollapsed, navigationMenu }: AdminNavigationProps) {
   const t = useTranslations('Administration');
   const tSidebar = useTranslations('Sidebar');
   const pathname = usePathname();
 
-  const [isCollapsed, setIsCollapsed] = useState(false);
-
-  // Load collapse state from localStorage
-  useEffect(() => {
-    const stored = localStorage.getItem('admin-sidebar-collapsed');
-    if (stored !== null) {
-      setIsCollapsed(stored === 'true');
-    }
-  }, []);
-
   // Subscribe to sidebar toggle events
   useEventSubscriptions({
     'navigation:sidebar-toggle': () => {
-      const newState = !isCollapsed;
-      setIsCollapsed(newState);
-      localStorage.setItem('admin-sidebar-collapsed', newState.toString());
+      toggleCollapsed();
     }
   });
 

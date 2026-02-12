@@ -75,8 +75,9 @@ export type EventMap = {
 
   // Annotation interaction events
   'annotation:cancel-pending': void;
-  'annotation:hover': { annotationId: string | null };
-  'comment:hover': { commentId: string | null };
+  'annotation:dom-hover': { annotationId: string | null }; // Raw DOM hover event from resource overlays (internal routing)
+  'annotation:hover': { annotationId: string | null }; // Hover over annotation overlay on the resource
+  'annotation-entry:hover': { annotationId: string | null }; // Hover over annotation entry in side panel
   'annotation:click': { annotationId: string };
   'annotation:focus': { annotationId: string | null };
   'annotation:ref-update': { annotationId: string; element: HTMLElement | null };
@@ -215,7 +216,18 @@ export function EventBusProvider({
   rUri,
   client,
 }: EventBusProviderProps) {
-  const eventBus = useMemo(() => mitt<EventMap>(), []);
+  const eventBus = useMemo(() => {
+    const bus = mitt<EventMap>();
+
+    // Wrap emit to add logging
+    const originalEmit = bus.emit.bind(bus);
+    bus.emit = ((eventName: any, payload?: any) => {
+      console.log('[EventBus] emit:', eventName, payload);
+      return originalEmit(eventName, payload);
+    }) as any;
+
+    return bus;
+  }, []);
 
   // Set up operation handlers if client is provided (from MakeMeaningEventBusContext logic)
   useEffect(() => {
@@ -252,7 +264,7 @@ export function EventBusProvider({
  *
  * // Emit any event
  * eventBus.emit('annotation:hover', { annotationId: '123' });
- * eventBus.emit('navigation:sidebar-toggle');
+ * eventBus.emit('navigation:sidebar-toggle', undefined);
  * eventBus.emit('settings:theme-changed', { theme: 'dark' });
  *
  * // Subscribe to any event

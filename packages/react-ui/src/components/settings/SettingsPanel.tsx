@@ -60,7 +60,7 @@ export function SettingsPanel({
               type="button"
               role="switch"
               aria-checked={showLineNumbers}
-              onClick={() => eventBus.emit('settings:line-numbers-toggled')}
+              onClick={() => eventBus.emit('settings:line-numbers-toggled', undefined)}
               className={`semiont-toggle ${
                 showLineNumbers ? 'semiont-toggle--active' : ''
               }`}

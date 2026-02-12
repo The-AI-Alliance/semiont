@@ -33,7 +33,7 @@ export function TagEntry({
         element: null
       });
     };
-  }, [tag.id, eventBus]);
+  }, [tag.id]);
 
   // Scroll to tag when focused
   useEffect(() => {
@@ -54,10 +54,10 @@ export function TagEntry({
         eventBus.emit('annotation:click', { annotationId: tag.id });
       }}
       onMouseEnter={() => {
-        eventBus.emit('annotation:hover', { annotationId: tag.id });
+        eventBus.emit('annotation-entry:hover', { annotationId: tag.id });
       }}
       onMouseLeave={() => {
-        eventBus.emit('annotation:hover', { annotationId: null });
+        eventBus.emit('annotation-entry:hover', { annotationId: null });
       }}
       className="semiont-annotation-entry"
       data-type="tag"

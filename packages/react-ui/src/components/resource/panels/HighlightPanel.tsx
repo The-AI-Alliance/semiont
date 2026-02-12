@@ -64,7 +64,7 @@ export function HighlightPanel({
         body: [],
       });
     }
-  }, [pendingAnnotation, eventBus]);
+  }, [pendingAnnotation]);
 
   return (
     <div className="semiont-panel">

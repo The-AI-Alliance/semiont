@@ -84,7 +84,7 @@ export function AssessmentEntry({
         element: null
       });
     };
-  }, [assessment.id, eventBus]);
+  }, [assessment.id]);
 
   // Scroll to assessment when focused
   useEffect(() => {
@@ -106,10 +106,10 @@ export function AssessmentEntry({
         eventBus.emit('annotation:click', { annotationId: assessment.id });
       }}
       onMouseEnter={() => {
-        eventBus.emit('annotation:hover', { annotationId: assessment.id });
+        eventBus.emit('annotation-entry:hover', { annotationId: assessment.id });
       }}
       onMouseLeave={() => {
-        eventBus.emit('annotation:hover', { annotationId: null });
+        eventBus.emit('annotation-entry:hover', { annotationId: null });
       }}
     >
       {/* Selected text quote */}

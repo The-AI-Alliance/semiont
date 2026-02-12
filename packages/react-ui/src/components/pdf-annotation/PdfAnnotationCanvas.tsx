@@ -52,8 +52,6 @@ interface PdfAnnotationCanvasProps {
   drawingMode: DrawingMode;
   selectedMotivation?: SelectionMotivation | null;
   eventBus?: EventBus;
-  onAnnotationClick?: (annotation: Annotation) => void;
-  onAnnotationHover?: (annotationId: string | null) => void;
   hoveredAnnotationId?: string | null;
   selectedAnnotationId?: string | null;
 }
@@ -64,8 +62,6 @@ export function PdfAnnotationCanvas({
   drawingMode,
   selectedMotivation,
   eventBus,
-  onAnnotationClick,
-  onAnnotationHover,
   hoveredAnnotationId,
   selectedAnnotationId
 }: PdfAnnotationCanvasProps) {
@@ -91,6 +87,9 @@ export function PdfAnnotationCanvas({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+
+  // Track current hover state to prevent redundant emissions
+  const currentHover = useRef<string | null>(null);
 
   // Load PDF document on mount
   useEffect(() => {
@@ -251,7 +250,7 @@ export function PdfAnnotationCanvas({
 
     if (dragDistance < MIN_DRAG_DISTANCE) {
       // This was a click, not a drag - check if we clicked an existing annotation
-      if (onAnnotationClick && existingAnnotations.length > 0) {
+      if (existingAnnotations.length > 0) {
         const clickedAnnotation = pageAnnotations.find(ann => {
           const fragmentSel = getFragmentSelector(ann.target);
           if (!fragmentSel) return false;
@@ -279,7 +278,7 @@ export function PdfAnnotationCanvas({
         });
 
         if (clickedAnnotation) {
-          onAnnotationClick(clickedAnnotation);
+          eventBus?.emit('annotation:click', { annotationId: clickedAnnotation.id });
           setIsDrawing(false);
           setSelection(null);
           return;
@@ -333,7 +332,7 @@ export function PdfAnnotationCanvas({
     setIsDrawing(false);
     // Note: We keep selection so the preview remains visible
     // It will be cleared when drawingMode changes or user starts new selection
-  }, [isDrawing, selection, pageNumber, pageDimensions, displayDimensions, selectedMotivation, eventBus, onAnnotationClick, existingAnnotations]);
+  }, [isDrawing, selection, pageNumber, pageDimensions, displayDimensions, selectedMotivation, eventBus, existingAnnotations]);
 
   // Helper to get FragmentSelector from annotation target
   const getFragmentSelector = (target: Annotation['target']) => {
@@ -353,6 +352,21 @@ export function PdfAnnotationCanvas({
     const page = getPageFromFragment(fragmentSel.value);
     return page === pageNumber;
   });
+
+  // Hover handlers with state tracking
+  const handleMouseEnter = (annotationId: string) => {
+    if (currentHover.current !== annotationId) {
+      currentHover.current = annotationId;
+      eventBus?.emit('annotation:dom-hover', { annotationId });
+    }
+  };
+
+  const handleMouseLeave = () => {
+    if (currentHover.current !== null) {
+      currentHover.current = null;
+      eventBus?.emit('annotation:dom-hover', { annotationId: null });
+    }
+  };
 
   // Calculate motivation color
   const { stroke, fill } = getMotivationColor(selectedMotivation ?? null);
@@ -450,9 +464,9 @@ export function PdfAnnotationCanvas({
                         cursor: 'pointer',
                         opacity: isSelected ? 1 : isHovered ? 0.9 : 0.7
                       }}
-                      onClick={() => onAnnotationClick?.(ann)}
-                      onMouseEnter={() => onAnnotationHover?.(ann.id)}
-                      onMouseLeave={() => onAnnotationHover?.(null)}
+                      onClick={() => eventBus?.emit('annotation:click', { annotationId: ann.id })}
+                      onMouseEnter={() => handleMouseEnter(ann.id)}
+                      onMouseLeave={handleMouseLeave}
                     />
                   );
                 })}

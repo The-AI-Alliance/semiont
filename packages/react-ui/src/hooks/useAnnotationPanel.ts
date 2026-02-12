@@ -67,8 +67,8 @@ export function useAnnotationPanel<T extends Annotation>(
     'annotation:hover': ({ annotationId }: { annotationId: string | null }) => {
       if (annotationId) scrollToAnnotation(annotationId);
     },
-    'comment:hover': ({ commentId }: { commentId: string | null }) => {
-      if (commentId) scrollToAnnotation(commentId);
+    'annotation-entry:hover': ({ annotationId }: { annotationId: string | null }) => {
+      if (annotationId) scrollToAnnotation(annotationId);
     },
     'annotation:ref-update': ({ annotationId, element }: { annotationId: string; element: HTMLElement | null }) => {
       if (element) {

@@ -206,7 +206,7 @@ export function AnnotateToolbar({
   };
 
   const handleModeToggle = () => {
-    eventBus.emit('view:mode-toggled');
+    eventBus.emit('view:mode-toggled', undefined);
     setModePinned(false);
     setModeHovered(false);
   };

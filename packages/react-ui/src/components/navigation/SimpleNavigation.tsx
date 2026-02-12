@@ -84,7 +84,7 @@ export function SimpleNavigation({
             !isCollapsed && <span className="semiont-nav-section__header-text">{title}</span>
           )}
           <button
-            onClick={() => eventBus.emit('navigation:sidebar-toggle')}
+            onClick={() => eventBus.emit('navigation:sidebar-toggle', undefined)}
             className="semiont-nav-section__header-icon"
             title={isCollapsed ? expandSidebarLabel : collapseSidebarLabel}
             aria-label={isCollapsed ? expandSidebarLabel : collapseSidebarLabel}

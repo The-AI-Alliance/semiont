@@ -54,7 +54,7 @@ export function CommentEntry({
         element: null
       });
     };
-  }, [comment.id, eventBus]);
+  }, [comment.id]);
 
   // Scroll to comment when focused
   useEffect(() => {
@@ -91,10 +91,10 @@ export function CommentEntry({
         eventBus.emit('annotation:click', { annotationId: comment.id });
       }}
       onMouseEnter={() => {
-        eventBus.emit('comment:hover', { commentId: comment.id });
+        eventBus.emit('annotation-entry:hover', { annotationId: comment.id });
       }}
       onMouseLeave={() => {
-        eventBus.emit('comment:hover', { commentId: null });
+        eventBus.emit('annotation-entry:hover', { annotationId: null });
       }}
     >
       {/* Selected text quote - only for text annotations */}

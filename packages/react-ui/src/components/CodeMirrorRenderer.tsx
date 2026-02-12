@@ -347,23 +347,6 @@ export function CodeMirrorRenderer({
               }
             }
             return false;
-          },
-          mousemove: (event, view) => {
-            const target = event.target as HTMLElement;
-            const annotationElement = target.closest('[data-annotation-id]');
-            const annotationId = annotationElement?.getAttribute('data-annotation-id');
-
-            // Track last hovered ID to avoid redundant calls
-            const enrichedDom = view.dom as EnrichedHTMLElement;
-            const lastHovered = enrichedDom.__lastHoveredAnnotation;
-            if (annotationId !== lastHovered) {
-              enrichedDom.__lastHoveredAnnotation = annotationId || null;
-              if (eventBusRef.current) {
-                eventBusRef.current.emit('annotation:hover', { annotationId: annotationId || null });
-              }
-            }
-
-            return false;
           }
         }),
         // Style the editor - use CSS string to inject !important rules
@@ -420,7 +403,34 @@ export function CodeMirrorRenderer({
     // Store the view on the container for position calculation
     (containerRef.current as EnrichedHTMLElement).__cmView = view;
 
+    // Attach hover event listeners using native DOM events with delegation
+    const container = view.dom;
+
+    const handleMouseOver = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const annotationElement = target.closest('[data-annotation-id]');
+      const annotationId = annotationElement?.getAttribute('data-annotation-id');
+
+      if (annotationId && eventBusRef.current) {
+        eventBusRef.current.emit('annotation:dom-hover', { annotationId });
+      }
+    };
+
+    const handleMouseOut = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const annotationElement = target.closest('[data-annotation-id]');
+
+      if (annotationElement && eventBusRef.current) {
+        eventBusRef.current.emit('annotation:dom-hover', { annotationId: null });
+      }
+    };
+
+    container.addEventListener('mouseover', handleMouseOver);
+    container.addEventListener('mouseout', handleMouseOut);
+
     return () => {
+      container.removeEventListener('mouseover', handleMouseOver);
+      container.removeEventListener('mouseout', handleMouseOut);
       view.destroy();
       viewRef.current = null;
     };

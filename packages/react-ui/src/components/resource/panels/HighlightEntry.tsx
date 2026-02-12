@@ -48,7 +48,7 @@ export function HighlightEntry({
         element: null
       });
     };
-  }, [highlight.id, eventBus]);
+  }, [highlight.id]);
 
   // Scroll to highlight when focused
   useEffect(() => {
@@ -69,10 +69,10 @@ export function HighlightEntry({
         eventBus.emit('annotation:click', { annotationId: highlight.id });
       }}
       onMouseEnter={() => {
-        eventBus.emit('annotation:hover', { annotationId: highlight.id });
+        eventBus.emit('annotation-entry:hover', { annotationId: highlight.id });
       }}
       onMouseLeave={() => {
-        eventBus.emit('annotation:hover', { annotationId: null });
+        eventBus.emit('annotation-entry:hover', { annotationId: null });
       }}
     >
       {/* Highlighted text */}

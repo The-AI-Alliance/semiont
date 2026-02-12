@@ -137,13 +137,13 @@ export function TaggingPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.emit('annotation:cancel-pending');
+        eventBus.emit('annotation:cancel-pending', undefined);
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [pendingAnnotation, eventBus]);
+  }, [pendingAnnotation]);
 
   // Color schemes are now handled via CSS data attributes
 
@@ -226,7 +226,7 @@ export function TaggingPanel({
             {/* Cancel button */}
             <div className="semiont-annotation-prompt__footer">
               <button
-                onClick={() => eventBus.emit('annotation:cancel-pending')}
+                onClick={() => eventBus.emit('annotation:cancel-pending', undefined)}
                 className="semiont-button semiont-button--secondary"
                 data-type="tag"
               >

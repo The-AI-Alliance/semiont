@@ -81,14 +81,14 @@ export function AssessmentPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.emit('annotation:cancel-pending');
+        eventBus.emit('annotation:cancel-pending', undefined);
         setNewAssessmentText('');
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [pendingAnnotation, eventBus]);
+  }, [pendingAnnotation]);
 
   // Subscribe to click events - update focused state
   useEventSubscriptions({
@@ -131,7 +131,7 @@ export function AssessmentPanel({
             <div className="semiont-annotation-prompt__actions">
               <button
                 onClick={() => {
-                  eventBus.emit('annotation:cancel-pending');
+                  eventBus.emit('annotation:cancel-pending', undefined);
                   setNewAssessmentText('');
                 }}
                 className="semiont-button semiont-button--secondary"

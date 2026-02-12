@@ -89,14 +89,14 @@ export function CommentsPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.emit('annotation:cancel-pending');
+        eventBus.emit('annotation:cancel-pending', undefined);
         setNewCommentText('');
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [pendingAnnotation, eventBus]);
+  }, [pendingAnnotation]);
 
   return (
     <div className="semiont-panel">
@@ -131,7 +131,7 @@ export function CommentsPanel({
             <div className="semiont-annotation-prompt__actions">
               <button
                 onClick={() => {
-                  eventBus.emit('annotation:cancel-pending');
+                  eventBus.emit('annotation:cancel-pending', undefined);
                   setNewCommentText('');
                 }}
                 className="semiont-button semiont-button--secondary"
