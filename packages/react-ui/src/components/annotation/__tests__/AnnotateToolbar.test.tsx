@@ -178,7 +178,7 @@ describe('AnnotateToolbar', () => {
         fireEvent.click(browseButton);
       });
 
-      expect(mockEmit).toHaveBeenCalledWith('view:mode-toggled');
+      expect(mockEmit).toHaveBeenCalledWith('view:mode-toggled', undefined);
     });
 
     it('emits view:mode-toggled event when Annotate is clicked in Browse mode', async () => {
@@ -197,7 +197,7 @@ describe('AnnotateToolbar', () => {
         fireEvent.click(annotateButton);
       });
 
-      expect(mockEmit).toHaveBeenCalledWith('view:mode-toggled');
+      expect(mockEmit).toHaveBeenCalledWith('view:mode-toggled', undefined);
     });
 
     it('closes dropdown after selection', async () => {
@@ -219,7 +219,7 @@ describe('AnnotateToolbar', () => {
       fireEvent.click(annotateButton);
 
       // Verify the event was emitted
-      expect(mockEmit).toHaveBeenCalledWith('view:mode-toggled');
+      expect(mockEmit).toHaveBeenCalledWith('view:mode-toggled', undefined);
 
       // Simulate mode change by rerendering with new mode
       rerender(

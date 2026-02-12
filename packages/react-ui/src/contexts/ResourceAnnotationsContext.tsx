@@ -113,7 +113,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
       announceError('Failed to delete annotation');
       throw err;
     }
-  }, [deleteAnnotationMutation, announceAnnotationDeleted, announceError]);
+  }, [deleteAnnotationMutation]);
 
   const clearNewAnnotationId = useCallback((id: AnnotationUri) => {
     setNewAnnotationIds(prev => {

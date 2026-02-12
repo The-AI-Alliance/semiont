@@ -41,7 +41,7 @@ export function useEventSubscription<K extends keyof EventMap>(
     return () => {
       eventBus.off(eventName, stableHandler);
     };
-  }, [eventBus, eventName]); // Only re-subscribe if event name changes
+  }, [eventName]); // eventBus is stable, only re-subscribe if event name changes
 }
 
 /**
@@ -95,5 +95,5 @@ export function useEventSubscriptions(
         eventBus.off(eventName, stableHandler);
       }
     };
-  }, [eventBus]); // Only re-subscribe if event bus changes (never in practice)
+  }, []); // eventBus is stable, subscriptions object changes tracked via handlersRef
 }

@@ -248,7 +248,7 @@ export function ResourceViewer({
   // Handle deleting annotations - emit event instead of direct call
   const handleDeleteAnnotation = useCallback((id: string) => {
     eventBus.emit('annotation:delete', { annotationId: id });
-  }, [eventBus]);
+  }, []); // eventBus is stable
 
   // Handle annotation clicks - memoized
   const handleAnnotationClick = useCallback((annotation: Annotation, event?: React.MouseEvent) => {

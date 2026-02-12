@@ -111,7 +111,7 @@ export function CollapsibleResourceNavigation({
     // Announce the change
     const resource = resources[currentIndex];
     announceKeyboardReorder(resource.name, direction, newIndex + 1, resources.length);
-  }, [resources, eventBus, announceKeyboardReorder, announceCannotMove]);
+  }, [resources]);
 
   // Handle resource close
   const handleResourceClose = (resourceId: string, e: React.MouseEvent) => {

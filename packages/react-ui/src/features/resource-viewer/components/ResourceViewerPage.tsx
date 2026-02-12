@@ -212,7 +212,7 @@ function ResourceViewerPageInner({
     if (annotationId) {
       eventBus.emit('annotation:sparkle', { annotationId });
     }
-  }, [eventBus]);
+  }, []); // eventBus is stable
 
   // Handle event click - scroll handled internally by ResourceViewer now
   const handleEventClick = useCallback((_annotationId: string | null) => {
@@ -302,7 +302,7 @@ function ResourceViewerPageInner({
     } else if (content) {
       announceResourceLoaded(resource.name);
     }
-  }, [contentLoading, content, resource.name, announceResourceLoading, announceResourceLoaded]);
+  }, [contentLoading, content, resource.name]);
 
   // Unified annotation request handler - all human-created annotations flow through this
   const handleAnnotationRequested = useCallback((pending: PendingAnnotation) => {
@@ -326,7 +326,7 @@ function ResourceViewerPageInner({
     // Emit event to open the appropriate panel
     eventBus.emit('panel:open', { panel: MOTIVATION_TO_TAB[pending.motivation] || 'annotations' });
     setPendingAnnotation(pending);
-  }, [eventBus]);
+  }, []); // eventBus is stable
 
   // Subscribe to UI events from ResourceViewer
   useEventSubscriptions({

@@ -200,7 +200,7 @@ describe('ResourceInfoPanel Component', () => {
 
       const button = screen.getByRole('button', { name: /Clone/i });
       fireEvent.click(button);
-      expect(mockEmit).toHaveBeenCalledWith('resource:clone');
+      expect(mockEmit).toHaveBeenCalledWith('resource:clone', undefined);
     });
   });
 
@@ -239,7 +239,7 @@ describe('ResourceInfoPanel Component', () => {
 
       const button = screen.getByRole('button', { name: /Archive/i });
       fireEvent.click(button);
-      expect(mockEmit).toHaveBeenCalledWith('resource:archive');
+      expect(mockEmit).toHaveBeenCalledWith('resource:archive', undefined);
     });
 
     it('should emit resource:unarchive event when unarchive button clicked', () => {
@@ -252,7 +252,7 @@ describe('ResourceInfoPanel Component', () => {
 
       const button = screen.getByRole('button', { name: /Unarchive/i });
       fireEvent.click(button);
-      expect(mockEmit).toHaveBeenCalledWith('resource:unarchive');
+      expect(mockEmit).toHaveBeenCalledWith('resource:unarchive', undefined);
     });
   });
 });

@@ -46,7 +46,7 @@ export function useObservableRouter<T extends Router>(baseRouter: T): T {
 
     // Perform actual navigation
     baseRouter.push(path);
-  }, [baseRouter, eventBus]);
+  }, []); // baseRouter and eventBus are both stable
 
   const replace = useCallback((path: string, options?: { reason?: string }) => {
     // Only wrap replace if the router has it
@@ -60,7 +60,7 @@ export function useObservableRouter<T extends Router>(baseRouter: T): T {
 
     // Perform actual navigation
     baseRouter.replace(path);
-  }, [baseRouter, eventBus]);
+  }, []); // baseRouter and eventBus are both stable
 
   return {
     ...baseRouter,
@@ -95,7 +95,7 @@ export function useObservableRouter<T extends Router>(baseRouter: T): T {
  *   };
  *   eventBus.on('navigation:external-navigate', handleNav);
  *   return () => eventBus.off('navigation:external-navigate', handleNav);
- * }, [eventBus, router]);
+ * }, []);
  * ```
  */
 export function useObservableExternalNavigation() {
@@ -121,5 +121,5 @@ export function useObservableExternalNavigation() {
 
     // Store timer reference so subscribers can cancel fallback
     (eventBus as any)._lastNavigationFallback = fallbackTimer;
-  }, [eventBus]);
+  }, []); // eventBus is stable
 }

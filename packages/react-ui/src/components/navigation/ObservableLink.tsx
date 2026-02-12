@@ -69,7 +69,7 @@ export function ObservableLink({
 
     // Call original onClick if provided
     onClick?.(e);
-  }, [href, label, onClick, eventBus]);
+  }, [href, label, onClick]); // eventBus is stable
 
   return (
     <a

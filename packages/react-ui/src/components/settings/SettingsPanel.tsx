@@ -41,7 +41,7 @@ export function SettingsPanel({
       announceLanguageChanged(localeName);
       setPreviousLocale(locale);
     }
-  }, [locale, previousLocale, isPendingLocaleChange, announceLanguageChanged]);
+  }, [locale, previousLocale, isPendingLocaleChange]);
 
   return (
     <div className="semiont-settings-panel">

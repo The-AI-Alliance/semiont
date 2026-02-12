@@ -241,7 +241,7 @@ export function EventBusProvider({
     });
 
     return cleanup;
-  }, [eventBus, rUri, client]);
+  }, [rUri, client]);
 
   return (
     <EventBusContext.Provider value={eventBus}>
@@ -272,7 +272,7 @@ export function EventBusProvider({
  *   const handler = ({ annotationId }) => console.log(annotationId);
  *   eventBus.on('annotation:hover', handler);
  *   return () => eventBus.off('annotation:hover', handler);
- * }, [eventBus]);
+ * }, []);
  * ```
  */
 export function useEventBus(): EventBus {
