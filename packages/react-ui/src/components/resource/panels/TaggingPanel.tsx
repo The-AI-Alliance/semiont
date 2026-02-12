@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
@@ -65,6 +65,7 @@ export function TaggingPanel({
   const [selectedSchemaId, setSelectedSchemaId] = useState<string>('legal-irac');
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Collapsible detection section state - load from localStorage, default expanded
   const [isDetectExpanded, setIsDetectExpanded] = useState(() => {
@@ -87,8 +88,7 @@ export function TaggingPanel({
     },
   });
 
-  const { sortedAnnotations, containerRef } =
-    useAnnotationPanel(annotations);
+  const { sortedAnnotations } = useAnnotationPanel(annotations, containerRef);
 
   const schemas = getAllTagSchemas();
   const selectedSchema = schemas.find(s => s.id === selectedSchemaId);

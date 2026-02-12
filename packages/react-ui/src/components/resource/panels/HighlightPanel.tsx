@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
@@ -42,9 +42,9 @@ export function HighlightPanel({
   const t = useTranslations('HighlightPanel');
   const eventBus = useEventBus();
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const { sortedAnnotations, containerRef } =
-    useAnnotationPanel(annotations);
+  const { sortedAnnotations } = useAnnotationPanel(annotations, containerRef);
 
   // Subscribe to click events - update focused state
   useEventSubscriptions({

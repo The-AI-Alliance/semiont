@@ -18,10 +18,10 @@ type Annotation = components['schemas']['Annotation'];
  * Used by: HighlightPanel, AssessmentPanel, CommentsPanel, ReferencesPanel
  */
 export function useAnnotationPanel<T extends Annotation>(
-  annotations: T[]
+  annotations: T[],
+  containerRef: React.RefObject<HTMLDivElement>
 ) {
   const refs = useRef<Map<string, HTMLElement>>(new Map());
-  const containerRef = useRef<HTMLDivElement>(null);
 
   // Sort annotations by their position in the resource
   const sortedAnnotations = [...annotations].sort((a, b) => {
@@ -79,18 +79,7 @@ export function useAnnotationPanel<T extends Annotation>(
     },
   });
 
-  // Ref callback for annotation elements (deprecated - use annotation:ref-update event)
-  const handleAnnotationRef = useCallback((id: string, el: HTMLElement | null) => {
-    if (el) {
-      refs.current.set(id, el);
-    } else {
-      refs.current.delete(id);
-    }
-  }, []);
-
   return {
-    sortedAnnotations,
-    containerRef,
-    handleAnnotationRef
+    sortedAnnotations
   };
 }

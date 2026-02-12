@@ -83,6 +83,7 @@ export function ReferencesPanel({
   const [pendingEntityTypes, setPendingEntityTypes] = useState<string[]>([]);
   const [includeDescriptiveReferences, setIncludeDescriptiveReferences] = useState(false);
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Collapsible detection section state - load from localStorage, default expanded
   const [isDetectExpanded, setIsDetectExpanded] = useState(() => {
@@ -97,8 +98,7 @@ export function ReferencesPanel({
     localStorage.setItem('detect-section-expanded-reference', String(isDetectExpanded));
   }, [isDetectExpanded]);
 
-  const { sortedAnnotations, containerRef } =
-    useAnnotationPanel(annotations);
+  const { sortedAnnotations } = useAnnotationPanel(annotations, containerRef);
 
   // Subscribe to click events - update focused state
   useEventSubscriptions({

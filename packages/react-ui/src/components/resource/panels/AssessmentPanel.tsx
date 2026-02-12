@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
@@ -60,9 +60,9 @@ export function AssessmentPanel({
   const eventBus = useEventBus();
   const [newAssessmentText, setNewAssessmentText] = useState('');
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const { sortedAnnotations, containerRef } =
-    useAnnotationPanel(annotations);
+  const { sortedAnnotations } = useAnnotationPanel(annotations, containerRef);
 
   const handleSaveNewAssessment = () => {
     if (newAssessmentText.trim() && pendingAnnotation) {
