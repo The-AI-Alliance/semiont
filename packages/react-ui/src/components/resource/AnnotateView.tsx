@@ -213,7 +213,15 @@ export function AnnotateView({
       }
     };
 
-    const handleMouseUp = (_e: MouseEvent) => {
+    const handleMouseUp = (e: MouseEvent) => {
+      // Skip if the mouseUp came from PDF or image canvas
+      // (those components handle their own annotation:requested events)
+      const target = e.target as Element;
+      if (target.closest('.semiont-pdf-annotation-canvas') ||
+          target.closest('.semiont-svg-drawing-canvas')) {
+        return;
+      }
+
       const selection = window.getSelection();
       if (!selection || selection.isCollapsed || !selection.toString()) {
         clickedOnAnnotation = false;

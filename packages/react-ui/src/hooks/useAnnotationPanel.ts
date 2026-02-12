@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useMemo } from 'react';
 import type { components } from '@semiont/api-client';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
@@ -24,12 +24,14 @@ export function useAnnotationPanel<T extends Annotation>(
   const refs = useRef<Map<string, HTMLElement>>(new Map());
 
   // Sort annotations by their position in the resource
-  const sortedAnnotations = [...annotations].sort((a, b) => {
-    const aSelector = getTextPositionSelector(getTargetSelector(a.target));
-    const bSelector = getTextPositionSelector(getTargetSelector(b.target));
-    if (!aSelector || !bSelector) return 0;
-    return aSelector.start - bSelector.start;
-  });
+  const sortedAnnotations = useMemo(() => {
+    return [...annotations].sort((a, b) => {
+      const aSelector = getTextPositionSelector(getTargetSelector(a.target));
+      const bSelector = getTextPositionSelector(getTargetSelector(b.target));
+      if (!aSelector || !bSelector) return 0;
+      return aSelector.start - bSelector.start;
+    });
+  }, [annotations]);
 
   // Helper to scroll annotation into view with pulse effect
   const scrollToAnnotation = useCallback((annotationId: string) => {

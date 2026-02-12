@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
 import { AnnotateView, type SelectionMotivation, type ClickAction, type ShapeType } from './AnnotateView';
 import { BrowseView } from './BrowseView';
@@ -510,13 +510,10 @@ export function ResourceViewer({
             if ('selectedShape' in updates) setSelectedShape(updates.selectedShape!);
           }}
           enableWidgets={true}
-          getTargetDocumentName={(documentId: string) => {
-            // Look up document name from referencedBy or annotations
-            // This is read-only data lookup, not an action
-            const allRefs = [...references];
-            const referencedResource = allRefs.find((a: Annotation) => getBodySource(a.body) === documentId);
+          getTargetDocumentName={useCallback((documentId: string) => {
+            const referencedResource = references.find((a: Annotation) => getBodySource(a.body) === documentId);
             return referencedResource ? getExactText(getTargetSelector(referencedResource.target)) : undefined;
-          }}
+          }, [references])}
           {...(generatingReferenceId !== undefined && { generatingReferenceId })}
           showLineNumbers={showLineNumbers}
           annotateMode={annotateMode}

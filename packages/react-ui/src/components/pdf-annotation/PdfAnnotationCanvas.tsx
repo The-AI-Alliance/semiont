@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState, useCallback, useEffect } from 'react';
+import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import type { components, ResourceUri } from '@semiont/api-client';
 import { getTargetSelector } from '@semiont/api-client';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
@@ -65,8 +65,10 @@ export function PdfAnnotationCanvas({
   hoveredAnnotationId,
   selectedAnnotationId
 }: PdfAnnotationCanvasProps) {
-  const resourceId = resourceUri.split('/').pop();
-  const pdfUrl = `/api/resources/${resourceId}`;
+  const pdfUrl = useMemo(() => {
+    const resourceId = resourceUri.split('/').pop();
+    return `/api/resources/${resourceId}`;
+  }, [resourceUri]);
 
   // Removed excessive logging
 
