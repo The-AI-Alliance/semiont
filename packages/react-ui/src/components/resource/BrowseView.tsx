@@ -17,6 +17,7 @@ const PdfAnnotationCanvas = lazy(() => import('../pdf-annotation/PdfAnnotationCa
 
 type Annotation = components['schemas']['Annotation'];
 import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
+import { useEventBus } from '../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../contexts/useEventSubscription';
 
 interface Props {
@@ -69,6 +70,7 @@ export function BrowseView({
   annotators
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();
+  const eventBus = useEventBus();
   const containerRef = useRef<HTMLDivElement>(null);
 
   const category = getMimeCategory(mimeType);
@@ -188,7 +190,7 @@ export function BrowseView({
   }, [content, allAnnotations, onAnnotationClick, annotationMap, newAnnotationIds, handleAnnotationHover]);
 
   // Helper to scroll annotation into view with pulse effect
-  const scrollToAnnotation = useCallback((annotationId: string, removePulse = false) => {
+  const scrollToAnnotation = useCallback((annotationId: string | null, removePulse = false) => {
     if (!containerRef.current || !annotationId) return;
 
     const element = containerRef.current.querySelector(
