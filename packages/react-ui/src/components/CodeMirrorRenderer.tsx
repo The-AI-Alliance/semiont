@@ -44,7 +44,6 @@ interface Props {
   onUnresolvedReferenceClick?: (annotation: Annotation) => void;
   getTargetDocumentName?: (documentId: string) => string | undefined;
   generatingReferenceId?: string | null; // ID of reference currently generating a document
-  onDeleteAnnotation?: (annotation: Annotation) => void;
 }
 
 // Effect to update annotation decorations with segments and new IDs
@@ -65,7 +64,6 @@ interface WidgetUpdate {
     onReferenceNavigate?: (documentId: string) => void;
     onUnresolvedReferenceClick?: (annotation: Annotation) => void;
     getTargetDocumentName?: (documentId: string) => string | undefined;
-    onDeleteAnnotation?: (annotation: Annotation) => void;
   };
 }
 
@@ -214,7 +212,6 @@ function buildWidgetDecorations(
     onReferenceNavigate?: (documentId: string) => void;
     onUnresolvedReferenceClick?: (annotation: Annotation) => void;
     getTargetDocumentName?: (documentId: string) => string | undefined;
-    onDeleteAnnotation?: (annotation: Annotation) => void;
   }
 ): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
@@ -304,8 +301,7 @@ export function CodeMirrorRenderer({
   onReferenceNavigate,
   onUnresolvedReferenceClick,
   getTargetDocumentName,
-  generatingReferenceId,
-  onDeleteAnnotation
+  generatingReferenceId
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -323,7 +319,6 @@ export function CodeMirrorRenderer({
     onReferenceNavigate?: (documentId: string) => void;
     onUnresolvedReferenceClick?: (annotation: Annotation) => void;
     getTargetDocumentName?: (documentId: string) => string | undefined;
-    onDeleteAnnotation?: (annotation: Annotation) => void;
     onAnnotationClick?: (annotation: Annotation, event?: React.MouseEvent) => void;
     onAnnotationHover?: (annotationId: string | null) => void;
   }>({});
@@ -338,11 +333,10 @@ export function CodeMirrorRenderer({
       ...(onReferenceNavigate && { onReferenceNavigate }),
       ...(onUnresolvedReferenceClick && { onUnresolvedReferenceClick }),
       ...(getTargetDocumentName && { getTargetDocumentName }),
-      ...(onDeleteAnnotation && { onDeleteAnnotation }),
       ...(onAnnotationClick && { onAnnotationClick }),
       ...(onAnnotationHover && { onAnnotationHover })
     };
-  }, [onEntityTypeClick, onReferenceNavigate, onUnresolvedReferenceClick, getTargetDocumentName, onDeleteAnnotation, onAnnotationClick, onAnnotationHover]);
+  }, [onEntityTypeClick, onReferenceNavigate, onUnresolvedReferenceClick, getTargetDocumentName, onAnnotationClick, onAnnotationHover]);
 
   // Initialize CodeMirror view once
   useEffect(() => {

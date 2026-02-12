@@ -330,6 +330,7 @@ function ResourceViewerPageInner({
 
   // Subscribe to UI events from ResourceViewer
   useEventSubscriptions({
+    'annotation:requested': handleAnnotationRequested,
     'selection:comment-requested': (selection: any) => {
       handleAnnotationRequested({
         selector: {
@@ -519,7 +520,6 @@ function ResourceViewerPageInner({
                 <ResourceViewer
                   resource={resourceWithContent}
                 annotations={groups}
-                onAnnotationRequested={handleAnnotationRequested}
                 generatingReferenceId={generationProgress?.referenceId ?? null}
                 showLineNumbers={showLineNumbers}
               />

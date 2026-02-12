@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useCallback, useEffect, lazy, Suspense } from 'react';
-import type { components, Selector } from '@semiont/api-client';
+import type { components } from '@semiont/api-client';
 import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMimeCategory, isPdfMimeType, resourceUri as toResourceUri } from '@semiont/api-client';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import { SvgDrawingCanvas } from '../image-annotation/SvgDrawingCanvas';
@@ -12,17 +12,11 @@ import { findTextWithContext } from '@semiont/api-client';
 const PdfAnnotationCanvas = lazy(() => import('../pdf-annotation/PdfAnnotationCanvas.client').then(mod => ({ default: mod.PdfAnnotationCanvas })));
 
 type Annotation = components['schemas']['Annotation'];
-type Motivation = components['schemas']['Motivation'];
-
-// Unified pending annotation type - all human-created annotations flow through this
-interface PendingAnnotation {
-  selector: Selector | Selector[];
-  motivation: Motivation;
-}
 
 import { CodeMirrorRenderer } from '../CodeMirrorRenderer';
 import type { TextSegment } from '../CodeMirrorRenderer';
 import type { EditorView } from '@codemirror/view';
+import { useEventBus } from '../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../contexts/useEventSubscription';
 
 // Type augmentation for custom DOM properties
@@ -51,10 +45,8 @@ interface Props {
   onUnresolvedReferenceClick?: (annotation: Annotation) => void;
   getTargetDocumentName?: (documentId: string) => string | undefined;
   generatingReferenceId?: string | null;
-  onDeleteAnnotation?: (annotation: Annotation) => void;
   showLineNumbers?: boolean;
   annotateMode: boolean;
-  onAnnotationRequested?: (pending: PendingAnnotation) => void;
 }
 
 /**
@@ -173,13 +165,12 @@ export function AnnotateView({
   onUnresolvedReferenceClick,
   getTargetDocumentName,
   generatingReferenceId,
-  onDeleteAnnotation,
   showLineNumbers = false,
-  annotateMode,
-  onAnnotationRequested
+  annotateMode
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
+  const eventBus = useEventBus();
 
   const category = getMimeCategory(mimeType);
 
@@ -293,8 +284,8 @@ export function AnnotateView({
         const context = extractContext(content, start, end);
 
         // Unified flow: all text annotations use BOTH TextPositionSelector and TextQuoteSelector
-        if (selectedMotivation && onAnnotationRequested) {
-          onAnnotationRequested({
+        if (selectedMotivation) {
+          eventBus.emit('annotation:requested', {
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -327,8 +318,8 @@ export function AnnotateView({
         const context = extractContext(content, start, end);
 
         // Unified flow: all text annotations use BOTH TextPositionSelector and TextQuoteSelector
-        if (selectedMotivation && onAnnotationRequested) {
-          onAnnotationRequested({
+        if (selectedMotivation) {
+          eventBus.emit('annotation:requested', {
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -392,7 +383,6 @@ export function AnnotateView({
             {...(onUnresolvedReferenceClick && { onUnresolvedReferenceClick })}
             {...(getTargetDocumentName && { getTargetDocumentName })}
             {...(generatingReferenceId !== undefined && { generatingReferenceId })}
-            {...(onDeleteAnnotation && { onDeleteAnnotation })}
           />
 
           </div>
@@ -426,7 +416,7 @@ export function AnnotateView({
                       if (!selectedMotivation) return;
 
                       // Unified flow: all annotations go through pending state
-                      onAnnotationRequested?.({
+                      eventBus.emit('annotation:requested', {
                         selector: {
                           type: 'FragmentSelector',
                           conformsTo: 'http://tools.ietf.org/rfc/rfc3778',
@@ -469,7 +459,7 @@ export function AnnotateView({
                   if (!selectedMotivation) return;
 
                   // Unified flow: all annotations go through pending state
-                  onAnnotationRequested?.({
+                  eventBus.emit('annotation:requested', {
                     selector: {
                       type: 'SvgSelector',
                       value: svg

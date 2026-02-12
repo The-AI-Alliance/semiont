@@ -6,7 +6,7 @@ import { AnnotateView, type SelectionMotivation, type ClickAction, type ShapeTyp
 import { BrowseView } from './BrowseView';
 import { PopupContainer } from '../annotation-popups/SharedPopupElements';
 import { JsonLdView } from '../annotation-popups/JsonLdView';
-import type { components, Selector } from '@semiont/api-client';
+import type { components } from '@semiont/api-client';
 import { getExactText, getTargetSelector, resourceUri, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/api-client';
 import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
 import { useEventBus } from '../../contexts/EventBusContext';
@@ -19,13 +19,6 @@ import { getSelectorType, getSelectedShapeForSelectorType, saveSelectedShapeForS
 
 type Annotation = components['schemas']['Annotation'];
 type SemiontResource = components['schemas']['ResourceDescriptor'];
-type Motivation = components['schemas']['Motivation'];
-
-// Unified pending annotation type - all human-created annotations flow through this
-interface PendingAnnotation {
-  selector: Selector | Selector[];
-  motivation: Motivation;
-}
 
 /**
  * ResourceViewer - Display and interact with resource content and annotations
@@ -50,15 +43,13 @@ interface Props {
   annotations: AnnotationsCollection;
   generatingReferenceId?: string | null;
   showLineNumbers?: boolean;
-  onAnnotationRequested?: (pending: PendingAnnotation) => void;
 }
 
 export function ResourceViewer({
   resource,
   annotations,
   generatingReferenceId,
-  showLineNumbers = false,
-  onAnnotationRequested
+  showLineNumbers = false
 }: Props) {
   const t = useTranslations('ResourceViewer');
   const documentViewerRef = useRef<HTMLDivElement>(null);
@@ -486,11 +477,6 @@ export function ResourceViewer({
     }
   }, [rUri, createAnnotation]);
 
-  // Quick action: Delete annotation from widget
-  const handleDeleteAnnotationWidget = useCallback(async (annotation: Annotation) => {
-    await handleDeleteAnnotation(annotation.id);
-  }, [handleDeleteAnnotation]);
-
   // Prepare props for child components
   // Note: These objects are created inline - React's reconciliation handles re-renders efficiently
   const annotationsCollection = { highlights, references, assessments, comments, tags };
@@ -539,10 +525,8 @@ export function ResourceViewer({
           }}
           onUnresolvedReferenceClick={handleAnnotationClick}
           {...(generatingReferenceId !== undefined && { generatingReferenceId })}
-          onDeleteAnnotation={handleDeleteAnnotationWidget}
           showLineNumbers={showLineNumbers}
           annotateMode={annotateMode}
-          {...(onAnnotationRequested && { onAnnotationRequested })}
         />
       ) : (
         <BrowseView

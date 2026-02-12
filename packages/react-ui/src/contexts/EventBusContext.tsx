@@ -67,6 +67,12 @@ export type EventMap = {
   'selection:assessment-requested': SelectionData;
   'selection:reference-requested': SelectionData;
 
+  // Unified annotation request event (all motivations)
+  'annotation:requested': {
+    selector: Selector | Selector[];
+    motivation: Motivation;
+  };
+
   // Annotation interaction events
   'annotation:cancel-pending': void;
   'annotation:hover': { annotationId: string | null };
