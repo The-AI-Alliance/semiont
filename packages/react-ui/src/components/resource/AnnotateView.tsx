@@ -3,7 +3,7 @@
 import { useRef, useCallback, useEffect, lazy, Suspense } from 'react';
 import type { components, Selector } from '@semiont/api-client';
 import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMimeCategory, isPdfMimeType, resourceUri as toResourceUri } from '@semiont/api-client';
-import type { Annotator } from '../../lib/annotation-registry';
+import { ANNOTATORS } from '../../lib/annotation-registry';
 import { SvgDrawingCanvas } from '../image-annotation/SvgDrawingCanvas';
 import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
 import { findTextWithContext } from '@semiont/api-client';
@@ -55,7 +55,6 @@ interface Props {
   showLineNumbers?: boolean;
   annotateMode: boolean;
   onAnnotationRequested?: (pending: PendingAnnotation) => void;
-  annotators: Record<string, Annotator>;
 }
 
 /**
@@ -177,8 +176,7 @@ export function AnnotateView({
   onDeleteAnnotation,
   showLineNumbers = false,
   annotateMode,
-  onAnnotationRequested,
-  annotators
+  onAnnotationRequested
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -225,7 +223,7 @@ export function AnnotateView({
   const handleAnnotationHover = useCallback((annotationId: string | null) => {
     if (annotationId) {
       const annotation = allAnnotations.find(a => a.id === annotationId);
-      const metadata = annotation ? Object.values(annotators).find(a => a.matchesAnnotation(annotation!)) : null;
+      const metadata = annotation ? Object.values(ANNOTATORS).find(a => a.matchesAnnotation(annotation!)) : null;
 
       // Route to side panel if annotation type has one
       if (metadata?.hasSidePanel) {
@@ -243,7 +241,7 @@ export function AnnotateView({
     // Clear both when null
     if (onAnnotationHover) onAnnotationHover(null);
     if (onCommentHover) onCommentHover(null);
-  }, [allAnnotations, onAnnotationHover, onCommentHover, annotators]);
+  }, [allAnnotations, onAnnotationHover, onCommentHover]);
 
   // Handle text annotation with sparkle or immediate creation
   useEffect(() => {
@@ -373,7 +371,7 @@ export function AnnotateView({
             selectedClick={selectedClick}
             mediaType={mimeType}
             annotateMode={annotateMode}
-            annotators={annotators}
+            annotators={ANNOTATORS}
           />
           <div className="semiont-annotate-view__content">
             <CodeMirrorRenderer
@@ -395,7 +393,6 @@ export function AnnotateView({
             {...(getTargetDocumentName && { getTargetDocumentName })}
             {...(generatingReferenceId !== undefined && { generatingReferenceId })}
             {...(onDeleteAnnotation && { onDeleteAnnotation })}
-            annotators={annotators}
           />
 
           </div>
@@ -415,7 +412,7 @@ export function AnnotateView({
               selectedShape={selectedShape}
               mediaType={mimeType}
               annotateMode={annotateMode}
-              annotators={annotators}
+              annotators={ANNOTATORS}
             />
             <div className="semiont-annotate-view__content">
               {resourceUri && (
@@ -459,7 +456,7 @@ export function AnnotateView({
             selectedShape={selectedShape}
             mediaType={mimeType}
             annotateMode={annotateMode}
-            annotators={annotators}
+            annotators={ANNOTATORS}
           />
           <div className="semiont-annotate-view__content">
             {resourceUri && (

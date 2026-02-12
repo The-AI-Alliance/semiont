@@ -7,7 +7,7 @@ import { remarkAnnotations, type PreparedAnnotation } from '../../lib/remark-ann
 import { rehypeRenderAnnotations } from '../../lib/rehype-render-annotations';
 import type { components } from '@semiont/api-client';
 import { getExactText, getTextPositionSelector, getTargetSelector, getBodySource, getMimeCategory, isPdfMimeType, resourceUri as toResourceUri } from '@semiont/api-client';
-import type { Annotator } from '../../lib/annotation-registry';
+import { ANNOTATORS } from '../../lib/annotation-registry';
 import { ImageViewer } from '../viewers';
 import { AnnotateToolbar, type ClickAction } from '../annotation/AnnotateToolbar';
 import type { AnnotationsCollection, AnnotationHandlers } from '../../types/annotation-props';
@@ -30,14 +30,13 @@ interface Props {
   hoveredCommentId?: string | null;
   selectedClick?: ClickAction;
   annotateMode: boolean;
-  annotators: Record<string, Annotator>;
 }
 
 /**
  * Convert W3C Annotations to simplified format for remark plugin.
  * Extracts position info and converts start/end to offset/length.
  */
-function prepareAnnotations(annotations: Annotation[], annotators: Record<string, Annotator>): PreparedAnnotation[] {
+function prepareAnnotations(annotations: Annotation[]): PreparedAnnotation[] {
   return annotations
     .map(ann => {
       const targetSelector = getTargetSelector(ann.target);
@@ -45,8 +44,8 @@ function prepareAnnotations(annotations: Annotation[], annotators: Record<string
       const start = posSelector?.start ?? 0;
       const end = posSelector?.end ?? 0;
 
-      // Use annotators to determine type
-      const type = Object.values(annotators).find(a => a.matchesAnnotation(ann))?.internalType || 'highlight';
+      // Use ANNOTATORS registry to determine type
+      const type = Object.values(ANNOTATORS).find(a => a.matchesAnnotation(ann))?.internalType || 'highlight';
 
       return {
         id: ann.id,
@@ -66,8 +65,7 @@ export function BrowseView({
   annotations,
   handlers,
   selectedClick = 'detail',
-  annotateMode,
-  annotators
+  annotateMode
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();
   const eventBus = useEventBus();
@@ -82,7 +80,7 @@ export function BrowseView({
 
   const allAnnotations = [...highlights, ...references, ...assessments, ...comments, ...tags];
 
-  const preparedAnnotations = prepareAnnotations(allAnnotations, annotators);
+  const preparedAnnotations = prepareAnnotations(allAnnotations);
 
   // Create a map of annotation ID -> full annotation for click handling
   const map = new Map<string, Annotation>();
@@ -95,7 +93,7 @@ export function BrowseView({
   const handleAnnotationHover = useCallback((annotationId: string | null) => {
     if (annotationId) {
       const annotation = annotationMap.get(annotationId);
-      const metadata = annotation ? Object.values(annotators).find(a => a.matchesAnnotation(annotation!)) : null;
+      const metadata = annotation ? Object.values(ANNOTATORS).find(a => a.matchesAnnotation(annotation!)) : null;
 
       // Route to side panel if annotation type has one
       if (metadata?.hasSidePanel) {
@@ -113,7 +111,7 @@ export function BrowseView({
     // Clear both when null
     eventBus.emit('annotation:hover', { annotationId: null });
     eventBus.emit('comment:hover', { commentId: null });
-  }, [annotationMap, eventBus, annotators]);
+  }, [annotationMap, eventBus]);
 
   // Attach click handlers, hover handlers, and animations after render
   useEffect(() => {
@@ -255,7 +253,7 @@ export function BrowseView({
             showSelectionGroup={false}
             showDeleteButton={false}
             annotateMode={annotateMode}
-            annotators={annotators}
+            annotators={ANNOTATORS}
           />
           <div ref={containerRef} className="semiont-browse-view__content">
             <ReactMarkdown
@@ -284,7 +282,7 @@ export function BrowseView({
               showSelectionGroup={false}
               showDeleteButton={false}
               annotateMode={annotateMode}
-              annotators={annotators}
+              annotators={ANNOTATORS}
             />
             <div ref={containerRef} className="semiont-browse-view__content">
               <Suspense fallback={<div className="semiont-browse-view__loading">Loading PDF viewer...</div>}>
@@ -311,7 +309,7 @@ export function BrowseView({
             showSelectionGroup={false}
             showDeleteButton={false}
             annotateMode={annotateMode}
-            annotators={annotators}
+            annotators={ANNOTATORS}
           />
           <div ref={containerRef} className="semiont-browse-view__content">
             <ImageViewer

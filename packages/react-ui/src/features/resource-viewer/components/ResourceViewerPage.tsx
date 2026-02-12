@@ -522,7 +522,6 @@ function ResourceViewerPageInner({
                 onAnnotationRequested={handleAnnotationRequested}
                 generatingReferenceId={generationProgress?.referenceId ?? null}
                 showLineNumbers={showLineNumbers}
-                annotators={ANNOTATORS}
               />
               )}
             </ErrorBoundary>

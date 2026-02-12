@@ -9,7 +9,7 @@
 import React, { useState, useEffect } from 'react';
 import type { components } from '@semiont/api-client';
 import { isImageMimeType, isPdfMimeType, LOCALES } from '@semiont/api-client';
-import { buttonStyles, CodeMirrorRenderer, type TextSegment } from '@semiont/react-ui';
+import { buttonStyles, CodeMirrorRenderer } from '@semiont/react-ui';
 import { useFormAnnouncements } from '@semiont/react-ui';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
@@ -100,10 +100,6 @@ export interface SaveResourceParams {
   annotationUri?: string;
   sourceDocumentId?: string;
 }
-
-// Stable empty references to prevent CodeMirror re-initialization
-const EMPTY_ANNOTATORS = {};
-const EMPTY_SEGMENTS: TextSegment[] = [];
 
 export function ResourceComposePage({
   mode,
@@ -527,12 +523,10 @@ export function ResourceComposePage({
                 <div className="semiont-form__editor-wrapper" lang={selectedLanguage}>
                   <CodeMirrorRenderer
                     content={newResourceContent}
-                    segments={EMPTY_SEGMENTS}
                     editable={!isCreating}
                     sourceView={true}
                     showLineNumbers={showLineNumbers}
                     onChange={(newContent) => setNewResourceContent(newContent)}
-                    annotators={EMPTY_ANNOTATORS}
                   />
                 </div>
               </div>

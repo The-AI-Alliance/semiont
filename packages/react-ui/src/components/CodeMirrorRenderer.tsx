@@ -4,7 +4,7 @@ import React, { useEffect, useRef } from 'react';
 import { EditorView, Decoration, DecorationSet, lineNumbers } from '@codemirror/view';
 import { EditorState, RangeSetBuilder, StateField, StateEffect, Compartment } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
-import type { Annotator } from '../lib/annotation-registry';
+import { ANNOTATORS } from '../lib/annotation-registry';
 import { ReferenceResolutionWidget } from '../lib/codemirror-widgets';
 import { isHighlight, isReference, isResolvedReference, isComment, isAssessment, isTag, getBodySource } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
@@ -26,7 +26,7 @@ export interface TextSegment {
 
 interface Props {
   content: string;
-  segments: TextSegment[];
+  segments?: TextSegment[]; // Optional - only needed for annotation rendering
   onAnnotationClick?: (annotation: Annotation) => void;
   onAnnotationHover?: (annotationId: string | null) => void;
   onTextSelect?: (exact: string, position: { start: number; end: number }) => void;
@@ -45,7 +45,6 @@ interface Props {
   getTargetDocumentName?: (documentId: string) => string | undefined;
   generatingReferenceId?: string | null; // ID of reference currently generating a document
   onDeleteAnnotation?: (annotation: Annotation) => void;
-  annotators: Record<string, Annotator>;
 }
 
 // Effect to update annotation decorations with segments and new IDs
@@ -139,7 +138,6 @@ function getAnnotationTooltip(annotation: Annotation): string {
 // Build decorations from segments
 function buildAnnotationDecorations(
   segments: TextSegment[],
-  annotators: Record<string, Annotator>,
   newAnnotationIds?: Set<string>
 ): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
@@ -152,7 +150,7 @@ function buildAnnotationDecorations(
     if (!segment.annotation) continue;
 
     const isNew = newAnnotationIds?.has(segment.annotation.id) || false;
-    const baseClassName = Object.values(annotators).find(a => a.matchesAnnotation(segment.annotation!))?.className || 'annotation-highlight';
+    const baseClassName = Object.values(ANNOTATORS).find(a => a.matchesAnnotation(segment.annotation!))?.className || 'annotation-highlight';
     const className = isNew ? `${baseClassName} annotation-sparkle` : baseClassName;
 
     // Use W3C helpers to determine annotation type
@@ -185,8 +183,8 @@ function buildAnnotationDecorations(
   return builder.finish();
 }
 
-// Create state field factory that closes over annotators
-function createAnnotationDecorationsField(annotators: Record<string, Annotator>) {
+// Create state field for annotation decorations
+function createAnnotationDecorationsField() {
   return StateField.define<DecorationSet>({
     create() {
       return Decoration.none;
@@ -196,7 +194,7 @@ function createAnnotationDecorationsField(annotators: Record<string, Annotator>)
 
       for (const effect of tr.effects) {
         if (effect.is(updateAnnotationsEffect)) {
-          decorations = buildAnnotationDecorations(effect.value.segments, annotators, effect.value.newAnnotationIds);
+          decorations = buildAnnotationDecorations(effect.value.segments, effect.value.newAnnotationIds);
         }
       }
 
@@ -290,7 +288,7 @@ const widgetDecorationsField = StateField.define<DecorationSet>({
 
 export function CodeMirrorRenderer({
   content,
-  segments,
+  segments = [],
   onAnnotationClick,
   onAnnotationHover,
   onChange,
@@ -307,8 +305,7 @@ export function CodeMirrorRenderer({
   onUnresolvedReferenceClick,
   getTargetDocumentName,
   generatingReferenceId,
-  onDeleteAnnotation,
-  annotators
+  onDeleteAnnotation
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -351,8 +348,8 @@ export function CodeMirrorRenderer({
   useEffect(() => {
     if (!containerRef.current || viewRef.current) return;
 
-    // Create annotation decorations field with annotators
-    const annotationDecorationsField = createAnnotationDecorationsField(annotators);
+    // Create annotation decorations field
+    const annotationDecorationsField = createAnnotationDecorationsField();
 
     // Create CodeMirror state with markdown mode
     const state = EditorState.create({
@@ -465,7 +462,7 @@ export function CodeMirrorRenderer({
       view.destroy();
       viewRef.current = null;
     };
-  }, [annotators]); // Recreate if annotators change
+  }, []); // Only initialize once
 
   // Update content when it changes externally (not from user typing)
   useEffect(() => {

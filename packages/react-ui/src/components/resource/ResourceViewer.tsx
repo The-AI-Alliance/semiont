@@ -13,7 +13,7 @@ import { useEventBus } from '../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../contexts/useEventSubscription';
 import { useCacheManager } from '../../contexts/CacheContext';
 import { useObservableExternalNavigation } from '../../hooks/useObservableNavigation';
-import type { Annotator } from '../../lib/annotation-registry';
+import { ANNOTATORS } from '../../lib/annotation-registry';
 import type { AnnotationsCollection } from '../../types/annotation-props';
 import { getSelectorType, getSelectedShapeForSelectorType, saveSelectedShapeForSelectorType } from '../../lib/media-shapes';
 
@@ -51,7 +51,6 @@ interface Props {
   generatingReferenceId?: string | null;
   showLineNumbers?: boolean;
   onAnnotationRequested?: (pending: PendingAnnotation) => void;
-  annotators: Record<string, Annotator>;
 }
 
 export function ResourceViewer({
@@ -59,8 +58,7 @@ export function ResourceViewer({
   annotations,
   generatingReferenceId,
   showLineNumbers = false,
-  onAnnotationRequested,
-  annotators
+  onAnnotationRequested
 }: Props) {
   const t = useTranslations('ResourceViewer');
   const documentViewerRef = useRef<HTMLDivElement>(null);
@@ -261,7 +259,7 @@ export function ResourceViewer({
 
   // Handle annotation clicks - memoized
   const handleAnnotationClick = useCallback((annotation: Annotation, event?: React.MouseEvent) => {
-    const metadata = Object.values(annotators).find(a => a.matchesAnnotation(annotation));
+    const metadata = Object.values(ANNOTATORS).find(a => a.matchesAnnotation(annotation));
 
     // If annotation has a side panel, only open it when Detail mode is active
     // For delete/jsonld/follow modes, let those handlers below process it
@@ -313,7 +311,7 @@ export function ResourceViewer({
       setDeleteConfirmation({ annotation, position });
       return;
     }
-  }, [annotateMode, selectedClick, handleDeleteAnnotation, annotators, focusAnnotation]);
+  }, [annotateMode, selectedClick, handleDeleteAnnotation, focusAnnotation]);
 
   // Unified annotation creation handler - works for both text and images
   const handleAnnotationCreate = useCallback(async (params: import('../../types/annotation-props').UICreateAnnotationParams) => {
@@ -545,7 +543,6 @@ export function ResourceViewer({
           showLineNumbers={showLineNumbers}
           annotateMode={annotateMode}
           {...(onAnnotationRequested && { onAnnotationRequested })}
-          annotators={annotators}
         />
       ) : (
         <BrowseView
@@ -557,7 +554,6 @@ export function ResourceViewer({
           hoveredCommentId={hoveredCommentId}
           selectedClick={selectedClick}
           annotateMode={annotateMode}
-          annotators={annotators}
         />
       )}
 
@@ -582,7 +578,7 @@ export function ResourceViewer({
       {/* Delete Confirmation Modal */}
       {deleteConfirmation && (() => {
         const annotation = deleteConfirmation.annotation;
-        const metadata = Object.values(annotators).find(a => a.matchesAnnotation(annotation));
+        const metadata = Object.values(ANNOTATORS).find(a => a.matchesAnnotation(annotation));
         const targetSelector = getTargetSelector(annotation.target);
         const selectedText = getExactText(targetSelector);
         const motivationEmoji = metadata?.iconEmoji || '📝';
