@@ -138,7 +138,7 @@ export function BrowseView({
       container.removeEventListener('mouseover', handleMouseOver);
       container.removeEventListener('mouseout', handleMouseOut);
     };
-  }, [content, allAnnotations, eventBus, newAnnotationIds]);
+  }, [content, allAnnotations, newAnnotationIds]);
 
   // Helper to scroll annotation into view with pulse effect
   const scrollToAnnotation = useCallback((annotationId: string | null, removePulse = false) => {

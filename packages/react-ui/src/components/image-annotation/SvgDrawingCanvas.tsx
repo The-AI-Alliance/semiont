@@ -285,7 +285,7 @@ export function SvgDrawingCanvas({
     setIsDrawing(false);
     setStartPoint(null);
     setCurrentPoint(null);
-  }, [isDrawing, startPoint, drawingMode, displayDimensions, imageDimensions, getRelativeCoordinates, selectedMotivation, eventBus, existingAnnotations]);
+  }, [isDrawing, startPoint, drawingMode, displayDimensions, imageDimensions, getRelativeCoordinates, selectedMotivation, existingAnnotations]);
 
   // Cancel drawing on mouse leave
   const handleMouseLeave = useCallback(() => {

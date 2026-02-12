@@ -332,7 +332,7 @@ export function PdfAnnotationCanvas({
     setIsDrawing(false);
     // Note: We keep selection so the preview remains visible
     // It will be cleared when drawingMode changes or user starts new selection
-  }, [isDrawing, selection, pageNumber, pageDimensions, displayDimensions, selectedMotivation, eventBus, existingAnnotations]);
+  }, [isDrawing, selection, pageNumber, pageDimensions, displayDimensions, selectedMotivation, existingAnnotations]);
 
   // Helper to get FragmentSelector from annotation target
   const getFragmentSelector = (target: Annotation['target']) => {
