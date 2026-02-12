@@ -4,6 +4,7 @@ import { render, screen } from '@testing-library/react';
 import { usePathname } from 'next/navigation';
 import { AdminNavigation } from '../AdminNavigation';
 import type { SimpleNavigationProps } from '@semiont/react-ui';
+import { useEventSubscriptions } from '@semiont/react-ui';
 
 // Mock next/navigation
 vi.mock('next/navigation', () => ({
@@ -70,17 +71,26 @@ const mockEventBus = {
   emit: vi.fn(),
 };
 
-vi.mock('@semiont/react-ui', () => ({
-  SimpleNavigation: (props: SimpleNavigationProps) => {
-    mockSimpleNavigation(props);
-    return <div data-testid="simple-navigation">Mocked SimpleNavigation</div>;
-  },
-  useNavigationEvents: () => mockEventBus,
-  useEventBus: () => mockEventBus,
-  useMakeMeaningEvents: () => mockEventBus,
-  useGlobalSettingsEvents: () => mockEventBus,
-  useEventSubscriptions: vi.fn(),
-}));
+vi.mock('@semiont/react-ui', () => {
+  // Use factory function to properly handle mock references
+  const mockEventBusLocal = {
+    on: vi.fn(),
+    off: vi.fn(),
+    emit: vi.fn(),
+  };
+
+  return {
+    SimpleNavigation: (props: any) => {
+      mockSimpleNavigation(props);
+      return <div data-testid="simple-navigation">Mocked SimpleNavigation</div>;
+    },
+    useNavigationEvents: () => mockEventBusLocal,
+    useEventBus: () => mockEventBusLocal,
+    useMakeMeaningEvents: () => mockEventBusLocal,
+    useGlobalSettingsEvents: () => mockEventBusLocal,
+    useEventSubscriptions: vi.fn(),
+  };
+});
 
 describe('AdminNavigation', () => {
   const defaultProps = {
@@ -249,13 +259,9 @@ describe('AdminNavigation', () => {
     });
 
     it('should subscribe to navigation:sidebar-toggle event', () => {
-      const mockUseEventSubscriptions = vi.mocked(
-        require('@semiont/react-ui').useEventSubscriptions
-      );
-
       render(<AdminNavigation {...defaultProps} />);
 
-      expect(mockUseEventSubscriptions).toHaveBeenCalledWith(
+      expect(vi.mocked(useEventSubscriptions)).toHaveBeenCalledWith(
         expect.objectContaining({
           'navigation:sidebar-toggle': expect.any(Function),
         })
@@ -264,14 +270,12 @@ describe('AdminNavigation', () => {
 
     it('should call toggleCollapsed when sidebar-toggle event is handled', () => {
       const mockToggleCollapsed = vi.fn();
-      const mockUseEventSubscriptions = vi.mocked(
-        require('@semiont/react-ui').useEventSubscriptions
-      );
 
       render(<AdminNavigation {...defaultProps} toggleCollapsed={mockToggleCollapsed} />);
 
       // Get the subscriptions object passed to useEventSubscriptions
-      const subscriptions = mockUseEventSubscriptions.mock.calls[0]![0]!;
+      const mockUseEventSubs = vi.mocked(useEventSubscriptions);
+      const subscriptions = mockUseEventSubs.mock.calls[0]![0]!;
       const toggleHandler = subscriptions['navigation:sidebar-toggle'];
 
       // Call the toggle handler
