@@ -102,9 +102,10 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
     try {
       // annotationId might be a full URI or just a UUID - extract the UUID
       const annotationIdSegment = annotationId.split('/').pop() || annotationId;
-      await deleteAnnotationMutation.mutateAsync(
-        resourceAnnotationUri(`${rUri}/annotations/${annotationIdSegment}`)
-      );
+      await deleteAnnotationMutation.mutateAsync({
+        annotationUri: resourceAnnotationUri(`${rUri}/annotations/${annotationIdSegment}`),
+        resourceUri: rUri
+      });
 
       // Announce the deletion
       announceAnnotationDeleted();

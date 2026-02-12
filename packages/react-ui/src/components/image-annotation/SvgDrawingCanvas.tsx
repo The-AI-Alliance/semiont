@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import type { components, ResourceUri } from '@semiont/api-client';
 import { createRectangleSvg, createCircleSvg, createPolygonSvg, scaleSvgToNative, parseSvgSelector, type Point } from '@semiont/api-client';
 import { AnnotationOverlay } from './AnnotationOverlay';
@@ -53,12 +53,10 @@ export function SvgDrawingCanvas({
   hoveredAnnotationId,
   selectedAnnotationId
 }: SvgDrawingCanvasProps) {
-  // Extract resource ID from W3C canonical URI (last segment of path)
-  const resourceId = resourceUri.split('/').pop();
-
-  // Use Next.js API route proxy instead of direct backend call
-  // This allows us to add authentication headers which <img> tags can't send
-  const imageUrl = `/api/resources/${resourceId}`;
+  const imageUrl = useMemo(() => {
+    const resourceId = resourceUri.split('/').pop();
+    return `/api/resources/${resourceId}`;
+  }, [resourceUri]);
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);

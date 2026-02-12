@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
 import { AnnotateView, type SelectionMotivation, type ClickAction, type ShapeType } from './AnnotateView';
 import { BrowseView } from './BrowseView';

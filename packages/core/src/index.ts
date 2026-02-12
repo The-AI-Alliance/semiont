@@ -30,6 +30,7 @@ export {
   uriToResourceId,
   annotationIdToURI,
   uriToAnnotationId,
+  extractResourceUriFromAnnotationUri,
 } from './uri-utils';
 
 // Graph types

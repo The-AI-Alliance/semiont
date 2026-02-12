@@ -25,6 +25,7 @@ import {
   entityType,
   userDID
 } from '@semiont/api-client';
+import { extractResourceUriFromAnnotationUri } from '@semiont/core';
 import { QUERY_KEYS } from './query-keys';
 import { useApiClient } from '../contexts/ApiClientContext';
 
@@ -202,8 +203,19 @@ export function useAnnotations() {
             if (!client) throw new Error('Not authenticated');
             return client.createAnnotation(rUri, data);
           },
-          onSuccess: (_data, variables) => {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(variables.rUri) });
+          onSuccess: (response, variables) => {
+            const queryKey = QUERY_KEYS.documents.annotations(variables.rUri);
+            const currentData = queryClient.getQueryData<{ resource: any; annotations: any[] }>(queryKey);
+
+            if (currentData && response.annotation) {
+              queryClient.setQueryData(queryKey, {
+                ...currentData,
+                annotations: [...currentData.annotations, response.annotation]
+              });
+            } else {
+              queryClient.invalidateQueries({ queryKey });
+            }
+
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(variables.rUri) });
           },
         }),
@@ -212,15 +224,30 @@ export function useAnnotations() {
     delete: {
       useMutation: () =>
         useMutation({
-          mutationFn: (annotationUri: ResourceAnnotationUri) => {
+          mutationFn: (variables: {
+            annotationUri: ResourceAnnotationUri;
+            resourceUri: ResourceUri;
+          }) => {
             if (!client) throw new Error('Not authenticated');
-            return client.deleteAnnotation(annotationUri);
+            return client.deleteAnnotation(variables.annotationUri);
           },
-          onSuccess: () => {
-            // Invalidate all annotation and event queries
-            // Use 'resources' not 'documents' since all keys start with 'resources'
-            queryClient.invalidateQueries({ queryKey: ['resources'] });
-            queryClient.invalidateQueries({ queryKey: ['annotations'] });
+          onSuccess: (_, variables) => {
+            const queryKey = QUERY_KEYS.documents.annotations(variables.resourceUri);
+            const currentData = queryClient.getQueryData<{ resource: any; annotations: any[] }>(queryKey);
+
+            if (currentData) {
+              const annotationId = variables.annotationUri.split('/').pop();
+
+              queryClient.setQueryData(queryKey, {
+                ...currentData,
+                annotations: currentData.annotations.filter(ann => ann.id !== annotationId)
+              });
+            } else {
+              queryClient.invalidateQueries({ queryKey });
+            }
+
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(variables.resourceUri) });
+            queryClient.invalidateQueries({ queryKey: ['annotations', variables.annotationUri] });
           },
         }),
     },
@@ -238,20 +265,34 @@ export function useAnnotations() {
             if (!client) throw new Error('Not authenticated');
             return client.updateAnnotationBody(annotationUri, data);
           },
-          onSuccess: (_data, variables) => {
-            queryClient.invalidateQueries({ queryKey: ['annotations', variables.annotationUri] });
-            // Also invalidate resource annotations list
-            queryClient.invalidateQueries({ queryKey: ['documents'] });
+          onSuccess: (response, variables) => {
+            const singleQueryKey = ['annotations', variables.annotationUri];
+            if (response.annotation) {
+              queryClient.setQueryData(singleQueryKey, response.annotation);
+            } else {
+              queryClient.invalidateQueries({ queryKey: singleQueryKey });
+            }
 
-            // Invalidate referencedBy cache for any resources referenced in the body operations
-            // This ensures the target resource's "Referenced By" panel updates immediately
+            const resourceUri = extractResourceUriFromAnnotationUri(variables.annotationUri);
+            const listQueryKey = QUERY_KEYS.documents.annotations(resourceUri);
+            const currentList = queryClient.getQueryData<{ resource: any; annotations: any[] }>(listQueryKey);
+
+            if (currentList && response.annotation) {
+              queryClient.setQueryData(listQueryKey, {
+                ...currentList,
+                annotations: currentList.annotations.map(ann =>
+                  ann.id === response.annotation.id ? response.annotation : ann
+                )
+              });
+            } else {
+              queryClient.invalidateQueries({ queryKey: listQueryKey });
+            }
+
             if (variables.data.operations) {
               for (const op of variables.data.operations) {
                 if (op.op === 'add' && op.item && typeof op.item === 'object') {
-                  // Check if this is a SpecificResource with a source URI
                   if ('type' in op.item && op.item.type === 'SpecificResource' && 'source' in op.item && op.item.source) {
                     const targetResourceUri = op.item.source as ResourceUri;
-                    console.log(`[API Hooks] Invalidating referencedBy cache for target resource: ${targetResourceUri}`);
                     queryClient.invalidateQueries({
                       queryKey: QUERY_KEYS.documents.referencedBy(targetResourceUri)
                     });
@@ -259,6 +300,8 @@ export function useAnnotations() {
                 }
               }
             }
+
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(resourceUri) });
           },
         }),
     },

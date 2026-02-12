@@ -6,7 +6,7 @@
  */
 
 import { resourceId, annotationId, type ResourceId, type AnnotationId } from './identifiers';
-import { resourceUri, annotationUri, type ResourceUri, type AnnotationUri } from '@semiont/api-client';
+import { resourceUri, annotationUri, type ResourceUri, type AnnotationUri, type ResourceAnnotationUri } from '@semiont/api-client';
 
 /**
  * Convert resource ID to full URI
@@ -80,4 +80,23 @@ export function uriToAnnotationId(uri: string): AnnotationId {
     throw new Error(`Invalid annotation URI: ${uri}`);
   }
   return annotationId(match[1]);
+}
+
+/**
+ * Extract resource URI from nested annotation URI
+ *
+ * @param annotationUri - Nested ResourceAnnotationUri (e.g., "https://api.semiont.app/resources/doc-123/annotations/anno-456")
+ * @returns Resource URI (e.g., "https://api.semiont.app/resources/doc-123")
+ * @throws Error if URI format is invalid
+ *
+ * @example
+ * extractResourceUriFromAnnotationUri("https://api.semiont.app/resources/doc-123/annotations/anno-456")
+ * // => "https://api.semiont.app/resources/doc-123"
+ */
+export function extractResourceUriFromAnnotationUri(annotationUri: ResourceAnnotationUri): ResourceUri {
+  const parts = annotationUri.split('/annotations/');
+  if (parts.length !== 2) {
+    throw new Error(`Invalid annotation URI format: ${annotationUri}`);
+  }
+  return resourceUri(parts[0]);
 }
