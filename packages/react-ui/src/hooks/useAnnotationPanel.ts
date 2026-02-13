@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useCallback, useMemo } from 'react';
+import { useRef, useCallback, useMemo, useEffect } from 'react';
 import type { components } from '@semiont/api-client';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
@@ -19,7 +19,9 @@ type Annotation = components['schemas']['Annotation'];
  */
 export function useAnnotationPanel<T extends Annotation>(
   annotations: T[],
-  containerRef: React.RefObject<HTMLDivElement>
+  containerRef: React.RefObject<HTMLDivElement>,
+  scrollToAnnotationId?: string | null,
+  onScrollCompleted?: () => void
 ) {
   const refs = useRef<Map<string, HTMLElement>>(new Map());
 
@@ -72,11 +74,10 @@ export function useAnnotationPanel<T extends Annotation>(
       console.log('[useAnnotationPanel] Element already visible, skipping scroll');
     }
 
-    // Use proper CSS class for pulse effect
+    // Use proper CSS class for pulse effect (CSS animation will handle removal)
+    element.classList.remove('semiont-annotation-pulse'); // Remove first to restart animation
+    void element.offsetWidth; // Force reflow
     element.classList.add('semiont-annotation-pulse');
-    setTimeout(() => {
-      element.classList.remove('semiont-annotation-pulse');
-    }, 1500);
   }, []);
 
   // Event handlers (extracted from inline to avoid creating new functions on each render)
@@ -90,27 +91,66 @@ export function useAnnotationPanel<T extends Annotation>(
     if (annotationId) scrollToAnnotation(annotationId);
   }, [scrollToAnnotation]);
 
-  const handleAnnotationClick = useCallback(({ annotationId }: { annotationId: string }) => {
-    console.log('[useAnnotationPanel] annotation:click event received:', annotationId);
+  const handleAnnotationScrollTo = useCallback(({ annotationId }: { annotationId: string }) => {
+    console.log('[useAnnotationPanel] annotation:scroll-to event received:', annotationId);
     if (annotationId) scrollToAnnotation(annotationId);
   }, [scrollToAnnotation]);
+
+  // Track the pending scroll target
+  const pendingScrollTarget = useRef<string | null>(null);
 
   const handleAnnotationRefUpdate = useCallback(({ annotationId, element }: { annotationId: string; element: HTMLElement | null }) => {
     console.log('[useAnnotationPanel] annotation:ref-update event received:', annotationId, element ? 'element provided' : 'element cleared');
     if (element) {
       refs.current.set(annotationId, element);
+
+      // If this is the annotation we're waiting to scroll to, scroll now
+      if (pendingScrollTarget.current === annotationId) {
+        console.log('[useAnnotationPanel] This is the annotation we were waiting for! Scrolling now.');
+        scrollToAnnotation(annotationId);
+        pendingScrollTarget.current = null;
+
+        // Notify parent that scroll is complete
+        if (onScrollCompleted) {
+          console.log('[useAnnotationPanel] Calling onScrollCompleted after pending scroll');
+          onScrollCompleted();
+        }
+      }
     } else {
       refs.current.delete(annotationId);
     }
-  }, []);
+  }, [scrollToAnnotation, onScrollCompleted]);
 
-  // Subscribe to hover, click, and ref update events
+  // Subscribe to hover, scroll-to, and ref update events
   useEventSubscriptions({
     'annotation:hover': handleAnnotationHover,
     'annotation-entry:hover': handleAnnotationEntryHover,
-    'annotation:click': handleAnnotationClick,
+    'annotation:scroll-to': handleAnnotationScrollTo,
     'annotation:ref-update': handleAnnotationRefUpdate,
   });
+
+  // Scroll when scrollToAnnotationId prop changes
+  useEffect(() => {
+    if (!scrollToAnnotationId) return;
+
+    console.log('[useAnnotationPanel] scrollToAnnotationId prop received:', scrollToAnnotationId);
+    console.log('[useAnnotationPanel] Current refs Map keys:', Array.from(refs.current.keys()));
+
+    // If ref already exists, scroll immediately
+    if (refs.current.has(scrollToAnnotationId)) {
+      console.log('[useAnnotationPanel] Ref already exists! Scrolling now.');
+      scrollToAnnotation(scrollToAnnotationId);
+      // Notify parent that scroll is complete
+      if (onScrollCompleted) {
+        console.log('[useAnnotationPanel] Calling onScrollCompleted after immediate scroll');
+        onScrollCompleted();
+      }
+    } else {
+      // Set pending target - will scroll when ref-update event fires
+      console.log('[useAnnotationPanel] Ref not found yet, setting pending scroll target');
+      pendingScrollTarget.current = scrollToAnnotationId;
+    }
+  }, [scrollToAnnotationId, scrollToAnnotation, onScrollCompleted]);
 
   return {
     sortedAnnotations

@@ -207,7 +207,7 @@ export function SvgDrawingCanvas({
         });
 
         if (clickedAnnotation) {
-          eventBus?.emit('annotation:click', { annotationId: clickedAnnotation.id });
+          eventBus?.emit('annotation:click', { annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
           setIsDrawing(false);
           setStartPoint(null);
           setCurrentPoint(null);

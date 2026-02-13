@@ -280,7 +280,7 @@ export function PdfAnnotationCanvas({
         });
 
         if (clickedAnnotation) {
-          eventBus?.emit('annotation:click', { annotationId: clickedAnnotation.id });
+          eventBus?.emit('annotation:click', { annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
           setIsDrawing(false);
           setSelection(null);
           return;
@@ -466,7 +466,7 @@ export function PdfAnnotationCanvas({
                         cursor: 'pointer',
                         opacity: isSelected ? 1 : isHovered ? 0.9 : 0.7
                       }}
-                      onClick={() => eventBus?.emit('annotation:click', { annotationId: ann.id })}
+                      onClick={() => eventBus?.emit('annotation:click', { annotationId: ann.id, motivation: ann.motivation })}
                       onMouseEnter={() => handleMouseEnter(ann.id)}
                       onMouseLeave={handleMouseLeave}
                     />

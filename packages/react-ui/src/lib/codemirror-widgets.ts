@@ -174,10 +174,11 @@ export class ReferenceResolutionWidget extends WidgetType {
         });
       } else if (!isResolved && this.eventBus) {
         const eventBus = this.eventBus; // Capture for closure
+        const annotation: Annotation = this.annotation; // Capture for closure with explicit type
         indicator.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
-          eventBus.emit('annotation:click', { annotationId: this.annotation.id });
+          eventBus.emit('annotation:click', { annotationId: annotation.id, motivation: annotation.motivation });
         });
       }
     }

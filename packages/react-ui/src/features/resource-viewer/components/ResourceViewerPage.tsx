@@ -144,6 +144,8 @@ function ResourceViewerPageInner({
   SearchResourcesModal,
   GenerationConfigModal,
 }: ResourceViewerPageProps) {
+  console.log('[ResourceViewerPageInner] RENDER START');
+
   // Get unified event bus for subscribing to UI events
   const eventBus = useEventBus();
   // Resource loading announcements
@@ -178,7 +180,7 @@ function ResourceViewerPageInner({
   // scrollToAnnotationId removed - ResourceViewer now manages scroll state internally
 
   // Panel state - managed internally via event bus
-  const [activePanel, setActivePanelInternal] = useState<string | null>(() => {
+  const [activePanel, setActivePanelInternalRaw] = useState<string | null>(() => {
     // Load from localStorage if available (for persistence across page reloads)
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('activeToolbarPanel');
@@ -186,6 +188,18 @@ function ResourceViewerPageInner({
     }
     return null;
   });
+
+  // Wrapped setter with logging
+  const setActivePanelInternal = useCallback((value: string | null | ((prev: string | null) => string | null)) => {
+    const newValue = typeof value === 'function' ? value(activePanel) : value;
+    console.log('[ResourceViewerPage] setActivePanelInternal called:', { from: activePanel, to: newValue, stack: new Error().stack?.split('\n').slice(1, 4).join('\n') });
+    setActivePanelInternalRaw(value);
+  }, [activePanel]);
+
+  // Log activePanel changes
+  useEffect(() => {
+    console.log('[ResourceViewerPage] activePanel state changed to:', activePanel);
+  }, [activePanel]);
 
   // Unified pending annotation - all human-created annotations flow through this
   const [pendingAnnotation, setPendingAnnotation] = useState<PendingAnnotation | null>(null);
@@ -202,6 +216,10 @@ function ResourceViewerPageInner({
   // Unified detection state (motivation-based)
   const [detectingMotivation, setDetectingMotivation] = useState<Motivation | null>(null);
   const [motivationDetectionProgress, setMotivationDetectionProgress] = useState<DetectionProgress | null>(null);
+
+  // Panel scroll coordination state
+  const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
+  const [panelInitialTab, setPanelInitialTab] = useState<string | null>(null);
 
   // SSE stream reference for cancellation
   const detectionStreamRef = React.useRef<any>(null);
@@ -407,7 +425,8 @@ function ResourceViewerPageInner({
     'annotation:cancel-pending': () => {
       setPendingAnnotation(null);
     },
-    'annotation:click': ({ annotationId }: { annotationId: string }) => {
+    'annotation:click': ({ annotationId, motivation }: { annotationId: string; motivation?: string }) => {
+      console.log('[ResourceViewerPage] annotation:click handler (OLD CODE):', { annotationId, motivation });
       eventBus.emit('annotation:focus', { annotationId });
       setHoveredAnnotationId(annotationId);
       setTimeout(() => setHoveredAnnotationId(null), 1500);
@@ -434,7 +453,32 @@ function ResourceViewerPageInner({
         return newPanel;
       });
     },
-    'panel:open': ({ panel }: { panel: string }) => {
+    'panel:open': ({ panel, scrollToAnnotationId: scrollTarget, motivation }: { panel: string; scrollToAnnotationId?: string; motivation?: string }) => {
+      console.log('[ResourceViewerPage] panel:open handler:', { panel, scrollTarget, motivation, currentActivePanel: activePanel });
+
+      // Store scroll target and motivation for UnifiedAnnotationsPanel
+      if (scrollTarget) {
+        setScrollToAnnotationId(scrollTarget);
+        console.log('[ResourceViewerPage] Set scrollToAnnotationId to:', scrollTarget);
+      }
+
+      if (motivation) {
+        // Map motivation to tab key
+        const motivationToTab: Record<string, string> = {
+          'linking': 'reference',
+          'commenting': 'comment',
+          'tagging': 'tag',
+          'highlighting': 'highlight',
+          'assessing': 'assessment'
+        };
+        const tab = motivationToTab[motivation];
+        if (tab) {
+          setPanelInitialTab(tab);
+          console.log('[ResourceViewerPage] Set panelInitialTab to:', tab);
+        }
+      }
+
+      // Open the panel
       setActivePanelInternal(panel);
       if (typeof window !== 'undefined') {
         localStorage.setItem('activeToolbarPanel', panel);
@@ -589,6 +633,12 @@ function ResourceViewerPageInner({
                 referencedBy={referencedBy}
                 referencedByLoading={referencedByLoading}
                 resourceId={rUri.split('/').pop() || ''}
+                scrollToAnnotationId={scrollToAnnotationId}
+                onScrollCompleted={() => {
+                  console.log('[ResourceViewerPage] Scroll completed, clearing scrollToAnnotationId');
+                  setScrollToAnnotationId(null);
+                }}
+                initialTab={panelInitialTab as any}
                 Link={Link}
                 routes={routes}
               />

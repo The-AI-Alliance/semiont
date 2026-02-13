@@ -30,6 +30,7 @@ interface HighlightPanelProps {
     message?: string;
   } | null;
   annotateMode?: boolean;
+  scrollToAnnotationId?: string | null;
 }
 
 export function HighlightPanel({
@@ -38,13 +39,14 @@ export function HighlightPanel({
   isDetecting = false,
   detectionProgress,
   annotateMode = true,
+  scrollToAnnotationId,
 }: HighlightPanelProps) {
   const t = useTranslations('HighlightPanel');
   const eventBus = useEventBus();
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { sortedAnnotations } = useAnnotationPanel(annotations, containerRef);
+  const { sortedAnnotations } = useAnnotationPanel(annotations, containerRef, scrollToAnnotationId);
 
   // Subscribe to click events - update focused state
   // Event handler for annotation clicks (extracted to avoid inline arrow function)

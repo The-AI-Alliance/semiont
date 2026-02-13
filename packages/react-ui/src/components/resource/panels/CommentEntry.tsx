@@ -88,7 +88,7 @@ export function CommentEntry({
       data-type="comment"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        eventBus.emit('annotation:click', { annotationId: comment.id });
+        eventBus.emit('annotation:click', { annotationId: comment.id, motivation: comment.motivation });
       }}
       onMouseEnter={() => {
         eventBus.emit('annotation-entry:hover', { annotationId: comment.id });

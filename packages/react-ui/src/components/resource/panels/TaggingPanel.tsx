@@ -51,6 +51,7 @@ interface TaggingPanelProps {
     requestParams?: Array<{ label: string; value: string }>;
   } | null;
   pendingAnnotation: PendingAnnotation | null;
+  scrollToAnnotationId?: string | null;
 }
 
 export function TaggingPanel({
@@ -58,7 +59,8 @@ export function TaggingPanel({
   annotateMode = true,
   isDetecting = false,
   detectionProgress,
-  pendingAnnotation
+  pendingAnnotation,
+  scrollToAnnotationId
 }: TaggingPanelProps) {
   const t = useTranslations('TaggingPanel');
   const eventBus = useEventBus();
@@ -91,7 +93,7 @@ export function TaggingPanel({
     'annotation:click': handleAnnotationClick,
   });
 
-  const { sortedAnnotations } = useAnnotationPanel(annotations, containerRef);
+  const { sortedAnnotations } = useAnnotationPanel(annotations, containerRef, scrollToAnnotationId);
 
   const schemas = getAllTagSchemas();
   const selectedSchema = schemas.find(s => s.id === selectedSchemaId);

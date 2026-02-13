@@ -66,7 +66,7 @@ export function HighlightEntry({
       data-type="highlight"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        eventBus.emit('annotation:click', { annotationId: highlight.id });
+        eventBus.emit('annotation:click', { annotationId: highlight.id, motivation: highlight.motivation });
       }}
       onMouseEnter={() => {
         eventBus.emit('annotation-entry:hover', { annotationId: highlight.id });

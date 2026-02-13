@@ -152,7 +152,7 @@ export function ReferenceEntry({
       data-type="reference"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        eventBus.emit('annotation:click', { annotationId: reference.id });
+        eventBus.emit('annotation:click', { annotationId: reference.id, motivation: reference.motivation });
       }}
       onMouseEnter={() => {
         eventBus.emit('annotation-entry:hover', { annotationId: reference.id });

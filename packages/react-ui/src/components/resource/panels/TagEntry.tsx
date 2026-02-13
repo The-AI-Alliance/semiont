@@ -51,7 +51,7 @@ export function TagEntry({
     <div
       ref={tagRef}
       onClick={() => {
-        eventBus.emit('annotation:click', { annotationId: tag.id });
+        eventBus.emit('annotation:click', { annotationId: tag.id, motivation: tag.motivation });
       }}
       onMouseEnter={() => {
         eventBus.emit('annotation-entry:hover', { annotationId: tag.id });

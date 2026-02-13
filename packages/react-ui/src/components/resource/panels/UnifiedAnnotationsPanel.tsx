@@ -70,12 +70,22 @@ interface UnifiedAnnotationsPanelProps {
   resourceId?: string;
   initialTab?: TabKey;
 
+  // Scroll coordination (one-time action, will be cleared after use)
+  scrollToAnnotationId?: string | null;
+  onScrollCompleted?: () => void;
+
   // Routing
   Link: React.ComponentType<LinkComponentProps>;
   routes: RouteBuilder;
 }
 
 export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
+  console.log('[UnifiedAnnotationsPanel] Rendering with props:', {
+    annotationCount: props.annotations.length,
+    resourceId: props.resourceId,
+    initialTab: props.initialTab
+  });
+
   const t = useTranslations('UnifiedAnnotationsPanel');
 
   // Group annotations by type using annotators
@@ -227,7 +237,9 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
             pendingAnnotation: props.pendingAnnotation,
             isDetecting,
             detectionProgress,
-            annotateMode: props.annotateMode
+            annotateMode: props.annotateMode,
+            scrollToAnnotationId: props.scrollToAnnotationId,
+            onScrollCompleted: props.onScrollCompleted
           };
 
           // Render specific panel based on activeTab with full type safety
@@ -247,6 +259,8 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
                 isDetecting={commonProps.isDetecting}
                 detectionProgress={commonProps.detectionProgress}
                 annotateMode={commonProps.annotateMode}
+                scrollToAnnotationId={commonProps.scrollToAnnotationId}
+                onScrollCompleted={commonProps.onScrollCompleted}
                 allEntityTypes={props.allEntityTypes || []}
                 generatingReferenceId={props.generatingReferenceId}
                 referencedBy={props.referencedBy}

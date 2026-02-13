@@ -342,7 +342,10 @@ export function CodeMirrorRenderer({
               const segment = segmentsRef.current.find(s => s.annotation?.id === annotationId);
               if (segment?.annotation) {
                 event.preventDefault();
-                eventBusRef.current.emit('annotation:click', { annotationId });
+                eventBusRef.current.emit('annotation:click', {
+                  annotationId,
+                  motivation: segment.annotation.motivation
+                });
                 return true; // Stop propagation
               }
             }

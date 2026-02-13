@@ -137,7 +137,7 @@ export function AnnotationOverlay({
                   className="semiont-annotation-overlay__shape"
                   data-hovered={isHovered ? 'true' : 'false'}
                   data-selected={isSelected ? 'true' : 'false'}
-                  onClick={() => eventBus?.emit('annotation:click', { annotationId: annotation.id })}
+                  onClick={() => eventBus?.emit('annotation:click', { annotationId: annotation.id, motivation: annotation.motivation })}
                   onMouseEnter={() => handleMouseEnter(annotation.id)}
                   onMouseLeave={handleMouseLeave}
                 />
@@ -150,7 +150,7 @@ export function AnnotationOverlay({
                     style={{ userSelect: 'none' }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      eventBus?.emit('annotation:click', { annotationId: annotation.id });
+                      eventBus?.emit('annotation:click', { annotationId: annotation.id, motivation: annotation.motivation });
                     }}
                     onMouseEnter={() => handleMouseEnter(annotation.id)}
                     onMouseLeave={handleMouseLeave}
@@ -184,7 +184,7 @@ export function AnnotationOverlay({
                   className="semiont-annotation-overlay__shape"
                   data-hovered={isHovered ? 'true' : 'false'}
                   data-selected={isSelected ? 'true' : 'false'}
-                  onClick={() => eventBus?.emit('annotation:click', { annotationId: annotation.id })}
+                  onClick={() => eventBus?.emit('annotation:click', { annotationId: annotation.id, motivation: annotation.motivation })}
                   onMouseEnter={() => handleMouseEnter(annotation.id)}
                   onMouseLeave={handleMouseLeave}
                 />
@@ -197,7 +197,7 @@ export function AnnotationOverlay({
                     style={{ userSelect: 'none' }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      eventBus?.emit('annotation:click', { annotationId: annotation.id });
+                      eventBus?.emit('annotation:click', { annotationId: annotation.id, motivation: annotation.motivation });
                     }}
                     onMouseEnter={() => handleMouseEnter(annotation.id)}
                     onMouseLeave={handleMouseLeave}
@@ -244,7 +244,7 @@ export function AnnotationOverlay({
                   className="semiont-annotation-overlay__shape"
                   data-hovered={isHovered ? 'true' : 'false'}
                   data-selected={isSelected ? 'true' : 'false'}
-                  onClick={() => eventBus?.emit('annotation:click', { annotationId: annotation.id })}
+                  onClick={() => eventBus?.emit('annotation:click', { annotationId: annotation.id, motivation: annotation.motivation })}
                   onMouseEnter={() => handleMouseEnter(annotation.id)}
                   onMouseLeave={handleMouseLeave}
                 />
@@ -257,7 +257,7 @@ export function AnnotationOverlay({
                     style={{ userSelect: 'none' }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      eventBus?.emit('annotation:click', { annotationId: annotation.id });
+                      eventBus?.emit('annotation:click', { annotationId: annotation.id, motivation: annotation.motivation });
                     }}
                     onMouseEnter={() => handleMouseEnter(annotation.id)}
                     onMouseLeave={handleMouseLeave}

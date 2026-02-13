@@ -60,6 +60,8 @@ interface Props {
   referencedBy?: ReferencedBy[];
   referencedByLoading?: boolean;
   pendingAnnotation: PendingAnnotation | null;
+  scrollToAnnotationId?: string | null;
+  onScrollCompleted?: () => void;
 }
 
 export function ReferencesPanel({
@@ -74,7 +76,11 @@ export function ReferencesPanel({
   referencedBy = [],
   referencedByLoading = false,
   pendingAnnotation,
+  scrollToAnnotationId,
+  onScrollCompleted,
 }: Props) {
+  console.log('[ReferencesPanel] Rendering with scrollToAnnotationId:', scrollToAnnotationId, 'annotations:', annotations.length);
+
   const t = useTranslations('DetectPanel');
   const tRef = useTranslations('ReferencesPanel');
   const eventBus = useEventBus();
@@ -98,7 +104,7 @@ export function ReferencesPanel({
     localStorage.setItem('detect-section-expanded-reference', String(isDetectExpanded));
   }, [isDetectExpanded]);
 
-  const { sortedAnnotations } = useAnnotationPanel(annotations, containerRef);
+  const { sortedAnnotations } = useAnnotationPanel(annotations, containerRef, scrollToAnnotationId, onScrollCompleted);
 
   // Subscribe to click events - update focused state
   // Event handler for annotation clicks (extracted to avoid inline arrow function)

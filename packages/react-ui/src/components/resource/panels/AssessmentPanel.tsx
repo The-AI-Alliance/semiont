@@ -47,6 +47,7 @@ interface AssessmentPanelProps {
     message?: string;
   } | null;
   annotateMode?: boolean;
+  scrollToAnnotationId?: string | null;
 }
 
 export function AssessmentPanel({
@@ -55,6 +56,7 @@ export function AssessmentPanel({
   isDetecting = false,
   detectionProgress,
   annotateMode = true,
+  scrollToAnnotationId,
 }: AssessmentPanelProps) {
   const t = useTranslations('AssessmentPanel');
   const eventBus = useEventBus();
@@ -62,7 +64,7 @@ export function AssessmentPanel({
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { sortedAnnotations } = useAnnotationPanel(annotations, containerRef);
+  const { sortedAnnotations } = useAnnotationPanel(annotations, containerRef, scrollToAnnotationId);
 
   const handleSaveNewAssessment = () => {
     if (pendingAnnotation) {

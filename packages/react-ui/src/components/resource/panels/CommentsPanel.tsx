@@ -47,6 +47,7 @@ interface CommentsPanelProps {
     percentage?: number;
     message?: string;
   } | null;
+  scrollToAnnotationId?: string | null;
 }
 
 export function CommentsPanel({
@@ -55,6 +56,7 @@ export function CommentsPanel({
   annotateMode = true,
   isDetecting = false,
   detectionProgress,
+  scrollToAnnotationId,
 }: CommentsPanelProps) {
   const t = useTranslations('CommentsPanel');
   const eventBus = useEventBus();
@@ -62,7 +64,7 @@ export function CommentsPanel({
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { sortedAnnotations } = useAnnotationPanel(annotations, containerRef);
+  const { sortedAnnotations } = useAnnotationPanel(annotations, containerRef, scrollToAnnotationId);
 
   // Subscribe to click events - update focused state
   // Event handler for annotation clicks (extracted to avoid inline arrow function)

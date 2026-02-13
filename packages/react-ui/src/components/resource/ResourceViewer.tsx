@@ -303,15 +303,38 @@ export function ResourceViewer({
     }
   }, [annotateMode, selectedClick, focusAnnotation]);
 
-  // Annotation click event handler (must be after handleAnnotationClick is defined)
-  const handleAnnotationClickEvent = useCallback(({ annotationId }: { annotationId: string }) => {
-    // Find the annotation in our collections
-    const allAnnotations = [...highlights, ...references, ...assessments, ...comments, ...tags];
-    const annotation = allAnnotations.find(a => a.id === annotationId);
-    if (annotation) {
-      handleAnnotationClick(annotation);
+  // Annotation click coordinator - handles panel opening and scrolling
+  const handleAnnotationClickEvent = useCallback(({ annotationId, motivation }: {
+    annotationId: string;
+    motivation: components['schemas']['Motivation'];
+  }) => {
+    // Find the annotation metadata
+    const metadata = Object.values(ANNOTATORS).find(a => a.matchesAnnotation({ motivation } as Annotation));
+
+    if (!metadata?.hasSidePanel) {
+      // Annotation doesn't have a side panel - let handleAnnotationClick handle it
+      const allAnnotations = [...highlights, ...references, ...assessments, ...comments, ...tags];
+      const annotation = allAnnotations.find(a => a.id === annotationId);
+      if (annotation) {
+        handleAnnotationClick(annotation);
+      }
+      return;
     }
-  }, [highlights, references, assessments, comments, tags, handleAnnotationClick]);
+
+    if (selectedClick !== 'detail') {
+      // Only open panels in detail mode - for other modes, let handleAnnotationClick handle it
+      const allAnnotations = [...highlights, ...references, ...assessments, ...comments, ...tags];
+      const annotation = allAnnotations.find(a => a.id === annotationId);
+      if (annotation) {
+        handleAnnotationClick(annotation);
+      }
+      return;
+    }
+
+    // All annotations open the unified annotations panel
+    // The panel internally switches tabs based on the motivation → tab mapping in UnifiedAnnotationsPanel
+    eventBus.emit('panel:open', { panel: 'annotations', scrollToAnnotationId: annotationId, motivation });
+  }, [highlights, references, assessments, comments, tags, handleAnnotationClick, selectedClick]);
 
   // Subscribe to toolbar and annotation events
   useEventSubscriptions({

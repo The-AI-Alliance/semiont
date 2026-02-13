@@ -103,7 +103,7 @@ export function AssessmentEntry({
       data-type="assessment"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        eventBus.emit('annotation:click', { annotationId: assessment.id });
+        eventBus.emit('annotation:click', { annotationId: assessment.id, motivation: assessment.motivation });
       }}
       onMouseEnter={() => {
         eventBus.emit('annotation-entry:hover', { annotationId: assessment.id });

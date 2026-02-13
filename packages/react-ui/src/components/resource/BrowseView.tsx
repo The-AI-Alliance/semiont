@@ -93,7 +93,10 @@ export function BrowseView({
       const annotationType = annotationElement.getAttribute('data-annotation-type');
 
       if (annotationId && annotationType === 'reference') {
-        eventBus.emit('annotation:click', { annotationId });
+        const annotation = allAnnotations.find(a => a.id === annotationId);
+        if (annotation) {
+          eventBus.emit('annotation:click', { annotationId, motivation: annotation.motivation });
+        }
       }
     };
 

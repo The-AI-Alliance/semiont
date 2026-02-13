@@ -78,14 +78,15 @@ export type EventMap = {
   'annotation:dom-hover': { annotationId: string | null }; // Raw DOM hover event from resource overlays (internal routing)
   'annotation:hover': { annotationId: string | null }; // Hover over annotation overlay on the resource
   'annotation-entry:hover': { annotationId: string | null }; // Hover over annotation entry in side panel
-  'annotation:click': { annotationId: string };
+  'annotation:click': { annotationId: string; motivation: Motivation }; // Click on annotation - includes motivation for panel coordination
+  'annotation:scroll-to': { annotationId: string }; // Request to scroll to annotation in panel (triggered after panel opens)
   'annotation:focus': { annotationId: string | null };
   'annotation:ref-update': { annotationId: string; element: HTMLElement | null };
   'annotation:sparkle': { annotationId: string };
 
   // Panel management events
   'panel:toggle': { panel: string };
-  'panel:open': { panel: string };
+  'panel:open': { panel: string; scrollToAnnotationId?: string; motivation?: string };
   'panel:close': void;
 
   // View mode events
