@@ -1,0 +1,148 @@
+name: Architecture Compliance
+
+on:
+  push:
+    branches: [main, develop, 'feature/**']
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  compliance-check:
+    name: React Hooks Architecture Review
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run React-UI Compliance Audit
+        id: react-ui-audit
+        run: |
+          echo "::group::React-UI Compliance Audit"
+          cd packages/react-ui
+          ./scripts/generate-compliance-report.sh
+          echo "::endgroup::"
+
+          # Capture report summary
+          echo "::group::React-UI Summary"
+          head -n 20 ../../REACT-UI-COMPLIANCE.md
+          echo "::endgroup::"
+
+          # Check for violations
+          if grep -q "Failing (❌): [1-9]" ../../REACT-UI-COMPLIANCE.md; then
+            echo "react_ui_violations=true" >> $GITHUB_OUTPUT
+            echo "::error::React-UI has architecture violations"
+          else
+            echo "react_ui_violations=false" >> $GITHUB_OUTPUT
+            echo "::notice::React-UI is compliant"
+          fi
+
+      - name: Run Frontend Compliance Audit
+        id: frontend-audit
+        run: |
+          echo "::group::Frontend Compliance Audit"
+          cd apps/frontend
+          ./scripts/generate-compliance-report.sh
+          echo "::endgroup::"
+
+          # Capture report summary
+          echo "::group::Frontend Summary"
+          head -n 20 ../../FRONTEND-COMPLIANCE.md
+          echo "::endgroup::"
+
+          # Check for violations
+          if grep -q "Failing (❌): [1-9]" ../../FRONTEND-COMPLIANCE.md; then
+            echo "frontend_violations=true" >> $GITHUB_OUTPUT
+            echo "::error::Frontend has architecture violations"
+          else
+            echo "frontend_violations=false" >> $GITHUB_OUTPUT
+            echo "::notice::Frontend is compliant"
+          fi
+
+      - name: Display Full React-UI Report
+        if: always()
+        run: |
+          echo "::group::Full React-UI Compliance Report"
+          cat REACT-UI-COMPLIANCE.md
+          echo "::endgroup::"
+
+      - name: Display Full Frontend Report
+        if: always()
+        run: |
+          echo "::group::Full Frontend Compliance Report"
+          cat FRONTEND-COMPLIANCE.md
+          echo "::endgroup::"
+
+      - name: Upload React-UI Compliance Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: react-ui-compliance-report
+          path: REACT-UI-COMPLIANCE.md
+          retention-days: 30
+
+      - name: Upload Frontend Compliance Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-compliance-report
+          path: FRONTEND-COMPLIANCE.md
+          retention-days: 30
+
+      - name: Create Summary
+        if: always()
+        run: |
+          echo "## Architecture Compliance Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # React-UI Summary
+          echo "### React-UI Package" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          grep -A 10 "^## Summary" REACT-UI-COMPLIANCE.md >> $GITHUB_STEP_SUMMARY || echo "Report not generated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Frontend Summary
+          echo "### Frontend Application" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          grep -A 10 "^## Summary" FRONTEND-COMPLIANCE.md >> $GITHUB_STEP_SUMMARY || echo "Report not generated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Overall Status
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.react-ui-audit.outputs.react_ui_violations }}" = "true" ] || [ "${{ steps.frontend-audit.outputs.frontend_violations }}" = "true" ]; then
+            echo "❌ **FAILED**: Architecture violations detected" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Please review the full reports above and fix all violations." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ **PASSED**: All workspaces are compliant" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "🎉 Zero architecture violations detected!" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Fail on Violations
+        if: steps.react-ui-audit.outputs.react_ui_violations == 'true' || steps.frontend-audit.outputs.frontend_violations == 'true'
+        run: |
+          echo "❌ Architecture compliance check failed"
+          echo ""
+          echo "Violations detected in:"
+          if [ "${{ steps.react-ui-audit.outputs.react_ui_violations }}" = "true" ]; then
+            echo "  - React-UI package"
+          fi
+          if [ "${{ steps.frontend-audit.outputs.frontend_violations }}" = "true" ]; then
+            echo "  - Frontend application"
+          fi
+          echo ""
+          echo "See the full reports above for details on all violations."
+          echo "Fix all violations before merging."
+          exit 1
