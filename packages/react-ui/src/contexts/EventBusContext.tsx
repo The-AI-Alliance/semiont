@@ -218,21 +218,21 @@ function createEventBus(): EventBus {
   // Wrap emit to add logging with busId
   const originalEmit = bus.emit.bind(bus);
   bus.emit = ((eventName: any, payload?: any) => {
-    console.log(`[EventBus:${busId}] emit:`, eventName, payload);
+    console.info(`[EventBus:${busId}] emit:`, eventName, payload);
     return originalEmit(eventName, payload);
   }) as any;
 
   // Wrap on to add logging with busId
   const originalOn = bus.on.bind(bus);
   bus.on = ((eventName: any, handler: any) => {
-    console.log(`[EventBus:${busId}] subscribe:`, eventName);
+    console.debug(`[EventBus:${busId}] subscribe:`, eventName);
     return originalOn(eventName, handler);
   }) as any;
 
   // Wrap off to add logging with busId
   const originalOff = bus.off.bind(bus);
   bus.off = ((eventName: any, handler?: any) => {
-    console.log(`[EventBus:${busId}] unsubscribe:`, eventName);
+    console.debug(`[EventBus:${busId}] unsubscribe:`, eventName);
     return originalOff(eventName, handler);
   }) as any;
 
