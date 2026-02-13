@@ -194,9 +194,50 @@ export type EventMap = {
   };
 };
 
-export type EventBus = ReturnType<typeof mitt<EventMap>>;
+export type EventBus = ReturnType<typeof mitt<EventMap>> & { busId: string };
 
 const EventBusContext = createContext<EventBus | null>(null);
+
+/**
+ * Generate an 8-digit hex identifier for an event bus instance
+ */
+function generateBusId(): string {
+  return Math.floor(Math.random() * 0xFFFFFFFF).toString(16).padStart(8, '0');
+}
+
+/**
+ * Create an EventBus instance with logging and unique identifier
+ */
+function createEventBus(): EventBus {
+  const bus = mitt<EventMap>() as EventBus;
+  const busId = generateBusId();
+
+  // Add busId property
+  bus.busId = busId;
+
+  // Wrap emit to add logging with busId
+  const originalEmit = bus.emit.bind(bus);
+  bus.emit = ((eventName: any, payload?: any) => {
+    console.log(`[EventBus:${busId}] emit:`, eventName, payload);
+    return originalEmit(eventName, payload);
+  }) as any;
+
+  // Wrap on to add logging with busId
+  const originalOn = bus.on.bind(bus);
+  bus.on = ((eventName: any, handler: any) => {
+    console.log(`[EventBus:${busId}] subscribe:`, eventName);
+    return originalOn(eventName, handler);
+  }) as any;
+
+  // Wrap off to add logging with busId
+  const originalOff = bus.off.bind(bus);
+  bus.off = ((eventName: any, handler?: any) => {
+    console.log(`[EventBus:${busId}] unsubscribe:`, eventName);
+    return originalOff(eventName, handler);
+  }) as any;
+
+  return bus;
+}
 
 /**
  * Global singleton event bus.
@@ -227,14 +268,7 @@ const EventBusContext = createContext<EventBus | null>(null);
  *
  * For now, single global bus is correct for single-window app.
  */
-let globalEventBus = mitt<EventMap>();
-
-// Wrap emit to add logging
-const originalEmit = globalEventBus.emit.bind(globalEventBus);
-globalEventBus.emit = ((eventName: any, payload?: any) => {
-  console.log('[EventBus] emit:', eventName, payload);
-  return originalEmit(eventName, payload);
-}) as any;
+let globalEventBus = createEventBus();
 
 /**
  * Reset the global event bus - FOR TESTING ONLY.
@@ -250,14 +284,7 @@ globalEventBus.emit = ((eventName: any, payload?: any) => {
  * ```
  */
 export function resetEventBusForTesting() {
-  globalEventBus = mitt<EventMap>();
-
-  // Re-apply logging wrapper
-  const originalEmit = globalEventBus.emit.bind(globalEventBus);
-  globalEventBus.emit = ((eventName: any, payload?: any) => {
-    console.log('[EventBus] emit:', eventName, payload);
-    return originalEmit(eventName, payload);
-  }) as any;
+  globalEventBus = createEventBus();
 }
 
 export interface EventBusProviderProps {
