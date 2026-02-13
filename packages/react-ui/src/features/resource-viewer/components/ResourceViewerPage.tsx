@@ -224,8 +224,11 @@ function ResourceViewerPageInner({
     progress: generationProgress,
     startGeneration,
     clearProgress
-  } = useGenerationProgress({
-    onComplete: (progress) => {
+  } = useGenerationProgress();
+
+  // Subscribe to generation completion and error events
+  useEventSubscriptions({
+    'generation:complete-event': ({ progress }: { progress: any }) => {
       // Show success notification
       if (progress.resourceName) {
         showSuccess(`Resource "${progress.resourceName}" created successfully!`);
@@ -241,10 +244,10 @@ function ResourceViewerPageInner({
       // Clear progress widget after a delay to show completion state
       setTimeout(() => clearProgress(), 2000);
     },
-    onError: (error) => {
+    'generation:error-event': ({ error }: { error: string }) => {
       console.error('[Generation] Error:', error);
       showError(`Resource generation failed: ${error}`);
-    }
+    },
   });
 
   // Generic cancel handler (works for all detection types)

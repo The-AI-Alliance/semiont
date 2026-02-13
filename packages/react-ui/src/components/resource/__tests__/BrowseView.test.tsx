@@ -211,7 +211,7 @@ describe('BrowseView Component', () => {
       // (actual handler testing requires DOM interaction)
     });
 
-    it('should emit annotation:dom-hover when mouse enters annotation', async () => {
+    it('should emit annotation:hover when mouse enters annotation', async () => {
       const annotations = {
         ...defaultProps.annotations,
         references: [createMockAnnotation('linking', 'ref-1')],
@@ -235,7 +235,7 @@ describe('BrowseView Component', () => {
       fireEvent.mouseOver(browseContainer!, { target: mockTarget });
 
       await waitFor(() => {
-        expect(mockEmit).toHaveBeenCalledWith('annotation:dom-hover', { annotationId: 'ref-1' });
+        expect(mockEmit).toHaveBeenCalledWith('annotation:hover', { annotationId: 'ref-1' });
       });
     });
 
@@ -258,7 +258,7 @@ describe('BrowseView Component', () => {
       fireEvent.mouseOut(browseContainer!, { target: mockTarget });
 
       await waitFor(() => {
-        expect(mockEmit).toHaveBeenCalledWith('annotation:dom-hover', { annotationId: null });
+        expect(mockEmit).toHaveBeenCalledWith('annotation:hover', { annotationId: null });
       });
     });
 
@@ -308,7 +308,7 @@ describe('BrowseView Component', () => {
       fireEvent.mouseOver(browseContainer!, { target: mockTarget1 });
 
       await waitFor(() => {
-        expect(mockEmit).toHaveBeenCalledWith('annotation:dom-hover', { annotationId: 'ref-1' });
+        expect(mockEmit).toHaveBeenCalledWith('annotation:hover', { annotationId: 'ref-1' });
       });
 
       mockEmit.mockClear();
@@ -317,7 +317,7 @@ describe('BrowseView Component', () => {
       fireEvent.mouseOut(browseContainer!, { target: mockTarget1 });
 
       await waitFor(() => {
-        expect(mockEmit).toHaveBeenCalledWith('annotation:dom-hover', { annotationId: null });
+        expect(mockEmit).toHaveBeenCalledWith('annotation:hover', { annotationId: null });
       });
 
       mockEmit.mockClear();
@@ -326,7 +326,7 @@ describe('BrowseView Component', () => {
       fireEvent.mouseOver(browseContainer!, { target: mockTarget2 });
 
       await waitFor(() => {
-        expect(mockEmit).toHaveBeenCalledWith('annotation:dom-hover', { annotationId: 'ref-2' });
+        expect(mockEmit).toHaveBeenCalledWith('annotation:hover', { annotationId: 'ref-2' });
       });
     });
 
@@ -371,12 +371,6 @@ describe('BrowseView Component', () => {
   });
 
   describe('Event Subscriptions', () => {
-    it('should subscribe to annotation:dom-hover event', () => {
-      render(<BrowseView {...defaultProps} />);
-
-      expect(mockOn).toHaveBeenCalledWith('annotation:dom-hover', expect.any(Function));
-    });
-
     it('should subscribe to annotation:hover event', () => {
       render(<BrowseView {...defaultProps} />);
 
@@ -393,23 +387,6 @@ describe('BrowseView Component', () => {
       render(<BrowseView {...defaultProps} />);
 
       expect(mockOn).toHaveBeenCalledWith('annotation:focus', expect.any(Function));
-    });
-
-    it('should route annotation:dom-hover to annotation:hover', async () => {
-      render(<BrowseView {...defaultProps} />);
-
-      // Find the dom-hover handler
-      const domHoverCall = mockOn.mock.calls.find(call => call[0] === 'annotation:dom-hover');
-      expect(domHoverCall).toBeDefined();
-
-      const domHoverHandler = domHoverCall![1];
-
-      mockEmit.mockClear();
-
-      // Call the handler
-      domHoverHandler({ annotationId: 'test-id' });
-
-      expect(mockEmit).toHaveBeenCalledWith('annotation:hover', { annotationId: 'test-id' });
     });
   });
 

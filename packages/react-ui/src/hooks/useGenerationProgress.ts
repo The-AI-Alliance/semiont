@@ -3,22 +3,14 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import type { AnnotationUri, ResourceUri, GenerationProgress as ApiGenerationProgress, SSEStream, GenerationContext } from '@semiont/api-client';
 import { useApiClient } from '../contexts/ApiClientContext';
+import { useEventBus } from '../contexts/EventBusContext';
 
 // Use API type directly (no extensions needed)
 export type GenerationProgress = ApiGenerationProgress;
 
-interface UseGenerationProgressOptions {
-  onComplete?: (progress: GenerationProgress) => void;
-  onError?: (error: string) => void;
-  onProgress?: (progress: GenerationProgress) => void;
-}
-
-export function useGenerationProgress({
-  onComplete,
-  onError,
-  onProgress
-}: UseGenerationProgressOptions) {
+export function useGenerationProgress() {
   const client = useApiClient();
+  const eventBus = useEventBus();
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState<GenerationProgress | null>(null);
   const streamRef = useRef<SSEStream<ApiGenerationProgress, ApiGenerationProgress> | null>(null);
@@ -43,7 +35,9 @@ export function useGenerationProgress({
 
     // Check if client is available
     if (!client) {
-      onError?.('Authentication required');
+      eventBus.emit('generation:error-event', {
+        error: 'Authentication required'
+      });
       return;
     }
 
@@ -58,14 +52,18 @@ export function useGenerationProgress({
       // Handle progress events
       stream.onProgress((apiProgress) => {
         setProgress(apiProgress);
-        onProgress?.(apiProgress);
+        eventBus.emit('generation:progress-update', {
+          progress: apiProgress
+        });
       });
 
       // Handle completion
       stream.onComplete((apiProgress) => {
         setIsGenerating(false);
         // Keep progress visible to show completion state and link
-        onComplete?.(apiProgress);
+        eventBus.emit('generation:complete-event', {
+          progress: apiProgress
+        });
         streamRef.current = null;
       });
 
@@ -74,15 +72,19 @@ export function useGenerationProgress({
         console.error('[useGenerationProgress] Stream error:', error);
         setIsGenerating(false);
         setProgress(null); // Clear progress to hide widget
-        onError?.(error.message || 'Generation failed');
+        eventBus.emit('generation:error-event', {
+          error: error.message || 'Generation failed'
+        });
         streamRef.current = null;
       });
     } catch (error) {
       console.error('[useGenerationProgress] Failed to start generation:', error);
       setIsGenerating(false);
-      onError?.('Failed to start resource generation');
+      eventBus.emit('generation:error-event', {
+        error: 'Failed to start resource generation'
+      });
     }
-  }, [client, onComplete, onError, onProgress]);
+  }, [client]); // eventBus is a global singleton - never include in deps
 
   const cancelGeneration = useCallback(() => {
     if (streamRef.current) {

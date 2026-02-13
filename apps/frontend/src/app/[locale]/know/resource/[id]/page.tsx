@@ -27,7 +27,7 @@ import { Link, routes } from '@/lib/routing';
 import { useCacheManager } from '@/hooks/useCacheManager';
 
 // Feature components
-import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage, TranslationProvider, EventBusProvider, useEventSubscriptions } from '@semiont/react-ui';
+import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage, TranslationProvider, useEventBus, useEventOperations, useEventSubscriptions } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { SearchResourcesModal } from '@/components/modals/SearchResourcesModal';
 import { GenerationConfigModal } from '@/components/modals/GenerationConfigModal';
@@ -138,6 +138,13 @@ function ResourceViewWrapper({
   const client = useApiClient();
   const queryClient = useQueryClient();
   const cacheManager = useCacheManager();
+  const eventBus = useEventBus();
+
+  // Set up operation handlers for this resource
+  useEventOperations(eventBus, {
+    ...(client ? { client } : {}),
+    resourceUri: rUri,
+  });
 
   // Fetch document content separately
   const [content, setContent] = useState<string>('');
@@ -362,7 +369,7 @@ function ResourceViewWrapper({
       'resource:unarchive': () => handleUnarchive(),
       'resource:clone': () => handleClone(),
       'annotation:sparkle': ({ annotationId }) => {
-        triggerSparkleAnimation(annotationId as any);
+        triggerSparkleAnimation(annotationId);
       },
     });
 
@@ -372,16 +379,50 @@ function ResourceViewWrapper({
       'settings:line-numbers-toggled': () => toggleLineNumbers(),
     });
 
-    // Subscribe to annotation lifecycle events
+    // Subscribe to operation completion events
     useEventSubscriptions({
       'annotation:created': ({ annotation }) => {
-        triggerSparkleAnimation(annotation.id as any);
+        triggerSparkleAnimation(annotation.id);
         debouncedInvalidateAnnotations();
       },
       'annotation:deleted': () => {
         debouncedInvalidateAnnotations();
       },
+      'annotation:create-failed': () => {
+        showError('Failed to create annotation');
+      },
+      'annotation:delete-failed': () => {
+        showError('Failed to delete annotation');
+      },
+      'annotation:body-updated': () => {
+        // Success - optimistic update already applied via useResourceEvents
+      },
+      'annotation:body-update-failed': () => {
+        showError('Failed to update annotation');
+      },
     });
+
+    // Subscribe to detection completion events
+    useEventSubscriptions({
+      'detection:complete': () => {
+        showSuccess('Detection complete');
+      },
+      'detection:failed': () => {
+        showError('Detection failed');
+      },
+    });
+
+    // Subscribe to generation completion events
+    useEventSubscriptions({
+      'reference:generation-complete': () => {
+        showSuccess('Document generated');
+      },
+      'reference:generation-failed': () => {
+        showError('Failed to generate document');
+      },
+    });
+
+    // Note: Operation requests are handled by useEventOperations hook, completion events handled above
 
     return (
       <ResourceViewerPage
@@ -411,12 +452,7 @@ function ResourceViewWrapper({
   // Render the pure component with all props
   return (
     <TranslationProvider>
-      <EventBusProvider
-        rUri={rUri}
-        {...(client ? { client } : {})}
-      >
-        <ResourceViewerWithEventHandlers />
-      </EventBusProvider>
+      <ResourceViewerWithEventHandlers />
     </TranslationProvider>
   );
 }

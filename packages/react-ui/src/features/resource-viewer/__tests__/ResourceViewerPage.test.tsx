@@ -5,10 +5,14 @@
  * No Next.js mocking required - all dependencies passed as props!
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ResourceViewerPage } from '../components/ResourceViewerPage';
 import type { ResourceViewerPageProps } from '../components/ResourceViewerPage';
+import { EventBusProvider } from '@semiont/react-ui';
+// resetEventBusForTesting is exported but may not be in TypeScript index types yet
+import * as ReactUI from '@semiont/react-ui';
+const resetEventBusForTesting = (ReactUI as any).resetEventBusForTesting;
 
 // Mock dependencies that ResourceViewerPage imports
 vi.mock('@tanstack/react-query', async () => {
@@ -24,7 +28,6 @@ vi.mock('@tanstack/react-query', async () => {
 
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual('@semiont/react-ui');
-  const mitt = await import('mitt');
   return {
     ...actual,
     ResourceViewer: ({ resource }: any) => <div data-testid="resource-viewer">{resource.name}</div>,
@@ -45,7 +48,7 @@ vi.mock('@semiont/react-ui', async () => {
     useDebouncedCallback: (fn: any) => fn,
     supportsDetection: () => false,
     MakeMeaningEventBusProvider: ({ children }: any) => children,
-    useEventBus: () => mitt.default(),
+    // Don't mock EventBusProvider, useEventBus, resetEventBusForTesting - let actual pass through via ...actual
     useEventSubscriptions: vi.fn(),
     useResourceAnnotations: () => ({
       clearNewAnnotationId: vi.fn(),
@@ -109,11 +112,20 @@ const createMockProps = (overrides?: Partial<ResourceViewerPageProps>): Resource
   ...overrides,
 });
 
+// Test wrapper to provide EventBusProvider
+const renderWithProviders = (ui: React.ReactElement) => {
+  return render(<EventBusProvider>{ui}</EventBusProvider>);
+};
+
 describe('ResourceViewerPage', () => {
+  beforeEach(() => {
+    resetEventBusForTesting();
+  });
+
   describe('Basic Rendering', () => {
     it('renders without crashing', () => {
       const props = createMockProps();
-      render(<ResourceViewerPage {...props} />);
+      renderWithProviders(<ResourceViewerPage {...props} />);
 
       // Check for header element specifically
       expect(screen.getByRole('heading', { name: 'Test Resource' })).toBeInTheDocument();
@@ -127,14 +139,14 @@ describe('ResourceViewerPage', () => {
         },
       });
 
-      render(<ResourceViewerPage {...props} />);
+      renderWithProviders(<ResourceViewerPage {...props} />);
 
       expect(screen.getByRole('heading', { name: 'My Special Resource' })).toBeInTheDocument();
     });
 
     it('renders toolbar component', () => {
       const props = createMockProps();
-      render(<ResourceViewerPage {...props} />);
+      renderWithProviders(<ResourceViewerPage {...props} />);
 
       expect(screen.getByTestId('toolbar')).toBeInTheDocument();
     });
@@ -143,14 +155,14 @@ describe('ResourceViewerPage', () => {
   describe('Content Loading', () => {
     it('shows loading message when content is loading', () => {
       const props = createMockProps({ contentLoading: true });
-      render(<ResourceViewerPage {...props} />);
+      renderWithProviders(<ResourceViewerPage {...props} />);
 
       expect(screen.getByText('Loading document content...')).toBeInTheDocument();
     });
 
     it('shows ResourceViewer when content is loaded', () => {
       const props = createMockProps({ contentLoading: false });
-      render(<ResourceViewerPage {...props} />);
+      renderWithProviders(<ResourceViewerPage {...props} />);
 
       expect(screen.getByTestId('resource-viewer')).toBeInTheDocument();
     });
@@ -160,7 +172,7 @@ describe('ResourceViewerPage', () => {
     it('shows annotations panel when activePanel is annotations', () => {
       localStorage.setItem('activeToolbarPanel', 'annotations');
       const props = createMockProps();
-      render(<ResourceViewerPage {...props} />);
+      renderWithProviders(<ResourceViewerPage {...props} />);
 
       expect(screen.getByTestId('annotations-panel')).toBeInTheDocument();
       localStorage.clear();
@@ -169,7 +181,7 @@ describe('ResourceViewerPage', () => {
     it('shows history panel when activePanel is history', () => {
       localStorage.setItem('activeToolbarPanel', 'history');
       const props = createMockProps();
-      render(<ResourceViewerPage {...props} />);
+      renderWithProviders(<ResourceViewerPage {...props} />);
 
       expect(screen.getByTestId('history-panel')).toBeInTheDocument();
       localStorage.clear();
@@ -178,7 +190,7 @@ describe('ResourceViewerPage', () => {
     it('shows info panel when activePanel is info', () => {
       localStorage.setItem('activeToolbarPanel', 'info');
       const props = createMockProps();
-      render(<ResourceViewerPage {...props} />);
+      renderWithProviders(<ResourceViewerPage {...props} />);
 
       expect(screen.getByTestId('info-panel')).toBeInTheDocument();
       localStorage.clear();
@@ -187,7 +199,7 @@ describe('ResourceViewerPage', () => {
     it('shows collaboration panel when activePanel is collaboration', () => {
       localStorage.setItem('activeToolbarPanel', 'collaboration');
       const props = createMockProps();
-      render(<ResourceViewerPage {...props} />);
+      renderWithProviders(<ResourceViewerPage {...props} />);
 
       expect(screen.getByTestId('collaboration-panel')).toBeInTheDocument();
       localStorage.clear();
@@ -196,7 +208,7 @@ describe('ResourceViewerPage', () => {
     it('shows jsonld panel when activePanel is jsonld', () => {
       localStorage.setItem('activeToolbarPanel', 'jsonld');
       const props = createMockProps();
-      render(<ResourceViewerPage {...props} />);
+      renderWithProviders(<ResourceViewerPage {...props} />);
 
       expect(screen.getByTestId('jsonld-panel')).toBeInTheDocument();
       localStorage.clear();
@@ -212,7 +224,7 @@ describe('ResourceViewerPage', () => {
         },
       });
 
-      render(<ResourceViewerPage {...props} />);
+      renderWithProviders(<ResourceViewerPage {...props} />);
 
       // Archived badge only shows in annotate mode, which defaults to false
       // So we test that it doesn't show when not in annotate mode
@@ -223,14 +235,14 @@ describe('ResourceViewerPage', () => {
   describe('Modals', () => {
     it('renders search resources modal', () => {
       const props = createMockProps();
-      render(<ResourceViewerPage {...props} />);
+      renderWithProviders(<ResourceViewerPage {...props} />);
 
       expect(screen.getByTestId('search-modal')).toBeInTheDocument();
     });
 
     it('renders generation config modal', () => {
       const props = createMockProps();
-      render(<ResourceViewerPage {...props} />);
+      renderWithProviders(<ResourceViewerPage {...props} />);
 
       expect(screen.getByTestId('generation-modal')).toBeInTheDocument();
     });
@@ -243,7 +255,7 @@ describe('ResourceViewerPage', () => {
         contentLoading: false,
       });
 
-      render(<ResourceViewerPage {...props} />);
+      renderWithProviders(<ResourceViewerPage {...props} />);
 
       // ResourceViewer is mocked to show resource name
       expect(screen.getByTestId('resource-viewer')).toBeInTheDocument();
@@ -271,7 +283,7 @@ describe('ResourceViewerPage', () => {
         ],
       });
 
-      render(<ResourceViewerPage {...props} />);
+      renderWithProviders(<ResourceViewerPage {...props} />);
 
       // Component should render without errors - check for header
       expect(screen.getByRole('heading', { name: 'Test Resource' })).toBeInTheDocument();

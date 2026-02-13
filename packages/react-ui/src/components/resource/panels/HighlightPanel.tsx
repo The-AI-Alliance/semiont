@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
@@ -47,11 +47,14 @@ export function HighlightPanel({
   const { sortedAnnotations } = useAnnotationPanel(annotations, containerRef);
 
   // Subscribe to click events - update focused state
+  // Event handler for annotation clicks (extracted to avoid inline arrow function)
+  const handleAnnotationClick = useCallback(({ annotationId }: { annotationId: string }) => {
+    setFocusedAnnotationId(annotationId);
+    setTimeout(() => setFocusedAnnotationId(null), 3000);
+  }, []);
+
   useEventSubscriptions({
-    'annotation:click': ({ annotationId }: { annotationId: string }) => {
-      setFocusedAnnotationId(annotationId);
-      setTimeout(() => setFocusedAnnotationId(null), 3000);
-    },
+    'annotation:click': handleAnnotationClick,
   });
 
   // Highlights auto-create: when pendingAnnotation arrives with highlighting motivation,

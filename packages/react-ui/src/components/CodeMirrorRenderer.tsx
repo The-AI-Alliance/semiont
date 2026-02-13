@@ -412,7 +412,7 @@ export function CodeMirrorRenderer({
       const annotationId = annotationElement?.getAttribute('data-annotation-id');
 
       if (annotationId && eventBusRef.current) {
-        eventBusRef.current.emit('annotation:dom-hover', { annotationId });
+        eventBusRef.current.emit('annotation:hover', { annotationId });
       }
     };
 
@@ -421,7 +421,7 @@ export function CodeMirrorRenderer({
       const annotationElement = target.closest('[data-annotation-id]');
 
       if (annotationElement && eventBusRef.current) {
-        eventBusRef.current.emit('annotation:dom-hover', { annotationId: null });
+        eventBusRef.current.emit('annotation:hover', { annotationId: null });
       }
     };
 

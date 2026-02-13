@@ -80,14 +80,14 @@ export function AnnotationOverlay({
   const handleMouseEnter = (annotationId: string) => {
     if (currentHover.current !== annotationId) {
       currentHover.current = annotationId;
-      eventBus?.emit('annotation:dom-hover', { annotationId });
+      eventBus?.emit('annotation:hover', { annotationId });
     }
   };
 
   const handleMouseLeave = () => {
     if (currentHover.current !== null) {
       currentHover.current = null;
-      eventBus?.emit('annotation:dom-hover', { annotationId: null });
+      eventBus?.emit('annotation:hover', { annotationId: null });
     }
   };
 

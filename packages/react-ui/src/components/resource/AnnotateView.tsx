@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, lazy, Suspense } from 'react';
+import { useRef, useEffect, useCallback, lazy, Suspense } from 'react';
 import type { components } from '@semiont/api-client';
 import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMimeCategory, isPdfMimeType, resourceUri as toResourceUri } from '@semiont/api-client';
 import { ANNOTATORS } from '../../lib/annotation-registry';
@@ -24,7 +24,7 @@ interface EnrichedHTMLElement extends HTMLElement {
   __cmView?: EditorView;
 }
 import { AnnotateToolbar, type SelectionMotivation, type ClickAction, type ShapeType } from '../annotation/AnnotateToolbar';
-import type { AnnotationsCollection, AnnotationCreationHandler, AnnotationUIState } from '../../types/annotation-props';
+import type { AnnotationsCollection, AnnotationUIState } from '../../types/annotation-props';
 
 // Re-export for convenience
 export type { SelectionMotivation, ClickAction, ShapeType };
@@ -34,7 +34,6 @@ interface Props {
   mimeType?: string;
   resourceUri?: string;
   annotations: AnnotationsCollection;
-  creationHandler?: AnnotationCreationHandler;
   uiState: AnnotationUIState;
   onUIStateChange?: (state: Partial<AnnotationUIState>) => void;
   editable?: boolean;
@@ -151,7 +150,6 @@ export function AnnotateView({
   mimeType = 'text/plain',
   resourceUri,
   annotations,
-  creationHandler,
   uiState,
   onUIStateChange,
   enableWidgets = false,
@@ -171,29 +169,41 @@ export function AnnotateView({
   const allAnnotations = [...highlights, ...references, ...assessments, ...comments, ...tags];
   const segments = segmentTextWithAnnotations(content, allAnnotations);
 
-  const onCreate = creationHandler?.onCreate;
-
   // Extract UI state
   const { selectedMotivation, selectedClick, selectedShape, hoveredAnnotationId, hoveredCommentId, scrollToAnnotationId } = uiState;
 
+  // Store onUIStateChange in ref to avoid dependency issues
+  const onUIStateChangeRef = useRef(onUIStateChange);
+  onUIStateChangeRef.current = onUIStateChange;
+
+  // Toolbar event handlers (extracted to avoid inline arrow functions)
+  const handleToolbarSelectionChanged = useCallback(({ motivation }: { motivation: string | null }) => {
+    onUIStateChangeRef.current?.({ selectedMotivation: motivation as SelectionMotivation | null });
+  }, []);
+
+  const handleToolbarClickChanged = useCallback(({ action }: { action: string }) => {
+    onUIStateChangeRef.current?.({ selectedClick: action as ClickAction });
+  }, []);
+
+  const handleToolbarShapeChanged = useCallback(({ shape }: { shape: string }) => {
+    onUIStateChangeRef.current?.({ selectedShape: shape as ShapeType });
+  }, []);
+
+  const handleAnnotationEntryHover = useCallback(({ annotationId }: { annotationId: string | null }) => {
+    console.log('[AnnotateView] annotation-entry:hover received:', annotationId);
+    onUIStateChangeRef.current?.({ hoveredAnnotationId: annotationId });
+  }, []);
+
   // Subscribe to toolbar events
   useEventSubscriptions({
-    'toolbar:selection-changed': ({ motivation }: { motivation: string | null }) => {
-      onUIStateChange?.({ selectedMotivation: motivation as SelectionMotivation | null });
-    },
-    'toolbar:click-changed': ({ action }: { action: string }) => {
-      onUIStateChange?.({ selectedClick: action as ClickAction });
-    },
-    'toolbar:shape-changed': ({ shape }: { shape: string }) => {
-      onUIStateChange?.({ selectedShape: shape as ShapeType });
-    },
+    'toolbar:selection-changed': handleToolbarSelectionChanged,
+    'toolbar:click-changed': handleToolbarClickChanged,
+    'toolbar:shape-changed': handleToolbarShapeChanged,
   });
 
-  // Route DOM hover events to annotation:hover
+  // Subscribe to panel entry hover events to sync with CodeMirror
   useEventSubscriptions({
-    'annotation:dom-hover': ({ annotationId }) => {
-      eventBus.emit('annotation:hover', { annotationId });
-    },
+    'annotation-entry:hover': handleAnnotationEntryHover,
   });
 
   // Handle text annotation with sparkle or immediate creation
@@ -320,7 +330,7 @@ export function AnnotateView({
       container.removeEventListener('mouseup', handleMouseUp);
       container.removeEventListener('mousedown', handleMouseDown);
     };
-  }, [selectedMotivation, onCreate, content]);
+  }, [selectedMotivation, content]);
 
   // Route to appropriate viewer based on MIME type category
   switch (category) {

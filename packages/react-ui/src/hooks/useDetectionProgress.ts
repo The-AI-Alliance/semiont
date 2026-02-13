@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import type { ResourceUri, DetectionProgress as ApiDetectionProgress, SSEStream } from '@semiont/api-client';
 import { entityType } from '@semiont/api-client';
 import { useApiClient } from '../contexts/ApiClientContext';
+import { useEventBus } from '../contexts/EventBusContext';
 
 // Extend API type with frontend-specific fields
 export interface DetectionProgress extends ApiDetectionProgress {
@@ -12,18 +13,13 @@ export interface DetectionProgress extends ApiDetectionProgress {
 
 interface UseDetectionProgressOptions {
   rUri: ResourceUri;
-  onComplete?: (progress: DetectionProgress) => void;
-  onError?: (error: string) => void;
-  onProgress?: (progress: DetectionProgress) => void;
 }
 
 export function useDetectionProgress({
-  rUri,
-  onComplete,
-  onError,
-  onProgress
+  rUri
 }: UseDetectionProgressOptions) {
   const client = useApiClient();
+  const eventBus = useEventBus();
   const [isDetecting, setIsDetecting] = useState(false);
   const [progress, setProgress] = useState<DetectionProgress | null>(null);
   const streamRef = useRef<SSEStream<ApiDetectionProgress, ApiDetectionProgress> | null>(null);
@@ -38,7 +34,7 @@ export function useDetectionProgress({
 
     // Check if client is available
     if (!client) {
-      onError?.('Authentication required');
+      eventBus.emit('detection:error-event', { error: 'Authentication required' });
       return;
     }
 
@@ -68,7 +64,7 @@ export function useDetectionProgress({
         };
 
         setProgress(progressWithHistory);
-        onProgress?.(progressWithHistory);
+        eventBus.emit('detection:progress-update', { progress: progressWithHistory });
       });
 
       // Handle completion
@@ -80,7 +76,7 @@ export function useDetectionProgress({
 
         setIsDetecting(false);
         setProgress(null); // Clear progress to hide overlay
-        onComplete?.(progressWithHistory);
+        eventBus.emit('detection:complete-event', { progress: progressWithHistory });
         streamRef.current = null;
       });
 
@@ -89,7 +85,7 @@ export function useDetectionProgress({
         console.error('[Detection] Stream error:', error);
         setIsDetecting(false);
         setProgress(null); // Clear progress to hide overlay
-        onError?.(error.message || 'Detection failed');
+        eventBus.emit('detection:error-event', { error: error.message || 'Detection failed' });
         streamRef.current = null;
       });
     } catch (error) {
@@ -100,9 +96,9 @@ export function useDetectionProgress({
         stack: (error as Error)?.stack
       });
       setIsDetecting(false);
-      onError?.('Failed to start detection');
+      eventBus.emit('detection:error-event', { error: 'Failed to start detection' });
     }
-  }, [rUri, client, onComplete, onError, onProgress]);
+  }, [rUri, client]); // eventBus is a global singleton - never include in deps
 
   const cancelDetection = useCallback(() => {
     if (streamRef.current) {

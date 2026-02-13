@@ -1,9 +1,9 @@
 'use client';
 
-import { createContext, useContext, useMemo, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import mitt from 'mitt';
 import type { ResourceEvent } from '@semiont/core';
-import type { components, ResourceUri, Selector, SemiontApiClient } from '@semiont/api-client';
+import type { components, Selector, ResourceUri } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation'];
@@ -158,8 +158,17 @@ export type EventMap = {
       categories?: string[];
     };
   };
-  'detection:complete': { motivation: Motivation };
+  'detection:complete': { motivation?: Motivation; resourceUri?: ResourceUri; progress?: any };
   'detection:cancelled': void;
+  // Frontend events from useDetectionProgress hook
+  'detection:progress-update': { progress: any };
+  'detection:complete-event': { progress: any };
+  'detection:error-event': { error: string };
+
+  // Resource generation operations (frontend - via useGenerationProgress hook)
+  'generation:progress-update': { progress: any };
+  'generation:complete-event': { progress: any };
+  'generation:error-event': { error: string };
 
   // Reference operations
   'reference:generate': {
@@ -189,12 +198,71 @@ export type EventBus = ReturnType<typeof mitt<EventMap>>;
 
 const EventBusContext = createContext<EventBus | null>(null);
 
+/**
+ * Global singleton event bus.
+ *
+ * This ensures all components in the application share the same event bus instance,
+ * which is critical for cross-component communication (e.g., hovering an annotation
+ * in one component scrolls the panel in another component).
+ *
+ * FUTURE: Multi-Window Support
+ * When we need to support multiple document windows (e.g., pop-out resource viewers),
+ * we'll need to transition to a per-window event bus architecture:
+ *
+ * Option 1: Window-scoped event bus
+ *   - Create a new event bus for each window/portal
+ *   - Pass windowId or documentId to EventBusProvider
+ *   - Store Map<windowId, EventBus> instead of single global
+ *   - Components use useEventBus(windowId) to get correct bus
+ *
+ * Option 2: Event bus hierarchy
+ *   - Global event bus for app-wide events (settings, navigation)
+ *   - Per-document event bus for document-specific events (annotation hover)
+ *   - Components subscribe to both buses as needed
+ *
+ * Option 3: Cross-window event bridge
+ *   - Keep per-window buses isolated
+ *   - Use BroadcastChannel or postMessage for cross-window events
+ *   - Bridge pattern to sync certain events across windows
+ *
+ * For now, single global bus is correct for single-window app.
+ */
+let globalEventBus = mitt<EventMap>();
+
+// Wrap emit to add logging
+const originalEmit = globalEventBus.emit.bind(globalEventBus);
+globalEventBus.emit = ((eventName: any, payload?: any) => {
+  console.log('[EventBus] emit:', eventName, payload);
+  return originalEmit(eventName, payload);
+}) as any;
+
+/**
+ * Reset the global event bus - FOR TESTING ONLY.
+ *
+ * Call this in test setup (beforeEach) to ensure test isolation.
+ * Each test gets a fresh event bus with no lingering subscriptions.
+ *
+ * @example
+ * ```typescript
+ * beforeEach(() => {
+ *   resetEventBusForTesting();
+ * });
+ * ```
+ */
+export function resetEventBusForTesting() {
+  globalEventBus = mitt<EventMap>();
+
+  // Re-apply logging wrapper
+  const originalEmit = globalEventBus.emit.bind(globalEventBus);
+  globalEventBus.emit = ((eventName: any, payload?: any) => {
+    console.log('[EventBus] emit:', eventName, payload);
+    return originalEmit(eventName, payload);
+  }) as any;
+}
+
 export interface EventBusProviderProps {
   children: ReactNode;
-
-  // Optional dependencies for operation handlers (from MakeMeaningEventBus)
-  rUri?: ResourceUri;
-  client?: SemiontApiClient;
+  // rUri and client removed - operation handlers are now set up via useEventOperations hook
 }
 
 /**
@@ -210,38 +278,18 @@ export interface EventBusProviderProps {
  * - No decision fatigue about which bus to use
  * - Easier cross-domain coordination
  * - Simpler provider hierarchy
+ *
+ * NOTE: This provider uses a global singleton event bus to ensure all components
+ * share the same instance. Multiple providers in the tree will all reference the
+ * same global bus.
+ *
+ * Operation handlers (API calls triggered by events) are set up separately via
+ * the useEventOperations hook, which should be called at the resource page level.
  */
 export function EventBusProvider({
   children,
-  rUri,
-  client,
 }: EventBusProviderProps) {
-  const eventBus = useMemo(() => {
-    const bus = mitt<EventMap>();
-
-    // Wrap emit to add logging
-    const originalEmit = bus.emit.bind(bus);
-    bus.emit = ((eventName: any, payload?: any) => {
-      console.log('[EventBus] emit:', eventName, payload);
-      return originalEmit(eventName, payload);
-    }) as any;
-
-    return bus;
-  }, []);
-
-  // Set up operation handlers if client is provided (from MakeMeaningEventBusContext logic)
-  useEffect(() => {
-    if (!client || !rUri) return;
-
-    // Import event operation handlers
-    const { setupEventOperations } = require('./useEventOperations');
-    const cleanup = setupEventOperations(eventBus, {
-      rUri,
-      client,
-    });
-
-    return cleanup;
-  }, [rUri, client]);
+  const eventBus = useMemo(() => globalEventBus, []);
 
   return (
     <EventBusContext.Provider value={eventBus}>

@@ -104,7 +104,7 @@ export function BrowseView({
       const annotationId = annotationElement?.getAttribute('data-annotation-id');
 
       if (annotationId) {
-        eventBus.emit('annotation:dom-hover', { annotationId });
+        eventBus.emit('annotation:hover', { annotationId });
       }
     };
 
@@ -114,7 +114,7 @@ export function BrowseView({
       const annotationElement = target.closest('[data-annotation-id]');
 
       if (annotationElement) {
-        eventBus.emit('annotation:dom-hover', { annotationId: null });
+        eventBus.emit('annotation:hover', { annotationId: null });
       }
     };
 
@@ -182,20 +182,24 @@ export function BrowseView({
     }
   }, []);
 
-  // Route DOM hover events and panel entry hover events to scrolling
+  // Handle hover events for scrolling
+  // Event handlers (extracted to avoid inline arrow functions)
+  const handleAnnotationHover = useCallback(({ annotationId }: { annotationId: string | null }) => {
+    scrollToAnnotation(annotationId);
+  }, [scrollToAnnotation]);
+
+  const handleAnnotationEntryHover = useCallback(({ annotationId }: { annotationId: string | null }) => {
+    scrollToAnnotation(annotationId);
+  }, [scrollToAnnotation]);
+
+  const handleAnnotationFocus = useCallback(({ annotationId }: { annotationId: string | null }) => {
+    scrollToAnnotation(annotationId, true);
+  }, [scrollToAnnotation]);
+
   useEventSubscriptions({
-    'annotation:dom-hover': ({ annotationId }) => {
-      eventBus.emit('annotation:hover', { annotationId });
-    },
-    'annotation:hover': ({ annotationId }) => {
-      scrollToAnnotation(annotationId);
-    },
-    'annotation-entry:hover': ({ annotationId }) => {
-      scrollToAnnotation(annotationId);
-    },
-    'annotation:focus': ({ annotationId }) => {
-      scrollToAnnotation(annotationId, true);
-    },
+    'annotation:hover': handleAnnotationHover,
+    'annotation-entry:hover': handleAnnotationEntryHover,
+    'annotation:focus': handleAnnotationFocus,
   });
 
   // Route to appropriate viewer based on MIME type category

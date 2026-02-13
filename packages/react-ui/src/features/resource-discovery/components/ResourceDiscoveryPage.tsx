@@ -5,7 +5,7 @@
  * All dependencies passed as props - no Next.js hooks!
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import type { components } from '@semiont/api-client';
 import { getResourceId } from '@semiont/api-client';
 import { useRovingTabIndex, Toolbar } from '@semiont/react-ui';
@@ -95,6 +95,10 @@ export function ResourceDiscoveryPage({
     { orientation: 'grid', cols: 2 } // 2 columns on medium+ screens
   );
 
+  // Store navigation callback in ref to avoid re-creating openResource
+  const onNavigateToResourceRef = useRef(onNavigateToResource);
+  onNavigateToResourceRef.current = onNavigateToResource;
+
   // Memoized callbacks
   const handleEntityTypeFilter = useCallback((entityType: string) => {
     setSelectedEntityType(entityType);
@@ -103,9 +107,9 @@ export function ResourceDiscoveryPage({
   const openResource = useCallback((resource: ResourceDescriptor) => {
     const resourceId = getResourceId(resource);
     if (resourceId) {
-      onNavigateToResource(resourceId);
+      onNavigateToResourceRef.current(resourceId);
     }
-  }, [onNavigateToResource]);
+  }, []);
 
   const handleSearchSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();

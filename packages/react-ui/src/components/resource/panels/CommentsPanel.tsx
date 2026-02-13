@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
@@ -65,11 +65,14 @@ export function CommentsPanel({
   const { sortedAnnotations } = useAnnotationPanel(annotations, containerRef);
 
   // Subscribe to click events - update focused state
+  // Event handler for annotation clicks (extracted to avoid inline arrow function)
+  const handleAnnotationClick = useCallback(({ annotationId }: { annotationId: string }) => {
+    setFocusedAnnotationId(annotationId);
+    setTimeout(() => setFocusedAnnotationId(null), 3000);
+  }, []);
+
   useEventSubscriptions({
-    'annotation:click': ({ annotationId }: { annotationId: string }) => {
-      setFocusedAnnotationId(annotationId);
-      setTimeout(() => setFocusedAnnotationId(null), 3000);
-    },
+    'annotation:click': handleAnnotationClick,
   });
 
   const handleSaveNewComment = () => {

@@ -2,19 +2,18 @@ import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   EventBusProvider,
-  useEventBus
+  useEventBus,
+  resetEventBusForTesting
 } from '../EventBusContext';
-import type { ResourceUri } from '@semiont/api-client';
 
 describe('EventBusContext', () => {
-  const testRUri = 'r:test-resource' as ResourceUri;
-
   beforeEach(() => {
     vi.clearAllMocks();
+    resetEventBusForTesting();
   });
 
   const wrapper = ({ children }: { children: React.ReactNode }) => (
-    <EventBusProvider rUri={testRUri}>
+    <EventBusProvider>
       {children}
     </EventBusProvider>
   );
@@ -188,19 +187,19 @@ describe('EventBusContext', () => {
     });
   });
 
-  describe('Event bus isolation', () => {
-    it('should provide separate event bus instances for different providers', () => {
+  describe('Global singleton event bus', () => {
+    it('should share the same event bus instance across multiple providers', () => {
       const handler1 = vi.fn();
       const handler2 = vi.fn();
 
       const wrapper1 = ({ children }: { children: React.ReactNode }) => (
-        <EventBusProvider rUri={'r:resource-1' as ResourceUri}>
+        <EventBusProvider>
           {children}
         </EventBusProvider>
       );
 
       const wrapper2 = ({ children }: { children: React.ReactNode }) => (
-        <EventBusProvider rUri={'r:resource-2' as ResourceUri}>
+        <EventBusProvider>
           {children}
         </EventBusProvider>
       );
@@ -212,12 +211,21 @@ describe('EventBusContext', () => {
         result1.current.on('annotation:hover', handler1);
         result2.current.on('annotation:hover', handler2);
 
-        // Emit only on bus 1
+        // Emit on bus 1 - should trigger both handlers since it's the same global bus
         result1.current.emit('annotation:hover', { annotationId: 'ann-1' });
       });
 
+      // Both handlers should be called because they share the same global event bus
       expect(handler1).toHaveBeenCalledWith({ annotationId: 'ann-1' });
-      expect(handler2).not.toHaveBeenCalled();
+      expect(handler2).toHaveBeenCalledWith({ annotationId: 'ann-1' });
+    });
+
+    it('should return the same event bus reference across different hook calls', () => {
+      const { result: result1 } = renderHook(() => useEventBus(), { wrapper });
+      const { result: result2 } = renderHook(() => useEventBus(), { wrapper });
+
+      // Both hooks should return the exact same object reference
+      expect(result1.current).toBe(result2.current);
     });
   });
 
