@@ -219,7 +219,7 @@ function ResourceViewerPageInner({
 
   // Panel scroll coordination state
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
-  const [panelInitialTab, setPanelInitialTab] = useState<string | null>(null);
+  const [panelInitialTab, setPanelInitialTab] = useState<{ tab: string; generation: number } | null>(null);
 
   // SSE stream reference for cancellation
   const detectionStreamRef = React.useRef<any>(null);
@@ -425,6 +425,10 @@ function ResourceViewerPageInner({
     'annotation:cancel-pending': () => {
       setPendingAnnotation(null);
     },
+    'annotation:hover': ({ annotationId }: { annotationId: string | null }) => {
+      console.log('[ResourceViewerPage] annotation:hover event received:', annotationId);
+      setHoveredAnnotationId(annotationId);
+    },
     'annotation:click': ({ annotationId, motivation }: { annotationId: string; motivation?: string }) => {
       console.log('[ResourceViewerPage] annotation:click handler (OLD CODE):', { annotationId, motivation });
       eventBus.emit('annotation:focus', { annotationId });
@@ -473,7 +477,10 @@ function ResourceViewerPageInner({
         };
         const tab = motivationToTab[motivation];
         if (tab) {
-          setPanelInitialTab(tab);
+          setPanelInitialTab(prev => ({
+            tab,
+            generation: (prev?.generation ?? 0) + 1
+          }));
           console.log('[ResourceViewerPage] Set panelInitialTab to:', tab);
         }
       }
@@ -634,11 +641,13 @@ function ResourceViewerPageInner({
                 referencedByLoading={referencedByLoading}
                 resourceId={rUri.split('/').pop() || ''}
                 scrollToAnnotationId={scrollToAnnotationId}
+                hoveredAnnotationId={hoveredAnnotationId}
                 onScrollCompleted={() => {
                   console.log('[ResourceViewerPage] Scroll completed, clearing scrollToAnnotationId');
                   setScrollToAnnotationId(null);
                 }}
-                initialTab={panelInitialTab as any}
+                initialTab={panelInitialTab?.tab as any}
+                initialTabGeneration={panelInitialTab?.generation}
                 Link={Link}
                 routes={routes}
               />

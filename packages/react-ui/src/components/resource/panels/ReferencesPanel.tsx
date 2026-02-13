@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
@@ -8,7 +8,7 @@ import type { RouteBuilder, LinkComponentProps } from '../../../contexts/Routing
 import { DetectionProgressWidget } from '../../DetectionProgressWidget';
 import { ReferenceEntry } from './ReferenceEntry';
 import type { components, paths, Selector } from '@semiont/api-client';
-import { useAnnotationPanel } from '../../../hooks/useAnnotationPanel';
+import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
 import { PanelHeader } from './PanelHeader';
 import './ReferencesPanel.css';
 
@@ -62,6 +62,7 @@ interface Props {
   pendingAnnotation: PendingAnnotation | null;
   scrollToAnnotationId?: string | null;
   onScrollCompleted?: () => void;
+  hoveredAnnotationId?: string | null;
 }
 
 export function ReferencesPanel({
@@ -78,6 +79,7 @@ export function ReferencesPanel({
   pendingAnnotation,
   scrollToAnnotationId,
   onScrollCompleted,
+  hoveredAnnotationId,
 }: Props) {
   console.log('[ReferencesPanel] Rendering with scrollToAnnotationId:', scrollToAnnotationId, 'annotations:', annotations.length);
 
@@ -104,7 +106,93 @@ export function ReferencesPanel({
     localStorage.setItem('detect-section-expanded-reference', String(isDetectExpanded));
   }, [isDetectExpanded]);
 
-  const { sortedAnnotations } = useAnnotationPanel(annotations, containerRef, scrollToAnnotationId, onScrollCompleted);
+  // Direct ref management - replace useAnnotationPanel hook
+  const entryRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // Sort annotations by their position in the resource
+  const sortedAnnotations = useMemo(() => {
+    return [...annotations].sort((a, b) => {
+      const aSelector = getTextPositionSelector(getTargetSelector(a.target));
+      const bSelector = getTextPositionSelector(getTargetSelector(b.target));
+      if (!aSelector || !bSelector) return 0;
+      return aSelector.start - bSelector.start;
+    });
+  }, [annotations]);
+
+  // Ref callback for entry components
+  const setEntryRef = useCallback((id: string, element: HTMLDivElement | null) => {
+    if (element) {
+      entryRefs.current.set(id, element);
+    } else {
+      entryRefs.current.delete(id);
+    }
+  }, []);
+
+  // Handle scrollToAnnotationId (click scroll)
+  useEffect(() => {
+    if (!scrollToAnnotationId) return;
+
+    console.log('[ReferencesPanel] scrollToAnnotationId effect triggered:', scrollToAnnotationId);
+    const element = entryRefs.current.get(scrollToAnnotationId);
+
+    if (element && containerRef.current) {
+      console.log('[ReferencesPanel] Element found, scrolling to it');
+      // Calculate scroll position to center element in container
+      const elementTop = element.offsetTop;
+      const containerHeight = containerRef.current.clientHeight;
+      const elementHeight = element.offsetHeight;
+      const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
+
+      // Scroll to center
+      containerRef.current.scrollTo({ top: scrollTo, behavior: 'smooth' });
+
+      // Add pulse effect
+      element.classList.remove('semiont-annotation-pulse');
+      void element.offsetWidth; // Force reflow
+      element.classList.add('semiont-annotation-pulse');
+
+      // Notify completion
+      if (onScrollCompleted) {
+        onScrollCompleted();
+      }
+    } else {
+      console.warn('[ReferencesPanel] Element not found for scrollToAnnotationId:', scrollToAnnotationId);
+    }
+  }, [scrollToAnnotationId, onScrollCompleted]);
+
+  // Handle hoveredAnnotationId (hover scroll + pulse)
+  useEffect(() => {
+    if (!hoveredAnnotationId) return;
+
+    console.log('[ReferencesPanel] hoveredAnnotationId effect triggered:', hoveredAnnotationId);
+    const element = entryRefs.current.get(hoveredAnnotationId);
+
+    if (element && containerRef.current) {
+      console.log('[ReferencesPanel] Element found for hover');
+      const container = containerRef.current;
+      const elementRect = element.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+
+      // Only scroll if element is not fully visible
+      const isVisible =
+        elementRect.top >= containerRect.top &&
+        elementRect.bottom <= containerRect.bottom;
+
+      if (!isVisible) {
+        const elementTop = element.offsetTop;
+        const containerHeight = container.clientHeight;
+        const elementHeight = element.offsetHeight;
+        const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
+
+        container.scrollTo({ top: scrollTo, behavior: 'smooth' });
+      }
+
+      // Add pulse effect (whether scrolling or not)
+      element.classList.remove('semiont-annotation-pulse');
+      void element.offsetWidth; // Force reflow
+      element.classList.add('semiont-annotation-pulse');
+    }
+  }, [hoveredAnnotationId]);
 
   // Subscribe to click events - update focused state
   // Event handler for annotation clicks (extracted to avoid inline arrow function)
@@ -398,9 +486,11 @@ export function ReferencesPanel({
                   key={reference.id}
                   reference={reference}
                   isFocused={reference.id === focusedAnnotationId}
+                  isHovered={reference.id === hoveredAnnotationId}
                   routes={routes}
                   annotateMode={annotateMode}
                   isGenerating={reference.id === generatingReferenceId}
+                  ref={(el) => setEntryRef(reference.id, el)}
                 />
               ))
             )}

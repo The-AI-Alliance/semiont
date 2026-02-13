@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { forwardRef } from 'react';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText } from '@semiont/api-client';
 import { useEventBus } from '../../../contexts/EventBusContext';
@@ -18,6 +18,7 @@ interface TextualBody {
 interface AssessmentEntryProps {
   assessment: Annotation;
   isFocused: boolean;
+  isHovered?: boolean;
 }
 
 function formatRelativeTime(isoString: string): string {
@@ -65,51 +66,34 @@ function getAssessmentText(annotation: Annotation): string | null {
   return null;
 }
 
-export function AssessmentEntry({
-  assessment,
-  isFocused,
-}: AssessmentEntryProps) {
+export const AssessmentEntry = forwardRef<HTMLDivElement, AssessmentEntryProps>(
+  function AssessmentEntry(
+    {
+      assessment,
+      isFocused,
+      isHovered = false,
+    },
+    ref
+  ) {
   const eventBus = useEventBus();
-  const assessmentRef = useRef<HTMLDivElement>(null);
-
-  // Register ref with parent via event
-  useEffect(() => {
-    eventBus.emit('annotation:ref-update', {
-      annotationId: assessment.id,
-      element: assessmentRef.current
-    });
-    return () => {
-      eventBus.emit('annotation:ref-update', {
-        annotationId: assessment.id,
-        element: null
-      });
-    };
-  }, [assessment.id]);
-
-  // Scroll to assessment when focused
-  useEffect(() => {
-    if (isFocused && assessmentRef.current) {
-      assessmentRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }, [isFocused]);
 
   const selectedText = getAnnotationExactText(assessment);
   const assessmentText = getAssessmentText(assessment);
 
   return (
     <div
-      ref={assessmentRef}
-      className="semiont-annotation-entry"
+      ref={ref}
+      className={`semiont-annotation-entry${isHovered ? ' semiont-annotation-pulse' : ''}`}
       data-type="assessment"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
         eventBus.emit('annotation:click', { annotationId: assessment.id, motivation: assessment.motivation });
       }}
       onMouseEnter={() => {
-        eventBus.emit('annotation-entry:hover', { annotationId: assessment.id });
+        eventBus.emit('annotation:hover', { annotationId: assessment.id });
       }}
       onMouseLeave={() => {
-        eventBus.emit('annotation-entry:hover', { annotationId: null });
+        eventBus.emit('annotation:hover', { annotationId: null });
       }}
     >
       {/* Selected text quote */}
@@ -132,4 +116,4 @@ export function AssessmentEntry({
       </div>
     </div>
   );
-}
+});

@@ -69,10 +69,14 @@ interface UnifiedAnnotationsPanelProps {
   // Resource context
   resourceId?: string;
   initialTab?: TabKey;
+  initialTabGeneration?: number; // Generation counter for tab switching
 
   // Scroll coordination (one-time action, will be cleared after use)
   scrollToAnnotationId?: string | null;
   onScrollCompleted?: () => void;
+
+  // Hover coordination (for bidirectional hover highlighting)
+  hoveredAnnotationId?: string | null;
 
   // Routing
   Link: React.ComponentType<LinkComponentProps>;
@@ -136,6 +140,15 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
     localStorage.setItem(storageKey, activeTab);
   }, [activeTab, props.resourceId]);
 
+
+  // Switch to initialTab when generation counter changes (e.g., when clicking annotations with different motivations)
+  // Using generation counter ensures we can switch to the same tab multiple times
+  useEffect(() => {
+    if (props.initialTab && props.initialTabGeneration !== undefined) {
+      console.log('[UnifiedAnnotationsPanel] initialTab changed to:', props.initialTab, 'generation:', props.initialTabGeneration);
+      setActiveTab(props.initialTab);
+    }
+  }, [props.initialTabGeneration]); // Only watch generation counter, not the tab itself
 
   // Auto-switch to the appropriate tab when creating a new annotation
   useEffect(() => {
@@ -239,7 +252,8 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
             detectionProgress,
             annotateMode: props.annotateMode,
             scrollToAnnotationId: props.scrollToAnnotationId,
-            onScrollCompleted: props.onScrollCompleted
+            onScrollCompleted: props.onScrollCompleted,
+            hoveredAnnotationId: props.hoveredAnnotationId
           };
 
           // Render specific panel based on activeTab with full type safety
@@ -261,6 +275,7 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
                 annotateMode={commonProps.annotateMode}
                 scrollToAnnotationId={commonProps.scrollToAnnotationId}
                 onScrollCompleted={commonProps.onScrollCompleted}
+                hoveredAnnotationId={commonProps.hoveredAnnotationId}
                 allEntityTypes={props.allEntityTypes || []}
                 generatingReferenceId={props.generatingReferenceId}
                 referencedBy={props.referencedBy}

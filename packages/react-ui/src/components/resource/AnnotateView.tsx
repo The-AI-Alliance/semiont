@@ -189,21 +189,17 @@ export function AnnotateView({
     onUIStateChangeRef.current?.({ selectedShape: shape as ShapeType });
   }, []);
 
-  const handleAnnotationEntryHover = useCallback(({ annotationId }: { annotationId: string | null }) => {
-    console.log('[AnnotateView] annotation-entry:hover received:', annotationId);
+  const handleAnnotationHover = useCallback(({ annotationId }: { annotationId: string | null }) => {
+    console.log('[AnnotateView] annotation:hover received:', annotationId);
     onUIStateChangeRef.current?.({ hoveredAnnotationId: annotationId });
   }, []);
 
-  // Subscribe to toolbar events
+  // Subscribe to toolbar events and annotation hover
   useEventSubscriptions({
     'toolbar:selection-changed': handleToolbarSelectionChanged,
     'toolbar:click-changed': handleToolbarClickChanged,
     'toolbar:shape-changed': handleToolbarShapeChanged,
-  });
-
-  // Subscribe to panel entry hover events to sync with CodeMirror
-  useEventSubscriptions({
-    'annotation-entry:hover': handleAnnotationEntryHover,
+    'annotation:hover': handleAnnotationHover,
   });
 
   // Handle text annotation with sparkle or immediate creation

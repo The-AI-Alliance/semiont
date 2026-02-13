@@ -32,7 +32,6 @@ export * from './lib/tag-schemas';
 export * from './lib/validation';
 
 // Hooks
-export * from './hooks/useAnnotationPanel';
 export * from './hooks/useDebounce';
 export * from './hooks/useDetectionProgress';
 export * from './hooks/useFormattedTime';

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { forwardRef } from 'react';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText } from '@semiont/api-client';
 import { getTagCategory, getTagSchemaId } from '@semiont/ontology';
@@ -12,35 +12,19 @@ type Annotation = components['schemas']['Annotation'];
 interface TagEntryProps {
   tag: Annotation;
   isFocused: boolean;
+  isHovered?: boolean;
 }
 
-export function TagEntry({
-  tag,
-  isFocused,
-}: TagEntryProps) {
+export const TagEntry = forwardRef<HTMLDivElement, TagEntryProps>(
+  function TagEntry(
+    {
+      tag,
+      isFocused,
+      isHovered = false,
+    },
+    ref
+  ) {
   const eventBus = useEventBus();
-  const tagRef = useRef<HTMLDivElement>(null);
-
-  // Register ref with parent via event
-  useEffect(() => {
-    eventBus.emit('annotation:ref-update', {
-      annotationId: tag.id,
-      element: tagRef.current
-    });
-    return () => {
-      eventBus.emit('annotation:ref-update', {
-        annotationId: tag.id,
-        element: null
-      });
-    };
-  }, [tag.id]);
-
-  // Scroll to tag when focused
-  useEffect(() => {
-    if (isFocused && tagRef.current) {
-      tagRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }, [isFocused]);
 
   const selectedText = getAnnotationExactText(tag);
   const category = getTagCategory(tag);
@@ -49,17 +33,17 @@ export function TagEntry({
 
   return (
     <div
-      ref={tagRef}
+      ref={ref}
       onClick={() => {
         eventBus.emit('annotation:click', { annotationId: tag.id, motivation: tag.motivation });
       }}
       onMouseEnter={() => {
-        eventBus.emit('annotation-entry:hover', { annotationId: tag.id });
+        eventBus.emit('annotation:hover', { annotationId: tag.id });
       }}
       onMouseLeave={() => {
-        eventBus.emit('annotation-entry:hover', { annotationId: null });
+        eventBus.emit('annotation:hover', { annotationId: null });
       }}
-      className="semiont-annotation-entry"
+      className={`semiont-annotation-entry${isHovered ? ' semiont-annotation-pulse' : ''}`}
       data-type="tag"
       data-focused={isFocused ? 'true' : 'false'}
     >
@@ -81,4 +65,4 @@ export function TagEntry({
       </div>
     </div>
   );
-}
+});

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { forwardRef } from 'react';
 import type { RouteBuilder } from '../../../contexts/RoutingContext';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components } from '@semiont/api-client';
@@ -21,62 +21,27 @@ interface EnrichedAnnotation extends Annotation {
 interface ReferenceEntryProps {
   reference: Annotation;
   isFocused: boolean;
+  isHovered?: boolean;
   routes: RouteBuilder;
   annotateMode?: boolean;
   isGenerating?: boolean;
 }
 
-export function ReferenceEntry({
-  reference,
-  isFocused,
-  routes,
-  annotateMode = true,
-  isGenerating = false,
-}: ReferenceEntryProps) {
+export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
+  function ReferenceEntry(
+    {
+      reference,
+      isFocused,
+      isHovered = false,
+      routes,
+      annotateMode = true,
+      isGenerating = false,
+    },
+    ref
+  ) {
   const t = useTranslations('ReferencesPanel');
   const eventBus = useEventBus();
   const navigate = useObservableExternalNavigation();
-  const referenceRef = useRef<HTMLDivElement>(null);
-
-  // Register ref with parent via event
-  useEffect(() => {
-    eventBus.emit('annotation:ref-update', {
-      annotationId: reference.id,
-      element: referenceRef.current
-    });
-    return () => {
-      eventBus.emit('annotation:ref-update', {
-        annotationId: reference.id,
-        element: null
-      });
-    };
-  }, [reference.id]);
-
-  // Scroll to reference when focused - use container.scrollTo to avoid scrolling ancestors
-  useEffect(() => {
-    if (isFocused && referenceRef.current) {
-      const element = referenceRef.current;
-      const container = element.closest('.semiont-toolbar-panels__content') as HTMLElement;
-
-      if (container) {
-        const elementRect = element.getBoundingClientRect();
-        const containerRect = container.getBoundingClientRect();
-
-        const isVisible =
-          elementRect.top >= containerRect.top &&
-          elementRect.bottom <= containerRect.bottom;
-
-        if (!isVisible) {
-          const elementTop = element.offsetTop;
-          const containerHeight = container.clientHeight;
-          const elementHeight = element.offsetHeight;
-          const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
-
-          container.scrollTo({ top: scrollTo, behavior: 'smooth' });
-        }
-      }
-    }
-  }, [isFocused]);
 
   const selectedText = getAnnotationExactText(reference) || '';
   const isResolved = isBodyResolved(reference.body);
@@ -147,18 +112,18 @@ export function ReferenceEntry({
 
   return (
     <div
-      ref={referenceRef}
-      className="semiont-annotation-entry"
+      ref={ref}
+      className={`semiont-annotation-entry${isHovered ? ' semiont-annotation-pulse' : ''}`}
       data-type="reference"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
         eventBus.emit('annotation:click', { annotationId: reference.id, motivation: reference.motivation });
       }}
       onMouseEnter={() => {
-        eventBus.emit('annotation-entry:hover', { annotationId: reference.id });
+        eventBus.emit('annotation:hover', { annotationId: reference.id });
       }}
       onMouseLeave={() => {
-        eventBus.emit('annotation-entry:hover', { annotationId: null });
+        eventBus.emit('annotation:hover', { annotationId: null });
       }}
     >
       {/* Status indicator and text quote */}
@@ -254,4 +219,4 @@ export function ReferenceEntry({
       </div>
     </div>
   );
-}
+});

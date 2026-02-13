@@ -191,17 +191,12 @@ export function BrowseView({
     scrollToAnnotation(annotationId);
   }, [scrollToAnnotation]);
 
-  const handleAnnotationEntryHover = useCallback(({ annotationId }: { annotationId: string | null }) => {
-    scrollToAnnotation(annotationId);
-  }, [scrollToAnnotation]);
-
   const handleAnnotationFocus = useCallback(({ annotationId }: { annotationId: string | null }) => {
     scrollToAnnotation(annotationId, true);
   }, [scrollToAnnotation]);
 
   useEventSubscriptions({
     'annotation:hover': handleAnnotationHover,
-    'annotation-entry:hover': handleAnnotationEntryHover,
     'annotation:focus': handleAnnotationFocus,
   });
 

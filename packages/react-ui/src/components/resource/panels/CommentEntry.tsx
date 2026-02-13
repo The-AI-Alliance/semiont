@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, forwardRef } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText, getCommentText } from '@semiont/api-client';
@@ -11,6 +11,7 @@ type Annotation = components['schemas']['Annotation'];
 interface CommentEntryProps {
   comment: Annotation;
   isFocused: boolean;
+  isHovered?: boolean;
   annotateMode?: boolean;
 }
 
@@ -31,37 +32,20 @@ function formatRelativeTime(isoString: string): string {
   return date.toLocaleDateString();
 }
 
-export function CommentEntry({
-  comment,
-  isFocused,
-  annotateMode = true,
-}: CommentEntryProps) {
+export const CommentEntry = forwardRef<HTMLDivElement, CommentEntryProps>(
+  function CommentEntry(
+    {
+      comment,
+      isFocused,
+      isHovered = false,
+      annotateMode = true,
+    },
+    ref
+  ) {
   const t = useTranslations('CommentsPanel');
   const eventBus = useEventBus();
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState('');
-  const commentRef = useRef<HTMLDivElement>(null);
-
-  // Register ref with parent via event
-  useEffect(() => {
-    eventBus.emit('annotation:ref-update', {
-      annotationId: comment.id,
-      element: commentRef.current
-    });
-    return () => {
-      eventBus.emit('annotation:ref-update', {
-        annotationId: comment.id,
-        element: null
-      });
-    };
-  }, [comment.id]);
-
-  // Scroll to comment when focused
-  useEffect(() => {
-    if (isFocused && commentRef.current) {
-      commentRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }, [isFocused]);
 
   const commentText = getCommentText(comment) || '';
   const selectedText = getAnnotationExactText(comment);
@@ -83,18 +67,18 @@ export function CommentEntry({
 
   return (
     <div
-      ref={commentRef}
-      className="semiont-annotation-entry"
+      ref={ref}
+      className={`semiont-annotation-entry${isHovered ? ' semiont-annotation-pulse' : ''}`}
       data-type="comment"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
         eventBus.emit('annotation:click', { annotationId: comment.id, motivation: comment.motivation });
       }}
       onMouseEnter={() => {
-        eventBus.emit('annotation-entry:hover', { annotationId: comment.id });
+        eventBus.emit('annotation:hover', { annotationId: comment.id });
       }}
       onMouseLeave={() => {
-        eventBus.emit('annotation-entry:hover', { annotationId: null });
+        eventBus.emit('annotation:hover', { annotationId: null });
       }}
     >
       {/* Selected text quote - only for text annotations */}
@@ -161,4 +145,4 @@ export function CommentEntry({
       )}
     </div>
   );
-}
+});
