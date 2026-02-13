@@ -23,6 +23,8 @@ import { ResourceViewer } from '@semiont/react-ui';
 import { useEventBus } from '@semiont/react-ui';
 import { useEventSubscriptions } from '@semiont/react-ui';
 import { useResourceAnnotations } from '@semiont/react-ui';
+import { useApiClient } from '@semiont/react-ui';
+import { useEventOperations } from '@semiont/react-ui';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
@@ -146,6 +148,13 @@ function ResourceViewerPageInner({
 }: ResourceViewerPageProps) {
   // Get unified event bus for subscribing to UI events
   const eventBus = useEventBus();
+
+  // Get API client for operations
+  const client = useApiClient();
+
+  // Set up event operation handlers (detection, generation, etc.)
+  useEventOperations(eventBus, { client: client || undefined, resourceUri: rUri });
+
   // Resource loading announcements
   const {
     announceResourceLoading,
@@ -511,6 +520,28 @@ function ResourceViewerPageInner({
         const path = `${routes.know}?entityType=${encodeURIComponent(entityType)}`;
         eventBus.emit('navigation:router-push', { path, reason: 'entity-type-filter' });
       }
+    },
+    // Detection progress events (from useEventOperations SSE streams)
+    'detection:start': ({ motivation }: { motivation: Motivation }) => {
+      setDetectingMotivation(motivation);
+      setMotivationDetectionProgress(null); // Clear previous progress
+    },
+    'detection:progress': (chunk: any) => {
+      // Pass through raw SSE chunk to state (minimal transformation)
+      // Always set progress - detectingMotivation state is managed separately
+      setMotivationDetectionProgress(chunk);
+    },
+    'detection:complete': ({ motivation }: { motivation?: Motivation }) => {
+      if (motivation === detectingMotivation) {
+        setDetectingMotivation(null);
+        setMotivationDetectionProgress(null);
+      }
+    },
+    'detection:failed': (payload: any) => {
+      setDetectingMotivation(null);
+      setMotivationDetectionProgress(null);
+      const errorMessage = payload?.error?.message || payload?.message || 'Detection failed';
+      showError(errorMessage);
     },
   });
 

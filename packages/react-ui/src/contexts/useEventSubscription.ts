@@ -67,7 +67,6 @@ export function useEventSubscriptions(
 
   // Update refs on every render
   useEffect(() => {
-    console.debug('[useEventSubscriptions] Updating handlers ref with:', Object.keys(subscriptions));
     handlersRef.current = subscriptions;
   });
 
@@ -75,17 +74,13 @@ export function useEventSubscriptions(
   useEffect(() => {
     const stableHandlers = new Map<keyof EventMap, (payload: any) => void>();
 
-    console.debug('[useEventSubscriptions] Setting up subscriptions for events:', Object.keys(subscriptions));
-
     // Create stable wrappers for each subscription
     for (const [eventName, handler] of Object.entries(subscriptions)) {
       if (!handler) continue;
 
       const stableHandler = (payload: any) => {
-        console.debug('[useEventSubscriptions] Event received:', eventName, 'payload:', payload);
         const currentHandler = handlersRef.current[eventName as keyof EventMap];
         if (currentHandler) {
-          console.debug('[useEventSubscriptions] Calling current handler for:', eventName);
           currentHandler(payload);
         } else {
           console.warn('[useEventSubscriptions] No current handler found for:', eventName);
@@ -94,12 +89,10 @@ export function useEventSubscriptions(
 
       stableHandlers.set(eventName as keyof EventMap, stableHandler);
       eventBus.on(eventName as keyof EventMap, stableHandler);
-      console.debug('[useEventSubscriptions] Subscribed to:', eventName);
     }
 
     // Cleanup all subscriptions
     return () => {
-      console.debug('[useEventSubscriptions] Cleaning up subscriptions for:', Array.from(stableHandlers.keys()));
       for (const [eventName, stableHandler] of stableHandlers) {
         eventBus.off(eventName, stableHandler);
       }
