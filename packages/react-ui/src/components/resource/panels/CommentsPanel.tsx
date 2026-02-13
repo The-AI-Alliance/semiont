@@ -116,15 +116,15 @@ export function CommentsPanel({
         onScrollCompleted();
       }
     }
-  }, [scrollToAnnotationId, onScrollCompleted]);
+  }, [scrollToAnnotationId]);
 
-  // Handle hoveredAnnotationId (hover scroll + pulse)
+  // Handle hoveredAnnotationId (hover scroll only - pulse is handled by isHovered prop)
   useEffect(() => {
-    if (!hoveredAnnotationId) return undefined;
+    if (!hoveredAnnotationId) return;
 
     const element = entryRefs.current.get(hoveredAnnotationId);
 
-    if (!element || !containerRef.current) return undefined;
+    if (!element || !containerRef.current) return;
 
     const container = containerRef.current;
     const elementRect = element.getBoundingClientRect();
@@ -144,16 +144,7 @@ export function CommentsPanel({
       container.scrollTo({ top: scrollTo, behavior: 'smooth' });
     }
 
-    // Add pulse effect after brief delay to ensure element is visible
-    const timeoutId = setTimeout(() => {
-      element.classList.add('semiont-annotation-pulse');
-    }, 100);
-
-    // Cleanup: remove pulse when hover changes or ends
-    return () => {
-      clearTimeout(timeoutId);
-      element.classList.remove('semiont-annotation-pulse');
-    };
+    // Pulse effect is handled by isHovered prop on CommentEntry
   }, [hoveredAnnotationId]);
 
   // Subscribe to click events - update focused state

@@ -158,16 +158,16 @@ export function ReferencesPanel({
     } else {
       console.warn('[ReferencesPanel] Element not found for scrollToAnnotationId:', scrollToAnnotationId);
     }
-  }, [scrollToAnnotationId, onScrollCompleted]);
+  }, [scrollToAnnotationId]);
 
-  // Handle hoveredAnnotationId (hover scroll + pulse)
+  // Handle hoveredAnnotationId (hover scroll only - pulse is handled by isHovered prop)
   useEffect(() => {
-    if (!hoveredAnnotationId) return undefined;
+    if (!hoveredAnnotationId) return;
 
     console.log('[ReferencesPanel] hoveredAnnotationId effect triggered:', hoveredAnnotationId);
     const element = entryRefs.current.get(hoveredAnnotationId);
 
-    if (!element || !containerRef.current) return undefined;
+    if (!element || !containerRef.current) return;
 
     console.log('[ReferencesPanel] Element found for hover');
     const container = containerRef.current;
@@ -188,16 +188,7 @@ export function ReferencesPanel({
       container.scrollTo({ top: scrollTo, behavior: 'smooth' });
     }
 
-    // Add pulse effect after brief delay to ensure element is visible
-    const timeoutId = setTimeout(() => {
-      element.classList.add('semiont-annotation-pulse');
-    }, 100);
-
-    // Cleanup: remove pulse when hover changes or ends
-    return () => {
-      clearTimeout(timeoutId);
-      element.classList.remove('semiont-annotation-pulse');
-    };
+    // Pulse effect is handled by isHovered prop on ReferenceEntry
   }, [hoveredAnnotationId]);
 
   // Subscribe to click events - update focused state

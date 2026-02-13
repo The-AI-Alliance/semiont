@@ -237,6 +237,12 @@ function ResourceViewerPageInner({
     // ResourceViewer now manages scroll state internally
   }, []);
 
+  // Handle scroll completion - clear scroll target after panel scrolls
+  const handleScrollCompleted = useCallback(() => {
+    console.log('[ResourceViewerPage] Scroll completed, clearing scrollToAnnotationId');
+    setScrollToAnnotationId(null);
+  }, []);
+
   // Use SSE-based document generation progress - provides inline sparkle animation
   const {
     progress: generationProgress,
@@ -643,10 +649,7 @@ function ResourceViewerPageInner({
                 resourceId={rUri.split('/').pop() || ''}
                 scrollToAnnotationId={scrollToAnnotationId}
                 hoveredAnnotationId={hoveredAnnotationId}
-                onScrollCompleted={() => {
-                  console.log('[ResourceViewerPage] Scroll completed, clearing scrollToAnnotationId');
-                  setScrollToAnnotationId(null);
-                }}
+                onScrollCompleted={handleScrollCompleted}
                 initialTab={panelInitialTab?.tab as any}
                 initialTabGeneration={panelInitialTab?.generation}
                 Link={Link}
