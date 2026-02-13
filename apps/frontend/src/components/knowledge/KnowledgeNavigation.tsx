@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { usePathname, useRouter } from '@/i18n/routing';
@@ -45,22 +45,31 @@ export function KnowledgeNavigation({ isCollapsed, toggleCollapsed, navigationMe
     }
   ];
 
+  // Handle sidebar toggle events
+  const handleSidebarToggle = useCallback(() => {
+    toggleCollapsed();
+  }, [toggleCollapsed]);
+
+  // Handle resource close events
+  const handleResourceClose = useCallback(({ resourceId }: { resourceId: string }) => {
+    removeResource(resourceId);
+
+    // If we're closing the currently viewed document, navigate to Discover
+    if (pathname === `/know/resource/${resourceId}`) {
+      router.push('/know/discover');
+    }
+  }, [removeResource, pathname, router]);
+
+  // Handle resource reorder events
+  const handleResourceReorder = useCallback(({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
+    reorderResources(oldIndex, newIndex);
+  }, [reorderResources]);
+
   // Subscribe to navigation events
   useEventSubscriptions({
-    'navigation:sidebar-toggle': () => {
-      toggleCollapsed();
-    },
-    'navigation:resource-close': ({ resourceId }: { resourceId: string }) => {
-      removeResource(resourceId);
-
-      // If we're closing the currently viewed document, navigate to Discover
-      if (pathname === `/know/resource/${resourceId}`) {
-        router.push('/know/discover');
-      }
-    },
-    'navigation:resource-reorder': ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
-      reorderResources(oldIndex, newIndex);
-    }
+    'navigation:sidebar-toggle': handleSidebarToggle,
+    'navigation:resource-close': handleResourceClose,
+    'navigation:resource-reorder': handleResourceReorder,
   });
 
   // Handle navigation

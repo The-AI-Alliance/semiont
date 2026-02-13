@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { usePathname } from '@/i18n/routing';
@@ -25,11 +25,14 @@ export function ModerationNavigation({ isCollapsed, toggleCollapsed, navigationM
   const tSidebar = useTranslations('Sidebar');
   const pathname = usePathname();
 
+  // Handle sidebar toggle events
+  const handleSidebarToggle = useCallback(() => {
+    toggleCollapsed();
+  }, [toggleCollapsed]);
+
   // Subscribe to sidebar toggle events
   useEventSubscriptions({
-    'navigation:sidebar-toggle': () => {
-      toggleCollapsed();
-    }
+    'navigation:sidebar-toggle': handleSidebarToggle,
   });
 
   const navigation: SimpleNavigationItem[] = [

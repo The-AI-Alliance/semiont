@@ -8,7 +8,7 @@
  */
 
 import { useTranslations } from 'next-intl';
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import {
   ChartBarIcon,
   ServerIcon,
@@ -40,9 +40,19 @@ export default function DevOpsPage() {
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
+  // Handle theme change events
+  const handleThemeChanged = useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => {
+    setTheme(theme);
+  }, [setTheme]);
+
+  // Handle line numbers toggle events
+  const handleLineNumbersToggled = useCallback(() => {
+    toggleLineNumbers();
+  }, [toggleLineNumbers]);
+
   useEventSubscriptions({
-    'settings:theme-changed': ({ theme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(theme),
-    'settings:line-numbers-toggled': () => toggleLineNumbers(),
+    'settings:theme-changed': handleThemeChanged,
+    'settings:line-numbers-toggled': handleLineNumbersToggled,
   });
 
   const suggestedFeatures = [

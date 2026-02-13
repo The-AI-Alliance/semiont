@@ -7,7 +7,7 @@
  * and delegates rendering to the pure React AdminSecurityPage component.
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { useAdmin, Toolbar } from '@semiont/react-ui';
 import type { paths } from '@semiont/api-client';
@@ -27,9 +27,19 @@ export default function AdminSecurity() {
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
+  // Handle theme change events
+  const handleThemeChanged = useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => {
+    setTheme(theme);
+  }, [setTheme]);
+
+  // Handle line numbers toggle events
+  const handleLineNumbersToggled = useCallback(() => {
+    toggleLineNumbers();
+  }, [toggleLineNumbers]);
+
   useEventSubscriptions({
-    'settings:theme-changed': ({ theme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(theme),
-    'settings:line-numbers-toggled': () => toggleLineNumbers(),
+    'settings:theme-changed': handleThemeChanged,
+    'settings:line-numbers-toggled': handleLineNumbersToggled,
   });
 
   // Get OAuth configuration from API
