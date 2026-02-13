@@ -22,17 +22,23 @@ export function JsonLdView({ annotation, onBack }: JsonLdViewProps) {
   const viewRef = useRef<EditorView | null>(null);
   const { showLineNumbers } = useLineNumbers();
 
+  // Store callback in ref to avoid including in dependency arrays
+  const onBackRef = useRef(onBack);
+  useEffect(() => {
+    onBackRef.current = onBack;
+  });
+
   // Handle escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onBack();
+        onBackRef.current();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onBack]);
+  }, []);
 
   // Initialize CodeMirror
   useEffect(() => {

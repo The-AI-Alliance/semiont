@@ -50,6 +50,12 @@ export function ResizeHandle({
   const startXRef = useRef<number>(0);
   const startWidthRef = useRef<number>(0);
 
+  // Store callback in ref to avoid including in dependency arrays
+  const onResizeRef = useRef(onResize);
+  useEffect(() => {
+    onResizeRef.current = onResize;
+  });
+
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     setIsDragging(true);
@@ -73,8 +79,8 @@ export function ResizeHandle({
 
     // Enforce constraints
     const constrainedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
-    onResize(constrainedWidth);
-  }, [isDragging, onResize, minWidth, maxWidth, position]);
+    onResizeRef.current(constrainedWidth);
+  }, [isDragging, minWidth, maxWidth, position]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
@@ -113,9 +119,9 @@ export function ResizeHandle({
     // Only resize if arrow key was pressed
     if (newWidth !== currentWidth) {
       const constrainedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
-      onResize(constrainedWidth);
+      onResizeRef.current(constrainedWidth);
     }
-  }, [onResize, minWidth, maxWidth, position]);
+  }, [minWidth, maxWidth, position]);
 
   // Add/remove global mouse event listeners for dragging
   useEffect(() => {

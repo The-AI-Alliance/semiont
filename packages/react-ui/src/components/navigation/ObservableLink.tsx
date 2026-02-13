@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef, useEffect } from 'react';
 import { useEventBus } from '../../contexts/EventBusContext';
 
 /**
@@ -60,6 +60,12 @@ export function ObservableLink({
 }: ObservableLinkProps) {
   const eventBus = useEventBus();
 
+  // Store callback in ref to avoid including in dependency arrays
+  const onClickRef = useRef(onClick);
+  useEffect(() => {
+    onClickRef.current = onClick;
+  });
+
   const handleClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
     // Emit event for observability
     eventBus.emit('navigation:link-clicked', {
@@ -68,8 +74,8 @@ export function ObservableLink({
     });
 
     // Call original onClick if provided
-    onClick?.(e);
-  }, [href, label, onClick]); // eventBus is stable
+    onClickRef.current?.(e);
+  }, [href, label]); // eventBus is global singleton - never in deps
 
   return (
     <a
