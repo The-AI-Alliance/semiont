@@ -144,8 +144,6 @@ function ResourceViewerPageInner({
   SearchResourcesModal,
   GenerationConfigModal,
 }: ResourceViewerPageProps) {
-  console.log('[ResourceViewerPageInner] RENDER START');
-
   // Get unified event bus for subscribing to UI events
   const eventBus = useEventBus();
   // Resource loading announcements
@@ -191,14 +189,7 @@ function ResourceViewerPageInner({
 
   // Wrapped setter with logging
   const setActivePanelInternal = useCallback((value: string | null | ((prev: string | null) => string | null)) => {
-    const newValue = typeof value === 'function' ? value(activePanel) : value;
-    console.log('[ResourceViewerPage] setActivePanelInternal called:', { from: activePanel, to: newValue, stack: new Error().stack?.split('\n').slice(1, 4).join('\n') });
     setActivePanelInternalRaw(value);
-  }, [activePanel]);
-
-  // Log activePanel changes
-  useEffect(() => {
-    console.log('[ResourceViewerPage] activePanel state changed to:', activePanel);
   }, [activePanel]);
 
   // Unified pending annotation - all human-created annotations flow through this
@@ -239,7 +230,6 @@ function ResourceViewerPageInner({
 
   // Handle scroll completion - clear scroll target after panel scrolls
   const handleScrollCompleted = useCallback(() => {
-    console.log('[ResourceViewerPage] Scroll completed, clearing scrollToAnnotationId');
     setScrollToAnnotationId(null);
   }, []);
 
@@ -432,11 +422,9 @@ function ResourceViewerPageInner({
       setPendingAnnotation(null);
     },
     'annotation:hover': ({ annotationId }: { annotationId: string | null }) => {
-      console.log('[ResourceViewerPage] annotation:hover event received:', annotationId);
       setHoveredAnnotationId(annotationId);
     },
-    'annotation:click': ({ annotationId, motivation }: { annotationId: string; motivation?: string }) => {
-      console.log('[ResourceViewerPage] annotation:click handler (OLD CODE):', { annotationId, motivation });
+    'annotation:click': ({ annotationId }: { annotationId: string; motivation?: string }) => {
       eventBus.emit('annotation:focus', { annotationId });
       setHoveredAnnotationId(annotationId);
       setTimeout(() => setHoveredAnnotationId(null), 1500);
@@ -464,12 +452,9 @@ function ResourceViewerPageInner({
       });
     },
     'panel:open': ({ panel, scrollToAnnotationId: scrollTarget, motivation }: { panel: string; scrollToAnnotationId?: string; motivation?: string }) => {
-      console.log('[ResourceViewerPage] panel:open handler:', { panel, scrollTarget, motivation, currentActivePanel: activePanel });
-
       // Store scroll target and motivation for UnifiedAnnotationsPanel
       if (scrollTarget) {
         setScrollToAnnotationId(scrollTarget);
-        console.log('[ResourceViewerPage] Set scrollToAnnotationId to:', scrollTarget);
       }
 
       if (motivation) {
@@ -487,7 +472,6 @@ function ResourceViewerPageInner({
             tab,
             generation: (prev?.generation ?? 0) + 1
           }));
-          console.log('[ResourceViewerPage] Set panelInitialTab to:', tab);
         }
       }
 

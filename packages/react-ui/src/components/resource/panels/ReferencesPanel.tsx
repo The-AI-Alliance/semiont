@@ -81,8 +81,6 @@ export function ReferencesPanel({
   onScrollCompleted,
   hoveredAnnotationId,
 }: Props) {
-  console.log('[ReferencesPanel] Rendering with scrollToAnnotationId:', scrollToAnnotationId, 'annotations:', annotations.length);
-
   const t = useTranslations('DetectPanel');
   const tRef = useTranslations('ReferencesPanel');
   const eventBus = useEventBus();
@@ -132,11 +130,9 @@ export function ReferencesPanel({
   useEffect(() => {
     if (!scrollToAnnotationId) return;
 
-    console.log('[ReferencesPanel] scrollToAnnotationId effect triggered:', scrollToAnnotationId);
     const element = entryRefs.current.get(scrollToAnnotationId);
 
     if (element && containerRef.current) {
-      console.log('[ReferencesPanel] Element found, scrolling to it');
       // Calculate scroll position to center element in container
       const elementTop = element.offsetTop;
       const containerHeight = containerRef.current.clientHeight;
@@ -164,12 +160,10 @@ export function ReferencesPanel({
   useEffect(() => {
     if (!hoveredAnnotationId) return;
 
-    console.log('[ReferencesPanel] hoveredAnnotationId effect triggered:', hoveredAnnotationId);
     const element = entryRefs.current.get(hoveredAnnotationId);
 
     if (!element || !containerRef.current) return;
 
-    console.log('[ReferencesPanel] Element found for hover');
     const container = containerRef.current;
     const elementRect = element.getBoundingClientRect();
     const containerRect = container.getBoundingClientRect();

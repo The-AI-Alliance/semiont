@@ -190,7 +190,6 @@ export function AnnotateView({
   }, []);
 
   const handleAnnotationHover = useCallback(({ annotationId }: { annotationId: string | null }) => {
-    console.log('[AnnotateView] annotation:hover received:', annotationId);
     onUIStateChangeRef.current?.({ hoveredAnnotationId: annotationId });
   }, []);
 

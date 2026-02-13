@@ -84,12 +84,6 @@ interface UnifiedAnnotationsPanelProps {
 }
 
 export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
-  console.log('[UnifiedAnnotationsPanel] Rendering with props:', {
-    annotationCount: props.annotations.length,
-    resourceId: props.resourceId,
-    initialTab: props.initialTab
-  });
-
   const t = useTranslations('UnifiedAnnotationsPanel');
 
   // Group annotations by type using annotators
@@ -145,7 +139,6 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
   // Using generation counter ensures we can switch to the same tab multiple times
   useEffect(() => {
     if (props.initialTab && props.initialTabGeneration !== undefined) {
-      console.log('[UnifiedAnnotationsPanel] initialTab changed to:', props.initialTab, 'generation:', props.initialTabGeneration);
       setActiveTab(props.initialTab);
     }
   }, [props.initialTabGeneration]); // Only watch generation counter, not the tab itself
