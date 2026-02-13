@@ -595,10 +595,11 @@ function ResourceViewerPageInner({
               ) : (
                 <ResourceViewer
                   resource={resourceWithContent}
-                annotations={groups}
-                generatingReferenceId={generationProgress?.referenceId ?? null}
-                showLineNumbers={showLineNumbers}
-              />
+                  annotations={groups}
+                  generatingReferenceId={generationProgress?.referenceId ?? null}
+                  showLineNumbers={showLineNumbers}
+                  hoveredAnnotationId={hoveredAnnotationId}
+                />
               )}
             </ErrorBoundary>
           </div>

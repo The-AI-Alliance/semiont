@@ -138,24 +138,32 @@ export function TaggingPanel({
 
   // Handle hoveredAnnotationId (hover scroll + pulse)
   useEffect(() => {
-    if (!hoveredAnnotationId) return;
+    if (!hoveredAnnotationId) return undefined;
     const element = entryRefs.current.get(hoveredAnnotationId);
-    if (element && containerRef.current) {
-      const container = containerRef.current;
-      const elementRect = element.getBoundingClientRect();
-      const containerRect = container.getBoundingClientRect();
-      const isVisible = elementRect.top >= containerRect.top && elementRect.bottom <= containerRect.bottom;
-      if (!isVisible) {
-        const elementTop = element.offsetTop;
-        const containerHeight = container.clientHeight;
-        const elementHeight = element.offsetHeight;
-        const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
-        container.scrollTo({ top: scrollTo, behavior: 'smooth' });
-      }
-      element.classList.remove('semiont-annotation-pulse');
-      void element.offsetWidth;
-      element.classList.add('semiont-annotation-pulse');
+    if (!element || !containerRef.current) return undefined;
+
+    const container = containerRef.current;
+    const elementRect = element.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const isVisible = elementRect.top >= containerRect.top && elementRect.bottom <= containerRect.bottom;
+    if (!isVisible) {
+      const elementTop = element.offsetTop;
+      const containerHeight = container.clientHeight;
+      const elementHeight = element.offsetHeight;
+      const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
+      container.scrollTo({ top: scrollTo, behavior: 'smooth' });
     }
+
+    // Add pulse effect after brief delay to ensure element is visible
+    const timeoutId = setTimeout(() => {
+      element.classList.add('semiont-annotation-pulse');
+    }, 100);
+
+    // Cleanup: remove pulse when hover changes or ends
+    return () => {
+      clearTimeout(timeoutId);
+      element.classList.remove('semiont-annotation-pulse');
+    };
   }, [hoveredAnnotationId]);
 
   const schemas = getAllTagSchemas();

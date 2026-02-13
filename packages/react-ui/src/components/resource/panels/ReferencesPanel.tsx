@@ -162,36 +162,42 @@ export function ReferencesPanel({
 
   // Handle hoveredAnnotationId (hover scroll + pulse)
   useEffect(() => {
-    if (!hoveredAnnotationId) return;
+    if (!hoveredAnnotationId) return undefined;
 
     console.log('[ReferencesPanel] hoveredAnnotationId effect triggered:', hoveredAnnotationId);
     const element = entryRefs.current.get(hoveredAnnotationId);
 
-    if (element && containerRef.current) {
-      console.log('[ReferencesPanel] Element found for hover');
-      const container = containerRef.current;
-      const elementRect = element.getBoundingClientRect();
-      const containerRect = container.getBoundingClientRect();
+    if (!element || !containerRef.current) return undefined;
 
-      // Only scroll if element is not fully visible
-      const isVisible =
-        elementRect.top >= containerRect.top &&
-        elementRect.bottom <= containerRect.bottom;
+    console.log('[ReferencesPanel] Element found for hover');
+    const container = containerRef.current;
+    const elementRect = element.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
 
-      if (!isVisible) {
-        const elementTop = element.offsetTop;
-        const containerHeight = container.clientHeight;
-        const elementHeight = element.offsetHeight;
-        const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
+    // Only scroll if element is not fully visible
+    const isVisible =
+      elementRect.top >= containerRect.top &&
+      elementRect.bottom <= containerRect.bottom;
 
-        container.scrollTo({ top: scrollTo, behavior: 'smooth' });
-      }
+    if (!isVisible) {
+      const elementTop = element.offsetTop;
+      const containerHeight = container.clientHeight;
+      const elementHeight = element.offsetHeight;
+      const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
 
-      // Add pulse effect (whether scrolling or not)
-      element.classList.remove('semiont-annotation-pulse');
-      void element.offsetWidth; // Force reflow
-      element.classList.add('semiont-annotation-pulse');
+      container.scrollTo({ top: scrollTo, behavior: 'smooth' });
     }
+
+    // Add pulse effect after brief delay to ensure element is visible
+    const timeoutId = setTimeout(() => {
+      element.classList.add('semiont-annotation-pulse');
+    }, 100);
+
+    // Cleanup: remove pulse when hover changes or ends
+    return () => {
+      clearTimeout(timeoutId);
+      element.classList.remove('semiont-annotation-pulse');
+    };
   }, [hoveredAnnotationId]);
 
   // Subscribe to click events - update focused state

@@ -42,13 +42,15 @@ interface Props {
   annotations: AnnotationsCollection;
   generatingReferenceId?: string | null;
   showLineNumbers?: boolean;
+  hoveredAnnotationId?: string | null;
 }
 
 export function ResourceViewer({
   resource,
   annotations,
   generatingReferenceId,
-  showLineNumbers = false
+  showLineNumbers = false,
+  hoveredAnnotationId: hoveredAnnotationIdProp
 }: Props) {
   const t = useTranslations('ResourceViewer');
   const documentViewerRef = useRef<HTMLDivElement>(null);
@@ -215,7 +217,8 @@ export function ResourceViewer({
   } | null>(null);
 
   // Internal UI state for hover, focus, and scroll
-  const [hoveredAnnotationId, _setHoveredAnnotationId] = useState<string | null>(null);
+  // Use prop value when provided (controlled by parent), otherwise null
+  const hoveredAnnotationId = hoveredAnnotationIdProp ?? null;
   const [hoveredCommentId, _setHoveredCommentId] = useState<string | null>(null);
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
   const [_focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
