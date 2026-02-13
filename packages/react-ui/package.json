@@ -43,6 +43,7 @@
     "build": "npm run lint:css && npm run typecheck && tsup",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
+    "audit:compliance": "./scripts/generate-compliance-report.sh",
     "test": "npm run test:split",
     "test:watch": "vitest",
     "test:coverage": "npm run test:split:coverage",

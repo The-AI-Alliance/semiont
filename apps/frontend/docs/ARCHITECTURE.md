@@ -697,6 +697,32 @@ The document and history panels synchronize via hover interactions:
 - CodeMirrorRenderer handles mousemove events and scroll/pulse animations
 - AnnotationHistory tracks event refs and scrolls on hover changes
 
+### Bi-directional Annotation ↔ Panel Hover Sync
+
+Annotation overlays and panel entries synchronize via hover events for all media types (text/markdown, PDF, images):
+
+**Overlay → Panel**:
+- Hovering over an annotation in the content emits `annotation:hover` event
+- Panel entry scrolls into view and pulses
+
+**Panel → Overlay**:
+- Hovering over a panel entry emits `annotation-entry:hover` event
+- BrowseView scrolls overlay into view and pulses
+
+**Implementation (Consistent Across Media Types)**:
+- **Text annotations** (CodeMirrorRenderer): Emit `annotation:hover` on mouseover/mouseout
+- **PDF annotations** (PdfAnnotationCanvas): Emit `annotation:hover` on mouseenter/mouseleave
+- **Image annotations** (AnnotationOverlay): Emit `annotation:hover` on mouseenter/mouseleave
+- **Panel entries**: Emit `annotation-entry:hover` on mouseenter/mouseleave
+- **useAnnotationPanel hook**: Subscribes to `annotation:hover` and `annotation-entry:hover`, triggers scroll-to-view and pulse effects for panel entries
+- **BrowseView**: Subscribes to `annotation:hover` and `annotation-entry:hover`, handles scrolling and pulse for overlays in browse mode
+- **AnnotateView**: Subscribes to `annotation-entry:hover`, updates `hoveredAnnotationId` prop to trigger CodeMirrorRenderer scrolling and pulse
+
+**Events**:
+- `annotation:hover` - Emitted by all overlay types with `{ annotationId: string | null }`
+- `annotation-entry:hover` - Emitted by panel entries with `{ annotationId: string | null }`
+- `annotation:ref-update` - Emitted to register DOM refs for scroll targeting
+
 ## Related Documentation
 
 ### React UI Library
