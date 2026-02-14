@@ -34,7 +34,7 @@ vi.mock('@semiont/react-ui', async () => {
     ...actual,
     ResourceViewer: ({ resource }: any) => <div data-testid="resource-viewer">{resource.name}</div>,
     Toolbar: () => <div data-testid="toolbar">Toolbar</div>,
-    ToolbarPanels: ({ children }: any) => <div data-testid="toolbar-panels">{children}</div>,
+    // Don't mock ToolbarPanels, UnifiedAnnotationsPanel - let real ones render for integration test
     AnnotationHistory: () => <div data-testid="history-panel">History</div>,
     ResourceInfoPanel: () => <div data-testid="info-panel">Info</div>,
     CollaborationPanel: () => <div data-testid="collaboration-panel">Collaboration</div>,
@@ -58,6 +58,8 @@ vi.mock('@semiont/react-ui', async () => {
       triggerSparkleAnimation: vi.fn(),
     }),
     useApiClient: () => testMockClient,
+    // Don't mock useEventBus, EventBusProvider, useEventSubscriptions - let actual pass through
+    useEventSubscriptions: vi.fn(),
   };
 });
 
@@ -118,7 +120,9 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
       cacheManager: mockClient as any,
       Link: ({ children }: any) => <a>{children}</a>,
       routes: { know: '/know', browse: '/browse' },
-      ToolbarPanels: ({ children }: any) => <div>{children}</div>,
+      // ToolbarPanels component that renders when activePanel is set
+      ToolbarPanels: ({ children, activePanel }: any) =>
+        activePanel ? <div data-testid="toolbar-panels">{children}</div> : null,
       SearchResourcesModal: () => <div>Search Modal</div>,
       GenerationConfigModal: () => <div>Generation Modal</div>,
       ...props,
@@ -169,6 +173,13 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
     };
 
     mockAnnotations = [];
+
+    // Setup localStorage to show annotations panel in annotate mode
+    if (typeof window !== 'undefined') {
+      localStorage.clear();
+      localStorage.setItem('activeToolbarPanel', 'annotations');
+      localStorage.setItem('annotateMode', 'true');
+    }
   });
 
   it('should display detection progress from button click to completion', async () => {

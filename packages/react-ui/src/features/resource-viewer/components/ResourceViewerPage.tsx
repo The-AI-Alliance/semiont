@@ -19,8 +19,9 @@ import { Toolbar } from '@semiont/react-ui';
 import { useResourceLoadingAnnouncements } from '@semiont/react-ui';
 import type { GenerationOptions } from '@semiont/react-ui';
 import { ResourceViewer } from '@semiont/react-ui';
-import { useEventBus } from '@semiont/react-ui';
-import { useEventSubscriptions } from '@semiont/react-ui';
+// Import EventBus hooks directly from context to avoid mocking issues in tests
+import { useEventBus } from '../../../contexts/EventBusContext';
+import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { useResourceAnnotations } from '@semiont/react-ui';
 import { DetectionFlowContainer } from '../containers/DetectionFlowContainer';
 import { PanelNavigationContainer } from '../containers/PanelNavigationContainer';

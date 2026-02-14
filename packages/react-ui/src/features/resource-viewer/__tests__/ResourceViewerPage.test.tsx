@@ -9,10 +9,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ResourceViewerPage } from '../components/ResourceViewerPage';
 import type { ResourceViewerPageProps } from '../components/ResourceViewerPage';
-import { EventBusProvider } from '@semiont/react-ui';
-// resetEventBusForTesting is exported but may not be in TypeScript index types yet
-import * as ReactUI from '@semiont/react-ui';
-const resetEventBusForTesting = (ReactUI as any).resetEventBusForTesting;
+// Import directly from context file to bypass mocked barrel export
+import { EventBusProvider, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 
 // Mock dependencies that ResourceViewerPage imports
 vi.mock('@tanstack/react-query', async () => {
@@ -48,6 +46,10 @@ vi.mock('@semiont/react-ui', async () => {
     useDebouncedCallback: (fn: any) => fn,
     supportsDetection: () => false,
     MakeMeaningEventBusProvider: ({ children }: any) => children,
+    useResourceLoadingAnnouncements: () => ({
+      announceResourceLoading: vi.fn(),
+      announceResourceLoaded: vi.fn(),
+    }),
     // Don't mock EventBusProvider, useEventBus, resetEventBusForTesting - let actual pass through via ...actual
     useEventSubscriptions: vi.fn(),
     useResourceAnnotations: () => ({
