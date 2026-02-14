@@ -358,7 +358,10 @@ describe('BrowseView Component', () => {
       fireEvent.click(browseContainer!, { target: mockRefTarget });
 
       await waitFor(() => {
-        expect(mockEmit).toHaveBeenCalledWith('annotation:click', { annotationId: 'ref-1' });
+        expect(mockEmit).toHaveBeenCalledWith('annotation:click', {
+          annotationId: 'ref-1',
+          motivation: 'linking'
+        });
       });
 
       mockEmit.mockClear();
@@ -377,10 +380,11 @@ describe('BrowseView Component', () => {
       expect(mockOn).toHaveBeenCalledWith('annotation:hover', expect.any(Function));
     });
 
-    it('should subscribe to annotation-entry:hover event', () => {
+    it('should subscribe to annotation:hover event (legacy test)', () => {
       render(<BrowseView {...defaultProps} />);
 
-      expect(mockOn).toHaveBeenCalledWith('annotation-entry:hover', expect.any(Function));
+      // BrowseView subscribes to annotation:hover (not annotation-entry:hover)
+      expect(mockOn).toHaveBeenCalledWith('annotation:hover', expect.any(Function));
     });
 
     it('should subscribe to annotation:focus event', () => {
