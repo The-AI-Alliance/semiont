@@ -13,6 +13,7 @@ import { TranslationProvider } from './contexts/TranslationContext';
 import { ApiClientProvider } from './contexts/ApiClientContext';
 import { SessionProvider } from './contexts/SessionContext';
 import { OpenResourcesProvider } from './contexts/OpenResourcesContext';
+import { EventBusProvider } from './contexts/EventBusContext';
 import { ToastProvider } from './components/Toast';
 import type { TranslationManager } from './types/TranslationManager';
 import type { ApiClientManager } from './types/ApiClientManager';
@@ -36,9 +37,7 @@ export const defaultMocks = {
     },
   } as TranslationManager,
 
-  apiClientManager: {
-    client: null,
-  } as ApiClientManager,
+  apiClientManager: null as ApiClientManager,
 
   sessionManager: {
     isAuthenticated: false,
@@ -82,7 +81,7 @@ export interface TestProvidersOptions {
  * it('should work with authenticated client', () => {
  *   const mockClient = new SemiontApiClient({ ... });
  *   renderWithProviders(<MyComponent />, {
- *     apiClientManager: { client: mockClient },
+ *     apiClientManager: mockClient,
  *   });
  * });
  * ```
@@ -111,9 +110,11 @@ export function renderWithProviders(
         <ApiClientProvider apiClientManager={apiClientManager}>
           <SessionProvider sessionManager={sessionManager}>
             <OpenResourcesProvider openResourcesManager={openResourcesManager}>
-              <QueryClientProvider client={queryClient}>
-                <ToastProvider>{children}</ToastProvider>
-              </QueryClientProvider>
+              <EventBusProvider>
+                <QueryClientProvider client={queryClient}>
+                  <ToastProvider>{children}</ToastProvider>
+                </QueryClientProvider>
+              </EventBusProvider>
             </OpenResourcesProvider>
           </SessionProvider>
         </ApiClientProvider>

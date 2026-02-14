@@ -33,6 +33,7 @@ export function DetectSection({
   isDetecting,
   detectionProgress,
 }: DetectSectionProps) {
+
   const panelName = annotationType === 'highlight' ? 'HighlightPanel' :
                      annotationType === 'assessment' ? 'AssessmentPanel' :
                      'CommentsPanel';
@@ -103,7 +104,8 @@ export function DetectSection({
           data-detecting={isDetecting && detectionProgress ? 'true' : 'false'}
           data-type={annotationType}
         >
-        {!isDetecting && !detectionProgress && (
+        {/* Show form when NOT detecting and NO progress to display */}
+        {!detectionProgress && (
           <>
             <div className="semiont-form-field">
               <label className="semiont-form-field__label">
@@ -206,8 +208,8 @@ export function DetectSection({
           </>
         )}
 
-        {/* Detection Progress */}
-        {isDetecting && detectionProgress && (
+        {/* Detection Progress - show whenever we have progress (during or after detection) */}
+        {detectionProgress && (
           <div className="semiont-detection-progress" data-type={annotationType}>
             {/* Request Parameters */}
             {detectionProgress.requestParams && detectionProgress.requestParams.length > 0 && (

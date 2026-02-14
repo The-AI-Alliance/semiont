@@ -45,6 +45,7 @@ export function HighlightPanel({
   onScrollCompleted,
   hoveredAnnotationId,
 }: HighlightPanelProps) {
+
   const t = useTranslations('HighlightPanel');
   const eventBus = useEventBus();
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);

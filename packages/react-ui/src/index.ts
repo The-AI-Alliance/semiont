@@ -210,3 +210,7 @@ export * from './features/resource-compose/components/ResourceComposePage';
 export * from './features/resource-discovery/components/ResourceDiscoveryPage';
 export * from './features/resource-discovery/components/ResourceCard';
 export * from './features/resource-viewer/components/ResourceViewerPage';
+export * from './features/resource-viewer/containers/DetectionFlowContainer';
+export * from './features/resource-viewer/containers/PanelNavigationContainer';
+export * from './features/resource-viewer/containers/AnnotationFlowContainer';
+export * from './features/resource-viewer/containers/GenerationFlowContainer';

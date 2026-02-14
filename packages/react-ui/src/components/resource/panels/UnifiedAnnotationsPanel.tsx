@@ -235,7 +235,11 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
 
           const annotations = grouped[activeTab] || [];
           const isDetecting = props.detectingMotivation === annotator.motivation;
-          const detectionProgress = isDetecting ? props.detectionProgress : null;
+          // Pass through detectionProgress even when not actively detecting
+          // This allows final progress message to display after detection completes
+          const detectionProgress = props.detectionProgress;
+
+          console.log('[UnifiedAnnotationsPanel] activeTab:', activeTab, 'annotator.motivation:', annotator.motivation, 'props.detectingMotivation:', props.detectingMotivation, 'isDetecting:', isDetecting, 'detectionProgress:', detectionProgress);
 
           // Common props for all annotation panels
           const commonProps = {

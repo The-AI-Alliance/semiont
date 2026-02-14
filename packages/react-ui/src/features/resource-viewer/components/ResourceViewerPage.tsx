@@ -8,7 +8,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { components, ResourceUri, GenerationContext, Selector } from '@semiont/api-client';
 import { getLanguage, getPrimaryRepresentation, annotationUri, resourceUri, resourceAnnotationUri } from '@semiont/api-client';
-import { createCancelDetectionHandler, ANNOTATORS } from '@semiont/react-ui';
+import { ANNOTATORS } from '@semiont/react-ui';
 import { ErrorBoundary } from '@semiont/react-ui';
 import { useGenerationProgress } from '@semiont/react-ui';
 import { AnnotationHistory } from '@semiont/react-ui';
@@ -23,8 +23,10 @@ import { ResourceViewer } from '@semiont/react-ui';
 import { useEventBus } from '@semiont/react-ui';
 import { useEventSubscriptions } from '@semiont/react-ui';
 import { useResourceAnnotations } from '@semiont/react-ui';
-import { useApiClient } from '@semiont/react-ui';
-import { useEventOperations } from '@semiont/react-ui';
+import { DetectionFlowContainer } from '../containers/DetectionFlowContainer';
+import { PanelNavigationContainer } from '../containers/PanelNavigationContainer';
+import { AnnotationFlowContainer } from '../containers/AnnotationFlowContainer';
+import { GenerationFlowContainer } from '../containers/GenerationFlowContainer';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
@@ -35,8 +37,6 @@ interface PendingAnnotation {
   selector: Selector | Selector[];
   motivation: Motivation;
 }
-
-import type { DetectionProgress } from '@semiont/react-ui';
 
 export interface ResourceViewerPageProps {
   /**
@@ -149,12 +149,6 @@ function ResourceViewerPageInner({
   // Get unified event bus for subscribing to UI events
   const eventBus = useEventBus();
 
-  // Get API client for operations
-  const client = useApiClient();
-
-  // Set up event operation handlers (detection, generation, etc.)
-  useEventOperations(eventBus, { client: client || undefined, resourceUri: rUri });
-
   // Resource loading announcements
   const {
     announceResourceLoading,
@@ -181,48 +175,10 @@ function ResourceViewerPageInner({
     return false;
   });
 
-  // Unified annotation state (motivation-agnostic) - used by sidebar panels
-  const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
-  // focusedAnnotationId removed - now managed internally by each panel via event bus
-  // scrollToAnnotationId removed - ResourceViewer now manages scroll state internally
-
-  // Panel state - managed internally via event bus
-  const [activePanel, setActivePanelInternalRaw] = useState<string | null>(() => {
-    // Load from localStorage if available (for persistence across page reloads)
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('activeToolbarPanel');
-      return saved || null;
-    }
-    return null;
-  });
-
-  // Wrapped setter with logging
-  const setActivePanelInternal = useCallback((value: string | null | ((prev: string | null) => string | null)) => {
-    setActivePanelInternalRaw(value);
-  }, [activePanel]);
-
-  // Unified pending annotation - all human-created annotations flow through this
-  const [pendingAnnotation, setPendingAnnotation] = useState<PendingAnnotation | null>(null);
-
-  // Search state
-  const [searchModalOpen, setSearchModalOpen] = useState(false);
-  const [pendingReferenceId, setPendingReferenceId] = useState<string | null>(null);
-
-  // Generation config modal state
-  const [generationModalOpen, setGenerationModalOpen] = useState(false);
-  const [generationReferenceId, setGenerationReferenceId] = useState<string | null>(null);
-  const [generationDefaultTitle, setGenerationDefaultTitle] = useState('');
-
-  // Unified detection state (motivation-based)
-  const [detectingMotivation, setDetectingMotivation] = useState<Motivation | null>(null);
-  const [motivationDetectionProgress, setMotivationDetectionProgress] = useState<DetectionProgress | null>(null);
-
-  // Panel scroll coordination state
-  const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
-  const [panelInitialTab, setPanelInitialTab] = useState<{ tab: string; generation: number } | null>(null);
-
-  // SSE stream reference for cancellation
-  const detectionStreamRef = React.useRef<any>(null);
+  // All other state now managed by containers:
+  // - hoveredAnnotationId, pendingAnnotation → AnnotationFlowContainer
+  // - activePanel, scrollToAnnotationId, panelInitialTab → PanelNavigationContainer
+  // - generationModalOpen, searchModalOpen, etc → GenerationFlowContainer
 
   // Handle event hover - trigger sparkle animation
   const handleEventHover = useCallback((annotationId: string | null) => {
@@ -272,16 +228,6 @@ function ResourceViewerPageInner({
       showError(`Resource generation failed: ${error}`);
     },
   });
-
-  // Generic cancel handler (works for all detection types)
-  const handleCancelDetection = useCallback(
-    () => createCancelDetectionHandler({
-      detectionStreamRef,
-      setDetectingMotivation,
-      setMotivationDetectionProgress
-    })(),
-    []
-  );
 
   // Handle document generation from stub reference
   const handleGenerateDocument = useCallback((
@@ -496,10 +442,8 @@ function ResourceViewerPageInner({
         localStorage.removeItem('activeToolbarPanel');
       }
     },
-    'job:cancel-requested': ({ jobType }: { jobType: 'detection' | 'generation' }) => {
-      if (jobType === 'detection') {
-        handleCancelDetection();
-      }
+    // Detection cancellation now handled by DetectionFlowContainer
+    'job:cancel-requested': () => {
       // Generation cancellation can be added here when needed
     },
     'reference:search-modal-open': ({ referenceId }: { referenceId: string; searchTerm: string }) => {
@@ -521,25 +465,8 @@ function ResourceViewerPageInner({
         eventBus.emit('navigation:router-push', { path, reason: 'entity-type-filter' });
       }
     },
-    // Detection progress events (from useEventOperations SSE streams)
-    'detection:start': ({ motivation }: { motivation: Motivation }) => {
-      setDetectingMotivation(motivation);
-      setMotivationDetectionProgress(null); // Clear previous progress
-    },
-    'detection:progress': (chunk: any) => {
-      // Pass through raw SSE chunk to state (minimal transformation)
-      // Always set progress - detectingMotivation state is managed separately
-      setMotivationDetectionProgress(chunk);
-    },
-    'detection:complete': ({ motivation }: { motivation?: Motivation }) => {
-      if (motivation === detectingMotivation) {
-        setDetectingMotivation(null);
-        setMotivationDetectionProgress(null);
-      }
-    },
+    // Detection events now handled by DetectionFlowContainer
     'detection:failed': (payload: any) => {
-      setDetectingMotivation(null);
-      setMotivationDetectionProgress(null);
       const errorMessage = payload?.error?.message || payload?.message || 'Detection failed';
       showError(errorMessage);
     },
@@ -650,26 +577,30 @@ function ResourceViewerPageInner({
 
             {/* Unified Annotations Panel */}
             {activePanel === 'annotations' && !resource.archived && (
-              <UnifiedAnnotationsPanel
-                annotations={annotations}
-                annotators={ANNOTATORS}
-                annotateMode={annotateMode}
-                detectingMotivation={detectingMotivation}
-                detectionProgress={motivationDetectionProgress}
-                pendingAnnotation={pendingAnnotation}
-                allEntityTypes={allEntityTypes}
-                generatingReferenceId={generationProgress?.referenceId ?? null}
-                referencedBy={referencedBy}
-                referencedByLoading={referencedByLoading}
-                resourceId={rUri.split('/').pop() || ''}
-                scrollToAnnotationId={scrollToAnnotationId}
-                hoveredAnnotationId={hoveredAnnotationId}
-                onScrollCompleted={handleScrollCompleted}
-                initialTab={panelInitialTab?.tab as any}
-                initialTabGeneration={panelInitialTab?.generation}
-                Link={Link}
-                routes={routes}
-              />
+              <DetectionFlowContainer rUri={rUri}>
+                {({ detectingMotivation, detectionProgress }) => (
+                  <UnifiedAnnotationsPanel
+                    annotations={annotations}
+                    annotators={ANNOTATORS}
+                    annotateMode={annotateMode}
+                    detectingMotivation={detectingMotivation}
+                    detectionProgress={detectionProgress}
+                    pendingAnnotation={pendingAnnotation}
+                    allEntityTypes={allEntityTypes}
+                    generatingReferenceId={generationProgress?.referenceId ?? null}
+                    referencedBy={referencedBy}
+                    referencedByLoading={referencedByLoading}
+                    resourceId={rUri.split('/').pop() || ''}
+                    scrollToAnnotationId={scrollToAnnotationId}
+                    hoveredAnnotationId={hoveredAnnotationId}
+                    onScrollCompleted={handleScrollCompleted}
+                    initialTab={panelInitialTab?.tab as any}
+                    initialTabGeneration={panelInitialTab?.generation}
+                    Link={Link}
+                    routes={routes}
+                  />
+                )}
+              </DetectionFlowContainer>
             )}
 
             {/* History Panel */}

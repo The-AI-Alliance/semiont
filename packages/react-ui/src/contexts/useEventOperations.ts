@@ -29,11 +29,20 @@ export function useEventOperations(
   const detectionStreamRef = useRef<AbortController | null>(null);
   const generationStreamRef = useRef<AbortController | null>(null);
 
+  // Store latest config in ref to avoid re-subscribing when client/resourceUri change
+  const configRef = useRef(config);
+  useEffect(() => {
+    configRef.current = config;
+  });
+
   useEffect(() => {
     // Guard: Only set up subscriptions if we have required dependencies
     if (!client || !resourceUri) {
       return;
     }
+
+    // Get current config from ref (always latest)
+    const getCurrentConfig = () => configRef.current;
 
     // ========================================================================
     // ANNOTATION OPERATIONS
@@ -48,8 +57,11 @@ export function useEventOperations(
       selector: Selector | Selector[];
       body: any[];
     }) => {
+      const { client: currentClient, resourceUri: currentResourceUri } = getCurrentConfig();
+      if (!currentClient || !currentResourceUri) return;
+
       try {
-        const result = await client.createAnnotation(resourceUri, {
+        const result = await currentClient.createAnnotation(currentResourceUri, {
           motivation: event.motivation,
           target: {
             source: resourceUri,
@@ -140,7 +152,9 @@ export function useEventOperations(
     }) => {
       try {
         // Cancel any existing detection
-        detectionStreamRef.current?.abort();
+        if (detectionStreamRef.current) {
+          detectionStreamRef.current.abort();
+        }
         detectionStreamRef.current = new AbortController();
 
         // Different detection endpoints based on motivation
@@ -225,7 +239,7 @@ export function useEventOperations(
           });
 
           stream.onError((error) => {
-            console.error('Detection failed:', error);
+            console.error('[useEventOperations] Assessment detection error:', error);
             emitter.emit('detection:failed', { error: error as Error } as any);
           });
         } else if (event.motivation === 'commenting') {
@@ -392,7 +406,7 @@ export function useEventOperations(
       detectionStreamRef.current?.abort();
       generationStreamRef.current?.abort();
     };
-  }, [emitter, client, resourceUri]);
+  }, [emitter]); // Only re-run if emitter changes (it shouldn't)
 }
 
 /**

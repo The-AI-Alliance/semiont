@@ -1,13 +1,9 @@
 import type { SemiontApiClient } from '@semiont/api-client';
 
 /**
- * API client management interface
- * Apps implement this to provide API client instances based on authentication state
+ * API client management type
+ * Apps implement hooks that return API client instances based on authentication state
+ *
+ * Returns null when user is not authenticated or session is invalid
  */
-export interface ApiClientManager {
-  /**
-   * API client instance
-   * null when user is not authenticated or session is invalid
-   */
-  client: SemiontApiClient | null;
-}
+export type ApiClientManager = SemiontApiClient | null;
