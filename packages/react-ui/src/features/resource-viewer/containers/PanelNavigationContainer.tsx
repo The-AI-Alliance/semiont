@@ -14,7 +14,6 @@
  */
 
 import { useState, useCallback, useEffect } from 'react';
-import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 
 export interface PanelNavigationState {
@@ -47,7 +46,6 @@ export interface PanelNavigationContainerProps {
 export function PanelNavigationContainer({
   children,
 }: PanelNavigationContainerProps) {
-  const eventBus = useEventBus();
 
   // Panel state - load from localStorage, default closed
   const [activePanel, setActivePanel] = useState<string | null>(() => {

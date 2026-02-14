@@ -14,10 +14,9 @@
  */
 
 import { useState, useCallback } from 'react';
-import type { ResourceUri, GenerationContext } from '@semiont/api-client';
+import type { ResourceUri, GenerationContext, AnnotationUri } from '@semiont/api-client';
 import { annotationUri, resourceUri } from '@semiont/api-client';
 import { useGenerationProgress } from '../../../hooks/useGenerationProgress';
-import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 
 export interface GenerationFlowState {
@@ -46,7 +45,7 @@ export interface GenerationFlowContainerProps {
   showSuccess: (message: string) => void;
   showError: (message: string) => void;
   cacheManager: any;
-  clearNewAnnotationId: (annotationId: string) => void;
+  clearNewAnnotationId: (annotationId: AnnotationUri) => void;
   children: (state: GenerationFlowState) => React.ReactNode;
 }
 
@@ -66,7 +65,6 @@ export interface GenerationFlowContainerProps {
  * ```
  */
 export function GenerationFlowContainer({
-  rUri,
   locale,
   resourceId,
   showSuccess,
@@ -75,7 +73,6 @@ export function GenerationFlowContainer({
   clearNewAnnotationId,
   children,
 }: GenerationFlowContainerProps) {
-  const eventBus = useEventBus();
 
   // Generation progress state (from hook)
   const {

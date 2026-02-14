@@ -14,7 +14,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import type { Selector, Motivation } from '@semiont/api-client';
+import type { Selector, Motivation, ResourceUri } from '@semiont/api-client';
 import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 
@@ -30,7 +30,8 @@ export interface AnnotationFlowState {
 }
 
 export interface AnnotationFlowContainerProps {
-  onDeleteAnnotation: (annotationId: string) => Promise<void>;
+  onDeleteAnnotation: (annotationId: string, rUri: ResourceUri) => Promise<void>;
+  rUri: ResourceUri;
   children: (state: AnnotationFlowState) => React.ReactNode;
 }
 
@@ -51,6 +52,7 @@ export interface AnnotationFlowContainerProps {
  */
 export function AnnotationFlowContainer({
   onDeleteAnnotation,
+  rUri,
   children,
 }: AnnotationFlowContainerProps) {
   const eventBus = useEventBus();
@@ -173,7 +175,7 @@ export function AnnotationFlowContainer({
       // Click scroll handled by ResourceViewer internally
     },
     'annotation:delete': async ({ annotationId }: { annotationId: string }) => {
-      await onDeleteAnnotation(annotationId);
+      await onDeleteAnnotation(annotationId, rUri);
     },
   });
 
