@@ -12,7 +12,7 @@
  * 3. Enable render props pattern for flexible composition
  */
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import type { Motivation, ResourceUri } from '@semiont/api-client';
 import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
@@ -62,27 +62,36 @@ export function DetectionFlowContainer({
   // Set up event operation handlers (detection, generation, etc.)
   useEventOperations(eventBus, { client: client || undefined, resourceUri: rUri });
 
+  // Event handlers extracted from useEventSubscriptions
+  const handleDetectionStart = useCallback(({ motivation }: { motivation: Motivation }) => {
+    setDetectingMotivation(motivation);
+    setDetectionProgress(null); // Clear previous progress
+  }, []);
+
+  const handleDetectionProgress = useCallback((chunk: any) => {
+    setDetectionProgress(chunk);
+  }, []);
+
+  const handleDetectionComplete = useCallback(({ motivation }: { motivation?: Motivation }) => {
+    // Keep progress visible with final message - only clear detecting flag
+    if (motivation === detectingMotivation) {
+      setDetectingMotivation(null);
+      // Don't clear detectionProgress - let final message display
+    }
+  }, [detectingMotivation]);
+
+  const handleDetectionFailed = useCallback(() => {
+    setDetectingMotivation(null);
+    // Just clear progress on error - error display handled by ResourceViewerPage
+    setDetectionProgress(null);
+  }, []);
+
   // Subscribe to detection events
   useEventSubscriptions({
-    'detection:start': ({ motivation }: { motivation: Motivation }) => {
-      setDetectingMotivation(motivation);
-      setDetectionProgress(null); // Clear previous progress
-    },
-    'detection:progress': (chunk: any) => {
-      setDetectionProgress(chunk);
-    },
-    'detection:complete': ({ motivation }: { motivation?: Motivation }) => {
-      // Keep progress visible with final message - only clear detecting flag
-      if (motivation === detectingMotivation) {
-        setDetectingMotivation(null);
-        // Don't clear detectionProgress - let final message display
-      }
-    },
-    'detection:failed': () => {
-      setDetectingMotivation(null);
-      // Just clear progress on error - error display handled by ResourceViewerPage
-      setDetectionProgress(null);
-    },
+    'detection:start': handleDetectionStart,
+    'detection:progress': handleDetectionProgress,
+    'detection:complete': handleDetectionComplete,
+    'detection:failed': handleDetectionFailed,
   });
 
   return <>{children({ detectingMotivation, detectionProgress, detectionStreamRef })}</>;

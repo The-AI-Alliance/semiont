@@ -124,31 +124,46 @@ export function GenerationFlowContainer({
     });
   }, [startGeneration, resourceId, clearNewAnnotationId, locale]);
 
+  // Event handlers extracted from useEventSubscriptions
+  const handleGenerationComplete = useCallback(({ progress }: { progress: any }) => {
+    // Show success notification
+    if (progress.resourceName) {
+      showSuccess(`Resource "${progress.resourceName}" created successfully!`);
+    } else {
+      showSuccess('Resource created successfully!');
+    }
+
+    // Refetch annotations to show the reference is now resolved
+    if (cacheManager) {
+      cacheManager.invalidate('annotations');
+    }
+
+    // Clear progress widget after a delay to show completion state
+    setTimeout(() => clearProgress(), 2000);
+  }, [showSuccess, cacheManager, clearProgress]);
+
+  const handleGenerationError = useCallback(({ error }: { error: string }) => {
+    showError(`Resource generation failed: ${error}`);
+  }, [showError]);
+
+  const handleSearchModalOpen = useCallback(({ referenceId }: { referenceId: string }) => {
+    setPendingReferenceId(referenceId);
+    setSearchModalOpen(true);
+  }, []);
+
+  const handleCloseGenerationModal = useCallback(() => {
+    setGenerationModalOpen(false);
+  }, []);
+
+  const handleCloseSearchModal = useCallback(() => {
+    setSearchModalOpen(false);
+  }, []);
+
   // Subscribe to generation events
   useEventSubscriptions({
-    'generation:complete-event': ({ progress }: { progress: any }) => {
-      // Show success notification
-      if (progress.resourceName) {
-        showSuccess(`Resource "${progress.resourceName}" created successfully!`);
-      } else {
-        showSuccess('Resource created successfully!');
-      }
-
-      // Refetch annotations to show the reference is now resolved
-      if (cacheManager) {
-        cacheManager.invalidate('annotations');
-      }
-
-      // Clear progress widget after a delay to show completion state
-      setTimeout(() => clearProgress(), 2000);
-    },
-    'generation:error-event': ({ error }: { error: string }) => {
-      showError(`Resource generation failed: ${error}`);
-    },
-    'reference:search-modal-open': ({ referenceId }: { referenceId: string }) => {
-      setPendingReferenceId(referenceId);
-      setSearchModalOpen(true);
-    },
+    'generation:complete-event': handleGenerationComplete,
+    'generation:error-event': handleGenerationError,
+    'reference:search-modal-open': handleSearchModalOpen,
   });
 
   return <>{children({
@@ -159,7 +174,7 @@ export function GenerationFlowContainer({
     searchModalOpen,
     pendingReferenceId,
     onGenerateDocument: handleGenerateDocument,
-    onCloseGenerationModal: () => setGenerationModalOpen(false),
-    onCloseSearchModal: () => setSearchModalOpen(false),
+    onCloseGenerationModal: handleCloseGenerationModal,
+    onCloseSearchModal: handleCloseSearchModal,
   })}</>;
 }

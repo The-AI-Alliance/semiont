@@ -12,13 +12,17 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import React from 'react';
+import { screen } from '@testing-library/react';
+import { renderWithProviders } from '../../../../test-utils';
 import { HighlightPanel } from '../HighlightPanel';
 import type { components } from '@semiont/api-client';
+import { resetEventBusForTesting } from '../../../../contexts/EventBusContext';
 
 type Annotation = components['schemas']['Annotation'];
 
-// Mock translations
+// Mock translations - simulates useTranslations('HighlightPanel')
+// The mock receives keys like 'title', 'noHighlights', etc. and returns translated strings
 const mockT = vi.fn((key: string) => {
   const translations: Record<string, string> = {
     title: 'Highlights',
@@ -35,25 +39,12 @@ const mockT = vi.fn((key: string) => {
   return translations[key] || key;
 });
 
-// Mock EventBus
-const mockEmit = vi.fn();
-const mockOn = vi.fn();
-const mockOff = vi.fn();
-const mockEventBus = {
-  emit: mockEmit,
-  on: mockOn,
-  off: mockOff,
-};
-
-vi.mock('../../../contexts/TranslationContext', () => ({
+vi.mock('../../../../contexts/TranslationContext', () => ({
   useTranslations: () => mockT,
+  TranslationProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-vi.mock('../../../contexts/EventBusContext', () => ({
-  useEventBus: () => mockEventBus,
-}));
-
-vi.mock('../../../contexts/useEventSubscription', () => ({
+vi.mock('../../../../contexts/useEventSubscription', () => ({
   useEventSubscriptions: vi.fn(),
 }));
 
@@ -62,6 +53,7 @@ describe('HighlightPanel + DetectSection Integration', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    resetEventBusForTesting();
 
     mockAnnotations = [
       {
@@ -83,7 +75,7 @@ describe('HighlightPanel + DetectSection Integration', () => {
 
   describe('Detection Progress Prop Passing', () => {
     it('should pass detectionProgress to DetectSection when provided', () => {
-      render(
+      renderWithProviders(
         <HighlightPanel
           annotations={mockAnnotations}
           pendingAnnotation={null}
@@ -102,7 +94,7 @@ describe('HighlightPanel + DetectSection Integration', () => {
     });
 
     it('should pass null detectionProgress to DetectSection', () => {
-      render(
+      renderWithProviders(
         <HighlightPanel
           annotations={mockAnnotations}
           pendingAnnotation={null}
@@ -114,11 +106,11 @@ describe('HighlightPanel + DetectSection Integration', () => {
 
       // Form should be visible (meaning detectionProgress was null)
       expect(screen.getByPlaceholderText('Enter custom instructions...')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /Detect/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /✨ Detect/ })).toBeInTheDocument();
     });
 
     it('should pass undefined detectionProgress to DetectSection', () => {
-      render(
+      renderWithProviders(
         <HighlightPanel
           annotations={mockAnnotations}
           pendingAnnotation={null}
@@ -130,11 +122,11 @@ describe('HighlightPanel + DetectSection Integration', () => {
 
       // Form should be visible (meaning detectionProgress was undefined)
       expect(screen.getByPlaceholderText('Enter custom instructions...')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /Detect/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /✨ Detect/ })).toBeInTheDocument();
     });
 
     it('should keep progress visible after detection completes (isDetecting=false)', () => {
-      render(
+      renderWithProviders(
         <HighlightPanel
           annotations={mockAnnotations}
           pendingAnnotation={null}
@@ -155,7 +147,7 @@ describe('HighlightPanel + DetectSection Integration', () => {
     });
 
     it('should pass progress with request parameters to DetectSection', () => {
-      render(
+      renderWithProviders(
         <HighlightPanel
           annotations={mockAnnotations}
           pendingAnnotation={null}
@@ -180,7 +172,7 @@ describe('HighlightPanel + DetectSection Integration', () => {
 
   describe('Annotate Mode Toggling', () => {
     it('should render DetectSection when annotateMode is true', () => {
-      render(
+      renderWithProviders(
         <HighlightPanel
           annotations={mockAnnotations}
           pendingAnnotation={null}
@@ -194,7 +186,7 @@ describe('HighlightPanel + DetectSection Integration', () => {
     });
 
     it('should NOT render DetectSection when annotateMode is false', () => {
-      render(
+      renderWithProviders(
         <HighlightPanel
           annotations={mockAnnotations}
           pendingAnnotation={null}
@@ -208,7 +200,7 @@ describe('HighlightPanel + DetectSection Integration', () => {
     });
 
     it('should hide progress when switching to browse mode (annotateMode=false)', () => {
-      const { rerender } = render(
+      const { rerender } = renderWithProviders(
         <HighlightPanel
           annotations={mockAnnotations}
           pendingAnnotation={null}
@@ -244,7 +236,7 @@ describe('HighlightPanel + DetectSection Integration', () => {
 
   describe('State Combinations', () => {
     it('should handle isDetecting=true with no progress (starting state)', () => {
-      render(
+      renderWithProviders(
         <HighlightPanel
           annotations={mockAnnotations}
           pendingAnnotation={null}
@@ -259,7 +251,7 @@ describe('HighlightPanel + DetectSection Integration', () => {
     });
 
     it('should handle isDetecting=false with progress (final state)', () => {
-      render(
+      renderWithProviders(
         <HighlightPanel
           annotations={mockAnnotations}
           pendingAnnotation={null}
@@ -279,7 +271,7 @@ describe('HighlightPanel + DetectSection Integration', () => {
     });
 
     it('should handle multiple progress updates', () => {
-      const { rerender } = render(
+      const { rerender } = renderWithProviders(
         <HighlightPanel
           annotations={mockAnnotations}
           pendingAnnotation={null}
@@ -335,7 +327,7 @@ describe('HighlightPanel + DetectSection Integration', () => {
 
   describe('Highlights List Rendering', () => {
     it('should render highlights list alongside detection progress', () => {
-      render(
+      renderWithProviders(
         <HighlightPanel
           annotations={mockAnnotations}
           pendingAnnotation={null}
@@ -354,7 +346,7 @@ describe('HighlightPanel + DetectSection Integration', () => {
     });
 
     it('should show empty state when no highlights', () => {
-      render(
+      renderWithProviders(
         <HighlightPanel
           annotations={[]}
           pendingAnnotation={null}

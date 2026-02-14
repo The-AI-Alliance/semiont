@@ -13,7 +13,7 @@ import { TranslationProvider } from './contexts/TranslationContext';
 import { ApiClientProvider } from './contexts/ApiClientContext';
 import { SessionProvider } from './contexts/SessionContext';
 import { OpenResourcesProvider } from './contexts/OpenResourcesContext';
-import { EventBusProvider } from './contexts/EventBusContext';
+import { EventBusProvider, useEventBus, resetEventBusForTesting, type EventBus } from './contexts/EventBusContext';
 import { ToastProvider } from './components/Toast';
 import type { TranslationManager } from './types/TranslationManager';
 import type { ApiClientManager } from './types/ApiClientManager';
@@ -86,15 +86,42 @@ export interface TestProvidersOptions {
  * });
  * ```
  */
+export interface RenderWithProvidersOptions extends TestProvidersOptions, Omit<RenderOptions, 'wrapper'> {
+  /** If true, returns the event bus instance along with render result */
+  returnEventBus?: boolean;
+}
+
+export interface RenderWithProvidersResult extends RenderResult {
+  eventBus?: EventBus;
+}
+
+/**
+ * Wrapper component that captures the event bus instance
+ */
+function EventBusCapture({
+  children,
+  onEventBus
+}: {
+  children: React.ReactNode;
+  onEventBus?: (bus: EventBus) => void
+}) {
+  const eventBus = useEventBus();
+  React.useEffect(() => {
+    onEventBus?.(eventBus);
+  }, [eventBus, onEventBus]);
+  return <>{children}</>;
+}
+
 export function renderWithProviders(
   ui: ReactElement,
-  options?: TestProvidersOptions & Omit<RenderOptions, 'wrapper'>
-): RenderResult {
+  options?: RenderWithProvidersOptions
+): RenderWithProvidersResult {
   const {
     translationManager = defaultMocks.translationManager,
     apiClientManager = defaultMocks.apiClientManager,
     sessionManager = defaultMocks.sessionManager,
     openResourcesManager = defaultMocks.openResourcesManager,
+    returnEventBus = false,
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -104,6 +131,8 @@ export function renderWithProviders(
     ...renderOptions
   } = options || {};
 
+  let capturedEventBus: EventBus | undefined;
+
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
       <TranslationProvider translationManager={translationManager}>
@@ -112,7 +141,15 @@ export function renderWithProviders(
             <OpenResourcesProvider openResourcesManager={openResourcesManager}>
               <EventBusProvider>
                 <QueryClientProvider client={queryClient}>
-                  <ToastProvider>{children}</ToastProvider>
+                  <ToastProvider>
+                    {returnEventBus ? (
+                      <EventBusCapture onEventBus={(bus) => { capturedEventBus = bus; }}>
+                        {children}
+                      </EventBusCapture>
+                    ) : (
+                      children
+                    )}
+                  </ToastProvider>
                 </QueryClientProvider>
               </EventBusProvider>
             </OpenResourcesProvider>
@@ -122,8 +159,22 @@ export function renderWithProviders(
     );
   }
 
-  return render(ui, { wrapper: Wrapper, ...renderOptions });
+  const result = render(ui, { wrapper: Wrapper, ...renderOptions });
+
+  if (returnEventBus) {
+    return { ...result, eventBus: capturedEventBus };
+  }
+
+  return result;
 }
+
+/**
+ * Re-export resetEventBusForTesting for test isolation
+ *
+ * Call this in beforeEach to ensure each test gets a fresh event bus
+ * with no lingering subscriptions from previous tests.
+ */
+export { resetEventBusForTesting };
 
 /**
  * Create a mock translation manager with custom translations

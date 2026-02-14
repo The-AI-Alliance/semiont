@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, forwardRef } from 'react';
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText, getCommentText } from '@semiont/api-client';
@@ -46,9 +46,23 @@ export const CommentEntry = forwardRef<HTMLDivElement, CommentEntryProps>(
   const eventBus = useEventBus();
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState('');
+  const internalRef = useRef<HTMLDivElement>(null);
+
+  // Combine external ref with internal ref
+  useImperativeHandle(ref, () => internalRef.current!);
 
   const commentText = getCommentText(comment) || '';
   const selectedText = getAnnotationExactText(comment);
+
+  // Scroll into view when focused
+  useEffect(() => {
+    if (isFocused && internalRef.current) {
+      internalRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+  }, [isFocused]);
 
   const handleEditClick = () => {
     setEditText(commentText);
@@ -67,7 +81,7 @@ export const CommentEntry = forwardRef<HTMLDivElement, CommentEntryProps>(
 
   return (
     <div
-      ref={ref}
+      ref={internalRef}
       className={`semiont-annotation-entry${isHovered ? ' semiont-annotation-pulse' : ''}`}
       data-type="comment"
       data-focused={isFocused ? 'true' : 'false'}

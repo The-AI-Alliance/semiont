@@ -12,9 +12,13 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import React from 'react';
+import { screen } from '@testing-library/react';
+import { renderWithProviders } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
 import { DetectSection } from '../DetectSection';
+import { resetEventBusForTesting } from '../../../../contexts/EventBusContext';
+import type { EventBus } from '../../../../contexts/EventBusContext';
 
 // Mock translations
 const mockT = vi.fn((key: string) => {
@@ -43,25 +47,15 @@ const mockT = vi.fn((key: string) => {
   return translations[key] || key;
 });
 
-// Mock EventBus
-const mockEmit = vi.fn();
-const mockEventBus = {
-  emit: mockEmit,
-  on: vi.fn(),
-  off: vi.fn(),
-};
-
 vi.mock('../../../../contexts/TranslationContext', () => ({
   useTranslations: () => mockT,
-}));
-
-vi.mock('../../../../contexts/EventBusContext', () => ({
-  useEventBus: () => mockEventBus,
+  TranslationProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 describe('DetectSection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetEventBusForTesting();
     // Clear localStorage
     if (typeof window !== 'undefined') {
       localStorage.clear();
@@ -70,7 +64,7 @@ describe('DetectSection', () => {
 
   describe('Progress Display', () => {
     it('should render progress message when detectionProgress prop provided', () => {
-      render(
+      renderWithProviders(
         <DetectSection
           annotationType="highlight"
           isDetecting={true}
@@ -86,7 +80,7 @@ describe('DetectSection', () => {
     });
 
     it('should render progress message with sparkle icon', () => {
-      render(
+      renderWithProviders(
         <DetectSection
           annotationType="highlight"
           isDetecting={true}
@@ -104,7 +98,7 @@ describe('DetectSection', () => {
     });
 
     it('should render request parameters when provided', () => {
-      render(
+      renderWithProviders(
         <DetectSection
           annotationType="highlight"
           isDetecting={true}
@@ -127,7 +121,7 @@ describe('DetectSection', () => {
     });
 
     it('should hide form when detectionProgress is present', () => {
-      render(
+      renderWithProviders(
         <DetectSection
           annotationType="highlight"
           isDetecting={true}
@@ -140,11 +134,11 @@ describe('DetectSection', () => {
 
       // Form should not be visible
       expect(screen.queryByPlaceholderText('Enter custom instructions...')).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /Detect/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /✨ Detect/ })).not.toBeInTheDocument();
     });
 
     it('should show form when detectionProgress is null', () => {
-      render(
+      renderWithProviders(
         <DetectSection
           annotationType="highlight"
           isDetecting={false}
@@ -154,11 +148,11 @@ describe('DetectSection', () => {
 
       // Form should be visible
       expect(screen.getByPlaceholderText('Enter custom instructions...')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /Detect/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /✨ Detect/ })).toBeInTheDocument();
     });
 
     it('should show form when detectionProgress is undefined', () => {
-      render(
+      renderWithProviders(
         <DetectSection
           annotationType="highlight"
           isDetecting={false}
@@ -168,11 +162,11 @@ describe('DetectSection', () => {
 
       // Form should be visible
       expect(screen.getByPlaceholderText('Enter custom instructions...')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /Detect/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /✨ Detect/ })).toBeInTheDocument();
     });
 
     it('should keep progress visible after detection completes (isDetecting=false but progress exists)', () => {
-      render(
+      renderWithProviders(
         <DetectSection
           annotationType="highlight"
           isDetecting={false}
@@ -193,7 +187,7 @@ describe('DetectSection', () => {
 
   describe('Annotation Type Variations', () => {
     it('should render for highlight type', () => {
-      render(
+      renderWithProviders(
         <DetectSection
           annotationType="highlight"
           isDetecting={false}
@@ -205,7 +199,7 @@ describe('DetectSection', () => {
     });
 
     it('should render for assessment type', () => {
-      render(
+      renderWithProviders(
         <DetectSection
           annotationType="assessment"
           isDetecting={false}
@@ -217,7 +211,7 @@ describe('DetectSection', () => {
     });
 
     it('should render for comment type', () => {
-      render(
+      renderWithProviders(
         <DetectSection
           annotationType="comment"
           isDetecting={false}
@@ -229,7 +223,7 @@ describe('DetectSection', () => {
     });
 
     it('should show tone selector for comments', () => {
-      render(
+      renderWithProviders(
         <DetectSection
           annotationType="comment"
           isDetecting={false}
@@ -242,7 +236,7 @@ describe('DetectSection', () => {
     });
 
     it('should show tone selector for assessments', () => {
-      render(
+      renderWithProviders(
         <DetectSection
           annotationType="assessment"
           isDetecting={false}
@@ -255,7 +249,7 @@ describe('DetectSection', () => {
     });
 
     it('should not show tone selector for highlights', () => {
-      render(
+      renderWithProviders(
         <DetectSection
           annotationType="highlight"
           isDetecting={false}
@@ -271,94 +265,118 @@ describe('DetectSection', () => {
   describe('Event Emission', () => {
     it('should emit detection:start event when detect button clicked', async () => {
       const user = userEvent.setup();
+      const detectionHandler = vi.fn();
 
-      render(
+      const { eventBus } = renderWithProviders(
         <DetectSection
           annotationType="highlight"
           isDetecting={false}
           detectionProgress={null}
-        />
+        />,
+        { returnEventBus: true }
       );
 
-      const detectButton = screen.getByRole('button', { name: /Detect/ });
+      eventBus!.on('detection:start', detectionHandler);
+
+      const detectButton = screen.getByRole('button', { name: /✨ Detect/ });
       await user.click(detectButton);
 
-      expect(mockEmit).toHaveBeenCalledWith('detection:start', {
+      expect(detectionHandler).toHaveBeenCalledWith({
         motivation: 'highlighting',
         options: expect.any(Object),
       });
+
+      eventBus!.off('detection:start', detectionHandler);
     });
 
     it('should emit correct motivation for assessment type', async () => {
       const user = userEvent.setup();
+      const detectionHandler = vi.fn();
 
-      render(
+      const { eventBus } = renderWithProviders(
         <DetectSection
           annotationType="assessment"
           isDetecting={false}
           detectionProgress={null}
-        />
+        />,
+        { returnEventBus: true }
       );
 
-      const detectButton = screen.getByRole('button', { name: /Detect/ });
+      eventBus!.on('detection:start', detectionHandler);
+
+      const detectButton = screen.getByRole('button', { name: /✨ Detect/ });
       await user.click(detectButton);
 
-      expect(mockEmit).toHaveBeenCalledWith('detection:start', {
+      expect(detectionHandler).toHaveBeenCalledWith({
         motivation: 'assessing',
         options: expect.any(Object),
       });
+
+      eventBus!.off('detection:start', detectionHandler);
     });
 
     it('should emit correct motivation for comment type', async () => {
       const user = userEvent.setup();
+      const detectionHandler = vi.fn();
 
-      render(
+      const { eventBus } = renderWithProviders(
         <DetectSection
           annotationType="comment"
           isDetecting={false}
           detectionProgress={null}
-        />
+        />,
+        { returnEventBus: true }
       );
 
-      const detectButton = screen.getByRole('button', { name: /Detect/ });
+      eventBus!.on('detection:start', detectionHandler);
+
+      const detectButton = screen.getByRole('button', { name: /✨ Detect/ });
       await user.click(detectButton);
 
-      expect(mockEmit).toHaveBeenCalledWith('detection:start', {
+      expect(detectionHandler).toHaveBeenCalledWith({
         motivation: 'commenting',
         options: expect.any(Object),
       });
+
+      eventBus!.off('detection:start', detectionHandler);
     });
 
     it('should include instructions in event when provided', async () => {
       const user = userEvent.setup();
+      const detectionHandler = vi.fn();
 
-      render(
+      const { eventBus } = renderWithProviders(
         <DetectSection
           annotationType="highlight"
           isDetecting={false}
           detectionProgress={null}
-        />
+        />,
+        { returnEventBus: true }
       );
+
+      eventBus!.on('detection:start', detectionHandler);
 
       const textarea = screen.getByPlaceholderText('Enter custom instructions...');
       await user.type(textarea, 'Find key concepts');
 
-      const detectButton = screen.getByRole('button', { name: /Detect/ });
+      const detectButton = screen.getByRole('button', { name: /✨ Detect/ });
       await user.click(detectButton);
 
-      expect(mockEmit).toHaveBeenCalledWith('detection:start', {
+      expect(detectionHandler).toHaveBeenCalledWith({
         motivation: 'highlighting',
         options: {
           instructions: 'Find key concepts',
           density: expect.any(Number),
         },
       });
+
+      eventBus!.off('detection:start', detectionHandler);
     });
   });
 
   describe('Collapsible Behavior', () => {
     it('should be expanded by default', () => {
-      render(
+      renderWithProviders(
         <DetectSection
           annotationType="highlight"
           isDetecting={false}
@@ -374,7 +392,7 @@ describe('DetectSection', () => {
     it('should collapse when title clicked', async () => {
       const user = userEvent.setup();
 
-      render(
+      renderWithProviders(
         <DetectSection
           annotationType="highlight"
           isDetecting={false}
@@ -392,7 +410,7 @@ describe('DetectSection', () => {
     it('should expand when title clicked again', async () => {
       const user = userEvent.setup();
 
-      render(
+      renderWithProviders(
         <DetectSection
           annotationType="highlight"
           isDetecting={false}
@@ -411,7 +429,7 @@ describe('DetectSection', () => {
 
   describe('Edge Cases', () => {
     it('should handle empty progress message', () => {
-      render(
+      renderWithProviders(
         <DetectSection
           annotationType="highlight"
           isDetecting={true}
@@ -428,7 +446,7 @@ describe('DetectSection', () => {
     });
 
     it('should handle progress without percentage', () => {
-      render(
+      renderWithProviders(
         <DetectSection
           annotationType="highlight"
           isDetecting={true}
@@ -444,7 +462,7 @@ describe('DetectSection', () => {
     });
 
     it('should handle progress with empty requestParams array', () => {
-      render(
+      renderWithProviders(
         <DetectSection
           annotationType="highlight"
           isDetecting={true}

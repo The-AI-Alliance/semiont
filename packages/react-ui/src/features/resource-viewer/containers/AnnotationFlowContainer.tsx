@@ -13,7 +13,7 @@
  * 3. Separates annotation business logic from UI
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import type { Selector, Motivation, ResourceUri } from '@semiont/api-client';
 import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
@@ -57,6 +57,12 @@ export function AnnotationFlowContainer({
 }: AnnotationFlowContainerProps) {
   const eventBus = useEventBus();
 
+  // Store callback prop in ref to avoid including in dependency arrays
+  const onDeleteAnnotationRef = useRef(onDeleteAnnotation);
+  useEffect(() => {
+    onDeleteAnnotationRef.current = onDeleteAnnotation;
+  });
+
   // Annotation state
   const [pendingAnnotation, setPendingAnnotation] = useState<PendingAnnotation | null>(null);
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
@@ -83,7 +89,7 @@ export function AnnotationFlowContainer({
     // Emit event to open the appropriate panel
     eventBus.emit('panel:open', { panel: MOTIVATION_TO_TAB[pending.motivation] || 'annotations' });
     setPendingAnnotation(pending);
-  }, [eventBus]);
+  }, []); // eventBus is stable singleton - never in deps
 
   // Convert selection to selector helper
   const selectionToSelector = useCallback((selection: any): Selector | Selector[] => {
@@ -129,54 +135,66 @@ export function AnnotationFlowContainer({
     };
   }, []);
 
+  // Event handlers extracted from useEventSubscriptions
+  const handleCommentRequested = useCallback((selection: any) => {
+    handleAnnotationRequested({
+      selector: selectionToSelector(selection),
+      motivation: 'commenting'
+    });
+  }, [handleAnnotationRequested, selectionToSelector]);
+
+  const handleTagRequested = useCallback((selection: any) => {
+    handleAnnotationRequested({
+      selector: selectionToSelector(selection),
+      motivation: 'tagging'
+    });
+  }, [handleAnnotationRequested, selectionToSelector]);
+
+  const handleAssessmentRequested = useCallback((selection: any) => {
+    handleAnnotationRequested({
+      selector: selectionToSelector(selection),
+      motivation: 'assessing'
+    });
+  }, [handleAnnotationRequested, selectionToSelector]);
+
+  const handleReferenceRequested = useCallback((selection: any) => {
+    handleAnnotationRequested({
+      selector: selectionToSelector(selection),
+      motivation: 'linking'
+    });
+  }, [handleAnnotationRequested, selectionToSelector]);
+
+  const handleCancelPending = useCallback(() => {
+    setPendingAnnotation(null);
+  }, []);
+
+  const handleHover = useCallback(({ annotationId }: { annotationId: string | null }) => {
+    setHoveredAnnotationId(annotationId);
+    if (annotationId) {
+      eventBus.emit('annotation:sparkle', { annotationId });
+    }
+  }, []); // eventBus is stable singleton
+
+  const handleClick = useCallback(({ annotationId }: { annotationId: string }) => {
+    eventBus.emit('annotation:focus', { annotationId });
+    // Click scroll handled by ResourceViewer internally
+  }, []); // eventBus is stable singleton
+
+  const handleDelete = useCallback(async ({ annotationId }: { annotationId: string }) => {
+    await onDeleteAnnotationRef.current(annotationId, rUri);
+  }, [rUri]);
+
   // Subscribe to annotation events
   useEventSubscriptions({
-    // Direct annotation request
     'annotation:requested': handleAnnotationRequested,
-
-    // Selection events → annotation requests
-    'selection:comment-requested': (selection: any) => {
-      handleAnnotationRequested({
-        selector: selectionToSelector(selection),
-        motivation: 'commenting'
-      });
-    },
-    'selection:tag-requested': (selection: any) => {
-      handleAnnotationRequested({
-        selector: selectionToSelector(selection),
-        motivation: 'tagging'
-      });
-    },
-    'selection:assessment-requested': (selection: any) => {
-      handleAnnotationRequested({
-        selector: selectionToSelector(selection),
-        motivation: 'assessing'
-      });
-    },
-    'selection:reference-requested': (selection: any) => {
-      handleAnnotationRequested({
-        selector: selectionToSelector(selection),
-        motivation: 'linking'
-      });
-    },
-
-    // Annotation interaction
-    'annotation:cancel-pending': () => {
-      setPendingAnnotation(null);
-    },
-    'annotation:hover': ({ annotationId }: { annotationId: string | null }) => {
-      setHoveredAnnotationId(annotationId);
-      if (annotationId) {
-        eventBus.emit('annotation:sparkle', { annotationId });
-      }
-    },
-    'annotation:click': ({ annotationId }: { annotationId: string }) => {
-      eventBus.emit('annotation:focus', { annotationId });
-      // Click scroll handled by ResourceViewer internally
-    },
-    'annotation:delete': async ({ annotationId }: { annotationId: string }) => {
-      await onDeleteAnnotation(annotationId, rUri);
-    },
+    'selection:comment-requested': handleCommentRequested,
+    'selection:tag-requested': handleTagRequested,
+    'selection:assessment-requested': handleAssessmentRequested,
+    'selection:reference-requested': handleReferenceRequested,
+    'annotation:cancel-pending': handleCancelPending,
+    'annotation:hover': handleHover,
+    'annotation:click': handleClick,
+    'annotation:delete': handleDelete,
   });
 
   return <>{children({ pendingAnnotation, hoveredAnnotationId })}</>;

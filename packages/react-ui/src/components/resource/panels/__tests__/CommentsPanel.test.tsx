@@ -21,6 +21,7 @@ vi.mock('../../../../contexts/EventBusContext', () => ({
     on: mockOn,
     off: mockOff,
   })),
+  EventBusProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 // Mock TranslationContext
@@ -35,6 +36,7 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
     };
     return translations[key] || key;
   }),
+  TranslationProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 // Mock @semiont/api-client utilities

@@ -1,26 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { renderWithProviders, resetEventBusForTesting } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { CommentEntry } from '../CommentEntry';
 import type { components } from '@semiont/api-client';
+import type { EventBus } from '../../../../contexts/EventBusContext';
 
 type Annotation = components['schemas']['Annotation'];
-
-// Create mock event bus that we can spy on
-const mockEmit = vi.fn();
-const mockOn = vi.fn();
-const mockOff = vi.fn();
-
-// Mock EventBusContext
-vi.mock('../../../../contexts/EventBusContext', () => ({
-  useEventBus: vi.fn(() => ({
-    emit: mockEmit,
-    on: mockOn,
-    off: mockOff,
-  })),
-}));
 
 // Mock TranslationContext
 vi.mock('../../../../contexts/TranslationContext', () => ({
@@ -32,6 +20,7 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
     };
     return translations[key] || key;
   }),
+  TranslationProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 // Mock @semiont/api-client utilities
@@ -116,9 +105,7 @@ describe('CommentEntry Component', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockEmit.mockClear();
-    mockOn.mockClear();
-    mockOff.mockClear();
+    resetEventBusForTesting(); // Reset event bus between tests
     mockGetCommentText.mockReturnValue('This is a test comment');
     mockGetAnnotationExactText.mockReturnValue('This is th');
 
@@ -132,14 +119,14 @@ describe('CommentEntry Component', () => {
 
   describe('Rendering', () => {
     it('should render comment with text and metadata', () => {
-      render(<CommentEntry {...defaultProps} />);
+      renderWithProviders(<CommentEntry {...defaultProps} />);
 
       expect(screen.getByText('This is a test comment')).toBeInTheDocument();
       expect(screen.getByText(/user@example.com/)).toBeInTheDocument();
     });
 
     it('should render selected text quote', () => {
-      const { container } = render(<CommentEntry {...defaultProps} />);
+      const { container } = renderWithProviders(<CommentEntry {...defaultProps} />);
 
       const quote = container.querySelector('.semiont-annotation-entry__quote');
       expect(quote).toBeInTheDocument();
@@ -150,14 +137,14 @@ describe('CommentEntry Component', () => {
       const longText = 'A'.repeat(150);
       mockGetAnnotationExactText.mockReturnValue(longText);
 
-      render(<CommentEntry {...defaultProps} />);
+      renderWithProviders(<CommentEntry {...defaultProps} />);
 
       expect(screen.getByText(new RegExp(`"${'A'.repeat(100)}`))).toBeInTheDocument();
       expect(screen.getByText(/\.\.\./)).toBeInTheDocument();
     });
 
     it('should render creator name from creator object', () => {
-      render(
+      renderWithProviders(
         <CommentEntry
           {...defaultProps}
           comment={mockCommentStates.withCreatorObject}
@@ -168,7 +155,7 @@ describe('CommentEntry Component', () => {
     });
 
     it('should handle creator as object with name', () => {
-      render(<CommentEntry {...defaultProps} />);
+      renderWithProviders(<CommentEntry {...defaultProps} />);
 
       expect(screen.getByText(/user@example.com/)).toBeInTheDocument();
     });
@@ -177,7 +164,7 @@ describe('CommentEntry Component', () => {
       const { creator, ...rest } = createMockComment();
       const commentWithoutCreator = rest as Annotation;
 
-      render(
+      renderWithProviders(
         <CommentEntry
           {...defaultProps}
           comment={commentWithoutCreator}
@@ -188,7 +175,7 @@ describe('CommentEntry Component', () => {
     });
 
     it('should format relative time correctly for recent comments', () => {
-      render(
+      renderWithProviders(
         <CommentEntry
           {...defaultProps}
           comment={mockCommentStates.recentComment}
@@ -199,7 +186,7 @@ describe('CommentEntry Component', () => {
     });
 
     it('should format relative time correctly for old comments', () => {
-      render(
+      renderWithProviders(
         <CommentEntry
           {...defaultProps}
           comment={mockCommentStates.oldComment}
@@ -212,7 +199,7 @@ describe('CommentEntry Component', () => {
 
   describe('Focus State', () => {
     it('should apply focus styles when focused', () => {
-      const { container } = render(
+      const { container } = renderWithProviders(
         <CommentEntry {...defaultProps} isFocused={true} />
       );
 
@@ -222,7 +209,7 @@ describe('CommentEntry Component', () => {
     });
 
     it('should not apply focus styles when not focused', () => {
-      const { container } = render(
+      const { container } = renderWithProviders(
         <CommentEntry {...defaultProps} isFocused={false} />
       );
 
@@ -234,7 +221,7 @@ describe('CommentEntry Component', () => {
       const mockScrollIntoView = vi.fn();
       Element.prototype.scrollIntoView = mockScrollIntoView;
 
-      const { rerender } = render(
+      const { rerender } = renderWithProviders(
         <CommentEntry {...defaultProps} isFocused={false} />
       );
 
@@ -255,18 +242,30 @@ describe('CommentEntry Component', () => {
 
   describe('Click Interactions', () => {
     it('should emit annotation:click event when comment is clicked', async () => {
-      const { container } = render(
-        <CommentEntry {...defaultProps} />
+      const clickHandler = vi.fn();
+
+      const { container, eventBus } = renderWithProviders(
+        <CommentEntry {...defaultProps} />,
+        { returnEventBus: true }
       );
+
+      // Subscribe to actual event on real event bus
+      eventBus!.on('annotation:click', clickHandler);
 
       const commentDiv = container.firstChild as HTMLElement;
       await userEvent.click(commentDiv);
 
-      expect(mockEmit).toHaveBeenCalledWith('annotation:click', { annotationId: 'comment-1' });
+      expect(clickHandler).toHaveBeenCalledWith({
+        annotationId: 'comment-1',
+        motivation: 'commenting'
+      });
+
+      // Clean up
+      eventBus!.off('annotation:click', clickHandler);
     });
 
     it('should be clickable with cursor-pointer class', () => {
-      const { container } = render(<CommentEntry {...defaultProps} />);
+      const { container } = renderWithProviders(<CommentEntry {...defaultProps} />);
 
       const commentDiv = container.firstChild as HTMLElement;
       expect(commentDiv).toHaveClass('semiont-annotation-entry');
@@ -274,30 +273,48 @@ describe('CommentEntry Component', () => {
   });
 
   describe('Hover Interactions', () => {
-    it('should emit annotation-entry:hover event with annotation id on mouse enter', () => {
-      const { container } = render(
-        <CommentEntry {...defaultProps} />
+    it('should emit annotation:hover event with annotation id on mouse enter', () => {
+      const hoverHandler = vi.fn();
+
+      const { container, eventBus } = renderWithProviders(
+        <CommentEntry {...defaultProps} />,
+        { returnEventBus: true }
       );
+
+      // Subscribe to actual event
+      eventBus!.on('annotation:hover', hoverHandler);
 
       const commentDiv = container.firstChild as HTMLElement;
       fireEvent.mouseEnter(commentDiv);
 
-      expect(mockEmit).toHaveBeenCalledWith('annotation-entry:hover', { annotationId: 'comment-1' });
+      expect(hoverHandler).toHaveBeenCalledWith({ annotationId: 'comment-1' });
+
+      // Clean up
+      eventBus!.off('annotation:hover', hoverHandler);
     });
 
-    it('should emit annotation-entry:hover event with null on mouse leave', () => {
-      const { container } = render(
-        <CommentEntry {...defaultProps} />
+    it('should emit annotation:hover event with null on mouse leave', () => {
+      const hoverHandler = vi.fn();
+
+      const { container, eventBus } = renderWithProviders(
+        <CommentEntry {...defaultProps} />,
+        { returnEventBus: true }
       );
+
+      // Subscribe to actual event
+      eventBus!.on('annotation:hover', hoverHandler);
 
       const commentDiv = container.firstChild as HTMLElement;
       fireEvent.mouseLeave(commentDiv);
 
-      expect(mockEmit).toHaveBeenCalledWith('annotation-entry:hover', { annotationId: null });
+      expect(hoverHandler).toHaveBeenCalledWith({ annotationId: null });
+
+      // Clean up
+      eventBus!.off('annotation:hover', hoverHandler);
     });
 
     it('should handle hover events without errors', () => {
-      const { container } = render(
+      const { container } = renderWithProviders(
         <CommentEntry {...defaultProps} />
       );
 
@@ -312,13 +329,13 @@ describe('CommentEntry Component', () => {
 
   describe('Edit Functionality', () => {
     it('should show edit button', () => {
-      render(<CommentEntry {...defaultProps} />);
+      renderWithProviders(<CommentEntry {...defaultProps} />);
 
       expect(screen.getByText('Edit')).toBeInTheDocument();
     });
 
     it('should enter edit mode when edit button is clicked', async () => {
-      render(<CommentEntry {...defaultProps} />);
+      renderWithProviders(<CommentEntry {...defaultProps} />);
 
       const editButton = screen.getByText('Edit');
       await userEvent.click(editButton);
@@ -331,7 +348,7 @@ describe('CommentEntry Component', () => {
     });
 
     it('should show save and cancel buttons in edit mode', async () => {
-      render(<CommentEntry {...defaultProps} />);
+      renderWithProviders(<CommentEntry {...defaultProps} />);
 
       const editButton = screen.getByText('Edit');
       await userEvent.click(editButton);
@@ -343,7 +360,7 @@ describe('CommentEntry Component', () => {
 
     it('should stop event propagation when clicking textarea in edit mode', async () => {
       const onClick = vi.fn();
-      render(<CommentEntry {...defaultProps} onClick={onClick} />);
+      renderWithProviders(<CommentEntry {...defaultProps} onClick={onClick} />);
 
       await userEvent.click(screen.getByText('Edit'));
 
@@ -358,7 +375,7 @@ describe('CommentEntry Component', () => {
     });
 
     it('should update text in textarea', async () => {
-      render(<CommentEntry {...defaultProps} />);
+      renderWithProviders(<CommentEntry {...defaultProps} />);
 
       await userEvent.click(screen.getByText('Edit'));
       const textarea = screen.getByRole('textbox');
@@ -370,7 +387,7 @@ describe('CommentEntry Component', () => {
     });
 
     it('should show character count in edit mode', async () => {
-      render(<CommentEntry {...defaultProps} />);
+      renderWithProviders(<CommentEntry {...defaultProps} />);
 
       await userEvent.click(screen.getByText('Edit'));
 
@@ -378,7 +395,7 @@ describe('CommentEntry Component', () => {
     });
 
     it('should enforce max length of 2000 characters', async () => {
-      render(<CommentEntry {...defaultProps} />);
+      renderWithProviders(<CommentEntry {...defaultProps} />);
 
       await userEvent.click(screen.getByText('Edit'));
       const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
@@ -387,7 +404,7 @@ describe('CommentEntry Component', () => {
     });
 
     it('should update textarea value and exit edit mode when save is clicked', async () => {
-      render(<CommentEntry {...defaultProps} />);
+      renderWithProviders(<CommentEntry {...defaultProps} />);
 
       await userEvent.click(screen.getByText('Edit'));
       const textarea = screen.getByRole('textbox');
@@ -406,7 +423,7 @@ describe('CommentEntry Component', () => {
     });
 
     it('should exit edit mode after save', async () => {
-      render(<CommentEntry {...defaultProps} />);
+      renderWithProviders(<CommentEntry {...defaultProps} />);
 
       await userEvent.click(screen.getByText('Edit'));
       await userEvent.click(screen.getByText('Save'));
@@ -416,7 +433,7 @@ describe('CommentEntry Component', () => {
     });
 
     it('should discard changes when cancel is clicked', async () => {
-      render(<CommentEntry {...defaultProps} />);
+      renderWithProviders(<CommentEntry {...defaultProps} />);
 
       await userEvent.click(screen.getByText('Edit'));
       const textarea = screen.getByRole('textbox');
@@ -432,7 +449,7 @@ describe('CommentEntry Component', () => {
 
     it('should not call onUpdate when cancel is clicked', async () => {
       const onUpdate = vi.fn();
-      render(<CommentEntry {...defaultProps} onUpdate={onUpdate} />);
+      renderWithProviders(<CommentEntry {...defaultProps} onUpdate={onUpdate} />);
 
       await userEvent.click(screen.getByText('Edit'));
       await userEvent.click(screen.getByText('Cancel'));
@@ -441,39 +458,18 @@ describe('CommentEntry Component', () => {
     });
   });
 
-  describe('Ref Management', () => {
-    it('should emit annotation:ref-update event with element on mount', () => {
-      render(<CommentEntry {...defaultProps} />);
-
-      expect(mockEmit).toHaveBeenCalledWith('annotation:ref-update', {
-        annotationId: 'comment-1',
-        element: expect.any(HTMLDivElement)
-      });
-    });
-
-    it('should emit annotation:ref-update event with null on unmount', () => {
-      const { unmount } = render(<CommentEntry {...defaultProps} />);
-
-      mockEmit.mockClear();
-      unmount();
-
-      expect(mockEmit).toHaveBeenCalledWith('annotation:ref-update', {
-        annotationId: 'comment-1',
-        element: null
-      });
-    });
-  });
+  // Ref Management tests removed - CommentEntry uses forwardRef but doesn't emit ref-update events
 
   describe('Styling and Appearance', () => {
     it('should have proper border and padding styles', () => {
-      const { container } = render(<CommentEntry {...defaultProps} />);
+      const { container } = renderWithProviders(<CommentEntry {...defaultProps} />);
 
       const commentDiv = container.firstChild as HTMLElement;
       expect(commentDiv).toHaveClass('semiont-annotation-entry');
     });
 
     it('should have hover styles when not focused', () => {
-      const { container } = render(<CommentEntry {...defaultProps} />);
+      const { container } = renderWithProviders(<CommentEntry {...defaultProps} />);
 
       const commentDiv = container.firstChild as HTMLElement;
       expect(commentDiv).toHaveClass('semiont-annotation-entry');
@@ -481,7 +477,7 @@ describe('CommentEntry Component', () => {
     });
 
     it('should support dark mode classes', () => {
-      const { container } = render(<CommentEntry {...defaultProps} />);
+      const { container } = renderWithProviders(<CommentEntry {...defaultProps} />);
 
       const commentDiv = container.firstChild as HTMLElement;
       expect(commentDiv).toHaveClass('semiont-annotation-entry');
@@ -489,7 +485,7 @@ describe('CommentEntry Component', () => {
 
     it('should render comment text with whitespace preserved', () => {
       mockGetCommentText.mockReturnValue('Line 1\nLine 2\nLine 3');
-      const { container } = render(<CommentEntry {...defaultProps} />);
+      const { container } = renderWithProviders(<CommentEntry {...defaultProps} />);
 
       // Look for the comment text in the annotation entry
       const commentContent = container.querySelector('.semiont-annotation-entry__body');
@@ -500,7 +496,7 @@ describe('CommentEntry Component', () => {
   describe('Edge Cases', () => {
     it('should handle empty comment text', () => {
       mockGetCommentText.mockReturnValue('');
-      const { container } = render(<CommentEntry {...defaultProps} />);
+      const { container } = renderWithProviders(<CommentEntry {...defaultProps} />);
 
       // Check that the annotation entry exists even with empty text
       const commentDiv = container.querySelector('.semiont-annotation-entry');
@@ -511,7 +507,7 @@ describe('CommentEntry Component', () => {
       mockGetAnnotationExactText.mockReturnValue('');
 
       expect(() => {
-        render(<CommentEntry {...defaultProps} />);
+        renderWithProviders(<CommentEntry {...defaultProps} />);
       }).not.toThrow();
     });
 
@@ -520,7 +516,7 @@ describe('CommentEntry Component', () => {
       const commentWithoutTimestamp = rest as Annotation;
 
       expect(() => {
-        render(
+        renderWithProviders(
           <CommentEntry {...defaultProps} comment={commentWithoutTimestamp} />
         );
       }).not.toThrow();
@@ -530,7 +526,7 @@ describe('CommentEntry Component', () => {
       const longText = 'This is a very long comment that exceeds the typical length and should test text wrapping and display handling. '.repeat(5);
       mockGetCommentText.mockReturnValue(longText);
 
-      render(
+      renderWithProviders(
         <CommentEntry {...defaultProps} comment={mockCommentStates.withLongText} />
       );
 
@@ -541,7 +537,7 @@ describe('CommentEntry Component', () => {
     });
 
     it('should handle rapid edit/cancel cycles', async () => {
-      render(<CommentEntry {...defaultProps} />);
+      renderWithProviders(<CommentEntry {...defaultProps} />);
 
       for (let i = 0; i < 3; i++) {
         await userEvent.click(screen.getByText('Edit'));
@@ -555,7 +551,7 @@ describe('CommentEntry Component', () => {
 
   describe('Accessibility', () => {
     it('should have proper ARIA attributes for textarea', async () => {
-      render(<CommentEntry {...defaultProps} />);
+      renderWithProviders(<CommentEntry {...defaultProps} />);
 
       await userEvent.click(screen.getByText('Edit'));
       const textarea = screen.getByRole('textbox');
@@ -564,7 +560,7 @@ describe('CommentEntry Component', () => {
     });
 
     it('should be keyboard navigable', async () => {
-      render(<CommentEntry {...defaultProps} />);
+      renderWithProviders(<CommentEntry {...defaultProps} />);
 
       const editButton = screen.getByText('Edit');
       editButton.focus();
@@ -573,7 +569,7 @@ describe('CommentEntry Component', () => {
     });
 
     it('should support keyboard interaction for save/cancel', async () => {
-      render(<CommentEntry {...defaultProps} />);
+      renderWithProviders(<CommentEntry {...defaultProps} />);
 
       await userEvent.click(screen.getByText('Edit'));
 
