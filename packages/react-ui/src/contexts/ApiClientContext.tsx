@@ -33,9 +33,9 @@ export function ApiClientProvider({
 export function useApiClient() {
   const context = useContext(ApiClientContext);
 
-  if (context === undefined) {
+  if (context === null) {
     throw new Error('useApiClient must be used within an ApiClientProvider');
   }
 
-  return context;
+  return context.client;
 }
