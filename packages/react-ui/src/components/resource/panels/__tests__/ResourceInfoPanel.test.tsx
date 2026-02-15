@@ -1,12 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ResourceInfoPanel } from '../ResourceInfoPanel';
 import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../../../contexts/EventBusContext';
-
-// Mock event bus emit function for spying on events
-const mockEmit = vi.fn();
 
 // Mock TranslationContext
 vi.mock('../../../../contexts/TranslationContext', () => ({
@@ -48,29 +45,70 @@ vi.mock('@/lib/button-styles', () => ({
   },
 }));
 
-// Wrapper component to spy on EventBus emit calls
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  const eventBus = useEventBus();
+// Composition-based event tracker
+interface TrackedEvent {
+  event: string;
+  payload: any;
+}
 
-  // Wrap the real emit with our spy
-  React.useEffect(() => {
-    const originalEmit = eventBus.emit.bind(eventBus);
-    eventBus.emit = ((eventName: string, payload?: unknown) => {
-      mockEmit(eventName, payload);
-      return originalEmit(eventName, payload);
-    }) as typeof eventBus.emit;
-  }, [eventBus]);
+function createEventTracker() {
+  const events: TrackedEvent[] = [];
 
-  return <>{children}</>;
+  function EventTrackingWrapper({ children }: { children: React.ReactNode }) {
+    const eventBus = useEventBus();
+
+    React.useEffect(() => {
+      const handlers: Array<() => void> = [];
+
+      // Track resource-related events
+      const trackEvent = (eventName: string) => (payload: any) => {
+        events.push({ event: eventName, payload });
+      };
+
+      const resourceEvents = [
+        'resource:clone',
+        'resource:archive',
+        'resource:unarchive',
+      ];
+
+      resourceEvents.forEach(eventName => {
+        const handler = trackEvent(eventName);
+        eventBus.on(eventName, handler);
+        handlers.push(() => eventBus.off(eventName, handler));
+      });
+
+      return () => {
+        handlers.forEach(cleanup => cleanup());
+      };
+    }, [eventBus]);
+
+    return <>{children}</>;
+  }
+
+  return {
+    EventTrackingWrapper,
+    events,
+    clear: () => {
+      events.length = 0;
+    },
+  };
 }
 
 // Helper to render with EventBusProvider
-const renderWithEventBus = (component: React.ReactElement) => {
+const renderWithEventBus = (component: React.ReactElement, tracker?: ReturnType<typeof createEventTracker>) => {
+  if (tracker) {
+    return render(
+      <EventBusProvider>
+        <tracker.EventTrackingWrapper>
+          {component}
+        </tracker.EventTrackingWrapper>
+      </EventBusProvider>
+    );
+  }
+
   return render(
     <EventBusProvider>
-      <TestWrapper>
-        {component}
-      </TestWrapper>
+      {component}
     </EventBusProvider>
   );
 };
@@ -85,7 +123,7 @@ describe('ResourceInfoPanel Component', () => {
 
   beforeEach(() => {
     resetEventBusForTesting();
-    mockEmit.mockClear();
+    vi.clearAllMocks();
   });
 
   describe('Rendering', () => {
@@ -210,16 +248,21 @@ describe('ResourceInfoPanel Component', () => {
       expect(screen.getByText('Generate a shareable clone link for this resource')).toBeInTheDocument();
     });
 
-    it('should emit resource:clone event when clone button clicked', () => {
+    it('should emit resource:clone event when clone button clicked', async () => {
+      const tracker = createEventTracker();
       renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
-        />
+        />,
+        tracker
       );
 
       const button = screen.getByRole('button', { name: /Clone/i });
       fireEvent.click(button);
-      expect(mockEmit).toHaveBeenCalledWith('resource:clone', undefined);
+
+      await waitFor(() => {
+        expect(tracker.events.some(e => e.event === 'resource:clone')).toBe(true);
+      });
     });
   });
 
@@ -248,30 +291,40 @@ describe('ResourceInfoPanel Component', () => {
       expect(screen.getByText('Restore this resource to active status')).toBeInTheDocument();
     });
 
-    it('should emit resource:archive event when archive button clicked', () => {
+    it('should emit resource:archive event when archive button clicked', async () => {
+      const tracker = createEventTracker();
       renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
           isArchived={false}
-        />
+        />,
+        tracker
       );
 
       const button = screen.getByRole('button', { name: /Archive/i });
       fireEvent.click(button);
-      expect(mockEmit).toHaveBeenCalledWith('resource:archive', undefined);
+
+      await waitFor(() => {
+        expect(tracker.events.some(e => e.event === 'resource:archive')).toBe(true);
+      });
     });
 
-    it('should emit resource:unarchive event when unarchive button clicked', () => {
+    it('should emit resource:unarchive event when unarchive button clicked', async () => {
+      const tracker = createEventTracker();
       renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
           isArchived={true}
-        />
+        />,
+        tracker
       );
 
       const button = screen.getByRole('button', { name: /Unarchive/i });
       fireEvent.click(button);
-      expect(mockEmit).toHaveBeenCalledWith('resource:unarchive', undefined);
+
+      await waitFor(() => {
+        expect(tracker.events.some(e => e.event === 'resource:unarchive')).toBe(true);
+      });
     });
   });
 });

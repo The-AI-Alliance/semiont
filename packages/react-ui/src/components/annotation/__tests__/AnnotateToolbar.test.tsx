@@ -1,13 +1,10 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import { vi, beforeEach } from 'vitest';
+import { vi, beforeEach, describe, it, expect } from 'vitest';
 import { NextIntlClientProvider } from 'next-intl';
 import { AnnotateToolbar, type SelectionMotivation, type ClickAction } from '../AnnotateToolbar';
 import { ANNOTATORS } from '../../../lib/annotation-registry';
 import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../../contexts/EventBusContext';
-
-// Mock event bus emit function for spying on events
-const mockEmit = vi.fn();
 
 // Mock translations
 const messages = {
@@ -33,29 +30,73 @@ const messages = {
   }
 };
 
-// Wrapper component to spy on EventBus emit calls
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  const eventBus = useEventBus();
-
-  // Wrap the real emit with our spy
-  React.useEffect(() => {
-    const originalEmit = eventBus.emit.bind(eventBus);
-    eventBus.emit = ((eventName: string, payload?: unknown) => {
-      mockEmit(eventName, payload);
-      return originalEmit(eventName, payload);
-    }) as typeof eventBus.emit;
-  }, [eventBus]);
-
-  return <>{children}</>;
+// Composition-based event tracker
+interface TrackedEvent {
+  event: string;
+  payload: any;
 }
 
-const renderWithIntl = (component: React.ReactElement) => {
+function createEventTracker() {
+  const events: TrackedEvent[] = [];
+
+  function EventTrackingWrapper({ children }: { children: React.ReactNode }) {
+    const eventBus = useEventBus();
+
+    React.useEffect(() => {
+      const handlers: Array<() => void> = [];
+
+      // Track toolbar-related events
+      const trackEvent = (eventName: string) => (payload: any) => {
+        events.push({ event: eventName, payload });
+      };
+
+      const toolbarEvents = [
+        'view:mode-toggled',
+        'toolbar:click-changed',
+        'toolbar:selection-changed',
+        'toolbar:shape-changed',
+      ];
+
+      toolbarEvents.forEach(eventName => {
+        const handler = trackEvent(eventName);
+        eventBus.on(eventName, handler);
+        handlers.push(() => eventBus.off(eventName, handler));
+      });
+
+      return () => {
+        handlers.forEach(cleanup => cleanup());
+      };
+    }, [eventBus]);
+
+    return <>{children}</>;
+  }
+
+  return {
+    EventTrackingWrapper,
+    events,
+    clear: () => {
+      events.length = 0;
+    },
+  };
+}
+
+const renderWithIntl = (component: React.ReactElement, tracker?: ReturnType<typeof createEventTracker>) => {
+  if (tracker) {
+    return render(
+      <EventBusProvider>
+        <NextIntlClientProvider locale="en" messages={messages}>
+          <tracker.EventTrackingWrapper>
+            {component}
+          </tracker.EventTrackingWrapper>
+        </NextIntlClientProvider>
+      </EventBusProvider>
+    );
+  }
+
   return render(
     <EventBusProvider>
       <NextIntlClientProvider locale="en" messages={messages}>
-        <TestWrapper>
-          {component}
-        </TestWrapper>
+        {component}
       </NextIntlClientProvider>
     </EventBusProvider>
   );
@@ -74,7 +115,6 @@ describe('AnnotateToolbar', () => {
   beforeEach(() => {
     resetEventBusForTesting();
     vi.clearAllMocks();
-    mockEmit.mockClear();
   });
 
   describe('Rendering', () => {
@@ -145,12 +185,10 @@ describe('AnnotateToolbar', () => {
       rerender(
         <EventBusProvider>
           <NextIntlClientProvider locale="en" messages={messages}>
-            <TestWrapper>
-              <AnnotateToolbar
-                {...defaultProps}
-                annotateMode={true}
-              />
-            </TestWrapper>
+            <AnnotateToolbar
+              {...defaultProps}
+              annotateMode={true}
+            />
           </NextIntlClientProvider>
         </EventBusProvider>
       );
@@ -178,11 +216,13 @@ describe('AnnotateToolbar', () => {
     });
 
     it('emits view:mode-toggled event when Browse is clicked in Annotate mode', async () => {
+      const tracker = createEventTracker();
       renderWithIntl(
         <AnnotateToolbar
           {...defaultProps}
           annotateMode={true}
-        />
+        />,
+        tracker
       );
 
       const modeGroup = screen.getByLabelText('Mode');
@@ -193,15 +233,19 @@ describe('AnnotateToolbar', () => {
         fireEvent.click(browseButton);
       });
 
-      expect(mockEmit).toHaveBeenCalledWith('view:mode-toggled', undefined);
+      await waitFor(() => {
+        expect(tracker.events.some(e => e.event === 'view:mode-toggled')).toBe(true);
+      });
     });
 
     it('emits view:mode-toggled event when Annotate is clicked in Browse mode', async () => {
+      const tracker = createEventTracker();
       renderWithIntl(
         <AnnotateToolbar
           {...defaultProps}
           annotateMode={false}
-        />
+        />,
+        tracker
       );
 
       const modeGroup = screen.getByLabelText('Mode');
@@ -212,15 +256,19 @@ describe('AnnotateToolbar', () => {
         fireEvent.click(annotateButton);
       });
 
-      expect(mockEmit).toHaveBeenCalledWith('view:mode-toggled', undefined);
+      await waitFor(() => {
+        expect(tracker.events.some(e => e.event === 'view:mode-toggled')).toBe(true);
+      });
     });
 
     it('closes dropdown after selection', async () => {
+      const tracker = createEventTracker();
       const { rerender } = renderWithIntl(
         <AnnotateToolbar
           {...defaultProps}
           annotateMode={false}
-        />
+        />,
+        tracker
       );
 
       const modeGroup = screen.getByLabelText('Mode');
@@ -234,18 +282,20 @@ describe('AnnotateToolbar', () => {
       fireEvent.click(annotateButton);
 
       // Verify the event was emitted
-      expect(mockEmit).toHaveBeenCalledWith('view:mode-toggled', undefined);
+      await waitFor(() => {
+        expect(tracker.events.some(e => e.event === 'view:mode-toggled')).toBe(true);
+      });
 
       // Simulate mode change by rerendering with new mode
       rerender(
         <EventBusProvider>
           <NextIntlClientProvider locale="en" messages={messages}>
-            <TestWrapper>
+            <tracker.EventTrackingWrapper>
               <AnnotateToolbar
                 {...defaultProps}
                 annotateMode={true}
               />
-            </TestWrapper>
+            </tracker.EventTrackingWrapper>
           </NextIntlClientProvider>
         </EventBusProvider>
       );
@@ -262,8 +312,10 @@ describe('AnnotateToolbar', () => {
 
   describe('CLICK Group Interactions', () => {
     it('emits toolbar:click-changed event when clicking an action', async () => {
+      const tracker = createEventTracker();
       renderWithIntl(
-        <AnnotateToolbar {...defaultProps} />
+        <AnnotateToolbar {...defaultProps} />,
+        tracker
       );
 
       const clickGroup = screen.getByLabelText('Click');
@@ -273,9 +325,13 @@ describe('AnnotateToolbar', () => {
         expect(screen.getByText('Follow')).toBeInTheDocument();
       });
 
-      mockEmit.mockClear();
+      tracker.clear();
       fireEvent.click(screen.getByText('Follow'));
-      expect(mockEmit).toHaveBeenCalledWith('toolbar:click-changed', { action: 'follow' });
+      await waitFor(() => {
+        expect(tracker.events.some(e =>
+          e.event === 'toolbar:click-changed' && e.payload?.action === 'follow'
+        )).toBe(true);
+      });
     });
 
     it('displays selected action', () => {
@@ -288,8 +344,10 @@ describe('AnnotateToolbar', () => {
 
   describe('MOTIVATION Group Interactions', () => {
     it('emits toolbar:selection-changed event when clicking a motivation', async () => {
+      const tracker = createEventTracker();
       renderWithIntl(
-        <AnnotateToolbar {...defaultProps} />
+        <AnnotateToolbar {...defaultProps} />,
+        tracker
       );
 
       const motivationGroup = screen.getByLabelText('Motivation');
@@ -299,17 +357,23 @@ describe('AnnotateToolbar', () => {
         expect(screen.getByText('Reference')).toBeInTheDocument();
       });
 
-      mockEmit.mockClear();
+      tracker.clear();
       fireEvent.click(screen.getByText('Reference'));
-      expect(mockEmit).toHaveBeenCalledWith('toolbar:selection-changed', { motivation: 'linking' });
+      await waitFor(() => {
+        expect(tracker.events.some(e =>
+          e.event === 'toolbar:selection-changed' && e.payload?.motivation === 'linking'
+        )).toBe(true);
+      });
     });
 
     it('toggles motivation on/off', async () => {
+      const tracker = createEventTracker();
       const { rerender } = renderWithIntl(
         <AnnotateToolbar
           {...defaultProps}
           selectedMotivation={null}
-        />
+        />,
+        tracker
       );
 
       const motivationGroup = screen.getByLabelText('Motivation');
@@ -321,20 +385,24 @@ describe('AnnotateToolbar', () => {
       });
 
       const dropdown = screen.getByRole('menu');
-      mockEmit.mockClear();
+      tracker.clear();
       fireEvent.click(within(dropdown).getByText('Highlight'));
-      expect(mockEmit).toHaveBeenCalledWith('toolbar:selection-changed', { motivation: 'highlighting' });
+      await waitFor(() => {
+        expect(tracker.events.some(e =>
+          e.event === 'toolbar:selection-changed' && e.payload?.motivation === 'highlighting'
+        )).toBe(true);
+      });
 
       // Simulate selection
       rerender(
         <EventBusProvider>
           <NextIntlClientProvider locale="en" messages={messages}>
-            <TestWrapper>
+            <tracker.EventTrackingWrapper>
               <AnnotateToolbar
                 {...defaultProps}
                 selectedMotivation="highlighting"
               />
-            </TestWrapper>
+            </tracker.EventTrackingWrapper>
           </NextIntlClientProvider>
         </EventBusProvider>
       );
@@ -346,20 +414,26 @@ describe('AnnotateToolbar', () => {
         expect(within(dropdown).getByText('Highlight')).toBeInTheDocument();
       });
       const dropdown2 = screen.getByRole('menu');
-      mockEmit.mockClear();
+      tracker.clear();
       fireEvent.click(within(dropdown2).getByText('Highlight'));
-      expect(mockEmit).toHaveBeenCalledWith('toolbar:selection-changed', { motivation: null });
+      await waitFor(() => {
+        expect(tracker.events.some(e =>
+          e.event === 'toolbar:selection-changed' && e.payload?.motivation === null
+        )).toBe(true);
+      });
     });
   });
 
   describe('SHAPE Group Interactions', () => {
     it('emits toolbar:shape-changed event when clicking a shape', async () => {
+      const tracker = createEventTracker();
       renderWithIntl(
         <AnnotateToolbar
           {...defaultProps}
           showShapeGroup={true}
           selectedShape="rectangle"
-        />
+        />,
+        tracker
       );
 
       const shapeGroup = screen.getByLabelText('Shape');
@@ -369,9 +443,13 @@ describe('AnnotateToolbar', () => {
         expect(screen.getByText('Circle')).toBeInTheDocument();
       });
 
-      mockEmit.mockClear();
+      tracker.clear();
       fireEvent.click(screen.getByText('Circle'));
-      expect(mockEmit).toHaveBeenCalledWith('toolbar:shape-changed', { shape: 'circle' });
+      await waitFor(() => {
+        expect(tracker.events.some(e =>
+          e.event === 'toolbar:shape-changed' && e.payload?.shape === 'circle'
+        )).toBe(true);
+      });
     });
   });
 

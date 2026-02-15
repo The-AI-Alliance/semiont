@@ -7,10 +7,6 @@ import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../..
 
 type Annotation = components['schemas']['Annotation'];
 
-// Mock event bus emit function for spying on events
-const mockEmit = vi.fn();
-const mockOn = vi.fn();
-
 // Mock ResourceAnnotationsContext - keep this simple
 let mockNewAnnotationIds = new Set<string>();
 vi.mock('../../../contexts/ResourceAnnotationsContext', () => ({
@@ -92,35 +88,71 @@ vi.mock('../../annotation/AnnotateToolbar', () => ({
   AnnotateToolbar: () => <div data-testid="annotate-toolbar">Toolbar</div>,
 }));
 
-// Wrapper component to spy on EventBus emit calls and event subscriptions
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  const eventBus = useEventBus();
-
-  // Wrap the real emit and on - do this synchronously before render, not in useEffect
-  const originalEmit = React.useRef(eventBus.emit.bind(eventBus));
-  const originalOn = React.useRef(eventBus.on.bind(eventBus));
-
-  // Only wrap once on first render
-  if (eventBus.emit !== mockEmit as any) {
-    eventBus.emit = ((eventName: string, payload?: unknown) => {
-      mockEmit(eventName, payload);
-      return originalEmit.current(eventName, payload);
-    }) as typeof eventBus.emit;
-  }
-
-  if (!('__wrapped' in eventBus.on)) {
-    const wrappedOn = ((eventName: string, handler: Function) => {
-      mockOn(eventName, handler);
-      return originalOn.current(eventName, handler);
-    }) as typeof eventBus.on & { __wrapped: true };
-    wrappedOn.__wrapped = true;
-    eventBus.on = wrappedOn;
-  }
-
-  return <>{children}</>;
+// Composition-based event tracker - subscribes to events like a real component
+interface TrackedEvent {
+  event: string;
+  payload: any;
 }
 
-// Helper to render with providers
+function createEventTracker() {
+  const events: TrackedEvent[] = [];
+  const subscriptions: Set<string> = new Set();
+
+  function EventTrackingWrapper({ children }: { children: React.ReactNode }) {
+    const eventBus = useEventBus();
+
+    // Track subscriptions by wrapping the on method synchronously before render
+    const originalOn = React.useRef(eventBus.on.bind(eventBus));
+
+    if (!('__tracked' in eventBus.on)) {
+      const trackedOn = ((eventName: string, handler: Function) => {
+        subscriptions.add(eventName);
+        return originalOn.current(eventName, handler);
+      }) as typeof eventBus.on & { __tracked: true };
+      trackedOn.__tracked = true;
+      eventBus.on = trackedOn;
+    }
+
+    React.useEffect(() => {
+      const handlers: Array<() => void> = [];
+
+      // Track all annotation-related events
+      const trackEvent = (eventName: string) => (payload: any) => {
+        events.push({ event: eventName, payload });
+      };
+
+      const annotationEvents = [
+        'annotation:hover',
+        'annotation:click',
+        'annotation:focus',
+      ];
+
+      annotationEvents.forEach(eventName => {
+        const handler = trackEvent(eventName);
+        eventBus.on(eventName, handler);
+        handlers.push(() => eventBus.off(eventName, handler));
+      });
+
+      return () => {
+        handlers.forEach(cleanup => cleanup());
+      };
+    }, [eventBus]);
+
+    return <>{children}</>;
+  }
+
+  return {
+    EventTrackingWrapper,
+    events,
+    subscriptions,
+    clear: () => {
+      events.length = 0;
+      subscriptions.clear();
+    },
+  };
+}
+
+// Helper to render with providers - simple composition, no spy wrappers
 const renderWithProviders = (
   component: React.ReactElement,
   options: { newAnnotationIds?: Set<string> } = {}
@@ -132,9 +164,26 @@ const renderWithProviders = (
 
   return render(
     <EventBusProvider>
-      <TestWrapper>
+      {component}
+    </EventBusProvider>
+  );
+};
+
+// Helper to render with event tracking
+const renderWithEventTracking = (
+  component: React.ReactElement,
+  tracker: ReturnType<typeof createEventTracker>,
+  options: { newAnnotationIds?: Set<string> } = {}
+) => {
+  if (options.newAnnotationIds) {
+    mockNewAnnotationIds = options.newAnnotationIds;
+  }
+
+  return render(
+    <EventBusProvider>
+      <tracker.EventTrackingWrapper>
         {component}
-      </TestWrapper>
+      </tracker.EventTrackingWrapper>
     </EventBusProvider>
   );
 };
@@ -179,8 +228,6 @@ describe('BrowseView Component', () => {
   beforeEach(() => {
     resetEventBusForTesting();
     vi.clearAllMocks();
-    mockEmit.mockClear();
-    mockOn.mockClear();
     mockNewAnnotationIds = new Set();
 
     // Mock scrollIntoView for jsdom
@@ -240,12 +287,16 @@ describe('BrowseView Component', () => {
     });
 
     it('should emit annotation:hover when mouse enters annotation', async () => {
+      const tracker = createEventTracker();
       const annotations = {
         ...defaultProps.annotations,
         references: [createMockAnnotation('linking', 'ref-1')],
       };
 
-      const { container } = renderWithProviders(<BrowseView {...defaultProps} annotations={annotations} />);
+      const { container } = renderWithEventTracking(
+        <BrowseView {...defaultProps} annotations={annotations} />,
+        tracker
+      );
 
       // Create mock annotation element
       const mockAnnotationElement = document.createElement('span');
@@ -263,12 +314,15 @@ describe('BrowseView Component', () => {
       fireEvent.mouseOver(browseContainer!, { target: mockTarget });
 
       await waitFor(() => {
-        expect(mockEmit).toHaveBeenCalledWith('annotation:hover', { annotationId: 'ref-1' });
+        expect(tracker.events.some(e =>
+          e.event === 'annotation:hover' && e.payload?.annotationId === 'ref-1'
+        )).toBe(true);
       });
     });
 
-    it('should emit annotation:dom-hover with null when mouse exits annotation', async () => {
-      const { container } = renderWithProviders(<BrowseView {...defaultProps} />);
+    it('should emit annotation:hover with null when mouse exits annotation', async () => {
+      const tracker = createEventTracker();
+      const { container } = renderWithEventTracking(<BrowseView {...defaultProps} />, tracker);
 
       const browseContainer = container.querySelector('.semiont-browse-view__content');
 
@@ -280,18 +334,21 @@ describe('BrowseView Component', () => {
         closest: vi.fn(() => mockAnnotationElement),
       } as any;
 
-      mockEmit.mockClear();
+      tracker.clear();
 
       // Simulate mouseout event (fires once on exit)
       fireEvent.mouseOut(browseContainer!, { target: mockTarget });
 
       await waitFor(() => {
-        expect(mockEmit).toHaveBeenCalledWith('annotation:hover', { annotationId: null });
+        expect(tracker.events.some(e =>
+          e.event === 'annotation:hover' && e.payload?.annotationId === null
+        )).toBe(true);
       });
     });
 
     it('should not emit on mouseover when not over annotation', async () => {
-      const { container } = renderWithProviders(<BrowseView {...defaultProps} />);
+      const tracker = createEventTracker();
+      const { container } = renderWithEventTracking(<BrowseView {...defaultProps} />, tracker);
 
       const mockTargetNoAnnotation = {
         closest: vi.fn(() => null),
@@ -299,16 +356,18 @@ describe('BrowseView Component', () => {
 
       const browseContainer = container.querySelector('.semiont-browse-view__content');
 
-      mockEmit.mockClear();
+      tracker.clear();
 
       // Mouse over non-annotation area
       fireEvent.mouseOver(browseContainer!, { target: mockTargetNoAnnotation });
 
       // Should not emit any event
-      expect(mockEmit).not.toHaveBeenCalled();
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(tracker.events.length).toBe(0);
     });
 
     it('should emit separate events when moving from one annotation to another', async () => {
+      const tracker = createEventTracker();
       const annotations = {
         ...defaultProps.annotations,
         references: [
@@ -317,7 +376,10 @@ describe('BrowseView Component', () => {
         ],
       };
 
-      const { container } = renderWithProviders(<BrowseView {...defaultProps} annotations={annotations} />);
+      const { container } = renderWithEventTracking(
+        <BrowseView {...defaultProps} annotations={annotations} />,
+        tracker
+      );
 
       const mockAnnotation1 = document.createElement('span');
       mockAnnotation1.setAttribute('data-annotation-id', 'ref-1');
@@ -330,42 +392,52 @@ describe('BrowseView Component', () => {
 
       const browseContainer = container.querySelector('.semiont-browse-view__content');
 
-      mockEmit.mockClear();
+      tracker.clear();
 
       // Enter first annotation
       fireEvent.mouseOver(browseContainer!, { target: mockTarget1 });
 
       await waitFor(() => {
-        expect(mockEmit).toHaveBeenCalledWith('annotation:hover', { annotationId: 'ref-1' });
+        expect(tracker.events.some(e =>
+          e.event === 'annotation:hover' && e.payload?.annotationId === 'ref-1'
+        )).toBe(true);
       });
 
-      mockEmit.mockClear();
+      tracker.clear();
 
       // Exit first annotation
       fireEvent.mouseOut(browseContainer!, { target: mockTarget1 });
 
       await waitFor(() => {
-        expect(mockEmit).toHaveBeenCalledWith('annotation:hover', { annotationId: null });
+        expect(tracker.events.some(e =>
+          e.event === 'annotation:hover' && e.payload?.annotationId === null
+        )).toBe(true);
       });
 
-      mockEmit.mockClear();
+      tracker.clear();
 
       // Enter second annotation
       fireEvent.mouseOver(browseContainer!, { target: mockTarget2 });
 
       await waitFor(() => {
-        expect(mockEmit).toHaveBeenCalledWith('annotation:hover', { annotationId: 'ref-2' });
+        expect(tracker.events.some(e =>
+          e.event === 'annotation:hover' && e.payload?.annotationId === 'ref-2'
+        )).toBe(true);
       });
     });
 
     it('should emit annotation:click only for reference annotations', async () => {
+      const tracker = createEventTracker();
       const annotations = {
         ...defaultProps.annotations,
         references: [createMockAnnotation('linking', 'ref-1')],
         highlights: [createMockAnnotation('highlighting', 'highlight-1')],
       };
 
-      const { container } = renderWithProviders(<BrowseView {...defaultProps} annotations={annotations} />);
+      const { container } = renderWithEventTracking(
+        <BrowseView {...defaultProps} annotations={annotations} />,
+        tracker
+      );
 
       const mockReferenceElement = document.createElement('span');
       mockReferenceElement.setAttribute('data-annotation-id', 'ref-1');
@@ -380,48 +452,50 @@ describe('BrowseView Component', () => {
 
       const browseContainer = container.querySelector('.semiont-browse-view__content');
 
-      mockEmit.mockClear();
+      tracker.clear();
 
       // Click reference - should emit
       fireEvent.click(browseContainer!, { target: mockRefTarget });
 
       await waitFor(() => {
-        expect(mockEmit).toHaveBeenCalledWith('annotation:click', {
-          annotationId: 'ref-1',
-          motivation: 'linking'
-        });
+        expect(tracker.events.some(e =>
+          e.event === 'annotation:click' &&
+          e.payload?.annotationId === 'ref-1' &&
+          e.payload?.motivation === 'linking'
+        )).toBe(true);
       });
 
-      mockEmit.mockClear();
+      tracker.clear();
 
       // Click highlight - should not emit
       fireEvent.click(browseContainer!, { target: mockHighlightTarget });
 
-      expect(mockEmit).not.toHaveBeenCalledWith('annotation:click', expect.anything());
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(tracker.events.filter(e => e.event === 'annotation:click').length).toBe(0);
     });
   });
 
   describe('Event Subscriptions', () => {
     it('should subscribe to annotation:hover event', () => {
-      mockOn.mockClear();
-      renderWithProviders(<BrowseView {...defaultProps} />);
+      const tracker = createEventTracker();
+      renderWithEventTracking(<BrowseView {...defaultProps} />, tracker);
 
-      expect(mockOn).toHaveBeenCalledWith('annotation:hover', expect.any(Function));
+      expect(tracker.subscriptions.has('annotation:hover')).toBe(true);
     });
 
     it('should subscribe to annotation:hover event (legacy test)', () => {
-      mockOn.mockClear();
-      renderWithProviders(<BrowseView {...defaultProps} />);
+      const tracker = createEventTracker();
+      renderWithEventTracking(<BrowseView {...defaultProps} />, tracker);
 
       // BrowseView subscribes to annotation:hover (not annotation-entry:hover)
-      expect(mockOn).toHaveBeenCalledWith('annotation:hover', expect.any(Function));
+      expect(tracker.subscriptions.has('annotation:hover')).toBe(true);
     });
 
     it('should subscribe to annotation:focus event', () => {
-      mockOn.mockClear();
-      renderWithProviders(<BrowseView {...defaultProps} />);
+      const tracker = createEventTracker();
+      renderWithEventTracking(<BrowseView {...defaultProps} />, tracker);
 
-      expect(mockOn).toHaveBeenCalledWith('annotation:focus', expect.any(Function));
+      expect(tracker.subscriptions.has('annotation:focus')).toBe(true);
     });
   });
 
