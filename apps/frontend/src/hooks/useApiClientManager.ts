@@ -6,14 +6,16 @@ import type { ApiClientManager } from '@semiont/react-ui';
 /**
  * Frontend implementation of ApiClientManager
  * Uses next-auth session to create authenticated API client
- * Returns null when not authenticated - caller must handle this case
+ *
+ * @throws Error if session or backendToken is missing
+ * @returns Authenticated SemiontApiClient instance
  */
-export function useApiClientManager(): ApiClientManager | null {
+export function useApiClientManager(): ApiClientManager {
   const { data: session } = useSession();
 
   return useMemo(() => {
     if (!session?.backendToken) {
-      return null;
+      throw new Error('useApiClientManager requires an authenticated session with backendToken');
     }
 
     return new SemiontApiClient({

@@ -8,8 +8,6 @@ import {
   SessionProvider as CustomSessionProvider,
   LiveRegionProvider,
   TranslationProvider,
-  ApiClientProvider,
-  EventBusProvider,
   dispatch401Error,
   dispatch403Error,
 } from '@semiont/react-ui';
@@ -19,7 +17,6 @@ import { ThemeInitializer } from '@/components/ThemeInitializer';
 import { APIError } from '@semiont/api-client';
 import { useSessionManager } from '@/hooks/useSessionManager';
 import { useMergedTranslationManager } from '@/hooks/useMergedTranslationManager';
-import { useApiClientManager } from '@/hooks/useApiClientManager';
 
 /**
  * Create a minimal QueryClient with error handlers and retry logic
@@ -103,42 +100,23 @@ function InnerProviders({ children, queryClient }: { children: React.ReactNode; 
   // These are called INSIDE SessionProvider because they use useSession()
   const sessionManager = useSessionManager();
   const translationManager = useMergedTranslationManager(); // Use merged manager for both frontend and react-ui translations
-  const apiClientManager = useApiClientManager();
 
-  // If no API client (not authenticated), only render non-API-dependent providers
-  if (!apiClientManager) {
-    return (
-      <AuthErrorBoundary>
-        <CustomSessionProvider sessionManager={sessionManager}>
-          <TranslationProvider translationManager={translationManager}>
-            <ToastProvider>
-              <ThemeInitializer />
-              {children}
-            </ToastProvider>
-          </TranslationProvider>
-        </CustomSessionProvider>
-      </AuthErrorBoundary>
-    );
-  }
-
+  // Note: ApiClientProvider is NOT here - it's added in feature-specific layouts (e.g., /know)
+  // that require authentication. Public pages don't need API access.
   return (
     <AuthErrorBoundary>
       <CustomSessionProvider sessionManager={sessionManager}>
         <TranslationProvider translationManager={translationManager}>
-          <ApiClientProvider apiClientManager={apiClientManager}>
-            <QueryClientProvider client={queryClient}>
-              <EventBusProvider>
-                <ToastProvider>
-                  <LiveRegionProvider>
-                    <KeyboardShortcutsProvider>
-                      <ThemeInitializer />
-                      {children}
-                    </KeyboardShortcutsProvider>
-                  </LiveRegionProvider>
-                </ToastProvider>
-              </EventBusProvider>
-            </QueryClientProvider>
-          </ApiClientProvider>
+          <QueryClientProvider client={queryClient}>
+            <ToastProvider>
+              <LiveRegionProvider>
+                <KeyboardShortcutsProvider>
+                  <ThemeInitializer />
+                  {children}
+                </KeyboardShortcutsProvider>
+              </LiveRegionProvider>
+            </ToastProvider>
+          </QueryClientProvider>
         </TranslationProvider>
       </CustomSessionProvider>
     </AuthErrorBoundary>
