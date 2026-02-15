@@ -105,6 +105,22 @@ function InnerProviders({ children, queryClient }: { children: React.ReactNode; 
   const translationManager = useMergedTranslationManager(); // Use merged manager for both frontend and react-ui translations
   const apiClientManager = useApiClientManager();
 
+  // If no API client (not authenticated), only render non-API-dependent providers
+  if (!apiClientManager) {
+    return (
+      <AuthErrorBoundary>
+        <CustomSessionProvider sessionManager={sessionManager}>
+          <TranslationProvider translationManager={translationManager}>
+            <ToastProvider>
+              <ThemeInitializer />
+              {children}
+            </ToastProvider>
+          </TranslationProvider>
+        </CustomSessionProvider>
+      </AuthErrorBoundary>
+    );
+  }
+
   return (
     <AuthErrorBoundary>
       <CustomSessionProvider sessionManager={sessionManager}>

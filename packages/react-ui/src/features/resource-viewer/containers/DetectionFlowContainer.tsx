@@ -65,7 +65,7 @@ export function DetectionFlowContainer({
   const detectionStreamRef = useRef<any>(null);
 
   // Set up event operation handlers (detection, generation, etc.)
-  useEventOperations(eventBus, { client: client || undefined, resourceUri: rUri });
+  useEventOperations(eventBus, { client, resourceUri: rUri });
 
   // Event handlers extracted from useEventSubscriptions
   const handleDetectionStart = useCallback(({ motivation }: { motivation: Motivation }) => {

@@ -6,8 +6,8 @@ import { resourceAnnotationUri } from '@semiont/api-client';
 import { uriToAnnotationIdOrPassthrough } from '@semiont/core';
 
 export interface EventOperationsConfig {
-  client?: SemiontApiClient;
-  resourceUri?: ResourceUri;
+  client: SemiontApiClient;
+  resourceUri: ResourceUri;
 }
 
 /**
@@ -36,11 +36,6 @@ export function useEventOperations(
   });
 
   useEffect(() => {
-    // Guard: Only set up subscriptions if we have required dependencies
-    if (!client || !resourceUri) {
-      return;
-    }
-
     // Get current config from ref (always latest)
     const getCurrentConfig = () => configRef.current;
 

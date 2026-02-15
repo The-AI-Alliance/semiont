@@ -19,6 +19,7 @@ import type { TranslationManager } from './types/TranslationManager';
 import type { ApiClientManager } from './types/ApiClientManager';
 import type { SessionManager } from './types/SessionManager';
 import type { OpenResourcesManager } from './types/OpenResourcesManager';
+import { SemiontApiClient, baseUrl, accessToken } from '@semiont/api-client';
 
 /**
  * Default mock implementations
@@ -37,7 +38,10 @@ export const defaultMocks = {
     },
   } as TranslationManager,
 
-  apiClientManager: null as ApiClientManager,
+  apiClientManager: new SemiontApiClient({
+    baseUrl: baseUrl('http://localhost:4000'),
+    accessToken: accessToken('test-token'),
+  }) as ApiClientManager,
 
   sessionManager: {
     isAuthenticated: false,

@@ -6,8 +6,9 @@ import type { ApiClientManager } from '@semiont/react-ui';
 /**
  * Frontend implementation of ApiClientManager
  * Uses next-auth session to create authenticated API client
+ * Returns null when not authenticated - caller must handle this case
  */
-export function useApiClientManager(): ApiClientManager {
+export function useApiClientManager(): ApiClientManager | null {
   const { data: session } = useSession();
 
   return useMemo(() => {
