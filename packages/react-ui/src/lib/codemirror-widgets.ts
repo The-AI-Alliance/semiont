@@ -10,6 +10,7 @@
 import { WidgetType } from '@codemirror/view';
 import type { components } from '@semiont/api-client';
 import { isResolvedReference, getBodySource } from '@semiont/api-client';
+import type { EventBus } from '../contexts/EventBusContext';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -21,8 +22,7 @@ export class ReferenceResolutionWidget extends WidgetType {
   constructor(
     readonly annotation: Annotation,
     readonly targetDocumentName?: string,
-    readonly onNavigate?: (documentId: string) => void,
-    readonly onUnresolvedClick?: (annotation: Annotation) => void,
+    readonly eventBus?: EventBus,
     readonly isGenerating?: boolean
   ) {
     super();
@@ -165,17 +165,20 @@ export class ReferenceResolutionWidget extends WidgetType {
 
       // Click handler: navigate for resolved, show popup for unresolved
       const bodySource = getBodySource(this.annotation.body);
-      if (isResolved && bodySource && this.onNavigate) {
+      if (isResolved && bodySource && this.eventBus) {
+        const eventBus = this.eventBus; // Capture for closure
         indicator.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
-          this.onNavigate!(bodySource);
+          eventBus.emit('navigation:reference-navigate', { documentId: bodySource });
         });
-      } else if (!isResolved && this.onUnresolvedClick) {
+      } else if (!isResolved && this.eventBus) {
+        const eventBus = this.eventBus; // Capture for closure
+        const annotation: Annotation = this.annotation; // Capture for closure with explicit type
         indicator.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
-          this.onUnresolvedClick!(this.annotation);
+          eventBus.emit('annotation:click', { annotationId: annotation.id, motivation: annotation.motivation });
         });
       }
     }

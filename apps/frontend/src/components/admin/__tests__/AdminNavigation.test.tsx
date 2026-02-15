@@ -4,6 +4,7 @@ import { render, screen } from '@testing-library/react';
 import { usePathname } from 'next/navigation';
 import { AdminNavigation } from '../AdminNavigation';
 import type { SimpleNavigationProps } from '@semiont/react-ui';
+import { useEventSubscriptions } from '@semiont/react-ui';
 
 // Mock next/navigation
 vi.mock('next/navigation', () => ({
@@ -62,16 +63,41 @@ vi.mock('@heroicons/react/24/outline', () => ({
   ),
 }));
 
-// Mock SimpleNavigation component
+// Mock SimpleNavigation component and event bus hooks
 const mockSimpleNavigation = vi.fn();
-vi.mock('@semiont/react-ui', () => ({
-  SimpleNavigation: (props: SimpleNavigationProps) => {
-    mockSimpleNavigation(props);
-    return <div data-testid="simple-navigation">Mocked SimpleNavigation</div>;
-  },
-}));
+const mockEventBus = {
+  on: vi.fn(),
+  off: vi.fn(),
+  emit: vi.fn(),
+};
+
+vi.mock('@semiont/react-ui', () => {
+  // Use factory function to properly handle mock references
+  const mockEventBusLocal = {
+    on: vi.fn(),
+    off: vi.fn(),
+    emit: vi.fn(),
+  };
+
+  return {
+    SimpleNavigation: (props: any) => {
+      mockSimpleNavigation(props);
+      return <div data-testid="simple-navigation">Mocked SimpleNavigation</div>;
+    },
+    useNavigationEvents: () => mockEventBusLocal,
+    useEventBus: () => mockEventBusLocal,
+    useMakeMeaningEvents: () => mockEventBusLocal,
+    useGlobalSettingsEvents: () => mockEventBusLocal,
+    useEventSubscriptions: vi.fn(),
+  };
+});
 
 describe('AdminNavigation', () => {
+  const defaultProps = {
+    isCollapsed: false,
+    toggleCollapsed: vi.fn(),
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     (usePathname as any).mockReturnValue('/admin');
@@ -86,12 +112,12 @@ describe('AdminNavigation', () => {
 
   describe('SimpleNavigation integration', () => {
     it('should render SimpleNavigation component', () => {
-      render(<AdminNavigation />);
+      render(<AdminNavigation {...defaultProps} />);
       expect(screen.getByTestId('simple-navigation')).toBeInTheDocument();
     });
 
     it('should pass correct title prop from translations', () => {
-      render(<AdminNavigation />);
+      render(<AdminNavigation {...defaultProps} />);
 
       expect(mockSimpleNavigation).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -104,7 +130,7 @@ describe('AdminNavigation', () => {
       const testPath = '/admin/users';
       (usePathname as any).mockReturnValue(testPath);
 
-      render(<AdminNavigation />);
+      render(<AdminNavigation {...defaultProps} />);
 
       expect(mockSimpleNavigation).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -114,14 +140,14 @@ describe('AdminNavigation', () => {
     });
 
     it('should pass Link component as LinkComponent prop', () => {
-      render(<AdminNavigation />);
+      render(<AdminNavigation {...defaultProps} />);
 
       const call = mockSimpleNavigation.mock.calls[0]![0]!;
       expect(call.LinkComponent).toBeDefined();
     });
 
     it('should pass collapse/expand labels from Sidebar translations', () => {
-      render(<AdminNavigation />);
+      render(<AdminNavigation {...defaultProps} />);
 
       expect(mockSimpleNavigation).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -132,7 +158,7 @@ describe('AdminNavigation', () => {
     });
 
     it('should pass chevronLeft and bars icons', () => {
-      render(<AdminNavigation />);
+      render(<AdminNavigation {...defaultProps} />);
 
       const call = mockSimpleNavigation.mock.calls[0]![0]!;
       expect(call.icons).toBeDefined();
@@ -143,14 +169,14 @@ describe('AdminNavigation', () => {
 
   describe('Navigation items configuration', () => {
     it('should pass 3 navigation items to SimpleNavigation', () => {
-      render(<AdminNavigation />);
+      render(<AdminNavigation {...defaultProps} />);
 
       const call = mockSimpleNavigation.mock.calls[0]![0]!;
       expect(call.items).toHaveLength(3);
     });
 
     it('should configure Users navigation item correctly', () => {
-      render(<AdminNavigation />);
+      render(<AdminNavigation {...defaultProps} />);
 
       const call = mockSimpleNavigation.mock.calls[0]![0]!;
       const usersItem = call.items[0];
@@ -166,7 +192,7 @@ describe('AdminNavigation', () => {
     });
 
     it('should configure OAuth Settings navigation item correctly', () => {
-      render(<AdminNavigation />);
+      render(<AdminNavigation {...defaultProps} />);
 
       const call = mockSimpleNavigation.mock.calls[0]![0]!;
       const oauthItem = call.items[1];
@@ -182,7 +208,7 @@ describe('AdminNavigation', () => {
     });
 
     it('should configure DevOps navigation item correctly', () => {
-      render(<AdminNavigation />);
+      render(<AdminNavigation {...defaultProps} />);
 
       const call = mockSimpleNavigation.mock.calls[0]![0]!;
       const devopsItem = call.items[2];
@@ -198,7 +224,7 @@ describe('AdminNavigation', () => {
     });
 
     it('should pass all items with correct structure', () => {
-      render(<AdminNavigation />);
+      render(<AdminNavigation {...defaultProps} />);
 
       const call = mockSimpleNavigation.mock.calls[0]![0]!;
 
@@ -215,98 +241,54 @@ describe('AdminNavigation', () => {
   });
 
   describe('Collapse/expand state management', () => {
-    it('should initialize with isCollapsed as false by default', () => {
-      render(<AdminNavigation />);
+    it('should pass isCollapsed prop to SimpleNavigation', () => {
+      render(<AdminNavigation {...defaultProps} isCollapsed={true} />);
 
       expect(mockSimpleNavigation).toHaveBeenCalledWith(
         expect.objectContaining({
-          isCollapsed: false,
+          isCollapsed: true,
         })
       );
     });
 
-    it('should load collapsed state from localStorage on mount', () => {
-      (Storage.prototype.getItem as any).mockReturnValue('true');
-
-      render(<AdminNavigation />);
-
-      expect(localStorage.getItem).toHaveBeenCalledWith('admin-sidebar-collapsed');
-
-      // Need to wait for useEffect to run and component to re-render
-      // The second call should have isCollapsed: true
-      const calls = mockSimpleNavigation.mock.calls;
-      const lastCall = calls[calls.length - 1]![0]!;
-      expect(lastCall.isCollapsed).toBe(true);
-    });
-
-    it('should remain false when localStorage has no value', () => {
-      (Storage.prototype.getItem as any).mockReturnValue(null);
-
-      render(<AdminNavigation />);
+    it('should pass isCollapsed as false when prop is false', () => {
+      render(<AdminNavigation {...defaultProps} isCollapsed={false} />);
 
       const call = mockSimpleNavigation.mock.calls[0]![0]!;
       expect(call.isCollapsed).toBe(false);
     });
 
-    it('should pass onToggleCollapse handler', () => {
-      render(<AdminNavigation />);
+    it('should subscribe to navigation:sidebar-toggle event', () => {
+      render(<AdminNavigation {...defaultProps} />);
 
-      const call = mockSimpleNavigation.mock.calls[0]![0]!;
-      expect(call.onToggleCollapse).toBeDefined();
-      expect(typeof call.onToggleCollapse).toBe('function');
+      expect(vi.mocked(useEventSubscriptions)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          'navigation:sidebar-toggle': expect.any(Function),
+        })
+      );
     });
 
-    it('should save collapsed state to localStorage when toggled', () => {
-      render(<AdminNavigation />);
+    it('should call toggleCollapsed when sidebar-toggle event is handled', () => {
+      const mockToggleCollapsed = vi.fn();
 
-      const call = mockSimpleNavigation.mock.calls[0]![0]!;
-      const toggleHandler = call.onToggleCollapse;
+      render(<AdminNavigation {...defaultProps} toggleCollapsed={mockToggleCollapsed} />);
+
+      // Get the subscriptions object passed to useEventSubscriptions
+      const mockUseEventSubs = vi.mocked(useEventSubscriptions);
+      const subscriptions = mockUseEventSubs.mock.calls[0]![0]!;
+      const toggleHandler = subscriptions['navigation:sidebar-toggle'];
 
       // Call the toggle handler
-      toggleHandler();
+      expect(toggleHandler).toBeDefined();
+      toggleHandler!(undefined);
 
-      expect(localStorage.setItem).toHaveBeenCalledWith('admin-sidebar-collapsed', 'true');
-    });
-
-    it('should toggle between true and false states', () => {
-      const { rerender } = render(<AdminNavigation />);
-
-      const firstCall = mockSimpleNavigation.mock.calls[0]![0]!;
-      expect(firstCall.isCollapsed).toBe(false);
-
-      // Toggle to collapsed
-      firstCall.onToggleCollapse();
-      rerender(<AdminNavigation />);
-
-      const secondCall = mockSimpleNavigation.mock.calls[mockSimpleNavigation.mock.calls.length - 1]![0]!;
-      expect(secondCall.isCollapsed).toBe(true);
-
-      // Toggle back to expanded
-      secondCall.onToggleCollapse();
-      rerender(<AdminNavigation />);
-
-      const thirdCall = mockSimpleNavigation.mock.calls[mockSimpleNavigation.mock.calls.length - 1]![0]!;
-      expect(thirdCall.isCollapsed).toBe(false);
-    });
-
-    it('should use admin-sidebar-collapsed as localStorage key', () => {
-      render(<AdminNavigation />);
-
-      expect(localStorage.getItem).toHaveBeenCalledWith('admin-sidebar-collapsed');
-
-      const call = mockSimpleNavigation.mock.calls[0]![0]!;
-      call.onToggleCollapse();
-
-      expect(localStorage.setItem).toHaveBeenCalledWith(
-        'admin-sidebar-collapsed',
-        expect.any(String)
-      );
+      expect(mockToggleCollapsed).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('Optional navigationMenu prop', () => {
     it('should not pass dropdownContent when navigationMenu is not provided', () => {
-      render(<AdminNavigation />);
+      render(<AdminNavigation {...defaultProps} />);
 
       const call = mockSimpleNavigation.mock.calls[0]![0]!;
       expect(call.dropdownContent).toBeUndefined();
@@ -315,7 +297,7 @@ describe('AdminNavigation', () => {
     it('should pass dropdownContent when navigationMenu is provided', () => {
       const mockNavigationMenu = vi.fn(() => <div>Mock Menu</div>);
 
-      render(<AdminNavigation navigationMenu={mockNavigationMenu} />);
+      render(<AdminNavigation {...defaultProps} navigationMenu={mockNavigationMenu} />);
 
       const call = mockSimpleNavigation.mock.calls[0]![0]!;
       expect(call.dropdownContent).toBeDefined();
@@ -325,7 +307,7 @@ describe('AdminNavigation', () => {
     it('should pass navigationMenu function with correct signature', () => {
       const mockNavigationMenu = vi.fn((onClose: () => void) => <div>Mock Menu</div>);
 
-      render(<AdminNavigation navigationMenu={mockNavigationMenu} />);
+      render(<AdminNavigation {...defaultProps} navigationMenu={mockNavigationMenu} />);
 
       const call = mockSimpleNavigation.mock.calls[0]![0]!;
       expect(typeof call.dropdownContent).toBe('function');
@@ -334,26 +316,26 @@ describe('AdminNavigation', () => {
 
   describe('Dynamic pathname updates', () => {
     it('should update currentPath when pathname changes', () => {
-      const { rerender } = render(<AdminNavigation />);
+      const { rerender } = render(<AdminNavigation {...defaultProps} />);
 
       let call = mockSimpleNavigation.mock.calls[0]![0]!;
       expect(call.currentPath).toBe('/admin');
 
       (usePathname as any).mockReturnValue('/admin/users');
-      rerender(<AdminNavigation />);
+      rerender(<AdminNavigation {...defaultProps} />);
 
       call = mockSimpleNavigation.mock.calls[mockSimpleNavigation.mock.calls.length - 1]![0]!;
       expect(call.currentPath).toBe('/admin/users');
     });
 
     it('should handle multiple pathname changes', () => {
-      const { rerender } = render(<AdminNavigation />);
+      const { rerender } = render(<AdminNavigation {...defaultProps} />);
 
       const paths = ['/admin/users', '/admin/security', '/admin/devops'];
 
       paths.forEach((path) => {
         (usePathname as any).mockReturnValue(path);
-        rerender(<AdminNavigation />);
+        rerender(<AdminNavigation {...defaultProps} />);
 
         const call = mockSimpleNavigation.mock.calls[mockSimpleNavigation.mock.calls.length - 1]![0]!;
         expect(call.currentPath).toBe(path);
@@ -363,7 +345,7 @@ describe('AdminNavigation', () => {
 
   describe('Props validation', () => {
     it('should pass all required SimpleNavigation props', () => {
-      render(<AdminNavigation />);
+      render(<AdminNavigation {...defaultProps} />);
 
       const call = mockSimpleNavigation.mock.calls[0]![0]!;
 
@@ -373,14 +355,13 @@ describe('AdminNavigation', () => {
       expect(call.currentPath).toBeDefined();
       expect(call.LinkComponent).toBeDefined();
       expect(call.isCollapsed).toBeDefined();
-      expect(call.onToggleCollapse).toBeDefined();
       expect(call.icons).toBeDefined();
       expect(call.collapseSidebarLabel).toBeDefined();
       expect(call.expandSidebarLabel).toBeDefined();
     });
 
     it('should pass props with correct types', () => {
-      render(<AdminNavigation />);
+      render(<AdminNavigation {...defaultProps} />);
 
       const call = mockSimpleNavigation.mock.calls[0]![0]!;
 
@@ -388,14 +369,13 @@ describe('AdminNavigation', () => {
       expect(Array.isArray(call.items)).toBe(true);
       expect(typeof call.currentPath).toBe('string');
       expect(typeof call.isCollapsed).toBe('boolean');
-      expect(typeof call.onToggleCollapse).toBe('function');
       expect(typeof call.icons).toBe('object');
       expect(typeof call.collapseSidebarLabel).toBe('string');
       expect(typeof call.expandSidebarLabel).toBe('string');
     });
 
     it('should not pass any unexpected props to SimpleNavigation', () => {
-      render(<AdminNavigation />);
+      render(<AdminNavigation {...defaultProps} />);
 
       const call = mockSimpleNavigation.mock.calls[0]![0]!;
       const expectedKeys = [
@@ -404,7 +384,6 @@ describe('AdminNavigation', () => {
         'currentPath',
         'LinkComponent',
         'isCollapsed',
-        'onToggleCollapse',
         'icons',
         'collapseSidebarLabel',
         'expandSidebarLabel',

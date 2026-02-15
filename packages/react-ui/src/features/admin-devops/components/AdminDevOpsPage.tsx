@@ -23,11 +23,8 @@ export interface AdminDevOpsPageProps {
 
   // UI state
   theme: 'light' | 'dark' | 'system';
-  onThemeChange: (theme: 'light' | 'dark' | 'system') => void;
   showLineNumbers: boolean;
-  onLineNumbersToggle: () => void;
   activePanel: string | null;
-  onPanelToggle: (panel: string | null) => void;
 
   // Translations
   translations: {
@@ -49,11 +46,8 @@ export interface AdminDevOpsPageProps {
 export function AdminDevOpsPage({
   suggestedFeatures,
   theme,
-  onThemeChange,
   showLineNumbers,
-  onLineNumbersToggle,
   activePanel,
-  onPanelToggle,
   translations: t,
   StatusDisplay,
   ToolbarPanels,
@@ -138,15 +132,12 @@ export function AdminDevOpsPage({
         <ToolbarPanels
           activePanel={activePanel}
           theme={theme}
-          onThemeChange={onThemeChange}
           showLineNumbers={showLineNumbers}
-          onLineNumbersToggle={onLineNumbersToggle}
         />
 
         <Toolbar
           context="simple"
           activePanel={activePanel}
-          onPanelToggle={onPanelToggle}
         />
       </div>
     </div>

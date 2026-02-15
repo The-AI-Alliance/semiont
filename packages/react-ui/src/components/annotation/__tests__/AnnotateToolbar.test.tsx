@@ -1,9 +1,10 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import { vi } from 'vitest';
+import { vi, beforeEach, describe, it, expect } from 'vitest';
 import { NextIntlClientProvider } from 'next-intl';
 import { AnnotateToolbar, type SelectionMotivation, type ClickAction } from '../AnnotateToolbar';
 import { ANNOTATORS } from '../../../lib/annotation-registry';
+import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../../contexts/EventBusContext';
 
 // Mock translations
 const messages = {
@@ -29,11 +30,75 @@ const messages = {
   }
 };
 
-const renderWithIntl = (component: React.ReactElement) => {
+// Composition-based event tracker
+interface TrackedEvent {
+  event: string;
+  payload: any;
+}
+
+function createEventTracker() {
+  const events: TrackedEvent[] = [];
+
+  function EventTrackingWrapper({ children }: { children: React.ReactNode }) {
+    const eventBus = useEventBus();
+
+    React.useEffect(() => {
+      const handlers: Array<() => void> = [];
+
+      // Track toolbar-related events
+      const trackEvent = (eventName: string) => (payload: any) => {
+        events.push({ event: eventName, payload });
+      };
+
+      const toolbarEvents = [
+        'view:mode-toggled',
+        'toolbar:click-changed',
+        'toolbar:selection-changed',
+        'toolbar:shape-changed',
+      ];
+
+      toolbarEvents.forEach(eventName => {
+        const handler = trackEvent(eventName);
+        eventBus.on(eventName, handler);
+        handlers.push(() => eventBus.off(eventName, handler));
+      });
+
+      return () => {
+        handlers.forEach(cleanup => cleanup());
+      };
+    }, [eventBus]);
+
+    return <>{children}</>;
+  }
+
+  return {
+    EventTrackingWrapper,
+    events,
+    clear: () => {
+      events.length = 0;
+    },
+  };
+}
+
+const renderWithIntl = (component: React.ReactElement, tracker?: ReturnType<typeof createEventTracker>) => {
+  if (tracker) {
+    return render(
+      <EventBusProvider>
+        <NextIntlClientProvider locale="en" messages={messages}>
+          <tracker.EventTrackingWrapper>
+            {component}
+          </tracker.EventTrackingWrapper>
+        </NextIntlClientProvider>
+      </EventBusProvider>
+    );
+  }
+
   return render(
-    <NextIntlClientProvider locale="en" messages={messages}>
-      {component}
-    </NextIntlClientProvider>
+    <EventBusProvider>
+      <NextIntlClientProvider locale="en" messages={messages}>
+        {component}
+      </NextIntlClientProvider>
+    </EventBusProvider>
   );
 };
 
@@ -44,11 +109,11 @@ describe('AnnotateToolbar', () => {
     onSelectionChange: vi.fn(),
     onClickChange: vi.fn(),
     annotateMode: false,
-    onAnnotateModeToggle: vi.fn(),
     annotators: ANNOTATORS
   };
 
   beforeEach(() => {
+    resetEventBusForTesting();
     vi.clearAllMocks();
   });
 
@@ -113,19 +178,19 @@ describe('AnnotateToolbar', () => {
         <AnnotateToolbar
           {...defaultProps}
           annotateMode={false}
-          onAnnotateModeToggle={vi.fn()}
         />
       );
       expect(screen.getByText('Browse')).toBeInTheDocument();
 
       rerender(
-        <NextIntlClientProvider locale="en" messages={messages}>
-          <AnnotateToolbar
-            {...defaultProps}
-            annotateMode={true}
-            onAnnotateModeToggle={vi.fn()}
-          />
-        </NextIntlClientProvider>
+        <EventBusProvider>
+          <NextIntlClientProvider locale="en" messages={messages}>
+            <AnnotateToolbar
+              {...defaultProps}
+              annotateMode={true}
+            />
+          </NextIntlClientProvider>
+        </EventBusProvider>
       );
       expect(screen.getByText('Annotate')).toBeInTheDocument();
     });
@@ -135,7 +200,6 @@ describe('AnnotateToolbar', () => {
         <AnnotateToolbar
           {...defaultProps}
           annotateMode={false}
-          onAnnotateModeToggle={vi.fn()}
         />
       );
 
@@ -151,14 +215,14 @@ describe('AnnotateToolbar', () => {
       });
     });
 
-    it('calls onAnnotateModeToggle when Browse is clicked in Annotate mode', async () => {
-      const handleToggle = vi.fn();
+    it('emits view:mode-toggled event when Browse is clicked in Annotate mode', async () => {
+      const tracker = createEventTracker();
       renderWithIntl(
         <AnnotateToolbar
           {...defaultProps}
           annotateMode={true}
-          onAnnotateModeToggle={handleToggle}
-        />
+        />,
+        tracker
       );
 
       const modeGroup = screen.getByLabelText('Mode');
@@ -169,17 +233,19 @@ describe('AnnotateToolbar', () => {
         fireEvent.click(browseButton);
       });
 
-      expect(handleToggle).toHaveBeenCalledTimes(1);
+      await waitFor(() => {
+        expect(tracker.events.some(e => e.event === 'view:mode-toggled')).toBe(true);
+      });
     });
 
-    it('calls onAnnotateModeToggle when Annotate is clicked in Browse mode', async () => {
-      const handleToggle = vi.fn();
+    it('emits view:mode-toggled event when Annotate is clicked in Browse mode', async () => {
+      const tracker = createEventTracker();
       renderWithIntl(
         <AnnotateToolbar
           {...defaultProps}
           annotateMode={false}
-          onAnnotateModeToggle={handleToggle}
-        />
+        />,
+        tracker
       );
 
       const modeGroup = screen.getByLabelText('Mode');
@@ -190,17 +256,19 @@ describe('AnnotateToolbar', () => {
         fireEvent.click(annotateButton);
       });
 
-      expect(handleToggle).toHaveBeenCalledTimes(1);
+      await waitFor(() => {
+        expect(tracker.events.some(e => e.event === 'view:mode-toggled')).toBe(true);
+      });
     });
 
     it('closes dropdown after selection', async () => {
-      const handleToggle = vi.fn();
+      const tracker = createEventTracker();
       const { rerender } = renderWithIntl(
         <AnnotateToolbar
           {...defaultProps}
           annotateMode={false}
-          onAnnotateModeToggle={handleToggle}
-        />
+        />,
+        tracker
       );
 
       const modeGroup = screen.getByLabelText('Mode');
@@ -213,18 +281,23 @@ describe('AnnotateToolbar', () => {
       const annotateButton = screen.getByText('Annotate');
       fireEvent.click(annotateButton);
 
-      // Verify the toggle was called
-      expect(handleToggle).toHaveBeenCalledTimes(1);
+      // Verify the event was emitted
+      await waitFor(() => {
+        expect(tracker.events.some(e => e.event === 'view:mode-toggled')).toBe(true);
+      });
 
       // Simulate mode change by rerendering with new mode
       rerender(
-        <NextIntlClientProvider locale="en" messages={messages}>
-          <AnnotateToolbar
-            {...defaultProps}
-            annotateMode={true}
-            onAnnotateModeToggle={handleToggle}
-          />
-        </NextIntlClientProvider>
+        <EventBusProvider>
+          <NextIntlClientProvider locale="en" messages={messages}>
+            <tracker.EventTrackingWrapper>
+              <AnnotateToolbar
+                {...defaultProps}
+                annotateMode={true}
+              />
+            </tracker.EventTrackingWrapper>
+          </NextIntlClientProvider>
+        </EventBusProvider>
       );
 
       // After mode change, the collapsed content should show "Annotate"
@@ -238,10 +311,11 @@ describe('AnnotateToolbar', () => {
   });
 
   describe('CLICK Group Interactions', () => {
-    it('calls onClickChange when clicking an action', async () => {
-      const handleChange = vi.fn();
+    it('emits toolbar:click-changed event when clicking an action', async () => {
+      const tracker = createEventTracker();
       renderWithIntl(
-        <AnnotateToolbar {...defaultProps} onClickChange={handleChange} />
+        <AnnotateToolbar {...defaultProps} />,
+        tracker
       );
 
       const clickGroup = screen.getByLabelText('Click');
@@ -251,8 +325,13 @@ describe('AnnotateToolbar', () => {
         expect(screen.getByText('Follow')).toBeInTheDocument();
       });
 
+      tracker.clear();
       fireEvent.click(screen.getByText('Follow'));
-      expect(handleChange).toHaveBeenCalledWith('follow');
+      await waitFor(() => {
+        expect(tracker.events.some(e =>
+          e.event === 'toolbar:click-changed' && e.payload?.action === 'follow'
+        )).toBe(true);
+      });
     });
 
     it('displays selected action', () => {
@@ -264,10 +343,11 @@ describe('AnnotateToolbar', () => {
   });
 
   describe('MOTIVATION Group Interactions', () => {
-    it('calls onSelectionChange when clicking a motivation', async () => {
-      const handleChange = vi.fn();
+    it('emits toolbar:selection-changed event when clicking a motivation', async () => {
+      const tracker = createEventTracker();
       renderWithIntl(
-        <AnnotateToolbar {...defaultProps} onSelectionChange={handleChange} />
+        <AnnotateToolbar {...defaultProps} />,
+        tracker
       );
 
       const motivationGroup = screen.getByLabelText('Motivation');
@@ -277,18 +357,23 @@ describe('AnnotateToolbar', () => {
         expect(screen.getByText('Reference')).toBeInTheDocument();
       });
 
+      tracker.clear();
       fireEvent.click(screen.getByText('Reference'));
-      expect(handleChange).toHaveBeenCalledWith('linking');
+      await waitFor(() => {
+        expect(tracker.events.some(e =>
+          e.event === 'toolbar:selection-changed' && e.payload?.motivation === 'linking'
+        )).toBe(true);
+      });
     });
 
     it('toggles motivation on/off', async () => {
-      const handleChange = vi.fn();
+      const tracker = createEventTracker();
       const { rerender } = renderWithIntl(
         <AnnotateToolbar
           {...defaultProps}
           selectedMotivation={null}
-          onSelectionChange={handleChange}
-        />
+        />,
+        tracker
       );
 
       const motivationGroup = screen.getByLabelText('Motivation');
@@ -300,18 +385,26 @@ describe('AnnotateToolbar', () => {
       });
 
       const dropdown = screen.getByRole('menu');
+      tracker.clear();
       fireEvent.click(within(dropdown).getByText('Highlight'));
-      expect(handleChange).toHaveBeenCalledWith('highlighting');
+      await waitFor(() => {
+        expect(tracker.events.some(e =>
+          e.event === 'toolbar:selection-changed' && e.payload?.motivation === 'highlighting'
+        )).toBe(true);
+      });
 
       // Simulate selection
       rerender(
-        <NextIntlClientProvider locale="en" messages={messages}>
-          <AnnotateToolbar
-            {...defaultProps}
-            selectedMotivation="highlighting"
-            onSelectionChange={handleChange}
-          />
-        </NextIntlClientProvider>
+        <EventBusProvider>
+          <NextIntlClientProvider locale="en" messages={messages}>
+            <tracker.EventTrackingWrapper>
+              <AnnotateToolbar
+                {...defaultProps}
+                selectedMotivation="highlighting"
+              />
+            </tracker.EventTrackingWrapper>
+          </NextIntlClientProvider>
+        </EventBusProvider>
       );
 
       // Click again to deselect
@@ -321,21 +414,26 @@ describe('AnnotateToolbar', () => {
         expect(within(dropdown).getByText('Highlight')).toBeInTheDocument();
       });
       const dropdown2 = screen.getByRole('menu');
+      tracker.clear();
       fireEvent.click(within(dropdown2).getByText('Highlight'));
-      expect(handleChange).toHaveBeenCalledWith(null);
+      await waitFor(() => {
+        expect(tracker.events.some(e =>
+          e.event === 'toolbar:selection-changed' && e.payload?.motivation === null
+        )).toBe(true);
+      });
     });
   });
 
   describe('SHAPE Group Interactions', () => {
-    it('calls onShapeChange when clicking a shape', async () => {
-      const handleChange = vi.fn();
+    it('emits toolbar:shape-changed event when clicking a shape', async () => {
+      const tracker = createEventTracker();
       renderWithIntl(
         <AnnotateToolbar
           {...defaultProps}
           showShapeGroup={true}
           selectedShape="rectangle"
-          onShapeChange={handleChange}
-        />
+        />,
+        tracker
       );
 
       const shapeGroup = screen.getByLabelText('Shape');
@@ -345,8 +443,13 @@ describe('AnnotateToolbar', () => {
         expect(screen.getByText('Circle')).toBeInTheDocument();
       });
 
+      tracker.clear();
       fireEvent.click(screen.getByText('Circle'));
-      expect(handleChange).toHaveBeenCalledWith('circle');
+      await waitFor(() => {
+        expect(tracker.events.some(e =>
+          e.event === 'toolbar:shape-changed' && e.payload?.shape === 'circle'
+        )).toBe(true);
+      });
     });
   });
 
@@ -356,7 +459,6 @@ describe('AnnotateToolbar', () => {
         <AnnotateToolbar
           {...defaultProps}
           annotateMode={false}
-          onAnnotateModeToggle={vi.fn()}
         />
       );
 

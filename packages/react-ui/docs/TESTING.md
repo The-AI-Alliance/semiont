@@ -7,9 +7,123 @@ Comprehensive testing guide for `@semiont/react-ui` components and applications 
 The library includes:
 
 - **1300+ tests** with high coverage
+- **Composition-based testing** over vitest module mocks
+- **Event-driven architecture** testing patterns
 - **Test utilities** for easy component testing
-- **Mock providers** for all cross-cutting concerns
+- **Real component integration** for authentic behavior validation
 - **Vitest + React Testing Library** setup
+
+## Testing Philosophy
+
+### Composition Over Mocking
+
+We favor **composition-based testing** over vitest module mocks (`vi.mock()`):
+
+**❌ Don't: Use vitest module mocks for components**
+```tsx
+// WRONG - Global mock affects all tests
+vi.mock('../NavigationMenu', () => ({
+  NavigationMenu: () => <div>Mocked Menu</div>
+}));
+```
+
+**✅ Do: Use real components via composition**
+```tsx
+// CORRECT - Test with real components
+import { NavigationMenu } from '../NavigationMenu';
+import { SemiontBranding } from '../SemiontBranding';
+
+it('should render navigation with branding', () => {
+  render(
+    <LeftSidebar>
+      <NavigationMenu {...props} />
+    </LeftSidebar>
+  );
+
+  // Tests actual component behavior
+  expect(screen.getByText('Semiont')).toBeInTheDocument();
+  expect(screen.getByText('nav.know')).toBeInTheDocument();
+});
+```
+
+**Why composition is better:**
+- Tests real component behavior, not mock approximations
+- Catches integration bugs that mocks miss
+- No maintenance burden when component APIs change
+- More confident refactoring
+- Follows React's component model
+
+**When mocking is acceptable:**
+- **Hooks** for UI state (`useDropdown`, `useModal`)
+- **External APIs** (`fetch`, API clients)
+- **Browser APIs** not available in jsdom (`scrollIntoView`, `IntersectionObserver`)
+- **Utility modules** (`formatDate`, `parseJson`)
+
+### Event-Driven Testing
+
+For components that use EventBus, use the **EventTracker pattern** instead of mocking EventBus methods:
+
+**❌ Don't: Mock EventBus methods**
+```tsx
+// WRONG - Breaks real event flow
+vi.spyOn(EventBus, 'on');
+vi.spyOn(EventBus, 'emit');
+```
+
+**✅ Do: Use EventTracker to verify events**
+```tsx
+// CORRECT - Real EventBus with event tracking
+import { createEventTracker, EventTrackingWrapper } from '@/test-utils/eventTracker';
+
+it('should emit resource-selected event', () => {
+  const tracker = createEventTracker();
+
+  render(
+    <EventTrackingWrapper tracker={tracker}>
+      <BrowseView {...props} />
+    </EventTrackingWrapper>
+  );
+
+  fireEvent.click(screen.getByText('Resource 1'));
+
+  expect(tracker.getEvents('resource-selected')).toHaveLength(1);
+  expect(tracker.getLastEvent('resource-selected')?.payload).toEqual({
+    resourceId: 'res-1',
+    resourceName: 'Resource 1'
+  });
+});
+```
+
+**EventTracker benefits:**
+- Tests real EventBus subscriptions and emissions
+- Verifies event payloads and order
+- No mock maintenance when EventBus API changes
+- Catches event-driven integration bugs
+- Provides helper methods: `getEvents()`, `getLastEvent()`, `clearEvents()`
+
+**Real example from BrowseView.test.tsx:**
+```tsx
+describe('Event Emissions', () => {
+  it('should emit resource-selected when clicking resource', () => {
+    const tracker = createEventTracker();
+
+    render(
+      <EventTrackingWrapper tracker={tracker}>
+        <BrowseView resources={mockResources} />
+      </EventTrackingWrapper>
+    );
+
+    fireEvent.click(screen.getByText('Document 1'));
+
+    const events = tracker.getEvents('resource-selected');
+    expect(events).toHaveLength(1);
+    expect(events[0].payload).toMatchObject({
+      resourceId: 'doc-1',
+      resourceName: 'Document 1'
+    });
+  });
+});
+```
 
 ## Test Utilities
 
@@ -401,73 +515,182 @@ If contributing to `@semiont/react-ui`, follow these patterns:
 
 ### Component Test Structure
 
+Organize tests into logical describe blocks with clear test names:
+
 ```tsx
-// src/components/MyComponent/__tests__/MyComponent.test.tsx
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { MyComponent } from '../MyComponent';
-import { TranslationProvider } from '../../../contexts/TranslationContext';
+// src/components/layout/__tests__/LeftSidebar.test.tsx
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import React from 'react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import '@testing-library/jest-dom';
+import { LeftSidebar } from '../LeftSidebar';
 
-describe('MyComponent', () => {
-  const mockTranslationManager = {
-    t: (namespace: string, key: string) => `${namespace}.${key}`
-  };
+// No mocks - using real components via composition
 
-  const renderComponent = (props = {}) => {
-    return render(
-      <TranslationProvider translationManager={mockTranslationManager}>
-        <MyComponent {...props} />
-      </TranslationProvider>
-    );
-  };
+// Mock Link component
+const MockLink = ({ href, children, ...props }: any) => (
+  <a href={href} {...props}>{children}</a>
+);
+
+// Mock routes
+const mockRoutes = {
+  home: () => '/',
+  about: () => '/about',
+} as any;
+
+// Mock translation functions
+const mockT = (key: string) => `nav.${key}`;
+const mockTHome = (key: string) => `home.${key}`;
+
+describe('LeftSidebar Component', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   describe('Rendering', () => {
-    it('should render without crashing', () => {
-      const { container } = renderComponent();
-      expect(container).toBeInTheDocument();
-    });
-
-    it('should display translated text', () => {
-      renderComponent();
-      expect(screen.getByText('MyComponent.title')).toBeInTheDocument();
-    });
-  });
-
-  describe('Props', () => {
-    it('should accept custom className', () => {
-      renderComponent({ className: 'custom-class' });
-      expect(screen.getByTestId('my-component')).toHaveClass('custom-class');
-    });
-  });
-
-  describe('User Interactions', () => {
-    it('should call onClick when clicked', async () => {
-      const handleClick = vi.fn();
-      const user = userEvent.setup();
-
-      renderComponent({ onClick: handleClick });
-
-      await user.click(screen.getByRole('button'));
-
-      expect(handleClick).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe('Edge Cases', () => {
-    it('should handle missing translations gracefully', () => {
-      const emptyManager = { t: () => '' };
-
+    it('should render with required props', () => {
       render(
-        <TranslationProvider translationManager={emptyManager}>
-          <MyComponent />
-        </TranslationProvider>
+        <LeftSidebar
+          Link={MockLink}
+          routes={mockRoutes}
+          t={mockT}
+          tHome={mockTHome}
+        >
+          <div>Sidebar Content</div>
+        </LeftSidebar>
       );
 
-      expect(screen.getByTestId('my-component')).toBeInTheDocument();
+      expect(screen.getByText('Sidebar Content')).toBeInTheDocument();
+    });
+
+    it('should render branding when expanded', () => {
+      render(
+        <LeftSidebar
+          Link={MockLink}
+          routes={mockRoutes}
+          t={mockT}
+          tHome={mockTHome}
+        >
+          <div>Content</div>
+        </LeftSidebar>
+      );
+
+      // Real SemiontBranding renders "Semiont" text
+      expect(screen.getByText('Semiont')).toBeInTheDocument();
+    });
+  });
+
+  describe('Accessibility', () => {
+    it('should have proper ARIA attributes on nav element', () => {
+      render(
+        <LeftSidebar
+          Link={MockLink}
+          routes={mockRoutes}
+          t={mockT}
+          tHome={mockTHome}
+        >
+          <div>Content</div>
+        </LeftSidebar>
+      );
+
+      const nav = screen.getByRole('navigation');
+      expect(nav).toHaveAttribute('aria-label', 'Main navigation');
+      expect(nav).toHaveAttribute('id', 'main-navigation');
     });
   });
 });
 ```
+
+**Key principles from real tests:**
+1. **No component mocks** - Import and use real child components
+2. **Mock only necessities** - Translation functions, Link components, routes
+3. **Descriptive test names** - Clear "should" statements
+4. **Organized describe blocks** - Group by feature (Rendering, Accessibility, User Interactions)
+5. **Test real behavior** - Verify actual rendered text, not mock artifacts
+6. **Clean setup** - Use `beforeEach` to reset state between tests
+
+### Testing Event-Driven Components
+
+For components that emit or listen to EventBus events, use the EventTracker pattern:
+
+```tsx
+// src/components/annotation/__tests__/AnnotateToolbar.test.tsx
+import { describe, it, expect, beforeEach } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { AnnotateToolbar } from '../AnnotateToolbar';
+import { createEventTracker, EventTrackingWrapper } from '@/test-utils/eventTracker';
+
+describe('AnnotateToolbar', () => {
+  let tracker: ReturnType<typeof createEventTracker>;
+
+  beforeEach(() => {
+    tracker = createEventTracker();
+  });
+
+  describe('Event Emissions', () => {
+    it('should emit annotation-mode-changed when toggling mode', () => {
+      render(
+        <EventTrackingWrapper tracker={tracker}>
+          <AnnotateToolbar currentMode="select" />
+        </EventTrackingWrapper>
+      );
+
+      // Click highlight button
+      const highlightBtn = screen.getByLabelText('Highlight mode');
+      fireEvent.click(highlightBtn);
+
+      // Verify event was emitted
+      const events = tracker.getEvents('annotation-mode-changed');
+      expect(events).toHaveLength(1);
+      expect(events[0].payload).toEqual({ mode: 'highlight' });
+    });
+
+    it('should emit save-annotations when save clicked', () => {
+      render(
+        <EventTrackingWrapper tracker={tracker}>
+          <AnnotateToolbar currentMode="highlight" />
+        </EventTrackingWrapper>
+      );
+
+      fireEvent.click(screen.getByLabelText('Save annotations'));
+
+      const events = tracker.getEvents('save-annotations');
+      expect(events).toHaveLength(1);
+    });
+  });
+
+  describe('Event Subscriptions', () => {
+    it('should update UI when receiving annotation-created event', () => {
+      const { rerender } = render(
+        <EventTrackingWrapper tracker={tracker}>
+          <AnnotateToolbar currentMode="select" />
+        </EventTrackingWrapper>
+      );
+
+      // Simulate EventBus event
+      tracker.emit('annotation-created', {
+        annotationId: 'ann-1',
+        type: 'highlight'
+      });
+
+      rerender(
+        <EventTrackingWrapper tracker={tracker}>
+          <AnnotateToolbar currentMode="select" />
+        </EventTrackingWrapper>
+      );
+
+      // Verify UI updated - undo button should now be enabled
+      expect(screen.getByLabelText('Undo')).not.toBeDisabled();
+    });
+  });
+});
+```
+
+**EventTracker API:**
+- `tracker.getEvents(eventName)` - Get all events of a specific type
+- `tracker.getLastEvent(eventName)` - Get most recent event of a type
+- `tracker.clearEvents()` - Reset event history between tests
+- `tracker.emit(eventName, payload)` - Simulate EventBus events
 
 ### Hook Test Pattern
 
@@ -519,21 +742,67 @@ The tests remain in place with detailed TODO comments for future implementation.
 
 ## Best Practices
 
-### ✅ Do: Use renderWithProviders for integration tests
+### ✅ Do: Use real components via composition
 
 ```tsx
-it('should work end-to-end', () => {
-  renderWithProviders(<MyFeature />);
-  // Tests the component with all providers
+// CORRECT - Test with real child components
+import { NavigationMenu } from '../NavigationMenu';
+
+it('should render navigation', () => {
+  render(
+    <LeftSidebar>
+      <NavigationMenu {...props} />
+    </LeftSidebar>
+  );
+
+  // Verify real NavigationMenu rendered
+  expect(screen.getByText('nav.know')).toBeInTheDocument();
 });
 ```
 
-### ✅ Do: Create focused unit tests
+### ✅ Do: Use EventTracker for event-driven components
 
 ```tsx
-it('should format date correctly', () => {
-  const result = formatDate(new Date('2024-01-01'));
-  expect(result).toBe('Jan 1, 2024');
+it('should emit events on interaction', () => {
+  const tracker = createEventTracker();
+
+  render(
+    <EventTrackingWrapper tracker={tracker}>
+      <BrowseView {...props} />
+    </EventTrackingWrapper>
+  );
+
+  fireEvent.click(screen.getByText('Resource 1'));
+
+  expect(tracker.getEvents('resource-selected')).toHaveLength(1);
+});
+```
+
+### ✅ Do: Mock only hooks, APIs, and browser APIs
+
+```tsx
+// CORRECT - Mock UI state hooks
+vi.mock('@/hooks/useUI', () => ({
+  useDropdown: vi.fn(() => ({
+    isOpen: false,
+    toggle: vi.fn(),
+    close: vi.fn(),
+    dropdownRef: { current: null },
+  })),
+}));
+
+// CORRECT - Mock browser APIs not in jsdom
+vi.mock('window.scrollTo', () => vi.fn());
+```
+
+### ✅ Do: Test actual rendered content
+
+```tsx
+it('should display translated text', () => {
+  render(<MyComponent t={(key) => `translated.${key}`} />);
+
+  // Verify actual text rendered by component
+  expect(screen.getByText('translated.title')).toBeInTheDocument();
 });
 ```
 
@@ -561,6 +830,29 @@ it('should show loading spinner', () => {
   renderWithProviders(<ResourceList />);
   expect(screen.getByRole('status')).toBeInTheDocument();
 });
+```
+
+### ❌ Don't: Use vi.mock() for React components
+
+```tsx
+// WRONG - Global mock affects all tests
+vi.mock('../NavigationMenu', () => ({
+  NavigationMenu: () => <div>Mock</div>
+}));
+
+// CORRECT - Use real component
+import { NavigationMenu } from '../NavigationMenu';
+```
+
+### ❌ Don't: Mock EventBus methods
+
+```tsx
+// WRONG - Breaks real event flow
+vi.spyOn(EventBus, 'on');
+vi.spyOn(EventBus, 'emit');
+
+// CORRECT - Use EventTracker
+const tracker = createEventTracker();
 ```
 
 ### ❌ Don't: Test implementation details
@@ -595,7 +887,69 @@ it('test 2', () => {
 it('should display error when API returns 404')
 it('should disable save button when form is invalid')
 it('should call onSubmit with correct parameters')
+it('should emit resource-selected event when clicking resource')
+it('should render real NavigationMenu with navigation links')
 ```
+
+## Testing Philosophy Summary
+
+The `@semiont/react-ui` library uses **composition-based testing** as the primary pattern:
+
+### Core Principles
+
+1. **Real components, not mocks** - Tests use actual React components via composition
+2. **EventTracker for events** - Event-driven testing with `createEventTracker()` instead of mocking EventBus
+3. **Mock minimally** - Only mock hooks, external APIs, and browser APIs not available in jsdom
+4. **Test behavior, not implementation** - Verify what users see, not internal state
+5. **Isolated tests** - Each test is independent with clean state
+
+### What to Mock
+
+**✅ DO Mock:**
+- UI state hooks (`useDropdown`, `useModal`, `useCollapsible`)
+- External APIs (`fetch`, API client methods)
+- Browser APIs not in jsdom (`scrollIntoView`, `IntersectionObserver`)
+- Utility modules (`formatDate`, `parseJson`)
+
+**❌ DON'T Mock:**
+- React components (`NavigationMenu`, `Footer`, `SemiontBranding`)
+- EventBus methods (`on`, `off`, `emit`)
+- React Context Providers
+- Component props or callbacks
+
+### Test Organization
+
+Tests are organized by component type:
+
+```
+src/
+├── components/
+│   ├── layout/__tests__/           # Layout: LeftSidebar, UnifiedHeader, PageLayout
+│   ├── annotation/__tests__/       # Annotation: AnnotateToolbar, AnnotationPanel
+│   ├── resource/__tests__/         # Resource views: BrowseView, ResourceViewer
+│   │   └── panels/__tests__/       # Resource panels: ResourceInfoPanel, CommentsPanel
+│   └── navigation/__tests__/       # Navigation: NavigationMenu, Footer
+└── hooks/__tests__/                # Custom hooks
+```
+
+### Real Examples
+
+Our codebase includes 1300+ tests demonstrating these patterns:
+
+- **[LeftSidebar.test.tsx](../src/components/layout/__tests__/LeftSidebar.test.tsx)** - Layout component with real NavigationMenu and SemiontBranding
+- **[UnifiedHeader.test.tsx](../src/components/layout/__tests__/UnifiedHeader.test.tsx)** - Header with real child components and dropdown hook
+- **[PageLayout.test.tsx](../src/components/layout/__tests__/PageLayout.test.tsx)** - Full page layout with real UnifiedHeader and Footer
+- **[BrowseView.test.tsx](../src/components/resource/__tests__/BrowseView.test.tsx)** - Event-driven component using EventTracker
+- **[AnnotateToolbar.test.tsx](../src/components/annotation/__tests__/AnnotateToolbar.test.tsx)** - Event emissions and subscriptions with EventTracker
+- **[ResourceInfoPanel.test.tsx](../src/components/resource/panels/__tests__/ResourceInfoPanel.test.tsx)** - Panel component with event tracking
+
+### Key Benefits
+
+1. **Confidence** - Tests match production behavior
+2. **Refactoring** - Change component internals without breaking tests
+3. **Integration bugs** - Catch real component interaction issues
+4. **Maintenance** - No mock updates when component APIs change
+5. **Documentation** - Tests show how components actually work
 
 ## See Also
 

@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { usePathname } from '@/i18n/routing';
-import { SimpleNavigation } from '@semiont/react-ui';
+import { SimpleNavigation, useEventSubscriptions } from '@semiont/react-ui';
 import type { SimpleNavigationItem } from '@semiont/react-ui';
 import {
   UsersIcon,
@@ -15,30 +15,25 @@ import {
 } from '@heroicons/react/24/outline';
 
 interface AdminNavigationProps {
+  isCollapsed: boolean;
+  toggleCollapsed: () => void;
   navigationMenu?: (onClose: () => void) => React.ReactNode;
 }
 
-export function AdminNavigation({ navigationMenu }: AdminNavigationProps = {}) {
+export function AdminNavigation({ isCollapsed, toggleCollapsed, navigationMenu }: AdminNavigationProps) {
   const t = useTranslations('Administration');
   const tSidebar = useTranslations('Sidebar');
   const pathname = usePathname();
 
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  // Handle sidebar toggle events
+  const handleSidebarToggle = useCallback(() => {
+    toggleCollapsed();
+  }, [toggleCollapsed]);
 
-  // Load collapse state from localStorage
-  useEffect(() => {
-    const stored = localStorage.getItem('admin-sidebar-collapsed');
-    if (stored !== null) {
-      setIsCollapsed(stored === 'true');
-    }
-  }, []);
-
-  // Save collapse state to localStorage
-  const handleToggleCollapse = () => {
-    const newState = !isCollapsed;
-    setIsCollapsed(newState);
-    localStorage.setItem('admin-sidebar-collapsed', newState.toString());
-  };
+  // Subscribe to sidebar toggle events
+  useEventSubscriptions({
+    'navigation:sidebar-toggle': handleSidebarToggle,
+  });
 
   const navigation: SimpleNavigationItem[] = [
     {
@@ -69,7 +64,6 @@ export function AdminNavigation({ navigationMenu }: AdminNavigationProps = {}) {
       LinkComponent={Link as any}
       {...(navigationMenu && { dropdownContent: navigationMenu })}
       isCollapsed={isCollapsed}
-      onToggleCollapse={handleToggleCollapse}
       icons={{
         chevronLeft: ChevronLeftIcon as React.ComponentType<{ className?: string }>,
         bars: Bars3Icon as React.ComponentType<{ className?: string }>

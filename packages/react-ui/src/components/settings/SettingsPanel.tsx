@@ -4,28 +4,31 @@ import React, { useEffect } from 'react';
 import { LOCALES } from '@semiont/api-client';
 import { useTranslations } from '../../contexts/TranslationContext';
 import { useLanguageChangeAnnouncements } from '../LiveRegion';
+import { useEventBus } from '../../contexts/EventBusContext';
 import './SettingsPanel.css';
 
 interface SettingsPanelProps {
   showLineNumbers: boolean;
-  onLineNumbersToggle: () => void;
   theme: 'light' | 'dark' | 'system';
-  onThemeChange: (theme: 'light' | 'dark' | 'system') => void;
   locale: string;
-  onLocaleChange: (locale: string) => void;
   isPendingLocaleChange?: boolean;
 }
 
+/**
+ * Settings panel for application preferences
+ *
+ * @emits settings:locale-changed - Locale changed by user. Payload: { locale: string }
+ * @emits settings:line-numbers-toggled - Line numbers toggled on/off. Payload: undefined
+ * @emits settings:theme-changed - Theme changed by user. Payload: { theme: 'light' | 'dark' | 'system' }
+ */
 export function SettingsPanel({
   showLineNumbers,
-  onLineNumbersToggle,
   theme,
-  onThemeChange,
   locale,
-  onLocaleChange,
   isPendingLocaleChange = false
 }: SettingsPanelProps) {
   const t = useTranslations('Settings');
+  const eventBus = useEventBus();
   const { announceLanguageChanging, announceLanguageChanged } = useLanguageChangeAnnouncements();
 
   // Track previous locale to detect changes
@@ -35,7 +38,7 @@ export function SettingsPanel({
   const handleLocaleChange = (newLocale: string) => {
     const localeName = LOCALES.find(l => l.code === newLocale)?.nativeName || newLocale;
     announceLanguageChanging(localeName);
-    onLocaleChange(newLocale);
+    eventBus.emit('settings:locale-changed', { locale: newLocale });
   };
 
   // Announce when language has successfully changed
@@ -45,7 +48,7 @@ export function SettingsPanel({
       announceLanguageChanged(localeName);
       setPreviousLocale(locale);
     }
-  }, [locale, previousLocale, isPendingLocaleChange, announceLanguageChanged]);
+  }, [locale, previousLocale, isPendingLocaleChange]);
 
   return (
     <div className="semiont-settings-panel">
@@ -64,7 +67,7 @@ export function SettingsPanel({
               type="button"
               role="switch"
               aria-checked={showLineNumbers}
-              onClick={onLineNumbersToggle}
+              onClick={() => eventBus.emit('settings:line-numbers-toggled', undefined)}
               className={`semiont-toggle ${
                 showLineNumbers ? 'semiont-toggle--active' : ''
               }`}
@@ -88,7 +91,7 @@ export function SettingsPanel({
           </label>
           <div className="semiont-settings-panel__button-group">
             <button
-              onClick={() => onThemeChange('light')}
+              onClick={() => eventBus.emit('settings:theme-changed', { theme: 'light' })}
               className={`semiont-panel-button ${
                 theme === 'light' ? 'semiont-panel-button-active' : ''
               }`}
@@ -97,7 +100,7 @@ export function SettingsPanel({
               ☀️ {t('themeLight')}
             </button>
             <button
-              onClick={() => onThemeChange('dark')}
+              onClick={() => eventBus.emit('settings:theme-changed', { theme: 'dark' })}
               className={`semiont-panel-button ${
                 theme === 'dark' ? 'semiont-panel-button-active' : ''
               }`}
@@ -106,7 +109,7 @@ export function SettingsPanel({
               🌙 {t('themeDark')}
             </button>
             <button
-              onClick={() => onThemeChange('system')}
+              onClick={() => eventBus.emit('settings:theme-changed', { theme: 'system' })}
               className={`semiont-panel-button ${
                 theme === 'system' ? 'semiont-panel-button-active' : ''
               }`}

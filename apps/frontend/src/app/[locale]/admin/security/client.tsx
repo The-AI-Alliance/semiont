@@ -7,12 +7,12 @@
  * and delegates rendering to the pure React AdminSecurityPage component.
  */
 
-import React from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { useAdmin, Toolbar } from '@semiont/react-ui';
 import type { paths } from '@semiont/api-client';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, useToolbar, useLineNumbers } from '@semiont/react-ui';
+import { useTheme, useToolbar, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
 import { AdminSecurityPage } from '@semiont/react-ui';
 import type { OAuthProvider } from '@semiont/react-ui';
 
@@ -23,13 +23,24 @@ export default function AdminSecurity() {
   const t = useTranslations('AdminSecurity');
 
   // Toolbar and settings state
-  const { activePanel, togglePanel } = useToolbar();
+  const { activePanel } = useToolbar();
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
-  const handlePanelToggle = (panel: string | null) => {
-    if (panel) togglePanel(panel as any);
-  };
+  // Handle theme change events
+  const handleThemeChanged = useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => {
+    setTheme(theme);
+  }, [setTheme]);
+
+  // Handle line numbers toggle events
+  const handleLineNumbersToggled = useCallback(() => {
+    toggleLineNumbers();
+  }, [toggleLineNumbers]);
+
+  useEventSubscriptions({
+    'settings:theme-changed': handleThemeChanged,
+    'settings:line-numbers-toggled': handleLineNumbersToggled,
+  });
 
   // Get OAuth configuration from API
   const adminAPI = useAdmin();
@@ -44,11 +55,8 @@ export default function AdminSecurity() {
       allowedDomains={allowedDomains}
       isLoading={oauthLoading}
       theme={theme}
-      onThemeChange={setTheme}
       showLineNumbers={showLineNumbers}
-      onLineNumbersToggle={toggleLineNumbers}
       activePanel={activePanel}
-      onPanelToggle={handlePanelToggle}
       translations={{
         title: t('title'),
         subtitle: t('subtitle'),

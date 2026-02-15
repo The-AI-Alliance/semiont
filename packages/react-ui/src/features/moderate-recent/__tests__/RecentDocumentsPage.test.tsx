@@ -14,11 +14,8 @@ const createMockProps = (overrides?: Partial<RecentDocumentsPageProps>): RecentD
   hasDocuments: false,
   isLoading: false,
   theme: 'light',
-  onThemeChange: vi.fn(),
   showLineNumbers: false,
-  onLineNumbersToggle: vi.fn(),
   activePanel: null,
-  onPanelToggle: vi.fn(),
   translations: {
     pageTitle: 'Recent Documents',
     pageDescription: 'View recently moderated documents',
@@ -219,35 +216,6 @@ describe('RecentDocumentsPage', () => {
       );
     });
 
-    it('passes callbacks to toolbar components', () => {
-      const onThemeChange = vi.fn();
-      const onLineNumbersToggle = vi.fn();
-      const onPanelToggle = vi.fn();
-      const ToolbarPanels = vi.fn(() => <div data-testid="toolbar-panels" />);
-      const Toolbar = vi.fn(() => <div data-testid="toolbar" />);
-
-      const props = createMockProps({
-        onThemeChange,
-        onLineNumbersToggle,
-        onPanelToggle,
-        ToolbarPanels,
-        Toolbar,
-      });
-      render(<RecentDocumentsPage {...props} />);
-
-      expect(ToolbarPanels).toHaveBeenCalledWith(
-        expect.objectContaining({
-          onThemeChange,
-          onLineNumbersToggle,
-        }),
-        expect.anything()
-      );
-
-      expect(Toolbar).toHaveBeenCalledWith(
-        expect.objectContaining({ onPanelToggle }),
-        expect.anything()
-      );
-    });
 
     it('passes context to toolbar', () => {
       const Toolbar = vi.fn(() => <div data-testid="toolbar" />);

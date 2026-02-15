@@ -1,8 +1,10 @@
 'use client';
 
+import { useRef } from 'react';
 import type { components } from '@semiont/api-client';
 import { getSvgSelector, isHighlight, isReference, isAssessment, isComment, isTag, isBodyResolved, isResolvedReference } from '@semiont/api-client';
 import { parseSvgSelector } from '@semiont/api-client';
+import type { EventBus } from '../../contexts/EventBusContext';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -12,8 +14,7 @@ interface AnnotationOverlayProps {
   imageHeight: number;
   displayWidth: number;
   displayHeight: number;
-  onAnnotationClick?: (annotation: Annotation) => void;
-  onAnnotationHover?: (annotationId: string | null) => void;
+  eventBus?: EventBus;
   hoveredAnnotationId?: string | null;
   selectedAnnotationId?: string | null;
 }
@@ -59,6 +60,9 @@ function getAnnotationTooltip(annotation: Annotation): string {
 
 /**
  * Render annotation overlay - displays existing annotations as SVG shapes
+ *
+ * @emits annotation:hover - Annotation hovered or unhovered. Payload: { annotationId: string | null }
+ * @emits annotation:click - Annotation clicked. Payload: { annotationId: string, motivation: Motivation }
  */
 export function AnnotationOverlay({
   annotations,
@@ -66,13 +70,29 @@ export function AnnotationOverlay({
   imageHeight,
   displayWidth,
   displayHeight,
-  onAnnotationClick,
-  onAnnotationHover,
+  eventBus,
   hoveredAnnotationId,
   selectedAnnotationId
 }: AnnotationOverlayProps) {
   const scaleX = displayWidth / imageWidth;
   const scaleY = displayHeight / imageHeight;
+
+  // Track current hover state to prevent redundant emissions
+  const currentHover = useRef<string | null>(null);
+
+  const handleMouseEnter = (annotationId: string) => {
+    if (currentHover.current !== annotationId) {
+      currentHover.current = annotationId;
+      eventBus?.emit('annotation:hover', { annotationId });
+    }
+  };
+
+  const handleMouseLeave = () => {
+    if (currentHover.current !== null) {
+      currentHover.current = null;
+      eventBus?.emit('annotation:hover', { annotationId: null });
+    }
+  };
 
   return (
     <svg
@@ -120,9 +140,9 @@ export function AnnotationOverlay({
                   className="semiont-annotation-overlay__shape"
                   data-hovered={isHovered ? 'true' : 'false'}
                   data-selected={isSelected ? 'true' : 'false'}
-                  onClick={() => onAnnotationClick?.(annotation)}
-                  onMouseEnter={() => onAnnotationHover?.(annotation.id)}
-                  onMouseLeave={() => onAnnotationHover?.(null)}
+                  onClick={() => eventBus?.emit('annotation:click', { annotationId: annotation.id, motivation: annotation.motivation })}
+                  onMouseEnter={() => handleMouseEnter(annotation.id)}
+                  onMouseLeave={handleMouseLeave}
                 />
                 {statusEmoji && (
                   <text
@@ -133,10 +153,10 @@ export function AnnotationOverlay({
                     style={{ userSelect: 'none' }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      onAnnotationClick?.(annotation);
+                      eventBus?.emit('annotation:click', { annotationId: annotation.id, motivation: annotation.motivation });
                     }}
-                    onMouseEnter={() => onAnnotationHover?.(annotation.id)}
-                    onMouseLeave={() => onAnnotationHover?.(null)}
+                    onMouseEnter={() => handleMouseEnter(annotation.id)}
+                    onMouseLeave={handleMouseLeave}
                   >
                     {statusEmoji}
                   </text>
@@ -167,9 +187,9 @@ export function AnnotationOverlay({
                   className="semiont-annotation-overlay__shape"
                   data-hovered={isHovered ? 'true' : 'false'}
                   data-selected={isSelected ? 'true' : 'false'}
-                  onClick={() => onAnnotationClick?.(annotation)}
-                  onMouseEnter={() => onAnnotationHover?.(annotation.id)}
-                  onMouseLeave={() => onAnnotationHover?.(null)}
+                  onClick={() => eventBus?.emit('annotation:click', { annotationId: annotation.id, motivation: annotation.motivation })}
+                  onMouseEnter={() => handleMouseEnter(annotation.id)}
+                  onMouseLeave={handleMouseLeave}
                 />
                 {statusEmoji && (
                   <text
@@ -180,10 +200,10 @@ export function AnnotationOverlay({
                     style={{ userSelect: 'none' }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      onAnnotationClick?.(annotation);
+                      eventBus?.emit('annotation:click', { annotationId: annotation.id, motivation: annotation.motivation });
                     }}
-                    onMouseEnter={() => onAnnotationHover?.(annotation.id)}
-                    onMouseLeave={() => onAnnotationHover?.(null)}
+                    onMouseEnter={() => handleMouseEnter(annotation.id)}
+                    onMouseLeave={handleMouseLeave}
                   >
                     {statusEmoji}
                   </text>
@@ -227,9 +247,9 @@ export function AnnotationOverlay({
                   className="semiont-annotation-overlay__shape"
                   data-hovered={isHovered ? 'true' : 'false'}
                   data-selected={isSelected ? 'true' : 'false'}
-                  onClick={() => onAnnotationClick?.(annotation)}
-                  onMouseEnter={() => onAnnotationHover?.(annotation.id)}
-                  onMouseLeave={() => onAnnotationHover?.(null)}
+                  onClick={() => eventBus?.emit('annotation:click', { annotationId: annotation.id, motivation: annotation.motivation })}
+                  onMouseEnter={() => handleMouseEnter(annotation.id)}
+                  onMouseLeave={handleMouseLeave}
                 />
                 {statusEmoji && (
                   <text
@@ -240,10 +260,10 @@ export function AnnotationOverlay({
                     style={{ userSelect: 'none' }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      onAnnotationClick?.(annotation);
+                      eventBus?.emit('annotation:click', { annotationId: annotation.id, motivation: annotation.motivation });
                     }}
-                    onMouseEnter={() => onAnnotationHover?.(annotation.id)}
-                    onMouseLeave={() => onAnnotationHover?.(null)}
+                    onMouseEnter={() => handleMouseEnter(annotation.id)}
+                    onMouseLeave={handleMouseLeave}
                   >
                     {statusEmoji}
                   </text>

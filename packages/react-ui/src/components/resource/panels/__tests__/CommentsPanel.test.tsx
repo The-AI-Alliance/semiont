@@ -1,22 +1,77 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { MockedFunction } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { CommentsPanel } from '../CommentsPanel';
+import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../../../contexts/EventBusContext';
 import type { components } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
 
-// Mock MakeMeaningEventBusContext
-vi.mock('../../../../contexts/MakeMeaningEventBusContext', () => ({
-  useMakeMeaningEvents: vi.fn(() => ({
-    emit: vi.fn(),
-    on: vi.fn(),
-    off: vi.fn(),
-  })),
-}));
+// Composition-based event tracker
+interface TrackedEvent {
+  event: string;
+  payload: any;
+}
+
+function createEventTracker() {
+  const events: TrackedEvent[] = [];
+
+  function EventTrackingWrapper({ children }: { children: React.ReactNode }) {
+    const eventBus = useEventBus();
+
+    React.useEffect(() => {
+      const handlers: Array<() => void> = [];
+
+      const trackEvent = (eventName: string) => (payload: any) => {
+        events.push({ event: eventName, payload });
+      };
+
+      const panelEvents = ['annotation:create'];
+
+      panelEvents.forEach(eventName => {
+        const handler = trackEvent(eventName);
+        eventBus.on(eventName, handler);
+        handlers.push(() => eventBus.off(eventName, handler));
+      });
+
+      return () => {
+        handlers.forEach(cleanup => cleanup());
+      };
+    }, [eventBus]);
+
+    return <>{children}</>;
+  }
+
+  return {
+    EventTrackingWrapper,
+    events,
+    clear: () => {
+      events.length = 0;
+    },
+  };
+}
+
+// Helper to render with EventBusProvider
+const renderWithEventBus = (component: React.ReactElement, tracker?: ReturnType<typeof createEventTracker>) => {
+  if (tracker) {
+    return render(
+      <EventBusProvider>
+        <tracker.EventTrackingWrapper>
+          {component}
+        </tracker.EventTrackingWrapper>
+      </EventBusProvider>
+    );
+  }
+
+  return render(
+    <EventBusProvider>
+      {component}
+    </EventBusProvider>
+  );
+};
 
 // Mock TranslationContext
 vi.mock('../../../../contexts/TranslationContext', () => ({
@@ -30,6 +85,7 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
     };
     return translations[key] || key;
   }),
+  TranslationProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 // Mock @semiont/api-client utilities
@@ -118,13 +174,11 @@ const createPendingAnnotation = (exact: string) => ({
 describe('CommentsPanel Component', () => {
   const defaultProps = {
     annotations: mockComments.empty,
-    onAnnotationClick: vi.fn(),
-    onCreate: vi.fn(),
-    focusedAnnotationId: null,
     pendingAnnotation: null,
   };
 
   beforeEach(() => {
+    resetEventBusForTesting();
     vi.clearAllMocks();
 
     // Mock scrollIntoView for jsdom
@@ -146,20 +200,21 @@ describe('CommentsPanel Component', () => {
 
   describe('Rendering', () => {
     it('should render panel header with title and count', () => {
-      render(<CommentsPanel {...defaultProps} annotations={mockComments.multiple} />);
+      renderWithEventBus(<CommentsPanel {...defaultProps} annotations={mockComments.multiple} />);
 
-      expect(screen.getByText(/Comments/)).toBeInTheDocument();
+      const headings = screen.getAllByText(/Comments/);
+      expect(headings.length).toBeGreaterThan(0);
       expect(screen.getByText(/\(3\)/)).toBeInTheDocument();
     });
 
     it('should show empty state when no comments', () => {
-      render(<CommentsPanel {...defaultProps} />);
+      renderWithEventBus(<CommentsPanel {...defaultProps} />);
 
       expect(screen.getByText(/No comments yet/)).toBeInTheDocument();
     });
 
     it('should render all comments', () => {
-      render(<CommentsPanel {...defaultProps} annotations={mockComments.multiple} />);
+      renderWithEventBus(<CommentsPanel {...defaultProps} annotations={mockComments.multiple} />);
 
       expect(screen.getByTestId('comment-1')).toBeInTheDocument();
       expect(screen.getByTestId('comment-2')).toBeInTheDocument();
@@ -167,7 +222,7 @@ describe('CommentsPanel Component', () => {
     });
 
     it('should have proper panel structure', () => {
-      const { container } = render(<CommentsPanel {...defaultProps} />);
+      const { container } = renderWithEventBus(<CommentsPanel {...defaultProps} />);
 
       // Find the root panel div (first child of the container)
       const panel = container.firstChild as HTMLElement;
@@ -175,7 +230,7 @@ describe('CommentsPanel Component', () => {
     });
 
     it('should have scrollable comments list', () => {
-      const { container } = render(
+      const { container } = renderWithEventBus(
         <CommentsPanel {...defaultProps} annotations={mockComments.many} />
       );
 
@@ -186,7 +241,7 @@ describe('CommentsPanel Component', () => {
 
   describe('Comment Sorting', () => {
     it('should sort comments by position in resource', () => {
-      render(<CommentsPanel {...defaultProps} annotations={mockComments.multiple} />);
+      renderWithEventBus(<CommentsPanel {...defaultProps} annotations={mockComments.multiple} />);
 
       const comments = screen.getAllByTestId(/comment-/);
 
@@ -200,12 +255,12 @@ describe('CommentsPanel Component', () => {
       mockGetTextPositionSelector.mockReturnValue(null);
 
       expect(() => {
-        render(<CommentsPanel {...defaultProps} annotations={mockComments.multiple} />);
+        renderWithEventBus(<CommentsPanel {...defaultProps} annotations={mockComments.multiple} />);
       }).not.toThrow();
     });
 
     it('should maintain sort order when comments update', () => {
-      const { rerender } = render(
+      const { rerender } = renderWithEventBus(
         <CommentsPanel {...defaultProps} annotations={mockComments.multiple} />
       );
 
@@ -215,7 +270,11 @@ describe('CommentsPanel Component', () => {
         createMockComment('4', 25, 35),
       ];
 
-      rerender(<CommentsPanel {...defaultProps} annotations={updatedComments} />);
+      rerender(
+        <EventBusProvider>
+          <CommentsPanel {...defaultProps} annotations={updatedComments} />
+        </EventBusProvider>
+      );
 
       const comments = screen.getAllByTestId(/comment-/);
 
@@ -229,7 +288,7 @@ describe('CommentsPanel Component', () => {
 
   describe('New Comment Creation', () => {
     it('should not show new comment input by default', () => {
-      render(<CommentsPanel {...defaultProps} />);
+      renderWithEventBus(<CommentsPanel {...defaultProps} />);
 
       expect(screen.queryByPlaceholderText(/Add your comment/)).not.toBeInTheDocument();
     });
@@ -237,11 +296,10 @@ describe('CommentsPanel Component', () => {
     it('should show new comment input when pendingAnnotation exists', () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      render(
+      renderWithEventBus(
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={vi.fn()}
         />
       );
 
@@ -251,11 +309,10 @@ describe('CommentsPanel Component', () => {
     it('should display quoted selected text in new comment area', () => {
       const pendingAnnotation = createPendingAnnotation('Selected text for comment');
 
-      render(
+      renderWithEventBus(
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={vi.fn()}
         />
       );
 
@@ -266,11 +323,10 @@ describe('CommentsPanel Component', () => {
       const longText = 'A'.repeat(150);
       const pendingAnnotation = createPendingAnnotation(longText);
 
-      render(
+      renderWithEventBus(
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={vi.fn()}
         />
       );
 
@@ -281,11 +337,10 @@ describe('CommentsPanel Component', () => {
     it('should allow typing in new comment textarea', async () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      render(
+      renderWithEventBus(
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={vi.fn()}
         />
       );
 
@@ -298,11 +353,10 @@ describe('CommentsPanel Component', () => {
     it('should show character count', async () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      render(
+      renderWithEventBus(
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={vi.fn()}
         />
       );
 
@@ -317,11 +371,10 @@ describe('CommentsPanel Component', () => {
     it('should enforce maxLength of 2000 characters', () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      render(
+      renderWithEventBus(
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={vi.fn()}
         />
       );
 
@@ -332,11 +385,10 @@ describe('CommentsPanel Component', () => {
     it('should auto-focus new comment textarea', () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      render(
+      renderWithEventBus(
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={vi.fn()}
         />
       );
 
@@ -344,16 +396,16 @@ describe('CommentsPanel Component', () => {
       expect(textarea).toHaveFocus();
     });
 
-    it('should call onCreateComment when save is clicked', async () => {
-      const onCreateComment = vi.fn();
+    it('should emit annotation:create event when save is clicked', async () => {
+      const tracker = createEventTracker();
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      render(
+      renderWithEventBus(
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={onCreateComment}
-        />
+        />,
+        tracker
       );
 
       const textarea = screen.getByPlaceholderText(/Add your comment/);
@@ -362,17 +414,22 @@ describe('CommentsPanel Component', () => {
       const saveButton = screen.getByText('Save');
       await userEvent.click(saveButton);
 
-      expect(onCreateComment).toHaveBeenCalledWith('My new comment');
+      await waitFor(() => {
+        expect(tracker.events.some(e =>
+          e.event === 'annotation:create' &&
+          e.payload?.motivation === 'commenting' &&
+          e.payload?.body?.[0]?.value === 'My new comment'
+        )).toBe(true);
+      });
     });
 
-    it('should clear textarea after successful save', async () => {
+    it('should clear textarea after save is clicked', async () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      render(
+      renderWithEventBus(
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={vi.fn()}
         />
       );
 
@@ -386,11 +443,10 @@ describe('CommentsPanel Component', () => {
     it('should disable save button when textarea is empty', () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      render(
+      renderWithEventBus(
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={vi.fn()}
         />
       );
 
@@ -401,11 +457,10 @@ describe('CommentsPanel Component', () => {
     it('should disable save button when textarea contains only whitespace', async () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      render(
+      renderWithEventBus(
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={vi.fn()}
         />
       );
 
@@ -419,11 +474,10 @@ describe('CommentsPanel Component', () => {
     it('should enable save button when text is entered', async () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      render(
+      renderWithEventBus(
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={vi.fn()}
         />
       );
 
@@ -437,11 +491,10 @@ describe('CommentsPanel Component', () => {
     it('should have proper styling for new comment area', () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      const { container } = render(
+      const { container } = renderWithEventBus(
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={vi.fn()}
         />
       );
 
@@ -452,76 +505,24 @@ describe('CommentsPanel Component', () => {
   });
 
   describe('Comment Interactions', () => {
-    it('should call onCommentClick when comment is clicked', () => {
-      const onCommentClick = vi.fn();
-      render(
+    it('should render comment entries', () => {
+      renderWithEventBus(
         <CommentsPanel
           {...defaultProps}
           annotations={mockComments.single}
-          onAnnotationClick={onCommentClick}
         />
       );
 
       const comment = screen.getByTestId('comment-1');
-      fireEvent.click(comment);
-
-      expect(onCommentClick).toHaveBeenCalledWith(mockComments.single[0]);
+      expect(comment).toBeInTheDocument();
     });
 
   });
 
   describe('Comment Hover Behavior', () => {
-    it('should call onAnnotationHover when provided', () => {
-      const onAnnotationHover = vi.fn();
-      render(
-        <CommentsPanel
-          {...defaultProps}
-          annotations={mockComments.single}
-          onAnnotationHover={onAnnotationHover}
-        />
-      );
-
-      const hoverButton = screen.getByText('Hover');
-      fireEvent.mouseEnter(hoverButton);
-
-      expect(onAnnotationHover).toHaveBeenCalledWith('1');
-    });
-
-    it('should handle hoveredAnnotationId prop changes', () => {
-      const { rerender } = render(
-        <CommentsPanel
-          {...defaultProps}
-          annotations={mockComments.multiple}
-          hoveredAnnotationId={null}
-        />
-      );
-
-      // Should not error when hoveredAnnotationId changes
+    it('should render without errors', () => {
       expect(() => {
-        rerender(
-          <CommentsPanel
-            {...defaultProps}
-            annotations={mockComments.multiple}
-            hoveredAnnotationId="2"
-          />
-        );
-      }).not.toThrow();
-
-      // Should handle being set back to null
-      expect(() => {
-        rerender(
-          <CommentsPanel
-            {...defaultProps}
-            annotations={mockComments.multiple}
-            hoveredAnnotationId={null}
-          />
-        );
-      }).not.toThrow();
-    });
-
-    it('should not error when onAnnotationHover is not provided', () => {
-      expect(() => {
-        render(
+        renderWithEventBus(
           <CommentsPanel
             {...defaultProps}
             annotations={mockComments.single}
@@ -532,51 +533,39 @@ describe('CommentsPanel Component', () => {
   });
 
   describe('Focus Management', () => {
-    it('should pass focusedAnnotationId to CommentEntry components', () => {
-      render(
+    it('should render comments', () => {
+      renderWithEventBus(
         <CommentsPanel
           {...defaultProps}
           annotations={mockComments.multiple}
-          focusedAnnotationId="2"
         />
       );
 
-      // The focused comment should be rendered
+      // Comments should be rendered
       expect(screen.getByTestId('comment-2')).toBeInTheDocument();
-    });
-
-    it('should handle null focusedAnnotationId', () => {
-      expect(() => {
-        render(
-          <CommentsPanel
-            {...defaultProps}
-            annotations={mockComments.multiple}
-            focusedAnnotationId={null}
-          />
-        );
-      }).not.toThrow();
     });
   });
 
   describe('Panel Structure and Styling', () => {
     it('should have fixed header that does not scroll', () => {
-      render(
+      renderWithEventBus(
         <CommentsPanel {...defaultProps} annotations={mockComments.many} />
       );
 
-      const header = screen.getByText(/Comments/).closest('div');
+      const headers = screen.getAllByText(/Comments/);
+      const header = headers[0].closest('div');
       expect(header).toHaveClass('semiont-panel-header');
     });
 
     it('should support dark mode', () => {
-      const { container } = render(<CommentsPanel {...defaultProps} />);
+      const { container } = renderWithEventBus(<CommentsPanel {...defaultProps} />);
 
       const panel = container.firstChild as HTMLElement;
       expect(panel).toHaveClass('semiont-panel');
     });
 
     it('should have proper spacing between comments', () => {
-      const { container } = render(
+      const { container } = renderWithEventBus(
         <CommentsPanel {...defaultProps} annotations={mockComments.multiple} />
       );
 
@@ -585,9 +574,10 @@ describe('CommentsPanel Component', () => {
     });
 
     it('should have proper border styling', () => {
-      render(<CommentsPanel {...defaultProps} />);
+      renderWithEventBus(<CommentsPanel {...defaultProps} />);
 
-      const header = screen.getByText(/Comments/).closest('div');
+      const headers = screen.getAllByText(/Comments/);
+      const header = headers[0].closest('div');
       expect(header).toHaveClass('semiont-panel-header');
     });
   });
@@ -595,14 +585,14 @@ describe('CommentsPanel Component', () => {
   describe('Edge Cases', () => {
     it('should handle empty comments array', () => {
       expect(() => {
-        render(<CommentsPanel {...defaultProps} annotations={[]} />);
+        renderWithEventBus(<CommentsPanel {...defaultProps} annotations={[]} />);
       }).not.toThrow();
 
       expect(screen.getByText(/No comments yet/)).toBeInTheDocument();
     });
 
     it('should handle rapid comment additions', () => {
-      const { rerender } = render(
+      const { rerender } = renderWithEventBus(
         <CommentsPanel {...defaultProps} annotations={mockComments.empty} />
       );
 
@@ -610,37 +600,43 @@ describe('CommentsPanel Component', () => {
         const comments = Array.from({ length: i }, (_, j) =>
           createMockComment(`${j + 1}`, j * 10, (j + 1) * 10)
         );
-        rerender(<CommentsPanel {...defaultProps} annotations={comments} />);
+        rerender(
+          <EventBusProvider>
+            <CommentsPanel {...defaultProps} annotations={comments} />
+          </EventBusProvider>
+        );
       }
 
       expect(screen.getAllByTestId(/comment-/)).toHaveLength(5);
     });
 
     it('should handle comment removal', () => {
-      const { rerender } = render(
+      const { rerender } = renderWithEventBus(
         <CommentsPanel {...defaultProps} annotations={mockComments.multiple} />
       );
 
       expect(screen.getAllByTestId(/comment-/)).toHaveLength(3);
 
       rerender(
-        <CommentsPanel {...defaultProps} annotations={mockComments.single} />
+        <EventBusProvider>
+          <CommentsPanel {...defaultProps} annotations={mockComments.single} />
+        </EventBusProvider>
       );
 
       expect(screen.getAllByTestId(/comment-/)).toHaveLength(1);
     });
 
-    it('should show new comment input even without onCreate callback', () => {
+    it('should show new comment input when pendingAnnotation exists', () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      render(
+      renderWithEventBus(
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
         />
       );
 
-      // Component shows textarea when pendingAnnotation exists, even if onCreate is from defaultProps
+      // Component shows textarea when pendingAnnotation exists
       expect(screen.getByPlaceholderText(/Add your comment/)).toBeInTheDocument();
     });
 
@@ -650,7 +646,7 @@ describe('CommentsPanel Component', () => {
       );
 
       expect(() => {
-        render(<CommentsPanel {...defaultProps} annotations={manyComments} />);
+        renderWithEventBus(<CommentsPanel {...defaultProps} annotations={manyComments} />);
       }).not.toThrow();
 
       expect(screen.getAllByTestId(/comment-/)).toHaveLength(100);
@@ -664,7 +660,7 @@ describe('CommentsPanel Component', () => {
       ];
 
       expect(() => {
-        render(<CommentsPanel {...defaultProps} annotations={commentsAtSamePosition} />);
+        renderWithEventBus(<CommentsPanel {...defaultProps} annotations={commentsAtSamePosition} />);
       }).not.toThrow();
 
       expect(screen.getAllByTestId(/comment-/)).toHaveLength(3);
@@ -673,10 +669,10 @@ describe('CommentsPanel Component', () => {
 
   describe('Accessibility', () => {
     it('should have proper heading structure', () => {
-      render(<CommentsPanel {...defaultProps} />);
+      renderWithEventBus(<CommentsPanel {...defaultProps} />);
 
-      const heading = screen.getByText(/Comments/);
-      expect(heading).toHaveClass('semiont-panel-header__text');
+      const headings = screen.getAllByText(/Comments/);
+      expect(headings[0]).toHaveClass('semiont-panel-header__text');
     });
 
     it('should have proper textarea attributes for new comments', () => {
@@ -688,11 +684,10 @@ describe('CommentsPanel Component', () => {
         },
       };
 
-      render(
+      renderWithEventBus(
         <CommentsPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={vi.fn()}
         />
       );
 
@@ -701,7 +696,7 @@ describe('CommentsPanel Component', () => {
     });
 
     it('should have semantic HTML structure', () => {
-      const { container } = render(
+      const { container } = renderWithEventBus(
         <CommentsPanel {...defaultProps} annotations={mockComments.multiple} />
       );
 

@@ -16,10 +16,10 @@ import { useResources, useEntityTypes, useApiClient, useAnnotations } from '@sem
 import { QUERY_KEYS } from '@semiont/react-ui';
 import type { components, ResourceUri, ContentFormat } from '@semiont/api-client';
 import { resourceUri, decodeWithCharset, getPrimaryMediaType, resourceAnnotationUri } from '@semiont/api-client';
+import { uriToAnnotationId } from '@semiont/core';
 import { useOpenResources, useResourceAnnotations } from '@semiont/react-ui';
 import { useToast } from '@semiont/react-ui';
 import { useTheme } from '@semiont/react-ui';
-import { useToolbar } from '@semiont/react-ui';
 import { useLineNumbers } from '@semiont/react-ui';
 import { useResourceEvents } from '@semiont/react-ui';
 import { useDebouncedCallback } from '@semiont/react-ui';
@@ -27,7 +27,7 @@ import { Link, routes } from '@/lib/routing';
 import { useCacheManager } from '@/hooks/useCacheManager';
 
 // Feature components
-import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage, TranslationProvider } from '@semiont/react-ui';
+import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage, TranslationProvider, useEventBus, useEventOperations, useEventSubscriptions } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { SearchResourcesModal } from '@/components/modals/SearchResourcesModal';
 import { GenerationConfigModal } from '@/components/modals/GenerationConfigModal';
@@ -138,6 +138,13 @@ function ResourceViewWrapper({
   const client = useApiClient();
   const queryClient = useQueryClient();
   const cacheManager = useCacheManager();
+  const eventBus = useEventBus();
+
+  // Set up operation handlers for this resource
+  useEventOperations(eventBus, {
+    ...(client ? { client } : {}),
+    resourceUri: rUri,
+  });
 
   // Fetch document content separately
   const [content, setContent] = useState<string>('');
@@ -193,7 +200,6 @@ function ResourceViewWrapper({
   const generateCloneTokenMutation = resources.generateCloneToken.useMutation();
 
   const { theme, setTheme } = useTheme();
-  const { activePanel, togglePanel, setActivePanel } = useToolbar({ persistToStorage: true });
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
   // Add resource to open tabs when it loads
@@ -271,14 +277,6 @@ function ResourceViewWrapper({
     }
   }, [resource, rUri, generateCloneTokenMutation, showSuccess, showError]);
 
-  // Handle annotation body updates
-  const handleUpdateAnnotationBody = useCallback(async (annotationUri: string, data: any) => {
-    await updateAnnotationBodyMutation.mutateAsync({
-      annotationUri: resourceAnnotationUri(annotationUri),
-      data,
-    });
-  }, [updateAnnotationBodyMutation]);
-
   // Real-time document events
   const { status: eventStreamStatus, isConnected, eventCount, lastEvent } = useResourceEvents({
     rUri,
@@ -300,7 +298,7 @@ function ResourceViewWrapper({
         return {
           ...old,
           annotations: old.annotations.map((annotation: any) => {
-            const annotationIdSegment = annotation.id.split('/').pop();
+            const annotationIdSegment = uriToAnnotationId(annotation.id);
             if (annotationIdSegment === event.payload.annotationId) {
               let bodyArray = Array.isArray(annotation.body) ? [...annotation.body] : [];
 
@@ -363,49 +361,98 @@ function ResourceViewWrapper({
     }, []),
   });
 
+  // Inner component with event subscriptions
+  function ResourceViewerWithEventHandlers() {
+    // Subscribe to resource operation events
+    useEventSubscriptions({
+      'resource:archive': () => handleArchive(),
+      'resource:unarchive': () => handleUnarchive(),
+      'resource:clone': () => handleClone(),
+      'annotation:sparkle': ({ annotationId }) => {
+        triggerSparkleAnimation(annotationId);
+      },
+    });
+
+    // Subscribe to settings events
+    useEventSubscriptions({
+      'settings:theme-changed': ({ theme }) => setTheme(theme),
+      'settings:line-numbers-toggled': () => toggleLineNumbers(),
+    });
+
+    // Subscribe to operation completion events
+    useEventSubscriptions({
+      'annotation:created': ({ annotation }) => {
+        triggerSparkleAnimation(annotation.id);
+        debouncedInvalidateAnnotations();
+      },
+      'annotation:deleted': () => {
+        debouncedInvalidateAnnotations();
+      },
+      'annotation:create-failed': () => {
+        showError('Failed to create annotation');
+      },
+      'annotation:delete-failed': () => {
+        showError('Failed to delete annotation');
+      },
+      'annotation:body-updated': () => {
+        // Success - optimistic update already applied via useResourceEvents
+      },
+      'annotation:body-update-failed': () => {
+        showError('Failed to update annotation');
+      },
+    });
+
+    // Subscribe to detection completion events
+    useEventSubscriptions({
+      'detection:complete': () => {
+        showSuccess('Detection complete');
+      },
+      'detection:failed': () => {
+        showError('Detection failed');
+      },
+    });
+
+    // Subscribe to generation completion events
+    useEventSubscriptions({
+      'reference:generation-complete': () => {
+        showSuccess('Document generated');
+      },
+      'reference:generation-failed': () => {
+        showError('Failed to generate document');
+      },
+    });
+
+    // Note: Operation requests are handled by useEventOperations hook, completion events handled above
+
+    return (
+      <ResourceViewerPage
+          resource={resource}
+          rUri={rUri}
+          content={content}
+          contentLoading={contentLoading}
+          annotations={annotations}
+          referencedBy={referencedBy}
+          referencedByLoading={referencedByLoading}
+          allEntityTypes={allEntityTypes}
+          locale={locale}
+          theme={theme}
+          showLineNumbers={showLineNumbers}
+          showSuccess={showSuccess}
+          showError={showError}
+          cacheManager={cacheManager}
+          Link={Link}
+          routes={routes}
+          ToolbarPanels={ToolbarPanels}
+          SearchResourcesModal={SearchResourcesModal}
+          GenerationConfigModal={GenerationConfigModal}
+        />
+    );
+  }
+
   // Render the pure component with all props
   return (
     <TranslationProvider>
-      <ResourceViewerPage
-        resource={resource}
-        rUri={rUri}
-        content={content}
-        contentLoading={contentLoading}
-        annotations={annotations}
-        referencedBy={referencedBy}
-        referencedByLoading={referencedByLoading}
-        allEntityTypes={allEntityTypes}
-        locale={locale}
-        theme={theme}
-        onThemeChange={setTheme}
-        showLineNumbers={showLineNumbers}
-        onLineNumbersToggle={toggleLineNumbers}
-        activePanel={activePanel}
-        onPanelToggle={togglePanel}
-        setActivePanel={setActivePanel}
-        onArchive={handleArchive}
-        onUnarchive={handleUnarchive}
-        onClone={handleClone}
-        onUpdateAnnotationBody={handleUpdateAnnotationBody}
-        onCreateAnnotation={async (rUri, motivation, selector, body) => {
-          await createAnnotation(rUri, motivation as any, selector, body);
-        }}
-        onTriggerSparkleAnimation={(annotationId: string) => {
-          triggerSparkleAnimation(annotationId as any);
-        }}
-        onClearNewAnnotationId={(annotationId: string) => {
-          clearNewAnnotationId(annotationId as any);
-        }}
-        showSuccess={showSuccess}
-        showError={showError}
-        cacheManager={cacheManager}
-        client={client}
-        Link={Link}
-        routes={routes}
-        ToolbarPanels={ToolbarPanels}
-        SearchResourcesModal={SearchResourcesModal}
-        GenerationConfigModal={GenerationConfigModal}
-      />
+      <ResourceViewerWithEventHandlers />
     </TranslationProvider>
   );
 }

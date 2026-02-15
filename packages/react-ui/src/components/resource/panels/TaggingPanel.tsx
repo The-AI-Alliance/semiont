@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useMakeMeaningEvents } from '../../../contexts/MakeMeaningEventBusContext';
+import { useEventBus } from '../../../contexts/EventBusContext';
+import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { components, Selector } from '@semiont/api-client';
+import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
 import { TagEntry } from './TagEntry';
-import { useAnnotationPanel } from '../../../hooks/useAnnotationPanel';
 import { PanelHeader } from './PanelHeader';
 import { getAllTagSchemas } from '../../../lib/tag-schemas';
 import './TaggingPanel.css';
@@ -38,13 +39,7 @@ function getSelectorDisplayText(selector: Selector | Selector[]): string | null 
 
 interface TaggingPanelProps {
   annotations: Annotation[];
-  onAnnotationClick: (annotation: Annotation) => void;
-  focusedAnnotationId: string | null;
-  hoveredAnnotationId?: string | null;
-  onAnnotationHover?: (annotationId: string | null) => void;
   annotateMode?: boolean;
-  onDetect?: (schemaId: string, categories: string[]) => void | Promise<void>;
-  onCreate: (schemaId: string, category: string) => void | Promise<void>;
   isDetecting?: boolean;
   detectionProgress?: {
     status: string;
@@ -56,25 +51,35 @@ interface TaggingPanelProps {
     requestParams?: Array<{ label: string; value: string }>;
   } | null;
   pendingAnnotation: PendingAnnotation | null;
+  scrollToAnnotationId?: string | null;
+  onScrollCompleted?: () => void;
+  hoveredAnnotationId?: string | null;
 }
 
+/**
+ * Panel for managing tag annotations with schema-based detection
+ *
+ * @emits detection:start - Start tag detection. Payload: { motivation: 'tagging', options: { schemaId: string, categories: string[] } }
+ * @emits annotation:cancel-pending - Cancel pending tag annotation. Payload: undefined
+ * @emits annotation:create - Create new tag annotation. Payload: { motivation: 'tagging', selector: Selector | Selector[], body: Body[] }
+ * @subscribes annotation:click - Annotation clicked. Payload: { annotationId: string }
+ */
 export function TaggingPanel({
   annotations,
-  onAnnotationClick,
-  focusedAnnotationId,
-  hoveredAnnotationId,
-  onAnnotationHover,
   annotateMode = true,
-  onDetect,
-  onCreate,
   isDetecting = false,
   detectionProgress,
-  pendingAnnotation
+  pendingAnnotation,
+  scrollToAnnotationId,
+  onScrollCompleted,
+  hoveredAnnotationId,
 }: TaggingPanelProps) {
   const t = useTranslations('TaggingPanel');
-  const eventBus = useMakeMeaningEvents();
+  const eventBus = useEventBus();
   const [selectedSchemaId, setSelectedSchemaId] = useState<string>('legal-irac');
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
+  const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Collapsible detection section state - load from localStorage, default expanded
   const [isDetectExpanded, setIsDetectExpanded] = useState(() => {
@@ -89,8 +94,76 @@ export function TaggingPanel({
     localStorage.setItem('detect-section-expanded-tag', String(isDetectExpanded));
   }, [isDetectExpanded]);
 
-  const { sortedAnnotations, containerRef, handleAnnotationRef } =
-    useAnnotationPanel(annotations, hoveredAnnotationId);
+  // Subscribe to click events - update focused state
+  // Event handler for annotation clicks (extracted to avoid inline arrow function)
+  const handleAnnotationClick = useCallback(({ annotationId }: { annotationId: string }) => {
+    setFocusedAnnotationId(annotationId);
+    setTimeout(() => setFocusedAnnotationId(null), 3000);
+  }, []);
+
+  useEventSubscriptions({
+    'annotation:click': handleAnnotationClick,
+  });
+
+  // Direct ref management
+  const entryRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // Sort annotations by their position in the resource
+  const sortedAnnotations = useMemo(() => {
+    return [...annotations].sort((a, b) => {
+      const aSelector = getTextPositionSelector(getTargetSelector(a.target));
+      const bSelector = getTextPositionSelector(getTargetSelector(b.target));
+      if (!aSelector || !bSelector) return 0;
+      return aSelector.start - bSelector.start;
+    });
+  }, [annotations]);
+
+  // Ref callback for entry components
+  const setEntryRef = useCallback((id: string, element: HTMLDivElement | null) => {
+    if (element) {
+      entryRefs.current.set(id, element);
+    } else {
+      entryRefs.current.delete(id);
+    }
+  }, []);
+
+  // Handle scrollToAnnotationId (click scroll)
+  useEffect(() => {
+    if (!scrollToAnnotationId) return;
+    const element = entryRefs.current.get(scrollToAnnotationId);
+    if (element && containerRef.current) {
+      const elementTop = element.offsetTop;
+      const containerHeight = containerRef.current.clientHeight;
+      const elementHeight = element.offsetHeight;
+      const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
+      containerRef.current.scrollTo({ top: scrollTo, behavior: 'smooth' });
+      element.classList.remove('semiont-annotation-pulse');
+      void element.offsetWidth;
+      element.classList.add('semiont-annotation-pulse');
+      if (onScrollCompleted) onScrollCompleted();
+    }
+  }, [scrollToAnnotationId]);
+
+  // Handle hoveredAnnotationId (hover scroll only - pulse is handled by isHovered prop)
+  useEffect(() => {
+    if (!hoveredAnnotationId) return;
+    const element = entryRefs.current.get(hoveredAnnotationId);
+    if (!element || !containerRef.current) return;
+
+    const container = containerRef.current;
+    const elementRect = element.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const isVisible = elementRect.top >= containerRect.top && elementRect.bottom <= containerRect.bottom;
+    if (!isVisible) {
+      const elementTop = element.offsetTop;
+      const containerHeight = container.clientHeight;
+      const elementHeight = element.offsetHeight;
+      const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
+      container.scrollTo({ top: scrollTo, behavior: 'smooth' });
+    }
+
+    // Pulse effect is handled by isHovered prop on TagEntry
+  }, [hoveredAnnotationId]);
 
   const schemas = getAllTagSchemas();
   const selectedSchema = schemas.find(s => s.id === selectedSchemaId);
@@ -121,8 +194,14 @@ export function TaggingPanel({
   };
 
   const handleDetect = () => {
-    if (onDetect && selectedCategories.size > 0) {
-      onDetect(selectedSchemaId, Array.from(selectedCategories));
+    if (selectedCategories.size > 0) {
+      eventBus.emit('detection:start', {
+        motivation: 'tagging',
+        options: {
+          schemaId: selectedSchemaId,
+          categories: Array.from(selectedCategories),
+        },
+      });
       setSelectedCategories(new Set()); // Reset after detection
     }
   };
@@ -133,13 +212,13 @@ export function TaggingPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.emit('ui:annotation:cancel-pending');
+        eventBus.emit('annotation:cancel-pending', undefined);
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [pendingAnnotation, eventBus]);
+  }, [pendingAnnotation]);
 
   // Color schemes are now handled via CSS data attributes
 
@@ -194,8 +273,19 @@ export function TaggingPanel({
                 <select
                   className="semiont-select"
                   onChange={(e) => {
-                    if (e.target.value) {
-                      onCreate(selectedSchemaId, e.target.value);
+                    if (e.target.value && pendingAnnotation) {
+                      eventBus.emit('annotation:create', {
+                        motivation: 'tagging',
+                        selector: pendingAnnotation.selector,
+                        body: [
+                          {
+                            type: 'TextualBody',
+                            value: e.target.value,
+                            purpose: 'tagging',
+                            schema: selectedSchemaId,
+                          },
+                        ],
+                      });
                     }
                   }}
                   defaultValue=""
@@ -211,7 +301,7 @@ export function TaggingPanel({
             {/* Cancel button */}
             <div className="semiont-annotation-prompt__footer">
               <button
-                onClick={() => eventBus.emit('ui:annotation:cancel-pending')}
+                onClick={() => eventBus.emit('annotation:cancel-pending', undefined)}
                 className="semiont-button semiont-button--secondary"
                 data-type="tag"
               >
@@ -222,7 +312,7 @@ export function TaggingPanel({
         )}
 
         {/* Detection Section - only in Annotate mode */}
-        {annotateMode && onDetect && (
+        {annotateMode && (
           <div className="semiont-panel__section">
             <button
               onClick={() => setIsDetectExpanded(!isDetectExpanded)}
@@ -390,9 +480,8 @@ export function TaggingPanel({
                 key={tag.id}
                 tag={tag}
                 isFocused={tag.id === focusedAnnotationId}
-                onClick={() => onAnnotationClick(tag)}
-                onTagRef={handleAnnotationRef}
-                {...(onAnnotationHover && { onTagHover: onAnnotationHover })}
+                isHovered={tag.id === hoveredAnnotationId}
+                ref={(el) => setEntryRef(tag.id, el)}
               />
             ))
           )}

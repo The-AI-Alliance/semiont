@@ -10,7 +10,7 @@ import type { ApiClientManager } from '@semiont/react-ui';
 export function useApiClientManager(): ApiClientManager {
   const { data: session } = useSession();
 
-  const client = useMemo(() => {
+  return useMemo(() => {
     if (!session?.backendToken) {
       return null;
     }
@@ -22,6 +22,4 @@ export function useApiClientManager(): ApiClientManager {
       ...(process.env.NODE_ENV !== 'test' && { timeout: 30000 }),
     });
   }, [session?.backendToken]);
-
-  return { client };
 }

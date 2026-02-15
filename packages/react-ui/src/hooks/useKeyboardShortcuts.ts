@@ -84,6 +84,8 @@ export function useDoubleKeyPress(
   timeout: number = 300
 ) {
   const lastPressRef = useRef<number>(0);
+  const handlerRef = useRef(handler);
+  handlerRef.current = handler;
 
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
     if (event.key !== key) return;
@@ -93,12 +95,12 @@ export function useDoubleKeyPress(
 
     if (timeSinceLastPress < timeout) {
       // Double press detected
-      handler();
+      handlerRef.current();
       lastPressRef.current = 0; // Reset
     } else {
       lastPressRef.current = now;
     }
-  }, [key, handler, timeout]);
+  }, [key, timeout]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);

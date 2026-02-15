@@ -4,32 +4,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { UnifiedHeader } from '../UnifiedHeader';
 
-// Mock dependencies
-vi.mock('../../branding/SemiontBranding', () => ({
-  SemiontBranding: ({ t, size, showTagline, compactTagline }: any) => (
-    <div data-testid="semiont-branding">
-      Semiont {size} {showTagline && '- Tagline'} {compactTagline && '(compact)'}
-    </div>
-  ),
-}));
-
-vi.mock('../../navigation/NavigationMenu', () => ({
-  NavigationMenu: ({ t, onItemClick }: any) => (
-    <div data-testid="navigation-menu">
-      <button onClick={onItemClick}>Menu Item</button>
-      <span>{t('home')}</span>
-    </div>
-  ),
-}));
-
-vi.mock('@/hooks/useAuth', () => ({
-  useAuth: vi.fn(() => ({
-    isAuthenticated: true,
-    isAdmin: false,
-    isModerator: false,
-  })),
-}));
-
+// Mock only hooks - using real components via composition
 vi.mock('@/hooks/useUI', () => ({
   useDropdown: vi.fn(() => ({
     isOpen: false,
@@ -95,7 +70,8 @@ describe('UnifiedHeader Component', () => {
         />
       );
 
-      expect(screen.getByTestId('semiont-branding')).toBeInTheDocument();
+      // Real SemiontBranding renders "Semiont" text
+      expect(screen.getByText('Semiont')).toBeInTheDocument();
     });
 
     it('should default to standalone variant', () => {
@@ -140,7 +116,7 @@ describe('UnifiedHeader Component', () => {
         />
       );
 
-      expect(screen.getByTestId('semiont-branding')).toBeInTheDocument();
+      expect(screen.getByText('Semiont')).toBeInTheDocument();
     });
   });
 
@@ -171,7 +147,7 @@ describe('UnifiedHeader Component', () => {
         />
       );
 
-      expect(screen.getByTestId('semiont-branding')).toBeInTheDocument();
+      expect(screen.getByText('Semiont')).toBeInTheDocument();
     });
 
     it('should not render floating variant when showBranding is false', () => {
@@ -202,7 +178,7 @@ describe('UnifiedHeader Component', () => {
         />
       );
 
-      expect(screen.getByTestId('semiont-branding')).toBeInTheDocument();
+      expect(screen.getByText('Semiont')).toBeInTheDocument();
     });
 
     it('should hide branding when showBranding is false', () => {
@@ -216,7 +192,7 @@ describe('UnifiedHeader Component', () => {
         />
       );
 
-      expect(screen.queryByTestId('semiont-branding')).not.toBeInTheDocument();
+      expect(screen.queryByText('Semiont')).not.toBeInTheDocument();
     });
 
     it('should render navigation button for branding', () => {
@@ -277,7 +253,8 @@ describe('UnifiedHeader Component', () => {
         />
       );
 
-      expect(screen.getByTestId('navigation-menu')).toBeInTheDocument();
+      // Real NavigationMenu renders nav.know link
+      expect(screen.getByText('nav.know')).toBeInTheDocument();
     });
 
     it('should not show dropdown menu when not authenticated', () => {
@@ -298,7 +275,7 @@ describe('UnifiedHeader Component', () => {
         />
       );
 
-      expect(screen.queryByTestId('navigation-menu')).not.toBeInTheDocument();
+      expect(screen.queryByText('nav.know')).not.toBeInTheDocument();
     });
 
     it('should not show dropdown menu when closed', () => {
@@ -319,7 +296,7 @@ describe('UnifiedHeader Component', () => {
         />
       );
 
-      expect(screen.queryByTestId('navigation-menu')).not.toBeInTheDocument();
+      expect(screen.queryByText('nav.know')).not.toBeInTheDocument();
     });
 
     it('should close dropdown when menu item clicked', () => {
@@ -341,7 +318,8 @@ describe('UnifiedHeader Component', () => {
         />
       );
 
-      const menuItem = screen.getByText('Menu Item');
+      // Real NavigationMenu renders nav.know link
+      const menuItem = screen.getByText('nav.know');
       fireEvent.click(menuItem);
 
       expect(mockClose).toHaveBeenCalledOnce();
@@ -368,7 +346,7 @@ describe('UnifiedHeader Component', () => {
       );
 
       // Should render branding with custom link
-      expect(screen.getByTestId('semiont-branding')).toBeInTheDocument();
+      expect(screen.getByText('Semiont')).toBeInTheDocument();
     });
 
     it('should default branding link to /', () => {
@@ -381,7 +359,7 @@ describe('UnifiedHeader Component', () => {
         />
       );
 
-      expect(screen.getByTestId('semiont-branding')).toBeInTheDocument();
+      expect(screen.getByText('Semiont')).toBeInTheDocument();
     });
 
     it('should pass admin status to NavigationMenu', () => {
@@ -403,7 +381,8 @@ describe('UnifiedHeader Component', () => {
         />
       );
 
-      expect(screen.getByTestId('navigation-menu')).toBeInTheDocument();
+      // Real NavigationMenu renders admin link
+      expect(screen.getByText('nav.administer')).toBeInTheDocument();
     });
 
     it('should pass moderator status to NavigationMenu', () => {
@@ -425,7 +404,8 @@ describe('UnifiedHeader Component', () => {
         />
       );
 
-      expect(screen.getByTestId('navigation-menu')).toBeInTheDocument();
+      // Real NavigationMenu renders moderate link
+      expect(screen.getByText('nav.moderate')).toBeInTheDocument();
     });
   });
 
@@ -567,7 +547,8 @@ describe('UnifiedHeader Component', () => {
       const standaloneContent = standaloneContainer.querySelector('.semiont-unified-header');
       expect(standaloneContent).toBeInTheDocument();
 
-      const embeddedContent = embeddedContainer.querySelector('[data-testid="semiont-branding"]');
+      // Embedded variant has branding directly in container
+      const embeddedContent = embeddedContainer.querySelector('.semiont-branding');
       expect(embeddedContent).toBeInTheDocument();
     });
   });

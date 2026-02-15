@@ -9,12 +9,12 @@
 
 import { notFound } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { useEntityTypes, Toolbar } from '@semiont/react-ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, useToolbar, useLineNumbers } from '@semiont/react-ui';
+import { useTheme, useToolbar, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
 import { EntityTagsPage } from '@semiont/react-ui';
 
 export default function EntityTagsPageWrapper() {
@@ -25,13 +25,24 @@ export default function EntityTagsPageWrapper() {
   const queryClient = useQueryClient();
 
   // Toolbar and settings state
-  const { activePanel, togglePanel } = useToolbar();
+  const { activePanel } = useToolbar();
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
-  const handlePanelToggle = (panel: string | null) => {
-    if (panel) togglePanel(panel as any);
-  };
+  // Handle theme change events
+  const handleThemeChanged = useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => {
+    setTheme(theme);
+  }, [setTheme]);
+
+  // Handle line numbers toggle events
+  const handleLineNumbersToggled = useCallback(() => {
+    toggleLineNumbers();
+  }, [toggleLineNumbers]);
+
+  useEventSubscriptions({
+    'settings:theme-changed': handleThemeChanged,
+    'settings:line-numbers-toggled': handleLineNumbersToggled,
+  });
 
   // API hooks
   const entityTypesAPI = useEntityTypes();
@@ -95,11 +106,8 @@ export default function EntityTagsPageWrapper() {
       onAddTag={handleAddTag}
       isAddingTag={createEntityTypeMutation.isPending}
       theme={theme}
-      onThemeChange={setTheme}
       showLineNumbers={showLineNumbers}
-      onLineNumbersToggle={toggleLineNumbers}
       activePanel={activePanel}
-      onPanelToggle={handlePanelToggle}
       translations={{
         pageTitle: t('pageTitle'),
         pageDescription: t('pageDescription'),

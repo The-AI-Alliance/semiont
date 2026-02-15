@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useTransition } from 'react';
-import { SettingsPanel, ResizeHandle, usePanelWidth } from '@semiont/react-ui';
+import React, { useTransition, useEffect, useCallback } from 'react';
+import { SettingsPanel, ResizeHandle, usePanelWidth, EventBusProvider, useEventSubscriptions } from '@semiont/react-ui';
 import { UserPanel } from '../UserPanel';
 import { useLocale } from 'next-intl';
 import { usePathname, useRouter } from '@/i18n/routing';
@@ -11,10 +11,8 @@ interface ToolbarPanelsProps {
   activePanel: ToolbarPanelType | null;
   /** Theme setting */
   theme: 'light' | 'dark' | 'system';
-  onThemeChange: (theme: 'light' | 'dark' | 'system') => void;
   /** Line numbers setting */
   showLineNumbers: boolean;
-  onLineNumbersToggle: () => void;
   /** Custom panel content for context-specific panels */
   children?: React.ReactNode;
 }
@@ -23,14 +21,14 @@ interface ToolbarPanelsProps {
  * Renders the toolbar panel container with common panels (user, settings)
  * and any context-specific panels passed as children.
  *
+ * Settings changes are handled via GlobalSettingsEventBus - no callbacks needed.
+ *
  * @example
  * // Simple context (compose, discover, moderate, admin pages)
  * <ToolbarPanels
  *   activePanel={activePanel}
  *   theme={theme}
- *   onThemeChange={setTheme}
  *   showLineNumbers={showLineNumbers}
- *   onLineNumbersToggle={handleLineNumbersToggle}
  * />
  *
  * @example
@@ -38,9 +36,7 @@ interface ToolbarPanelsProps {
  * <ToolbarPanels
  *   activePanel={activePanel}
  *   theme={theme}
- *   onThemeChange={setTheme}
  *   showLineNumbers={showLineNumbers}
-*   onLineNumbersToggle={handleLineNumbersToggle}
  * >
  *   {activePanel === 'annotations' && <UnifiedAnnotationsPanel ... />}
  *   {activePanel === 'history' && <AnnotationHistory ... />}
@@ -52,9 +48,7 @@ interface ToolbarPanelsProps {
 export function ToolbarPanels({
   activePanel,
   theme,
-  onThemeChange,
   showLineNumbers,
-  onLineNumbersToggle,
   children
 }: ToolbarPanelsProps) {
   const locale = useLocale();
@@ -65,14 +59,20 @@ export function ToolbarPanels({
   // Panel width management with localStorage persistence
   const { width, setWidth, minWidth, maxWidth } = usePanelWidth();
 
-  const handleLocaleChange = (newLocale: string) => {
+  // Handle locale change events
+  const handleLocaleChanged = useCallback(({ locale: newLocale }: { locale: string }) => {
     if (!pathname) return;
 
     startTransition(() => {
       // The router from @/i18n/routing is locale-aware and will handle the locale prefix
       router.replace(pathname, { locale: newLocale });
     });
-  };
+  }, [pathname, router, startTransition]);
+
+  // Subscribe to locale change events
+  useEventSubscriptions({
+    'settings:locale-changed': handleLocaleChanged,
+  });
 
   // Don't render container if no panel is active
   if (!activePanel) {
@@ -103,11 +103,8 @@ export function ToolbarPanels({
         {activePanel === 'settings' && (
           <SettingsPanel
             showLineNumbers={showLineNumbers}
-            onLineNumbersToggle={onLineNumbersToggle}
             theme={theme}
-            onThemeChange={onThemeChange}
             locale={locale}
-            onLocaleChange={handleLocaleChange}
             isPendingLocaleChange={isPending}
           />
         )}

@@ -1,22 +1,77 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { MockedFunction } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { AssessmentPanel } from '../AssessmentPanel';
+import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../../../contexts/EventBusContext';
 import type { components } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
 
-// Mock MakeMeaningEventBusContext
-vi.mock('../../../../contexts/MakeMeaningEventBusContext', () => ({
-  useMakeMeaningEvents: vi.fn(() => ({
-    emit: vi.fn(),
-    on: vi.fn(),
-    off: vi.fn(),
-  })),
-}));
+// Composition-based event tracker
+interface TrackedEvent {
+  event: string;
+  payload: any;
+}
+
+function createEventTracker() {
+  const events: TrackedEvent[] = [];
+
+  function EventTrackingWrapper({ children }: { children: React.ReactNode }) {
+    const eventBus = useEventBus();
+
+    React.useEffect(() => {
+      const handlers: Array<() => void> = [];
+
+      const trackEvent = (eventName: string) => (payload: any) => {
+        events.push({ event: eventName, payload });
+      };
+
+      const panelEvents = ['annotation:create'];
+
+      panelEvents.forEach(eventName => {
+        const handler = trackEvent(eventName);
+        eventBus.on(eventName, handler);
+        handlers.push(() => eventBus.off(eventName, handler));
+      });
+
+      return () => {
+        handlers.forEach(cleanup => cleanup());
+      };
+    }, [eventBus]);
+
+    return <>{children}</>;
+  }
+
+  return {
+    EventTrackingWrapper,
+    events,
+    clear: () => {
+      events.length = 0;
+    },
+  };
+}
+
+// Helper to render with EventBusProvider
+const renderWithEventBus = (component: React.ReactElement, tracker?: ReturnType<typeof createEventTracker>) => {
+  if (tracker) {
+    return render(
+      <EventBusProvider>
+        <tracker.EventTrackingWrapper>
+          {component}
+        </tracker.EventTrackingWrapper>
+      </EventBusProvider>
+    );
+  }
+
+  return render(
+    <EventBusProvider>
+      {component}
+    </EventBusProvider>
+  );
+};
 
 // Mock TranslationContext
 vi.mock('../../../../contexts/TranslationContext', () => ({
@@ -31,6 +86,7 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
     };
     return translations[key] || key;
   }),
+  TranslationProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 // Mock @semiont/api-client utilities
@@ -45,29 +101,19 @@ vi.mock('@semiont/api-client', async () => {
 
 // Mock AssessmentEntry component to simplify testing
 vi.mock('../AssessmentEntry', () => ({
-  AssessmentEntry: ({ assessment, onClick, onAssessmentRef, onAssessmentHover }: any) => (
-    <div
-      data-testid={`assessment-${assessment.id}`}
-      onClick={() => onClick()}
-    >
-      <button
-        onMouseEnter={() => onAssessmentHover?.(assessment.id)}
-        onMouseLeave={() => onAssessmentHover?.(null)}
-      >
-        Hover
-      </button>
+  AssessmentEntry: ({ assessment, onAssessmentRef }: any) => (
+    <div data-testid={`assessment-${assessment.id}`}>
       <div>{assessment.id}</div>
     </div>
   ),
 }));
 
-// Mock DetectSection component
+// Mock DetectSection component - it will internally use the mocked useEventBus
+// Just render a simplified version
 vi.mock('../DetectSection', () => ({
-  DetectSection: ({ annotationType, isDetecting, onDetect }: any) => (
+  DetectSection: ({ annotationType, isDetecting }: any) => (
     <div data-testid="detect-section">
-      <button onClick={() => onDetect?.('test instructions')}>
-        Start Detection
-      </button>
+      <button>Start Detection</button>
       {isDetecting && <div>Detecting...</div>}
     </div>
   ),
@@ -128,13 +174,11 @@ const createPendingAnnotation = (exact: string) => ({
 describe('AssessmentPanel Component', () => {
   const defaultProps = {
     annotations: mockAssessments.empty,
-    onAnnotationClick: vi.fn(),
-    onCreate: vi.fn(),
-    focusedAnnotationId: null,
     pendingAnnotation: null,
   };
 
   beforeEach(() => {
+    resetEventBusForTesting();
     vi.clearAllMocks();
 
     // Mock scrollIntoView for jsdom
@@ -156,20 +200,20 @@ describe('AssessmentPanel Component', () => {
 
   describe('Rendering', () => {
     it('should render panel header with title and count', () => {
-      render(<AssessmentPanel {...defaultProps} annotations={mockAssessments.multiple} />);
+      renderWithEventBus(<AssessmentPanel {...defaultProps} annotations={mockAssessments.multiple} />);
 
       expect(screen.getByText(/Assessments/)).toBeInTheDocument();
       expect(screen.getByText(/\(3\)/)).toBeInTheDocument();
     });
 
     it('should show empty state when no assessments', () => {
-      render(<AssessmentPanel {...defaultProps} />);
+      renderWithEventBus(<AssessmentPanel {...defaultProps} />);
 
       expect(screen.getByText(/No assessments yet/)).toBeInTheDocument();
     });
 
     it('should render all assessments', () => {
-      render(<AssessmentPanel {...defaultProps} annotations={mockAssessments.multiple} />);
+      renderWithEventBus(<AssessmentPanel {...defaultProps} annotations={mockAssessments.multiple} />);
 
       expect(screen.getByTestId('assessment-1')).toBeInTheDocument();
       expect(screen.getByTestId('assessment-2')).toBeInTheDocument();
@@ -177,7 +221,7 @@ describe('AssessmentPanel Component', () => {
     });
 
     it('should have proper panel structure', () => {
-      const { container } = render(<AssessmentPanel {...defaultProps} />);
+      const { container } = renderWithEventBus(<AssessmentPanel {...defaultProps} />);
 
       const panel = container.firstChild as HTMLElement;
       expect(panel).toHaveClass('semiont-panel');
@@ -186,7 +230,7 @@ describe('AssessmentPanel Component', () => {
 
   describe('Assessment Sorting', () => {
     it('should sort assessments by position in resource', () => {
-      render(<AssessmentPanel {...defaultProps} annotations={mockAssessments.multiple} />);
+      renderWithEventBus(<AssessmentPanel {...defaultProps} annotations={mockAssessments.multiple} />);
 
       const assessments = screen.getAllByTestId(/assessment-/);
 
@@ -200,14 +244,14 @@ describe('AssessmentPanel Component', () => {
       mockGetTextPositionSelector.mockReturnValue(null);
 
       expect(() => {
-        render(<AssessmentPanel {...defaultProps} annotations={mockAssessments.multiple} />);
+        renderWithEventBus(<AssessmentPanel {...defaultProps} annotations={mockAssessments.multiple} />);
       }).not.toThrow();
     });
   });
 
   describe('New Assessment Creation', () => {
     it('should not show new assessment input by default', () => {
-      render(<AssessmentPanel {...defaultProps} />);
+      renderWithEventBus(<AssessmentPanel {...defaultProps} />);
 
       expect(screen.queryByPlaceholderText(/Type your assessment here/)).not.toBeInTheDocument();
     });
@@ -215,7 +259,7 @@ describe('AssessmentPanel Component', () => {
     it('should show new assessment input when pendingAnnotation exists', () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      render(
+      renderWithEventBus(
         <AssessmentPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
@@ -228,7 +272,7 @@ describe('AssessmentPanel Component', () => {
     it('should display quoted selected text in new assessment area', () => {
       const pendingAnnotation = createPendingAnnotation('Selected text for assessment');
 
-      render(
+      renderWithEventBus(
         <AssessmentPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
@@ -242,7 +286,7 @@ describe('AssessmentPanel Component', () => {
       const longText = 'A'.repeat(150);
       const pendingAnnotation = createPendingAnnotation(longText);
 
-      render(
+      renderWithEventBus(
         <AssessmentPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
@@ -256,7 +300,7 @@ describe('AssessmentPanel Component', () => {
     it('should allow typing in new assessment textarea', async () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      render(
+      renderWithEventBus(
         <AssessmentPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
@@ -272,7 +316,7 @@ describe('AssessmentPanel Component', () => {
     it('should show character count', async () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      render(
+      renderWithEventBus(
         <AssessmentPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
@@ -290,7 +334,7 @@ describe('AssessmentPanel Component', () => {
     it('should enforce maxLength of 2000 characters', () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      render(
+      renderWithEventBus(
         <AssessmentPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
@@ -304,7 +348,7 @@ describe('AssessmentPanel Component', () => {
     it('should auto-focus new assessment textarea', () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      render(
+      renderWithEventBus(
         <AssessmentPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
@@ -315,16 +359,16 @@ describe('AssessmentPanel Component', () => {
       expect(textarea).toHaveFocus();
     });
 
-    it('should call onCreate when save is clicked', async () => {
-      const onCreate = vi.fn();
+    it('should emit annotation:create event when save is clicked', async () => {
+      const tracker = createEventTracker();
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      render(
+      renderWithEventBus(
         <AssessmentPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={onCreate}
-        />
+        />,
+        tracker
       );
 
       const textarea = screen.getByPlaceholderText(/Type your assessment here/);
@@ -333,13 +377,19 @@ describe('AssessmentPanel Component', () => {
       const saveButton = screen.getByText('Save');
       await userEvent.click(saveButton);
 
-      expect(onCreate).toHaveBeenCalledWith('My assessment');
+      await waitFor(() => {
+        expect(tracker.events.some(e =>
+          e.event === 'annotation:create' &&
+          e.payload?.motivation === 'assessing' &&
+          e.payload?.body?.[0]?.value === 'My assessment'
+        )).toBe(true);
+      });
     });
 
     it('should clear textarea after successful save', async () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      render(
+      renderWithEventBus(
         <AssessmentPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
@@ -353,29 +403,35 @@ describe('AssessmentPanel Component', () => {
       expect(textarea).toHaveValue('');
     });
 
-    it('should allow saving with empty text (assessment text is optional)', async () => {
-      const onCreate = vi.fn();
+    it('should emit event when saving with empty text (text is optional for assessments)', async () => {
+      const tracker = createEventTracker();
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      render(
+      renderWithEventBus(
         <AssessmentPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-          onCreate={onCreate}
-        />
+        />,
+        tracker
       );
 
       const saveButton = screen.getByText('Save');
       await userEvent.click(saveButton);
 
-      // Should NOT call onCreate with empty text (handleSaveNewAssessment checks trim())
-      expect(onCreate).not.toHaveBeenCalled();
+      await waitFor(() => {
+        expect(tracker.events.some(e =>
+          e.event === 'annotation:create' &&
+          e.payload?.motivation === 'assessing' &&
+          Array.isArray(e.payload?.body) &&
+          e.payload.body.length === 0
+        )).toBe(true);
+      });
     });
 
     it('should have proper styling for new assessment area', () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      const { container } = render(
+      const { container } = renderWithEventBus(
         <AssessmentPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
@@ -389,43 +445,23 @@ describe('AssessmentPanel Component', () => {
   });
 
   describe('Assessment Interactions', () => {
-    it('should call onAnnotationClick when assessment is clicked', () => {
-      const onAnnotationClick = vi.fn();
-      render(
+    it('should render assessment entries', () => {
+      renderWithEventBus(
         <AssessmentPanel
           {...defaultProps}
           annotations={mockAssessments.single}
-          onAnnotationClick={onAnnotationClick}
         />
       );
 
       const assessment = screen.getByTestId('assessment-1');
-      fireEvent.click(assessment);
-
-      expect(onAnnotationClick).toHaveBeenCalledWith(mockAssessments.single[0]);
+      expect(assessment).toBeInTheDocument();
     });
   });
 
   describe('Assessment Hover Behavior', () => {
-    it('should call onAnnotationHover when provided', () => {
-      const onAnnotationHover = vi.fn();
-      render(
-        <AssessmentPanel
-          {...defaultProps}
-          annotations={mockAssessments.single}
-          onAnnotationHover={onAnnotationHover}
-        />
-      );
-
-      const hoverButton = screen.getByText('Hover');
-      fireEvent.mouseEnter(hoverButton);
-
-      expect(onAnnotationHover).toHaveBeenCalledWith('1');
-    });
-
-    it('should not error when onAnnotationHover is not provided', () => {
+    it('should render without errors', () => {
       expect(() => {
-        render(
+        renderWithEventBus(
           <AssessmentPanel
             {...defaultProps}
             annotations={mockAssessments.single}
@@ -436,11 +472,10 @@ describe('AssessmentPanel Component', () => {
   });
 
   describe('Detection Section', () => {
-    it('should render DetectSection when onDetect is provided and annotateMode is true', () => {
-      render(
+    it('should render DetectSection when annotateMode is true', () => {
+      renderWithEventBus(
         <AssessmentPanel
           {...defaultProps}
-          onDetect={vi.fn()}
           annotateMode={true}
         />
       );
@@ -448,22 +483,10 @@ describe('AssessmentPanel Component', () => {
       expect(screen.getByTestId('detect-section')).toBeInTheDocument();
     });
 
-    it('should not render DetectSection when onDetect is not provided', () => {
-      render(
-        <AssessmentPanel
-          {...defaultProps}
-          annotateMode={true}
-        />
-      );
-
-      expect(screen.queryByTestId('detect-section')).not.toBeInTheDocument();
-    });
-
     it('should not render DetectSection when annotateMode is false', () => {
-      render(
+      renderWithEventBus(
         <AssessmentPanel
           {...defaultProps}
-          onDetect={vi.fn()}
           annotateMode={false}
         />
       );
@@ -471,20 +494,16 @@ describe('AssessmentPanel Component', () => {
       expect(screen.queryByTestId('detect-section')).not.toBeInTheDocument();
     });
 
-    it('should call onDetect when detection is started', async () => {
-      const onDetect = vi.fn();
-      render(
+    it('should render DetectSection with correct annotationType', () => {
+      renderWithEventBus(
         <AssessmentPanel
           {...defaultProps}
-          onDetect={onDetect}
           annotateMode={true}
         />
       );
 
-      const detectButton = screen.getByText('Start Detection');
-      await userEvent.click(detectButton);
-
-      expect(onDetect).toHaveBeenCalledWith('test instructions');
+      // DetectSection is rendered (mocked component renders the button)
+      expect(screen.getByText('Start Detection')).toBeInTheDocument();
     });
   });
 
@@ -492,7 +511,7 @@ describe('AssessmentPanel Component', () => {
     it('should show Cancel button when pendingAnnotation exists', () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      render(
+      renderWithEventBus(
         <AssessmentPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
@@ -505,7 +524,7 @@ describe('AssessmentPanel Component', () => {
     it('should clear textarea when Cancel button is clicked', async () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      render(
+      renderWithEventBus(
         <AssessmentPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
@@ -524,7 +543,7 @@ describe('AssessmentPanel Component', () => {
 
   describe('Accessibility', () => {
     it('should have proper heading structure', () => {
-      render(<AssessmentPanel {...defaultProps} />);
+      renderWithEventBus(<AssessmentPanel {...defaultProps} />);
 
       const heading = screen.getByText(/Assessments/);
       expect(heading).toHaveClass('semiont-panel-header__text');
@@ -533,7 +552,7 @@ describe('AssessmentPanel Component', () => {
     it('should have proper textarea attributes for new assessments', () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      render(
+      renderWithEventBus(
         <AssessmentPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}

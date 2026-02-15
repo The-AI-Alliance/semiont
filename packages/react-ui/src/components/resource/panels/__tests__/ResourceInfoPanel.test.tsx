@@ -1,8 +1,9 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ResourceInfoPanel } from '../ResourceInfoPanel';
+import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../../../contexts/EventBusContext';
 
 // Mock TranslationContext
 vi.mock('../../../../contexts/TranslationContext', () => ({
@@ -23,6 +24,7 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
     };
     return translations[key] || key;
   }),
+  TranslationProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 // Mock @semiont/api-client utilities
@@ -43,6 +45,74 @@ vi.mock('@/lib/button-styles', () => ({
   },
 }));
 
+// Composition-based event tracker
+interface TrackedEvent {
+  event: string;
+  payload: any;
+}
+
+function createEventTracker() {
+  const events: TrackedEvent[] = [];
+
+  function EventTrackingWrapper({ children }: { children: React.ReactNode }) {
+    const eventBus = useEventBus();
+
+    React.useEffect(() => {
+      const handlers: Array<() => void> = [];
+
+      // Track resource-related events
+      const trackEvent = (eventName: string) => (payload: any) => {
+        events.push({ event: eventName, payload });
+      };
+
+      const resourceEvents = [
+        'resource:clone',
+        'resource:archive',
+        'resource:unarchive',
+      ];
+
+      resourceEvents.forEach(eventName => {
+        const handler = trackEvent(eventName);
+        eventBus.on(eventName, handler);
+        handlers.push(() => eventBus.off(eventName, handler));
+      });
+
+      return () => {
+        handlers.forEach(cleanup => cleanup());
+      };
+    }, [eventBus]);
+
+    return <>{children}</>;
+  }
+
+  return {
+    EventTrackingWrapper,
+    events,
+    clear: () => {
+      events.length = 0;
+    },
+  };
+}
+
+// Helper to render with EventBusProvider
+const renderWithEventBus = (component: React.ReactElement, tracker?: ReturnType<typeof createEventTracker>) => {
+  if (tracker) {
+    return render(
+      <EventBusProvider>
+        <tracker.EventTrackingWrapper>
+          {component}
+        </tracker.EventTrackingWrapper>
+      </EventBusProvider>
+    );
+  }
+
+  return render(
+    <EventBusProvider>
+      {component}
+    </EventBusProvider>
+  );
+};
+
 describe('ResourceInfoPanel Component', () => {
   const defaultProps = {
     documentEntityTypes: [],
@@ -51,25 +121,30 @@ describe('ResourceInfoPanel Component', () => {
     primaryByteSize: undefined,
   };
 
+  beforeEach(() => {
+    resetEventBusForTesting();
+    vi.clearAllMocks();
+  });
+
   describe('Rendering', () => {
     it('should render locale section', () => {
-      render(<ResourceInfoPanel {...defaultProps} />);
+      renderWithEventBus(<ResourceInfoPanel {...defaultProps} />);
       expect(screen.getByText('Locale')).toBeInTheDocument();
     });
 
     it('should render locale when provided', () => {
-      render(<ResourceInfoPanel {...defaultProps} documentLocale="en-US" />);
+      renderWithEventBus(<ResourceInfoPanel {...defaultProps} documentLocale="en-US" />);
       // formatLocaleDisplay is mocked to return "Language: {locale}"
       expect(screen.getByText('Language: en-US')).toBeInTheDocument();
     });
 
     it('should show "not specified" when locale is undefined', () => {
-      render(<ResourceInfoPanel {...defaultProps} documentLocale={undefined} />);
+      renderWithEventBus(<ResourceInfoPanel {...defaultProps} documentLocale={undefined} />);
       expect(screen.getByText('Not specified')).toBeInTheDocument();
     });
 
     it('should render entity type tags when provided', () => {
-      render(
+      renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
           documentEntityTypes={['Person', 'Organization', 'Location']}
@@ -83,12 +158,12 @@ describe('ResourceInfoPanel Component', () => {
     });
 
     it('should not render entity type tags section when empty', () => {
-      render(<ResourceInfoPanel {...defaultProps} documentEntityTypes={[]} />);
+      renderWithEventBus(<ResourceInfoPanel {...defaultProps} documentEntityTypes={[]} />);
       expect(screen.queryByText('Entity Type Tags')).not.toBeInTheDocument();
     });
 
     it('should render representation section when media type provided', () => {
-      render(
+      renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
           primaryMediaType="text/markdown"
@@ -101,7 +176,7 @@ describe('ResourceInfoPanel Component', () => {
     });
 
     it('should render byte size when provided', () => {
-      render(
+      renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
           primaryByteSize={1024}
@@ -114,7 +189,7 @@ describe('ResourceInfoPanel Component', () => {
     });
 
     it('should not render representation section when neither media type nor byte size provided', () => {
-      render(
+      renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
           primaryMediaType={undefined}
@@ -128,12 +203,12 @@ describe('ResourceInfoPanel Component', () => {
 
   describe('Styling and Appearance', () => {
     it('should have proper panel structure', () => {
-      const { container } = render(<ResourceInfoPanel {...defaultProps} />);
+      const { container } = renderWithEventBus(<ResourceInfoPanel {...defaultProps} />);
       expect(container.querySelector('.semiont-resource-info-panel')).toBeInTheDocument();
     });
 
     it('should style entity type tags appropriately', () => {
-      render(
+      renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
           documentEntityTypes={['TestType']}
@@ -148,7 +223,7 @@ describe('ResourceInfoPanel Component', () => {
 
   describe('Accessibility', () => {
     it('should have semantic heading structure', () => {
-      render(
+      renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
           documentLocale="en-US"
@@ -162,12 +237,10 @@ describe('ResourceInfoPanel Component', () => {
   });
 
   describe('Clone Action', () => {
-    it('should render clone button when handler provided', () => {
-      const onClone = vi.fn();
-      render(
+    it('should render clone button', () => {
+      renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
-          onClone={onClone}
         />
       );
 
@@ -175,39 +248,30 @@ describe('ResourceInfoPanel Component', () => {
       expect(screen.getByText('Generate a shareable clone link for this resource')).toBeInTheDocument();
     });
 
-    it('should call onClone when clone button clicked', () => {
-      const onClone = vi.fn();
-      render(
+    it('should emit resource:clone event when clone button clicked', async () => {
+      const tracker = createEventTracker();
+      renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
-          onClone={onClone}
-        />
+        />,
+        tracker
       );
 
       const button = screen.getByRole('button', { name: /Clone/i });
       fireEvent.click(button);
-      expect(onClone).toHaveBeenCalledTimes(1);
-    });
 
-    it('should not render clone button when handler not provided', () => {
-      render(
-        <ResourceInfoPanel
-          {...defaultProps}
-        />
-      );
-
-      expect(screen.queryByText('Clone')).not.toBeInTheDocument();
+      await waitFor(() => {
+        expect(tracker.events.some(e => e.event === 'resource:clone')).toBe(true);
+      });
     });
   });
 
   describe('Archive Actions', () => {
     it('should render archive button when not archived', () => {
-      const onArchive = vi.fn();
-      render(
+      renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
           isArchived={false}
-          onArchive={onArchive}
         />
       );
 
@@ -216,12 +280,10 @@ describe('ResourceInfoPanel Component', () => {
     });
 
     it('should render unarchive button when archived', () => {
-      const onUnarchive = vi.fn();
-      render(
+      renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
           isArchived={true}
-          onUnarchive={onUnarchive}
         />
       );
 
@@ -229,46 +291,40 @@ describe('ResourceInfoPanel Component', () => {
       expect(screen.getByText('Restore this resource to active status')).toBeInTheDocument();
     });
 
-    it('should call onArchive when archive button clicked', () => {
-      const onArchive = vi.fn();
-      render(
+    it('should emit resource:archive event when archive button clicked', async () => {
+      const tracker = createEventTracker();
+      renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
           isArchived={false}
-          onArchive={onArchive}
-        />
+        />,
+        tracker
       );
 
       const button = screen.getByRole('button', { name: /Archive/i });
       fireEvent.click(button);
-      expect(onArchive).toHaveBeenCalledTimes(1);
+
+      await waitFor(() => {
+        expect(tracker.events.some(e => e.event === 'resource:archive')).toBe(true);
+      });
     });
 
-    it('should call onUnarchive when unarchive button clicked', () => {
-      const onUnarchive = vi.fn();
-      render(
+    it('should emit resource:unarchive event when unarchive button clicked', async () => {
+      const tracker = createEventTracker();
+      renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
           isArchived={true}
-          onUnarchive={onUnarchive}
-        />
+        />,
+        tracker
       );
 
       const button = screen.getByRole('button', { name: /Unarchive/i });
       fireEvent.click(button);
-      expect(onUnarchive).toHaveBeenCalledTimes(1);
-    });
 
-    it('should not render archive buttons when handlers not provided', () => {
-      render(
-        <ResourceInfoPanel
-          {...defaultProps}
-          isArchived={false}
-        />
-      );
-
-      expect(screen.queryByText('Archive')).not.toBeInTheDocument();
-      expect(screen.queryByText('Unarchive')).not.toBeInTheDocument();
+      await waitFor(() => {
+        expect(tracker.events.some(e => e.event === 'resource:unarchive')).toBe(true);
+      });
     });
   });
 });

@@ -7,37 +7,41 @@ import { remarkAnnotations, type PreparedAnnotation } from '../../lib/remark-ann
 import { rehypeRenderAnnotations } from '../../lib/rehype-render-annotations';
 import type { components } from '@semiont/api-client';
 import { getExactText, getTextPositionSelector, getTargetSelector, getBodySource, getMimeCategory, isPdfMimeType, resourceUri as toResourceUri } from '@semiont/api-client';
-import type { Annotator } from '../../lib/annotation-registry';
+import { ANNOTATORS } from '../../lib/annotation-registry';
 import { ImageViewer } from '../viewers';
 import { AnnotateToolbar, type ClickAction } from '../annotation/AnnotateToolbar';
-import type { AnnotationsCollection, AnnotationHandlers } from '../../types/annotation-props';
+import type { AnnotationsCollection } from '../../types/annotation-props';
 
 // Lazy load PDF component to avoid SSR issues with browser PDF.js loading
 const PdfAnnotationCanvas = lazy(() => import('../pdf-annotation/PdfAnnotationCanvas.client').then(mod => ({ default: mod.PdfAnnotationCanvas })));
 
 type Annotation = components['schemas']['Annotation'];
 import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
+import { useEventBus } from '../../contexts/EventBusContext';
+import { useEventSubscriptions } from '../../contexts/useEventSubscription';
 
 interface Props {
   content: string;
   mimeType: string;
   resourceUri: string;
   annotations: AnnotationsCollection;
-  handlers?: AnnotationHandlers;
   hoveredAnnotationId?: string | null;
   hoveredCommentId?: string | null;
   selectedClick?: ClickAction;
-  onClickChange?: (motivation: ClickAction) => void;
   annotateMode: boolean;
-  onAnnotateModeToggle: () => void;
-  annotators: Record<string, Annotator>;
 }
 
 /**
  * Convert W3C Annotations to simplified format for remark plugin.
  * Extracts position info and converts start/end to offset/length.
  */
-function prepareAnnotations(annotations: Annotation[], annotators: Record<string, Annotator>): PreparedAnnotation[] {
+function prepareAnnotations(annotations: Annotation[]): PreparedAnnotation[] {
+/**
+ * View component for browsing resources with rendered annotations
+ *
+ * @emits annotation:click - Annotation clicked in browse view. Payload: { annotationId: string, motivation: Motivation }
+ * @emits annotation:hover - Annotation hovered in browse view. Payload: { annotationId: string | null }
+ */
   return annotations
     .map(ann => {
       const targetSelector = getTargetSelector(ann.target);
@@ -45,8 +49,8 @@ function prepareAnnotations(annotations: Annotation[], annotators: Record<string
       const start = posSelector?.start ?? 0;
       const end = posSelector?.end ?? 0;
 
-      // Use annotators to determine type
-      const type = Object.values(annotators).find(a => a.matchesAnnotation(ann))?.internalType || 'highlight';
+      // Use ANNOTATORS registry to determine type
+      const type = Object.values(ANNOTATORS).find(a => a.matchesAnnotation(ann))?.internalType || 'highlight';
 
       return {
         id: ann.id,
@@ -59,121 +63,82 @@ function prepareAnnotations(annotations: Annotation[], annotators: Record<string
     });
 }
 
+/**
+ * View component for browsing annotated resources in read-only mode
+ *
+ * @emits annotation:click - User clicked on annotation. Payload: { annotationId: string, motivation: Motivation }
+ * @emits annotation:hover - User hovered over annotation. Payload: { annotationId: string | null }
+ *
+ * @subscribes annotation:hover - Highlight annotation on hover. Payload: { annotationId: string | null }
+ * @subscribes annotation:focus - Scroll to and highlight annotation. Payload: { annotationId: string }
+ */
 export function BrowseView({
   content,
   mimeType,
   resourceUri,
   annotations,
-  handlers,
-  hoveredAnnotationId,
-  hoveredCommentId,
   selectedClick = 'detail',
-  onClickChange,
-  annotateMode,
-  onAnnotateModeToggle,
-  annotators
+  annotateMode
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();
+  const eventBus = useEventBus();
   const containerRef = useRef<HTMLDivElement>(null);
 
   const category = getMimeCategory(mimeType);
 
   const { highlights, references, assessments, comments, tags } = annotations;
 
-  // Extract individual handlers from grouped object
-  const onAnnotationClick = handlers?.onClick;
-  const onAnnotationHover = handlers?.onHover;
-  const onCommentHover = handlers?.onCommentHover;
-
   const allAnnotations = [...highlights, ...references, ...assessments, ...comments, ...tags];
 
-  const preparedAnnotations = prepareAnnotations(allAnnotations, annotators);
+  const preparedAnnotations = prepareAnnotations(allAnnotations);
 
-  // Create a map of annotation ID -> full annotation for click handling
-  const map = new Map<string, Annotation>();
-  for (const ann of allAnnotations) {
-    map.set(ann.id, ann);
-  }
-  const annotationMap = map;
-
-  // Wrapper for annotation hover that routes based on registry metadata
-  const handleAnnotationHover = useCallback((annotationId: string | null) => {
-    if (annotationId) {
-      const annotation = annotationMap.get(annotationId);
-      const metadata = annotation ? Object.values(annotators).find(a => a.matchesAnnotation(annotation!)) : null;
-
-      // Route to side panel if annotation type has one
-      if (metadata?.hasSidePanel) {
-        // Clear the other hover state when switching
-        if (onAnnotationHover) onAnnotationHover(null);
-        if (onCommentHover) onCommentHover(annotationId);
-        return;
-      } else {
-        // Clear the other hover state when switching
-        if (onCommentHover) onCommentHover(null);
-        if (onAnnotationHover) onAnnotationHover(annotationId);
-        return;
-      }
-    }
-    // Clear both when null
-    if (onAnnotationHover) onAnnotationHover(null);
-    if (onCommentHover) onCommentHover(null);
-  }, [annotationMap, onAnnotationHover, onCommentHover, annotators]);
-
-  // Attach click handlers, hover handlers, and animations after render
+  // Attach click handler, hover handler, and animations after render
   useEffect(() => {
     if (!containerRef.current) return;
 
     const container = containerRef.current;
 
-    // Find all annotation spans
-    const annotationSpans = container.querySelectorAll('[data-annotation-id]');
+    // Single click handler for the container
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const annotationElement = target.closest('[data-annotation-id]');
+      if (!annotationElement) return;
 
-    // Attach click handlers
-    const handleClick = (e: Event) => {
-      const target = e.currentTarget as HTMLElement;
-      const annotationId = target.getAttribute('data-annotation-id');
-      const annotationType = target.getAttribute('data-annotation-type');
+      const annotationId = annotationElement.getAttribute('data-annotation-id');
+      const annotationType = annotationElement.getAttribute('data-annotation-type');
 
-      if (annotationId && annotationType === 'reference' && onAnnotationClick) {
-        const annotation = annotationMap.get(annotationId);
+      if (annotationId && annotationType === 'reference') {
+        const annotation = allAnnotations.find(a => a.id === annotationId);
         if (annotation) {
-          onAnnotationClick(annotation);
+          eventBus.emit('annotation:click', { annotationId, motivation: annotation.motivation });
         }
       }
     };
 
-    // Attach hover handlers
-    const handleMouseEnter = (e: Event) => {
-      const target = e.currentTarget as HTMLElement;
-      const annotationId = target.getAttribute('data-annotation-id');
+    // Single mouseover handler for the container - fires once on enter
+    const handleMouseOver = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const annotationElement = target.closest('[data-annotation-id]');
+      const annotationId = annotationElement?.getAttribute('data-annotation-id');
+
       if (annotationId) {
-        handleAnnotationHover(annotationId);
+        eventBus.emit('annotation:hover', { annotationId });
       }
     };
 
-    const handleMouseLeave = () => {
-      handleAnnotationHover(null);
-    };
+    // Single mouseout handler for the container - fires once on exit
+    const handleMouseOut = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const annotationElement = target.closest('[data-annotation-id]');
 
-    const clickHandlers: Array<{ element: Element; handler: EventListener }> = [];
-    const hoverHandlers: Array<{ element: Element; enterHandler: EventListener; leaveHandler: EventListener }> = [];
-
-    annotationSpans.forEach((span) => {
-      const annotationType = span.getAttribute('data-annotation-type');
-      if (annotationType === 'reference') {
-        span.addEventListener('click', handleClick);
-        clickHandlers.push({ element: span, handler: handleClick });
+      if (annotationElement) {
+        eventBus.emit('annotation:hover', { annotationId: null });
       }
-
-      // Add hover handlers for all annotation types
-      span.addEventListener('mouseenter', handleMouseEnter);
-      span.addEventListener('mouseleave', handleMouseLeave);
-      hoverHandlers.push({ element: span, enterHandler: handleMouseEnter, leaveHandler: handleMouseLeave });
-    });
+    };
 
     // Apply animation classes to new annotations
     if (newAnnotationIds) {
+      const annotationSpans = container.querySelectorAll('[data-annotation-id]');
       annotationSpans.forEach((span) => {
         const annotationId = span.getAttribute('data-annotation-id');
         if (annotationId && newAnnotationIds.has(annotationId)) {
@@ -182,27 +147,26 @@ export function BrowseView({
       });
     }
 
-    // Cleanup
-    return () => {
-      clickHandlers.forEach(({ element, handler }) => {
-        element.removeEventListener('click', handler);
-      });
-      hoverHandlers.forEach(({ element, enterHandler, leaveHandler }) => {
-        element.removeEventListener('mouseenter', enterHandler);
-        element.removeEventListener('mouseleave', leaveHandler);
-      });
-    };
-  }, [content, allAnnotations, onAnnotationClick, annotationMap, newAnnotationIds, handleAnnotationHover]);
+    container.addEventListener('click', handleClick);
+    container.addEventListener('mouseover', handleMouseOver);
+    container.addEventListener('mouseout', handleMouseOut);
 
-  // Handle hoveredAnnotationId - scroll and pulse
-  useEffect(() => {
-    if (!containerRef.current || !hoveredAnnotationId) return undefined;
+    return () => {
+      container.removeEventListener('click', handleClick);
+      container.removeEventListener('mouseover', handleMouseOver);
+      container.removeEventListener('mouseout', handleMouseOut);
+    };
+  }, [content, allAnnotations, newAnnotationIds]);
+
+  // Helper to scroll annotation into view with pulse effect
+  const scrollToAnnotation = useCallback((annotationId: string | null, removePulse = false) => {
+    if (!containerRef.current || !annotationId) return;
 
     const element = containerRef.current.querySelector(
-      `[data-annotation-id="${CSS.escape(hoveredAnnotationId)}"]`
+      `[data-annotation-id="${CSS.escape(annotationId)}"]`
     ) as HTMLElement;
 
-    if (!element) return undefined;
+    if (!element) return;
 
     // Find the scroll container
     const scrollContainer = element.closest('.semiont-browse-view__content') as HTMLElement;
@@ -228,59 +192,28 @@ export function BrowseView({
     }
 
     // Add pulse effect
-    const timeoutId = setTimeout(() => {
-      element.classList.add('annotation-pulse');
-    }, 100);
-
-    return () => {
-      clearTimeout(timeoutId);
-      element.classList.remove('annotation-pulse');
-    };
-  }, [hoveredAnnotationId]);
-
-  // Handle hoveredCommentId - scroll and pulse
-  useEffect(() => {
-    if (!containerRef.current || !hoveredCommentId) return undefined;
-
-    const element = containerRef.current.querySelector(
-      `[data-annotation-id="${CSS.escape(hoveredCommentId)}"]`
-    ) as HTMLElement;
-
-    if (!element) return undefined;
-
-    // Find the scroll container
-    const scrollContainer = element.closest('.semiont-browse-view__content') as HTMLElement;
-
-    if (scrollContainer) {
-      // Check visibility within the scroll container
-      const elementRect = element.getBoundingClientRect();
-      const containerRect = scrollContainer.getBoundingClientRect();
-
-      const isVisible =
-        elementRect.top >= containerRect.top &&
-        elementRect.bottom <= containerRect.bottom;
-
-      if (!isVisible) {
-        // Scroll using container.scrollTo to avoid scrolling ancestors
-        const elementTop = element.offsetTop;
-        const containerHeight = scrollContainer.clientHeight;
-        const elementHeight = element.offsetHeight;
-        const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
-
-        scrollContainer.scrollTo({ top: scrollTo, behavior: 'smooth' });
-      }
+    element.classList.add('annotation-pulse');
+    if (removePulse) {
+      setTimeout(() => {
+        element.classList.remove('annotation-pulse');
+      }, 2000);
     }
+  }, []);
 
-    // Add pulse effect
-    const timeoutId = setTimeout(() => {
-      element.classList.add('annotation-pulse');
-    }, 100);
+  // Handle hover events for scrolling
+  // Event handlers (extracted to avoid inline arrow functions)
+  const handleAnnotationHover = useCallback(({ annotationId }: { annotationId: string | null }) => {
+    scrollToAnnotation(annotationId);
+  }, [scrollToAnnotation]);
 
-    return () => {
-      clearTimeout(timeoutId);
-      element.classList.remove('annotation-pulse');
-    };
-  }, [hoveredCommentId]);
+  const handleAnnotationFocus = useCallback(({ annotationId }: { annotationId: string | null }) => {
+    scrollToAnnotation(annotationId, true);
+  }, [scrollToAnnotation]);
+
+  useEventSubscriptions({
+    'annotation:hover': handleAnnotationHover,
+    'annotation:focus': handleAnnotationFocus,
+  });
 
   // Route to appropriate viewer based on MIME type category
   switch (category) {
@@ -290,13 +223,10 @@ export function BrowseView({
           <AnnotateToolbar
             selectedMotivation={null}
             selectedClick={selectedClick}
-            onSelectionChange={() => {}}
-            onClickChange={onClickChange || (() => {})}
             showSelectionGroup={false}
             showDeleteButton={false}
             annotateMode={annotateMode}
-            onAnnotateModeToggle={onAnnotateModeToggle}
-            annotators={annotators}
+            annotators={ANNOTATORS}
           />
           <div ref={containerRef} className="semiont-browse-view__content">
             <ReactMarkdown
@@ -322,13 +252,10 @@ export function BrowseView({
             <AnnotateToolbar
               selectedMotivation={null}
               selectedClick={selectedClick}
-              onSelectionChange={() => {}}
-              onClickChange={onClickChange || (() => {})}
               showSelectionGroup={false}
               showDeleteButton={false}
               annotateMode={annotateMode}
-              onAnnotateModeToggle={onAnnotateModeToggle}
-              annotators={annotators}
+              annotators={ANNOTATORS}
             />
             <div ref={containerRef} className="semiont-browse-view__content">
               <Suspense fallback={<div className="semiont-browse-view__loading">Loading PDF viewer...</div>}>
@@ -337,10 +264,6 @@ export function BrowseView({
                   existingAnnotations={allAnnotations}
                   drawingMode={null}
                   selectedMotivation={null}
-                  onAnnotationCreate={() => {}}
-                  {...(onAnnotationClick && { onAnnotationClick })}
-                  {...(onAnnotationHover && { onAnnotationHover })}
-                  hoveredAnnotationId={hoveredCommentId || hoveredAnnotationId || null}
                 />
               </Suspense>
             </div>
@@ -354,13 +277,10 @@ export function BrowseView({
           <AnnotateToolbar
             selectedMotivation={null}
             selectedClick={selectedClick}
-            onSelectionChange={() => {}}
-            onClickChange={onClickChange || (() => {})}
             showSelectionGroup={false}
             showDeleteButton={false}
             annotateMode={annotateMode}
-            onAnnotateModeToggle={onAnnotateModeToggle}
-            annotators={annotators}
+            annotators={ANNOTATORS}
           />
           <div ref={containerRef} className="semiont-browse-view__content">
             <ImageViewer

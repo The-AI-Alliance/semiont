@@ -21,11 +21,8 @@ const createMockProps = (overrides?: Partial<AdminSecurityPageProps>): AdminSecu
   allowedDomains: ['example.com'],
   isLoading: false,
   theme: 'light',
-  onThemeChange: vi.fn(),
   showLineNumbers: false,
-  onLineNumbersToggle: vi.fn(),
   activePanel: null,
-  onPanelToggle: vi.fn(),
   translations: {
     title: 'Security Settings',
     subtitle: 'Configure authentication and authorization',

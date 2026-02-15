@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import type { components, ResourceUri } from '@semiont/api-client';
 import { createRectangleSvg, createCircleSvg, createPolygonSvg, scaleSvgToNative, parseSvgSelector, type Point } from '@semiont/api-client';
 import { AnnotationOverlay } from './AnnotationOverlay';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
+import type { EventBus } from '../../contexts/EventBusContext';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -38,30 +39,30 @@ interface SvgDrawingCanvasProps {
   existingAnnotations?: Annotation[];
   drawingMode: DrawingMode;
   selectedMotivation?: SelectionMotivation | null;
-  onAnnotationCreate?: (svg: string, position?: { x: number; y: number }) => void;
-  onAnnotationClick?: (annotation: Annotation) => void;
-  onAnnotationHover?: (annotationId: string | null) => void;
+  eventBus?: EventBus;
   hoveredAnnotationId?: string | null;
   selectedAnnotationId?: string | null;
 }
 
+/**
+ * SVG-based drawing canvas for creating image annotations with shapes
+ *
+ * @emits annotation:click - Annotation clicked on canvas. Payload: { annotationId: string, motivation: Motivation }
+ * @emits annotation:requested - New annotation drawn on canvas. Payload: { selector: SvgSelector, motivation: SelectionMotivation }
+ */
 export function SvgDrawingCanvas({
   resourceUri,
   existingAnnotations = [],
   drawingMode,
   selectedMotivation,
-  onAnnotationCreate,
-  onAnnotationClick,
-  onAnnotationHover,
+  eventBus,
   hoveredAnnotationId,
   selectedAnnotationId
 }: SvgDrawingCanvasProps) {
-  // Extract resource ID from W3C canonical URI (last segment of path)
-  const resourceId = resourceUri.split('/').pop();
-
-  // Use Next.js API route proxy instead of direct backend call
-  // This allows us to add authentication headers which <img> tags can't send
-  const imageUrl = `/api/resources/${resourceId}`;
+  const imageUrl = useMemo(() => {
+    const resourceId = resourceUri.split('/').pop();
+    return `/api/resources/${resourceId}`;
+  }, [resourceUri]);
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
@@ -172,7 +173,7 @@ export function SvgDrawingCanvas({
 
     if (dragDistance < MIN_DRAG_DISTANCE) {
       // This was a click, not a drag - check if we clicked an existing annotation
-      if (onAnnotationClick && existingAnnotations.length > 0) {
+      if (existingAnnotations.length > 0) {
         // Find annotation at click point
         // Note: We're checking in display coordinates
         const clickedAnnotation = existingAnnotations.find(ann => {
@@ -212,7 +213,7 @@ export function SvgDrawingCanvas({
         });
 
         if (clickedAnnotation) {
-          onAnnotationClick(clickedAnnotation);
+          eventBus?.emit('annotation:click', { annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
           setIsDrawing(false);
           setStartPoint(null);
           setCurrentPoint(null);
@@ -273,25 +274,22 @@ export function SvgDrawingCanvas({
       imageDimensions.height
     );
 
-    // Calculate center position for popup placement (in screen coordinates)
-    const centerX = (startPoint.x + endPoint.x) / 2;
-    const centerY = (startPoint.y + endPoint.y) / 2;
-    const rect = imageRef.current?.getBoundingClientRect();
-    const screenPosition = rect ? {
-      x: rect.left + centerX,
-      y: rect.top + centerY
-    } : undefined;
-
-    // Notify parent
-    if (onAnnotationCreate) {
-      onAnnotationCreate(nativeSvg, screenPosition);
+    // Emit annotation:requested event with SvgSelector
+    if (eventBus && selectedMotivation) {
+      eventBus.emit('annotation:requested', {
+        selector: {
+          type: 'SvgSelector',
+          value: nativeSvg
+        },
+        motivation: selectedMotivation
+      });
     }
 
     // Reset drawing state
     setIsDrawing(false);
     setStartPoint(null);
     setCurrentPoint(null);
-  }, [isDrawing, startPoint, drawingMode, displayDimensions, imageDimensions, getRelativeCoordinates, onAnnotationCreate, onAnnotationClick, existingAnnotations]);
+  }, [isDrawing, startPoint, drawingMode, displayDimensions, imageDimensions, getRelativeCoordinates, selectedMotivation, existingAnnotations]);
 
   // Cancel drawing on mouse leave
   const handleMouseLeave = useCallback(() => {
@@ -340,8 +338,7 @@ export function SvgDrawingCanvas({
               imageHeight={imageDimensions.height}
               displayWidth={displayDimensions.width}
               displayHeight={displayDimensions.height}
-              {...(onAnnotationClick && { onAnnotationClick })}
-              {...(onAnnotationHover && { onAnnotationHover })}
+              {...(eventBus && { eventBus })}
               {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
               {...(selectedAnnotationId !== undefined && { selectedAnnotationId })}
             />

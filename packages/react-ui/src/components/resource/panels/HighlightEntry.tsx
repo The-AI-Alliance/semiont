@@ -1,17 +1,16 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { forwardRef } from 'react';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText } from '@semiont/api-client';
+import { useEventBus } from '../../../contexts/EventBusContext';
 
 type Annotation = components['schemas']['Annotation'];
 
 interface HighlightEntryProps {
   highlight: Annotation;
   isFocused: boolean;
-  onClick: () => void;
-  onHighlightRef: (highlightId: string, el: HTMLElement | null) => void;
-  onHighlightHover?: (highlightId: string | null) => void;
+  isHovered?: boolean;
 }
 
 function formatRelativeTime(isoString: string): string {
@@ -31,41 +30,34 @@ function formatRelativeTime(isoString: string): string {
   return date.toLocaleDateString();
 }
 
-export function HighlightEntry({
-  highlight,
-  isFocused,
-  onClick,
-  onHighlightRef,
-  onHighlightHover,
-}: HighlightEntryProps) {
-  const highlightRef = useRef<HTMLDivElement>(null);
-
-  // Register ref with parent
-  useEffect(() => {
-    onHighlightRef(highlight.id, highlightRef.current);
-    return () => {
-      onHighlightRef(highlight.id, null);
-    };
-  }, [highlight.id, onHighlightRef]);
-
-  // Scroll to highlight when focused
-  useEffect(() => {
-    if (isFocused && highlightRef.current) {
-      highlightRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }, [isFocused]);
+export const HighlightEntry = forwardRef<HTMLDivElement, HighlightEntryProps>(
+  function HighlightEntry(
+    {
+      highlight,
+      isFocused,
+      isHovered = false,
+    },
+    ref
+  ) {
+  const eventBus = useEventBus();
 
   const selectedText = getAnnotationExactText(highlight);
 
   return (
     <div
-      ref={highlightRef}
-      className="semiont-annotation-entry"
+      ref={ref}
+      className={`semiont-annotation-entry${isHovered ? ' semiont-annotation-pulse' : ''}`}
       data-type="highlight"
       data-focused={isFocused ? 'true' : 'false'}
-      onClick={onClick}
-      onMouseEnter={() => onHighlightHover?.(highlight.id)}
-      onMouseLeave={() => onHighlightHover?.(null)}
+      onClick={() => {
+        eventBus.emit('annotation:click', { annotationId: highlight.id, motivation: highlight.motivation });
+      }}
+      onMouseEnter={() => {
+        eventBus.emit('annotation:hover', { annotationId: highlight.id });
+      }}
+      onMouseLeave={() => {
+        eventBus.emit('annotation:hover', { annotationId: null });
+      }}
     >
       {/* Highlighted text */}
       {selectedText && (
@@ -80,4 +72,4 @@ export function HighlightEntry({
       </div>
     </div>
   );
-}
+});

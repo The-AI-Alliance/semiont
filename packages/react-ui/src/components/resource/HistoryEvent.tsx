@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useEffect } from 'react';
 import type { RouteBuilder, LinkComponentProps } from '../../contexts/RoutingContext';
 import type { StoredEvent, ResourceEventType } from '@semiont/core';
 import { getAnnotationUriFromEvent } from '@semiont/core';
@@ -46,9 +46,15 @@ export function HistoryEvent({
   const entityTypes = getEventEntityTypes(event);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Store callback in ref to avoid including in dependency arrays
+  const onEventHoverRef = useRef(onEventHover);
+  useEffect(() => {
+    onEventHoverRef.current = onEventHover;
+  });
+
   // Handle hover on emoji icon with 300ms delay
   const handleEmojiMouseEnter = useCallback(() => {
-    if (!annotationUri || !onEventHover) return;
+    if (!annotationUri || !onEventHoverRef.current) return;
 
     // Clear any existing timeout
     if (hoverTimeoutRef.current) {
@@ -57,9 +63,9 @@ export function HistoryEvent({
 
     // Set new timeout for 300ms delay
     hoverTimeoutRef.current = setTimeout(() => {
-      onEventHover(annotationUri);
+      onEventHoverRef.current?.(annotationUri);
     }, 300);
-  }, [annotationUri, onEventHover]);
+  }, [annotationUri]);
 
   const handleEmojiMouseLeave = useCallback(() => {
     // Clear the timeout if mouse leaves before 500ms
@@ -69,10 +75,10 @@ export function HistoryEvent({
     }
 
     // Clear the hover state
-    if (onEventHover) {
-      onEventHover(null);
+    if (onEventHoverRef.current) {
+      onEventHoverRef.current(null);
     }
-  }, [onEventHover]);
+  }, []);
 
   // Interactive events should be buttons for keyboard accessibility
   const EventWrapper = annotationUri ? 'button' : 'div';

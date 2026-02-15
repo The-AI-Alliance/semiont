@@ -33,12 +33,18 @@ export default function ModerateLayout({
             t={tNav}
             tHome={tHome}
             brandingLink="/"
+            collapsible={true}
+            storageKey="moderation-sidebar-collapsed"
             isAuthenticated={isAuthenticated}
             isAdmin={isAdmin}
             isModerator={isModerator}
           >
             {(isCollapsed, toggleCollapsed, navigationMenu) => (
-              <ModerationNavigation navigationMenu={navigationMenu} />
+              <ModerationNavigation
+                isCollapsed={isCollapsed}
+                toggleCollapsed={toggleCollapsed}
+                navigationMenu={navigationMenu}
+              />
             )}
           </LeftSidebar>
           <main className="flex-1 p-6 flex flex-col">

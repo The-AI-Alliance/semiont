@@ -1,7 +1,7 @@
 'use client';
 
-import { useSessionExpiry } from '@semiont/react-ui';
-import { useFormattedTime } from '@semiont/react-ui';
+import { useSessionExpiry } from '../hooks/useSessionExpiry';
+import { useFormattedTime } from '../hooks/useFormattedTime';
 
 export function SessionTimer() {
   const { timeRemaining } = useSessionExpiry();

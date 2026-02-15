@@ -19,7 +19,7 @@ export function useFormValidation(options: UseFormValidationOptions = {}) {
       // Announce error to screen readers
       announce(`Error in ${field}: ${message}`, 'assertive');
     }
-  }, [announceErrors, announce]);
+  }, [announceErrors]);
 
   const clearFieldError = useCallback((field: string) => {
     setErrors(prev => {
@@ -50,7 +50,7 @@ export function useFormValidation(options: UseFormValidationOptions = {}) {
 
   const announceSuccess = useCallback((message: string) => {
     announce(message, 'polite');
-  }, [announce]);
+  }, []);
 
   const getFieldError = useCallback((field: string) => {
     return errors[field] || null;

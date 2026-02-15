@@ -9,6 +9,7 @@ import {
   LiveRegionProvider,
   TranslationProvider,
   ApiClientProvider,
+  EventBusProvider,
   dispatch401Error,
   dispatch403Error,
 } from '@semiont/react-ui';
@@ -110,14 +111,16 @@ function InnerProviders({ children, queryClient }: { children: React.ReactNode; 
         <TranslationProvider translationManager={translationManager}>
           <ApiClientProvider apiClientManager={apiClientManager}>
             <QueryClientProvider client={queryClient}>
-              <ToastProvider>
-                <LiveRegionProvider>
-                  <KeyboardShortcutsProvider>
-                    <ThemeInitializer />
-                    {children}
-                  </KeyboardShortcutsProvider>
-                </LiveRegionProvider>
-              </ToastProvider>
+              <EventBusProvider>
+                <ToastProvider>
+                  <LiveRegionProvider>
+                    <KeyboardShortcutsProvider>
+                      <ThemeInitializer />
+                      {children}
+                    </KeyboardShortcutsProvider>
+                  </LiveRegionProvider>
+                </ToastProvider>
+              </EventBusProvider>
             </QueryClientProvider>
           </ApiClientProvider>
         </TranslationProvider>

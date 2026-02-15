@@ -1,9 +1,9 @@
 'use client';
 
-import { useRef, useCallback, useEffect, lazy, Suspense } from 'react';
-import type { components, Selector } from '@semiont/api-client';
+import { useRef, useEffect, useCallback, lazy, Suspense } from 'react';
+import type { components } from '@semiont/api-client';
 import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMimeCategory, isPdfMimeType, resourceUri as toResourceUri } from '@semiont/api-client';
-import type { Annotator } from '../../lib/annotation-registry';
+import { ANNOTATORS } from '../../lib/annotation-registry';
 import { SvgDrawingCanvas } from '../image-annotation/SvgDrawingCanvas';
 import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
 import { findTextWithContext } from '@semiont/api-client';
@@ -12,24 +12,19 @@ import { findTextWithContext } from '@semiont/api-client';
 const PdfAnnotationCanvas = lazy(() => import('../pdf-annotation/PdfAnnotationCanvas.client').then(mod => ({ default: mod.PdfAnnotationCanvas })));
 
 type Annotation = components['schemas']['Annotation'];
-type Motivation = components['schemas']['Motivation'];
-
-// Unified pending annotation type - all human-created annotations flow through this
-interface PendingAnnotation {
-  selector: Selector | Selector[];
-  motivation: Motivation;
-}
 
 import { CodeMirrorRenderer } from '../CodeMirrorRenderer';
 import type { TextSegment } from '../CodeMirrorRenderer';
 import type { EditorView } from '@codemirror/view';
+import { useEventBus } from '../../contexts/EventBusContext';
+import { useEventSubscriptions } from '../../contexts/useEventSubscription';
 
 // Type augmentation for custom DOM properties
 interface EnrichedHTMLElement extends HTMLElement {
   __cmView?: EditorView;
 }
 import { AnnotateToolbar, type SelectionMotivation, type ClickAction, type ShapeType } from '../annotation/AnnotateToolbar';
-import type { AnnotationsCollection, AnnotationHandlers, AnnotationCreationHandler, AnnotationUIState } from '../../types/annotation-props';
+import type { AnnotationsCollection, AnnotationUIState } from '../../types/annotation-props';
 
 // Re-export for convenience
 export type { SelectionMotivation, ClickAction, ShapeType };
@@ -39,23 +34,14 @@ interface Props {
   mimeType?: string;
   resourceUri?: string;
   annotations: AnnotationsCollection;
-  handlers?: AnnotationHandlers;
-  creationHandler?: AnnotationCreationHandler;
   uiState: AnnotationUIState;
   onUIStateChange?: (state: Partial<AnnotationUIState>) => void;
   editable?: boolean;
   enableWidgets?: boolean;
-  onEntityTypeClick?: (entityType: string) => void;
-  onReferenceNavigate?: (documentId: string) => void;
-  onUnresolvedReferenceClick?: (annotation: Annotation) => void;
   getTargetDocumentName?: (documentId: string) => string | undefined;
   generatingReferenceId?: string | null;
-  onDeleteAnnotation?: (annotation: Annotation) => void;
   showLineNumbers?: boolean;
   annotateMode: boolean;
-  onAnnotateModeToggle: () => void;
-  onAnnotationRequested?: (pending: PendingAnnotation) => void;
-  annotators: Record<string, Annotator>;
 }
 
 /**
@@ -159,30 +145,31 @@ function segmentTextWithAnnotations(content: string, annotations: Annotation[]):
   return segments;
 }
 
+/**
+ * View component for annotating resources with text selection and drawing
+ *
+ * @emits annotation:requested - User requested to create annotation. Payload: { selector: Selector | Selector[], motivation: SelectionMotivation }
+ * @subscribes toolbar:selection-changed - Toolbar selection changed. Payload: { motivation: string | null }
+ * @subscribes toolbar:click-changed - Toolbar click action changed. Payload: { action: string }
+ * @subscribes toolbar:shape-changed - Toolbar shape changed. Payload: { shape: string }
+ * @subscribes annotation:hover - Annotation hovered. Payload: { annotationId: string | null }
+ */
 export function AnnotateView({
   content,
   mimeType = 'text/plain',
   resourceUri,
   annotations,
-  handlers,
-  creationHandler,
   uiState,
   onUIStateChange,
   enableWidgets = false,
-  onEntityTypeClick,
-  onReferenceNavigate,
-  onUnresolvedReferenceClick,
   getTargetDocumentName,
   generatingReferenceId,
-  onDeleteAnnotation,
   showLineNumbers = false,
-  annotateMode,
-  onAnnotateModeToggle,
-  onAnnotationRequested,
-  annotators
+  annotateMode
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();
   const containerRef = useRef<HTMLDivElement>(null);
+  const eventBus = useEventBus();
 
   const category = getMimeCategory(mimeType);
 
@@ -191,58 +178,37 @@ export function AnnotateView({
   const allAnnotations = [...highlights, ...references, ...assessments, ...comments, ...tags];
   const segments = segmentTextWithAnnotations(content, allAnnotations);
 
-  // Extract individual handlers from grouped objects
-  const onAnnotationClick = handlers?.onClick;
-  const onAnnotationHover = handlers?.onHover;
-  const onCommentHover = handlers?.onCommentHover;
-
-  const onCreate = creationHandler?.onCreate;
-
   // Extract UI state
   const { selectedMotivation, selectedClick, selectedShape, hoveredAnnotationId, hoveredCommentId, scrollToAnnotationId } = uiState;
 
-  console.log('[AnnotateView] Current UI state:', {
-    selectedMotivation,
-    selectedShape,
-    selectedClick,
-    annotateMode
+  // Store onUIStateChange in ref to avoid dependency issues
+  const onUIStateChangeRef = useRef(onUIStateChange);
+  onUIStateChangeRef.current = onUIStateChange;
+
+  // Toolbar event handlers (extracted to avoid inline arrow functions)
+  const handleToolbarSelectionChanged = useCallback(({ motivation }: { motivation: string | null }) => {
+    onUIStateChangeRef.current?.({ selectedMotivation: motivation as SelectionMotivation | null });
+  }, []);
+
+  const handleToolbarClickChanged = useCallback(({ action }: { action: string }) => {
+    onUIStateChangeRef.current?.({ selectedClick: action as ClickAction });
+  }, []);
+
+  const handleToolbarShapeChanged = useCallback(({ shape }: { shape: string }) => {
+    onUIStateChangeRef.current?.({ selectedShape: shape as ShapeType });
+  }, []);
+
+  const handleAnnotationHover = useCallback(({ annotationId }: { annotationId: string | null }) => {
+    onUIStateChangeRef.current?.({ hoveredAnnotationId: annotationId });
+  }, []);
+
+  // Subscribe to toolbar events and annotation hover
+  useEventSubscriptions({
+    'toolbar:selection-changed': handleToolbarSelectionChanged,
+    'toolbar:click-changed': handleToolbarClickChanged,
+    'toolbar:shape-changed': handleToolbarShapeChanged,
+    'annotation:hover': handleAnnotationHover,
   });
-
-  // UI state change handlers
-  const onSelectionChange = (motivation: SelectionMotivation | null) => {
-    console.log('[AnnotateView] onSelectionChange called with:', motivation);
-    onUIStateChange?.({ selectedMotivation: motivation });
-  };
-  const onClickChange = (motivation: ClickAction) => {
-    onUIStateChange?.({ selectedClick: motivation });
-  };
-  const onShapeChange = (shape: ShapeType) => {
-    onUIStateChange?.({ selectedShape: shape });
-  };
-
-  // Wrapper for annotation hover that routes based on registry metadata
-  const handleAnnotationHover = useCallback((annotationId: string | null) => {
-    if (annotationId) {
-      const annotation = allAnnotations.find(a => a.id === annotationId);
-      const metadata = annotation ? Object.values(annotators).find(a => a.matchesAnnotation(annotation!)) : null;
-
-      // Route to side panel if annotation type has one
-      if (metadata?.hasSidePanel) {
-        // Clear the other hover state when switching
-        if (onAnnotationHover) onAnnotationHover(null);
-        if (onCommentHover) onCommentHover(annotationId);
-        return;
-      } else {
-        // Clear the other hover state when switching
-        if (onCommentHover) onCommentHover(null);
-        if (onAnnotationHover) onAnnotationHover(annotationId);
-        return;
-      }
-    }
-    // Clear both when null
-    if (onAnnotationHover) onAnnotationHover(null);
-    if (onCommentHover) onCommentHover(null);
-  }, [allAnnotations, onAnnotationHover, onCommentHover, annotators]);
 
   // Handle text annotation with sparkle or immediate creation
   useEffect(() => {
@@ -261,7 +227,15 @@ export function AnnotateView({
       }
     };
 
-    const handleMouseUp = (_e: MouseEvent) => {
+    const handleMouseUp = (e: MouseEvent) => {
+      // Skip if the mouseUp came from PDF or image canvas
+      // (those components handle their own annotation:requested events)
+      const target = e.target as Element;
+      if (target.closest('.semiont-pdf-annotation-canvas') ||
+          target.closest('.semiont-svg-drawing-canvas')) {
+        return;
+      }
+
       const selection = window.getSelection();
       if (!selection || selection.isCollapsed || !selection.toString()) {
         clickedOnAnnotation = false;
@@ -294,8 +268,8 @@ export function AnnotateView({
         const context = extractContext(content, start, end);
 
         // Unified flow: all text annotations use BOTH TextPositionSelector and TextQuoteSelector
-        if (selectedMotivation && onAnnotationRequested) {
-          onAnnotationRequested({
+        if (selectedMotivation) {
+          eventBus.emit('annotation:requested', {
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -328,8 +302,8 @@ export function AnnotateView({
         const context = extractContext(content, start, end);
 
         // Unified flow: all text annotations use BOTH TextPositionSelector and TextQuoteSelector
-        if (selectedMotivation && onAnnotationRequested) {
-          onAnnotationRequested({
+        if (selectedMotivation) {
+          eventBus.emit('annotation:requested', {
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -360,7 +334,7 @@ export function AnnotateView({
       container.removeEventListener('mouseup', handleMouseUp);
       container.removeEventListener('mousedown', handleMouseDown);
     };
-  }, [selectedMotivation, onCreate, content]);
+  }, [selectedMotivation, content]);
 
   // Route to appropriate viewer based on MIME type category
   switch (category) {
@@ -370,19 +344,14 @@ export function AnnotateView({
           <AnnotateToolbar
             selectedMotivation={selectedMotivation}
             selectedClick={selectedClick}
-            onSelectionChange={onSelectionChange || (() => {})}
-            onClickChange={onClickChange || (() => {})}
             mediaType={mimeType}
             annotateMode={annotateMode}
-            onAnnotateModeToggle={onAnnotateModeToggle}
-            annotators={annotators}
+            annotators={ANNOTATORS}
           />
           <div className="semiont-annotate-view__content">
             <CodeMirrorRenderer
             content={content}
             segments={segments}
-            {...(onAnnotationClick && { onAnnotationClick })}
-            onAnnotationHover={handleAnnotationHover}
             editable={false}
             newAnnotationIds={newAnnotationIds}
             {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
@@ -391,13 +360,9 @@ export function AnnotateView({
             sourceView={true}
             showLineNumbers={showLineNumbers}
             enableWidgets={enableWidgets}
-            {...(onEntityTypeClick && { onEntityTypeClick })}
-            {...(onReferenceNavigate && { onReferenceNavigate })}
-            {...(onUnresolvedReferenceClick && { onUnresolvedReferenceClick })}
+            eventBus={eventBus}
             {...(getTargetDocumentName && { getTargetDocumentName })}
             {...(generatingReferenceId !== undefined && { generatingReferenceId })}
-            {...(onDeleteAnnotation && { onDeleteAnnotation })}
-            annotators={annotators}
           />
 
           </div>
@@ -413,15 +378,11 @@ export function AnnotateView({
             <AnnotateToolbar
               selectedMotivation={selectedMotivation}
               selectedClick={selectedClick}
-              onSelectionChange={onSelectionChange}
-              onClickChange={onClickChange}
               showShapeGroup={true}
               selectedShape={selectedShape}
-              onShapeChange={onShapeChange}
               mediaType={mimeType}
               annotateMode={annotateMode}
-              onAnnotateModeToggle={onAnnotateModeToggle}
-              annotators={annotators}
+              annotators={ANNOTATORS}
             />
             <div className="semiont-annotate-view__content">
               {resourceUri && (
@@ -431,21 +392,7 @@ export function AnnotateView({
                     existingAnnotations={allAnnotations}
                     drawingMode={selectedMotivation ? selectedShape : null}
                     selectedMotivation={selectedMotivation}
-                    onAnnotationCreate={async (fragmentSelector) => {
-                      if (!selectedMotivation) return;
-
-                      // Unified flow: all annotations go through pending state
-                      onAnnotationRequested?.({
-                        selector: {
-                          type: 'FragmentSelector',
-                          conformsTo: 'http://tools.ietf.org/rfc/rfc3778',
-                          value: fragmentSelector
-                        },
-                        motivation: selectedMotivation
-                      });
-                    }}
-                    {...(onAnnotationClick && { onAnnotationClick })}
-                    {...(onAnnotationHover && { onAnnotationHover: handleAnnotationHover })}
+                    eventBus={eventBus}
                     hoveredAnnotationId={hoveredCommentId || hoveredAnnotationId || null}
                   />
                 </Suspense>
@@ -461,15 +408,11 @@ export function AnnotateView({
           <AnnotateToolbar
             selectedMotivation={selectedMotivation}
             selectedClick={selectedClick}
-            onSelectionChange={onSelectionChange}
-            onClickChange={onClickChange}
             showShapeGroup={true}
             selectedShape={selectedShape}
-            onShapeChange={onShapeChange}
             mediaType={mimeType}
             annotateMode={annotateMode}
-            onAnnotateModeToggle={onAnnotateModeToggle}
-            annotators={annotators}
+            annotators={ANNOTATORS}
           />
           <div className="semiont-annotate-view__content">
             {resourceUri && (
@@ -478,20 +421,7 @@ export function AnnotateView({
                 existingAnnotations={allAnnotations}
                 drawingMode={selectedMotivation ? selectedShape : null}
                 selectedMotivation={selectedMotivation}
-                onAnnotationCreate={async (svg) => {
-                  if (!selectedMotivation) return;
-
-                  // Unified flow: all annotations go through pending state
-                  onAnnotationRequested?.({
-                    selector: {
-                      type: 'SvgSelector',
-                      value: svg
-                    },
-                    motivation: selectedMotivation
-                  });
-                }}
-                {...(onAnnotationClick && { onAnnotationClick })}
-                {...(onAnnotationHover && { onAnnotationHover: handleAnnotationHover })}
+                eventBus={eventBus}
                 hoveredAnnotationId={hoveredCommentId || hoveredAnnotationId || null}
               />
             )}

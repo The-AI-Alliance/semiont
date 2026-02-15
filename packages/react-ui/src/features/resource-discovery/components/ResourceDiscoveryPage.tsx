@@ -5,10 +5,11 @@
  * All dependencies passed as props - no Next.js hooks!
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import type { components } from '@semiont/api-client';
 import { getResourceId } from '@semiont/api-client';
-import { useRovingTabIndex, Toolbar } from '@semiont/react-ui';
+import { useRovingTabIndex } from '../../../hooks/useRovingTabIndex';
+import { Toolbar } from '../../../components/Toolbar';
 import { ResourceCard } from './ResourceCard';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
@@ -23,11 +24,8 @@ export interface ResourceDiscoveryPageProps {
 
   // UI state props
   theme: 'light' | 'dark';
-  onThemeChange: (theme: 'light' | 'dark') => void;
   showLineNumbers: boolean;
-  onLineNumbersToggle: () => void;
   activePanel: string | null;
-  onPanelToggle: (panel: string) => void;
 
   // Navigation props
   onNavigateToResource: (resourceId: string) => void;
@@ -64,11 +62,8 @@ export function ResourceDiscoveryPage({
   isLoadingRecent,
   isSearching,
   theme,
-  onThemeChange,
   showLineNumbers,
-  onLineNumbersToggle,
   activePanel,
-  onPanelToggle,
   onNavigateToResource,
   onNavigateToCompose,
   translations: t,
@@ -101,6 +96,10 @@ export function ResourceDiscoveryPage({
     { orientation: 'grid', cols: 2 } // 2 columns on medium+ screens
   );
 
+  // Store navigation callback in ref to avoid re-creating openResource
+  const onNavigateToResourceRef = useRef(onNavigateToResource);
+  onNavigateToResourceRef.current = onNavigateToResource;
+
   // Memoized callbacks
   const handleEntityTypeFilter = useCallback((entityType: string) => {
     setSelectedEntityType(entityType);
@@ -109,9 +108,9 @@ export function ResourceDiscoveryPage({
   const openResource = useCallback((resource: ResourceDescriptor) => {
     const resourceId = getResourceId(resource);
     if (resourceId) {
-      onNavigateToResource(resourceId);
+      onNavigateToResourceRef.current(resourceId);
     }
-  }, [onNavigateToResource]);
+  }, []);
 
   const handleSearchSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
@@ -267,16 +266,13 @@ export function ResourceDiscoveryPage({
         <ToolbarPanels
           activePanel={activePanel}
           theme={theme}
-          onThemeChange={onThemeChange}
           showLineNumbers={showLineNumbers}
-          onLineNumbersToggle={onLineNumbersToggle}
         />
 
         {/* Toolbar - Always visible on the right */}
         <Toolbar
           context="simple"
           activePanel={activePanel}
-          onPanelToggle={onPanelToggle}
         />
       </div>
     </div>

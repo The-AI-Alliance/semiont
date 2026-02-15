@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef, useEffect } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { getResourceIcon } from '../../lib/resource-utils';
@@ -32,6 +32,12 @@ export function SortableResourceTab({
     isDragging: isSortableDragging,
   } = useSortable({ id: resource.id });
 
+  // Store callback in ref to avoid including in dependency arrays
+  const onReorderRef = useRef(onReorder);
+  useEffect(() => {
+    onReorderRef.current = onReorder;
+  });
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -43,16 +49,16 @@ export function SortableResourceTab({
 
   // Handle keyboard shortcuts for reordering (Alt + Up/Down)
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (onReorder && e.altKey) {
+    if (onReorderRef.current && e.altKey) {
       if (e.key === 'ArrowUp') {
         e.preventDefault();
-        onReorder(resource.id, 'up');
+        onReorderRef.current(resource.id, 'up');
       } else if (e.key === 'ArrowDown') {
         e.preventDefault();
-        onReorder(resource.id, 'down');
+        onReorderRef.current(resource.id, 'down');
       }
     }
-  }, [onReorder, resource.id]);
+  }, [resource.id]);
 
   return (
     <div

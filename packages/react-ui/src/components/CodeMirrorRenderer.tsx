@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { EditorView, Decoration, DecorationSet, lineNumbers } from '@codemirror/view';
 import { EditorState, RangeSetBuilder, StateField, StateEffect, Compartment } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
-import type { Annotator } from '../lib/annotation-registry';
+import { ANNOTATORS } from '../lib/annotation-registry';
 import { ReferenceResolutionWidget } from '../lib/codemirror-widgets';
 import { isHighlight, isReference, isResolvedReference, isComment, isAssessment, isTag, getBodySource } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
+import type { EventBus } from '../contexts/EventBusContext';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -26,9 +27,7 @@ export interface TextSegment {
 
 interface Props {
   content: string;
-  segments: TextSegment[];
-  onAnnotationClick?: (annotation: Annotation) => void;
-  onAnnotationHover?: (annotationId: string | null) => void;
+  segments?: TextSegment[]; // Optional - only needed for annotation rendering
   onTextSelect?: (exact: string, position: { start: number; end: number }) => void;
   onChange?: (content: string) => void;
   editable?: boolean;
@@ -39,13 +38,9 @@ interface Props {
   sourceView?: boolean; // If true, show raw source (no markdown rendering)
   showLineNumbers?: boolean; // If true, show line numbers
   enableWidgets?: boolean; // If true, show inline widgets (reference previews, entity badges)
-  onEntityTypeClick?: (entityType: string) => void;
-  onReferenceNavigate?: (documentId: string) => void;
-  onUnresolvedReferenceClick?: (annotation: Annotation) => void;
+  eventBus?: EventBus;
   getTargetDocumentName?: (documentId: string) => string | undefined;
   generatingReferenceId?: string | null; // ID of reference currently generating a document
-  onDeleteAnnotation?: (annotation: Annotation) => void;
-  annotators: Record<string, Annotator>;
 }
 
 // Effect to update annotation decorations with segments and new IDs
@@ -61,13 +56,8 @@ interface WidgetUpdate {
   content: string;
   segments: TextSegment[];
   generatingReferenceId?: string | null | undefined;
-  callbacks: {
-    onEntityTypeClick?: (entityType: string) => void;
-    onReferenceNavigate?: (documentId: string) => void;
-    onUnresolvedReferenceClick?: (annotation: Annotation) => void;
-    getTargetDocumentName?: (documentId: string) => string | undefined;
-    onDeleteAnnotation?: (annotation: Annotation) => void;
-  };
+  eventBus?: EventBus;
+  getTargetDocumentName?: (documentId: string) => string | undefined;
 }
 
 const updateWidgetsEffect = StateEffect.define<WidgetUpdate>();
@@ -139,7 +129,6 @@ function getAnnotationTooltip(annotation: Annotation): string {
 // Build decorations from segments
 function buildAnnotationDecorations(
   segments: TextSegment[],
-  annotators: Record<string, Annotator>,
   newAnnotationIds?: Set<string>
 ): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
@@ -152,7 +141,7 @@ function buildAnnotationDecorations(
     if (!segment.annotation) continue;
 
     const isNew = newAnnotationIds?.has(segment.annotation.id) || false;
-    const baseClassName = Object.values(annotators).find(a => a.matchesAnnotation(segment.annotation!))?.className || 'annotation-highlight';
+    const baseClassName = Object.values(ANNOTATORS).find(a => a.matchesAnnotation(segment.annotation!))?.className || 'annotation-highlight';
     const className = isNew ? `${baseClassName} annotation-sparkle` : baseClassName;
 
     // Use W3C helpers to determine annotation type
@@ -185,8 +174,8 @@ function buildAnnotationDecorations(
   return builder.finish();
 }
 
-// Create state field factory that closes over annotators
-function createAnnotationDecorationsField(annotators: Record<string, Annotator>) {
+// Create state field for annotation decorations
+function createAnnotationDecorationsField() {
   return StateField.define<DecorationSet>({
     create() {
       return Decoration.none;
@@ -196,7 +185,7 @@ function createAnnotationDecorationsField(annotators: Record<string, Annotator>)
 
       for (const effect of tr.effects) {
         if (effect.is(updateAnnotationsEffect)) {
-          decorations = buildAnnotationDecorations(effect.value.segments, annotators, effect.value.newAnnotationIds);
+          decorations = buildAnnotationDecorations(effect.value.segments, effect.value.newAnnotationIds);
         }
       }
 
@@ -211,13 +200,8 @@ function buildWidgetDecorations(
   _content: string,
   segments: TextSegment[],
   generatingReferenceId: string | null | undefined,
-  callbacks: {
-    onEntityTypeClick?: (entityType: string) => void;
-    onReferenceNavigate?: (documentId: string) => void;
-    onUnresolvedReferenceClick?: (annotation: Annotation) => void;
-    getTargetDocumentName?: (documentId: string) => string | undefined;
-    onDeleteAnnotation?: (annotation: Annotation) => void;
-  }
+  eventBus: any,
+  getTargetDocumentName?: (documentId: string) => string | undefined
 ): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
 
@@ -239,7 +223,7 @@ function buildWidgetDecorations(
     if (isReference(annotation)) {
       const bodySource = getBodySource(annotation.body);
       const targetName = bodySource
-        ? callbacks.getTargetDocumentName?.(bodySource)
+        ? getTargetDocumentName?.(bodySource)
         : undefined;
       // Compare by ID portion (handle both URI and internal ID formats)
       const isGenerating = generatingReferenceId
@@ -248,8 +232,7 @@ function buildWidgetDecorations(
       const widget = new ReferenceResolutionWidget(
         annotation,
         targetName,
-        callbacks.onReferenceNavigate,
-        callbacks.onUnresolvedReferenceClick,
+        eventBus,
         isGenerating
       );
       builder.add(
@@ -278,7 +261,8 @@ const widgetDecorationsField = StateField.define<DecorationSet>({
           effect.value.content,
           effect.value.segments,
           effect.value.generatingReferenceId,
-          effect.value.callbacks
+          effect.value.eventBus,
+          effect.value.getTargetDocumentName
         );
       }
     }
@@ -290,9 +274,7 @@ const widgetDecorationsField = StateField.define<DecorationSet>({
 
 export function CodeMirrorRenderer({
   content,
-  segments,
-  onAnnotationClick,
-  onAnnotationHover,
+  segments = [],
   onChange,
   editable = false,
   newAnnotationIds,
@@ -302,13 +284,9 @@ export function CodeMirrorRenderer({
   sourceView = false,
   showLineNumbers = false,
   enableWidgets = false,
-  onEntityTypeClick,
-  onReferenceNavigate,
-  onUnresolvedReferenceClick,
+  eventBus,
   getTargetDocumentName,
-  generatingReferenceId,
-  onDeleteAnnotation,
-  annotators
+  generatingReferenceId
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -320,39 +298,20 @@ export function CodeMirrorRenderer({
 
   const segmentsRef = useRef(convertedSegments);
   const lineNumbersCompartment = useRef(new Compartment());
-  const callbacksRef = useRef<{
-    onWikiLinkClick?: (pageName: string) => void;
-    onEntityTypeClick?: (entityType: string) => void;
-    onReferenceNavigate?: (documentId: string) => void;
-    onUnresolvedReferenceClick?: (annotation: Annotation) => void;
-    getTargetDocumentName?: (documentId: string) => string | undefined;
-    onDeleteAnnotation?: (annotation: Annotation) => void;
-    onAnnotationClick?: (annotation: Annotation, event?: React.MouseEvent) => void;
-    onAnnotationHover?: (annotationId: string | null) => void;
-  }>({});
+  const eventBusRef = useRef(eventBus);
+  const getTargetDocumentNameRef = useRef(getTargetDocumentName);
 
-  // Update segments ref when they change
+  // Update refs when they change
   segmentsRef.current = segments;
-
-  // Update callbacks ref when they change
-  useEffect(() => {
-    callbacksRef.current = {
-      ...(onEntityTypeClick && { onEntityTypeClick }),
-      ...(onReferenceNavigate && { onReferenceNavigate }),
-      ...(onUnresolvedReferenceClick && { onUnresolvedReferenceClick }),
-      ...(getTargetDocumentName && { getTargetDocumentName }),
-      ...(onDeleteAnnotation && { onDeleteAnnotation }),
-      ...(onAnnotationClick && { onAnnotationClick }),
-      ...(onAnnotationHover && { onAnnotationHover })
-    };
-  }, [onEntityTypeClick, onReferenceNavigate, onUnresolvedReferenceClick, getTargetDocumentName, onDeleteAnnotation, onAnnotationClick, onAnnotationHover]);
+  eventBusRef.current = eventBus;
+  getTargetDocumentNameRef.current = getTargetDocumentName;
 
   // Initialize CodeMirror view once
   useEffect(() => {
     if (!containerRef.current || viewRef.current) return;
 
-    // Create annotation decorations field with annotators
-    const annotationDecorationsField = createAnnotationDecorationsField(annotators);
+    // Create annotation decorations field
+    const annotationDecorationsField = createAnnotationDecorationsField();
 
     // Create CodeMirror state with markdown mode
     const state = EditorState.create({
@@ -379,31 +338,17 @@ export function CodeMirrorRenderer({
             const annotationElement = target.closest('[data-annotation-id]');
             const annotationId = annotationElement?.getAttribute('data-annotation-id');
 
-            if (annotationId && callbacksRef.current.onAnnotationClick) {
+            if (annotationId && eventBusRef.current) {
               const segment = segmentsRef.current.find(s => s.annotation?.id === annotationId);
               if (segment?.annotation) {
                 event.preventDefault();
-                callbacksRef.current.onAnnotationClick(segment.annotation);
+                eventBusRef.current.emit('annotation:click', {
+                  annotationId,
+                  motivation: segment.annotation.motivation
+                });
                 return true; // Stop propagation
               }
             }
-            return false;
-          },
-          mousemove: (event, view) => {
-            const target = event.target as HTMLElement;
-            const annotationElement = target.closest('[data-annotation-id]');
-            const annotationId = annotationElement?.getAttribute('data-annotation-id');
-
-            // Track last hovered ID to avoid redundant calls
-            const enrichedDom = view.dom as EnrichedHTMLElement;
-            const lastHovered = enrichedDom.__lastHoveredAnnotation;
-            if (annotationId !== lastHovered) {
-              enrichedDom.__lastHoveredAnnotation = annotationId || null;
-              if (callbacksRef.current.onAnnotationHover) {
-                callbacksRef.current.onAnnotationHover(annotationId || null);
-              }
-            }
-
             return false;
           }
         }),
@@ -461,11 +406,38 @@ export function CodeMirrorRenderer({
     // Store the view on the container for position calculation
     (containerRef.current as EnrichedHTMLElement).__cmView = view;
 
+    // Attach hover event listeners using native DOM events with delegation
+    const container = view.dom;
+
+    const handleMouseOver = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const annotationElement = target.closest('[data-annotation-id]');
+      const annotationId = annotationElement?.getAttribute('data-annotation-id');
+
+      if (annotationId && eventBusRef.current) {
+        eventBusRef.current.emit('annotation:hover', { annotationId });
+      }
+    };
+
+    const handleMouseOut = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const annotationElement = target.closest('[data-annotation-id]');
+
+      if (annotationElement && eventBusRef.current) {
+        eventBusRef.current.emit('annotation:hover', { annotationId: null });
+      }
+    };
+
+    container.addEventListener('mouseover', handleMouseOver);
+    container.addEventListener('mouseout', handleMouseOut);
+
     return () => {
+      container.removeEventListener('mouseover', handleMouseOver);
+      container.removeEventListener('mouseout', handleMouseOut);
       view.destroy();
       viewRef.current = null;
     };
-  }, [annotators]); // Recreate if annotators change
+  }, []); // Only initialize once
 
   // Update content when it changes externally (not from user typing)
   useEffect(() => {
@@ -473,9 +445,9 @@ export function CodeMirrorRenderer({
 
     const currentContent = viewRef.current.state.doc.toString();
 
-    // Only update if content is different AND didn't come from user input
-    // (user input already updates the view, so we only need this for external updates)
-    if (content === currentContent || content === contentRef.current) return;
+    // Only update if content is different from what's in the editor
+    // Skip if content matches current editor state (prevents cursor jumping)
+    if (content === currentContent) return;
 
     // Save cursor position
     const selection = viewRef.current.state.selection.main;
@@ -520,7 +492,8 @@ export function CodeMirrorRenderer({
         content,
         segments: convertedSegments,
         generatingReferenceId,
-        callbacks: callbacksRef.current
+        eventBus: eventBusRef.current,
+        getTargetDocumentName: getTargetDocumentNameRef.current
       })
     });
   }, [content, convertedSegments, enableWidgets, generatingReferenceId]);

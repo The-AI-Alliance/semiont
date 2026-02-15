@@ -1,18 +1,73 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { ReferencesPanel } from '../ReferencesPanel';
+import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../../../contexts/EventBusContext';
 
-// Mock MakeMeaningEventBusContext
-vi.mock('../../../../contexts/MakeMeaningEventBusContext', () => ({
-  useMakeMeaningEvents: vi.fn(() => ({
-    emit: vi.fn(),
-    on: vi.fn(),
-    off: vi.fn(),
-  })),
-}));
+// Composition-based event tracker
+interface TrackedEvent {
+  event: string;
+  payload: any;
+}
+
+function createEventTracker() {
+  const events: TrackedEvent[] = [];
+
+  function EventTrackingWrapper({ children }: { children: React.ReactNode }) {
+    const eventBus = useEventBus();
+
+    React.useEffect(() => {
+      const handlers: Array<() => void> = [];
+
+      const trackEvent = (eventName: string) => (payload: any) => {
+        events.push({ event: eventName, payload });
+      };
+
+      const panelEvents = ['detection:start'];
+
+      panelEvents.forEach(eventName => {
+        const handler = trackEvent(eventName);
+        eventBus.on(eventName, handler);
+        handlers.push(() => eventBus.off(eventName, handler));
+      });
+
+      return () => {
+        handlers.forEach(cleanup => cleanup());
+      };
+    }, [eventBus]);
+
+    return <>{children}</>;
+  }
+
+  return {
+    EventTrackingWrapper,
+    events,
+    clear: () => {
+      events.length = 0;
+    },
+  };
+}
+
+// Helper to render with EventBusProvider
+const renderWithEventBus = (component: React.ReactElement, tracker?: ReturnType<typeof createEventTracker>) => {
+  if (tracker) {
+    return render(
+      <EventBusProvider>
+        <tracker.EventTrackingWrapper>
+          {component}
+        </tracker.EventTrackingWrapper>
+      </EventBusProvider>
+    );
+  }
+
+  return render(
+    <EventBusProvider>
+      {component}
+    </EventBusProvider>
+  );
+};
 
 // Mock TranslationContext
 vi.mock('../../../../contexts/TranslationContext', () => ({
@@ -38,30 +93,42 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
     }
     return result;
   }),
+  TranslationProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-// Mock DetectionProgressWidget
+// Mock DetectionProgressWidget - simplified to avoid module import issues
 vi.mock('@/components/DetectionProgressWidget', () => ({
-  DetectionProgressWidget: ({ progress, onCancel }: any) => (
+  DetectionProgressWidget: ({ progress }: any) => (
     <div data-testid="detection-progress-widget">
       <div data-testid="progress-data">{JSON.stringify(progress)}</div>
-      <button onClick={onCancel}>Cancel Detection</button>
+      <button title="Cancel Detection">Cancel</button>
     </div>
   ),
 }));
 
 describe('ReferencesPanel Component', () => {
+  // Mock Link component
+  const MockLink = ({ href, children, ...props }: any) => (
+    <a href={href} {...props}>{children}</a>
+  );
+
+  // Mock routes
+  const mockRoutes = {
+    resourceDetail: (id: string) => `/resources/${id}`,
+  } as any;
+
   const defaultProps = {
     allEntityTypes: ['Person', 'Organization', 'Location', 'Date'],
     isDetecting: false,
     detectionProgress: null,
-    onDetect: vi.fn(),
-    onCancelDetection: vi.fn(),
-    mediaType: 'text/plain',
     annotateMode: true,
+    Link: MockLink,
+    routes: mockRoutes,
+    pendingAnnotation: null,
   };
 
   beforeEach(() => {
+    resetEventBusForTesting();
     vi.clearAllMocks();
   });
 
@@ -71,13 +138,13 @@ describe('ReferencesPanel Component', () => {
 
   describe('Rendering', () => {
     it('should render panel with title', () => {
-      render(<ReferencesPanel {...defaultProps} />);
+      renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       expect(screen.getByText('Detect Entities')).toBeInTheDocument();
     });
 
     it('should render all entity type buttons', () => {
-      render(<ReferencesPanel {...defaultProps} />);
+      renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       expect(screen.getByText('Person')).toBeInTheDocument();
       expect(screen.getByText('Organization')).toBeInTheDocument();
@@ -86,13 +153,13 @@ describe('ReferencesPanel Component', () => {
     });
 
     it('should show message when no entity types available', () => {
-      render(<ReferencesPanel {...defaultProps} allEntityTypes={[]} />);
+      renderWithEventBus(<ReferencesPanel {...defaultProps} allEntityTypes={[]} />);
 
       expect(screen.getByText('No entity types available')).toBeInTheDocument();
     });
 
     it('should render start detection button', () => {
-      render(<ReferencesPanel {...defaultProps} />);
+      renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       expect(screen.getByTitle('Start Detection')).toBeInTheDocument();
     });
@@ -100,7 +167,7 @@ describe('ReferencesPanel Component', () => {
 
   describe('Entity Type Selection', () => {
     it('should toggle entity type selection on click', async () => {
-      render(<ReferencesPanel {...defaultProps} />);
+      renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       const personButton = screen.getByText('Person');
 
@@ -119,7 +186,7 @@ describe('ReferencesPanel Component', () => {
     });
 
     it('should allow multiple selections', async () => {
-      render(<ReferencesPanel {...defaultProps} />);
+      renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       const personButton = screen.getByText('Person');
       const orgButton = screen.getByText('Organization');
@@ -135,7 +202,7 @@ describe('ReferencesPanel Component', () => {
     });
 
     it('should deselect when clicking selected type', async () => {
-      render(<ReferencesPanel {...defaultProps} />);
+      renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       const personButton = screen.getByText('Person');
 
@@ -147,7 +214,7 @@ describe('ReferencesPanel Component', () => {
     });
 
     it('should show selected count', async () => {
-      render(<ReferencesPanel {...defaultProps} />);
+      renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       const personButton = screen.getByText('Person');
       const orgButton = screen.getByText('Organization');
@@ -164,7 +231,7 @@ describe('ReferencesPanel Component', () => {
     });
 
     it('should not show selected count when none selected', () => {
-      render(<ReferencesPanel {...defaultProps} />);
+      renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       expect(screen.queryByText(/selected/i)).not.toBeInTheDocument();
     });
@@ -172,7 +239,7 @@ describe('ReferencesPanel Component', () => {
 
   describe('Button Styling', () => {
     it('should style selected buttons differently', async () => {
-      render(<ReferencesPanel {...defaultProps} />);
+      renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       const personButton = screen.getByText('Person');
 
@@ -187,7 +254,7 @@ describe('ReferencesPanel Component', () => {
     });
 
     it('should have proper ARIA attributes', () => {
-      render(<ReferencesPanel {...defaultProps} />);
+      renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       const personButton = screen.getByText('Person');
 
@@ -196,7 +263,7 @@ describe('ReferencesPanel Component', () => {
     });
 
     it('should have focus styles', () => {
-      render(<ReferencesPanel {...defaultProps} />);
+      renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       const personButton = screen.getByText('Person');
 
@@ -206,7 +273,7 @@ describe('ReferencesPanel Component', () => {
 
   describe('Start Detection Button', () => {
     it('should be disabled when no types selected', () => {
-      render(<ReferencesPanel {...defaultProps} />);
+      renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       const startButton = screen.getByTitle('Start Detection');
 
@@ -214,7 +281,7 @@ describe('ReferencesPanel Component', () => {
     });
 
     it('should be enabled when types are selected', async () => {
-      render(<ReferencesPanel {...defaultProps} />);
+      renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       const personButton = screen.getByText('Person');
       await userEvent.click(personButton);
@@ -224,9 +291,9 @@ describe('ReferencesPanel Component', () => {
       expect(startButton).not.toBeDisabled();
     });
 
-    it('should call onDetect with selected types and includeDescriptiveReferences', async () => {
-      const onDetect = vi.fn();
-      render(<ReferencesPanel {...defaultProps} onDetect={onDetect} />);
+    it('should emit detection:start event with selected types and includeDescriptiveReferences', async () => {
+      const tracker = createEventTracker();
+      renderWithEventBus(<ReferencesPanel {...defaultProps} />, tracker);
 
       await userEvent.click(screen.getByText('Person'));
       await userEvent.click(screen.getByText('Organization'));
@@ -234,12 +301,20 @@ describe('ReferencesPanel Component', () => {
       const startButton = screen.getByTitle('Start Detection');
       await userEvent.click(startButton);
 
-      expect(onDetect).toHaveBeenCalledWith(['Person', 'Organization'], false);
+      await waitFor(() => {
+        expect(tracker.events.some(e =>
+          e.event === 'detection:start' &&
+          e.payload?.motivation === 'linking' &&
+          e.payload?.options?.entityTypes?.includes('Person') &&
+          e.payload?.options?.entityTypes?.includes('Organization') &&
+          e.payload?.options?.includeDescriptiveReferences === false
+        )).toBe(true);
+      });
     });
 
-    it('should call onDetect with includeDescriptiveReferences when checkbox is checked', async () => {
-      const onDetect = vi.fn();
-      render(<ReferencesPanel {...defaultProps} onDetect={onDetect} />);
+    it('should emit detection:start event with includeDescriptiveReferences when checkbox is checked', async () => {
+      const tracker = createEventTracker();
+      renderWithEventBus(<ReferencesPanel {...defaultProps} />, tracker);
 
       await userEvent.click(screen.getByText('Person'));
 
@@ -251,11 +326,18 @@ describe('ReferencesPanel Component', () => {
       const startButton = screen.getByTitle('Start Detection');
       await userEvent.click(startButton);
 
-      expect(onDetect).toHaveBeenCalledWith(['Person'], true);
+      await waitFor(() => {
+        expect(tracker.events.some(e =>
+          e.event === 'detection:start' &&
+          e.payload?.motivation === 'linking' &&
+          e.payload?.options?.entityTypes?.includes('Person') &&
+          e.payload?.options?.includeDescriptiveReferences === true
+        )).toBe(true);
+      });
     });
 
     it('should clear selected types after detection starts', async () => {
-      const { rerender } = render(<ReferencesPanel {...defaultProps} />);
+      const { rerender } = renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       await userEvent.click(screen.getByText('Person'));
 
@@ -264,22 +346,26 @@ describe('ReferencesPanel Component', () => {
 
       // Simulate detection starting
       rerender(
-        <ReferencesPanel
-          {...defaultProps}
-          isDetecting={true}
-          detectionProgress={{ completedEntityTypes: [] }}
-        />
+        <EventBusProvider>
+          <ReferencesPanel
+            {...defaultProps}
+            isDetecting={true}
+            detectionProgress={{ completedEntityTypes: [] }}
+          />
+        </EventBusProvider>
       );
 
       // Simulate detection completing
       rerender(
-        <ReferencesPanel
-          {...defaultProps}
-          isDetecting={false}
-          detectionProgress={{
-            completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
-          }}
-        />
+        <EventBusProvider>
+          <ReferencesPanel
+            {...defaultProps}
+            isDetecting={false}
+            detectionProgress={{
+              completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
+            }}
+          />
+        </EventBusProvider>
       );
 
       // UI should reset but we can't directly test internal state
@@ -287,7 +373,7 @@ describe('ReferencesPanel Component', () => {
     });
 
     it('should have proper styling when disabled', () => {
-      render(<ReferencesPanel {...defaultProps} />);
+      renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       const startButton = screen.getByTitle('Start Detection');
 
@@ -298,7 +384,7 @@ describe('ReferencesPanel Component', () => {
     });
 
     it('should have proper styling when enabled', async () => {
-      render(<ReferencesPanel {...defaultProps} />);
+      renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       await userEvent.click(screen.getByText('Person'));
 
@@ -313,7 +399,7 @@ describe('ReferencesPanel Component', () => {
 
   describe('Detection Progress', () => {
     it('should show progress widget when detecting', () => {
-      render(
+      renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
           isDetecting={true}
@@ -332,7 +418,7 @@ describe('ReferencesPanel Component', () => {
         ],
       };
 
-      render(
+      renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
           isDetecting={true}
@@ -346,7 +432,7 @@ describe('ReferencesPanel Component', () => {
     });
 
     it('should hide entity type selection during detection', () => {
-      render(
+      renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
           isDetecting={true}
@@ -358,28 +444,23 @@ describe('ReferencesPanel Component', () => {
       expect(screen.queryByText('Person')).not.toBeInTheDocument();
     });
 
-    it('should allow canceling detection', async () => {
-      const onCancelDetection = vi.fn();
-
-      render(
+    it('should render cancel button when detecting', async () => {
+      renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
           isDetecting={true}
           detectionProgress={{ completedEntityTypes: [] }}
-          onCancelDetection={onCancelDetection}
         />
       );
 
-      const cancelButton = screen.getByText('Cancel Detection');
-      await userEvent.click(cancelButton);
-
-      expect(onCancelDetection).toHaveBeenCalledOnce();
+      const cancelButton = screen.getByTitle('Cancel Detection');
+      expect(cancelButton).toBeInTheDocument();
     });
   });
 
   describe('Detection Complete Log', () => {
     it('should show completed log after detection finishes', () => {
-      const { rerender } = render(
+      const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
           isDetecting={false}
@@ -394,11 +475,13 @@ describe('ReferencesPanel Component', () => {
 
       // Parent clears detectionProgress after completion
       rerender(
-        <ReferencesPanel
-          {...defaultProps}
-          isDetecting={false}
-          detectionProgress={null}
-        />
+        <EventBusProvider>
+          <ReferencesPanel
+            {...defaultProps}
+            isDetecting={false}
+            detectionProgress={null}
+          />
+        </EventBusProvider>
       );
 
       expect(screen.getByText('Person:')).toBeInTheDocument();
@@ -406,7 +489,7 @@ describe('ReferencesPanel Component', () => {
     });
 
     it('should show found counts in log', () => {
-      const { rerender } = render(
+      const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
           isDetecting={false}
@@ -416,12 +499,16 @@ describe('ReferencesPanel Component', () => {
         />
       );
 
-      rerender(<ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />);
+      rerender(
+        <EventBusProvider>
+          <ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />
+        </EventBusProvider>
+      );
       expect(screen.getByText(/Found.*5/i)).toBeInTheDocument();
     });
 
     it('should show checkmarks for completed types', () => {
-      const { rerender } = render(
+      const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
           isDetecting={false}
@@ -431,12 +518,16 @@ describe('ReferencesPanel Component', () => {
         />
       );
 
-      rerender(<ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />);
+      rerender(
+        <EventBusProvider>
+          <ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />
+        </EventBusProvider>
+      );
       expect(screen.getByText('✓')).toBeInTheDocument();
     });
 
     it('should show "Detect More" button after completion', () => {
-      const { rerender } = render(
+      const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
           isDetecting={false}
@@ -446,12 +537,16 @@ describe('ReferencesPanel Component', () => {
         />
       );
 
-      rerender(<ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />);
+      rerender(
+        <EventBusProvider>
+          <ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />
+        </EventBusProvider>
+      );
       expect(screen.getByText('Detect More')).toBeInTheDocument();
     });
 
     it('should clear log and show selection UI when clicking "Detect More"', async () => {
-      const { rerender } = render(
+      const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
           isDetecting={false}
@@ -461,7 +556,11 @@ describe('ReferencesPanel Component', () => {
         />
       );
 
-      rerender(<ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />);
+      rerender(
+        <EventBusProvider>
+          <ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />
+        </EventBusProvider>
+      );
 
       const detectMoreButton = screen.getByText('Detect More');
       await userEvent.click(detectMoreButton);
@@ -472,7 +571,7 @@ describe('ReferencesPanel Component', () => {
     });
 
     it('should not show log when empty', () => {
-      render(
+      renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
           isDetecting={false}
@@ -488,18 +587,20 @@ describe('ReferencesPanel Component', () => {
 
   describe('State Transitions', () => {
     it('should transition from idle to detecting', () => {
-      const { rerender } = render(<ReferencesPanel {...defaultProps} />);
+      const { rerender } = renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       // Idle state
       expect(screen.getByText('Select entity types')).toBeInTheDocument();
 
       // Start detecting
       rerender(
-        <ReferencesPanel
-          {...defaultProps}
-          isDetecting={true}
-          detectionProgress={{ completedEntityTypes: [] }}
-        />
+        <EventBusProvider>
+          <ReferencesPanel
+            {...defaultProps}
+            isDetecting={true}
+            detectionProgress={{ completedEntityTypes: [] }}
+          />
+        </EventBusProvider>
       );
 
       // Detecting state
@@ -508,7 +609,7 @@ describe('ReferencesPanel Component', () => {
     });
 
     it('should transition from detecting to complete', () => {
-      const { rerender } = render(
+      const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
           isDetecting={true}
@@ -521,24 +622,30 @@ describe('ReferencesPanel Component', () => {
 
       // Complete - first trigger useEffect to copy to lastDetectionLog
       rerender(
-        <ReferencesPanel
-          {...defaultProps}
-          isDetecting={false}
-          detectionProgress={{
-            completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
-          }}
-        />
+        <EventBusProvider>
+          <ReferencesPanel
+            {...defaultProps}
+            isDetecting={false}
+            detectionProgress={{
+              completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
+            }}
+          />
+        </EventBusProvider>
       );
 
       // Then clear detectionProgress to show the log
-      rerender(<ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />);
+      rerender(
+        <EventBusProvider>
+          <ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />
+        </EventBusProvider>
+      );
 
       expect(screen.queryByTestId('detection-progress-widget')).not.toBeInTheDocument();
       expect(screen.getByText('Detect More')).toBeInTheDocument();
     });
 
     it('should transition from complete to idle', async () => {
-      const { rerender } = render(
+      const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
           isDetecting={false}
@@ -549,12 +656,20 @@ describe('ReferencesPanel Component', () => {
       );
 
       // Clear detectionProgress to show the log
-      rerender(<ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />);
+      rerender(
+        <EventBusProvider>
+          <ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />
+        </EventBusProvider>
+      );
 
       const detectMoreButton = screen.getByText('Detect More');
       await userEvent.click(detectMoreButton);
 
-      rerender(<ReferencesPanel {...defaultProps} />);
+      rerender(
+        <EventBusProvider>
+          <ReferencesPanel {...defaultProps} />
+        </EventBusProvider>
+      );
 
       expect(screen.getByText('Select entity types')).toBeInTheDocument();
     });
@@ -563,7 +678,7 @@ describe('ReferencesPanel Component', () => {
   describe('Edge Cases', () => {
     it('should handle empty entity types array', () => {
       expect(() => {
-        render(<ReferencesPanel {...defaultProps} allEntityTypes={[]} />);
+        renderWithEventBus(<ReferencesPanel {...defaultProps} allEntityTypes={[]} />);
       }).not.toThrow();
     });
 
@@ -571,7 +686,7 @@ describe('ReferencesPanel Component', () => {
       const manyTypes = Array.from({ length: 50 }, (_, i) => `Type${i}`);
 
       expect(() => {
-        render(<ReferencesPanel {...defaultProps} allEntityTypes={manyTypes} />);
+        renderWithEventBus(<ReferencesPanel {...defaultProps} allEntityTypes={manyTypes} />);
       }).not.toThrow();
 
       expect(screen.getByText('Type0')).toBeInTheDocument();
@@ -581,7 +696,7 @@ describe('ReferencesPanel Component', () => {
     it('should handle entity types with special characters', () => {
       const specialTypes = ['Type-A', 'Type_B', 'Type.C', 'Type/D'];
 
-      render(<ReferencesPanel {...defaultProps} allEntityTypes={specialTypes} />);
+      renderWithEventBus(<ReferencesPanel {...defaultProps} allEntityTypes={specialTypes} />);
 
       specialTypes.forEach(type => {
         expect(screen.getByText(type)).toBeInTheDocument();
@@ -589,7 +704,7 @@ describe('ReferencesPanel Component', () => {
     });
 
     it('should handle selecting and deselecting all types', async () => {
-      render(<ReferencesPanel {...defaultProps} />);
+      renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       // Select all
       for (const type of defaultProps.allEntityTypes) {
@@ -611,7 +726,7 @@ describe('ReferencesPanel Component', () => {
     });
 
     it('should handle rapid selection changes', async () => {
-      render(<ReferencesPanel {...defaultProps} />);
+      renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       const personButton = screen.getByText('Person');
 
@@ -625,7 +740,7 @@ describe('ReferencesPanel Component', () => {
     });
 
     it('should handle zero found count in results', () => {
-      render(
+      renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
           isDetecting={false}
@@ -640,7 +755,7 @@ describe('ReferencesPanel Component', () => {
 
     it('should handle undefined detectionProgress', () => {
       expect(() => {
-        render(
+        renderWithEventBus(
           <ReferencesPanel
             {...defaultProps}
             isDetecting={false}
@@ -653,21 +768,21 @@ describe('ReferencesPanel Component', () => {
 
   describe('Styling and Appearance', () => {
     it('should have proper panel structure', () => {
-      const { container } = render(<ReferencesPanel {...defaultProps} />);
+      const { container } = renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       const panel = container.firstChild as HTMLElement;
       expect(panel).toHaveClass('semiont-panel');
     });
 
     it('should support dark mode', () => {
-      const { container } = render(<ReferencesPanel {...defaultProps} />);
+      const { container } = renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       const panel = container.firstChild as HTMLElement;
       expect(panel).toHaveClass('semiont-panel');
     });
 
     it('should have title without emoji', () => {
-      render(<ReferencesPanel {...defaultProps} />);
+      renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       // The emoji is no longer in the title (it's only in the tab now)
       const title = screen.getByRole('heading', { level: 2 });
@@ -676,7 +791,7 @@ describe('ReferencesPanel Component', () => {
     });
 
     it('should have proper button layout', () => {
-      render(<ReferencesPanel {...defaultProps} />);
+      renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       const buttonContainer = screen.getByText('Person').parentElement;
       expect(buttonContainer).toHaveClass('semiont-detect-widget__chips');
@@ -685,7 +800,7 @@ describe('ReferencesPanel Component', () => {
 
   describe('Accessibility', () => {
     it('should have proper ARIA labels for selection', async () => {
-      render(<ReferencesPanel {...defaultProps} />);
+      renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       const personButton = screen.getByText('Person');
 
@@ -699,7 +814,7 @@ describe('ReferencesPanel Component', () => {
     });
 
     it('should have proper ARIA pressed states', async () => {
-      render(<ReferencesPanel {...defaultProps} />);
+      renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       const personButton = screen.getByText('Person');
 
@@ -711,7 +826,7 @@ describe('ReferencesPanel Component', () => {
     });
 
     it('should be keyboard navigable', () => {
-      render(<ReferencesPanel {...defaultProps} />);
+      renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       const personButton = screen.getByText('Person');
       personButton.focus();

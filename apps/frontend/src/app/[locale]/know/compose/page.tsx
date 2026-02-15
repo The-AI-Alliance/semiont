@@ -17,10 +17,12 @@ import { useToast } from '@semiont/react-ui';
 import { useTheme } from '@semiont/react-ui';
 import { useToolbar } from '@semiont/react-ui';
 import { useLineNumbers } from '@semiont/react-ui';
+import { useEventSubscriptions } from '@semiont/react-ui';
 import { Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { getPrimaryMediaType, getResourceId, resourceUri, resourceAnnotationUri, type ResourceUri, type ContentFormat, type ResourceAnnotationUri } from '@semiont/api-client';
 import { decodeWithCharset } from '@semiont/api-client';
+import { uriToAnnotationId } from '@semiont/core';
 import { ComposeLoadingState } from '@semiont/react-ui';
 import { ResourceComposePage } from '@semiont/react-ui';
 import type { SaveResourceParams } from '@semiont/react-ui';
@@ -54,13 +56,15 @@ function ComposeResourceContent() {
   const [referenceData, setReferenceData] = useState<any>(null);
 
   // Toolbar and settings state
-  const { activePanel, togglePanel } = useToolbar();
+  const { activePanel } = useToolbar();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
-  const handlePanelToggle = (panel: string | null) => {
-    if (panel) togglePanel(panel as any);
-  };
+  // Subscribe to settings events
+  useEventSubscriptions({
+    'settings:theme-changed': ({ theme }: { theme: 'light' | 'dark' | 'system' }) => setTheme(theme),
+    'settings:line-numbers-toggled': () => toggleLineNumbers(),
+  });
 
   // API hooks
   const resources = useResources();
@@ -189,13 +193,7 @@ function ComposeResourceContent() {
         // If this is a reference completion, update the reference
         if (params.mode === 'reference' && params.annotationUri && params.sourceDocumentId) {
           try {
-            // Convert flat annotation URI to nested format required by the API
-            // Flat format: http://localhost:8080/annotations/{annotationId}
-            // Nested format: http://localhost:8080/resources/{resourceId}/annotations/{annotationId}
-            const annotationIdSegment = params.annotationUri.split('/').pop();
-            if (!annotationIdSegment) {
-              throw new Error('Invalid annotation URI format');
-            }
+            const annotationIdSegment = uriToAnnotationId(params.annotationUri);
 
             // Construct nested URI using the backend's public URL
             const baseUrl = new URL(params.annotationUri).origin;
@@ -262,11 +260,8 @@ function ComposeResourceContent() {
       availableEntityTypes={availableEntityTypes}
       initialLocale={locale}
       theme={resolvedTheme}
-      onThemeChange={setTheme}
       showLineNumbers={showLineNumbers}
-      onLineNumbersToggle={toggleLineNumbers}
       activePanel={activePanel}
-      onPanelToggle={handlePanelToggle}
       onSaveResource={handleSaveResource}
       onCancel={() => router.push('/know/discover')}
       translations={{

@@ -29,24 +29,20 @@ function buildAnnotationSpan(annotation: PreparedAnnotation, children: ElementCo
   let className: string;
   const annotationType = annotation.type;
 
+  // Use existing CSS classes from motivation-*.css files
   if (annotation.type === 'highlight') {
-    className = 'bg-yellow-200 dark:bg-yellow-800';
+    className = 'annotation-highlight';
   } else if (annotation.type === 'assessment') {
-    // Red squiggly underline for assessments (errors, warnings)
-    className = 'red-underline cursor-pointer transition-all duration-200 hover:opacity-80';
+    className = 'annotation-assessment';
   } else if (annotation.type === 'comment') {
-    // Gray dashed outline for comments, no background
-    className = 'rounded px-0.5 cursor-pointer transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-800 outline outline-2 outline-dashed outline-gray-900 dark:outline-gray-100 outline-offset-1';
+    className = 'annotation-comment';
+  } else if (annotation.type === 'tag') {
+    className = 'annotation-tag';
   } else if (annotation.type === 'reference') {
-    // Stub reference (no target document) - red text with !important-like specificity
-    if (!annotation.source) {
-      className = 'cursor-pointer transition-all duration-200 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 font-inherit';
-    } else {
-      // Resolved reference - blue text with !important-like specificity
-      className = 'cursor-pointer transition-all duration-200 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-inherit';
-    }
+    className = 'annotation-reference';
   } else {
-    className = 'cursor-pointer transition-all duration-200 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-inherit';
+    // Fallback for unknown types
+    className = 'annotation-reference';
   }
 
   return {

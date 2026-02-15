@@ -28,7 +28,7 @@ export function KnowledgeSidebarWrapper() {
       {(isCollapsed, toggleCollapsed, navigationMenu) => (
         <KnowledgeNavigation
           isCollapsed={isCollapsed}
-          onToggleCollapse={toggleCollapsed}
+          toggleCollapsed={toggleCollapsed}
           navigationMenu={navigationMenu}
         />
       )}

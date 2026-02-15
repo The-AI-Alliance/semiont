@@ -15,11 +15,8 @@ export interface RecentDocumentsPageProps {
 
   // UI state
   theme: 'light' | 'dark' | 'system';
-  onThemeChange: (theme: 'light' | 'dark' | 'system') => void;
   showLineNumbers: boolean;
-  onLineNumbersToggle: () => void;
   activePanel: string | null;
-  onPanelToggle: (panel: string | null) => void;
 
   // Translations
   translations: {
@@ -40,15 +37,13 @@ export interface RecentDocumentsPageProps {
 export function RecentDocumentsPage({
   isLoading,
   theme,
-  onThemeChange,
   showLineNumbers,
-  onLineNumbersToggle,
   activePanel,
-  onPanelToggle,
   translations: t,
   ToolbarPanels,
   Toolbar,
 }: RecentDocumentsPageProps) {
+
   if (isLoading) {
     return (
       <div className="semiont-page__loading">
@@ -100,15 +95,12 @@ export function RecentDocumentsPage({
         <ToolbarPanels
           activePanel={activePanel}
           theme={theme}
-          onThemeChange={onThemeChange}
           showLineNumbers={showLineNumbers}
-          onLineNumbersToggle={onLineNumbersToggle}
         />
 
         <Toolbar
           context="simple"
           activePanel={activePanel}
-          onPanelToggle={onPanelToggle}
         />
       </div>
     </div>
