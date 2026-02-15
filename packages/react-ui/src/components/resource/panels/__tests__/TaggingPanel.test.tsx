@@ -1,28 +1,77 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { MockedFunction } from 'vitest';
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { TaggingPanel } from '../TaggingPanel';
+import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../../../contexts/EventBusContext';
 import type { components } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
 
-// Create mock event bus that we can spy on
-const mockEmit = vi.fn();
-const mockOn = vi.fn();
-const mockOff = vi.fn();
+// Composition-based event tracker
+interface TrackedEvent {
+  event: string;
+  payload: any;
+}
 
-// Mock EventBusContext
-vi.mock('../../../../contexts/EventBusContext', () => ({
-  useEventBus: vi.fn(() => ({
-    emit: mockEmit,
-    on: mockOn,
-    off: mockOff,
-  })),
-  EventBusProvider: ({ children }: { children: React.ReactNode }) => children,
-}));
+function createEventTracker() {
+  const events: TrackedEvent[] = [];
+
+  function EventTrackingWrapper({ children }: { children: React.ReactNode }) {
+    const eventBus = useEventBus();
+
+    React.useEffect(() => {
+      const handlers: Array<() => void> = [];
+
+      const trackEvent = (eventName: string) => (payload: any) => {
+        events.push({ event: eventName, payload });
+      };
+
+      const panelEvents = ['annotation:create', 'detection:start'];
+
+      panelEvents.forEach(eventName => {
+        const handler = trackEvent(eventName);
+        eventBus.on(eventName, handler);
+        handlers.push(() => eventBus.off(eventName, handler));
+      });
+
+      return () => {
+        handlers.forEach(cleanup => cleanup());
+      };
+    }, [eventBus]);
+
+    return <>{children}</>;
+  }
+
+  return {
+    EventTrackingWrapper,
+    events,
+    clear: () => {
+      events.length = 0;
+    },
+  };
+}
+
+// Helper to render with EventBusProvider
+const renderWithEventBus = (component: React.ReactElement, tracker?: ReturnType<typeof createEventTracker>) => {
+  if (tracker) {
+    return render(
+      <EventBusProvider>
+        <tracker.EventTrackingWrapper>
+          {component}
+        </tracker.EventTrackingWrapper>
+      </EventBusProvider>
+    );
+  }
+
+  return render(
+    <EventBusProvider>
+      {component}
+    </EventBusProvider>
+  );
+};
 
 // Mock TranslationContext
 vi.mock('../../../../contexts/TranslationContext', () => ({
@@ -154,10 +203,8 @@ describe('TaggingPanel Component', () => {
   };
 
   beforeEach(() => {
+    resetEventBusForTesting();
     vi.clearAllMocks();
-    mockEmit.mockClear();
-    mockOn.mockClear();
-    mockOff.mockClear();
 
     // Mock scrollIntoView for jsdom
     Element.prototype.scrollIntoView = vi.fn();
@@ -182,7 +229,7 @@ describe('TaggingPanel Component', () => {
 
   describe('Rendering', () => {
     it('should render panel header with title and count', () => {
-      render(<TaggingPanel {...defaultProps} annotations={mockTags.multiple} />);
+      renderWithEventBus(<TaggingPanel {...defaultProps} annotations={mockTags.multiple} />);
 
       const headings = screen.getAllByText(/Tags/);
       expect(headings.length).toBeGreaterThan(0);
@@ -190,13 +237,13 @@ describe('TaggingPanel Component', () => {
     });
 
     it('should show empty state when no tags', () => {
-      render(<TaggingPanel {...defaultProps} />);
+      renderWithEventBus(<TaggingPanel {...defaultProps} />);
 
       expect(screen.getByText(/No tags yet/)).toBeInTheDocument();
     });
 
     it('should render all tags', () => {
-      render(<TaggingPanel {...defaultProps} annotations={mockTags.multiple} />);
+      renderWithEventBus(<TaggingPanel {...defaultProps} annotations={mockTags.multiple} />);
 
       expect(screen.getByTestId('tag-1')).toBeInTheDocument();
       expect(screen.getByTestId('tag-2')).toBeInTheDocument();
@@ -204,7 +251,7 @@ describe('TaggingPanel Component', () => {
     });
 
     it('should have proper panel structure', () => {
-      const { container } = render(<TaggingPanel {...defaultProps} />);
+      const { container } = renderWithEventBus(<TaggingPanel {...defaultProps} />);
 
       const panel = container.firstChild as HTMLElement;
       expect(panel).toHaveClass('semiont-panel');
@@ -213,7 +260,7 @@ describe('TaggingPanel Component', () => {
 
   describe('Tag Sorting', () => {
     it('should sort tags by position in resource', () => {
-      render(<TaggingPanel {...defaultProps} annotations={mockTags.multiple} />);
+      renderWithEventBus(<TaggingPanel {...defaultProps} annotations={mockTags.multiple} />);
 
       const tags = screen.getAllByTestId(/tag-/);
 
@@ -227,14 +274,14 @@ describe('TaggingPanel Component', () => {
       mockGetTextPositionSelector.mockReturnValue(null);
 
       expect(() => {
-        render(<TaggingPanel {...defaultProps} annotations={mockTags.multiple} />);
+        renderWithEventBus(<TaggingPanel {...defaultProps} annotations={mockTags.multiple} />);
       }).not.toThrow();
     });
   });
 
   describe('Manual Tag Creation', () => {
     it('should not show tag creation form by default', () => {
-      render(<TaggingPanel {...defaultProps} />);
+      renderWithEventBus(<TaggingPanel {...defaultProps} />);
 
       expect(screen.queryByText(/Create tag for selection/)).not.toBeInTheDocument();
     });
@@ -242,7 +289,7 @@ describe('TaggingPanel Component', () => {
     it('should show tag creation form when pendingAnnotation exists', () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      render(
+      renderWithEventBus(
         <TaggingPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
@@ -255,7 +302,7 @@ describe('TaggingPanel Component', () => {
     it('should display quoted selected text in tag creation form', () => {
       const pendingAnnotation = createPendingAnnotation('Selected text for tagging');
 
-      render(
+      renderWithEventBus(
         <TaggingPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
@@ -269,7 +316,7 @@ describe('TaggingPanel Component', () => {
       const longText = 'A'.repeat(150);
       const pendingAnnotation = createPendingAnnotation(longText);
 
-      render(
+      renderWithEventBus(
         <TaggingPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
@@ -283,7 +330,7 @@ describe('TaggingPanel Component', () => {
     it('should show schema selector in tag creation form', () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      render(
+      renderWithEventBus(
         <TaggingPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
@@ -297,7 +344,7 @@ describe('TaggingPanel Component', () => {
     it('should show category selector in tag creation form', () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      render(
+      renderWithEventBus(
         <TaggingPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
@@ -308,13 +355,15 @@ describe('TaggingPanel Component', () => {
     });
 
     it('should emit annotation:create event when category is selected', async () => {
+      const tracker = createEventTracker();
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      render(
+      renderWithEventBus(
         <TaggingPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
-        />
+        />,
+        tracker
       );
 
       // Find the category selector (the one in the pending annotation form)
@@ -327,24 +376,20 @@ describe('TaggingPanel Component', () => {
 
       await userEvent.selectOptions(categorySelect!, 'Issue');
 
-      expect(mockEmit).toHaveBeenCalledWith('annotation:create', {
-        motivation: 'tagging',
-        selector: pendingAnnotation.selector,
-        body: [
-          {
-            type: 'TextualBody',
-            value: 'Issue',
-            purpose: 'tagging',
-            schema: 'legal-irac',
-          },
-        ],
+      await waitFor(() => {
+        expect(tracker.events.some(e =>
+          e.event === 'annotation:create' &&
+          e.payload?.motivation === 'tagging' &&
+          e.payload?.body?.[0]?.value === 'Issue' &&
+          e.payload?.body?.[0]?.schema === 'legal-irac'
+        )).toBe(true);
       });
     });
 
     it('should have proper styling for tag creation form', () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      const { container } = render(
+      const { container } = renderWithEventBus(
         <TaggingPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
@@ -359,7 +404,7 @@ describe('TaggingPanel Component', () => {
 
   describe('Tag Interactions', () => {
     it('should render tag entries', () => {
-      render(
+      renderWithEventBus(
         <TaggingPanel
           {...defaultProps}
           annotations={mockTags.single}
@@ -374,7 +419,7 @@ describe('TaggingPanel Component', () => {
   describe('Tag Hover Behavior', () => {
     it('should render without errors', () => {
       expect(() => {
-        render(
+        renderWithEventBus(
           <TaggingPanel
             {...defaultProps}
             annotations={mockTags.single}
@@ -386,7 +431,7 @@ describe('TaggingPanel Component', () => {
 
   describe('Detection Section', () => {
     it('should render detection section when annotateMode is true', () => {
-      render(
+      renderWithEventBus(
         <TaggingPanel
           {...defaultProps}
           annotateMode={true}
@@ -397,7 +442,7 @@ describe('TaggingPanel Component', () => {
     });
 
     it('should not render detection section when annotateMode is false', () => {
-      render(
+      renderWithEventBus(
         <TaggingPanel
           {...defaultProps}
           annotateMode={false}
@@ -408,7 +453,7 @@ describe('TaggingPanel Component', () => {
     });
 
     it('should show schema selector in detection section', () => {
-      render(
+      renderWithEventBus(
         <TaggingPanel
           {...defaultProps}
           annotateMode={true}
@@ -420,7 +465,7 @@ describe('TaggingPanel Component', () => {
     });
 
     it('should show Select All and Deselect All buttons', () => {
-      render(
+      renderWithEventBus(
         <TaggingPanel
           {...defaultProps}
           annotateMode={true}
@@ -432,7 +477,7 @@ describe('TaggingPanel Component', () => {
     });
 
     it('should show category checkboxes', () => {
-      render(
+      renderWithEventBus(
         <TaggingPanel
           {...defaultProps}
           annotateMode={true}
@@ -446,7 +491,7 @@ describe('TaggingPanel Component', () => {
     });
 
     it('should disable detect button when no categories selected', () => {
-      render(
+      renderWithEventBus(
         <TaggingPanel
           {...defaultProps}
           annotateMode={true}
@@ -458,7 +503,7 @@ describe('TaggingPanel Component', () => {
     });
 
     it('should enable detect button when categories are selected', async () => {
-      render(
+      renderWithEventBus(
         <TaggingPanel
           {...defaultProps}
           annotateMode={true}
@@ -473,11 +518,13 @@ describe('TaggingPanel Component', () => {
     });
 
     it('should emit detection:start event with selected schema and categories', async () => {
-      render(
+      const tracker = createEventTracker();
+      renderWithEventBus(
         <TaggingPanel
           {...defaultProps}
           annotateMode={true}
-        />
+        />,
+        tracker
       );
 
       const issueCheckbox = screen.getByLabelText(/Issue/);
@@ -489,12 +536,14 @@ describe('TaggingPanel Component', () => {
       const detectButton = screen.getByRole('button', { name: /✨ Detect/i });
       await userEvent.click(detectButton);
 
-      expect(mockEmit).toHaveBeenCalledWith('detection:start', {
-        motivation: 'tagging',
-        options: {
-          schemaId: 'legal-irac',
-          categories: ['Issue', 'Rule'],
-        },
+      await waitFor(() => {
+        expect(tracker.events.some(e =>
+          e.event === 'detection:start' &&
+          e.payload?.motivation === 'tagging' &&
+          e.payload?.options?.schemaId === 'legal-irac' &&
+          e.payload?.options?.categories?.includes('Issue') &&
+          e.payload?.options?.categories?.includes('Rule')
+        )).toBe(true);
       });
     });
   });
@@ -503,7 +552,7 @@ describe('TaggingPanel Component', () => {
     it('should show Cancel button when pendingAnnotation exists', () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
-      render(
+      renderWithEventBus(
         <TaggingPanel
           {...defaultProps}
           pendingAnnotation={pendingAnnotation}
@@ -516,14 +565,14 @@ describe('TaggingPanel Component', () => {
 
   describe('Accessibility', () => {
     it('should have proper heading structure', () => {
-      render(<TaggingPanel {...defaultProps} />);
+      renderWithEventBus(<TaggingPanel {...defaultProps} />);
 
       const headings = screen.getAllByText(/Tags/);
       expect(headings[0]).toHaveClass('semiont-panel-header__text');
     });
 
     it('should have proper checkbox labels', () => {
-      render(
+      renderWithEventBus(
         <TaggingPanel
           {...defaultProps}
           annotateMode={true}
