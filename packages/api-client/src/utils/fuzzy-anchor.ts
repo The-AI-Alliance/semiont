@@ -50,7 +50,7 @@ export function findTextWithContext(
 
   // No matches found
   if (occurrences.length === 0) {
-    console.warn(`[FuzzyAnchor] Text not found: "${exact.substring(0, 50)}..."`);
+    console.debug(`[FuzzyAnchor] Text not found: "${exact.substring(0, 50)}..."`);
     return null;
   }
 
@@ -83,7 +83,7 @@ export function findTextWithContext(
     }
 
     // No match with exact prefix/suffix - try fuzzy matching
-    console.warn(
+    console.debug(
       `[FuzzyAnchor] Multiple matches found but none match prefix/suffix exactly. ` +
       `Exact: "${exact.substring(0, 30)}...", ` +
       `Prefix: "${prefix?.substring(0, 20) || 'none'}", ` +
@@ -100,14 +100,14 @@ export function findTextWithContext(
       const fuzzySuffixMatch = !suffix || actualSuffix.includes(suffix.trim());
 
       if (fuzzyPrefixMatch && fuzzySuffixMatch) {
-        console.warn(`[FuzzyAnchor] Using fuzzy match at position ${pos}`);
+        console.debug(`[FuzzyAnchor] Using fuzzy match at position ${pos}`);
         return { start: pos, end: pos + exact.length };
       }
     }
   }
 
   // Fallback: return first occurrence if no prefix/suffix or no match
-  console.warn(
+  console.debug(
     `[FuzzyAnchor] Multiple matches but no context match. Using first occurrence. ` +
     `Exact: "${exact.substring(0, 30)}..."`
   );

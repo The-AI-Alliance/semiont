@@ -27,7 +27,7 @@ import { Link, routes } from '@/lib/routing';
 import { useCacheManager } from '@/hooks/useCacheManager';
 
 // Feature components
-import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage, TranslationProvider, useEventBus, useEventOperations, useEventSubscriptions } from '@semiont/react-ui';
+import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage, TranslationProvider, useEventBus, useEventSubscriptions } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { SearchResourcesModal } from '@/components/modals/SearchResourcesModal';
 import { GenerationConfigModal } from '@/components/modals/GenerationConfigModal';
@@ -140,11 +140,8 @@ function ResourceViewWrapper({
   const cacheManager = useCacheManager();
   const eventBus = useEventBus();
 
-  // Set up operation handlers for this resource
-  useEventOperations(eventBus, {
-    client,
-    resourceUri: rUri,
-  });
+  // Note: useEventOperations is called by DetectionFlowContainer, not here
+  // to avoid duplicate event subscriptions
 
   // Fetch document content separately
   const [content, setContent] = useState<string>('');

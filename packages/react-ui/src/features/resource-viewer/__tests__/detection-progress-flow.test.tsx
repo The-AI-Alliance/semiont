@@ -1,5 +1,5 @@
 /**
- * Layer 3 Integration Test: Detection Progress Flow
+ * Layer 3 Integration Test: Detection Progress Flow UI/UX
  *
  * Tests the complete data flow from UI → EventBus → useEventOperations → SSE (mocked)
  *
@@ -9,7 +9,15 @@
  * - Real useEventOperations hook with mock API client passed as prop
  * - Mock SSE stream (simulated API responses) provided via composition
  *
- * This is the CRITICAL test that will reveal where the detection progress bug is.
+ * This test focuses on USER EXPERIENCE:
+ * - Verifies user clicks "Detect" button and sees progress
+ * - Tests progress messages appear and update correctly
+ * - Validates final message stays visible after completion
+ * - Ensures progress clears on error
+ *
+ * COMPLEMENTARY TEST: See DetectionFlowIntegration.test.tsx for architecture testing
+ * - That test verifies SYSTEM ARCHITECTURE (event wiring, API call count)
+ * - This test verifies USER EXPERIENCE (button clicks, UI feedback)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';

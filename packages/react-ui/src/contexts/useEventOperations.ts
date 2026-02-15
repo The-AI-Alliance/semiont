@@ -145,6 +145,7 @@ export function useEventOperations(
         categories?: string[];
       };
     }) => {
+      console.log('[useEventOperations] handleDetectionStart called', { motivation: event.motivation, options: event.options });
       try {
         // Cancel any existing detection
         if (detectionStreamRef.current) {
@@ -179,26 +180,30 @@ export function useEventOperations(
           });
         } else if (event.motivation === 'linking') {
           // Reference detection (uses detectAnnotations with entityTypes)
+          console.log('[useEventOperations] Starting linking detection', { resourceUri, options: event.options });
           const { entityTypes, includeDescriptiveReferences } = event.options;
           if (!entityTypes || entityTypes.length === 0) {
             throw new Error('Reference detection requires entityTypes');
           }
 
+          console.log('[useEventOperations] Creating SSE stream for detectAnnotations');
           const stream = client.sse.detectAnnotations(resourceUri, {
             entityTypes: entityTypes as any,
             includeDescriptiveReferences: includeDescriptiveReferences || false,
           });
 
           stream.onProgress((chunk) => {
+            console.log('[useEventOperations] SSE progress chunk received', chunk);
             emitter.emit('detection:progress', chunk as any);
           });
 
           stream.onComplete(() => {
+            console.log('[useEventOperations] SSE stream complete');
             emitter.emit('detection:complete', { motivation: event.motivation });
           });
 
           stream.onError((error) => {
-            console.error('Detection failed:', error);
+            console.error('[useEventOperations] Detection failed:', error);
             emitter.emit('detection:failed', { error: error as Error } as any);
           });
         } else if (event.motivation === 'highlighting') {
