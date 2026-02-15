@@ -142,7 +142,7 @@ function ResourceViewWrapper({
 
   // Set up operation handlers for this resource
   useEventOperations(eventBus, {
-    ...(client ? { client } : {}),
+    client,
     resourceUri: rUri,
   });
 
@@ -152,8 +152,6 @@ function ResourceViewWrapper({
 
   useEffect(() => {
     const loadContent = async () => {
-      if (!client) return;
-
       try {
         const mediaType = getPrimaryMediaType(resource) || 'text/plain';
         const { data } = await client.getResourceRepresentation(rUri as ResourceUri, {
