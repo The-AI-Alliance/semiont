@@ -60,6 +60,9 @@ function getAnnotationTooltip(annotation: Annotation): string {
 
 /**
  * Render annotation overlay - displays existing annotations as SVG shapes
+ *
+ * @emits annotation:hover - Annotation hovered or unhovered. Payload: { annotationId: string | null }
+ * @emits annotation:click - Annotation clicked. Payload: { annotationId: string, motivation: Motivation }
  */
 export function AnnotationOverlay({
   annotations,

@@ -28,6 +28,8 @@ export interface SimpleNavigationProps {
 /**
  * Simple navigation component for Admin and Moderation modes.
  * Renders a section header with optional dropdown and static navigation tabs.
+ *
+ * @emits navigation:sidebar-toggle - Toggle sidebar collapsed/expanded state. Payload: undefined
  */
 export function SimpleNavigation({
   title,

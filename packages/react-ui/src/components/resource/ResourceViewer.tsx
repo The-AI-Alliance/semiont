@@ -45,6 +45,19 @@ interface Props {
   hoveredAnnotationId?: string | null;
 }
 
+/**
+ * @emits annotation:delete - User requested to delete annotation. Payload: { annotationId: string }
+ * @emits panel:open - Request to open panel with annotation. Payload: { panel: string, scrollToAnnotationId?: string, motivation?: Motivation }
+ *
+ * @subscribes view:mode-toggled - Toggles between browse and annotate mode. Payload: { mode: 'browse' | 'annotate' }
+ * @subscribes annotation:added - New annotation was added. Payload: { annotation: Annotation }
+ * @subscribes annotation:removed - Annotation was removed. Payload: { annotationId: string }
+ * @subscribes annotation:updated - Annotation was updated. Payload: { annotation: Annotation }
+ * @subscribes toolbar:selection-changed - Text selection tool changed. Payload: { selection: boolean }
+ * @subscribes toolbar:click-changed - Click annotation tool changed. Payload: { click: 'detail' | 'scroll' | null }
+ * @subscribes toolbar:shape-changed - Drawing shape changed. Payload: { shape: string }
+ * @subscribes annotation:click - User clicked on annotation. Payload: { annotationId: string }
+ */
 export function ResourceViewer({
   resource,
   annotations,

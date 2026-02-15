@@ -56,6 +56,13 @@ interface PdfAnnotationCanvasProps {
   selectedAnnotationId?: string | null;
 }
 
+/**
+ * PDF annotation canvas with page navigation and rectangle drawing
+ *
+ * @emits annotation:click - Annotation clicked on PDF. Payload: { annotationId: string, motivation: Motivation }
+ * @emits annotation:requested - New annotation drawn on PDF. Payload: { selector: FragmentSelector, motivation: SelectionMotivation }
+ * @emits annotation:hover - Annotation hovered or unhovered. Payload: { annotationId: string | null }
+ */
 export function PdfAnnotationCanvas({
   resourceUri,
   existingAnnotations = [],

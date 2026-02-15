@@ -240,8 +240,6 @@ function analyzeAndFormat(
     // Warnings (⚠️)
     else if (hookAnalysis.hasInlineHandlers) {
       status = '⚠️';
-    } else if (hookAnalysis.emittedEvents.length > hookAnalysis.documentedEmittedEvents.length) {
-      status = '⚠️';
     } else if (hookAnalysis.usesHyphenSeparatedEvents) {
       status = '⚠️';
     } else if (hookAnalysis.issues.length > 0) {
@@ -249,9 +247,14 @@ function analyzeAndFormat(
     }
   }
 
-  // Calculate missing docs
+  // Calculate missing docs (must be done before checking for warnings)
   const missingEmitsDocs = hookAnalysis.emittedEvents.filter(e => !hookAnalysis.documentedEmittedEvents.includes(e));
   const missingSubscribesDocs = hookAnalysis.subscribedEvents.filter(e => !hookAnalysis.documentedSubscribedEvents.includes(e));
+
+  // Check for missing documentation (use unique events, not total occurrences)
+  if (status === '✅' && (missingEmitsDocs.length > 0 || missingSubscribesDocs.length > 0)) {
+    status = '⚠️';
+  }
   const missingDocsStr = [...missingEmitsDocs.map(e => `emit:${e}`), ...missingSubscribesDocs.map(e => `sub:${e}`)].join(', ') || 'None';
 
   // Event naming status

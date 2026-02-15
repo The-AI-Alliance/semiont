@@ -65,6 +65,14 @@ interface Props {
   hoveredAnnotationId?: string | null;
 }
 
+/**
+ * Panel for managing reference annotations with entity type detection
+ *
+ * @emits detection:start - Start reference detection. Payload: { motivation: 'linking', options: { entityTypes: string[], includeDescriptiveReferences: boolean } }
+ * @emits annotation:create - Create new reference annotation. Payload: { motivation: 'linking', selector: Selector | Selector[], body: Body[] }
+ * @emits annotation:cancel-pending - Cancel pending reference annotation. Payload: undefined
+ * @subscribes annotation:click - Annotation clicked. Payload: { annotationId: string }
+ */
 export function ReferencesPanel({
   annotations = [],
   isDetecting,

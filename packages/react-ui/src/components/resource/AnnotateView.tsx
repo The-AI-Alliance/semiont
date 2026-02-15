@@ -145,6 +145,15 @@ function segmentTextWithAnnotations(content: string, annotations: Annotation[]):
   return segments;
 }
 
+/**
+ * View component for annotating resources with text selection and drawing
+ *
+ * @emits annotation:requested - User requested to create annotation. Payload: { selector: Selector | Selector[], motivation: SelectionMotivation }
+ * @subscribes toolbar:selection-changed - Toolbar selection changed. Payload: { motivation: string | null }
+ * @subscribes toolbar:click-changed - Toolbar click action changed. Payload: { action: string }
+ * @subscribes toolbar:shape-changed - Toolbar shape changed. Payload: { shape: string }
+ * @subscribes annotation:hover - Annotation hovered. Payload: { annotationId: string | null }
+ */
 export function AnnotateView({
   content,
   mimeType = 'text/plain',

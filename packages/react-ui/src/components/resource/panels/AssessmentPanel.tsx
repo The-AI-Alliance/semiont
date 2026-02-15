@@ -52,6 +52,13 @@ interface AssessmentPanelProps {
   hoveredAnnotationId?: string | null;
 }
 
+/**
+ * Panel for managing assessment annotations with text input
+ *
+ * @emits annotation:create - Create new assessment annotation. Payload: { motivation: 'assessing', selector: Selector | Selector[], body: Body[] }
+ * @emits annotation:cancel-pending - Cancel pending assessment annotation. Payload: undefined
+ * @subscribes annotation:click - Annotation clicked. Payload: { annotationId: string }
+ */
 export function AssessmentPanel({
   annotations,
   pendingAnnotation,

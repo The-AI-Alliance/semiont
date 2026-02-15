@@ -19,6 +19,8 @@ interface Router {
  * Use this to wrap your router (Next.js, React Router, etc.) when you want
  * navigation actions to be observable through the NavigationEventBus.
  *
+ * @emits navigation:router-push - Router navigation requested. Payload: { path: string, reason?: string }
+ *
  * @example
  * ```typescript
  * // Next.js App Router
@@ -78,6 +80,8 @@ export function useObservableRouter<T extends Router>(baseRouter: T): T {
  *
  * If no subscriber handles the event, falls back to window.location.href
  * after a brief delay to allow for event handling.
+ *
+ * @emits navigation:external-navigate - External navigation requested. Payload: { url: string, context?: Record<string, unknown> }
  *
  * @example
  * ```typescript

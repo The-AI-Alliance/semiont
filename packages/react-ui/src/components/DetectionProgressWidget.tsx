@@ -17,6 +17,11 @@ interface DetectionProgressWidgetProps {
   annotationType?: Motivation | 'reference';
 }
 
+/**
+ * Widget for displaying detection progress with cancel functionality
+ *
+ * @emits job:cancel-requested - User requested to cancel detection job. Payload: { jobType: string }
+ */
 export function DetectionProgressWidget({ progress, annotationType = 'reference' }: DetectionProgressWidgetProps) {
   const t = useTranslations('DetectionProgressWidget');
   const eventBus = useEventBus();

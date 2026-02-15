@@ -8,6 +8,13 @@ import { useEventBus } from '../contexts/EventBusContext';
 // Use API type directly (no extensions needed)
 export type GenerationProgress = ApiGenerationProgress;
 
+/**
+ * Hook for managing generation progress tracking with SSE streams
+ *
+ * @emits generation:error-event - Error during generation. Payload: { error: string }
+ * @emits generation:progress-update - Progress update during generation. Payload: { progress: GenerationProgress }
+ * @emits generation:complete-event - Generation completed successfully. Payload: { progress: GenerationProgress }
+ */
 export function useGenerationProgress() {
   const client = useApiClient();
   const eventBus = useEventBus();

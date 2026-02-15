@@ -50,6 +50,8 @@ export interface ObservableLinkProps extends React.AnchorHTMLAttributes<HTMLAnch
  *   </ObservableLink>
  * </Link>
  * ```
+ *
+ * @emits navigation:link-clicked - Link clicked by user. Payload: { href: string, label?: string }
  */
 export function ObservableLink({
   href,

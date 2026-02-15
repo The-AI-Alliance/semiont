@@ -99,6 +99,14 @@ function DropdownGroup({
   );
 }
 
+/**
+ * Toolbar for annotation controls with mode, selection, click, and shape options
+ *
+ * @emits toolbar:selection-changed - Selection motivation changed. Payload: { motivation: SelectionMotivation | null }
+ * @emits toolbar:click-changed - Click action mode changed. Payload: { action: ClickAction }
+ * @emits toolbar:shape-changed - Drawing shape changed. Payload: { shape: ShapeType }
+ * @emits view:mode-toggled - View mode toggled between browse and annotate. Payload: undefined
+ */
 export function AnnotateToolbar({
   selectedMotivation,
   selectedClick,

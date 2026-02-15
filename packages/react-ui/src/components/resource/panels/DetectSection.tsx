@@ -27,6 +27,8 @@ interface DetectSectionProps {
  * - Optional tone selector (for comments)
  * - Detect button with sparkle animation
  * - Progress display during detection
+ *
+ * @emits detection:start - Start detection for annotation type. Payload: { motivation: Motivation, options: { instructions?: string, tone?: string, density?: number } }
  */
 export function DetectSection({
   annotationType,

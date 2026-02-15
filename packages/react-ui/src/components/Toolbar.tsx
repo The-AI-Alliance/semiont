@@ -14,6 +14,11 @@ interface Props<T extends string = string> {
   isArchived?: boolean;
 }
 
+/**
+ * Toolbar component for panel navigation
+ *
+ * @emits panel:toggle - Toggle panel visibility. Payload: { panel: string }
+ */
 export function Toolbar<T extends string = string>({
   context,
   activePanel,

@@ -27,6 +27,10 @@ import './CollapsibleResourceNavigation.css';
  * A comprehensive collapsible navigation component with fixed items and dynamic resource tabs.
  * Supports drag and drop for resource reordering when expanded.
  * Platform-agnostic design for use across different React environments.
+ *
+ * @emits navigation:resource-reorder - Resource tab reordered. Payload: { oldIndex: number, newIndex: number }
+ * @emits navigation:resource-close - Resource tab closed. Payload: { resourceId: string }
+ * @emits navigation:sidebar-toggle - Toggle sidebar collapsed/expanded state. Payload: undefined
  */
 export function CollapsibleResourceNavigation({
   fixedItems,

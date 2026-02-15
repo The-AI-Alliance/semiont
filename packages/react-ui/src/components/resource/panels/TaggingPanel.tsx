@@ -56,6 +56,14 @@ interface TaggingPanelProps {
   hoveredAnnotationId?: string | null;
 }
 
+/**
+ * Panel for managing tag annotations with schema-based detection
+ *
+ * @emits detection:start - Start tag detection. Payload: { motivation: 'tagging', options: { schemaId: string, categories: string[] } }
+ * @emits annotation:cancel-pending - Cancel pending tag annotation. Payload: undefined
+ * @emits annotation:create - Create new tag annotation. Payload: { motivation: 'tagging', selector: Selector | Selector[], body: Body[] }
+ * @subscribes annotation:click - Annotation clicked. Payload: { annotationId: string }
+ */
 export function TaggingPanel({
   annotations,
   annotateMode = true,

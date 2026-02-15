@@ -15,6 +15,13 @@ interface UseDetectionProgressOptions {
   rUri: ResourceUri;
 }
 
+/**
+ * Hook for managing detection progress tracking with SSE streams
+ *
+ * @emits detection:error-event - Error during detection. Payload: { error: string }
+ * @emits detection:progress-update - Progress update during detection. Payload: { progress: DetectionProgress }
+ * @emits detection:complete-event - Detection completed successfully. Payload: { progress: DetectionProgress }
+ */
 export function useDetectionProgress({
   rUri
 }: UseDetectionProgressOptions) {

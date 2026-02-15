@@ -13,6 +13,13 @@ interface Props {
   isArchived?: boolean;
 }
 
+/**
+ * Panel for displaying resource metadata and management actions
+ *
+ * @emits resource:clone - Clone this resource. Payload: undefined
+ * @emits resource:unarchive - Unarchive this resource. Payload: undefined
+ * @emits resource:archive - Archive this resource. Payload: undefined
+ */
 export function ResourceInfoPanel({
   documentEntityTypes,
   documentLocale,

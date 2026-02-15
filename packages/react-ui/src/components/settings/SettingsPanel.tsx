@@ -14,6 +14,13 @@ interface SettingsPanelProps {
   isPendingLocaleChange?: boolean;
 }
 
+/**
+ * Settings panel for application preferences
+ *
+ * @emits settings:locale-changed - Locale changed by user. Payload: { locale: string }
+ * @emits settings:line-numbers-toggled - Line numbers toggled on/off. Payload: undefined
+ * @emits settings:theme-changed - Theme changed by user. Payload: { theme: 'light' | 'dark' | 'system' }
+ */
 export function SettingsPanel({
   showLineNumbers,
   theme,

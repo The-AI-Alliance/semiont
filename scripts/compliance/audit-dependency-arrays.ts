@@ -180,7 +180,7 @@ class DependencyArrayAuditor {
   }
 
   /**
-   * Extract subscribed events from eventBus.on() calls
+   * Extract subscribed events from eventBus.on() calls and useEventSubscriptions() calls
    */
   private extractSubscribedEvents(body: ts.Block): string[] {
     const events: string[] = [];
@@ -189,6 +189,8 @@ class DependencyArrayAuditor {
       // Look for eventBus.on('event-name', ...) calls
       if (ts.isCallExpression(node)) {
         const expr = node.expression;
+
+        // Pattern 1: eventBus.on('event-name', handler)
         if (ts.isPropertyAccessExpression(expr) &&
             expr.name.text === 'on' &&
             ts.isIdentifier(expr.expression) &&
@@ -198,6 +200,21 @@ class DependencyArrayAuditor {
             const eventNameArg = node.arguments[0];
             if (ts.isStringLiteral(eventNameArg)) {
               events.push(eventNameArg.text);
+            }
+          }
+        }
+
+        // Pattern 2: useEventSubscriptions({ 'event-name': handler, ... })
+        if (ts.isIdentifier(expr) && expr.text === 'useEventSubscriptions') {
+          if (node.arguments.length > 0) {
+            const subscriptionsArg = node.arguments[0];
+            if (ts.isObjectLiteralExpression(subscriptionsArg)) {
+              // Extract all string literal property names
+              for (const prop of subscriptionsArg.properties) {
+                if (ts.isPropertyAssignment(prop) && ts.isStringLiteral(prop.name)) {
+                  events.push(prop.name.text);
+                }
+              }
             }
           }
         }
@@ -214,9 +231,19 @@ class DependencyArrayAuditor {
    * Analyze event naming convention (colon vs hyphen)
    */
   private analyzeEventNaming(eventName: string): { isColon: boolean, isHyphen: boolean } {
+    // Correct pattern: namespace:event-name (colon for namespace, hyphen allowed in event name)
+    // Legacy pattern: namespace-event-name (hyphen used for namespacing instead of colon)
+
+    // Check if event uses colon for namespacing
+    const hasColon = eventName.includes(':');
+
+    // Only flag as legacy if hyphen is used for namespacing (no colon present)
+    // Hyphens within the event name part (after colon) are perfectly fine
+    const isLegacyHyphenNamespace = !hasColon && eventName.includes('-');
+
     return {
-      isColon: eventName.includes(':'),
-      isHyphen: eventName.includes('-')
+      isColon: hasColon,
+      isHyphen: isLegacyHyphenNamespace
     };
   }
 
@@ -355,8 +382,14 @@ class DependencyArrayAuditor {
       if (analysis.acceptsCallbacks) {
         analysis.issues.push('❌ Container accepts callback props (containers must use events only)');
       }
-      if (!analysis.usesEventBus) {
+      // Containers must use useEventBus() OR useEventSubscriptions() (which internally uses useEventBus())
+      // Subscribe-only containers (no emits) can use useEventSubscriptions() without direct useEventBus()
+      const hasEmittedEvents = analysis.emittedEvents.length > 0;
+      if (!analysis.usesEventBus && !analysis.usesUseEventSubscriptions) {
         analysis.issues.push('❌ Container does not use useEventBus() hook');
+      } else if (!analysis.usesEventBus && hasEmittedEvents) {
+        // Only require direct useEventBus() if container emits events
+        analysis.issues.push('❌ Container emits events but does not use useEventBus() hook directly');
       }
       const missingEmitsDocs = analysis.emittedEvents.filter(e => !analysis.documentedEmittedEvents.includes(e));
       const missingSubscribesDocs = analysis.subscribedEvents.filter(e => !analysis.documentedSubscribedEvents.includes(e));

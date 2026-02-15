@@ -44,6 +44,12 @@ interface SvgDrawingCanvasProps {
   selectedAnnotationId?: string | null;
 }
 
+/**
+ * SVG-based drawing canvas for creating image annotations with shapes
+ *
+ * @emits annotation:click - Annotation clicked on canvas. Payload: { annotationId: string, motivation: Motivation }
+ * @emits annotation:requested - New annotation drawn on canvas. Payload: { selector: SvgSelector, motivation: SelectionMotivation }
+ */
 export function SvgDrawingCanvas({
   resourceUri,
   existingAnnotations = [],

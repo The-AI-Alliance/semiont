@@ -36,6 +36,12 @@ interface Props {
  * Extracts position info and converts start/end to offset/length.
  */
 function prepareAnnotations(annotations: Annotation[]): PreparedAnnotation[] {
+/**
+ * View component for browsing resources with rendered annotations
+ *
+ * @emits annotation:click - Annotation clicked in browse view. Payload: { annotationId: string, motivation: Motivation }
+ * @emits annotation:hover - Annotation hovered in browse view. Payload: { annotationId: string | null }
+ */
   return annotations
     .map(ann => {
       const targetSelector = getTargetSelector(ann.target);
@@ -57,6 +63,15 @@ function prepareAnnotations(annotations: Annotation[]): PreparedAnnotation[] {
     });
 }
 
+/**
+ * View component for browsing annotated resources in read-only mode
+ *
+ * @emits annotation:click - User clicked on annotation. Payload: { annotationId: string, motivation: Motivation }
+ * @emits annotation:hover - User hovered over annotation. Payload: { annotationId: string | null }
+ *
+ * @subscribes annotation:hover - Highlight annotation on hover. Payload: { annotationId: string | null }
+ * @subscribes annotation:focus - Scroll to and highlight annotation. Payload: { annotationId: string }
+ */
 export function BrowseView({
   content,
   mimeType,

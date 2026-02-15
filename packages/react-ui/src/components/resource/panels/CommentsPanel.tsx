@@ -52,6 +52,13 @@ interface CommentsPanelProps {
   hoveredAnnotationId?: string | null;
 }
 
+/**
+ * Panel for managing comment annotations with text input
+ *
+ * @emits annotation:create - Create new comment annotation. Payload: { motivation: 'commenting', selector: Selector | Selector[], body: Body[] }
+ * @emits annotation:cancel-pending - Cancel pending comment annotation. Payload: undefined
+ * @subscribes annotation:click - Annotation clicked. Payload: { annotationId: string }
+ */
 export function CommentsPanel({
   annotations,
   pendingAnnotation,
