@@ -111,10 +111,33 @@ class DependencyArrayAuditor {
     const visit = (node: ts.Node) => {
       // Look for return statements
       if (ts.isReturnStatement(node) && node.expression) {
-        const returnText = node.expression.getText();
-        // Check if returning eventBus directly or in an object
-        if (returnText.includes('eventBus') || returnText.match(/\beventBus\b/)) {
+        // Check if returning eventBus directly: return eventBus
+        if (ts.isIdentifier(node.expression) && node.expression.text === 'eventBus') {
           returnsEventBus = true;
+          return;
+        }
+
+        // Check if returning eventBus in an object: return { eventBus, ... } or return { eventBus: eventBus }
+        if (ts.isObjectLiteralExpression(node.expression)) {
+          for (const prop of node.expression.properties) {
+            if (ts.isShorthandPropertyAssignment(prop)) {
+              // return { eventBus }
+              if (prop.name.text === 'eventBus') {
+                returnsEventBus = true;
+                return;
+              }
+            } else if (ts.isPropertyAssignment(prop)) {
+              // return { eventBus: eventBus } or { eb: eventBus }
+              if (ts.isIdentifier(prop.name) && prop.name.text === 'eventBus') {
+                returnsEventBus = true;
+                return;
+              }
+              if (ts.isIdentifier(prop.initializer) && prop.initializer.text === 'eventBus') {
+                returnsEventBus = true;
+                return;
+              }
+            }
+          }
         }
       }
 
