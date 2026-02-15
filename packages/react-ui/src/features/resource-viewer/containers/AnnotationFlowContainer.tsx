@@ -38,6 +38,20 @@ export interface AnnotationFlowContainerProps {
 /**
  * Container for annotation creation and interaction flow
  *
+ * @emits panel:open - Opens annotation panel. Payload: { panel: string }
+ * @emits annotation:sparkle - Triggers sparkle animation on hovered annotation. Payload: { annotationId: string }
+ * @emits annotation:focus - Focuses on clicked annotation. Payload: { annotationId: string }
+ *
+ * @subscribes annotation:requested - Creates pending annotation from selector. Payload: { selector: Selector | Selector[], motivation: Motivation }
+ * @subscribes selection:comment-requested - Creates pending comment annotation from selection. Payload: { exact: string, start: number, end: number, prefix?: string, suffix?: string }
+ * @subscribes selection:tag-requested - Creates pending tag annotation from selection. Payload: { exact: string, start: number, end: number, prefix?: string, suffix?: string }
+ * @subscribes selection:assessment-requested - Creates pending assessment annotation from selection. Payload: { exact: string, start: number, end: number, prefix?: string, suffix?: string }
+ * @subscribes selection:reference-requested - Creates pending reference annotation from selection. Payload: { exact: string, start: number, end: number, prefix?: string, suffix?: string }
+ * @subscribes annotation:cancel-pending - Cancels pending annotation. Payload: none
+ * @subscribes annotation:hover - Sets hovered annotation ID. Payload: { annotationId: string | null }
+ * @subscribes annotation:click - Handles annotation click. Payload: { annotationId: string }
+ * @subscribes annotation:delete - Deletes annotation. Payload: { annotationId: string }
+ *
  * Usage:
  * ```tsx
  * <AnnotationFlowContainer onDeleteAnnotation={deleteAnnotation}>

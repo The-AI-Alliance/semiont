@@ -30,6 +30,10 @@ export interface PanelNavigationContainerProps {
 /**
  * Container for panel navigation state management
  *
+ * @subscribes panel:toggle - Toggles panel open/closed. Payload: { panel: string }
+ * @subscribes panel:open - Opens panel with optional scroll target and motivation. Payload: { panel: string, scrollToAnnotationId?: string, motivation?: string }
+ * @subscribes panel:close - Closes active panel. Payload: none
+ *
  * Usage:
  * ```tsx
  * <PanelNavigationContainer>

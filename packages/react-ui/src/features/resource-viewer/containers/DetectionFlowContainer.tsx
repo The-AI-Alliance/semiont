@@ -34,6 +34,11 @@ export interface DetectionFlowContainerProps {
 /**
  * Container for detection flow state management
  *
+ * @subscribes detection:start - Starts detection for a motivation. Payload: { motivation: Motivation }
+ * @subscribes detection:progress - Updates detection progress. Payload: DetectionProgress
+ * @subscribes detection:complete - Completes detection for a motivation. Payload: { motivation?: Motivation }
+ * @subscribes detection:failed - Handles detection failure. Payload: none
+ *
  * Usage:
  * ```tsx
  * <DetectionFlowContainer rUri={rUri}>

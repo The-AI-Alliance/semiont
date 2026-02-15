@@ -52,6 +52,10 @@ export interface GenerationFlowContainerProps {
 /**
  * Container for document generation flow
  *
+ * @subscribes generation:complete-event - Handles generation completion. Payload: { progress: GenerationProgress }
+ * @subscribes generation:error-event - Handles generation error. Payload: { error: string }
+ * @subscribes reference:search-modal-open - Opens reference search modal. Payload: { referenceId: string }
+ *
  * Usage:
  * ```tsx
  * <GenerationFlowContainer {...props}>
