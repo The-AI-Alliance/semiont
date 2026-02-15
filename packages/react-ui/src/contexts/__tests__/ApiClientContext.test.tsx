@@ -25,12 +25,8 @@ describe('ApiClientContext', () => {
         accessToken: 'test-token',
       });
 
-      const mockManager: ApiClientManager = {
-        client: mockClient,
-      };
-
       render(
-        <ApiClientProvider apiClientManager={mockManager}>
+        <ApiClientProvider apiClientManager={mockClient}>
           <TestConsumer />
         </ApiClientProvider>
       );
@@ -40,12 +36,8 @@ describe('ApiClientContext', () => {
     });
 
     it('should provide null client when unauthenticated', () => {
-      const mockManager: ApiClientManager = {
-        client: null,
-      };
-
       render(
-        <ApiClientProvider apiClientManager={mockManager}>
+        <ApiClientProvider apiClientManager={null}>
           <TestConsumer />
         </ApiClientProvider>
       );
@@ -55,12 +47,13 @@ describe('ApiClientContext', () => {
     });
 
     it('should render children', () => {
-      const mockManager: ApiClientManager = {
-        client: null,
-      };
+      const mockClient = new SemiontApiClient({
+        baseUrl: 'https://api.example.com',
+        accessToken: 'test-token',
+      });
 
       render(
-        <ApiClientProvider apiClientManager={mockManager}>
+        <ApiClientProvider apiClientManager={mockClient}>
           <div data-testid="child">Child content</div>
         </ApiClientProvider>
       );
@@ -69,12 +62,8 @@ describe('ApiClientContext', () => {
     });
 
     it('should update when manager changes', () => {
-      const mockManager1: ApiClientManager = {
-        client: null,
-      };
-
       const { rerender } = render(
-        <ApiClientProvider apiClientManager={mockManager1}>
+        <ApiClientProvider apiClientManager={null}>
           <TestConsumer />
         </ApiClientProvider>
       );
@@ -86,12 +75,8 @@ describe('ApiClientContext', () => {
         accessToken: 'new-token',
       });
 
-      const mockManager2: ApiClientManager = {
-        client: mockClient,
-      };
-
       rerender(
-        <ApiClientProvider apiClientManager={mockManager2}>
+        <ApiClientProvider apiClientManager={mockClient}>
           <TestConsumer />
         </ApiClientProvider>
       );
@@ -105,10 +90,6 @@ describe('ApiClientContext', () => {
         accessToken: 'test-token-123',
       });
 
-      const mockManager: ApiClientManager = {
-        client: mockClient,
-      };
-
       function ClientConfigConsumer() {
         const client = useApiClient();
         return (
@@ -119,7 +100,7 @@ describe('ApiClientContext', () => {
       }
 
       render(
-        <ApiClientProvider apiClientManager={mockManager}>
+        <ApiClientProvider apiClientManager={mockClient}>
           <ClientConfigConsumer />
         </ApiClientProvider>
       );
@@ -128,10 +109,8 @@ describe('ApiClientContext', () => {
     });
 
     it('should handle client transitions from null to authenticated', () => {
-      const mockManager1: ApiClientManager = { client: null };
-
       const { rerender } = render(
-        <ApiClientProvider apiClientManager={mockManager1}>
+        <ApiClientProvider apiClientManager={null}>
           <TestConsumer />
         </ApiClientProvider>
       );
@@ -142,10 +121,9 @@ describe('ApiClientContext', () => {
         baseUrl: 'https://api.example.com',
         accessToken: 'new-token',
       });
-      const mockManager2: ApiClientManager = { client: mockClient };
 
       rerender(
-        <ApiClientProvider apiClientManager={mockManager2}>
+        <ApiClientProvider apiClientManager={mockClient}>
           <TestConsumer />
         </ApiClientProvider>
       );
@@ -158,20 +136,17 @@ describe('ApiClientContext', () => {
         baseUrl: 'https://api.example.com',
         accessToken: 'test-token',
       });
-      const mockManager1: ApiClientManager = { client: mockClient };
 
       const { rerender } = render(
-        <ApiClientProvider apiClientManager={mockManager1}>
+        <ApiClientProvider apiClientManager={mockClient}>
           <TestConsumer />
         </ApiClientProvider>
       );
 
       expect(screen.getByTestId('client-status')).toHaveTextContent('authenticated');
 
-      const mockManager2: ApiClientManager = { client: null };
-
       rerender(
-        <ApiClientProvider apiClientManager={mockManager2}>
+        <ApiClientProvider apiClientManager={null}>
           <TestConsumer />
         </ApiClientProvider>
       );
@@ -199,12 +174,8 @@ describe('ApiClientContext', () => {
         accessToken: 'test-token',
       });
 
-      const mockManager: ApiClientManager = {
-        client: mockClient,
-      };
-
       render(
-        <ApiClientProvider apiClientManager={mockManager}>
+        <ApiClientProvider apiClientManager={mockClient}>
           <TestConsumer />
         </ApiClientProvider>
       );
@@ -214,17 +185,13 @@ describe('ApiClientContext', () => {
     });
 
     it('should return null when unauthenticated', () => {
-      const mockManager: ApiClientManager = {
-        client: null,
-      };
-
       function NullCheckConsumer() {
         const client = useApiClient();
         return <div data-testid="is-null">{client === null ? 'true' : 'false'}</div>;
       }
 
       render(
-        <ApiClientProvider apiClientManager={mockManager}>
+        <ApiClientProvider apiClientManager={null}>
           <NullCheckConsumer />
         </ApiClientProvider>
       );
@@ -265,13 +232,11 @@ describe('ApiClientContext', () => {
         baseUrl: 'https://outer.api.com',
         accessToken: 'outer-token',
       });
-      const outerManager: ApiClientManager = { client: outerClient };
 
       const innerClient = new SemiontApiClient({
         baseUrl: 'https://inner.api.com',
         accessToken: 'inner-token',
       });
-      const innerManager: ApiClientManager = { client: innerClient };
 
       function InnerConsumer() {
         const client = useApiClient();
@@ -285,7 +250,7 @@ describe('ApiClientContext', () => {
         return (
           <div>
             <div data-testid="outer-status">{client ? 'authenticated' : 'unauthenticated'}</div>
-            <ApiClientProvider apiClientManager={innerManager}>
+            <ApiClientProvider apiClientManager={innerClient}>
               <InnerConsumer />
             </ApiClientProvider>
           </div>
@@ -293,7 +258,7 @@ describe('ApiClientContext', () => {
       }
 
       render(
-        <ApiClientProvider apiClientManager={outerManager}>
+        <ApiClientProvider apiClientManager={outerClient}>
           <OuterConsumer />
         </ApiClientProvider>
       );
@@ -303,13 +268,10 @@ describe('ApiClientContext', () => {
     });
 
     it('should use innermost provider when nested', () => {
-      const outerManager: ApiClientManager = { client: null };
-
       const innerClient = new SemiontApiClient({
         baseUrl: 'https://inner.api.com',
         accessToken: 'inner-token',
       });
-      const innerManager: ApiClientManager = { client: innerClient };
 
       function NestedConsumer() {
         const client = useApiClient();
@@ -319,8 +281,8 @@ describe('ApiClientContext', () => {
       }
 
       render(
-        <ApiClientProvider apiClientManager={outerManager}>
-          <ApiClientProvider apiClientManager={innerManager}>
+        <ApiClientProvider apiClientManager={null}>
+          <ApiClientProvider apiClientManager={innerClient}>
             <NestedConsumer />
           </ApiClientProvider>
         </ApiClientProvider>
@@ -338,8 +300,6 @@ describe('ApiClientContext', () => {
         accessToken: 'shared-token',
       });
 
-      const mockManager: ApiClientManager = { client: mockClient };
-
       function Consumer1() {
         const client = useApiClient();
         return <div data-testid="consumer1">{client ? 'has-client' : 'no-client'}</div>;
@@ -351,7 +311,7 @@ describe('ApiClientContext', () => {
       }
 
       render(
-        <ApiClientProvider apiClientManager={mockManager}>
+        <ApiClientProvider apiClientManager={mockClient}>
           <Consumer1 />
           <Consumer2 />
         </ApiClientProvider>
@@ -362,10 +322,8 @@ describe('ApiClientContext', () => {
     });
 
     it('should handle rapid client updates', () => {
-      const mockManager1: ApiClientManager = { client: null };
-
       const { rerender } = render(
-        <ApiClientProvider apiClientManager={mockManager1}>
+        <ApiClientProvider apiClientManager={null}>
           <TestConsumer />
         </ApiClientProvider>
       );
@@ -383,7 +341,7 @@ describe('ApiClientContext', () => {
             : null;
 
         rerender(
-          <ApiClientProvider apiClientManager={{ client }}>
+          <ApiClientProvider apiClientManager={client}>
             <TestConsumer />
           </ApiClientProvider>
         );
@@ -399,8 +357,6 @@ describe('ApiClientContext', () => {
         accessToken: 'test-token',
       });
 
-      const mockManager: ApiClientManager = { client: mockClient };
-
       function ConditionalConsumer({ show }: { show: boolean }) {
         const client = useApiClient();
         if (!show) return null;
@@ -408,7 +364,7 @@ describe('ApiClientContext', () => {
       }
 
       const { rerender } = render(
-        <ApiClientProvider apiClientManager={mockManager}>
+        <ApiClientProvider apiClientManager={mockClient}>
           <ConditionalConsumer show={false} />
         </ApiClientProvider>
       );
@@ -416,7 +372,7 @@ describe('ApiClientContext', () => {
       expect(screen.queryByTestId('conditional')).not.toBeInTheDocument();
 
       rerender(
-        <ApiClientProvider apiClientManager={mockManager}>
+        <ApiClientProvider apiClientManager={mockClient}>
           <ConditionalConsumer show={true} />
         </ApiClientProvider>
       );
@@ -430,12 +386,8 @@ describe('ApiClientContext', () => {
         accessToken: 'stable-token',
       });
 
-      // Different manager objects, same client
-      const mockManager1: ApiClientManager = { client: mockClient };
-      const mockManager2: ApiClientManager = { client: mockClient };
-
       const { rerender } = render(
-        <ApiClientProvider apiClientManager={mockManager1}>
+        <ApiClientProvider apiClientManager={mockClient}>
           <TestConsumer />
         </ApiClientProvider>
       );
@@ -443,7 +395,7 @@ describe('ApiClientContext', () => {
       expect(screen.getByTestId('client-status')).toHaveTextContent('authenticated');
 
       rerender(
-        <ApiClientProvider apiClientManager={mockManager2}>
+        <ApiClientProvider apiClientManager={mockClient}>
           <TestConsumer />
         </ApiClientProvider>
       );

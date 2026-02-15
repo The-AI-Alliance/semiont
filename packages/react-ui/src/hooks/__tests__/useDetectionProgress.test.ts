@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import React, { type ReactNode, useEffect } from 'react';
 import { useDetectionProgress } from '../useDetectionProgress';
-import { resourceUri } from '@semiont/api-client';
+import { resourceUri, type SemiontApiClient } from '@semiont/api-client';
 import type { DetectionProgress } from '@semiont/api-client';
 import { ApiClientProvider } from '../../contexts/ApiClientContext';
 import type { ApiClientManager } from '../../types/ApiClientManager';
@@ -37,10 +37,10 @@ const createMockSSEStream = () => {
 
 // Mock api-client
 const mockDetectAnnotations = vi.fn();
-const mockApiClient = {
+const mockApiClient: Pick<SemiontApiClient, 'sse'> = {
   sse: {
     detectAnnotations: mockDetectAnnotations,
-  },
+  } as any,
 };
 
 // Mock environment

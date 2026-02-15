@@ -3,7 +3,7 @@
 import { createContext, useContext, ReactNode } from 'react';
 import type { ApiClientManager } from '../types/ApiClientManager';
 
-const ApiClientContext = createContext<ApiClientManager | null>(null);
+const ApiClientContext = createContext<ApiClientManager | undefined>(undefined);
 
 export interface ApiClientProviderProps {
   apiClientManager: ApiClientManager;
@@ -33,9 +33,9 @@ export function ApiClientProvider({
 export function useApiClient() {
   const context = useContext(ApiClientContext);
 
-  if (context === null) {
+  if (context === undefined) {
     throw new Error('useApiClient must be used within an ApiClientProvider');
   }
 
-  return context.client;
+  return context;
 }

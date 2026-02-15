@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import React, { type ReactNode, useEffect } from 'react';
 import { useGenerationProgress } from '../useGenerationProgress';
-import { annotationUri, resourceUri } from '@semiont/api-client';
+import { annotationUri, resourceUri, type SemiontApiClient } from '@semiont/api-client';
 import type { GenerationProgress, GenerationContext } from '@semiont/api-client';
 import { ApiClientProvider } from '../../contexts/ApiClientContext';
 import type { ApiClientManager } from '../../types/ApiClientManager';
@@ -50,10 +50,10 @@ const createMockSSEStream = () => {
 
 // Mock api-client hook
 const mockGenerateResourceFromAnnotation = vi.fn();
-const mockApiClient = {
+const mockApiClient: Pick<SemiontApiClient, 'sse'> = {
   sse: {
     generateResourceFromAnnotation: mockGenerateResourceFromAnnotation,
-  },
+  } as any,
 };
 
 // Mock environment
