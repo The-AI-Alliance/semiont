@@ -7,10 +7,12 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import React from 'react';
 import { ResourceViewerPage } from '../components/ResourceViewerPage';
 import type { ResourceViewerPageProps } from '../components/ResourceViewerPage';
 // Import directly from context file to bypass mocked barrel export
 import { EventBusProvider, resetEventBusForTesting } from '../../../contexts/EventBusContext';
+import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 
 // Mock dependencies that ResourceViewerPage imports
 vi.mock('@tanstack/react-query', async () => {
@@ -114,9 +116,13 @@ const createMockProps = (overrides?: Partial<ResourceViewerPageProps>): Resource
   ...overrides,
 });
 
-// Test wrapper to provide EventBusProvider
+// Test wrapper to provide EventBusProvider and ApiClientProvider
 const renderWithProviders = (ui: React.ReactElement) => {
-  return render(<EventBusProvider>{ui}</EventBusProvider>);
+  return render(
+    <ApiClientProvider apiClientManager={null}>
+      <EventBusProvider>{ui}</EventBusProvider>
+    </ApiClientProvider>
+  );
 };
 
 describe('ResourceViewerPage', () => {
