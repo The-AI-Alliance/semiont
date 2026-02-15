@@ -8,7 +8,8 @@
 import React, { useState, useCallback, useRef } from 'react';
 import type { components } from '@semiont/api-client';
 import { getResourceId } from '@semiont/api-client';
-import { useRovingTabIndex, Toolbar } from '@semiont/react-ui';
+import { useRovingTabIndex } from '../../../hooks/useRovingTabIndex';
+import { Toolbar } from '../../../components/Toolbar';
 import { ResourceCard } from './ResourceCard';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];

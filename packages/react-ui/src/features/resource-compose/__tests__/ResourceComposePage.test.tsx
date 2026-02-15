@@ -9,26 +9,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ResourceComposePage } from '../components/ResourceComposePage';
 import type { ResourceComposePageProps, SaveResourceParams } from '../components/ResourceComposePage';
+import { EventBusProvider, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 
-// Mock dependencies
-vi.mock('@semiont/react-ui', async () => {
-  const actual = await vi.importActual('@semiont/react-ui');
-  return {
-    ...actual,
-    buttonStyles: {
-      primary: { base: 'btn-primary' },
-      tertiary: { base: 'btn-tertiary' },
-    },
-    CodeMirrorRenderer: ({ content, onChange, editable }: any) => (
-      <textarea
-        data-testid="code-editor"
-        value={content}
-        onChange={(e) => editable && onChange?.(e.target.value)}
-        disabled={!editable}
-      />
-    ),
-  };
-});
+// Mock CodeMirrorRenderer to avoid CodeMirror dependencies
+vi.mock('../../../components/CodeMirrorRenderer', () => ({
+  CodeMirrorRenderer: ({ content, onChange, editable }: any) => (
+    <textarea
+      data-testid="code-editor"
+      value={content}
+      onChange={(e) => editable && onChange?.(e.target.value)}
+      disabled={!editable}
+    />
+  ),
+}));
 
 const createMockTranslations = () => ({
   title: 'Compose Resource',
@@ -79,18 +72,27 @@ const createMockProps = (overrides?: Partial<ResourceComposePageProps>): Resourc
   ...overrides,
 });
 
+// Helper to render with EventBusProvider
+const renderWithProviders = (ui: React.ReactElement) => {
+  return render(<EventBusProvider>{ui}</EventBusProvider>);
+};
+
 describe('ResourceComposePage', () => {
+  beforeEach(() => {
+    resetEventBusForTesting();
+  });
+
   describe('Basic Rendering - New Resource Mode', () => {
     it('renders without crashing', () => {
       const props = createMockProps();
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       expect(screen.getByText('Compose Resource')).toBeInTheDocument();
     });
 
     it('renders resource name input', () => {
       const props = createMockProps();
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       expect(screen.getByLabelText('Resource Name')).toBeInTheDocument();
       expect(screen.getByPlaceholderText('Enter resource name')).toBeInTheDocument();
@@ -98,7 +100,7 @@ describe('ResourceComposePage', () => {
 
     it('renders entity type selection', () => {
       const props = createMockProps();
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       expect(screen.getByText('Entity Types')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Document entity type/ })).toBeInTheDocument();
@@ -108,14 +110,14 @@ describe('ResourceComposePage', () => {
 
     it('renders language selector', () => {
       const props = createMockProps();
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       expect(screen.getByLabelText('Language')).toBeInTheDocument();
     });
 
     it('renders content source toggle', () => {
       const props = createMockProps();
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       expect(screen.getByText('Upload File')).toBeInTheDocument();
       expect(screen.getByText('Write Content')).toBeInTheDocument();
@@ -123,7 +125,7 @@ describe('ResourceComposePage', () => {
 
     it('renders toolbar component', () => {
       const props = createMockProps();
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       expect(screen.getByTestId('toolbar')).toBeInTheDocument();
     });
@@ -141,7 +143,7 @@ describe('ResourceComposePage', () => {
           sourceContent: 'Original content',
         },
       });
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       expect(screen.getByText('Edit Cloned Resource')).toBeInTheDocument();
       expect(screen.getByText('Editing a cloned resource')).toBeInTheDocument();
@@ -158,7 +160,7 @@ describe('ResourceComposePage', () => {
           sourceContent: 'Original content',
         },
       });
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       const nameInput = screen.getByLabelText('Resource Name') as HTMLInputElement;
       expect(nameInput.value).toBe('Original Resource');
@@ -178,7 +180,7 @@ describe('ResourceComposePage', () => {
           sourceContent: 'Original content',
         },
       });
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       expect(screen.getByLabelText('Archive original resource')).toBeInTheDocument();
     });
@@ -194,7 +196,7 @@ describe('ResourceComposePage', () => {
           sourceContent: 'Original content',
         },
       });
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       expect(screen.queryByText('Upload File')).not.toBeInTheDocument();
       expect(screen.queryByText('Write Content')).not.toBeInTheDocument();
@@ -212,7 +214,7 @@ describe('ResourceComposePage', () => {
           entityTypes: ['Document'],
         },
       });
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       expect(screen.getByText('Complete Reference')).toBeInTheDocument();
       expect(screen.getByText('Creating a new resource for reference')).toBeInTheDocument();
@@ -229,7 +231,7 @@ describe('ResourceComposePage', () => {
           entityTypes: ['Document', 'Article'],
         },
       });
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       const nameInput = screen.getByLabelText('Resource Name') as HTMLInputElement;
       expect(nameInput.value).toBe('Referenced Resource');
@@ -248,7 +250,7 @@ describe('ResourceComposePage', () => {
           entityTypes: ['Document'],
         },
       });
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       // Should show read-only entity types
       expect(screen.getByText('Document')).toBeInTheDocument();
@@ -264,7 +266,7 @@ describe('ResourceComposePage', () => {
   describe('Content Input Method', () => {
     it('defaults to write mode', () => {
       const props = createMockProps();
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       const writeButton = screen.getByText('Write Content').closest('button');
       expect(writeButton).toHaveAttribute('data-active', 'true');
@@ -272,7 +274,7 @@ describe('ResourceComposePage', () => {
 
     it('allows switching to upload mode', () => {
       const props = createMockProps();
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       const uploadButton = screen.getByText('Upload File').closest('button');
       fireEvent.click(uploadButton!);
@@ -282,28 +284,28 @@ describe('ResourceComposePage', () => {
 
     it('shows format selector in write mode', () => {
       const props = createMockProps();
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       expect(screen.getByLabelText('Format')).toBeInTheDocument();
     });
 
     it('shows encoding selector in write mode', () => {
       const props = createMockProps();
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       expect(screen.getByLabelText('Encoding')).toBeInTheDocument();
     });
 
     it('shows code editor in write mode', () => {
       const props = createMockProps();
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       expect(screen.getByTestId('code-editor')).toBeInTheDocument();
     });
 
     it('shows file upload in upload mode', () => {
       const props = createMockProps();
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       const uploadButton = screen.getByText('Upload File').closest('button');
       fireEvent.click(uploadButton!);
@@ -316,7 +318,7 @@ describe('ResourceComposePage', () => {
     it('calls onSaveResource with correct params for new resource', async () => {
       const onSaveResource = vi.fn().mockResolvedValue(undefined);
       const props = createMockProps({ onSaveResource });
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       // Fill in name
       const nameInput = screen.getByLabelText('Resource Name');
@@ -350,7 +352,7 @@ describe('ResourceComposePage', () => {
     it('includes selected entity types', async () => {
       const onSaveResource = vi.fn().mockResolvedValue(undefined);
       const props = createMockProps({ onSaveResource });
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       // Fill in name
       const nameInput = screen.getByLabelText('Resource Name');
@@ -375,7 +377,7 @@ describe('ResourceComposePage', () => {
 
     it('requires resource name', () => {
       const props = createMockProps();
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       const submitButton = screen.getByRole('button', { name: 'Create Resource' });
       expect(submitButton).toBeDisabled();
@@ -383,7 +385,7 @@ describe('ResourceComposePage', () => {
 
     it('enables submit button when name is provided', () => {
       const props = createMockProps();
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       const nameInput = screen.getByLabelText('Resource Name');
       fireEvent.change(nameInput, { target: { value: 'Test Resource' } });
@@ -395,7 +397,7 @@ describe('ResourceComposePage', () => {
     it('disables form during submission', async () => {
       const onSaveResource = vi.fn(() => new Promise<void>(resolve => setTimeout(resolve, 100)));
       const props = createMockProps({ onSaveResource });
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       const nameInput = screen.getByLabelText('Resource Name');
       fireEvent.change(nameInput, { target: { value: 'Test Resource' } });
@@ -416,7 +418,7 @@ describe('ResourceComposePage', () => {
     it('calls onCancel when cancel button clicked', () => {
       const onCancel = vi.fn();
       const props = createMockProps({ onCancel });
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       const cancelButton = screen.getByRole('button', { name: 'Cancel' });
       fireEvent.click(cancelButton);
@@ -428,7 +430,7 @@ describe('ResourceComposePage', () => {
   describe('Toolbar Integration', () => {
     it('renders ToolbarPanels component', () => {
       const props = createMockProps();
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       expect(screen.getByTestId('toolbar-panels')).toBeInTheDocument();
     });
@@ -440,7 +442,7 @@ describe('ResourceComposePage', () => {
         ToolbarPanels,
       });
 
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       expect(ToolbarPanels).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -454,7 +456,7 @@ describe('ResourceComposePage', () => {
   describe('Code Editor Integration', () => {
     it('allows editing content', () => {
       const props = createMockProps();
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       const editor = screen.getByTestId('code-editor') as HTMLTextAreaElement;
       fireEvent.change(editor, { target: { value: 'New content' } });
@@ -464,7 +466,7 @@ describe('ResourceComposePage', () => {
 
     it('respects showLineNumbers prop', () => {
       const props = createMockProps({ showLineNumbers: true });
-      render(<ResourceComposePage {...props} />);
+      renderWithProviders(<ResourceComposePage {...props} />);
 
       expect(screen.getByTestId('code-editor')).toBeInTheDocument();
     });

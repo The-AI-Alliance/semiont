@@ -6,9 +6,13 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
+import React, { type ReactNode, useEffect } from 'react';
 import { useGenerationProgress } from '../useGenerationProgress';
 import { annotationUri, resourceUri } from '@semiont/api-client';
 import type { GenerationProgress, GenerationContext } from '@semiont/api-client';
+import { ApiClientProvider } from '../../contexts/ApiClientContext';
+import type { ApiClientManager } from '../../types/ApiClientManager';
+import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../contexts/EventBusContext';
 
 // Mock GenerationContext for tests
 const mockGenerationContext: GenerationContext = {
@@ -52,10 +56,6 @@ const mockApiClient = {
   },
 };
 
-vi.mock('../../contexts/ApiClientContext', () => ({
-  useApiClient: () => mockApiClient,
-}));
-
 // Mock environment
 vi.mock('@/lib/env', () => ({
   SERVER_API_URL: 'http://localhost:4000'
@@ -64,7 +64,20 @@ vi.mock('@/lib/env', () => ({
 describe('useGenerationProgress', () => {
   let mockStream: ReturnType<typeof createMockSSEStream>;
 
+  // Wrapper component to provide both EventBus and ApiClient contexts
+  const wrapper = ({ children }: { children: ReactNode }) =>
+    React.createElement(
+      EventBusProvider,
+      {},
+      React.createElement(
+        ApiClientProvider,
+        { apiClientManager: mockApiClient as ApiClientManager },
+        children
+      )
+    );
+
   beforeEach(() => {
+    resetEventBusForTesting();
     mockStream = createMockSSEStream();
     mockGenerateResourceFromAnnotation.mockReturnValue(mockStream);
   });
@@ -75,7 +88,8 @@ describe('useGenerationProgress', () => {
 
   it('should initialize with default state', () => {
     const { result } = renderHook(() =>
-      useGenerationProgress({})
+      useGenerationProgress({}),
+      { wrapper }
     );
 
     expect(result.current.isGenerating).toBe(false);
@@ -87,7 +101,8 @@ describe('useGenerationProgress', () => {
 
   it('should call api-client with correct parameters', async () => {
     const { result } = renderHook(() =>
-      useGenerationProgress({})
+      useGenerationProgress({}),
+      { wrapper }
     );
 
     await result.current.startGeneration(
@@ -115,7 +130,8 @@ describe('useGenerationProgress', () => {
 
   it('should set isGenerating to true when generation starts', async () => {
     const { result } = renderHook(() =>
-      useGenerationProgress({})
+      useGenerationProgress({}),
+      { wrapper }
     );
 
     await result.current.startGeneration(
@@ -131,9 +147,20 @@ describe('useGenerationProgress', () => {
 
   it('should handle generation-started event', async () => {
     const onProgressMock = vi.fn();
-    const { result } = renderHook(() =>
-      useGenerationProgress({ onProgress: onProgressMock })
-    );
+    const { result } = renderHook(() => {
+      const hook = useGenerationProgress();
+      const eventBus = useEventBus();
+
+      // Subscribe to event bus instead of passing callback
+      useEffect(() => {
+        const unsubscribe = eventBus.on('generation:progress-update', ({ progress }) => {
+          onProgressMock(progress);
+        });
+        return unsubscribe;
+      }, [eventBus]);
+
+      return hook;
+    }, { wrapper });
 
     await result.current.startGeneration(
       annotationUri('http://localhost:4000/annotations/test-ref-id'),
@@ -159,9 +186,20 @@ describe('useGenerationProgress', () => {
 
   it('should handle generation-progress event', async () => {
     const onProgressMock = vi.fn();
-    const { result } = renderHook(() =>
-      useGenerationProgress({ onProgress: onProgressMock })
-    );
+    const { result } = renderHook(() => {
+      const hook = useGenerationProgress();
+      const eventBus = useEventBus();
+
+      // Subscribe to event bus instead of passing callback
+      useEffect(() => {
+        const unsubscribe = eventBus.on('generation:progress-update', ({ progress }) => {
+          onProgressMock(progress);
+        });
+        return unsubscribe;
+      }, [eventBus]);
+
+      return hook;
+    }, { wrapper });
 
     await result.current.startGeneration(
       annotationUri('http://localhost:4000/annotations/test-ref-id'),
@@ -187,9 +225,20 @@ describe('useGenerationProgress', () => {
 
   it('should handle generation-complete event', async () => {
     const onCompleteMock = vi.fn();
-    const { result } = renderHook(() =>
-      useGenerationProgress({ onComplete: onCompleteMock })
-    );
+    const { result } = renderHook(() => {
+      const hook = useGenerationProgress();
+      const eventBus = useEventBus();
+
+      // Subscribe to event bus instead of passing callback
+      useEffect(() => {
+        const unsubscribe = eventBus.on('generation:complete-event', ({ progress }) => {
+          onCompleteMock(progress);
+        });
+        return unsubscribe;
+      }, [eventBus]);
+
+      return hook;
+    }, { wrapper });
 
     await result.current.startGeneration(
       annotationUri('http://localhost:4000/annotations/test-ref-id'),
@@ -216,9 +265,20 @@ describe('useGenerationProgress', () => {
 
   it('should handle generation-error event', async () => {
     const onErrorMock = vi.fn();
-    const { result } = renderHook(() =>
-      useGenerationProgress({ onError: onErrorMock })
-    );
+    const { result } = renderHook(() => {
+      const hook = useGenerationProgress();
+      const eventBus = useEventBus();
+
+      // Subscribe to event bus instead of passing callback
+      useEffect(() => {
+        const unsubscribe = eventBus.on('generation:error-event', ({ error }) => {
+          onErrorMock(error);
+        });
+        return unsubscribe;
+      }, [eventBus]);
+
+      return hook;
+    }, { wrapper });
 
     await result.current.startGeneration(
       annotationUri('http://localhost:4000/annotations/test-ref-id'),
@@ -238,7 +298,8 @@ describe('useGenerationProgress', () => {
 
   it('should cancel generation', async () => {
     const { result } = renderHook(() =>
-      useGenerationProgress({})
+      useGenerationProgress({}),
+      { wrapper }
     );
 
     await result.current.startGeneration(
@@ -255,7 +316,8 @@ describe('useGenerationProgress', () => {
 
   it('should clear progress', () => {
     const { result } = renderHook(() =>
-      useGenerationProgress({})
+      useGenerationProgress({}),
+      { wrapper }
     );
 
     result.current.clearProgress();
@@ -266,7 +328,8 @@ describe('useGenerationProgress', () => {
 
   it('should pass language option to api-client', async () => {
     const { result } = renderHook(() =>
-      useGenerationProgress({})
+      useGenerationProgress({}),
+      { wrapper }
     );
 
     await result.current.startGeneration(
@@ -287,7 +350,8 @@ describe('useGenerationProgress', () => {
 
   it('should close existing stream when starting new generation', async () => {
     const { result } = renderHook(() =>
-      useGenerationProgress({})
+      useGenerationProgress({}),
+      { wrapper }
     );
 
     await result.current.startGeneration(
@@ -307,7 +371,8 @@ describe('useGenerationProgress', () => {
 
   it('should not crash if cancelGeneration called when not generating', () => {
     const { result } = renderHook(() =>
-      useGenerationProgress({})
+      useGenerationProgress({}),
+      { wrapper }
     );
 
     expect(() => result.current.cancelGeneration()).not.toThrow();

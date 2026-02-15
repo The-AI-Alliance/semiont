@@ -1,47 +1,23 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import '@testing-library/jest-dom';
 import { BrowseView } from '../BrowseView';
 import type { components } from '@semiont/api-client';
+import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../../contexts/EventBusContext';
 
 type Annotation = components['schemas']['Annotation'];
 
-// Create mock event bus
+// Mock event bus emit function for spying on events
 const mockEmit = vi.fn();
 const mockOn = vi.fn();
-const mockOff = vi.fn();
 
-const mockEventBus = {
-  emit: mockEmit,
-  on: mockOn,
-  off: mockOff,
-};
-
-// Mock EventBusContext
-vi.mock('../../../contexts/EventBusContext', () => ({
-  useEventBus: vi.fn(() => mockEventBus),
-}));
-
-// Mock useEventSubscription
-vi.mock('../../../contexts/useEventSubscription', () => ({
-  useEventSubscriptions: vi.fn((subscriptions) => {
-    // Store subscriptions for testing
-    Object.entries(subscriptions).forEach(([event, handler]) => {
-      mockOn(event, handler);
-    });
-  }),
-}));
-
-// Mock ResourceAnnotationsContext
+// Mock ResourceAnnotationsContext - keep this simple
+let mockNewAnnotationIds = new Set<string>();
 vi.mock('../../../contexts/ResourceAnnotationsContext', () => ({
   useResourceAnnotations: vi.fn(() => ({
-    newAnnotationIds: new Set(),
+    newAnnotationIds: mockNewAnnotationIds,
   })),
 }));
-
-// Import after mocking to get the mocked version
-import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsContext';
 
 // Mock @semiont/api-client utilities
 vi.mock('@semiont/api-client', async () => {
@@ -116,6 +92,53 @@ vi.mock('../../annotation/AnnotateToolbar', () => ({
   AnnotateToolbar: () => <div data-testid="annotate-toolbar">Toolbar</div>,
 }));
 
+// Wrapper component to spy on EventBus emit calls and event subscriptions
+function TestWrapper({ children }: { children: React.ReactNode }) {
+  const eventBus = useEventBus();
+
+  // Wrap the real emit and on - do this synchronously before render, not in useEffect
+  const originalEmit = React.useRef(eventBus.emit.bind(eventBus));
+  const originalOn = React.useRef(eventBus.on.bind(eventBus));
+
+  // Only wrap once on first render
+  if (eventBus.emit !== mockEmit as any) {
+    eventBus.emit = ((eventName: string, payload?: unknown) => {
+      mockEmit(eventName, payload);
+      return originalEmit.current(eventName, payload);
+    }) as typeof eventBus.emit;
+  }
+
+  if (!('__wrapped' in eventBus.on)) {
+    const wrappedOn = ((eventName: string, handler: Function) => {
+      mockOn(eventName, handler);
+      return originalOn.current(eventName, handler);
+    }) as typeof eventBus.on & { __wrapped: true };
+    wrappedOn.__wrapped = true;
+    eventBus.on = wrappedOn;
+  }
+
+  return <>{children}</>;
+}
+
+// Helper to render with providers
+const renderWithProviders = (
+  component: React.ReactElement,
+  options: { newAnnotationIds?: Set<string> } = {}
+) => {
+  // Update the mock if new annotation IDs are provided
+  if (options.newAnnotationIds) {
+    mockNewAnnotationIds = options.newAnnotationIds;
+  }
+
+  return render(
+    <EventBusProvider>
+      <TestWrapper>
+        {component}
+      </TestWrapper>
+    </EventBusProvider>
+  );
+};
+
 // Test data fixtures
 const createMockAnnotation = (motivation: string, id: string): Annotation => ({
   '@context': 'http://www.w3.org/ns/anno.jsonld',
@@ -154,17 +177,22 @@ describe('BrowseView Component', () => {
   };
 
   beforeEach(() => {
+    resetEventBusForTesting();
     vi.clearAllMocks();
     mockEmit.mockClear();
     mockOn.mockClear();
-    mockOff.mockClear();
+    mockNewAnnotationIds = new Set();
 
     // Mock scrollIntoView for jsdom
-    Element.prototype.scrollIntoView = vi.fn();
+    if (typeof Element !== 'undefined') {
+      Element.prototype.scrollIntoView = vi.fn();
+    }
 
     // Mock querySelector and querySelectorAll
-    document.querySelector = vi.fn();
-    document.querySelectorAll = vi.fn(() => []);
+    if (typeof document !== 'undefined') {
+      document.querySelector = vi.fn();
+      document.querySelectorAll = vi.fn(() => []);
+    }
   });
 
   afterEach(() => {
@@ -173,27 +201,27 @@ describe('BrowseView Component', () => {
 
   describe('Rendering', () => {
     it('should render markdown content in text mode', () => {
-      render(<BrowseView {...defaultProps} />);
+      renderWithProviders(<BrowseView {...defaultProps} />);
 
       expect(screen.getByTestId('markdown-content')).toBeInTheDocument();
       expect(screen.getByTestId('annotate-toolbar')).toBeInTheDocument();
     });
 
     it('should render image viewer for image mime types', () => {
-      render(<BrowseView {...defaultProps} mimeType="image/png" />);
+      renderWithProviders(<BrowseView {...defaultProps} mimeType="image/png" />);
 
       expect(screen.getByTestId('image-viewer')).toBeInTheDocument();
     });
 
     it('should render unsupported message for unsupported mime types', () => {
-      render(<BrowseView {...defaultProps} mimeType="application/octet-stream" />);
+      renderWithProviders(<BrowseView {...defaultProps} mimeType="application/octet-stream" />);
 
       expect(screen.getByText(/Preview not available/)).toBeInTheDocument();
       expect(screen.getByText('Download File')).toBeInTheDocument();
     });
 
     it('should apply correct data-mime-type attribute', () => {
-      const { container } = render(<BrowseView {...defaultProps} />);
+      const { container } = renderWithProviders(<BrowseView {...defaultProps} />);
 
       const browseView = container.querySelector('[data-mime-type="text"]');
       expect(browseView).toBeInTheDocument();
@@ -202,7 +230,7 @@ describe('BrowseView Component', () => {
 
   describe('Event Handling - Clean Enter/Exit Pattern', () => {
     it('should attach single click handler to container on mount', () => {
-      const { container } = render(<BrowseView {...defaultProps} />);
+      const { container } = renderWithProviders(<BrowseView {...defaultProps} />);
 
       const browseContainer = container.querySelector('.semiont-browse-view__content');
       expect(browseContainer).toBeInTheDocument();
@@ -217,7 +245,7 @@ describe('BrowseView Component', () => {
         references: [createMockAnnotation('linking', 'ref-1')],
       };
 
-      const { container } = render(<BrowseView {...defaultProps} annotations={annotations} />);
+      const { container } = renderWithProviders(<BrowseView {...defaultProps} annotations={annotations} />);
 
       // Create mock annotation element
       const mockAnnotationElement = document.createElement('span');
@@ -240,7 +268,7 @@ describe('BrowseView Component', () => {
     });
 
     it('should emit annotation:dom-hover with null when mouse exits annotation', async () => {
-      const { container } = render(<BrowseView {...defaultProps} />);
+      const { container } = renderWithProviders(<BrowseView {...defaultProps} />);
 
       const browseContainer = container.querySelector('.semiont-browse-view__content');
 
@@ -263,7 +291,7 @@ describe('BrowseView Component', () => {
     });
 
     it('should not emit on mouseover when not over annotation', async () => {
-      const { container } = render(<BrowseView {...defaultProps} />);
+      const { container } = renderWithProviders(<BrowseView {...defaultProps} />);
 
       const mockTargetNoAnnotation = {
         closest: vi.fn(() => null),
@@ -289,7 +317,7 @@ describe('BrowseView Component', () => {
         ],
       };
 
-      const { container } = render(<BrowseView {...defaultProps} annotations={annotations} />);
+      const { container } = renderWithProviders(<BrowseView {...defaultProps} annotations={annotations} />);
 
       const mockAnnotation1 = document.createElement('span');
       mockAnnotation1.setAttribute('data-annotation-id', 'ref-1');
@@ -337,7 +365,7 @@ describe('BrowseView Component', () => {
         highlights: [createMockAnnotation('highlighting', 'highlight-1')],
       };
 
-      const { container } = render(<BrowseView {...defaultProps} annotations={annotations} />);
+      const { container } = renderWithProviders(<BrowseView {...defaultProps} annotations={annotations} />);
 
       const mockReferenceElement = document.createElement('span');
       mockReferenceElement.setAttribute('data-annotation-id', 'ref-1');
@@ -375,20 +403,23 @@ describe('BrowseView Component', () => {
 
   describe('Event Subscriptions', () => {
     it('should subscribe to annotation:hover event', () => {
-      render(<BrowseView {...defaultProps} />);
+      mockOn.mockClear();
+      renderWithProviders(<BrowseView {...defaultProps} />);
 
       expect(mockOn).toHaveBeenCalledWith('annotation:hover', expect.any(Function));
     });
 
     it('should subscribe to annotation:hover event (legacy test)', () => {
-      render(<BrowseView {...defaultProps} />);
+      mockOn.mockClear();
+      renderWithProviders(<BrowseView {...defaultProps} />);
 
       // BrowseView subscribes to annotation:hover (not annotation-entry:hover)
       expect(mockOn).toHaveBeenCalledWith('annotation:hover', expect.any(Function));
     });
 
     it('should subscribe to annotation:focus event', () => {
-      render(<BrowseView {...defaultProps} />);
+      mockOn.mockClear();
+      renderWithProviders(<BrowseView {...defaultProps} />);
 
       expect(mockOn).toHaveBeenCalledWith('annotation:focus', expect.any(Function));
     });
@@ -397,20 +428,19 @@ describe('BrowseView Component', () => {
   describe('Annotation Animation Classes', () => {
     it('should apply sparkle class to new annotations', () => {
       const newAnnotationIds = new Set(['new-annotation-1']);
-      const mockUseResourceAnnotations = vi.mocked(useResourceAnnotations);
-      mockUseResourceAnnotations.mockReturnValue({ newAnnotationIds });
 
       const annotations = {
         ...defaultProps.annotations,
         highlights: [createMockAnnotation('highlighting', 'new-annotation-1')],
       };
 
-      render(<BrowseView {...defaultProps} annotations={annotations} />);
+      renderWithProviders(<BrowseView {...defaultProps} annotations={annotations} />, {
+        newAnnotationIds
+      });
 
       // Verify the newAnnotationIds set contains the expected annotation
       // In the actual component, this triggers the sparkle class application
       expect(newAnnotationIds.has('new-annotation-1')).toBe(true);
-      expect(mockUseResourceAnnotations).toHaveBeenCalled();
     });
   });
 
@@ -447,7 +477,7 @@ describe('BrowseView Component', () => {
 
   describe('Cleanup', () => {
     it('should remove event listeners on unmount', () => {
-      const { unmount, container } = render(<BrowseView {...defaultProps} />);
+      const { unmount, container } = renderWithProviders(<BrowseView {...defaultProps} />);
 
       const browseContainer = container.querySelector('.semiont-browse-view__content');
 

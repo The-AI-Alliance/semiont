@@ -2,13 +2,18 @@
  * useDetectionProgress Hook Tests
  *
  * Tests the SSE event handling for real-time detection progress updates.
+ * Uses composition instead of vitest mocks.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
+import React, { type ReactNode, useEffect } from 'react';
 import { useDetectionProgress } from '../useDetectionProgress';
 import { resourceUri } from '@semiont/api-client';
 import type { DetectionProgress } from '@semiont/api-client';
+import { ApiClientProvider } from '../../contexts/ApiClientContext';
+import type { ApiClientManager } from '../../types/ApiClientManager';
+import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../contexts/EventBusContext';
 
 // Create a mock SSE stream
 const createMockSSEStream = () => {
@@ -30,17 +35,13 @@ const createMockSSEStream = () => {
   return stream;
 };
 
-// Mock api-client hook
+// Mock api-client
 const mockDetectAnnotations = vi.fn();
 const mockApiClient = {
   sse: {
     detectAnnotations: mockDetectAnnotations,
   },
 };
-
-vi.mock('../../contexts/ApiClientContext', () => ({
-  useApiClient: () => mockApiClient,
-}));
 
 // Mock environment
 vi.mock('@/lib/env', () => ({
@@ -50,7 +51,20 @@ vi.mock('@/lib/env', () => ({
 describe('useDetectionProgress', () => {
   let mockStream: ReturnType<typeof createMockSSEStream>;
 
+  // Wrapper component to provide both EventBus and ApiClient contexts
+  const wrapper = ({ children }: { children: ReactNode }) =>
+    React.createElement(
+      EventBusProvider,
+      {},
+      React.createElement(
+        ApiClientProvider,
+        { apiClientManager: mockApiClient as ApiClientManager },
+        children
+      )
+    );
+
   beforeEach(() => {
+    resetEventBusForTesting();
     mockStream = createMockSSEStream();
     mockDetectAnnotations.mockReturnValue(mockStream);
   });
@@ -63,7 +77,8 @@ describe('useDetectionProgress', () => {
     const { result } = renderHook(() =>
       useDetectionProgress({
         rUri: resourceUri('http://localhost:4000/resources/test-resource'),
-      })
+      }),
+      { wrapper }
     );
 
     expect(result.current.isDetecting).toBe(false);
@@ -76,7 +91,8 @@ describe('useDetectionProgress', () => {
     const { result } = renderHook(() =>
       useDetectionProgress({
         rUri: resourceUri('http://localhost:4000/resources/test-resource'),
-      })
+      }),
+      { wrapper }
     );
 
     await result.current.startDetection(['Person', 'Organization']);
@@ -91,7 +107,8 @@ describe('useDetectionProgress', () => {
     const { result } = renderHook(() =>
       useDetectionProgress({
         rUri: resourceUri('http://localhost:4000/resources/test-resource'),
-      })
+      }),
+      { wrapper }
     );
 
     await result.current.startDetection(['Person']);
@@ -103,12 +120,22 @@ describe('useDetectionProgress', () => {
 
   it('should handle detection-started event', async () => {
     const onProgress = vi.fn();
-    const { result } = renderHook(() =>
-      useDetectionProgress({
+    const { result } = renderHook(() => {
+      const hook = useDetectionProgress({
         rUri: resourceUri('http://localhost:4000/resources/test-resource'),
-        onProgress
-      })
-    );
+      });
+      const eventBus = useEventBus();
+
+      // Subscribe to event bus instead of passing callback
+      useEffect(() => {
+        const unsubscribe = eventBus.on('detection:progress-update', ({ progress }) => {
+          onProgress(progress);
+        });
+        return unsubscribe;
+      }, [eventBus]);
+
+      return hook;
+    }, { wrapper });
 
     await result.current.startDetection(['Person']);
 
@@ -137,12 +164,22 @@ describe('useDetectionProgress', () => {
 
   it('should handle detection-progress events', async () => {
     const onProgress = vi.fn();
-    const { result } = renderHook(() =>
-      useDetectionProgress({
+    const { result } = renderHook(() => {
+      const hook = useDetectionProgress({
         rUri: resourceUri('http://localhost:4000/resources/test-resource'),
-        onProgress
-      })
-    );
+      });
+      const eventBus = useEventBus();
+
+      // Subscribe to event bus instead of passing callback
+      useEffect(() => {
+        const unsubscribe = eventBus.on('detection:progress-update', ({ progress }) => {
+          onProgress(progress);
+        });
+        return unsubscribe;
+      }, [eventBus]);
+
+      return hook;
+    }, { wrapper });
 
     await result.current.startDetection(['Person', 'Organization']);
 
@@ -182,12 +219,22 @@ describe('useDetectionProgress', () => {
 
   it('should handle detection-complete event', async () => {
     const onComplete = vi.fn();
-    const { result } = renderHook(() =>
-      useDetectionProgress({
+    const { result } = renderHook(() => {
+      const hook = useDetectionProgress({
         rUri: resourceUri('http://localhost:4000/resources/test-resource'),
-        onComplete
-      })
-    );
+      });
+      const eventBus = useEventBus();
+
+      // Subscribe to event bus instead of passing callback
+      useEffect(() => {
+        const unsubscribe = eventBus.on('detection:complete-event', ({ progress }) => {
+          onComplete(progress);
+        });
+        return unsubscribe;
+      }, [eventBus]);
+
+      return hook;
+    }, { wrapper });
 
     await result.current.startDetection(['Person']);
 
@@ -211,12 +258,22 @@ describe('useDetectionProgress', () => {
 
   it('should handle detection-error event', async () => {
     const onError = vi.fn();
-    const { result } = renderHook(() =>
-      useDetectionProgress({
+    const { result } = renderHook(() => {
+      const hook = useDetectionProgress({
         rUri: resourceUri('http://localhost:4000/resources/test-resource'),
-        onError
-      })
-    );
+      });
+      const eventBus = useEventBus();
+
+      // Subscribe to event bus instead of passing callback
+      useEffect(() => {
+        const unsubscribe = eventBus.on('detection:error-event', ({ error }) => {
+          onError(error);
+        });
+        return unsubscribe;
+      }, [eventBus]);
+
+      return hook;
+    }, { wrapper });
 
     await result.current.startDetection(['Person']);
 
@@ -235,7 +292,8 @@ describe('useDetectionProgress', () => {
     const { result } = renderHook(() =>
       useDetectionProgress({
         rUri: resourceUri('http://localhost:4000/resources/test-resource'),
-      })
+      }),
+      { wrapper }
     );
 
     await result.current.startDetection(['Person', 'Organization']);
@@ -272,7 +330,8 @@ describe('useDetectionProgress', () => {
     const { result } = renderHook(() =>
       useDetectionProgress({
         rUri: resourceUri('http://localhost:4000/resources/test-resource'),
-      })
+      }),
+      { wrapper }
     );
 
     await result.current.startDetection(['Person']);
@@ -288,12 +347,22 @@ describe('useDetectionProgress', () => {
 
   it('should handle SSE connection errors', async () => {
     const onError = vi.fn();
-    const { result } = renderHook(() =>
-      useDetectionProgress({
+    const { result } = renderHook(() => {
+      const hook = useDetectionProgress({
         rUri: resourceUri('http://localhost:4000/resources/test-resource'),
-        onError
-      })
-    );
+      });
+      const eventBus = useEventBus();
+
+      // Subscribe to event bus instead of passing callback
+      useEffect(() => {
+        const unsubscribe = eventBus.on('detection:error-event', ({ error }) => {
+          onError(error);
+        });
+        return unsubscribe;
+      }, [eventBus]);
+
+      return hook;
+    }, { wrapper });
 
     await result.current.startDetection(['Person']);
 
@@ -311,7 +380,8 @@ describe('useDetectionProgress', () => {
     const { result, unmount } = renderHook(() =>
       useDetectionProgress({
         rUri: resourceUri('http://localhost:4000/resources/test-resource'),
-      })
+      }),
+      { wrapper }
     );
 
     result.current.startDetection(['Person']);

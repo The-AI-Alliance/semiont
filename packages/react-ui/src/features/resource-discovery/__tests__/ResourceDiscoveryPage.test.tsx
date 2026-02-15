@@ -5,23 +5,11 @@
  * No Next.js mocking required - all dependencies passed as props!
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ResourceDiscoveryPage } from '../components/ResourceDiscoveryPage';
 import type { ResourceDiscoveryPageProps } from '../components/ResourceDiscoveryPage';
-
-// Mock dependencies
-vi.mock('@semiont/react-ui', async () => {
-  const actual = await vi.importActual('@semiont/react-ui');
-  return {
-    ...actual,
-    useRovingTabIndex: () => ({
-      containerRef: { current: null },
-      handleKeyDown: vi.fn(),
-    }),
-    Toolbar: () => <div data-testid="toolbar">Toolbar</div>,
-  };
-});
+import { EventBusProvider, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 
 const createMockResource = (id: string, name: string, entityTypes: string[] = []) => ({
   '@context': 'https://www.w3.org/ns/anno.jsonld',
@@ -68,18 +56,27 @@ const createMockProps = (overrides?: Partial<ResourceDiscoveryPageProps>): Resou
   ...overrides,
 });
 
+// Helper to render with EventBusProvider
+const renderWithProviders = (ui: React.ReactElement) => {
+  return render(<EventBusProvider>{ui}</EventBusProvider>);
+};
+
 describe('ResourceDiscoveryPage', () => {
+  beforeEach(() => {
+    resetEventBusForTesting();
+  });
+
   describe('Basic Rendering', () => {
     it('renders without crashing', () => {
       const props = createMockProps();
-      render(<ResourceDiscoveryPage {...props} />);
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
       expect(screen.getByText('Discover Resources')).toBeInTheDocument();
     });
 
     it('displays page title and subtitle', () => {
       const props = createMockProps();
-      render(<ResourceDiscoveryPage {...props} />);
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
       expect(screen.getByText('Discover Resources')).toBeInTheDocument();
       expect(screen.getByText('Search and browse available resources')).toBeInTheDocument();
@@ -87,37 +84,39 @@ describe('ResourceDiscoveryPage', () => {
 
     it('renders search input', () => {
       const props = createMockProps();
-      render(<ResourceDiscoveryPage {...props} />);
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
       expect(screen.getByPlaceholderText('Search resources...')).toBeInTheDocument();
     });
 
     it('renders search button', () => {
       const props = createMockProps();
-      render(<ResourceDiscoveryPage {...props} />);
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
       expect(screen.getByRole('button', { name: 'Search' })).toBeInTheDocument();
     });
 
     it('renders toolbar component', () => {
       const props = createMockProps();
-      render(<ResourceDiscoveryPage {...props} />);
+      const { container } = renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
-      expect(screen.getByTestId('toolbar')).toBeInTheDocument();
+      // Toolbar renders with context="simple" - check for toolbar element
+      const toolbar = container.querySelector('.semiont-toolbar[data-context="simple"]');
+      expect(toolbar).toBeInTheDocument();
     });
   });
 
   describe('Loading State', () => {
     it('shows loading message when isLoadingRecent is true', () => {
       const props = createMockProps({ isLoadingRecent: true });
-      render(<ResourceDiscoveryPage {...props} />);
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
       expect(screen.getByText('Loading knowledge base...')).toBeInTheDocument();
     });
 
     it('does not show main content when loading', () => {
       const props = createMockProps({ isLoadingRecent: true });
-      render(<ResourceDiscoveryPage {...props} />);
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
       expect(screen.queryByText('Discover Resources')).not.toBeInTheDocument();
     });
@@ -132,7 +131,7 @@ describe('ResourceDiscoveryPage', () => {
       ];
 
       const props = createMockProps({ recentDocuments });
-      render(<ResourceDiscoveryPage {...props} />);
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
       expect(screen.getByText('Document 1')).toBeInTheDocument();
       expect(screen.getByText('Document 2')).toBeInTheDocument();
@@ -143,28 +142,28 @@ describe('ResourceDiscoveryPage', () => {
       const props = createMockProps({
         recentDocuments: [createMockResource('1', 'Document 1')],
       });
-      render(<ResourceDiscoveryPage {...props} />);
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
       expect(screen.getByText('Recent Resources')).toBeInTheDocument();
     });
 
     it('shows empty state when no documents', () => {
       const props = createMockProps({ recentDocuments: [] });
-      render(<ResourceDiscoveryPage {...props} />);
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
       expect(screen.getByText('No resources available')).toBeInTheDocument();
     });
 
     it('shows compose button in empty state', () => {
       const props = createMockProps({ recentDocuments: [] });
-      render(<ResourceDiscoveryPage {...props} />);
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
       expect(screen.getByRole('button', { name: 'Compose First Resource' })).toBeInTheDocument();
     });
 
     it('calls onNavigateToCompose when compose button clicked', () => {
       const props = createMockProps({ recentDocuments: [] });
-      render(<ResourceDiscoveryPage {...props} />);
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
       const button = screen.getByRole('button', { name: 'Compose First Resource' });
       fireEvent.click(button);
@@ -176,7 +175,7 @@ describe('ResourceDiscoveryPage', () => {
   describe('Search Functionality', () => {
     it('allows typing in search input', () => {
       const props = createMockProps();
-      render(<ResourceDiscoveryPage {...props} />);
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
       const input = screen.getByPlaceholderText('Search resources...') as HTMLInputElement;
       fireEvent.change(input, { target: { value: 'test query' } });
@@ -186,14 +185,14 @@ describe('ResourceDiscoveryPage', () => {
 
     it('shows "Searching..." when isSearching is true', () => {
       const props = createMockProps({ isSearching: true });
-      render(<ResourceDiscoveryPage {...props} />);
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
       expect(screen.getByRole('button', { name: 'Searching...' })).toBeInTheDocument();
     });
 
     it('disables search input when isSearching is true', () => {
       const props = createMockProps({ isSearching: true });
-      render(<ResourceDiscoveryPage {...props} />);
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
       const input = screen.getByPlaceholderText('Search resources...') as HTMLInputElement;
       expect(input).toBeDisabled();
@@ -201,7 +200,7 @@ describe('ResourceDiscoveryPage', () => {
 
     it('disables search button when isSearching is true', () => {
       const props = createMockProps({ isSearching: true });
-      render(<ResourceDiscoveryPage {...props} />);
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
       const button = screen.getByRole('button', { name: 'Searching...' });
       expect(button).toBeDisabled();
@@ -214,7 +213,7 @@ describe('ResourceDiscoveryPage', () => {
       ];
 
       const props = createMockProps({ searchDocuments });
-      render(<ResourceDiscoveryPage {...props} />);
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
       // Type in search input to trigger search state
       const input = screen.getByPlaceholderText('Search resources...');
@@ -229,7 +228,7 @@ describe('ResourceDiscoveryPage', () => {
         searchDocuments: [],
         recentDocuments: [createMockResource('1', 'Recent Doc')],
       });
-      render(<ResourceDiscoveryPage {...props} />);
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
       const input = screen.getByPlaceholderText('Search resources...');
       fireEvent.change(input, { target: { value: 'nonexistent' } });
@@ -245,7 +244,7 @@ describe('ResourceDiscoveryPage', () => {
       const props = createMockProps({
         entityTypes: ['Document', 'Article', 'Report'],
       });
-      render(<ResourceDiscoveryPage {...props} />);
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
       expect(screen.getByText('Filter by type')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument();
@@ -263,7 +262,7 @@ describe('ResourceDiscoveryPage', () => {
         ],
         entityTypes: ['Document', 'Article'],
       });
-      render(<ResourceDiscoveryPage {...props} />);
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
       // Initially all documents shown
       expect(screen.getByText('Doc 1')).toBeInTheDocument();
@@ -284,7 +283,7 @@ describe('ResourceDiscoveryPage', () => {
         recentDocuments: [createMockResource('1', 'Doc 1', ['Document'])],
         entityTypes: ['Document'],
       });
-      render(<ResourceDiscoveryPage {...props} />);
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
       const documentButton = screen.getByRole('button', { name: 'Document' });
       fireEvent.click(documentButton);
@@ -300,7 +299,7 @@ describe('ResourceDiscoveryPage', () => {
         ],
         entityTypes: ['Document', 'Article'],
       });
-      render(<ResourceDiscoveryPage {...props} />);
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
       // Filter by Document
       const documentButton = screen.getByRole('button', { name: 'Document' });
@@ -323,7 +322,7 @@ describe('ResourceDiscoveryPage', () => {
       const props = createMockProps({
         recentDocuments: [createMockResource('test-123', 'Test Document')],
       });
-      render(<ResourceDiscoveryPage {...props} />);
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
       const card = screen.getByRole('button', { name: /Open resource: Test Document/ });
       fireEvent.click(card);
@@ -335,7 +334,7 @@ describe('ResourceDiscoveryPage', () => {
   describe('Toolbar Integration', () => {
     it('renders ToolbarPanels component', () => {
       const props = createMockProps();
-      render(<ResourceDiscoveryPage {...props} />);
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
       expect(screen.getByTestId('toolbar-panels')).toBeInTheDocument();
     });
@@ -347,7 +346,7 @@ describe('ResourceDiscoveryPage', () => {
         ToolbarPanels,
       });
 
-      render(<ResourceDiscoveryPage {...props} />);
+      renderWithProviders(<ResourceDiscoveryPage {...props} />);
 
       expect(ToolbarPanels).toHaveBeenCalledWith(
         expect.objectContaining({

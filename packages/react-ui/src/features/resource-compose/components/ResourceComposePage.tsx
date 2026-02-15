@@ -9,8 +9,9 @@
 import React, { useState, useEffect } from 'react';
 import type { components } from '@semiont/api-client';
 import { isImageMimeType, isPdfMimeType, LOCALES } from '@semiont/api-client';
-import { buttonStyles, CodeMirrorRenderer } from '@semiont/react-ui';
-import { useFormAnnouncements } from '@semiont/react-ui';
+import { buttonStyles } from '../../../lib/button-styles';
+import { CodeMirrorRenderer } from '../../../components/CodeMirrorRenderer';
+import { useFormAnnouncements } from '../../../components/LiveRegion';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 

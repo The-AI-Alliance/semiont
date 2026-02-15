@@ -3,21 +3,10 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ResourceInfoPanel } from '../ResourceInfoPanel';
+import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../../../contexts/EventBusContext';
 
-// Mock event bus
+// Mock event bus emit function for spying on events
 const mockEmit = vi.fn();
-const mockEventBus = {
-  emit: mockEmit,
-  on: vi.fn(),
-  off: vi.fn(),
-  all: new Map(),
-};
-
-// Mock EventBusContext
-vi.mock('../../../../contexts/EventBusContext', () => ({
-  useEventBus: () => mockEventBus,
-  EventBusProvider: ({ children }: { children: React.ReactNode }) => children,
-}));
 
 // Mock TranslationContext
 vi.mock('../../../../contexts/TranslationContext', () => ({
@@ -59,6 +48,33 @@ vi.mock('@/lib/button-styles', () => ({
   },
 }));
 
+// Wrapper component to spy on EventBus emit calls
+function TestWrapper({ children }: { children: React.ReactNode }) {
+  const eventBus = useEventBus();
+
+  // Wrap the real emit with our spy
+  React.useEffect(() => {
+    const originalEmit = eventBus.emit.bind(eventBus);
+    eventBus.emit = ((eventName: string, payload?: unknown) => {
+      mockEmit(eventName, payload);
+      return originalEmit(eventName, payload);
+    }) as typeof eventBus.emit;
+  }, [eventBus]);
+
+  return <>{children}</>;
+}
+
+// Helper to render with EventBusProvider
+const renderWithEventBus = (component: React.ReactElement) => {
+  return render(
+    <EventBusProvider>
+      <TestWrapper>
+        {component}
+      </TestWrapper>
+    </EventBusProvider>
+  );
+};
+
 describe('ResourceInfoPanel Component', () => {
   const defaultProps = {
     documentEntityTypes: [],
@@ -68,28 +84,29 @@ describe('ResourceInfoPanel Component', () => {
   };
 
   beforeEach(() => {
+    resetEventBusForTesting();
     mockEmit.mockClear();
   });
 
   describe('Rendering', () => {
     it('should render locale section', () => {
-      render(<ResourceInfoPanel {...defaultProps} />);
+      renderWithEventBus(<ResourceInfoPanel {...defaultProps} />);
       expect(screen.getByText('Locale')).toBeInTheDocument();
     });
 
     it('should render locale when provided', () => {
-      render(<ResourceInfoPanel {...defaultProps} documentLocale="en-US" />);
+      renderWithEventBus(<ResourceInfoPanel {...defaultProps} documentLocale="en-US" />);
       // formatLocaleDisplay is mocked to return "Language: {locale}"
       expect(screen.getByText('Language: en-US')).toBeInTheDocument();
     });
 
     it('should show "not specified" when locale is undefined', () => {
-      render(<ResourceInfoPanel {...defaultProps} documentLocale={undefined} />);
+      renderWithEventBus(<ResourceInfoPanel {...defaultProps} documentLocale={undefined} />);
       expect(screen.getByText('Not specified')).toBeInTheDocument();
     });
 
     it('should render entity type tags when provided', () => {
-      render(
+      renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
           documentEntityTypes={['Person', 'Organization', 'Location']}
@@ -103,12 +120,12 @@ describe('ResourceInfoPanel Component', () => {
     });
 
     it('should not render entity type tags section when empty', () => {
-      render(<ResourceInfoPanel {...defaultProps} documentEntityTypes={[]} />);
+      renderWithEventBus(<ResourceInfoPanel {...defaultProps} documentEntityTypes={[]} />);
       expect(screen.queryByText('Entity Type Tags')).not.toBeInTheDocument();
     });
 
     it('should render representation section when media type provided', () => {
-      render(
+      renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
           primaryMediaType="text/markdown"
@@ -121,7 +138,7 @@ describe('ResourceInfoPanel Component', () => {
     });
 
     it('should render byte size when provided', () => {
-      render(
+      renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
           primaryByteSize={1024}
@@ -134,7 +151,7 @@ describe('ResourceInfoPanel Component', () => {
     });
 
     it('should not render representation section when neither media type nor byte size provided', () => {
-      render(
+      renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
           primaryMediaType={undefined}
@@ -148,12 +165,12 @@ describe('ResourceInfoPanel Component', () => {
 
   describe('Styling and Appearance', () => {
     it('should have proper panel structure', () => {
-      const { container } = render(<ResourceInfoPanel {...defaultProps} />);
+      const { container } = renderWithEventBus(<ResourceInfoPanel {...defaultProps} />);
       expect(container.querySelector('.semiont-resource-info-panel')).toBeInTheDocument();
     });
 
     it('should style entity type tags appropriately', () => {
-      render(
+      renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
           documentEntityTypes={['TestType']}
@@ -168,7 +185,7 @@ describe('ResourceInfoPanel Component', () => {
 
   describe('Accessibility', () => {
     it('should have semantic heading structure', () => {
-      render(
+      renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
           documentLocale="en-US"
@@ -183,7 +200,7 @@ describe('ResourceInfoPanel Component', () => {
 
   describe('Clone Action', () => {
     it('should render clone button', () => {
-      render(
+      renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
         />
@@ -194,7 +211,7 @@ describe('ResourceInfoPanel Component', () => {
     });
 
     it('should emit resource:clone event when clone button clicked', () => {
-      render(
+      renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
         />
@@ -208,7 +225,7 @@ describe('ResourceInfoPanel Component', () => {
 
   describe('Archive Actions', () => {
     it('should render archive button when not archived', () => {
-      render(
+      renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
           isArchived={false}
@@ -220,7 +237,7 @@ describe('ResourceInfoPanel Component', () => {
     });
 
     it('should render unarchive button when archived', () => {
-      render(
+      renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
           isArchived={true}
@@ -232,7 +249,7 @@ describe('ResourceInfoPanel Component', () => {
     });
 
     it('should emit resource:archive event when archive button clicked', () => {
-      render(
+      renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
           isArchived={false}
@@ -245,7 +262,7 @@ describe('ResourceInfoPanel Component', () => {
     });
 
     it('should emit resource:unarchive event when unarchive button clicked', () => {
-      render(
+      renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
           isArchived={true}

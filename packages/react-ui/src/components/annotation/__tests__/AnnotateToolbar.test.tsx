@@ -1,23 +1,13 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import { vi } from 'vitest';
+import { vi, beforeEach } from 'vitest';
 import { NextIntlClientProvider } from 'next-intl';
 import { AnnotateToolbar, type SelectionMotivation, type ClickAction } from '../AnnotateToolbar';
 import { ANNOTATORS } from '../../../lib/annotation-registry';
+import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../../contexts/EventBusContext';
 
-// Mock event bus
+// Mock event bus emit function for spying on events
 const mockEmit = vi.fn();
-const mockEventBus = {
-  emit: mockEmit,
-  on: vi.fn(),
-  off: vi.fn(),
-  all: new Map(),
-};
-
-// Mock EventBusContext
-vi.mock('../../../contexts/EventBusContext', () => ({
-  useEventBus: () => mockEventBus,
-}));
 
 // Mock translations
 const messages = {
@@ -43,11 +33,31 @@ const messages = {
   }
 };
 
+// Wrapper component to spy on EventBus emit calls
+function TestWrapper({ children }: { children: React.ReactNode }) {
+  const eventBus = useEventBus();
+
+  // Wrap the real emit with our spy
+  React.useEffect(() => {
+    const originalEmit = eventBus.emit.bind(eventBus);
+    eventBus.emit = ((eventName: string, payload?: unknown) => {
+      mockEmit(eventName, payload);
+      return originalEmit(eventName, payload);
+    }) as typeof eventBus.emit;
+  }, [eventBus]);
+
+  return <>{children}</>;
+}
+
 const renderWithIntl = (component: React.ReactElement) => {
   return render(
-    <NextIntlClientProvider locale="en" messages={messages}>
-      {component}
-    </NextIntlClientProvider>
+    <EventBusProvider>
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <TestWrapper>
+          {component}
+        </TestWrapper>
+      </NextIntlClientProvider>
+    </EventBusProvider>
   );
 };
 
@@ -62,6 +72,7 @@ describe('AnnotateToolbar', () => {
   };
 
   beforeEach(() => {
+    resetEventBusForTesting();
     vi.clearAllMocks();
     mockEmit.mockClear();
   });
@@ -132,12 +143,16 @@ describe('AnnotateToolbar', () => {
       expect(screen.getByText('Browse')).toBeInTheDocument();
 
       rerender(
-        <NextIntlClientProvider locale="en" messages={messages}>
-          <AnnotateToolbar
-            {...defaultProps}
-            annotateMode={true}
-            />
-        </NextIntlClientProvider>
+        <EventBusProvider>
+          <NextIntlClientProvider locale="en" messages={messages}>
+            <TestWrapper>
+              <AnnotateToolbar
+                {...defaultProps}
+                annotateMode={true}
+              />
+            </TestWrapper>
+          </NextIntlClientProvider>
+        </EventBusProvider>
       );
       expect(screen.getByText('Annotate')).toBeInTheDocument();
     });
@@ -223,12 +238,16 @@ describe('AnnotateToolbar', () => {
 
       // Simulate mode change by rerendering with new mode
       rerender(
-        <NextIntlClientProvider locale="en" messages={messages}>
-          <AnnotateToolbar
-            {...defaultProps}
-            annotateMode={true}
-          />
-        </NextIntlClientProvider>
+        <EventBusProvider>
+          <NextIntlClientProvider locale="en" messages={messages}>
+            <TestWrapper>
+              <AnnotateToolbar
+                {...defaultProps}
+                annotateMode={true}
+              />
+            </TestWrapper>
+          </NextIntlClientProvider>
+        </EventBusProvider>
       );
 
       // After mode change, the collapsed content should show "Annotate"
@@ -308,12 +327,16 @@ describe('AnnotateToolbar', () => {
 
       // Simulate selection
       rerender(
-        <NextIntlClientProvider locale="en" messages={messages}>
-          <AnnotateToolbar
-            {...defaultProps}
-            selectedMotivation="highlighting"
-          />
-        </NextIntlClientProvider>
+        <EventBusProvider>
+          <NextIntlClientProvider locale="en" messages={messages}>
+            <TestWrapper>
+              <AnnotateToolbar
+                {...defaultProps}
+                selectedMotivation="highlighting"
+              />
+            </TestWrapper>
+          </NextIntlClientProvider>
+        </EventBusProvider>
       );
 
       // Click again to deselect

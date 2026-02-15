@@ -1,13 +1,24 @@
+/**
+ * useSessionExpiry Hook Tests
+ *
+ * Tests the useSessionExpiry hook which calculates time remaining until session expiry.
+ * Uses timers to test time-based behavior.
+ */
+
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+import React, { type ReactNode } from 'react';
 import { useSessionExpiry } from '../useSessionExpiry';
-import { useSessionContext } from '../../contexts/SessionContext';
-import { ReactNode } from 'react';
+import { SessionProvider } from '../../contexts/SessionContext';
+import type { SessionManager } from '../../types/SessionManager';
 
-// Mock useSessionContext
-vi.mock('../../contexts/SessionContext', () => ({
-  useSessionContext: vi.fn(),
-}));
+// Helper to create a SessionManager with specified expiresAt
+const createMockSessionManager = (expiresAt: Date | null): SessionManager => ({
+  isAuthenticated: expiresAt !== null,
+  expiresAt,
+  timeUntilExpiry: null, // Not used by useSessionExpiry
+  isExpiringSoon: false, // Not used by useSessionExpiry
+});
 
 describe('useSessionExpiry', () => {
   beforeEach(() => {
@@ -22,9 +33,11 @@ describe('useSessionExpiry', () => {
 
   describe('Basic Functionality', () => {
     it('should return null timeRemaining when no expiresAt', () => {
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt: null } as any);
+      const sessionManager = createMockSessionManager(null);
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(SessionProvider, { sessionManager }, children);
 
-      const { result } = renderHook(() => useSessionExpiry());
+      const { result } = renderHook(() => useSessionExpiry(), { wrapper });
 
       expect(result.current.timeRemaining).toBeNull();
       expect(result.current.isExpiringSoon).toBe(false);
@@ -32,9 +45,11 @@ describe('useSessionExpiry', () => {
 
     it('should calculate time remaining correctly', () => {
       const expiresAt = new Date('2024-01-01T12:30:00Z'); // 30 minutes from now
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt } as any);
+      const sessionManager = createMockSessionManager(expiresAt);
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(SessionProvider, { sessionManager }, children);
 
-      const { result } = renderHook(() => useSessionExpiry());
+      const { result } = renderHook(() => useSessionExpiry(), { wrapper });
 
       expect(result.current.timeRemaining).toBe(30 * 60 * 1000); // 30 minutes in ms
       expect(result.current.isExpiringSoon).toBe(false);
@@ -42,9 +57,11 @@ describe('useSessionExpiry', () => {
 
     it('should set isExpiringSoon when less than 5 minutes remaining', () => {
       const expiresAt = new Date('2024-01-01T12:04:00Z'); // 4 minutes from now
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt } as any);
+      const sessionManager = createMockSessionManager(expiresAt);
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(SessionProvider, { sessionManager }, children);
 
-      const { result } = renderHook(() => useSessionExpiry());
+      const { result } = renderHook(() => useSessionExpiry(), { wrapper });
 
       expect(result.current.timeRemaining).toBe(4 * 60 * 1000);
       expect(result.current.isExpiringSoon).toBe(true);
@@ -52,9 +69,11 @@ describe('useSessionExpiry', () => {
 
     it('should not set isExpiringSoon when exactly 5 minutes remaining', () => {
       const expiresAt = new Date('2024-01-01T12:05:00Z'); // 5 minutes from now
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt } as any);
+      const sessionManager = createMockSessionManager(expiresAt);
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(SessionProvider, { sessionManager }, children);
 
-      const { result } = renderHook(() => useSessionExpiry());
+      const { result } = renderHook(() => useSessionExpiry(), { wrapper });
 
       expect(result.current.timeRemaining).toBe(5 * 60 * 1000);
       expect(result.current.isExpiringSoon).toBe(false);
@@ -62,9 +81,11 @@ describe('useSessionExpiry', () => {
 
     it('should return 0 when session is expired', () => {
       const expiresAt = new Date('2024-01-01T11:00:00Z'); // 1 hour ago
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt } as any);
+      const sessionManager = createMockSessionManager(expiresAt);
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(SessionProvider, { sessionManager }, children);
 
-      const { result } = renderHook(() => useSessionExpiry());
+      const { result } = renderHook(() => useSessionExpiry(), { wrapper });
 
       expect(result.current.timeRemaining).toBe(0);
       expect(result.current.isExpiringSoon).toBe(false);
@@ -74,9 +95,11 @@ describe('useSessionExpiry', () => {
   describe('Timer Updates', () => {
     it('should update timeRemaining every second', () => {
       const expiresAt = new Date('2024-01-01T12:30:00Z'); // 30 minutes from now
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt } as any);
+      const sessionManager = createMockSessionManager(expiresAt);
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(SessionProvider, { sessionManager }, children);
 
-      const { result } = renderHook(() => useSessionExpiry());
+      const { result } = renderHook(() => useSessionExpiry(), { wrapper });
 
       const initialTime = result.current.timeRemaining;
       expect(initialTime).toBe(30 * 60 * 1000);
@@ -98,9 +121,11 @@ describe('useSessionExpiry', () => {
 
     it('should update isExpiringSoon when crossing 5 minute threshold', () => {
       const expiresAt = new Date('2024-01-01T12:05:02Z'); // 5 minutes 2 seconds from now
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt } as any);
+      const sessionManager = createMockSessionManager(expiresAt);
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(SessionProvider, { sessionManager }, children);
 
-      const { result } = renderHook(() => useSessionExpiry());
+      const { result } = renderHook(() => useSessionExpiry(), { wrapper });
 
       expect(result.current.isExpiringSoon).toBe(false);
 
@@ -114,9 +139,11 @@ describe('useSessionExpiry', () => {
 
     it('should stop updating isExpiringSoon when time expires', () => {
       const expiresAt = new Date('2024-01-01T12:00:02Z'); // 2 seconds from now
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt } as any);
+      const sessionManager = createMockSessionManager(expiresAt);
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(SessionProvider, { sessionManager }, children);
 
-      const { result } = renderHook(() => useSessionExpiry());
+      const { result } = renderHook(() => useSessionExpiry(), { wrapper });
 
       expect(result.current.timeRemaining).toBe(2000);
       expect(result.current.isExpiringSoon).toBe(true);
@@ -132,9 +159,11 @@ describe('useSessionExpiry', () => {
 
     it('should continue updating until session expires', () => {
       const expiresAt = new Date('2024-01-01T12:00:05Z'); // 5 seconds from now
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt } as any);
+      const sessionManager = createMockSessionManager(expiresAt);
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(SessionProvider, { sessionManager }, children);
 
-      const { result } = renderHook(() => useSessionExpiry());
+      const { result } = renderHook(() => useSessionExpiry(), { wrapper });
 
       // Update each second
       for (let i = 5; i >= 0; i--) {
@@ -152,9 +181,11 @@ describe('useSessionExpiry', () => {
   describe('Expiry Scenarios', () => {
     it('should handle long session (hours remaining)', () => {
       const expiresAt = new Date('2024-01-01T16:00:00Z'); // 4 hours from now
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt } as any);
+      const sessionManager = createMockSessionManager(expiresAt);
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(SessionProvider, { sessionManager }, children);
 
-      const { result } = renderHook(() => useSessionExpiry());
+      const { result } = renderHook(() => useSessionExpiry(), { wrapper });
 
       expect(result.current.timeRemaining).toBe(4 * 60 * 60 * 1000);
       expect(result.current.isExpiringSoon).toBe(false);
@@ -162,9 +193,11 @@ describe('useSessionExpiry', () => {
 
     it('should handle session expiring in 1 minute', () => {
       const expiresAt = new Date('2024-01-01T12:01:00Z'); // 1 minute from now
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt } as any);
+      const sessionManager = createMockSessionManager(expiresAt);
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(SessionProvider, { sessionManager }, children);
 
-      const { result } = renderHook(() => useSessionExpiry());
+      const { result } = renderHook(() => useSessionExpiry(), { wrapper });
 
       expect(result.current.timeRemaining).toBe(60 * 1000);
       expect(result.current.isExpiringSoon).toBe(true);
@@ -172,9 +205,11 @@ describe('useSessionExpiry', () => {
 
     it('should handle session expiring in 30 seconds', () => {
       const expiresAt = new Date('2024-01-01T12:00:30Z'); // 30 seconds from now
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt } as any);
+      const sessionManager = createMockSessionManager(expiresAt);
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(SessionProvider, { sessionManager }, children);
 
-      const { result } = renderHook(() => useSessionExpiry());
+      const { result } = renderHook(() => useSessionExpiry(), { wrapper });
 
       expect(result.current.timeRemaining).toBe(30 * 1000);
       expect(result.current.isExpiringSoon).toBe(true);
@@ -182,9 +217,11 @@ describe('useSessionExpiry', () => {
 
     it('should handle session already expired', () => {
       const expiresAt = new Date('2024-01-01T11:59:00Z'); // 1 minute ago
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt } as any);
+      const sessionManager = createMockSessionManager(expiresAt);
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(SessionProvider, { sessionManager }, children);
 
-      const { result } = renderHook(() => useSessionExpiry());
+      const { result } = renderHook(() => useSessionExpiry(), { wrapper });
 
       expect(result.current.timeRemaining).toBe(0);
       expect(result.current.isExpiringSoon).toBe(false);
@@ -192,9 +229,11 @@ describe('useSessionExpiry', () => {
 
     it('should handle session far in future', () => {
       const expiresAt = new Date('2024-01-02T12:00:00Z'); // 24 hours from now
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt } as any);
+      const sessionManager = createMockSessionManager(expiresAt);
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(SessionProvider, { sessionManager }, children);
 
-      const { result } = renderHook(() => useSessionExpiry());
+      const { result } = renderHook(() => useSessionExpiry(), { wrapper });
 
       expect(result.current.timeRemaining).toBe(24 * 60 * 60 * 1000);
       expect(result.current.isExpiringSoon).toBe(false);
@@ -203,16 +242,20 @@ describe('useSessionExpiry', () => {
 
   describe('Context Changes', () => {
     it('should update when expiresAt changes', () => {
-      const expiresAt1 = new Date('2024-01-01T12:30:00Z');
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt: expiresAt1 } as any);
+      let currentExpiresAt: Date | null = new Date('2024-01-01T12:30:00Z');
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(
+          SessionProvider,
+          { sessionManager: createMockSessionManager(currentExpiresAt) },
+          children
+        );
 
-      const { result, rerender } = renderHook(() => useSessionExpiry());
+      const { result, rerender } = renderHook(() => useSessionExpiry(), { wrapper });
 
       expect(result.current.timeRemaining).toBe(30 * 60 * 1000);
 
       // Update expiresAt
-      const expiresAt2 = new Date('2024-01-01T12:15:00Z');
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt: expiresAt2 } as any);
+      currentExpiresAt = new Date('2024-01-01T12:15:00Z');
 
       rerender();
 
@@ -220,15 +263,20 @@ describe('useSessionExpiry', () => {
     });
 
     it('should clear timer when expiresAt becomes null', () => {
-      const expiresAt = new Date('2024-01-01T12:30:00Z');
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt } as any);
+      let currentExpiresAt: Date | null = new Date('2024-01-01T12:30:00Z');
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(
+          SessionProvider,
+          { sessionManager: createMockSessionManager(currentExpiresAt) },
+          children
+        );
 
-      const { result, rerender } = renderHook(() => useSessionExpiry());
+      const { result, rerender } = renderHook(() => useSessionExpiry(), { wrapper });
 
       expect(result.current.timeRemaining).toBe(30 * 60 * 1000);
 
       // Clear expiresAt
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt: null } as any);
+      currentExpiresAt = null;
 
       rerender();
 
@@ -237,15 +285,20 @@ describe('useSessionExpiry', () => {
     });
 
     it('should start timer when expiresAt becomes available', () => {
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt: null } as any);
+      let currentExpiresAt: Date | null = null;
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(
+          SessionProvider,
+          { sessionManager: createMockSessionManager(currentExpiresAt) },
+          children
+        );
 
-      const { result, rerender } = renderHook(() => useSessionExpiry());
+      const { result, rerender } = renderHook(() => useSessionExpiry(), { wrapper });
 
       expect(result.current.timeRemaining).toBeNull();
 
       // Set expiresAt
-      const expiresAt = new Date('2024-01-01T12:30:00Z');
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt } as any);
+      currentExpiresAt = new Date('2024-01-01T12:30:00Z');
 
       rerender();
 
@@ -260,12 +313,18 @@ describe('useSessionExpiry', () => {
         new Date('2024-01-01T12:40:00Z'),
       ];
 
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt: times[0] } as any);
+      let currentIndex = 0;
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(
+          SessionProvider,
+          { sessionManager: createMockSessionManager(times[currentIndex]) },
+          children
+        );
 
-      const { result, rerender } = renderHook(() => useSessionExpiry());
+      const { result, rerender } = renderHook(() => useSessionExpiry(), { wrapper });
 
       times.forEach((time, index) => {
-        vi.mocked(useSessionContext).mockReturnValue({ expiresAt: time } as any);
+        currentIndex = index;
         rerender();
 
         const expectedMs = (10 + index * 10) * 60 * 1000;
@@ -277,9 +336,11 @@ describe('useSessionExpiry', () => {
   describe('Cleanup', () => {
     it('should cleanup interval on unmount', () => {
       const expiresAt = new Date('2024-01-01T12:30:00Z');
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt } as any);
+      const sessionManager = createMockSessionManager(expiresAt);
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(SessionProvider, { sessionManager }, children);
 
-      const { result, unmount } = renderHook(() => useSessionExpiry());
+      const { result, unmount } = renderHook(() => useSessionExpiry(), { wrapper });
 
       const initialTime = result.current.timeRemaining;
 
@@ -295,16 +356,20 @@ describe('useSessionExpiry', () => {
     });
 
     it('should cleanup old interval when expiresAt changes', () => {
-      const expiresAt1 = new Date('2024-01-01T12:30:00Z');
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt: expiresAt1 } as any);
+      let currentExpiresAt: Date | null = new Date('2024-01-01T12:30:00Z');
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(
+          SessionProvider,
+          { sessionManager: createMockSessionManager(currentExpiresAt) },
+          children
+        );
 
-      const { result, rerender } = renderHook(() => useSessionExpiry());
+      const { result, rerender } = renderHook(() => useSessionExpiry(), { wrapper });
 
       expect(result.current.timeRemaining).toBe(30 * 60 * 1000);
 
       // Change expiresAt (should cleanup old interval)
-      const expiresAt2 = new Date('2024-01-01T12:15:00Z');
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt: expiresAt2 } as any);
+      currentExpiresAt = new Date('2024-01-01T12:15:00Z');
 
       rerender();
 
@@ -322,9 +387,11 @@ describe('useSessionExpiry', () => {
   describe('Edge Cases', () => {
     it('should handle time exactly at 0', () => {
       const expiresAt = new Date('2024-01-01T12:00:00Z'); // Exactly now
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt } as any);
+      const sessionManager = createMockSessionManager(expiresAt);
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(SessionProvider, { sessionManager }, children);
 
-      const { result } = renderHook(() => useSessionExpiry());
+      const { result } = renderHook(() => useSessionExpiry(), { wrapper });
 
       expect(result.current.timeRemaining).toBe(0);
       expect(result.current.isExpiringSoon).toBe(false);
@@ -332,9 +399,11 @@ describe('useSessionExpiry', () => {
 
     it('should handle millisecond precision', () => {
       const expiresAt = new Date('2024-01-01T12:00:00.500Z'); // 500ms from now
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt } as any);
+      const sessionManager = createMockSessionManager(expiresAt);
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(SessionProvider, { sessionManager }, children);
 
-      const { result } = renderHook(() => useSessionExpiry());
+      const { result } = renderHook(() => useSessionExpiry(), { wrapper });
 
       expect(result.current.timeRemaining).toBe(500);
       expect(result.current.isExpiringSoon).toBe(true);
@@ -342,9 +411,11 @@ describe('useSessionExpiry', () => {
 
     it('should not show negative time remaining', () => {
       const expiresAt = new Date('2024-01-01T11:00:00Z'); // 1 hour ago
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt } as any);
+      const sessionManager = createMockSessionManager(expiresAt);
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(SessionProvider, { sessionManager }, children);
 
-      const { result } = renderHook(() => useSessionExpiry());
+      const { result } = renderHook(() => useSessionExpiry(), { wrapper });
 
       expect(result.current.timeRemaining).toBe(0);
       expect(result.current.timeRemaining).not.toBeLessThan(0);
@@ -352,9 +423,11 @@ describe('useSessionExpiry', () => {
 
     it('should handle very large time remaining', () => {
       const expiresAt = new Date('2024-12-31T23:59:59Z'); // Almost a year
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt } as any);
+      const sessionManager = createMockSessionManager(expiresAt);
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(SessionProvider, { sessionManager }, children);
 
-      const { result } = renderHook(() => useSessionExpiry());
+      const { result } = renderHook(() => useSessionExpiry(), { wrapper });
 
       expect(result.current.timeRemaining).toBeGreaterThan(0);
       expect(result.current.isExpiringSoon).toBe(false);
@@ -364,9 +437,11 @@ describe('useSessionExpiry', () => {
   describe('Real-World Scenarios', () => {
     it('should handle typical 1 hour session', () => {
       const expiresAt = new Date('2024-01-01T13:00:00Z'); // 1 hour from now
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt } as any);
+      const sessionManager = createMockSessionManager(expiresAt);
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(SessionProvider, { sessionManager }, children);
 
-      const { result } = renderHook(() => useSessionExpiry());
+      const { result } = renderHook(() => useSessionExpiry(), { wrapper });
 
       expect(result.current.timeRemaining).toBe(60 * 60 * 1000);
       expect(result.current.isExpiringSoon).toBe(false);
@@ -396,17 +471,21 @@ describe('useSessionExpiry', () => {
     });
 
     it('should handle session refresh extending time', () => {
-      const expiresAt1 = new Date('2024-01-01T12:02:00Z'); // 2 minutes remaining
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt: expiresAt1 } as any);
+      let currentExpiresAt: Date | null = new Date('2024-01-01T12:02:00Z'); // 2 minutes remaining
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(
+          SessionProvider,
+          { sessionManager: createMockSessionManager(currentExpiresAt) },
+          children
+        );
 
-      const { result, rerender } = renderHook(() => useSessionExpiry());
+      const { result, rerender } = renderHook(() => useSessionExpiry(), { wrapper });
 
       expect(result.current.timeRemaining).toBe(2 * 60 * 1000);
       expect(result.current.isExpiringSoon).toBe(true);
 
       // Session refreshed - extended by 1 hour
-      const expiresAt2 = new Date('2024-01-01T13:00:00Z');
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt: expiresAt2 } as any);
+      currentExpiresAt = new Date('2024-01-01T13:00:00Z');
 
       rerender();
 
@@ -416,9 +495,11 @@ describe('useSessionExpiry', () => {
 
     it('should handle countdown to expiry', () => {
       const expiresAt = new Date('2024-01-01T12:00:10Z'); // 10 seconds from now
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt } as any);
+      const sessionManager = createMockSessionManager(expiresAt);
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(SessionProvider, { sessionManager }, children);
 
-      const { result } = renderHook(() => useSessionExpiry());
+      const { result } = renderHook(() => useSessionExpiry(), { wrapper });
 
       // Count down each second
       for (let i = 10; i > 0; i--) {
@@ -438,9 +519,11 @@ describe('useSessionExpiry', () => {
 
   describe('Consistency', () => {
     it('should return consistent structure', () => {
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt: null } as any);
+      const sessionManager = createMockSessionManager(null);
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(SessionProvider, { sessionManager }, children);
 
-      const { result } = renderHook(() => useSessionExpiry());
+      const { result } = renderHook(() => useSessionExpiry(), { wrapper });
 
       expect(result.current).toHaveProperty('timeRemaining');
       expect(result.current).toHaveProperty('isExpiringSoon');
@@ -448,9 +531,11 @@ describe('useSessionExpiry', () => {
 
     it('should handle multiple rerenders without timer issues', () => {
       const expiresAt = new Date('2024-01-01T12:30:00Z');
-      vi.mocked(useSessionContext).mockReturnValue({ expiresAt } as any);
+      const sessionManager = createMockSessionManager(expiresAt);
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        React.createElement(SessionProvider, { sessionManager }, children);
 
-      const { result, rerender } = renderHook(() => useSessionExpiry());
+      const { result, rerender } = renderHook(() => useSessionExpiry(), { wrapper });
 
       const initialTime = result.current.timeRemaining;
 

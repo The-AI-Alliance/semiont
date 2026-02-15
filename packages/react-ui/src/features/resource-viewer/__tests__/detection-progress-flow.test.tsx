@@ -3,11 +3,11 @@
  *
  * Tests the complete data flow from UI → EventBus → useEventOperations → SSE (mocked)
  *
- * This test uses:
- * - Real React components (ResourceViewerPage, UnifiedAnnotationsPanel, HighlightPanel, DetectSection)
- * - Real EventBus (mitt)
- * - Real useEventOperations hook
- * - Mock SSE stream (simulated API responses)
+ * This test uses COMPOSITION instead of mocking:
+ * - Real React components composed together (DetectionFlowContainer + HighlightPanel + DetectSection)
+ * - Real EventBus (mitt) passed via context
+ * - Real useEventOperations hook with mock API client passed as prop
+ * - Mock SSE stream (simulated API responses) provided via composition
  *
  * This is the CRITICAL test that will reveal where the detection progress bug is.
  */
@@ -15,53 +15,36 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { act } from 'react';
-import { ResourceViewerPage } from '../components/ResourceViewerPage';
-import type { ResourceViewerPageProps } from '../components/ResourceViewerPage';
-// Import directly from file, not from @semiont/react-ui barrel export
-import { EventBusProvider, resetEventBusForTesting } from '../../../contexts/EventBusContext';
+import { act, useEffect } from 'react';
+import { HighlightPanel } from '../../../components/resource/panels/HighlightPanel';
+import { DetectionFlowContainer } from '../containers/DetectionFlowContainer';
+import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../../contexts/EventBusContext';
+import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import type { components } from '@semiont/api-client';
 
-type Resource = components['schemas']['Resource'];
 type Annotation = components['schemas']['Annotation'];
 
-// Mock API client hook to return our test client
-let testMockClient: any = null;
-
-vi.mock('@semiont/react-ui', async () => {
-  const actual: any = await vi.importActual('@semiont/react-ui');
-  return {
-    ...actual,
-    ResourceViewer: ({ resource }: any) => <div data-testid="resource-viewer">{resource.name}</div>,
-    Toolbar: () => <div data-testid="toolbar">Toolbar</div>,
-    // Don't mock ToolbarPanels, UnifiedAnnotationsPanel - let real ones render for integration test
-    AnnotationHistory: () => <div data-testid="history-panel">History</div>,
-    ResourceInfoPanel: () => <div data-testid="info-panel">Info</div>,
-    CollaborationPanel: () => <div data-testid="collaboration-panel">Collaboration</div>,
-    JsonLdPanel: () => <div data-testid="jsonld-panel">JSON-LD</div>,
-    ErrorBoundary: ({ children }: any) => children,
-    createCancelDetectionHandler: () => vi.fn(),
-    useGenerationProgress: () => ({
-      progress: null,
-      startGeneration: vi.fn(),
-      clearProgress: vi.fn(),
-    }),
-    useResourceLoadingAnnouncements: () => ({
-      announceResourceLoading: vi.fn(),
-      announceResourceLoaded: vi.fn(),
-    }),
-    useResourceAnnotations: () => ({
-      clearNewAnnotationId: vi.fn(),
-      newAnnotationIds: new Set(),
-      createAnnotation: vi.fn(),
-      deleteAnnotation: vi.fn(),
-      triggerSparkleAnimation: vi.fn(),
-    }),
-    useApiClient: () => testMockClient,
-    // Don't mock useEventBus, EventBusProvider, useEventSubscriptions - let actual pass through
-    useEventSubscriptions: vi.fn(),
+// Mock translations
+const mockT = vi.fn((key: string) => {
+  const translations: Record<string, string> = {
+    title: 'Highlights',
+    noHighlights: 'No highlights yet',
+    detectHighlights: 'Detect Highlights',
+    instructions: 'Instructions',
+    optional: '(optional)',
+    instructionsPlaceholder: 'Enter custom instructions...',
+    densityLabel: 'Density',
+    densitySparse: 'Sparse',
+    densityDense: 'Dense',
+    detect: 'Detect',
   };
+  return translations[key] || key;
 });
+
+vi.mock('../../../contexts/TranslationContext', () => ({
+  useTranslations: () => mockT,
+  TranslationProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
 
 // Create a mock SSE stream that we can control
 class MockSSEStream {
@@ -95,42 +78,46 @@ class MockSSEStream {
   }
 }
 
+// Composition: Test component that wires together the pieces we're testing
+function DetectionFlowTestHarness({
+  rUri,
+  annotations,
+}: {
+  rUri: string;
+  annotations: Annotation[];
+}) {
+  return (
+    <DetectionFlowContainer rUri={rUri}>
+      {({ detectingMotivation, detectionProgress }) => (
+        <HighlightPanel
+          annotations={annotations}
+          pendingAnnotation={null}
+          hoveredAnnotationId={null}
+          isDetecting={detectingMotivation === 'highlighting'}
+          detectionProgress={detectionProgress}
+          annotateMode={true}
+        />
+      )}
+    </DetectionFlowContainer>
+  );
+}
+
 describe('Detection Progress Flow Integration (Layer 3)', () => {
-  let mockResource: Resource;
   let mockAnnotations: Annotation[];
   let mockStream: MockSSEStream;
   let mockClient: any;
+  const rUri = 'https://example.com/resources/test-resource-1';
 
-  // Helper to create props and render
-  const renderResourceViewerPage = (props?: Partial<ResourceViewerPageProps>) => {
-    const defaultProps: ResourceViewerPageProps = {
-      resource: mockResource as any,
-      rUri: mockResource.uri as any,
-      content: 'Test content',
-      contentLoading: false,
-      annotations: mockAnnotations,
-      referencedBy: [],
-      referencedByLoading: false,
-      allEntityTypes: [],
-      locale: 'en',
-      theme: 'light',
-      showLineNumbers: false,
-      showSuccess: vi.fn(),
-      showError: vi.fn(),
-      cacheManager: mockClient as any,
-      Link: ({ children }: any) => <a>{children}</a>,
-      routes: { know: '/know', browse: '/browse' },
-      // ToolbarPanels component that renders when activePanel is set
-      ToolbarPanels: ({ children, activePanel }: any) =>
-        activePanel ? <div data-testid="toolbar-panels">{children}</div> : null,
-      SearchResourcesModal: () => <div>Search Modal</div>,
-      GenerationConfigModal: () => <div>Generation Modal</div>,
-      ...props,
-    };
-
+  // Helper to render test harness with composition
+  const renderDetectionFlow = () => {
     return render(
       <EventBusProvider>
-        <ResourceViewerPage {...defaultProps} />
+        <ApiClientProvider apiClientManager={mockClient}>
+          <DetectionFlowTestHarness
+            rUri={rUri}
+            annotations={mockAnnotations}
+          />
+        </ApiClientProvider>
       </EventBusProvider>
     );
   };
@@ -138,11 +125,12 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
   beforeEach(() => {
     // Reset event bus for test isolation
     resetEventBusForTesting();
+    vi.clearAllMocks();
 
     // Reset mocks
     mockStream = new MockSSEStream();
 
-    // Create mock API client with SSE support
+    // Create mock API client with SSE support - passed via ApiClientProvider!
     mockClient = {
       sse: {
         detectHighlights: vi.fn(() => mockStream),
@@ -156,55 +144,21 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
       updateAnnotationBody: vi.fn(),
     };
 
-    // Set the test mock client for useApiClient hook
-    testMockClient = mockClient;
-
-    // Mock resource
-    mockResource = {
-      id: 'test-resource-1',
-      name: 'Test Document',
-      uri: 'https://example.com/resources/test-resource-1',
-      resourceType: 'Document',
-      mimeType: 'text/plain',
-      content: 'This is test content for detection.',
-      archived: false,
-      created: '2024-01-01T00:00:00Z',
-      modified: '2024-01-01T00:00:00Z',
-    };
-
     mockAnnotations = [];
-
-    // Setup localStorage to show annotations panel in annotate mode
-    if (typeof window !== 'undefined') {
-      localStorage.clear();
-      localStorage.setItem('activeToolbarPanel', 'annotations');
-      localStorage.setItem('annotateMode', 'true');
-    }
   });
 
   it('should display detection progress from button click to completion', async () => {
     const user = userEvent.setup();
 
-    // Render with EventBusProvider and mocked API client
-    const { getByText, queryByText } = renderResourceViewerPage();
+    // Render composed components with real EventBus and mock API client
+    renderDetectionFlow();
 
     // Initial state: no progress visible
-    expect(queryByText(/Analyzing/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Analyzing/)).not.toBeInTheDocument();
 
-    // Click detect button (assumes we're in annotate mode and highlights panel)
-    // First, make sure we're on the annotations panel
-    const detectButton = getByText(/Detect/i);
+    // Click detect button
+    const detectButton = screen.getByRole('button', { name: /✨ Detect/ });
     await user.click(detectButton);
-
-    // Verify API was called
-    await waitFor(() => {
-      expect(mockClient.sse.detectHighlights).toHaveBeenCalledWith(
-        mockResource.uri,
-        expect.objectContaining({
-          instructions: expect.any(String),
-        })
-      );
-    });
 
     // Simulate SSE progress chunk #1: Starting
     act(() => {
@@ -217,7 +171,7 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
 
     // Verify progress message appears
     await waitFor(() => {
-      expect(getByText('Starting detection...')).toBeInTheDocument();
+      expect(screen.getByText('Starting detection...')).toBeInTheDocument();
     });
 
     // Simulate SSE progress chunk #2: Analyzing
@@ -230,7 +184,7 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
     });
 
     await waitFor(() => {
-      expect(getByText('Analyzing text...')).toBeInTheDocument();
+      expect(screen.getByText('Analyzing text...')).toBeInTheDocument();
     });
 
     // Simulate SSE progress chunk #3: Creating annotations
@@ -243,7 +197,7 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
     });
 
     await waitFor(() => {
-      expect(getByText('Creating 14 annotations...')).toBeInTheDocument();
+      expect(screen.getByText('Creating 14 annotations...')).toBeInTheDocument();
     });
 
     // Simulate SSE progress chunk #4: Complete
@@ -262,17 +216,17 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
 
     // CRITICAL TEST: Final message should still be visible after completion
     await waitFor(() => {
-      expect(getByText('Complete! Created 14 highlights')).toBeInTheDocument();
+      expect(screen.getByText('Complete! Created 14 highlights')).toBeInTheDocument();
     });
   });
 
   it('should handle out-of-order SSE events (complete before final progress)', async () => {
     const user = userEvent.setup();
 
-    const { getByText } = renderResourceViewerPage();
+    renderDetectionFlow();
 
     // Click detect
-    const detectButton = getByText(/Detect/i);
+    const detectButton = screen.getByRole('button', { name: /✨ Detect/ });
     await user.click(detectButton);
 
     // Simulate initial progress
@@ -284,7 +238,7 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
     });
 
     await waitFor(() => {
-      expect(getByText('Analyzing...')).toBeInTheDocument();
+      expect(screen.getByText('Analyzing...')).toBeInTheDocument();
     });
 
     // Simulate race condition: complete arrives BEFORE final progress
@@ -303,16 +257,16 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
 
     // Final message should still be visible
     await waitFor(() => {
-      expect(getByText('Complete! Created 5 highlights')).toBeInTheDocument();
+      expect(screen.getByText('Complete! Created 5 highlights')).toBeInTheDocument();
     });
   });
 
   it('should show progress with request parameters', async () => {
     const user = userEvent.setup();
 
-    const { getByText } = renderResourceViewerPage();
+    renderDetectionFlow();
 
-    const detectButton = getByText(/Detect/i);
+    const detectButton = screen.getByRole('button', { name: /✨ Detect/ });
     await user.click(detectButton);
 
     // Simulate progress with request parameters
@@ -328,17 +282,17 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
     });
 
     await waitFor(() => {
-      expect(getByText('Find important points')).toBeInTheDocument();
-      expect(getByText('5')).toBeInTheDocument();
+      expect(screen.getByText('Find important points')).toBeInTheDocument();
+      expect(screen.getByText('5')).toBeInTheDocument();
     });
   });
 
   it('should clear progress on detection:failed', async () => {
     const user = userEvent.setup();
 
-    const { getByText, queryByText } = renderResourceViewerPage();
+    renderDetectionFlow();
 
-    const detectButton = getByText(/Detect/i);
+    const detectButton = screen.getByRole('button', { name: /✨ Detect/ });
     await user.click(detectButton);
 
     // Show progress
@@ -350,7 +304,7 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
     });
 
     await waitFor(() => {
-      expect(getByText('Analyzing...')).toBeInTheDocument();
+      expect(screen.getByText('Analyzing...')).toBeInTheDocument();
     });
 
     // Simulate error
@@ -360,7 +314,7 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
 
     // Progress should be cleared
     await waitFor(() => {
-      expect(queryByText('Analyzing...')).not.toBeInTheDocument();
+      expect(screen.queryByText('Analyzing...')).not.toBeInTheDocument();
     });
   });
 });

@@ -3,16 +3,16 @@ import { render, screen } from '@testing-library/react';
 import { SessionTimer } from '../SessionTimer';
 
 // Mock the hooks
-vi.mock('@semiont/react-ui', async () => {
-  const actual = await vi.importActual('@semiont/react-ui');
-  return {
-    ...actual,
-    useSessionExpiry: vi.fn(),
-    useFormattedTime: vi.fn(),
-  };
-});
+vi.mock('../../hooks/useSessionExpiry', () => ({
+  useSessionExpiry: vi.fn(),
+}));
 
-import { useSessionExpiry, useFormattedTime } from '@semiont/react-ui';
+vi.mock('../../hooks/useFormattedTime', () => ({
+  useFormattedTime: vi.fn(),
+}));
+
+import { useSessionExpiry } from '../../hooks/useSessionExpiry';
+import { useFormattedTime } from '../../hooks/useFormattedTime';
 
 describe('SessionTimer', () => {
   describe('Rendering', () => {
