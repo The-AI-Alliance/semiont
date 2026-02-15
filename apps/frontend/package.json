@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "audit:compliance": "./scripts/generate-compliance-report.sh",
+    "audit:compliance:tests": "./scripts/generate-test-compliance-report.sh",
     "predev": "node scripts/merge-translations.js",
     "dev": "node scripts/copy-favicons.js && node scripts/copy-pdfjs.js && next dev",
     "dev:mock": "node scripts/merge-translations.js && node scripts/copy-favicons.js && node scripts/copy-pdfjs.js && node scripts/dev-with-mock.js",
