@@ -4,32 +4,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { LeftSidebar } from '../LeftSidebar';
 
-// Mock dependencies
-vi.mock('../../navigation/NavigationMenu', () => ({
-  NavigationMenu: ({ t, onItemClick }: any) => (
-    <div data-testid="navigation-menu">
-      <button onClick={onItemClick}>Menu Item</button>
-      <span>{t('home')}</span>
-    </div>
-  ),
-}));
-
-vi.mock('../../branding/SemiontBranding', () => ({
-  SemiontBranding: ({ t, size, showTagline }: any) => (
-    <div data-testid="semiont-branding">
-      <span>Semiont {size}</span>
-      {showTagline && <span>Tagline</span>}
-    </div>
-  ),
-}));
-
-vi.mock('@/hooks/useAuth', () => ({
-  useAuth: vi.fn(() => ({
-    isAuthenticated: true,
-    isAdmin: false,
-    isModerator: false,
-  })),
-}));
+// No mocks - using real components via composition
 
 // Mock Link component
 const MockLink = ({ href, children, ...props }: any) => (
@@ -98,7 +73,8 @@ describe('LeftSidebar Component', () => {
         </LeftSidebar>
       );
 
-      expect(screen.getByTestId('semiont-branding')).toBeInTheDocument();
+      // Real SemiontBranding renders "Semiont" text
+      expect(screen.getByText('Semiont')).toBeInTheDocument();
     });
 
     it('should render branding link', () => {
@@ -276,7 +252,9 @@ describe('LeftSidebar Component', () => {
       );
 
       expect(mockChildren).toHaveBeenCalled();
-      expect(screen.getByTestId('navigation-menu')).toBeInTheDocument();
+      // Real NavigationMenu renders navigation links
+      const childrenContent = screen.getByTestId('children-content');
+      expect(childrenContent.querySelector('nav.semiont-navigation-menu')).toBeInTheDocument();
     });
 
     it('should pass onClose callback to NavigationMenu', () => {
@@ -297,8 +275,8 @@ describe('LeftSidebar Component', () => {
         </LeftSidebar>
       );
 
-      // Click the menu item which should trigger onClose
-      const menuItem = screen.getByText('Menu Item');
+      // Real NavigationMenu renders a link (translated 'know' key)
+      const menuItem = screen.getByText('nav.know');
       fireEvent.click(menuItem);
 
       expect(mockOnClose).toHaveBeenCalledOnce();
@@ -355,7 +333,8 @@ describe('LeftSidebar Component', () => {
       );
 
       expect(screen.getByText('S')).toBeInTheDocument();
-      expect(screen.queryByTestId('semiont-branding')).not.toBeInTheDocument();
+      // When collapsed, full "Semiont" branding is not shown
+      expect(screen.queryByText(/^Semiont$/)).not.toBeInTheDocument();
     });
   });
 
@@ -408,7 +387,7 @@ describe('LeftSidebar Component', () => {
         </LeftSidebar>
       );
 
-      expect(screen.getByTestId('semiont-branding')).toBeInTheDocument();
+      expect(screen.getByText('Semiont')).toBeInTheDocument();
     });
 
     it('should default branding link to /', () => {
@@ -423,7 +402,7 @@ describe('LeftSidebar Component', () => {
         </LeftSidebar>
       );
 
-      expect(screen.getByTestId('semiont-branding')).toBeInTheDocument();
+      expect(screen.getByText('Semiont')).toBeInTheDocument();
     });
   });
 });
