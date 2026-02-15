@@ -445,7 +445,36 @@ describe('BrowseView Component', () => {
   });
 
   describe('Performance - Event Listener Efficiency', () => {
-    it('should use only 2 event listeners regardless of annotation count', () => {
+    it('should handle many annotations efficiently through event delegation', async () => {
+      // Create a composition-based event tracker that subscribes like a real consumer
+      const eventTracker: Array<{ event: string; annotationId: string | null }> = [];
+
+      function EventTrackingWrapper({ children }: { children: React.ReactNode }) {
+        const eventBus = useEventBus();
+
+        React.useEffect(() => {
+          // Subscribe to events like a real component would
+          const handleHover = (payload: any) => {
+            eventTracker.push({ event: 'annotation:hover', annotationId: payload?.annotationId ?? null });
+          };
+
+          const handleClick = (payload: any) => {
+            eventTracker.push({ event: 'annotation:click', annotationId: payload?.annotationId ?? null });
+          };
+
+          eventBus.on('annotation:hover', handleHover);
+          eventBus.on('annotation:click', handleClick);
+
+          return () => {
+            eventBus.off('annotation:hover', handleHover);
+            eventBus.off('annotation:click', handleClick);
+          };
+        }, [eventBus]);
+
+        return <>{children}</>;
+      }
+
+      // Create many annotations
       const manyAnnotations = {
         highlights: Array.from({ length: 50 }, (_, i) =>
           createMockAnnotation('highlighting', `highlight-${i}`)
@@ -459,19 +488,50 @@ describe('BrowseView Component', () => {
       };
 
       const { container } = render(
-        <BrowseView {...defaultProps} annotations={manyAnnotations} />
+        <EventBusProvider>
+          <EventTrackingWrapper>
+            <BrowseView {...defaultProps} annotations={manyAnnotations} />
+          </EventTrackingWrapper>
+        </EventBusProvider>
       );
 
       const browseContainer = container.querySelector('.semiont-browse-view__content');
       expect(browseContainer).toBeInTheDocument();
 
-      // With the optimized pattern, we should have:
-      // - 1 click handler on container
-      // - 1 mousemove handler on container
-      // NOT: 100 mouseenter + 100 mouseleave handlers (200 total)
+      // Create mock annotation elements
+      const mockRefElement = document.createElement('span');
+      mockRefElement.setAttribute('data-annotation-id', 'ref-1');
+      mockRefElement.setAttribute('data-annotation-type', 'reference');
 
-      // This is validated by the implementation using addEventListener
-      // on the container rather than individual elements
+      const mockHighlightElement = document.createElement('span');
+      mockHighlightElement.setAttribute('data-annotation-id', 'highlight-1');
+      mockHighlightElement.setAttribute('data-annotation-type', 'highlight');
+
+      const mockRefTarget = { closest: vi.fn(() => mockRefElement) } as any;
+      const mockHighlightTarget = { closest: vi.fn(() => mockHighlightElement) } as any;
+
+      // Verify event delegation works by simulating interactions
+      fireEvent.mouseOver(browseContainer!, { target: mockRefTarget });
+      await waitFor(() => {
+        expect(eventTracker.some(e => e.event === 'annotation:hover' && e.annotationId === 'ref-1')).toBe(true);
+      });
+
+      fireEvent.click(browseContainer!, { target: mockRefTarget });
+      await waitFor(() => {
+        expect(eventTracker.some(e => e.event === 'annotation:click' && e.annotationId === 'ref-1')).toBe(true);
+      });
+
+      // Verify highlight doesn't trigger click events
+      eventTracker.length = 0; // Clear tracker
+      fireEvent.click(browseContainer!, { target: mockHighlightTarget });
+
+      // Should not have any click events for highlights
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(eventTracker.some(e => e.event === 'annotation:click')).toBe(false);
+
+      // The key insight: With event delegation, we can handle 100 annotations
+      // with only container-level listeners, not 100+ individual listeners
+      // This is verified by the component successfully rendering and responding to events
     });
   });
 
