@@ -49,6 +49,7 @@ export * from './hooks/useToolbar';
 // Note: useToast is already exported from ./components/Toast
 // Note: useDebounce is already exported from ./hooks/useDebounce
 export { useDropdown, useLoadingState, useLocalStorage } from './hooks/useUI';
+export * from './hooks/useResourceContent';
 
 // Contexts
 export * from './contexts/AnnotationContext';
@@ -210,7 +211,7 @@ export * from './features/resource-compose/components/ResourceComposePage';
 export * from './features/resource-discovery/components/ResourceDiscoveryPage';
 export * from './features/resource-discovery/components/ResourceCard';
 export * from './features/resource-viewer/components/ResourceViewerPage';
-export * from './features/resource-viewer/containers/DetectionFlowContainer';
-export * from './features/resource-viewer/containers/PanelNavigationContainer';
-export * from './features/resource-viewer/containers/AnnotationFlowContainer';
-export * from './features/resource-viewer/containers/GenerationFlowContainer';
+export * from './hooks/useDetectionFlow';
+export * from './hooks/usePanelNavigation';
+export * from './hooks/useAnnotationFlow';
+export * from './hooks/useGenerationFlow';

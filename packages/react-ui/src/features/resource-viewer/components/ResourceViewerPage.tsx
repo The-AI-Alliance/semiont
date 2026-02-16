@@ -1,13 +1,15 @@
 /**
- * ResourceViewerPage - Pure React component for viewing resources
+ * ResourceViewerPage - Self-contained resource viewer component
  *
- * No Next.js dependencies - receives all data and callbacks via props.
- * This component handles the UI rendering and state management for the resource viewer.
+ * Handles all data loading, event subscriptions, and side effects internally.
+ * Only requires minimal props from the framework layer (routing, modals).
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
-import type { components, ResourceUri, Selector } from '@semiont/api-client';
-import { getLanguage, getPrimaryRepresentation, resourceAnnotationUri } from '@semiont/api-client';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import type { components, ResourceUri } from '@semiont/api-client';
+import { getLanguage, getPrimaryRepresentation, resourceAnnotationUri, getPrimaryMediaType } from '@semiont/api-client';
+import { uriToAnnotationId } from '@semiont/core';
 import { ANNOTATORS } from '@semiont/react-ui';
 import { ErrorBoundary } from '@semiont/react-ui';
 import { AnnotationHistory } from '@semiont/react-ui';
@@ -19,18 +21,26 @@ import { Toolbar } from '@semiont/react-ui';
 import { useResourceLoadingAnnouncements } from '@semiont/react-ui';
 import type { GenerationOptions } from '@semiont/react-ui';
 import { ResourceViewer } from '@semiont/react-ui';
+import { QUERY_KEYS } from '../../../lib/query-keys';
+import { useResources, useEntityTypes } from '../../../lib/api-hooks';
+import { useResourceContent } from '../../../hooks/useResourceContent';
+import { useToast } from '../../../components/Toast';
+import { useTheme } from '../../../hooks/useTheme';
+import { useLineNumbers } from '../../../hooks/useLineNumbers';
+import { useResourceEvents } from '../../../hooks/useResourceEvents';
+import { useDebouncedCallback } from '../../../hooks/useDebounce';
+import { useOpenResources } from '../../../contexts/OpenResourcesContext';
 // Import EventBus hooks directly from context to avoid mocking issues in tests
 import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
-import { useResourceAnnotations } from '@semiont/react-ui';
-import { DetectionFlowContainer } from '../containers/DetectionFlowContainer';
-import { PanelNavigationContainer } from '../containers/PanelNavigationContainer';
-import { AnnotationFlowContainer } from '../containers/AnnotationFlowContainer';
-import { GenerationFlowContainer } from '../containers/GenerationFlowContainer';
+import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsContext';
+import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
+import { usePanelNavigation } from '../../../hooks/usePanelNavigation';
+import { useAnnotationFlow } from '../../../hooks/useAnnotationFlow';
+import { useGenerationFlow } from '../../../hooks/useGenerationFlow';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
-type Motivation = components['schemas']['Motivation'];
 
 export interface ResourceViewerPageProps {
   /**
@@ -44,56 +54,9 @@ export interface ResourceViewerPageProps {
   rUri: ResourceUri;
 
   /**
-   * Document content (already loaded)
-   */
-  content: string;
-
-  /**
-   * Whether content is still loading
-   */
-  contentLoading: boolean;
-
-  /**
-   * All annotations for this resource
-   */
-  annotations: Annotation[];
-
-  /**
-   * Resources that reference this resource
-   */
-  referencedBy: any[];
-
-  /**
-   * Whether referencedBy is loading
-   */
-  referencedByLoading: boolean;
-
-  /**
-   * All available entity types
-   */
-  allEntityTypes: string[];
-
-  /**
    * Current locale
    */
   locale: string;
-
-
-  /**
-   * Theme state
-   */
-  theme: any;
-
-  /**
-   * Line numbers state
-   */
-  showLineNumbers: boolean;
-
-  /**
-   * Toast notifications
-   */
-  showSuccess: (message: string) => void;
-  showError: (message: string) => void;
 
   /**
    * Cache manager for detection
@@ -111,46 +74,254 @@ export interface ResourceViewerPageProps {
   routes: any;
 
   /**
-   * Component dependencies - passed from frontend
+   * Component dependencies - passed from framework layer
    */
   ToolbarPanels: React.ComponentType<any>;
   SearchResourcesModal: React.ComponentType<any>;
   GenerationConfigModal: React.ComponentType<any>;
+
+  /**
+   * Callback to refetch document from parent
+   */
+  refetchDocument: () => Promise<unknown>;
 }
 
-// Inner component that has access to event bus
-function ResourceViewerPageInner({
+/**
+ * ResourceViewerPage - Main component
+ *
+ * Uses hooks directly (NO containers, NO render props, NO ResourceViewerPageContent wrapper)
+ */
+export function ResourceViewerPage({
   resource,
   rUri,
-  content,
-  contentLoading,
-  annotations,
-  referencedBy,
-  referencedByLoading,
-  allEntityTypes,
   locale,
-  theme,
-  showLineNumbers,
-  showSuccess,
-  showError,
   cacheManager,
   Link,
   routes,
   ToolbarPanels,
   SearchResourcesModal,
   GenerationConfigModal,
+  refetchDocument,
 }: ResourceViewerPageProps) {
   // Get unified event bus for subscribing to UI events
   const eventBus = useEventBus();
+  const queryClient = useQueryClient();
+
+  // UI state hooks
+  const { showError, showSuccess } = useToast();
+  const { theme, setTheme } = useTheme();
+  const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
+  const { addResource } = useOpenResources();
+  const { triggerSparkleAnimation, clearNewAnnotationId, deleteAnnotation } = useResourceAnnotations();
+
+  // API hooks
+  const resources = useResources();
+  const entityTypesAPI = useEntityTypes();
+
+  // Load all data
+  const { content, loading: contentLoading } = useResourceContent(rUri, resource);
+
+  const { data: annotationsData } = resources.annotations.useQuery(rUri);
+  const annotations = useMemo(
+    () => annotationsData?.annotations || [],
+    [annotationsData?.annotations]
+  );
+
+  const { data: referencedByData, isLoading: referencedByLoading } = resources.referencedBy.useQuery(rUri);
+  const referencedBy = referencedByData?.referencedBy || [];
+
+  const { data: entityTypesData } = entityTypesAPI.list.useQuery();
+  const allEntityTypes = (entityTypesData as { entityTypes: string[] } | undefined)?.entityTypes || [];
+
+  // Flow state hooks (NO CONTAINERS)
+  const { detectingMotivation, detectionProgress } = useDetectionFlow(rUri);
+  const { activePanel, scrollToAnnotationId, panelInitialTab, onScrollCompleted } = usePanelNavigation();
+  const { pendingAnnotation, hoveredAnnotationId } = useAnnotationFlow(rUri, deleteAnnotation);
+  const {
+    generationProgress,
+    generationModalOpen,
+    generationReferenceId,
+    generationDefaultTitle,
+    searchModalOpen,
+    pendingReferenceId,
+    onGenerateDocument,
+    onCloseGenerationModal,
+    onCloseSearchModal,
+  } = useGenerationFlow(locale, rUri.split('/').pop() || '', showSuccess, showError, cacheManager, clearNewAnnotationId);
+
+  // Debounced invalidation for real-time events
+  const debouncedInvalidateAnnotations = useDebouncedCallback(
+    () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(rUri) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(rUri) });
+    },
+    500
+  );
+
+  // Add resource to open tabs when it loads
+  useEffect(() => {
+    if (resource && rUri) {
+      const resourceIdSegment = rUri.split('/').pop() || '';
+      const mediaType = getPrimaryMediaType(resource);
+      addResource(resourceIdSegment, resource.name, mediaType || undefined);
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('lastViewedDocumentId', resourceIdSegment);
+      }
+    }
+  }, [resource, rUri, addResource]);
+
+  // Real-time document events (SSE)
+  useResourceEvents({
+    rUri,
+    autoConnect: true,
+
+    // Annotation events - use debounced invalidation to batch rapid updates
+    onAnnotationAdded: useCallback((_event: any) => {
+      debouncedInvalidateAnnotations();
+    }, [debouncedInvalidateAnnotations]),
+
+    onAnnotationRemoved: useCallback((_event: any) => {
+      debouncedInvalidateAnnotations();
+    }, [debouncedInvalidateAnnotations]),
+
+    onAnnotationBodyUpdated: useCallback((event: any) => {
+      // Optimistically update annotations cache with body operations
+      queryClient.setQueryData(QUERY_KEYS.documents.annotations(rUri), (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          annotations: old.annotations.map((annotation: any) => {
+            const annotationIdSegment = uriToAnnotationId(annotation.id);
+            if (annotationIdSegment === event.payload.annotationId) {
+              let bodyArray = Array.isArray(annotation.body) ? [...annotation.body] : [];
+
+              for (const op of event.payload.operations || []) {
+                if (op.op === 'add') {
+                  bodyArray.push(op.item);
+                } else if (op.op === 'remove') {
+                  bodyArray = bodyArray.filter((item: any) =>
+                    JSON.stringify(item) !== JSON.stringify(op.item)
+                  );
+                } else if (op.op === 'replace') {
+                  const index = bodyArray.findIndex((item: any) =>
+                    JSON.stringify(item) === JSON.stringify(op.oldItem)
+                  );
+                  if (index !== -1) {
+                    bodyArray[index] = op.newItem;
+                  }
+                }
+              }
+
+              return {
+                ...annotation,
+                body: bodyArray,
+              };
+            }
+            return annotation;
+          }),
+        };
+      });
+
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(rUri) });
+    }, [queryClient, rUri]),
+
+    // Document status events
+    onDocumentArchived: useCallback((_event: any) => {
+      refetchDocument();
+      showSuccess('This document has been archived');
+      debouncedInvalidateAnnotations();
+    }, [refetchDocument, showSuccess, debouncedInvalidateAnnotations]),
+
+    onDocumentUnarchived: useCallback((_event: any) => {
+      refetchDocument();
+      showSuccess('This document has been unarchived');
+      debouncedInvalidateAnnotations();
+    }, [refetchDocument, showSuccess, debouncedInvalidateAnnotations]),
+
+    // Entity tag events
+    onEntityTagAdded: useCallback((_event: any) => {
+      refetchDocument();
+      debouncedInvalidateAnnotations();
+    }, [refetchDocument, debouncedInvalidateAnnotations]),
+
+    onEntityTagRemoved: useCallback((_event: any) => {
+      refetchDocument();
+      debouncedInvalidateAnnotations();
+    }, [refetchDocument, debouncedInvalidateAnnotations]),
+
+    onError: useCallback((error: any) => {
+      console.error('[RealTime] Event stream error:', error);
+    }, []),
+  });
+
+  // Event bus subscriptions for UI operations
+  useEventSubscriptions({
+    'resource:archive': async () => {
+      try {
+        await resources.update.useMutation().mutateAsync({
+          rUri,
+          data: { archived: true }
+        });
+        await refetchDocument();
+        showSuccess('Document archived');
+      } catch (err) {
+        console.error('Failed to archive document:', err);
+        showError('Failed to archive document');
+      }
+    },
+    'resource:unarchive': async () => {
+      try {
+        await resources.update.useMutation().mutateAsync({
+          rUri,
+          data: { archived: false }
+        });
+        await refetchDocument();
+        showSuccess('Document unarchived');
+      } catch (err) {
+        console.error('Failed to unarchive document:', err);
+        showError('Failed to unarchive document');
+      }
+    },
+    'resource:clone': async () => {
+      try {
+        const result = await resources.generateCloneToken.useMutation().mutateAsync(rUri);
+        const token = result.token;
+        const cloneUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/know/clone?token=${token}`;
+
+        await navigator.clipboard.writeText(cloneUrl);
+        showSuccess('Clone link copied to clipboard');
+      } catch (err) {
+        console.error('Failed to generate clone token:', err);
+        showError('Failed to generate clone link');
+      }
+    },
+    'annotation:sparkle': ({ annotationId }) => {
+      triggerSparkleAnimation(annotationId);
+    },
+    'settings:theme-changed': ({ theme }) => setTheme(theme),
+    'settings:line-numbers-toggled': toggleLineNumbers,
+    'annotation:created': ({ annotation }) => {
+      triggerSparkleAnimation(annotation.id);
+      debouncedInvalidateAnnotations();
+    },
+    'annotation:deleted': debouncedInvalidateAnnotations,
+    'annotation:create-failed': () => showError('Failed to create annotation'),
+    'annotation:delete-failed': () => showError('Failed to delete annotation'),
+    'annotation:body-updated': () => {
+      // Success - optimistic update already applied via useResourceEvents
+    },
+    'annotation:body-update-failed': () => showError('Failed to update annotation'),
+    'detection:complete': () => showSuccess('Detection complete'),
+    'detection:failed': () => showError('Detection failed'),
+    'reference:generation-complete': () => showSuccess('Document generated'),
+    'reference:generation-failed': () => showError('Failed to generate document'),
+  });
 
   // Resource loading announcements
   const {
     announceResourceLoading,
     announceResourceLoaded
   } = useResourceLoadingAnnouncements();
-
-  // Access annotation context
-  const { clearNewAnnotationId, deleteAnnotation } = useResourceAnnotations();
 
   // Announce content loading state changes (app-level)
   useEffect(() => {
@@ -177,145 +348,7 @@ function ResourceViewerPageInner({
         eventBus.emit('navigation:router-push', { path, reason: 'entity-type-filter' });
       }
     },
-    'detection:failed': (payload: any) => {
-      const errorMessage = payload?.error?.message || payload?.message || 'Detection failed';
-      showError(errorMessage);
-    },
   });
-
-  // Compose all containers with nested render props
-  return (
-    <DetectionFlowContainer rUri={rUri}>
-      {(detectionState) => (
-        <PanelNavigationContainer>
-          {(navState) => (
-            <AnnotationFlowContainer
-              rUri={rUri}
-              onDeleteAnnotation={deleteAnnotation}
-            >
-              {(annotationState) => (
-                <GenerationFlowContainer
-                  rUri={rUri}
-                  locale={locale}
-                  resourceId={rUri.split('/').pop() || ''}
-                  showSuccess={showSuccess}
-                  showError={showError}
-                  cacheManager={cacheManager}
-                  clearNewAnnotationId={clearNewAnnotationId}
-                >
-                  {(generationState) => (
-                    <ResourceViewerPageContent
-                      {...{
-                        resource,
-                        rUri,
-                        content,
-                        contentLoading,
-                        annotations,
-                        referencedBy,
-                        referencedByLoading,
-                        allEntityTypes,
-                        locale,
-                        theme,
-                        showLineNumbers,
-                        showSuccess,
-                        showError,
-                        cacheManager,
-                        Link,
-                        routes,
-                        ToolbarPanels,
-                        SearchResourcesModal,
-                        GenerationConfigModal,
-                      }}
-                      {...detectionState}
-                      {...navState}
-                      {...annotationState}
-                      {...generationState}
-                      onDeleteAnnotation={deleteAnnotation}
-                    />
-                  )}
-                </GenerationFlowContainer>
-              )}
-            </AnnotationFlowContainer>
-          )}
-        </PanelNavigationContainer>
-      )}
-    </DetectionFlowContainer>
-  );
-}
-
-// Pure presentation component that receives all state as props
-interface ResourceViewerPageContentProps extends ResourceViewerPageProps {
-  // From DetectionFlowContainer
-  detectingMotivation: Motivation | null;
-  detectionProgress: any | null;
-  detectionStreamRef: React.MutableRefObject<any>;
-
-  // From PanelNavigationContainer
-  activePanel: string | null;
-  scrollToAnnotationId: string | null;
-  panelInitialTab: { tab: string; generation: number } | null;
-  onScrollCompleted: () => void;
-
-  // From AnnotationFlowContainer
-  pendingAnnotation: { selector: Selector | Selector[]; motivation: Motivation } | null;
-  hoveredAnnotationId: string | null;
-
-  // From GenerationFlowContainer
-  generationProgress: any | null;
-  generationModalOpen: boolean;
-  generationReferenceId: string | null;
-  generationDefaultTitle: string;
-  searchModalOpen: boolean;
-  pendingReferenceId: string | null;
-  onGenerateDocument: (referenceId: string, options: any) => void;
-  onCloseGenerationModal: () => void;
-  onCloseSearchModal: () => void;
-
-  // Pass-through
-  onDeleteAnnotation: (annotationId: string, rUri: ResourceUri) => Promise<void>;
-}
-
-function ResourceViewerPageContent(props: ResourceViewerPageContentProps) {
-  const {
-    // Container state
-    detectingMotivation,
-    detectionProgress,
-    activePanel,
-    scrollToAnnotationId,
-    panelInitialTab,
-    onScrollCompleted,
-    pendingAnnotation,
-    hoveredAnnotationId,
-    generationProgress,
-    generationModalOpen,
-    generationReferenceId,
-    generationDefaultTitle,
-    searchModalOpen,
-    pendingReferenceId,
-    onGenerateDocument,
-    onCloseGenerationModal,
-    onCloseSearchModal,
-    // Original props
-    resource,
-    rUri,
-    content,
-    contentLoading,
-    annotations,
-    referencedBy,
-    referencedByLoading,
-    allEntityTypes,
-    theme,
-    showLineNumbers,
-    showSuccess,
-    showError,
-    Link,
-    routes,
-    ToolbarPanels,
-    SearchResourcesModal,
-    GenerationConfigModal,
-  } = props;
-
-  const eventBus = useEventBus();
 
   // Derived state
   const documentEntityTypes = resource.entityTypes || [];
@@ -565,9 +598,4 @@ function ResourceViewerPageContent(props: ResourceViewerPageContentProps) {
       />
     </div>
   );
-}
-
-// Export the component directly - provider setup is done by the app
-export function ResourceViewerPage(props: ResourceViewerPageProps) {
-  return <ResourceViewerPageInner {...props} />;
 }

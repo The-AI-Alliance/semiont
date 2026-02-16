@@ -4,7 +4,7 @@
  * Tests the complete data flow from UI → EventBus → useEventOperations → SSE (mocked)
  *
  * This test uses COMPOSITION instead of mocking:
- * - Real React components composed together (DetectionFlowContainer + HighlightPanel + DetectSection)
+ * - Real React components composed together (useDetectionFlow + HighlightPanel + DetectSection)
  * - Real EventBus (mitt) passed via context
  * - Real useEventOperations hook with mock API client passed as prop
  * - Mock SSE stream (simulated API responses) provided via composition
@@ -18,15 +18,17 @@
  * COMPLEMENTARY TEST: See DetectionFlowIntegration.test.tsx for architecture testing
  * - That test verifies SYSTEM ARCHITECTURE (event wiring, API call count)
  * - This test verifies USER EXPERIENCE (button clicks, UI feedback)
+ *
+ * UPDATED: Now tests useDetectionFlow hook instead of DetectionFlowContainer
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { act, useEffect } from 'react';
+import { act } from 'react';
 import { HighlightPanel } from '../../../components/resource/panels/HighlightPanel';
-import { DetectionFlowContainer } from '../containers/DetectionFlowContainer';
-import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../../contexts/EventBusContext';
+import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
+import { EventBusProvider, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import type { components } from '@semiont/api-client';
 
@@ -94,19 +96,17 @@ function DetectionFlowTestHarness({
   rUri: string;
   annotations: Annotation[];
 }) {
+  const { detectingMotivation, detectionProgress } = useDetectionFlow(rUri as any);
+
   return (
-    <DetectionFlowContainer rUri={rUri}>
-      {({ detectingMotivation, detectionProgress }) => (
-        <HighlightPanel
-          annotations={annotations}
-          pendingAnnotation={null}
-          hoveredAnnotationId={null}
-          isDetecting={detectingMotivation === 'highlighting'}
-          detectionProgress={detectionProgress}
-          annotateMode={true}
-        />
-      )}
-    </DetectionFlowContainer>
+    <HighlightPanel
+      annotations={annotations}
+      pendingAnnotation={null}
+      hoveredAnnotationId={null}
+      isDetecting={detectingMotivation === 'highlighting'}
+      detectionProgress={detectionProgress}
+      annotateMode={true}
+    />
   );
 }
 

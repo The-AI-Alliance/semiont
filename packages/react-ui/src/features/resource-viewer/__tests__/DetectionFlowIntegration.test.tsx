@@ -4,7 +4,7 @@
  * Tests the COMPLETE detection flow with real component composition:
  * - EventBusProvider (REAL)
  * - ApiClientProvider (REAL, with MOCKED client)
- * - DetectionFlowContainer (REAL)
+ * - useDetectionFlow (REAL)
  * - useEventOperations (REAL)
  * - useEventSubscriptions (REAL)
  *
@@ -24,7 +24,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { act } from 'react';
-import { DetectionFlowContainer } from '../containers/DetectionFlowContainer';
+import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import type { ApiClientManager } from '../../../types/ApiClientManager';
@@ -118,7 +118,7 @@ describe('Detection Flow - Feature Integration', () => {
     );
   });
 
-  it('should propagate SSE progress events to DetectionFlowContainer state', async () => {
+  it('should propagate SSE progress events to useDetectionFlow state', async () => {
     const testUri = resourceUri('http://localhost:4000/resources/test-resource');
 
     // Render with state observer
@@ -348,7 +348,7 @@ describe('Detection Flow - Feature Integration', () => {
 });
 
 /**
- * Helper: Render DetectionFlowContainer with real component composition
+ * Helper: Render useDetectionFlow hook with real component composition
  * Returns methods to interact with the rendered component
  */
 function renderDetectionFlow(apiClient: SemiontApiClient, testUri: string) {
@@ -360,20 +360,24 @@ function renderDetectionFlow(apiClient: SemiontApiClient, testUri: string) {
     return null;
   }
 
+  // Test harness component that uses the hook
+  function DetectionFlowTestHarness() {
+    const { detectionProgress, detectingMotivation } = useDetectionFlow(testUri as any);
+    return (
+      <div>
+        <div data-testid="detecting">{detectingMotivation || 'none'}</div>
+        <div data-testid="progress">
+          {detectionProgress?.message || 'No progress'}
+        </div>
+      </div>
+    );
+  }
+
   render(
     <EventBusProvider>
       <ApiClientProvider apiClientManager={apiClient as ApiClientManager}>
         <EventBusCapture />
-        <DetectionFlowContainer rUri={testUri as any}>
-          {({ detectionProgress, detectingMotivation }) => (
-            <div>
-              <div data-testid="detecting">{detectingMotivation || 'none'}</div>
-              <div data-testid="progress">
-                {detectionProgress?.message || 'No progress'}
-              </div>
-            </div>
-          )}
-        </DetectionFlowContainer>
+        <DetectionFlowTestHarness />
       </ApiClientProvider>
     </EventBusProvider>
   );

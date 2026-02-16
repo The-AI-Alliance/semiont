@@ -1,23 +1,21 @@
 /**
- * GenerationFlowContainer - Manages document generation flow
+ * useGenerationFlow - Document generation flow hook
  *
- * This container handles:
- * - Generation progress state (from useGenerationProgress hook)
+ * Manages document generation state:
+ * - Generation progress tracking (from useGenerationProgress hook)
  * - Generation modal state
  * - Reference search modal state
- * - Generation completion/error events
+ * - Generation completion/error handling
  *
- * By extracting this container:
- * 1. Generation logic is testable in isolation
- * 2. Separates generation state from UI
- * 3. Clear event → state flow
+ * Follows react-rxjs-guide.md Layer 2 pattern: Hook bridge that
+ * subscribes to events and pushes values into React state.
  */
 
 import { useState, useCallback } from 'react';
-import type { ResourceUri, GenerationContext, AnnotationUri } from '@semiont/api-client';
+import type { GenerationContext, AnnotationUri } from '@semiont/api-client';
 import { annotationUri, resourceUri } from '@semiont/api-client';
-import { useGenerationProgress } from '../../../hooks/useGenerationProgress';
-import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
+import { useGenerationProgress } from './useGenerationProgress';
+import { useEventSubscriptions } from '../contexts/useEventSubscription';
 
 export interface GenerationFlowState {
   generationProgress: any | null;
@@ -38,46 +36,25 @@ export interface GenerationFlowState {
   onCloseSearchModal: () => void;
 }
 
-export interface GenerationFlowContainerProps {
-  rUri: ResourceUri;
-  locale: string;
-  resourceId: string;
-  showSuccess: (message: string) => void;
-  showError: (message: string) => void;
-  cacheManager: any;
-  clearNewAnnotationId: (annotationId: AnnotationUri) => void;
-  children: (state: GenerationFlowState) => React.ReactNode;
-}
-
 /**
- * Container for document generation flow
+ * Hook for document generation flow
  *
- * @subscribes generation:complete-event - Handles generation completion. Payload: { progress: GenerationProgress }
- * @subscribes generation:error-event - Handles generation error. Payload: { error: string }
- * @subscribes reference:search-modal-open - Opens reference search modal. Payload: { referenceId: string }
- *
- * Usage:
- * ```tsx
- * <GenerationFlowContainer {...props}>
- *   {({ generationProgress, onGenerateDocument, ... }) => (
- *     <ReferencesPanel
- *       generatingReferenceId={generationProgress?.referenceId}
- *       onGenerateDocument={onGenerateDocument}
- *     />
- *   )}
- * </GenerationFlowContainer>
- * ```
+ * @param locale - Current locale for language defaults
+ * @param resourceId - Resource ID for generation
+ * @param showSuccess - Success toast callback
+ * @param showError - Error toast callback
+ * @param cacheManager - Cache manager for invalidation
+ * @param clearNewAnnotationId - Clear animation callback
+ * @returns Generation flow state
  */
-export function GenerationFlowContainer({
-  locale,
-  resourceId,
-  showSuccess,
-  showError,
-  cacheManager,
-  clearNewAnnotationId,
-  children,
-}: GenerationFlowContainerProps) {
-
+export function useGenerationFlow(
+  locale: string,
+  resourceId: string,
+  showSuccess: (message: string) => void,
+  showError: (message: string) => void,
+  cacheManager: any,
+  clearNewAnnotationId: (annotationId: AnnotationUri) => void
+): GenerationFlowState {
   // Generation progress state (from hook)
   const {
     progress: generationProgress,
@@ -128,33 +105,6 @@ export function GenerationFlowContainer({
     });
   }, [startGeneration, resourceId, clearNewAnnotationId, locale]);
 
-  // Event handlers extracted from useEventSubscriptions
-  const handleGenerationComplete = useCallback(({ progress }: { progress: any }) => {
-    // Show success notification
-    if (progress.resourceName) {
-      showSuccess(`Resource "${progress.resourceName}" created successfully!`);
-    } else {
-      showSuccess('Resource created successfully!');
-    }
-
-    // Refetch annotations to show the reference is now resolved
-    if (cacheManager) {
-      cacheManager.invalidate('annotations');
-    }
-
-    // Clear progress widget after a delay to show completion state
-    setTimeout(() => clearProgress(), 2000);
-  }, [showSuccess, cacheManager, clearProgress]);
-
-  const handleGenerationError = useCallback(({ error }: { error: string }) => {
-    showError(`Resource generation failed: ${error}`);
-  }, [showError]);
-
-  const handleSearchModalOpen = useCallback(({ referenceId }: { referenceId: string }) => {
-    setPendingReferenceId(referenceId);
-    setSearchModalOpen(true);
-  }, []);
-
   const handleCloseGenerationModal = useCallback(() => {
     setGenerationModalOpen(false);
   }, []);
@@ -165,12 +115,32 @@ export function GenerationFlowContainer({
 
   // Subscribe to generation events
   useEventSubscriptions({
-    'generation:complete-event': handleGenerationComplete,
-    'generation:error-event': handleGenerationError,
-    'reference:search-modal-open': handleSearchModalOpen,
+    'generation:complete-event': ({ progress }: { progress: any }) => {
+      // Show success notification
+      if (progress.resourceName) {
+        showSuccess(`Resource "${progress.resourceName}" created successfully!`);
+      } else {
+        showSuccess('Resource created successfully!');
+      }
+
+      // Refetch annotations to show the reference is now resolved
+      if (cacheManager) {
+        cacheManager.invalidate('annotations');
+      }
+
+      // Clear progress widget after a delay to show completion state
+      setTimeout(() => clearProgress(), 2000);
+    },
+    'generation:error-event': ({ error }: { error: string }) => {
+      showError(`Resource generation failed: ${error}`);
+    },
+    'reference:search-modal-open': ({ referenceId }: { referenceId: string }) => {
+      setPendingReferenceId(referenceId);
+      setSearchModalOpen(true);
+    },
   });
 
-  return <>{children({
+  return {
     generationProgress,
     generationModalOpen,
     generationReferenceId,
@@ -180,5 +150,5 @@ export function GenerationFlowContainer({
     onGenerateDocument: handleGenerateDocument,
     onCloseGenerationModal: handleCloseGenerationModal,
     onCloseSearchModal: handleCloseSearchModal,
-  })}</>;
+  };
 }
