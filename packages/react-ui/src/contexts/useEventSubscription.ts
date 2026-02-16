@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import type { EventMap } from './EventBusContext';
 import { useEventBus } from './EventBusContext';
 
@@ -70,14 +70,19 @@ export function useEventSubscriptions(
     handlersRef.current = subscriptions;
   });
 
-  // Subscribe once per event
+  // Get stable list of event names to subscribe to
+  const eventNames = useMemo(
+    () => Object.keys(subscriptions).sort(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [Object.keys(subscriptions).sort().join(',')]
+  );
+
+  // Subscribe once per event - only re-subscribe if event names actually change
   useEffect(() => {
     const stableHandlers = new Map<keyof EventMap, (payload: any) => void>();
 
     // Create stable wrappers for each subscription
-    for (const [eventName, handler] of Object.entries(subscriptions)) {
-      if (!handler) continue;
-
+    for (const eventName of eventNames) {
       const stableHandler = (payload: any) => {
         const currentHandler = handlersRef.current[eventName as keyof EventMap];
         if (currentHandler) {
@@ -97,5 +102,5 @@ export function useEventSubscriptions(
         eventBus.off(eventName, stableHandler);
       }
     };
-  }, []); // eventBus is stable, subscriptions object changes tracked via handlersRef
+  }, [eventNames, eventBus]); // Only re-subscribe if event names change
 }

@@ -4,13 +4,13 @@ import React, { useContext } from 'react';
 import { useTranslations } from 'next-intl';
 import { useSession, signIn } from 'next-auth/react';
 import { KnowledgeSidebarWrapper } from '@/components/knowledge/KnowledgeSidebarWrapper';
-import { Footer, ResourceAnnotationsProvider, OpenResourcesProvider, CacheProvider, ApiClientProvider, EventBusProvider } from '@semiont/react-ui';
+import { Footer, ResourceAnnotationsProvider, OpenResourcesProvider, CacheProvider, ApiClientProvider, AuthTokenProvider, EventBusProvider } from '@semiont/react-ui';
 import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link, routes } from '@/lib/routing';
 import { useOpenResourcesManager } from '@/hooks/useOpenResourcesManager';
 import { useCacheManager } from '@/hooks/useCacheManager';
-import { useApiClientManager } from '@/hooks/useApiClientManager';
+import { useAuthTokenManager } from '@/hooks/useAuthTokenManager';
 
 /**
  * Knowledge Layout
@@ -30,6 +30,10 @@ export default function KnowledgeLayout({
   const openResourcesManager = useOpenResourcesManager();
   const cacheManager = useCacheManager();
   const { data: session, status } = useSession();
+
+  // IMPORTANT: Must call hooks unconditionally (React Rules of Hooks)
+  // Even if not authenticated, we still need to call the hook to keep hook count stable
+  const authTokenManager = useAuthTokenManager();
 
   // Show loading state while checking authentication
   if (status === 'loading') {
@@ -72,36 +76,35 @@ export default function KnowledgeLayout({
     );
   }
 
-  // Authenticated - create API client (won't throw because we checked session above)
-  const apiClientManager = useApiClientManager();
-
   return (
-    <ApiClientProvider apiClientManager={apiClientManager}>
-      <EventBusProvider>
-        <CacheProvider cacheManager={cacheManager}>
-          <OpenResourcesProvider openResourcesManager={openResourcesManager}>
-            <ResourceAnnotationsProvider>
-              <div className="h-screen semiont-knowledge-layout semiont-layout-with-footer flex flex-col overflow-hidden">
-                <div className="flex flex-1 overflow-hidden">
-                  <KnowledgeSidebarWrapper />
-                  <main className="flex-1 w-full px-2 pb-6 flex flex-col overflow-hidden">
-                    <div className="w-full mx-auto flex-1 flex flex-col h-full overflow-hidden">
-                      {children}
-                    </div>
-                  </main>
+    <AuthTokenProvider tokenManager={authTokenManager}>
+      <ApiClientProvider baseUrl="">
+        <EventBusProvider>
+          <CacheProvider cacheManager={cacheManager}>
+            <OpenResourcesProvider openResourcesManager={openResourcesManager}>
+              <ResourceAnnotationsProvider>
+                <div className="h-screen semiont-knowledge-layout semiont-layout-with-footer flex flex-col overflow-hidden">
+                  <div className="flex flex-1 overflow-hidden">
+                    <KnowledgeSidebarWrapper />
+                    <main className="flex-1 w-full px-2 pb-6 flex flex-col overflow-hidden">
+                      <div className="w-full mx-auto flex-1 flex flex-col h-full overflow-hidden">
+                        {children}
+                      </div>
+                    </main>
+                  </div>
+                  <Footer
+                    Link={Link}
+                    routes={routes}
+                    t={t}
+                    CookiePreferences={CookiePreferences}
+                    {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
+                  />
                 </div>
-                <Footer
-                  Link={Link}
-                  routes={routes}
-                  t={t}
-                  CookiePreferences={CookiePreferences}
-                  {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
-                />
-              </div>
-            </ResourceAnnotationsProvider>
-          </OpenResourcesProvider>
-        </CacheProvider>
-      </EventBusProvider>
-    </ApiClientProvider>
+              </ResourceAnnotationsProvider>
+            </OpenResourcesProvider>
+          </CacheProvider>
+        </EventBusProvider>
+      </ApiClientProvider>
+    </AuthTokenProvider>
   );
 }

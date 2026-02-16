@@ -2,9 +2,9 @@
  * Tool execution handlers using @semiont/api-client
  */
 
-import { SemiontApiClient, getExactText, getBodySource, resourceUri, annotationUri } from '@semiont/api-client';
+import { SemiontApiClient, getExactText, getBodySource, resourceUri, annotationUri, type AccessToken } from '@semiont/api-client';
 
-export async function handleCreateResource(client: SemiontApiClient, args: any) {
+export async function handleCreateResource(client: SemiontApiClient, auth: AccessToken, args: any) {
   // Create File from content string for multipart/form-data upload
   const format = args?.contentType || 'text/plain';
   const content = args?.content || '';
@@ -16,7 +16,7 @@ export async function handleCreateResource(client: SemiontApiClient, args: any) 
     file: file,
     format: format,
     entityTypes: args?.entityTypes || [],
-  });
+  }, { auth });
 
   return {
     content: [{
@@ -26,8 +26,8 @@ export async function handleCreateResource(client: SemiontApiClient, args: any) 
   };
 }
 
-export async function handleGetResource(client: SemiontApiClient, id: string) {
-  const data = await client.getResource(resourceUri(id));
+export async function handleGetResource(client: SemiontApiClient, auth: AccessToken, id: string) {
+  const data = await client.getResource(resourceUri(id), { auth });
 
   return {
     content: [{
@@ -37,10 +37,12 @@ export async function handleGetResource(client: SemiontApiClient, id: string) {
   };
 }
 
-export async function handleListResources(client: SemiontApiClient, args: any) {
+export async function handleListResources(client: SemiontApiClient, auth: AccessToken, args: any) {
   const data = await client.listResources(
     args?.limit,
-    args?.archived ?? false
+    args?.archived ?? false,
+    undefined, // query parameter
+    { auth }
   );
 
   return {
@@ -51,12 +53,12 @@ export async function handleListResources(client: SemiontApiClient, args: any) {
   };
 }
 
-export async function handleDetectAnnotations(client: SemiontApiClient, args: any) {
+export async function handleDetectAnnotations(client: SemiontApiClient, auth: AccessToken, args: any) {
   const rUri = resourceUri(args?.resourceId);
   const entityTypes = args?.entityTypes || [];
 
   return new Promise<{ content: Array<{ type: 'text'; text: string }>; isError?: boolean }>((resolve) => {
-    const stream = client.sse.detectAnnotations(rUri, { entityTypes });
+    const stream = client.sse.detectAnnotations(rUri, { entityTypes }, { auth });
 
     const progressMessages: string[] = [];
 
@@ -89,7 +91,7 @@ export async function handleDetectAnnotations(client: SemiontApiClient, args: an
   });
 }
 
-export async function handleCreateAnnotation(client: SemiontApiClient, args: any) {
+export async function handleCreateAnnotation(client: SemiontApiClient, auth: AccessToken, args: any) {
   const selectionData = args?.selectionData || {};
   const entityTypes = args?.entityTypes || [];
 
@@ -118,7 +120,7 @@ export async function handleCreateAnnotation(client: SemiontApiClient, args: any
       ],
     },
     body,
-  });
+  }, { auth });
 
   // Extract text using SDK utility
   const targetSelector = typeof data.annotation.target === 'string'
@@ -134,7 +136,7 @@ export async function handleCreateAnnotation(client: SemiontApiClient, args: any
   };
 }
 
-export async function handleSaveAnnotation(_client: SemiontApiClient, _args: any) {
+export async function handleSaveAnnotation(_client: SemiontApiClient, _auth: AccessToken, _args: any) {
   // NOTE: The /save endpoint was removed from the API
   // This functionality may have been merged into the main annotation creation
   return {
@@ -146,7 +148,7 @@ export async function handleSaveAnnotation(_client: SemiontApiClient, _args: any
   };
 }
 
-export async function handleResolveAnnotation(client: SemiontApiClient, args: any) {
+export async function handleResolveAnnotation(client: SemiontApiClient, auth: AccessToken, args: any) {
   const data = await client.updateAnnotationBody(args?.selectionId, {
     resourceId: args?.sourceResourceId,
     operations: [{
@@ -157,7 +159,7 @@ export async function handleResolveAnnotation(client: SemiontApiClient, args: an
         purpose: 'linking',
       },
     }],
-  });
+  }, { auth });
 
   return {
     content: [{
@@ -167,7 +169,7 @@ export async function handleResolveAnnotation(client: SemiontApiClient, args: an
   };
 }
 
-export async function handleGenerateResourceFromAnnotation(client: SemiontApiClient, args: any) {
+export async function handleGenerateResourceFromAnnotation(client: SemiontApiClient, auth: AccessToken, args: any) {
   const rUri = resourceUri(args?.resourceId);
   const aUri = annotationUri(args?.annotationId);
 
@@ -178,7 +180,7 @@ export async function handleGenerateResourceFromAnnotation(client: SemiontApiCli
   }
 
   // Fetch context before generation
-  const contextData = await client.getAnnotationLLMContext(rUri, annotationId, { contextWindow: 2000 });
+  const contextData = await client.getAnnotationLLMContext(rUri, annotationId, { contextWindow: 2000, auth });
 
   if (!contextData?.context) {
     throw new Error('Failed to fetch generation context');
@@ -192,7 +194,7 @@ export async function handleGenerateResourceFromAnnotation(client: SemiontApiCli
   };
 
   return new Promise<{ content: Array<{ type: 'text'; text: string }>; isError?: boolean }>((resolve) => {
-    const stream = client.sse.generateResourceFromAnnotation(rUri, aUri, request);
+    const stream = client.sse.generateResourceFromAnnotation(rUri, aUri, request, { auth });
 
     const progressMessages: string[] = [];
 
@@ -223,7 +225,7 @@ export async function handleGenerateResourceFromAnnotation(client: SemiontApiCli
   });
 }
 
-export async function handleGetContextualSummary(_client: SemiontApiClient, _args: any) {
+export async function handleGetContextualSummary(_client: SemiontApiClient, _auth: AccessToken, _args: any) {
   // NOTE: /contextual-summary endpoint was removed or renamed
   // Use /api/annotations/{id}/summary or /api/annotations/{id}/context instead
   return {
@@ -235,7 +237,7 @@ export async function handleGetContextualSummary(_client: SemiontApiClient, _arg
   };
 }
 
-export async function handleGetSchemaDescription(_client: SemiontApiClient) {
+export async function handleGetSchemaDescription(_client: SemiontApiClient, _auth: AccessToken) {
   // NOTE: /schema-description endpoint was removed
   return {
     content: [{
@@ -246,7 +248,7 @@ export async function handleGetSchemaDescription(_client: SemiontApiClient) {
   };
 }
 
-export async function handleGetLLMContext(_client: SemiontApiClient, _args: any) {
+export async function handleGetLLMContext(_client: SemiontApiClient, _auth: AccessToken, _args: any) {
   // NOTE: Endpoint path may have changed - need to verify correct path
   return {
     content: [{
@@ -257,7 +259,7 @@ export async function handleGetLLMContext(_client: SemiontApiClient, _args: any)
   };
 }
 
-export async function handleGetResourceAnnotations(_client: SemiontApiClient, _args: any) {
+export async function handleGetResourceAnnotations(_client: SemiontApiClient, _auth: AccessToken, _args: any) {
   // NOTE: Use /api/resources/{id}/annotations instead
   return {
     content: [{
@@ -268,8 +270,8 @@ export async function handleGetResourceAnnotations(_client: SemiontApiClient, _a
   };
 }
 
-export async function handleGetResourceHighlights(client: SemiontApiClient, args: Record<string, unknown>) {
-  const data = await client.getResourceAnnotations(resourceUri(args?.resourceId as string));
+export async function handleGetResourceHighlights(client: SemiontApiClient, auth: AccessToken, args: Record<string, unknown>) {
+  const data = await client.getResourceAnnotations(resourceUri(args?.resourceId as string), { auth });
   const highlights = data.annotations.filter(a => a.motivation === 'highlighting');
 
   return {
@@ -287,8 +289,8 @@ export async function handleGetResourceHighlights(client: SemiontApiClient, args
   };
 }
 
-export async function handleGetResourceReferences(client: SemiontApiClient, args: Record<string, unknown>) {
-  const data = await client.getResourceAnnotations(resourceUri(args?.resourceId as string));
+export async function handleGetResourceReferences(client: SemiontApiClient, auth: AccessToken, args: Record<string, unknown>) {
+  const data = await client.getResourceAnnotations(resourceUri(args?.resourceId as string), { auth });
   const references = data.annotations.filter(a => a.motivation === 'linking');
 
   return {

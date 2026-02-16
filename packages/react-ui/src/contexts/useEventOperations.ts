@@ -2,8 +2,14 @@ import { useEffect, useRef } from 'react';
 import type { Emitter } from 'mitt';
 import type { EventMap } from './EventBusContext';
 import type { SemiontApiClient, ResourceUri, Motivation, Selector } from '@semiont/api-client';
-import { resourceAnnotationUri } from '@semiont/api-client';
+import { resourceAnnotationUri, accessToken } from '@semiont/api-client';
 import { uriToAnnotationIdOrPassthrough } from '@semiont/core';
+import { useAuthToken } from './AuthTokenContext';
+
+/** Helper to convert string | null to AccessToken | undefined */
+function toAccessToken(token: string | null) {
+  return token ? accessToken(token) : undefined;
+}
 
 export interface EventOperationsConfig {
   client: SemiontApiClient;
@@ -24,6 +30,9 @@ export function useEventOperations(
   config: EventOperationsConfig
 ) {
   const { client, resourceUri } = config;
+
+  // Get current auth token for API calls
+  const token = useAuthToken();
 
   // Store SSE stream refs for cancellation
   const detectionStreamRef = useRef<AbortController | null>(null);
@@ -63,7 +72,7 @@ export function useEventOperations(
             selector: event.selector,
           },
           body: event.body,
-        });
+        }, { auth: toAccessToken(token) });
 
         if (result.annotation) {
           // Emit success event for subscribers to handle UI updates
@@ -84,7 +93,7 @@ export function useEventOperations(
         const annotationIdSegment = uriToAnnotationIdOrPassthrough(event.annotationId);
         const annotationUri = resourceAnnotationUri(`${resourceUri}/annotations/${annotationIdSegment}`);
 
-        await client.deleteAnnotation(annotationUri);
+        await client.deleteAnnotation(annotationUri, { auth: toAccessToken(token) });
 
         // Emit success event
         emitter.emit('annotation:deleted', { annotationId: event.annotationId });
@@ -115,7 +124,7 @@ export function useEventOperations(
         await client.updateAnnotationBody(nestedUri, {
           resourceId: event.resourceId,
           operations: event.operations as any,
-        });
+        }, { auth: toAccessToken(token) });
 
         // Emit success event
         emitter.emit('annotation:body-updated', { annotationUri: event.annotationUri });
@@ -164,7 +173,7 @@ export function useEventOperations(
           const stream = client.sse.detectTags(resourceUri, {
             schemaId,
             categories,
-          });
+          }, { auth: toAccessToken(token) });
 
           stream.onProgress((chunk) => {
             emitter.emit('detection:progress', chunk as any);
@@ -192,7 +201,7 @@ export function useEventOperations(
           const stream = client.sse.detectAnnotations(resourceUri, {
             entityTypes: entityTypes as any,
             includeDescriptiveReferences: includeDescriptiveReferences || false,
-          });
+          }, { auth: toAccessToken(token) });
 
           stream.onProgress((chunk) => {
             console.log('[useEventOperations] SSE progress chunk received', chunk);
@@ -214,7 +223,7 @@ export function useEventOperations(
           // Highlight detection
           const stream = client.sse.detectHighlights(resourceUri, {
             instructions: event.options.instructions,
-          });
+          }, { auth: toAccessToken(token) });
 
           stream.onProgress((chunk) => {
             emitter.emit('detection:progress', chunk as any);
@@ -234,7 +243,7 @@ export function useEventOperations(
           // Assessment detection
           const stream = client.sse.detectAssessments(resourceUri, {
             instructions: event.options.instructions,
-          });
+          }, { auth: toAccessToken(token) });
 
           stream.onProgress((chunk) => {
             emitter.emit('detection:progress', chunk as any);
@@ -255,7 +264,7 @@ export function useEventOperations(
           const stream = client.sse.detectComments(resourceUri, {
             instructions: event.options.instructions,
             tone: event.options.tone as any,
-          });
+          }, { auth: toAccessToken(token) });
 
           stream.onProgress((chunk) => {
             emitter.emit('detection:progress', chunk as any);
@@ -326,7 +335,8 @@ export function useEventOperations(
         const stream = client.sse.generateResourceFromAnnotation(
           event.resourceUri as any,
           event.annotationUri as any,
-          event.options as any
+          event.options as any,
+          { auth: toAccessToken(token) }
         );
 
         stream.onProgress((chunk) => {
@@ -426,7 +436,7 @@ export function useEventOperations(
       detectionStreamRef.current?.abort();
       generationStreamRef.current?.abort();
     };
-  }, [emitter]); // Only re-run if emitter changes (it shouldn't)
+  }, [emitter, token]); // Only re-run if emitter or token changes
 }
 
 /**

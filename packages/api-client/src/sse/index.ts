@@ -69,8 +69,14 @@ export interface DetectTagsStreamRequest {
  */
 export interface SSEClientConfig {
   baseUrl: BaseUrl;
-  accessToken?: AccessToken;
   logger?: Logger;
+}
+
+/**
+ * Options for SSE requests
+ */
+export interface SSERequestOptions {
+  auth?: AccessToken;
 }
 
 /**
@@ -79,16 +85,18 @@ export interface SSEClientConfig {
  * Separate from the main HTTP client to clearly mark streaming endpoints.
  * Uses native fetch() instead of ky for SSE support.
  *
+ * This client is stateless - auth tokens are passed per-request via options.
+ *
  * @example
  * ```typescript
  * const sseClient = new SSEClient({
- *   baseUrl: 'http://localhost:4000',
- *   accessToken: 'your-token'
+ *   baseUrl: 'http://localhost:4000'
  * });
  *
  * const stream = sseClient.detectAnnotations(
  *   'http://localhost:4000/resources/doc-123',
- *   { entityTypes: ['Person', 'Organization'] }
+ *   { entityTypes: ['Person', 'Organization'] },
+ *   { auth: 'your-token' }
  * );
  *
  * stream.onProgress((p) => console.log(p.message));
@@ -98,40 +106,24 @@ export interface SSEClientConfig {
  */
 export class SSEClient {
   private baseUrl: BaseUrl;
-  private accessToken: AccessToken | null = null;
   private logger?: Logger;
 
   constructor(config: SSEClientConfig) {
     // Remove trailing slash for consistent URL construction
     this.baseUrl = (config.baseUrl.endsWith('/') ? config.baseUrl.slice(0, -1) : config.baseUrl) as BaseUrl;
-    this.accessToken = config.accessToken || null;
     this.logger = config.logger;
-  }
-
-  /**
-   * Set the access token for authenticated requests
-   */
-  setAccessToken(token: AccessToken): void {
-    this.accessToken = token;
-  }
-
-  /**
-   * Clear the access token
-   */
-  clearAccessToken(): void {
-    this.accessToken = null;
   }
 
   /**
    * Get common headers for SSE requests
    */
-  private getHeaders(): Record<string, string> {
+  private getHeaders(auth?: AccessToken): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json'
     };
 
-    if (this.accessToken) {
-      headers['Authorization'] = `Bearer ${this.accessToken}`;
+    if (auth) {
+      headers['Authorization'] = `Bearer ${auth}`;
     }
 
     return headers;
@@ -156,13 +148,15 @@ export class SSEClient {
    *
    * @param resourceId - Resource URI or ID
    * @param request - Detection configuration (entity types to detect)
+   * @param options - Request options (auth token)
    * @returns SSE stream controller with progress/complete/error callbacks
    *
    * @example
    * ```typescript
    * const stream = sseClient.detectAnnotations(
    *   'http://localhost:4000/resources/doc-123',
-   *   { entityTypes: ['Person', 'Organization'] }
+   *   { entityTypes: ['Person', 'Organization'] },
+   *   { auth: 'your-token' }
    * );
    *
    * stream.onProgress((progress) => {
@@ -184,7 +178,8 @@ export class SSEClient {
    */
   detectAnnotations(
     resourceId: ResourceUri,
-    request: DetectAnnotationsStreamRequest
+    request: DetectAnnotationsStreamRequest,
+    options?: SSERequestOptions
   ): SSEStream<DetectionProgress, DetectionProgress> {
     const id = this.extractId(resourceId);
     const url = `${this.baseUrl}/resources/${id}/detect-annotations-stream`;
@@ -193,7 +188,7 @@ export class SSEClient {
       url,
       {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: this.getHeaders(options?.auth),
         body: JSON.stringify(request)
       },
       {
@@ -213,6 +208,7 @@ export class SSEClient {
    * @param resourceId - Source resource URI or ID
    * @param annotationId - Annotation URI or ID to use as generation source
    * @param request - Generation options (title, prompt, language)
+   * @param options - Request options (auth token)
    * @returns SSE stream controller with progress/complete/error callbacks
    *
    * @example
@@ -220,7 +216,8 @@ export class SSEClient {
    * const stream = sseClient.generateResourceFromAnnotation(
    *   'http://localhost:4000/resources/doc-123',
    *   'http://localhost:4000/annotations/ann-456',
-   *   { language: 'es', title: 'Spanish Summary' }
+   *   { language: 'es', title: 'Spanish Summary' },
+   *   { auth: 'your-token' }
    * );
    *
    * stream.onProgress((progress) => {
@@ -243,7 +240,8 @@ export class SSEClient {
   generateResourceFromAnnotation(
     resourceId: ResourceUri,
     annotationId: AnnotationUri,
-    request: GenerateResourceStreamRequest
+    request: GenerateResourceStreamRequest,
+    options?: SSERequestOptions
   ): SSEStream<GenerationProgress, GenerationProgress> {
     const resId = this.extractId(resourceId);
     const annId = this.extractId(annotationId);
@@ -253,7 +251,7 @@ export class SSEClient {
       url,
       {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: this.getHeaders(options?.auth),
         body: JSON.stringify(request)
       },
       {
@@ -272,13 +270,15 @@ export class SSEClient {
    *
    * @param resourceId - Resource URI or ID
    * @param request - Detection configuration (optional instructions)
+   * @param options - Request options (auth token)
    * @returns SSE stream controller with progress/complete/error callbacks
    *
    * @example
    * ```typescript
    * const stream = sseClient.detectHighlights(
    *   'http://localhost:4000/resources/doc-123',
-   *   { instructions: 'Focus on key technical points' }
+   *   { instructions: 'Focus on key technical points' },
+   *   { auth: 'your-token' }
    * );
    *
    * stream.onProgress((progress) => {
@@ -300,7 +300,8 @@ export class SSEClient {
    */
   detectHighlights(
     resourceId: ResourceUri,
-    request: DetectHighlightsStreamRequest = {}
+    request: DetectHighlightsStreamRequest = {},
+    options?: SSERequestOptions
   ): SSEStream<HighlightDetectionProgress, HighlightDetectionProgress> {
     const id = this.extractId(resourceId);
     const url = `${this.baseUrl}/resources/${id}/detect-highlights-stream`;
@@ -309,7 +310,7 @@ export class SSEClient {
       url,
       {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: this.getHeaders(options?.auth),
         body: JSON.stringify(request)
       },
       {
@@ -328,13 +329,15 @@ export class SSEClient {
    *
    * @param resourceId - Resource URI or ID
    * @param request - Detection configuration (optional instructions)
+   * @param options - Request options (auth token)
    * @returns SSE stream controller with progress/complete/error callbacks
    *
    * @example
    * ```typescript
    * const stream = sseClient.detectAssessments(
    *   'http://localhost:4000/resources/doc-123',
-   *   { instructions: 'Evaluate claims for accuracy' }
+   *   { instructions: 'Evaluate claims for accuracy' },
+   *   { auth: 'your-token' }
    * );
    *
    * stream.onProgress((progress) => {
@@ -356,7 +359,8 @@ export class SSEClient {
    */
   detectAssessments(
     resourceId: ResourceUri,
-    request: DetectAssessmentsStreamRequest = {}
+    request: DetectAssessmentsStreamRequest = {},
+    options?: SSERequestOptions
   ): SSEStream<AssessmentDetectionProgress, AssessmentDetectionProgress> {
     const id = this.extractId(resourceId);
     const url = `${this.baseUrl}/resources/${id}/detect-assessments-stream`;
@@ -365,7 +369,7 @@ export class SSEClient {
       url,
       {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: this.getHeaders(options?.auth),
         body: JSON.stringify(request)
       },
       {
@@ -386,14 +390,19 @@ export class SSEClient {
    *
    * @param resourceId - Resource URI or ID
    * @param request - Detection configuration (optional instructions and tone)
+   * @param options - Request options (auth token)
    * @returns SSE stream controller with progress/complete/error callbacks
    *
    * @example
    * ```typescript
-   * const stream = sseClient.detectComments('http://localhost:4000/resources/doc-123', {
-   *   instructions: 'Focus on technical terminology',
-   *   tone: 'scholarly'
-   * });
+   * const stream = sseClient.detectComments(
+   *   'http://localhost:4000/resources/doc-123',
+   *   {
+   *     instructions: 'Focus on technical terminology',
+   *     tone: 'scholarly'
+   *   },
+   *   { auth: 'your-token' }
+   * );
    *
    * stream.onProgress((progress) => {
    *   console.log(`${progress.status}: ${progress.percentage}%`);
@@ -413,7 +422,8 @@ export class SSEClient {
    */
   detectComments(
     resourceId: ResourceUri,
-    request: DetectCommentsStreamRequest = {}
+    request: DetectCommentsStreamRequest = {},
+    options?: SSERequestOptions
   ): SSEStream<CommentDetectionProgress, CommentDetectionProgress> {
     const id = this.extractId(resourceId);
     const url = `${this.baseUrl}/resources/${id}/detect-comments-stream`;
@@ -422,7 +432,7 @@ export class SSEClient {
       url,
       {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: this.getHeaders(options?.auth),
         body: JSON.stringify(request)
       },
       {
@@ -443,14 +453,19 @@ export class SSEClient {
    *
    * @param resourceId - Resource URI or ID
    * @param request - Detection configuration (schema and categories to detect)
+   * @param options - Request options (auth token)
    * @returns SSE stream controller with progress/complete/error callbacks
    *
    * @example
    * ```typescript
-   * const stream = sseClient.detectTags('http://localhost:4000/resources/doc-123', {
-   *   schemaId: 'legal-irac',
-   *   categories: ['Issue', 'Rule', 'Application', 'Conclusion']
-   * });
+   * const stream = sseClient.detectTags(
+   *   'http://localhost:4000/resources/doc-123',
+   *   {
+   *     schemaId: 'legal-irac',
+   *     categories: ['Issue', 'Rule', 'Application', 'Conclusion']
+   *   },
+   *   { auth: 'your-token' }
+   * );
    *
    * stream.onProgress((progress) => {
    *   console.log(`${progress.status}: ${progress.percentage}%`);
@@ -471,7 +486,8 @@ export class SSEClient {
    */
   detectTags(
     resourceId: ResourceUri,
-    request: DetectTagsStreamRequest
+    request: DetectTagsStreamRequest,
+    options?: SSERequestOptions
   ): SSEStream<TagDetectionProgress, TagDetectionProgress> {
     const id = this.extractId(resourceId);
     const url = `${this.baseUrl}/resources/${id}/detect-tags-stream`;
@@ -480,7 +496,7 @@ export class SSEClient {
       url,
       {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: this.getHeaders(options?.auth),
         body: JSON.stringify(request)
       },
       {
@@ -501,11 +517,15 @@ export class SSEClient {
    * This stream does NOT have a complete event - it stays open until explicitly closed.
    *
    * @param resourceId - Resource URI or ID to subscribe to
+   * @param options - Request options (auth token)
    * @returns SSE stream controller with event callback
    *
    * @example
    * ```typescript
-   * const stream = sseClient.resourceEvents('http://localhost:4000/resources/doc-123');
+   * const stream = sseClient.resourceEvents(
+   *   'http://localhost:4000/resources/doc-123',
+   *   { auth: 'your-token' }
+   * );
    *
    * stream.onProgress((event) => {
    *   console.log(`Event: ${event.type}`);
@@ -522,7 +542,7 @@ export class SSEClient {
    * stream.close();
    * ```
    */
-  resourceEvents(resourceId: ResourceUri): SSEStream<any, never> {
+  resourceEvents(resourceId: ResourceUri, options?: SSERequestOptions): SSEStream<any, never> {
     const id = this.extractId(resourceId);
     const url = `${this.baseUrl}/resources/${id}/events/stream`;
 
@@ -530,7 +550,7 @@ export class SSEClient {
       url,
       {
         method: 'GET',
-        headers: this.getHeaders()
+        headers: this.getHeaders(options?.auth)
       },
       {
         progressEvents: ['*'], // Accept all event types

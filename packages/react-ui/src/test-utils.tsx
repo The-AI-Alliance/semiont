@@ -16,10 +16,8 @@ import { OpenResourcesProvider } from './contexts/OpenResourcesContext';
 import { EventBusProvider, useEventBus, resetEventBusForTesting, type EventBus } from './contexts/EventBusContext';
 import { ToastProvider } from './components/Toast';
 import type { TranslationManager } from './types/TranslationManager';
-import type { ApiClientManager } from './types/ApiClientManager';
 import type { SessionManager } from './types/SessionManager';
 import type { OpenResourcesManager } from './types/OpenResourcesManager';
-import { SemiontApiClient, baseUrl, accessToken } from '@semiont/api-client';
 
 /**
  * Default mock implementations
@@ -37,11 +35,6 @@ export const defaultMocks = {
       return result;
     },
   } as TranslationManager,
-
-  apiClientManager: new SemiontApiClient({
-    baseUrl: baseUrl('http://localhost:4000'),
-    accessToken: accessToken('test-token'),
-  }) as ApiClientManager,
 
   sessionManager: {
     isAuthenticated: false,
@@ -64,7 +57,7 @@ export const defaultMocks = {
  */
 export interface TestProvidersOptions {
   translationManager?: TranslationManager;
-  apiClientManager?: ApiClientManager;
+  apiBaseUrl?: string;
   sessionManager?: SessionManager;
   openResourcesManager?: OpenResourcesManager;
   queryClient?: QueryClient;
@@ -82,10 +75,9 @@ export interface TestProvidersOptions {
  *   expect(screen.getByText('Hello')).toBeInTheDocument();
  * });
  *
- * it('should work with authenticated client', () => {
- *   const mockClient = new SemiontApiClient({ ... });
+ * it('should work with custom API base URL', () => {
  *   renderWithProviders(<MyComponent />, {
- *     apiClientManager: mockClient,
+ *     apiBaseUrl: 'http://test.example.com',
  *   });
  * });
  * ```
@@ -122,7 +114,7 @@ export function renderWithProviders(
 ): RenderWithProvidersResult {
   const {
     translationManager = defaultMocks.translationManager,
-    apiClientManager = defaultMocks.apiClientManager,
+    apiBaseUrl = 'http://localhost:4000',
     sessionManager = defaultMocks.sessionManager,
     openResourcesManager = defaultMocks.openResourcesManager,
     returnEventBus = false,
@@ -140,7 +132,7 @@ export function renderWithProviders(
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
       <TranslationProvider translationManager={translationManager}>
-        <ApiClientProvider apiClientManager={apiClientManager}>
+        <ApiClientProvider baseUrl={apiBaseUrl}>
           <SessionProvider sessionManager={sessionManager}>
             <OpenResourcesProvider openResourcesManager={openResourcesManager}>
               <EventBusProvider>

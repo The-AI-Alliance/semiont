@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import type { ResourceUri, ContentFormat } from '@semiont/api-client';
-import { getPrimaryMediaType, decodeWithCharset } from '@semiont/api-client';
+import { getPrimaryMediaType, decodeWithCharset, accessToken } from '@semiont/api-client';
 import { useApiClient } from '../contexts/ApiClientContext';
+import { useAuthToken } from '../contexts/AuthTokenContext';
 import { useToast } from '../components/Toast';
 import type { components } from '@semiont/api-client';
 
@@ -22,6 +23,7 @@ export function useResourceContent(
   resource: SemiontResource
 ): UseResourceContentResult {
   const client = useApiClient();
+  const token = useAuthToken();
   const { showError } = useToast();
   const [content, setContent] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -32,6 +34,7 @@ export function useResourceContent(
         const mediaType = getPrimaryMediaType(resource) || 'text/plain';
         const { data } = await client.getResourceRepresentation(rUri, {
           accept: mediaType as ContentFormat,
+          auth: token ? accessToken(token) : undefined,
         });
         const text = decodeWithCharset(data, mediaType);
         setContent(text);
@@ -43,7 +46,7 @@ export function useResourceContent(
       }
     };
     loadContent();
-  }, [rUri, resource, client, showError]);
+  }, [rUri, resource, client, token, showError]);
 
   return { content, loading };
 }

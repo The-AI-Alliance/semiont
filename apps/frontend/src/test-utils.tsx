@@ -25,7 +25,6 @@ import {
 } from '@semiont/react-ui/test-utils';
 import type {
   TranslationManager,
-  ApiClientManager,
   SessionManager,
   OpenResourcesManager,
 } from '@semiont/react-ui';
@@ -69,7 +68,7 @@ export function renderWithProviders(
   const {
     nextAuthSession = null,
     translationManager = defaultMocks.translationManager,
-    apiClientManager = defaultMocks.apiClientManager,
+    apiBaseUrl = 'http://localhost:4000',
     sessionManager = defaultMocks.sessionManager,
     openResourcesManager = defaultMocks.openResourcesManager,
     queryClient: providedQueryClient,
@@ -86,7 +85,7 @@ export function renderWithProviders(
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
       <TranslationProvider translationManager={translationManager}>
-        <ApiClientProvider apiClientManager={apiClientManager}>
+        <ApiClientProvider baseUrl={apiBaseUrl}>
           <ReactUiSessionProvider sessionManager={sessionManager}>
             <OpenResourcesProvider openResourcesManager={openResourcesManager}>
               <QueryClientProvider client={testQueryClient}>
@@ -118,7 +117,6 @@ export {
 export type {
   TestProvidersOptions,
   TranslationManager,
-  ApiClientManager,
   SessionManager,
   OpenResourcesManager,
 };

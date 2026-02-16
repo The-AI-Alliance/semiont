@@ -83,10 +83,9 @@ describe('SSEClient', () => {
       );
     });
 
-    it('should accept accessToken in config', () => {
+    it('should accept auth token in request options', () => {
       const client = new SSEClient({
-        baseUrl: baseUrl('http://localhost:4000'),
-        accessToken: accessToken('test-token')
+        baseUrl: baseUrl('http://localhost:4000')
       });
 
       fetchMock.mockResolvedValue({
@@ -94,7 +93,11 @@ describe('SSEClient', () => {
         body: createSSEReadableStream('')
       });
 
-      client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
+      client.detectAnnotations(
+        testResourceUri('doc-123'),
+        { entityTypes: [entityType('Person')] },
+        { auth: accessToken('test-token') }
+      );
 
       expect(fetchMock).toHaveBeenCalledWith(
         expect.any(String),
@@ -106,37 +109,51 @@ describe('SSEClient', () => {
       );
     });
 
-    it('should allow setting access token after construction', () => {
+    it('should support different auth tokens per request', () => {
       const client = new SSEClient({
         baseUrl: baseUrl('http://localhost:4000')
       });
-
-      client.setAccessToken(accessToken('new-token'));
 
       fetchMock.mockResolvedValue({
         ok: true,
         body: createSSEReadableStream('')
       });
 
-      client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
+      client.detectAnnotations(
+        testResourceUri('doc-123'),
+        { entityTypes: [entityType('Person')] },
+        { auth: accessToken('first-token') }
+      );
 
-      expect(fetchMock).toHaveBeenCalledWith(
+      client.detectAnnotations(
+        testResourceUri('doc-456'),
+        { entityTypes: [entityType('Person')] },
+        { auth: accessToken('second-token') }
+      );
+
+      expect(fetchMock).toHaveBeenNthCalledWith(1,
         expect.any(String),
         expect.objectContaining({
           headers: expect.objectContaining({
-            'Authorization': 'Bearer new-token'
+            'Authorization': 'Bearer first-token'
+          })
+        })
+      );
+
+      expect(fetchMock).toHaveBeenNthCalledWith(2,
+        expect.any(String),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'Authorization': 'Bearer second-token'
           })
         })
       );
     });
 
-    it('should allow clearing access token', () => {
+    it('should work without auth token', () => {
       const client = new SSEClient({
-        baseUrl: baseUrl('http://localhost:4000'),
-        accessToken: accessToken('test-token')
+        baseUrl: baseUrl('http://localhost:4000')
       });
-
-      client.clearAccessToken();
 
       fetchMock.mockResolvedValue({
         ok: true,

@@ -7,7 +7,6 @@
 // Types
 export * from './types/annotation-props';
 export * from './types/AnnotationManager';
-export * from './types/ApiClientManager';
 export * from './types/CacheManager';
 export * from './types/navigation';
 export type { OpenResourcesManager } from './types/OpenResourcesManager';
@@ -55,6 +54,7 @@ export * from './hooks/useResourceContent';
 export * from './contexts/AnnotationContext';
 export * from './contexts/AnnotationUIContext';
 export * from './contexts/ApiClientContext';
+export * from './contexts/AuthTokenContext';
 export * from './contexts/CacheContext';
 export * from './contexts/EventBusContext';
 export * from './contexts/useEventOperations';

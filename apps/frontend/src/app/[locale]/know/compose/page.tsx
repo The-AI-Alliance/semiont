@@ -12,7 +12,7 @@ import { useTranslations, useLocale } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useResources, useAnnotations, useEntityTypes, useApiClient } from '@semiont/react-ui';
+import { useResources, useAnnotations, useEntityTypes, useApiClient, useAuthToken } from '@semiont/react-ui';
 import { useToast } from '@semiont/react-ui';
 import { useTheme } from '@semiont/react-ui';
 import { useToolbar } from '@semiont/react-ui';
@@ -20,7 +20,7 @@ import { useLineNumbers } from '@semiont/react-ui';
 import { useEventSubscriptions } from '@semiont/react-ui';
 import { Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { getPrimaryMediaType, getResourceId, resourceUri, resourceAnnotationUri, type ResourceUri, type ContentFormat, type ResourceAnnotationUri } from '@semiont/api-client';
+import { getPrimaryMediaType, getResourceId, resourceUri, resourceAnnotationUri, type ResourceUri, type ContentFormat, type ResourceAnnotationUri, type AccessToken } from '@semiont/api-client';
 import { decodeWithCharset } from '@semiont/api-client';
 import { uriToAnnotationId } from '@semiont/core';
 import { ComposeLoadingState } from '@semiont/react-ui';
@@ -71,6 +71,7 @@ function ComposeResourceContent() {
   const annotations = useAnnotations();
   const entityTypesAPI = useEntityTypes();
   const client = useApiClient();
+  const token = useAuthToken();
 
   // Fetch available entity types
   const { data: entityTypesData } = entityTypesAPI.list.useQuery();
@@ -107,12 +108,13 @@ function ComposeResourceContent() {
 
       // Handle clone mode
       if (isCloneMode && cloneDataResponse) {
-        if (cloneDataResponse.sourceResource && client) {
+        if (cloneDataResponse.sourceResource && client && token) {
           try {
             const rUri = resourceUri(cloneDataResponse.sourceResource['@id']);
             const mediaType = getPrimaryMediaType(cloneDataResponse.sourceResource) || 'text/plain';
             const { data } = await client.getResourceRepresentation(rUri as ResourceUri, {
               accept: mediaType as ContentFormat,
+              auth: token as AccessToken,
             });
             const content = decodeWithCharset(data, mediaType);
 
