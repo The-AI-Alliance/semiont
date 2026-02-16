@@ -44,13 +44,14 @@ function toAccessToken(token: string | null) {
 export function useResources() {
   const client = useApiClient();
   const queryClient = useQueryClient();
+  const token = useAuthToken();
 
   return {
     list: {
       useQuery: (options?: { limit?: number; archived?: boolean; query?: string }) =>
         useQuery({
           queryKey: QUERY_KEYS.documents.all(options?.limit, options?.archived),
-          queryFn: () => client!.listResources(options?.limit, options?.archived, options?.query ? searchQuery(options.query) : undefined),
+          queryFn: () => client!.listResources(options?.limit, options?.archived, options?.query ? searchQuery(options.query) : undefined, { auth: toAccessToken(token) }),
           enabled: !!client,
         }),
     },
@@ -59,7 +60,7 @@ export function useResources() {
       useQuery: (rUri: ResourceUri, options?: Omit<UseQueryOptions, 'queryKey' | 'queryFn'>) =>
         useQuery({
           queryKey: QUERY_KEYS.documents.detail(rUri),
-          queryFn: () => client!.getResource(rUri),
+          queryFn: () => client!.getResource(rUri, { auth: toAccessToken(token) }),
           enabled: !!client && !!rUri,
           ...options,
         }),
@@ -69,7 +70,7 @@ export function useResources() {
       useQuery: (rUri: ResourceUri) =>
         useQuery({
           queryKey: QUERY_KEYS.documents.events(rUri),
-          queryFn: () => client!.getResourceEvents(rUri),
+          queryFn: () => client!.getResourceEvents(rUri, { auth: toAccessToken(token) }),
           enabled: !!client && !!rUri,
         }),
     },
@@ -78,7 +79,7 @@ export function useResources() {
       useQuery: (rUri: ResourceUri) =>
         useQuery({
           queryKey: QUERY_KEYS.documents.annotations(rUri),
-          queryFn: () => client!.getResourceAnnotations(rUri),
+          queryFn: () => client!.getResourceAnnotations(rUri, { auth: toAccessToken(token) }),
           enabled: !!client && !!rUri,
         }),
     },
@@ -87,7 +88,7 @@ export function useResources() {
       useQuery: (rUri: ResourceUri) =>
         useQuery({
           queryKey: QUERY_KEYS.documents.referencedBy(rUri),
-          queryFn: () => client!.getResourceReferencedBy(rUri),
+          queryFn: () => client!.getResourceReferencedBy(rUri, { auth: toAccessToken(token) }),
           enabled: !!client && !!rUri,
         }),
     },
@@ -96,7 +97,7 @@ export function useResources() {
       useQuery: (query: string, limit: number) =>
         useQuery({
           queryKey: QUERY_KEYS.documents.search(query, limit),
-          queryFn: () => client!.listResources(limit, undefined, searchQuery(query)),
+          queryFn: () => client!.listResources(limit, undefined, searchQuery(query), { auth: toAccessToken(token) }),
           enabled: !!client && !!query,
         }),
     },
@@ -147,12 +148,14 @@ export function useResources() {
     },
 
     getByToken: {
-      useQuery: (token: string) =>
-        useQuery({
-          queryKey: ['resources', 'token', token],
-          queryFn: () => client!.getResourceByToken(cloneToken(token)),
-          enabled: !!client && !!token,
-        }),
+      useQuery: (cloneTokenStr: string) => {
+        const authToken = useAuthToken();
+        return useQuery({
+          queryKey: ['resources', 'token', cloneTokenStr],
+          queryFn: () => client!.getResourceByToken(cloneToken(cloneTokenStr), { auth: toAccessToken(authToken) }),
+          enabled: !!client && !!cloneTokenStr,
+        });
+      },
     },
 
     createFromToken: {
@@ -178,13 +181,14 @@ export function useResources() {
 export function useAnnotations() {
   const client = useApiClient();
   const queryClient = useQueryClient();
+  const token = useAuthToken();
 
   return {
     get: {
       useQuery: (annotationUri: AnnotationUri) =>
         useQuery({
           queryKey: ['annotations', annotationUri],
-          queryFn: () => client!.getAnnotation(annotationUri),
+          queryFn: () => client!.getAnnotation(annotationUri, { auth: toAccessToken(token) }),
           enabled: !!client && !!annotationUri,
         }),
     },
@@ -193,7 +197,7 @@ export function useAnnotations() {
       useQuery: (annotationUri: ResourceAnnotationUri) =>
         useQuery({
           queryKey: ['annotations', annotationUri],
-          queryFn: () => client!.getResourceAnnotation(annotationUri),
+          queryFn: () => client!.getResourceAnnotation(annotationUri, { auth: toAccessToken(token) }),
           enabled: !!client && !!annotationUri,
         }),
     },
@@ -202,7 +206,7 @@ export function useAnnotations() {
       useQuery: (annotationUri: ResourceAnnotationUri) =>
         useQuery({
           queryKey: QUERY_KEYS.annotations.history(annotationUri),
-          queryFn: () => client!.getAnnotationHistory(annotationUri),
+          queryFn: () => client!.getAnnotationHistory(annotationUri, { auth: toAccessToken(token) }),
           enabled: !!client && !!annotationUri,
         }),
     },
@@ -333,7 +337,7 @@ export function useAnnotations() {
       useQuery: (resourceUri: ResourceUri, annotationId: string, options?: { contextWindow?: number }) =>
         useQuery({
           queryKey: QUERY_KEYS.annotations.llmContext(resourceUri, annotationId),
-          queryFn: () => client!.getAnnotationLLMContext(resourceUri, annotationId, options),
+          queryFn: () => client!.getAnnotationLLMContext(resourceUri, annotationId, { ...options, auth: toAccessToken(token) }),
           enabled: !!client && !!resourceUri && !!annotationId,
           staleTime: 5 * 60 * 1000, // 5 minutes - context doesn't change often
         }),
@@ -347,6 +351,7 @@ export function useAnnotations() {
 export function useEntityTypes() {
   const client = useApiClient();
   const queryClient = useQueryClient();
+  const token = useAuthToken();
 
   type EntityTypesResponse = Awaited<ReturnType<SemiontApiClient['listEntityTypes']>>;
 
@@ -355,7 +360,7 @@ export function useEntityTypes() {
       useQuery: (options?: Omit<UseQueryOptions<EntityTypesResponse>, 'queryKey' | 'queryFn'>) =>
         useQuery({
           queryKey: QUERY_KEYS.entityTypes.all(),
-          queryFn: () => client!.listEntityTypes(),
+          queryFn: () => client!.listEntityTypes({ auth: toAccessToken(token) }),
           enabled: !!client,
           ...options,
         }),
@@ -399,6 +404,7 @@ export function useEntityTypes() {
 export function useAdmin() {
   const client = useApiClient();
   const queryClient = useQueryClient();
+  const token = useAuthToken();
 
   return {
     users: {
@@ -406,7 +412,7 @@ export function useAdmin() {
         useQuery: () =>
           useQuery({
             queryKey: QUERY_KEYS.admin.users.all(),
-            queryFn: () => client!.listUsers(),
+            queryFn: () => client!.listUsers({ auth: toAccessToken(token) }),
             enabled: !!client,
           }),
       },
@@ -415,7 +421,7 @@ export function useAdmin() {
         useQuery: () =>
           useQuery({
             queryKey: QUERY_KEYS.admin.users.stats(),
-            queryFn: () => client!.getUserStats(),
+            queryFn: () => client!.getUserStats({ auth: toAccessToken(token) }),
             enabled: !!client,
           }),
       },
@@ -442,7 +448,7 @@ export function useAdmin() {
         useQuery: () =>
           useQuery({
             queryKey: QUERY_KEYS.admin.oauth.config(),
-            queryFn: () => client!.getOAuthConfig(),
+            queryFn: () => client!.getOAuthConfig({ auth: toAccessToken(token) }),
             enabled: !!client,
           }),
       },
@@ -456,13 +462,14 @@ export function useAdmin() {
 export function useAuthApi() {
   const client = useApiClient();
   const queryClient = useQueryClient();
+  const token = useAuthToken();
 
   return {
     me: {
       useQuery: () =>
         useQuery({
           queryKey: QUERY_KEYS.users.me(),
-          queryFn: () => client!.getMe(),
+          queryFn: () => client!.getMe({ auth: toAccessToken(token) }),
           enabled: !!client,
         }),
     },

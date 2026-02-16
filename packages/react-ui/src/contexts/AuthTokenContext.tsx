@@ -3,57 +3,30 @@
 /**
  * Auth Token Context - Manages authentication token lifecycle
  *
- * Separation of concerns:
- * - Auth token management is separate from API client
- * - API client is stateless (doesn't store token)
- * - Token flows through as immutable data
- *
- * Following functional programming principles:
- * - Pure token access (no side effects)
- * - Immutable data flow
- * - Single responsibility (only manages tokens)
+ * Simple approach: Just pass the token value through context.
+ * When the token changes, context updates, components re-render.
+ * No complex machinery needed.
  */
 
 import { createContext, useContext, ReactNode } from 'react';
 
-/**
- * Auth token manager interface
- *
- * Apps must provide an implementation that:
- * - Returns current access token (null if not authenticated)
- * - Optionally supports token refresh
- */
-export interface AuthTokenManager {
-  /**
-   * Get current access token
-   * @returns Access token string, or null if not authenticated
-   */
-  getToken: () => string | null;
-
-  /**
-   * Optional: Refresh token if needed
-   * For future token refresh logic
-   */
-  refreshToken?: () => Promise<string>;
-}
-
-const AuthTokenContext = createContext<AuthTokenManager | undefined>(undefined);
+const AuthTokenContext = createContext<string | null | undefined>(undefined);
 
 export interface AuthTokenProviderProps {
-  tokenManager: AuthTokenManager;
+  token: string | null;
   children: ReactNode;
 }
 
 /**
- * Provider for auth token management
- * Apps must provide an AuthTokenManager implementation
+ * Provider for auth token
+ * Pass the current token value - React handles the rest
  */
 export function AuthTokenProvider({
-  tokenManager,
+  token,
   children,
 }: AuthTokenProviderProps) {
   return (
-    <AuthTokenContext.Provider value={tokenManager}>
+    <AuthTokenContext.Provider value={token}>
       {children}
     </AuthTokenContext.Provider>
   );
@@ -62,8 +35,8 @@ export function AuthTokenProvider({
 /**
  * Hook to get current auth token
  *
- * Pure function - just reads current token value
- * No side effects, no subscriptions, no state
+ * Returns the current token value from context.
+ * Re-renders automatically when token changes (normal React behavior).
  *
  * @returns Current access token (null if not authenticated)
  * @throws Error if used outside AuthTokenProvider
@@ -75,5 +48,5 @@ export function useAuthToken(): string | null {
     throw new Error('useAuthToken must be used within an AuthTokenProvider');
   }
 
-  return context.getToken();
+  return context;
 }

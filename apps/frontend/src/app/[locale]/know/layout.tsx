@@ -10,7 +10,6 @@ import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link, routes } from '@/lib/routing';
 import { useOpenResourcesManager } from '@/hooks/useOpenResourcesManager';
 import { useCacheManager } from '@/hooks/useCacheManager';
-import { useAuthTokenManager } from '@/hooks/useAuthTokenManager';
 
 /**
  * Knowledge Layout
@@ -31,9 +30,8 @@ export default function KnowledgeLayout({
   const cacheManager = useCacheManager();
   const { data: session, status } = useSession();
 
-  // IMPORTANT: Must call hooks unconditionally (React Rules of Hooks)
-  // Even if not authenticated, we still need to call the hook to keep hook count stable
-  const authTokenManager = useAuthTokenManager();
+  // Extract auth token from session (don't call useAuthToken - avoid double useSession call)
+  const authToken = session?.backendToken || null;
 
   // Show loading state while checking authentication
   if (status === 'loading') {
@@ -77,7 +75,7 @@ export default function KnowledgeLayout({
   }
 
   return (
-    <AuthTokenProvider tokenManager={authTokenManager}>
+    <AuthTokenProvider token={authToken}>
       <ApiClientProvider baseUrl="">
         <EventBusProvider>
           <CacheProvider cacheManager={cacheManager}>
