@@ -373,6 +373,13 @@ export function ResourceViewer({
     scrollToAnnotationId
   };
 
+  // Define getTargetDocumentName callback OUTSIDE the conditional
+  // IMPORTANT: This must be defined before the return statement to avoid hook ordering violations
+  const getTargetDocumentName = useCallback((documentId: string) => {
+    const referencedResource = references.find((a: Annotation) => getBodySource(a.body) === documentId);
+    return referencedResource ? getExactText(getTargetSelector(referencedResource.target)) : undefined;
+  }, [references]);
+
   return (
     <div ref={documentViewerRef} className="semiont-resource-viewer">
       {/* Content */}
@@ -389,10 +396,7 @@ export function ResourceViewer({
             if ('selectedShape' in updates) setSelectedShape(updates.selectedShape!);
           }}
           enableWidgets={true}
-          getTargetDocumentName={useCallback((documentId: string) => {
-            const referencedResource = references.find((a: Annotation) => getBodySource(a.body) === documentId);
-            return referencedResource ? getExactText(getTargetSelector(referencedResource.target)) : undefined;
-          }, [references])}
+          getTargetDocumentName={getTargetDocumentName}
           {...(generatingReferenceId !== undefined && { generatingReferenceId })}
           showLineNumbers={showLineNumbers}
           annotateMode={annotateMode}
