@@ -93,7 +93,8 @@
     "densitySparse": "Sparse",
     "densityDense": "Dense",
     "fragmentSelected": "Fragment selected",
-    "imageRegionSelected": "Image region selected"
+    "imageRegionSelected": "Image region selected",
+    "closeProgress": "Close"
   },
   "HighlightPanel": {
     "title": "Highlights",
@@ -107,7 +108,8 @@
     "cancel": "Cancel",
     "densityLabel": "Density",
     "densitySparse": "Sparse",
-    "densityDense": "Dense"
+    "densityDense": "Dense",
+    "closeProgress": "Close"
   },
   "AssessmentPanel": {
     "title": "Assessments",
@@ -131,7 +133,8 @@
     "densitySparse": "Sparse",
     "densityDense": "Dense",
     "fragmentSelected": "Fragment selected",
-    "imageRegionSelected": "Image region selected"
+    "imageRegionSelected": "Image region selected",
+    "closeProgress": "Close"
   },
   "TaggingPanel": {
     "title": "Tags",
