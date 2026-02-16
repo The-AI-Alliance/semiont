@@ -15,6 +15,7 @@ export { type OpenResource as OpenResourceFromManager } from './types/OpenResour
 export * from './types/SessionManager';
 export * from './types/TranslationManager';
 export * from './types/resource-viewer';
+export * from './types/progress';
 
 // Lib utilities
 export * from './lib/annotation-registry';
@@ -33,7 +34,6 @@ export * from './lib/validation';
 
 // Hooks
 export * from './hooks/useDebounce';
-export * from './hooks/useDetectionProgress';
 export * from './hooks/useFormattedTime';
 export { useFormValidation, validationRules } from './hooks/useFormValidation';
 export * from './hooks/useGenerationProgress';

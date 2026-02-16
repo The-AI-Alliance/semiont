@@ -96,10 +96,12 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
     const resourceUri = typeof reference.target === 'object' && 'source' in reference.target
       ? reference.target.source
       : '';
-    eventBus.emit('reference:generate', {
+
+    // Emit request to open generation modal
+    eventBus.emit('generation:modal-open', {
       annotationUri: reference.id,
       resourceUri,
-      options: { title: selectedText },
+      defaultTitle: selectedText,
     });
   };
 

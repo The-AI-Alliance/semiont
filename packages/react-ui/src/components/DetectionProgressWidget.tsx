@@ -2,7 +2,7 @@
 
 import { useTranslations } from '../contexts/TranslationContext';
 import { useEventBus } from '../contexts/EventBusContext';
-import type { DetectionProgress } from '../hooks/useDetectionProgress';
+import type { DetectionProgress } from '../types/progress';
 import type { components } from '@semiont/api-client';
 
 type Motivation = components['schemas']['Motivation'];

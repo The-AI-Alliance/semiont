@@ -18,7 +18,7 @@ import { useEventBus } from '../contexts/EventBusContext';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
 import { useApiClient } from '../contexts/ApiClientContext';
 import { useEventOperations } from '../contexts/useEventOperations';
-import type { DetectionProgress } from './useDetectionProgress';
+import type { DetectionProgress } from '../types/progress';
 
 export interface DetectionFlowState {
   detectingMotivation: Motivation | null;

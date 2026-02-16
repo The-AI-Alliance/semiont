@@ -313,8 +313,8 @@ export function ResourceViewerPage({
     'annotation:body-update-failed': () => showError('Failed to update annotation'),
     'detection:complete': () => showSuccess('Detection complete'),
     'detection:failed': () => showError('Detection failed'),
-    'reference:generation-complete': () => showSuccess('Document generated'),
-    'reference:generation-failed': () => showError('Failed to generate document'),
+    'generation:complete': () => showSuccess('Document generated'),
+    'generation:failed': () => showError('Failed to generate document'),
   });
 
   // Resource loading announcements

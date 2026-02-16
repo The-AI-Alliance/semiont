@@ -13,9 +13,10 @@
 
 import { useState, useCallback } from 'react';
 import type { GenerationContext, AnnotationUri } from '@semiont/api-client';
-import { annotationUri, resourceUri } from '@semiont/api-client';
+import { annotationUri } from '@semiont/api-client';
 import { useGenerationProgress } from './useGenerationProgress';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
+import { useEventBus } from '../contexts/EventBusContext';
 
 export interface GenerationFlowState {
   generationProgress: any | null;
@@ -55,10 +56,11 @@ export function useGenerationFlow(
   cacheManager: any,
   clearNewAnnotationId: (annotationId: AnnotationUri) => void
 ): GenerationFlowState {
+  const eventBus = useEventBus();
+
   // Generation progress state (from hook)
   const {
     progress: generationProgress,
-    startGeneration,
     clearProgress
   } = useGenerationProgress();
 
@@ -91,19 +93,25 @@ export function useGenerationFlow(
       return;
     }
 
-    // Modal submitted with full options - proceed with generation
+    // Modal submitted with full options - emit event for useEventOperations
     // Clear CSS sparkle animation if reference was recently created
     clearNewAnnotationId(annotationUri(referenceId));
 
     // Use full resource URI (W3C Web Annotation spec requires URIs)
     const resourceUriStr = `resource://${resourceId}`;
-    startGeneration(annotationUri(referenceId), resourceUri(resourceUriStr), {
-      ...options,
-      // Use language from modal if provided, otherwise fall back to current locale
-      language: options.language || locale,
-      context: options.context
+
+    // Emit generation:start event instead of calling SSE directly
+    eventBus.emit('generation:start', {
+      annotationUri: referenceId,
+      resourceUri: resourceUriStr,
+      options: {
+        ...options,
+        // Use language from modal if provided, otherwise fall back to current locale
+        language: options.language || locale,
+        context: options.context // Now guaranteed to exist
+      }
     });
-  }, [startGeneration, resourceId, clearNewAnnotationId, locale]);
+  }, [eventBus, resourceId, clearNewAnnotationId, locale]);
 
   const handleCloseGenerationModal = useCallback(() => {
     setGenerationModalOpen(false);
@@ -115,7 +123,16 @@ export function useGenerationFlow(
 
   // Subscribe to generation events
   useEventSubscriptions({
-    'generation:complete-event': ({ progress }: { progress: any }) => {
+    'generation:modal-open': ({ annotationUri: annUri, defaultTitle }: {
+      annotationUri: string;
+      resourceUri: string;
+      defaultTitle: string;
+    }) => {
+      setGenerationReferenceId(annUri);
+      setGenerationDefaultTitle(defaultTitle);
+      setGenerationModalOpen(true);
+    },
+    'generation:complete': ({ progress }: { annotationUri: string; progress: any }) => {
       // Show success notification
       if (progress.resourceName) {
         showSuccess(`Resource "${progress.resourceName}" created successfully!`);
@@ -131,8 +148,8 @@ export function useGenerationFlow(
       // Clear progress widget after a delay to show completion state
       setTimeout(() => clearProgress(), 2000);
     },
-    'generation:error-event': ({ error }: { error: string }) => {
-      showError(`Resource generation failed: ${error}`);
+    'generation:failed': ({ error }: { error: Error }) => {
+      showError(`Resource generation failed: ${error.message}`);
     },
     'reference:search-modal-open': ({ referenceId }: { referenceId: string }) => {
       setPendingReferenceId(referenceId);

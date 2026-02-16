@@ -40,12 +40,6 @@ export type EventMap = {
   'detection:completed': Extract<ResourceEvent, { type: 'job.completed' }>;
   'detection:failed': Extract<ResourceEvent, { type: 'job.failed' }>;
 
-  // Generation events
-  'generation:started': Extract<ResourceEvent, { type: 'job.started' }>;
-  'generation:progress': Extract<ResourceEvent, { type: 'job.progress' }>;
-  'generation:resource-created': Extract<ResourceEvent, { type: 'resource.created' }>;
-  'generation:completed': Extract<ResourceEvent, { type: 'job.completed' }>;
-
   // Annotation events (backend)
   'annotation:added': Extract<ResourceEvent, { type: 'annotation.added' }>;
   'annotation:removed': Extract<ResourceEvent, { type: 'annotation.removed' }>;
@@ -159,25 +153,28 @@ export type EventMap = {
   'detection:complete': { motivation?: Motivation; resourceUri?: ResourceUri; progress?: any };
   'detection:cancelled': void;
   'detection:dismiss-progress': void;
-  // Frontend events from useDetectionProgress hook
-  'detection:progress-update': { progress: any };
-  'detection:complete-event': { progress: any };
-  'detection:error-event': { error: string };
 
-  // Resource generation operations (frontend - via useGenerationProgress hook)
-  'generation:progress-update': { progress: any };
-  'generation:complete-event': { progress: any };
-  'generation:error-event': { error: string };
-
-  // Reference operations
-  'reference:generate': {
+  // Resource generation operations (unified event-driven flow)
+  'generation:start': {
     annotationUri: string;
     resourceUri: string;
-    options: { title: string; prompt?: string; language?: string; temperature?: number; maxTokens?: number };
+    options: {
+      title: string;
+      prompt?: string;
+      language?: string;
+      temperature?: number;
+      maxTokens?: number;
+      context: any; // GenerationContext - required for generation
+    };
   };
-  'reference:generation-progress': { chunk: any };
-  'reference:generation-complete': { annotationUri: string };
-  'reference:generation-failed': { error: Error };
+  'generation:progress': any; // GenerationProgress from SSE
+  'generation:complete': { annotationUri: string; progress: any };
+  'generation:failed': { error: Error };
+  'generation:modal-open': {
+    annotationUri: string;
+    resourceUri: string;
+    defaultTitle: string;
+  };
   'reference:create-manual': {
     annotationUri: string;
     title: string;

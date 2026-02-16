@@ -303,14 +303,22 @@ export function useEventOperations(
     // ========================================================================
 
     /**
-     * Handle document generation from reference
-     * Emitted by: ReferenceEntry (when user clicks generate button)
+     * Handle document generation start
+     * Emitted by: useGenerationFlow (when user submits generation modal with full options)
      */
-    const handleReferenceGenerate = async (event: {
+    const handleGenerationStart = async (event: {
       annotationUri: string;
       resourceUri: string;
-      options: { title: string; prompt?: string; language?: string; temperature?: number; maxTokens?: number };
+      options: {
+        title: string;
+        prompt?: string;
+        language?: string;
+        temperature?: number;
+        maxTokens?: number;
+        context: any; // GenerationContext - required
+      };
     }) => {
+      console.log('[useEventOperations] handleGenerationStart called', { annotationUri: event.annotationUri, options: event.options });
       try {
         generationStreamRef.current?.abort();
         generationStreamRef.current = new AbortController();
@@ -318,35 +326,35 @@ export function useEventOperations(
         const stream = client.sse.generateResourceFromAnnotation(
           event.resourceUri as any,
           event.annotationUri as any,
-          {
-            title: event.options.title,
-            prompt: event.options.prompt,
-            language: event.options.language,
-            temperature: event.options.temperature,
-            maxTokens: event.options.maxTokens,
-          } as any
+          event.options as any
         );
 
         stream.onProgress((chunk) => {
-          emitter.emit('reference:generation-progress', { chunk: chunk as any });
+          console.log('[useEventOperations] Generation progress chunk received', chunk);
+          emitter.emit('generation:progress', chunk);
         });
 
         stream.onComplete((finalChunk) => {
-          // Forward final completion chunk as progress BEFORE emitting complete
-          emitter.emit('reference:generation-progress', { chunk: finalChunk as any });
-          emitter.emit('reference:generation-complete', { annotationUri: event.annotationUri });
+          console.log('[useEventOperations] Generation complete with final chunk', finalChunk);
+          // Forward final completion chunk as progress BEFORE emitting complete (like detection)
+          emitter.emit('generation:progress', finalChunk);
+          emitter.emit('generation:complete', {
+            annotationUri: event.annotationUri,
+            progress: finalChunk
+          });
         });
 
         stream.onError((error) => {
-          console.error('Generation failed:', error);
-          emitter.emit('reference:generation-failed', { error: error as Error });
+          console.error('[useEventOperations] Generation failed:', error);
+          emitter.emit('generation:failed', { error: error as Error });
         });
       } catch (error) {
         if ((error as any).name === 'AbortError') {
           // Normal cancellation
+          console.log('[useEventOperations] Generation cancelled');
         } else {
-          console.error('Generation failed:', error);
-          emitter.emit('reference:generation-failed', { error: error as Error });
+          console.error('[useEventOperations] Generation failed:', error);
+          emitter.emit('generation:failed', { error: error as Error });
         }
       }
     };
@@ -400,7 +408,7 @@ export function useEventOperations(
     emitter.on('annotation:update-body', handleAnnotationUpdateBody);
     emitter.on('detection:start', handleDetectionStart);
     emitter.on('job:cancel-requested', handleJobCancelRequested);
-    emitter.on('reference:generate', handleReferenceGenerate);
+    emitter.on('generation:start', handleGenerationStart);
     emitter.on('reference:create-manual', handleReferenceCreateManual);
     emitter.on('reference:link', handleReferenceLink);
 
@@ -411,7 +419,7 @@ export function useEventOperations(
       emitter.off('annotation:update-body', handleAnnotationUpdateBody);
       emitter.off('detection:start', handleDetectionStart);
       emitter.off('job:cancel-requested', handleJobCancelRequested);
-      emitter.off('reference:generate', handleReferenceGenerate);
+      emitter.off('generation:start', handleGenerationStart);
       emitter.off('reference:create-manual', handleReferenceCreateManual);
       emitter.off('reference:link', handleReferenceLink);
 
