@@ -524,13 +524,14 @@ export function useAuthApi() {
  */
 export function useHealth() {
   const client = useApiClient();
+  const token = useAuthToken();
 
   return {
     check: {
       useQuery: () =>
         useQuery({
           queryKey: QUERY_KEYS.health(),
-          queryFn: () => client!.healthCheck(),
+          queryFn: () => client!.healthCheck(), // Public endpoint - no auth required
           enabled: !!client,
         }),
     },
@@ -539,7 +540,7 @@ export function useHealth() {
       useQuery: (refetchInterval?: number) =>
         useQuery({
           queryKey: QUERY_KEYS.status(),
-          queryFn: () => client!.getStatus(),
+          queryFn: () => client!.getStatus({ auth: toAccessToken(token) }), // Requires authentication
           enabled: !!client,
           ...(refetchInterval && { refetchInterval }),
         }),
