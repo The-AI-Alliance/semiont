@@ -230,6 +230,18 @@ export function DetectSection({
                 <span className="semiont-detection-progress__icon">✨</span>
                 <span>{detectionProgress.message}</span>
               </div>
+              {/* Close button - shown after detection completes (when not actively detecting) */}
+              {!isDetecting && (
+                <button
+                  onClick={() => eventBus.emit('detection:dismiss-progress', undefined)}
+                  className="semiont-detection-progress__close"
+                  aria-label={t('closeProgress')}
+                  title={t('closeProgress')}
+                  type="button"
+                >
+                  ×
+                </button>
+              )}
             </div>
           </div>
         )}

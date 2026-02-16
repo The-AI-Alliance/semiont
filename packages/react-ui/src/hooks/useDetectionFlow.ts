@@ -5,12 +5,14 @@
  * - Tracking currently detecting motivation
  * - Detection progress updates from SSE
  * - Detection lifecycle (start, progress, complete, failed)
+ * - Auto-dismiss progress after completion (5 seconds)
+ * - Manual dismiss via detection:dismiss-progress event
  *
  * Follows react-rxjs-guide.md Layer 2 pattern: Hook bridge that
  * subscribes to events and pushes values into React state.
  */
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { Motivation, ResourceUri } from '@semiont/api-client';
 import { useEventBus } from '../contexts/EventBusContext';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
@@ -39,12 +41,21 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
   const [detectionProgress, setDetectionProgress] = useState<DetectionProgress | null>(null);
   const detectionStreamRef = useRef<any>(null);
 
+  // Auto-dismiss timeout ref
+  const progressDismissTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // Set up event operation handlers (detection, generation, etc.)
   useEventOperations(eventBus, { client, resourceUri: rUri });
 
   // Subscribe to detection events
   useEventSubscriptions({
     'detection:start': ({ motivation }: { motivation: Motivation }) => {
+      // Clear any pending auto-dismiss timeout
+      if (progressDismissTimeoutRef.current) {
+        clearTimeout(progressDismissTimeoutRef.current);
+        progressDismissTimeoutRef.current = null;
+      }
+
       setDetectingMotivation(motivation);
       setDetectionProgress(null); // Clear previous progress
     },
@@ -60,12 +71,44 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
         }
         return current;
       });
+
+      // Auto-dismiss progress after 5 seconds to give user time to read final message
+      if (progressDismissTimeoutRef.current) {
+        clearTimeout(progressDismissTimeoutRef.current);
+      }
+      progressDismissTimeoutRef.current = setTimeout(() => {
+        setDetectionProgress(null);
+        progressDismissTimeoutRef.current = null;
+      }, 5000);
     },
     'detection:failed': () => {
+      // Clear timeout on failure
+      if (progressDismissTimeoutRef.current) {
+        clearTimeout(progressDismissTimeoutRef.current);
+        progressDismissTimeoutRef.current = null;
+      }
+
       setDetectingMotivation(null);
       setDetectionProgress(null);
     },
+    'detection:dismiss-progress': () => {
+      // Manual dismiss - clear timeout and progress immediately
+      if (progressDismissTimeoutRef.current) {
+        clearTimeout(progressDismissTimeoutRef.current);
+        progressDismissTimeoutRef.current = null;
+      }
+      setDetectionProgress(null);
+    },
   });
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (progressDismissTimeoutRef.current) {
+        clearTimeout(progressDismissTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return { detectingMotivation, detectionProgress, detectionStreamRef };
 }

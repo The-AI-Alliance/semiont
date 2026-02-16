@@ -170,7 +170,9 @@ export function useEventOperations(
             emitter.emit('detection:progress', chunk as any);
           });
 
-          stream.onComplete(() => {
+          stream.onComplete((finalChunk) => {
+            // Forward final completion chunk as progress BEFORE emitting complete
+            emitter.emit('detection:progress', finalChunk as any);
             emitter.emit('detection:complete', { motivation: event.motivation });
           });
 
@@ -197,8 +199,10 @@ export function useEventOperations(
             emitter.emit('detection:progress', chunk as any);
           });
 
-          stream.onComplete(() => {
-            console.log('[useEventOperations] SSE stream complete');
+          stream.onComplete((finalChunk) => {
+            console.log('[useEventOperations] SSE stream complete with final chunk', finalChunk);
+            // Forward final completion chunk as progress BEFORE emitting complete
+            emitter.emit('detection:progress', finalChunk as any);
             emitter.emit('detection:complete', { motivation: event.motivation });
           });
 
@@ -216,7 +220,9 @@ export function useEventOperations(
             emitter.emit('detection:progress', chunk as any);
           });
 
-          stream.onComplete(() => {
+          stream.onComplete((finalChunk) => {
+            // Forward final completion chunk as progress BEFORE emitting complete
+            emitter.emit('detection:progress', finalChunk as any);
             emitter.emit('detection:complete', { motivation: event.motivation });
           });
 
@@ -234,7 +240,9 @@ export function useEventOperations(
             emitter.emit('detection:progress', chunk as any);
           });
 
-          stream.onComplete(() => {
+          stream.onComplete((finalChunk) => {
+            // Forward final completion chunk as progress BEFORE emitting complete
+            emitter.emit('detection:progress', finalChunk as any);
             emitter.emit('detection:complete', { motivation: event.motivation });
           });
 
@@ -253,7 +261,9 @@ export function useEventOperations(
             emitter.emit('detection:progress', chunk as any);
           });
 
-          stream.onComplete(() => {
+          stream.onComplete((finalChunk) => {
+            // Forward final completion chunk as progress BEFORE emitting complete
+            emitter.emit('detection:progress', finalChunk as any);
             emitter.emit('detection:complete', { motivation: event.motivation });
           });
 
@@ -321,7 +331,9 @@ export function useEventOperations(
           emitter.emit('reference:generation-progress', { chunk: chunk as any });
         });
 
-        stream.onComplete(() => {
+        stream.onComplete((finalChunk) => {
+          // Forward final completion chunk as progress BEFORE emitting complete
+          emitter.emit('reference:generation-progress', { chunk: finalChunk as any });
           emitter.emit('reference:generation-complete', { annotationUri: event.annotationUri });
         });
 

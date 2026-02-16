@@ -158,6 +158,7 @@ export type EventMap = {
   };
   'detection:complete': { motivation?: Motivation; resourceUri?: ResourceUri; progress?: any };
   'detection:cancelled': void;
+  'detection:dismiss-progress': void;
   // Frontend events from useDetectionProgress hook
   'detection:progress-update': { progress: any };
   'detection:complete-event': { progress: any };
