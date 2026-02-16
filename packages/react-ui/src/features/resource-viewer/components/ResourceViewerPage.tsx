@@ -254,8 +254,9 @@ export function ResourceViewerPage({
     }, []),
   });
 
-  // Event bus subscriptions for UI operations
+  // Event bus subscriptions (combined into single useEventSubscriptions call to prevent hook ordering issues)
   useEventSubscriptions({
+    // Resource operations
     'resource:archive': async () => {
       try {
         await resources.update.useMutation().mutateAsync({
@@ -295,11 +296,11 @@ export function ResourceViewerPage({
         showError('Failed to generate clone link');
       }
     },
+
+    // Annotation operations
     'annotation:sparkle': ({ annotationId }) => {
       triggerSparkleAnimation(annotationId);
     },
-    'settings:theme-changed': ({ theme }) => setTheme(theme),
-    'settings:line-numbers-toggled': toggleLineNumbers,
     'annotation:created': ({ annotation }) => {
       triggerSparkleAnimation(annotation.id);
       debouncedInvalidateAnnotations();
@@ -311,10 +312,32 @@ export function ResourceViewerPage({
       // Success - optimistic update already applied via useResourceEvents
     },
     'annotation:body-update-failed': () => showError('Failed to update annotation'),
+
+    // Settings
+    'settings:theme-changed': ({ theme }) => setTheme(theme),
+    'settings:line-numbers-toggled': toggleLineNumbers,
+
+    // Detection/Generation
     'detection:complete': () => showSuccess('Detection complete'),
     'detection:failed': () => showError('Detection failed'),
     'generation:complete': () => showSuccess('Document generated'),
     'generation:failed': () => showError('Failed to generate document'),
+
+    // Navigation
+    'navigation:reference-navigate': ({ documentId }: { documentId: string }) => {
+      // Navigate to the referenced document
+      if (routes.resource) {
+        const path = routes.resource.replace('[resourceId]', encodeURIComponent(documentId));
+        eventBus.emit('navigation:router-push', { path, reason: 'reference-link' });
+      }
+    },
+    'navigation:entity-type-clicked': ({ entityType }: { entityType: string }) => {
+      // Navigate to discovery page filtered by entity type
+      if (routes.know) {
+        const path = `${routes.know}?entityType=${encodeURIComponent(entityType)}`;
+        eventBus.emit('navigation:router-push', { path, reason: 'entity-type-filter' });
+      }
+    },
   });
 
   // Resource loading announcements
@@ -331,24 +354,6 @@ export function ResourceViewerPage({
       announceResourceLoaded(resource.name);
     }
   }, [contentLoading, content, resource.name, announceResourceLoading, announceResourceLoaded]);
-
-  // App-level routing events (navigation only)
-  useEventSubscriptions({
-    'navigation:reference-navigate': ({ documentId }: { documentId: string }) => {
-      // Navigate to the referenced document
-      if (routes.resource) {
-        const path = routes.resource.replace('[resourceId]', encodeURIComponent(documentId));
-        eventBus.emit('navigation:router-push', { path, reason: 'reference-link' });
-      }
-    },
-    'navigation:entity-type-clicked': ({ entityType }: { entityType: string }) => {
-      // Navigate to discovery page filtered by entity type
-      if (routes.know) {
-        const path = `${routes.know}?entityType=${encodeURIComponent(entityType)}`;
-        eventBus.emit('navigation:router-push', { path, reason: 'entity-type-filter' });
-      }
-    },
-  });
 
   // Derived state
   const documentEntityTypes = resource.entityTypes || [];
