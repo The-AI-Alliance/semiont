@@ -40,6 +40,13 @@ interface HookAnalysis {
   usesColonSeparatedEvents: boolean;
   usesHyphenSeparatedEvents: boolean;
   legacyEventNames: string[];
+
+  // Layer separation (mitt-specific)
+  usesEventBusOn: boolean;        // Direct eventBus.on() calls (should use useEventSubscriptions)
+  usesEventBusOff: boolean;       // Direct eventBus.off() calls (useEventSubscriptions handles cleanup)
+  createsEventSource: boolean;    // new EventSource() in components (should use useResourceEvents)
+  returnsJSX: boolean;            // Hooks returning JSX (should return data only)
+  hasGlobalEventBusImport: boolean; // Direct eventBus import (should use useEventBus() hook)
 }
 
 interface FileAnalysis {
@@ -247,6 +254,125 @@ class DependencyArrayAuditor {
     };
   }
 
+  /**
+   * Detect eventBus.on() calls (components should use useEventSubscriptions)
+   */
+  private detectEventBusOn(body: ts.Block): boolean {
+    let found = false;
+
+    const visit = (node: ts.Node) => {
+      if (ts.isCallExpression(node)) {
+        const expr = node.expression;
+        if (ts.isPropertyAccessExpression(expr) &&
+            expr.name.text === 'on' &&
+            ts.isIdentifier(expr.expression) &&
+            expr.expression.text === 'eventBus') {
+          found = true;
+          return;
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+
+    visit(body);
+    return found;
+  }
+
+  /**
+   * Detect eventBus.off() calls (useEventSubscriptions handles cleanup)
+   */
+  private detectEventBusOff(body: ts.Block): boolean {
+    let found = false;
+
+    const visit = (node: ts.Node) => {
+      if (ts.isCallExpression(node)) {
+        const expr = node.expression;
+        if (ts.isPropertyAccessExpression(expr) &&
+            expr.name.text === 'off' &&
+            ts.isIdentifier(expr.expression) &&
+            expr.expression.text === 'eventBus') {
+          found = true;
+          return;
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+
+    visit(body);
+    return found;
+  }
+
+  /**
+   * Detect new EventSource() creation (components should use useResourceEvents)
+   */
+  private detectEventSourceCreation(body: ts.Block): boolean {
+    let found = false;
+
+    const visit = (node: ts.Node) => {
+      if (ts.isNewExpression(node)) {
+        const expr = node.expression;
+        if (ts.isIdentifier(expr) && expr.text === 'EventSource') {
+          found = true;
+          return;
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+
+    visit(body);
+    return found;
+  }
+
+  /**
+   * Detect JSX return statements in hooks (hooks should return data, not JSX)
+   */
+  private detectJSXReturn(body: ts.Block): boolean {
+    let found = false;
+
+    const visit = (node: ts.Node) => {
+      if (ts.isReturnStatement(node) && node.expression) {
+        // Check if returning JSX element
+        if (ts.isJsxElement(node.expression) ||
+            ts.isJsxSelfClosingElement(node.expression) ||
+            ts.isJsxFragment(node.expression)) {
+          found = true;
+          return;
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+
+    visit(body);
+    return found;
+  }
+
+  /**
+   * Detect global eventBus imports (should use useEventBus() hook)
+   */
+  private detectGlobalEventBusImport(sourceFile: ts.SourceFile): boolean {
+    let found = false;
+
+    const visit = (node: ts.Node) => {
+      if (ts.isImportDeclaration(node)) {
+        const importClause = node.importClause;
+        if (importClause && importClause.namedBindings) {
+          if (ts.isNamedImports(importClause.namedBindings)) {
+            for (const element of importClause.namedBindings.elements) {
+              if (element.name.text === 'eventBus') {
+                found = true;
+                return;
+              }
+            }
+          }
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+
+    visit(sourceFile);
+    return found;
+  }
+
   analyzeFile(filePath: string): FileAnalysis {
     const sourceFile = ts.createSourceFile(
       filePath,
@@ -257,10 +383,13 @@ class DependencyArrayAuditor {
 
     const hooks: HookAnalysis[] = [];
 
+    // Check for global eventBus import at file level
+    const hasGlobalEventBusImport = this.detectGlobalEventBusImport(sourceFile);
+
     const visit = (node: ts.Node) => {
       // Look for function declarations/expressions that might be hooks
       if (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isArrowFunction(node)) {
-        const analysis = this.analyzeHook(node, filePath);
+        const analysis = this.analyzeHook(node, filePath, hasGlobalEventBusImport);
         if (analysis) {
           hooks.push(analysis);
         }
@@ -274,7 +403,7 @@ class DependencyArrayAuditor {
     return { filePath, hooks };
   }
 
-  private analyzeHook(node: ts.FunctionDeclaration | ts.FunctionExpression | ts.ArrowFunction, filePath: string): HookAnalysis | null {
+  private analyzeHook(node: ts.FunctionDeclaration | ts.FunctionExpression | ts.ArrowFunction, filePath: string, hasGlobalEventBusImport: boolean): HookAnalysis | null {
     // Get function name - handle variable declarations like "const useMyHook = () => {}"
     let hookName = 'anonymous';
     if (ts.isFunctionDeclaration(node) && node.name) {
@@ -327,7 +456,14 @@ class DependencyArrayAuditor {
       // Event naming
       usesColonSeparatedEvents: false,
       usesHyphenSeparatedEvents: false,
-      legacyEventNames: []
+      legacyEventNames: [],
+
+      // Layer separation (mitt-specific)
+      usesEventBusOn: false,
+      usesEventBusOff: false,
+      createsEventSource: false,
+      returnsJSX: false,
+      hasGlobalEventBusImport: false
     };
 
     // Extract JSDoc event contracts
@@ -343,6 +479,9 @@ class DependencyArrayAuditor {
         analysis.issues.push('❌ Component accepts eventBus prop (use useEventBus() hook instead)');
       }
     }
+
+    // Set global eventBus import flag
+    analysis.hasGlobalEventBusImport = hasGlobalEventBusImport;
 
     // Analyze function body
     if (node.body && ts.isBlock(node.body)) {
@@ -369,6 +508,33 @@ class DependencyArrayAuditor {
       analysis.returnsEventBus = this.detectEventBusReturn(node.body);
       if (analysis.returnsEventBus) {
         analysis.issues.push('❌ Hook returns eventBus instance (should not expose EventBus)');
+      }
+
+      // Layer separation checks
+      analysis.usesEventBusOn = this.detectEventBusOn(node.body);
+      analysis.usesEventBusOff = this.detectEventBusOff(node.body);
+      analysis.createsEventSource = this.detectEventSourceCreation(node.body);
+      analysis.returnsJSX = this.detectJSXReturn(node.body);
+
+      // Determine if this is a component (not a hook)
+      const isComponent = /^[A-Z]/.test(analysis.hookName) && !analysis.hookName.startsWith('use');
+      const isHook = analysis.hookName.startsWith('use');
+
+      // Layer separation violations
+      if (isComponent && analysis.usesEventBusOn) {
+        analysis.issues.push('❌ Component uses eventBus.on() (use useEventSubscriptions hook instead)');
+      }
+      if (isComponent && analysis.usesEventBusOff) {
+        analysis.issues.push('❌ Component uses eventBus.off() (useEventSubscriptions handles cleanup automatically)');
+      }
+      if (isComponent && analysis.createsEventSource) {
+        analysis.issues.push('❌ Component creates EventSource directly (use useResourceEvents hook instead)');
+      }
+      if (isHook && analysis.returnsJSX) {
+        analysis.issues.push('❌ Hook returns JSX (hooks should return data/state, not JSX)');
+      }
+      if (hasGlobalEventBusImport && !filePath.includes('EventBusContext')) {
+        analysis.issues.push('❌ File imports global eventBus (use useEventBus() hook instead)');
       }
     }
 

@@ -72,6 +72,12 @@ interface ComplianceRow {
   eventNaming: string;
   depCount: string;
   allDepsStable: string;
+  // Layer separation
+  usesEventBusOn: string;
+  usesEventBusOff: string;
+  createsEventSource: string;
+  returnsJSX: string;
+  hasGlobalEventBusImport: string;
   status: string;
 }
 
@@ -180,6 +186,11 @@ function analyzeAndFormat(
       eventNaming: '🔍',
       depCount: '🔍',
       allDepsStable: '🔍',
+      usesEventBusOn: '🔍',
+      usesEventBusOff: '🔍',
+      createsEventSource: '🔍',
+      returnsJSX: '🔍',
+      hasGlobalEventBusImport: '🔍',
       status: '🔍'
     };
   }
@@ -212,12 +223,21 @@ function analyzeAndFormat(
       eventNaming: 'N/A',
       depCount: '0',
       allDepsStable: 'N/A',
+      usesEventBusOn: 'N/A',
+      usesEventBusOff: 'N/A',
+      createsEventSource: 'N/A',
+      returnsJSX: 'N/A',
+      hasGlobalEventBusImport: 'N/A',
       status: item.type === 'interface' || item.type === 'type' ? '✅' : '🔍'
     };
   }
 
   // Determine status based on issues (Phase 7 logic)
   let status = '✅';
+
+  // Determine if this is a component (not a hook)
+  const isComponent = /^[A-Z]/.test(item.symbol) && !item.symbol.startsWith('use');
+  const isHook = item.symbol.startsWith('use');
 
   // Check if bypassed
   if (bypassEntry) {
@@ -235,6 +255,18 @@ function analyzeAndFormat(
     } else if (hookAnalysis.isContainer && hookAnalysis.acceptsCallbacks) {
       status = '❌';
     } else if (hookAnalysis.callbacksInDeps) {
+      status = '❌';
+    }
+    // Layer separation violations (❌)
+    else if (isComponent && hookAnalysis.usesEventBusOn) {
+      status = '❌';
+    } else if (isComponent && hookAnalysis.usesEventBusOff) {
+      status = '❌';
+    } else if (isComponent && hookAnalysis.createsEventSource) {
+      status = '❌';
+    } else if (isHook && hookAnalysis.returnsJSX) {
+      status = '❌';
+    } else if (hookAnalysis.hasGlobalEventBusImport && !fullPath.includes('EventBusContext')) {
       status = '❌';
     }
     // Warnings (⚠️)
@@ -289,16 +321,22 @@ function analyzeAndFormat(
     eventNaming: eventNamingStr,
     depCount: hookAnalysis.dependencyCount.toString(),
     allDepsStable: hookAnalysis.allDepsStable === null ? '🔍' : (hookAnalysis.allDepsStable ? '✅ Yes' : '⚠️ No'),
+    // Layer separation checks
+    usesEventBusOn: (isComponent && hookAnalysis.usesEventBusOn) ? '❌ Yes' : (hookAnalysis.usesEventBusOn ? 'Yes' : '✅ No'),
+    usesEventBusOff: (isComponent && hookAnalysis.usesEventBusOff) ? '❌ Yes' : (hookAnalysis.usesEventBusOff ? 'Yes' : '✅ No'),
+    createsEventSource: (isComponent && hookAnalysis.createsEventSource) ? '❌ Yes' : (hookAnalysis.createsEventSource ? 'Yes' : '✅ No'),
+    returnsJSX: (isHook && hookAnalysis.returnsJSX) ? '❌ Yes' : (hookAnalysis.returnsJSX ? 'Yes' : '✅ No'),
+    hasGlobalEventBusImport: (hookAnalysis.hasGlobalEventBusImport && !fullPath.includes('EventBusContext')) ? '❌ Yes' : (hookAnalysis.hasGlobalEventBusImport ? 'Yes' : '✅ No'),
     status
   };
 }
 
 function formatAsMarkdownTable(rows: ComplianceRow[]): string {
-  const header = '| Path | Symbol/Export | Type | Container? | Uses eventBus? | eventBus in deps? | eventBus prop? | Returns eventBus? | Event docs? | Emitted events | Subscribed events | Missing docs | Event naming | Uses client? | client in deps? | Accepts callbacks? | Callbacks in deps? | Uses useEventSubscriptions? | Inline handlers? | Dep count | All deps stable? | Status |';
-  const separator = '|------|---------------|------|------------|----------------|-------------------|----------------|-------------------|-------------|----------------|-------------------|--------------|--------------|--------------|-----------------|-------------------|-------------------|----------------------------|------------------|-----------|------------------|--------|';
+  const header = '| Path | Symbol/Export | Type | Container? | Uses eventBus? | eventBus in deps? | eventBus prop? | Returns eventBus? | Event docs? | Emitted events | Subscribed events | Missing docs | Event naming | Uses client? | client in deps? | Accepts callbacks? | Callbacks in deps? | Uses useEventSubscriptions? | Inline handlers? | eventBus.on()? | eventBus.off()? | new EventSource? | Returns JSX? | Global eventBus import? | Dep count | All deps stable? | Status |';
+  const separator = '|------|---------------|------|------------|----------------|-------------------|----------------|-------------------|-------------|----------------|-------------------|--------------|--------------|--------------|-----------------|-------------------|-------------------|----------------------------|------------------|----------------|-----------------|------------------|--------------|------------------------|-----------|------------------|--------|';
 
   const dataRows = rows.map(row => {
-    return `| ${row.path} | ${row.symbol} | ${row.type} | ${row.isContainer} | ${row.usesEventBus} | ${row.eventBusInDeps} | ${row.eventBusProp} | ${row.returnsEventBus} | ${row.eventDocs} | ${row.emittedEvents} | ${row.subscribedEvents} | ${row.missingDocs} | ${row.eventNaming} | ${row.usesClient} | ${row.clientInDeps} | ${row.acceptsCallbacks} | ${row.callbacksInDeps} | ${row.usesUseEventSubscriptions} | ${row.inlineHandlers} | ${row.depCount} | ${row.allDepsStable} | ${row.status} |`;
+    return `| ${row.path} | ${row.symbol} | ${row.type} | ${row.isContainer} | ${row.usesEventBus} | ${row.eventBusInDeps} | ${row.eventBusProp} | ${row.returnsEventBus} | ${row.eventDocs} | ${row.emittedEvents} | ${row.subscribedEvents} | ${row.missingDocs} | ${row.eventNaming} | ${row.usesClient} | ${row.clientInDeps} | ${row.acceptsCallbacks} | ${row.callbacksInDeps} | ${row.usesUseEventSubscriptions} | ${row.inlineHandlers} | ${row.usesEventBusOn} | ${row.usesEventBusOff} | ${row.createsEventSource} | ${row.returnsJSX} | ${row.hasGlobalEventBusImport} | ${row.depCount} | ${row.allDepsStable} | ${row.status} |`;
   });
 
   return [header, separator, ...dataRows].join('\n');
@@ -319,6 +357,13 @@ function generateSummary(rows: ComplianceRow[], bypassConfig: BypassConfig): str
   const inlineHandlerViolations = rows.filter(r => r.inlineHandlers.includes('⚠️')).length;
   const missingEventDocsViolations = rows.filter(r => r.eventDocs.includes('❌')).length;
   const legacyEventNamingViolations = rows.filter(r => r.eventNaming.includes('⚠️')).length;
+
+  // Layer separation violations
+  const eventBusOnViolations = rows.filter(r => r.usesEventBusOn.includes('❌')).length;
+  const eventBusOffViolations = rows.filter(r => r.usesEventBusOff.includes('❌')).length;
+  const eventSourceViolations = rows.filter(r => r.createsEventSource.includes('❌')).length;
+  const returnsJSXViolations = rows.filter(r => r.returnsJSX.includes('❌')).length;
+  const globalEventBusImportViolations = rows.filter(r => r.hasGlobalEventBusImport.includes('❌')).length;
 
   let bypassedSection = '';
   if (bypassConfig.bypassed.length > 0) {
@@ -348,6 +393,13 @@ function generateSummary(rows: ComplianceRow[], bypassConfig: BypassConfig): str
 - **Returns eventBus violations**: ${returnsEventBusViolations}
 - **Callback prop in deps violations**: ${callbackViolations}
 - **Missing event docs (containers)**: ${missingEventDocsViolations}
+
+### Layer Separation Violations (❌)
+- **Components using eventBus.on()**: ${eventBusOnViolations} (should use useEventSubscriptions)
+- **Components using eventBus.off()**: ${eventBusOffViolations} (useEventSubscriptions handles cleanup)
+- **Components creating EventSource**: ${eventSourceViolations} (should use useResourceEvents)
+- **Hooks returning JSX**: ${returnsJSXViolations} (hooks should return data, not JSX)
+- **Global eventBus imports**: ${globalEventBusImportViolations} (should use useEventBus() hook)
 
 ### Warnings (⚠️)
 - **Inline handler violations**: ${inlineHandlerViolations}
