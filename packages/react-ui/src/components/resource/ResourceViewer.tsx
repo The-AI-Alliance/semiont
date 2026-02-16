@@ -114,11 +114,6 @@ export function ResourceViewer({
     setAnnotateMode(prev => !prev);
   }, []);
 
-  // Subscribe to view mode toggle events
-  useEventSubscriptions({
-    'view:mode-toggled': handleViewModeToggle,
-  });
-
   // Determine active view based on annotate mode
   const activeView = annotateMode ? 'annotate' : 'browse';
 
@@ -143,12 +138,6 @@ export function ResourceViewer({
       cacheManager.invalidateAnnotations(rUri);
     }
   }, [cacheManager, rUri]);
-
-  useEventSubscriptions({
-    'annotation:added': handleAnnotationAdded,
-    'annotation:removed': handleAnnotationRemoved,
-    'annotation:updated': handleAnnotationUpdated,
-  });
 
   // Annotation toolbar state - persisted in localStorage
   const [selectedMotivation, setSelectedMotivation] = useState<SelectionMotivation | null>(() => {
@@ -352,11 +341,23 @@ export function ResourceViewer({
     eventBus.emit('panel:open', { panel: 'annotations', scrollToAnnotationId: annotationId, motivation });
   }, [highlights, references, assessments, comments, tags, handleAnnotationClick, selectedClick]);
 
-  // Subscribe to toolbar and annotation events
+  // Event subscriptions - Combined into single useEventSubscriptions call to prevent hook ordering issues
+  // IMPORTANT: All event subscriptions MUST be in a single call to maintain consistent hook order between renders
   useEventSubscriptions({
+    // View mode
+    'view:mode-toggled': handleViewModeToggle,
+
+    // Annotation cache invalidation
+    'annotation:added': handleAnnotationAdded,
+    'annotation:removed': handleAnnotationRemoved,
+    'annotation:updated': handleAnnotationUpdated,
+
+    // Toolbar state
     'toolbar:selection-changed': handleToolbarSelectionChanged,
     'toolbar:click-changed': handleToolbarClickChanged,
     'toolbar:shape-changed': handleToolbarShapeChanged,
+
+    // Annotation clicks
     'annotation:click': handleAnnotationClickEvent,
   });
 
