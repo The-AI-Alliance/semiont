@@ -395,7 +395,7 @@ export function ResourceViewerPage({
     if (annotationId) {
       eventBus.emit('annotation:sparkle', { annotationId });
     }
-  }, [eventBus]);
+  }, []); // eventBus is stable singleton - never in deps
 
   const handleEventClick = useCallback((_annotationId: string | null) => {
     // ResourceViewer now manages scroll state internally
