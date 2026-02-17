@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createSSEStream } from '../sse/stream';
-import type { DetectionProgress, GenerationProgress } from '../sse/types';
+import type { ReferenceDetectionProgress, GenerationProgress } from '../sse/types';
 
 // Helper to create a ReadableStream from SSE text
 function createSSEReadableStream(sseText: string): ReadableStream<Uint8Array> {
@@ -130,13 +130,13 @@ id: 123
 
   describe('Detection Stream', () => {
     it('should handle detection progress events', async () => {
-      const sseText = `event: detection-started
+      const sseText = `event: reference-detection-started
 data: {"status":"started","resourceId":"res-123","totalEntityTypes":2,"processedEntityTypes":0,"message":"Starting..."}
 
-event: detection-progress
+event: reference-detection-progress
 data: {"status":"scanning","resourceId":"res-123","currentEntityType":"Person","totalEntityTypes":2,"processedEntityTypes":1}
 
-event: detection-complete
+event: reference-detection-complete
 data: {"status":"complete","resourceId":"res-123","totalEntityTypes":2,"processedEntityTypes":2,"foundCount":5}
 
 `;
@@ -146,16 +146,16 @@ data: {"status":"complete","resourceId":"res-123","totalEntityTypes":2,"processe
         body: createSSEReadableStream(sseText)
       });
 
-      const progressCallback = vi.fn<(progress: DetectionProgress) => void>();
-      const completeCallback = vi.fn<(result: DetectionProgress) => void>();
+      const progressCallback = vi.fn<(progress: ReferenceDetectionProgress) => void>();
+      const completeCallback = vi.fn<(result: ReferenceDetectionProgress) => void>();
 
-      const stream = createSSEStream<DetectionProgress, DetectionProgress>(
+      const stream = createSSEStream<ReferenceDetectionProgress, ReferenceDetectionProgress>(
         'http://test.com/detect',
         { method: 'POST', headers: {}, body: JSON.stringify({ entityTypes: ['Person'] }) },
         {
-          progressEvents: ['detection-started', 'detection-progress'],
-          completeEvent: 'detection-complete',
-          errorEvent: 'detection-error'
+          progressEvents: ['reference-detection-started', 'reference-detection-progress'],
+          completeEvent: 'reference-detection-complete',
+          errorEvent: 'reference-detection-error'
         }
       );
 
@@ -175,7 +175,7 @@ data: {"status":"complete","resourceId":"res-123","totalEntityTypes":2,"processe
     });
 
     it('should handle detection error events', async () => {
-      const sseText = `event: detection-error
+      const sseText = `event: reference-detection-error
 data: {"status":"error","message":"Entity detection failed","resourceId":"res-123","totalEntityTypes":2,"processedEntityTypes":0}
 
 `;
@@ -187,13 +187,13 @@ data: {"status":"error","message":"Entity detection failed","resourceId":"res-12
 
       const errorCallback = vi.fn();
 
-      const stream = createSSEStream<DetectionProgress, DetectionProgress>(
+      const stream = createSSEStream<ReferenceDetectionProgress, ReferenceDetectionProgress>(
         'http://test.com/detect',
         { method: 'POST', headers: {} },
         {
-          progressEvents: ['detection-started', 'detection-progress'],
-          completeEvent: 'detection-complete',
-          errorEvent: 'detection-error'
+          progressEvents: ['reference-detection-started', 'reference-detection-progress'],
+          completeEvent: 'reference-detection-complete',
+          errorEvent: 'reference-detection-error'
         }
       );
 

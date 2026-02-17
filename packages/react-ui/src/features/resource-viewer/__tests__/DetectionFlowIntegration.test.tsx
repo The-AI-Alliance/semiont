@@ -60,7 +60,7 @@ const createMockSSEStream = () => {
 
 describe('Detection Flow - Feature Integration', () => {
   let mockStream: ReturnType<typeof createMockSSEStream>;
-  let detectAnnotationsSpy: any;
+  let detectReferencesSpy: any;
   let detectHighlightsSpy: any;
   let detectCommentsSpy: any;
 
@@ -72,7 +72,7 @@ describe('Detection Flow - Feature Integration', () => {
     mockStream = createMockSSEStream();
 
     // Spy on SSEClient prototype methods
-    detectAnnotationsSpy = vi.spyOn(SSEClient.prototype, 'detectAnnotations').mockReturnValue(mockStream as any);
+    detectReferencesSpy = vi.spyOn(SSEClient.prototype, 'detectReferences').mockReturnValue(mockStream as any);
     detectHighlightsSpy = vi.spyOn(SSEClient.prototype, 'detectHighlights').mockReturnValue(mockStream as any);
     detectCommentsSpy = vi.spyOn(SSEClient.prototype, 'detectComments').mockReturnValue(mockStream as any);
     vi.spyOn(SSEClient.prototype, 'detectAssessments').mockReturnValue(mockStream as any);
@@ -82,13 +82,13 @@ describe('Detection Flow - Feature Integration', () => {
     vi.restoreAllMocks();
   });
 
-  it('should call detectAnnotations exactly ONCE when detection starts (not twice)', async () => {
+  it('should call detectReferences exactly ONCE when detection starts (not twice)', async () => {
     const testUri = resourceUri('http://localhost:4000/resources/test-resource');
 
     // Render with real component composition
     const { emitDetectionStart } = renderDetectionFlow(testUri);
 
-    // Trigger detection for linking (uses detectAnnotations)
+    // Trigger detection for linking (uses detectReferences)
     act(() => {
       emitDetectionStart('linking', {
         entityTypes: ['Person', 'Organization'],
@@ -99,11 +99,11 @@ describe('Detection Flow - Feature Integration', () => {
     // CRITICAL ASSERTION: API called exactly once (not twice!)
     // This would FAIL if useResolutionFlow was called in multiple places
     await waitFor(() => {
-      expect(detectAnnotationsSpy).toHaveBeenCalledTimes(1);
+      expect(detectReferencesSpy).toHaveBeenCalledTimes(1);
     });
 
     // Verify correct parameters
-    expect(detectAnnotationsSpy).toHaveBeenCalledWith(
+    expect(detectReferencesSpy).toHaveBeenCalledWith(
       testUri,
       {
         entityTypes: ['Person', 'Organization'],
@@ -128,7 +128,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Wait for stream to be created
     await waitFor(() => {
-      expect(detectAnnotationsSpy).toHaveBeenCalled();
+      expect(detectReferencesSpy).toHaveBeenCalled();
     });
 
     // Simulate SSE progress callback being invoked
@@ -331,11 +331,11 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Wait for operation to complete
     await waitFor(() => {
-      expect(detectAnnotationsSpy).toHaveBeenCalled();
+      expect(detectReferencesSpy).toHaveBeenCalled();
     });
 
     // VERIFY: API called exactly once, even though multiple listeners exist
-    expect(detectAnnotationsSpy).toHaveBeenCalledTimes(1);
+    expect(detectReferencesSpy).toHaveBeenCalledTimes(1);
 
     // VERIFY: Our additional listener was called (events work)
     expect(additionalListener).toHaveBeenCalledTimes(1);

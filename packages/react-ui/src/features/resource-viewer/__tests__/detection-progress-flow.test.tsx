@@ -145,7 +145,7 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
     vi.spyOn(SSEClient.prototype, 'detectHighlights').mockReturnValue(mockStream as any);
     vi.spyOn(SSEClient.prototype, 'detectAssessments').mockReturnValue(mockStream as any);
     vi.spyOn(SSEClient.prototype, 'detectComments').mockReturnValue(mockStream as any);
-    vi.spyOn(SSEClient.prototype, 'detectAnnotations').mockReturnValue(mockStream as any);
+    vi.spyOn(SSEClient.prototype, 'detectReferences').mockReturnValue(mockStream as any);
 
     mockAnnotations = [];
   });

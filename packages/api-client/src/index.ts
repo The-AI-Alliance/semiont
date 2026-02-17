@@ -44,13 +44,13 @@ export type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMC
 
 // SSE streaming types and client
 export type {
-  DetectionProgress,
+  ReferenceDetectionProgress,
   GenerationProgress,
   SSEStream
 } from './sse/types';
 export { SSEClient } from './sse/index';
 export type {
-  DetectAnnotationsStreamRequest,
+  DetectReferencesStreamRequest,
   GenerateResourceStreamRequest,
   SSEClientConfig
 } from './sse/index';

@@ -24,8 +24,8 @@ type Motivation = components['schemas']['Motivation']; // Already defined in api
  * Detection configuration for SSE-based annotation detection
  */
 export interface DetectionConfig {
-  // SSE method name (e.g., 'detectAnnotations', 'detectHighlights')
-  sseMethod: 'detectAnnotations' | 'detectHighlights' | 'detectAssessments' | 'detectComments' | 'detectTags';
+  // SSE method name (e.g., 'detectReferences', 'detectHighlights')
+  sseMethod: 'detectReferences' | 'detectHighlights' | 'detectAssessments' | 'detectComments' | 'detectTags';
 
   // How to extract count from completion result
   countField: 'foundCount' | 'createdCount' | 'tagsCreated';
@@ -198,7 +198,7 @@ export const ANNOTATORS: Record<string, Annotator> = {
       refetchAfter: true
     },
     detection: {
-      sseMethod: 'detectAnnotations',
+      sseMethod: 'detectReferences',
       countField: 'foundCount',
       displayNamePlural: 'entity references',
       displayNameSingular: 'entity reference',
@@ -299,11 +299,11 @@ export function createDetectionHandler(
 
       // Transform arguments for different detection methods
       let stream;
-      if (detection.sseMethod === 'detectAnnotations') {
+      if (detection.sseMethod === 'detectReferences') {
         // args[0] is selectedEntityTypes: string[], args[1] is includeDescriptiveReferences: boolean
         const selectedTypes = args[0] || [];
         const includeDescriptiveReferences = args[1];
-        stream = sseClient.detectAnnotations(context.rUri, {
+        stream = sseClient.detectReferences(context.rUri, {
           entityTypes: selectedTypes.map((type: string) => entityType(type)),
           includeDescriptiveReferences
         });
@@ -351,7 +351,7 @@ export function createDetectionHandler(
 
       stream.onProgress((progress: any) => {
         // Handle reference detection's special progress format
-        if (detection.sseMethod === 'detectAnnotations') {
+        if (detection.sseMethod === 'detectReferences') {
           context.setMotivationDetectionProgress({
             status: progress.status,
             message: progress.message ||

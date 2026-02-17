@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SSEClient } from '../sse';
-import type { DetectionProgress, GenerationProgress } from '../sse/types';
+import type { ReferenceDetectionProgress, GenerationProgress } from '../sse/types';
 import type { ResourceUri, AnnotationUri } from '../branded-types';
 import { baseUrl, accessToken, entityType } from '../branded-types';
 
@@ -75,7 +75,7 @@ describe('SSEClient', () => {
         body: createSSEReadableStream('')
       });
 
-      client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
+      client.detectReferences(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
 
       expect(fetchMock).toHaveBeenCalledWith(
         'http://localhost:4000/resources/doc-123/detect-annotations-stream',
@@ -93,7 +93,7 @@ describe('SSEClient', () => {
         body: createSSEReadableStream('')
       });
 
-      client.detectAnnotations(
+      client.detectReferences(
         testResourceUri('doc-123'),
         { entityTypes: [entityType('Person')] },
         { auth: accessToken('test-token') }
@@ -119,13 +119,13 @@ describe('SSEClient', () => {
         body: createSSEReadableStream('')
       });
 
-      client.detectAnnotations(
+      client.detectReferences(
         testResourceUri('doc-123'),
         { entityTypes: [entityType('Person')] },
         { auth: accessToken('first-token') }
       );
 
-      client.detectAnnotations(
+      client.detectReferences(
         testResourceUri('doc-456'),
         { entityTypes: [entityType('Person')] },
         { auth: accessToken('second-token') }
@@ -160,14 +160,14 @@ describe('SSEClient', () => {
         body: createSSEReadableStream('')
       });
 
-      client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
+      client.detectReferences(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
 
       const callHeaders = fetchMock.mock.calls[0][1].headers;
       expect(callHeaders['Authorization']).toBeUndefined();
     });
   });
 
-  describe('detectAnnotations()', () => {
+  describe('detectReferences()', () => {
     it('should construct correct URL from resource ID', () => {
       const client = new SSEClient({
         baseUrl: baseUrl('http://localhost:4000')
@@ -178,7 +178,7 @@ describe('SSEClient', () => {
         body: createSSEReadableStream('')
       });
 
-      client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
+      client.detectReferences(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
 
       expect(fetchMock).toHaveBeenCalledWith(
         'http://localhost:4000/resources/doc-123/detect-annotations-stream',
@@ -196,7 +196,7 @@ describe('SSEClient', () => {
         body: createSSEReadableStream('')
       });
 
-      client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
+      client.detectReferences(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
 
       expect(fetchMock).toHaveBeenCalledWith(
         'http://localhost:4000/resources/doc-123/detect-annotations-stream',
@@ -214,7 +214,7 @@ describe('SSEClient', () => {
         body: createSSEReadableStream('')
       });
 
-      client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: [entityType('Person'), entityType('Organization')] });
+      client.detectReferences(testResourceUri('doc-123'), { entityTypes: [entityType('Person'), entityType('Organization')] });
 
       expect(fetchMock).toHaveBeenCalledWith(
         expect.any(String),
@@ -230,13 +230,13 @@ describe('SSEClient', () => {
         baseUrl: baseUrl('http://localhost:4000')
       });
 
-      const sseText = `event: detection-started
+      const sseText = `event: reference-detection-started
 data: {"status":"started","resourceId":"doc-123","totalEntityTypes":1,"processedEntityTypes":0}
 
-event: detection-progress
+event: reference-detection-progress
 data: {"status":"scanning","resourceId":"doc-123","currentEntityType":"Person","totalEntityTypes":1,"processedEntityTypes":0}
 
-event: detection-complete
+event: reference-detection-complete
 data: {"status":"complete","resourceId":"doc-123","totalEntityTypes":1,"processedEntityTypes":1,"foundCount":5}
 
 `;
@@ -246,10 +246,10 @@ data: {"status":"complete","resourceId":"doc-123","totalEntityTypes":1,"processe
         body: createSSEReadableStream(sseText)
       });
 
-      const progressCallback = vi.fn<(progress: DetectionProgress) => void>();
-      const completeCallback = vi.fn<(result: DetectionProgress) => void>();
+      const progressCallback = vi.fn<(progress: ReferenceDetectionProgress) => void>();
+      const completeCallback = vi.fn<(result: ReferenceDetectionProgress) => void>();
 
-      const stream = client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
+      const stream = client.detectReferences(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
 
       stream.onProgress(progressCallback);
       stream.onComplete(completeCallback);
@@ -269,7 +269,7 @@ data: {"status":"complete","resourceId":"doc-123","totalEntityTypes":1,"processe
         baseUrl: baseUrl('http://localhost:4000')
       });
 
-      const sseText = `event: detection-error
+      const sseText = `event: reference-detection-error
 data: {"status":"error","message":"Detection failed","resourceId":"doc-123","totalEntityTypes":1,"processedEntityTypes":0}
 
 `;
@@ -281,7 +281,7 @@ data: {"status":"error","message":"Detection failed","resourceId":"doc-123","tot
 
       const errorCallback = vi.fn();
 
-      const stream = client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
+      const stream = client.detectReferences(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
 
       stream.onError(errorCallback);
 
@@ -555,7 +555,7 @@ data: {"id":"evt-2","type":"annotation.added","timestamp":"2025-01-01T00:01:00Z"
 
       const errorCallback = vi.fn();
 
-      const stream = client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
+      const stream = client.detectReferences(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
 
       stream.onError(errorCallback);
 
@@ -574,7 +574,7 @@ data: {"id":"evt-2","type":"annotation.added","timestamp":"2025-01-01T00:01:00Z"
 
       const errorCallback = vi.fn();
 
-      const stream = client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
+      const stream = client.detectReferences(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
 
       stream.onError(errorCallback);
 
@@ -596,7 +596,7 @@ data: {"id":"evt-2","type":"annotation.added","timestamp":"2025-01-01T00:01:00Z"
         body: createSSEReadableStream('')
       });
 
-      const stream = client.detectAnnotations(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
+      const stream = client.detectReferences(testResourceUri('doc-123'), { entityTypes: [entityType('Person')] });
 
       expect(() => stream.close()).not.toThrow();
     });

@@ -23,7 +23,7 @@ import type { components } from '@semiont/api-client';
 import { jobId, entityType, resourceUri } from '@semiont/api-client';
 import { userId, resourceId, type ResourceId } from '@semiont/core';
 
-type DetectAnnotationsStreamRequest = components['schemas']['DetectAnnotationsStreamRequest'];
+type DetectReferencesStreamRequest = components['schemas']['DetectReferencesStreamRequest'];
 
 interface DetectionProgress {
   status: 'started' | 'scanning' | 'complete' | 'error';
@@ -41,7 +41,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
    *
    * Stream real-time entity detection progress via Server-Sent Events
    * Requires authentication
-   * Validates request body against DetectAnnotationsStreamRequest schema
+   * Validates request body against DetectReferencesStreamRequest schema
    * Returns SSE stream with progress updates
    *
    * Event-Driven Architecture:
@@ -51,10 +51,10 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
    * - <50ms latency (no polling)
    */
   router.post('/resources/:id/detect-annotations-stream',
-    validateRequestBody('DetectAnnotationsStreamRequest'),
+    validateRequestBody('DetectReferencesStreamRequest'),
     async (c) => {
       const { id } = c.req.param();
-      const body = c.get('validatedBody') as DetectAnnotationsStreamRequest;
+      const body = c.get('validatedBody') as DetectReferencesStreamRequest;
       const { entityTypes, includeDescriptiveReferences } = body;
       const config = c.get('config');
 
@@ -156,7 +156,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
                     processedEntityTypes: 0,
                     message: 'Starting entity detection...'
                   } as DetectionProgress),
-                  event: 'detection-started',
+                  event: 'reference-detection-started',
                   id: storedEvent.metadata.sequenceNumber.toString()
                 });
               } catch (error) {
@@ -178,7 +178,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
                       ? `Scanning for ${event.payload.currentStep}...`
                       : 'Processing...'
                   } as DetectionProgress),
-                  event: 'detection-progress',
+                  event: 'reference-detection-progress',
                   id: storedEvent.metadata.sequenceNumber.toString()
                 });
               } catch (error) {
@@ -200,7 +200,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
                       ? `Detection complete! Found ${result.totalFound} entities`
                       : 'Detection complete!'
                   } as DetectionProgress),
-                  event: 'detection-complete',
+                  event: 'reference-detection-complete',
                   id: storedEvent.metadata.sequenceNumber.toString()
                 });
               } catch (error) {
@@ -218,7 +218,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
                     processedEntityTypes: 0,
                     message: event.payload.error || 'Detection failed'
                   } as DetectionProgress),
-                  event: 'detection-error',
+                  event: 'reference-detection-error',
                   id: storedEvent.metadata.sequenceNumber.toString()
                 });
               } catch (error) {
@@ -263,7 +263,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
                 processedEntityTypes: 0,
                 message: error instanceof Error ? error.message : 'Detection failed'
               } as DetectionProgress),
-              event: 'detection-error',
+              event: 'reference-detection-error',
               id: String(Date.now())
             });
           } catch (sseError) {

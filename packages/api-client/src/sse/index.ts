@@ -7,7 +7,7 @@
 
 import { createSSEStream } from './stream';
 import type {
-  DetectionProgress,
+  ReferenceDetectionProgress,
   GenerationProgress,
   HighlightDetectionProgress,
   AssessmentDetectionProgress,
@@ -21,9 +21,9 @@ import type { components } from '../types';
 import type { Logger } from '../logger';
 
 /**
- * Request body for detection stream
+ * Request body for reference detection stream
  */
-export interface DetectAnnotationsStreamRequest {
+export interface DetectReferencesStreamRequest {
   entityTypes: EntityType[];
   includeDescriptiveReferences?: boolean;
 }
@@ -93,7 +93,7 @@ export interface SSERequestOptions {
  *   baseUrl: 'http://localhost:4000'
  * });
  *
- * const stream = sseClient.detectAnnotations(
+ * const stream = sseClient.detectReferences(
  *   'http://localhost:4000/resources/doc-123',
  *   { entityTypes: ['Person', 'Organization'] },
  *   { auth: 'your-token' }
@@ -153,7 +153,7 @@ export class SSEClient {
    *
    * @example
    * ```typescript
-   * const stream = sseClient.detectAnnotations(
+   * const stream = sseClient.detectReferences(
    *   'http://localhost:4000/resources/doc-123',
    *   { entityTypes: ['Person', 'Organization'] },
    *   { auth: 'your-token' }
@@ -176,15 +176,15 @@ export class SSEClient {
    * stream.close();
    * ```
    */
-  detectAnnotations(
+  detectReferences(
     resourceId: ResourceUri,
-    request: DetectAnnotationsStreamRequest,
+    request: DetectReferencesStreamRequest,
     options?: SSERequestOptions
-  ): SSEStream<DetectionProgress, DetectionProgress> {
+  ): SSEStream<ReferenceDetectionProgress, ReferenceDetectionProgress> {
     const id = this.extractId(resourceId);
     const url = `${this.baseUrl}/resources/${id}/detect-annotations-stream`;
 
-    return createSSEStream<DetectionProgress, DetectionProgress>(
+    return createSSEStream<ReferenceDetectionProgress, ReferenceDetectionProgress>(
       url,
       {
         method: 'POST',
@@ -192,9 +192,9 @@ export class SSEClient {
         body: JSON.stringify(request)
       },
       {
-        progressEvents: ['detection-started', 'detection-progress'],
-        completeEvent: 'detection-complete',
-        errorEvent: 'detection-error'
+        progressEvents: ['reference-detection-started', 'reference-detection-progress'],
+        completeEvent: 'reference-detection-complete',
+        errorEvent: 'reference-detection-error'
       },
       this.logger
     );

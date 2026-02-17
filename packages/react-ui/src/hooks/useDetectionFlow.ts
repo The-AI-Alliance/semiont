@@ -372,7 +372,7 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
           if (!entityTypes || entityTypes.length === 0) {
             throw new Error('Reference detection requires entityTypes');
           }
-          const stream = currentClient.sse.detectAnnotations(currentRUri, {
+          const stream = currentClient.sse.detectReferences(currentRUri, {
             entityTypes: entityTypes as any,
             includeDescriptiveReferences: includeDescriptiveReferences || false,
           }, auth);

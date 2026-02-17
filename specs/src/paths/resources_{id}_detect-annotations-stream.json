@@ -26,7 +26,7 @@
       "content": {
         "application/json": {
           "schema": {
-            "$ref": "../components/schemas/GetEntityTypesResponse.json"
+            "$ref": "../components/schemas/DetectReferencesStreamRequest.json"
           }
         }
       }
