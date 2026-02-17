@@ -34,7 +34,6 @@ export function useEventOperations(
   emitter: Emitter<EventMap>,
   config: EventOperationsConfig
 ) {
-  const { client, resourceUri } = config;
 
   // Get current auth token for API calls
   const token = useAuthToken();
