@@ -166,7 +166,7 @@ The document page features a progress display area at the top of the right sideb
 ### GenerationProgressWidget
 
 **Location**: `/src/components/GenerationProgressWidget.tsx`
-**Hook**: `/src/hooks/useGenerationProgress.ts`
+**Hook**: `useGenerationFlow` (progress state inlined; see `packages/react-ui/src/hooks/useGenerationFlow.ts`)
 
 **Features**:
 - Real-time progress bar with percentage
@@ -222,7 +222,7 @@ The document page features a progress display area at the top of the right sideb
 
 When user clicks "Generate Document" in AnnotationPopup:
 1. Popup calls `onGenerateDocument` callback
-2. Document page starts SSE connection via `useGenerationProgress`
+2. Document page triggers generation via `useGenerationFlow` (which manages SSE and progress state)
 3. Progress widget appears in sidebar
 4. Popup closes immediately (no waiting)
 5. User can continue working while generation happens
