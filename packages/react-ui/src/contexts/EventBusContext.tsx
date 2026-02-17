@@ -69,7 +69,6 @@ export type EventMap = {
 
   // Annotation interaction events
   'annotation:cancel-pending': void;
-  'annotation:dom-hover': { annotationId: string | null }; // Raw DOM hover event from resource overlays (internal routing)
   'annotation:hover': { annotationId: string | null }; // Bidirectional hover: annotation overlay ↔ panel entry
   'annotation:click': { annotationId: string; motivation: Motivation }; // Click on annotation - includes motivation for panel coordination
   'annotation:focus': { annotationId: string | null };
