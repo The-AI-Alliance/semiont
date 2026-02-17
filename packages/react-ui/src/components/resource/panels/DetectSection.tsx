@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useEventBus } from '../../../contexts/EventBusContext';
 import type { Motivation } from '@semiont/api-client';
@@ -29,6 +29,7 @@ interface DetectSectionProps {
  * - Progress display during detection
  *
  * @emits detection:start - Start detection for annotation type. Payload: { motivation: Motivation, options: { instructions?: string, tone?: string, density?: number } }
+ * @emits detection:dismiss-progress - Dismiss the detection progress display
  */
 export function DetectSection({
   annotationType,
@@ -61,7 +62,7 @@ export function DetectSection({
     localStorage.setItem(`detect-section-expanded-${annotationType}`, String(isExpanded));
   }, [isExpanded, annotationType]);
 
-  const handleDetect = () => {
+  const handleDetect = useCallback(() => {
     // Map annotation type to motivation
     const motivation: Motivation =
       annotationType === 'highlight' ? 'highlighting' :
@@ -81,7 +82,11 @@ export function DetectSection({
     setInstructions('');
     setTone('');
     // Don't reset density/useDensity - persist across detections
-  };
+  }, [annotationType, instructions, tone, useDensity, density]); // eventBus is stable singleton - never in deps
+
+  const handleDismissProgress = useCallback(() => {
+    eventBus.emit('detection:dismiss-progress', undefined);
+  }, []); // eventBus is stable singleton - never in deps
 
   return (
     <div className="semiont-panel__section">
@@ -233,7 +238,7 @@ export function DetectSection({
               {/* Close button - shown after detection completes (when not actively detecting) */}
               {!isDetecting && (
                 <button
-                  onClick={() => eventBus.emit('detection:dismiss-progress', undefined)}
+                  onClick={handleDismissProgress}
                   className="semiont-detection-progress__close"
                   aria-label={t('closeProgress')}
                   title={t('closeProgress')}

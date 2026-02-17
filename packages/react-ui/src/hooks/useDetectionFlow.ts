@@ -12,7 +12,7 @@
  * subscribes to events and pushes values into React state.
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import type { Motivation, ResourceUri } from '@semiont/api-client';
 import { useEventBus } from '../contexts/EventBusContext';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
@@ -30,6 +30,11 @@ export interface DetectionFlowState {
  * Hook for detection flow state management
  *
  * @param rUri - Resource URI being detected
+ * @subscribes detection:start - Detection started for a motivation
+ * @subscribes detection:progress - Progress update during detection
+ * @subscribes detection:complete - Detection completed successfully
+ * @subscribes detection:failed - Error during detection
+ * @subscribes detection:dismiss-progress - Manually dismiss progress display
  * @returns Detection state and stream ref
  */
 export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
@@ -47,58 +52,66 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
   // Set up event operation handlers (detection, generation, etc.)
   useEventOperations(eventBus, { client, resourceUri: rUri });
 
+  const handleDetectionStart = useCallback(({ motivation }: { motivation: Motivation }) => {
+    // Clear any pending auto-dismiss timeout
+    if (progressDismissTimeoutRef.current) {
+      clearTimeout(progressDismissTimeoutRef.current);
+      progressDismissTimeoutRef.current = null;
+    }
+    setDetectingMotivation(motivation);
+    setDetectionProgress(null); // Clear previous progress
+  }, []);
+
+  const handleDetectionProgress = useCallback((chunk: any) => {
+    setDetectionProgress(chunk);
+  }, []);
+
+  const handleDetectionComplete = useCallback(({ motivation }: { motivation?: Motivation }) => {
+    // Keep progress visible with final message - only clear detecting flag
+    // Use callback form to get current state without closure
+    setDetectingMotivation(current => {
+      if (motivation === current) {
+        return null;
+      }
+      return current;
+    });
+
+    // Auto-dismiss progress after 5 seconds to give user time to read final message
+    if (progressDismissTimeoutRef.current) {
+      clearTimeout(progressDismissTimeoutRef.current);
+    }
+    progressDismissTimeoutRef.current = setTimeout(() => {
+      setDetectionProgress(null);
+      progressDismissTimeoutRef.current = null;
+    }, 5000);
+  }, []);
+
+  const handleDetectionFailed = useCallback(() => {
+    // Clear timeout on failure
+    if (progressDismissTimeoutRef.current) {
+      clearTimeout(progressDismissTimeoutRef.current);
+      progressDismissTimeoutRef.current = null;
+    }
+    setDetectingMotivation(null);
+    setDetectionProgress(null);
+  }, []);
+
+  const handleDetectionDismissProgress = useCallback(() => {
+    // Manual dismiss - clear timeout and progress immediately
+    if (progressDismissTimeoutRef.current) {
+      clearTimeout(progressDismissTimeoutRef.current);
+      progressDismissTimeoutRef.current = null;
+    }
+    setDetectionProgress(null);
+  }, []);
+
   // Subscribe to detection events
   useEventSubscriptions({
-    'detection:start': ({ motivation }: { motivation: Motivation }) => {
-      // Clear any pending auto-dismiss timeout
-      if (progressDismissTimeoutRef.current) {
-        clearTimeout(progressDismissTimeoutRef.current);
-        progressDismissTimeoutRef.current = null;
-      }
-
-      setDetectingMotivation(motivation);
-      setDetectionProgress(null); // Clear previous progress
-    },
-    'detection:progress': (chunk: any) => {
-      setDetectionProgress(chunk);
-    },
-    'detection:complete': ({ motivation }: { motivation?: Motivation }) => {
-      // Keep progress visible with final message - only clear detecting flag
-      // Use callback form to get current state without closure
-      setDetectingMotivation(current => {
-        if (motivation === current) {
-          return null;
-        }
-        return current;
-      });
-
-      // Auto-dismiss progress after 5 seconds to give user time to read final message
-      if (progressDismissTimeoutRef.current) {
-        clearTimeout(progressDismissTimeoutRef.current);
-      }
-      progressDismissTimeoutRef.current = setTimeout(() => {
-        setDetectionProgress(null);
-        progressDismissTimeoutRef.current = null;
-      }, 5000);
-    },
-    'detection:failed': () => {
-      // Clear timeout on failure
-      if (progressDismissTimeoutRef.current) {
-        clearTimeout(progressDismissTimeoutRef.current);
-        progressDismissTimeoutRef.current = null;
-      }
-
-      setDetectingMotivation(null);
-      setDetectionProgress(null);
-    },
-    'detection:dismiss-progress': () => {
-      // Manual dismiss - clear timeout and progress immediately
-      if (progressDismissTimeoutRef.current) {
-        clearTimeout(progressDismissTimeoutRef.current);
-        progressDismissTimeoutRef.current = null;
-      }
-      setDetectionProgress(null);
-    },
+    'detection:start': handleDetectionStart,
+    'detection:progress': handleDetectionProgress,
+    'detection:complete': handleDetectionComplete,
+    'detection:failed': handleDetectionFailed,
+    'detection:dismiss-progress': handleDetectionDismissProgress,
   });
 
   // Cleanup timeout on unmount

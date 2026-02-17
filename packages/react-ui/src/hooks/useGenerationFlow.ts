@@ -46,6 +46,11 @@ export interface GenerationFlowState {
  * @param showError - Error toast callback
  * @param cacheManager - Cache manager for invalidation
  * @param clearNewAnnotationId - Clear animation callback
+ * @emits generation:start - Start document generation
+ * @subscribes generation:modal-open - Open the generation config modal
+ * @subscribes generation:complete - Generation completed successfully
+ * @subscribes generation:failed - Error during generation
+ * @subscribes reference:search-modal-open - Open the reference search modal
  * @returns Generation flow state
  */
 export function useGenerationFlow(
@@ -121,40 +126,48 @@ export function useGenerationFlow(
     setSearchModalOpen(false);
   }, []);
 
+  const handleGenerationModalOpen = useCallback(({ annotationUri: annUri, defaultTitle }: {
+    annotationUri: string;
+    resourceUri: string;
+    defaultTitle: string;
+  }) => {
+    setGenerationReferenceId(annUri);
+    setGenerationDefaultTitle(defaultTitle);
+    setGenerationModalOpen(true);
+  }, []);
+
+  const handleGenerationComplete = useCallback(({ progress }: { annotationUri: string; progress: any }) => {
+    // Show success notification
+    if (progress.resourceName) {
+      showSuccess(`Resource "${progress.resourceName}" created successfully!`);
+    } else {
+      showSuccess('Resource created successfully!');
+    }
+
+    // Refetch annotations to show the reference is now resolved
+    if (cacheManager) {
+      cacheManager.invalidate('annotations');
+    }
+
+    // Clear progress widget after a delay to show completion state
+    setTimeout(() => clearProgress(), 2000);
+  }, [showSuccess, cacheManager, clearProgress]);
+
+  const handleGenerationFailed = useCallback(({ error }: { error: Error }) => {
+    showError(`Resource generation failed: ${error.message}`);
+  }, [showError]);
+
+  const handleReferenceSearchModalOpen = useCallback(({ referenceId }: { referenceId: string }) => {
+    setPendingReferenceId(referenceId);
+    setSearchModalOpen(true);
+  }, []);
+
   // Subscribe to generation events
   useEventSubscriptions({
-    'generation:modal-open': ({ annotationUri: annUri, defaultTitle }: {
-      annotationUri: string;
-      resourceUri: string;
-      defaultTitle: string;
-    }) => {
-      setGenerationReferenceId(annUri);
-      setGenerationDefaultTitle(defaultTitle);
-      setGenerationModalOpen(true);
-    },
-    'generation:complete': ({ progress }: { annotationUri: string; progress: any }) => {
-      // Show success notification
-      if (progress.resourceName) {
-        showSuccess(`Resource "${progress.resourceName}" created successfully!`);
-      } else {
-        showSuccess('Resource created successfully!');
-      }
-
-      // Refetch annotations to show the reference is now resolved
-      if (cacheManager) {
-        cacheManager.invalidate('annotations');
-      }
-
-      // Clear progress widget after a delay to show completion state
-      setTimeout(() => clearProgress(), 2000);
-    },
-    'generation:failed': ({ error }: { error: Error }) => {
-      showError(`Resource generation failed: ${error.message}`);
-    },
-    'reference:search-modal-open': ({ referenceId }: { referenceId: string }) => {
-      setPendingReferenceId(referenceId);
-      setSearchModalOpen(true);
-    },
+    'generation:modal-open': handleGenerationModalOpen,
+    'generation:complete': handleGenerationComplete,
+    'generation:failed': handleGenerationFailed,
+    'reference:search-modal-open': handleReferenceSearchModalOpen,
   });
 
   return {

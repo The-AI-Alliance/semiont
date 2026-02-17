@@ -24,6 +24,9 @@ export interface PanelNavigationState {
 /**
  * Hook for panel navigation state management
  *
+ * @subscribes panel:toggle - Toggle a panel open/closed
+ * @subscribes panel:open - Open a panel, optionally scrolling to an annotation
+ * @subscribes panel:close - Close the active panel
  * @returns Panel navigation state
  */
 export function usePanelNavigation(): PanelNavigationState {
@@ -55,39 +58,42 @@ export function usePanelNavigation(): PanelNavigationState {
     setScrollToAnnotationId(null);
   }, []);
 
+  const handlePanelToggle = useCallback(({ panel }: { panel: string }) => {
+    setActivePanel((current) => (current === panel ? null : panel));
+  }, []);
+
+  const handlePanelOpen = useCallback(({ panel, scrollToAnnotationId: scrollTarget, motivation }: { panel: string; scrollToAnnotationId?: string; motivation?: string }) => {
+    // Store scroll target and motivation for UnifiedAnnotationsPanel
+    if (scrollTarget) {
+      setScrollToAnnotationId(scrollTarget);
+    }
+
+    if (motivation) {
+      // Map motivation to tab key
+      const motivationToTab: Record<string, string> = {
+        'linking': 'reference',
+        'commenting': 'comment',
+        'tagging': 'tag',
+        'highlighting': 'highlight',
+        'assessing': 'assessment'
+      };
+
+      const tab = motivationToTab[motivation] || 'highlight';
+      setPanelInitialTab({ tab, generation: Date.now() });
+    }
+
+    setActivePanel(panel);
+  }, []);
+
+  const handlePanelClose = useCallback(() => {
+    setActivePanel(null);
+  }, []);
+
   // Subscribe to panel navigation events
   useEventSubscriptions({
-    'panel:toggle': ({ panel }: { panel: string }) => {
-      setActivePanel((current) => {
-        const newPanel = current === panel ? null : panel;
-        return newPanel;
-      });
-    },
-    'panel:open': ({ panel, scrollToAnnotationId: scrollTarget, motivation }: { panel: string; scrollToAnnotationId?: string; motivation?: string }) => {
-      // Store scroll target and motivation for UnifiedAnnotationsPanel
-      if (scrollTarget) {
-        setScrollToAnnotationId(scrollTarget);
-      }
-
-      if (motivation) {
-        // Map motivation to tab key
-        const motivationToTab: Record<string, string> = {
-          'linking': 'reference',
-          'commenting': 'comment',
-          'tagging': 'tag',
-          'highlighting': 'highlight',
-          'assessing': 'assessment'
-        };
-
-        const tab = motivationToTab[motivation] || 'highlight';
-        setPanelInitialTab({ tab, generation: Date.now() });
-      }
-
-      setActivePanel(panel);
-    },
-    'panel:close': () => {
-      setActivePanel(null);
-    },
+    'panel:toggle': handlePanelToggle,
+    'panel:open': handlePanelOpen,
+    'panel:close': handlePanelClose,
   });
 
   return {

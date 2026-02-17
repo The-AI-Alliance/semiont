@@ -33,6 +33,17 @@ export interface AnnotationFlowState {
  * Hook for annotation creation and interaction flow
  *
  * @param rUri - Resource URI
+ * @emits panel:open - Open the annotations panel when annotation is requested
+ * @emits annotation:sparkle - Trigger sparkle animation on hovered annotation
+ * @emits annotation:focus - Focus/scroll to clicked annotation
+ * @subscribes annotation:requested - User requested a new annotation
+ * @subscribes selection:comment-requested - User selected text for a comment
+ * @subscribes selection:tag-requested - User selected text for a tag
+ * @subscribes selection:assessment-requested - User selected text for an assessment
+ * @subscribes selection:reference-requested - User selected text for a reference
+ * @subscribes annotation:cancel-pending - Cancel pending annotation creation
+ * @subscribes annotation:hover - Annotation hover state change
+ * @subscribes annotation:click - Annotation clicked
  * @returns Annotation flow state
  */
 export function useAnnotationFlow(rUri: ResourceUri): AnnotationFlowState {
@@ -114,46 +125,48 @@ export function useAnnotationFlow(rUri: ResourceUri): AnnotationFlowState {
     };
   }, []);
 
+  const handleCommentRequested = useCallback((selection: any) => {
+    handleAnnotationRequested({ selector: selectionToSelector(selection), motivation: 'commenting' });
+  }, [handleAnnotationRequested, selectionToSelector]);
+
+  const handleTagRequested = useCallback((selection: any) => {
+    handleAnnotationRequested({ selector: selectionToSelector(selection), motivation: 'tagging' });
+  }, [handleAnnotationRequested, selectionToSelector]);
+
+  const handleAssessmentRequested = useCallback((selection: any) => {
+    handleAnnotationRequested({ selector: selectionToSelector(selection), motivation: 'assessing' });
+  }, [handleAnnotationRequested, selectionToSelector]);
+
+  const handleReferenceRequested = useCallback((selection: any) => {
+    handleAnnotationRequested({ selector: selectionToSelector(selection), motivation: 'linking' });
+  }, [handleAnnotationRequested, selectionToSelector]);
+
+  const handleAnnotationCancelPending = useCallback(() => {
+    setPendingAnnotation(null);
+  }, []);
+
+  const handleAnnotationHover = useCallback(({ annotationId }: { annotationId: string | null }) => {
+    setHoveredAnnotationId(annotationId);
+    if (annotationId) {
+      eventBus.emit('annotation:sparkle', { annotationId });
+    }
+  }, []); // eventBus is stable singleton - never in deps
+
+  const handleAnnotationClick = useCallback(({ annotationId }: { annotationId: string }) => {
+    eventBus.emit('annotation:focus', { annotationId });
+    // Click scroll handled by ResourceViewer internally
+  }, []); // eventBus is stable singleton - never in deps
+
   // Subscribe to annotation events
   useEventSubscriptions({
     'annotation:requested': handleAnnotationRequested,
-    'selection:comment-requested': (selection: any) => {
-      handleAnnotationRequested({
-        selector: selectionToSelector(selection),
-        motivation: 'commenting'
-      });
-    },
-    'selection:tag-requested': (selection: any) => {
-      handleAnnotationRequested({
-        selector: selectionToSelector(selection),
-        motivation: 'tagging'
-      });
-    },
-    'selection:assessment-requested': (selection: any) => {
-      handleAnnotationRequested({
-        selector: selectionToSelector(selection),
-        motivation: 'assessing'
-      });
-    },
-    'selection:reference-requested': (selection: any) => {
-      handleAnnotationRequested({
-        selector: selectionToSelector(selection),
-        motivation: 'linking'
-      });
-    },
-    'annotation:cancel-pending': () => {
-      setPendingAnnotation(null);
-    },
-    'annotation:hover': ({ annotationId }: { annotationId: string | null }) => {
-      setHoveredAnnotationId(annotationId);
-      if (annotationId) {
-        eventBus.emit('annotation:sparkle', { annotationId });
-      }
-    },
-    'annotation:click': ({ annotationId }: { annotationId: string }) => {
-      eventBus.emit('annotation:focus', { annotationId });
-      // Click scroll handled by ResourceViewer internally
-    },
+    'selection:comment-requested': handleCommentRequested,
+    'selection:tag-requested': handleTagRequested,
+    'selection:assessment-requested': handleAssessmentRequested,
+    'selection:reference-requested': handleReferenceRequested,
+    'annotation:cancel-pending': handleAnnotationCancelPending,
+    'annotation:hover': handleAnnotationHover,
+    'annotation:click': handleAnnotationClick,
     // Note: 'annotation:delete' is handled by useEventOperations (not here)
   });
 

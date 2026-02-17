@@ -90,6 +90,28 @@ export interface ResourceViewerPageProps {
  * ResourceViewerPage - Main component
  *
  * Uses hooks directly (NO containers, NO render props, NO ResourceViewerPageContent wrapper)
+ *
+ * @emits navigation:router-push - Navigate to a resource or filtered view
+ * @emits annotation:sparkle - Trigger sparkle animation on an annotation
+ * @emits annotation:update-body - Update annotation body content
+ * @subscribes resource:archive - Archive the current resource
+ * @subscribes resource:unarchive - Unarchive the current resource
+ * @subscribes resource:clone - Clone the current resource
+ * @subscribes annotation:sparkle - Trigger sparkle animation
+ * @subscribes annotation:created - Annotation was created
+ * @subscribes annotation:deleted - Annotation was deleted
+ * @subscribes annotation:create-failed - Annotation creation failed
+ * @subscribes annotation:delete-failed - Annotation deletion failed
+ * @subscribes annotation:body-updated - Annotation body was updated
+ * @subscribes annotation:body-update-failed - Annotation body update failed
+ * @subscribes settings:theme-changed - UI theme changed
+ * @subscribes settings:line-numbers-toggled - Line numbers display toggled
+ * @subscribes detection:complete - Detection completed
+ * @subscribes detection:failed - Detection failed
+ * @subscribes generation:complete - Generation completed
+ * @subscribes generation:failed - Generation failed
+ * @subscribes navigation:reference-navigate - Navigate to a referenced document
+ * @subscribes navigation:entity-type-clicked - Navigate filtered by entity type
  */
 export function ResourceViewerPage({
   resource,
@@ -254,90 +276,99 @@ export function ResourceViewerPage({
     }, []),
   });
 
+  // Event handlers extracted to useCallback (tenet: no inline handlers in useEventSubscriptions)
+  const handleResourceArchive = useCallback(async () => {
+    try {
+      await resources.update.useMutation().mutateAsync({ rUri, data: { archived: true } });
+      await refetchDocument();
+      showSuccess('Document archived');
+    } catch (err) {
+      console.error('Failed to archive document:', err);
+      showError('Failed to archive document');
+    }
+  }, [resources.update, rUri, refetchDocument, showSuccess, showError]);
+
+  const handleResourceUnarchive = useCallback(async () => {
+    try {
+      await resources.update.useMutation().mutateAsync({ rUri, data: { archived: false } });
+      await refetchDocument();
+      showSuccess('Document unarchived');
+    } catch (err) {
+      console.error('Failed to unarchive document:', err);
+      showError('Failed to unarchive document');
+    }
+  }, [resources.update, rUri, refetchDocument, showSuccess, showError]);
+
+  const handleResourceClone = useCallback(async () => {
+    try {
+      const result = await resources.generateCloneToken.useMutation().mutateAsync(rUri);
+      const token = result.token;
+      const cloneUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/know/clone?token=${token}`;
+      await navigator.clipboard.writeText(cloneUrl);
+      showSuccess('Clone link copied to clipboard');
+    } catch (err) {
+      console.error('Failed to generate clone token:', err);
+      showError('Failed to generate clone link');
+    }
+  }, [resources.generateCloneToken, rUri, showSuccess, showError]);
+
+  const handleAnnotationSparkle = useCallback(({ annotationId }: { annotationId: string }) => {
+    triggerSparkleAnimation(annotationId);
+  }, [triggerSparkleAnimation]);
+
+  const handleAnnotationCreated = useCallback(({ annotation }: { annotation: { id: string } }) => {
+    triggerSparkleAnimation(annotation.id);
+    debouncedInvalidateAnnotations();
+  }, [triggerSparkleAnimation, debouncedInvalidateAnnotations]);
+
+  const handleAnnotationCreateFailed = useCallback(() => showError('Failed to create annotation'), [showError]);
+  const handleAnnotationDeleteFailed = useCallback(() => showError('Failed to delete annotation'), [showError]);
+  const handleAnnotationBodyUpdated = useCallback(() => {
+    // Success - optimistic update already applied via useResourceEvents
+  }, []);
+  const handleAnnotationBodyUpdateFailed = useCallback(() => showError('Failed to update annotation'), [showError]);
+
+  const handleSettingsThemeChanged = useCallback(({ theme }: { theme: any }) => setTheme(theme), [setTheme]);
+
+  const handleDetectionComplete = useCallback(() => showSuccess('Detection complete'), [showSuccess]);
+  const handleDetectionFailed = useCallback(() => showError('Detection failed'), [showError]);
+  const handleGenerationComplete = useCallback(() => showSuccess('Document generated'), [showSuccess]);
+  const handleGenerationFailed = useCallback(() => showError('Failed to generate document'), [showError]);
+
+  const handleReferenceNavigate = useCallback(({ documentId }: { documentId: string }) => {
+    if (routes.resource) {
+      const path = routes.resource.replace('[resourceId]', encodeURIComponent(documentId));
+      eventBus.emit('navigation:router-push', { path, reason: 'reference-link' });
+    }
+  }, [routes.resource]); // eventBus is stable singleton - never in deps
+
+  const handleEntityTypeClicked = useCallback(({ entityType }: { entityType: string }) => {
+    if (routes.know) {
+      const path = `${routes.know}?entityType=${encodeURIComponent(entityType)}`;
+      eventBus.emit('navigation:router-push', { path, reason: 'entity-type-filter' });
+    }
+  }, [routes.know]); // eventBus is stable singleton - never in deps
+
   // Event bus subscriptions (combined into single useEventSubscriptions call to prevent hook ordering issues)
   useEventSubscriptions({
-    // Resource operations
-    'resource:archive': async () => {
-      try {
-        await resources.update.useMutation().mutateAsync({
-          rUri,
-          data: { archived: true }
-        });
-        await refetchDocument();
-        showSuccess('Document archived');
-      } catch (err) {
-        console.error('Failed to archive document:', err);
-        showError('Failed to archive document');
-      }
-    },
-    'resource:unarchive': async () => {
-      try {
-        await resources.update.useMutation().mutateAsync({
-          rUri,
-          data: { archived: false }
-        });
-        await refetchDocument();
-        showSuccess('Document unarchived');
-      } catch (err) {
-        console.error('Failed to unarchive document:', err);
-        showError('Failed to unarchive document');
-      }
-    },
-    'resource:clone': async () => {
-      try {
-        const result = await resources.generateCloneToken.useMutation().mutateAsync(rUri);
-        const token = result.token;
-        const cloneUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/know/clone?token=${token}`;
-
-        await navigator.clipboard.writeText(cloneUrl);
-        showSuccess('Clone link copied to clipboard');
-      } catch (err) {
-        console.error('Failed to generate clone token:', err);
-        showError('Failed to generate clone link');
-      }
-    },
-
-    // Annotation operations
-    'annotation:sparkle': ({ annotationId }) => {
-      triggerSparkleAnimation(annotationId);
-    },
-    'annotation:created': ({ annotation }) => {
-      triggerSparkleAnimation(annotation.id);
-      debouncedInvalidateAnnotations();
-    },
+    'resource:archive': handleResourceArchive,
+    'resource:unarchive': handleResourceUnarchive,
+    'resource:clone': handleResourceClone,
+    'annotation:sparkle': handleAnnotationSparkle,
+    'annotation:created': handleAnnotationCreated,
     'annotation:deleted': debouncedInvalidateAnnotations,
-    'annotation:create-failed': () => showError('Failed to create annotation'),
-    'annotation:delete-failed': () => showError('Failed to delete annotation'),
-    'annotation:body-updated': () => {
-      // Success - optimistic update already applied via useResourceEvents
-    },
-    'annotation:body-update-failed': () => showError('Failed to update annotation'),
-
-    // Settings
-    'settings:theme-changed': ({ theme }) => setTheme(theme),
+    'annotation:create-failed': handleAnnotationCreateFailed,
+    'annotation:delete-failed': handleAnnotationDeleteFailed,
+    'annotation:body-updated': handleAnnotationBodyUpdated,
+    'annotation:body-update-failed': handleAnnotationBodyUpdateFailed,
+    'settings:theme-changed': handleSettingsThemeChanged,
     'settings:line-numbers-toggled': toggleLineNumbers,
-
-    // Detection/Generation
-    'detection:complete': () => showSuccess('Detection complete'),
-    'detection:failed': () => showError('Detection failed'),
-    'generation:complete': () => showSuccess('Document generated'),
-    'generation:failed': () => showError('Failed to generate document'),
-
-    // Navigation
-    'navigation:reference-navigate': ({ documentId }: { documentId: string }) => {
-      // Navigate to the referenced document
-      if (routes.resource) {
-        const path = routes.resource.replace('[resourceId]', encodeURIComponent(documentId));
-        eventBus.emit('navigation:router-push', { path, reason: 'reference-link' });
-      }
-    },
-    'navigation:entity-type-clicked': ({ entityType }: { entityType: string }) => {
-      // Navigate to discovery page filtered by entity type
-      if (routes.know) {
-        const path = `${routes.know}?entityType=${encodeURIComponent(entityType)}`;
-        eventBus.emit('navigation:router-push', { path, reason: 'entity-type-filter' });
-      }
-    },
+    'detection:complete': handleDetectionComplete,
+    'detection:failed': handleDetectionFailed,
+    'generation:complete': handleGenerationComplete,
+    'generation:failed': handleGenerationFailed,
+    'navigation:reference-navigate': handleReferenceNavigate,
+    'navigation:entity-type-clicked': handleEntityTypeClicked,
   });
 
   // Resource loading announcements
