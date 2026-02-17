@@ -19,11 +19,13 @@ export interface EventOperationsConfig {
 /**
  * Hook that subscribes to remaining operation events and coordinates API calls
  *
- * Handles: annotation:update-body, generation:start, job:cancel-requested,
- * reference:create-manual, reference:link
+ * Handles: annotation:update-body, reference:create-manual, reference:link
  *
  * annotation:create, annotation:delete, detection:start are handled
  * directly in useDetectionFlow.
+ *
+ * generation:start, job:cancel-requested (generation half) are handled
+ * directly in useGenerationFlow.
  *
  * @param emitter - The mitt event bus instance
  * @param config - Configuration including API client and resource URI
@@ -36,9 +38,6 @@ export function useEventOperations(
 
   // Get current auth token for API calls
   const token = useAuthToken();
-
-  // Store SSE stream ref for generation cancellation
-  const generationStreamRef = useRef<AbortController | null>(null);
 
   // Store latest config in ref to avoid re-subscribing when client/resourceUri change
   const configRef = useRef(config);
@@ -82,84 +81,6 @@ export function useEventOperations(
       } catch (error) {
         console.error('Failed to update annotation body:', error);
         emitter.emit('annotation:body-update-failed', { error: error as Error });
-      }
-    };
-
-    // ========================================================================
-    // JOB CANCELLATION
-    // ========================================================================
-
-    /**
-     * Handle job cancellation
-     * Emitted by: DetectionProgressWidget
-     */
-    const handleJobCancelRequested = (event: { jobType: 'detection' | 'generation' }) => {
-      if (event.jobType === 'generation') {
-        generationStreamRef.current?.abort();
-        generationStreamRef.current = null;
-      }
-      // detection cancellation is handled in useDetectionFlow via detectionStreamRef
-    };
-
-    // ========================================================================
-    // GENERATION OPERATIONS (SSE Stream)
-    // ========================================================================
-
-    /**
-     * Handle document generation start
-     * Emitted by: useGenerationFlow (when user submits generation modal with full options)
-     */
-    const handleGenerationStart = async (event: {
-      annotationUri: string;
-      resourceUri: string;
-      options: {
-        title: string;
-        prompt?: string;
-        language?: string;
-        temperature?: number;
-        maxTokens?: number;
-        context: any; // GenerationContext - required
-      };
-    }) => {
-      console.log('[useEventOperations] handleGenerationStart called', { annotationUri: event.annotationUri, options: event.options });
-      try {
-        generationStreamRef.current?.abort();
-        generationStreamRef.current = new AbortController();
-
-        const stream = client.sse.generateResourceFromAnnotation(
-          event.resourceUri as any,
-          event.annotationUri as any,
-          event.options as any,
-          { auth: toAccessToken(token) }
-        );
-
-        stream.onProgress((chunk) => {
-          console.log('[useEventOperations] Generation progress chunk received', chunk);
-          emitter.emit('generation:progress', chunk);
-        });
-
-        stream.onComplete((finalChunk) => {
-          console.log('[useEventOperations] Generation complete with final chunk', finalChunk);
-          // Forward final completion chunk as progress BEFORE emitting complete (like detection)
-          emitter.emit('generation:progress', finalChunk);
-          emitter.emit('generation:complete', {
-            annotationUri: event.annotationUri,
-            progress: finalChunk
-          });
-        });
-
-        stream.onError((error) => {
-          console.error('[useEventOperations] Generation failed:', error);
-          emitter.emit('generation:failed', { error: error as Error });
-        });
-      } catch (error) {
-        if ((error as any).name === 'AbortError') {
-          // Normal cancellation
-          console.log('[useEventOperations] Generation cancelled');
-        } else {
-          console.error('[useEventOperations] Generation failed:', error);
-          emitter.emit('generation:failed', { error: error as Error });
-        }
       }
     };
 
@@ -212,20 +133,14 @@ export function useEventOperations(
     // ========================================================================
 
     emitter.on('annotation:update-body', handleAnnotationUpdateBody);
-    emitter.on('job:cancel-requested', handleJobCancelRequested);
-    emitter.on('generation:start', handleGenerationStart);
     emitter.on('reference:create-manual', handleReferenceCreateManual);
     emitter.on('reference:link', handleReferenceLink);
 
-    // Cleanup: unsubscribe and abort any ongoing streams
+    // Cleanup: unsubscribe
     return () => {
       emitter.off('annotation:update-body', handleAnnotationUpdateBody);
-      emitter.off('job:cancel-requested', handleJobCancelRequested);
-      emitter.off('generation:start', handleGenerationStart);
       emitter.off('reference:create-manual', handleReferenceCreateManual);
       emitter.off('reference:link', handleReferenceLink);
-
-      generationStreamRef.current?.abort();
     };
   }, [emitter, token]); // Only re-run if emitter or token changes
 }

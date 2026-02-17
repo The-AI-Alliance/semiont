@@ -11,12 +11,19 @@
  * subscribes to events and pushes values into React state.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import type { GenerationContext, AnnotationUri } from '@semiont/api-client';
-import { annotationUri } from '@semiont/api-client';
+import { annotationUri, accessToken } from '@semiont/api-client';
 import { useGenerationProgress } from './useGenerationProgress';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
 import { useEventBus } from '../contexts/EventBusContext';
+import { useApiClient } from '../contexts/ApiClientContext';
+import { useAuthToken } from '../contexts/AuthTokenContext';
+
+/** Helper to convert string | null to AccessToken | undefined */
+function toAccessToken(token: string | null) {
+  return token ? accessToken(token) : undefined;
+}
 
 export interface GenerationFlowState {
   generationProgress: any | null;
@@ -46,7 +53,12 @@ export interface GenerationFlowState {
  * @param showError - Error toast callback
  * @param cacheManager - Cache manager for invalidation
  * @param clearNewAnnotationId - Clear animation callback
- * @emits generation:start - Start document generation
+ * @emits generation:start - Start document generation (consumed internally by this hook)
+ * @emits generation:progress - SSE progress chunk from generation stream
+ * @emits generation:complete - Generation completed successfully
+ * @emits generation:failed - Error during generation
+ * @subscribes generation:start - Triggers SSE call to generateResourceFromAnnotation
+ * @subscribes job:cancel-requested - Cancels in-flight generation stream
  * @subscribes generation:modal-open - Open the generation config modal
  * @subscribes generation:complete - Generation completed successfully
  * @subscribes generation:failed - Error during generation
@@ -62,6 +74,17 @@ export function useGenerationFlow(
   clearNewAnnotationId: (annotationId: AnnotationUri) => void
 ): GenerationFlowState {
   const eventBus = useEventBus();
+  const client = useApiClient();
+  const token = useAuthToken();
+
+  // Keep latest client/token accessible inside useEffect without re-subscribing
+  const clientRef = useRef(client);
+  const tokenRef = useRef(token);
+  useEffect(() => { clientRef.current = client; });
+  useEffect(() => { tokenRef.current = token; });
+
+  // SSE stream ref for generation cancellation
+  const generationStreamRef = useRef<AbortController | null>(null);
 
   // Generation progress state (from hook)
   const {
@@ -98,7 +121,7 @@ export function useGenerationFlow(
       return;
     }
 
-    // Modal submitted with full options - emit event for useEventOperations
+    // Modal submitted with full options - emit event for handleGenerationStart
     // Clear CSS sparkle animation if reference was recently created
     clearNewAnnotationId(annotationUri(referenceId));
 
@@ -161,6 +184,88 @@ export function useGenerationFlow(
     setPendingReferenceId(referenceId);
     setSearchModalOpen(true);
   }, []);
+
+  // ============================================================
+  // GENERATION API OPERATIONS (useEffect-based, ref-closed)
+  // ============================================================
+
+  useEffect(() => {
+    /**
+     * Handle document generation start - SSE stream
+     * Emitted by: handleGenerateDocument (when user submits generation modal with full options)
+     */
+    const handleGenerationStart = async (event: {
+      annotationUri: string;
+      resourceUri: string;
+      options: {
+        title: string;
+        prompt?: string;
+        language?: string;
+        temperature?: number;
+        maxTokens?: number;
+        context: any;
+      };
+    }) => {
+      console.log('[useGenerationFlow] handleGenerationStart called', { annotationUri: event.annotationUri, options: event.options });
+      try {
+        generationStreamRef.current?.abort();
+        generationStreamRef.current = new AbortController();
+
+        const stream = clientRef.current.sse.generateResourceFromAnnotation(
+          event.resourceUri as any,
+          event.annotationUri as any,
+          event.options as any,
+          { auth: toAccessToken(tokenRef.current) }
+        );
+
+        stream.onProgress((chunk) => {
+          console.log('[useGenerationFlow] Generation progress chunk received', chunk);
+          eventBus.emit('generation:progress', chunk);
+        });
+
+        stream.onComplete((finalChunk) => {
+          console.log('[useGenerationFlow] Generation complete with final chunk', finalChunk);
+          eventBus.emit('generation:progress', finalChunk);
+          eventBus.emit('generation:complete', {
+            annotationUri: event.annotationUri,
+            progress: finalChunk
+          });
+        });
+
+        stream.onError((error) => {
+          console.error('[useGenerationFlow] Generation failed:', error);
+          eventBus.emit('generation:failed', { error: error as Error });
+        });
+      } catch (error) {
+        if ((error as any).name === 'AbortError') {
+          console.log('[useGenerationFlow] Generation cancelled');
+        } else {
+          console.error('[useGenerationFlow] Generation failed:', error);
+          eventBus.emit('generation:failed', { error: error as Error });
+        }
+      }
+    };
+
+    /**
+     * Handle job cancellation (generation half)
+     * Emitted by: DetectionProgressWidget
+     */
+    const handleJobCancelRequested = (event: { jobType: 'detection' | 'generation' }) => {
+      if (event.jobType === 'generation') {
+        generationStreamRef.current?.abort();
+        generationStreamRef.current = null;
+      }
+    };
+
+    eventBus.on('generation:start', handleGenerationStart);
+    eventBus.on('job:cancel-requested', handleJobCancelRequested);
+
+    return () => {
+      eventBus.off('generation:start', handleGenerationStart);
+      eventBus.off('job:cancel-requested', handleJobCancelRequested);
+      generationStreamRef.current?.abort();
+    };
+  }, [eventBus]); // eventBus is stable singleton; client/token accessed via refs
 
   // Subscribe to generation events
   useEventSubscriptions({

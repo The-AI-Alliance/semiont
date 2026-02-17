@@ -79,6 +79,7 @@ export interface DetectionFlowState {
  * @subscribes annotation:hover - Annotation hover state change
  * @subscribes annotation:click - Annotation clicked
  * @subscribes detection:start - Trigger AI detection SSE stream
+ * @subscribes job:cancel-requested - Cancels in-flight detection stream (detection half only)
  * @subscribes detection:progress - Progress update during detection
  * @subscribes detection:complete - Detection completed successfully
  * @subscribes detection:failed - Error during detection
@@ -98,7 +99,7 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
   useEffect(() => { rUriRef.current = rUri; });
   useEffect(() => { tokenRef.current = token; });
 
-  // Remaining operations (annotation:update-body, generation:start, reference:*) stay here
+  // Remaining operations (annotation:update-body, reference:*) stay in useEventOperations
   useEventOperations(eventBus, { client, resourceUri: rUri });
 
   // ============================================================
@@ -439,14 +440,27 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
       }
     };
 
+    /**
+     * Handle job cancellation (detection half)
+     * Emitted by: DetectionProgressWidget
+     */
+    const handleJobCancelRequested = (event: { jobType: 'detection' | 'generation' }) => {
+      if (event.jobType === 'detection') {
+        detectionStreamRef.current?.abort();
+        detectionStreamRef.current = null;
+      }
+    };
+
     eventBus.on('annotation:create', handleAnnotationCreate);
     eventBus.on('annotation:delete', handleAnnotationDelete);
     eventBus.on('detection:start', handleDetectionStart);
+    eventBus.on('job:cancel-requested', handleJobCancelRequested);
 
     return () => {
       eventBus.off('annotation:create', handleAnnotationCreate);
       eventBus.off('annotation:delete', handleAnnotationDelete);
       eventBus.off('detection:start', handleDetectionStart);
+      eventBus.off('job:cancel-requested', handleJobCancelRequested);
       detectionStreamRef.current?.abort();
     };
   }, [eventBus]); // eventBus is stable singleton; client/rUri/token accessed via refs
