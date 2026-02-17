@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { Emitter } from 'mitt';
 import type { EventMap } from './EventBusContext';
-import type { SemiontApiClient, ResourceUri, Motivation, Selector } from '@semiont/api-client';
+import type { SemiontApiClient, ResourceUri } from '@semiont/api-client';
 import { resourceAnnotationUri, accessToken } from '@semiont/api-client';
 import { uriToAnnotationIdOrPassthrough } from '@semiont/core';
 import { useAuthToken } from './AuthTokenContext';
@@ -17,13 +17,16 @@ export interface EventOperationsConfig {
 }
 
 /**
- * Hook that subscribes to operation events and coordinates API calls
+ * Hook that subscribes to remaining operation events and coordinates API calls
  *
- * This hook implements the event-driven architecture by listening to events
- * emitted by UI components and translating them into API operations.
+ * Handles: annotation:update-body, generation:start, job:cancel-requested,
+ * reference:create-manual, reference:link
+ *
+ * annotation:create, annotation:delete, detection:start are handled
+ * directly in useDetectionFlow.
  *
  * @param emitter - The mitt event bus instance
- * @param config - Configuration including API client and callbacks
+ * @param config - Configuration including API client and resource URI
  */
 export function useEventOperations(
   emitter: Emitter<EventMap>,
@@ -34,8 +37,7 @@ export function useEventOperations(
   // Get current auth token for API calls
   const token = useAuthToken();
 
-  // Store SSE stream refs for cancellation
-  const detectionStreamRef = useRef<AbortController | null>(null);
+  // Store SSE stream ref for generation cancellation
   const generationStreamRef = useRef<AbortController | null>(null);
 
   // Store latest config in ref to avoid re-subscribing when client/resourceUri change
@@ -49,59 +51,8 @@ export function useEventOperations(
     const getCurrentConfig = () => configRef.current;
 
     // ========================================================================
-    // ANNOTATION OPERATIONS
+    // ANNOTATION BODY UPDATE
     // ========================================================================
-
-    /**
-     * Handle annotation creation
-     * Emitted by: HighlightPanel, AssessmentPanel, CommentsPanel, TaggingPanel, ReferencesPanel
-     */
-    const handleAnnotationCreate = async (event: {
-      motivation: Motivation;
-      selector: Selector | Selector[];
-      body: any[];
-    }) => {
-      const { client: currentClient, resourceUri: currentResourceUri } = getCurrentConfig();
-      if (!currentClient || !currentResourceUri) return;
-
-      try {
-        const result = await currentClient.createAnnotation(currentResourceUri, {
-          motivation: event.motivation,
-          target: {
-            source: resourceUri,
-            selector: event.selector,
-          },
-          body: event.body,
-        }, { auth: toAccessToken(token) });
-
-        if (result.annotation) {
-          // Emit success event for subscribers to handle UI updates
-          emitter.emit('annotation:created', { annotation: result.annotation });
-        }
-      } catch (error) {
-        console.error('Failed to create annotation:', error);
-        emitter.emit('annotation:create-failed', { error: error as Error });
-      }
-    };
-
-    /**
-     * Handle annotation deletion
-     * Emitted by: (future) delete buttons in annotation entries
-     */
-    const handleAnnotationDelete = async (event: { annotationId: string }) => {
-      try {
-        const annotationIdSegment = uriToAnnotationIdOrPassthrough(event.annotationId);
-        const annotationUri = resourceAnnotationUri(`${resourceUri}/annotations/${annotationIdSegment}`);
-
-        await client.deleteAnnotation(annotationUri, { auth: toAccessToken(token) });
-
-        // Emit success event
-        emitter.emit('annotation:deleted', { annotationId: event.annotationId });
-      } catch (error) {
-        console.error('Failed to delete annotation:', error);
-        emitter.emit('annotation:delete-failed', { error: error as Error });
-      }
-    };
 
     /**
      * Handle annotation body updates
@@ -118,15 +69,15 @@ export function useEventOperations(
       }>;
     }) => {
       try {
+        const { client: currentClient, resourceUri: currentResourceUri } = getCurrentConfig();
         const annotationIdSegment = uriToAnnotationIdOrPassthrough(event.annotationUri);
-        const nestedUri = resourceAnnotationUri(`${resourceUri}/annotations/${annotationIdSegment}`);
+        const nestedUri = resourceAnnotationUri(`${currentResourceUri}/annotations/${annotationIdSegment}`);
 
-        await client.updateAnnotationBody(nestedUri, {
+        await currentClient.updateAnnotationBody(nestedUri, {
           resourceId: event.resourceId,
           operations: event.operations as any,
         }, { auth: toAccessToken(token) });
 
-        // Emit success event
         emitter.emit('annotation:body-updated', { annotationUri: event.annotationUri });
       } catch (error) {
         console.error('Failed to update annotation body:', error);
@@ -135,180 +86,23 @@ export function useEventOperations(
     };
 
     // ========================================================================
-    // DETECTION OPERATIONS (SSE Streams)
+    // JOB CANCELLATION
     // ========================================================================
-
-    /**
-     * Handle detection start
-     * Emitted by: DetectSection, TaggingPanel, ReferencesPanel
-     */
-    const handleDetectionStart = async (event: {
-      motivation: Motivation;
-      options: {
-        instructions?: string;
-        tone?: string;
-        density?: number;
-        entityTypes?: string[];
-        includeDescriptiveReferences?: boolean;
-        schemaId?: string;
-        categories?: string[];
-      };
-    }) => {
-      console.log('[useEventOperations] handleDetectionStart called', { motivation: event.motivation, options: event.options });
-      try {
-        // Cancel any existing detection
-        if (detectionStreamRef.current) {
-          detectionStreamRef.current.abort();
-        }
-        detectionStreamRef.current = new AbortController();
-
-        // Different detection endpoints based on motivation
-        if (event.motivation === 'tagging') {
-          // Tag detection requires schemaId and categories
-          const { schemaId, categories } = event.options;
-          if (!schemaId || !categories || categories.length === 0) {
-            throw new Error('Tag detection requires schemaId and categories');
-          }
-
-          const stream = client.sse.detectTags(resourceUri, {
-            schemaId,
-            categories,
-          }, { auth: toAccessToken(token) });
-
-          stream.onProgress((chunk) => {
-            emitter.emit('detection:progress', chunk as any);
-          });
-
-          stream.onComplete((finalChunk) => {
-            // Forward final completion chunk as progress BEFORE emitting complete
-            emitter.emit('detection:progress', finalChunk as any);
-            emitter.emit('detection:complete', { motivation: event.motivation });
-          });
-
-          stream.onError((error) => {
-            console.error('Detection failed:', error);
-            emitter.emit('detection:failed', { error: error as Error } as any);
-          });
-        } else if (event.motivation === 'linking') {
-          // Reference detection (uses detectAnnotations with entityTypes)
-          console.log('[useEventOperations] Starting linking detection', { resourceUri, options: event.options });
-          const { entityTypes, includeDescriptiveReferences } = event.options;
-          if (!entityTypes || entityTypes.length === 0) {
-            throw new Error('Reference detection requires entityTypes');
-          }
-
-          console.log('[useEventOperations] Creating SSE stream for detectAnnotations');
-          const stream = client.sse.detectAnnotations(resourceUri, {
-            entityTypes: entityTypes as any,
-            includeDescriptiveReferences: includeDescriptiveReferences || false,
-          }, { auth: toAccessToken(token) });
-
-          stream.onProgress((chunk) => {
-            console.log('[useEventOperations] SSE progress chunk received', chunk);
-            emitter.emit('detection:progress', chunk as any);
-          });
-
-          stream.onComplete((finalChunk) => {
-            console.log('[useEventOperations] SSE stream complete with final chunk', finalChunk);
-            // Forward final completion chunk as progress BEFORE emitting complete
-            emitter.emit('detection:progress', finalChunk as any);
-            emitter.emit('detection:complete', { motivation: event.motivation });
-          });
-
-          stream.onError((error) => {
-            console.error('[useEventOperations] Detection failed:', error);
-            emitter.emit('detection:failed', { error: error as Error } as any);
-          });
-        } else if (event.motivation === 'highlighting') {
-          // Highlight detection
-          const stream = client.sse.detectHighlights(resourceUri, {
-            instructions: event.options.instructions,
-          }, { auth: toAccessToken(token) });
-
-          stream.onProgress((chunk) => {
-            emitter.emit('detection:progress', chunk as any);
-          });
-
-          stream.onComplete((finalChunk) => {
-            // Forward final completion chunk as progress BEFORE emitting complete
-            emitter.emit('detection:progress', finalChunk as any);
-            emitter.emit('detection:complete', { motivation: event.motivation });
-          });
-
-          stream.onError((error) => {
-            console.error('Detection failed:', error);
-            emitter.emit('detection:failed', { error: error as Error } as any);
-          });
-        } else if (event.motivation === 'assessing') {
-          // Assessment detection
-          const stream = client.sse.detectAssessments(resourceUri, {
-            instructions: event.options.instructions,
-          }, { auth: toAccessToken(token) });
-
-          stream.onProgress((chunk) => {
-            emitter.emit('detection:progress', chunk as any);
-          });
-
-          stream.onComplete((finalChunk) => {
-            // Forward final completion chunk as progress BEFORE emitting complete
-            emitter.emit('detection:progress', finalChunk as any);
-            emitter.emit('detection:complete', { motivation: event.motivation });
-          });
-
-          stream.onError((error) => {
-            console.error('[useEventOperations] Assessment detection error:', error);
-            emitter.emit('detection:failed', { error: error as Error } as any);
-          });
-        } else if (event.motivation === 'commenting') {
-          // Comment detection
-          const stream = client.sse.detectComments(resourceUri, {
-            instructions: event.options.instructions,
-            tone: event.options.tone as any,
-          }, { auth: toAccessToken(token) });
-
-          stream.onProgress((chunk) => {
-            emitter.emit('detection:progress', chunk as any);
-          });
-
-          stream.onComplete((finalChunk) => {
-            // Forward final completion chunk as progress BEFORE emitting complete
-            emitter.emit('detection:progress', finalChunk as any);
-            emitter.emit('detection:complete', { motivation: event.motivation });
-          });
-
-          stream.onError((error) => {
-            console.error('Detection failed:', error);
-            emitter.emit('detection:failed', { error: error as Error } as any);
-          });
-        }
-      } catch (error) {
-        if ((error as any).name === 'AbortError') {
-          // Normal cancellation, not an error
-          emitter.emit('detection:cancelled', undefined);
-        } else {
-          console.error('Detection failed:', error);
-          emitter.emit('detection:failed', { error: error as Error } as any);
-        }
-      }
-    };
 
     /**
      * Handle job cancellation
      * Emitted by: DetectionProgressWidget
      */
     const handleJobCancelRequested = (event: { jobType: 'detection' | 'generation' }) => {
-      if (event.jobType === 'detection') {
-        detectionStreamRef.current?.abort();
-        detectionStreamRef.current = null;
-        emitter.emit('detection:cancelled', undefined);
-      } else if (event.jobType === 'generation') {
+      if (event.jobType === 'generation') {
         generationStreamRef.current?.abort();
         generationStreamRef.current = null;
       }
+      // detection cancellation is handled in useDetectionFlow via detectionStreamRef
     };
 
     // ========================================================================
-    // REFERENCE OPERATIONS
+    // GENERATION OPERATIONS (SSE Stream)
     // ========================================================================
 
     /**
@@ -369,6 +163,10 @@ export function useEventOperations(
       }
     };
 
+    // ========================================================================
+    // REFERENCE OPERATIONS
+    // ========================================================================
+
     /**
      * Handle manual document creation for reference
      * Emitted by: ReferenceEntry (when user clicks "Create Document")
@@ -410,13 +208,10 @@ export function useEventOperations(
     };
 
     // ========================================================================
-    // SUBSCRIBE TO ALL EVENTS
+    // SUBSCRIBE TO EVENTS
     // ========================================================================
 
-    emitter.on('annotation:create', handleAnnotationCreate);
-    emitter.on('annotation:delete', handleAnnotationDelete);
     emitter.on('annotation:update-body', handleAnnotationUpdateBody);
-    emitter.on('detection:start', handleDetectionStart);
     emitter.on('job:cancel-requested', handleJobCancelRequested);
     emitter.on('generation:start', handleGenerationStart);
     emitter.on('reference:create-manual', handleReferenceCreateManual);
@@ -424,24 +219,13 @@ export function useEventOperations(
 
     // Cleanup: unsubscribe and abort any ongoing streams
     return () => {
-      emitter.off('annotation:create', handleAnnotationCreate);
-      emitter.off('annotation:delete', handleAnnotationDelete);
       emitter.off('annotation:update-body', handleAnnotationUpdateBody);
-      emitter.off('detection:start', handleDetectionStart);
       emitter.off('job:cancel-requested', handleJobCancelRequested);
       emitter.off('generation:start', handleGenerationStart);
       emitter.off('reference:create-manual', handleReferenceCreateManual);
       emitter.off('reference:link', handleReferenceLink);
 
-      detectionStreamRef.current?.abort();
       generationStreamRef.current?.abort();
     };
   }, [emitter, token]); // Only re-run if emitter or token changes
 }
-
-/**
- * Non-hook version of event operations setup for use outside React context
- * Used by EventBusProvider to set up operation handlers
- */
-// setupEventOperations removed - only useEventOperations hook is needed
-// The non-hook version was only used by EventBusProvider's useEffect, which has been removed

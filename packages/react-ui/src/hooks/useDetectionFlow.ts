@@ -11,6 +11,8 @@
  * - Detection lifecycle (start, progress, complete, failed)
  * - Auto-dismiss progress after completion (5 seconds)
  * - Manual dismiss via detection:dismiss-progress event
+ * - Annotation create/delete API calls
+ * - AI detection SSE streams (all 5 motivation types)
  *
  * "Detection" covers both forms: a human selecting text is manual detection;
  * AI-driven SSE streams are automated detection. Same concept, same hook.
@@ -21,11 +23,19 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { Motivation, ResourceUri, Selector } from '@semiont/api-client';
+import { resourceAnnotationUri, accessToken } from '@semiont/api-client';
+import { uriToAnnotationIdOrPassthrough } from '@semiont/core';
 import { useEventBus } from '../contexts/EventBusContext';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
 import { useApiClient } from '../contexts/ApiClientContext';
+import { useAuthToken } from '../contexts/AuthTokenContext';
 import { useEventOperations } from '../contexts/useEventOperations';
 import type { DetectionProgress } from '../types/progress';
+
+/** Helper to convert string | null to AccessToken | undefined */
+function toAccessToken(token: string | null) {
+  return token ? accessToken(token) : undefined;
+}
 
 // Unified pending annotation type
 interface PendingAnnotation {
@@ -40,7 +50,7 @@ export interface DetectionFlowState {
   // AI detection state
   detectingMotivation: Motivation | null;
   detectionProgress: DetectionProgress | null;
-  detectionStreamRef: React.MutableRefObject<any>;
+  detectionStreamRef: React.MutableRefObject<AbortController | null>;
 }
 
 /**
@@ -50,7 +60,17 @@ export interface DetectionFlowState {
  * @emits panel:open - Open the annotations panel when annotation is requested
  * @emits annotation:sparkle - Trigger sparkle animation on hovered annotation
  * @emits annotation:focus - Focus/scroll to clicked annotation
+ * @emits annotation:created - Annotation successfully created
+ * @emits annotation:create-failed - Annotation creation failed
+ * @emits annotation:deleted - Annotation successfully deleted
+ * @emits annotation:delete-failed - Annotation deletion failed
+ * @emits detection:progress - Progress update from SSE stream
+ * @emits detection:complete - SSE detection completed
+ * @emits detection:failed - SSE detection failed
+ * @emits detection:cancelled - SSE detection cancelled
  * @subscribes annotation:requested - User requested a new annotation
+ * @subscribes annotation:create - Create annotation via API
+ * @subscribes annotation:delete - Delete annotation via API
  * @subscribes selection:comment-requested - User selected text for a comment
  * @subscribes selection:tag-requested - User selected text for a tag
  * @subscribes selection:assessment-requested - User selected text for an assessment
@@ -58,21 +78,27 @@ export interface DetectionFlowState {
  * @subscribes annotation:cancel-pending - Cancel pending annotation creation
  * @subscribes annotation:hover - Annotation hover state change
  * @subscribes annotation:click - Annotation clicked
- * @subscribes detection:start - Detection started for a motivation
+ * @subscribes detection:start - Trigger AI detection SSE stream
  * @subscribes detection:progress - Progress update during detection
  * @subscribes detection:complete - Detection completed successfully
  * @subscribes detection:failed - Error during detection
  * @subscribes detection:dismiss-progress - Manually dismiss progress display
  * @returns Detection state
- *
- * Note: All API operations (annotation:create, annotation:delete, detection:start → SSE, etc.)
- * are handled by useEventOperations, which is registered here as the single registration point.
  */
 export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
   const eventBus = useEventBus();
   const client = useApiClient();
+  const token = useAuthToken();
 
-  // Set up event operation handlers (annotation CRUD, detection SSE, generation SSE, etc.)
+  // Keep latest client/rUri/token available inside useEffect handlers without re-subscribing
+  const clientRef = useRef(client);
+  const rUriRef = useRef(rUri);
+  const tokenRef = useRef(token);
+  useEffect(() => { clientRef.current = client; });
+  useEffect(() => { rUriRef.current = rUri; });
+  useEffect(() => { tokenRef.current = token; });
+
+  // Remaining operations (annotation:update-body, generation:start, reference:*) stay here
   useEventOperations(eventBus, { client, resourceUri: rUri });
 
   // ============================================================
@@ -188,20 +214,10 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
 
   const [detectingMotivation, setDetectingMotivation] = useState<Motivation | null>(null);
   const [detectionProgress, setDetectionProgress] = useState<DetectionProgress | null>(null);
-  const detectionStreamRef = useRef<any>(null);
+  const detectionStreamRef = useRef<AbortController | null>(null);
 
   // Auto-dismiss timeout ref
   const progressDismissTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  const handleDetectionStart = useCallback(({ motivation }: { motivation: Motivation }) => {
-    // Clear any pending auto-dismiss timeout
-    if (progressDismissTimeoutRef.current) {
-      clearTimeout(progressDismissTimeoutRef.current);
-      progressDismissTimeoutRef.current = null;
-    }
-    setDetectingMotivation(motivation);
-    setDetectionProgress(null); // Clear previous progress
-  }, []);
 
   const handleDetectionProgress = useCallback((chunk: any) => {
     setDetectionProgress(chunk);
@@ -247,7 +263,196 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
   }, []);
 
   // ============================================================
-  // SUBSCRIPTIONS
+  // ANNOTATION + DETECTION API OPERATIONS (useEffect-based, ref-closed)
+  // ============================================================
+
+  useEffect(() => {
+    /**
+     * Handle annotation creation
+     * Emitted by: HighlightPanel, AssessmentPanel, CommentsPanel, TaggingPanel, ReferencesPanel
+     */
+    const handleAnnotationCreate = async (event: {
+      motivation: Motivation;
+      selector: Selector | Selector[];
+      body: any[];
+    }) => {
+      const currentClient = clientRef.current;
+      const currentRUri = rUriRef.current;
+      if (!currentClient || !currentRUri) return;
+
+      try {
+        const result = await currentClient.createAnnotation(currentRUri, {
+          motivation: event.motivation,
+          target: {
+            source: currentRUri,
+            selector: event.selector,
+          },
+          body: event.body,
+        }, { auth: toAccessToken(tokenRef.current) });
+
+        if (result.annotation) {
+          eventBus.emit('annotation:created', { annotation: result.annotation });
+        }
+      } catch (error) {
+        console.error('Failed to create annotation:', error);
+        eventBus.emit('annotation:create-failed', { error: error as Error });
+      }
+    };
+
+    /**
+     * Handle annotation deletion
+     * Emitted by: delete buttons in annotation entries
+     */
+    const handleAnnotationDelete = async (event: { annotationId: string }) => {
+      const currentClient = clientRef.current;
+      const currentRUri = rUriRef.current;
+      try {
+        const annotationIdSegment = uriToAnnotationIdOrPassthrough(event.annotationId);
+        const annotationUri = resourceAnnotationUri(`${currentRUri}/annotations/${annotationIdSegment}`);
+
+        await currentClient.deleteAnnotation(annotationUri, { auth: toAccessToken(tokenRef.current) });
+
+        eventBus.emit('annotation:deleted', { annotationId: event.annotationId });
+      } catch (error) {
+        console.error('Failed to delete annotation:', error);
+        eventBus.emit('annotation:delete-failed', { error: error as Error });
+      }
+    };
+
+    /**
+     * Handle detection start - AI-driven SSE stream
+     * Emitted by: DetectSection, TaggingPanel, ReferencesPanel
+     */
+    const handleDetectionStart = async (event: {
+      motivation: Motivation;
+      options: {
+        instructions?: string;
+        tone?: string;
+        density?: number;
+        entityTypes?: string[];
+        includeDescriptiveReferences?: boolean;
+        schemaId?: string;
+        categories?: string[];
+      };
+    }) => {
+      const currentClient = clientRef.current;
+      const currentRUri = rUriRef.current;
+      console.log('[useDetectionFlow] handleDetectionStart called', { motivation: event.motivation, options: event.options });
+      try {
+        // Cancel any existing detection
+        if (detectionStreamRef.current) {
+          detectionStreamRef.current.abort();
+        }
+        detectionStreamRef.current = new AbortController();
+
+        // Update UI state
+        if (progressDismissTimeoutRef.current) {
+          clearTimeout(progressDismissTimeoutRef.current);
+          progressDismissTimeoutRef.current = null;
+        }
+        setDetectingMotivation(event.motivation);
+        setDetectionProgress(null);
+
+        const auth = { auth: toAccessToken(tokenRef.current) };
+
+        if (event.motivation === 'tagging') {
+          const { schemaId, categories } = event.options;
+          if (!schemaId || !categories || categories.length === 0) {
+            throw new Error('Tag detection requires schemaId and categories');
+          }
+          const stream = currentClient.sse.detectTags(currentRUri, { schemaId, categories }, auth);
+          stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk as any); });
+          stream.onComplete((finalChunk) => {
+            eventBus.emit('detection:progress', finalChunk as any);
+            eventBus.emit('detection:complete', { motivation: event.motivation });
+          });
+          stream.onError((error) => {
+            console.error('Detection failed:', error);
+            eventBus.emit('detection:failed', { error: error as Error } as any);
+          });
+        } else if (event.motivation === 'linking') {
+          const { entityTypes, includeDescriptiveReferences } = event.options;
+          if (!entityTypes || entityTypes.length === 0) {
+            throw new Error('Reference detection requires entityTypes');
+          }
+          const stream = currentClient.sse.detectAnnotations(currentRUri, {
+            entityTypes: entityTypes as any,
+            includeDescriptiveReferences: includeDescriptiveReferences || false,
+          }, auth);
+          stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk as any); });
+          stream.onComplete((finalChunk) => {
+            eventBus.emit('detection:progress', finalChunk as any);
+            eventBus.emit('detection:complete', { motivation: event.motivation });
+          });
+          stream.onError((error) => {
+            console.error('[useDetectionFlow] Detection failed:', error);
+            eventBus.emit('detection:failed', { error: error as Error } as any);
+          });
+        } else if (event.motivation === 'highlighting') {
+          const stream = currentClient.sse.detectHighlights(currentRUri, {
+            instructions: event.options.instructions,
+          }, auth);
+          stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk as any); });
+          stream.onComplete((finalChunk) => {
+            eventBus.emit('detection:progress', finalChunk as any);
+            eventBus.emit('detection:complete', { motivation: event.motivation });
+          });
+          stream.onError((error) => {
+            console.error('Detection failed:', error);
+            eventBus.emit('detection:failed', { error: error as Error } as any);
+          });
+        } else if (event.motivation === 'assessing') {
+          const stream = currentClient.sse.detectAssessments(currentRUri, {
+            instructions: event.options.instructions,
+          }, auth);
+          stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk as any); });
+          stream.onComplete((finalChunk) => {
+            eventBus.emit('detection:progress', finalChunk as any);
+            eventBus.emit('detection:complete', { motivation: event.motivation });
+          });
+          stream.onError((error) => {
+            console.error('[useDetectionFlow] Assessment detection error:', error);
+            eventBus.emit('detection:failed', { error: error as Error } as any);
+          });
+        } else if (event.motivation === 'commenting') {
+          const stream = currentClient.sse.detectComments(currentRUri, {
+            instructions: event.options.instructions,
+            tone: event.options.tone as any,
+          }, auth);
+          stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk as any); });
+          stream.onComplete((finalChunk) => {
+            eventBus.emit('detection:progress', finalChunk as any);
+            eventBus.emit('detection:complete', { motivation: event.motivation });
+          });
+          stream.onError((error) => {
+            console.error('Detection failed:', error);
+            eventBus.emit('detection:failed', { error: error as Error } as any);
+          });
+        }
+      } catch (error) {
+        if ((error as any).name === 'AbortError') {
+          eventBus.emit('detection:cancelled', undefined);
+        } else {
+          console.error('Detection failed:', error);
+          eventBus.emit('detection:failed', { error: error as Error } as any);
+        }
+      }
+    };
+
+    eventBus.on('annotation:create', handleAnnotationCreate);
+    eventBus.on('annotation:delete', handleAnnotationDelete);
+    eventBus.on('detection:start', handleDetectionStart);
+
+    return () => {
+      eventBus.off('annotation:create', handleAnnotationCreate);
+      eventBus.off('annotation:delete', handleAnnotationDelete);
+      eventBus.off('detection:start', handleDetectionStart);
+      detectionStreamRef.current?.abort();
+    };
+  }, [eventBus]); // eventBus is stable singleton; client/rUri/token accessed via refs
+
+  // ============================================================
+  // SUBSCRIPTIONS (state-updating handlers via useEventSubscriptions)
   // ============================================================
 
   useEventSubscriptions({
@@ -260,8 +465,7 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
     'annotation:cancel-pending': handleAnnotationCancelPending,
     'annotation:hover': handleAnnotationHover,
     'annotation:click': handleAnnotationClick,
-    // AI detection
-    'detection:start': handleDetectionStart,
+    // AI detection state updates
     'detection:progress': handleDetectionProgress,
     'detection:complete': handleDetectionComplete,
     'detection:failed': handleDetectionFailed,
