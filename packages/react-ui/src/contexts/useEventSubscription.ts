@@ -102,5 +102,5 @@ export function useEventSubscriptions(
         eventBus.off(eventName, stableHandler);
       }
     };
-  }, [eventNames, eventBus]); // Only re-subscribe if event names change
+  }, [eventNames]); // eventBus is stable singleton - never in deps; only re-subscribe if event names change
 }

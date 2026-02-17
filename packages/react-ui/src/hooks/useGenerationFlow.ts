@@ -111,7 +111,7 @@ export function useGenerationFlow(
         context: options.context // Now guaranteed to exist
       }
     });
-  }, [eventBus, resourceId, clearNewAnnotationId, locale]);
+  }, [resourceId, clearNewAnnotationId, locale]); // eventBus is stable singleton - never in deps
 
   const handleCloseGenerationModal = useCallback(() => {
     setGenerationModalOpen(false);
