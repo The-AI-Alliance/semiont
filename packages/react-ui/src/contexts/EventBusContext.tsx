@@ -94,7 +94,7 @@ export type EventMap = {
   'navigation:resource-reorder': { oldIndex: number; newIndex: number };
   'navigation:link-clicked': { href: string; label?: string };
   'navigation:router-push': { path: string; reason?: string };
-  'navigation:external-navigate': { url: string; resourceId?: string };
+  'navigation:external-navigate': { url: string; resourceId?: string; cancelFallback: () => void };
   'navigation:reference-navigate': { documentId: string };
   'navigation:entity-type-clicked': { entityType: string };
 

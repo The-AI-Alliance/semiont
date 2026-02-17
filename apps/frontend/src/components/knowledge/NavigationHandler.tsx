@@ -22,8 +22,8 @@ export function NavigationHandler() {
   const router = useRouter();
 
   // Handle external navigation events
-  const handleExternalNavigate = useCallback(({ url }: { url: string; resourceId?: string }) => {
-    // Perform client-side navigation with Next.js router
+  const handleExternalNavigate = useCallback(({ url, cancelFallback }: { url: string; resourceId?: string; cancelFallback: () => void }) => {
+    cancelFallback(); // Prevent window.location fallback since we're handling with client-side routing
     router.push(url);
   }, [router]);
 
