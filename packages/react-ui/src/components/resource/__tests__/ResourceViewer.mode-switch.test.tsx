@@ -12,10 +12,14 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ResourceViewer } from '../ResourceViewer';
 import { EventBusProvider } from '../../../contexts/EventBusContext';
 import { CacheProvider } from '../../../contexts/CacheContext';
 import { TranslationProvider } from '../../../contexts/TranslationContext';
+import { ResourceAnnotationsProvider } from '../../../contexts/ResourceAnnotationsContext';
+import { ApiClientProvider } from '../../../contexts/ApiClientContext';
+import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import type { components } from '@semiont/api-client';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
@@ -26,6 +30,7 @@ vi.mock('../../../hooks/useObservableNavigation', () => ({
 }));
 
 const mockResource: SemiontResource & { content: string } = {
+  '@context': 'https://www.w3.org/ns/activitystreams',
   '@id': 'http://example.com/resources/test-123',
   name: 'Test Document',
   created: '2024-01-01T00:00:00Z',
@@ -51,16 +56,38 @@ const mockAnnotations = {
 const mockCacheManager = {
   invalidateAnnotations: vi.fn(),
   invalidate: vi.fn(),
+  invalidateEvents: vi.fn(),
+};
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: false },
+    mutations: { retry: false },
+  },
+});
+
+const mockTranslationManager = {
+  t: (namespace: string, key: string, params?: Record<string, any>) => {
+    return `${namespace}.${key}`;
+  },
 };
 
 function TestWrapper({ children }: { children: React.ReactNode }) {
   return (
-    <TranslationProvider locale="en">
-      <EventBusProvider>
-        <CacheProvider cacheManager={mockCacheManager}>
-          {children}
-        </CacheProvider>
-      </EventBusProvider>
+    <TranslationProvider translationManager={mockTranslationManager}>
+      <AuthTokenProvider token="test-token">
+        <ApiClientProvider baseUrl="http://localhost:4000">
+          <QueryClientProvider client={queryClient}>
+            <EventBusProvider>
+              <ResourceAnnotationsProvider>
+                <CacheProvider cacheManager={mockCacheManager}>
+                  {children}
+                </CacheProvider>
+              </ResourceAnnotationsProvider>
+            </EventBusProvider>
+          </QueryClientProvider>
+        </ApiClientProvider>
+      </AuthTokenProvider>
     </TranslationProvider>
   );
 }
