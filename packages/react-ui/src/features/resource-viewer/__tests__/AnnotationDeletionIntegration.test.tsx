@@ -16,14 +16,19 @@
  *
  * CRITICAL: This test prevents regressions where:
  * - Multiple deletion paths exist (event-driven vs direct)
- * - useEventOperations not called in useAnnotationFlow
+ * - useEventOperations called in more than one hook (causes duplicate subscriptions)
  * - Auth token missing from API calls (401 errors)
+ *
+ * ARCHITECTURE: useEventOperations is called ONLY in useDetectionFlow.
+ * useAnnotationFlow handles annotation UI state only (hover, click, pending).
+ * Both hooks are always called together in ResourceViewerPage.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import { act } from 'react';
 import { useAnnotationFlow } from '../../../hooks/useAnnotationFlow';
+import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
@@ -56,7 +61,10 @@ describe('Annotation Deletion - Feature Integration', () => {
 
     function TestComponent() {
       eventBusInstance = useEventBus();
-      useAnnotationFlow(testUri);
+      // useDetectionFlow is the single registration point for useEventOperations
+      // (handles annotation:delete, annotation:create, detection:start, etc.)
+      useDetectionFlow(testUri);
+      useAnnotationFlow();
       return null;
     }
 
@@ -186,16 +194,15 @@ describe('Annotation Deletion - Feature Integration', () => {
     expect(deleteAnnotationSpy.mock.calls[1][0]).toContain('annotation-2');
   });
 
-  it('ARCHITECTURE: useEventOperations is called in useAnnotationFlow (not elsewhere)', async () => {
+  it('ARCHITECTURE: useEventOperations is called in useDetectionFlow (single registration point)', async () => {
     /**
      * This test validates that there's only ONE event-driven deletion path:
-     * - useAnnotationFlow calls useEventOperations
+     * - useDetectionFlow calls useEventOperations (the single registration point)
      * - useEventOperations subscribes to annotation:delete
-     * - No other component/hook subscribes to annotation:delete
+     * - useAnnotationFlow does NOT call useEventOperations (prevents double subscription)
      *
-     * If this test fails, it means either:
-     * 1. useEventOperations removed from useAnnotationFlow (CRITICAL BUG)
-     * 2. Duplicate subscription added elsewhere (ARCHITECTURE VIOLATION)
+     * If this test fails with 2 API calls, it means useEventOperations was added
+     * back to useAnnotationFlow, causing duplicate subscriptions (ARCHITECTURE VIOLATION).
      */
 
     const { emitDelete } = renderAnnotationFlow();

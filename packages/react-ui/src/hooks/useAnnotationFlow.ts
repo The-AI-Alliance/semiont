@@ -12,11 +12,9 @@
  */
 
 import { useState, useCallback } from 'react';
-import type { Selector, Motivation, ResourceUri } from '@semiont/api-client';
+import type { Selector, Motivation } from '@semiont/api-client';
 import { useEventBus } from '../contexts/EventBusContext';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
-import { useEventOperations } from '../contexts/useEventOperations';
-import { useApiClient } from '../contexts/ApiClientContext';
 
 // Unified pending annotation type
 interface PendingAnnotation {
@@ -32,7 +30,6 @@ export interface AnnotationFlowState {
 /**
  * Hook for annotation creation and interaction flow
  *
- * @param rUri - Resource URI
  * @emits panel:open - Open the annotations panel when annotation is requested
  * @emits annotation:sparkle - Trigger sparkle animation on hovered annotation
  * @emits annotation:focus - Focus/scroll to clicked annotation
@@ -45,13 +42,12 @@ export interface AnnotationFlowState {
  * @subscribes annotation:hover - Annotation hover state change
  * @subscribes annotation:click - Annotation clicked
  * @returns Annotation flow state
+ *
+ * Note: annotation:delete → API call is handled by useEventOperations in useDetectionFlow,
+ * which is the single registration point for all API operation handlers.
  */
-export function useAnnotationFlow(rUri: ResourceUri): AnnotationFlowState {
+export function useAnnotationFlow(): AnnotationFlowState {
   const eventBus = useEventBus();
-  const client = useApiClient();
-
-  // Set up event operations (handles annotation:delete → API call)
-  useEventOperations(eventBus, { client, resourceUri: rUri });
 
   // Annotation state
   const [pendingAnnotation, setPendingAnnotation] = useState<PendingAnnotation | null>(null);

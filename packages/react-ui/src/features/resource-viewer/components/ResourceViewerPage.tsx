@@ -158,7 +158,7 @@ export function ResourceViewerPage({
   // Flow state hooks (NO CONTAINERS)
   const { detectingMotivation, detectionProgress } = useDetectionFlow(rUri);
   const { activePanel, scrollToAnnotationId, panelInitialTab, onScrollCompleted } = usePanelNavigation();
-  const { pendingAnnotation, hoveredAnnotationId } = useAnnotationFlow(rUri);
+  const { pendingAnnotation, hoveredAnnotationId } = useAnnotationFlow();
   const {
     generationProgress,
     generationModalOpen,
@@ -330,7 +330,11 @@ export function ResourceViewerPage({
 
   const handleSettingsThemeChanged = useCallback(({ theme }: { theme: any }) => setTheme(theme), [setTheme]);
 
-  const handleDetectionComplete = useCallback(() => showSuccess('Detection complete'), [showSuccess]);
+  const handleDetectionComplete = useCallback(() => {
+    showSuccess('Detection complete');
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(rUri) });
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(rUri) });
+  }, [showSuccess, queryClient, rUri]);
   const handleDetectionFailed = useCallback(() => showError('Detection failed'), [showError]);
   const handleGenerationComplete = useCallback(() => showSuccess('Document generated'), [showSuccess]);
   const handleGenerationFailed = useCallback(() => showError('Failed to generate document'), [showError]);
