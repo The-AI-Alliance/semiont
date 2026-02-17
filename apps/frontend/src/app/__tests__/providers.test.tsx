@@ -28,6 +28,7 @@ vi.mock('@semiont/react-ui', async () => {
     ToastProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     LiveRegionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     SessionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    ThemeProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     useToast: () => ({ showError: vi.fn(), showSuccess: vi.fn() }),
     useTheme: () => ({ theme: 'light', setTheme: vi.fn(), resolvedTheme: 'light' }),
     dispatch401Error: vi.fn(),

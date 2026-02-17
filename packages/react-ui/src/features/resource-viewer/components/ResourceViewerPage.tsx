@@ -25,7 +25,7 @@ import { QUERY_KEYS } from '../../../lib/query-keys';
 import { useResources, useEntityTypes } from '../../../lib/api-hooks';
 import { useResourceContent } from '../../../hooks/useResourceContent';
 import { useToast } from '../../../components/Toast';
-import { useTheme } from '../../../hooks/useTheme';
+import { useTheme } from '../../../contexts/ThemeContext';
 import { useLineNumbers } from '../../../hooks/useLineNumbers';
 import { useResourceEvents } from '../../../hooks/useResourceEvents';
 import { useDebouncedCallback } from '../../../hooks/useDebounce';

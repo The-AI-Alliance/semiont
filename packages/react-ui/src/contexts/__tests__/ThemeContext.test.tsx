@@ -1,8 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useTheme } from '../useTheme';
+import React from 'react';
+import { ThemeProvider, useTheme } from '../ThemeContext';
 
-describe('useTheme', () => {
+const wrapper = ({ children }: { children: React.ReactNode }) => (
+  <ThemeProvider>{children}</ThemeProvider>
+);
+
+describe('ThemeContext', () => {
   let localStorageMock: Record<string, string>;
   let matchMediaMock: any;
 
@@ -48,7 +53,7 @@ describe('useTheme', () => {
 
   describe('Initialization', () => {
     it('should default to system theme', () => {
-      const { result } = renderHook(() => useTheme());
+      const { result } = renderHook(() => useTheme(), { wrapper });
 
       expect(result.current.theme).toBe('system');
     });
@@ -56,7 +61,7 @@ describe('useTheme', () => {
     it('should load theme from localStorage', () => {
       localStorageMock.theme = 'dark';
 
-      const { result } = renderHook(() => useTheme());
+      const { result } = renderHook(() => useTheme(), { wrapper });
 
       expect(result.current.theme).toBe('dark');
     });
@@ -64,7 +69,7 @@ describe('useTheme', () => {
     it('should apply light theme from localStorage', () => {
       localStorageMock.theme = 'light';
 
-      renderHook(() => useTheme());
+      renderHook(() => useTheme(), { wrapper });
 
       expect(document.documentElement.getAttribute('data-theme')).toBe('light');
     });
@@ -72,7 +77,7 @@ describe('useTheme', () => {
     it('should apply dark theme from localStorage', () => {
       localStorageMock.theme = 'dark';
 
-      renderHook(() => useTheme());
+      renderHook(() => useTheme(), { wrapper });
 
       expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     });
@@ -82,7 +87,7 @@ describe('useTheme', () => {
     it('should apply light theme when system prefers light', () => {
       matchMediaMock.matches = false; // prefers light
 
-      renderHook(() => useTheme());
+      renderHook(() => useTheme(), { wrapper });
 
       expect(document.documentElement.getAttribute('data-theme')).toBe('light');
     });
@@ -90,13 +95,13 @@ describe('useTheme', () => {
     it('should apply dark theme when system prefers dark', () => {
       matchMediaMock.matches = true; // prefers dark
 
-      renderHook(() => useTheme());
+      renderHook(() => useTheme(), { wrapper });
 
       expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     });
 
     it('should listen for system theme changes', () => {
-      const { unmount } = renderHook(() => useTheme());
+      const { unmount } = renderHook(() => useTheme(), { wrapper });
 
       expect(matchMediaMock.addEventListener).toHaveBeenCalledWith(
         'change',
@@ -114,7 +119,7 @@ describe('useTheme', () => {
     it('should always listen for system changes to track systemTheme', () => {
       localStorageMock.theme = 'dark';
 
-      renderHook(() => useTheme());
+      renderHook(() => useTheme(), { wrapper });
 
       // Even when theme is set to 'dark', we still listen for system changes
       // to keep the systemTheme state up to date
@@ -127,7 +132,7 @@ describe('useTheme', () => {
     it('should update theme when system preference changes', () => {
       matchMediaMock.matches = false; // Start with light
 
-      const { rerender } = renderHook(() => useTheme());
+      renderHook(() => useTheme(), { wrapper });
 
       expect(document.documentElement.getAttribute('data-theme')).toBe('light');
 
@@ -145,7 +150,7 @@ describe('useTheme', () => {
 
   describe('Theme Setter', () => {
     it('should update theme state', () => {
-      const { result } = renderHook(() => useTheme());
+      const { result } = renderHook(() => useTheme(), { wrapper });
 
       act(() => {
         result.current.setTheme('dark');
@@ -155,7 +160,7 @@ describe('useTheme', () => {
     });
 
     it('should persist theme to localStorage', () => {
-      const { result } = renderHook(() => useTheme());
+      const { result } = renderHook(() => useTheme(), { wrapper });
 
       act(() => {
         result.current.setTheme('dark');
@@ -165,7 +170,7 @@ describe('useTheme', () => {
     });
 
     it('should apply dark theme to document', () => {
-      const { result } = renderHook(() => useTheme());
+      const { result } = renderHook(() => useTheme(), { wrapper });
 
       act(() => {
         result.current.setTheme('dark');
@@ -175,7 +180,7 @@ describe('useTheme', () => {
     });
 
     it('should apply light theme to document', () => {
-      const { result } = renderHook(() => useTheme());
+      const { result } = renderHook(() => useTheme(), { wrapper });
 
       act(() => {
         result.current.setTheme('light');
@@ -186,7 +191,7 @@ describe('useTheme', () => {
 
     it('should switch from light to dark', () => {
       localStorageMock.theme = 'light';
-      const { result } = renderHook(() => useTheme());
+      const { result } = renderHook(() => useTheme(), { wrapper });
 
       expect(document.documentElement.getAttribute('data-theme')).toBe('light');
 
@@ -199,7 +204,7 @@ describe('useTheme', () => {
 
     it('should switch from dark to light', () => {
       localStorageMock.theme = 'dark';
-      const { result } = renderHook(() => useTheme());
+      const { result } = renderHook(() => useTheme(), { wrapper });
 
       expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
 
@@ -214,7 +219,7 @@ describe('useTheme', () => {
       localStorageMock.theme = 'dark';
       matchMediaMock.matches = false; // System prefers light
 
-      const { result } = renderHook(() => useTheme());
+      const { result } = renderHook(() => useTheme(), { wrapper });
 
       expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
 
@@ -229,7 +234,7 @@ describe('useTheme', () => {
 
   describe('Theme Removal and Reapplication', () => {
     it('should replace previous theme attribute when changing theme', () => {
-      const { result } = renderHook(() => useTheme());
+      const { result } = renderHook(() => useTheme(), { wrapper });
 
       act(() => {
         result.current.setTheme('light');
@@ -245,7 +250,7 @@ describe('useTheme', () => {
     });
 
     it('should always have listener for system changes', () => {
-      const { result } = renderHook(() => useTheme());
+      const { result } = renderHook(() => useTheme(), { wrapper });
 
       expect(matchMediaMock.addEventListener).toHaveBeenCalledWith(
         'change',
@@ -263,7 +268,7 @@ describe('useTheme', () => {
 
     it('should maintain system theme listener regardless of current theme', () => {
       localStorageMock.theme = 'dark';
-      const { result } = renderHook(() => useTheme());
+      const { result } = renderHook(() => useTheme(), { wrapper });
 
       // Listener is added on mount
       expect(matchMediaMock.addEventListener).toHaveBeenCalledWith(
@@ -282,7 +287,7 @@ describe('useTheme', () => {
 
   describe('Edge Cases', () => {
     it('should handle rapid theme changes', () => {
-      const { result } = renderHook(() => useTheme());
+      const { result } = renderHook(() => useTheme(), { wrapper });
 
       act(() => {
         result.current.setTheme('dark');
@@ -299,7 +304,7 @@ describe('useTheme', () => {
     it('should handle empty localStorage', () => {
       delete localStorageMock.theme;
 
-      const { result } = renderHook(() => useTheme());
+      const { result } = renderHook(() => useTheme(), { wrapper });
 
       expect(result.current.theme).toBe('system');
     });
@@ -307,16 +312,22 @@ describe('useTheme', () => {
     it('should handle invalid localStorage value', () => {
       localStorageMock.theme = 'invalid' as any;
 
-      const { result } = renderHook(() => useTheme());
+      const { result } = renderHook(() => useTheme(), { wrapper });
 
       // Should fall back gracefully
       expect(result.current.theme).toBeTruthy();
+    });
+
+    it('should throw when used outside ThemeProvider', () => {
+      expect(() => renderHook(() => useTheme())).toThrow(
+        'useTheme must be used within a ThemeProvider'
+      );
     });
   });
 
   describe('Unmount Cleanup', () => {
     it('should cleanup listener on unmount when in system mode', () => {
-      const { unmount } = renderHook(() => useTheme());
+      const { unmount } = renderHook(() => useTheme(), { wrapper });
 
       expect(matchMediaMock.addEventListener).toHaveBeenCalled();
 
@@ -328,7 +339,7 @@ describe('useTheme', () => {
     it('should not throw on unmount when not in system mode', () => {
       localStorageMock.theme = 'dark';
 
-      const { unmount } = renderHook(() => useTheme());
+      const { unmount } = renderHook(() => useTheme(), { wrapper });
 
       expect(() => unmount()).not.toThrow();
     });
