@@ -26,7 +26,6 @@ import {
   entityType,
   userDID,
   accessToken,
-  getPrimaryMediaType,
   decodeWithCharset,
 } from '@semiont/api-client';
 import { extractResourceUriFromAnnotationUri, uriToAnnotationId } from '@semiont/core';
