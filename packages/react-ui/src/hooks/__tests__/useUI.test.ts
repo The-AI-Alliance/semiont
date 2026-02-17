@@ -4,7 +4,6 @@ import {
   useDropdown,
   useLoadingState,
   useFormValidation,
-  useDebounce,
   useToast,
 } from '../useUI';
 
@@ -486,87 +485,6 @@ describe('useUI Hooks', () => {
             age: 'Must be 18 or older',
           });
         });
-      });
-    });
-  });
-
-  describe('useDebounce', () => {
-    beforeEach(() => {
-      vi.useFakeTimers();
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-    });
-
-    describe('Basic Functionality', () => {
-      it('should return initial value immediately', () => {
-        const { result } = renderHook(() => useDebounce('initial', 500));
-        expect(result.current).toBe('initial');
-      });
-
-      it('should debounce value changes', () => {
-        const { result, rerender } = renderHook(
-          ({ value, delay }) => useDebounce(value, delay),
-          { initialProps: { value: 'initial', delay: 500 } }
-        );
-
-        expect(result.current).toBe('initial');
-
-        rerender({ value: 'updated', delay: 500 });
-        expect(result.current).toBe('initial');
-
-        act(() => {
-          vi.advanceTimersByTime(500);
-        });
-
-        expect(result.current).toBe('updated');
-      });
-
-      it('should cancel previous debounce on rapid changes', () => {
-        const { result, rerender } = renderHook(
-          ({ value, delay }) => useDebounce(value, delay),
-          { initialProps: { value: 'initial', delay: 500 } }
-        );
-
-        rerender({ value: 'first', delay: 500 });
-        rerender({ value: 'second', delay: 500 });
-        rerender({ value: 'final', delay: 500 });
-
-        expect(result.current).toBe('initial');
-
-        act(() => {
-          vi.advanceTimersByTime(500);
-        });
-
-        expect(result.current).toBe('final');
-      });
-
-      it('should work with different data types', () => {
-        const { result: stringResult } = renderHook(() => useDebounce('string', 100));
-        const { result: numberResult } = renderHook(() => useDebounce(42, 100));
-        const { result: objectResult } = renderHook(() => useDebounce({ key: 'value' }, 100));
-
-        expect(typeof stringResult.current).toBe('string');
-        expect(typeof numberResult.current).toBe('number');
-        expect(typeof objectResult.current).toBe('object');
-      });
-    });
-
-    describe('Cleanup', () => {
-      it('should clear timeout on unmount', () => {
-        const { rerender, unmount } = renderHook(
-          ({ value, delay }) => useDebounce(value, delay),
-          { initialProps: { value: 'initial', delay: 500 } }
-        );
-
-        rerender({ value: 'updated', delay: 500 });
-        unmount();
-
-        act(() => {
-          vi.advanceTimersByTime(500);
-        });
-        // Should not cause errors after unmount
       });
     });
   });

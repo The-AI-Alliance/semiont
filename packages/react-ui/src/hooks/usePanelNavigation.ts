@@ -14,8 +14,10 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
 
+export type ToolbarPanelType = 'document' | 'history' | 'info' | 'annotations' | 'settings' | 'collaboration' | 'user' | 'jsonld';
+
 export interface PanelNavigationState {
-  activePanel: string | null;
+  activePanel: ToolbarPanelType | null;
   scrollToAnnotationId: string | null;
   panelInitialTab: { tab: string; generation: number } | null;
   onScrollCompleted: () => void;
@@ -31,10 +33,10 @@ export interface PanelNavigationState {
  */
 export function usePanelNavigation(): PanelNavigationState {
   // Panel state - load from localStorage, default closed
-  const [activePanel, setActivePanel] = useState<string | null>(() => {
+  const [activePanel, setActivePanel] = useState<ToolbarPanelType | null>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('activeToolbarPanel');
-      return saved || null;
+      return (saved as ToolbarPanelType) || null;
     }
     return null;
   });
@@ -59,7 +61,7 @@ export function usePanelNavigation(): PanelNavigationState {
   }, []);
 
   const handlePanelToggle = useCallback(({ panel }: { panel: string }) => {
-    setActivePanel((current) => (current === panel ? null : panel));
+    setActivePanel((current) => (current === panel ? null : panel as ToolbarPanelType));
   }, []);
 
   const handlePanelOpen = useCallback(({ panel, scrollToAnnotationId: scrollTarget, motivation }: { panel: string; scrollToAnnotationId?: string; motivation?: string }) => {
@@ -82,7 +84,7 @@ export function usePanelNavigation(): PanelNavigationState {
       setPanelInitialTab({ tab, generation: Date.now() });
     }
 
-    setActivePanel(panel);
+    setActivePanel(panel as ToolbarPanelType);
   }, []);
 
   const handlePanelClose = useCallback(() => {

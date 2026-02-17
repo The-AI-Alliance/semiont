@@ -10,7 +10,7 @@
 import React, { useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
-import { useResources, useEntityTypes, useTheme, useToolbar, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
+import { useResources, useEntityTypes, useTheme, usePanelNavigation, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { ResourceDiscoveryPage } from '@semiont/react-ui';
 
@@ -22,7 +22,7 @@ export default function DiscoverPage() {
   const router = useRouter();
 
   // Toolbar and settings state
-  const { activePanel } = useToolbar();
+  const { activePanel } = usePanelNavigation();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
