@@ -112,7 +112,7 @@ export function ResourceViewerPage({
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
   const { addResource } = useOpenResources();
-  const { triggerSparkleAnimation, clearNewAnnotationId, deleteAnnotation } = useResourceAnnotations();
+  const { triggerSparkleAnimation, clearNewAnnotationId } = useResourceAnnotations();
 
   // API hooks
   const resources = useResources();
@@ -136,7 +136,7 @@ export function ResourceViewerPage({
   // Flow state hooks (NO CONTAINERS)
   const { detectingMotivation, detectionProgress } = useDetectionFlow(rUri);
   const { activePanel, scrollToAnnotationId, panelInitialTab, onScrollCompleted } = usePanelNavigation();
-  const { pendingAnnotation, hoveredAnnotationId } = useAnnotationFlow(rUri, deleteAnnotation);
+  const { pendingAnnotation, hoveredAnnotationId } = useAnnotationFlow(rUri);
   const {
     generationProgress,
     generationModalOpen,

@@ -11,10 +11,12 @@
  * subscribes to events and pushes values into React state.
  */
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import type { Selector, Motivation, ResourceUri } from '@semiont/api-client';
 import { useEventBus } from '../contexts/EventBusContext';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
+import { useEventOperations } from '../contexts/useEventOperations';
+import { useApiClient } from '../contexts/ApiClientContext';
 
 // Unified pending annotation type
 interface PendingAnnotation {
@@ -31,20 +33,14 @@ export interface AnnotationFlowState {
  * Hook for annotation creation and interaction flow
  *
  * @param rUri - Resource URI
- * @param onDeleteAnnotation - Callback for deleting annotations
  * @returns Annotation flow state
  */
-export function useAnnotationFlow(
-  rUri: ResourceUri,
-  onDeleteAnnotation: (annotationId: string, rUri: ResourceUri) => Promise<void>
-): AnnotationFlowState {
+export function useAnnotationFlow(rUri: ResourceUri): AnnotationFlowState {
   const eventBus = useEventBus();
+  const client = useApiClient();
 
-  // Store callback prop in ref to avoid including in dependency arrays
-  const onDeleteAnnotationRef = useRef(onDeleteAnnotation);
-  useEffect(() => {
-    onDeleteAnnotationRef.current = onDeleteAnnotation;
-  });
+  // Set up event operations (handles annotation:delete → API call)
+  useEventOperations(eventBus, { client, resourceUri: rUri });
 
   // Annotation state
   const [pendingAnnotation, setPendingAnnotation] = useState<PendingAnnotation | null>(null);
@@ -158,9 +154,7 @@ export function useAnnotationFlow(
       eventBus.emit('annotation:focus', { annotationId });
       // Click scroll handled by ResourceViewer internally
     },
-    'annotation:delete': async ({ annotationId }: { annotationId: string }) => {
-      await onDeleteAnnotationRef.current(annotationId, rUri);
-    },
+    // Note: 'annotation:delete' is handled by useEventOperations (not here)
   });
 
   return { pendingAnnotation, hoveredAnnotationId };
