@@ -34,6 +34,8 @@ import { useOpenResources } from '../../../contexts/OpenResourcesContext';
 import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsContext';
+import { useApiClient } from '../../../contexts/ApiClientContext';
+import { useResolutionFlow } from '../../../contexts/useResolutionFlow';
 import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
 import { usePanelNavigation } from '../../../hooks/usePanelNavigation';
 import { useGenerationFlow } from '../../../hooks/useGenerationFlow';
@@ -126,6 +128,7 @@ export function ResourceViewerPage({
 }: ResourceViewerPageProps) {
   // Get unified event bus for subscribing to UI events
   const eventBus = useEventBus();
+  const client = useApiClient();
   const queryClient = useQueryClient();
 
   // UI state hooks
@@ -157,16 +160,14 @@ export function ResourceViewerPage({
   // Flow state hooks (NO CONTAINERS)
   const { detectingMotivation, detectionProgress, pendingAnnotation, hoveredAnnotationId } = useDetectionFlow(rUri);
   const { activePanel, scrollToAnnotationId, panelInitialTab, onScrollCompleted } = usePanelNavigation();
+  const { searchModalOpen, pendingReferenceId, onCloseSearchModal } = useResolutionFlow(eventBus, { client, resourceUri: rUri });
   const {
     generationProgress,
     generationModalOpen,
     generationReferenceId,
     generationDefaultTitle,
-    searchModalOpen,
-    pendingReferenceId,
     onGenerateDocument,
     onCloseGenerationModal,
-    onCloseSearchModal,
   } = useGenerationFlow(locale, rUri.split('/').pop() || '', showSuccess, showError, cacheManager, clearNewAnnotationId);
 
   // Debounced invalidation for real-time events

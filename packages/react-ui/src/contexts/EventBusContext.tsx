@@ -184,7 +184,7 @@ export type EventMap = {
     annotationUri: string;
     searchTerm: string;
   };
-  'reference:search-modal-open': {
+  'resolution:search-requested': {
     referenceId: string;
     searchTerm: string;
   };

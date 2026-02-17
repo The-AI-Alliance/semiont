@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Emitter } from 'mitt';
 import type { EventMap } from './EventBusContext';
 import type { SemiontApiClient, ResourceUri } from '@semiont/api-client';
@@ -16,10 +16,16 @@ export interface ResolutionFlowConfig {
   resourceUri: ResourceUri;
 }
 
+export interface ResolutionFlowState {
+  searchModalOpen: boolean;
+  pendingReferenceId: string | null;
+  onCloseSearchModal: () => void;
+}
+
 /**
  * Hook that handles annotation body updates and reference link resolution
  *
- * Handles: annotation:update-body, reference:link
+ * Handles: annotation:update-body, reference:link, resolution:search-requested
  *
  * annotation:create, annotation:delete, detection:start, job:cancel-requested (detection)
  * are handled directly in useDetectionFlow.
@@ -29,14 +35,23 @@ export interface ResolutionFlowConfig {
  *
  * @param emitter - The mitt event bus instance
  * @param config - Configuration including API client and resource URI
+ * @returns Resolution flow state (search modal open state and close handler)
  */
 export function useResolutionFlow(
   emitter: Emitter<EventMap>,
   config: ResolutionFlowConfig
-) {
+): ResolutionFlowState {
 
   // Get current auth token for API calls
   const token = useAuthToken();
+
+  // Resolution search modal state
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [pendingReferenceId, setPendingReferenceId] = useState<string | null>(null);
+
+  const onCloseSearchModal = useCallback(() => {
+    setSearchModalOpen(false);
+  }, []);
 
   // Store latest config in ref to avoid re-subscribing when client/resourceUri change
   const configRef = useRef(config);
@@ -96,8 +111,8 @@ export function useResolutionFlow(
       annotationUri: string;
       searchTerm: string;
     }) => {
-      // Emit event to open search modal (SearchResourcesModal will subscribe to this)
-      emitter.emit('reference:search-modal-open', {
+      // Emit resolution search capability event (SearchResourcesModal will subscribe to this)
+      emitter.emit('resolution:search-requested', {
         referenceId: event.annotationUri,
         searchTerm: event.searchTerm,
       });
@@ -116,4 +131,22 @@ export function useResolutionFlow(
       emitter.off('reference:link', handleReferenceLink);
     };
   }, [emitter, token]); // Only re-run if emitter or token changes
+
+  // ========================================================================
+  // RESOLUTION SEARCH STATE
+  // ========================================================================
+
+  useEffect(() => {
+    const handleResolutionSearchRequested = (event: { referenceId: string; searchTerm: string }) => {
+      setPendingReferenceId(event.referenceId);
+      setSearchModalOpen(true);
+    };
+
+    emitter.on('resolution:search-requested', handleResolutionSearchRequested);
+    return () => {
+      emitter.off('resolution:search-requested', handleResolutionSearchRequested);
+    };
+  }, [emitter]);
+
+  return { searchModalOpen, pendingReferenceId, onCloseSearchModal };
 }

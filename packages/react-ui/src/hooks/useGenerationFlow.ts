@@ -30,8 +30,6 @@ export interface GenerationFlowState {
   generationModalOpen: boolean;
   generationReferenceId: string | null;
   generationDefaultTitle: string;
-  searchModalOpen: boolean;
-  pendingReferenceId: string | null;
   onGenerateDocument: (referenceId: string, options: {
     title: string;
     prompt?: string;
@@ -41,7 +39,6 @@ export interface GenerationFlowState {
     context?: GenerationContext;
   }) => void;
   onCloseGenerationModal: () => void;
-  onCloseSearchModal: () => void;
 }
 
 /**
@@ -63,7 +60,6 @@ export interface GenerationFlowState {
  * @subscribes generation:modal-open - Open the generation config modal
  * @subscribes generation:complete - Generation completed successfully
  * @subscribes generation:failed - Error during generation
- * @subscribes reference:search-modal-open - Open the reference search modal
  * @returns Generation flow state
  */
 export function useGenerationFlow(
@@ -97,10 +93,6 @@ export function useGenerationFlow(
   const [generationModalOpen, setGenerationModalOpen] = useState(false);
   const [generationReferenceId, setGenerationReferenceId] = useState<string | null>(null);
   const [generationDefaultTitle, setGenerationDefaultTitle] = useState('');
-
-  // Search modal state
-  const [searchModalOpen, setSearchModalOpen] = useState(false);
-  const [pendingReferenceId, setPendingReferenceId] = useState<string | null>(null);
 
   // Handle document generation
   const handleGenerateDocument = useCallback((
@@ -146,10 +138,6 @@ export function useGenerationFlow(
     setGenerationModalOpen(false);
   }, []);
 
-  const handleCloseSearchModal = useCallback(() => {
-    setSearchModalOpen(false);
-  }, []);
-
   const handleGenerationModalOpen = useCallback(({ annotationUri: annUri, defaultTitle }: {
     annotationUri: string;
     resourceUri: string;
@@ -180,11 +168,6 @@ export function useGenerationFlow(
   const handleGenerationFailed = useCallback(({ error }: { error: Error }) => {
     showError(`Resource generation failed: ${error.message}`);
   }, [showError]);
-
-  const handleReferenceSearchModalOpen = useCallback(({ referenceId }: { referenceId: string }) => {
-    setPendingReferenceId(referenceId);
-    setSearchModalOpen(true);
-  }, []);
 
   // ============================================================
   // GENERATION API OPERATIONS (useEffect-based, ref-closed)
@@ -295,7 +278,6 @@ export function useGenerationFlow(
     'generation:modal-open': handleGenerationModalOpen,
     'generation:complete': handleGenerationComplete,
     'generation:failed': handleGenerationFailed,
-    'reference:search-modal-open': handleReferenceSearchModalOpen,
   });
 
   return {
@@ -303,10 +285,7 @@ export function useGenerationFlow(
     generationModalOpen,
     generationReferenceId,
     generationDefaultTitle,
-    searchModalOpen,
-    pendingReferenceId,
     onGenerateDocument: handleGenerateDocument,
     onCloseGenerationModal: handleCloseGenerationModal,
-    onCloseSearchModal: handleCloseSearchModal,
   };
 }
