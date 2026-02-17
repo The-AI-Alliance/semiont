@@ -239,10 +239,10 @@ export class SemiontApiClient {
   }
 
   async logout(options?: RequestOptions): Promise<ResponseContent<paths['/api/users/logout']['post']>> {
-    return this.http.post(`${this.baseUrl}/api/users/logout`, {
-      ...options,
-      auth: options?.auth
-    } as any).json();
+    if (options) {
+      return this.http.post(`${this.baseUrl}/api/users/logout`, options as any).json();
+    }
+    return this.http.post(`${this.baseUrl}/api/users/logout`).json();
   }
 
   // ============================================================================
@@ -597,10 +597,10 @@ export class SemiontApiClient {
     options?: RequestOptions
   ): Promise<ResponseContent<paths['/resources/{resourceId}/annotations/{annotationId}/history']['get']>> {
     // annotationUri is already a full URI, use it directly
-    return this.http.get(`${annotationUri}/history`, {
-      ...options,
-      auth: options?.auth
-    } as any).json();
+    if (options) {
+      return this.http.get(`${annotationUri}/history`, options as any).json();
+    }
+    return this.http.get(`${annotationUri}/history`).json();
   }
 
   // ============================================================================
@@ -676,10 +676,10 @@ export class SemiontApiClient {
   // ============================================================================
 
   async getJobStatus(id: JobId, options?: RequestOptions): Promise<ResponseContent<paths['/api/jobs/{id}']['get']>> {
-    return this.http.get(`${this.baseUrl}/api/jobs/${id}`, {
-      ...options,
-      auth: options?.auth
-    } as any).json();
+    if (options) {
+      return this.http.get(`${this.baseUrl}/api/jobs/${id}`, options as any).json();
+    }
+    return this.http.get(`${this.baseUrl}/api/jobs/${id}`).json();
   }
 
   /**
@@ -762,9 +762,9 @@ export class SemiontApiClient {
   }
 
   async getStatus(options?: RequestOptions): Promise<ResponseContent<paths['/api/status']['get']>> {
-    return this.http.get(`${this.baseUrl}/api/status`, {
-      ...options,
-      auth: options?.auth
-    } as any).json();
+    if (options) {
+      return this.http.get(`${this.baseUrl}/api/status`, options as any).json();
+    }
+    return this.http.get(`${this.baseUrl}/api/status`).json();
   }
 }
