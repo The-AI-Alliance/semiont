@@ -18,17 +18,17 @@
  * C) Clear progress on next detection:start (already works but not ideal UX)
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { act } from 'react';
 import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
 import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
-import { resourceUri } from '@semiont/api-client';
+import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
+import { SSEClient, resourceUri } from '@semiont/api-client';
 
 describe('Detection Progress Dismissal Bug', () => {
   let mockStream: any;
-  let mockClient: any;
   const rUri = resourceUri('https://example.com/resources/test');
 
   beforeEach(() => {
@@ -42,14 +42,17 @@ describe('Detection Progress Dismissal Bug', () => {
       close: vi.fn(),
     };
 
-    mockClient = {
-      sse: {
-        detectAnnotations: vi.fn(() => mockStream),
-      },
-    };
+    vi.spyOn(SSEClient.prototype, 'detectAnnotations').mockReturnValue(mockStream);
+    vi.spyOn(SSEClient.prototype, 'detectHighlights').mockReturnValue(mockStream);
+    vi.spyOn(SSEClient.prototype, 'detectComments').mockReturnValue(mockStream);
+    vi.spyOn(SSEClient.prototype, 'detectAssessments').mockReturnValue(mockStream);
   });
 
-  it('BUG: Progress stays visible after detection completes', { timeout: 7000 }, async () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('FIXED: Progress auto-dismisses after detection completes', { timeout: 7000 }, async () => {
     let eventBusInstance: any;
 
     function TestHarness() {
@@ -68,9 +71,11 @@ describe('Detection Progress Dismissal Bug', () => {
 
     render(
       <EventBusProvider>
-        <ApiClientProvider apiClientManager={mockClient}>
-          <TestHarness />
-        </ApiClientProvider>
+        <AuthTokenProvider token={null}>
+          <ApiClientProvider baseUrl="http://localhost:4000">
+            <TestHarness />
+          </ApiClientProvider>
+        </AuthTokenProvider>
       </EventBusProvider>
     );
 
@@ -110,16 +115,14 @@ describe('Detection Progress Dismissal Bug', () => {
       eventBusInstance.emit('detection:complete', { motivation: 'linking' });
     });
 
-    // BUG: detectingMotivation cleared but progress still visible
+    // detectingMotivation cleared immediately
     await waitFor(() => {
       expect(screen.getByTestId('detecting')).toHaveTextContent('none');
-      // This is the BUG - progress should eventually dismiss but doesn't
-      expect(screen.getByTestId('progress')).toHaveTextContent('Processing: Location');
     });
 
-    // Wait 5 seconds - progress STILL visible (confirming the bug)
-    await new Promise(resolve => setTimeout(resolve, 5000));
-    expect(screen.getByTestId('progress')).toHaveTextContent('Processing: Location');
+    // Wait 5 seconds - progress auto-dismissed after completion
+    await new Promise(resolve => setTimeout(resolve, 5100));
+    expect(screen.getByTestId('progress')).toHaveTextContent('no progress');
   });
 
   it('WORKAROUND: Starting new detection clears old progress', async () => {
@@ -138,9 +141,11 @@ describe('Detection Progress Dismissal Bug', () => {
 
     render(
       <EventBusProvider>
-        <ApiClientProvider apiClientManager={mockClient}>
-          <TestHarness />
-        </ApiClientProvider>
+        <AuthTokenProvider token={null}>
+          <ApiClientProvider baseUrl="http://localhost:4000">
+            <TestHarness />
+          </ApiClientProvider>
+        </AuthTokenProvider>
       </EventBusProvider>
     );
 
@@ -189,9 +194,11 @@ describe('Detection Progress Dismissal Bug', () => {
 
     render(
       <EventBusProvider>
-        <ApiClientProvider apiClientManager={mockClient}>
-          <TestHarness />
-        </ApiClientProvider>
+        <AuthTokenProvider token={null}>
+          <ApiClientProvider baseUrl="http://localhost:4000">
+            <TestHarness />
+          </ApiClientProvider>
+        </AuthTokenProvider>
       </EventBusProvider>
     );
 
@@ -264,9 +271,11 @@ describe('Detection Progress Dismissal Bug', () => {
 
     render(
       <EventBusProvider>
-        <ApiClientProvider apiClientManager={mockClient}>
-          <TestHarness />
-        </ApiClientProvider>
+        <AuthTokenProvider token={null}>
+          <ApiClientProvider baseUrl="http://localhost:4000">
+            <TestHarness />
+          </ApiClientProvider>
+        </AuthTokenProvider>
       </EventBusProvider>
     );
 

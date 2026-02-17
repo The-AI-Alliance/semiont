@@ -16,25 +16,23 @@ import { act } from 'react';
 import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
-import type { ApiClientManager } from '../../../types/ApiClientManager';
-import type { SemiontApiClient } from '@semiont/api-client';
+import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
+import { SSEClient } from '@semiont/api-client';
 
 describe('REPRODUCING BUG: Detection state not updating', () => {
-  let mockApiClient: SemiontApiClient;
-
   beforeEach(() => {
     resetEventBusForTesting();
     vi.clearAllMocks();
 
     // Minimal mock - SSE streams not needed for this test
-    mockApiClient = {
-      sse: {
-        detectAnnotations: vi.fn(),
-        detectHighlights: vi.fn(),
-        detectComments: vi.fn(),
-        detectAssessments: vi.fn(),
-      },
-    } as any;
+    vi.spyOn(SSEClient.prototype, 'detectAnnotations').mockReturnValue({ onProgress: vi.fn().mockReturnThis(), onComplete: vi.fn().mockReturnThis(), onError: vi.fn().mockReturnThis(), close: vi.fn() } as any);
+    vi.spyOn(SSEClient.prototype, 'detectHighlights').mockReturnValue({ onProgress: vi.fn().mockReturnThis(), onComplete: vi.fn().mockReturnThis(), onError: vi.fn().mockReturnThis(), close: vi.fn() } as any);
+    vi.spyOn(SSEClient.prototype, 'detectComments').mockReturnValue({ onProgress: vi.fn().mockReturnThis(), onComplete: vi.fn().mockReturnThis(), onError: vi.fn().mockReturnThis(), close: vi.fn() } as any);
+    vi.spyOn(SSEClient.prototype, 'detectAssessments').mockReturnValue({ onProgress: vi.fn().mockReturnThis(), onComplete: vi.fn().mockReturnThis(), onError: vi.fn().mockReturnThis(), close: vi.fn() } as any);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('SHOULD update state when detection:start event is emitted', async () => {
@@ -62,9 +60,11 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
 
     render(
       <EventBusProvider>
-        <ApiClientProvider apiClientManager={mockApiClient as ApiClientManager}>
-          <TestComponent />
-        </ApiClientProvider>
+        <AuthTokenProvider token={null}>
+          <ApiClientProvider baseUrl="http://localhost:4000">
+            <TestComponent />
+          </ApiClientProvider>
+        </AuthTokenProvider>
       </EventBusProvider>
     );
 
@@ -112,9 +112,11 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
 
     render(
       <EventBusProvider>
-        <ApiClientProvider apiClientManager={mockApiClient as ApiClientManager}>
-          <TestComponent />
-        </ApiClientProvider>
+        <AuthTokenProvider token={null}>
+          <ApiClientProvider baseUrl="http://localhost:4000">
+            <TestComponent />
+          </ApiClientProvider>
+        </AuthTokenProvider>
       </EventBusProvider>
     );
 
@@ -167,9 +169,11 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
 
     render(
       <EventBusProvider>
-        <ApiClientProvider apiClientManager={mockApiClient as ApiClientManager}>
-          <TestComponent />
-        </ApiClientProvider>
+        <AuthTokenProvider token={null}>
+          <ApiClientProvider baseUrl="http://localhost:4000">
+            <TestComponent />
+          </ApiClientProvider>
+        </AuthTokenProvider>
       </EventBusProvider>
     );
 

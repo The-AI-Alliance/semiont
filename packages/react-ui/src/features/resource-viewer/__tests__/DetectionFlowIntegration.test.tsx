@@ -21,14 +21,16 @@
  * NO BACKEND SERVER - only mocked API client boundary
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import React from 'react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { act } from 'react';
 import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
-import type { ApiClientManager } from '../../../types/ApiClientManager';
-import type { SemiontApiClient, Motivation } from '@semiont/api-client';
+import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
+import { SSEClient } from '@semiont/api-client';
+import type { Motivation } from '@semiont/api-client';
 import { resourceUri } from '@semiont/api-client';
 import type { Emitter } from 'mitt';
 import type { EventMap } from '../../../contexts/EventBusContext';
@@ -58,11 +60,9 @@ const createMockSSEStream = () => {
 
 describe('Detection Flow - Feature Integration', () => {
   let mockStream: ReturnType<typeof createMockSSEStream>;
-  let detectAnnotationsSpy: ReturnType<typeof vi.fn>;
-  let detectHighlightsSpy: ReturnType<typeof vi.fn>;
-  let detectCommentsSpy: ReturnType<typeof vi.fn>;
-  let detectAssessmentsSpy: ReturnType<typeof vi.fn>;
-  let mockApiClient: SemiontApiClient;
+  let detectAnnotationsSpy: any;
+  let detectHighlightsSpy: any;
+  let detectCommentsSpy: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -71,28 +71,22 @@ describe('Detection Flow - Feature Integration', () => {
     // Create fresh mock stream for each test
     mockStream = createMockSSEStream();
 
-    // Create spies for each SSE method
-    detectAnnotationsSpy = vi.fn(() => mockStream);
-    detectHighlightsSpy = vi.fn(() => mockStream);
-    detectCommentsSpy = vi.fn(() => mockStream);
-    detectAssessmentsSpy = vi.fn(() => mockStream);
+    // Spy on SSEClient prototype methods
+    detectAnnotationsSpy = vi.spyOn(SSEClient.prototype, 'detectAnnotations').mockReturnValue(mockStream as any);
+    detectHighlightsSpy = vi.spyOn(SSEClient.prototype, 'detectHighlights').mockReturnValue(mockStream as any);
+    detectCommentsSpy = vi.spyOn(SSEClient.prototype, 'detectComments').mockReturnValue(mockStream as any);
+    vi.spyOn(SSEClient.prototype, 'detectAssessments').mockReturnValue(mockStream as any);
+  });
 
-    // Mock API client with SSE methods
-    mockApiClient = {
-      sse: {
-        detectAnnotations: detectAnnotationsSpy,
-        detectHighlights: detectHighlightsSpy,
-        detectComments: detectCommentsSpy,
-        detectAssessments: detectAssessmentsSpy,
-      },
-    } as any;
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('should call detectAnnotations exactly ONCE when detection starts (not twice)', async () => {
     const testUri = resourceUri('http://localhost:4000/resources/test-resource');
 
     // Render with real component composition
-    const { emitDetectionStart } = renderDetectionFlow(mockApiClient, testUri);
+    const { emitDetectionStart } = renderDetectionFlow(testUri);
 
     // Trigger detection for linking (uses detectAnnotations)
     act(() => {
@@ -114,7 +108,8 @@ describe('Detection Flow - Feature Integration', () => {
       {
         entityTypes: ['Person', 'Organization'],
         includeDescriptiveReferences: false,
-      }
+      },
+      { auth: undefined }
     );
   });
 
@@ -122,7 +117,7 @@ describe('Detection Flow - Feature Integration', () => {
     const testUri = resourceUri('http://localhost:4000/resources/test-resource');
 
     // Render with state observer
-    const { emitDetectionStart } = renderDetectionFlow(mockApiClient, testUri);
+    const { emitDetectionStart } = renderDetectionFlow(testUri);
 
     // Start detection
     act(() => {
@@ -157,7 +152,7 @@ describe('Detection Flow - Feature Integration', () => {
 
   it('should handle multiple progress updates correctly', async () => {
     const testUri = resourceUri('http://localhost:4000/resources/test-resource');
-    const { emitDetectionStart } = renderDetectionFlow(mockApiClient, testUri);
+    const { emitDetectionStart } = renderDetectionFlow(testUri);
 
     // Start detection
     act(() => {
@@ -212,7 +207,7 @@ describe('Detection Flow - Feature Integration', () => {
 
   it('should keep progress visible after detection completes', async () => {
     const testUri = resourceUri('http://localhost:4000/resources/test-resource');
-    const { emitDetectionStart, getEventBus } = renderDetectionFlow(mockApiClient, testUri);
+    const { emitDetectionStart, getEventBus } = renderDetectionFlow(testUri);
 
     // Start detection
     act(() => {
@@ -249,7 +244,7 @@ describe('Detection Flow - Feature Integration', () => {
 
   it('should clear progress on detection failure', async () => {
     const testUri = resourceUri('http://localhost:4000/resources/test-resource');
-    const { emitDetectionStart, getEventBus } = renderDetectionFlow(mockApiClient, testUri);
+    const { emitDetectionStart, getEventBus } = renderDetectionFlow(testUri);
 
     // Start detection
     act(() => {
@@ -270,7 +265,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Emit failure
     act(() => {
-      getEventBus().emit('detection:failed', { error: new Error('Network error') });
+      getEventBus().emit('detection:failed', { type: 'job.failed', resourceId: 'test-resource' as any, payload: { jobId: 'job-1' as any, jobType: 'detection', error: 'Network error' } });
     });
 
     // Verify: both detecting and progress cleared
@@ -282,7 +277,7 @@ describe('Detection Flow - Feature Integration', () => {
 
   it('should handle different detection motivations with correct API calls', async () => {
     const testUri = resourceUri('http://localhost:4000/resources/test-resource');
-    const { emitDetectionStart } = renderDetectionFlow(mockApiClient, testUri);
+    const { emitDetectionStart } = renderDetectionFlow(testUri);
 
     // Test highlighting
     act(() => {
@@ -293,7 +288,7 @@ describe('Detection Flow - Feature Integration', () => {
       expect(detectHighlightsSpy).toHaveBeenCalledTimes(1);
       expect(detectHighlightsSpy).toHaveBeenCalledWith(testUri, {
         instructions: 'Find important text',
-      });
+      }, { auth: undefined });
     });
 
     // Reset for next test
@@ -314,7 +309,7 @@ describe('Detection Flow - Feature Integration', () => {
       expect(detectCommentsSpy).toHaveBeenCalledWith(testUri, {
         instructions: 'Add helpful comments',
         tone: 'educational',
-      });
+      }, { auth: undefined });
     });
   });
 
@@ -323,7 +318,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // This test specifically catches the duplicate useEventOperations bug
     // If multiple components call useEventOperations, we'll see multiple API calls
-    const { emitDetectionStart, getEventBus } = renderDetectionFlow(mockApiClient, testUri);
+    const { emitDetectionStart, getEventBus } = renderDetectionFlow(testUri);
 
     // Add an additional event listener (simulating multiple subscribers)
     const additionalListener = vi.fn();
@@ -351,7 +346,7 @@ describe('Detection Flow - Feature Integration', () => {
  * Helper: Render useDetectionFlow hook with real component composition
  * Returns methods to interact with the rendered component
  */
-function renderDetectionFlow(apiClient: SemiontApiClient, testUri: string) {
+function renderDetectionFlow(testUri: string) {
   let eventBusInstance: Emitter<EventMap>;
 
   // Component to capture EventBus instance
@@ -375,10 +370,12 @@ function renderDetectionFlow(apiClient: SemiontApiClient, testUri: string) {
 
   render(
     <EventBusProvider>
-      <ApiClientProvider apiClientManager={apiClient as ApiClientManager}>
-        <EventBusCapture />
-        <DetectionFlowTestHarness />
-      </ApiClientProvider>
+      <AuthTokenProvider token={null}>
+        <ApiClientProvider baseUrl="http://localhost:4000">
+          <EventBusCapture />
+          <DetectionFlowTestHarness />
+        </ApiClientProvider>
+      </AuthTokenProvider>
     </EventBusProvider>
   );
 

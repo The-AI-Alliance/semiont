@@ -25,8 +25,9 @@ import { act } from 'react';
 import { useGenerationFlow } from '../../../hooks/useGenerationFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider, useApiClient } from '../../../contexts/ApiClientContext';
+import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { useEventOperations } from '../../../contexts/useEventOperations';
-import type { ApiClientManager } from '../../../types/ApiClientManager';
+import { SSEClient } from '@semiont/api-client';
 import type { SemiontApiClient, ResourceUri, AnnotationUri } from '@semiont/api-client';
 import { resourceUri, annotationUri } from '@semiont/api-client';
 import type { Emitter } from 'mitt';
@@ -57,8 +58,7 @@ const createMockGenerationStream = () => {
 
 describe('Generation Flow - Feature Integration', () => {
   let mockStream: ReturnType<typeof createMockGenerationStream>;
-  let generateResourceSpy: ReturnType<typeof vi.fn>;
-  let mockApiClient: SemiontApiClient;
+  let generateResourceSpy: any;
   let mockShowSuccess: ReturnType<typeof vi.fn>;
   let mockShowError: ReturnType<typeof vi.fn>;
   let mockCacheManager: { invalidate: ReturnType<typeof vi.fn> };
@@ -70,15 +70,8 @@ describe('Generation Flow - Feature Integration', () => {
     // Create fresh mock stream for each test
     mockStream = createMockGenerationStream();
 
-    // Create spy for generation SSE method
-    generateResourceSpy = vi.fn(() => mockStream);
-
-    // Mock API client with SSE method
-    mockApiClient = {
-      sse: {
-        generateResourceFromAnnotation: generateResourceSpy,
-      },
-    } as any;
+    // Spy on SSEClient prototype method
+    generateResourceSpy = vi.spyOn(SSEClient.prototype, 'generateResourceFromAnnotation').mockReturnValue(mockStream as any);
 
     // Mock callbacks
     mockShowSuccess = vi.fn();
@@ -86,14 +79,16 @@ describe('Generation Flow - Feature Integration', () => {
     mockCacheManager = { invalidate: vi.fn() };
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('should open modal when generation:modal-open event is emitted', async () => {
     const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
     const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
 
     const { emitModalOpen } = renderGenerationFlow(
-      mockApiClient,
-      testResourceUri,
-      testAnnotationUri
+      testResourceUri
     );
 
     // Emit modal open event
@@ -114,9 +109,7 @@ describe('Generation Flow - Feature Integration', () => {
     const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
 
     const { emitGenerationStart } = renderGenerationFlow(
-      mockApiClient,
-      testResourceUri,
-      testAnnotationUri
+      testResourceUri
     );
 
     // Trigger generation with full options
@@ -153,7 +146,8 @@ describe('Generation Flow - Feature Integration', () => {
           sourceText: 'Reference text from the document',
           entityTypes: ['Person', 'Organization'],
         },
-      }
+      },
+      { auth: undefined }
     );
   });
 
@@ -162,9 +156,7 @@ describe('Generation Flow - Feature Integration', () => {
     const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
 
     const { emitGenerationStart } = renderGenerationFlow(
-      mockApiClient,
-      testResourceUri,
-      testAnnotationUri
+      testResourceUri
     );
 
     // Start generation
@@ -201,9 +193,7 @@ describe('Generation Flow - Feature Integration', () => {
     const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
 
     const { emitGenerationStart } = renderGenerationFlow(
-      mockApiClient,
-      testResourceUri,
-      testAnnotationUri
+      testResourceUri
     );
 
     // Start generation
@@ -265,9 +255,7 @@ describe('Generation Flow - Feature Integration', () => {
     const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
 
     const { emitGenerationStart, getEventBus } = renderGenerationFlow(
-      mockApiClient,
-      testResourceUri,
-      testAnnotationUri
+      testResourceUri
     );
 
     // Start generation
@@ -311,9 +299,7 @@ describe('Generation Flow - Feature Integration', () => {
     const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
 
     const { emitGenerationStart, getEventBus } = renderGenerationFlow(
-      mockApiClient,
-      testResourceUri,
-      testAnnotationUri
+      testResourceUri
     );
 
     // Start generation
@@ -353,9 +339,7 @@ describe('Generation Flow - Feature Integration', () => {
     const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
 
     const { emitGenerationStart, getEventBus } = renderGenerationFlow(
-      mockApiClient,
-      testResourceUri,
-      testAnnotationUri
+      testResourceUri
     );
 
     // Add an additional event listener (simulating multiple subscribers)
@@ -387,9 +371,7 @@ describe('Generation Flow - Feature Integration', () => {
     const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
 
     const { emitGenerationStart } = renderGenerationFlow(
-      mockApiClient,
-      testResourceUri,
-      testAnnotationUri
+      testResourceUri
     );
 
     // Start generation
@@ -427,9 +409,7 @@ describe('Generation Flow - Feature Integration', () => {
  * Returns methods to interact with the rendered component
  */
 function renderGenerationFlow(
-  apiClient: SemiontApiClient,
-  testResourceUri: ResourceUri,
-  testAnnotationUri: AnnotationUri
+  testResourceUri: ResourceUri
 ) {
   let eventBusInstance: Emitter<EventMap>;
 
@@ -480,10 +460,12 @@ function renderGenerationFlow(
 
   render(
     <EventBusProvider>
-      <ApiClientProvider apiClientManager={apiClient as ApiClientManager}>
-        <EventBusCapture />
-        <GenerationFlowTestHarness />
-      </ApiClientProvider>
+      <AuthTokenProvider token={null}>
+        <ApiClientProvider baseUrl="http://localhost:4000">
+          <EventBusCapture />
+          <GenerationFlowTestHarness />
+        </ApiClientProvider>
+      </AuthTokenProvider>
     </EventBusProvider>
   );
 

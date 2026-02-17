@@ -22,7 +22,7 @@
  * UPDATED: Now tests useDetectionFlow hook instead of DetectionFlowContainer
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { act } from 'react';
@@ -30,6 +30,8 @@ import { HighlightPanel } from '../../../components/resource/panels/HighlightPan
 import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
 import { EventBusProvider, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
+import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
+import { SSEClient } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];
@@ -59,14 +61,14 @@ vi.mock('../../../contexts/TranslationContext', () => ({
 // Create a mock SSE stream that we can control
 class MockSSEStream {
   private progressHandlers: Array<(chunk: any) => void> = [];
-  private completeHandlers: Array<() => void> = [];
+  private completeHandlers: Array<(finalChunk?: any) => void> = [];
   private errorHandlers: Array<(error: Error) => void> = [];
 
   onProgress(handler: (chunk: any) => void) {
     this.progressHandlers.push(handler);
   }
 
-  onComplete(handler: () => void) {
+  onComplete(handler: (finalChunk?: any) => void) {
     this.completeHandlers.push(handler);
   }
 
@@ -79,8 +81,8 @@ class MockSSEStream {
     this.progressHandlers.forEach(handler => handler(chunk));
   }
 
-  emitComplete() {
-    this.completeHandlers.forEach(handler => handler());
+  emitComplete(finalChunk?: any) {
+    this.completeHandlers.forEach(handler => handler(finalChunk));
   }
 
   emitError(error: Error) {
@@ -113,19 +115,20 @@ function DetectionFlowTestHarness({
 describe('Detection Progress Flow Integration (Layer 3)', () => {
   let mockAnnotations: Annotation[];
   let mockStream: MockSSEStream;
-  let mockClient: any;
   const rUri = 'https://example.com/resources/test-resource-1';
 
   // Helper to render test harness with composition
   const renderDetectionFlow = () => {
     return render(
       <EventBusProvider>
-        <ApiClientProvider apiClientManager={mockClient}>
-          <DetectionFlowTestHarness
-            rUri={rUri}
-            annotations={mockAnnotations}
-          />
-        </ApiClientProvider>
+        <AuthTokenProvider token={null}>
+          <ApiClientProvider baseUrl="http://localhost:4000">
+            <DetectionFlowTestHarness
+              rUri={rUri}
+              annotations={mockAnnotations}
+            />
+          </ApiClientProvider>
+        </AuthTokenProvider>
       </EventBusProvider>
     );
   };
@@ -138,21 +141,17 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
     // Reset mocks
     mockStream = new MockSSEStream();
 
-    // Create mock API client with SSE support - passed via ApiClientProvider!
-    mockClient = {
-      sse: {
-        detectHighlights: vi.fn(() => mockStream),
-        detectAssessments: vi.fn(() => mockStream),
-        detectComments: vi.fn(() => mockStream),
-        detectTags: vi.fn(() => mockStream),
-        detectAnnotations: vi.fn(() => mockStream),
-      },
-      createAnnotation: vi.fn(),
-      deleteAnnotation: vi.fn(),
-      updateAnnotationBody: vi.fn(),
-    };
+    // Spy on SSEClient prototype methods to inject mock stream
+    vi.spyOn(SSEClient.prototype, 'detectHighlights').mockReturnValue(mockStream as any);
+    vi.spyOn(SSEClient.prototype, 'detectAssessments').mockReturnValue(mockStream as any);
+    vi.spyOn(SSEClient.prototype, 'detectComments').mockReturnValue(mockStream as any);
+    vi.spyOn(SSEClient.prototype, 'detectAnnotations').mockReturnValue(mockStream as any);
 
     mockAnnotations = [];
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('should display detection progress from button click to completion', async () => {
@@ -208,18 +207,13 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
       expect(screen.getByText('Creating 14 annotations...')).toBeInTheDocument();
     });
 
-    // Simulate SSE progress chunk #4: Complete
+    // Simulate stream completion with final chunk (onComplete receives the final progress)
     act(() => {
-      mockStream.emitProgress({
+      mockStream.emitComplete({
         status: 'complete',
         percentage: 100,
         message: 'Complete! Created 14 highlights',
       });
-    });
-
-    // Simulate stream completion
-    act(() => {
-      mockStream.emitComplete();
     });
 
     // CRITICAL TEST: Final message should still be visible after completion
