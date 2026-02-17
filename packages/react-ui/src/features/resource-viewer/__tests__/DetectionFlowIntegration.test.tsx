@@ -5,7 +5,7 @@
  * - EventBusProvider (REAL)
  * - ApiClientProvider (REAL, with MOCKED client)
  * - useDetectionFlow (REAL)
- * - useEventOperations (REAL)
+ * - useResolutionFlow (REAL)
  * - useEventSubscriptions (REAL)
  *
  * This test focuses on ARCHITECTURE and EVENT WIRING:
@@ -97,7 +97,7 @@ describe('Detection Flow - Feature Integration', () => {
     });
 
     // CRITICAL ASSERTION: API called exactly once (not twice!)
-    // This would FAIL if useEventOperations was called in multiple places
+    // This would FAIL if useResolutionFlow was called in multiple places
     await waitFor(() => {
       expect(detectAnnotationsSpy).toHaveBeenCalledTimes(1);
     });
@@ -316,8 +316,8 @@ describe('Detection Flow - Feature Integration', () => {
   it('should only call API once even with multiple event listeners', async () => {
     const testUri = resourceUri('http://localhost:4000/resources/test-resource');
 
-    // This test specifically catches the duplicate useEventOperations bug
-    // If multiple components call useEventOperations, we'll see multiple API calls
+    // This test specifically catches the duplicate useResolutionFlow bug
+    // If multiple components call useResolutionFlow, we'll see multiple API calls
     const { emitDetectionStart, getEventBus } = renderDetectionFlow(testUri);
 
     // Add an additional event listener (simulating multiple subscribers)

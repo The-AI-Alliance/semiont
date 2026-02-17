@@ -11,28 +11,28 @@ function toAccessToken(token: string | null) {
   return token ? accessToken(token) : undefined;
 }
 
-export interface EventOperationsConfig {
+export interface ResolutionFlowConfig {
   client: SemiontApiClient;
   resourceUri: ResourceUri;
 }
 
 /**
- * Hook that subscribes to remaining operation events and coordinates API calls
+ * Hook that handles annotation body updates and reference link resolution
  *
  * Handles: annotation:update-body, reference:link
  *
- * annotation:create, annotation:delete, detection:start are handled
- * directly in useDetectionFlow.
+ * annotation:create, annotation:delete, detection:start, job:cancel-requested (detection)
+ * are handled directly in useDetectionFlow.
  *
- * generation:start, job:cancel-requested (generation half), reference:create-manual
+ * generation:start, job:cancel-requested (generation), reference:create-manual
  * are handled directly in useGenerationFlow.
  *
  * @param emitter - The mitt event bus instance
  * @param config - Configuration including API client and resource URI
  */
-export function useEventOperations(
+export function useResolutionFlow(
   emitter: Emitter<EventMap>,
-  config: EventOperationsConfig
+  config: ResolutionFlowConfig
 ) {
 
   // Get current auth token for API calls

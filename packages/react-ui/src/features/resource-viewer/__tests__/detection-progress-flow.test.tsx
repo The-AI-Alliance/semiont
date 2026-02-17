@@ -1,12 +1,12 @@
 /**
  * Layer 3 Integration Test: Detection Progress Flow UI/UX
  *
- * Tests the complete data flow from UI → EventBus → useEventOperations → SSE (mocked)
+ * Tests the complete data flow from UI → EventBus → useResolutionFlow → SSE (mocked)
  *
  * This test uses COMPOSITION instead of mocking:
  * - Real React components composed together (useDetectionFlow + HighlightPanel + DetectSection)
  * - Real EventBus (mitt) passed via context
- * - Real useEventOperations hook with mock API client passed as prop
+ * - Real useResolutionFlow hook with mock API client passed as prop
  * - Mock SSE stream (simulated API responses) provided via composition
  *
  * This test focuses on USER EXPERIENCE:

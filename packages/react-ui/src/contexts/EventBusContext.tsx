@@ -285,7 +285,7 @@ export function resetEventBusForTesting() {
 
 export interface EventBusProviderProps {
   children: ReactNode;
-  // rUri and client removed - operation handlers are now set up via useEventOperations hook
+  // rUri and client removed - operation handlers are now set up via useResolutionFlow hook
 }
 
 /**
@@ -307,7 +307,7 @@ export interface EventBusProviderProps {
  * same global bus.
  *
  * Operation handlers (API calls triggered by events) are set up separately via
- * the useEventOperations hook, which should be called at the resource page level.
+ * the useResolutionFlow hook, which should be called at the resource page level.
  */
 export function EventBusProvider({
   children,

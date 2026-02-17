@@ -29,7 +29,7 @@ import { useEventBus } from '../contexts/EventBusContext';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
 import { useApiClient } from '../contexts/ApiClientContext';
 import { useAuthToken } from '../contexts/AuthTokenContext';
-import { useEventOperations } from '../contexts/useEventOperations';
+import { useResolutionFlow } from '../contexts/useResolutionFlow';
 import type { DetectionProgress } from '../types/progress';
 
 /** Helper to convert string | null to AccessToken | undefined */
@@ -99,8 +99,8 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
   useEffect(() => { rUriRef.current = rUri; });
   useEffect(() => { tokenRef.current = token; });
 
-  // Remaining operations (annotation:update-body, reference:*) stay in useEventOperations
-  useEventOperations(eventBus, { client, resourceUri: rUri });
+  // Remaining operations (annotation:update-body, reference:link) stay in useResolutionFlow
+  useResolutionFlow(eventBus, { client, resourceUri: rUri });
 
   // ============================================================
   // MANUAL DETECTION STATE

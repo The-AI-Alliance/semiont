@@ -57,7 +57,7 @@ export * from './contexts/ApiClientContext';
 export * from './contexts/AuthTokenContext';
 export * from './contexts/CacheContext';
 export * from './contexts/EventBusContext';
-export * from './contexts/useEventOperations';
+export * from './contexts/useResolutionFlow';
 export * from './contexts/useEventSubscription';
 export * from './contexts/OpenResourcesContext';
 export * from './contexts/ResourceAnnotationsContext';

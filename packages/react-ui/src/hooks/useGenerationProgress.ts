@@ -7,9 +7,9 @@ import { useEventSubscriptions } from '../contexts/useEventSubscription';
 /**
  * Hook for managing generation progress tracking via events
  *
- * Subscribes to generation events from useEventOperations (Service Layer).
+ * Subscribes to generation events from useResolutionFlow (Service Layer).
  * No direct SSE stream creation - follows three-layer architecture:
- * Service (useEventOperations) → Hook (this) → Component
+ * Service (useResolutionFlow) → Hook (this) → Component
  *
  * @subscribes generation:progress - Progress update during generation
  * @subscribes generation:complete - Generation completed successfully
@@ -35,7 +35,7 @@ export function useGenerationProgress() {
     setIsGenerating(false);
   }, []);
 
-  // Subscribe to generation events (from useEventOperations)
+  // Subscribe to generation events (from useResolutionFlow)
   useEventSubscriptions({
     'generation:progress': handleGenerationProgress,
     'generation:complete': handleGenerationComplete,
