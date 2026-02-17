@@ -77,11 +77,7 @@ vi.mock('@semiont/react-ui', async () => {
     JsonLdPanel: () => <div data-testid="jsonld-panel">JSON-LD</div>,
     ErrorBoundary: ({ children }: any) => children,
     createCancelDetectionHandler: () => vi.fn(),
-    useGenerationProgress: () => ({
-      progress: null,
-      clearProgress: vi.fn(),
-    }),
-    useDebouncedCallback: (fn: any) => fn,
+useDebouncedCallback: (fn: any) => fn,
     supportsDetection: () => false,
     MakeMeaningEventBusProvider: ({ children }: any) => children,
     useResourceLoadingAnnouncements: () => ({

@@ -34,7 +34,6 @@ export * from './lib/validation';
 // Hooks
 export * from './hooks/useDebounce';
 export * from './lib/formatTime';
-export * from './hooks/useGenerationProgress';
 export * from './hooks/useKeyboardShortcuts';
 export * from './hooks/useLineNumbers';
 export * from './hooks/useObservableNavigation';

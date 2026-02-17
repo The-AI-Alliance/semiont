@@ -1,26 +1,57 @@
 /**
- * useGenerationProgress Hook Tests
+ * useGenerationFlow - Generation Progress State Tests
  *
- * Tests the event-driven generation progress tracking hook.
- * The hook subscribes to generation events from the event bus
- * and updates local state accordingly.
+ * Tests the generation progress tracking behaviour that was formerly in
+ * useGenerationProgress.  The state is now inlined directly into
+ * useGenerationFlow.
+ *
+ * Subscribes to generation events from the event bus and verifies that
+ * isGenerating / generationProgress / clearProgress behave correctly.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import React, { type ReactNode } from 'react';
-import { useGenerationProgress } from '../useGenerationProgress';
+import { useGenerationFlow } from '../useGenerationFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting, type EventBus } from '../../contexts/EventBusContext';
+import { ApiClientProvider } from '../../contexts/ApiClientContext';
+import { AuthTokenProvider } from '../../contexts/AuthTokenContext';
 import type { GenerationProgress } from '../../types/progress';
 
-// Wrapper component to provide EventBus context
+// Full provider stack required by useGenerationFlow
 const wrapper = ({ children }: { children: ReactNode }) =>
-  React.createElement(EventBusProvider, { children });
+  React.createElement(
+    EventBusProvider,
+    null,
+    React.createElement(
+      AuthTokenProvider,
+      { token: null },
+      React.createElement(
+        ApiClientProvider,
+        { baseUrl: 'http://localhost:4000' },
+        children
+      )
+    )
+  );
 
-// Helper: render a hook that returns the event bus, used to emit test events
+// Helper: capture the event bus from inside the provider tree
 function captureEventBus(): EventBus {
   const { result } = renderHook(() => useEventBus(), { wrapper });
   return result.current;
+}
+
+// Stable no-op callbacks for useGenerationFlow params
+const noop = () => {};
+const mockShowSuccess = vi.fn();
+const mockShowError = vi.fn();
+const mockCacheManager = { invalidate: vi.fn() };
+const mockClearNewAnnotationId = vi.fn();
+
+function renderGenerationFlow() {
+  return renderHook(
+    () => useGenerationFlow('en', 'test-resource', mockShowSuccess, mockShowError, mockCacheManager, mockClearNewAnnotationId),
+    { wrapper }
+  );
 }
 
 // A shared reference annotation ID for test data
@@ -37,25 +68,25 @@ function makeProgress(overrides: Partial<GenerationProgress> = {}): GenerationPr
   };
 }
 
-describe('useGenerationProgress', () => {
+describe('useGenerationFlow — progress state', () => {
   beforeEach(() => {
     resetEventBusForTesting();
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
     vi.clearAllMocks();
   });
 
-  it('should initialize with default state', () => {
-    const { result } = renderHook(() => useGenerationProgress(), { wrapper });
+  it('should initialize with default progress state', () => {
+    const { result } = renderGenerationFlow();
 
     expect(result.current.isGenerating).toBe(false);
-    expect(result.current.progress).toBeNull();
-    expect(typeof result.current.clearProgress).toBe('function');
+    expect(result.current.generationProgress).toBeNull();
   });
 
   it('should set isGenerating to true and update progress on generation:progress event', async () => {
-    const { result } = renderHook(() => useGenerationProgress(), { wrapper });
+    const { result } = renderGenerationFlow();
     const bus = captureEventBus();
 
     const mockProgress = makeProgress({ status: 'generating', percentage: 30, message: 'Generating content...' });
@@ -66,12 +97,12 @@ describe('useGenerationProgress', () => {
 
     await waitFor(() => {
       expect(result.current.isGenerating).toBe(true);
-      expect(result.current.progress).toEqual(mockProgress);
+      expect(result.current.generationProgress).toEqual(mockProgress);
     });
   });
 
   it('should update progress on subsequent generation:progress events', async () => {
-    const { result } = renderHook(() => useGenerationProgress(), { wrapper });
+    const { result } = renderGenerationFlow();
     const bus = captureEventBus();
 
     const firstProgress = makeProgress({ status: 'started', percentage: 0, message: 'Starting...' });
@@ -82,7 +113,7 @@ describe('useGenerationProgress', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.progress).toEqual(firstProgress);
+      expect(result.current.generationProgress).toEqual(firstProgress);
     });
 
     act(() => {
@@ -90,13 +121,13 @@ describe('useGenerationProgress', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.progress).toEqual(secondProgress);
+      expect(result.current.generationProgress).toEqual(secondProgress);
       expect(result.current.isGenerating).toBe(true);
     });
   });
 
   it('should set isGenerating to false and update progress on generation:complete event', async () => {
-    const { result } = renderHook(() => useGenerationProgress(), { wrapper });
+    const { result } = renderGenerationFlow();
     const bus = captureEventBus();
 
     // First simulate some progress
@@ -120,12 +151,12 @@ describe('useGenerationProgress', () => {
 
     await waitFor(() => {
       expect(result.current.isGenerating).toBe(false);
-      expect(result.current.progress).toEqual(finalProgress);
+      expect(result.current.generationProgress).toEqual(finalProgress);
     });
   });
 
   it('should clear progress and set isGenerating to false on generation:failed event', async () => {
-    const { result } = renderHook(() => useGenerationProgress(), { wrapper });
+    const { result } = renderGenerationFlow();
     const bus = captureEventBus();
 
     // First simulate some progress
@@ -146,53 +177,12 @@ describe('useGenerationProgress', () => {
 
     await waitFor(() => {
       expect(result.current.isGenerating).toBe(false);
-      expect(result.current.progress).toBeNull();
+      expect(result.current.generationProgress).toBeNull();
     });
-  });
-
-  it('should clear progress when clearProgress is called', async () => {
-    const { result } = renderHook(() => useGenerationProgress(), { wrapper });
-    const bus = captureEventBus();
-
-    // Set some progress first
-    act(() => {
-      bus.emit('generation:progress', makeProgress());
-    });
-
-    await waitFor(() => {
-      expect(result.current.progress).not.toBeNull();
-    });
-
-    act(() => {
-      result.current.clearProgress();
-    });
-
-    expect(result.current.progress).toBeNull();
-  });
-
-  it('should not affect isGenerating when clearProgress is called', async () => {
-    const { result } = renderHook(() => useGenerationProgress(), { wrapper });
-    const bus = captureEventBus();
-
-    act(() => {
-      bus.emit('generation:progress', makeProgress());
-    });
-
-    await waitFor(() => {
-      expect(result.current.isGenerating).toBe(true);
-    });
-
-    act(() => {
-      result.current.clearProgress();
-    });
-
-    // clearProgress only clears progress, not isGenerating
-    expect(result.current.progress).toBeNull();
-    expect(result.current.isGenerating).toBe(true);
   });
 
   it('should handle generation:complete event without prior progress', async () => {
-    const { result } = renderHook(() => useGenerationProgress(), { wrapper });
+    const { result } = renderGenerationFlow();
     const bus = captureEventBus();
 
     const finalProgress = makeProgress({ status: 'complete', percentage: 100, message: 'Done!' });
@@ -206,12 +196,12 @@ describe('useGenerationProgress', () => {
 
     await waitFor(() => {
       expect(result.current.isGenerating).toBe(false);
-      expect(result.current.progress).toEqual(finalProgress);
+      expect(result.current.generationProgress).toEqual(finalProgress);
     });
   });
 
   it('should handle generation:failed event without prior progress gracefully', async () => {
-    const { result } = renderHook(() => useGenerationProgress(), { wrapper });
+    const { result } = renderGenerationFlow();
     const bus = captureEventBus();
 
     act(() => {
@@ -222,7 +212,7 @@ describe('useGenerationProgress', () => {
 
     await waitFor(() => {
       expect(result.current.isGenerating).toBe(false);
-      expect(result.current.progress).toBeNull();
+      expect(result.current.generationProgress).toBeNull();
     });
   });
 });

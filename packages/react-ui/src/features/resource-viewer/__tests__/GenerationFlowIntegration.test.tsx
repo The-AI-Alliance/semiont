@@ -4,8 +4,7 @@
  * Tests the COMPLETE generation flow with real component composition:
  * - EventBusProvider (REAL)
  * - ApiClientProvider (REAL, with MOCKED client)
- * - useGenerationFlow (REAL)
- * - useGenerationProgress (REAL)
+ * - useGenerationFlow (REAL, with inlined progress state)
  * - useResolutionFlow (REAL)
  * - useEventSubscriptions (REAL)
  *

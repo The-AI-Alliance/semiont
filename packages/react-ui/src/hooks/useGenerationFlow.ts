@@ -2,7 +2,7 @@
  * useGenerationFlow - Document generation flow hook
  *
  * Manages document generation state:
- * - Generation progress tracking (from useGenerationProgress hook)
+ * - Generation progress tracking
  * - Generation modal state
  * - Reference search modal state
  * - Generation completion/error handling
@@ -14,7 +14,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { GenerationContext, AnnotationUri } from '@semiont/api-client';
 import { annotationUri, accessToken } from '@semiont/api-client';
-import { useGenerationProgress } from './useGenerationProgress';
+import type { GenerationProgress } from '../types/progress';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
 import { useEventBus } from '../contexts/EventBusContext';
 import { useApiClient } from '../contexts/ApiClientContext';
@@ -26,7 +26,8 @@ function toAccessToken(token: string | null) {
 }
 
 export interface GenerationFlowState {
-  generationProgress: any | null;
+  isGenerating: boolean;
+  generationProgress: GenerationProgress | null;
   generationModalOpen: boolean;
   generationReferenceId: string | null;
   generationDefaultTitle: string;
@@ -83,11 +84,18 @@ export function useGenerationFlow(
   // SSE stream ref for generation cancellation
   const generationStreamRef = useRef<AbortController | null>(null);
 
-  // Generation progress state (from hook)
-  const {
-    progress: generationProgress,
-    clearProgress
-  } = useGenerationProgress();
+  // Generation progress state (inlined from former useGenerationProgress)
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState<GenerationProgress | null>(null);
+
+  const handleProgressEvent = useCallback((chunk: GenerationProgress) => {
+    setGenerationProgress(chunk);
+    setIsGenerating(true);
+  }, []);
+
+  const clearProgress = useCallback(() => {
+    setGenerationProgress(null);
+  }, []);
 
   // Modal state
   const [generationModalOpen, setGenerationModalOpen] = useState(false);
@@ -150,7 +158,11 @@ export function useGenerationFlow(
     eventBus.emit('context:retrieval-requested', { annotationUri: annUri, resourceUri });
   }, []);
 
-  const handleGenerationComplete = useCallback(({ progress }: { annotationUri: string; progress: any }) => {
+  const handleGenerationComplete = useCallback(({ progress }: { annotationUri: string; progress: GenerationProgress }) => {
+    // Update progress state to final value and mark done
+    setGenerationProgress(progress);
+    setIsGenerating(false);
+
     // Show success notification
     if (progress.resourceName) {
       showSuccess(`Resource "${progress.resourceName}" created successfully!`);
@@ -168,6 +180,10 @@ export function useGenerationFlow(
   }, [showSuccess, cacheManager, clearProgress]);
 
   const handleGenerationFailed = useCallback(({ error }: { error: Error }) => {
+    // Update progress state and mark done
+    setGenerationProgress(null);
+    setIsGenerating(false);
+
     showError(`Resource generation failed: ${error.message}`);
   }, [showError]);
 
@@ -277,12 +293,14 @@ export function useGenerationFlow(
 
   // Subscribe to generation events
   useEventSubscriptions({
-    'generation:modal-open': handleGenerationModalOpen,
+    'generation:progress': handleProgressEvent,
     'generation:complete': handleGenerationComplete,
     'generation:failed': handleGenerationFailed,
+    'generation:modal-open': handleGenerationModalOpen,
   });
 
   return {
+    isGenerating,
     generationProgress,
     generationModalOpen,
     generationReferenceId,
