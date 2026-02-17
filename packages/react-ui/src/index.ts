@@ -51,7 +51,6 @@ export * from './hooks/useResourceContent';
 
 // Contexts
 export * from './contexts/AnnotationContext';
-export * from './contexts/AnnotationUIContext';
 export * from './contexts/ApiClientContext';
 export * from './contexts/AuthTokenContext';
 export * from './contexts/CacheContext';
