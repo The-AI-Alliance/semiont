@@ -36,7 +36,6 @@ import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsContext';
 import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
 import { usePanelNavigation } from '../../../hooks/usePanelNavigation';
-import { useAnnotationFlow } from '../../../hooks/useAnnotationFlow';
 import { useGenerationFlow } from '../../../hooks/useGenerationFlow';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
@@ -156,9 +155,8 @@ export function ResourceViewerPage({
   const allEntityTypes = (entityTypesData as { entityTypes: string[] } | undefined)?.entityTypes || [];
 
   // Flow state hooks (NO CONTAINERS)
-  const { detectingMotivation, detectionProgress } = useDetectionFlow(rUri);
+  const { detectingMotivation, detectionProgress, pendingAnnotation, hoveredAnnotationId } = useDetectionFlow(rUri);
   const { activePanel, scrollToAnnotationId, panelInitialTab, onScrollCompleted } = usePanelNavigation();
-  const { pendingAnnotation, hoveredAnnotationId } = useAnnotationFlow();
   const {
     generationProgress,
     generationModalOpen,

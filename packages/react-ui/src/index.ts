@@ -213,5 +213,4 @@ export * from './features/resource-discovery/components/ResourceCard';
 export * from './features/resource-viewer/components/ResourceViewerPage';
 export * from './hooks/useDetectionFlow';
 export * from './hooks/usePanelNavigation';
-export * from './hooks/useAnnotationFlow';
 export * from './hooks/useGenerationFlow';

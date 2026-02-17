@@ -4,8 +4,7 @@
  * Tests the COMPLETE annotation deletion flow with real component composition:
  * - EventBusProvider (REAL)
  * - ApiClientProvider (REAL, with MOCKED client)
- * - useAnnotationFlow (REAL)
- * - useEventOperations (REAL)
+ * - useDetectionFlow (REAL) — single registration point for useEventOperations
  * - useEventSubscriptions (REAL)
  *
  * This test focuses on ARCHITECTURE and EVENT WIRING:
@@ -20,14 +19,13 @@
  * - Auth token missing from API calls (401 errors)
  *
  * ARCHITECTURE: useEventOperations is called ONLY in useDetectionFlow.
- * useAnnotationFlow handles annotation UI state only (hover, click, pending).
- * Both hooks are always called together in ResourceViewerPage.
+ * useDetectionFlow handles all detection state (manual annotation selection
+ * and AI-driven SSE detection) plus all API operations via useEventOperations.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import { act } from 'react';
-import { useAnnotationFlow } from '../../../hooks/useAnnotationFlow';
 import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
@@ -64,7 +62,6 @@ describe('Annotation Deletion - Feature Integration', () => {
       // useDetectionFlow is the single registration point for useEventOperations
       // (handles annotation:delete, annotation:create, detection:start, etc.)
       useDetectionFlow(testUri);
-      useAnnotationFlow();
       return null;
     }
 
@@ -199,10 +196,9 @@ describe('Annotation Deletion - Feature Integration', () => {
      * This test validates that there's only ONE event-driven deletion path:
      * - useDetectionFlow calls useEventOperations (the single registration point)
      * - useEventOperations subscribes to annotation:delete
-     * - useAnnotationFlow does NOT call useEventOperations (prevents double subscription)
      *
      * If this test fails with 2 API calls, it means useEventOperations was added
-     * back to useAnnotationFlow, causing duplicate subscriptions (ARCHITECTURE VIOLATION).
+     * to a second hook, causing duplicate subscriptions (ARCHITECTURE VIOLATION).
      */
 
     const { emitDelete } = renderAnnotationFlow();
