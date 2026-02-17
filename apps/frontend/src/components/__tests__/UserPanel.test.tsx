@@ -42,7 +42,7 @@ vi.mock('@/hooks/useAuth', () => ({
 
 // Mock react-ui hooks and utilities
 const mockUseSessionExpiry = vi.fn();
-const mockUseFormattedTime = vi.fn();
+const mockFormatTime = vi.fn();
 const mockSanitizeImageURL = vi.fn();
 
 vi.mock('@semiont/react-ui', async () => {
@@ -50,7 +50,7 @@ vi.mock('@semiont/react-ui', async () => {
   return {
     ...actual,
     useSessionExpiry: () => mockUseSessionExpiry(),
-    useFormattedTime: (time: number) => mockUseFormattedTime(time),
+    formatTime: (time: number) => mockFormatTime(time),
     sanitizeImageURL: (url: string) => mockSanitizeImageURL(url),
   };
 });
@@ -101,7 +101,7 @@ describe('UserPanel Component', () => {
     });
 
     // Default time formatting
-    mockUseFormattedTime.mockReturnValue('1 hour');
+    mockFormatTime.mockReturnValue('1 hour');
 
     // Default URL sanitization
     mockSanitizeImageURL.mockImplementation((url) => url);
@@ -233,7 +233,7 @@ describe('UserPanel Component', () => {
 
   describe('Session Display', () => {
     it('should format session time correctly', () => {
-      mockUseFormattedTime.mockReturnValue('45 minutes');
+      mockFormatTime.mockReturnValue('45 minutes');
 
       render(<UserPanel />);
 
@@ -241,20 +241,20 @@ describe('UserPanel Component', () => {
     });
 
     it('should show "Unknown" when time formatting returns null', () => {
-      mockUseFormattedTime.mockReturnValue(null);
+      mockFormatTime.mockReturnValue(null);
 
       render(<UserPanel />);
 
       expect(screen.getByText('Expires in Unknown')).toBeInTheDocument();
     });
 
-    it('should pass timeRemaining to useFormattedTime hook', () => {
+    it('should pass timeRemaining to formatTime', () => {
       const timeRemaining = 1800000; // 30 minutes
       mockUseSessionExpiry.mockReturnValue({ timeRemaining });
 
       render(<UserPanel />);
 
-      expect(mockUseFormattedTime).toHaveBeenCalledWith(timeRemaining);
+      expect(mockFormatTime).toHaveBeenCalledWith(timeRemaining);
     });
   });
 
@@ -511,7 +511,7 @@ describe('UserPanel Component', () => {
         timeRemaining: undefined,
       });
 
-      mockUseFormattedTime.mockReturnValue(null);
+      mockFormatTime.mockReturnValue(null);
 
       render(<UserPanel />);
 
@@ -519,7 +519,7 @@ describe('UserPanel Component', () => {
     });
 
     it('should handle very long session times', () => {
-      mockUseFormattedTime.mockReturnValue('365 days, 23 hours, 59 minutes');
+      mockFormatTime.mockReturnValue('365 days, 23 hours, 59 minutes');
 
       render(<UserPanel />);
 
@@ -589,12 +589,12 @@ describe('UserPanel Component', () => {
     });
 
     it('should update session time as it changes', () => {
-      mockUseFormattedTime.mockReturnValue('1 hour');
+      mockFormatTime.mockReturnValue('1 hour');
       const { rerender } = render(<UserPanel />);
 
       expect(screen.getByText('Expires in 1 hour')).toBeInTheDocument();
 
-      mockUseFormattedTime.mockReturnValue('30 minutes');
+      mockFormatTime.mockReturnValue('30 minutes');
       rerender(<UserPanel />);
 
       expect(screen.getByText('Expires in 30 minutes')).toBeInTheDocument();
