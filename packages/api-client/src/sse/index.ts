@@ -542,11 +542,14 @@ export class SSEClient {
    * stream.close();
    * ```
    */
-  resourceEvents(resourceId: ResourceUri, options?: SSERequestOptions): SSEStream<any, never> {
+  resourceEvents(
+    resourceId: ResourceUri,
+    options?: SSERequestOptions & { onConnected?: () => void }
+  ): SSEStream<any, never> {
     const id = this.extractId(resourceId);
     const url = `${this.baseUrl}/resources/${id}/events/stream`;
 
-    return createSSEStream<any, never>(
+    const stream = createSSEStream<any, never>(
       url,
       {
         method: 'GET',
@@ -559,6 +562,17 @@ export class SSEClient {
         customEventHandler: true // Use custom event handling
       },
       this.logger
-    );
+    ) as SSEStream<any, never> & { on?: (event: string, callback: (data?: any) => void) => void };
+
+    // Register handler for stream-connected meta-event so it is filtered out
+    // of the progress stream and callers don't need to cast to any
+    if (options?.onConnected) {
+      stream.on?.('stream-connected', options.onConnected);
+    } else {
+      // Always consume stream-connected so it never reaches onProgress
+      stream.on?.('stream-connected', () => {});
+    }
+
+    return stream;
   }
 }

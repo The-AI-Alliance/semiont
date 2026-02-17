@@ -155,23 +155,19 @@ export function useResourceEvents({
 
     try {
       // Start SSE stream using api-client (pass token for auth)
-      const stream = client.sse.resourceEvents(rUri, token ? { auth: accessToken(token) } : undefined);
-      streamRef.current = stream;
-
-      // Handle progress events (all resource events)
-      stream.onProgress((event) => {
-        // Ignore keep-alive messages (if they come through as events)
-        if ((event as any).type === 'keep-alive') {
-          return;
-        }
-
-        // Handle stream-connected event
-        if ((event as any).type === 'stream-connected') {
+      // onConnected is called by the api-client layer when stream-connected fires,
+      // so it never reaches onProgress as an untyped event
+      const stream = client.sse.resourceEvents(rUri, {
+        ...(token ? { auth: accessToken(token) } : {}),
+        onConnected: () => {
           setStatus('connected');
           reconnectAttemptsRef.current = 0; // Reset reconnect counter
-          return;
-        }
+        },
+      });
+      streamRef.current = stream;
 
+      // Handle progress events (typed ResourceEvent only - meta-events filtered by api-client)
+      stream.onProgress((event) => {
         handleEvent(event);
       });
 

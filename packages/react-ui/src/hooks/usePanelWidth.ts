@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface UsePanelWidthOptions {
   defaultWidth?: number;
@@ -36,6 +36,8 @@ export function usePanelWidth({
   // Always initialize with defaultWidth to avoid hydration mismatch
   // localStorage value will be synced in useEffect
   const [width, setWidthInternal] = useState<number>(defaultWidth);
+  // Track whether the current width came from user interaction (not mount hydration)
+  const userChangedRef = useRef(false);
 
   // Sync with localStorage on mount (client-side only)
   useEffect(() => {
@@ -46,20 +48,20 @@ export function usePanelWidth({
       const parsed = parseInt(saved, 10);
       // Ensure saved value is within constraints
       const constrained = Math.max(minWidth, Math.min(maxWidth, parsed));
-      if (constrained !== defaultWidth) {
-        setWidthInternal(constrained);
-      }
+      setWidthInternal(constrained);
     }
   }, []); // Empty deps - only run once on mount
 
-  // Setter that enforces min/max constraints
+  // Setter that enforces min/max constraints - only called by user interaction
   const setWidth = (newWidth: number) => {
     const constrained = Math.max(minWidth, Math.min(maxWidth, newWidth));
+    userChangedRef.current = true;
     setWidthInternal(constrained);
   };
 
-  // Persist to localStorage whenever width changes
+  // Persist to localStorage only when the user has changed the width
   useEffect(() => {
+    if (!userChangedRef.current) return;
     localStorage.setItem(storageKey, width.toString());
   }, [width, storageKey]);
 
