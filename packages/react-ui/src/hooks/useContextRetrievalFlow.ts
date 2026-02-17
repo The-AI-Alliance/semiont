@@ -82,10 +82,12 @@ export function useContextRetrievalFlow(
         setRetrievalContext(context);
         setRetrievalLoading(false);
 
-        emitter.emit('context:retrieval-complete', {
-          annotationUri: event.annotationUri,
-          context,
-        });
+        if (context) {
+          emitter.emit('context:retrieval-complete', {
+            annotationUri: event.annotationUri,
+            context,
+          });
+        }
       } catch (error) {
         const err = error as Error;
         setRetrievalError(err);

@@ -2,8 +2,10 @@
 
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import mitt from 'mitt';
+import type { Handler } from 'mitt';
 import type { ResourceEvent } from '@semiont/core';
-import type { components, Selector, ResourceUri } from '@semiont/api-client';
+import type { components, Selector, ResourceUri, GenerationContext } from '@semiont/api-client';
+import type { DetectionProgress, GenerationProgress } from '../types/progress';
 
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation'];
@@ -33,12 +35,13 @@ export type EventMap = {
   // Generic event (all types)
   'make-meaning:event': ResourceEvent;
 
-  // Detection events
+  // Detection events (backend real-time stream via GET /resources/:id/events/stream)
   'detection:started': Extract<ResourceEvent, { type: 'job.started' }>;
-  'detection:progress': Extract<ResourceEvent, { type: 'job.progress' }>;
   'detection:entity-found': Extract<ResourceEvent, { type: 'annotation.added' }>;
   'detection:completed': Extract<ResourceEvent, { type: 'job.completed' }>;
   'detection:failed': Extract<ResourceEvent, { type: 'job.failed' }>;
+  // Detection progress from SSE detection streams (all 5 motivation types)
+  'detection:progress': DetectionProgress;
 
   // Annotation events (backend)
   'annotation:added': Extract<ResourceEvent, { type: 'annotation.added' }>;
@@ -116,7 +119,7 @@ export type EventMap = {
   'annotation:create': {
     motivation: Motivation;
     selector: Selector | Selector[];
-    body: any[];
+    body: components['schemas']['AnnotationBody'][];
   };
   'annotation:created': { annotation: Annotation };
   'annotation:create-failed': { error: Error };
@@ -128,9 +131,9 @@ export type EventMap = {
     resourceId: string;
     operations: Array<{
       op: 'add' | 'remove' | 'replace';
-      item?: any;
-      oldItem?: any;
-      newItem?: any;
+      item?: components['schemas']['AnnotationBody'];
+      oldItem?: components['schemas']['AnnotationBody'];
+      newItem?: components['schemas']['AnnotationBody'];
     }>;
   };
   'annotation:body-updated': { annotationUri: string };
@@ -141,7 +144,7 @@ export type EventMap = {
     motivation: Motivation;
     options: {
       instructions?: string;
-      tone?: 'neutral' | 'supportive' | 'critical';
+      tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical';
       density?: number;
       entityTypes?: string[];
       includeDescriptiveReferences?: boolean;
@@ -149,7 +152,7 @@ export type EventMap = {
       categories?: string[];
     };
   };
-  'detection:complete': { motivation?: Motivation; resourceUri?: ResourceUri; progress?: any };
+  'detection:complete': { motivation?: Motivation; resourceUri?: ResourceUri; progress?: DetectionProgress };
   'detection:cancelled': void;
   'detection:dismiss-progress': void;
 
@@ -163,11 +166,11 @@ export type EventMap = {
       language?: string;
       temperature?: number;
       maxTokens?: number;
-      context: any; // GenerationContext - required for generation
+      context: GenerationContext;
     };
   };
-  'generation:progress': any; // GenerationProgress from SSE
-  'generation:complete': { annotationUri: string; progress: any };
+  'generation:progress': GenerationProgress;
+  'generation:complete': { annotationUri: string; progress: GenerationProgress };
   'generation:failed': { error: Error };
   'generation:modal-open': {
     annotationUri: string;
@@ -193,7 +196,7 @@ export type EventMap = {
   };
   'context:retrieval-complete': {
     annotationUri: string;
-    context: any; // GenerationContext from api-client
+    context: GenerationContext;
   };
   'context:retrieval-failed': {
     annotationUri: string;
@@ -224,24 +227,24 @@ function createEventBus(): EventBus {
 
   // Wrap emit to add logging with busId
   const originalEmit = bus.emit.bind(bus);
-  bus.emit = ((eventName: any, payload?: any) => {
+  bus.emit = <Key extends keyof EventMap>(eventName: Key, payload?: EventMap[Key]) => {
     console.info(`[EventBus:${busId}] emit:`, eventName, payload);
-    return originalEmit(eventName, payload);
-  }) as any;
+    return originalEmit(eventName, payload as EventMap[Key]);
+  };
 
   // Wrap on to add logging with busId
   const originalOn = bus.on.bind(bus);
-  bus.on = ((eventName: any, handler: any) => {
+  bus.on = <Key extends keyof EventMap>(eventName: Key, handler: Handler<EventMap[Key]>) => {
     console.debug(`[EventBus:${busId}] subscribe:`, eventName);
     return originalOn(eventName, handler);
-  }) as any;
+  };
 
   // Wrap off to add logging with busId
   const originalOff = bus.off.bind(bus);
-  bus.off = ((eventName: any, handler?: any) => {
+  bus.off = <Key extends keyof EventMap>(eventName: Key, handler?: Handler<EventMap[Key]>) => {
     console.debug(`[EventBus:${busId}] unsubscribe:`, eventName);
     return originalOff(eventName, handler);
-  }) as any;
+  };
 
   return bus;
 }

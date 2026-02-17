@@ -22,14 +22,17 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { Motivation, ResourceUri, Selector } from '@semiont/api-client';
-import { resourceAnnotationUri, accessToken } from '@semiont/api-client';
+import type { Motivation, ResourceUri, Selector, components } from '@semiont/api-client';
+import { resourceAnnotationUri, accessToken, entityType } from '@semiont/api-client';
 import { uriToAnnotationIdOrPassthrough } from '@semiont/core';
 import { useEventBus } from '../contexts/EventBusContext';
+import type { EventMap } from '../contexts/EventBusContext';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
 import { useApiClient } from '../contexts/ApiClientContext';
 import { useAuthToken } from '../contexts/AuthTokenContext';
 import type { DetectionProgress } from '../types/progress';
+
+type SelectionData = EventMap['selection:comment-requested'];
 
 /** Helper to convert string | null to AccessToken | undefined */
 function toAccessToken(token: string | null) {
@@ -130,7 +133,7 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
   }, []); // eventBus is stable singleton - never in deps
 
   // Convert selection to selector helper
-  const selectionToSelector = useCallback((selection: any): Selector | Selector[] => {
+  const selectionToSelector = useCallback((selection: SelectionData): Selector | Selector[] => {
     // SVG selector (for images/PDFs)
     if (selection.svgSelector) {
       return {
@@ -166,26 +169,24 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
     return {
       type: 'TextQuoteSelector',
       exact: selection.exact,
-      start: selection.start,
-      end: selection.end,
       ...(selection.prefix && { prefix: selection.prefix }),
       ...(selection.suffix && { suffix: selection.suffix })
     };
   }, []);
 
-  const handleCommentRequested = useCallback((selection: any) => {
+  const handleCommentRequested = useCallback((selection: SelectionData) => {
     handleAnnotationRequested({ selector: selectionToSelector(selection), motivation: 'commenting' });
   }, [handleAnnotationRequested, selectionToSelector]);
 
-  const handleTagRequested = useCallback((selection: any) => {
+  const handleTagRequested = useCallback((selection: SelectionData) => {
     handleAnnotationRequested({ selector: selectionToSelector(selection), motivation: 'tagging' });
   }, [handleAnnotationRequested, selectionToSelector]);
 
-  const handleAssessmentRequested = useCallback((selection: any) => {
+  const handleAssessmentRequested = useCallback((selection: SelectionData) => {
     handleAnnotationRequested({ selector: selectionToSelector(selection), motivation: 'assessing' });
   }, [handleAnnotationRequested, selectionToSelector]);
 
-  const handleReferenceRequested = useCallback((selection: any) => {
+  const handleReferenceRequested = useCallback((selection: SelectionData) => {
     handleAnnotationRequested({ selector: selectionToSelector(selection), motivation: 'linking' });
   }, [handleAnnotationRequested, selectionToSelector]);
 
@@ -216,7 +217,7 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
   // Auto-dismiss timeout ref
   const progressDismissTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleDetectionProgress = useCallback((chunk: any) => {
+  const handleDetectionProgress = useCallback((chunk: DetectionProgress) => {
     setDetectionProgress(chunk);
   }, []);
 
@@ -271,7 +272,7 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
     const handleAnnotationCreate = async (event: {
       motivation: Motivation;
       selector: Selector | Selector[];
-      body: any[];
+      body: components['schemas']['AnnotationBody'][];
     }) => {
       const currentClient = clientRef.current;
       const currentRUri = rUriRef.current;
@@ -324,7 +325,7 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
       motivation: Motivation;
       options: {
         instructions?: string;
-        tone?: string;
+        tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical';
         density?: number;
         entityTypes?: string[];
         includeDescriptiveReferences?: boolean;
@@ -358,14 +359,15 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
             throw new Error('Tag detection requires schemaId and categories');
           }
           const stream = currentClient.sse.detectTags(currentRUri, { schemaId, categories }, auth);
-          stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk as any); });
+          stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk); });
           stream.onComplete((finalChunk) => {
-            eventBus.emit('detection:progress', finalChunk as any);
+            eventBus.emit('detection:progress', finalChunk);
             eventBus.emit('detection:complete', { motivation: event.motivation });
           });
           stream.onError((error) => {
             console.error('Detection failed:', error);
-            eventBus.emit('detection:failed', { error: error as Error } as any);
+            setDetectingMotivation(null);
+            setDetectionProgress(null);
           });
         } else if (event.motivation === 'linking') {
           const { entityTypes, includeDescriptiveReferences } = event.options;
@@ -373,65 +375,70 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
             throw new Error('Reference detection requires entityTypes');
           }
           const stream = currentClient.sse.detectReferences(currentRUri, {
-            entityTypes: entityTypes as any,
+            entityTypes: entityTypes.map(et => entityType(et)),
             includeDescriptiveReferences: includeDescriptiveReferences || false,
           }, auth);
-          stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk as any); });
+          stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk); });
           stream.onComplete((finalChunk) => {
-            eventBus.emit('detection:progress', finalChunk as any);
+            eventBus.emit('detection:progress', finalChunk);
             eventBus.emit('detection:complete', { motivation: event.motivation });
           });
           stream.onError((error) => {
             console.error('[useDetectionFlow] Detection failed:', error);
-            eventBus.emit('detection:failed', { error: error as Error } as any);
+            setDetectingMotivation(null);
+            setDetectionProgress(null);
           });
         } else if (event.motivation === 'highlighting') {
           const stream = currentClient.sse.detectHighlights(currentRUri, {
             instructions: event.options.instructions,
           }, auth);
-          stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk as any); });
+          stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk); });
           stream.onComplete((finalChunk) => {
-            eventBus.emit('detection:progress', finalChunk as any);
+            eventBus.emit('detection:progress', finalChunk);
             eventBus.emit('detection:complete', { motivation: event.motivation });
           });
           stream.onError((error) => {
             console.error('Detection failed:', error);
-            eventBus.emit('detection:failed', { error: error as Error } as any);
+            setDetectingMotivation(null);
+            setDetectionProgress(null);
           });
         } else if (event.motivation === 'assessing') {
           const stream = currentClient.sse.detectAssessments(currentRUri, {
             instructions: event.options.instructions,
           }, auth);
-          stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk as any); });
+          stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk); });
           stream.onComplete((finalChunk) => {
-            eventBus.emit('detection:progress', finalChunk as any);
+            eventBus.emit('detection:progress', finalChunk);
             eventBus.emit('detection:complete', { motivation: event.motivation });
           });
           stream.onError((error) => {
             console.error('[useDetectionFlow] Assessment detection error:', error);
-            eventBus.emit('detection:failed', { error: error as Error } as any);
+            setDetectingMotivation(null);
+            setDetectionProgress(null);
           });
         } else if (event.motivation === 'commenting') {
           const stream = currentClient.sse.detectComments(currentRUri, {
             instructions: event.options.instructions,
-            tone: event.options.tone as any,
+            tone: event.options.tone,
           }, auth);
-          stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk as any); });
+          stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk); });
           stream.onComplete((finalChunk) => {
-            eventBus.emit('detection:progress', finalChunk as any);
+            eventBus.emit('detection:progress', finalChunk);
             eventBus.emit('detection:complete', { motivation: event.motivation });
           });
           stream.onError((error) => {
             console.error('Detection failed:', error);
-            eventBus.emit('detection:failed', { error: error as Error } as any);
+            setDetectingMotivation(null);
+            setDetectionProgress(null);
           });
         }
       } catch (error) {
-        if ((error as any).name === 'AbortError') {
+        if (error instanceof Error && error.name === 'AbortError') {
           eventBus.emit('detection:cancelled', undefined);
         } else {
           console.error('Detection failed:', error);
-          eventBus.emit('detection:failed', { error: error as Error } as any);
+          setDetectingMotivation(null);
+          setDetectionProgress(null);
         }
       }
     };

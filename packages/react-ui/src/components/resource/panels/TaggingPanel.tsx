@@ -279,10 +279,9 @@ export function TaggingPanel({
                         selector: pendingAnnotation.selector,
                         body: [
                           {
-                            type: 'TextualBody',
+                            type: 'TextualBody' as const,
                             value: e.target.value,
-                            purpose: 'tagging',
-                            schema: selectedSchemaId,
+                            purpose: 'tagging' as const,
                           },
                         ],
                       });

@@ -137,8 +137,8 @@ export function AssessmentPanel({
 
   const handleSaveNewAssessment = () => {
     if (pendingAnnotation) {
-      const body = newAssessmentText.trim()
-        ? [{ type: 'TextualBody', value: newAssessmentText, purpose: 'assessing' }]
+      const body: components['schemas']['AnnotationBody'][] = newAssessmentText.trim()
+        ? [{ type: 'TextualBody' as const, value: newAssessmentText, purpose: 'assessing' as const }]
         : [];
 
       eventBus.emit('annotation:create', {
