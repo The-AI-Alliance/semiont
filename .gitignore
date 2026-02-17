@@ -84,3 +84,8 @@ packages/*/scripts/*.d.ts.map
 apps/*/scripts/*.js.map
 apps/*/scripts/*.d.ts
 apps/*/scripts/*.d.ts.map
+
+# Compliance audit generated files
+**/scripts/symbols.json
+REACT-UI-COMPLIANCE.md
+FRONTEND-COMPLIANCE.md

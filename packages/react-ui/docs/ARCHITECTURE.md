@@ -112,7 +112,7 @@ export function useResources() {
 
 ### Event-Driven Architecture
 
-**Principle:** Components communicate via events, not callback props.
+**Principle:** Components communicate via events using a three-layer pattern.
 
 **Why:**
 
@@ -122,124 +122,68 @@ export function useResources() {
 - Automatic cache invalidation via events
 - Foundation for real-time collaboration
 - Components can be anywhere in the tree (no parent-child requirement)
+- Clean separation between service, hook, and component layers
 
-**How:**
+**Three-Layer Pattern:**
 
-- Unified event bus for both backend SSE events and UI interaction events
-- `MakeMeaningEventBusProvider` creates resource-scoped event bus
-- Components emit events instead of calling callback props
-- Components subscribe to events instead of receiving callback props
-- React Query cache invalidates automatically via event subscriptions
+1. **Service Layer**: SSE connection management (`useResourceEvents`)
+2. **Hook Layer**: Event subscriptions + React state (`useEventSubscriptions` + `useState`)
+3. **Component Layer**: Pure React (hooks + JSX)
 
-**Backend Events (from Make-Meaning via SSE):**
-
-- Detection lifecycle: `detection:started`, `detection:progress`, `detection:completed`
-- Generation lifecycle: `generation:started`, `generation:progress`, `generation:completed`
-- Annotation lifecycle: `annotation:added`, `annotation:removed`, `annotation:updated`
-- Entity tags: `entity-tag:added`, `entity-tag:removed`
-- Resource changes: `resource:archived`, `resource:unarchived`
-
-**UI Events (Local User Interactions):**
-
-- Selection events: `ui:selection:comment-requested`, `ui:selection:tag-requested`, `ui:selection:assessment-requested`, `ui:selection:reference-requested`
-
-**Example - Before (Callback Props):**
+**Example - Three Layers in Action:**
 
 ```tsx
-// ❌ WRONG - Callback prop drilling (4 layers deep)
-interface ResourceViewerProps {
-  onCommentRequested: (selection: Selection) => void;
-  onTagRequested: (selection: Selection) => void;
-  onAssessmentRequested: (selection: Selection) => void;
-  // ... 14 more callback props
+// Layer 1 (Service): SSE connection
+function ResourceViewerPage({ rUri }) {
+  useResourceEvents(rUri);  // Opens SSE, emits events to bus
+  // ...
 }
 
-function ResourceViewer({ onCommentRequested, ...callbacks }: ResourceViewerProps) {
-  return <TextSelector onCommentRequested={onCommentRequested} />;
+// Layer 2 (Hook): State management from events
+export function useDetectionFlow(rUri: ResourceUri) {
+  const [detecting, setDetecting] = useState(null);
+
+  useEventSubscriptions({
+    'detection:start': ({ motivation }) => setDetecting(motivation),
+    'detection:complete': () => setDetecting(null),
+  });
+
+  return { detecting };
 }
 
-// TextSelector must receive callback as prop
-function TextSelector({ onCommentRequested }: { onCommentRequested: (sel: Selection) => void }) {
-  const handleSelection = (sel: Selection) => {
-    onCommentRequested(sel); // Call parent's callback
-  };
-  return <div onMouseUp={handleSelection}>...</div>;
+// Layer 3 (Component): UI rendering
+function ResourceViewerPage({ rUri }) {
+  const { detecting } = useDetectionFlow(rUri);
+  return <div>{detecting && <p>Detecting...</p>}</div>;
 }
 ```
 
-**Example - After (Events):**
+**Real Results from MAKE-IT-STOP Refactoring:**
 
-```tsx
-// ✅ CORRECT - Event emission (0 layers)
-function TextSelector() {
-  const eventBus = useMakeMeaningEvents();
-
-  const handleSelection = (selection: Selection) => {
-    // Emit event - no callback props needed
-    eventBus.emit('ui:selection:comment-requested', {
-      exact: selection.exact,
-      start: selection.start,
-      end: selection.end,
-      prefix: extractPrefix(selection.start),
-      suffix: extractSuffix(selection.end)
-    });
-  };
-
-  return <div onMouseUp={handleSelection}>...</div>;
-}
-
-// Another component subscribes to the event (can be anywhere in tree)
-function AnnotationPanel() {
-  const eventBus = useMakeMeaningEvents();
-  const [pendingAnnotation, setPendingAnnotation] = useState(null);
-
-  useEffect(() => {
-    const handler = (selection) => {
-      setPendingAnnotation({
-        selector: {
-          type: 'TextQuoteSelector',
-          exact: selection.exact,
-          start: selection.start,
-          end: selection.end,
-          prefix: selection.prefix,
-          suffix: selection.suffix
-        },
-        motivation: 'commenting'
-      });
-    };
-
-    eventBus.on('ui:selection:comment-requested', handler);
-    return () => eventBus.off('ui:selection:comment-requested', handler);
-  }, [eventBus]);
-
-  return <div>{/* Render annotation form */}</div>;
-}
-```
-
-**Real Results:**
-
-- **ResourceViewer:** 17 callback props → 0 callback props (100% elimination)
-- **ResourceViewer:** 9 useRef (callback stabilization) → 0 useRef (100% elimination)
-- **ResourceViewer:** 30+ total props → 6 props (80% reduction)
-- **Event-based cache invalidation:** Zero manual `refetch()` calls
+- **Eliminated render props:** 4 container components (636 lines) → 4 hooks (200 lines)
+- **Reduced indirection:** ~1,370 lines → ~450 lines (67% reduction)
+- **Simplified ResourceViewerPage:** 734 lines → 601 lines
+- **Zero callback props:** 17 callback props eliminated (100%)
+- **Zero ref stabilization:** 9 useRef eliminated (100%)
 
 **Setup:**
 
 ```tsx
-import { MakeMeaningEventBusProvider } from '@semiont/react-ui';
+import { EventBusProvider } from '@semiont/react-ui';
 
-export default function ResourcePage({ params }: { params: { id: string } }) {
-  const rUri = resourceUri(params.id);
-
+export default function App({ children }) {
   return (
-    <MakeMeaningEventBusProvider rUri={rUri}>
-      <ResourceViewerPage rUri={rUri} />
-    </MakeMeaningEventBusProvider>
+    <EventBusProvider>
+      {children}
+    </EventBusProvider>
   );
 }
 ```
 
-See [EVENTS.md](EVENTS.md) for complete documentation.
+**📖 Complete Documentation:**
+- **[SERVICE-HOOK-COMPONENT.md](SERVICE-HOOK-COMPONENT.md)** - Three-layer architecture guide
+- **[EVENTS.md](EVENTS.md)** - Event bus usage and patterns
+- **[RXJS-SERVICE-HOOK-COMPONENT-INVARIANTS.md](../../../RXJS-SERVICE-HOOK-COMPONENT-INVARIANTS.md)** - Architectural invariants
 
 ---
 

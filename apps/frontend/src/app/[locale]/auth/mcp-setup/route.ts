@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { SERVER_API_URL } from '@/lib/env';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
-import { SemiontApiClient, baseUrl, accessToken } from '@semiont/api-client';
+import { SemiontApiClient, type BaseUrl, type AccessToken } from '@semiont/api-client';
 
 // Mark this route as dynamic to prevent static optimization during build
 export const dynamic = 'force-dynamic';
@@ -43,14 +43,13 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Create api-client with user's token
+    // Create stateless api-client
     const client = new SemiontApiClient({
-      baseUrl: baseUrl(SERVER_API_URL),
-      accessToken: accessToken(session.backendToken)
+      baseUrl: SERVER_API_URL as BaseUrl,
     });
 
-    // Generate MCP refresh token using api-client
-    const data = await client.generateMCPToken();
+    // Generate MCP refresh token using api-client with auth
+    const data = await client.generateMCPToken({ auth: session.backendToken as AccessToken });
     const refreshToken = data.refresh_token;
 
     // Redirect to CLI callback with token

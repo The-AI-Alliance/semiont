@@ -1,18 +1,17 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText, getCommentText } from '@semiont/api-client';
+import { useEventBus } from '../../../contexts/EventBusContext';
 
 type Annotation = components['schemas']['Annotation'];
 
 interface CommentEntryProps {
   comment: Annotation;
   isFocused: boolean;
-  onClick: () => void;
-  onCommentRef: (commentId: string, el: HTMLElement | null) => void;
-  onCommentHover?: (commentId: string | null) => void;
+  isHovered?: boolean;
   annotateMode?: boolean;
 }
 
@@ -33,36 +32,37 @@ function formatRelativeTime(isoString: string): string {
   return date.toLocaleDateString();
 }
 
-export function CommentEntry({
-  comment,
-  isFocused,
-  onClick,
-  onCommentRef,
-  onCommentHover,
-  annotateMode = true,
-}: CommentEntryProps) {
+export const CommentEntry = forwardRef<HTMLDivElement, CommentEntryProps>(
+  function CommentEntry(
+    {
+      comment,
+      isFocused,
+      isHovered = false,
+      annotateMode = true,
+    },
+    ref
+  ) {
   const t = useTranslations('CommentsPanel');
+  const eventBus = useEventBus();
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState('');
-  const commentRef = useRef<HTMLDivElement>(null);
+  const internalRef = useRef<HTMLDivElement>(null);
 
-  // Register ref with parent
-  useEffect(() => {
-    onCommentRef(comment.id, commentRef.current);
-    return () => {
-      onCommentRef(comment.id, null);
-    };
-  }, [comment.id, onCommentRef]);
-
-  // Scroll to comment when focused
-  useEffect(() => {
-    if (isFocused && commentRef.current) {
-      commentRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }, [isFocused]);
+  // Combine external ref with internal ref
+  useImperativeHandle(ref, () => internalRef.current!);
 
   const commentText = getCommentText(comment) || '';
   const selectedText = getAnnotationExactText(comment);
+
+  // Scroll into view when focused
+  useEffect(() => {
+    if (isFocused && internalRef.current) {
+      internalRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+  }, [isFocused]);
 
   const handleEditClick = () => {
     setEditText(commentText);
@@ -81,13 +81,19 @@ export function CommentEntry({
 
   return (
     <div
-      ref={commentRef}
-      className="semiont-annotation-entry"
+      ref={internalRef}
+      className={`semiont-annotation-entry${isHovered ? ' semiont-annotation-pulse' : ''}`}
       data-type="comment"
       data-focused={isFocused ? 'true' : 'false'}
-      onClick={onClick}
-      onMouseEnter={() => onCommentHover?.(comment.id)}
-      onMouseLeave={() => onCommentHover?.(null)}
+      onClick={() => {
+        eventBus.emit('annotation:click', { annotationId: comment.id, motivation: comment.motivation });
+      }}
+      onMouseEnter={() => {
+        eventBus.emit('annotation:hover', { annotationId: comment.id });
+      }}
+      onMouseLeave={() => {
+        eventBus.emit('annotation:hover', { annotationId: null });
+      }}
     >
       {/* Selected text quote - only for text annotations */}
       {selectedText && (
@@ -153,4 +159,4 @@ export function CommentEntry({
       )}
     </div>
   );
-}
+});

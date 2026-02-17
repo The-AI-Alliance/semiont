@@ -2,8 +2,10 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import type { ResourceUri, SSEStream } from '@semiont/api-client';
+import { accessToken } from '@semiont/api-client';
 import type { ResourceEvent } from '@semiont/core';
 import { useApiClient } from '../contexts/ApiClientContext';
+import { useAuthToken } from '../contexts/AuthTokenContext';
 
 /**
  * Stream connection status
@@ -59,6 +61,7 @@ export function useResourceEvents({
   autoConnect = true,
 }: UseResourceEventsOptions) {
   const client = useApiClient();
+  const token = useAuthToken();
   const [status, setStatus] = useState<StreamStatus>('disconnected');
   const [lastEvent, setLastEvent] = useState<ResourceEvent | null>(null);
   const [eventCount, setEventCount] = useState(0);
@@ -151,8 +154,8 @@ export function useResourceEvents({
     setStatus('connecting');
 
     try {
-      // Start SSE stream using api-client
-      const stream = client.sse.resourceEvents(rUri);
+      // Start SSE stream using api-client (pass token for auth)
+      const stream = client.sse.resourceEvents(rUri, token ? { auth: accessToken(token) } : undefined);
       streamRef.current = stream;
 
       // Handle progress events (all resource events)

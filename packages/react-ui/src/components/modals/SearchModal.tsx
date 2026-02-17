@@ -112,7 +112,7 @@ export function SearchModal({
       setSelectedIndex(0);
       announceSearchResults(allResults.length, debouncedQuery);
     }
-  }, [searchData, loading, debouncedQuery, announceSearchResults, announceSearching]);
+  }, [searchData, loading, debouncedQuery]);
 
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {

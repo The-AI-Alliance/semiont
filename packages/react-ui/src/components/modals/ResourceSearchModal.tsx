@@ -74,14 +74,14 @@ export function ResourceSearchModal({
     if (!loading && debouncedSearch) {
       announceSearchResults(results.length, debouncedSearch);
     }
-  }, [loading, results.length, debouncedSearch, announceSearchResults]);
+  }, [loading, results.length, debouncedSearch]);
 
   // Announce when searching
   useEffect(() => {
     if (loading && debouncedSearch) {
       announceSearching();
     }
-  }, [loading, debouncedSearch, announceSearching]);
+  }, [loading, debouncedSearch]);
 
   // Update search term when modal opens
   useEffect(() => {

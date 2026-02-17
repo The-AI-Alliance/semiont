@@ -34,11 +34,8 @@ const createMockProps = (overrides?: Partial<AdminDevOpsPageProps>): AdminDevOps
     },
   ],
   theme: 'light',
-  onThemeChange: vi.fn(),
   showLineNumbers: false,
-  onLineNumbersToggle: vi.fn(),
   activePanel: null,
-  onPanelToggle: vi.fn(),
   translations: {
     title: 'DevOps',
     subtitle: 'System monitoring and management',
@@ -303,30 +300,6 @@ describe('AdminDevOpsPage', () => {
       );
     });
 
-    it('passes onThemeChange to toolbar panels', () => {
-      const onThemeChange = vi.fn();
-      const ToolbarPanels = vi.fn(() => <div data-testid="toolbar-panels" />);
-      const props = createMockProps({ onThemeChange, ToolbarPanels });
-      render(<AdminDevOpsPage {...props} />);
-
-      expect(ToolbarPanels).toHaveBeenCalledWith(
-        expect.objectContaining({ onThemeChange }),
-        expect.anything()
-      );
-    });
-
-    it('passes onLineNumbersToggle to toolbar panels', () => {
-      const onLineNumbersToggle = vi.fn();
-      const ToolbarPanels = vi.fn(() => <div data-testid="toolbar-panels" />);
-      const props = createMockProps({ onLineNumbersToggle, ToolbarPanels });
-      render(<AdminDevOpsPage {...props} />);
-
-      expect(ToolbarPanels).toHaveBeenCalledWith(
-        expect.objectContaining({ onLineNumbersToggle }),
-        expect.anything()
-      );
-    });
-
     it('passes activePanel to toolbar panels', () => {
       const ToolbarPanels = vi.fn(() => <div data-testid="toolbar-panels" />);
       const props = createMockProps({ activePanel: 'settings', ToolbarPanels });
@@ -360,17 +333,6 @@ describe('AdminDevOpsPage', () => {
       );
     });
 
-    it('passes onPanelToggle to toolbar', () => {
-      const onPanelToggle = vi.fn();
-      const Toolbar = vi.fn(() => <div data-testid="toolbar" />);
-      const props = createMockProps({ onPanelToggle, Toolbar });
-      render(<AdminDevOpsPage {...props} />);
-
-      expect(Toolbar).toHaveBeenCalledWith(
-        expect.objectContaining({ onPanelToggle }),
-        expect.anything()
-      );
-    });
   });
 
   describe('Layout and Structure', () => {
@@ -430,14 +392,7 @@ describe('AdminDevOpsPage', () => {
     });
 
     it('handles all callbacks being defined', () => {
-      const onThemeChange = vi.fn();
-      const onLineNumbersToggle = vi.fn();
-      const onPanelToggle = vi.fn();
-      const props = createMockProps({
-        onThemeChange,
-        onLineNumbersToggle,
-        onPanelToggle,
-      });
+      const props = createMockProps();
       render(<AdminDevOpsPage {...props} />);
 
       expect(screen.getByText('DevOps')).toBeInTheDocument();

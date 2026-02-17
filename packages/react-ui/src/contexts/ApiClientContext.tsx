@@ -1,41 +1,52 @@
 'use client';
 
-import { createContext, useContext, ReactNode } from 'react';
-import type { ApiClientManager } from '../types/ApiClientManager';
+import { createContext, useContext, ReactNode, useMemo } from 'react';
+import { SemiontApiClient, baseUrl } from '@semiont/api-client';
 
-const ApiClientContext = createContext<ApiClientManager | null>(null);
+const ApiClientContext = createContext<SemiontApiClient | undefined>(undefined);
 
 export interface ApiClientProviderProps {
-  apiClientManager: ApiClientManager;
+  baseUrl: string;
   children: ReactNode;
 }
 
 /**
- * Provider for API client management
- * Apps must provide an ApiClientManager implementation
+ * Provider for API client - creates a stateless singleton client
+ * The client instance never changes (no token dependency)
+ * Auth tokens are passed per-request via useAuthToken() in calling code
  */
 export function ApiClientProvider({
-  apiClientManager,
+  baseUrl: url,
   children,
 }: ApiClientProviderProps) {
+  // Client created once and never recreated (no token dependency)
+  const client = useMemo(
+    () => new SemiontApiClient({
+      baseUrl: baseUrl(url),
+      // Use no timeout in test environment to avoid AbortController issues with ky + vitest
+      ...(process.env.NODE_ENV !== 'test' && { timeout: 30000 }),
+    }),
+    [url] // Only baseUrl in deps, token removed
+  );
+
   return (
-    <ApiClientContext.Provider value={apiClientManager}>
+    <ApiClientContext.Provider value={client}>
       {children}
     </ApiClientContext.Provider>
   );
 }
 
 /**
- * Hook to access the API client
+ * Hook to access the stateless API client singleton
  * Must be used within an ApiClientProvider
- * @returns API client instance (null if not authenticated)
+ * @returns Stateless SemiontApiClient instance
  */
-export function useApiClient() {
+export function useApiClient(): SemiontApiClient {
   const context = useContext(ApiClientContext);
 
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useApiClient must be used within an ApiClientProvider');
   }
 
-  return context.client;
+  return context;
 }

@@ -6,7 +6,7 @@
  */
 
 import { resourceId, annotationId, type ResourceId, type AnnotationId } from './identifiers';
-import { resourceUri, annotationUri, type ResourceUri, type AnnotationUri } from '@semiont/api-client';
+import { resourceUri, annotationUri, type ResourceUri, type AnnotationUri, type ResourceAnnotationUri } from '@semiont/api-client';
 
 /**
  * Convert resource ID to full URI
@@ -80,4 +80,50 @@ export function uriToAnnotationId(uri: string): AnnotationId {
     throw new Error(`Invalid annotation URI: ${uri}`);
   }
   return annotationId(match[1]);
+}
+
+/**
+ * Extract annotation ID from URI or pass through if already an ID
+ *
+ * Defensive version of uriToAnnotationId that handles both:
+ * - Full URIs: "https://api.semiont.app/annotations/anno-xyz789" → "anno-xyz789"
+ * - Already IDs: "anno-xyz789" → "anno-xyz789"
+ *
+ * @param uriOrId - Full annotation URI or short ID
+ * @returns Short annotation ID
+ *
+ * @example
+ * uriToAnnotationIdOrPassthrough("https://api.semiont.app/annotations/anno-xyz789")
+ * // => "anno-xyz789"
+ *
+ * uriToAnnotationIdOrPassthrough("anno-xyz789")
+ * // => "anno-xyz789"
+ */
+export function uriToAnnotationIdOrPassthrough(uriOrId: string): AnnotationId {
+  // Try parsing as URI first
+  try {
+    return uriToAnnotationId(uriOrId);
+  } catch {
+    // If it fails, assume it's already an ID and return as-is
+    return annotationId(uriOrId);
+  }
+}
+
+/**
+ * Extract resource URI from nested annotation URI
+ *
+ * @param annotationUri - Nested ResourceAnnotationUri (e.g., "https://api.semiont.app/resources/doc-123/annotations/anno-456")
+ * @returns Resource URI (e.g., "https://api.semiont.app/resources/doc-123")
+ * @throws Error if URI format is invalid
+ *
+ * @example
+ * extractResourceUriFromAnnotationUri("https://api.semiont.app/resources/doc-123/annotations/anno-456")
+ * // => "https://api.semiont.app/resources/doc-123"
+ */
+export function extractResourceUriFromAnnotationUri(annotationUri: ResourceAnnotationUri): ResourceUri {
+  const parts = annotationUri.split('/annotations/');
+  if (parts.length !== 2) {
+    throw new Error(`Invalid annotation URI format: ${annotationUri}`);
+  }
+  return resourceUri(parts[0]);
 }

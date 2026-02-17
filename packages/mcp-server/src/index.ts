@@ -33,11 +33,14 @@ const SEMIONT_ENV = process.env.SEMIONT_ENV;
 const SEMIONT_API_URL = process.env.SEMIONT_API_URL;
 const SEMIONT_ACCESS_TOKEN = process.env.SEMIONT_ACCESS_TOKEN;
 
-// Create the Semiont API client
+// Create the stateless Semiont API client
+// Auth token is stored separately and passed per-request
 const apiClient = new SemiontApiClient({
   baseUrl: baseUrl(SEMIONT_API_URL),
-  accessToken: accessToken(SEMIONT_ACCESS_TOKEN),
 });
+
+// Store the access token to pass with each request
+const auth = accessToken(SEMIONT_ACCESS_TOKEN);
 
 // Create the MCP server
 const server = new Server(
@@ -290,46 +293,46 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     switch (name) {
       case 'semiont_create_resource':
-        return await handlers.handleCreateResource(apiClient, args);
+        return await handlers.handleCreateResource(apiClient, auth, args);
 
       case 'semiont_get_resource':
-        return await handlers.handleGetResource(apiClient, args?.id as string);
+        return await handlers.handleGetResource(apiClient, auth, args?.id as string);
 
       case 'semiont_list_resources':
-        return await handlers.handleListResources(apiClient, args);
+        return await handlers.handleListResources(apiClient, auth, args);
 
       case 'semiont_detect_selections':
-        return await handlers.handleDetectAnnotations(apiClient, args);
+        return await handlers.handleDetectAnnotations(apiClient, auth, args);
 
       case 'semiont_create_selection':
-        return await handlers.handleCreateAnnotation(apiClient, args);
+        return await handlers.handleCreateAnnotation(apiClient, auth, args);
 
       case 'semiont_save_selection':
-        return await handlers.handleSaveAnnotation(apiClient, args);
+        return await handlers.handleSaveAnnotation(apiClient, auth, args);
 
       case 'semiont_resolve_selection':
-        return await handlers.handleResolveAnnotation(apiClient, args);
+        return await handlers.handleResolveAnnotation(apiClient, auth, args);
 
       case 'semiont_generate_resource_from_selection':
-        return await handlers.handleGenerateResourceFromAnnotation(apiClient, args);
+        return await handlers.handleGenerateResourceFromAnnotation(apiClient, auth, args);
 
       case 'semiont_get_contextual_summary':
-        return await handlers.handleGetContextualSummary(apiClient, args);
+        return await handlers.handleGetContextualSummary(apiClient, auth, args);
 
       case 'semiont_get_schema_description':
-        return await handlers.handleGetSchemaDescription(apiClient);
+        return await handlers.handleGetSchemaDescription(apiClient, auth);
 
       case 'semiont_get_llm_context':
-        return await handlers.handleGetLLMContext(apiClient, args);
+        return await handlers.handleGetLLMContext(apiClient, auth, args);
 
       case 'semiont_get_resource_selections':
-        return await handlers.handleGetResourceAnnotations(apiClient, args);
+        return await handlers.handleGetResourceAnnotations(apiClient, auth, args);
 
       case 'semiont_get_resource_highlights':
-        return await handlers.handleGetResourceHighlights(apiClient, args || {});
+        return await handlers.handleGetResourceHighlights(apiClient, auth, args || {});
 
       case 'semiont_get_resource_references':
-        return await handlers.handleGetResourceReferences(apiClient, args || {});
+        return await handlers.handleGetResourceReferences(apiClient, auth, args || {});
 
       default:
         throw new Error(`Unknown tool: ${name}`);

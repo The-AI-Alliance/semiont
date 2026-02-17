@@ -3,7 +3,6 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { useAnnotations } from '../lib/api-hooks';
 import type { components, AnnotationUri, ResourceUri, Selector } from '@semiont/api-client';
-import { resourceAnnotationUri } from '@semiont/api-client';
 import { useDocumentAnnouncements } from '../components/LiveRegion';
 
 type Annotation = components['schemas']['Annotation'];
@@ -27,9 +26,6 @@ interface ResourceAnnotationsContextType {
     body?: any[]
   ) => Promise<Annotation | undefined>;
 
-  // Mutation actions
-  deleteAnnotation: (annotationId: string, rUri: ResourceUri) => Promise<void>;
-
   // UI actions
   clearNewAnnotationId: (id: AnnotationUri) => void;
   triggerSparkleAnimation: (annotationId: string) => void;
@@ -42,14 +38,13 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   const [newAnnotationIds, setNewAnnotationIds] = useState<Set<string>>(new Set());
 
   // Live region announcements
-  const { announceAnnotationCreated, announceAnnotationDeleted, announceError } = useDocumentAnnouncements();
+  const { announceAnnotationCreated, announceError } = useDocumentAnnouncements();
 
   // API hooks
   const annotations = useAnnotations();
 
   // Set up mutation hooks
   const createAnnotationMutation = annotations.create.useMutation();
-  const deleteAnnotationMutation = annotations.delete.useMutation();
 
   // Generic annotation creation function (supports both text and image annotations)
   const createAnnotation = useCallback(async (
@@ -98,23 +93,6 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
     }
   }, [createAnnotationMutation, announceAnnotationCreated, announceError]);
 
-  const deleteAnnotation = useCallback(async (annotationId: string, rUri: ResourceUri) => {
-    try {
-      // annotationId might be a full URI or just a UUID - extract the UUID
-      const annotationIdSegment = annotationId.split('/').pop() || annotationId;
-      await deleteAnnotationMutation.mutateAsync(
-        resourceAnnotationUri(`${rUri}/annotations/${annotationIdSegment}`)
-      );
-
-      // Announce the deletion
-      announceAnnotationDeleted();
-    } catch (err) {
-      console.error('Failed to delete annotation:', err);
-      announceError('Failed to delete annotation');
-      throw err;
-    }
-  }, [deleteAnnotationMutation, announceAnnotationDeleted, announceError]);
-
   const clearNewAnnotationId = useCallback((id: AnnotationUri) => {
     setNewAnnotationIds(prev => {
       const next = new Set(prev);
@@ -140,11 +118,10 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
     () => ({
       newAnnotationIds,
       createAnnotation,
-      deleteAnnotation,
       clearNewAnnotationId,
       triggerSparkleAnimation,
     }),
-    [newAnnotationIds, createAnnotation, deleteAnnotation, clearNewAnnotationId, triggerSparkleAnimation]
+    [newAnnotationIds, createAnnotation, clearNewAnnotationId, triggerSparkleAnimation]
   );
 
   return (

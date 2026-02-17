@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useRef, useState, useCallback, useEffect } from 'react';
+import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import type { components, ResourceUri } from '@semiont/api-client';
 import { getTargetSelector } from '@semiont/api-client';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
+import type { EventBus } from '../../contexts/EventBusContext';
 import {
   canvasToPdfCoordinates,
   pdfToCanvasCoordinates,
@@ -50,26 +51,31 @@ interface PdfAnnotationCanvasProps {
   existingAnnotations?: Annotation[];
   drawingMode: DrawingMode;
   selectedMotivation?: SelectionMotivation | null;
-  onAnnotationCreate?: (fragmentSelector: string, position?: { x: number; y: number }) => void;
-  onAnnotationClick?: (annotation: Annotation) => void;
-  onAnnotationHover?: (annotationId: string | null) => void;
+  eventBus?: EventBus;
   hoveredAnnotationId?: string | null;
   selectedAnnotationId?: string | null;
 }
 
+/**
+ * PDF annotation canvas with page navigation and rectangle drawing
+ *
+ * @emits annotation:click - Annotation clicked on PDF. Payload: { annotationId: string, motivation: Motivation }
+ * @emits annotation:requested - New annotation drawn on PDF. Payload: { selector: FragmentSelector, motivation: SelectionMotivation }
+ * @emits annotation:hover - Annotation hovered or unhovered. Payload: { annotationId: string | null }
+ */
 export function PdfAnnotationCanvas({
   resourceUri,
   existingAnnotations = [],
   drawingMode,
   selectedMotivation,
-  onAnnotationCreate,
-  onAnnotationClick,
-  onAnnotationHover,
+  eventBus,
   hoveredAnnotationId,
   selectedAnnotationId
 }: PdfAnnotationCanvasProps) {
-  const resourceId = resourceUri.split('/').pop();
-  const pdfUrl = `/api/resources/${resourceId}`;
+  const pdfUrl = useMemo(() => {
+    const resourceId = resourceUri.split('/').pop();
+    return `/api/resources/${resourceId}`;
+  }, [resourceUri]);
 
   // Removed excessive logging
 
@@ -90,6 +96,9 @@ export function PdfAnnotationCanvas({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+
+  // Track current hover state to prevent redundant emissions
+  const currentHover = useRef<string | null>(null);
 
   // Load PDF document on mount
   useEffect(() => {
@@ -233,7 +242,7 @@ export function PdfAnnotationCanvas({
   }, [isDrawing, selection]);
 
   const handleMouseUp = useCallback(() => {
-    if (!isDrawing || !selection || !pageDimensions || !displayDimensions || !onAnnotationCreate) {
+    if (!isDrawing || !selection || !pageDimensions || !displayDimensions || !eventBus) {
       setIsDrawing(false);
       setSelection(null);
       return;
@@ -250,7 +259,7 @@ export function PdfAnnotationCanvas({
 
     if (dragDistance < MIN_DRAG_DISTANCE) {
       // This was a click, not a drag - check if we clicked an existing annotation
-      if (onAnnotationClick && existingAnnotations.length > 0) {
+      if (existingAnnotations.length > 0) {
         const clickedAnnotation = pageAnnotations.find(ann => {
           const fragmentSel = getFragmentSelector(ann.target);
           if (!fragmentSel) return false;
@@ -278,7 +287,7 @@ export function PdfAnnotationCanvas({
         });
 
         if (clickedAnnotation) {
-          onAnnotationClick(clickedAnnotation);
+          eventBus?.emit('annotation:click', { annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
           setIsDrawing(false);
           setSelection(null);
           return;
@@ -315,23 +324,24 @@ export function PdfAnnotationCanvas({
     // Create FragmentSelector
     const fragmentSelector = createFragmentSelector(pdfCoord);
 
-    // Calculate center position for popup placement (in screen coordinates)
-    const centerX = (selection.startX + selection.endX) / 2;
-    const centerY = (selection.startY + selection.endY) / 2;
-    const rect = imageRef.current?.getBoundingClientRect();
-    const screenPosition = rect ? {
-      x: rect.left + centerX,
-      y: rect.top + centerY
-    } : undefined;
-
-    onAnnotationCreate(fragmentSelector, screenPosition);
+    // Emit annotation:requested event with FragmentSelector
+    if (selectedMotivation) {
+      eventBus.emit('annotation:requested', {
+        selector: {
+          type: 'FragmentSelector',
+          conformsTo: 'http://tools.ietf.org/rfc/rfc3778',
+          value: fragmentSelector
+        },
+        motivation: selectedMotivation
+      });
+    }
 
     // Keep drawing state active to show preview until annotation is persisted
     // The parent component should clear this by changing drawingMode after save
     setIsDrawing(false);
     // Note: We keep selection so the preview remains visible
     // It will be cleared when drawingMode changes or user starts new selection
-  }, [isDrawing, selection, pageNumber, pageDimensions, displayDimensions, onAnnotationCreate, onAnnotationClick, existingAnnotations]);
+  }, [isDrawing, selection, pageNumber, pageDimensions, displayDimensions, selectedMotivation, existingAnnotations]);
 
   // Helper to get FragmentSelector from annotation target
   const getFragmentSelector = (target: Annotation['target']) => {
@@ -351,6 +361,21 @@ export function PdfAnnotationCanvas({
     const page = getPageFromFragment(fragmentSel.value);
     return page === pageNumber;
   });
+
+  // Hover handlers with state tracking
+  const handleMouseEnter = (annotationId: string) => {
+    if (currentHover.current !== annotationId) {
+      currentHover.current = annotationId;
+      eventBus?.emit('annotation:hover', { annotationId });
+    }
+  };
+
+  const handleMouseLeave = () => {
+    if (currentHover.current !== null) {
+      currentHover.current = null;
+      eventBus?.emit('annotation:hover', { annotationId: null });
+    }
+  };
 
   // Calculate motivation color
   const { stroke, fill } = getMotivationColor(selectedMotivation ?? null);
@@ -448,9 +473,9 @@ export function PdfAnnotationCanvas({
                         cursor: 'pointer',
                         opacity: isSelected ? 1 : isHovered ? 0.9 : 0.7
                       }}
-                      onClick={() => onAnnotationClick?.(ann)}
-                      onMouseEnter={() => onAnnotationHover?.(ann.id)}
-                      onMouseLeave={() => onAnnotationHover?.(null)}
+                      onClick={() => eventBus?.emit('annotation:click', { annotationId: ann.id, motivation: ann.motivation })}
+                      onMouseEnter={() => handleMouseEnter(ann.id)}
+                      onMouseLeave={handleMouseLeave}
                     />
                   );
                 })}

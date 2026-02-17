@@ -41,16 +41,16 @@ export async function GET(
     .join(', ') || '*/*';
 
   try {
-    // Create api-client with session token
+    // Create stateless api-client
     const client = new SemiontApiClient({
       baseUrl: backendUrl as BaseUrl,
-      accessToken: session.backendToken as AccessToken,
     });
 
     // Get resource representation as stream (avoids loading entire file into memory)
     const rUri = resourceUri(`${backendUrl}/resources/${id}`);
     const { stream, contentType } = await client.getResourceRepresentationStream(rUri as ResourceUri, {
       accept: acceptHeader as ContentFormat,
+      auth: session.backendToken as AccessToken,
     });
 
     // Stream through to client - NextResponse accepts ReadableStream

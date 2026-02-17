@@ -2,7 +2,8 @@
 
 import React, { useContext } from 'react';
 import { useTranslations } from 'next-intl';
-import { LeftSidebar, Footer } from '@semiont/react-ui';
+import { useSession } from 'next-auth/react';
+import { LeftSidebar, Footer, EventBusProvider, ApiClientProvider, AuthTokenProvider } from '@semiont/react-ui';
 import { ModerationNavigation } from '@/components/moderation/ModerationNavigation';
 import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
@@ -22,38 +23,54 @@ export default function ModerateLayout({
   const tHome = useTranslations('Home');
   const keyboardContext = useContext(KeyboardShortcutsContext);
   const { isAuthenticated, isAdmin, isModerator } = useAuth();
+  const { data: session } = useSession();
+
+  // Extract auth token from session
+  const authToken = session?.backendToken || null;
 
   // Middleware has already verified moderator/admin access
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
-        <div className="flex flex-1">
-          <LeftSidebar
-            Link={Link}
-            routes={routes}
-            t={tNav}
-            tHome={tHome}
-            brandingLink="/"
-            isAuthenticated={isAuthenticated}
-            isAdmin={isAdmin}
-            isModerator={isModerator}
-          >
-            {(isCollapsed, toggleCollapsed, navigationMenu) => (
-              <ModerationNavigation navigationMenu={navigationMenu} />
-            )}
-          </LeftSidebar>
-          <main className="flex-1 p-6 flex flex-col">
-            <div className="max-w-7xl mx-auto flex-1 flex flex-col w-full">
-              {children}
+    <AuthTokenProvider token={authToken}>
+      <ApiClientProvider baseUrl="">
+        <EventBusProvider>
+          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
+            <div className="flex flex-1">
+              <LeftSidebar
+                Link={Link}
+                routes={routes}
+                t={tNav}
+                tHome={tHome}
+                brandingLink="/"
+                collapsible={true}
+                storageKey="moderation-sidebar-collapsed"
+                isAuthenticated={isAuthenticated}
+                isAdmin={isAdmin}
+                isModerator={isModerator}
+              >
+                {(isCollapsed, toggleCollapsed, navigationMenu) => (
+                  <ModerationNavigation
+                    isCollapsed={isCollapsed}
+                    toggleCollapsed={toggleCollapsed}
+                    navigationMenu={navigationMenu}
+                  />
+                )}
+              </LeftSidebar>
+              <main className="flex-1 p-6 flex flex-col">
+                <div className="max-w-7xl mx-auto flex-1 flex flex-col w-full">
+                  {children}
+                </div>
+              </main>
             </div>
-          </main>
-        </div>
-      <Footer
-        Link={Link}
-        routes={routes}
-        t={t}
-        CookiePreferences={CookiePreferences}
-        {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
-      />
-    </div>
+            <Footer
+              Link={Link}
+              routes={routes}
+              t={t}
+              CookiePreferences={CookiePreferences}
+              {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
+            />
+          </div>
+        </EventBusProvider>
+      </ApiClientProvider>
+    </AuthTokenProvider>
   );
 }

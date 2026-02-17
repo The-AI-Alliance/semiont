@@ -7,7 +7,6 @@
 // Types
 export * from './types/annotation-props';
 export * from './types/AnnotationManager';
-export * from './types/ApiClientManager';
 export * from './types/CacheManager';
 export * from './types/navigation';
 export type { OpenResourcesManager } from './types/OpenResourcesManager';
@@ -15,6 +14,7 @@ export { type OpenResource as OpenResourceFromManager } from './types/OpenResour
 export * from './types/SessionManager';
 export * from './types/TranslationManager';
 export * from './types/resource-viewer';
+export * from './types/progress';
 
 // Lib utilities
 export * from './lib/annotation-registry';
@@ -32,14 +32,13 @@ export * from './lib/tag-schemas';
 export * from './lib/validation';
 
 // Hooks
-export * from './hooks/useAnnotationPanel';
 export * from './hooks/useDebounce';
-export * from './hooks/useDetectionProgress';
 export * from './hooks/useFormattedTime';
 export { useFormValidation, validationRules } from './hooks/useFormValidation';
 export * from './hooks/useGenerationProgress';
 export * from './hooks/useKeyboardShortcuts';
 export * from './hooks/useLineNumbers';
+export * from './hooks/useObservableNavigation';
 export * from './hooks/usePanelWidth';
 export * from './hooks/useResourceEvents';
 export * from './hooks/useRovingTabIndex';
@@ -49,13 +48,17 @@ export * from './hooks/useToolbar';
 // Note: useToast is already exported from ./components/Toast
 // Note: useDebounce is already exported from ./hooks/useDebounce
 export { useDropdown, useLoadingState, useLocalStorage } from './hooks/useUI';
+export * from './hooks/useResourceContent';
 
 // Contexts
 export * from './contexts/AnnotationContext';
 export * from './contexts/AnnotationUIContext';
 export * from './contexts/ApiClientContext';
+export * from './contexts/AuthTokenContext';
 export * from './contexts/CacheContext';
-export * from './contexts/MakeMeaningEventBusContext';
+export * from './contexts/EventBusContext';
+export * from './contexts/useEventOperations';
+export * from './contexts/useEventSubscription';
 export * from './contexts/OpenResourcesContext';
 export * from './contexts/ResourceAnnotationsContext';
 export * from './contexts/RoutingContext';
@@ -125,6 +128,7 @@ export * from './components/viewers';
 // Components - Navigation
 export * from './components/navigation/Footer';
 export * from './components/navigation/NavigationMenu';
+export * from './components/navigation/ObservableLink';
 export * from './components/navigation/SimpleNavigation';
 export * from './components/navigation/CollapsibleResourceNavigation';
 export * from './components/navigation/SortableResourceTab';
@@ -207,3 +211,7 @@ export * from './features/resource-compose/components/ResourceComposePage';
 export * from './features/resource-discovery/components/ResourceDiscoveryPage';
 export * from './features/resource-discovery/components/ResourceCard';
 export * from './features/resource-viewer/components/ResourceViewerPage';
+export * from './hooks/useDetectionFlow';
+export * from './hooks/usePanelNavigation';
+export * from './hooks/useAnnotationFlow';
+export * from './hooks/useGenerationFlow';

@@ -8,6 +8,7 @@
  */
 
 import { useTranslations } from 'next-intl';
+import { useEffect, useCallback } from 'react';
 import {
   ChartBarIcon,
   ServerIcon,
@@ -15,7 +16,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { StatusDisplay, Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, useToolbar, useLineNumbers } from '@semiont/react-ui';
+import { useTheme, useToolbar, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
 import { AdminDevOpsPage } from '@semiont/react-ui';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -35,13 +36,24 @@ export default function DevOpsPage() {
   const t = useTranslations('AdminDevOps');
 
   // Toolbar and settings state
-  const { activePanel, togglePanel } = useToolbar();
+  const { activePanel } = useToolbar();
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
-  const handlePanelToggle = (panel: string | null) => {
-    if (panel) togglePanel(panel as any);
-  };
+  // Handle theme change events
+  const handleThemeChanged = useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => {
+    setTheme(theme);
+  }, [setTheme]);
+
+  // Handle line numbers toggle events
+  const handleLineNumbersToggled = useCallback(() => {
+    toggleLineNumbers();
+  }, [toggleLineNumbers]);
+
+  useEventSubscriptions({
+    'settings:theme-changed': handleThemeChanged,
+    'settings:line-numbers-toggled': handleLineNumbersToggled,
+  });
 
   const suggestedFeatures = [
     {
@@ -68,11 +80,8 @@ export default function DevOpsPage() {
     <AdminDevOpsPage
       suggestedFeatures={suggestedFeatures}
       theme={theme}
-      onThemeChange={setTheme}
       showLineNumbers={showLineNumbers}
-      onLineNumbersToggle={toggleLineNumbers}
       activePanel={activePanel}
-      onPanelToggle={handlePanelToggle}
       translations={{
         title: t('title'),
         subtitle: t('subtitle'),

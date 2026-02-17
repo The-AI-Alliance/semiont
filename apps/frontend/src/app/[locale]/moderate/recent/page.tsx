@@ -2,13 +2,14 @@
 
 import { notFound } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme } from '@semiont/react-ui';
 import { useToolbar } from '@semiont/react-ui';
 import { useLineNumbers } from '@semiont/react-ui';
+import { useEventSubscriptions } from '@semiont/react-ui';
 import { RecentDocumentsPage } from '@semiont/react-ui';
 
 export default function RecentDocumentsPageWrapper() {
@@ -16,13 +17,24 @@ export default function RecentDocumentsPageWrapper() {
   const { data: session, status } = useSession();
 
   // Toolbar and settings state
-  const { activePanel, togglePanel } = useToolbar();
+  const { activePanel } = useToolbar();
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
-  const handlePanelToggle = (panel: string | null) => {
-    if (panel) togglePanel(panel as any);
-  };
+  // Handle theme change events
+  const handleThemeChanged = useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => {
+    setTheme(theme);
+  }, [setTheme]);
+
+  // Handle line numbers toggle events
+  const handleLineNumbersToggled = useCallback(() => {
+    toggleLineNumbers();
+  }, [toggleLineNumbers]);
+
+  useEventSubscriptions({
+    'settings:theme-changed': handleThemeChanged,
+    'settings:line-numbers-toggled': handleLineNumbersToggled,
+  });
 
   // Check authentication and moderator/admin status
   useEffect(() => {
@@ -54,11 +66,8 @@ export default function RecentDocumentsPageWrapper() {
       hasDocuments={false}
       isLoading={false}
       theme={theme}
-      onThemeChange={setTheme}
       showLineNumbers={showLineNumbers}
-      onLineNumbersToggle={toggleLineNumbers}
       activePanel={activePanel}
-      onPanelToggle={handlePanelToggle}
       translations={{
         pageTitle: t('pageTitle'),
         pageDescription: t('pageDescription'),

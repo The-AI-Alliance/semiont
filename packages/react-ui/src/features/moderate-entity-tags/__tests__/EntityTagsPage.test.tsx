@@ -19,11 +19,8 @@ const createMockProps = (overrides?: Partial<EntityTagsPageProps>): EntityTagsPa
   onAddTag: vi.fn(),
   isAddingTag: false,
   theme: 'light',
-  onThemeChange: vi.fn(),
   showLineNumbers: false,
-  onLineNumbersToggle: vi.fn(),
   activePanel: null,
-  onPanelToggle: vi.fn(),
   translations: {
     pageTitle: 'Entity Tags',
     pageDescription: 'Manage entity type tags',

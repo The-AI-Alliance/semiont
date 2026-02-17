@@ -7,10 +7,10 @@
  * and delegates rendering to the pure React ResourceDiscoveryPage component.
  */
 
-import React from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
-import { useResources, useEntityTypes, useTheme, useToolbar, useLineNumbers } from '@semiont/react-ui';
+import { useResources, useEntityTypes, useTheme, useToolbar, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { ResourceDiscoveryPage } from '@semiont/react-ui';
 
@@ -22,13 +22,24 @@ export default function DiscoverPage() {
   const router = useRouter();
 
   // Toolbar and settings state
-  const { activePanel, togglePanel } = useToolbar();
+  const { activePanel } = useToolbar();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
-  const handlePanelToggle = (panel: string | null) => {
-    if (panel) togglePanel(panel as any);
-  };
+  // Handle theme change events
+  const handleThemeChanged = useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => {
+    setTheme(theme);
+  }, [setTheme]);
+
+  // Handle line numbers toggle events
+  const handleLineNumbersToggled = useCallback(() => {
+    toggleLineNumbers();
+  }, [toggleLineNumbers]);
+
+  useEventSubscriptions({
+    'settings:theme-changed': handleThemeChanged,
+    'settings:line-numbers-toggled': handleLineNumbersToggled,
+  });
 
   // API hooks
   const resources = useResources();
@@ -62,11 +73,8 @@ export default function DiscoverPage() {
       isLoadingRecent={isLoadingRecent}
       isSearching={isSearching}
       theme={resolvedTheme}
-      onThemeChange={setTheme}
       showLineNumbers={showLineNumbers}
-      onLineNumbersToggle={toggleLineNumbers}
       activePanel={activePanel}
-      onPanelToggle={handlePanelToggle}
       onNavigateToResource={(resourceId) => {
         router.push(`/know/resource/${encodeURIComponent(resourceId)}`);
       }}

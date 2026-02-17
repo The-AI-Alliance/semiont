@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import {
   getCookieConsent,
@@ -30,6 +30,12 @@ export function CookiePreferences({ isOpen, onClose }: CookiePreferencesProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  // Store callback in ref to avoid including in dependency arrays
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
   useEffect(() => {
     if (isOpen) {
       const currentConsent = getCookieConsent();
@@ -52,7 +58,7 @@ export function CookiePreferences({ isOpen, onClose }: CookiePreferencesProps) {
 
     const handleEsc = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onClose();
+        onCloseRef.current();
       }
     };
 
@@ -60,7 +66,7 @@ export function CookiePreferences({ isOpen, onClose }: CookiePreferencesProps) {
     return () => {
       document.removeEventListener('keydown', handleEsc);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   const handleSave = async () => {
     if (!consent) return;

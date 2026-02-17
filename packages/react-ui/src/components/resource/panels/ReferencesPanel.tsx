@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useMakeMeaningEvents } from '../../../contexts/MakeMeaningEventBusContext';
+import { useEventBus } from '../../../contexts/EventBusContext';
+import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
 import { DetectionProgressWidget } from '../../DetectionProgressWidget';
 import { ReferenceEntry } from './ReferenceEntry';
 import type { components, paths, Selector } from '@semiont/api-client';
-import { useAnnotationPanel } from '../../../hooks/useAnnotationPanel';
+import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
 import { PanelHeader } from './PanelHeader';
 import './ReferencesPanel.css';
 
@@ -47,12 +48,6 @@ interface DetectionLog {
 interface Props {
   // Generic panel props
   annotations?: Annotation[];
-  onAnnotationClick?: (annotation: Annotation) => void;
-  focusedAnnotationId?: string | null;
-  hoveredAnnotationId?: string | null;
-  onAnnotationHover?: (annotationId: string | null) => void;
-  onDetect?: (selectedTypes: string[], includeDescriptiveReferences?: boolean) => void;
-  onCreate: (entityType?: string) => void;
   isDetecting: boolean;
   detectionProgress: any; // TODO: type this properly
   annotateMode?: boolean;
@@ -61,46 +56,48 @@ interface Props {
 
   // Reference-specific props
   allEntityTypes: string[];
-  onCancelDetection: () => void;
-  onSearchDocuments?: (referenceId: string, searchTerm: string) => void;
-  onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
-  onCreateDocument?: (annotationUri: string, title: string, entityTypes: string[]) => void;
   generatingReferenceId?: string | null;
   referencedBy?: ReferencedBy[];
   referencedByLoading?: boolean;
   pendingAnnotation: PendingAnnotation | null;
+  scrollToAnnotationId?: string | null;
+  onScrollCompleted?: () => void;
+  hoveredAnnotationId?: string | null;
 }
 
+/**
+ * Panel for managing reference annotations with entity type detection
+ *
+ * @emits detection:start - Start reference detection. Payload: { motivation: 'linking', options: { entityTypes: string[], includeDescriptiveReferences: boolean } }
+ * @emits annotation:create - Create new reference annotation. Payload: { motivation: 'linking', selector: Selector | Selector[], body: Body[] }
+ * @emits annotation:cancel-pending - Cancel pending reference annotation. Payload: undefined
+ * @subscribes annotation:click - Annotation clicked. Payload: { annotationId: string }
+ */
 export function ReferencesPanel({
   annotations = [],
-  onAnnotationClick,
-  focusedAnnotationId,
-  hoveredAnnotationId,
-  onAnnotationHover,
-  onDetect,
-  onCreate,
   isDetecting,
   detectionProgress,
   annotateMode = true,
   Link,
   routes,
   allEntityTypes,
-  onCancelDetection,
-  onSearchDocuments,
-  onGenerateDocument,
-  onCreateDocument,
   generatingReferenceId,
   referencedBy = [],
   referencedByLoading = false,
   pendingAnnotation,
+  scrollToAnnotationId,
+  onScrollCompleted,
+  hoveredAnnotationId,
 }: Props) {
   const t = useTranslations('DetectPanel');
   const tRef = useTranslations('ReferencesPanel');
-  const eventBus = useMakeMeaningEvents();
+  const eventBus = useEventBus();
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
   const [lastDetectionLog, setLastDetectionLog] = useState<DetectionLog[] | null>(null);
   const [pendingEntityTypes, setPendingEntityTypes] = useState<string[]>([]);
   const [includeDescriptiveReferences, setIncludeDescriptiveReferences] = useState(false);
+  const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Collapsible detection section state - load from localStorage, default expanded
   const [isDetectExpanded, setIsDetectExpanded] = useState(() => {
@@ -115,14 +112,108 @@ export function ReferencesPanel({
     localStorage.setItem('detect-section-expanded-reference', String(isDetectExpanded));
   }, [isDetectExpanded]);
 
-  const { sortedAnnotations, containerRef, handleAnnotationRef } =
-    useAnnotationPanel(annotations, hoveredAnnotationId);
+  // Direct ref management - replace useAnnotationPanel hook
+  const entryRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // Sort annotations by their position in the resource
+  const sortedAnnotations = useMemo(() => {
+    return [...annotations].sort((a, b) => {
+      const aSelector = getTextPositionSelector(getTargetSelector(a.target));
+      const bSelector = getTextPositionSelector(getTargetSelector(b.target));
+      if (!aSelector || !bSelector) return 0;
+      return aSelector.start - bSelector.start;
+    });
+  }, [annotations]);
+
+  // Ref callback for entry components
+  const setEntryRef = useCallback((id: string, element: HTMLDivElement | null) => {
+    if (element) {
+      entryRefs.current.set(id, element);
+    } else {
+      entryRefs.current.delete(id);
+    }
+  }, []);
+
+  // Handle scrollToAnnotationId (click scroll)
+  useEffect(() => {
+    if (!scrollToAnnotationId) return;
+
+    const element = entryRefs.current.get(scrollToAnnotationId);
+
+    if (element && containerRef.current) {
+      // Calculate scroll position to center element in container
+      const elementTop = element.offsetTop;
+      const containerHeight = containerRef.current.clientHeight;
+      const elementHeight = element.offsetHeight;
+      const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
+
+      // Scroll to center
+      containerRef.current.scrollTo({ top: scrollTo, behavior: 'smooth' });
+
+      // Add pulse effect
+      element.classList.remove('semiont-annotation-pulse');
+      void element.offsetWidth; // Force reflow
+      element.classList.add('semiont-annotation-pulse');
+
+      // Notify completion
+      if (onScrollCompleted) {
+        onScrollCompleted();
+      }
+    } else {
+      console.warn('[ReferencesPanel] Element not found for scrollToAnnotationId:', scrollToAnnotationId);
+    }
+  }, [scrollToAnnotationId]);
+
+  // Handle hoveredAnnotationId (hover scroll only - pulse is handled by isHovered prop)
+  useEffect(() => {
+    if (!hoveredAnnotationId) return;
+
+    const element = entryRefs.current.get(hoveredAnnotationId);
+
+    if (!element || !containerRef.current) return;
+
+    const container = containerRef.current;
+    const elementRect = element.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+
+    // Only scroll if element is not fully visible
+    const isVisible =
+      elementRect.top >= containerRect.top &&
+      elementRect.bottom <= containerRect.bottom;
+
+    if (!isVisible) {
+      const elementTop = element.offsetTop;
+      const containerHeight = container.clientHeight;
+      const elementHeight = element.offsetHeight;
+      const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
+
+      container.scrollTo({ top: scrollTo, behavior: 'smooth' });
+    }
+
+    // Pulse effect is handled by isHovered prop on ReferenceEntry
+  }, [hoveredAnnotationId]);
+
+  // Subscribe to click events - update focused state
+  // Event handler for annotation clicks (extracted to avoid inline arrow function)
+  const handleAnnotationClick = useCallback(({ annotationId }: { annotationId: string }) => {
+    setFocusedAnnotationId(annotationId);
+    setTimeout(() => setFocusedAnnotationId(null), 3000);
+  }, []);
+
+  useEventSubscriptions({
+    'annotation:click': handleAnnotationClick,
+  });
 
   // Clear log when starting new detection
   const handleDetect = () => {
-    if (!onDetect) return;
     setLastDetectionLog(null);
-    onDetect(selectedEntityTypes, includeDescriptiveReferences);
+    eventBus.emit('detection:start', {
+      motivation: 'linking',
+      options: {
+        entityTypes: selectedEntityTypes,
+        includeDescriptiveReferences,
+      },
+    });
   };
 
   // Track whether we've already saved the log for the current detection run
@@ -157,9 +248,15 @@ export function ReferencesPanel({
   };
 
   const handleCreateReference = () => {
-    const entityType = pendingEntityTypes.join(',') || undefined;
-    onCreate(entityType);
-    setPendingEntityTypes([]);
+    if (pendingAnnotation) {
+      const entityType = pendingEntityTypes.join(',') || undefined;
+      eventBus.emit('annotation:create', {
+        motivation: 'linking',
+        selector: pendingAnnotation.selector,
+        body: entityType ? [{ type: 'TextualBody', value: entityType, purpose: 'tagging' }] : [],
+      });
+      setPendingEntityTypes([]);
+    }
   };
 
   // Escape key handler for cancelling pending annotation
@@ -168,14 +265,14 @@ export function ReferencesPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.emit('ui:annotation:cancel-pending');
+        eventBus.emit('annotation:cancel-pending', undefined);
         setPendingEntityTypes([]);
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [pendingAnnotation, eventBus]);
+  }, [pendingAnnotation]);
 
   return (
     <div className="semiont-panel">
@@ -220,7 +317,7 @@ export function ReferencesPanel({
             <div className="semiont-annotation-prompt__actions">
               <button
                 onClick={() => {
-                  eventBus.emit('ui:annotation:cancel-pending');
+                  eventBus.emit('annotation:cancel-pending', undefined);
                   setPendingEntityTypes([]);
                 }}
                 className="semiont-button semiont-button--secondary"
@@ -243,7 +340,7 @@ export function ReferencesPanel({
       {/* Scrollable content area */}
       <div ref={containerRef} className="semiont-panel__content">
         {/* Detection Section - only in Annotate mode and for text resources */}
-        {annotateMode && onDetect && (
+        {annotateMode && (
           <div className="semiont-panel__section">
             <button
               onClick={() => setIsDetectExpanded(!isDetectExpanded)}
@@ -338,7 +435,6 @@ export function ReferencesPanel({
           {detectionProgress && (
             <DetectionProgressWidget
               progress={detectionProgress}
-              onCancel={onCancelDetection}
               annotationType="reference"
             />
           )}
@@ -389,15 +485,11 @@ export function ReferencesPanel({
                   key={reference.id}
                   reference={reference}
                   isFocused={reference.id === focusedAnnotationId}
-                  onClick={() => onAnnotationClick?.(reference)}
+                  isHovered={reference.id === hoveredAnnotationId}
                   routes={routes}
-                  onReferenceRef={handleAnnotationRef}
                   annotateMode={annotateMode}
                   isGenerating={reference.id === generatingReferenceId}
-                  {...(onAnnotationHover && { onReferenceHover: onAnnotationHover })}
-                  {...(onGenerateDocument && { onGenerateDocument })}
-                  {...(onCreateDocument && { onCreateDocument })}
-                  {...(onSearchDocuments && { onSearchDocuments })}
+                  ref={(el) => setEntryRef(reference.id, el)}
                 />
               ))
             )}

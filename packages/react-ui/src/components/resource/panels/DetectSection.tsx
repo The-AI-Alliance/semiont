@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
+import { useEventBus } from '../../../contexts/EventBusContext';
+import type { Motivation } from '@semiont/api-client';
 import './DetectSection.css';
 
 interface DetectSectionProps {
@@ -13,7 +15,6 @@ interface DetectSectionProps {
     message?: string;
     requestParams?: Array<{ label: string; value: string }>;
   } | null | undefined;
-  onDetect: (instructions?: string, tone?: string, density?: number) => void | Promise<void>;
 }
 
 // Color schemes are now handled via CSS data attributes
@@ -26,17 +27,20 @@ interface DetectSectionProps {
  * - Optional tone selector (for comments)
  * - Detect button with sparkle animation
  * - Progress display during detection
+ *
+ * @emits detection:start - Start detection for annotation type. Payload: { motivation: Motivation, options: { instructions?: string, tone?: string, density?: number } }
  */
 export function DetectSection({
   annotationType,
   isDetecting,
   detectionProgress,
-  onDetect
 }: DetectSectionProps) {
+
   const panelName = annotationType === 'highlight' ? 'HighlightPanel' :
                      annotationType === 'assessment' ? 'AssessmentPanel' :
                      'CommentsPanel';
   const t = useTranslations(panelName);
+  const eventBus = useEventBus();
   const [instructions, setInstructions] = useState('');
   const [tone, setTone] = useState('');
   // Default density depends on annotation type
@@ -58,11 +62,22 @@ export function DetectSection({
   }, [isExpanded, annotationType]);
 
   const handleDetect = () => {
-    onDetect(
-      instructions.trim() || undefined,
-      (annotationType === 'comment' || annotationType === 'assessment') && tone ? tone : undefined,
-      (annotationType === 'comment' || annotationType === 'assessment' || annotationType === 'highlight') && useDensity ? density : undefined
-    );
+    // Map annotation type to motivation
+    const motivation: Motivation =
+      annotationType === 'highlight' ? 'highlighting' :
+      annotationType === 'assessment' ? 'assessing' :
+      'commenting';
+
+    // Emit detection:start event with options
+    eventBus.emit('detection:start', {
+      motivation,
+      options: {
+        instructions: instructions.trim() || undefined,
+        tone: (annotationType === 'comment' || annotationType === 'assessment') && tone ? tone as any : undefined,
+        density: (annotationType === 'comment' || annotationType === 'assessment' || annotationType === 'highlight') && useDensity ? density : undefined,
+      },
+    });
+
     setInstructions('');
     setTone('');
     // Don't reset density/useDensity - persist across detections
@@ -91,7 +106,8 @@ export function DetectSection({
           data-detecting={isDetecting && detectionProgress ? 'true' : 'false'}
           data-type={annotationType}
         >
-        {!isDetecting && !detectionProgress && (
+        {/* Show form when NOT detecting and NO progress to display */}
+        {!detectionProgress && (
           <>
             <div className="semiont-form-field">
               <label className="semiont-form-field__label">
@@ -194,8 +210,8 @@ export function DetectSection({
           </>
         )}
 
-        {/* Detection Progress */}
-        {isDetecting && detectionProgress && (
+        {/* Detection Progress - show whenever we have progress (during or after detection) */}
+        {detectionProgress && (
           <div className="semiont-detection-progress" data-type={annotationType}>
             {/* Request Parameters */}
             {detectionProgress.requestParams && detectionProgress.requestParams.length > 0 && (
@@ -214,6 +230,18 @@ export function DetectSection({
                 <span className="semiont-detection-progress__icon">✨</span>
                 <span>{detectionProgress.message}</span>
               </div>
+              {/* Close button - shown after detection completes (when not actively detecting) */}
+              {!isDetecting && (
+                <button
+                  onClick={() => eventBus.emit('detection:dismiss-progress', undefined)}
+                  className="semiont-detection-progress__close"
+                  aria-label={t('closeProgress')}
+                  title={t('closeProgress')}
+                  type="button"
+                >
+                  ×
+                </button>
+              )}
             </div>
           </div>
         )}

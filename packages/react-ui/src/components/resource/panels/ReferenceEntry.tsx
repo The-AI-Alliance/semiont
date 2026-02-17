@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { forwardRef } from 'react';
 import type { RouteBuilder } from '../../../contexts/RoutingContext';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText, isBodyResolved, getBodySource, getFragmentSelector, getSvgSelector, getTargetSelector } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/ontology';
 import { getResourceIcon } from '../../../lib/resource-utils';
+import { useEventBus } from '../../../contexts/EventBusContext';
+import { useObservableExternalNavigation } from '../../../hooks/useObservableNavigation';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -19,68 +21,27 @@ interface EnrichedAnnotation extends Annotation {
 interface ReferenceEntryProps {
   reference: Annotation;
   isFocused: boolean;
-  onClick: () => void;
+  isHovered?: boolean;
   routes: RouteBuilder;
-  onReferenceRef: (referenceId: string, el: HTMLElement | null) => void;
-  onReferenceHover?: (referenceId: string | null) => void;
-  onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
-  onCreateDocument?: (annotationUri: string, title: string, entityTypes: string[]) => void;
-  onSearchDocuments?: (referenceId: string, searchTerm: string) => void;
-  onUpdateReference?: (referenceId: string, updates: Partial<Annotation>) => void;
   annotateMode?: boolean;
   isGenerating?: boolean;
 }
 
-export function ReferenceEntry({
-  reference,
-  isFocused,
-  onClick,
-  routes,
-  onReferenceRef,
-  onReferenceHover,
-  onGenerateDocument,
-  onCreateDocument,
-  onSearchDocuments,
-  onUpdateReference,
-  annotateMode = true,
-  isGenerating = false,
-}: ReferenceEntryProps) {
+export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
+  function ReferenceEntry(
+    {
+      reference,
+      isFocused,
+      isHovered = false,
+      routes,
+      annotateMode = true,
+      isGenerating = false,
+    },
+    ref
+  ) {
   const t = useTranslations('ReferencesPanel');
-  const referenceRef = useRef<HTMLDivElement>(null);
-
-  // Register ref with parent
-  useEffect(() => {
-    onReferenceRef(reference.id, referenceRef.current);
-    return () => {
-      onReferenceRef(reference.id, null);
-    };
-  }, [reference.id, onReferenceRef]);
-
-  // Scroll to reference when focused - use container.scrollTo to avoid scrolling ancestors
-  useEffect(() => {
-    if (isFocused && referenceRef.current) {
-      const element = referenceRef.current;
-      const container = element.closest('.semiont-toolbar-panels__content') as HTMLElement;
-
-      if (container) {
-        const elementRect = element.getBoundingClientRect();
-        const containerRect = container.getBoundingClientRect();
-
-        const isVisible =
-          elementRect.top >= containerRect.top &&
-          elementRect.bottom <= containerRect.bottom;
-
-        if (!isVisible) {
-          const elementTop = element.offsetTop;
-          const containerHeight = container.clientHeight;
-          const elementHeight = element.offsetHeight;
-          const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
-
-          container.scrollTo({ top: scrollTo, behavior: 'smooth' });
-        }
-      }
-    }
-  }, [isFocused]);
+  const eventBus = useEventBus();
+  const navigate = useObservableExternalNavigation();
 
   const selectedText = getAnnotationExactText(reference) || '';
   const isResolved = isBodyResolved(reference.body);
@@ -103,44 +64,69 @@ export function ReferenceEntry({
     if (resolvedResourceUri) {
       const resourceId = resolvedResourceUri.split('/resources/')[1];
       if (resourceId) {
-        window.location.href = routes.resourceDetail(resourceId);
+        // Use observable navigation - emits 'navigation:external-navigate' event
+        navigate(routes.resourceDetail(resourceId), { resourceId });
       }
     }
   };
 
   const handleComposeDocument = () => {
-    if (onCreateDocument) {
-      onCreateDocument(reference.id, selectedText, entityTypes);
-    }
+    eventBus.emit('reference:create-manual', {
+      annotationUri: reference.id,
+      title: selectedText,
+      entityTypes,
+    });
   };
 
   const handleUnlink = () => {
-    if (onUpdateReference) {
-      onUpdateReference(reference.id, { body: [] });
+    // Unlinking removes all body items from the reference annotation
+    const sourceUri = typeof reference.target === 'object' && 'source' in reference.target
+      ? reference.target.source
+      : '';
+    if (sourceUri) {
+      eventBus.emit('annotation:update-body', {
+        annotationUri: reference.id,
+        resourceId: sourceUri.split('/resources/')[1] || '',
+        operations: [{ op: 'remove', item: null }], // Remove all body items
+      });
     }
   };
 
   const handleGenerate = () => {
-    if (onGenerateDocument) {
-      onGenerateDocument(reference.id, { title: selectedText });
-    }
+    const resourceUri = typeof reference.target === 'object' && 'source' in reference.target
+      ? reference.target.source
+      : '';
+
+    // Emit request to open generation modal
+    eventBus.emit('generation:modal-open', {
+      annotationUri: reference.id,
+      resourceUri,
+      defaultTitle: selectedText,
+    });
   };
 
   const handleSearch = () => {
-    if (onSearchDocuments) {
-      onSearchDocuments(reference.id, selectedText);
-    }
+    eventBus.emit('reference:link', {
+      annotationUri: reference.id,
+      searchTerm: selectedText,
+    });
   };
 
   return (
     <div
-      ref={referenceRef}
-      className="semiont-annotation-entry"
+      ref={ref}
+      className={`semiont-annotation-entry${isHovered ? ' semiont-annotation-pulse' : ''}`}
       data-type="reference"
       data-focused={isFocused ? 'true' : 'false'}
-      onClick={onClick}
-      onMouseEnter={() => onReferenceHover?.(reference.id)}
-      onMouseLeave={() => onReferenceHover?.(null)}
+      onClick={() => {
+        eventBus.emit('annotation:click', { annotationId: reference.id, motivation: reference.motivation });
+      }}
+      onMouseEnter={() => {
+        eventBus.emit('annotation:hover', { annotationId: reference.id });
+      }}
+      onMouseLeave={() => {
+        eventBus.emit('annotation:hover', { annotationId: null });
+      }}
     >
       {/* Status indicator and text quote */}
       <div className="semiont-annotation-entry__header">
@@ -235,4 +221,4 @@ export function ReferenceEntry({
       </div>
     </div>
   );
-}
+});

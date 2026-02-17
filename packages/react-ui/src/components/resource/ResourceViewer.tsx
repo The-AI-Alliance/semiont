@@ -1,30 +1,23 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-// useRouter removed - using window.location for navigation
 import { useTranslations } from '../../contexts/TranslationContext';
 import { AnnotateView, type SelectionMotivation, type ClickAction, type ShapeType } from './AnnotateView';
 import { BrowseView } from './BrowseView';
 import { PopupContainer } from '../annotation-popups/SharedPopupElements';
 import { JsonLdView } from '../annotation-popups/JsonLdView';
-import type { components, Selector } from '@semiont/api-client';
+import type { components } from '@semiont/api-client';
 import { getExactText, getTargetSelector, resourceUri, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/api-client';
-import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
-import { useMakeMeaningEvents } from '../../contexts/MakeMeaningEventBusContext';
+import { useEventBus } from '../../contexts/EventBusContext';
+import { useEventSubscriptions } from '../../contexts/useEventSubscription';
 import { useCacheManager } from '../../contexts/CacheContext';
-import type { Annotator } from '../../lib/annotation-registry';
+import { useObservableExternalNavigation } from '../../hooks/useObservableNavigation';
+import { ANNOTATORS } from '../../lib/annotation-registry';
 import type { AnnotationsCollection } from '../../types/annotation-props';
 import { getSelectorType, getSelectedShapeForSelectorType, saveSelectedShapeForSelectorType } from '../../lib/media-shapes';
 
 type Annotation = components['schemas']['Annotation'];
 type SemiontResource = components['schemas']['ResourceDescriptor'];
-type Motivation = components['schemas']['Motivation'];
-
-// Unified pending annotation type - all human-created annotations flow through this
-interface PendingAnnotation {
-  selector: Selector | Selector[];
-  motivation: Motivation;
-}
 
 /**
  * ResourceViewer - Display and interact with resource content and annotations
@@ -49,23 +42,37 @@ interface Props {
   annotations: AnnotationsCollection;
   generatingReferenceId?: string | null;
   showLineNumbers?: boolean;
-  onAnnotationRequested?: (pending: PendingAnnotation) => void;
-  annotators: Record<string, Annotator>;
+  hoveredAnnotationId?: string | null;
 }
 
+/**
+ * @emits annotation:delete - User requested to delete annotation. Payload: { annotationId: string }
+ * @emits panel:open - Request to open panel with annotation. Payload: { panel: string, scrollToAnnotationId?: string, motivation?: Motivation }
+ *
+ * @subscribes view:mode-toggled - Toggles between browse and annotate mode. Payload: { mode: 'browse' | 'annotate' }
+ * @subscribes annotation:added - New annotation was added. Payload: { annotation: Annotation }
+ * @subscribes annotation:removed - Annotation was removed. Payload: { annotationId: string }
+ * @subscribes annotation:updated - Annotation was updated. Payload: { annotation: Annotation }
+ * @subscribes toolbar:selection-changed - Text selection tool changed. Payload: { selection: boolean }
+ * @subscribes toolbar:click-changed - Click annotation tool changed. Payload: { click: 'detail' | 'scroll' | null }
+ * @subscribes toolbar:shape-changed - Drawing shape changed. Payload: { shape: string }
+ * @subscribes annotation:click - User clicked on annotation. Payload: { annotationId: string }
+ */
 export function ResourceViewer({
   resource,
   annotations,
   generatingReferenceId,
   showLineNumbers = false,
-  onAnnotationRequested,
-  annotators
+  hoveredAnnotationId: hoveredAnnotationIdProp
 }: Props) {
   const t = useTranslations('ResourceViewer');
   const documentViewerRef = useRef<HTMLDivElement>(null);
 
   // Get unified event bus for emitting UI events
-  const eventBus = useMakeMeaningEvents();
+  const eventBus = useEventBus();
+
+  // Get observable navigation for event-driven routing
+  const navigate = useObservableExternalNavigation();
 
   const { highlights, references, assessments, comments, tags } = annotations;
 
@@ -102,50 +109,35 @@ export function ResourceViewer({
     }
   }, [annotateMode]);
 
-  // Toggle handler
-  const toggleAnnotateMode = useCallback(() => {
+  // Event handlers (extracted to avoid inline arrow functions)
+  const handleViewModeToggle = useCallback(() => {
     setAnnotateMode(prev => !prev);
   }, []);
 
   // Determine active view based on annotate mode
   const activeView = annotateMode ? 'annotate' : 'browse';
-  const {
-    deleteAnnotation,
-    createAnnotation
-  } = useResourceAnnotations();
 
   // Event-based cache invalidation - subscribe to make-meaning events
   // This replaces manual onRefetchAnnotations calls with automatic updates
   const cacheManager = useCacheManager();
 
-  useEffect(() => {
-    if (!eventBus || !cacheManager) return;
-
-    // Annotation events - invalidate cache when annotations change
-    const handleAnnotationAdded = () => {
+  const handleAnnotationAdded = useCallback(() => {
+    if (cacheManager) {
       cacheManager.invalidateAnnotations(rUri);
-    };
+    }
+  }, [cacheManager, rUri]);
 
-    const handleAnnotationRemoved = () => {
+  const handleAnnotationRemoved = useCallback(() => {
+    if (cacheManager) {
       cacheManager.invalidateAnnotations(rUri);
-    };
+    }
+  }, [cacheManager, rUri]);
 
-    const handleAnnotationUpdated = () => {
+  const handleAnnotationUpdated = useCallback(() => {
+    if (cacheManager) {
       cacheManager.invalidateAnnotations(rUri);
-    };
-
-    // Subscribe to make-meaning annotation events
-    eventBus.on('annotation:added', handleAnnotationAdded);
-    eventBus.on('annotation:removed', handleAnnotationRemoved);
-    eventBus.on('annotation:updated', handleAnnotationUpdated);
-
-    // Cleanup subscriptions
-    return () => {
-      eventBus.off('annotation:added', handleAnnotationAdded);
-      eventBus.off('annotation:removed', handleAnnotationRemoved);
-      eventBus.off('annotation:updated', handleAnnotationUpdated);
-    };
-  }, [eventBus, cacheManager, rUri]);
+    }
+  }, [cacheManager, rUri]);
 
   // Annotation toolbar state - persisted in localStorage
   const [selectedMotivation, setSelectedMotivation] = useState<SelectionMotivation | null>(() => {
@@ -176,6 +168,19 @@ export function ResourceViewer({
   const [selectedShape, setSelectedShape] = useState<ShapeType>(() => {
     return getSelectedShapeForSelectorType(selectorType);
   });
+
+  // Toolbar event handlers (extracted to avoid inline arrow functions)
+  const handleToolbarSelectionChanged = useCallback(({ motivation }: { motivation: string | null }) => {
+    setSelectedMotivation(motivation as SelectionMotivation | null);
+  }, []);
+
+  const handleToolbarClickChanged = useCallback(({ action }: { action: string }) => {
+    setSelectedClick(action as ClickAction);
+  }, []);
+
+  const handleToolbarShapeChanged = useCallback(({ shape }: { shape: string }) => {
+    setSelectedShape(shape as ShapeType);
+  }, []);
 
   // Persist toolbar state to localStorage
   useEffect(() => {
@@ -214,7 +219,8 @@ export function ResourceViewer({
   } | null>(null);
 
   // Internal UI state for hover, focus, and scroll
-  const [hoveredAnnotationId, _setHoveredAnnotationId] = useState<string | null>(null);
+  // Use prop value when provided (controlled by parent), otherwise null
+  const hoveredAnnotationId = hoveredAnnotationIdProp ?? null;
   const [hoveredCommentId, _setHoveredCommentId] = useState<string | null>(null);
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
   const [_focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
@@ -241,19 +247,14 @@ export function ResourceViewer({
     };
   };
 
-  // Handle deleting annotations - memoized
-  const handleDeleteAnnotation = useCallback(async (id: string) => {
-    try {
-      await deleteAnnotation(id, rUri);
-      // Cache invalidation now handled by annotation:removed event
-    } catch (err) {
-      console.error('Failed to delete annotation:', err);
-    }
-  }, [deleteAnnotation, rUri]);
+  // Handle deleting annotations - emit event instead of direct call
+  const handleDeleteAnnotation = useCallback((id: string) => {
+    eventBus.emit('annotation:delete', { annotationId: id });
+  }, []); // eventBus is stable
 
   // Handle annotation clicks - memoized
   const handleAnnotationClick = useCallback((annotation: Annotation, event?: React.MouseEvent) => {
-    const metadata = Object.values(annotators).find(a => a.matchesAnnotation(annotation));
+    const metadata = Object.values(ANNOTATORS).find(a => a.matchesAnnotation(annotation));
 
     // If annotation has a side panel, only open it when Detail mode is active
     // For delete/jsonld/follow modes, let those handlers below process it
@@ -276,10 +277,10 @@ export function ResourceViewer({
     if (selectedClick === 'follow' && isReference(annotation)) {
       const bodySource = getBodySource(annotation.body);
       if (bodySource) {
-        // Navigate to the linked resource
+        // Navigate to the linked resource - emits 'navigation:external-navigate' event
         const resourceId = bodySource.split('/resources/')[1];
         if (resourceId) {
-          window.location.href = `/know/resource/${resourceId}`;
+          navigate(`/know/resource/${resourceId}`, { resourceId });
         }
       }
       return;
@@ -305,201 +306,64 @@ export function ResourceViewer({
       setDeleteConfirmation({ annotation, position });
       return;
     }
-  }, [annotateMode, selectedClick, handleDeleteAnnotation, annotators, focusAnnotation]);
+  }, [annotateMode, selectedClick, focusAnnotation]);
 
-  // Unified annotation creation handler - works for both text and images
-  const handleAnnotationCreate = useCallback(async (params: import('../../types/annotation-props').UICreateAnnotationParams) => {
-    const { motivation, selector } = params;
+  // Annotation click coordinator - handles panel opening and scrolling
+  const handleAnnotationClickEvent = useCallback(({ annotationId, motivation }: {
+    annotationId: string;
+    motivation: components['schemas']['Motivation'];
+  }) => {
+    // Find the annotation metadata
+    const metadata = Object.values(ANNOTATORS).find(a => a.matchesAnnotation({ motivation } as Annotation));
 
-    try {
-      switch (motivation) {
-        case 'highlighting':
-        case 'assessing':
-          // Create highlight/assessment immediately using generic createAnnotation
-          if (selector.type === 'TextQuoteSelector' && selector.exact) {
-            // Build selectors array for text annotation
-            const selectors: any[] = [
-              {
-                type: 'TextQuoteSelector',
-                exact: selector.exact,
-                ...(selector.prefix && { prefix: selector.prefix }),
-                ...(selector.suffix && { suffix: selector.suffix })
-              },
-              {
-                type: 'TextPositionSelector',
-                start: selector.start || 0,
-                end: selector.end || 0
-              }
-            ];
-
-            const annotation = await createAnnotation(
-              rUri,
-              motivation,
-              selectors,
-              []
-            );
-
-            // Focus the new annotation to trigger panel tab switch
-            if (annotation) {
-              focusAnnotation(annotation.id);
-            }
-            // Cache invalidation now handled by annotation:added event
-          } else if (selector.type === 'SvgSelector' && selector.value) {
-            // Image annotations use generic createAnnotation
-            await createAnnotation(
-              rUri,
-              motivation,
-              { type: 'SvgSelector', value: selector.value },
-              []
-            );
-            // Cache invalidation now handled by annotation:added event
-          } else if (selector.type === 'FragmentSelector' && selector.value) {
-            // PDF annotations use FragmentSelector
-            await createAnnotation(
-              rUri,
-              motivation,
-              {
-                type: 'FragmentSelector',
-                value: selector.value,
-                ...(selector.conformsTo && { conformsTo: selector.conformsTo })
-              },
-              []
-            );
-            // Cache invalidation now handled by annotation:added event
-          }
-          break;
-
-        case 'commenting':
-          if (selector.type === 'TextQuoteSelector' && selector.exact) {
-            // Text: emit UI event for comment creation
-            eventBus.emit('ui:selection:comment-requested', {
-              exact: selector.exact,
-              start: selector.start || 0,
-              end: selector.end || 0
-            });
-          } else if (selector.type === 'SvgSelector' && selector.value) {
-            // Image: create annotation, then open panel
-            const annotation = await createAnnotation(
-              rUri,
-              motivation,
-              { type: 'SvgSelector', value: selector.value },
-              []
-            );
-            if (annotation) {
-              focusAnnotation(annotation.id);
-            }
-            // Cache invalidation now handled by annotation:added event
-          } else if (selector.type === 'FragmentSelector' && selector.value) {
-            // PDF: create annotation, then open panel
-            const annotation = await createAnnotation(
-              rUri,
-              motivation,
-              {
-                type: 'FragmentSelector',
-                value: selector.value,
-                ...(selector.conformsTo && { conformsTo: selector.conformsTo })
-              },
-              []
-            );
-            if (annotation) {
-              focusAnnotation(annotation.id);
-            }
-            // Cache invalidation now handled by annotation:added event
-          }
-          break;
-
-        case 'tagging':
-          if (selector.type === 'TextQuoteSelector' && selector.exact) {
-            // Text: emit UI event for tag creation
-            eventBus.emit('ui:selection:tag-requested', {
-              exact: selector.exact,
-              start: selector.start || 0,
-              end: selector.end || 0
-            });
-          } else if (selector.type === 'SvgSelector' && selector.value) {
-            // Image: create annotation, then open panel
-            const annotation = await createAnnotation(
-              rUri,
-              motivation,
-              { type: 'SvgSelector', value: selector.value },
-              []
-            );
-            if (annotation) {
-              focusAnnotation(annotation.id);
-            }
-            // Cache invalidation now handled by annotation:added event
-          } else if (selector.type === 'FragmentSelector' && selector.value) {
-            // PDF: create annotation, then open panel
-            const annotation = await createAnnotation(
-              rUri,
-              motivation,
-              {
-                type: 'FragmentSelector',
-                value: selector.value,
-                ...(selector.conformsTo && { conformsTo: selector.conformsTo })
-              },
-              []
-            );
-            if (annotation) {
-              focusAnnotation(annotation.id);
-            }
-            // Cache invalidation now handled by annotation:added event
-          }
-          break;
-
-        case 'linking':
-          // Emit UI event for reference creation (text, image, or PDF selections)
-          if (selector.type === 'TextQuoteSelector' && selector.exact) {
-            eventBus.emit('ui:selection:reference-requested', {
-              exact: selector.exact,
-              start: selector.start || 0,
-              end: selector.end || 0,
-              ...(selector.prefix && { prefix: selector.prefix }),
-              ...(selector.suffix && { suffix: selector.suffix })
-            });
-          } else if (selector.type === 'SvgSelector' && selector.value) {
-            eventBus.emit('ui:selection:reference-requested', {
-              exact: '',  // Images don't have exact text
-              start: 0,
-              end: 0,
-              svgSelector: selector.value
-            });
-          } else if (selector.type === 'FragmentSelector' && selector.value) {
-            eventBus.emit('ui:selection:reference-requested', {
-              exact: '',  // PDFs don't have exact text
-              start: 0,
-              end: 0,
-              fragmentSelector: selector.value,
-              ...(selector.conformsTo && { conformsTo: selector.conformsTo })
-            });
-          }
-          break;
+    if (!metadata?.hasSidePanel) {
+      // Annotation doesn't have a side panel - let handleAnnotationClick handle it
+      const allAnnotations = [...highlights, ...references, ...assessments, ...comments, ...tags];
+      const annotation = allAnnotations.find(a => a.id === annotationId);
+      if (annotation) {
+        handleAnnotationClick(annotation);
       }
-    } catch (err) {
-      console.error('Failed to create annotation:', err);
+      return;
     }
-  }, [rUri, createAnnotation]);
 
-  // Quick action: Delete annotation from widget
-  const handleDeleteAnnotationWidget = useCallback(async (annotation: Annotation) => {
-    await handleDeleteAnnotation(annotation.id);
-  }, [handleDeleteAnnotation]);
+    if (selectedClick !== 'detail') {
+      // Only open panels in detail mode - for other modes, let handleAnnotationClick handle it
+      const allAnnotations = [...highlights, ...references, ...assessments, ...comments, ...tags];
+      const annotation = allAnnotations.find(a => a.id === annotationId);
+      if (annotation) {
+        handleAnnotationClick(annotation);
+      }
+      return;
+    }
+
+    // All annotations open the unified annotations panel
+    // The panel internally switches tabs based on the motivation → tab mapping in UnifiedAnnotationsPanel
+    eventBus.emit('panel:open', { panel: 'annotations', scrollToAnnotationId: annotationId, motivation });
+  }, [highlights, references, assessments, comments, tags, handleAnnotationClick, selectedClick]);
+
+  // Event subscriptions - Combined into single useEventSubscriptions call to prevent hook ordering issues
+  // IMPORTANT: All event subscriptions MUST be in a single call to maintain consistent hook order between renders
+  useEventSubscriptions({
+    // View mode
+    'view:mode-toggled': handleViewModeToggle,
+
+    // Annotation cache invalidation
+    'annotation:added': handleAnnotationAdded,
+    'annotation:removed': handleAnnotationRemoved,
+    'annotation:updated': handleAnnotationUpdated,
+
+    // Toolbar state
+    'toolbar:selection-changed': handleToolbarSelectionChanged,
+    'toolbar:click-changed': handleToolbarClickChanged,
+    'toolbar:shape-changed': handleToolbarShapeChanged,
+
+    // Annotation clicks
+    'annotation:click': handleAnnotationClickEvent,
+  });
 
   // Prepare props for child components
   // Note: These objects are created inline - React's reconciliation handles re-renders efficiently
   const annotationsCollection = { highlights, references, assessments, comments, tags };
-
-  const handlersForAnnotate = {
-    onClick: handleAnnotationClick
-    // Note: onHover/onCommentHover removed - component now manages hover state internally
-  };
-
-  const handlersForBrowse = {
-    onClick: handleAnnotationClick
-    // Note: onCommentHover removed - component now manages hover state internally
-  };
-
-  const creationHandler = { onCreate: handleAnnotationCreate };
 
   const uiState = {
     selectedMotivation,
@@ -508,6 +372,13 @@ export function ResourceViewer({
     hoveredAnnotationId,
     scrollToAnnotationId
   };
+
+  // Define getTargetDocumentName callback OUTSIDE the conditional
+  // IMPORTANT: This must be defined before the return statement to avoid hook ordering violations
+  const getTargetDocumentName = useCallback((documentId: string) => {
+    const referencedResource = references.find((a: Annotation) => getBodySource(a.body) === documentId);
+    return referencedResource ? getExactText(getTargetSelector(referencedResource.target)) : undefined;
+  }, [references]);
 
   return (
     <div ref={documentViewerRef} className="semiont-resource-viewer">
@@ -518,8 +389,6 @@ export function ResourceViewer({
           mimeType={mimeType}
           resourceUri={resource['@id']}
           annotations={annotationsCollection}
-          handlers={handlersForAnnotate}
-          creationHandler={creationHandler}
           uiState={uiState}
           onUIStateChange={(updates) => {
             if ('selectedMotivation' in updates) setSelectedMotivation(updates.selectedMotivation!);
@@ -527,17 +396,10 @@ export function ResourceViewer({
             if ('selectedShape' in updates) setSelectedShape(updates.selectedShape!);
           }}
           enableWidgets={true}
-          onEntityTypeClick={(entityType) => {
-            window.location.href = `/know?entityType=${encodeURIComponent(entityType)}`;
-          }}
-          onUnresolvedReferenceClick={handleAnnotationClick}
+          getTargetDocumentName={getTargetDocumentName}
           {...(generatingReferenceId !== undefined && { generatingReferenceId })}
-          onDeleteAnnotation={handleDeleteAnnotationWidget}
           showLineNumbers={showLineNumbers}
           annotateMode={annotateMode}
-          onAnnotateModeToggle={toggleAnnotateMode}
-          {...(onAnnotationRequested && { onAnnotationRequested })}
-          annotators={annotators}
         />
       ) : (
         <BrowseView
@@ -545,13 +407,9 @@ export function ResourceViewer({
           mimeType={mimeType}
           resourceUri={resource['@id']}
           annotations={annotationsCollection}
-          handlers={handlersForBrowse}
           hoveredCommentId={hoveredCommentId}
           selectedClick={selectedClick}
-          onClickChange={setSelectedClick}
           annotateMode={annotateMode}
-          onAnnotateModeToggle={toggleAnnotateMode}
-          annotators={annotators}
         />
       )}
 
@@ -576,7 +434,7 @@ export function ResourceViewer({
       {/* Delete Confirmation Modal */}
       {deleteConfirmation && (() => {
         const annotation = deleteConfirmation.annotation;
-        const metadata = Object.values(annotators).find(a => a.matchesAnnotation(annotation));
+        const metadata = Object.values(ANNOTATORS).find(a => a.matchesAnnotation(annotation));
         const targetSelector = getTargetSelector(annotation.target);
         const selectedText = getExactText(targetSelector);
         const motivationEmoji = metadata?.iconEmoji || '📝';
@@ -614,8 +472,8 @@ export function ResourceViewer({
                 {t('deleteConfirmationCancel')}
               </button>
               <button
-                onClick={async () => {
-                  await handleDeleteAnnotation(deleteConfirmation.annotation.id);
+                onClick={() => {
+                  handleDeleteAnnotation(deleteConfirmation.annotation.id);
                   setDeleteConfirmation(null);
                 }}
                 className="semiont-button semiont-button--danger"

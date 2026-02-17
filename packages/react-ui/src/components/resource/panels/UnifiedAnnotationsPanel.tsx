@@ -5,8 +5,6 @@ import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components, Selector } from '@semiont/api-client';
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
 import type { Annotator } from '../../../lib/annotation-registry';
-import { createDetectionHandler } from '../../../lib/annotation-registry';
-import { supportsDetection } from '../../../lib/resource-utils';
 import { StatisticsPanel } from './StatisticsPanel';
 import { HighlightPanel } from './HighlightPanel';
 import { ReferencesPanel } from './ReferencesPanel';
@@ -29,13 +27,13 @@ interface PendingAnnotation {
 const TAB_ORDER: TabKey[] = ['statistics', 'reference', 'highlight', 'assessment', 'comment', 'tag'];
 
 /**
- * Simplified UnifiedAnnotationsPanel using Annotator abstraction
+ * Simplified UnifiedAnnotationsPanel using event-driven architecture
  *
  * Key simplifications:
  * - Single annotations array (grouped internally by motivation)
  * - Single focusedAnnotationId (motivation-agnostic)
- * - Single hoveredAnnotationId (motivation-agnostic)
- * - Single onCreateAnnotation handler (motivation-based dispatch)
+ * - Hover state managed via event bus (no props needed)
+ * - All operations managed via event bus (no callback props)
  */
 interface UnifiedAnnotationsPanelProps {
   // All annotations (grouped internally by motivation)
@@ -43,29 +41,6 @@ interface UnifiedAnnotationsPanelProps {
 
   // Annotators (pure static data - no handlers)
   annotators: Record<string, Annotator>;
-
-  // Detection context (passed separately so annotators remain stable)
-  detectionContext?: {
-    client: any;
-    rUri: any;
-    setDetectingMotivation: (motivation: Motivation | null) => void;
-    setMotivationDetectionProgress: (progress: any) => void;
-    detectionStreamRef: any;
-    cacheManager: any;
-    showSuccess: (message: string) => void;
-    showError: (message: string) => void;
-  };
-
-  // Unified state (motivation-agnostic)
-  focusedAnnotationId: string | null;
-  hoveredAnnotationId?: string | null;
-
-  // Shared UI handlers (same for all annotation types)
-  onAnnotationClick: (annotation: Annotation) => void;
-  onAnnotationHover?: (annotationId: string | null) => void;
-
-  // Single generic creation handler
-  onCreateAnnotation: (motivation: Motivation, ...args: any[]) => void;
 
   // Mode
   annotateMode?: boolean;
@@ -85,20 +60,23 @@ interface UnifiedAnnotationsPanelProps {
   // Unified pending annotation (for creating new annotations)
   pendingAnnotation: PendingAnnotation | null;
 
-  // Reference-specific props (TODO: refactor these into annotator handlers)
+  // Reference-specific props
   allEntityTypes?: string[];
   generatingReferenceId?: string | null;
-  onGenerateDocument?: (referenceId: string, options: { title: string; prompt?: string }) => void;
-  onCreateDocument?: (annotationUri: string, title: string, entityTypes: string[]) => void;
-  onSearchDocuments?: (referenceId: string, searchTerm: string) => void;
-  onCancelDetection?: () => void;
-  mediaType?: string;
   referencedBy?: any[];
   referencedByLoading?: boolean;
 
   // Resource context
   resourceId?: string;
   initialTab?: TabKey;
+  initialTabGeneration?: number; // Generation counter for tab switching
+
+  // Scroll coordination (one-time action, will be cleared after use)
+  scrollToAnnotationId?: string | null;
+  onScrollCompleted?: () => void;
+
+  // Hover coordination (for bidirectional hover highlighting)
+  hoveredAnnotationId?: string | null;
 
   // Routing
   Link: React.ComponentType<LinkComponentProps>;
@@ -156,23 +134,14 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
     localStorage.setItem(storageKey, activeTab);
   }, [activeTab, props.resourceId]);
 
-  // Auto-switch to the appropriate tab when an annotation is focused
+
+  // Switch to initialTab when generation counter changes (e.g., when clicking annotations with different motivations)
+  // Using generation counter ensures we can switch to the same tab multiple times
   useEffect(() => {
-    if (!props.focusedAnnotationId) return;
-
-    // Find which annotation type this focused annotation belongs to
-    const focusedAnnotation = props.annotations.find(ann => ann.id === props.focusedAnnotationId);
-    if (!focusedAnnotation) return;
-
-    // Determine the annotator key for this annotation
-    for (const [key, annotator] of Object.entries(props.annotators)) {
-      if (annotator.matchesAnnotation(focusedAnnotation)) {
-        setActiveTab(key as TabKey);
-        break;
-      }
+    if (props.initialTab && props.initialTabGeneration !== undefined) {
+      setActiveTab(props.initialTab);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.focusedAnnotationId]);
+  }, [props.initialTabGeneration]); // Only watch generation counter, not the tab itself
 
   // Auto-switch to the appropriate tab when creating a new annotation
   useEffect(() => {
@@ -266,38 +235,22 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
 
           const annotations = grouped[activeTab] || [];
           const isDetecting = props.detectingMotivation === annotator.motivation;
-          const detectionProgress = isDetecting ? props.detectionProgress : null;
+          // Pass through detectionProgress even when not actively detecting
+          // This allows final progress message to display after detection completes
+          const detectionProgress = props.detectionProgress;
+
+          console.log('[UnifiedAnnotationsPanel] activeTab:', activeTab, 'annotator.motivation:', annotator.motivation, 'props.detectingMotivation:', props.detectingMotivation, 'isDetecting:', isDetecting, 'detectionProgress:', detectionProgress);
 
           // Common props for all annotation panels
-          // Create detection handler on-demand if:
-          // 1. Annotator supports detection (has detection config)
-          // 2. Detection context is provided (API client, state handlers)
-          // 3. API client is available (not undefined/null)
-          // 4. Resource supports detection (is a text/* media type)
-          const onDetect = (
-            annotator.detection &&
-            props.detectionContext &&
-            props.detectionContext.client &&
-            supportsDetection(props.mediaType)
-          )
-            ? createDetectionHandler(annotator, props.detectionContext)
-            : undefined;
-
-          // Create wrapper function that calls onCreateAnnotation with the annotator's motivation
-          const onCreate = (...args: any[]) => props.onCreateAnnotation(annotator.motivation, ...args);
-
           const commonProps = {
             annotations,
-            onAnnotationClick: props.onAnnotationClick,
-            focusedAnnotationId: props.focusedAnnotationId,
-            hoveredAnnotationId: props.hoveredAnnotationId,
-            onAnnotationHover: props.onAnnotationHover,
-            onDetect,
-            onCreate,
             pendingAnnotation: props.pendingAnnotation,
             isDetecting,
             detectionProgress,
-            annotateMode: props.annotateMode
+            annotateMode: props.annotateMode,
+            scrollToAnnotationId: props.scrollToAnnotationId,
+            onScrollCompleted: props.onScrollCompleted,
+            hoveredAnnotationId: props.hoveredAnnotationId
           };
 
           // Render specific panel based on activeTab with full type safety
@@ -305,8 +258,6 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
             return (
               <HighlightPanel
                 {...commonProps}
-                onAnnotationClick={commonProps.onAnnotationClick!}
-                onCreate={onCreate}
               />
             );
           }
@@ -315,21 +266,14 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
             return (
               <ReferencesPanel
                 annotations={commonProps.annotations}
-                onAnnotationClick={commonProps.onAnnotationClick!}
-                focusedAnnotationId={commonProps.focusedAnnotationId}
-                hoveredAnnotationId={commonProps.hoveredAnnotationId}
-                onAnnotationHover={commonProps.onAnnotationHover}
-                onDetect={onDetect}
-                onCreate={onCreate}
                 pendingAnnotation={commonProps.pendingAnnotation}
                 isDetecting={commonProps.isDetecting}
                 detectionProgress={commonProps.detectionProgress}
                 annotateMode={commonProps.annotateMode}
+                scrollToAnnotationId={commonProps.scrollToAnnotationId}
+                onScrollCompleted={commonProps.onScrollCompleted}
+                hoveredAnnotationId={commonProps.hoveredAnnotationId}
                 allEntityTypes={props.allEntityTypes || []}
-                onCancelDetection={props.onCancelDetection || (() => {})}
-                onGenerateDocument={props.onGenerateDocument}
-                onCreateDocument={props.onCreateDocument}
-                onSearchDocuments={props.onSearchDocuments}
                 generatingReferenceId={props.generatingReferenceId}
                 referencedBy={props.referencedBy}
                 referencedByLoading={props.referencedByLoading}
@@ -343,8 +287,6 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
             return (
               <AssessmentPanel
                 {...commonProps}
-                onAnnotationClick={commonProps.onAnnotationClick!}
-                onCreate={onCreate}
               />
             );
           }
@@ -353,8 +295,6 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
             return (
               <CommentsPanel
                 {...commonProps}
-                onAnnotationClick={commonProps.onAnnotationClick!}
-                onCreate={onCreate}
               />
             );
           }
@@ -363,8 +303,6 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
             return (
               <TaggingPanel
                 {...commonProps}
-                onAnnotationClick={commonProps.onAnnotationClick!}
-                onCreate={onCreate}
               />
             );
           }

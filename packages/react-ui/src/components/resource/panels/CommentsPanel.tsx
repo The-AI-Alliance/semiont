@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import { useMakeMeaningEvents } from '../../../contexts/MakeMeaningEventBusContext';
+import { useEventBus } from '../../../contexts/EventBusContext';
+import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { components, Selector } from '@semiont/api-client';
+import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
 import { CommentEntry } from './CommentEntry';
-import { useAnnotationPanel } from '../../../hooks/useAnnotationPanel';
 import { DetectSection } from './DetectSection';
 import { PanelHeader } from './PanelHeader';
 import './CommentsPanel.css';
@@ -38,45 +39,139 @@ function getSelectorDisplayText(selector: Selector | Selector[]): string | null 
 
 interface CommentsPanelProps {
   annotations: Annotation[];
-  onAnnotationClick: (annotation: Annotation) => void;
-  onCreate: (commentText: string) => void;
-  focusedAnnotationId: string | null;
-  hoveredAnnotationId?: string | null;
-  onAnnotationHover?: (annotationId: string | null) => void;
   pendingAnnotation: PendingAnnotation | null;
   annotateMode?: boolean;
-  onDetect?: (instructions?: string, tone?: string) => void | Promise<void>;
   isDetecting?: boolean;
   detectionProgress?: {
     status: string;
     percentage?: number;
     message?: string;
   } | null;
+  scrollToAnnotationId?: string | null;
+  onScrollCompleted?: () => void;
+  hoveredAnnotationId?: string | null;
 }
 
+/**
+ * Panel for managing comment annotations with text input
+ *
+ * @emits annotation:create - Create new comment annotation. Payload: { motivation: 'commenting', selector: Selector | Selector[], body: Body[] }
+ * @emits annotation:cancel-pending - Cancel pending comment annotation. Payload: undefined
+ * @subscribes annotation:click - Annotation clicked. Payload: { annotationId: string }
+ */
 export function CommentsPanel({
   annotations,
-  onAnnotationClick,
-  onCreate,
-  focusedAnnotationId,
-  hoveredAnnotationId,
-  onAnnotationHover,
   pendingAnnotation,
   annotateMode = true,
-  onDetect,
   isDetecting = false,
   detectionProgress,
+  scrollToAnnotationId,
+  onScrollCompleted,
+  hoveredAnnotationId,
 }: CommentsPanelProps) {
   const t = useTranslations('CommentsPanel');
-  const eventBus = useMakeMeaningEvents();
+  const eventBus = useEventBus();
   const [newCommentText, setNewCommentText] = useState('');
+  const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const { sortedAnnotations, containerRef, handleAnnotationRef } =
-    useAnnotationPanel(annotations, hoveredAnnotationId);
+  // Direct ref management - replace useAnnotationPanel hook
+  const entryRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // Sort annotations by their position in the resource
+  const sortedAnnotations = useMemo(() => {
+    return [...annotations].sort((a, b) => {
+      const aSelector = getTextPositionSelector(getTargetSelector(a.target));
+      const bSelector = getTextPositionSelector(getTargetSelector(b.target));
+      if (!aSelector || !bSelector) return 0;
+      return aSelector.start - bSelector.start;
+    });
+  }, [annotations]);
+
+  // Ref callback for entry components
+  const setEntryRef = useCallback((id: string, element: HTMLDivElement | null) => {
+    if (element) {
+      entryRefs.current.set(id, element);
+    } else {
+      entryRefs.current.delete(id);
+    }
+  }, []);
+
+  // Handle scrollToAnnotationId (click scroll)
+  useEffect(() => {
+    if (!scrollToAnnotationId) return;
+
+    const element = entryRefs.current.get(scrollToAnnotationId);
+
+    if (element && containerRef.current) {
+      // Calculate scroll position to center element in container
+      const elementTop = element.offsetTop;
+      const containerHeight = containerRef.current.clientHeight;
+      const elementHeight = element.offsetHeight;
+      const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
+
+      // Scroll to center
+      containerRef.current.scrollTo({ top: scrollTo, behavior: 'smooth' });
+
+      // Add pulse effect
+      element.classList.remove('semiont-annotation-pulse');
+      void element.offsetWidth; // Force reflow
+      element.classList.add('semiont-annotation-pulse');
+
+      // Notify completion
+      if (onScrollCompleted) {
+        onScrollCompleted();
+      }
+    }
+  }, [scrollToAnnotationId]);
+
+  // Handle hoveredAnnotationId (hover scroll only - pulse is handled by isHovered prop)
+  useEffect(() => {
+    if (!hoveredAnnotationId) return;
+
+    const element = entryRefs.current.get(hoveredAnnotationId);
+
+    if (!element || !containerRef.current) return;
+
+    const container = containerRef.current;
+    const elementRect = element.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+
+    // Only scroll if element is not fully visible
+    const isVisible =
+      elementRect.top >= containerRect.top &&
+      elementRect.bottom <= containerRect.bottom;
+
+    if (!isVisible) {
+      const elementTop = element.offsetTop;
+      const containerHeight = container.clientHeight;
+      const elementHeight = element.offsetHeight;
+      const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
+
+      container.scrollTo({ top: scrollTo, behavior: 'smooth' });
+    }
+
+    // Pulse effect is handled by isHovered prop on CommentEntry
+  }, [hoveredAnnotationId]);
+
+  // Subscribe to click events - update focused state
+  // Event handler for annotation clicks (extracted to avoid inline arrow function)
+  const handleAnnotationClick = useCallback(({ annotationId }: { annotationId: string }) => {
+    setFocusedAnnotationId(annotationId);
+    setTimeout(() => setFocusedAnnotationId(null), 3000);
+  }, []);
+
+  useEventSubscriptions({
+    'annotation:click': handleAnnotationClick,
+  });
 
   const handleSaveNewComment = () => {
-    if (newCommentText.trim()) {
-      onCreate(newCommentText);
+    if (newCommentText.trim() && pendingAnnotation) {
+      eventBus.emit('annotation:create', {
+        motivation: 'commenting',
+        selector: pendingAnnotation.selector,
+        body: [{ type: 'TextualBody', value: newCommentText, purpose: 'commenting' }],
+      });
       setNewCommentText('');
     }
   };
@@ -87,14 +182,14 @@ export function CommentsPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.emit('ui:annotation:cancel-pending');
+        eventBus.emit('annotation:cancel-pending', undefined);
         setNewCommentText('');
       }
     };
 
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [pendingAnnotation, eventBus]);
+  }, [pendingAnnotation]);
 
   return (
     <div className="semiont-panel">
@@ -129,7 +224,7 @@ export function CommentsPanel({
             <div className="semiont-annotation-prompt__actions">
               <button
                 onClick={() => {
-                  eventBus.emit('ui:annotation:cancel-pending');
+                  eventBus.emit('annotation:cancel-pending', undefined);
                   setNewCommentText('');
                 }}
                 className="semiont-button semiont-button--secondary"
@@ -153,12 +248,11 @@ export function CommentsPanel({
       {/* Scrollable content area */}
       <div ref={containerRef} className="semiont-panel__content">
         {/* Detection Section - only in Annotate mode and for text resources */}
-        {annotateMode && onDetect && (
+        {annotateMode && (
           <DetectSection
             annotationType="comment"
             isDetecting={isDetecting}
             detectionProgress={detectionProgress}
-            onDetect={onDetect}
           />
         )}
 
@@ -174,10 +268,9 @@ export function CommentsPanel({
                 key={comment.id}
                 comment={comment}
                 isFocused={comment.id === focusedAnnotationId}
-                onClick={() => onAnnotationClick(comment)}
-                onCommentRef={handleAnnotationRef}
-                {...(onAnnotationHover && { onCommentHover: onAnnotationHover })}
+                isHovered={comment.id === hoveredAnnotationId}
                 annotateMode={annotateMode}
+                ref={(el) => setEntryRef(comment.id, el)}
               />
             ))
           )}

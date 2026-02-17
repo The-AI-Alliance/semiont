@@ -2,9 +2,11 @@
 
 Guide to using the unified event bus in `@semiont/react-ui`.
 
+> **📖 Architecture Guide**: For a complete guide to the three-layer service/hook/component pattern, see [SERVICE-HOOK-COMPONENT.md](SERVICE-HOOK-COMPONENT.md).
+
 ## Overview
 
-The event bus provides a unified communication channel for both backend events (from make-meaning via SSE) and UI events (local user interactions). This architecture eliminates callback prop drilling and enables real-time collaboration.
+The event bus provides a unified communication channel for both backend events (from the API via SSE) and UI events (local user interactions). This architecture eliminates callback prop drilling and enables real-time collaboration.
 
 **Key Benefits**:
 
@@ -19,38 +21,36 @@ The event bus provides a unified communication channel for both backend events (
 
 ## Setup
 
-### 1. Wrap Resource Pages with Provider
+### 1. Wrap Your App with EventBusProvider
 
-The `MakeMeaningEventBusProvider` creates a unified event bus for a specific resource. It must wrap any components that need to emit or subscribe to events.
+The `EventBusProvider` creates a singleton event bus for your application. It should wrap your app at the root level.
 
 ```tsx
-import { MakeMeaningEventBusProvider } from '@semiont/react-ui';
-import { resourceUri } from '@semiont/api-client';
+import { EventBusProvider } from '@semiont/react-ui';
 
-export default function ResourcePage({ params }: { params: { id: string } }) {
-  const rUri = resourceUri(params.id);
-
+export default function App({ children }) {
   return (
-    <MakeMeaningEventBusProvider rUri={rUri}>
-      <ResourceViewerPage rUri={rUri} {...otherProps} />
-    </MakeMeaningEventBusProvider>
+    <EventBusProvider>
+      {children}
+    </EventBusProvider>
   );
 }
 ```
 
-**Important**: The provider is resource-scoped, not global. Each resource page gets its own event bus instance.
+**Important**: The event bus is application-wide, not resource-scoped.
 
 ### 2. Access Event Bus in Components
 
-Use the `useMakeMeaningEvents()` hook to access the event bus:
+Use the `useEventBus()` hook to access the event bus:
 
 ```tsx
-import { useMakeMeaningEvents } from '@semiont/react-ui';
+import { useEventBus } from '@semiont/react-ui';
 
 function MyComponent() {
-  const eventBus = useMakeMeaningEvents();
+  const eventBus = useEventBus();
 
-  // Now you can emit and subscribe to events
+  // Now you can emit events
+  // For subscribing, use useEventSubscriptions (see below)
 }
 ```
 
@@ -60,40 +60,36 @@ function MyComponent() {
 
 The event bus handles two categories of events:
 
-### Backend Events (from Make-Meaning via SSE)
+### Backend Events (from API via SSE)
 
 These events are emitted by the backend when domain changes occur:
 
 **Detection Events**:
 
-- `detection:started` - Entity detection job started
+- `detection:start` - Entity detection job started
 - `detection:progress` - Detection progress update
-- `detection:entity-found` - New entity annotation detected
-- `detection:completed` - Detection job completed
+- `detection:complete` - Detection job completed
 - `detection:failed` - Detection job failed
 
 **Generation Events**:
 
-- `generation:started` - Document generation job started
-- `generation:progress` - Generation progress update
-- `generation:resource-created` - New resource generated
-- `generation:completed` - Generation job completed
+- `reference:generation-start` - Document generation job started
+- `reference:generation-progress` - Generation progress update
+- `reference:generation-complete` - Generation job completed
+- `reference:generation-failed` - Generation job failed
 
 **Annotation Events**:
 
-- `annotation:added` - New annotation created
-- `annotation:removed` - Annotation deleted
-- `annotation:updated` - Annotation body updated
-
-**Entity Tag Events**:
-
-- `entity-tag:added` - New entity tag added
-- `entity-tag:removed` - Entity tag removed
+- `annotation:created` - New annotation created
+- `annotation:deleted` - Annotation deleted
+- `annotation:body-updated` - Annotation body updated
+- `annotation:sparkle` - Annotation highlighted (UI animation)
 
 **Resource Events**:
 
-- `resource:archived` - Resource archived
-- `resource:unarchived` - Resource unarchived
+- `resource:archive` - Resource should be archived
+- `resource:unarchive` - Resource should be unarchived
+- `resource:clone` - Resource should be cloned
 
 ### UI Events (Local User Interactions)
 
@@ -101,59 +97,111 @@ These events are emitted by components when users interact with the UI:
 
 **Selection Events**:
 
-- `ui:selection:comment-requested` - User selected text to comment
-- `ui:selection:tag-requested` - User selected text to tag
-- `ui:selection:assessment-requested` - User selected text to assess
-- `ui:selection:reference-requested` - User selected text/image to reference
+- `annotation:creation-requested` - User selected text to annotate
+- `settings:theme-changed` - Theme changed
+- `settings:line-numbers-toggled` - Line numbers toggled
 
 ---
 
 ## Usage Patterns
 
-### Pattern 1: Subscribe to Backend Events (Cache Invalidation)
+### Pattern 1: Subscribe to Events (✅ CORRECT WAY)
 
-Backend events automatically invalidate React Query cache:
+**Use `useEventSubscriptions` for automatic cleanup:**
 
 ```tsx
-import { useMakeMeaningEvents } from '@semiont/react-ui';
-import { useQueryClient } from '@tanstack/react-query';
+import { useEventSubscriptions } from '@semiont/react-ui';
 
-function MyComponent({ rUri }: { rUri: ResourceUri }) {
-  const eventBus = useMakeMeaningEvents();
-  const queryClient = useQueryClient();
+function MyComponent({ rUri }) {
+  const [pendingAnnotation, setPendingAnnotation] = useState(null);
 
-  useEffect(() => {
-    const handler = (event) => {
-      // Backend added annotation → invalidate cache
-      queryClient.invalidateQueries(['annotations', rUri]);
-    };
+  // ✅ CORRECT: Use useEventSubscriptions
+  useEventSubscriptions({
+    'annotation:creation-requested': (selection) => {
+      setPendingAnnotation({
+        selector: selection.selector,
+        motivation: selection.motivation
+      });
+    },
+    'annotation:created': () => {
+      setPendingAnnotation(null);
+    },
+  });
 
-    eventBus.on('annotation:added', handler);
-    return () => eventBus.off('annotation:added', handler);
-  }, [eventBus, queryClient, rUri]);
+  return <div>{/* Render UI */}</div>;
 }
 ```
 
-**Why this works**: Backend events flow via `SSE → EventBus → Component → Cache Invalidation`. No manual `refetch()` calls needed.
+**Benefits**:
+- Automatic cleanup on unmount
+- Type-safe event handlers
+- Consistent pattern across codebase
 
-### Pattern 2: Emit UI Events (Cross-Component Communication)
+### ❌ Pattern to Avoid: Manual `eventBus.on()`
 
-Components emit UI events instead of calling callback props:
+**Don't manually subscribe with `eventBus.on()`:**
 
 ```tsx
-import { useMakeMeaningEvents } from '@semiont/react-ui';
+// ❌ WRONG: Manual event subscription
+function MyComponent() {
+  const eventBus = useEventBus();
+  const [state, setState] = useState(null);
+
+  useEffect(() => {
+    const handler = (data) => setState(data);
+    eventBus.on('some:event', handler);
+    return () => eventBus.off('some:event', handler);  // Manual cleanup
+  }, [eventBus]);
+
+  return <div>{state}</div>;
+}
+```
+
+**Why avoid this?**
+- Violates layer separation (components should use hooks)
+- Manual cleanup is error-prone
+- Harder to test
+- Compliance checker will flag as violation
+
+**Use hooks instead:**
+```tsx
+// ✅ CORRECT: Use a custom hook
+export function useSomeFeature() {
+  const [state, setState] = useState(null);
+
+  useEventSubscriptions({
+    'some:event': (data) => setState(data),
+  });
+
+  return { state };
+}
+
+function MyComponent() {
+  const { state } = useSomeFeature();
+  return <div>{state}</div>;
+}
+```
+
+### Pattern 2: Emit Events (User Actions)
+
+Components emit events instead of calling callback props:
+
+```tsx
+import { useEventBus } from '@semiont/react-ui';
 
 function TextSelector() {
-  const eventBus = useMakeMeaningEvents();
+  const eventBus = useEventBus();
 
-  const handleTextSelection = (selection: { exact: string; start: number; end: number }) => {
+  const handleTextSelection = (selection: TextSelection) => {
     // Emit event instead of calling a callback prop
-    eventBus.emit('ui:selection:comment-requested', {
-      exact: selection.exact,
-      start: selection.start,
-      end: selection.end,
-      prefix: extractPrefix(selection.start),
-      suffix: extractSuffix(selection.end)
+    eventBus.emit('annotation:creation-requested', {
+      selector: {
+        type: 'TextQuoteSelector',
+        exact: selection.exact,
+        prefix: selection.prefix,
+        suffix: selection.suffix
+      },
+      motivation: 'commenting'
     });
   };
 
@@ -167,192 +215,126 @@ function TextSelector() {
 - No ref stabilization required
 - Component doesn't need to know who handles the event
 
-### Pattern 3: Subscribe to UI Events
+### Pattern 3: Cache Invalidation via Events
 
-Other components subscribe to UI events to react to user interactions:
+Backend events automatically invalidate React Query cache:
 
 ```tsx
-import { useMakeMeaningEvents } from '@semiont/react-ui';
+import { useEventSubscriptions } from '@semiont/react-ui';
+import { useQueryClient } from '@tanstack/react-query';
 
-function AnnotationPanel() {
-  const eventBus = useMakeMeaningEvents();
-  const [pendingAnnotation, setPendingAnnotation] = useState(null);
+function MyComponent({ rUri }) {
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    const handler = (selection) => {
-      // User requested a comment → open annotation panel
-      setActivePanel('annotations');
-      setPendingAnnotation({
-        selector: {
-          type: 'TextQuoteSelector',
-          exact: selection.exact,
-          start: selection.start,
-          end: selection.end,
-          prefix: selection.prefix,
-          suffix: selection.suffix
-        },
-        motivation: 'commenting'
-      });
-    };
+  useEventSubscriptions({
+    'annotation:created': () => {
+      // Backend created annotation → invalidate cache
+      queryClient.invalidateQueries(['annotations', rUri]);
+    },
+    'annotation:deleted': () => {
+      queryClient.invalidateQueries(['annotations', rUri]);
+    },
+  });
 
-    eventBus.on('ui:selection:comment-requested', handler);
-    return () => eventBus.off('ui:selection:comment-requested', handler);
-  }, [eventBus]);
-
-  return <div>{/* Render annotation form */}</div>;
+  return <div>{/* UI */}</div>;
 }
 ```
 
-### Pattern 4: Type-Safe Event Handling
-
-Events are fully type-safe using discriminated unions:
-
-```tsx
-import { useMakeMeaningEvents } from '@semiont/react-ui';
-import type { ResourceEvent } from '@semiont/core';
-
-function DetectionMonitor() {
-  const eventBus = useMakeMeaningEvents();
-
-  useEffect(() => {
-    // Type is automatically narrowed to Extract<ResourceEvent, { type: 'job.started' }>
-    const onStarted = (event) => {
-      console.log('Detection started:', event.data.jobId);
-      // event.data is typed correctly based on event type
-    };
-
-    // Type is narrowed to Extract<ResourceEvent, { type: 'job.progress' }>
-    const onProgress = (event) => {
-      console.log('Progress:', event.data.percentage);
-    };
-
-    eventBus.on('detection:started', onStarted);
-    eventBus.on('detection:progress', onProgress);
-
-    return () => {
-      eventBus.off('detection:started', onStarted);
-      eventBus.off('detection:progress', onProgress);
-    };
-  }, [eventBus]);
-}
-```
+**Why this works**: Backend events flow via `SSE → EventBus → Component → Cache Invalidation`. No manual `refetch()` calls needed.
 
 ---
 
-## Complete Example
+## Three-Layer Architecture
 
-Here's a complete example showing event emission and subscription:
+The event bus is part of a three-layer architecture:
 
+1. **Service Layer**: SSE connection management (`useResourceEvents`)
+2. **Hook Layer**: Event subscriptions + React state (`useEventSubscriptions` + `useState`)
+3. **Component Layer**: Pure React (hooks + JSX)
+
+### Example: Detection Flow
+
+**Layer 1 (Service)**: Establish SSE connection
 ```tsx
-// Component that emits events (ResourceViewer)
-function ResourceViewer({ content }: { content: string }) {
-  const eventBus = useMakeMeaningEvents();
-
-  const handleTextSelection = () => {
-    const selection = window.getSelection();
-    if (!selection || selection.toString().length === 0) return;
-
-    // Emit UI event
-    eventBus.emit('ui:selection:comment-requested', {
-      exact: selection.toString(),
-      start: getSelectionStart(),
-      end: getSelectionEnd(),
-      prefix: extractPrefix(),
-      suffix: extractSuffix()
-    });
-  };
-
-  return <div onMouseUp={handleTextSelection}>{content}</div>;
+function ResourceViewerPage({ rUri }) {
+  useResourceEvents(rUri);  // Opens SSE, emits events to bus
+  // ...
 }
+```
 
-// Component that subscribes to events (ResourceViewerPage)
-function ResourceViewerPage({ rUri }: { rUri: ResourceUri }) {
-  const eventBus = useMakeMeaningEvents();
-  const [pendingAnnotation, setPendingAnnotation] = useState(null);
+**Layer 2 (Hook)**: Manage state from events
+```tsx
+export function useDetectionFlow(rUri: ResourceUri) {
+  const [detecting, setDetecting] = useState(null);
+  const [progress, setProgress] = useState(null);
 
-  // Subscribe to UI events
-  useEffect(() => {
-    const handleCommentRequested = (selection) => {
-      setPendingAnnotation({
-        selector: {
-          type: 'TextQuoteSelector',
-          exact: selection.exact,
-          start: selection.start,
-          end: selection.end,
-          prefix: selection.prefix,
-          suffix: selection.suffix
-        },
-        motivation: 'commenting'
-      });
-    };
+  useEventSubscriptions({
+    'detection:start': ({ motivation }) => setDetecting(motivation),
+    'detection:progress': (chunk) => setProgress(chunk),
+    'detection:complete': () => setDetecting(null),
+  });
 
-    eventBus.on('ui:selection:comment-requested', handleCommentRequested);
-    return () => eventBus.off('ui:selection:comment-requested', handleCommentRequested);
-  }, [eventBus]);
+  return { detecting, progress };
+}
+```
 
-  // Subscribe to backend events for cache invalidation
-  const queryClient = useQueryClient();
-  useEffect(() => {
-    const handleAnnotationAdded = () => {
-      queryClient.invalidateQueries(['annotations', rUri]);
-    };
-
-    eventBus.on('annotation:added', handleAnnotationAdded);
-    return () => eventBus.off('annotation:added', handleAnnotationAdded);
-  }, [eventBus, queryClient, rUri]);
+**Layer 3 (Component)**: Use hook and render UI
+```tsx
+function ResourceViewerPage({ rUri }) {
+  const { detecting, progress } = useDetectionFlow(rUri);
 
   return (
     <div>
-      <ResourceViewer content="..." />
-      {pendingAnnotation && <AnnotationForm pending={pendingAnnotation} />}
+      {detecting && <p>Detecting {detecting}...</p>}
+      {progress && <ProgressBar message={progress.message} />}
     </div>
   );
 }
-
-// Root page wraps with provider
-export default function Page({ params }: { params: { id: string } }) {
-  const rUri = resourceUri(params.id);
-
-  return (
-    <MakeMeaningEventBusProvider rUri={rUri}>
-      <ResourceViewerPage rUri={rUri} />
-    </MakeMeaningEventBusProvider>
-  );
-}
 ```
+
+**📖 See [SERVICE-HOOK-COMPONENT.md](SERVICE-HOOK-COMPONENT.md) for the complete architecture guide.**
 
 ---
 
 ## Best Practices
 
-### 1. Always Clean Up Event Listeners
+### 1. Always Use `useEventSubscriptions`
 
-Use the cleanup function returned by `useEffect`:
+**✅ DO**: Use the hook for automatic cleanup
 
 ```tsx
-useEffect(() => {
-  const handler = (event) => {
+useEventSubscriptions({
+  'annotation:created': (annotation) => {
     // Handle event
-  };
+  },
+});
+```
 
-  eventBus.on('annotation:added', handler);
-  return () => eventBus.off('annotation:added', handler); // ✅ Cleanup
+**❌ DON'T**: Manually manage subscriptions
+
+```tsx
+// WRONG - compliance violation
+useEffect(() => {
+  const handler = (event) => { /* ... */ };
+  eventBus.on('annotation:created', handler);
+  return () => eventBus.off('annotation:created', handler);
 }, [eventBus]);
 ```
 
-### 2. Use Discriminated Unions for Type Safety
+### 2. Use Type-Safe Event Handlers
 
-Extract specific event types for type narrowing:
+Events are fully type-safe using discriminated unions:
 
 ```tsx
-import type { ResourceEvent } from '@semiont/core';
+import { useEventSubscriptions } from '@semiont/react-ui';
+import type { DetectionProgressChunk } from '@semiont/api-client';
 
-type AnnotationAddedEvent = Extract<ResourceEvent, { type: 'annotation.added' }>;
-
-const handler = (event: AnnotationAddedEvent) => {
-  // event.data is correctly typed as AnnotationAddedData
-  console.log(event.data.annotation);
-};
+useEventSubscriptions({
+  'detection:progress': (chunk: DetectionProgressChunk) => {
+    // chunk is correctly typed
+    console.log(chunk.message, chunk.foundCount);
+  },
+});
 ```
 
 ### 3. Emit Events, Don't Call Callbacks
@@ -375,83 +357,122 @@ function Component({ onCommentRequested }: Props) {
 ```tsx
 // ✅ GOOD: Event emission
 function Component() {
-  const eventBus = useMakeMeaningEvents();
-  eventBus.emit('ui:selection:comment-requested', selection); // No props needed
+  const eventBus = useEventBus();
+  eventBus.emit('annotation:creation-requested', { ... }); // No props needed
 }
 ```
 
-### 4. Subscribe to Events for Cache Invalidation
+### 4. Create Custom Hooks for Complex Event Logic
 
-**Before (manual refetch)**:
-
-```tsx
-// ❌ BAD: Manual refetch after mutation
-const createAnnotation = async () => {
-  await api.createAnnotation(...);
-  await queryClient.refetchQueries(['annotations']); // Manual refetch
-};
-```
-
-**After (event-based)**:
+**Extract event subscriptions into hooks:**
 
 ```tsx
-// ✅ GOOD: Automatic via events
-useEffect(() => {
-  const handler = () => {
-    queryClient.invalidateQueries(['annotations', rUri]);
-  };
+// ✅ GOOD: Custom hook encapsulates event logic
+export function useAnnotationFlow(rUri: ResourceUri) {
+  const [pending, setPending] = useState(null);
 
-  eventBus.on('annotation:added', handler);
-  return () => eventBus.off('annotation:added', handler);
-}, [eventBus, queryClient, rUri]);
+  useEventSubscriptions({
+    'annotation:creation-requested': (selection) => {
+      setPending({
+        selector: selection.selector,
+        motivation: selection.motivation
+      });
+    },
+    'annotation:created': () => setPending(null),
+    'annotation:failed': () => setPending(null),
+  });
+
+  return { pendingAnnotation: pending };
+}
+
+// Component uses hook
+function MyComponent({ rUri }) {
+  const { pendingAnnotation } = useAnnotationFlow(rUri);
+  return <div>{/* Use pendingAnnotation */}</div>;
+}
 ```
 
 ---
 
-## Future: Real-Time Collaboration
+## Event Naming Convention
 
-The unified event bus architecture enables P2P real-time collaboration:
+Events use colon-separated namespaces:
+
+```
+namespace:event-name
+```
+
+**Examples**:
+
+- ✅ `detection:start` (correct)
+- ✅ `annotation:created` (correct)
+- ✅ `resource:archive` (correct)
+- ❌ `detection-start` (legacy - don't use hyphens for namespaces)
+
+**Compliance**: The automated compliance checker flags legacy hyphen-separated event names as warnings.
+
+---
+
+## Compliance and Testing
+
+### Automated Compliance Checks
+
+The codebase enforces event bus best practices:
+
+```bash
+npm run audit:compliance
+```
+
+**Layer Separation Violations** (will fail build):
+
+- ❌ Components using `eventBus.on()` (should use `useEventSubscriptions`)
+- ❌ Components using `eventBus.off()` (cleanup is automatic)
+- ❌ Hooks returning JSX (hooks should return data)
+- ❌ Global `eventBus` imports (should use `useEventBus()` hook)
+
+### Testing Events
+
+**Emit events in tests:**
 
 ```tsx
-// Future: Broadcast UI events to peers
-function CollaborativeTextSelector() {
-  const eventBus = useMakeMeaningEvents();
-  const peerConnection = usePeerConnection();
+import { render } from '@testing-library/react';
+import { EventBusProvider, createEventBus } from '@semiont/react-ui';
 
-  const handleSelection = (selection) => {
-    // Emit locally
-    eventBus.emit('ui:selection:comment-requested', selection);
+it('should handle annotation:created event', async () => {
+  const eventBus = createEventBus();
 
-    // Broadcast to peers
-    peerConnection.broadcast('ui:selection:comment-requested', selection);
-  };
+  render(
+    <EventBusProvider value={eventBus}>
+      <MyComponent />
+    </EventBusProvider>
+  );
 
-  // Show peer cursors
-  useEffect(() => {
-    const handler = (selection, peerId) => {
-      showPeerCursor(peerId, selection);
-    };
+  // Emit event
+  act(() => {
+    eventBus.emit('annotation:created', { annotation: mockAnnotation });
+  });
 
-    peerConnection.on('ui:selection:comment-requested', handler);
-    return () => peerConnection.off('ui:selection:comment-requested', handler);
-  }, [peerConnection]);
-}
+  // Assert state updated
+  await waitFor(() => {
+    expect(screen.queryByText('Pending...')).not.toBeInTheDocument();
+  });
+});
 ```
 
 ---
 
 ## Troubleshooting
 
-### Error: "useMakeMeaningEvents must be used within MakeMeaningEventBusProvider"
+### Error: "useEventBus must be used within EventBusProvider"
 
-**Cause**: Component is using `useMakeMeaningEvents()` but is not wrapped in `MakeMeaningEventBusProvider`.
+**Cause**: Component is using `useEventBus()` but is not wrapped in `EventBusProvider`.
 
 **Solution**: Wrap the component tree with the provider:
 
 ```tsx
-<MakeMeaningEventBusProvider rUri={rUri}>
+<EventBusProvider>
   <YourComponent />
-</MakeMeaningEventBusProvider>
+</EventBusProvider>
 ```
 
 ### Events Not Firing
@@ -459,43 +480,43 @@ function CollaborativeTextSelector() {
 **Causes**:
 
 1. Event listener not registered before event is emitted
-2. Event listener cleanup removes handler too early
-3. Wrong event name (check spelling/casing)
+2. Wrong event name (check spelling/casing)
+3. Missing `EventBusProvider`
 
 **Solutions**:
 
-1. Register listeners in `useEffect` on component mount
-2. Verify cleanup function only runs on unmount
-3. Check event names against `MakeMeaningEventMap` type
+1. Use `useEventSubscriptions` in component mount
+2. Check event names against `EventMap` type
+3. Verify provider wraps component tree
 
 ### Memory Leaks
 
-**Cause**: Event listeners not cleaned up.
+**Cause**: Using manual `eventBus.on()` without cleanup.
 
-**Solution**: Always return cleanup function:
+**Solution**: Use `useEventSubscriptions` for automatic cleanup:
 
 ```tsx
-useEffect(() => {
-  const handler = (event) => { /* ... */ };
-  eventBus.on('event:name', handler);
-  return () => eventBus.off('event:name', handler); // ✅ Required
-}, [eventBus]);
+// ✅ CORRECT: Automatic cleanup
+useEventSubscriptions({
+  'annotation:created': (annotation) => { /* ... */ },
+});
 ```
 
 ---
 
 ## Related Documentation
 
+- **[SERVICE-HOOK-COMPONENT.md](SERVICE-HOOK-COMPONENT.md)** - Three-layer architecture guide
 - [ARCHITECTURE.md](ARCHITECTURE.md) - Event-driven architecture principles
-- [PROVIDERS.md](PROVIDERS.md) - MakeMeaningEventBusProvider setup
 - [API-INTEGRATION.md](API-INTEGRATION.md) - Event-based cache invalidation
-- [ANNOTATIONS.md](ANNOTATIONS.md) - Annotation lifecycle events
+- [TESTING.md](TESTING.md) - Testing event-driven code
+- [RXJS-SERVICE-HOOK-COMPONENT-INVARIANTS.md](../../../RXJS-SERVICE-HOOK-COMPONENT-INVARIANTS.md) - Architectural invariants
 
 ---
 
 ## References
 
-- Event bus implementation: `packages/react-ui/src/contexts/MakeMeaningEventBusContext.tsx`
-- Backend event types: `packages/core/src/events.ts`
+- Event bus context: `packages/react-ui/src/contexts/EventBusContext.tsx`
+- Event subscriptions hook: `packages/react-ui/src/hooks/useEventSubscriptions.ts`
 - SSE integration: `packages/react-ui/src/hooks/useResourceEvents.ts`
 - mitt library: https://github.com/developit/mitt

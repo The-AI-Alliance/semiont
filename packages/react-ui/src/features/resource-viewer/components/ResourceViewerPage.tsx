@@ -1,16 +1,17 @@
 /**
- * ResourceViewerPage - Pure React component for viewing resources
+ * ResourceViewerPage - Self-contained resource viewer component
  *
- * No Next.js dependencies - receives all data and callbacks via props.
- * This component handles the UI rendering and state management for the resource viewer.
+ * Handles all data loading, event subscriptions, and side effects internally.
+ * Only requires minimal props from the framework layer (routing, modals).
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
-import type { components, ResourceUri, GenerationContext, Selector } from '@semiont/api-client';
-import { getLanguage, getPrimaryRepresentation, annotationUri, resourceUri, resourceAnnotationUri } from '@semiont/api-client';
-import { createCancelDetectionHandler, ANNOTATORS } from '@semiont/react-ui';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import type { components, ResourceUri } from '@semiont/api-client';
+import { getLanguage, getPrimaryRepresentation, resourceAnnotationUri, getPrimaryMediaType } from '@semiont/api-client';
+import { uriToAnnotationId } from '@semiont/core';
+import { ANNOTATORS } from '@semiont/react-ui';
 import { ErrorBoundary } from '@semiont/react-ui';
-import { useGenerationProgress } from '@semiont/react-ui';
 import { AnnotationHistory } from '@semiont/react-ui';
 import { UnifiedAnnotationsPanel } from '@semiont/react-ui';
 import { ResourceInfoPanel } from '@semiont/react-ui';
@@ -20,19 +21,26 @@ import { Toolbar } from '@semiont/react-ui';
 import { useResourceLoadingAnnouncements } from '@semiont/react-ui';
 import type { GenerationOptions } from '@semiont/react-ui';
 import { ResourceViewer } from '@semiont/react-ui';
-import { MakeMeaningEventBusProvider, useMakeMeaningEvents } from '@semiont/react-ui';
+import { QUERY_KEYS } from '../../../lib/query-keys';
+import { useResources, useEntityTypes } from '../../../lib/api-hooks';
+import { useResourceContent } from '../../../hooks/useResourceContent';
+import { useToast } from '../../../components/Toast';
+import { useTheme } from '../../../hooks/useTheme';
+import { useLineNumbers } from '../../../hooks/useLineNumbers';
+import { useResourceEvents } from '../../../hooks/useResourceEvents';
+import { useDebouncedCallback } from '../../../hooks/useDebounce';
+import { useOpenResources } from '../../../contexts/OpenResourcesContext';
+// Import EventBus hooks directly from context to avoid mocking issues in tests
+import { useEventBus } from '../../../contexts/EventBusContext';
+import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
+import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsContext';
+import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
+import { usePanelNavigation } from '../../../hooks/usePanelNavigation';
+import { useAnnotationFlow } from '../../../hooks/useAnnotationFlow';
+import { useGenerationFlow } from '../../../hooks/useGenerationFlow';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
-type Motivation = components['schemas']['Motivation'];
-
-// Unified pending annotation type - all human-created annotations flow through this
-interface PendingAnnotation {
-  selector: Selector | Selector[];
-  motivation: Motivation;
-}
-
-import type { DetectionProgress } from '@semiont/react-ui';
 
 export interface ResourceViewerPageProps {
   /**
@@ -46,95 +54,14 @@ export interface ResourceViewerPageProps {
   rUri: ResourceUri;
 
   /**
-   * Document content (already loaded)
-   */
-  content: string;
-
-  /**
-   * Whether content is still loading
-   */
-  contentLoading: boolean;
-
-  /**
-   * All annotations for this resource
-   */
-  annotations: Annotation[];
-
-  /**
-   * Resources that reference this resource
-   */
-  referencedBy: any[];
-
-  /**
-   * Whether referencedBy is loading
-   */
-  referencedByLoading: boolean;
-
-  /**
-   * All available entity types
-   */
-  allEntityTypes: string[];
-
-  /**
    * Current locale
    */
   locale: string;
-
-
-  /**
-   * Theme state
-   */
-  theme: any;
-  onThemeChange: (theme: any) => void;
-
-  /**
-   * Line numbers state
-   */
-  showLineNumbers: boolean;
-  onLineNumbersToggle: () => void;
-
-  /**
-   * Active toolbar panel
-   */
-  activePanel: any;
-  onPanelToggle: (panel: any) => void;
-  setActivePanel: (panel: any) => void;
-
-  /**
-   * Callbacks for resource actions
-   */
-  onArchive: () => Promise<void>;
-  onUnarchive: () => Promise<void>;
-  onClone: () => Promise<void>;
-  onUpdateAnnotationBody: (annotationUri: string, data: any) => Promise<void>;
-
-  /**
-   * Annotation CRUD callbacks
-   */
-  onCreateAnnotation: (
-    rUri: ResourceUri,
-    motivation: Motivation,
-    selector: any,
-    body: any[]
-  ) => Promise<void>;
-  onTriggerSparkleAnimation: (annotationId: string) => void;
-  onClearNewAnnotationId: (annotationId: string) => void;
-
-  /**
-   * Toast notifications
-   */
-  showSuccess: (message: string) => void;
-  showError: (message: string) => void;
 
   /**
    * Cache manager for detection
    */
   cacheManager: any;
-
-  /**
-   * API client
-   */
-  client: any;
 
   /**
    * Link component for routing
@@ -147,55 +74,286 @@ export interface ResourceViewerPageProps {
   routes: any;
 
   /**
-   * Component dependencies - passed from frontend
+   * Component dependencies - passed from framework layer
    */
   ToolbarPanels: React.ComponentType<any>;
   SearchResourcesModal: React.ComponentType<any>;
   GenerationConfigModal: React.ComponentType<any>;
+
+  /**
+   * Callback to refetch document from parent
+   */
+  refetchDocument: () => Promise<unknown>;
 }
 
-// Inner component that has access to event bus
-function ResourceViewerPageInner({
+/**
+ * ResourceViewerPage - Main component
+ *
+ * Uses hooks directly (NO containers, NO render props, NO ResourceViewerPageContent wrapper)
+ */
+export function ResourceViewerPage({
   resource,
   rUri,
-  content,
-  contentLoading,
-  annotations,
-  referencedBy,
-  referencedByLoading,
-  allEntityTypes,
   locale,
-  theme,
-  onThemeChange,
-  showLineNumbers,
-  onLineNumbersToggle,
-  activePanel,
-  onPanelToggle,
-  setActivePanel,
-  onArchive,
-  onUnarchive,
-  onClone,
-  onUpdateAnnotationBody,
-  onCreateAnnotation,
-  onTriggerSparkleAnimation,
-  onClearNewAnnotationId,
-  showSuccess,
-  showError,
   cacheManager,
-  client,
   Link,
   routes,
   ToolbarPanels,
   SearchResourcesModal,
   GenerationConfigModal,
+  refetchDocument,
 }: ResourceViewerPageProps) {
   // Get unified event bus for subscribing to UI events
-  const eventBus = useMakeMeaningEvents();
+  const eventBus = useEventBus();
+  const queryClient = useQueryClient();
+
+  // UI state hooks
+  const { showError, showSuccess } = useToast();
+  const { theme, setTheme } = useTheme();
+  const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
+  const { addResource } = useOpenResources();
+  const { triggerSparkleAnimation, clearNewAnnotationId } = useResourceAnnotations();
+
+  // API hooks
+  const resources = useResources();
+  const entityTypesAPI = useEntityTypes();
+
+  // Load all data
+  const { content, loading: contentLoading } = useResourceContent(rUri, resource);
+
+  const { data: annotationsData } = resources.annotations.useQuery(rUri);
+  const annotations = useMemo(
+    () => annotationsData?.annotations || [],
+    [annotationsData?.annotations]
+  );
+
+  const { data: referencedByData, isLoading: referencedByLoading } = resources.referencedBy.useQuery(rUri);
+  const referencedBy = referencedByData?.referencedBy || [];
+
+  const { data: entityTypesData } = entityTypesAPI.list.useQuery();
+  const allEntityTypes = (entityTypesData as { entityTypes: string[] } | undefined)?.entityTypes || [];
+
+  // Flow state hooks (NO CONTAINERS)
+  const { detectingMotivation, detectionProgress } = useDetectionFlow(rUri);
+  const { activePanel, scrollToAnnotationId, panelInitialTab, onScrollCompleted } = usePanelNavigation();
+  const { pendingAnnotation, hoveredAnnotationId } = useAnnotationFlow(rUri);
+  const {
+    generationProgress,
+    generationModalOpen,
+    generationReferenceId,
+    generationDefaultTitle,
+    searchModalOpen,
+    pendingReferenceId,
+    onGenerateDocument,
+    onCloseGenerationModal,
+    onCloseSearchModal,
+  } = useGenerationFlow(locale, rUri.split('/').pop() || '', showSuccess, showError, cacheManager, clearNewAnnotationId);
+
+  // Debounced invalidation for real-time events
+  const debouncedInvalidateAnnotations = useDebouncedCallback(
+    () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(rUri) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(rUri) });
+    },
+    500
+  );
+
+  // Add resource to open tabs when it loads
+  useEffect(() => {
+    if (resource && rUri) {
+      const resourceIdSegment = rUri.split('/').pop() || '';
+      const mediaType = getPrimaryMediaType(resource);
+      addResource(resourceIdSegment, resource.name, mediaType || undefined);
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('lastViewedDocumentId', resourceIdSegment);
+      }
+    }
+  }, [resource, rUri, addResource]);
+
+  // Real-time document events (SSE)
+  useResourceEvents({
+    rUri,
+    autoConnect: true,
+
+    // Annotation events - use debounced invalidation to batch rapid updates
+    onAnnotationAdded: useCallback((_event: any) => {
+      debouncedInvalidateAnnotations();
+    }, [debouncedInvalidateAnnotations]),
+
+    onAnnotationRemoved: useCallback((_event: any) => {
+      debouncedInvalidateAnnotations();
+    }, [debouncedInvalidateAnnotations]),
+
+    onAnnotationBodyUpdated: useCallback((event: any) => {
+      // Optimistically update annotations cache with body operations
+      queryClient.setQueryData(QUERY_KEYS.documents.annotations(rUri), (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          annotations: old.annotations.map((annotation: any) => {
+            const annotationIdSegment = uriToAnnotationId(annotation.id);
+            if (annotationIdSegment === event.payload.annotationId) {
+              let bodyArray = Array.isArray(annotation.body) ? [...annotation.body] : [];
+
+              for (const op of event.payload.operations || []) {
+                if (op.op === 'add') {
+                  bodyArray.push(op.item);
+                } else if (op.op === 'remove') {
+                  bodyArray = bodyArray.filter((item: any) =>
+                    JSON.stringify(item) !== JSON.stringify(op.item)
+                  );
+                } else if (op.op === 'replace') {
+                  const index = bodyArray.findIndex((item: any) =>
+                    JSON.stringify(item) === JSON.stringify(op.oldItem)
+                  );
+                  if (index !== -1) {
+                    bodyArray[index] = op.newItem;
+                  }
+                }
+              }
+
+              return {
+                ...annotation,
+                body: bodyArray,
+              };
+            }
+            return annotation;
+          }),
+        };
+      });
+
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(rUri) });
+    }, [queryClient, rUri]),
+
+    // Document status events
+    onDocumentArchived: useCallback((_event: any) => {
+      refetchDocument();
+      showSuccess('This document has been archived');
+      debouncedInvalidateAnnotations();
+    }, [refetchDocument, showSuccess, debouncedInvalidateAnnotations]),
+
+    onDocumentUnarchived: useCallback((_event: any) => {
+      refetchDocument();
+      showSuccess('This document has been unarchived');
+      debouncedInvalidateAnnotations();
+    }, [refetchDocument, showSuccess, debouncedInvalidateAnnotations]),
+
+    // Entity tag events
+    onEntityTagAdded: useCallback((_event: any) => {
+      refetchDocument();
+      debouncedInvalidateAnnotations();
+    }, [refetchDocument, debouncedInvalidateAnnotations]),
+
+    onEntityTagRemoved: useCallback((_event: any) => {
+      refetchDocument();
+      debouncedInvalidateAnnotations();
+    }, [refetchDocument, debouncedInvalidateAnnotations]),
+
+    onError: useCallback((error: any) => {
+      console.error('[RealTime] Event stream error:', error);
+    }, []),
+  });
+
+  // Event bus subscriptions (combined into single useEventSubscriptions call to prevent hook ordering issues)
+  useEventSubscriptions({
+    // Resource operations
+    'resource:archive': async () => {
+      try {
+        await resources.update.useMutation().mutateAsync({
+          rUri,
+          data: { archived: true }
+        });
+        await refetchDocument();
+        showSuccess('Document archived');
+      } catch (err) {
+        console.error('Failed to archive document:', err);
+        showError('Failed to archive document');
+      }
+    },
+    'resource:unarchive': async () => {
+      try {
+        await resources.update.useMutation().mutateAsync({
+          rUri,
+          data: { archived: false }
+        });
+        await refetchDocument();
+        showSuccess('Document unarchived');
+      } catch (err) {
+        console.error('Failed to unarchive document:', err);
+        showError('Failed to unarchive document');
+      }
+    },
+    'resource:clone': async () => {
+      try {
+        const result = await resources.generateCloneToken.useMutation().mutateAsync(rUri);
+        const token = result.token;
+        const cloneUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/know/clone?token=${token}`;
+
+        await navigator.clipboard.writeText(cloneUrl);
+        showSuccess('Clone link copied to clipboard');
+      } catch (err) {
+        console.error('Failed to generate clone token:', err);
+        showError('Failed to generate clone link');
+      }
+    },
+
+    // Annotation operations
+    'annotation:sparkle': ({ annotationId }) => {
+      triggerSparkleAnimation(annotationId);
+    },
+    'annotation:created': ({ annotation }) => {
+      triggerSparkleAnimation(annotation.id);
+      debouncedInvalidateAnnotations();
+    },
+    'annotation:deleted': debouncedInvalidateAnnotations,
+    'annotation:create-failed': () => showError('Failed to create annotation'),
+    'annotation:delete-failed': () => showError('Failed to delete annotation'),
+    'annotation:body-updated': () => {
+      // Success - optimistic update already applied via useResourceEvents
+    },
+    'annotation:body-update-failed': () => showError('Failed to update annotation'),
+
+    // Settings
+    'settings:theme-changed': ({ theme }) => setTheme(theme),
+    'settings:line-numbers-toggled': toggleLineNumbers,
+
+    // Detection/Generation
+    'detection:complete': () => showSuccess('Detection complete'),
+    'detection:failed': () => showError('Detection failed'),
+    'generation:complete': () => showSuccess('Document generated'),
+    'generation:failed': () => showError('Failed to generate document'),
+
+    // Navigation
+    'navigation:reference-navigate': ({ documentId }: { documentId: string }) => {
+      // Navigate to the referenced document
+      if (routes.resource) {
+        const path = routes.resource.replace('[resourceId]', encodeURIComponent(documentId));
+        eventBus.emit('navigation:router-push', { path, reason: 'reference-link' });
+      }
+    },
+    'navigation:entity-type-clicked': ({ entityType }: { entityType: string }) => {
+      // Navigate to discovery page filtered by entity type
+      if (routes.know) {
+        const path = `${routes.know}?entityType=${encodeURIComponent(entityType)}`;
+        eventBus.emit('navigation:router-push', { path, reason: 'entity-type-filter' });
+      }
+    },
+  });
+
   // Resource loading announcements
   const {
     announceResourceLoading,
     announceResourceLoaded
   } = useResourceLoadingAnnouncements();
+
+  // Announce content loading state changes (app-level)
+  useEffect(() => {
+    if (contentLoading) {
+      announceResourceLoading(resource.name);
+    } else if (content) {
+      announceResourceLoaded(resource.name);
+    }
+  }, [contentLoading, content, resource.name, announceResourceLoading, announceResourceLoaded]);
 
   // Derived state
   const documentEntityTypes = resource.entityTypes || [];
@@ -205,371 +363,13 @@ function ResourceViewerPageInner({
   const primaryMediaType = primaryRep?.mediaType;
   const primaryByteSize = primaryRep?.byteSize;
 
-  // Annotate mode state - read-only copy for sidebar panel coordination
-  // ResourceViewer manages the authoritative state and persists to localStorage
+  // Annotate mode state - local UI state only
   const [annotateMode, _setAnnotateMode] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('annotateMode') === 'true';
     }
     return false;
   });
-
-  // Unified annotation state (motivation-agnostic) - used by sidebar panels
-  const [focusedAnnotationId, _setFocusedAnnotationId] = useState<string | null>(null);
-  const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
-  // scrollToAnnotationId removed - ResourceViewer now manages scroll state internally
-
-  // Unified pending annotation - all human-created annotations flow through this
-  const [pendingAnnotation, setPendingAnnotation] = useState<PendingAnnotation | null>(null);
-
-  // Search state
-  const [searchModalOpen, setSearchModalOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [pendingReferenceId, setPendingReferenceId] = useState<string | null>(null);
-
-  // Generation config modal state
-  const [generationModalOpen, setGenerationModalOpen] = useState(false);
-  const [generationReferenceId, setGenerationReferenceId] = useState<string | null>(null);
-  const [generationDefaultTitle, setGenerationDefaultTitle] = useState('');
-
-  // Unified detection state (motivation-based)
-  const [detectingMotivation, setDetectingMotivation] = useState<Motivation | null>(null);
-  const [motivationDetectionProgress, setMotivationDetectionProgress] = useState<DetectionProgress | null>(null);
-
-  // SSE stream reference for cancellation
-  const detectionStreamRef = React.useRef<any>(null);
-
-  // Handle event hover - trigger sparkle animation
-  const handleEventHover = useCallback((annotationId: string | null) => {
-    setHoveredAnnotationId(annotationId);
-    if (annotationId) {
-      onTriggerSparkleAnimation(annotationId);
-    }
-  }, [onTriggerSparkleAnimation]);
-
-  // Handle event click - scroll handled internally by ResourceViewer now
-  const handleEventClick = useCallback((_annotationId: string | null) => {
-    // ResourceViewer now manages scroll state internally
-  }, []);
-
-  // Use SSE-based document generation progress - provides inline sparkle animation
-  const {
-    progress: generationProgress,
-    startGeneration,
-    clearProgress
-  } = useGenerationProgress({
-    onComplete: () => {
-      // Clear progress widget
-      setTimeout(() => clearProgress(), 1000);
-    },
-    onError: (error) => {
-      console.error('[Generation] Error:', error);
-    }
-  });
-
-  // Generic detection context for all annotation types
-  const detectionContext = {
-    client,
-    rUri,
-    setDetectingMotivation,
-    setMotivationDetectionProgress,
-    detectionStreamRef,
-    cacheManager,
-    showSuccess,
-    showError
-  };
-
-  // Generic cancel handler (works for all detection types)
-  const handleCancelDetection = useCallback(
-    () => createCancelDetectionHandler({
-      detectionStreamRef,
-      setDetectingMotivation,
-      setMotivationDetectionProgress
-    })(),
-    []
-  );
-
-  // Handle document generation from stub reference
-  const handleGenerateDocument = useCallback((
-    referenceId: string,
-    options: {
-      title: string;
-      prompt?: string;
-      language?: string;
-      temperature?: number;
-      maxTokens?: number;
-      context?: GenerationContext;
-    }
-  ) => {
-    // Only open modal if this is the initial click (no context provided)
-    if (!options.context) {
-      setGenerationReferenceId(referenceId);
-      setGenerationDefaultTitle(options.title);
-      setGenerationModalOpen(true);
-      return;
-    }
-
-    // Modal submitted with full options including context - proceed with generation
-    if (!resource) return;
-
-    // Clear CSS sparkle animation if reference was recently created
-    onClearNewAnnotationId(annotationUri(referenceId));
-
-    // Use full resource URI (W3C Web Annotation spec requires URIs)
-    const resourceUriStr = resource['@id'];
-    startGeneration(annotationUri(referenceId), resourceUri(resourceUriStr), {
-      ...options,
-      // Use language from modal if provided, otherwise fall back to current locale
-      language: options.language || locale,
-      context: options.context
-    });
-  }, [startGeneration, resource, onClearNewAnnotationId, locale]);
-
-  // Handle manual document creation from stub reference
-  const handleCreateDocument = useCallback((
-    annotationUri: string,
-    title: string,
-    entityTypes: string[]
-  ) => {
-    if (!resource) return;
-
-    // Extract resource ID from URI
-    const resourceId = rUri.split('/').pop() || '';
-
-    // Navigate to compose page with reference context
-    const entityTypesStr = entityTypes.join(',');
-    const params = new URLSearchParams({
-      name: title,  // Compose page expects 'name' parameter
-      annotationUri,  // Pass full annotation URI, not just ID
-      sourceDocumentId: resourceId,
-      ...(entityTypes.length > 0 ? { entityTypes: entityTypesStr } : {}),
-    });
-
-    window.location.href = `/know/compose?${params.toString()}`;
-  }, [resource, rUri]);
-
-  // Handle search for documents to link to reference
-  const handleSearchDocuments = useCallback((referenceId: string, searchTerm: string) => {
-    setPendingReferenceId(referenceId);
-    setSearchTerm(searchTerm);
-    setSearchModalOpen(true);
-  }, []);
-
-
-  // Announce content loading state changes
-  useEffect(() => {
-    if (contentLoading) {
-      announceResourceLoading(resource.name);
-    } else if (content) {
-      announceResourceLoaded(resource.name);
-    }
-  }, [contentLoading, content, resource.name, announceResourceLoading, announceResourceLoaded]);
-
-  // Unified annotation request handler - all human-created annotations flow through this
-  const handleAnnotationRequested = useCallback((pending: PendingAnnotation) => {
-    // Route to appropriate panel tab based on motivation
-    const MOTIVATION_TO_TAB: Record<Motivation, string> = {
-      highlighting: 'annotations',
-      commenting: 'annotations',
-      assessing: 'annotations',
-      tagging: 'annotations',
-      linking: 'annotations',
-      bookmarking: 'annotations',
-      classifying: 'annotations',
-      describing: 'annotations',
-      editing: 'annotations',
-      identifying: 'annotations',
-      moderating: 'annotations',
-      questioning: 'annotations',
-      replying: 'annotations',
-    };
-
-    setActivePanel(MOTIVATION_TO_TAB[pending.motivation] || 'annotations');
-    setPendingAnnotation(pending);
-  }, [setActivePanel]);
-
-  // Subscribe to UI events from ResourceViewer
-  useEffect(() => {
-    const handleCommentRequested = (selection: any) => {
-      handleAnnotationRequested({
-        selector: {
-          type: 'TextQuoteSelector',
-          exact: selection.exact,
-          start: selection.start,
-          end: selection.end,
-          ...(selection.prefix && { prefix: selection.prefix }),
-          ...(selection.suffix && { suffix: selection.suffix })
-        },
-        motivation: 'commenting'
-      });
-    };
-
-    const handleTagRequested = (selection: any) => {
-      handleAnnotationRequested({
-        selector: {
-          type: 'TextQuoteSelector',
-          exact: selection.exact,
-          start: selection.start,
-          end: selection.end,
-          ...(selection.prefix && { prefix: selection.prefix }),
-          ...(selection.suffix && { suffix: selection.suffix })
-        },
-        motivation: 'tagging'
-      });
-    };
-
-    const handleAssessmentRequested = (selection: any) => {
-      handleAnnotationRequested({
-        selector: {
-          type: 'TextQuoteSelector',
-          exact: selection.exact,
-          start: selection.start,
-          end: selection.end,
-          ...(selection.prefix && { prefix: selection.prefix }),
-          ...(selection.suffix && { suffix: selection.suffix })
-        },
-        motivation: 'assessing'
-      });
-    };
-
-    const handleReferenceRequested = (selection: any) => {
-      // Build selector based on what's present in the selection
-      let selector: any;
-
-      if (selection.svgSelector) {
-        selector = {
-          type: 'SvgSelector',
-          value: selection.svgSelector
-        };
-      } else if (selection.fragmentSelector) {
-        selector = {
-          type: 'FragmentSelector',
-          value: selection.fragmentSelector,
-          ...(selection.conformsTo && { conformsTo: selection.conformsTo })
-        };
-      } else {
-        selector = {
-          type: 'TextQuoteSelector',
-          exact: selection.exact,
-          start: selection.start,
-          end: selection.end,
-          ...(selection.prefix && { prefix: selection.prefix }),
-          ...(selection.suffix && { suffix: selection.suffix })
-        };
-      }
-
-      handleAnnotationRequested({
-        selector,
-        motivation: 'linking'
-      });
-    };
-
-    // Handle cancel pending annotation
-    const handleCancelPending = () => {
-      setPendingAnnotation(null);
-    };
-
-    eventBus.on('ui:selection:comment-requested', handleCommentRequested);
-    eventBus.on('ui:selection:tag-requested', handleTagRequested);
-    eventBus.on('ui:selection:assessment-requested', handleAssessmentRequested);
-    eventBus.on('ui:selection:reference-requested', handleReferenceRequested);
-    eventBus.on('ui:annotation:cancel-pending', handleCancelPending);
-
-    return () => {
-      eventBus.off('ui:selection:comment-requested', handleCommentRequested);
-      eventBus.off('ui:selection:tag-requested', handleTagRequested);
-      eventBus.off('ui:selection:assessment-requested', handleAssessmentRequested);
-      eventBus.off('ui:selection:reference-requested', handleReferenceRequested);
-      eventBus.off('ui:annotation:cancel-pending', handleCancelPending);
-    };
-  }, [eventBus, handleAnnotationRequested]);
-
-  // Manual tag creation handler
-  // Shared UI handlers - same across all annotation types
-  const handleAnnotationClick = useCallback((annotation: Annotation) => {
-    setHoveredAnnotationId(annotation.id);
-    setTimeout(() => setHoveredAnnotationId(null), 1500);
-  }, []);
-
-  const handleAnnotationHover = useCallback((annotationId: string | null) => {
-    setHoveredAnnotationId(annotationId);
-  }, []);
-
-  // Single generic annotation creation handler - reads config from ANNOTATORS
-  const handleCreateAnnotation = useCallback(async (
-    motivation: Motivation,
-    ...args: any[]
-  ) => {
-    if (!pendingAnnotation || pendingAnnotation.motivation !== motivation) return;
-
-    // Find the config for this motivation
-    const annotatorConfig = Object.values(ANNOTATORS).find(a => a.motivation === motivation);
-    if (!annotatorConfig) return;
-
-    try {
-      let body: any[] = [];
-      let selector = pendingAnnotation.selector;
-
-      // Build body based on config
-      switch (annotatorConfig.create.bodyBuilder) {
-        case 'empty':
-          // args[0] might be selector for highlight/assessment
-          if (args[0]) selector = args[0];
-          body = [];
-          break;
-
-        case 'text':
-          // args[0] is commentText
-          body = [{
-            type: 'TextualBody',
-            value: args[0],
-            format: 'text/plain',
-            purpose: 'commenting'
-          }];
-          break;
-
-        case 'entityTag':
-          // args[0] is optional entityType
-          if (args[0]) {
-            body = [{
-              type: 'TextualBody',
-              purpose: 'tagging',
-              value: args[0]
-            }];
-          }
-          break;
-
-        case 'dualTag':
-          // args[0] is schemaId, args[1] is category
-          body = [
-            {
-              type: 'TextualBody',
-              purpose: 'tagging',
-              value: args[1] // category
-            },
-            {
-              type: 'TextualBody',
-              purpose: 'classifying',
-              value: args[0] // schemaId
-            }
-          ];
-          break;
-      }
-
-      await onCreateAnnotation(rUri, motivation, selector, body);
-      setPendingAnnotation(null);
-
-      // Cache invalidation now handled by annotation:added event
-
-      if (annotatorConfig.create.successMessage) {
-        const message = annotatorConfig.create.successMessage.replace('{value}', args[1] || '');
-        showSuccess(message);
-      }
-    } catch (error) {
-      console.error(`Failed to create ${annotatorConfig.internalType}:`, error);
-      showError(`Failed to create ${annotatorConfig.displayName.toLowerCase()}`);
-    }
-  }, [pendingAnnotation, onCreateAnnotation, rUri, showSuccess, showError]);
 
   // Group annotations by type using static ANNOTATORS
   const result = {
@@ -595,7 +395,16 @@ function ResourceViewerPageInner({
   // Combine resource with content
   const resourceWithContent = { ...resource, content };
 
-  // handleAnnotationClickAndFocus removed - ResourceViewer now manages focus/click state internally
+  // Handlers for AnnotationHistory (legacy event-based interaction)
+  const handleEventHover = useCallback((annotationId: string | null) => {
+    if (annotationId) {
+      eventBus.emit('annotation:sparkle', { annotationId });
+    }
+  }, []); // eventBus is stable singleton - never in deps
+
+  const handleEventClick = useCallback((_annotationId: string | null) => {
+    // ResourceViewer now manages scroll state internally
+  }, []);
 
   // Document rendering
   return (
@@ -639,12 +448,11 @@ function ResourceViewerPageInner({
               ) : (
                 <ResourceViewer
                   resource={resourceWithContent}
-                annotations={groups}
-                onAnnotationRequested={handleAnnotationRequested}
-                generatingReferenceId={generationProgress?.referenceId ?? null}
-                showLineNumbers={showLineNumbers}
-                annotators={ANNOTATORS}
-              />
+                  annotations={groups}
+                  generatingReferenceId={generationProgress?.referenceId ?? null}
+                  showLineNumbers={showLineNumbers}
+                  hoveredAnnotationId={hoveredAnnotationId}
+                />
               )}
             </ErrorBoundary>
           </div>
@@ -656,9 +464,7 @@ function ResourceViewerPageInner({
           <ToolbarPanels
             activePanel={activePanel}
             theme={theme}
-            onThemeChange={onThemeChange}
             showLineNumbers={showLineNumbers}
-            onLineNumbersToggle={onLineNumbersToggle}
             width={
               activePanel === 'jsonld' ? 'w-[600px]' :
               activePanel === 'annotations' ? 'w-[400px]' :
@@ -679,26 +485,20 @@ function ResourceViewerPageInner({
               <UnifiedAnnotationsPanel
                 annotations={annotations}
                 annotators={ANNOTATORS}
-                onCreateAnnotation={handleCreateAnnotation}
-                detectionContext={detectionContext}
-                focusedAnnotationId={focusedAnnotationId}
-                hoveredAnnotationId={hoveredAnnotationId}
-                onAnnotationClick={handleAnnotationClick}
-                onAnnotationHover={handleAnnotationHover}
                 annotateMode={annotateMode}
                 detectingMotivation={detectingMotivation}
-                detectionProgress={motivationDetectionProgress}
+                detectionProgress={detectionProgress}
                 pendingAnnotation={pendingAnnotation}
                 allEntityTypes={allEntityTypes}
-                onGenerateDocument={handleGenerateDocument}
-                onCreateDocument={handleCreateDocument}
                 generatingReferenceId={generationProgress?.referenceId ?? null}
-                onSearchDocuments={handleSearchDocuments}
-                onCancelDetection={handleCancelDetection}
-                {...(primaryMediaType ? { mediaType: primaryMediaType } : {})}
                 referencedBy={referencedBy}
                 referencedByLoading={referencedByLoading}
                 resourceId={rUri.split('/').pop() || ''}
+                scrollToAnnotationId={scrollToAnnotationId}
+                hoveredAnnotationId={hoveredAnnotationId}
+                onScrollCompleted={onScrollCompleted}
+                initialTab={panelInitialTab?.tab as any}
+                initialTabGeneration={panelInitialTab?.generation}
                 Link={Link}
                 routes={routes}
               />
@@ -724,9 +524,6 @@ function ResourceViewerPageInner({
                 primaryMediaType={primaryMediaType}
                 primaryByteSize={primaryByteSize}
                 isArchived={resource.archived ?? false}
-                onClone={onClone}
-                onArchive={onArchive}
-                onUnarchive={onUnarchive}
               />
             )}
 
@@ -749,7 +546,6 @@ function ResourceViewerPageInner({
             context="document"
             activePanel={activePanel}
             isArchived={resource.archived ?? false}
-            onPanelToggle={onPanelToggle}
           />
         </div>
       </div>
@@ -757,10 +553,7 @@ function ResourceViewerPageInner({
       {/* Search Resources Modal */}
       <SearchResourcesModal
         isOpen={searchModalOpen}
-        onClose={() => {
-          setSearchModalOpen(false);
-          setPendingReferenceId(null);
-        }}
+        onClose={onCloseSearchModal}
         onSelect={async (documentId: string) => {
           if (pendingReferenceId) {
             try {
@@ -772,7 +565,8 @@ function ResourceViewerPageInner({
               const resourceIdSegment = rUri.split('/').pop() || '';
               const nestedUri = `${window.location.origin}/resources/${resourceIdSegment}/annotations/${annotationIdShort}`;
 
-              await onUpdateAnnotationBody(resourceAnnotationUri(nestedUri), {
+              eventBus.emit('annotation:update-body', {
+                annotationUri: resourceAnnotationUri(nestedUri),
                 resourceId: resourceIdSegment,
                 operations: [{
                   op: 'add',
@@ -785,27 +579,22 @@ function ResourceViewerPageInner({
               });
               showSuccess('Reference linked successfully');
               // Cache invalidation now handled by annotation:updated event
-              setSearchModalOpen(false);
-              setPendingReferenceId(null);
+              onCloseSearchModal();
             } catch (error) {
               console.error('Failed to link reference:', error);
               showError('Failed to link reference');
             }
           }
         }}
-        searchTerm={searchTerm}
       />
 
       {/* Generation Config Modal */}
       <GenerationConfigModal
         isOpen={generationModalOpen}
-        onClose={() => {
-          setGenerationModalOpen(false);
-          setGenerationReferenceId(null);
-        }}
+        onClose={onCloseGenerationModal}
         onGenerate={(options: GenerationOptions) => {
           if (generationReferenceId) {
-            handleGenerateDocument(generationReferenceId, options);
+            onGenerateDocument(generationReferenceId, options);
           }
         }}
         referenceId={generationReferenceId || ''}
@@ -813,14 +602,5 @@ function ResourceViewerPageInner({
         defaultTitle={generationDefaultTitle}
       />
     </div>
-  );
-}
-
-// Outer component that wraps MakeMeaningEventBusProvider
-export function ResourceViewerPage(props: ResourceViewerPageProps) {
-  return (
-    <MakeMeaningEventBusProvider rUri={props.rUri}>
-      <ResourceViewerPageInner {...props} />
-    </MakeMeaningEventBusProvider>
   );
 }

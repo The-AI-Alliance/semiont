@@ -9,8 +9,9 @@
 import React, { useState, useEffect } from 'react';
 import type { components } from '@semiont/api-client';
 import { isImageMimeType, isPdfMimeType, LOCALES } from '@semiont/api-client';
-import { buttonStyles, CodeMirrorRenderer } from '@semiont/react-ui';
-import { useFormAnnouncements } from '@semiont/react-ui';
+import { buttonStyles } from '../../../lib/button-styles';
+import { CodeMirrorRenderer } from '../../../components/CodeMirrorRenderer';
+import { useFormAnnouncements } from '../../../components/LiveRegion';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
@@ -40,11 +41,8 @@ export interface ResourceComposePageProps {
 
   // UI state
   theme: 'light' | 'dark';
-  onThemeChange: (theme: 'light' | 'dark') => void;
   showLineNumbers: boolean;
-  onLineNumbersToggle: () => void;
   activePanel: string | null;
-  onPanelToggle: (panel: string) => void;
 
   // Actions
   onSaveResource: (params: SaveResourceParams) => Promise<void>;
@@ -111,11 +109,8 @@ export function ResourceComposePage({
   availableEntityTypes,
   initialLocale,
   theme,
-  onThemeChange,
   showLineNumbers,
-  onLineNumbersToggle,
   activePanel,
-  onPanelToggle,
   onSaveResource,
   onCancel,
   translations: t,
@@ -529,12 +524,10 @@ export function ResourceComposePage({
                 <div className="semiont-form__editor-wrapper" lang={selectedLanguage}>
                   <CodeMirrorRenderer
                     content={newResourceContent}
-                    segments={[]}
                     editable={!isCreating}
                     sourceView={true}
                     showLineNumbers={showLineNumbers}
                     onChange={(newContent) => setNewResourceContent(newContent)}
-                    annotators={{}}
                   />
                 </div>
               </div>
@@ -610,16 +603,13 @@ export function ResourceComposePage({
         <ToolbarPanels
           activePanel={activePanel}
           theme={theme}
-          onThemeChange={onThemeChange}
           showLineNumbers={showLineNumbers}
-          onLineNumbersToggle={onLineNumbersToggle}
         />
 
         {/* Toolbar - Always visible on the right */}
         <Toolbar
           context="simple"
           activePanel={activePanel}
-          onPanelToggle={onPanelToggle}
         />
       </div>
     </div>

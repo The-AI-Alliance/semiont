@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import { useEventBus } from '../../contexts/EventBusContext';
 
 export interface SimpleNavigationItem {
   name: string;
@@ -16,7 +17,6 @@ export interface SimpleNavigationProps {
   LinkComponent: React.ComponentType<any>;
   dropdownContent?: (onClose: () => void) => React.ReactNode;
   isCollapsed: boolean;
-  onToggleCollapse: () => void;
   icons: {
     chevronLeft: React.ComponentType<{ className?: string }>;
     bars: React.ComponentType<{ className?: string }>;
@@ -28,6 +28,8 @@ export interface SimpleNavigationProps {
 /**
  * Simple navigation component for Admin and Moderation modes.
  * Renders a section header with optional dropdown and static navigation tabs.
+ *
+ * @emits navigation:sidebar-toggle - Toggle sidebar collapsed/expanded state. Payload: undefined
  */
 export function SimpleNavigation({
   title,
@@ -36,7 +38,6 @@ export function SimpleNavigation({
   LinkComponent,
   dropdownContent,
   isCollapsed,
-  onToggleCollapse,
   icons,
   collapseSidebarLabel,
   expandSidebarLabel
@@ -46,6 +47,7 @@ export function SimpleNavigation({
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const eventBus = useEventBus();
 
   const toggleDropdown = () => setIsDropdownOpen(!isDropdownOpen);
   const closeDropdown = () => setIsDropdownOpen(false);
@@ -69,20 +71,22 @@ export function SimpleNavigation({
     <div className="semiont-simple-nav">
       {/* Section header with collapse/expand button and optional dropdown */}
       <div style={{ position: 'relative' }} ref={dropdownContent ? dropdownRef : undefined}>
-        <button
-          onClick={dropdownContent ? toggleDropdown : undefined}
-          className="semiont-nav-section__header"
-          disabled={!dropdownContent}
-          aria-expanded={dropdownContent ? isDropdownOpen : undefined}
-          aria-haspopup={dropdownContent ? 'true' : undefined}
-          type="button"
-        >
-          {!isCollapsed && <span className="semiont-nav-section__header-text">{title}</span>}
+        <div className="semiont-nav-section__header">
+          {dropdownContent ? (
+            <button
+              onClick={toggleDropdown}
+              className="semiont-nav-section__header-button"
+              aria-expanded={isDropdownOpen}
+              aria-haspopup="true"
+              type="button"
+            >
+              {!isCollapsed && <span className="semiont-nav-section__header-text">{title}</span>}
+            </button>
+          ) : (
+            !isCollapsed && <span className="semiont-nav-section__header-text">{title}</span>
+          )}
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleCollapse();
-            }}
+            onClick={() => eventBus.emit('navigation:sidebar-toggle', undefined)}
             className="semiont-nav-section__header-icon"
             title={isCollapsed ? expandSidebarLabel : collapseSidebarLabel}
             aria-label={isCollapsed ? expandSidebarLabel : collapseSidebarLabel}
@@ -90,7 +94,7 @@ export function SimpleNavigation({
           >
             {!isCollapsed ? <ChevronLeftIcon /> : <BarsIcon />}
           </button>
-        </button>
+        </div>
 
         {isDropdownOpen && dropdownContent && !isCollapsed && (
           <div className="semiont-nav-section__dropdown">

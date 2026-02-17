@@ -11,7 +11,7 @@ export function useSearchAnnouncements() {
 
   const announceSearching = useCallback(() => {
     announce('Searching...', 'polite');
-  }, [announce]);
+  }, []);
 
   const announceSearchResults = useCallback((count: number, query: string) => {
     if (count === 0) {
@@ -21,15 +21,15 @@ export function useSearchAnnouncements() {
     } else {
       announce(`${count} results found for ${query}`, 'polite');
     }
-  }, [announce]);
+  }, []);
 
   const announceSelection = useCallback((name: string, type: string) => {
     announce(`Selected ${type}: ${name}. Press Enter to navigate.`, 'polite');
-  }, [announce]);
+  }, []);
 
   const announceNavigation = useCallback((name: string, type: string) => {
     announce(`Navigating to ${type}: ${name}`, 'assertive');
-  }, [announce]);
+  }, []);
 
   return {
     announceSearching,

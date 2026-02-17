@@ -93,7 +93,8 @@
     "densitySparse": "Escasa",
     "densityDense": "Densa",
     "fragmentSelected": "Fragmento seleccionado",
-    "imageRegionSelected": "Región de imagen seleccionada"
+    "imageRegionSelected": "Región de imagen seleccionada",
+    "closeProgress": "Cerrar"
   },
   "HighlightPanel": {
     "title": "Destacados",
@@ -107,7 +108,8 @@
     "cancel": "Cancelar",
     "densityLabel": "Densidad",
     "densitySparse": "Escasa",
-    "densityDense": "Densa"
+    "densityDense": "Densa",
+    "closeProgress": "Cerrar"
   },
   "AssessmentPanel": {
     "title": "Evaluaciones",
@@ -131,7 +133,8 @@
     "densitySparse": "Escasa",
     "densityDense": "Densa",
     "fragmentSelected": "Fragmento seleccionado",
-    "imageRegionSelected": "Región de imagen seleccionada"
+    "imageRegionSelected": "Región de imagen seleccionada",
+    "closeProgress": "Cerrar"
   },
   "TaggingPanel": {
     "title": "Etiquetas",
