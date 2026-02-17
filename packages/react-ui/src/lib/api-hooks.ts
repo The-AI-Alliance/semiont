@@ -20,11 +20,14 @@ import {
   type ResourceUri,
   type AnnotationUri,
   type ResourceAnnotationUri,
+  type ContentFormat,
   searchQuery,
   cloneToken,
   entityType,
   userDID,
-  accessToken
+  accessToken,
+  getPrimaryMediaType,
+  decodeWithCharset,
 } from '@semiont/api-client';
 import { extractResourceUriFromAnnotationUri, uriToAnnotationId } from '@semiont/core';
 import { QUERY_KEYS } from './query-keys';
@@ -90,6 +93,21 @@ export function useResources() {
           queryKey: QUERY_KEYS.documents.referencedBy(rUri),
           queryFn: () => client!.getResourceReferencedBy(rUri, { auth: toAccessToken(token) }),
           enabled: !!client && !!rUri,
+        }),
+    },
+
+    representation: {
+      useQuery: (rUri: ResourceUri, mediaType: string) =>
+        useQuery({
+          queryKey: QUERY_KEYS.resources.representation(rUri),
+          queryFn: async () => {
+            const { data } = await client!.getResourceRepresentation(rUri, {
+              accept: mediaType as ContentFormat,
+              auth: toAccessToken(token),
+            });
+            return decodeWithCharset(data, mediaType);
+          },
+          enabled: !!client && !!rUri && !!mediaType,
         }),
     },
 

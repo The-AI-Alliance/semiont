@@ -24,6 +24,7 @@ export const QUERY_KEYS = {
     events: (rUri: ResourceUri) => ['resources', rUri, 'events'] as const,
     annotations: (rUri: ResourceUri) => ['resources', rUri, 'annotations'] as const,
     referencedBy: (rUri: ResourceUri) => ['resources', rUri, 'referenced-by'] as const,
+    representation: (rUri: ResourceUri) => ['resources', rUri, 'representation'] as const,
   },
 
   annotations: {
