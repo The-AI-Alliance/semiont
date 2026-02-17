@@ -59,6 +59,7 @@ export interface GenerationFlowState {
  * @emits generation:failed - Error during generation
  * @subscribes generation:start - Triggers SSE call to generateResourceFromAnnotation
  * @subscribes job:cancel-requested - Cancels in-flight generation stream
+ * @subscribes reference:create-manual - Navigates to compose page for new document reference
  * @subscribes generation:modal-open - Open the generation config modal
  * @subscribes generation:complete - Generation completed successfully
  * @subscribes generation:failed - Error during generation
@@ -257,15 +258,37 @@ export function useGenerationFlow(
       }
     };
 
+    /**
+     * Handle manual document creation for reference
+     * Emitted by: ReferenceEntry (when user clicks "Create Document")
+     * Navigates to the compose page with pre-filled params
+     */
+    const handleReferenceCreateManual = (event: {
+      annotationUri: string;
+      title: string;
+      entityTypes: string[];
+    }) => {
+      const baseUrl = window.location.origin;
+      const params = new URLSearchParams({
+        annotationUri: event.annotationUri,
+        sourceDocumentId: resourceId,
+        name: event.title,
+        entityTypes: event.entityTypes.join(','),
+      });
+      window.location.href = `${baseUrl}/know/compose?${params.toString()}`;
+    };
+
     eventBus.on('generation:start', handleGenerationStart);
     eventBus.on('job:cancel-requested', handleJobCancelRequested);
+    eventBus.on('reference:create-manual', handleReferenceCreateManual);
 
     return () => {
       eventBus.off('generation:start', handleGenerationStart);
       eventBus.off('job:cancel-requested', handleJobCancelRequested);
+      eventBus.off('reference:create-manual', handleReferenceCreateManual);
       generationStreamRef.current?.abort();
     };
-  }, [eventBus]); // eventBus is stable singleton; client/token accessed via refs
+  }, [eventBus, resourceId]); // eventBus is stable singleton; resourceId added for navigation handler
 
   // Subscribe to generation events
   useEventSubscriptions({

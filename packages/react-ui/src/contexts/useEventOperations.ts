@@ -19,13 +19,13 @@ export interface EventOperationsConfig {
 /**
  * Hook that subscribes to remaining operation events and coordinates API calls
  *
- * Handles: annotation:update-body, reference:create-manual, reference:link
+ * Handles: annotation:update-body, reference:link
  *
  * annotation:create, annotation:delete, detection:start are handled
  * directly in useDetectionFlow.
  *
- * generation:start, job:cancel-requested (generation half) are handled
- * directly in useGenerationFlow.
+ * generation:start, job:cancel-requested (generation half), reference:create-manual
+ * are handled directly in useGenerationFlow.
  *
  * @param emitter - The mitt event bus instance
  * @param config - Configuration including API client and resource URI
@@ -89,30 +89,6 @@ export function useEventOperations(
     // ========================================================================
 
     /**
-     * Handle manual document creation for reference
-     * Emitted by: ReferenceEntry (when user clicks "Create Document")
-     * This navigates to the compose page
-     */
-    const handleReferenceCreateManual = (event: {
-      annotationUri: string;
-      title: string;
-      entityTypes: string[];
-    }) => {
-      // Navigate to compose page with reference completion params
-      const baseUrl = window.location.origin;
-      const resourceId = resourceUri.split('/resources/')[1];
-
-      const params = new URLSearchParams({
-        annotationUri: event.annotationUri,
-        sourceDocumentId: resourceId || '',
-        name: event.title,
-        entityTypes: event.entityTypes.join(','),
-      });
-
-      window.location.href = `${baseUrl}/know/compose?${params.toString()}`;
-    };
-
-    /**
      * Handle reference linking (search for existing documents)
      * Emitted by: ReferenceEntry (when user clicks "Link Document")
      * Opens the search modal
@@ -133,13 +109,11 @@ export function useEventOperations(
     // ========================================================================
 
     emitter.on('annotation:update-body', handleAnnotationUpdateBody);
-    emitter.on('reference:create-manual', handleReferenceCreateManual);
     emitter.on('reference:link', handleReferenceLink);
 
     // Cleanup: unsubscribe
     return () => {
       emitter.off('annotation:update-body', handleAnnotationUpdateBody);
-      emitter.off('reference:create-manual', handleReferenceCreateManual);
       emitter.off('reference:link', handleReferenceLink);
     };
   }, [emitter, token]); // Only re-run if emitter or token changes
