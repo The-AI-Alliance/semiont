@@ -175,8 +175,8 @@ export function ResourceViewerPage({
   // Debounced invalidation for real-time events
   const debouncedInvalidateAnnotations = useDebouncedCallback(
     () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(rUri) });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(rUri) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.annotations(rUri) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
     },
     500
   );
@@ -209,7 +209,7 @@ export function ResourceViewerPage({
 
     onAnnotationBodyUpdated: useCallback((event: any) => {
       // Optimistically update annotations cache with body operations
-      queryClient.setQueryData(QUERY_KEYS.documents.annotations(rUri), (old: any) => {
+      queryClient.setQueryData(QUERY_KEYS.resources.annotations(rUri), (old: any) => {
         if (!old) return old;
         return {
           ...old,
@@ -245,7 +245,7 @@ export function ResourceViewerPage({
         };
       });
 
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(rUri) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
     }, [queryClient, rUri]),
 
     // Document status events
@@ -333,8 +333,8 @@ export function ResourceViewerPage({
 
   const handleDetectionComplete = useCallback(() => {
     showSuccess('Detection complete');
-    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(rUri) });
-    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(rUri) });
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.annotations(rUri) });
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
   }, [showSuccess, queryClient, rUri]);
   const handleDetectionFailed = useCallback(() => showError('Detection failed'), [showError]);
   const handleGenerationComplete = useCallback(() => showSuccess('Document generated'), [showSuccess]);
