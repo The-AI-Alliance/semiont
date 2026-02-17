@@ -188,6 +188,18 @@ export type EventMap = {
     referenceId: string;
     searchTerm: string;
   };
+  'context:retrieval-requested': {
+    annotationUri: string;
+    resourceUri: string;
+  };
+  'context:retrieval-complete': {
+    annotationUri: string;
+    context: any; // GenerationContext from api-client
+  };
+  'context:retrieval-failed': {
+    annotationUri: string;
+    error: Error;
+  };
 };
 
 export type EventBus = ReturnType<typeof mitt<EventMap>> & { busId: string };

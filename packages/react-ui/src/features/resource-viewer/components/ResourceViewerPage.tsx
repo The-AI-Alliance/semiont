@@ -39,6 +39,7 @@ import { useResolutionFlow } from '../../../contexts/useResolutionFlow';
 import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
 import { usePanelNavigation } from '../../../hooks/usePanelNavigation';
 import { useGenerationFlow } from '../../../hooks/useGenerationFlow';
+import { useContextRetrievalFlow } from '../../../hooks/useContextRetrievalFlow';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
@@ -169,6 +170,7 @@ export function ResourceViewerPage({
     onGenerateDocument,
     onCloseGenerationModal,
   } = useGenerationFlow(locale, rUri.split('/').pop() || '', showSuccess, showError, cacheManager, clearNewAnnotationId);
+  const { retrievalContext, retrievalLoading, retrievalError } = useContextRetrievalFlow(eventBus, { client, resourceUri: rUri });
 
   // Debounced invalidation for real-time events
   const debouncedInvalidateAnnotations = useDebouncedCallback(
@@ -631,9 +633,10 @@ export function ResourceViewerPage({
             onGenerateDocument(generationReferenceId, options);
           }
         }}
-        referenceId={generationReferenceId || ''}
-        resourceUri={rUri}
         defaultTitle={generationDefaultTitle}
+        context={retrievalContext}
+        contextLoading={retrievalLoading}
+        contextError={retrievalError}
       />
     </div>
   );

@@ -214,3 +214,4 @@ export * from './features/resource-viewer/components/ResourceViewerPage';
 export * from './hooks/useDetectionFlow';
 export * from './hooks/usePanelNavigation';
 export * from './hooks/useGenerationFlow';
+export * from './hooks/useContextRetrievalFlow';
