@@ -23,15 +23,10 @@ export interface ResolutionFlowState {
 }
 
 /**
- * Hook that handles annotation body updates and reference link resolution
+ * Hook that handles the Resolution capability: resolving reference annotations
+ * to existing resources (search) or new resources (manual creation).
  *
  * Handles: annotation:update-body, reference:link, resolution:search-requested
- *
- * annotation:create, annotation:delete, detection:start, job:cancel-requested (detection)
- * are handled directly in useDetectionFlow.
- *
- * generation:start, job:cancel-requested (generation), reference:create-manual
- * are handled directly in useGenerationFlow.
  *
  * @param emitter - The mitt event bus instance
  * @param config - Configuration including API client and resource URI
