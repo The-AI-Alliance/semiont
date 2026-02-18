@@ -43,7 +43,8 @@ export function DetectSection({
   const t = useTranslations(panelName);
   const eventBus = useEventBus();
   const [instructions, setInstructions] = useState('');
-  const [tone, setTone] = useState('');
+  type ToneValue = 'scholarly' | 'explanatory' | 'conversational' | 'technical' | 'analytical' | 'critical' | 'balanced' | 'constructive' | '';
+  const [tone, setTone] = useState<ToneValue>('');
   // Default density depends on annotation type
   const defaultDensity = annotationType === 'comment' ? 5 : annotationType === 'assessment' ? 4 : annotationType === 'highlight' ? 5 : 5;
   const [density, setDensity] = useState(defaultDensity);
@@ -74,7 +75,7 @@ export function DetectSection({
       motivation,
       options: {
         instructions: instructions.trim() || undefined,
-        tone: (annotationType === 'comment' || annotationType === 'assessment') && tone ? tone as any : undefined,
+        tone: (annotationType === 'comment' || annotationType === 'assessment') && tone ? tone : undefined,
         density: (annotationType === 'comment' || annotationType === 'assessment' || annotationType === 'highlight') && useDensity ? density : undefined,
       },
     });
@@ -139,7 +140,7 @@ export function DetectSection({
                 </label>
                 <select
                   value={tone}
-                  onChange={(e) => setTone(e.target.value)}
+                  onChange={(e) => setTone(e.target.value as ToneValue)}
                   className="semiont-select"
                 >
                   <option value="">Default</option>

@@ -325,7 +325,7 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
       motivation: Motivation;
       options: {
         instructions?: string;
-        tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical';
+        tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical' | 'analytical' | 'critical' | 'balanced' | 'constructive';
         density?: number;
         entityTypes?: string[];
         includeDescriptiveReferences?: boolean;
@@ -391,6 +391,7 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
         } else if (event.motivation === 'highlighting') {
           const stream = currentClient.sse.detectHighlights(currentRUri, {
             instructions: event.options.instructions,
+            density: event.options.density,
           }, auth);
           stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk); });
           stream.onComplete((finalChunk) => {
@@ -405,6 +406,8 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
         } else if (event.motivation === 'assessing') {
           const stream = currentClient.sse.detectAssessments(currentRUri, {
             instructions: event.options.instructions,
+            tone: event.options.tone as 'analytical' | 'critical' | 'balanced' | 'constructive' | undefined,
+            density: event.options.density,
           }, auth);
           stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk); });
           stream.onComplete((finalChunk) => {
@@ -419,7 +422,8 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
         } else if (event.motivation === 'commenting') {
           const stream = currentClient.sse.detectComments(currentRUri, {
             instructions: event.options.instructions,
-            tone: event.options.tone,
+            tone: event.options.tone as 'scholarly' | 'explanatory' | 'conversational' | 'technical' | undefined,
+            density: event.options.density,
           }, auth);
           stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk); });
           stream.onComplete((finalChunk) => {

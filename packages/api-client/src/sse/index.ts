@@ -39,6 +39,8 @@ export type GenerateResourceStreamRequest = components['schemas']['GenerateResou
  */
 export interface DetectHighlightsStreamRequest {
   instructions?: string;
+  /** Desired number of highlights per 2000 words (1-15) */
+  density?: number;
 }
 
 /**
@@ -46,6 +48,9 @@ export interface DetectHighlightsStreamRequest {
  */
 export interface DetectAssessmentsStreamRequest {
   instructions?: string;
+  tone?: 'analytical' | 'critical' | 'balanced' | 'constructive';
+  /** Desired number of assessments per 2000 words (1-10) */
+  density?: number;
 }
 
 /**
@@ -54,6 +59,8 @@ export interface DetectAssessmentsStreamRequest {
 export interface DetectCommentsStreamRequest {
   instructions?: string;
   tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical';
+  /** Desired number of comments per 2000 words (2-12) */
+  density?: number;
 }
 
 /**

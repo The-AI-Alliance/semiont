@@ -144,7 +144,8 @@ export type EventMap = {
     motivation: Motivation;
     options: {
       instructions?: string;
-      tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical';
+      /** Comment tone */
+      tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical' | 'analytical' | 'critical' | 'balanced' | 'constructive';
       density?: number;
       entityTypes?: string[];
       includeDescriptiveReferences?: boolean;
