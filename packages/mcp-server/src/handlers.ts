@@ -2,7 +2,7 @@
  * Tool execution handlers using @semiont/api-client
  */
 
-import { SemiontApiClient, getExactText, getBodySource, resourceUri, annotationUri, type AccessToken } from '@semiont/api-client';
+import { SemiontApiClient, getExactText, getBodySource, resourceUri, annotationUri, entityType, type AccessToken, type ReferenceDetectionProgress } from '@semiont/api-client';
 
 export async function handleCreateResource(client: SemiontApiClient, auth: AccessToken, args: any) {
   // Create File from content string for multipart/form-data upload
@@ -58,11 +58,12 @@ export async function handleDetectAnnotations(client: SemiontApiClient, auth: Ac
   const entityTypes = args?.entityTypes || [];
 
   return new Promise<{ content: Array<{ type: 'text'; text: string }>; isError?: boolean }>((resolve) => {
-    const stream = client.sse.detectAnnotations(rUri, { entityTypes }, { auth });
+    const mappedEntityTypes = (entityTypes as string[]).map(t => entityType(t));
+    const stream = client.sse.detectReferences(rUri, { entityTypes: mappedEntityTypes }, { auth });
 
     const progressMessages: string[] = [];
 
-    stream.onProgress((progress) => {
+    stream.onProgress((progress: ReferenceDetectionProgress) => {
       const msg = progress.status === 'scanning'
         ? `Scanning for ${progress.currentEntityType}... (${progress.processedEntityTypes}/${progress.totalEntityTypes})`
         : `Status: ${progress.status}`;
@@ -70,7 +71,7 @@ export async function handleDetectAnnotations(client: SemiontApiClient, auth: Ac
       console.error(msg); // Send to stderr for MCP progress
     });
 
-    stream.onComplete((result) => {
+    stream.onComplete((result: ReferenceDetectionProgress) => {
       resolve({
         content: [{
           type: 'text' as const,
@@ -79,7 +80,7 @@ export async function handleDetectAnnotations(client: SemiontApiClient, auth: Ac
       });
     });
 
-    stream.onError((error) => {
+    stream.onError((error: Error) => {
       resolve({
         content: [{
           type: 'text' as const,
