@@ -381,7 +381,7 @@ describe('TaggingPanel Component', () => {
           e.event === 'annotation:create' &&
           e.payload?.motivation === 'tagging' &&
           e.payload?.body?.[0]?.value === 'Issue' &&
-          e.payload?.body?.[0]?.schema === 'legal-irac'
+          e.payload?.body?.[0]?.type === 'TextualBody'
         )).toBe(true);
       });
     });

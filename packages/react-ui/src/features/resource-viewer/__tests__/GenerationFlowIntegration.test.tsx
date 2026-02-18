@@ -4,9 +4,8 @@
  * Tests the COMPLETE generation flow with real component composition:
  * - EventBusProvider (REAL)
  * - ApiClientProvider (REAL, with MOCKED client)
- * - useGenerationFlow (REAL)
- * - useGenerationProgress (REAL)
- * - useEventOperations (REAL)
+ * - useGenerationFlow (REAL, with inlined progress state)
+ * - useResolutionFlow (REAL)
  * - useEventSubscriptions (REAL)
  *
  * This test focuses on ARCHITECTURE and EVENT WIRING:
@@ -26,7 +25,7 @@ import { useGenerationFlow } from '../../../hooks/useGenerationFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider, useApiClient } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
-import { useEventOperations } from '../../../contexts/useEventOperations';
+import { useResolutionFlow } from '../../../contexts/useResolutionFlow';
 import { SSEClient } from '@semiont/api-client';
 import type { SemiontApiClient, ResourceUri, AnnotationUri } from '@semiont/api-client';
 import { resourceUri, annotationUri } from '@semiont/api-client';
@@ -418,8 +417,8 @@ function renderGenerationFlow(
     eventBusInstance = useEventBus();
     const client = useApiClient();
 
-    // Set up event operations (this is what makes the SSE calls)
-    useEventOperations(eventBusInstance, {
+    // Set up resolution flow (annotation:update-body, reference:link)
+    useResolutionFlow(eventBusInstance, {
       client: client as SemiontApiClient,
       resourceUri: testResourceUri,
     });

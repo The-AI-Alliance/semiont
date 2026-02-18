@@ -25,7 +25,7 @@ import { QUERY_KEYS } from '../../../lib/query-keys';
 import { useResources, useEntityTypes } from '../../../lib/api-hooks';
 import { useResourceContent } from '../../../hooks/useResourceContent';
 import { useToast } from '../../../components/Toast';
-import { useTheme } from '../../../hooks/useTheme';
+import { useTheme } from '../../../contexts/ThemeContext';
 import { useLineNumbers } from '../../../hooks/useLineNumbers';
 import { useResourceEvents } from '../../../hooks/useResourceEvents';
 import { useDebouncedCallback } from '../../../hooks/useDebounce';
@@ -34,10 +34,12 @@ import { useOpenResources } from '../../../contexts/OpenResourcesContext';
 import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsContext';
+import { useApiClient } from '../../../contexts/ApiClientContext';
+import { useResolutionFlow } from '../../../contexts/useResolutionFlow';
 import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
 import { usePanelNavigation } from '../../../hooks/usePanelNavigation';
-import { useAnnotationFlow } from '../../../hooks/useAnnotationFlow';
 import { useGenerationFlow } from '../../../hooks/useGenerationFlow';
+import { useContextRetrievalFlow } from '../../../hooks/useContextRetrievalFlow';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
@@ -90,6 +92,28 @@ export interface ResourceViewerPageProps {
  * ResourceViewerPage - Main component
  *
  * Uses hooks directly (NO containers, NO render props, NO ResourceViewerPageContent wrapper)
+ *
+ * @emits navigation:router-push - Navigate to a resource or filtered view
+ * @emits annotation:sparkle - Trigger sparkle animation on an annotation
+ * @emits annotation:update-body - Update annotation body content
+ * @subscribes resource:archive - Archive the current resource
+ * @subscribes resource:unarchive - Unarchive the current resource
+ * @subscribes resource:clone - Clone the current resource
+ * @subscribes annotation:sparkle - Trigger sparkle animation
+ * @subscribes annotation:created - Annotation was created
+ * @subscribes annotation:deleted - Annotation was deleted
+ * @subscribes annotation:create-failed - Annotation creation failed
+ * @subscribes annotation:delete-failed - Annotation deletion failed
+ * @subscribes annotation:body-updated - Annotation body was updated
+ * @subscribes annotation:body-update-failed - Annotation body update failed
+ * @subscribes settings:theme-changed - UI theme changed
+ * @subscribes settings:line-numbers-toggled - Line numbers display toggled
+ * @subscribes detection:complete - Detection completed
+ * @subscribes detection:failed - Detection failed
+ * @subscribes generation:complete - Generation completed
+ * @subscribes generation:failed - Generation failed
+ * @subscribes navigation:reference-navigate - Navigate to a referenced document
+ * @subscribes navigation:entity-type-clicked - Navigate filtered by entity type
  */
 export function ResourceViewerPage({
   resource,
@@ -105,6 +129,7 @@ export function ResourceViewerPage({
 }: ResourceViewerPageProps) {
   // Get unified event bus for subscribing to UI events
   const eventBus = useEventBus();
+  const client = useApiClient();
   const queryClient = useQueryClient();
 
   // UI state hooks
@@ -134,26 +159,24 @@ export function ResourceViewerPage({
   const allEntityTypes = (entityTypesData as { entityTypes: string[] } | undefined)?.entityTypes || [];
 
   // Flow state hooks (NO CONTAINERS)
-  const { detectingMotivation, detectionProgress } = useDetectionFlow(rUri);
+  const { detectingMotivation, detectionProgress, pendingAnnotation, hoveredAnnotationId } = useDetectionFlow(rUri);
   const { activePanel, scrollToAnnotationId, panelInitialTab, onScrollCompleted } = usePanelNavigation();
-  const { pendingAnnotation, hoveredAnnotationId } = useAnnotationFlow(rUri);
+  const { searchModalOpen, pendingReferenceId, onCloseSearchModal } = useResolutionFlow(eventBus, { client, resourceUri: rUri });
   const {
     generationProgress,
     generationModalOpen,
     generationReferenceId,
     generationDefaultTitle,
-    searchModalOpen,
-    pendingReferenceId,
     onGenerateDocument,
     onCloseGenerationModal,
-    onCloseSearchModal,
   } = useGenerationFlow(locale, rUri.split('/').pop() || '', showSuccess, showError, cacheManager, clearNewAnnotationId);
+  const { retrievalContext, retrievalLoading, retrievalError } = useContextRetrievalFlow(eventBus, { client, resourceUri: rUri });
 
   // Debounced invalidation for real-time events
   const debouncedInvalidateAnnotations = useDebouncedCallback(
     () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.annotations(rUri) });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(rUri) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.annotations(rUri) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
     },
     500
   );
@@ -186,7 +209,7 @@ export function ResourceViewerPage({
 
     onAnnotationBodyUpdated: useCallback((event: any) => {
       // Optimistically update annotations cache with body operations
-      queryClient.setQueryData(QUERY_KEYS.documents.annotations(rUri), (old: any) => {
+      queryClient.setQueryData(QUERY_KEYS.resources.annotations(rUri), (old: any) => {
         if (!old) return old;
         return {
           ...old,
@@ -222,7 +245,7 @@ export function ResourceViewerPage({
         };
       });
 
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(rUri) });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
     }, [queryClient, rUri]),
 
     // Document status events
@@ -254,90 +277,103 @@ export function ResourceViewerPage({
     }, []),
   });
 
+  // Event handlers extracted to useCallback (tenet: no inline handlers in useEventSubscriptions)
+  const handleResourceArchive = useCallback(async () => {
+    try {
+      await resources.update.useMutation().mutateAsync({ rUri, data: { archived: true } });
+      await refetchDocument();
+      showSuccess('Document archived');
+    } catch (err) {
+      console.error('Failed to archive document:', err);
+      showError('Failed to archive document');
+    }
+  }, [resources.update, rUri, refetchDocument, showSuccess, showError]);
+
+  const handleResourceUnarchive = useCallback(async () => {
+    try {
+      await resources.update.useMutation().mutateAsync({ rUri, data: { archived: false } });
+      await refetchDocument();
+      showSuccess('Document unarchived');
+    } catch (err) {
+      console.error('Failed to unarchive document:', err);
+      showError('Failed to unarchive document');
+    }
+  }, [resources.update, rUri, refetchDocument, showSuccess, showError]);
+
+  const handleResourceClone = useCallback(async () => {
+    try {
+      const result = await resources.generateCloneToken.useMutation().mutateAsync(rUri);
+      const token = result.token;
+      const cloneUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/know/clone?token=${token}`;
+      await navigator.clipboard.writeText(cloneUrl);
+      showSuccess('Clone link copied to clipboard');
+    } catch (err) {
+      console.error('Failed to generate clone token:', err);
+      showError('Failed to generate clone link');
+    }
+  }, [resources.generateCloneToken, rUri, showSuccess, showError]);
+
+  const handleAnnotationSparkle = useCallback(({ annotationId }: { annotationId: string }) => {
+    triggerSparkleAnimation(annotationId);
+  }, [triggerSparkleAnimation]);
+
+  const handleAnnotationCreated = useCallback(({ annotation }: { annotation: { id: string } }) => {
+    triggerSparkleAnimation(annotation.id);
+    debouncedInvalidateAnnotations();
+  }, [triggerSparkleAnimation, debouncedInvalidateAnnotations]);
+
+  const handleAnnotationCreateFailed = useCallback(() => showError('Failed to create annotation'), [showError]);
+  const handleAnnotationDeleteFailed = useCallback(() => showError('Failed to delete annotation'), [showError]);
+  const handleAnnotationBodyUpdated = useCallback(() => {
+    // Success - optimistic update already applied via useResourceEvents
+  }, []);
+  const handleAnnotationBodyUpdateFailed = useCallback(() => showError('Failed to update annotation'), [showError]);
+
+  const handleSettingsThemeChanged = useCallback(({ theme }: { theme: any }) => setTheme(theme), [setTheme]);
+
+  const handleDetectionComplete = useCallback(() => {
+    showSuccess('Detection complete');
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.annotations(rUri) });
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
+  }, [showSuccess, queryClient, rUri]);
+  const handleDetectionFailed = useCallback(() => showError('Detection failed'), [showError]);
+  const handleGenerationComplete = useCallback(() => showSuccess('Document generated'), [showSuccess]);
+  const handleGenerationFailed = useCallback(() => showError('Failed to generate document'), [showError]);
+
+  const handleReferenceNavigate = useCallback(({ documentId }: { documentId: string }) => {
+    if (routes.resource) {
+      const path = routes.resource.replace('[resourceId]', encodeURIComponent(documentId));
+      eventBus.emit('navigation:router-push', { path, reason: 'reference-link' });
+    }
+  }, [routes.resource]); // eventBus is stable singleton - never in deps
+
+  const handleEntityTypeClicked = useCallback(({ entityType }: { entityType: string }) => {
+    if (routes.know) {
+      const path = `${routes.know}?entityType=${encodeURIComponent(entityType)}`;
+      eventBus.emit('navigation:router-push', { path, reason: 'entity-type-filter' });
+    }
+  }, [routes.know]); // eventBus is stable singleton - never in deps
+
   // Event bus subscriptions (combined into single useEventSubscriptions call to prevent hook ordering issues)
   useEventSubscriptions({
-    // Resource operations
-    'resource:archive': async () => {
-      try {
-        await resources.update.useMutation().mutateAsync({
-          rUri,
-          data: { archived: true }
-        });
-        await refetchDocument();
-        showSuccess('Document archived');
-      } catch (err) {
-        console.error('Failed to archive document:', err);
-        showError('Failed to archive document');
-      }
-    },
-    'resource:unarchive': async () => {
-      try {
-        await resources.update.useMutation().mutateAsync({
-          rUri,
-          data: { archived: false }
-        });
-        await refetchDocument();
-        showSuccess('Document unarchived');
-      } catch (err) {
-        console.error('Failed to unarchive document:', err);
-        showError('Failed to unarchive document');
-      }
-    },
-    'resource:clone': async () => {
-      try {
-        const result = await resources.generateCloneToken.useMutation().mutateAsync(rUri);
-        const token = result.token;
-        const cloneUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/know/clone?token=${token}`;
-
-        await navigator.clipboard.writeText(cloneUrl);
-        showSuccess('Clone link copied to clipboard');
-      } catch (err) {
-        console.error('Failed to generate clone token:', err);
-        showError('Failed to generate clone link');
-      }
-    },
-
-    // Annotation operations
-    'annotation:sparkle': ({ annotationId }) => {
-      triggerSparkleAnimation(annotationId);
-    },
-    'annotation:created': ({ annotation }) => {
-      triggerSparkleAnimation(annotation.id);
-      debouncedInvalidateAnnotations();
-    },
+    'resource:archive': handleResourceArchive,
+    'resource:unarchive': handleResourceUnarchive,
+    'resource:clone': handleResourceClone,
+    'annotation:sparkle': handleAnnotationSparkle,
+    'annotation:created': handleAnnotationCreated,
     'annotation:deleted': debouncedInvalidateAnnotations,
-    'annotation:create-failed': () => showError('Failed to create annotation'),
-    'annotation:delete-failed': () => showError('Failed to delete annotation'),
-    'annotation:body-updated': () => {
-      // Success - optimistic update already applied via useResourceEvents
-    },
-    'annotation:body-update-failed': () => showError('Failed to update annotation'),
-
-    // Settings
-    'settings:theme-changed': ({ theme }) => setTheme(theme),
+    'annotation:create-failed': handleAnnotationCreateFailed,
+    'annotation:delete-failed': handleAnnotationDeleteFailed,
+    'annotation:body-updated': handleAnnotationBodyUpdated,
+    'annotation:body-update-failed': handleAnnotationBodyUpdateFailed,
+    'settings:theme-changed': handleSettingsThemeChanged,
     'settings:line-numbers-toggled': toggleLineNumbers,
-
-    // Detection/Generation
-    'detection:complete': () => showSuccess('Detection complete'),
-    'detection:failed': () => showError('Detection failed'),
-    'generation:complete': () => showSuccess('Document generated'),
-    'generation:failed': () => showError('Failed to generate document'),
-
-    // Navigation
-    'navigation:reference-navigate': ({ documentId }: { documentId: string }) => {
-      // Navigate to the referenced document
-      if (routes.resource) {
-        const path = routes.resource.replace('[resourceId]', encodeURIComponent(documentId));
-        eventBus.emit('navigation:router-push', { path, reason: 'reference-link' });
-      }
-    },
-    'navigation:entity-type-clicked': ({ entityType }: { entityType: string }) => {
-      // Navigate to discovery page filtered by entity type
-      if (routes.know) {
-        const path = `${routes.know}?entityType=${encodeURIComponent(entityType)}`;
-        eventBus.emit('navigation:router-push', { path, reason: 'entity-type-filter' });
-      }
-    },
+    'detection:complete': handleDetectionComplete,
+    'detection:failed': handleDetectionFailed,
+    'generation:complete': handleGenerationComplete,
+    'generation:failed': handleGenerationFailed,
+    'navigation:reference-navigate': handleReferenceNavigate,
+    'navigation:entity-type-clicked': handleEntityTypeClicked,
   });
 
   // Resource loading announcements
@@ -597,9 +633,10 @@ export function ResourceViewerPage({
             onGenerateDocument(generationReferenceId, options);
           }
         }}
-        referenceId={generationReferenceId || ''}
-        resourceUri={rUri}
         defaultTitle={generationDefaultTitle}
+        context={retrievalContext}
+        contextLoading={retrievalLoading}
+        contextError={retrievalError}
       />
     </div>
   );

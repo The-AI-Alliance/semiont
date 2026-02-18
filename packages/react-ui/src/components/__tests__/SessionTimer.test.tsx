@@ -7,18 +7,18 @@ vi.mock('../../hooks/useSessionExpiry', () => ({
   useSessionExpiry: vi.fn(),
 }));
 
-vi.mock('../../hooks/useFormattedTime', () => ({
-  useFormattedTime: vi.fn(),
+vi.mock('../../lib/formatTime', () => ({
+  formatTime: vi.fn(),
 }));
 
 import { useSessionExpiry } from '../../hooks/useSessionExpiry';
-import { useFormattedTime } from '../../hooks/useFormattedTime';
+import { formatTime } from '../../lib/formatTime';
 
 describe('SessionTimer', () => {
   describe('Rendering', () => {
     it('should render formatted time when available', () => {
       vi.mocked(useSessionExpiry).mockReturnValue({ timeRemaining: 300000 } as any);
-      vi.mocked(useFormattedTime).mockReturnValue('5:00');
+      vi.mocked(formatTime).mockReturnValue('5:00');
 
       render(<SessionTimer />);
 
@@ -28,7 +28,7 @@ describe('SessionTimer', () => {
 
     it('should have correct class name', () => {
       vi.mocked(useSessionExpiry).mockReturnValue({ timeRemaining: 300000 } as any);
-      vi.mocked(useFormattedTime).mockReturnValue('5:00');
+      vi.mocked(formatTime).mockReturnValue('5:00');
 
       const { container } = render(<SessionTimer />);
 
@@ -37,7 +37,7 @@ describe('SessionTimer', () => {
 
     it('should display complete message with formatted time', () => {
       vi.mocked(useSessionExpiry).mockReturnValue({ timeRemaining: 120000 } as any);
-      vi.mocked(useFormattedTime).mockReturnValue('2:00');
+      vi.mocked(formatTime).mockReturnValue('2:00');
 
       render(<SessionTimer />);
 
@@ -49,7 +49,7 @@ describe('SessionTimer', () => {
   describe('Null Cases', () => {
     it('should return null when formattedTime is null', () => {
       vi.mocked(useSessionExpiry).mockReturnValue({ timeRemaining: 0 } as any);
-      vi.mocked(useFormattedTime).mockReturnValue(null);
+      vi.mocked(formatTime).mockReturnValue(null);
 
       const { container } = render(<SessionTimer />);
 
@@ -58,7 +58,7 @@ describe('SessionTimer', () => {
 
     it('should return null when formattedTime is undefined', () => {
       vi.mocked(useSessionExpiry).mockReturnValue({ timeRemaining: 0 } as any);
-      vi.mocked(useFormattedTime).mockReturnValue(undefined as any);
+      vi.mocked(formatTime).mockReturnValue(undefined as any);
 
       const { container } = render(<SessionTimer />);
 
@@ -67,7 +67,7 @@ describe('SessionTimer', () => {
 
     it('should return null when formattedTime is empty string', () => {
       vi.mocked(useSessionExpiry).mockReturnValue({ timeRemaining: 0 } as any);
-      vi.mocked(useFormattedTime).mockReturnValue('');
+      vi.mocked(formatTime).mockReturnValue('');
 
       const { container } = render(<SessionTimer />);
 
@@ -79,31 +79,31 @@ describe('SessionTimer', () => {
     it('should call useSessionExpiry hook', () => {
       const mockUseSessionExpiry = vi.mocked(useSessionExpiry);
       mockUseSessionExpiry.mockReturnValue({ timeRemaining: 100000 } as any);
-      vi.mocked(useFormattedTime).mockReturnValue('1:40');
+      vi.mocked(formatTime).mockReturnValue('1:40');
 
       render(<SessionTimer />);
 
       expect(mockUseSessionExpiry).toHaveBeenCalled();
     });
 
-    it('should call useFormattedTime with timeRemaining', () => {
-      const mockUseFormattedTime = vi.mocked(useFormattedTime);
+    it('should call formatTime with timeRemaining', () => {
+      const mockFormatTime = vi.mocked(formatTime);
       vi.mocked(useSessionExpiry).mockReturnValue({ timeRemaining: 300000 } as any);
-      mockUseFormattedTime.mockReturnValue('5:00');
+      mockFormatTime.mockReturnValue('5:00');
 
       render(<SessionTimer />);
 
-      expect(mockUseFormattedTime).toHaveBeenCalledWith(300000);
+      expect(mockFormatTime).toHaveBeenCalledWith(300000);
     });
 
-    it('should pass correct timeRemaining to useFormattedTime', () => {
-      const mockUseFormattedTime = vi.mocked(useFormattedTime);
+    it('should pass correct timeRemaining to formatTime', () => {
+      const mockFormatTime = vi.mocked(formatTime);
       vi.mocked(useSessionExpiry).mockReturnValue({ timeRemaining: 12345 } as any);
-      mockUseFormattedTime.mockReturnValue('0:12');
+      mockFormatTime.mockReturnValue('0:12');
 
       render(<SessionTimer />);
 
-      expect(mockUseFormattedTime).toHaveBeenCalledWith(12345);
+      expect(mockFormatTime).toHaveBeenCalledWith(12345);
     });
   });
 
@@ -118,7 +118,7 @@ describe('SessionTimer', () => {
 
       testCases.forEach(({ timeRemaining, formatted }) => {
         vi.mocked(useSessionExpiry).mockReturnValue({ timeRemaining } as any);
-        vi.mocked(useFormattedTime).mockReturnValue(formatted);
+        vi.mocked(formatTime).mockReturnValue(formatted);
 
         const { unmount } = render(<SessionTimer />);
 
@@ -132,17 +132,17 @@ describe('SessionTimer', () => {
   describe('Re-rendering', () => {
     it('should update when timeRemaining changes', () => {
       const mockUseSessionExpiry = vi.mocked(useSessionExpiry);
-      const mockUseFormattedTime = vi.mocked(useFormattedTime);
+      const mockFormatTime = vi.mocked(formatTime);
 
       mockUseSessionExpiry.mockReturnValue({ timeRemaining: 60000 } as any);
-      mockUseFormattedTime.mockReturnValue('1:00');
+      mockFormatTime.mockReturnValue('1:00');
 
       const { rerender } = render(<SessionTimer />);
       expect(screen.getByText('Session: 1:00 remaining')).toBeInTheDocument();
 
       // Simulate time passing
       mockUseSessionExpiry.mockReturnValue({ timeRemaining: 30000 } as any);
-      mockUseFormattedTime.mockReturnValue('0:30');
+      mockFormatTime.mockReturnValue('0:30');
 
       rerender(<SessionTimer />);
       expect(screen.getByText('Session: 0:30 remaining')).toBeInTheDocument();
@@ -150,13 +150,13 @@ describe('SessionTimer', () => {
 
     it('should hide when formattedTime becomes null', () => {
       vi.mocked(useSessionExpiry).mockReturnValue({ timeRemaining: 60000 } as any);
-      vi.mocked(useFormattedTime).mockReturnValue('1:00');
+      vi.mocked(formatTime).mockReturnValue('1:00');
 
       const { container, rerender } = render(<SessionTimer />);
       expect(screen.getByText('Session: 1:00 remaining')).toBeInTheDocument();
 
       // Time expires
-      vi.mocked(useFormattedTime).mockReturnValue(null);
+      vi.mocked(formatTime).mockReturnValue(null);
 
       rerender(<SessionTimer />);
       expect(container.firstChild).toBeNull();
@@ -166,7 +166,7 @@ describe('SessionTimer', () => {
   describe('Edge Cases', () => {
     it('should handle zero timeRemaining', () => {
       vi.mocked(useSessionExpiry).mockReturnValue({ timeRemaining: 0 } as any);
-      vi.mocked(useFormattedTime).mockReturnValue('0:00');
+      vi.mocked(formatTime).mockReturnValue('0:00');
 
       render(<SessionTimer />);
 
@@ -175,7 +175,7 @@ describe('SessionTimer', () => {
 
     it('should handle negative timeRemaining', () => {
       vi.mocked(useSessionExpiry).mockReturnValue({ timeRemaining: -1000 } as any);
-      vi.mocked(useFormattedTime).mockReturnValue('expired');
+      vi.mocked(formatTime).mockReturnValue('expired');
 
       render(<SessionTimer />);
 
@@ -184,7 +184,7 @@ describe('SessionTimer', () => {
 
     it('should handle very large timeRemaining', () => {
       vi.mocked(useSessionExpiry).mockReturnValue({ timeRemaining: 999999999 } as any);
-      vi.mocked(useFormattedTime).mockReturnValue('16666:39');
+      vi.mocked(formatTime).mockReturnValue('16666:39');
 
       render(<SessionTimer />);
 

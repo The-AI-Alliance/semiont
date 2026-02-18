@@ -1,11 +1,11 @@
 'use client';
 
 import { useSessionExpiry } from '../hooks/useSessionExpiry';
-import { useFormattedTime } from '../hooks/useFormattedTime';
+import { formatTime } from '../lib/formatTime';
 
 export function SessionTimer() {
   const { timeRemaining } = useSessionExpiry();
-  const formattedTime = useFormattedTime(timeRemaining);
+  const formattedTime = formatTime(timeRemaining);
 
   if (!formattedTime) return null;
 

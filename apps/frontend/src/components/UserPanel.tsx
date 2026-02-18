@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { signOut } from 'next-auth/react';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
-import { sanitizeImageURL, useSessionExpiry, useFormattedTime } from '@semiont/react-ui';
+import { sanitizeImageURL, useSessionExpiry, formatTime } from '@semiont/react-ui';
 import { useAuth } from '@/hooks/useAuth';
 
 // Fallback avatar when image fails to load or is invalid
@@ -15,7 +15,7 @@ export function UserPanel() {
   const { displayName, avatarUrl, userDomain, isAdmin, isModerator } = useAuth();
   const [imageError, setImageError] = useState(false);
   const { timeRemaining } = useSessionExpiry();
-  const sessionTimeFormatted = useFormattedTime(timeRemaining) ?? 'Unknown';
+  const sessionTimeFormatted = formatTime(timeRemaining) ?? 'Unknown';
 
   // Sanitize and validate the profile image URL
   const profileImageUrl = (() => {

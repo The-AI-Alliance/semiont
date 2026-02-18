@@ -1,9 +1,8 @@
-import { useState, useEffect } from 'react';
-import type { ResourceUri, ContentFormat } from '@semiont/api-client';
-import { getPrimaryMediaType, decodeWithCharset, accessToken } from '@semiont/api-client';
-import { useApiClient } from '../contexts/ApiClientContext';
-import { useAuthToken } from '../contexts/AuthTokenContext';
+import { useEffect } from 'react';
+import type { ResourceUri } from '@semiont/api-client';
+import { getPrimaryMediaType } from '@semiont/api-client';
 import { useToast } from '../components/Toast';
+import { useResources } from '../lib/api-hooks';
 import type { components } from '@semiont/api-client';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
@@ -17,36 +16,27 @@ export interface UseResourceContentResult {
  * Hook to load resource content (representation)
  *
  * Fetches the primary representation of a resource based on its media type.
+ * Uses React Query for caching, deduplication, and consistent loading state.
  */
 export function useResourceContent(
   rUri: ResourceUri,
   resource: SemiontResource
 ): UseResourceContentResult {
-  const client = useApiClient();
-  const token = useAuthToken();
   const { showError } = useToast();
-  const [content, setContent] = useState<string>('');
-  const [loading, setLoading] = useState(true);
+  const resources = useResources();
+  const mediaType = getPrimaryMediaType(resource) || 'text/plain';
+
+  const { data, isLoading, error } = resources.representation.useQuery(rUri, mediaType);
 
   useEffect(() => {
-    const loadContent = async () => {
-      try {
-        const mediaType = getPrimaryMediaType(resource) || 'text/plain';
-        const { data } = await client.getResourceRepresentation(rUri, {
-          accept: mediaType as ContentFormat,
-          auth: token ? accessToken(token) : undefined,
-        });
-        const text = decodeWithCharset(data, mediaType);
-        setContent(text);
-      } catch (error) {
-        console.error('Failed to fetch representation:', error);
-        showError('Failed to load resource representation');
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadContent();
-  }, [rUri, resource, client, token, showError]);
+    if (error) {
+      console.error('Failed to fetch representation:', error);
+      showError('Failed to load resource representation');
+    }
+  }, [error, showError]);
 
-  return { content, loading };
+  return {
+    content: data ?? '',
+    loading: isLoading,
+  };
 }

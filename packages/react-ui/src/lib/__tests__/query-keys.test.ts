@@ -146,58 +146,6 @@ describe('query-keys', () => {
       });
     });
 
-    describe('documents (legacy alias)', () => {
-      const mockResourceUri = 'r-legacy' as ResourceUri;
-
-      it('should match resources.all for backward compatibility', () => {
-        const legacyKey = QUERY_KEYS.documents.all();
-        const newKey = QUERY_KEYS.resources.all();
-        expect(legacyKey).toEqual(newKey);
-      });
-
-      it('should match resources.all with params', () => {
-        const legacyKey = QUERY_KEYS.documents.all(50, true);
-        const newKey = QUERY_KEYS.resources.all(50, true);
-        expect(legacyKey).toEqual(newKey);
-      });
-
-      it('should match resources.detail', () => {
-        const legacyKey = QUERY_KEYS.documents.detail(mockResourceUri);
-        const newKey = QUERY_KEYS.resources.detail(mockResourceUri);
-        expect(legacyKey).toEqual(newKey);
-      });
-
-      it('should match resources.byToken', () => {
-        const legacyKey = QUERY_KEYS.documents.byToken('token123');
-        const newKey = QUERY_KEYS.resources.byToken('token123');
-        expect(legacyKey).toEqual(newKey);
-      });
-
-      it('should match resources.search', () => {
-        const legacyKey = QUERY_KEYS.documents.search('query', 20);
-        const newKey = QUERY_KEYS.resources.search('query', 20);
-        expect(legacyKey).toEqual(newKey);
-      });
-
-      it('should match resources.events', () => {
-        const legacyKey = QUERY_KEYS.documents.events(mockResourceUri);
-        const newKey = QUERY_KEYS.resources.events(mockResourceUri);
-        expect(legacyKey).toEqual(newKey);
-      });
-
-      it('should match resources.annotations', () => {
-        const legacyKey = QUERY_KEYS.documents.annotations(mockResourceUri);
-        const newKey = QUERY_KEYS.resources.annotations(mockResourceUri);
-        expect(legacyKey).toEqual(newKey);
-      });
-
-      it('should match resources.referencedBy', () => {
-        const legacyKey = QUERY_KEYS.documents.referencedBy(mockResourceUri);
-        const newKey = QUERY_KEYS.resources.referencedBy(mockResourceUri);
-        expect(legacyKey).toEqual(newKey);
-      });
-    });
-
     describe('Key Uniqueness', () => {
       it('should produce unique keys for different query types', () => {
         const keys = [

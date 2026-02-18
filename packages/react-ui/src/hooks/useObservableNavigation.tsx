@@ -81,7 +81,11 @@ export function useObservableRouter<T extends Router>(baseRouter: T): T {
  * If no subscriber handles the event, falls back to window.location.href
  * after a brief delay to allow for event handling.
  *
- * @emits navigation:external-navigate - External navigation requested. Payload: { url: string, context?: Record<string, unknown> }
+ * @emits navigation:external-navigate - External navigation requested. Payload: { url: string, resourceId?: string, cancelFallback: () => void }
+ *
+ * The payload includes a `cancelFallback` function that subscribers must call to
+ * prevent the window.location fallback from firing. Subscribers that handle the
+ * navigation (e.g. via client-side routing) should always call cancelFallback().
  *
  * @example
  * ```typescript
@@ -89,41 +93,35 @@ export function useObservableRouter<T extends Router>(baseRouter: T): T {
  * const navigate = useObservableExternalNavigation();
  * navigate('/know/resource/123', { resourceId: '123' });
  *
- * // In app (frontend package) - subscribe and handle with Next.js router
+ * // In app (frontend package) - subscribe, cancel fallback, and handle with Next.js router
  * const router = useRouter();
- * const eventBus = useEventBus();
- *
- * useEffect(() => {
- *   const handleNav = ({ url }) => {
+ * useEventSubscriptions({
+ *   'navigation:external-navigate': ({ url, cancelFallback }) => {
+ *     cancelFallback(); // Prevent window.location fallback
  *     router.push(url); // Client-side navigation
- *   };
- *   eventBus.on('navigation:external-navigate', handleNav);
- *   return () => eventBus.off('navigation:external-navigate', handleNav);
- * }, []);
+ *   },
+ * });
  * ```
  */
 export function useObservableExternalNavigation() {
   const eventBus = useEventBus();
 
   return useCallback((url: string, metadata?: { resourceId?: string }) => {
-    // Emit navigation request event
-    eventBus.emit('navigation:external-navigate', {
-      url,
-      resourceId: metadata?.resourceId
-    });
-
-    // Fallback: If no subscriber handles navigation within 10ms, use window.location
+    // Fallback: If no subscriber cancels within 10ms, use window.location
     // This ensures navigation still works even if app doesn't implement handler
     const fallbackTimer = setTimeout(() => {
       console.warn(
-        '[Observable Navigation] No handler for navigation:external-navigate. ' +
+        '[Observable Navigation] No handler cancelled navigation:external-navigate fallback. ' +
         'Falling back to window.location.href. ' +
-        'For better UX, subscribe to this event in your app and use client-side routing.'
+        'For better UX, subscribe to this event in your app, call cancelFallback(), and use client-side routing.'
       );
       window.location.href = url;
     }, 10);
 
-    // Store timer reference so subscribers can cancel fallback
-    (eventBus as any)._lastNavigationFallback = fallbackTimer;
+    eventBus.emit('navigation:external-navigate', {
+      url,
+      resourceId: metadata?.resourceId,
+      cancelFallback: () => clearTimeout(fallbackTimer),
+    });
   }, []); // eventBus is stable
 }

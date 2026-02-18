@@ -148,8 +148,8 @@ useEffect(() => {
 
 **Hooks:**
 - `useResourceEvents` - Real-time document change notifications
-- `useGenerationProgress` - AI generation progress
-- `useDetectionProgress` - Entity detection progress
+- `useGenerationFlow` - AI generation (manages SSE and progress state)
+- `useDetectionFlow` - Entity detection (manages SSE and progress state)
 
 ## Authentication Flow
 

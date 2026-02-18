@@ -7,7 +7,7 @@ import { useTranslations } from 'next-intl';
 import { Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme } from '@semiont/react-ui';
-import { useToolbar } from '@semiont/react-ui';
+import { usePanelNavigation } from '@semiont/react-ui';
 import { useLineNumbers } from '@semiont/react-ui';
 import { useEventSubscriptions } from '@semiont/react-ui';
 import { getAllTagSchemas } from '@semiont/ontology';
@@ -18,7 +18,7 @@ export default function TagSchemasPageWrapper() {
   const { data: session, status } = useSession();
 
   // Toolbar and settings state
-  const { activePanel } = useToolbar();
+  const { activePanel } = usePanelNavigation();
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 

@@ -78,7 +78,7 @@ The frontend leverages **@semiont/react-ui**, a comprehensive framework-agnostic
 #### Hooks & Utilities
 - **API Hooks**: React Query wrappers for all Semiont API operations
 - **UI Hooks**: useTheme, useKeyboardShortcuts, useToast, useDebounce
-- **Resource Hooks**: useResourceEvents, useDetectionProgress, useGenerationProgress
+- **Resource Hooks**: useResourceEvents, useDetectionFlow, useGenerationFlow
 - **Form Hooks**: useFormValidation with built-in validation rules
 
 #### Provider Pattern

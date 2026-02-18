@@ -2,9 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
-import { useAnnotations } from '@semiont/react-ui';
 import { useTranslations, useLocale } from 'next-intl';
-import type { ResourceUri, GenerationContext } from '@semiont/api-client';
+import type { GenerationContext } from '@semiont/api-client';
 import { LOCALES } from '@semiont/api-client';
 import { Fragment } from 'react';
 
@@ -19,18 +18,20 @@ interface GenerationConfigModalProps {
     maxTokens?: number;
     context: GenerationContext;
   }) => void;
-  referenceId: string;        // Full annotation URI
-  resourceUri: ResourceUri;    // Source resource URI
-  defaultTitle: string;        // Selected text from reference
+  defaultTitle: string;          // Selected text from reference
+  context: GenerationContext | null;
+  contextLoading: boolean;
+  contextError: Error | null;
 }
 
 export function GenerationConfigModal({
   isOpen,
   onClose,
   onGenerate,
-  referenceId,
-  resourceUri,
   defaultTitle,
+  context,
+  contextLoading,
+  contextError,
 }: GenerationConfigModalProps) {
   const t = useTranslations('GenerationConfigModal');
   const currentLocale = useLocale();
@@ -39,17 +40,6 @@ export function GenerationConfigModal({
   const [language, setLanguage] = useState(currentLocale);
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(500);
-
-  const annotations = useAnnotations();
-
-  // Extract annotation ID from full URI (e.g., "http://localhost:4000/annotations/abc123" -> "abc123")
-  const annotationId = referenceId.split('/').pop() || '';
-
-  const { data: contextData, isLoading: contextLoading, error: contextError } = annotations.llmContext.useQuery(
-    resourceUri,
-    annotationId,
-    { contextWindow: 2000 }
-  );
 
   // Reset form when modal opens
   useEffect(() => {
@@ -66,7 +56,7 @@ export function GenerationConfigModal({
     e.preventDefault();
 
     // Context must be loaded before we can generate
-    if (!contextData?.context) {
+    if (!context) {
       console.error('Cannot generate without context');
       return;
     }
@@ -78,12 +68,12 @@ export function GenerationConfigModal({
       language,
       temperature,
       maxTokens,
-      context: contextData.context,
+      context,
     });
     onClose();
   };
 
-  const sourceContext = contextData?.context?.sourceContext;
+  const sourceContext = context?.sourceContext;
   const hasContext = sourceContext && (sourceContext.before || sourceContext.after);
 
   return (
@@ -264,7 +254,7 @@ export function GenerationConfigModal({
                     </button>
                     <button
                       type="submit"
-                      disabled={contextLoading || !contextData?.context}
+                      disabled={contextLoading || !context}
                       className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {t('generate')}

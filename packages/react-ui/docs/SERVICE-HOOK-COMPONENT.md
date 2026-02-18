@@ -86,10 +86,14 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
   const [detectingMotivation, setDetectingMotivation] = useState<Motivation | null>(null);
   const [detectionProgress, setDetectionProgress] = useState<DetectionProgress | null>(null);
 
-  // Event operations (triggers API calls when events are emitted)
-  useEventOperations(eventBus, { client, resourceUri: rUri });
+  // API operations: useEffect subscribes to command events and calls the API
+  useEffect(() => {
+    const handleDetectionStart = async (event: { motivation: Motivation }) => { /* ... */ };
+    eventBus.on('detection:start', handleDetectionStart);
+    return () => eventBus.off('detection:start', handleDetectionStart);
+  }, [eventBus, rUri]);
 
-  // Event subscriptions (updates state when events are received)
+  // State subscriptions (updates state when events are received)
   useEventSubscriptions({
     'detection:start': ({ motivation }) => {
       setDetectingMotivation(motivation);
@@ -139,7 +143,6 @@ export function ResourceViewerPage({ rUri, resource, ... }: ResourceViewerPagePr
   // Layer 2: Get data from hooks
   const { detectingMotivation, detectionProgress } = useDetectionFlow(rUri);
   const { activePanel, scrollToAnnotationId } = usePanelNavigation();
-  const { pendingAnnotation } = useAnnotationFlow(rUri);
 
   // Layer 1: SSE connection
   useResourceEvents(rUri);
@@ -337,8 +340,7 @@ function ResourceViewerPage({ rUri, resource, ... }: ResourceViewerPageProps) {
   // Layer 2: Get data from hooks
   const { detectingMotivation, detectionProgress } = useDetectionFlow(rUri);
   const { activePanel, scrollToAnnotationId } = usePanelNavigation();
-  const { pendingAnnotation } = useAnnotationFlow(rUri);
-  const { generationModalOpen } = useGenerationFlow(rUri, ...);
+  const { generationModalOpen } = useGenerationFlow(locale, rUri, ...);
 
   // Layer 1: SSE connection
   useResourceEvents(rUri);
@@ -666,9 +668,9 @@ The layer separation principles remain the same. See [RXJS-SERVICE-HOOK-COMPONEN
 
 - `useEventBus()` - Access event bus (for emitting events)
 - `useEventSubscriptions()` - Subscribe to events (for receiving events)
-- `useEventOperations()` - Trigger API calls on events
 - `useResourceEvents()` - Establish SSE connection
-- `useDetectionFlow()` - Detection state management
-- `useAnnotationFlow()` - Annotation state management
+- `useDetectionFlow()` - Detection state management (SSE, progress, annotation operations)
+- `useResolutionFlow()` - Annotation body update and reference linking
+- `useGenerationFlow()` - Generation state management (SSE, modal, progress)
+- `useContextRetrievalFlow()` - Context retrieval for generation
 - `usePanelNavigation()` - Panel state management
-- `useGenerationFlow()` - Generation state management

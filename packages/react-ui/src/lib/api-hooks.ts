@@ -20,11 +20,13 @@ import {
   type ResourceUri,
   type AnnotationUri,
   type ResourceAnnotationUri,
+  type ContentFormat,
   searchQuery,
   cloneToken,
   entityType,
   userDID,
-  accessToken
+  accessToken,
+  decodeWithCharset,
 } from '@semiont/api-client';
 import { extractResourceUriFromAnnotationUri, uriToAnnotationId } from '@semiont/core';
 import { QUERY_KEYS } from './query-keys';
@@ -50,7 +52,7 @@ export function useResources() {
     list: {
       useQuery: (options?: { limit?: number; archived?: boolean; query?: string }) =>
         useQuery({
-          queryKey: QUERY_KEYS.documents.all(options?.limit, options?.archived),
+          queryKey: QUERY_KEYS.resources.all(options?.limit, options?.archived),
           queryFn: () => client!.listResources(options?.limit, options?.archived, options?.query ? searchQuery(options.query) : undefined, { auth: toAccessToken(token) }),
           enabled: !!client,
         }),
@@ -59,7 +61,7 @@ export function useResources() {
     get: {
       useQuery: (rUri: ResourceUri, options?: Omit<UseQueryOptions, 'queryKey' | 'queryFn'>) =>
         useQuery({
-          queryKey: QUERY_KEYS.documents.detail(rUri),
+          queryKey: QUERY_KEYS.resources.detail(rUri),
           queryFn: () => client!.getResource(rUri, { auth: toAccessToken(token) }),
           enabled: !!client && !!rUri,
           ...options,
@@ -69,7 +71,7 @@ export function useResources() {
     events: {
       useQuery: (rUri: ResourceUri) =>
         useQuery({
-          queryKey: QUERY_KEYS.documents.events(rUri),
+          queryKey: QUERY_KEYS.resources.events(rUri),
           queryFn: () => client!.getResourceEvents(rUri, { auth: toAccessToken(token) }),
           enabled: !!client && !!rUri,
         }),
@@ -78,7 +80,7 @@ export function useResources() {
     annotations: {
       useQuery: (rUri: ResourceUri) =>
         useQuery({
-          queryKey: QUERY_KEYS.documents.annotations(rUri),
+          queryKey: QUERY_KEYS.resources.annotations(rUri),
           queryFn: () => client!.getResourceAnnotations(rUri, { auth: toAccessToken(token) }),
           enabled: !!client && !!rUri,
         }),
@@ -87,16 +89,31 @@ export function useResources() {
     referencedBy: {
       useQuery: (rUri: ResourceUri) =>
         useQuery({
-          queryKey: QUERY_KEYS.documents.referencedBy(rUri),
+          queryKey: QUERY_KEYS.resources.referencedBy(rUri),
           queryFn: () => client!.getResourceReferencedBy(rUri, { auth: toAccessToken(token) }),
           enabled: !!client && !!rUri,
+        }),
+    },
+
+    representation: {
+      useQuery: (rUri: ResourceUri, mediaType: string) =>
+        useQuery({
+          queryKey: QUERY_KEYS.resources.representation(rUri),
+          queryFn: async () => {
+            const { data } = await client!.getResourceRepresentation(rUri, {
+              accept: mediaType as ContentFormat,
+              auth: toAccessToken(token),
+            });
+            return decodeWithCharset(data, mediaType);
+          },
+          enabled: !!client && !!rUri && !!mediaType,
         }),
     },
 
     search: {
       useQuery: (query: string, limit: number) =>
         useQuery({
-          queryKey: QUERY_KEYS.documents.search(query, limit),
+          queryKey: QUERY_KEYS.resources.search(query, limit),
           queryFn: () => client!.listResources(limit, undefined, searchQuery(query), { auth: toAccessToken(token) }),
           enabled: !!client && !!query,
         }),
@@ -128,7 +145,7 @@ export function useResources() {
             return client.updateResource(rUri, data, { auth: toAccessToken(token) });
           },
           onSuccess: (_data, variables) => {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.detail(variables.rUri) });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.detail(variables.rUri) });
             queryClient.invalidateQueries({ queryKey: ['documents'] });
           },
         });
@@ -226,7 +243,7 @@ export function useAnnotations() {
             return client.createAnnotation(rUri, data, { auth: toAccessToken(token) });
           },
           onSuccess: (response, variables) => {
-            const queryKey = QUERY_KEYS.documents.annotations(variables.rUri);
+            const queryKey = QUERY_KEYS.resources.annotations(variables.rUri);
             const currentData = queryClient.getQueryData<{ resource: any; annotations: any[] }>(queryKey);
 
             if (currentData && response.annotation) {
@@ -238,7 +255,7 @@ export function useAnnotations() {
               queryClient.invalidateQueries({ queryKey });
             }
 
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(variables.rUri) });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(variables.rUri) });
           },
         });
       },
@@ -256,7 +273,7 @@ export function useAnnotations() {
             return client.deleteAnnotation(variables.annotationUri, { auth: toAccessToken(token) });
           },
           onSuccess: (_, variables) => {
-            const queryKey = QUERY_KEYS.documents.annotations(variables.resourceUri);
+            const queryKey = QUERY_KEYS.resources.annotations(variables.resourceUri);
             const currentData = queryClient.getQueryData<{ resource: any; annotations: any[] }>(queryKey);
 
             if (currentData) {
@@ -270,7 +287,7 @@ export function useAnnotations() {
               queryClient.invalidateQueries({ queryKey });
             }
 
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(variables.resourceUri) });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(variables.resourceUri) });
             queryClient.invalidateQueries({ queryKey: ['annotations', variables.annotationUri] });
           },
         });
@@ -300,7 +317,7 @@ export function useAnnotations() {
             }
 
             const resourceUri = extractResourceUriFromAnnotationUri(variables.annotationUri);
-            const listQueryKey = QUERY_KEYS.documents.annotations(resourceUri);
+            const listQueryKey = QUERY_KEYS.resources.annotations(resourceUri);
             const currentList = queryClient.getQueryData<{ resource: any; annotations: any[] }>(listQueryKey);
 
             if (currentList && response.annotation) {
@@ -320,14 +337,14 @@ export function useAnnotations() {
                   if ('type' in op.item && op.item.type === 'SpecificResource' && 'source' in op.item && op.item.source) {
                     const targetResourceUri = op.item.source as ResourceUri;
                     queryClient.invalidateQueries({
-                      queryKey: QUERY_KEYS.documents.referencedBy(targetResourceUri)
+                      queryKey: QUERY_KEYS.resources.referencedBy(targetResourceUri)
                     });
                   }
                 }
               }
             }
 
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.events(resourceUri) });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(resourceUri) });
           },
         });
       },

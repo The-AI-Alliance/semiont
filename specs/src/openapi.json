@@ -241,8 +241,8 @@
       "DeleteUserResponse": {
         "$ref": "components/schemas/DeleteUserResponse.json"
       },
-      "DetectAnnotationsStreamRequest": {
-        "$ref": "components/schemas/DetectAnnotationsStreamRequest.json"
+      "DetectReferencesStreamRequest": {
+        "$ref": "components/schemas/DetectReferencesStreamRequest.json"
       },
       "DetectHighlightsStreamRequest": {
         "$ref": "components/schemas/DetectHighlightsStreamRequest.json"

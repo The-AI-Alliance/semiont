@@ -7,7 +7,7 @@
 
 import { createSSEStream } from './stream';
 import type {
-  DetectionProgress,
+  ReferenceDetectionProgress,
   GenerationProgress,
   HighlightDetectionProgress,
   AssessmentDetectionProgress,
@@ -21,9 +21,9 @@ import type { components } from '../types';
 import type { Logger } from '../logger';
 
 /**
- * Request body for detection stream
+ * Request body for reference detection stream
  */
-export interface DetectAnnotationsStreamRequest {
+export interface DetectReferencesStreamRequest {
   entityTypes: EntityType[];
   includeDescriptiveReferences?: boolean;
 }
@@ -39,6 +39,8 @@ export type GenerateResourceStreamRequest = components['schemas']['GenerateResou
  */
 export interface DetectHighlightsStreamRequest {
   instructions?: string;
+  /** Desired number of highlights per 2000 words (1-15) */
+  density?: number;
 }
 
 /**
@@ -46,6 +48,9 @@ export interface DetectHighlightsStreamRequest {
  */
 export interface DetectAssessmentsStreamRequest {
   instructions?: string;
+  tone?: 'analytical' | 'critical' | 'balanced' | 'constructive';
+  /** Desired number of assessments per 2000 words (1-10) */
+  density?: number;
 }
 
 /**
@@ -54,6 +59,8 @@ export interface DetectAssessmentsStreamRequest {
 export interface DetectCommentsStreamRequest {
   instructions?: string;
   tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical';
+  /** Desired number of comments per 2000 words (2-12) */
+  density?: number;
 }
 
 /**
@@ -93,7 +100,7 @@ export interface SSERequestOptions {
  *   baseUrl: 'http://localhost:4000'
  * });
  *
- * const stream = sseClient.detectAnnotations(
+ * const stream = sseClient.detectReferences(
  *   'http://localhost:4000/resources/doc-123',
  *   { entityTypes: ['Person', 'Organization'] },
  *   { auth: 'your-token' }
@@ -153,7 +160,7 @@ export class SSEClient {
    *
    * @example
    * ```typescript
-   * const stream = sseClient.detectAnnotations(
+   * const stream = sseClient.detectReferences(
    *   'http://localhost:4000/resources/doc-123',
    *   { entityTypes: ['Person', 'Organization'] },
    *   { auth: 'your-token' }
@@ -176,15 +183,15 @@ export class SSEClient {
    * stream.close();
    * ```
    */
-  detectAnnotations(
+  detectReferences(
     resourceId: ResourceUri,
-    request: DetectAnnotationsStreamRequest,
+    request: DetectReferencesStreamRequest,
     options?: SSERequestOptions
-  ): SSEStream<DetectionProgress, DetectionProgress> {
+  ): SSEStream<ReferenceDetectionProgress, ReferenceDetectionProgress> {
     const id = this.extractId(resourceId);
     const url = `${this.baseUrl}/resources/${id}/detect-annotations-stream`;
 
-    return createSSEStream<DetectionProgress, DetectionProgress>(
+    return createSSEStream<ReferenceDetectionProgress, ReferenceDetectionProgress>(
       url,
       {
         method: 'POST',
@@ -192,9 +199,9 @@ export class SSEClient {
         body: JSON.stringify(request)
       },
       {
-        progressEvents: ['detection-started', 'detection-progress'],
-        completeEvent: 'detection-complete',
-        errorEvent: 'detection-error'
+        progressEvents: ['reference-detection-started', 'reference-detection-progress'],
+        completeEvent: 'reference-detection-complete',
+        errorEvent: 'reference-detection-error'
       },
       this.logger
     );
@@ -542,11 +549,14 @@ export class SSEClient {
    * stream.close();
    * ```
    */
-  resourceEvents(resourceId: ResourceUri, options?: SSERequestOptions): SSEStream<any, never> {
+  resourceEvents(
+    resourceId: ResourceUri,
+    options?: SSERequestOptions & { onConnected?: () => void }
+  ): SSEStream<any, never> {
     const id = this.extractId(resourceId);
     const url = `${this.baseUrl}/resources/${id}/events/stream`;
 
-    return createSSEStream<any, never>(
+    const stream = createSSEStream<any, never>(
       url,
       {
         method: 'GET',
@@ -559,6 +569,17 @@ export class SSEClient {
         customEventHandler: true // Use custom event handling
       },
       this.logger
-    );
+    ) as SSEStream<any, never> & { on?: (event: string, callback: (data?: any) => void) => void };
+
+    // Register handler for stream-connected meta-event so it is filtered out
+    // of the progress stream and callers don't need to cast to any
+    if (options?.onConnected) {
+      stream.on?.('stream-connected', options.onConnected);
+    } else {
+      // Always consume stream-connected so it never reaches onProgress
+      stream.on?.('stream-connected', () => {});
+    }
+
+    return stream;
   }
 }

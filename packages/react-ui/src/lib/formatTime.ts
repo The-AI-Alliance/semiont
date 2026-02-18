@@ -1,6 +1,4 @@
-'use client';
-
-export function useFormattedTime(milliseconds: number | null) {
+export function formatTime(milliseconds: number | null): string | null {
   if (!milliseconds || milliseconds <= 0) return null;
 
   const hours = Math.floor(milliseconds / 3600000);

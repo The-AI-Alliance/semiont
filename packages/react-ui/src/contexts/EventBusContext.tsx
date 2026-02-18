@@ -2,8 +2,10 @@
 
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import mitt from 'mitt';
+import type { Handler } from 'mitt';
 import type { ResourceEvent } from '@semiont/core';
-import type { components, Selector, ResourceUri } from '@semiont/api-client';
+import type { components, Selector, ResourceUri, GenerationContext } from '@semiont/api-client';
+import type { DetectionProgress, GenerationProgress } from '../types/progress';
 
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation'];
@@ -33,12 +35,13 @@ export type EventMap = {
   // Generic event (all types)
   'make-meaning:event': ResourceEvent;
 
-  // Detection events
+  // Detection events (backend real-time stream via GET /resources/:id/events/stream)
   'detection:started': Extract<ResourceEvent, { type: 'job.started' }>;
-  'detection:progress': Extract<ResourceEvent, { type: 'job.progress' }>;
   'detection:entity-found': Extract<ResourceEvent, { type: 'annotation.added' }>;
   'detection:completed': Extract<ResourceEvent, { type: 'job.completed' }>;
   'detection:failed': Extract<ResourceEvent, { type: 'job.failed' }>;
+  // Detection progress from SSE detection streams (all 5 motivation types)
+  'detection:progress': DetectionProgress;
 
   // Annotation events (backend)
   'annotation:added': Extract<ResourceEvent, { type: 'annotation.added' }>;
@@ -69,7 +72,6 @@ export type EventMap = {
 
   // Annotation interaction events
   'annotation:cancel-pending': void;
-  'annotation:dom-hover': { annotationId: string | null }; // Raw DOM hover event from resource overlays (internal routing)
   'annotation:hover': { annotationId: string | null }; // Bidirectional hover: annotation overlay ↔ panel entry
   'annotation:click': { annotationId: string; motivation: Motivation }; // Click on annotation - includes motivation for panel coordination
   'annotation:focus': { annotationId: string | null };
@@ -94,7 +96,7 @@ export type EventMap = {
   'navigation:resource-reorder': { oldIndex: number; newIndex: number };
   'navigation:link-clicked': { href: string; label?: string };
   'navigation:router-push': { path: string; reason?: string };
-  'navigation:external-navigate': { url: string; resourceId?: string };
+  'navigation:external-navigate': { url: string; resourceId?: string; cancelFallback: () => void };
   'navigation:reference-navigate': { documentId: string };
   'navigation:entity-type-clicked': { entityType: string };
 
@@ -117,7 +119,7 @@ export type EventMap = {
   'annotation:create': {
     motivation: Motivation;
     selector: Selector | Selector[];
-    body: any[];
+    body: components['schemas']['AnnotationBody'][];
   };
   'annotation:created': { annotation: Annotation };
   'annotation:create-failed': { error: Error };
@@ -129,9 +131,9 @@ export type EventMap = {
     resourceId: string;
     operations: Array<{
       op: 'add' | 'remove' | 'replace';
-      item?: any;
-      oldItem?: any;
-      newItem?: any;
+      item?: components['schemas']['AnnotationBody'];
+      oldItem?: components['schemas']['AnnotationBody'];
+      newItem?: components['schemas']['AnnotationBody'];
     }>;
   };
   'annotation:body-updated': { annotationUri: string };
@@ -142,7 +144,8 @@ export type EventMap = {
     motivation: Motivation;
     options: {
       instructions?: string;
-      tone?: 'neutral' | 'supportive' | 'critical';
+      /** Comment tone */
+      tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical' | 'analytical' | 'critical' | 'balanced' | 'constructive';
       density?: number;
       entityTypes?: string[];
       includeDescriptiveReferences?: boolean;
@@ -150,7 +153,7 @@ export type EventMap = {
       categories?: string[];
     };
   };
-  'detection:complete': { motivation?: Motivation; resourceUri?: ResourceUri; progress?: any };
+  'detection:complete': { motivation?: Motivation; resourceUri?: ResourceUri; progress?: DetectionProgress };
   'detection:cancelled': void;
   'detection:dismiss-progress': void;
 
@@ -164,11 +167,11 @@ export type EventMap = {
       language?: string;
       temperature?: number;
       maxTokens?: number;
-      context: any; // GenerationContext - required for generation
+      context: GenerationContext;
     };
   };
-  'generation:progress': any; // GenerationProgress from SSE
-  'generation:complete': { annotationUri: string; progress: any };
+  'generation:progress': GenerationProgress;
+  'generation:complete': { annotationUri: string; progress: GenerationProgress };
   'generation:failed': { error: Error };
   'generation:modal-open': {
     annotationUri: string;
@@ -184,9 +187,21 @@ export type EventMap = {
     annotationUri: string;
     searchTerm: string;
   };
-  'reference:search-modal-open': {
+  'resolution:search-requested': {
     referenceId: string;
     searchTerm: string;
+  };
+  'context:retrieval-requested': {
+    annotationUri: string;
+    resourceUri: string;
+  };
+  'context:retrieval-complete': {
+    annotationUri: string;
+    context: GenerationContext;
+  };
+  'context:retrieval-failed': {
+    annotationUri: string;
+    error: Error;
   };
 };
 
@@ -213,24 +228,24 @@ function createEventBus(): EventBus {
 
   // Wrap emit to add logging with busId
   const originalEmit = bus.emit.bind(bus);
-  bus.emit = ((eventName: any, payload?: any) => {
+  bus.emit = <Key extends keyof EventMap>(eventName: Key, payload?: EventMap[Key]) => {
     console.info(`[EventBus:${busId}] emit:`, eventName, payload);
-    return originalEmit(eventName, payload);
-  }) as any;
+    return originalEmit(eventName, payload as EventMap[Key]);
+  };
 
   // Wrap on to add logging with busId
   const originalOn = bus.on.bind(bus);
-  bus.on = ((eventName: any, handler: any) => {
+  bus.on = <Key extends keyof EventMap>(eventName: Key, handler: Handler<EventMap[Key]>) => {
     console.debug(`[EventBus:${busId}] subscribe:`, eventName);
     return originalOn(eventName, handler);
-  }) as any;
+  };
 
   // Wrap off to add logging with busId
   const originalOff = bus.off.bind(bus);
-  bus.off = ((eventName: any, handler?: any) => {
+  bus.off = <Key extends keyof EventMap>(eventName: Key, handler?: Handler<EventMap[Key]>) => {
     console.debug(`[EventBus:${busId}] unsubscribe:`, eventName);
     return originalOff(eventName, handler);
-  }) as any;
+  };
 
   return bus;
 }
@@ -285,7 +300,7 @@ export function resetEventBusForTesting() {
 
 export interface EventBusProviderProps {
   children: ReactNode;
-  // rUri and client removed - operation handlers are now set up via useEventOperations hook
+  // rUri and client removed - operation handlers are now set up via useResolutionFlow hook
 }
 
 /**
@@ -307,7 +322,7 @@ export interface EventBusProviderProps {
  * same global bus.
  *
  * Operation handlers (API calls triggered by events) are set up separately via
- * the useEventOperations hook, which should be called at the resource page level.
+ * the useResolutionFlow hook, which should be called at the resource page level.
  */
 export function EventBusProvider({
   children,

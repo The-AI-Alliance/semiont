@@ -1,13 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { useSessionExpiry } from '@semiont/react-ui';
-import { useFormattedTime } from '@semiont/react-ui';
+import { useSessionExpiry, formatTime } from '@semiont/react-ui';
 
 export function SessionExpiryBanner() {
   const { timeRemaining, isExpiringSoon } = useSessionExpiry();
   const [dismissed, setDismissed] = useState(false);
-  const formattedTime = useFormattedTime(timeRemaining);
+  const formattedTime = formatTime(timeRemaining);
 
   // Don't show if:
   // - Session is not expiring soon

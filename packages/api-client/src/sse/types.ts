@@ -7,13 +7,13 @@
  */
 
 /**
- * Progress event for entity detection stream
+ * Progress event for reference/linking detection stream
  *
  * Sent by POST /resources/:id/detect-annotations-stream
  *
  * @example
  * ```typescript
- * stream.onProgress((progress: DetectionProgress) => {
+ * stream.onProgress((progress: ReferenceDetectionProgress) => {
  *   if (progress.status === 'scanning') {
  *     console.log(`Scanning for ${progress.currentEntityType}...`);
  *     console.log(`Progress: ${progress.processedEntityTypes}/${progress.totalEntityTypes}`);
@@ -21,7 +21,7 @@
  * });
  * ```
  */
-export interface DetectionProgress {
+export interface ReferenceDetectionProgress {
   /** Current status of detection operation */
   status: 'started' | 'scanning' | 'complete' | 'error';
   /** Resource ID being scanned */

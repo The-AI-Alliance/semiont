@@ -15,6 +15,7 @@ import { EventBusProvider, resetEventBusForTesting } from '../../../contexts/Eve
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { ToastProvider } from '../../../components/Toast';
+import { ThemeProvider } from '../../../contexts/ThemeContext';
 
 // jsdom doesn't implement window.matchMedia — mock it for useTheme
 Object.defineProperty(window, 'matchMedia', {
@@ -76,11 +77,7 @@ vi.mock('@semiont/react-ui', async () => {
     JsonLdPanel: () => <div data-testid="jsonld-panel">JSON-LD</div>,
     ErrorBoundary: ({ children }: any) => children,
     createCancelDetectionHandler: () => vi.fn(),
-    useGenerationProgress: () => ({
-      progress: null,
-      clearProgress: vi.fn(),
-    }),
-    useDebouncedCallback: (fn: any) => fn,
+useDebouncedCallback: (fn: any) => fn,
     supportsDetection: () => false,
     MakeMeaningEventBusProvider: ({ children }: any) => children,
     useResourceLoadingAnnouncements: () => ({
@@ -165,13 +162,15 @@ const createMockProps = (overrides?: Partial<ResourceViewerPageProps>): Resource
 // Test wrapper to provide all required providers
 const renderWithProviders = (ui: React.ReactElement) => {
   return render(
-    <ToastProvider>
-      <AuthTokenProvider token={null}>
-        <ApiClientProvider baseUrl="http://localhost:4000">
-          <EventBusProvider>{ui}</EventBusProvider>
-        </ApiClientProvider>
-      </AuthTokenProvider>
-    </ToastProvider>
+    <ThemeProvider>
+      <ToastProvider>
+        <AuthTokenProvider token={null}>
+          <ApiClientProvider baseUrl="http://localhost:4000">
+            <EventBusProvider>{ui}</EventBusProvider>
+          </ApiClientProvider>
+        </AuthTokenProvider>
+      </ToastProvider>
+    </ThemeProvider>
   );
 };
 

@@ -12,7 +12,7 @@ import { useTranslations } from 'next-intl';
 import { useAdmin, Toolbar } from '@semiont/react-ui';
 import type { paths } from '@semiont/api-client';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, useToolbar, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
+import { useTheme, usePanelNavigation, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
 import { AdminSecurityPage } from '@semiont/react-ui';
 import type { OAuthProvider } from '@semiont/react-ui';
 
@@ -23,7 +23,7 @@ export default function AdminSecurity() {
   const t = useTranslations('AdminSecurity');
 
   // Toolbar and settings state
-  const { activePanel } = useToolbar();
+  const { activePanel } = usePanelNavigation();
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 

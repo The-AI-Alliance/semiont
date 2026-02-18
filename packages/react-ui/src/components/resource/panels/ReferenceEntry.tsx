@@ -87,7 +87,7 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
       eventBus.emit('annotation:update-body', {
         annotationUri: reference.id,
         resourceId: sourceUri.split('/resources/')[1] || '',
-        operations: [{ op: 'remove', item: null }], // Remove all body items
+        operations: [{ op: 'remove' }], // Remove all body items
       });
     }
   };

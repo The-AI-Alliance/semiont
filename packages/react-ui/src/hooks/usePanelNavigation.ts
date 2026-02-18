@@ -14,8 +14,10 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
 
+export type ToolbarPanelType = 'document' | 'history' | 'info' | 'annotations' | 'settings' | 'collaboration' | 'user' | 'jsonld';
+
 export interface PanelNavigationState {
-  activePanel: string | null;
+  activePanel: ToolbarPanelType | null;
   scrollToAnnotationId: string | null;
   panelInitialTab: { tab: string; generation: number } | null;
   onScrollCompleted: () => void;
@@ -24,14 +26,17 @@ export interface PanelNavigationState {
 /**
  * Hook for panel navigation state management
  *
+ * @subscribes panel:toggle - Toggle a panel open/closed
+ * @subscribes panel:open - Open a panel, optionally scrolling to an annotation
+ * @subscribes panel:close - Close the active panel
  * @returns Panel navigation state
  */
 export function usePanelNavigation(): PanelNavigationState {
   // Panel state - load from localStorage, default closed
-  const [activePanel, setActivePanel] = useState<string | null>(() => {
+  const [activePanel, setActivePanel] = useState<ToolbarPanelType | null>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('activeToolbarPanel');
-      return saved || null;
+      return (saved as ToolbarPanelType) || null;
     }
     return null;
   });
@@ -55,39 +60,42 @@ export function usePanelNavigation(): PanelNavigationState {
     setScrollToAnnotationId(null);
   }, []);
 
+  const handlePanelToggle = useCallback(({ panel }: { panel: string }) => {
+    setActivePanel((current) => (current === panel ? null : panel as ToolbarPanelType));
+  }, []);
+
+  const handlePanelOpen = useCallback(({ panel, scrollToAnnotationId: scrollTarget, motivation }: { panel: string; scrollToAnnotationId?: string; motivation?: string }) => {
+    // Store scroll target and motivation for UnifiedAnnotationsPanel
+    if (scrollTarget) {
+      setScrollToAnnotationId(scrollTarget);
+    }
+
+    if (motivation) {
+      // Map motivation to tab key
+      const motivationToTab: Record<string, string> = {
+        'linking': 'reference',
+        'commenting': 'comment',
+        'tagging': 'tag',
+        'highlighting': 'highlight',
+        'assessing': 'assessment'
+      };
+
+      const tab = motivationToTab[motivation] || 'highlight';
+      setPanelInitialTab({ tab, generation: Date.now() });
+    }
+
+    setActivePanel(panel as ToolbarPanelType);
+  }, []);
+
+  const handlePanelClose = useCallback(() => {
+    setActivePanel(null);
+  }, []);
+
   // Subscribe to panel navigation events
   useEventSubscriptions({
-    'panel:toggle': ({ panel }: { panel: string }) => {
-      setActivePanel((current) => {
-        const newPanel = current === panel ? null : panel;
-        return newPanel;
-      });
-    },
-    'panel:open': ({ panel, scrollToAnnotationId: scrollTarget, motivation }: { panel: string; scrollToAnnotationId?: string; motivation?: string }) => {
-      // Store scroll target and motivation for UnifiedAnnotationsPanel
-      if (scrollTarget) {
-        setScrollToAnnotationId(scrollTarget);
-      }
-
-      if (motivation) {
-        // Map motivation to tab key
-        const motivationToTab: Record<string, string> = {
-          'linking': 'reference',
-          'commenting': 'comment',
-          'tagging': 'tag',
-          'highlighting': 'highlight',
-          'assessing': 'assessment'
-        };
-
-        const tab = motivationToTab[motivation] || 'highlight';
-        setPanelInitialTab({ tab, generation: Date.now() });
-      }
-
-      setActivePanel(panel);
-    },
-    'panel:close': () => {
-      setActivePanel(null);
-    },
+    'panel:toggle': handlePanelToggle,
+    'panel:open': handlePanelOpen,
+    'panel:close': handlePanelClose,
   });
 
   return {

@@ -13,9 +13,10 @@
  */
 
 import type { MutableRefObject } from 'react';
-import type { components } from '@semiont/api-client';
+import type { components, ResourceUri, SemiontApiClient, SSEStream } from '@semiont/api-client';
 import { entityType, isHighlight, isComment, isReference, isTag } from '@semiont/api-client';
 import type { CacheManager } from '../types/CacheManager';
+import type { DetectionProgress } from '../types/progress';
 
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation']; // Already defined in api-client with all 13 W3C motivations!
@@ -24,8 +25,8 @@ type Motivation = components['schemas']['Motivation']; // Already defined in api
  * Detection configuration for SSE-based annotation detection
  */
 export interface DetectionConfig {
-  // SSE method name (e.g., 'detectAnnotations', 'detectHighlights')
-  sseMethod: 'detectAnnotations' | 'detectHighlights' | 'detectAssessments' | 'detectComments' | 'detectTags';
+  // SSE method name (e.g., 'detectReferences', 'detectHighlights')
+  sseMethod: 'detectReferences' | 'detectHighlights' | 'detectAssessments' | 'detectComments' | 'detectTags';
 
   // How to extract count from completion result
   countField: 'foundCount' | 'createdCount' | 'tagsCreated';
@@ -38,7 +39,7 @@ export interface DetectionConfig {
 
   // Function to format request parameters for display in progress UI
   // Returns array of { label, value } pairs to show what was requested
-  formatRequestParams?: (args: any[]) => Array<{ label: string; value: string }>;
+  formatRequestParams?: (args: unknown[]) => Array<{ label: string; value: string }>;
 }
 
 /**
@@ -113,10 +114,10 @@ export const ANNOTATORS: Record<string, Annotator> = {
       countField: 'createdCount',
       displayNamePlural: 'highlights',
       displayNameSingular: 'highlight',
-      formatRequestParams: (args: any[]) => {
+      formatRequestParams: (args: unknown[]) => {
         const params: Array<{ label: string; value: string }> = [];
-        if (args[0]) params.push({ label: 'Instructions', value: args[0] });
-        if (args[2] !== undefined) params.push({ label: 'Density', value: `${args[2]} per 2000 words` });
+        if (typeof args[0] === 'string' && args[0]) params.push({ label: 'Instructions', value: args[0] });
+        if (typeof args[2] === 'number') params.push({ label: 'Density', value: `${args[2]} per 2000 words` });
         return params;
       }
     }
@@ -142,11 +143,11 @@ export const ANNOTATORS: Record<string, Annotator> = {
       countField: 'createdCount',
       displayNamePlural: 'comments',
       displayNameSingular: 'comment',
-      formatRequestParams: (args: any[]) => {
+      formatRequestParams: (args: unknown[]) => {
         const params: Array<{ label: string; value: string }> = [];
-        if (args[0]) params.push({ label: 'Instructions', value: args[0] });
-        if (args[1]) params.push({ label: 'Tone', value: args[1] });
-        if (args[2] !== undefined) params.push({ label: 'Density', value: `${args[2]} per 2000 words` });
+        if (typeof args[0] === 'string' && args[0]) params.push({ label: 'Instructions', value: args[0] });
+        if (typeof args[1] === 'string' && args[1]) params.push({ label: 'Tone', value: args[1] });
+        if (typeof args[2] === 'number') params.push({ label: 'Density', value: `${args[2]} per 2000 words` });
         return params;
       }
     }
@@ -172,11 +173,11 @@ export const ANNOTATORS: Record<string, Annotator> = {
       countField: 'createdCount',
       displayNamePlural: 'assessments',
       displayNameSingular: 'assessment',
-      formatRequestParams: (args: any[]) => {
+      formatRequestParams: (args: unknown[]) => {
         const params: Array<{ label: string; value: string }> = [];
-        if (args[0]) params.push({ label: 'Instructions', value: args[0] });
-        if (args[1]) params.push({ label: 'Tone', value: args[1] });
-        if (args[2] !== undefined) params.push({ label: 'Density', value: `${args[2]} per 2000 words` });
+        if (typeof args[0] === 'string' && args[0]) params.push({ label: 'Instructions', value: args[0] });
+        if (typeof args[1] === 'string' && args[1]) params.push({ label: 'Tone', value: args[1] });
+        if (typeof args[2] === 'number') params.push({ label: 'Density', value: `${args[2]} per 2000 words` });
         return params;
       }
     }
@@ -198,14 +199,15 @@ export const ANNOTATORS: Record<string, Annotator> = {
       refetchAfter: true
     },
     detection: {
-      sseMethod: 'detectAnnotations',
+      sseMethod: 'detectReferences',
       countField: 'foundCount',
       displayNamePlural: 'entity references',
       displayNameSingular: 'entity reference',
-      formatRequestParams: (args: any[]) => {
+      formatRequestParams: (args: unknown[]) => {
         const params: Array<{ label: string; value: string }> = [];
-        if (args[0] && Array.isArray(args[0]) && args[0].length > 0) {
-          params.push({ label: 'Entity Types', value: args[0].join(', ') });
+        const types = args[0];
+        if (Array.isArray(types) && types.length > 0) {
+          params.push({ label: 'Entity Types', value: types.join(', ') });
         }
         if (args[1] === true) {
           params.push({ label: 'Include Descriptive References', value: 'Yes' });
@@ -236,9 +238,9 @@ export const ANNOTATORS: Record<string, Annotator> = {
       countField: 'tagsCreated',
       displayNamePlural: 'tags',
       displayNameSingular: 'tag',
-      formatRequestParams: (args: any[]) => {
+      formatRequestParams: (args: unknown[]) => {
         const params: Array<{ label: string; value: string }> = [];
-        if (args[0]) {
+        if (typeof args[0] === 'string' && args[0]) {
           const schemaNames: Record<string, string> = {
             'legal-irac': 'Legal (IRAC)',
             'scientific-imrad': 'Scientific (IMRAD)',
@@ -246,8 +248,9 @@ export const ANNOTATORS: Record<string, Annotator> = {
           };
           params.push({ label: 'Schema', value: schemaNames[args[0]] || args[0] });
         }
-        if (args[1] && Array.isArray(args[1]) && args[1].length > 0) {
-          params.push({ label: 'Categories', value: args[1].join(', ') });
+        const categories = args[1];
+        if (Array.isArray(categories) && categories.length > 0) {
+          params.push({ label: 'Categories', value: categories.join(', ') });
         }
         return params;
       }
@@ -265,11 +268,11 @@ export const ANNOTATORS: Record<string, Annotator> = {
 export function createDetectionHandler(
   annotator: Annotator,
   context: {
-    client: any; // ApiClient from @semiont/api-client
-    rUri: any; // ResourceUri
+    client: SemiontApiClient;
+    rUri: ResourceUri;
     setDetectingMotivation: (motivation: Motivation | null) => void;
-    setMotivationDetectionProgress: (progress: any) => void;
-    detectionStreamRef: MutableRefObject<any>;
+    setMotivationDetectionProgress: (progress: DetectionProgress | null) => void;
+    detectionStreamRef: MutableRefObject<SSEStream<DetectionProgress, object> | null>;
     cacheManager: CacheManager;
     showSuccess: (message: string) => void;
     showError: (message: string) => void;
@@ -279,88 +282,43 @@ export function createDetectionHandler(
   if (!detection) {
     throw new Error(`Annotator ${annotator.internalType} does not support detection`);
   }
+  // After the guard above, detection is guaranteed non-null.
+  // Capture as a const so TypeScript retains the narrowing in nested closures.
+  const detectionConfig = detection;
 
-  return async (...args: any[]) => {
+  return async (...args: unknown[]) => {
     if (!context.client) return;
 
     // Format request parameters for display (if formatter provided)
-    const requestParams = detection.formatRequestParams ? detection.formatRequestParams(args) : [];
+    const requestParams = detectionConfig.formatRequestParams ? detectionConfig.formatRequestParams(args) : [];
 
     context.setDetectingMotivation(annotator.motivation);
     context.setMotivationDetectionProgress({
       status: 'started',
-      message: `Starting ${detection.displayNameSingular} detection...`,
+      message: `Starting ${detectionConfig.displayNameSingular} detection...`,
       requestParams
     });
 
-    try {
-      // Call the appropriate SSE method
-      const sseClient = context.client.sse;
+    // Helper to attach common handlers and store stream ref
+    function attachHandlers<TProgress extends DetectionProgress, TComplete extends object>(
+      stream: SSEStream<TProgress, TComplete>
+    ) {
+      context.detectionStreamRef.current = stream as SSEStream<DetectionProgress, object>;
 
-      // Transform arguments for different detection methods
-      let stream;
-      if (detection.sseMethod === 'detectAnnotations') {
-        // args[0] is selectedEntityTypes: string[], args[1] is includeDescriptiveReferences: boolean
-        const selectedTypes = args[0] || [];
-        const includeDescriptiveReferences = args[1];
-        stream = sseClient.detectAnnotations(context.rUri, {
-          entityTypes: selectedTypes.map((type: string) => entityType(type)),
-          includeDescriptiveReferences
-        });
-      } else if (detection.sseMethod === 'detectTags') {
-        // args[0] is schemaId: string, args[1] is categories: string[]
-        const schemaId = args[0];
-        const categories = args[1] || [];
-        stream = sseClient.detectTags(context.rUri, {
-          schemaId,
-          categories
-        });
-      } else if (detection.sseMethod === 'detectHighlights') {
-        // args[0] is instructions: string, args[1] is tone (unused for highlights), args[2] is density: number
-        const instructions = args[0];
-        const density = args[2];
-        stream = sseClient.detectHighlights(context.rUri, {
-          instructions,
-          density
-        });
-      } else if (detection.sseMethod === 'detectComments') {
-        // args[0] is instructions: string, args[1] is tone: string, args[2] is density: number
-        const instructions = args[0];
-        const tone = args[1];
-        const density = args[2];
-        stream = sseClient.detectComments(context.rUri, {
-          instructions,
-          tone,
-          density
-        });
-      } else if (detection.sseMethod === 'detectAssessments') {
-        // args[0] is instructions: string, args[1] is tone: string, args[2] is density: number
-        const instructions = args[0];
-        const tone = args[1];
-        const density = args[2];
-        stream = sseClient.detectAssessments(context.rUri, {
-          instructions,
-          tone,
-          density
-        });
-      } else {
-        throw new Error(`Unknown detection method: ${detection.sseMethod}`);
-      }
-
-      context.detectionStreamRef.current = stream;
-
-      stream.onProgress((progress: any) => {
+      stream.onProgress((progress) => {
         // Handle reference detection's special progress format
-        if (detection.sseMethod === 'detectAnnotations') {
+        if (detectionConfig.sseMethod === 'detectReferences') {
+          // Map ReferenceDetectionProgress fields (entity-type steps) to DetectionProgress (category fields)
+          const refProgress = progress as DetectionProgress & { processedEntityTypes?: number; totalEntityTypes?: number };
           context.setMotivationDetectionProgress({
-            status: progress.status,
-            message: progress.message ||
-              (progress.currentEntityType
-                ? `Detecting ${progress.currentEntityType}...`
-                : `Processing ${progress.processedEntityTypes} of ${progress.totalEntityTypes} entity types...`),
-            processedCategories: progress.processedEntityTypes,
-            totalCategories: progress.totalEntityTypes,
-            ...(progress.currentEntityType && { currentCategory: progress.currentEntityType }),
+            status: refProgress.status,
+            message: refProgress.message ||
+              (refProgress.currentEntityType
+                ? `Detecting ${refProgress.currentEntityType}...`
+                : `Processing ${refProgress.processedEntityTypes} of ${refProgress.totalEntityTypes} entity types...`),
+            processedCategories: refProgress.processedEntityTypes,
+            totalCategories: refProgress.totalEntityTypes,
+            ...(refProgress.currentEntityType && { currentCategory: refProgress.currentEntityType }),
             requestParams
           });
         } else {
@@ -377,32 +335,68 @@ export function createDetectionHandler(
         }
       });
 
-      stream.onComplete((result: any) => {
-        const count = result?.[detection.countField] ?? 0;
+      stream.onComplete((result) => {
+        const resultRecord = result as Record<string, unknown>;
+        const count = (resultRecord[detectionConfig.countField] as number | undefined) ?? 0;
         context.setMotivationDetectionProgress({
           status: 'complete',
           percentage: 100,
-          message: `Created ${count} ${count === 1 ? detection.displayNameSingular : detection.displayNamePlural}`,
+          message: `Created ${count} ${count === 1 ? detectionConfig.displayNameSingular : detectionConfig.displayNamePlural}`,
           requestParams
         });
         context.setDetectingMotivation(null);
         context.detectionStreamRef.current = null;
         context.cacheManager.invalidateAnnotations(context.rUri);
         context.cacheManager.invalidateEvents(context.rUri);
-        context.showSuccess(`Created ${count} ${count === 1 ? detection.displayNameSingular : detection.displayNamePlural}`);
+        context.showSuccess(`Created ${count} ${count === 1 ? detectionConfig.displayNameSingular : detectionConfig.displayNamePlural}`);
       });
 
-      stream.onError((error: any) => {
+      stream.onError((error) => {
         context.setMotivationDetectionProgress(null);
         context.setDetectingMotivation(null);
         context.detectionStreamRef.current = null;
         context.showError(`${annotator.displayName} detection failed: ${error.message}`);
       });
+    }
+
+    try {
+      // Call the appropriate SSE method
+      const sseClient = context.client.sse;
+
+      // Transform arguments for different detection methods and attach handlers
+      if (detectionConfig.sseMethod === 'detectReferences') {
+        // args[0] is selectedEntityTypes: string[], args[1] is includeDescriptiveReferences: boolean
+        const selectedTypes = Array.isArray(args[0]) ? (args[0] as string[]) : [];
+        const includeDescriptiveReferences = args[1] === true;
+        attachHandlers(sseClient.detectReferences(context.rUri, {
+          entityTypes: selectedTypes.map(t => entityType(t)),
+          includeDescriptiveReferences
+        }));
+      } else if (detectionConfig.sseMethod === 'detectTags') {
+        // args[0] is schemaId: string, args[1] is categories: string[]
+        const schemaId = typeof args[0] === 'string' ? args[0] : '';
+        const categories = Array.isArray(args[1]) ? (args[1] as string[]) : [];
+        attachHandlers(sseClient.detectTags(context.rUri, { schemaId, categories }));
+      } else if (detectionConfig.sseMethod === 'detectHighlights') {
+        // args[0] is instructions: string, args[2] is density: number
+        const instructions = typeof args[0] === 'string' ? args[0] : undefined;
+        attachHandlers(sseClient.detectHighlights(context.rUri, { instructions }));
+      } else if (detectionConfig.sseMethod === 'detectComments') {
+        // args[0] is instructions: string, args[1] is tone: string, args[2] is density: number
+        const instructions = typeof args[0] === 'string' ? args[0] : undefined;
+        attachHandlers(sseClient.detectComments(context.rUri, { instructions }));
+      } else if (detectionConfig.sseMethod === 'detectAssessments') {
+        // args[0] is instructions: string
+        const instructions = typeof args[0] === 'string' ? args[0] : undefined;
+        attachHandlers(sseClient.detectAssessments(context.rUri, { instructions }));
+      } else {
+        throw new Error(`Unknown detection method: ${detectionConfig.sseMethod}`);
+      }
     } catch (error) {
       context.setDetectingMotivation(null);
       context.setMotivationDetectionProgress(null);
       context.detectionStreamRef.current = null;
-      context.showError(`Failed to start ${detection.displayNameSingular} detection`);
+      context.showError(`Failed to start ${detectionConfig.displayNameSingular} detection`);
     }
   };
 }
@@ -412,9 +406,9 @@ export function createDetectionHandler(
  * Cancels any active detection stream
  */
 export function createCancelDetectionHandler(context: {
-  detectionStreamRef: MutableRefObject<any>;
+  detectionStreamRef: MutableRefObject<SSEStream<DetectionProgress, object> | null>;
   setDetectingMotivation: (motivation: Motivation | null) => void;
-  setMotivationDetectionProgress: (progress: any) => void;
+  setMotivationDetectionProgress: (progress: DetectionProgress | null) => void;
 }) {
   return () => {
     if (context.detectionStreamRef.current) {

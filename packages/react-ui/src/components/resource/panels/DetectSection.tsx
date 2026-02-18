@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useEventBus } from '../../../contexts/EventBusContext';
 import type { Motivation } from '@semiont/api-client';
@@ -29,6 +29,7 @@ interface DetectSectionProps {
  * - Progress display during detection
  *
  * @emits detection:start - Start detection for annotation type. Payload: { motivation: Motivation, options: { instructions?: string, tone?: string, density?: number } }
+ * @emits detection:dismiss-progress - Dismiss the detection progress display
  */
 export function DetectSection({
   annotationType,
@@ -42,7 +43,8 @@ export function DetectSection({
   const t = useTranslations(panelName);
   const eventBus = useEventBus();
   const [instructions, setInstructions] = useState('');
-  const [tone, setTone] = useState('');
+  type ToneValue = 'scholarly' | 'explanatory' | 'conversational' | 'technical' | 'analytical' | 'critical' | 'balanced' | 'constructive' | '';
+  const [tone, setTone] = useState<ToneValue>('');
   // Default density depends on annotation type
   const defaultDensity = annotationType === 'comment' ? 5 : annotationType === 'assessment' ? 4 : annotationType === 'highlight' ? 5 : 5;
   const [density, setDensity] = useState(defaultDensity);
@@ -61,7 +63,7 @@ export function DetectSection({
     localStorage.setItem(`detect-section-expanded-${annotationType}`, String(isExpanded));
   }, [isExpanded, annotationType]);
 
-  const handleDetect = () => {
+  const handleDetect = useCallback(() => {
     // Map annotation type to motivation
     const motivation: Motivation =
       annotationType === 'highlight' ? 'highlighting' :
@@ -73,7 +75,7 @@ export function DetectSection({
       motivation,
       options: {
         instructions: instructions.trim() || undefined,
-        tone: (annotationType === 'comment' || annotationType === 'assessment') && tone ? tone as any : undefined,
+        tone: (annotationType === 'comment' || annotationType === 'assessment') && tone ? tone : undefined,
         density: (annotationType === 'comment' || annotationType === 'assessment' || annotationType === 'highlight') && useDensity ? density : undefined,
       },
     });
@@ -81,7 +83,11 @@ export function DetectSection({
     setInstructions('');
     setTone('');
     // Don't reset density/useDensity - persist across detections
-  };
+  }, [annotationType, instructions, tone, useDensity, density]); // eventBus is stable singleton - never in deps
+
+  const handleDismissProgress = useCallback(() => {
+    eventBus.emit('detection:dismiss-progress', undefined);
+  }, []); // eventBus is stable singleton - never in deps
 
   return (
     <div className="semiont-panel__section">
@@ -134,7 +140,7 @@ export function DetectSection({
                 </label>
                 <select
                   value={tone}
-                  onChange={(e) => setTone(e.target.value)}
+                  onChange={(e) => setTone(e.target.value as ToneValue)}
                   className="semiont-select"
                 >
                   <option value="">Default</option>
@@ -233,7 +239,7 @@ export function DetectSection({
               {/* Close button - shown after detection completes (when not actively detecting) */}
               {!isDetecting && (
                 <button
-                  onClick={() => eventBus.emit('detection:dismiss-progress', undefined)}
+                  onClick={handleDismissProgress}
                   className="semiont-detection-progress__close"
                   aria-label={t('closeProgress')}
                   title={t('closeProgress')}

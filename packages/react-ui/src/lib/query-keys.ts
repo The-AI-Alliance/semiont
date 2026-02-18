@@ -24,6 +24,7 @@ export const QUERY_KEYS = {
     events: (rUri: ResourceUri) => ['resources', rUri, 'events'] as const,
     annotations: (rUri: ResourceUri) => ['resources', rUri, 'annotations'] as const,
     referencedBy: (rUri: ResourceUri) => ['resources', rUri, 'referenced-by'] as const,
+    representation: (rUri: ResourceUri) => ['resources', rUri, 'representation'] as const,
   },
 
   annotations: {
@@ -44,17 +45,5 @@ export const QUERY_KEYS = {
     oauth: {
       config: () => ['admin', 'oauth', 'config'] as const,
     },
-  },
-
-  // Legacy alias for backward compatibility during migration
-  // TODO: Remove after all components migrate to QUERY_KEYS.resources
-  documents: {
-    all: (limit?: number, archived?: boolean) => ['resources', { limit, archived }] as const,
-    detail: (rUri: ResourceUri) => ['resources', rUri] as const,
-    byToken: (token: string) => ['resources', 'by-token', token] as const,
-    search: (query: string, limit: number) => ['resources', 'search', { query, limit }] as const,
-    events: (rUri: ResourceUri) => ['resources', rUri, 'events'] as const,
-    annotations: (rUri: ResourceUri) => ['resources', rUri, 'annotations'] as const,
-    referencedBy: (rUri: ResourceUri) => ['resources', rUri, 'referenced-by'] as const,
   },
 };

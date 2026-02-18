@@ -8,12 +8,12 @@ import {
   SessionProvider as CustomSessionProvider,
   LiveRegionProvider,
   TranslationProvider,
+  ThemeProvider,
   dispatch401Error,
   dispatch403Error,
 } from '@semiont/react-ui';
 import { KeyboardShortcutsProvider } from '@/contexts/KeyboardShortcutsContext';
 import { AuthErrorBoundary } from '@/components/AuthErrorBoundary';
-import { ThemeInitializer } from '@/components/ThemeInitializer';
 import { APIError } from '@semiont/api-client';
 import { useSessionManager } from '@/hooks/useSessionManager';
 import { useMergedTranslationManager } from '@/hooks/useMergedTranslationManager';
@@ -111,8 +111,9 @@ function InnerProviders({ children, queryClient }: { children: React.ReactNode; 
             <ToastProvider>
               <LiveRegionProvider>
                 <KeyboardShortcutsProvider>
-                  <ThemeInitializer />
-                  {children}
+                  <ThemeProvider>
+                    {children}
+                  </ThemeProvider>
                 </KeyboardShortcutsProvider>
               </LiveRegionProvider>
             </ToastProvider>

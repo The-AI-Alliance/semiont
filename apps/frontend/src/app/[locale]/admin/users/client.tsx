@@ -13,7 +13,7 @@ import { useAdmin, buttonStyles, Toolbar } from '@semiont/react-ui';
 import type { paths } from '@semiont/api-client';
 import { useQueryClient } from '@tanstack/react-query';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, useToolbar, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
+import { useTheme, usePanelNavigation, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
 import { AdminUsersPage } from '@semiont/react-ui';
 import type { AdminUser, AdminUserStats } from '@semiont/react-ui';
 
@@ -26,7 +26,7 @@ export default function AdminUsers() {
   const queryClient = useQueryClient();
 
   // Toolbar and settings state
-  const { activePanel } = useToolbar();
+  const { activePanel } = usePanelNavigation();
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 

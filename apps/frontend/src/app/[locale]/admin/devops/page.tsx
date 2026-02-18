@@ -16,7 +16,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { StatusDisplay, Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, useToolbar, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
+import { useTheme, usePanelNavigation, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
 import { AdminDevOpsPage } from '@semiont/react-ui';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -36,7 +36,7 @@ export default function DevOpsPage() {
   const t = useTranslations('AdminDevOps');
 
   // Toolbar and settings state
-  const { activePanel } = useToolbar();
+  const { activePanel } = usePanelNavigation();
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 

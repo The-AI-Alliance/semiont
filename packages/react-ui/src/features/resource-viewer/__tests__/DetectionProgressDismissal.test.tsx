@@ -42,7 +42,7 @@ describe('Detection Progress Dismissal Bug', () => {
       close: vi.fn(),
     };
 
-    vi.spyOn(SSEClient.prototype, 'detectAnnotations').mockReturnValue(mockStream);
+    vi.spyOn(SSEClient.prototype, 'detectReferences').mockReturnValue(mockStream);
     vi.spyOn(SSEClient.prototype, 'detectHighlights').mockReturnValue(mockStream);
     vi.spyOn(SSEClient.prototype, 'detectComments').mockReturnValue(mockStream);
     vi.spyOn(SSEClient.prototype, 'detectAssessments').mockReturnValue(mockStream);
@@ -231,11 +231,11 @@ describe('Detection Progress Dismissal Bug', () => {
     });
   });
 
-  it('FIXED: useEventOperations now forwards final completion chunk data', async () => {
+  it('FIXED: useResolutionFlow now forwards final completion chunk data', async () => {
     /**
-     * This test verifies the fix for the useEventOperations bug.
+     * This test verifies the fix for the useResolutionFlow bug.
      *
-     * FIX: useEventOperations.ts stream.onComplete(finalChunk) now emits detection:progress
+     * FIX: useResolutionFlow.ts stream.onComplete(finalChunk) now emits detection:progress
      * with the final chunk data BEFORE emitting detection:complete.
      *
      * This ensures the UI can display the final completion message with status:'complete'.
@@ -300,7 +300,7 @@ describe('Detection Progress Dismissal Bug', () => {
     });
 
     // Simulate backend sending final chunk to stream.onComplete(finalChunk)
-    // useEventOperations should forward this as detection:progress
+    // useResolutionFlow should forward this as detection:progress
     act(() => {
       onCompleteCallback?.({
         status: 'complete',
