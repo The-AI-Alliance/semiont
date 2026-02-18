@@ -23,11 +23,11 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { act } from 'react';
 import { useGenerationFlow } from '../../../hooks/useGenerationFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
-import { ApiClientProvider, useApiClient } from '../../../contexts/ApiClientContext';
+import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
-import { useResolutionFlow } from '../../../contexts/useResolutionFlow';
+import { useResolutionFlow } from '../../../hooks/useResolutionFlow';
 import { SSEClient } from '@semiont/api-client';
-import type { SemiontApiClient, ResourceUri, AnnotationUri } from '@semiont/api-client';
+import type { ResourceUri, AnnotationUri } from '@semiont/api-client';
 import { resourceUri, annotationUri } from '@semiont/api-client';
 import type { Emitter } from 'mitt';
 import type { EventMap } from '../../../contexts/EventBusContext';
@@ -415,13 +415,9 @@ function renderGenerationFlow(
   // Component to capture EventBus instance and set up event operations
   function EventBusCapture() {
     eventBusInstance = useEventBus();
-    const client = useApiClient();
 
     // Set up resolution flow (annotation:update-body, reference:link)
-    useResolutionFlow(eventBusInstance, {
-      client: client as SemiontApiClient,
-      resourceUri: testResourceUri,
-    });
+    useResolutionFlow(testResourceUri);
 
     return null;
   }
