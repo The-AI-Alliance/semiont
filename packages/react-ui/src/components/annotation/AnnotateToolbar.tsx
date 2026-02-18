@@ -299,7 +299,10 @@ export function AnnotateToolbar({
         onPin={() => setClickPinned(!clickPinned)}
         containerRef={clickRef}
         collapsedContent={
-          <div className="semiont-dropdown-display">
+          <div
+            className="semiont-dropdown-display"
+            data-delete={clickActions.find(a => a.action === selectedClick)?.isDelete ? 'true' : 'false'}
+          >
             <span className="semiont-dropdown-icon">
               {clickActions.find(a => a.action === selectedClick)?.icon}
             </span>
