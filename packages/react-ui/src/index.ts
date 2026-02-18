@@ -53,7 +53,7 @@ export * from './contexts/ApiClientContext';
 export * from './contexts/AuthTokenContext';
 export * from './contexts/CacheContext';
 export * from './contexts/EventBusContext';
-export * from './contexts/useResolutionFlow';
+
 export * from './contexts/useEventSubscription';
 export * from './contexts/OpenResourcesContext';
 export * from './contexts/ResourceAnnotationsContext';
@@ -207,7 +207,9 @@ export * from './features/resource-compose/components/ResourceComposePage';
 export * from './features/resource-discovery/components/ResourceDiscoveryPage';
 export * from './features/resource-discovery/components/ResourceCard';
 export * from './features/resource-viewer/components/ResourceViewerPage';
+export * from './hooks/useAttentionFlow';
 export * from './hooks/useDetectionFlow';
 export * from './hooks/usePanelNavigation';
 export * from './hooks/useGenerationFlow';
 export * from './hooks/useContextRetrievalFlow';
+export * from './hooks/useResolutionFlow';

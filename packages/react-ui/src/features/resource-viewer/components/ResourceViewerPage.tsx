@@ -35,8 +35,9 @@ import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsContext';
 import { useApiClient } from '../../../contexts/ApiClientContext';
-import { useResolutionFlow } from '../../../contexts/useResolutionFlow';
+import { useResolutionFlow } from '../../../hooks/useResolutionFlow';
 import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
+import { useAttentionFlow } from '../../../hooks/useAttentionFlow';
 import { usePanelNavigation } from '../../../hooks/usePanelNavigation';
 import { useGenerationFlow } from '../../../hooks/useGenerationFlow';
 import { useContextRetrievalFlow } from '../../../hooks/useContextRetrievalFlow';
@@ -159,9 +160,10 @@ export function ResourceViewerPage({
   const allEntityTypes = (entityTypesData as { entityTypes: string[] } | undefined)?.entityTypes || [];
 
   // Flow state hooks (NO CONTAINERS)
-  const { detectingMotivation, detectionProgress, pendingAnnotation, hoveredAnnotationId } = useDetectionFlow(rUri);
+  const { hoveredAnnotationId } = useAttentionFlow();
+  const { detectingMotivation, detectionProgress, pendingAnnotation } = useDetectionFlow(rUri);
   const { activePanel, scrollToAnnotationId, panelInitialTab, onScrollCompleted } = usePanelNavigation();
-  const { searchModalOpen, pendingReferenceId, onCloseSearchModal } = useResolutionFlow(eventBus, { client, resourceUri: rUri });
+  const { searchModalOpen, pendingReferenceId, onCloseSearchModal } = useResolutionFlow(rUri);
   const {
     generationProgress,
     generationModalOpen,

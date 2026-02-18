@@ -4,7 +4,6 @@
  * Manages all annotation detection (manual and AI-driven):
  * - Pending annotation state (user selected text, waiting for confirmation)
  * - Selection events → pending annotation conversion
- * - Annotation interaction (hover, click)
  * - Annotation request routing to appropriate panel
  * - Tracking currently detecting motivation (AI-driven detection)
  * - Detection progress updates from SSE
@@ -48,7 +47,6 @@ interface PendingAnnotation {
 export interface DetectionFlowState {
   // Manual detection state
   pendingAnnotation: PendingAnnotation | null;
-  hoveredAnnotationId: string | null;
   // AI detection state
   detectingMotivation: Motivation | null;
   detectionProgress: DetectionProgress | null;
@@ -60,8 +58,6 @@ export interface DetectionFlowState {
  *
  * @param rUri - Resource URI being detected
  * @emits panel:open - Open the annotations panel when annotation is requested
- * @emits annotation:sparkle - Trigger sparkle animation on hovered annotation
- * @emits annotation:focus - Focus/scroll to clicked annotation
  * @emits annotation:created - Annotation successfully created
  * @emits annotation:create-failed - Annotation creation failed
  * @emits annotation:deleted - Annotation successfully deleted
@@ -78,8 +74,6 @@ export interface DetectionFlowState {
  * @subscribes selection:assessment-requested - User selected text for an assessment
  * @subscribes selection:reference-requested - User selected text for a reference
  * @subscribes annotation:cancel-pending - Cancel pending annotation creation
- * @subscribes annotation:hover - Annotation hover state change
- * @subscribes annotation:click - Annotation clicked
  * @subscribes detection:start - Trigger AI detection SSE stream
  * @subscribes job:cancel-requested - Cancels in-flight detection stream (detection half only)
  * @subscribes detection:progress - Progress update during detection
@@ -106,7 +100,6 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
   // ============================================================
 
   const [pendingAnnotation, setPendingAnnotation] = useState<PendingAnnotation | null>(null);
-  const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
 
   // Handle annotation request - route to appropriate panel
   const handleAnnotationRequested = useCallback((pending: PendingAnnotation) => {
@@ -193,18 +186,6 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
   const handleAnnotationCancelPending = useCallback(() => {
     setPendingAnnotation(null);
   }, []);
-
-  const handleAnnotationHover = useCallback(({ annotationId }: { annotationId: string | null }) => {
-    setHoveredAnnotationId(annotationId);
-    if (annotationId) {
-      eventBus.emit('annotation:sparkle', { annotationId });
-    }
-  }, []); // eventBus is stable singleton - never in deps
-
-  const handleAnnotationClick = useCallback(({ annotationId }: { annotationId: string }) => {
-    eventBus.emit('annotation:focus', { annotationId });
-    // Click scroll handled by ResourceViewer internally
-  }, []); // eventBus is stable singleton - never in deps
 
   // ============================================================
   // AI DETECTION STATE
@@ -484,8 +465,6 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
     'selection:assessment-requested': handleAssessmentRequested,
     'selection:reference-requested': handleReferenceRequested,
     'annotation:cancel-pending': handleAnnotationCancelPending,
-    'annotation:hover': handleAnnotationHover,
-    'annotation:click': handleAnnotationClick,
     // AI detection state updates
     'detection:progress': handleDetectionProgress,
     'detection:complete': handleDetectionComplete,
@@ -504,7 +483,6 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
 
   return {
     pendingAnnotation,
-    hoveredAnnotationId,
     detectingMotivation,
     detectionProgress,
     detectionStreamRef,
