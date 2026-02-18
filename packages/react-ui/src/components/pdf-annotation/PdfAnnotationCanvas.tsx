@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
+import { createHoverHandlers } from '../../hooks/useAttentionFlow';
 import type { components, ResourceUri } from '@semiont/api-client';
 import { getTargetSelector } from '@semiont/api-client';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
@@ -96,9 +97,6 @@ export function PdfAnnotationCanvas({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
-
-  // Track current hover state to prevent redundant emissions
-  const currentHover = useRef<string | null>(null);
 
   // Load PDF document on mount
   useEffect(() => {
@@ -362,20 +360,11 @@ export function PdfAnnotationCanvas({
     return page === pageNumber;
   });
 
-  // Hover handlers with state tracking
-  const handleMouseEnter = (annotationId: string) => {
-    if (currentHover.current !== annotationId) {
-      currentHover.current = annotationId;
-      eventBus?.emit('annotation:hover', { annotationId });
-    }
-  };
-
-  const handleMouseLeave = () => {
-    if (currentHover.current !== null) {
-      currentHover.current = null;
-      eventBus?.emit('annotation:hover', { annotationId: null });
-    }
-  };
+  // Hover handlers with currentHover guard and dwell delay
+  const { handleMouseEnter, handleMouseLeave } = useMemo(
+    () => createHoverHandlers((annotationId) => eventBus?.emit('annotation:hover', { annotationId })),
+    [eventBus]
+  );
 
   // Calculate motivation color
   const { stroke, fill } = getMotivationColor(selectedMotivation ?? null);

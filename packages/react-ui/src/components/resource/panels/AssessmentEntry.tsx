@@ -4,6 +4,7 @@ import { forwardRef } from 'react';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText } from '@semiont/api-client';
 import { useEventBus } from '../../../contexts/EventBusContext';
+import { useHoverEmitter } from '../../../hooks/useAttentionFlow';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -76,6 +77,7 @@ export const AssessmentEntry = forwardRef<HTMLDivElement, AssessmentEntryProps>(
     ref
   ) {
   const eventBus = useEventBus();
+  const hoverProps = useHoverEmitter(assessment.id);
 
   const selectedText = getAnnotationExactText(assessment);
   const assessmentText = getAssessmentText(assessment);
@@ -89,12 +91,7 @@ export const AssessmentEntry = forwardRef<HTMLDivElement, AssessmentEntryProps>(
       onClick={() => {
         eventBus.emit('annotation:click', { annotationId: assessment.id, motivation: assessment.motivation });
       }}
-      onMouseEnter={() => {
-        eventBus.emit('annotation:hover', { annotationId: assessment.id });
-      }}
-      onMouseLeave={() => {
-        eventBus.emit('annotation:hover', { annotationId: null });
-      }}
+      {...hoverProps}
     >
       {/* Selected text quote */}
       {selectedText && (

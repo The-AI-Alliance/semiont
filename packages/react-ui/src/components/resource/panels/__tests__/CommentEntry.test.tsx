@@ -273,7 +273,8 @@ describe('CommentEntry Component', () => {
   });
 
   describe('Hover Interactions', () => {
-    it('should emit annotation:hover event with annotation id on mouse enter', () => {
+    it('should emit annotation:hover event with annotation id after dwell delay', () => {
+      vi.useFakeTimers();
       const hoverHandler = vi.fn();
 
       const { container, eventBus } = renderWithProviders(
@@ -287,13 +288,21 @@ describe('CommentEntry Component', () => {
       const commentDiv = container.firstChild as HTMLElement;
       fireEvent.mouseEnter(commentDiv);
 
+      // Not emitted immediately — dwell timer pending
+      expect(hoverHandler).not.toHaveBeenCalled();
+
+      // Advance past HOVER_DELAY_MS
+      vi.advanceTimersByTime(200);
+
       expect(hoverHandler).toHaveBeenCalledWith({ annotationId: 'comment-1' });
 
       // Clean up
       eventBus!.off('annotation:hover', hoverHandler);
+      vi.useRealTimers();
     });
 
-    it('should emit annotation:hover event with null on mouse leave', () => {
+    it('should NOT emit annotation:hover when mouse leaves before dwell delay', () => {
+      vi.useFakeTimers();
       const hoverHandler = vi.fn();
 
       const { container, eventBus } = renderWithProviders(
@@ -305,12 +314,41 @@ describe('CommentEntry Component', () => {
       eventBus!.on('annotation:hover', hoverHandler);
 
       const commentDiv = container.firstChild as HTMLElement;
-      fireEvent.mouseLeave(commentDiv);
+      fireEvent.mouseEnter(commentDiv);
+      fireEvent.mouseLeave(commentDiv); // leaves before timer fires
 
-      expect(hoverHandler).toHaveBeenCalledWith({ annotationId: null });
+      vi.advanceTimersByTime(200);
+
+      // Timer was cancelled — no event emitted at all
+      expect(hoverHandler).not.toHaveBeenCalled();
 
       // Clean up
       eventBus!.off('annotation:hover', hoverHandler);
+      vi.useRealTimers();
+    });
+
+    it('should emit annotation:hover null after dwell then leave', () => {
+      vi.useFakeTimers();
+      const hoverHandler = vi.fn();
+
+      const { container, eventBus } = renderWithProviders(
+        <CommentEntry {...defaultProps} />,
+        { returnEventBus: true }
+      );
+
+      eventBus!.on('annotation:hover', hoverHandler);
+
+      const commentDiv = container.firstChild as HTMLElement;
+      fireEvent.mouseEnter(commentDiv);
+      vi.advanceTimersByTime(200); // hover committed
+
+      fireEvent.mouseLeave(commentDiv);
+
+      expect(hoverHandler).toHaveBeenNthCalledWith(1, { annotationId: 'comment-1' });
+      expect(hoverHandler).toHaveBeenNthCalledWith(2, { annotationId: null });
+
+      eventBus!.off('annotation:hover', hoverHandler);
+      vi.useRealTimers();
     });
 
     it('should handle hover events without errors', () => {
