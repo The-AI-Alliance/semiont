@@ -154,35 +154,11 @@ export class GraphDBConsumer {
           archived: false,
           dateCreated: new Date().toISOString(),
           wasAttributedTo: didToAgent(event.userId),
-          creationMethod: 'api',
+          creationMethod: event.payload.creationMethod,
         };
         console.log(`[GraphDBConsumer] Creating resource in graph: ${resourceUri}`);
         await graphDb.createResource(resource);
         console.log(`[GraphDBConsumer] ✅ Resource created in graph: ${resourceUri}`);
-        break;
-      }
-
-      case 'resource.cloned': {
-        if (!event.resourceId) throw new Error('resource.cloned requires resourceId');
-        const resourceUri = toResourceUri({ baseUrl: this.config.services.backend!.publicURL }, event.resourceId);
-        const resource: ResourceDescriptor = {
-          '@context': 'https://schema.org/',
-          '@id': resourceUri,
-          name: event.payload.name,
-          entityTypes: event.payload.entityTypes || [],
-          representations: [{
-            mediaType: event.payload.format,
-            checksum: event.payload.contentChecksum,
-            rel: 'original',
-          }],
-          archived: false,
-          dateCreated: new Date().toISOString(),
-          wasAttributedTo: didToAgent(event.userId),
-          creationMethod: 'clone',
-        };
-        console.log(`[GraphDBConsumer] Creating cloned resource in graph: ${resourceUri}`);
-        await graphDb.createResource(resource);
-        console.log(`[GraphDBConsumer] ✅ Cloned resource created in graph: ${resourceUri}`);
         break;
       }
 
