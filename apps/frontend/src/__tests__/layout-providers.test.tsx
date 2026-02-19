@@ -17,6 +17,7 @@ import {
   useAuthToken,
   useApiClient,
   useEventBus,
+  EventBusProvider,
 } from '@semiont/react-ui';
 
 // Mock next-intl
@@ -143,25 +144,9 @@ describe('Layout Providers', () => {
       expect(screen.getByText('Client: present')).toBeInTheDocument();
     });
 
-    it('should provide EventBusProvider', async () => {
-      const { default: AdminLayout } = await import('@/app/[locale]/admin/layout');
-
-      const TestComponent = () => {
-        // This should not throw if EventBusProvider is present
-        const eventBus = useEventBus();
-        return <div>EventBus: {eventBus ? 'present' : 'null'}</div>;
-      };
-
-      render(
-        <AdminLayout>
-          <TestComponent />
-        </AdminLayout>
-      );
-
-      expect(screen.getByText('EventBus: present')).toBeInTheDocument();
-    });
-
-    it('should provide all three providers in correct order', async () => {
+    it('should provide AuthTokenProvider and ApiClientProvider (EventBusProvider is global)', async () => {
+      // EventBusProvider lives in global providers.tsx, not in section layouts.
+      // Wrap with it here to simulate the global provider being present.
       const { default: AdminLayout } = await import('@/app/[locale]/admin/layout');
 
       const TestComponent = () => {
@@ -179,9 +164,11 @@ describe('Layout Providers', () => {
       };
 
       render(
-        <AdminLayout>
-          <TestComponent />
-        </AdminLayout>
+        <EventBusProvider>
+          <AdminLayout>
+            <TestComponent />
+          </AdminLayout>
+        </EventBusProvider>
       );
 
       expect(screen.getByText('Token: yes')).toBeInTheDocument();
@@ -225,7 +212,8 @@ describe('Layout Providers', () => {
       expect(screen.getByText('Client: present')).toBeInTheDocument();
     });
 
-    it('should provide EventBusProvider', async () => {
+    it('should work with EventBusProvider from global providers', async () => {
+      // EventBusProvider lives in global providers.tsx, not in section layouts.
       const { default: ModerateLayout } = await import('@/app/[locale]/moderate/layout');
 
       const TestComponent = () => {
@@ -234,9 +222,11 @@ describe('Layout Providers', () => {
       };
 
       render(
-        <ModerateLayout>
-          <TestComponent />
-        </ModerateLayout>
+        <EventBusProvider>
+          <ModerateLayout>
+            <TestComponent />
+          </ModerateLayout>
+        </EventBusProvider>
       );
 
       expect(screen.getByText('EventBus: present')).toBeInTheDocument();
@@ -282,7 +272,8 @@ describe('Layout Providers', () => {
       expect(screen.getByText('Client: present')).toBeInTheDocument();
     });
 
-    it('should provide EventBusProvider', async () => {
+    it('should work with EventBusProvider from global providers', async () => {
+      // EventBusProvider lives in global providers.tsx, not in section layouts.
       const { default: KnowledgeLayout } = await import('@/app/[locale]/know/layout');
 
       const TestComponent = () => {
@@ -292,9 +283,11 @@ describe('Layout Providers', () => {
 
       render(
         <QueryClientProvider client={queryClient}>
-          <KnowledgeLayout>
-            <TestComponent />
-          </KnowledgeLayout>
+          <EventBusProvider>
+            <KnowledgeLayout>
+              <TestComponent />
+            </KnowledgeLayout>
+          </EventBusProvider>
         </QueryClientProvider>
       );
 
@@ -305,7 +298,6 @@ describe('Layout Providers', () => {
       const { default: KnowledgeLayout } = await import('@/app/[locale]/know/layout');
 
       const TestComponent = () => {
-        // If we can access these three providers, knowledge layout is providing them
         const token = useAuthToken();
         const client = useApiClient();
         const eventBus = useEventBus();
@@ -320,9 +312,11 @@ describe('Layout Providers', () => {
 
       render(
         <QueryClientProvider client={queryClient}>
-          <KnowledgeLayout>
-            <TestComponent />
-          </KnowledgeLayout>
+          <EventBusProvider>
+            <KnowledgeLayout>
+              <TestComponent />
+            </KnowledgeLayout>
+          </EventBusProvider>
         </QueryClientProvider>
       );
 
