@@ -279,32 +279,36 @@ export function ResourceViewerPage({
     }, []),
   });
 
+  // Mutations hoisted to top level — hooks must not be called inside callbacks
+  const updateMutation = resources.update.useMutation();
+  const generateCloneTokenMutation = resources.generateCloneToken.useMutation();
+
   // Event handlers extracted to useCallback (tenet: no inline handlers in useEventSubscriptions)
   const handleResourceArchive = useCallback(async () => {
     try {
-      await resources.update.useMutation().mutateAsync({ rUri, data: { archived: true } });
+      await updateMutation.mutateAsync({ rUri, data: { archived: true } });
       await refetchDocument();
       showSuccess('Document archived');
     } catch (err) {
       console.error('Failed to archive document:', err);
       showError('Failed to archive document');
     }
-  }, [resources.update, rUri, refetchDocument, showSuccess, showError]);
+  }, [updateMutation, rUri, refetchDocument, showSuccess, showError]);
 
   const handleResourceUnarchive = useCallback(async () => {
     try {
-      await resources.update.useMutation().mutateAsync({ rUri, data: { archived: false } });
+      await updateMutation.mutateAsync({ rUri, data: { archived: false } });
       await refetchDocument();
       showSuccess('Document unarchived');
     } catch (err) {
       console.error('Failed to unarchive document:', err);
       showError('Failed to unarchive document');
     }
-  }, [resources.update, rUri, refetchDocument, showSuccess, showError]);
+  }, [updateMutation, rUri, refetchDocument, showSuccess, showError]);
 
   const handleResourceClone = useCallback(async () => {
     try {
-      const result = await resources.generateCloneToken.useMutation().mutateAsync(rUri);
+      const result = await generateCloneTokenMutation.mutateAsync(rUri);
       const token = result.token;
       const cloneUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/know/clone?token=${token}`;
       await navigator.clipboard.writeText(cloneUrl);
@@ -313,7 +317,7 @@ export function ResourceViewerPage({
       console.error('Failed to generate clone token:', err);
       showError('Failed to generate clone link');
     }
-  }, [resources.generateCloneToken, rUri, showSuccess, showError]);
+  }, [generateCloneTokenMutation, rUri, showSuccess, showError]);
 
   const handleAnnotationSparkle = useCallback(({ annotationId }: { annotationId: string }) => {
     triggerSparkleAnimation(annotationId);
