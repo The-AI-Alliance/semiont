@@ -29,10 +29,8 @@ export function NavigationHandler() {
 
   // Handle router push events
   const handleRouterPush = useCallback(({ path }: { path: string; reason?: string }) => {
-    // This is already using Next.js router in the app layer,
-    // but we can still log/track it
-    console.debug('[Navigation] Router push requested:', path);
-  }, []);
+    router.push(path);
+  }, [router]);
 
   useEventSubscriptions({
     'navigation:external-navigate': handleExternalNavigate,

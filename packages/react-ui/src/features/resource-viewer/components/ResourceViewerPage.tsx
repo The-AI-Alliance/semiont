@@ -310,14 +310,12 @@ export function ResourceViewerPage({
     try {
       const result = await generateCloneTokenMutation.mutateAsync(rUri);
       const token = result.token;
-      const cloneUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/know/clone?token=${token}`;
-      await navigator.clipboard.writeText(cloneUrl);
-      showSuccess('Clone link copied to clipboard');
+      eventBus.emit('navigation:router-push', { path: `/know/compose?mode=clone&token=${token}`, reason: 'clone' });
     } catch (err) {
       console.error('Failed to generate clone token:', err);
       showError('Failed to generate clone link');
     }
-  }, [generateCloneTokenMutation, rUri, showSuccess, showError]);
+  }, [generateCloneTokenMutation, rUri, showError]);
 
   const handleAnnotationSparkle = useCallback(({ annotationId }: { annotationId: string }) => {
     triggerSparkleAnimation(annotationId);
