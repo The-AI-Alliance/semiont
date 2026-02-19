@@ -111,6 +111,209 @@
   padding: 0 1.5rem; /* Move padding from parent to scrollable content */
 }
 
+/* ── Markdown prose typography ──────────────────────────────────────────────
+ * The global CSS reset zeroes margins/padding on all block elements and
+ * removes list styles. Re-apply semantic typographic defaults scoped to the
+ * browse-view content area so that ReactMarkdown output renders correctly.
+ */
+.semiont-browse-view__content h1,
+.semiont-browse-view__content h2,
+.semiont-browse-view__content h3,
+.semiont-browse-view__content h4,
+.semiont-browse-view__content h5,
+.semiont-browse-view__content h6 {
+  color: var(--semiont-text-primary);
+  font-weight: var(--semiont-font-bold);
+  line-height: var(--semiont-leading-tight);
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+}
+
+[data-theme="dark"] .semiont-browse-view__content h1,
+[data-theme="dark"] .semiont-browse-view__content h2,
+[data-theme="dark"] .semiont-browse-view__content h3,
+[data-theme="dark"] .semiont-browse-view__content h4,
+[data-theme="dark"] .semiont-browse-view__content h5,
+[data-theme="dark"] .semiont-browse-view__content h6 {
+  color: var(--semiont-text-primary);
+}
+
+.semiont-browse-view__content h1:first-child,
+.semiont-browse-view__content h2:first-child,
+.semiont-browse-view__content h3:first-child {
+  margin-top: 1rem; /* Less top space when heading opens the document */
+}
+
+.semiont-browse-view__content h1 { font-size: var(--semiont-text-3xl); }
+.semiont-browse-view__content h2 { font-size: var(--semiont-text-2xl); }
+.semiont-browse-view__content h3 { font-size: var(--semiont-text-xl); }
+.semiont-browse-view__content h4 { font-size: var(--semiont-text-lg); }
+.semiont-browse-view__content h5 { font-size: var(--semiont-text-base); }
+.semiont-browse-view__content h6 {
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-secondary);
+}
+
+[data-theme="dark"] .semiont-browse-view__content h6 {
+  color: var(--semiont-text-secondary);
+}
+
+.semiont-browse-view__content p {
+  margin-bottom: 1em;
+  line-height: var(--semiont-leading-relaxed);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-browse-view__content p {
+  color: var(--semiont-text-primary);
+}
+
+.semiont-browse-view__content ul,
+.semiont-browse-view__content ol {
+  margin-bottom: 1em;
+  padding-left: 1.75em;
+}
+
+.semiont-browse-view__content ul {
+  list-style: disc;
+}
+
+.semiont-browse-view__content ol {
+  list-style: decimal;
+}
+
+.semiont-browse-view__content li {
+  margin-bottom: 0.25em;
+  line-height: var(--semiont-leading-relaxed);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-browse-view__content li {
+  color: var(--semiont-text-primary);
+}
+
+/* Nested lists */
+.semiont-browse-view__content ul ul,
+.semiont-browse-view__content ol ol,
+.semiont-browse-view__content ul ol,
+.semiont-browse-view__content ol ul {
+  margin-top: 0.25em;
+  margin-bottom: 0;
+}
+
+.semiont-browse-view__content blockquote {
+  border-left: 4px solid var(--semiont-color-gray-300);
+  margin: 1em 0;
+  padding: 0.5em 0 0.5em 1.25em;
+  color: var(--semiont-text-secondary);
+  font-style: italic;
+}
+
+[data-theme="dark"] .semiont-browse-view__content blockquote {
+  border-left-color: var(--semiont-color-gray-600);
+}
+
+.semiont-browse-view__content code {
+  font-family: var(--semiont-font-mono);
+  font-size: 0.875em;
+  background: var(--semiont-bg-tertiary);
+  border-radius: var(--semiont-radius-base);
+  padding: 0.125em 0.3em;
+}
+
+[data-theme="dark"] .semiont-browse-view__content code {
+  background: var(--semiont-color-gray-700);
+}
+
+.semiont-browse-view__content pre {
+  background: var(--semiont-bg-tertiary);
+  border-radius: var(--semiont-radius-md);
+  padding: 1em 1.25em;
+  overflow-x: auto;
+  margin-bottom: 1em;
+}
+
+[data-theme="dark"] .semiont-browse-view__content pre {
+  background: var(--semiont-color-gray-800);
+}
+
+.semiont-browse-view__content pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.875rem;
+}
+
+.semiont-browse-view__content hr {
+  border: none;
+  border-top: 1px solid var(--semiont-color-gray-200);
+  margin: 1.5em 0;
+}
+
+[data-theme="dark"] .semiont-browse-view__content hr {
+  border-top-color: var(--semiont-color-gray-700);
+}
+
+.semiont-browse-view__content a {
+  color: var(--semiont-color-primary-600);
+  text-decoration: underline;
+}
+
+[data-theme="dark"] .semiont-browse-view__content a {
+  color: var(--semiont-color-primary-400);
+}
+
+.semiont-browse-view__content a:hover {
+  color: var(--semiont-color-primary-700);
+}
+
+[data-theme="dark"] .semiont-browse-view__content a:hover {
+  color: var(--semiont-color-primary-300);
+}
+
+/* GFM tables */
+.semiont-browse-view__content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 1em;
+  font-size: var(--semiont-text-sm);
+}
+
+.semiont-browse-view__content th,
+.semiont-browse-view__content td {
+  border: 1px solid var(--semiont-color-gray-200);
+  padding: 0.5em 0.75em;
+  text-align: left;
+}
+
+[data-theme="dark"] .semiont-browse-view__content th,
+[data-theme="dark"] .semiont-browse-view__content td {
+  border-color: var(--semiont-color-gray-700);
+}
+
+.semiont-browse-view__content th {
+  background: var(--semiont-bg-secondary);
+  font-weight: var(--semiont-font-semibold);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-browse-view__content th {
+  background: var(--semiont-color-gray-800);
+}
+
+.semiont-browse-view__content tr:nth-child(even) td {
+  background: var(--semiont-bg-secondary);
+}
+
+[data-theme="dark"] .semiont-browse-view__content tr:nth-child(even) td {
+  background: var(--semiont-color-gray-850, var(--semiont-color-gray-800));
+}
+
+/* GFM task list checkboxes */
+.semiont-browse-view__content input[type="checkbox"] {
+  margin-right: 0.4em;
+  accent-color: var(--semiont-color-primary-500);
+}
+
 [data-theme="dark"] .semiont-browse-view {
   background-color: var(--semiont-bg-primary);
 }
