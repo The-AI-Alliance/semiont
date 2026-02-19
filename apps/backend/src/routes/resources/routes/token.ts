@@ -33,12 +33,12 @@ const cloneTokens = new Map<CloneToken, { resourceId: ResourceId; expiresAt: Dat
 
 export function registerTokenRoutes(router: ResourcesRouterType) {
   /**
-   * GET /api/resources/token/:token
+   * GET /api/clone-tokens/:token
    *
    * Retrieve a resource using a clone token
    * Requires authentication
    */
-  router.get('/api/resources/token/:token', async (c) => {
+  router.get('/api/clone-tokens/:token', async (c) => {
     const { token: tokenStr } = c.req.param();
     const token = makeCloneToken(tokenStr);
 
@@ -69,13 +69,13 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
   });
 
   /**
-   * POST /api/resources/create-from-token
+   * POST /api/clone-tokens/create-resource
    *
    * Create a new resource using a clone token
    * Requires authentication
    * Validates request body against CreateResourceFromTokenRequest schema
    */
-  router.post('/api/resources/create-from-token',
+  router.post('/api/clone-tokens/create-resource',
     validateRequestBody('CreateResourceFromTokenRequest'),
     async (c) => {
       const body = c.get('validatedBody') as CreateResourceFromTokenRequest;

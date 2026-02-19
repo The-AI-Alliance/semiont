@@ -90,11 +90,11 @@
     "/resources/{id}/referenced-by": {
       "$ref": "paths/resources_{id}_referenced-by.json"
     },
-    "/api/resources/token/{token}": {
-      "$ref": "paths/api_resources_token_{token}.json"
+    "/api/clone-tokens/{token}": {
+      "$ref": "paths/api_clone-tokens_{token}.json"
     },
-    "/api/resources/create-from-token": {
-      "$ref": "paths/api_resources_create-from-token.json"
+    "/api/clone-tokens/create-resource": {
+      "$ref": "paths/api_clone-tokens_create-resource.json"
     },
     "/resources/{id}/clone-with-token": {
       "$ref": "paths/resources_{id}_clone-with-token.json"

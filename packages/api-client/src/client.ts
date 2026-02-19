@@ -497,25 +497,25 @@ export class SemiontApiClient {
   }
 
   async generateCloneToken(resourceUri: ResourceUri, options?: RequestOptions): Promise<ResponseContent<paths['/resources/{id}/clone-with-token']['post']>> {
-    // resourceUri is already a full URI, use it directly
-    return this.http.post(`${resourceUri}/clone-with-token`, {
+    const id = resourceUri.split('/').pop();
+    return this.http.post(`${this.baseUrl}/resources/${id}/clone-with-token`, {
       ...options,
       auth: options?.auth
     } as any).json();
   }
 
-  async getResourceByToken(token: CloneToken, options?: RequestOptions): Promise<ResponseContent<paths['/api/resources/token/{token}']['get']>> {
-    return this.http.get(`${this.baseUrl}/api/resources/token/${token}`, {
+  async getResourceByToken(token: CloneToken, options?: RequestOptions): Promise<ResponseContent<paths['/api/clone-tokens/{token}']['get']>> {
+    return this.http.get(`${this.baseUrl}/api/clone-tokens/${token}`, {
       ...options,
       auth: options?.auth
     } as any).json();
   }
 
   async createResourceFromToken(
-    data: RequestContent<paths['/api/resources/create-from-token']['post']>,
+    data: RequestContent<paths['/api/clone-tokens/create-resource']['post']>,
     options?: RequestOptions
-  ): Promise<ResponseContent<paths['/api/resources/create-from-token']['post']>> {
-    return this.http.post(`${this.baseUrl}/api/resources/create-from-token`, {
+  ): Promise<ResponseContent<paths['/api/clone-tokens/create-resource']['post']>> {
+    return this.http.post(`${this.baseUrl}/api/clone-tokens/create-resource`, {
       json: data,
       ...options,
       auth: options?.auth

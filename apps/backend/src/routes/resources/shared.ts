@@ -12,6 +12,7 @@ export type ResourcesRouterType = Hono<{ Variables: { user: User; config: Enviro
 export function createResourceRouter(): ResourcesRouterType {
   const router = new Hono<{ Variables: { user: User; config: EnvironmentConfig; makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>> } }>();
   router.use('/api/resources/*', authMiddleware);
+  router.use('/api/clone-tokens/*', authMiddleware);
   router.use('/resources/*', authMiddleware); // W3C URI endpoints also require auth
   return router;
 }
