@@ -3,7 +3,7 @@
 import React, { useContext } from 'react';
 import { useTranslations } from 'next-intl';
 import { useSession } from 'next-auth/react';
-import { LeftSidebar, Footer, EventBusProvider, ApiClientProvider, AuthTokenProvider } from '@semiont/react-ui';
+import { LeftSidebar, Footer, ApiClientProvider, AuthTokenProvider } from '@semiont/react-ui';
 import { ModerationNavigation } from '@/components/moderation/ModerationNavigation';
 import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
@@ -32,8 +32,7 @@ export default function ModerateLayout({
   return (
     <AuthTokenProvider token={authToken}>
       <ApiClientProvider baseUrl="">
-        <EventBusProvider>
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
             <div className="flex flex-1">
               <LeftSidebar
                 Link={Link}
@@ -69,7 +68,6 @@ export default function ModerateLayout({
               {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
             />
           </div>
-        </EventBusProvider>
       </ApiClientProvider>
     </AuthTokenProvider>
   );

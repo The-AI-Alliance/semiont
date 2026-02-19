@@ -9,10 +9,12 @@ import {
   LiveRegionProvider,
   TranslationProvider,
   ThemeProvider,
+  EventBusProvider,
   dispatch401Error,
   dispatch403Error,
 } from '@semiont/react-ui';
 import { KeyboardShortcutsProvider } from '@/contexts/KeyboardShortcutsContext';
+import { NavigationHandler } from '@/components/knowledge/NavigationHandler';
 import { AuthErrorBoundary } from '@/components/AuthErrorBoundary';
 import { APIError } from '@semiont/api-client';
 import { useSessionManager } from '@/hooks/useSessionManager';
@@ -112,7 +114,10 @@ function InnerProviders({ children, queryClient }: { children: React.ReactNode; 
               <LiveRegionProvider>
                 <KeyboardShortcutsProvider>
                   <ThemeProvider>
-                    {children}
+                    <EventBusProvider>
+                      <NavigationHandler />
+                      {children}
+                    </EventBusProvider>
                   </ThemeProvider>
                 </KeyboardShortcutsProvider>
               </LiveRegionProvider>

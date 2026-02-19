@@ -4,7 +4,7 @@ import React, { useContext } from 'react';
 import { useTranslations } from 'next-intl';
 import { useSession, signIn } from 'next-auth/react';
 import { KnowledgeSidebarWrapper } from '@/components/knowledge/KnowledgeSidebarWrapper';
-import { Footer, ResourceAnnotationsProvider, OpenResourcesProvider, CacheProvider, ApiClientProvider, AuthTokenProvider, EventBusProvider } from '@semiont/react-ui';
+import { Footer, ResourceAnnotationsProvider, OpenResourcesProvider, CacheProvider, ApiClientProvider, AuthTokenProvider } from '@semiont/react-ui';
 import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link, routes } from '@/lib/routing';
@@ -77,8 +77,7 @@ export default function KnowledgeLayout({
   return (
     <AuthTokenProvider token={authToken}>
       <ApiClientProvider baseUrl="">
-        <EventBusProvider>
-          <CacheProvider cacheManager={cacheManager}>
+        <CacheProvider cacheManager={cacheManager}>
             <OpenResourcesProvider openResourcesManager={openResourcesManager}>
               <ResourceAnnotationsProvider>
                 <div className="h-screen semiont-knowledge-layout semiont-layout-with-footer flex flex-col overflow-hidden">
@@ -101,7 +100,6 @@ export default function KnowledgeLayout({
               </ResourceAnnotationsProvider>
             </OpenResourcesProvider>
           </CacheProvider>
-        </EventBusProvider>
       </ApiClientProvider>
     </AuthTokenProvider>
   );
