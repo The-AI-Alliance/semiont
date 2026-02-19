@@ -154,7 +154,7 @@ function ComposeResourceContent() {
           token: tokenFromUrl!,
           name: params.name,
           content: params.content!,
-          archiveOriginal: params.archiveOriginal || true,
+          archiveOriginal: params.archiveOriginal ?? true,
         });
 
         if (!response.resource?.['@id']) {

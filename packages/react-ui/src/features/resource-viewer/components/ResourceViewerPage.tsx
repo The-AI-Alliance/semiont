@@ -288,23 +288,21 @@ export function ResourceViewerPage({
     try {
       await updateMutation.mutateAsync({ rUri, data: { archived: true } });
       await refetchDocument();
-      showSuccess('Document archived');
     } catch (err) {
       console.error('Failed to archive document:', err);
       showError('Failed to archive document');
     }
-  }, [updateMutation, rUri, refetchDocument, showSuccess, showError]);
+  }, [updateMutation, rUri, refetchDocument, showError]);
 
   const handleResourceUnarchive = useCallback(async () => {
     try {
       await updateMutation.mutateAsync({ rUri, data: { archived: false } });
       await refetchDocument();
-      showSuccess('Document unarchived');
     } catch (err) {
       console.error('Failed to unarchive document:', err);
       showError('Failed to unarchive document');
     }
-  }, [updateMutation, rUri, refetchDocument, showSuccess, showError]);
+  }, [updateMutation, rUri, refetchDocument, showError]);
 
   const handleResourceClone = useCallback(async () => {
     try {
