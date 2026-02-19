@@ -8,6 +8,7 @@ import { rehypeRenderAnnotations } from '../../lib/rehype-render-annotations';
 import type { components } from '@semiont/api-client';
 import { getExactText, getTextPositionSelector, getTargetSelector, getBodySource, getMimeCategory, isPdfMimeType, resourceUri as toResourceUri } from '@semiont/api-client';
 import { ANNOTATORS } from '../../lib/annotation-registry';
+import { createHoverHandlers } from '../../hooks/useAttentionFlow';
 import { ImageViewer } from '../viewers';
 import { AnnotateToolbar, type ClickAction } from '../annotation/AnnotateToolbar';
 import type { AnnotationsCollection } from '../../types/annotation-props';
@@ -115,25 +116,23 @@ export function BrowseView({
       }
     };
 
+    const { handleMouseEnter, handleMouseLeave, cleanup: cleanupHover } = createHoverHandlers(
+      (annotationId) => eventBus.emit('annotation:hover', { annotationId })
+    );
+
     // Single mouseover handler for the container - fires once on enter
     const handleMouseOver = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       const annotationElement = target.closest('[data-annotation-id]');
       const annotationId = annotationElement?.getAttribute('data-annotation-id');
-
-      if (annotationId) {
-        eventBus.emit('annotation:hover', { annotationId });
-      }
+      if (annotationId) handleMouseEnter(annotationId);
     };
 
     // Single mouseout handler for the container - fires once on exit
     const handleMouseOut = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       const annotationElement = target.closest('[data-annotation-id]');
-
-      if (annotationElement) {
-        eventBus.emit('annotation:hover', { annotationId: null });
-      }
+      if (annotationElement) handleMouseLeave();
     };
 
     // Apply animation classes to new annotations
@@ -155,6 +154,7 @@ export function BrowseView({
       container.removeEventListener('click', handleClick);
       container.removeEventListener('mouseover', handleMouseOver);
       container.removeEventListener('mouseout', handleMouseOut);
+      cleanupHover();
     };
   }, [content, allAnnotations, newAnnotationIds]);
 

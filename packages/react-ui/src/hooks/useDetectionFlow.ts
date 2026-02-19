@@ -270,6 +270,7 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
         }, { auth: toAccessToken(tokenRef.current) });
 
         if (result.annotation) {
+          setPendingAnnotation(null);
           eventBus.emit('annotation:created', { annotation: result.annotation });
         }
       } catch (error) {

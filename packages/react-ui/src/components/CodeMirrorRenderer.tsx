@@ -9,6 +9,7 @@ import { ReferenceResolutionWidget } from '../lib/codemirror-widgets';
 import { isHighlight, isReference, isResolvedReference, isComment, isAssessment, isTag, getBodySource } from '@semiont/api-client';
 import type { components } from '@semiont/api-client';
 import type { EventBus } from '../contexts/EventBusContext';
+import { createHoverHandlers } from '../hooks/useAttentionFlow';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -409,23 +410,21 @@ export function CodeMirrorRenderer({
     // Attach hover event listeners using native DOM events with delegation
     const container = view.dom;
 
+    const { handleMouseEnter, handleMouseLeave, cleanup: cleanupHover } = createHoverHandlers(
+      (annotationId) => eventBusRef.current?.emit('annotation:hover', { annotationId })
+    );
+
     const handleMouseOver = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       const annotationElement = target.closest('[data-annotation-id]');
       const annotationId = annotationElement?.getAttribute('data-annotation-id');
-
-      if (annotationId && eventBusRef.current) {
-        eventBusRef.current.emit('annotation:hover', { annotationId });
-      }
+      if (annotationId) handleMouseEnter(annotationId);
     };
 
     const handleMouseOut = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       const annotationElement = target.closest('[data-annotation-id]');
-
-      if (annotationElement && eventBusRef.current) {
-        eventBusRef.current.emit('annotation:hover', { annotationId: null });
-      }
+      if (annotationElement) handleMouseLeave();
     };
 
     container.addEventListener('mouseover', handleMouseOver);
@@ -434,6 +433,7 @@ export function CodeMirrorRenderer({
     return () => {
       container.removeEventListener('mouseover', handleMouseOver);
       container.removeEventListener('mouseout', handleMouseOut);
+      cleanupHover();
       view.destroy();
       viewRef.current = null;
     };

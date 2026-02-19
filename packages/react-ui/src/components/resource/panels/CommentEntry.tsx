@@ -5,6 +5,7 @@ import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components } from '@semiont/api-client';
 import { getAnnotationExactText, getCommentText } from '@semiont/api-client';
 import { useEventBus } from '../../../contexts/EventBusContext';
+import { useHoverEmitter } from '../../../hooks/useAttentionFlow';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -44,6 +45,7 @@ export const CommentEntry = forwardRef<HTMLDivElement, CommentEntryProps>(
   ) {
   const t = useTranslations('CommentsPanel');
   const eventBus = useEventBus();
+  const hoverProps = useHoverEmitter(comment.id);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState('');
   const internalRef = useRef<HTMLDivElement>(null);
@@ -88,12 +90,7 @@ export const CommentEntry = forwardRef<HTMLDivElement, CommentEntryProps>(
       onClick={() => {
         eventBus.emit('annotation:click', { annotationId: comment.id, motivation: comment.motivation });
       }}
-      onMouseEnter={() => {
-        eventBus.emit('annotation:hover', { annotationId: comment.id });
-      }}
-      onMouseLeave={() => {
-        eventBus.emit('annotation:hover', { annotationId: null });
-      }}
+      {...hoverProps}
     >
       {/* Selected text quote - only for text annotations */}
       {selectedText && (

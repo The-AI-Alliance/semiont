@@ -9,6 +9,7 @@ import { getEntityTypes } from '@semiont/ontology';
 import { getResourceIcon } from '../../../lib/resource-utils';
 import { useEventBus } from '../../../contexts/EventBusContext';
 import { useObservableExternalNavigation } from '../../../hooks/useObservableNavigation';
+import { useHoverEmitter } from '../../../hooks/useAttentionFlow';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -42,6 +43,7 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
   const t = useTranslations('ReferencesPanel');
   const eventBus = useEventBus();
   const navigate = useObservableExternalNavigation();
+  const hoverProps = useHoverEmitter(reference.id);
 
   const selectedText = getAnnotationExactText(reference) || '';
   const isResolved = isBodyResolved(reference.body);
@@ -121,12 +123,7 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
       onClick={() => {
         eventBus.emit('annotation:click', { annotationId: reference.id, motivation: reference.motivation });
       }}
-      onMouseEnter={() => {
-        eventBus.emit('annotation:hover', { annotationId: reference.id });
-      }}
-      onMouseLeave={() => {
-        eventBus.emit('annotation:hover', { annotationId: null });
-      }}
+      {...hoverProps}
     >
       {/* Status indicator and text quote */}
       <div className="semiont-annotation-entry__header">

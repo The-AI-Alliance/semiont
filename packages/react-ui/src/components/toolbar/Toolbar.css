@@ -79,6 +79,26 @@
   color: var(--semiont-color-gray-300);
 }
 
+.semiont-dropdown-display[data-delete="true"] {
+  background: var(--semiont-color-error);
+  color: var(--semiont-color-white);
+  border-radius: var(--semiont-radius-sm);
+  padding: 0.125rem 0.375rem;
+}
+
+.semiont-dropdown-display[data-delete="true"] .semiont-dropdown-label {
+  color: var(--semiont-color-white);
+}
+
+[data-theme="dark"] .semiont-dropdown-display[data-delete="true"] {
+  background: var(--semiont-color-error-dark);
+  color: var(--semiont-color-error-light);
+}
+
+[data-theme="dark"] .semiont-dropdown-display[data-delete="true"] .semiont-dropdown-label {
+  color: var(--semiont-color-error-light);
+}
+
 .semiont-dropdown-menu {
   position: absolute;
   top: 100%;

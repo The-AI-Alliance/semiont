@@ -19,9 +19,37 @@
  * @emits      annotation:focus
  */
 
-import { useState, useCallback } from 'react';
+/**
+ * useHoverEmitter / createHoverHandlers — annotation hover emission utilities
+ *
+ * Centralises two hover quality-of-life behaviours:
+ *
+ * 1. currentHover guard — suppresses redundant emissions when the mouse
+ *    moves within the same annotation element (prevents event bus noise).
+ *
+ * 2. Debounce delay (HOVER_DELAY_MS) — a short timer before emitting
+ *    annotation:hover, so that transient pass-through movements (user dragging
+ *    the mouse across the panel to reach a button elsewhere) do not trigger
+ *    sparkle animations or cross-highlight effects.
+ *    The delay is cancelled immediately on mouseLeave, so leaving is always instant.
+ *
+ * Two forms are provided:
+ *
+ * useHoverEmitter(annotationId)
+ *   React hook. Returns { onMouseEnter, onMouseLeave } props for JSX elements.
+ *   Use in panel entries (HighlightEntry, CommentEntry, …).
+ *
+ * createHoverHandlers(emit)
+ *   Plain factory. Returns { handleMouseEnter(id), handleMouseLeave(), cleanup }.
+ *   Use inside useEffect / imperative setup code where hooks cannot be called
+ *   (BrowseView, CodeMirrorRenderer, AnnotationOverlay, PdfAnnotationCanvas).
+ */
+
+import { useState, useRef, useCallback } from 'react';
 import { useEventBus } from '../contexts/EventBusContext';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
+
+// ─── useAttentionFlow ─────────────────────────────────────────────────────────
 
 export interface AttentionFlowState {
   hoveredAnnotationId: string | null;
@@ -49,4 +77,96 @@ export function useAttentionFlow(): AttentionFlowState {
   });
 
   return { hoveredAnnotationId };
+}
+
+// ─── createHoverHandlers (use inside useEffect / imperative setup) ────────────
+
+/** Milliseconds the mouse must dwell before annotation:hover is emitted. */
+export const HOVER_DELAY_MS = 150;
+
+type EmitHover = (annotationId: string | null) => void;
+
+export interface HoverHandlers {
+  /** Call with the annotation ID when the mouse enters an annotation element. */
+  handleMouseEnter: (annotationId: string) => void;
+  /** Call when the mouse leaves the annotation element. */
+  handleMouseLeave: () => void;
+  /** Cancel any pending timer — call in the useEffect cleanup. */
+  cleanup: () => void;
+}
+
+export function createHoverHandlers(emit: EmitHover): HoverHandlers {
+  let currentHover: string | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  const cancelTimer = () => {
+    if (timer !== null) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
+
+  const handleMouseEnter = (annotationId: string) => {
+    if (currentHover === annotationId) return; // already hovering this one
+    cancelTimer();
+    timer = setTimeout(() => {
+      timer = null;
+      currentHover = annotationId;
+      emit(annotationId);
+    }, HOVER_DELAY_MS);
+  };
+
+  const handleMouseLeave = () => {
+    cancelTimer();
+    if (currentHover !== null) {
+      currentHover = null;
+      emit(null);
+    }
+  };
+
+  return { handleMouseEnter, handleMouseLeave, cleanup: cancelTimer };
+}
+
+// ─── useHoverEmitter (use in JSX onMouseEnter / onMouseLeave props) ───────────
+
+export interface HoverEmitterProps {
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
+}
+
+/**
+ * React hook that returns onMouseEnter / onMouseLeave props for a single
+ * annotation entry element.
+ *
+ * @param annotationId - The ID of the annotation this element represents.
+ */
+export function useHoverEmitter(annotationId: string): HoverEmitterProps {
+  const eventBus = useEventBus();
+  const currentHoverRef = useRef<string | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const onMouseEnter = useCallback(() => {
+    if (currentHoverRef.current === annotationId) return;
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+    }
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null;
+      currentHoverRef.current = annotationId;
+      eventBus.emit('annotation:hover', { annotationId });
+    }, HOVER_DELAY_MS);
+  }, [annotationId]); // eventBus is stable singleton - never in deps
+
+  const onMouseLeave = useCallback(() => {
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    if (currentHoverRef.current !== null) {
+      currentHoverRef.current = null;
+      eventBus.emit('annotation:hover', { annotationId: null });
+    }
+  }, []); // eventBus is stable singleton - never in deps
+
+  return { onMouseEnter, onMouseLeave };
 }

@@ -283,6 +283,11 @@ export function TaggingPanel({
                             value: e.target.value,
                             purpose: 'tagging' as const,
                           },
+                          {
+                            type: 'TextualBody' as const,
+                            value: selectedSchemaId,
+                            purpose: 'classifying' as const,
+                          },
                         ],
                       });
                     }

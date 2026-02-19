@@ -1,7 +1,8 @@
 'use client';
 
-import { useRef } from 'react';
+import { useMemo } from 'react';
 import type { components } from '@semiont/api-client';
+import { createHoverHandlers } from '../../hooks/useAttentionFlow';
 import { getSvgSelector, isHighlight, isReference, isAssessment, isComment, isTag, isBodyResolved, isResolvedReference } from '@semiont/api-client';
 import { parseSvgSelector } from '@semiont/api-client';
 import type { EventBus } from '../../contexts/EventBusContext';
@@ -77,22 +78,10 @@ export function AnnotationOverlay({
   const scaleX = displayWidth / imageWidth;
   const scaleY = displayHeight / imageHeight;
 
-  // Track current hover state to prevent redundant emissions
-  const currentHover = useRef<string | null>(null);
-
-  const handleMouseEnter = (annotationId: string) => {
-    if (currentHover.current !== annotationId) {
-      currentHover.current = annotationId;
-      eventBus?.emit('annotation:hover', { annotationId });
-    }
-  };
-
-  const handleMouseLeave = () => {
-    if (currentHover.current !== null) {
-      currentHover.current = null;
-      eventBus?.emit('annotation:hover', { annotationId: null });
-    }
-  };
+  const { handleMouseEnter, handleMouseLeave } = useMemo(
+    () => createHoverHandlers((annotationId) => eventBus?.emit('annotation:hover', { annotationId })),
+    [eventBus]
+  );
 
   return (
     <svg

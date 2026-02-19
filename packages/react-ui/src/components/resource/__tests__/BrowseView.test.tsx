@@ -320,30 +320,38 @@ describe('BrowseView Component', () => {
       });
     });
 
-    it('should emit annotation:hover with null when mouse exits annotation', async () => {
+    it('should emit annotation:hover with null when mouse exits after dwell', async () => {
+      vi.useFakeTimers();
       const tracker = createEventTracker();
-      const { container } = renderWithEventTracking(<BrowseView {...defaultProps} />, tracker);
+      const annotations = {
+        ...defaultProps.annotations,
+        references: [createMockAnnotation('linking', 'ref-1')],
+      };
+      const { container } = renderWithEventTracking(
+        <BrowseView {...defaultProps} annotations={annotations} />,
+        tracker
+      );
 
       const browseContainer = container.querySelector('.semiont-browse-view__content');
 
-      // Create annotation element
       const mockAnnotationElement = document.createElement('span');
       mockAnnotationElement.setAttribute('data-annotation-id', 'ref-1');
+      const mockTarget = { closest: vi.fn(() => mockAnnotationElement) } as any;
 
-      const mockTarget = {
-        closest: vi.fn(() => mockAnnotationElement),
-      } as any;
+      // Enter and let dwell timer fire
+      fireEvent.mouseOver(browseContainer!, { target: mockTarget });
+      vi.advanceTimersByTime(200);
 
       tracker.clear();
 
-      // Simulate mouseout event (fires once on exit)
+      // Now exit — should emit null
       fireEvent.mouseOut(browseContainer!, { target: mockTarget });
 
-      await waitFor(() => {
-        expect(tracker.events.some(e =>
-          e.event === 'annotation:hover' && e.payload?.annotationId === null
-        )).toBe(true);
-      });
+      expect(tracker.events.some(e =>
+        e.event === 'annotation:hover' && e.payload?.annotationId === null
+      )).toBe(true);
+
+      vi.useRealTimers();
     });
 
     it('should not emit on mouseover when not over annotation', async () => {

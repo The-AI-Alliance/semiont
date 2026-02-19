@@ -6,6 +6,7 @@ import { getAnnotationExactText } from '@semiont/api-client';
 import { getTagCategory, getTagSchemaId } from '@semiont/ontology';
 import { getTagSchema } from '../../../lib/tag-schemas';
 import { useEventBus } from '../../../contexts/EventBusContext';
+import { useHoverEmitter } from '../../../hooks/useAttentionFlow';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -25,6 +26,7 @@ export const TagEntry = forwardRef<HTMLDivElement, TagEntryProps>(
     ref
   ) {
   const eventBus = useEventBus();
+  const hoverProps = useHoverEmitter(tag.id);
 
   const selectedText = getAnnotationExactText(tag);
   const category = getTagCategory(tag);
@@ -37,12 +39,7 @@ export const TagEntry = forwardRef<HTMLDivElement, TagEntryProps>(
       onClick={() => {
         eventBus.emit('annotation:click', { annotationId: tag.id, motivation: tag.motivation });
       }}
-      onMouseEnter={() => {
-        eventBus.emit('annotation:hover', { annotationId: tag.id });
-      }}
-      onMouseLeave={() => {
-        eventBus.emit('annotation:hover', { annotationId: null });
-      }}
+      {...hoverProps}
       className={`semiont-annotation-entry${isHovered ? ' semiont-annotation-pulse' : ''}`}
       data-type="tag"
       data-focused={isFocused ? 'true' : 'false'}
