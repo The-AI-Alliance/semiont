@@ -42,7 +42,7 @@ registerCreateResource(resourcesRouter);  // POST /resources
 registerListResources(resourcesRouter);  // GET /resources
 
 // Routes with literal second segment (before :id routes)
-registerTokenRoutes(resourcesRouter);  // GET /api/resources/token/:token, POST /api/resources/create-from-token, POST /resources/:id/clone-with-token
+registerTokenRoutes(resourcesRouter);  // GET /api/clone-tokens/:token, POST /api/clone-tokens/create-resource, POST /resources/:id/clone-with-token
 
   // Routes with :id and specific suffixes
   registerDetectAnnotationsStream(resourcesRouter, jobQueue);  // POST /resources/:id/detect-annotations-stream

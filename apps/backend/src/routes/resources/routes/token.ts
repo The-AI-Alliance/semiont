@@ -13,16 +13,15 @@ import {
   CREATION_METHODS,
   resourceId as makeResourceId,
   type ResourceId,
-  userToAgent,
+  userId,
 } from '@semiont/core';
-import { generateUuid } from '@semiont/make-meaning';
-import { resourceUri, type CloneToken, cloneToken as makeCloneToken } from '@semiont/api-client';
+import { ResourceContext, ResourceOperations } from '@semiont/make-meaning';
+import { type CloneToken, cloneToken as makeCloneToken } from '@semiont/api-client';
 import type { ResourcesRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/api-client';
 
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
-import { getPrimaryRepresentation, getResourceId, getResourceEntityTypes } from '@semiont/api-client';
+import { getPrimaryRepresentation, getResourceEntityTypes } from '@semiont/api-client';
 
 type GetResourceByTokenResponse = components['schemas']['GetResourceByTokenResponse'];
 type CreateResourceFromTokenRequest = components['schemas']['CreateResourceFromTokenRequest'];
@@ -34,12 +33,12 @@ const cloneTokens = new Map<CloneToken, { resourceId: ResourceId; expiresAt: Dat
 
 export function registerTokenRoutes(router: ResourcesRouterType) {
   /**
-   * GET /api/resources/token/:token
+   * GET /api/clone-tokens/:token
    *
    * Retrieve a resource using a clone token
    * Requires authentication
    */
-  router.get('/api/resources/token/:token', async (c) => {
+  router.get('/api/clone-tokens/:token', async (c) => {
     const { token: tokenStr } = c.req.param();
     const token = makeCloneToken(tokenStr);
 
@@ -53,8 +52,8 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
       throw new HTTPException(404, { message: 'Token expired' });
     }
 
-    const { graphDb } = c.get('makeMeaning');
-    const sourceDoc = await graphDb.getResource(resourceUri(tokenData.resourceId));
+    const config = c.get('config');
+    const sourceDoc = await ResourceContext.getResourceMetadata(tokenData.resourceId, config);
     if (!sourceDoc) {
       throw new HTTPException(404, { message: 'Source resource not found' });
     }
@@ -70,13 +69,13 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
   });
 
   /**
-   * POST /api/resources/create-from-token
+   * POST /api/clone-tokens/create-resource
    *
    * Create a new resource using a clone token
    * Requires authentication
    * Validates request body against CreateResourceFromTokenRequest schema
    */
-  router.post('/api/resources/create-from-token',
+  router.post('/api/clone-tokens/create-resource',
     validateRequestBody('CreateResourceFromTokenRequest'),
     async (c) => {
       const body = c.get('validatedBody') as CreateResourceFromTokenRequest;
@@ -93,16 +92,14 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
         throw new HTTPException(404, { message: 'Token expired' });
       }
 
-      const { graphDb, repStore } = c.get('makeMeaning');
+      const config = c.get('config');
+      const { eventStore, repStore } = c.get('makeMeaning');
 
-      // Get source resource
-      const sourceDoc = await graphDb.getResource(resourceUri(tokenData.resourceId));
+      // Get source resource from materialized views (source of truth)
+      const sourceDoc = await ResourceContext.getResourceMetadata(tokenData.resourceId, config);
       if (!sourceDoc) {
         throw new HTTPException(404, { message: 'Source resource not found' });
       }
-
-      // Create new resource
-      const resourceId = generateUuid();
 
       // Get source format and validate it's a supported ContentFormat
       const primaryRep = getPrimaryRepresentation(sourceDoc);
@@ -114,58 +111,38 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
         ? (mediaType as 'text/plain' | 'text/markdown')
         : 'text/plain';
 
-      // Store representation
-      const storedRep = await repStore.store(Buffer.from(body.content), {
-        mediaType: format,
-        rel: 'original',
-      });
-
-      const resource: ResourceDescriptor = {
-        '@context': 'https://schema.org/',
-        '@id': `http://localhost:4000/resources/${resourceId}`,
-        name: body.name,
-        entityTypes: getResourceEntityTypes(sourceDoc),
-        representations: [{
-          mediaType: format,
-          checksum: storedRep.checksum,
-          rel: 'original',
-        }],
-        archived: false,
-        dateCreated: new Date().toISOString(),
-        wasAttributedTo: userToAgent(user),
-        creationMethod: CREATION_METHODS.CLONE,
-        sourceResourceId: getResourceId(sourceDoc),
-      };
-
-      const savedDoc = await graphDb.createResource(resource);
-
-      // Store representation
-      await repStore.store(Buffer.from(body.content), {
-        mediaType: format,
-        rel: 'original',
-      });
+      // Create cloned resource via event sourcing (emits resource.created with creationMethod: CLONE)
+      const result = await ResourceOperations.createResource(
+        {
+          name: body.name,
+          content: Buffer.from(body.content),
+          format,
+          entityTypes: getResourceEntityTypes(sourceDoc),
+          creationMethod: CREATION_METHODS.CLONE,
+        },
+        userId(user.id),
+        eventStore,
+        repStore,
+        config
+      );
 
       // Archive original if requested
       if (body.archiveOriginal) {
-        await graphDb.updateResource(resourceUri(tokenData.resourceId), {
-          archived: true
-        });
+        await ResourceOperations.updateResource(
+          {
+            resourceId: tokenData.resourceId,
+            userId: userId(user.id),
+            currentArchived: sourceDoc.archived,
+            updatedArchived: true,
+          },
+          eventStore
+        );
       }
 
       // Clean up token
       cloneTokens.delete(token);
 
-      // Get annotations
-      const savedDocId = getResourceId(savedDoc);
-      if (!savedDocId) {
-        return c.json({ error: 'Resource must have an id' }, 500);
-      }
-      const result = await graphDb.listAnnotations({ resourceId: makeResourceId(savedDocId) });
-
-      const response: CreateResourceFromTokenResponse = {
-        resource: savedDoc,
-        annotations: result.annotations,
-      };
+      const response: CreateResourceFromTokenResponse = result;
 
       return c.json(response, 201);
     }
@@ -179,9 +156,11 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
    */
   router.post('/resources/:id/clone-with-token', async (c) => {
     const { id } = c.req.param();
-    const { graphDb, repStore } = c.get('makeMeaning');
+    const config = c.get('config');
+    const { repStore } = c.get('makeMeaning');
 
-    const sourceDoc = await graphDb.getResource(resourceUri(resourceUri(id)));
+    // Look up resource from materialized views (source of truth, not graph DB)
+    const sourceDoc = await ResourceContext.getResourceMetadata(makeResourceId(id), config);
     if (!sourceDoc) {
       throw new HTTPException(404, { message: 'Resource not found' });
     }

@@ -40,6 +40,10 @@ vi.mock('@/components/AuthErrorBoundary', () => ({
   AuthErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>
 }));
 
+vi.mock('@/components/knowledge/NavigationHandler', () => ({
+  NavigationHandler: () => null,
+}));
+
 // Mock react-query to spy on QueryClient creation
 vi.mock('@tanstack/react-query', async () => {
   const actual = await vi.importActual('@tanstack/react-query');

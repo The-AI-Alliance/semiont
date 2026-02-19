@@ -16,7 +16,7 @@ interface HookViolation {
   line: number;
   column: number;
   hookName: string;
-  violation: 'inline-hook-in-conditional' | 'multiple-event-subscriptions';
+  violation: 'inline-hook-in-conditional' | 'multiple-event-subscriptions' | 'hook-in-callback';
   message: string;
   fix: string;
 }
@@ -92,6 +92,46 @@ class HooksOrderingAuditor {
   }
 
   /**
+   * Check whether a node is nested inside a useCallback or useMemo call's
+   * function-body argument.
+   *
+   * Both hooks accept a function as their first argument:
+   *   useCallback(() => { ... }, deps)
+   *   useMemo(() => { ... }, deps)
+   *
+   * A hook called inside that function body violates the Rules of Hooks because
+   * the memoised function may not be re-executed on every render, meaning the
+   * inner hook call happens conditionally.
+   *
+   * We walk up the ancestor chain looking for an ArrowFunction or FunctionExpression
+   * that is the first argument of a useCallback / useMemo CallExpression.
+   */
+  private isInsideMemoizedCallback(node: ts.Node): { enclosingHook: string } | null {
+    const MEMOIZING_HOOKS = new Set(['useCallback', 'useMemo']);
+    let current: ts.Node | undefined = node.parent;
+
+    while (current) {
+      // We are interested in function literals (arrow or traditional) …
+      if (ts.isArrowFunction(current) || ts.isFunctionExpression(current)) {
+        const parent = current.parent;
+        // … that appear as the first argument of a useCallback/useMemo call.
+        if (
+          parent &&
+          ts.isCallExpression(parent) &&
+          ts.isIdentifier(parent.expression) &&
+          MEMOIZING_HOOKS.has(parent.expression.text) &&
+          parent.arguments[0] === current
+        ) {
+          return { enclosingHook: parent.expression.text };
+        }
+      }
+      current = current.parent;
+    }
+
+    return null;
+  }
+
+  /**
    * Visit all nodes in the AST to find violations
    */
   private visitNode(node: ts.Node, sourceFile: ts.SourceFile, filePath: string) {
@@ -110,6 +150,23 @@ class HooksOrderingAuditor {
           violation: 'inline-hook-in-conditional',
           message: `Hook ${hookName} called inline as prop inside conditional render`,
           fix: 'Define hook before conditional, then reference it',
+        });
+      }
+
+      // Pattern 3: Hook called inside useCallback / useMemo body
+      // (violates Rules of Hooks — the memoised function may not re-run every render)
+      const memoCtx = this.isInsideMemoizedCallback(node);
+      if (memoCtx) {
+        const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+
+        this.violations.push({
+          filePath,
+          line: line + 1,
+          column: character + 1,
+          hookName: hookName || 'unknown',
+          violation: 'hook-in-callback',
+          message: `Hook "${hookName}" called inside ${memoCtx.enclosingHook}() body — violates Rules of Hooks`,
+          fix: `Hoist "${hookName}" to the component top level and reference the result inside the ${memoCtx.enclosingHook} callback`,
         });
       }
     }
@@ -218,8 +275,11 @@ class HooksOrderingAuditor {
    * Print violations report
    */
   printReport(): void {
-    const errorViolations = this.violations.filter(v => v.violation === 'inline-hook-in-conditional');
+    const callbackViolations = this.violations.filter(v => v.violation === 'hook-in-callback');
+    const conditionalViolations = this.violations.filter(v => v.violation === 'inline-hook-in-conditional');
     const warningViolations = this.violations.filter(v => v.violation === 'multiple-event-subscriptions');
+
+    const errorViolations = [...callbackViolations, ...conditionalViolations];
 
     console.log('🔍 React Hooks Ordering Compliance Report');
     console.log('=========================================\n');
@@ -229,11 +289,23 @@ class HooksOrderingAuditor {
       return;
     }
 
-    // Errors
-    if (errorViolations.length > 0) {
-      console.log(`❌ ERRORS (${errorViolations.length}):\n`);
+    // Errors: hook-in-callback (the clone/archive bug class)
+    if (callbackViolations.length > 0) {
+      console.log(`❌ ERRORS — Hook called inside useCallback/useMemo (${callbackViolations.length}):\n`);
 
-      for (const violation of errorViolations) {
+      for (const violation of callbackViolations) {
+        console.log(`  ${violation.filePath}:${violation.line}:${violation.column}`);
+        console.log(`    Hook: ${violation.hookName}`);
+        console.log(`    Problem: ${violation.message}`);
+        console.log(`    Fix: ${violation.fix}\n`);
+      }
+    }
+
+    // Errors: inline-hook-in-conditional
+    if (conditionalViolations.length > 0) {
+      console.log(`❌ ERRORS — Hook called inside conditional render (${conditionalViolations.length}):\n`);
+
+      for (const violation of conditionalViolations) {
         console.log(`  ${violation.filePath}:${violation.line}:${violation.column}`);
         console.log(`    Hook: ${violation.hookName}`);
         console.log(`    Problem: ${violation.message}`);
@@ -263,6 +335,8 @@ class HooksOrderingAuditor {
       console.log('  3. Call hooks in the same order on every render\n');
 
       console.log('Common violations:');
+      console.log('  - Hook inside useCallback/useMemo: useMutation() called inside callback body');
+      console.log('    Fix: hoist the hook call to the component top level; pass result into callback');
       console.log('  - Inline hooks in conditional JSX: prop={useCallback(...)} inside ternary');
       console.log('  - Multiple useEventSubscriptions calls (should be combined into one)\n');
 
