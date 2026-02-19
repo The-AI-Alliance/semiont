@@ -386,6 +386,50 @@ describe('TaggingPanel Component', () => {
       });
     });
 
+    it('should include schema id as classifying body alongside tagging body', async () => {
+      // Regression: manual tags were missing the classifying body, so getTagSchemaId()
+      // returned undefined and TagEntry never showed the schema name.
+      const tracker = createEventTracker();
+      const pendingAnnotation = createPendingAnnotation('Selected text');
+
+      renderWithEventBus(
+        <TaggingPanel
+          {...defaultProps}
+          pendingAnnotation={pendingAnnotation}
+        />,
+        tracker
+      );
+
+      const categorySelects = screen.getAllByRole('combobox');
+      const categorySelect = categorySelects.find(select =>
+        select.querySelector('option[value=""]')?.textContent === 'Choose a category'
+      );
+      await userEvent.selectOptions(categorySelect!, 'Rule');
+
+      await waitFor(() => {
+        const createEvent = tracker.events.find(e => e.event === 'annotation:create');
+        expect(createEvent).toBeDefined();
+        const body: any[] = createEvent!.payload.body;
+
+        // Must have exactly two body elements
+        expect(body).toHaveLength(2);
+
+        // First: the category
+        expect(body[0]).toMatchObject({
+          type: 'TextualBody',
+          value: 'Rule',
+          purpose: 'tagging',
+        });
+
+        // Second: the schema id — this is what was missing before the fix
+        expect(body[1]).toMatchObject({
+          type: 'TextualBody',
+          value: 'legal-irac',
+          purpose: 'classifying',
+        });
+      });
+    });
+
     it('should have proper styling for tag creation form', () => {
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
