@@ -10,6 +10,8 @@
  * @see https://www.w3.org/TR/annotation-model/#text-quote-selector
  */
 
+import { findBestTextMatch, type MatchQuality } from './fuzzy-anchor';
+
 /**
  * Extract prefix and suffix context for TextQuoteSelector
  *
@@ -94,112 +96,9 @@ export interface ValidatedAnnotation {
   suffix?: string;
   corrected: boolean; // True if offsets were adjusted from AI's original values
   fuzzyMatched?: boolean; // True if we had to use fuzzy matching (minor text differences)
-  matchQuality?: 'exact' | 'case-insensitive' | 'fuzzy'; // How we found the match
+  matchQuality?: MatchQuality; // How we found the match
 }
 
-/**
- * Calculate Levenshtein distance between two strings
- * Used for fuzzy matching when exact text doesn't match
- */
-function levenshteinDistance(str1: string, str2: string): number {
-  const len1 = str1.length;
-  const len2 = str2.length;
-  const matrix: number[][] = [];
-
-  // Initialize matrix
-  for (let i = 0; i <= len1; i++) {
-    matrix[i] = [i];
-  }
-  for (let j = 0; j <= len2; j++) {
-    matrix[0]![j] = j;
-  }
-
-  // Fill matrix
-  for (let i = 1; i <= len1; i++) {
-    for (let j = 1; j <= len2; j++) {
-      const cost = str1[i - 1] === str2[j - 1] ? 0 : 1;
-      const deletion = matrix[i - 1]![j]! + 1;
-      const insertion = matrix[i]![j - 1]! + 1;
-      const substitution = matrix[i - 1]![j - 1]! + cost;
-      matrix[i]![j] = Math.min(deletion, insertion, substitution);
-    }
-  }
-
-  return matrix[len1]![len2]!;
-}
-
-/**
- * Find best match for text in content using various strategies
- * Returns { start, end, matchQuality } or null if no acceptable match found
- */
-function findBestMatch(
-  content: string,
-  searchText: string,
-  aiStart: number,
-  aiEnd: number
-): { start: number; end: number; matchQuality: 'exact' | 'case-insensitive' | 'fuzzy' } | null {
-  const maxFuzzyDistance = Math.max(5, Math.floor(searchText.length * 0.05)); // 5% tolerance or minimum 5 chars
-
-  // Strategy 1: Exact match (case-sensitive)
-  const exactIndex = content.indexOf(searchText);
-  if (exactIndex !== -1) {
-    return {
-      start: exactIndex,
-      end: exactIndex + searchText.length,
-      matchQuality: 'exact'
-    };
-  }
-
-  console.log('[findBestMatch] Exact match failed, trying case-insensitive...');
-
-  // Strategy 2: Case-insensitive match
-  const lowerContent = content.toLowerCase();
-  const lowerSearch = searchText.toLowerCase();
-  const caseInsensitiveIndex = lowerContent.indexOf(lowerSearch);
-  if (caseInsensitiveIndex !== -1) {
-    console.log('[findBestMatch] Found case-insensitive match');
-    return {
-      start: caseInsensitiveIndex,
-      end: caseInsensitiveIndex + searchText.length,
-      matchQuality: 'case-insensitive'
-    };
-  }
-
-  console.log('[findBestMatch] Case-insensitive failed, trying fuzzy match...');
-
-  // Strategy 3: Fuzzy match using sliding window
-  // Search near AI's suggested position first, then expand outward
-  const windowSize = searchText.length;
-  const searchRadius = Math.min(500, content.length); // Search within 500 chars of AI position
-  const searchStart = Math.max(0, aiStart - searchRadius);
-  const searchEnd = Math.min(content.length, aiEnd + searchRadius);
-
-  let bestMatch: { start: number; distance: number } | null = null;
-
-  // Scan through content with sliding window
-  for (let i = searchStart; i <= searchEnd - windowSize; i++) {
-    const candidate = content.substring(i, i + windowSize);
-    const distance = levenshteinDistance(searchText, candidate);
-
-    if (distance <= maxFuzzyDistance) {
-      if (!bestMatch || distance < bestMatch.distance) {
-        bestMatch = { start: i, distance };
-        console.log(`[findBestMatch] Found fuzzy match at ${i} with distance ${distance}`);
-      }
-    }
-  }
-
-  if (bestMatch) {
-    return {
-      start: bestMatch.start,
-      end: bestMatch.start + windowSize,
-      matchQuality: 'fuzzy'
-    };
-  }
-
-  console.log('[findBestMatch] No acceptable match found');
-  return null;
-}
 
 /**
  * Validate and correct AI-provided annotation offsets with fuzzy matching tolerance
@@ -271,7 +170,7 @@ export function validateAndCorrectOffsets(
     `  Attempting multi-strategy search...`
   );
 
-  const match = findBestMatch(content, exact, aiStart, aiEnd);
+  const match = findBestTextMatch(content, exact, aiStart);
 
   if (!match) {
     const exactLong = exact.length > 100 ? exact.substring(0, 100) + '...' : exact;

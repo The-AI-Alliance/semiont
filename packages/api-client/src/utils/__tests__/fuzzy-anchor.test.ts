@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { findTextWithContext, verifyPosition } from '../fuzzy-anchor';
+import { findTextWithContext, verifyPosition, normalizeText, findBestTextMatch } from '../fuzzy-anchor';
 
 describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
   let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
@@ -10,6 +10,71 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  describe('normalizeText', () => {
+    it('should collapse whitespace', () => {
+      expect(normalizeText('hello  world')).toBe('hello world');
+      expect(normalizeText('hello\n\nworld')).toBe('hello world');
+      expect(normalizeText('  hello  world  ')).toBe('hello world');
+    });
+
+    it('should convert curly quotes to straight quotes', () => {
+      expect(normalizeText('\u2018hello\u2019')).toBe("'hello'"); // Single quotes
+      expect(normalizeText('\u201Chello\u201D')).toBe('"hello"'); // Double quotes
+    });
+
+    it('should normalize dashes', () => {
+      expect(normalizeText('hello\u2014world')).toBe('hello--world'); // Em-dash
+      expect(normalizeText('hello\u2013world')).toBe('hello-world'); // En-dash
+    });
+
+    it('should handle combined transformations', () => {
+      const input = '  "hello  world" — test  ';
+      const expected = '"hello world" -- test';
+      expect(normalizeText(input)).toBe(expected);
+    });
+  });
+
+  describe('findBestTextMatch', () => {
+    it('should find exact match first', () => {
+      const content = 'The quick brown fox';
+      const result = findBestTextMatch(content, 'brown fox');
+
+      expect(result).toEqual({ start: 10, end: 19, matchQuality: 'exact' });
+    });
+
+    it('should find normalized match when exact fails', () => {
+      const content = 'The quick  brown fox'; // Two spaces
+      const result = findBestTextMatch(content, 'quick brown'); // One space
+
+      expect(result).not.toBeNull();
+      expect(result!.matchQuality).toBe('normalized');
+    });
+
+    it('should find case-insensitive match when normalized fails', () => {
+      const content = 'The Quick Brown Fox';
+      const result = findBestTextMatch(content, 'quick brown');
+
+      expect(result).toEqual({ start: 4, end: 15, matchQuality: 'case-insensitive' });
+    });
+
+    it('should use position hint for fuzzy search', () => {
+      const content = 'The quick brown fox jumps over the lazy dog';
+      const searchText = 'brvwn fox'; // Typo: 'o' → 'v'
+      const result = findBestTextMatch(content, searchText, 10); // Hint near actual position
+
+      expect(result).not.toBeNull();
+      expect(result!.matchQuality).toBe('fuzzy');
+      expect(result!.start).toBe(10); // Should find "brown fox" despite typo
+    });
+
+    it('should return null when no acceptable match found', () => {
+      const content = 'The quick brown fox';
+      const result = findBestTextMatch(content, 'lazy dog');
+
+      expect(result).toBeNull();
+    });
   });
 
   describe('findTextWithContext', () => {
@@ -91,7 +156,7 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
         expect(consoleWarnSpy).not.toHaveBeenCalled();
       });
 
-      it('should use fuzzy matching when exact prefix/suffix not found', () => {
+      it('should use fuzzy context matching when exact prefix/suffix not found', () => {
         const content = 'cat sits. the cat runs';
         const exact = 'cat';
         const prefix = ' the'; // Expects leading space + "the", but actual is "the " (no leading space, trailing space)
@@ -106,7 +171,7 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
           expect.stringContaining('[FuzzyAnchor] Multiple matches found but none match prefix/suffix exactly')
         );
         expect(consoleWarnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('[FuzzyAnchor] Using fuzzy match')
+          expect.stringContaining('[FuzzyAnchor] Using fuzzy context match')
         );
       });
 
@@ -126,7 +191,7 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
     });
 
     describe('No matches found', () => {
-      it('should return null when exact text not found', () => {
+      it('should return null when text truly does not exist', () => {
         const content = 'The quick brown fox';
         const exact = 'lazy dog';
 
@@ -134,7 +199,10 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
 
         expect(result).toBeNull();
         expect(consoleWarnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('[FuzzyAnchor] Text not found')
+          expect.stringContaining('[FuzzyAnchor] Exact text not found, trying fuzzy match')
+        );
+        expect(consoleWarnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('[FuzzyAnchor] No acceptable match found')
         );
       });
 
@@ -146,6 +214,45 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
 
         expect(result).toBeNull();
         expect(consoleWarnSpy).not.toHaveBeenCalled();
+      });
+
+      it('should find text with normalized whitespace', () => {
+        const content = 'The quick  brown fox'; // Two spaces
+        const exact = 'quick brown'; // One space
+
+        const result = findTextWithContext(content, exact);
+
+        expect(result).not.toBeNull();
+        expect(result!.start).toBeGreaterThanOrEqual(0);
+        expect(consoleWarnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('[FuzzyAnchor] Exact text not found, trying fuzzy match')
+        );
+        expect(consoleWarnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('[FuzzyAnchor] Found normalized match')
+        );
+      });
+
+      it('should find text with different quotes', () => {
+        const content = 'He said \u201Chello\u201D'; // Curly quotes
+        const exact = 'said "hello"'; // Straight quotes
+
+        const result = findTextWithContext(content, exact);
+
+        expect(result).not.toBeNull();
+        expect(consoleWarnSpy).toHaveBeenCalled();
+      });
+
+      it('should find text case-insensitively when exact fails', () => {
+        const content = 'The Quick Brown Fox';
+        const exact = 'quick brown';
+
+        const result = findTextWithContext(content, exact);
+
+        expect(result).not.toBeNull();
+        expect(result!.start).toBe(4);
+        expect(consoleWarnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('[FuzzyAnchor] Found case-insensitive match')
+        );
       });
     });
 
