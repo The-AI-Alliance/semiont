@@ -14,7 +14,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { GenerationContext, AnnotationUri } from '@semiont/api-client';
 import { annotationUri, accessToken } from '@semiont/api-client';
-import type { GenerationProgress } from '../types/progress';
+import type { GenerationProgress } from '@semiont/core';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
 import { useEventBus } from '../contexts/EventBusContext';
 import { useApiClient } from '../contexts/ApiClientContext';

@@ -85,6 +85,14 @@ export {
   isResourceEvent as isStoredEvent,
 } from './event-utils';
 
+// Event protocol (application-level events for event bus)
+export type {
+  EventMap,
+  SelectionData,
+  DetectionProgress,
+  GenerationProgress,
+} from './event-map';
+
 // Backend-specific annotation utilities
 export { findBodyItem } from './annotation-utils';
 

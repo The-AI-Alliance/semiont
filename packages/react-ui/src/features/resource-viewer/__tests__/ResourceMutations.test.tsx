@@ -31,7 +31,7 @@ import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { useResources } from '../../../lib/api-hooks';
-import type { EventMap } from '../../../contexts/EventBusContext';
+import type { EventMap } from '@semiont/core';
 import type { Emitter } from 'mitt';
 
 // ─── Constants ────────────────────────────────────────────────────────────────

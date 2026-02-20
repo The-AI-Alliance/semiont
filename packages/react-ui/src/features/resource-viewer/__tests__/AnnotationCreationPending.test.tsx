@@ -27,7 +27,7 @@ import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { SemiontApiClient } from '@semiont/api-client';
 import { resourceUri } from '@semiont/api-client';
 import type { Emitter } from 'mitt';
-import type { EventMap } from '../../../contexts/EventBusContext';
+import type { EventMap } from '@semiont/core';
 import type { Motivation, Selector } from '@semiont/api-client';
 
 const TEST_URI = resourceUri('http://localhost:4000/resources/test-resource');

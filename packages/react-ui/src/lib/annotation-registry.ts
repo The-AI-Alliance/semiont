@@ -16,7 +16,7 @@ import type { MutableRefObject } from 'react';
 import type { components, ResourceUri, SemiontApiClient, SSEStream } from '@semiont/api-client';
 import { entityType, isHighlight, isComment, isReference, isTag } from '@semiont/api-client';
 import type { CacheManager } from '../types/CacheManager';
-import type { DetectionProgress } from '../types/progress';
+import type { DetectionProgress } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation']; // Already defined in api-client with all 13 W3C motivations!

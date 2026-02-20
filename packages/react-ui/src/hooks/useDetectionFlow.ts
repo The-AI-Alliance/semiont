@@ -25,11 +25,11 @@ import type { Motivation, ResourceUri, Selector, components } from '@semiont/api
 import { resourceAnnotationUri, accessToken, entityType } from '@semiont/api-client';
 import { uriToAnnotationIdOrPassthrough } from '@semiont/core';
 import { useEventBus } from '../contexts/EventBusContext';
-import type { EventMap } from '../contexts/EventBusContext';
+import type { EventMap } from '@semiont/core';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
 import { useApiClient } from '../contexts/ApiClientContext';
 import { useAuthToken } from '../contexts/AuthTokenContext';
-import type { DetectionProgress } from '../types/progress';
+import type { DetectionProgress } from '@semiont/core';
 
 type SelectionData = EventMap['selection:comment-requested'];
 

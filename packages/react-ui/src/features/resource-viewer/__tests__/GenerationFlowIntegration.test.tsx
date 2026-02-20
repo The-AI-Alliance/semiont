@@ -30,7 +30,7 @@ import { SSEClient } from '@semiont/api-client';
 import type { ResourceUri, AnnotationUri } from '@semiont/api-client';
 import { resourceUri, annotationUri } from '@semiont/api-client';
 import type { Emitter } from 'mitt';
-import type { EventMap } from '../../../contexts/EventBusContext';
+import type { EventMap } from '@semiont/core';
 
 // Mock SSE stream that we can control in tests
 const createMockGenerationStream = () => {

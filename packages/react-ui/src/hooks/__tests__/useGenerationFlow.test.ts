@@ -16,7 +16,7 @@ import { useGenerationFlow } from '../useGenerationFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting, type EventBus } from '../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../contexts/AuthTokenContext';
-import type { GenerationProgress } from '../../types/progress';
+import type { GenerationProgress } from '@semiont/core';
 
 // Full provider stack required by useGenerationFlow
 const wrapper = ({ children }: { children: ReactNode }) =>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useMemo } from 'react';
-import type { EventMap } from './EventBusContext';
+import type { EventMap } from '@semiont/core';
 import { useEventBus } from './EventBusContext';
 
 /**

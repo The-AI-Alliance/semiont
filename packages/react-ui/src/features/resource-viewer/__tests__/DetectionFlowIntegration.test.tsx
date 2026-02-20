@@ -33,7 +33,7 @@ import { SSEClient } from '@semiont/api-client';
 import type { Motivation } from '@semiont/api-client';
 import { resourceUri } from '@semiont/api-client';
 import type { Emitter } from 'mitt';
-import type { EventMap } from '../../../contexts/EventBusContext';
+import type { EventMap } from '@semiont/core';
 
 // Mock SSE stream that we can control in tests
 const createMockSSEStream = () => {

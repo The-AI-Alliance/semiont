@@ -17,7 +17,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import type { Emitter } from 'mitt';
-import type { EventMap } from '../contexts/EventBusContext';
+import type { EventMap } from '@semiont/core';
 import type { GenerationContext, SemiontApiClient, ResourceUri } from '@semiont/api-client';
 import { accessToken } from '@semiont/api-client';
 import { useAuthToken } from '../contexts/AuthTokenContext';
