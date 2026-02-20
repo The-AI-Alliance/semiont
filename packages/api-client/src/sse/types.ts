@@ -225,46 +225,25 @@ export interface TagDetectionProgress {
 /**
  * SSE stream controller interface
  *
- * Returned by all SSE methods. Provides callback registration and cleanup.
- *
- * @typeParam TProgress - Type of progress events
- * @typeParam TComplete - Type of completion event
+ * Returned by all SSE methods. Events auto-emit to EventBus when provided.
  *
  * @example
  * ```typescript
- * const stream: SSEStream<DetectionProgress, DetectionProgress> =
- *   client.sse.detectAnnotations(resourceId, { entityTypes: ['Person'] });
+ * const eventBus = new EventBus();
  *
- * stream.onProgress((p) => console.log(p.message));
- * stream.onComplete((r) => console.log(`Done! Found ${r.foundCount} entities`));
- * stream.onError((e) => console.error('Failed:', e.message));
+ * // Subscribe to events
+ * eventBus.get('detection:progress').subscribe((p) => console.log(p.message));
+ * eventBus.get('detection:complete').subscribe(() => console.log('Done!'));
+ * eventBus.get('detection:failed').subscribe(({ error }) => console.error(error));
+ *
+ * // Start stream - events auto-emit to EventBus
+ * const stream = client.sse.detectReferences(resourceId, request, { auth, eventBus });
  *
  * // Cleanup when done
  * stream.close();
  * ```
  */
-export interface SSEStream<TProgress, TComplete> {
-  /**
-   * Register callback for progress events
-   *
-   * Called for each progress update (e.g., detection-started, detection-progress)
-   */
-  onProgress(callback: (progress: TProgress) => void): void;
-
-  /**
-   * Register callback for completion event
-   *
-   * Called once when operation completes successfully (e.g., detection-complete)
-   */
-  onComplete(callback: (result: TComplete) => void): void;
-
-  /**
-   * Register callback for error events
-   *
-   * Called if operation fails or stream encounters an error
-   */
-  onError(callback: (error: Error) => void): void;
-
+export interface SSEStream {
   /**
    * Close the SSE stream and abort the connection
    *
@@ -275,7 +254,7 @@ export interface SSEStream<TProgress, TComplete> {
    * ```typescript
    * // React cleanup
    * useEffect(() => {
-   *   const stream = client.sse.detectAnnotations(...);
+   *   const stream = client.sse.detectReferences(..., { auth, eventBus });
    *   return () => stream.close();
    * }, []);
    * ```

@@ -333,90 +333,45 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
         setDetectingMotivation(event.motivation);
         setDetectionProgress(null);
 
-        const auth = { auth: toAccessToken(tokenRef.current) };
+        const auth = { auth: toAccessToken(tokenRef.current), eventBus };
 
         if (event.motivation === 'tagging') {
           const { schemaId, categories } = event.options;
           if (!schemaId || !categories || categories.length === 0) {
             throw new Error('Tag detection requires schemaId and categories');
           }
-          const stream = currentClient.sse.detectTags(currentRUri, { schemaId, categories }, auth);
-          stream.onProgress((chunk) => { eventBus.get('detection:progress').next(chunk); });
-          stream.onComplete((finalChunk) => {
-            eventBus.get('detection:progress').next(finalChunk);
-            eventBus.get('detection:complete').next({ motivation: event.motivation });
-          });
-          stream.onError((error) => {
-            console.error('Detection failed:', error);
-            setDetectingMotivation(null);
-            setDetectionProgress(null);
-          });
+          currentClient.sse.detectTags(currentRUri, { schemaId, categories }, auth);
+          // Events auto-emit to EventBus: detection:progress, detection:complete, detection:failed
         } else if (event.motivation === 'linking') {
           const { entityTypes, includeDescriptiveReferences } = event.options;
           if (!entityTypes || entityTypes.length === 0) {
             throw new Error('Reference detection requires entityTypes');
           }
-          const stream = currentClient.sse.detectReferences(currentRUri, {
+          currentClient.sse.detectReferences(currentRUri, {
             entityTypes: entityTypes.map(et => entityType(et)),
             includeDescriptiveReferences: includeDescriptiveReferences || false,
           }, auth);
-          stream.onProgress((chunk) => { eventBus.get('detection:progress').next(chunk); });
-          stream.onComplete((finalChunk) => {
-            eventBus.get('detection:progress').next(finalChunk);
-            eventBus.get('detection:complete').next({ motivation: event.motivation });
-          });
-          stream.onError((error) => {
-            console.error('[useDetectionFlow] Detection failed:', error);
-            setDetectingMotivation(null);
-            setDetectionProgress(null);
-          });
+          // Events auto-emit to EventBus: detection:progress, detection:complete, detection:failed
         } else if (event.motivation === 'highlighting') {
-          const stream = currentClient.sse.detectHighlights(currentRUri, {
+          currentClient.sse.detectHighlights(currentRUri, {
             instructions: event.options.instructions,
             density: event.options.density,
           }, auth);
-          stream.onProgress((chunk) => { eventBus.get('detection:progress').next(chunk); });
-          stream.onComplete((finalChunk) => {
-            eventBus.get('detection:progress').next(finalChunk);
-            eventBus.get('detection:complete').next({ motivation: event.motivation });
-          });
-          stream.onError((error) => {
-            console.error('Detection failed:', error);
-            setDetectingMotivation(null);
-            setDetectionProgress(null);
-          });
+          // Events auto-emit to EventBus: detection:progress, detection:complete, detection:failed
         } else if (event.motivation === 'assessing') {
-          const stream = currentClient.sse.detectAssessments(currentRUri, {
+          currentClient.sse.detectAssessments(currentRUri, {
             instructions: event.options.instructions,
             tone: event.options.tone as 'analytical' | 'critical' | 'balanced' | 'constructive' | undefined,
             density: event.options.density,
           }, auth);
-          stream.onProgress((chunk) => { eventBus.get('detection:progress').next(chunk); });
-          stream.onComplete((finalChunk) => {
-            eventBus.get('detection:progress').next(finalChunk);
-            eventBus.get('detection:complete').next({ motivation: event.motivation });
-          });
-          stream.onError((error) => {
-            console.error('[useDetectionFlow] Assessment detection error:', error);
-            setDetectingMotivation(null);
-            setDetectionProgress(null);
-          });
+          // Events auto-emit to EventBus: detection:progress, detection:complete, detection:failed
         } else if (event.motivation === 'commenting') {
-          const stream = currentClient.sse.detectComments(currentRUri, {
+          currentClient.sse.detectComments(currentRUri, {
             instructions: event.options.instructions,
             tone: event.options.tone as 'scholarly' | 'explanatory' | 'conversational' | 'technical' | undefined,
             density: event.options.density,
           }, auth);
-          stream.onProgress((chunk) => { eventBus.get('detection:progress').next(chunk); });
-          stream.onComplete((finalChunk) => {
-            eventBus.get('detection:progress').next(finalChunk);
-            eventBus.get('detection:complete').next({ motivation: event.motivation });
-          });
-          stream.onError((error) => {
-            console.error('Detection failed:', error);
-            setDetectingMotivation(null);
-            setDetectionProgress(null);
-          });
+          // Events auto-emit to EventBus: detection:progress, detection:complete, detection:failed
         }
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {

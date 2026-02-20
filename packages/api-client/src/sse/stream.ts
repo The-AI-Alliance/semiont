@@ -3,10 +3,13 @@
  *
  * Creates Server-Sent Events streams using native fetch() and manual parsing.
  * Does NOT use the EventSource API for better control over connection lifecycle.
+ *
+ * Supports EventBus integration for event-driven architecture.
  */
 
 import type { SSEStream } from './types';
 import type { Logger } from '../logger';
+import type { EventBus } from '@semiont/core';
 
 /**
  * Configuration for SSE stream event handling
@@ -20,25 +23,34 @@ interface SSEConfig {
   errorEvent: string | null;
   /** If true, use custom event handlers instead of standard mapping */
   customEventHandler?: boolean;
+  /** Optional EventBus for event-driven architecture */
+  eventBus?: EventBus;
+  /** Event prefix for EventBus (e.g., 'detection' → 'detection:progress') */
+  eventPrefix?: string;
 }
 
 /**
- * Create an SSE stream with typed event callbacks
+ * Create an SSE stream with EventBus integration
  *
  * Uses native fetch() with manual SSE parsing for fine-grained control.
  * Supports AbortController for cancellation.
- *
- * @typeParam TProgress - Type of progress event data
- * @typeParam TComplete - Type of completion event data
+ * Events automatically emit to EventBus when provided in config.
  *
  * @param url - Full URL to SSE endpoint
  * @param fetchOptions - fetch() options (method, headers, body)
- * @param config - Event mapping configuration
- * @returns SSEStream controller with callback registration and cleanup
+ * @param config - Event mapping configuration (must include eventBus and eventPrefix)
+ * @returns SSEStream controller with close() method
  *
  * @example
  * ```typescript
- * const stream = createSSEStream<DetectionProgress, DetectionProgress>(
+ * const eventBus = new EventBus();
+ *
+ * // Subscribe to events
+ * eventBus.get('detection:progress').subscribe((p) => console.log(p.message));
+ * eventBus.get('detection:complete').subscribe(() => console.log('Done!'));
+ *
+ * // Start stream - events auto-emit
+ * const stream = createSSEStream(
  *   'http://localhost:4000/resources/123/detect-annotations-stream',
  *   {
  *     method: 'POST',
@@ -48,25 +60,22 @@ interface SSEConfig {
  *   {
  *     progressEvents: ['detection-started', 'detection-progress'],
  *     completeEvent: 'detection-complete',
- *     errorEvent: 'detection-error'
+ *     errorEvent: 'detection-error',
+ *     eventBus,
+ *     eventPrefix: 'detection'
  *   }
  * );
  *
- * stream.onProgress((p) => console.log(p.message));
- * stream.onComplete((r) => console.log('Done!'));
  * stream.close(); // Cleanup
  * ```
  */
-export function createSSEStream<TProgress, TComplete>(
+export function createSSEStream(
   url: string,
   fetchOptions: RequestInit,
   config: SSEConfig,
   logger?: Logger
-): SSEStream<TProgress, TComplete> {
+): SSEStream {
   const abortController = new AbortController();
-  let progressCallback: ((data: TProgress) => void) | null = null;
-  let completeCallback: ((data: TComplete) => void) | null = null;
-  let errorCallback: ((error: Error) => void) | null = null;
   const customHandlers = new Map<string, (data?: any) => void>();
   let closed = false; // Flag to stop processing events after close/complete/error
 
@@ -187,7 +196,6 @@ export function createSSEStream<TProgress, TComplete>(
           error: error.message,
           phase: 'stream'
         });
-        errorCallback?.(error);
       } else if (error instanceof Error && error.name === 'AbortError') {
         // Log normal close (abort)
         logger?.info('SSE Stream Closed', {
@@ -226,28 +234,28 @@ export function createSSEStream<TProgress, TComplete>(
           handler(parsed);
           return;
         }
-        // Pass all events to progress handler if no specific handler
-        progressCallback?.(parsed as TProgress);
-        return;
       }
 
-      // Progress events
-      if (config.progressEvents.includes(eventType)) {
-        progressCallback?.(parsed as TProgress);
-      }
+      // EventBus integration (required - all streams must provide EventBus)
+      if (config.eventBus && config.eventPrefix) {
+        // Progress events
+        if (config.progressEvents.includes(eventType)) {
+          config.eventBus.get(`${config.eventPrefix}:progress` as any).next(parsed);
+        }
 
-      // Complete event
-      if (config.completeEvent && eventType === config.completeEvent) {
-        completeCallback?.(parsed as TComplete);
-        closed = true; // Stop processing further events
-        abortController.abort(); // Close stream on completion
-      }
+        // Complete event
+        if (config.completeEvent && eventType === config.completeEvent) {
+          config.eventBus.get(`${config.eventPrefix}:complete` as any).next(parsed);
+          closed = true;
+          abortController.abort();
+        }
 
-      // Error event
-      if (config.errorEvent && eventType === config.errorEvent) {
-        errorCallback?.(new Error(parsed.message || 'Stream error'));
-        closed = true; // Stop processing further events
-        abortController.abort(); // Close stream on error
+        // Error event
+        if (config.errorEvent && eventType === config.errorEvent) {
+          config.eventBus.get(`${config.eventPrefix}:failed` as any).next({ error: new Error(parsed.message || 'Stream error') });
+          closed = true;
+          abortController.abort();
+        }
       }
     } catch (error) {
       console.error('[SSE] Failed to parse event data:', error);
@@ -261,18 +269,6 @@ export function createSSEStream<TProgress, TComplete>(
 
   // Return SSE stream controller
   return {
-    onProgress(callback) {
-      progressCallback = callback;
-    },
-
-    onComplete(callback) {
-      completeCallback = callback;
-    },
-
-    onError(callback) {
-      errorCallback = callback;
-    },
-
     close() {
       abortController.abort();
     },
@@ -281,5 +277,5 @@ export function createSSEStream<TProgress, TComplete>(
     on(event: string, callback: (data?: any) => void) {
       customHandlers.set(event, callback);
     }
-  } as SSEStream<TProgress, TComplete> & { on?: (event: string, callback: (data?: any) => void) => void };
+  } as SSEStream & { on?: (event: string, callback: (data?: any) => void) => void };
 }

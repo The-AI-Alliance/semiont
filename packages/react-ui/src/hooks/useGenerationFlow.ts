@@ -213,31 +213,13 @@ export function useGenerationFlow(
         generationStreamRef.current?.abort();
         generationStreamRef.current = new AbortController();
 
-        const stream = clientRef.current.sse.generateResourceFromAnnotation(
+        clientRef.current.sse.generateResourceFromAnnotation(
           event.resourceUri as any,
           event.annotationUri as any,
           event.options as any,
-          { auth: toAccessToken(tokenRef.current) }
+          { auth: toAccessToken(tokenRef.current), eventBus }
         );
-
-        stream.onProgress((chunk) => {
-          console.log('[useGenerationFlow] Generation progress chunk received', chunk);
-          eventBus.get('generation:progress').next(chunk);
-        });
-
-        stream.onComplete((finalChunk) => {
-          console.log('[useGenerationFlow] Generation complete with final chunk', finalChunk);
-          eventBus.get('generation:progress').next(finalChunk);
-          eventBus.get('generation:complete').next({
-            annotationUri: event.annotationUri,
-            progress: finalChunk
-          });
-        });
-
-        stream.onError((error) => {
-          console.error('[useGenerationFlow] Generation failed:', error);
-          eventBus.get('generation:failed').next({ error: error as Error });
-        });
+        // Events auto-emit to EventBus: generation:progress, generation:complete, generation:failed
       } catch (error) {
         if ((error as any).name === 'AbortError') {
           console.log('[useGenerationFlow] Generation cancelled');
