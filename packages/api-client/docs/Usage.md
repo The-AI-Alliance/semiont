@@ -519,8 +519,8 @@ SSE streaming uses a **separate namespace** (`client.sse.*`) to distinguish it f
 // Traditional HTTP (ky-based)
 await client.createResource({ ... });
 
-// SSE streaming (fetch-based)
-client.sse.detectAnnotations(...);
+// SSE streaming (fetch-based, EventBus-native)
+client.sse.detectReferences(..., { auth, eventBus });
 ```
 
 **2. Not ky-Based**
@@ -540,7 +540,7 @@ SSE methods **do not use `ky`** (the HTTP client used for other methods). Instea
 All events have TypeScript interfaces matching the backend's event payloads. Types are derived from OpenAPI schemas where possible.
 
 ```typescript
-interface DetectionProgress {
+interface ReferenceDetectionProgress {
   status: 'started' | 'scanning' | 'complete' | 'error';
   resourceId: string;
   currentEntityType?: string;
@@ -550,13 +550,13 @@ interface DetectionProgress {
 }
 ```
 
-**4. Consistent Callback API**
+**4. EventBus-Native Integration**
 
-All three SSE methods return stream objects with similar callback patterns:
-- `.onProgress()` - Incremental updates
-- `.onComplete()` - Final result
-- `.onError()` - Error handling
-- `.close()` - Manual cancellation
+SSE streams are **EventBus-native** - they automatically emit events to the EventBus when provided:
+- Pass `eventBus` in options to enable auto-emission
+- Events emit with typed prefixes: `detection:progress`, `detection:complete`, `detection:failed`
+- No callbacks needed - pure event-driven architecture
+- `.close()` method for manual cancellation
 
 **5. No Response Validation**
 
@@ -581,20 +581,17 @@ SSE streams are not validated (per `SSE-VALIDATION-CONSIDERATIONS.md`). Request 
 
 ### Stream Entity Detection
 
-Stream real-time progress updates during entity detection:
+Stream real-time progress updates during entity detection using EventBus:
 
 ```typescript
-import { resourceUri } from '@semiont/api-client';
+import { resourceUri, entityType, accessToken } from '@semiont/api-client';
+import { EventBus } from '@semiont/core';
 
 const rUri = resourceUri('http://localhost:4000/resources/resource-123');
+const eventBus = new EventBus();
 
-// Start detection stream
-const stream = client.sse.detectAnnotations(rUri, {
-  entityTypes: ['Person', 'Organization', 'Location']
-});
-
-// Handle progress events
-stream.onProgress((progress) => {
+// Subscribe to events BEFORE starting stream
+eventBus.get('detection:progress').subscribe((progress) => {
   if (progress.status === 'started') {
     console.log(`Starting detection for ${progress.totalEntityTypes} entity types...`);
   } else if (progress.status === 'scanning') {
@@ -603,11 +600,9 @@ stream.onProgress((progress) => {
   }
 });
 
-// Handle completion
-stream.onComplete((result) => {
+eventBus.get('detection:complete').subscribe((result) => {
   console.log(`Detection complete!`);
   console.log(`Found ${result.foundCount} entities`);
-  console.log(`Processed ${result.processedEntityTypes}/${result.totalEntityTypes} entity types`);
 
   // Fetch updated resource with new annotations
   client.getResource(rUri).then(resource => {
@@ -615,60 +610,54 @@ stream.onComplete((result) => {
   });
 });
 
-// Handle errors
-stream.onError((error) => {
+eventBus.get('detection:failed').subscribe(({ error }) => {
   console.error('Detection failed:', error.message);
+});
+
+// Start detection stream - events auto-emit to EventBus
+const stream = client.sse.detectReferences(rUri, {
+  entityTypes: [entityType('Person'), entityType('Organization'), entityType('Location')]
+}, {
+  auth: accessToken('your-token'),
+  eventBus  // ← Events auto-emit to EventBus!
 });
 
 // Cleanup when done (e.g., component unmount)
 // stream.close();
+// eventBus.destroy();
 ```
 
-**Progress Event Types:**
+**EventBus Events:**
 
-- `detection-started` - Detection job has started
-- `detection-progress` - Currently scanning an entity type
-- `detection-complete` - All entity types scanned
-- `detection-error` - Detection failed
+- `detection:progress` - Incremental updates (started, scanning)
+- `detection:complete` - All entity types scanned
+- `detection:failed` - Detection error occurred
 
 ### Stream Resource Generation
 
 Stream real-time progress updates during resource generation from an annotation:
 
 ```typescript
-import { resourceUri, annotationUri } from '@semiont/api-client';
+import { resourceUri, resourceAnnotationUri, accessToken } from '@semiont/api-client';
+import { EventBus } from '@semiont/core';
 
 const rUri = resourceUri('http://localhost:4000/resources/resource-123');
-const annUri = annotationUri('http://localhost:4000/annotations/annotation-456');
+const annUri = resourceAnnotationUri('http://localhost:4000/resources/resource-123/annotations/ann-456');
+const eventBus = new EventBus();
 
-// Start generation stream with custom options
-const stream = client.sse.generateResourceFromAnnotation(rUri, annUri, {
-  title: 'Spanish Summary',
-  language: 'es',
-  prompt: 'Create a concise summary focusing on key findings'
-});
-
-// Handle progress events (percentage-based)
-stream.onProgress((progress) => {
+// Subscribe to events BEFORE starting stream
+eventBus.get('generation:progress').subscribe((progress) => {
   console.log(`${progress.status}: ${progress.percentage}%`);
-
   if (progress.message) {
     console.log(`  ${progress.message}`);
   }
-
-  // Progress stages:
-  // - 'started' (0%)
-  // - 'fetching' (25%)
-  // - 'generating' (50-75%)
-  // - 'creating' (90%)
+  // Progress stages: started (0%), fetching (25%), generating (50-75%), creating (90%)
 });
 
-// Handle completion
-stream.onComplete((result) => {
+eventBus.get('generation:complete').subscribe((result) => {
   console.log(`Generation complete!`);
   console.log(`Generated resource: ${result.resourceId}`);
 
-  // Navigate to generated resource or fetch it
   if (result.resourceId) {
     const generatedUri = resourceUri(result.resourceId);
     client.getResource(generatedUri).then(resource => {
@@ -677,10 +666,23 @@ stream.onComplete((result) => {
   }
 });
 
-// Handle errors
-stream.onError((error) => {
+eventBus.get('generation:failed').subscribe(({ error }) => {
   console.error('Generation failed:', error.message);
 });
+
+// Start generation stream - events auto-emit to EventBus
+const stream = client.sse.generateResourceFromAnnotation(rUri, annUri, {
+  title: 'Spanish Summary',
+  language: 'es',
+  prompt: 'Create a concise summary focusing on key findings'
+}, {
+  auth: accessToken('your-token'),
+  eventBus  // ← Events auto-emit to EventBus!
+});
+
+// Cleanup when done
+// stream.close();
+// eventBus.destroy();
 ```
 
 **Generation Options:**
@@ -689,12 +691,11 @@ stream.onError((error) => {
 - `language` - Language locale (e.g., 'es', 'fr', 'ja') (optional)
 - `prompt` - Custom generation prompt (optional)
 
-**Progress Event Types:**
+**EventBus Events:**
 
-- `generation-started` - Generation job has started
-- `generation-progress` - Generation in progress (with percentage)
-- `generation-complete` - Resource generated successfully
-- `generation-error` - Generation failed
+- `generation:progress` - Progress updates with percentage
+- `generation:complete` - Resource generated successfully
+- `generation:failed` - Generation error occurred
 
 ### Subscribe to Resource Events
 
@@ -767,38 +768,59 @@ All SSE streams should be cleaned up when no longer needed:
 ```typescript
 // React example
 useEffect(() => {
-  const stream = client.sse.detectAnnotations(resourceId, { entityTypes: ['Person'] });
+  const eventBus = useEventBus();
 
-  stream.onProgress((p) => setProgress(p));
-  stream.onComplete((r) => setResult(r));
-  stream.onError((e) => setError(e));
+  // Subscribe to events
+  const sub1 = eventBus.get('detection:progress').subscribe((p) => setProgress(p));
+  const sub2 = eventBus.get('detection:complete').subscribe((r) => setResult(r));
+  const sub3 = eventBus.get('detection:failed').subscribe(({ error }) => setError(error));
+
+  // Start stream - events auto-emit to EventBus
+  const stream = client.sse.detectReferences(resourceId, {
+    entityTypes: [entityType('Person')]
+  }, {
+    auth: accessToken(token),
+    eventBus
+  });
 
   // Cleanup on unmount
-  return () => stream.close();
+  return () => {
+    stream.close();
+    sub1.unsubscribe();
+    sub2.unsubscribe();
+    sub3.unsubscribe();
+  };
 }, [resourceId]);
 ```
 
 ```typescript
 // Node.js example with timeout
-const stream = client.sse.resourceEvents(resourceId);
+const eventBus = new EventBus();
 
-stream.onProgress((event) => console.log(event));
+eventBus.get('resourceEvent').subscribe((event) => console.log(event));
+
+const stream = client.sse.resourceEvents(resourceId, {
+  auth: accessToken(token),
+  eventBus
+});
 
 // Close after 5 minutes
 setTimeout(() => {
   console.log('Closing event stream...');
   stream.close();
+  eventBus.destroy();
 }, 5 * 60 * 1000);
 ```
 
 ### SSE Error Handling
 
-SSE streams can fail for various reasons. Always implement error handling:
+SSE streams can fail for various reasons. Always implement error handling via EventBus:
 
 ```typescript
-const stream = client.sse.detectAnnotations(resourceId, { entityTypes: ['Person'] });
+const eventBus = new EventBus();
 
-stream.onError((error) => {
+// Subscribe to error events
+eventBus.get('detection:failed').subscribe(({ error }) => {
   console.error('Stream error:', error.message);
 
   // Common errors:
@@ -815,6 +837,14 @@ stream.onError((error) => {
     // Retry with exponential backoff
     console.log('Network error, retrying...');
   }
+});
+
+// Start stream
+const stream = client.sse.detectReferences(resourceId, {
+  entityTypes: [entityType('Person')]
+}, {
+  auth: accessToken(token),
+  eventBus  // ← Errors auto-emit to detection:failed
 });
 ```
 
@@ -840,30 +870,36 @@ console.log('Available entity types:', types.entityTypes);
 
 ### Entity Detection with SSE Streaming
 
-For entity detection, use the SSE streaming API for real-time progress updates. See the [SSE Streaming](#sse-streaming) section below for details.
+For entity detection, use the SSE streaming API with EventBus for real-time progress updates. See the [SSE Streaming](#sse-streaming) section for details.
 
 ```typescript
-import { resourceUri, entityType } from '@semiont/api-client';
+import { resourceUri, entityType, accessToken } from '@semiont/api-client';
+import { EventBus } from '@semiont/core';
 
 const rUri = resourceUri('http://localhost:4000/resources/resource-123');
+const eventBus = new EventBus();
 
-// Start detection with real-time progress updates
-const stream = client.sse.detectAnnotations(rUri, {
-  entityTypes: ['person', 'organization', 'location'].map(entityType)
-});
-
-stream.onProgress((progress) => {
+// Subscribe to events
+eventBus.get('detection:progress').subscribe((progress) => {
   console.log(`Status: ${progress.status}`);
   console.log(`Progress: ${progress.processedEntityTypes}/${progress.totalEntityTypes}`);
   console.log(`Found: ${progress.foundCount} entities`);
 });
 
-stream.onComplete(() => {
+eventBus.get('detection:complete').subscribe(() => {
   console.log('Detection complete!');
 });
 
-stream.onError((error) => {
+eventBus.get('detection:failed').subscribe(({ error }) => {
   console.error('Detection failed:', error);
+});
+
+// Start detection - events auto-emit to EventBus
+const stream = client.sse.detectReferences(rUri, {
+  entityTypes: [entityType('Person'), entityType('Organization'), entityType('Location')]
+}, {
+  auth: accessToken('your-token'),
+  eventBus
 });
 ```
 
