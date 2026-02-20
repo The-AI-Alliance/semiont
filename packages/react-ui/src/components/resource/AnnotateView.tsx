@@ -2,11 +2,10 @@
 
 import { useRef, useEffect, useCallback, lazy, Suspense } from 'react';
 import type { components } from '@semiont/api-client';
-import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMimeCategory, isPdfMimeType, resourceUri as toResourceUri } from '@semiont/api-client';
+import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMimeCategory, isPdfMimeType, resourceUri as toResourceUri, extractContext, findTextWithContext } from '@semiont/api-client';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import { SvgDrawingCanvas } from '../image-annotation/SvgDrawingCanvas';
 import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
-import { findTextWithContext } from '@semiont/api-client';
 
 // Lazy load PDF component to avoid SSR issues with browser PDF.js loading
 const PdfAnnotationCanvas = lazy(() => import('../pdf-annotation/PdfAnnotationCanvas.client').then(mod => ({ default: mod.PdfAnnotationCanvas })));
@@ -44,27 +43,6 @@ interface Props {
   annotateMode: boolean;
 }
 
-/**
- * Extract prefix and suffix context for TextQuoteSelector
- * Extracts up to 32 characters before and after the selected text
- */
-function extractContext(content: string, start: number, end: number): { prefix?: string; suffix?: string } {
-  const CONTEXT_LENGTH = 32;
-  const result: { prefix?: string; suffix?: string } = {};
-
-  // Extract prefix (up to CONTEXT_LENGTH chars before start)
-  if (start > 0) {
-    result.prefix = content.substring(Math.max(0, start - CONTEXT_LENGTH), start);
-  }
-
-  // Extract suffix (up to CONTEXT_LENGTH chars after end)
-  if (end < content.length) {
-    result.suffix = content.substring(end, Math.min(content.length, end + CONTEXT_LENGTH));
-  }
-
-  return result;
-}
-
 // Segment text with annotations - uses fuzzy anchoring when available!
 function segmentTextWithAnnotations(content: string, annotations: Annotation[]): TextSegment[] {
   if (!content) {
@@ -77,16 +55,16 @@ function segmentTextWithAnnotations(content: string, annotations: Annotation[]):
       const posSelector = getTextPositionSelector(targetSelector);
       const quoteSelector = targetSelector ? getTextQuoteSelector(targetSelector) : null;
 
-      // Try fuzzy anchoring if TextQuoteSelector with context is available
+      // Try fuzzy anchoring if TextQuoteSelector is available
+      // Pass TextPositionSelector as position hint for better fuzzy search
       let position;
-      if (quoteSelector && (quoteSelector.prefix || quoteSelector.suffix)) {
-        // Use fuzzy anchoring when prefix/suffix context is available
-        // This helps when content changes or same text appears multiple times
+      if (quoteSelector) {
         position = findTextWithContext(
           content,
           quoteSelector.exact,
           quoteSelector.prefix,
-          quoteSelector.suffix
+          quoteSelector.suffix,
+          posSelector?.start // Position hint for fuzzy matching
         );
       }
 
