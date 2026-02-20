@@ -64,7 +64,7 @@ jobs:
       - name: Verify image version
         run: |
           EXPECTED_VERSION="${{ steps.version.outputs.base }}"
-          SEMIONT_VERSION="${{ steps.version.outputs.tag }}"
+          SEMIONT_VERSION="${{ steps.version.outputs.publish }}"
           echo "Expected backend version: $EXPECTED_VERSION"
           echo "Semiont packages version: $SEMIONT_VERSION"
 
@@ -109,7 +109,7 @@ jobs:
           build-args: |
             BUILD_VERSION=${{ steps.version.outputs.publish }}
             BUILD_SHA=${{ steps.version.outputs.sha }}
-            SEMIONT_VERSION=${{ steps.version.outputs.tag }}
+            SEMIONT_VERSION=${{ steps.version.outputs.publish }}
           # SEMIONT_VERSION installs all @semiont packages from npm
           cache-from: type=gha
           cache-to: type=gha,mode=max
