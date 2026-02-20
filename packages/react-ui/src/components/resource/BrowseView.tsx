@@ -111,13 +111,13 @@ export function BrowseView({
       if (annotationId && annotationType === 'reference') {
         const annotation = allAnnotations.find(a => a.id === annotationId);
         if (annotation) {
-          eventBus.emit('annotation:click', { annotationId, motivation: annotation.motivation });
+          eventBus.get('annotation:click').next({ annotationId, motivation: annotation.motivation });
         }
       }
     };
 
     const { handleMouseEnter, handleMouseLeave, cleanup: cleanupHover } = createHoverHandlers(
-      (annotationId) => eventBus.emit('annotation:hover', { annotationId })
+      (annotationId) => eventBus.get('annotation:hover').next({ annotationId })
     );
 
     // Single mouseover handler for the container - fires once on enter

@@ -247,7 +247,7 @@ export function AnnotateView({
 
         // Unified flow: all text annotations use BOTH TextPositionSelector and TextQuoteSelector
         if (selectedMotivation) {
-          eventBus.emit('annotation:requested', {
+          eventBus.get('annotation:requested').next({
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -281,7 +281,7 @@ export function AnnotateView({
 
         // Unified flow: all text annotations use BOTH TextPositionSelector and TextQuoteSelector
         if (selectedMotivation) {
-          eventBus.emit('annotation:requested', {
+          eventBus.get('annotation:requested').next({
             selector: [
               {
                 type: 'TextPositionSelector',

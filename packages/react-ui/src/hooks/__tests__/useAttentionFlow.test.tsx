@@ -40,19 +40,13 @@ function renderAttentionFlow() {
       event: K,
       payload: Parameters<typeof eventBusInstance.emit>[1]
     ) => {
-      act(() => { eventBusInstance!.emit(event as any, payload as any); });
+      act(() => { eventBusInstance!.get(event as any).next(payload as any); });
     },
     on: <K extends Parameters<typeof eventBusInstance.on>[0]>(
       event: K,
       handler: Parameters<typeof eventBusInstance.on>[1]
     ) => {
-      eventBusInstance!.on(event as any, handler as any);
-    },
-    off: <K extends Parameters<typeof eventBusInstance.off>[0]>(
-      event: K,
-      handler: Parameters<typeof eventBusInstance.off>[1]
-    ) => {
-      eventBusInstance!.off(event as any, handler as any);
+      return eventBusInstance!.get(event as any).subscribe(handler as any);
     },
     eventBus: () => eventBusInstance!,
   };
@@ -101,35 +95,35 @@ describe('useAttentionFlow', () => {
     });
 
     it('emits annotation:sparkle when a non-null annotation is hovered', () => {
-      const { emit, on, off } = renderAttentionFlow();
+      const { emit, on } = renderAttentionFlow();
       const sparkleSpy = vi.fn();
 
-      on('annotation:sparkle', sparkleSpy);
+      const unsubscribe = on('annotation:sparkle', sparkleSpy);
       emit('annotation:hover', { annotationId: 'ann-sparkle' });
-      off('annotation:sparkle', sparkleSpy);
+      subscription.unsubscribe();
 
       expect(sparkleSpy).toHaveBeenCalledTimes(1);
       expect(sparkleSpy).toHaveBeenCalledWith({ annotationId: 'ann-sparkle' });
     });
 
     it('does NOT emit annotation:sparkle when null is hovered', () => {
-      const { emit, on, off } = renderAttentionFlow();
+      const { emit, on } = renderAttentionFlow();
       const sparkleSpy = vi.fn();
 
-      on('annotation:sparkle', sparkleSpy);
+      const unsubscribe = on('annotation:sparkle', sparkleSpy);
       emit('annotation:hover', { annotationId: null });
-      off('annotation:sparkle', sparkleSpy);
+      subscription.unsubscribe();
 
       expect(sparkleSpy).not.toHaveBeenCalled();
     });
 
     it('emits annotation:sparkle exactly ONCE per hover (no duplicate subscriptions)', () => {
-      const { emit, on, off } = renderAttentionFlow();
+      const { emit, on } = renderAttentionFlow();
       const sparkleSpy = vi.fn();
 
-      on('annotation:sparkle', sparkleSpy);
+      const unsubscribe = on('annotation:sparkle', sparkleSpy);
       emit('annotation:hover', { annotationId: 'ann-once' });
-      off('annotation:sparkle', sparkleSpy);
+      subscription.unsubscribe();
 
       // If useAttentionFlow were registered twice, sparkle would fire twice
       expect(sparkleSpy).toHaveBeenCalledTimes(1);
@@ -138,24 +132,24 @@ describe('useAttentionFlow', () => {
 
   describe('annotation:click', () => {
     it('emits annotation:focus when an annotation is clicked', () => {
-      const { emit, on, off } = renderAttentionFlow();
+      const { emit, on } = renderAttentionFlow();
       const focusSpy = vi.fn();
 
-      on('annotation:focus', focusSpy);
+      const unsubscribe = on('annotation:focus', focusSpy);
       emit('annotation:click', { annotationId: 'ann-click', motivation: 'highlighting' });
-      off('annotation:focus', focusSpy);
+      subscription.unsubscribe();
 
       expect(focusSpy).toHaveBeenCalledTimes(1);
       expect(focusSpy).toHaveBeenCalledWith({ annotationId: 'ann-click' });
     });
 
     it('emits annotation:focus exactly ONCE per click (no duplicate subscriptions)', () => {
-      const { emit, on, off } = renderAttentionFlow();
+      const { emit, on } = renderAttentionFlow();
       const focusSpy = vi.fn();
 
-      on('annotation:focus', focusSpy);
+      const unsubscribe = on('annotation:focus', focusSpy);
       emit('annotation:click', { annotationId: 'ann-dedup', motivation: 'commenting' });
-      off('annotation:focus', focusSpy);
+      subscription.unsubscribe();
 
       expect(focusSpy).toHaveBeenCalledTimes(1);
     });
@@ -190,14 +184,14 @@ describe('useAttentionFlow', () => {
         </EventBusProvider>
       );
 
-      act(() => { eventBusInstance!.emit('annotation:hover', { annotationId: 'pre-unmount' }); });
+      act(() => { eventBusInstance!.get('annotation:hover').next({ annotationId: 'pre-unmount' }); });
       expect(lastState!.hoveredAnnotationId).toBe('pre-unmount');
 
       unmount();
 
       // Post-unmount events must not cause state updates (would throw React warning)
       expect(() => {
-        act(() => { eventBusInstance!.emit('annotation:hover', { annotationId: 'post-unmount' }); });
+        act(() => { eventBusInstance!.get('annotation:hover').next({ annotationId: 'post-unmount' }); });
       }).not.toThrow();
     });
 
@@ -219,9 +213,9 @@ describe('useAttentionFlow', () => {
       unmount();
 
       const sparkleSpy = vi.fn();
-      eventBusInstance!.on('annotation:sparkle', sparkleSpy);
-      act(() => { eventBusInstance!.emit('annotation:hover', { annotationId: 'ghost' }); });
-      eventBusInstance!.off('annotation:sparkle', sparkleSpy);
+      const subscription = eventBusInstance!.get('annotation:sparkle').subscribe(sparkleSpy);
+      act(() => { eventBusInstance!.get('annotation:hover').next({ annotationId: 'ghost' }); });
+      subscription.unsubscribe();
 
       expect(sparkleSpy).not.toHaveBeenCalled();
     });

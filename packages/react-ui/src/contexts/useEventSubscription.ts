@@ -36,12 +36,13 @@ export function useEventSubscription<K extends keyof EventMap>(
       handlerRef.current(payload);
     };
 
-    eventBus.on(eventName, stableHandler);
+    // RxJS EventBus.get() returns Subject, subscribe returns Subscription
+    const subscription = eventBus.get(eventName).subscribe(stableHandler);
 
     return () => {
-      eventBus.off(eventName, stableHandler);
+      subscription.unsubscribe();
     };
-  }, [eventName]); // eventBus is stable, only re-subscribe if event name changes
+  }, [eventName, eventBus]); // eventBus is stable, only re-subscribe if event name changes
 }
 
 /**
@@ -79,7 +80,7 @@ export function useEventSubscriptions(
 
   // Subscribe once per event - only re-subscribe if event names actually change
   useEffect(() => {
-    const stableHandlers = new Map<keyof EventMap, (payload: any) => void>();
+    const subscriptions: Array<{ unsubscribe: () => void }> = [];
 
     // Create stable wrappers for each subscription
     for (const eventName of eventNames) {
@@ -92,15 +93,16 @@ export function useEventSubscriptions(
         }
       };
 
-      stableHandlers.set(eventName as keyof EventMap, stableHandler);
-      eventBus.on(eventName as keyof EventMap, stableHandler);
+      // RxJS EventBus.get() returns Subject, subscribe returns Subscription
+      const subscription = eventBus.get(eventName as keyof EventMap).subscribe(stableHandler);
+      subscriptions.push(subscription);
     }
 
-    // Cleanup all subscriptions
+    // Cleanup: unsubscribe from all subscriptions
     return () => {
-      for (const [eventName, stableHandler] of stableHandlers) {
-        eventBus.off(eventName, stableHandler);
+      for (const subscription of subscriptions) {
+        subscription.unsubscribe();
       }
     };
-  }, [eventNames]); // eventBus is stable singleton - never in deps; only re-subscribe if event names change
+  }, [eventNames, eventBus]); // eventBus is stable singleton - never in deps; only re-subscribe if event names change
 }

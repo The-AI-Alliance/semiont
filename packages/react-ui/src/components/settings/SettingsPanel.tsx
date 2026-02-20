@@ -38,7 +38,7 @@ export function SettingsPanel({
   const handleLocaleChange = (newLocale: string) => {
     const localeName = LOCALES.find(l => l.code === newLocale)?.nativeName || newLocale;
     announceLanguageChanging(localeName);
-    eventBus.emit('settings:locale-changed', { locale: newLocale });
+    eventBus.get('settings:locale-changed').next({ locale: newLocale });
   };
 
   // Announce when language has successfully changed
@@ -67,7 +67,7 @@ export function SettingsPanel({
               type="button"
               role="switch"
               aria-checked={showLineNumbers}
-              onClick={() => eventBus.emit('settings:line-numbers-toggled', undefined)}
+              onClick={() => eventBus.get('settings:line-numbers-toggled').next(undefined)}
               className={`semiont-toggle ${
                 showLineNumbers ? 'semiont-toggle--active' : ''
               }`}
@@ -91,7 +91,7 @@ export function SettingsPanel({
           </label>
           <div className="semiont-settings-panel__button-group">
             <button
-              onClick={() => eventBus.emit('settings:theme-changed', { theme: 'light' })}
+              onClick={() => eventBus.get('settings:theme-changed').next({ theme: 'light' })}
               className={`semiont-panel-button ${
                 theme === 'light' ? 'semiont-panel-button-active' : ''
               }`}
@@ -100,7 +100,7 @@ export function SettingsPanel({
               ☀️ {t('themeLight')}
             </button>
             <button
-              onClick={() => eventBus.emit('settings:theme-changed', { theme: 'dark' })}
+              onClick={() => eventBus.get('settings:theme-changed').next({ theme: 'dark' })}
               className={`semiont-panel-button ${
                 theme === 'dark' ? 'semiont-panel-button-active' : ''
               }`}
@@ -109,7 +109,7 @@ export function SettingsPanel({
               🌙 {t('themeDark')}
             </button>
             <button
-              onClick={() => eventBus.emit('settings:theme-changed', { theme: 'system' })}
+              onClick={() => eventBus.get('settings:theme-changed').next({ theme: 'system' })}
               className={`semiont-panel-button ${
                 theme === 'system' ? 'semiont-panel-button-active' : ''
               }`}

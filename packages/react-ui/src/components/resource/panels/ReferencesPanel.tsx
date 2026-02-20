@@ -207,7 +207,7 @@ export function ReferencesPanel({
   // Clear log when starting new detection
   const handleDetect = () => {
     setLastDetectionLog(null);
-    eventBus.emit('detection:start', {
+    eventBus.get('detection:start').next({
       motivation: 'linking',
       options: {
         entityTypes: selectedEntityTypes,
@@ -250,7 +250,7 @@ export function ReferencesPanel({
   const handleCreateReference = () => {
     if (pendingAnnotation) {
       const entityType = pendingEntityTypes.join(',') || undefined;
-      eventBus.emit('annotation:create', {
+      eventBus.get('annotation:create').next({
         motivation: 'linking',
         selector: pendingAnnotation.selector,
         body: entityType ? [{ type: 'TextualBody', value: entityType, purpose: 'tagging' }] : [],
@@ -265,7 +265,7 @@ export function ReferencesPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.emit('annotation:cancel-pending', undefined);
+        eventBus.get('annotation:cancel-pending').next(undefined);
         setPendingEntityTypes([]);
       }
     };
@@ -317,7 +317,7 @@ export function ReferencesPanel({
             <div className="semiont-annotation-prompt__actions">
               <button
                 onClick={() => {
-                  eventBus.emit('annotation:cancel-pending', undefined);
+                  eventBus.get('annotation:cancel-pending').next(undefined);
                   setPendingEntityTypes([]);
                 }}
                 className="semiont-button semiont-button--secondary"

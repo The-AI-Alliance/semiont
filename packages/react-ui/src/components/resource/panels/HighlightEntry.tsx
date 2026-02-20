@@ -52,7 +52,7 @@ export const HighlightEntry = forwardRef<HTMLDivElement, HighlightEntryProps>(
       data-type="highlight"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        eventBus.emit('annotation:click', { annotationId: highlight.id, motivation: highlight.motivation });
+        eventBus.get('annotation:click').next({ annotationId: highlight.id, motivation: highlight.motivation });
       }}
       {...hoverProps}
     >

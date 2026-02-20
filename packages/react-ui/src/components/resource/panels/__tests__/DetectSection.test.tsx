@@ -18,7 +18,7 @@ import { renderWithProviders } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
 import { DetectSection } from '../DetectSection';
 import { resetEventBusForTesting } from '../../../../contexts/EventBusContext';
-import type { EventBus } from '../../../../contexts/EventBusContext';
+import type { EventBus } from "@semiont/core"
 
 // Mock translations
 const mockT = vi.fn((key: string) => {
@@ -276,7 +276,7 @@ describe('DetectSection', () => {
         { returnEventBus: true }
       );
 
-      eventBus!.on('detection:start', detectionHandler);
+      const subscription = eventBus!.get('detection:start').subscribe(detectionHandler);
 
       const detectButton = screen.getByRole('button', { name: /✨ Detect/ });
       await user.click(detectButton);
@@ -286,7 +286,7 @@ describe('DetectSection', () => {
         options: expect.any(Object),
       });
 
-      eventBus!.off('detection:start', detectionHandler);
+      subscription.unsubscribe();
     });
 
     it('should emit correct motivation for assessment type', async () => {
@@ -302,7 +302,7 @@ describe('DetectSection', () => {
         { returnEventBus: true }
       );
 
-      eventBus!.on('detection:start', detectionHandler);
+      const subscription = eventBus!.get('detection:start').subscribe(detectionHandler);
 
       const detectButton = screen.getByRole('button', { name: /✨ Detect/ });
       await user.click(detectButton);
@@ -312,7 +312,7 @@ describe('DetectSection', () => {
         options: expect.any(Object),
       });
 
-      eventBus!.off('detection:start', detectionHandler);
+      subscription.unsubscribe();
     });
 
     it('should emit correct motivation for comment type', async () => {
@@ -328,7 +328,7 @@ describe('DetectSection', () => {
         { returnEventBus: true }
       );
 
-      eventBus!.on('detection:start', detectionHandler);
+      const subscription = eventBus!.get('detection:start').subscribe(detectionHandler);
 
       const detectButton = screen.getByRole('button', { name: /✨ Detect/ });
       await user.click(detectButton);
@@ -338,7 +338,7 @@ describe('DetectSection', () => {
         options: expect.any(Object),
       });
 
-      eventBus!.off('detection:start', detectionHandler);
+      subscription.unsubscribe();
     });
 
     it('should include instructions in event when provided', async () => {
@@ -354,7 +354,7 @@ describe('DetectSection', () => {
         { returnEventBus: true }
       );
 
-      eventBus!.on('detection:start', detectionHandler);
+      const subscription = eventBus!.get('detection:start').subscribe(detectionHandler);
 
       const textarea = screen.getByPlaceholderText('Enter custom instructions...');
       await user.type(textarea, 'Find key concepts');
@@ -370,7 +370,7 @@ describe('DetectSection', () => {
         },
       });
 
-      eventBus!.off('detection:start', detectionHandler);
+      subscription.unsubscribe();
     });
   });
 

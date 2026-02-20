@@ -87,12 +87,12 @@ describe('useGenerationFlow — progress state', () => {
 
   it('should set isGenerating to true and update progress on generation:progress event', async () => {
     const { result } = renderGenerationFlow();
-    const bus = captureEventBus();
+    const eventBus = captureEventBus();
 
     const mockProgress = makeProgress({ status: 'generating', percentage: 30, message: 'Generating content...' });
 
     act(() => {
-      bus.emit('generation:progress', mockProgress);
+      bus.get('generation:progress').next(mockProgress);
     });
 
     await waitFor(() => {
@@ -103,13 +103,13 @@ describe('useGenerationFlow — progress state', () => {
 
   it('should update progress on subsequent generation:progress events', async () => {
     const { result } = renderGenerationFlow();
-    const bus = captureEventBus();
+    const eventBus = captureEventBus();
 
     const firstProgress = makeProgress({ status: 'started', percentage: 0, message: 'Starting...' });
     const secondProgress = makeProgress({ status: 'generating', percentage: 50, message: 'Half way...' });
 
     act(() => {
-      bus.emit('generation:progress', firstProgress);
+      bus.get('generation:progress').next(firstProgress);
     });
 
     await waitFor(() => {
@@ -117,7 +117,7 @@ describe('useGenerationFlow — progress state', () => {
     });
 
     act(() => {
-      bus.emit('generation:progress', secondProgress);
+      bus.get('generation:progress').next(secondProgress);
     });
 
     await waitFor(() => {
@@ -128,11 +128,11 @@ describe('useGenerationFlow — progress state', () => {
 
   it('should set isGenerating to false and update progress on generation:complete event', async () => {
     const { result } = renderGenerationFlow();
-    const bus = captureEventBus();
+    const eventBus = captureEventBus();
 
     // First simulate some progress
     act(() => {
-      bus.emit('generation:progress', makeProgress({ percentage: 75, message: 'Almost done...' }));
+      bus.get('generation:progress').next(makeProgress({ percentage: 75, message: 'Almost done...' }));
     });
 
     await waitFor(() => {
@@ -143,7 +143,7 @@ describe('useGenerationFlow — progress state', () => {
     const finalProgress = makeProgress({ status: 'complete', percentage: 100, message: 'Generation complete!' });
 
     act(() => {
-      bus.emit('generation:complete', {
+      bus.get('generation:complete').next({
         annotationUri: 'http://localhost:4000/annotations/test-ref-id',
         progress: finalProgress,
       });
@@ -157,11 +157,11 @@ describe('useGenerationFlow — progress state', () => {
 
   it('should clear progress and set isGenerating to false on generation:failed event', async () => {
     const { result } = renderGenerationFlow();
-    const bus = captureEventBus();
+    const eventBus = captureEventBus();
 
     // First simulate some progress
     act(() => {
-      bus.emit('generation:progress', makeProgress({ percentage: 40 }));
+      bus.get('generation:progress').next(makeProgress({ percentage: 40 }));
     });
 
     await waitFor(() => {
@@ -170,7 +170,7 @@ describe('useGenerationFlow — progress state', () => {
 
     // Now fail
     act(() => {
-      bus.emit('generation:failed', {
+      bus.get('generation:failed').next({
         error: new Error('Generation failed'),
       });
     });
@@ -183,12 +183,12 @@ describe('useGenerationFlow — progress state', () => {
 
   it('should handle generation:complete event without prior progress', async () => {
     const { result } = renderGenerationFlow();
-    const bus = captureEventBus();
+    const eventBus = captureEventBus();
 
     const finalProgress = makeProgress({ status: 'complete', percentage: 100, message: 'Done!' });
 
     act(() => {
-      bus.emit('generation:complete', {
+      bus.get('generation:complete').next({
         annotationUri: 'http://localhost:4000/annotations/test-ref-id',
         progress: finalProgress,
       });
@@ -202,10 +202,10 @@ describe('useGenerationFlow — progress state', () => {
 
   it('should handle generation:failed event without prior progress gracefully', async () => {
     const { result } = renderGenerationFlow();
-    const bus = captureEventBus();
+    const eventBus = captureEventBus();
 
     act(() => {
-      bus.emit('generation:failed', {
+      bus.get('generation:failed').next({
         error: new Error('Unexpected failure'),
       });
     });

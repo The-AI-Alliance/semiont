@@ -76,7 +76,7 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
 
     // Emit detection:start event (exactly like production)
     act(() => {
-      eventBusInstance.emit('detection:start', {
+      eventBusInstance.get('detection:start').next({
         motivation: 'linking',
         options: { entityTypes: ['Location'] }
       });
@@ -124,7 +124,7 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
 
     // Emit detection:progress event (exactly like production)
     act(() => {
-      eventBusInstance.emit('detection:progress', {
+      eventBusInstance.get('detection:progress').next({
         status: 'started',
         resourceId: 'test',
         totalEntityTypes: 1,
@@ -183,7 +183,7 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
     // Exactly like production logs
     act(() => {
       console.log('[EventBus] emit: detection:start {motivation: "linking", options: {...}}');
-      eventBusInstance.emit('detection:start', {
+      eventBusInstance.get('detection:start').next({
         motivation: 'linking',
         options: { entityTypes: ['Location'] }
       });
@@ -193,7 +193,7 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
 
     act(() => {
       console.log('[EventBus] emit: detection:progress {status: "started", ...}');
-      eventBusInstance.emit('detection:progress', {
+      eventBusInstance.get('detection:progress').next({
         status: 'started',
         resourceId: 'f45fd44f9cb0b0fe1b7980d3d034bc61',
         totalEntityTypes: 1,
@@ -206,7 +206,7 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
 
     act(() => {
       console.log('[EventBus] emit: detection:progress {status: "scanning", ...}');
-      eventBusInstance.emit('detection:progress', {
+      eventBusInstance.get('detection:progress').next({
         status: 'scanning',
         resourceId: 'f45fd44f9cb0b0fe1b7980d3d034bc61',
         currentEntityType: 'Location',

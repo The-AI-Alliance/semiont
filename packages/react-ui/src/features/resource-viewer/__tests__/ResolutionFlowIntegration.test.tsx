@@ -67,13 +67,10 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
     return {
       getState: () => lastState!,
       emit: (event: Parameters<typeof eventBusInstance.emit>[0], payload: Parameters<typeof eventBusInstance.emit>[1]) => {
-        act(() => { eventBusInstance!.emit(event as any, payload as any); });
+        act(() => { eventBusInstance!.get(event as any).next(payload as any); });
       },
       on: (event: Parameters<typeof eventBusInstance.on>[0], handler: (payload: any) => void) => {
-        eventBusInstance!.on(event as any, handler);
-      },
-      off: (event: Parameters<typeof eventBusInstance.off>[0], handler: (payload: any) => void) => {
-        eventBusInstance!.off(event as any, handler);
+        return eventBusInstance!.get(event as any).subscribe(handler);
       },
     };
   }
@@ -89,12 +86,12 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
   // ─── reference:link ─────────────────────────────────────────────────────────
 
   it('reference:link emits resolution:search-requested with referenceId and searchTerm', () => {
-    const { emit, on, off } = renderResolutionFlow();
+    const { emit, on } = renderResolutionFlow();
     const searchRequestedSpy = vi.fn();
 
-    on('resolution:search-requested', searchRequestedSpy);
+    const unsubscribe = on('resolution:search-requested', searchRequestedSpy);
     emit('reference:link', { annotationUri: 'ann-uri-123', searchTerm: 'climate change' });
-    off('resolution:search-requested', searchRequestedSpy);
+    subscription.unsubscribe();
 
     expect(searchRequestedSpy).toHaveBeenCalledTimes(1);
     expect(searchRequestedSpy).toHaveBeenCalledWith({
@@ -203,10 +200,10 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
   });
 
   it('annotation:update-body emits annotation:body-updated on success', async () => {
-    const { emit, on, off } = renderResolutionFlow();
+    const { emit, on } = renderResolutionFlow();
     const bodyUpdatedSpy = vi.fn();
 
-    on('annotation:body-updated', bodyUpdatedSpy);
+    const unsubscribe = on('annotation:body-updated', bodyUpdatedSpy);
 
     emit('annotation:update-body', {
       annotationUri: 'http://localhost:4000/resources/test-resource/annotations/ann-success',
@@ -218,7 +215,7 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
       expect(bodyUpdatedSpy).toHaveBeenCalledTimes(1);
     });
 
-    off('annotation:body-updated', bodyUpdatedSpy);
+    subscription.unsubscribe();
 
     expect(bodyUpdatedSpy).toHaveBeenCalledWith({
       annotationUri: 'http://localhost:4000/resources/test-resource/annotations/ann-success',
@@ -228,10 +225,10 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
   it('annotation:update-body emits annotation:body-update-failed on API error', async () => {
     updateAnnotationBodySpy.mockRejectedValue(new Error('Update failed'));
 
-    const { emit, on, off } = renderResolutionFlow();
+    const { emit, on } = renderResolutionFlow();
     const bodyUpdateFailedSpy = vi.fn();
 
-    on('annotation:body-update-failed', bodyUpdateFailedSpy);
+    const unsubscribe = on('annotation:body-update-failed', bodyUpdateFailedSpy);
 
     emit('annotation:update-body', {
       annotationUri: 'http://localhost:4000/resources/test-resource/annotations/ann-fail',
@@ -243,7 +240,7 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
       expect(bodyUpdateFailedSpy).toHaveBeenCalledTimes(1);
     });
 
-    off('annotation:body-update-failed', bodyUpdateFailedSpy);
+    subscription.unsubscribe();
 
     expect(bodyUpdateFailedSpy).toHaveBeenCalledWith({
       error: expect.any(Error),

@@ -60,6 +60,7 @@
     "@semiont/api-client": "*",
     "@semiont/ontology": "*",
     "ajv": "^8.17.1",
-    "ajv-formats": "^2.1.1"
+    "ajv-formats": "^2.1.1",
+    "rxjs": "^6.6.7"
   }
 }

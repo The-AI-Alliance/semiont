@@ -78,7 +78,7 @@ describe('Annotation Deletion - Feature Integration', () => {
     return {
       emitDelete: (annotationId: string) => {
         act(() => {
-          eventBusInstance!.emit('annotation:delete', { annotationId });
+          eventBusInstance!.get('annotation:delete').next({ annotationId });
         });
       },
       eventBus: eventBusInstance!,
@@ -127,7 +127,7 @@ describe('Annotation Deletion - Feature Integration', () => {
     const deletedListener = vi.fn();
 
     // Subscribe to success event
-    eventBus.on('annotation:deleted', deletedListener);
+    eventBus.get('annotation:deleted').subscribe(deletedListener);
 
     emitDelete('annotation-789');
 
@@ -152,7 +152,7 @@ describe('Annotation Deletion - Feature Integration', () => {
     const failedListener = vi.fn();
 
     // Subscribe to failure event
-    eventBus.on('annotation:delete-failed', failedListener);
+    eventBus.get('annotation:delete-failed').subscribe(failedListener);
 
     emitDelete('annotation-error');
 

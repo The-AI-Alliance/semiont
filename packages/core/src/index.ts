@@ -85,6 +85,9 @@ export {
   isResourceEvent as isStoredEvent,
 } from './event-utils';
 
+// Event bus (RxJS-based, framework-agnostic)
+export { EventBus } from './event-bus';
+
 // Event protocol (application-level events for event bus)
 export type {
   EventMap,

@@ -280,7 +280,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Emit completion event
     act(() => {
-      getEventBus().emit('generation:complete', {
+      getEventBus().get('generation:complete').next({
         annotationUri: testAnnotationUri,
         progress: {
           status: 'complete',
@@ -323,7 +323,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Emit failure
     act(() => {
-      getEventBus().emit('generation:failed', { error: new Error('Network error') });
+      getEventBus().get('generation:failed').next({ error: new Error('Network error') });
     });
 
     // Verify: progress cleared and not generating
@@ -470,7 +470,7 @@ function renderGenerationFlow(
       resourceUri: ResourceUri,
       defaultTitle: string
     ) => {
-      eventBusInstance.emit('generation:modal-open', {
+      eventBusInstance.get('generation:modal-open').next({
         annotationUri,
         resourceUri,
         defaultTitle,
@@ -488,7 +488,7 @@ function renderGenerationFlow(
         context: any;
       }
     ) => {
-      eventBusInstance.emit('generation:start', {
+      eventBusInstance.get('generation:start').next({
         annotationUri,
         resourceUri,
         options,

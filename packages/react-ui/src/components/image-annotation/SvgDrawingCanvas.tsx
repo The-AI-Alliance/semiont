@@ -5,7 +5,7 @@ import type { components, ResourceUri } from '@semiont/api-client';
 import { createRectangleSvg, createCircleSvg, createPolygonSvg, scaleSvgToNative, parseSvgSelector, type Point } from '@semiont/api-client';
 import { AnnotationOverlay } from './AnnotationOverlay';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
-import type { EventBus } from '../../contexts/EventBusContext';
+import type { EventBus } from "@semiont/core"
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -213,7 +213,7 @@ export function SvgDrawingCanvas({
         });
 
         if (clickedAnnotation) {
-          eventBus?.emit('annotation:click', { annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
+          eventBus?.get('annotation:click').next({ annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
           setIsDrawing(false);
           setStartPoint(null);
           setCurrentPoint(null);
@@ -276,7 +276,7 @@ export function SvgDrawingCanvas({
 
     // Emit annotation:requested event with SvgSelector
     if (eventBus && selectedMotivation) {
-      eventBus.emit('annotation:requested', {
+      eventBus.get('annotation:requested').next({
         selector: {
           type: 'SvgSelector',
           value: nativeSvg

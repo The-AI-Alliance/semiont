@@ -1,57 +1,14 @@
 'use client';
 
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
-import mitt from 'mitt';
-import type { Handler } from 'mitt';
-import type { EventMap } from '@semiont/core';
-
-export type EventBus = ReturnType<typeof mitt<EventMap>> & { busId: string };
+import { EventBus } from '@semiont/core';
 
 const EventBusContext = createContext<EventBus | null>(null);
 
 /**
- * Generate an 8-digit hex identifier for an event bus instance
- */
-function generateBusId(): string {
-  return Math.floor(Math.random() * 0xFFFFFFFF).toString(16).padStart(8, '0');
-}
-
-/**
- * Create an EventBus instance with logging and unique identifier
- */
-function createEventBus(): EventBus {
-  const bus = mitt<EventMap>() as EventBus;
-  const busId = generateBusId();
-
-  // Add busId property
-  bus.busId = busId;
-
-  // Wrap emit to add logging with busId
-  const originalEmit = bus.emit.bind(bus);
-  bus.emit = <Key extends keyof EventMap>(eventName: Key, payload?: EventMap[Key]) => {
-    console.info(`[EventBus:${busId}] emit:`, eventName, payload);
-    return originalEmit(eventName, payload as EventMap[Key]);
-  };
-
-  // Wrap on to add logging with busId
-  const originalOn = bus.on.bind(bus);
-  bus.on = <Key extends keyof EventMap>(eventName: Key, handler: Handler<EventMap[Key]>) => {
-    console.debug(`[EventBus:${busId}] subscribe:`, eventName);
-    return originalOn(eventName, handler);
-  };
-
-  // Wrap off to add logging with busId
-  const originalOff = bus.off.bind(bus);
-  bus.off = <Key extends keyof EventMap>(eventName: Key, handler?: Handler<EventMap[Key]>) => {
-    console.debug(`[EventBus:${busId}] unsubscribe:`, eventName);
-    return originalOff(eventName, handler);
-  };
-
-  return bus;
-}
-
-/**
  * Global singleton event bus.
+ *
+ * Uses RxJS-based EventBus from @semiont/core for framework-agnostic event routing.
  *
  * This ensures all components in the application share the same event bus instance,
  * which is critical for cross-component communication (e.g., hovering an annotation
@@ -79,7 +36,7 @@ function createEventBus(): EventBus {
  *
  * For now, single global bus is correct for single-window app.
  */
-let globalEventBus = createEventBus();
+let globalEventBus = new EventBus();
 
 /**
  * Reset the global event bus - FOR TESTING ONLY.
@@ -95,12 +52,12 @@ let globalEventBus = createEventBus();
  * ```
  */
 export function resetEventBusForTesting() {
-  globalEventBus = createEventBus();
+  globalEventBus.destroy();
+  globalEventBus = new EventBus();
 }
 
 export interface EventBusProviderProps {
   children: ReactNode;
-  // rUri and client removed - operation handlers are now set up via useResolutionFlow hook
 }
 
 /**
@@ -124,9 +81,7 @@ export interface EventBusProviderProps {
  * Operation handlers (API calls triggered by events) are set up separately via
  * the useResolutionFlow hook, which should be called at the resource page level.
  */
-export function EventBusProvider({
-  children,
-}: EventBusProviderProps) {
+export function EventBusProvider({ children }: EventBusProviderProps) {
   const eventBus = useMemo(() => globalEventBus, []);
 
   return (
@@ -149,22 +104,23 @@ export function EventBusProvider({
  * const eventBus = useEventBus();
  *
  * // Emit any event
- * eventBus.emit('annotation:hover', { annotationId: '123' });
- * eventBus.emit('navigation:sidebar-toggle', undefined);
- * eventBus.emit('settings:theme-changed', { theme: 'dark' });
+ * eventBus.get('annotation:hover').next({ annotationId: '123' });
+ * eventBus.get('navigation:sidebar-toggle').next(undefined);
+ * eventBus.get('settings:theme-changed').next({ theme: 'dark' });
  *
  * // Subscribe to any event
  * useEffect(() => {
- *   const handler = ({ annotationId }) => console.log(annotationId);
- *   eventBus.on('annotation:hover', handler);
- *   return () => eventBus.off('annotation:hover', handler);
+ *   const unsubscribe = eventBus.on('annotation:hover', ({ annotationId }) => {
+ *     console.log(annotationId);
+ *   });
+ *   return () => unsubscribe();
  * }, []);
  * ```
  */
 export function useEventBus(): EventBus {
-  const bus = useContext(EventBusContext);
-  if (!bus) {
+  const eventBus = useContext(EventBusContext);
+  if (!eventBus) {
     throw new Error('useEventBus must be used within EventBusProvider');
   }
-  return bus;
+  return eventBus;
 }

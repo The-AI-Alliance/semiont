@@ -86,10 +86,10 @@ export function useResolutionFlow(rUri: ResourceUri): ResolutionFlowState {
           operations: event.operations as any,
         }, { auth: toAccessToken(tokenRef.current) });
 
-        eventBus.emit('annotation:body-updated', { annotationUri: event.annotationUri });
+        eventBus.get('annotation:body-updated').next({ annotationUri: event.annotationUri });
       } catch (error) {
         console.error('Failed to update annotation body:', error);
-        eventBus.emit('annotation:body-update-failed', { error: error as Error });
+        eventBus.get('annotation:body-update-failed').next({ error: error as Error });
       }
     };
 
@@ -101,18 +101,18 @@ export function useResolutionFlow(rUri: ResourceUri): ResolutionFlowState {
       annotationUri: string;
       searchTerm: string;
     }) => {
-      eventBus.emit('resolution:search-requested', {
+      eventBus.get('resolution:search-requested').next({
         referenceId: event.annotationUri,
         searchTerm: event.searchTerm,
       });
     };
 
-    eventBus.on('annotation:update-body', handleAnnotationUpdateBody);
-    eventBus.on('reference:link', handleReferenceLink);
+    const subscription1 = eventBus.get('annotation:update-body').subscribe(handleAnnotationUpdateBody);
+    const subscription2 = eventBus.get('reference:link').subscribe(handleReferenceLink);
 
     return () => {
-      eventBus.off('annotation:update-body', handleAnnotationUpdateBody);
-      eventBus.off('reference:link', handleReferenceLink);
+      subscription1.unsubscribe();
+      subscription2.unsubscribe();
     };
   }, [eventBus]); // eventBus is stable singleton; client/rUri/token accessed via refs
 
@@ -122,10 +122,8 @@ export function useResolutionFlow(rUri: ResourceUri): ResolutionFlowState {
       setSearchModalOpen(true);
     };
 
-    eventBus.on('resolution:search-requested', handleResolutionSearchRequested);
-    return () => {
-      eventBus.off('resolution:search-requested', handleResolutionSearchRequested);
-    };
+    const subscription = eventBus.get('resolution:search-requested').subscribe(handleResolutionSearchRequested);
+    return () => subscription.unsubscribe();
   }, [eventBus]);
 
   return { searchModalOpen, pendingReferenceId, onCloseSearchModal };

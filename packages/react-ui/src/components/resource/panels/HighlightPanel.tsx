@@ -132,7 +132,7 @@ export function HighlightPanel({
   // immediately emit annotation:create event
   useEffect(() => {
     if (pendingAnnotation && pendingAnnotation.motivation === 'highlighting') {
-      eventBus.emit('annotation:create', {
+      eventBus.get('annotation:create').next({
         motivation: 'highlighting',
         selector: pendingAnnotation.selector,
         body: [],

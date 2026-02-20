@@ -121,7 +121,7 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
     };
 
     // Emit event to open the appropriate panel
-    eventBus.emit('panel:open', { panel: MOTIVATION_TO_TAB[pending.motivation] || 'annotations' });
+    eventBus.get('panel:open').next({ panel: MOTIVATION_TO_TAB[pending.motivation] || 'annotations' });
     setPendingAnnotation(pending);
   }, []); // eventBus is stable singleton - never in deps
 
@@ -271,11 +271,11 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
 
         if (result.annotation) {
           setPendingAnnotation(null);
-          eventBus.emit('annotation:created', { annotation: result.annotation });
+          eventBus.get('annotation:created').next({ annotation: result.annotation });
         }
       } catch (error) {
         console.error('Failed to create annotation:', error);
-        eventBus.emit('annotation:create-failed', { error: error as Error });
+        eventBus.get('annotation:create-failed').next({ error: error as Error });
       }
     };
 
@@ -292,10 +292,10 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
 
         await currentClient.deleteAnnotation(annotationUri, { auth: toAccessToken(tokenRef.current) });
 
-        eventBus.emit('annotation:deleted', { annotationId: event.annotationId });
+        eventBus.get('annotation:deleted').next({ annotationId: event.annotationId });
       } catch (error) {
         console.error('Failed to delete annotation:', error);
-        eventBus.emit('annotation:delete-failed', { error: error as Error });
+        eventBus.get('annotation:delete-failed').next({ error: error as Error });
       }
     };
 
@@ -341,10 +341,10 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
             throw new Error('Tag detection requires schemaId and categories');
           }
           const stream = currentClient.sse.detectTags(currentRUri, { schemaId, categories }, auth);
-          stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk); });
+          stream.onProgress((chunk) => { eventBus.get('detection:progress').next(chunk); });
           stream.onComplete((finalChunk) => {
-            eventBus.emit('detection:progress', finalChunk);
-            eventBus.emit('detection:complete', { motivation: event.motivation });
+            eventBus.get('detection:progress').next(finalChunk);
+            eventBus.get('detection:complete').next({ motivation: event.motivation });
           });
           stream.onError((error) => {
             console.error('Detection failed:', error);
@@ -360,10 +360,10 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
             entityTypes: entityTypes.map(et => entityType(et)),
             includeDescriptiveReferences: includeDescriptiveReferences || false,
           }, auth);
-          stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk); });
+          stream.onProgress((chunk) => { eventBus.get('detection:progress').next(chunk); });
           stream.onComplete((finalChunk) => {
-            eventBus.emit('detection:progress', finalChunk);
-            eventBus.emit('detection:complete', { motivation: event.motivation });
+            eventBus.get('detection:progress').next(finalChunk);
+            eventBus.get('detection:complete').next({ motivation: event.motivation });
           });
           stream.onError((error) => {
             console.error('[useDetectionFlow] Detection failed:', error);
@@ -375,10 +375,10 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
             instructions: event.options.instructions,
             density: event.options.density,
           }, auth);
-          stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk); });
+          stream.onProgress((chunk) => { eventBus.get('detection:progress').next(chunk); });
           stream.onComplete((finalChunk) => {
-            eventBus.emit('detection:progress', finalChunk);
-            eventBus.emit('detection:complete', { motivation: event.motivation });
+            eventBus.get('detection:progress').next(finalChunk);
+            eventBus.get('detection:complete').next({ motivation: event.motivation });
           });
           stream.onError((error) => {
             console.error('Detection failed:', error);
@@ -391,10 +391,10 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
             tone: event.options.tone as 'analytical' | 'critical' | 'balanced' | 'constructive' | undefined,
             density: event.options.density,
           }, auth);
-          stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk); });
+          stream.onProgress((chunk) => { eventBus.get('detection:progress').next(chunk); });
           stream.onComplete((finalChunk) => {
-            eventBus.emit('detection:progress', finalChunk);
-            eventBus.emit('detection:complete', { motivation: event.motivation });
+            eventBus.get('detection:progress').next(finalChunk);
+            eventBus.get('detection:complete').next({ motivation: event.motivation });
           });
           stream.onError((error) => {
             console.error('[useDetectionFlow] Assessment detection error:', error);
@@ -407,10 +407,10 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
             tone: event.options.tone as 'scholarly' | 'explanatory' | 'conversational' | 'technical' | undefined,
             density: event.options.density,
           }, auth);
-          stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk); });
+          stream.onProgress((chunk) => { eventBus.get('detection:progress').next(chunk); });
           stream.onComplete((finalChunk) => {
-            eventBus.emit('detection:progress', finalChunk);
-            eventBus.emit('detection:complete', { motivation: event.motivation });
+            eventBus.get('detection:progress').next(finalChunk);
+            eventBus.get('detection:complete').next({ motivation: event.motivation });
           });
           stream.onError((error) => {
             console.error('Detection failed:', error);
@@ -420,7 +420,7 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
         }
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
-          eventBus.emit('detection:cancelled', undefined);
+          eventBus.get('detection:cancelled').next(undefined);
         } else {
           console.error('Detection failed:', error);
           setDetectingMotivation(null);
@@ -440,16 +440,16 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
       }
     };
 
-    eventBus.on('annotation:create', handleAnnotationCreate);
-    eventBus.on('annotation:delete', handleAnnotationDelete);
-    eventBus.on('detection:start', handleDetectionStart);
-    eventBus.on('job:cancel-requested', handleJobCancelRequested);
+    const subscription1 = eventBus.get('annotation:create').subscribe(handleAnnotationCreate);
+    const subscription2 = eventBus.get('annotation:delete').subscribe(handleAnnotationDelete);
+    const subscription3 = eventBus.get('detection:start').subscribe(handleDetectionStart);
+    const subscription4 = eventBus.get('job:cancel-requested').subscribe(handleJobCancelRequested);
 
     return () => {
-      eventBus.off('annotation:create', handleAnnotationCreate);
-      eventBus.off('annotation:delete', handleAnnotationDelete);
-      eventBus.off('detection:start', handleDetectionStart);
-      eventBus.off('job:cancel-requested', handleJobCancelRequested);
+      subscription1.unsubscribe();
+      subscription2.unsubscribe();
+      subscription3.unsubscribe();
+      subscription4.unsubscribe();
       detectionStreamRef.current?.abort();
     };
   }, [eventBus]); // eventBus is stable singleton; client/rUri/token accessed via refs

@@ -85,7 +85,7 @@ describe('Detection Progress Dismissal Bug', () => {
 
     // User clicks detect button (emits detection:start)
     act(() => {
-      eventBusInstance.emit('detection:start', {
+      eventBusInstance.get('detection:start').next({
         motivation: 'linking',
         options: { entityTypes: ['Location'] }
       });
@@ -98,7 +98,7 @@ describe('Detection Progress Dismissal Bug', () => {
 
     // SSE sends progress update
     act(() => {
-      eventBusInstance.emit('detection:progress', {
+      eventBusInstance.get('detection:progress').next({
         status: 'scanning',
         message: 'Processing: Location',
         currentEntityType: 'Location',
@@ -112,7 +112,7 @@ describe('Detection Progress Dismissal Bug', () => {
 
     // Detection completes (SSE finishes, backend emits detection:complete)
     act(() => {
-      eventBusInstance.emit('detection:complete', { motivation: 'linking' });
+      eventBusInstance.get('detection:complete').next({ motivation: 'linking' });
     });
 
     // detectingMotivation cleared immediately
@@ -151,15 +151,15 @@ describe('Detection Progress Dismissal Bug', () => {
 
     // First detection with stuck progress
     act(() => {
-      eventBusInstance.emit('detection:start', { motivation: 'linking', options: {} });
+      eventBusInstance.get('detection:start').next({ motivation: 'linking', options: {} });
     });
 
     act(() => {
-      eventBusInstance.emit('detection:progress', { message: 'Old progress stuck here' });
+      eventBusInstance.get('detection:progress').next({ message: 'Old progress stuck here' });
     });
 
     act(() => {
-      eventBusInstance.emit('detection:complete', { motivation: 'linking' });
+      eventBusInstance.get('detection:complete').next({ motivation: 'linking' });
     });
 
     await waitFor(() => {
@@ -168,7 +168,7 @@ describe('Detection Progress Dismissal Bug', () => {
 
     // WORKAROUND: Start new detection clears old progress
     act(() => {
-      eventBusInstance.emit('detection:start', { motivation: 'highlighting', options: {} });
+      eventBusInstance.get('detection:start').next({ motivation: 'highlighting', options: {} });
     });
 
     await waitFor(() => {
@@ -204,18 +204,18 @@ describe('Detection Progress Dismissal Bug', () => {
 
     // Show progress
     act(() => {
-      eventBusInstance.emit('detection:start', { motivation: 'linking', options: {} });
+      eventBusInstance.get('detection:start').next({ motivation: 'linking', options: {} });
     });
 
     act(() => {
-      eventBusInstance.emit('detection:progress', {
+      eventBusInstance.get('detection:progress').next({
         status: 'complete',
         message: 'Complete! Created 5 annotations'
       });
     });
 
     act(() => {
-      eventBusInstance.emit('detection:complete', { motivation: 'linking' });
+      eventBusInstance.get('detection:complete').next({ motivation: 'linking' });
     });
 
     // Progress visible initially
@@ -281,7 +281,7 @@ describe('Detection Progress Dismissal Bug', () => {
 
     // Start detection (triggers SSE stream creation)
     act(() => {
-      eventBusInstance.emit('detection:start', {
+      eventBusInstance.get('detection:start').next({
         motivation: 'linking',
         options: { entityTypes: ['Location'] }
       });

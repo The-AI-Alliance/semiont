@@ -167,7 +167,7 @@ export function CommentsPanel({
 
   const handleSaveNewComment = () => {
     if (newCommentText.trim() && pendingAnnotation) {
-      eventBus.emit('annotation:create', {
+      eventBus.get('annotation:create').next({
         motivation: 'commenting',
         selector: pendingAnnotation.selector,
         body: [{ type: 'TextualBody', value: newCommentText, purpose: 'commenting' }],
@@ -182,7 +182,7 @@ export function CommentsPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.emit('annotation:cancel-pending', undefined);
+        eventBus.get('annotation:cancel-pending').next(undefined);
         setNewCommentText('');
       }
     };
@@ -224,7 +224,7 @@ export function CommentsPanel({
             <div className="semiont-annotation-prompt__actions">
               <button
                 onClick={() => {
-                  eventBus.emit('annotation:cancel-pending', undefined);
+                  eventBus.get('annotation:cancel-pending').next(undefined);
                   setNewCommentText('');
                 }}
                 className="semiont-button semiont-button--secondary"

@@ -85,7 +85,7 @@ function renderDetectionFlow(testUri: string) {
   return {
     getEventBus: () => eventBusInstance,
     emit: <K extends keyof EventMap>(event: K, payload: EventMap[K]) => {
-      eventBusInstance.emit(event, payload);
+      eventBusInstance.get(event).next(payload);
     },
   };
 }

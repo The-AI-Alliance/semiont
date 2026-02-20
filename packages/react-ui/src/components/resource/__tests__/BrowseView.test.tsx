@@ -125,16 +125,16 @@ function createEventTracker() {
         'annotation:hover',
         'annotation:click',
         'annotation:focus',
-      ];
+      ] as const;
 
       annotationEvents.forEach(eventName => {
         const handler = trackEvent(eventName);
-        eventBus.on(eventName, handler);
-        handlers.push(() => eventBus.off(eventName, handler));
+        const subscription = eventBus.get(eventName).subscribe(handler);
+        handlers.push(subscription);
       });
 
       return () => {
-        handlers.forEach(cleanup => cleanup());
+        handlers.forEach(sub => sub.unsubscribe());
       };
     }, [eventBus]);
 
@@ -544,12 +544,12 @@ describe('BrowseView Component', () => {
             eventTracker.push({ event: 'annotation:click', annotationId: payload?.annotationId ?? null });
           };
 
-          eventBus.on('annotation:hover', handleHover);
-          eventBus.on('annotation:click', handleClick);
+          const subscription1 = eventBus.get('annotation:hover').subscribe(handleHover);
+          const subscription2 = eventBus.get('annotation:click').subscribe(handleClick);
 
           return () => {
-            eventBus.off('annotation:hover', handleHover);
-            eventBus.off('annotation:click', handleClick);
+            subscription1.unsubscribe();
+            subscription2.unsubscribe();
           };
         }, [eventBus]);
 

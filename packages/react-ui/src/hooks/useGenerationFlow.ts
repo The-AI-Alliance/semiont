@@ -130,7 +130,7 @@ export function useGenerationFlow(
     const resourceUriStr = `resource://${resourceId}`;
 
     // Emit generation:start event instead of calling SSE directly
-    eventBus.emit('generation:start', {
+    eventBus.get('generation:start').next({
       annotationUri: referenceId,
       resourceUri: resourceUriStr,
       options: {
@@ -155,7 +155,7 @@ export function useGenerationFlow(
     setGenerationDefaultTitle(defaultTitle);
     setGenerationModalOpen(true);
     // Trigger context retrieval in parallel with modal open
-    eventBus.emit('context:retrieval-requested', { annotationUri: annUri, resourceUri });
+    eventBus.get('context:retrieval-requested').next({ annotationUri: annUri, resourceUri });
   }, []);
 
   const handleGenerationComplete = useCallback(({ progress }: { annotationUri: string; progress: GenerationProgress }) => {
@@ -222,13 +222,13 @@ export function useGenerationFlow(
 
         stream.onProgress((chunk) => {
           console.log('[useGenerationFlow] Generation progress chunk received', chunk);
-          eventBus.emit('generation:progress', chunk);
+          eventBus.get('generation:progress').next(chunk);
         });
 
         stream.onComplete((finalChunk) => {
           console.log('[useGenerationFlow] Generation complete with final chunk', finalChunk);
-          eventBus.emit('generation:progress', finalChunk);
-          eventBus.emit('generation:complete', {
+          eventBus.get('generation:progress').next(finalChunk);
+          eventBus.get('generation:complete').next({
             annotationUri: event.annotationUri,
             progress: finalChunk
           });
@@ -236,14 +236,14 @@ export function useGenerationFlow(
 
         stream.onError((error) => {
           console.error('[useGenerationFlow] Generation failed:', error);
-          eventBus.emit('generation:failed', { error: error as Error });
+          eventBus.get('generation:failed').next({ error: error as Error });
         });
       } catch (error) {
         if ((error as any).name === 'AbortError') {
           console.log('[useGenerationFlow] Generation cancelled');
         } else {
           console.error('[useGenerationFlow] Generation failed:', error);
-          eventBus.emit('generation:failed', { error: error as Error });
+          eventBus.get('generation:failed').next({ error: error as Error });
         }
       }
     };
@@ -279,14 +279,14 @@ export function useGenerationFlow(
       window.location.href = `${baseUrl}/know/compose?${params.toString()}`;
     };
 
-    eventBus.on('generation:start', handleGenerationStart);
-    eventBus.on('job:cancel-requested', handleJobCancelRequested);
-    eventBus.on('reference:create-manual', handleReferenceCreateManual);
+    const subscription1 = eventBus.get('generation:start').subscribe(handleGenerationStart);
+    const subscription2 = eventBus.get('job:cancel-requested').subscribe(handleJobCancelRequested);
+    const subscription3 = eventBus.get('reference:create-manual').subscribe(handleReferenceCreateManual);
 
     return () => {
-      eventBus.off('generation:start', handleGenerationStart);
-      eventBus.off('job:cancel-requested', handleJobCancelRequested);
-      eventBus.off('reference:create-manual', handleReferenceCreateManual);
+      subscription1.unsubscribe();
+      subscription2.unsubscribe();
+      subscription3.unsubscribe();
       generationStreamRef.current?.abort();
     };
   }, [eventBus, resourceId]); // eventBus is stable singleton; resourceId added for navigation handler

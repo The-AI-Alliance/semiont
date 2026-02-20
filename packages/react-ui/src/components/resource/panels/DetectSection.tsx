@@ -71,7 +71,7 @@ export function DetectSection({
       'commenting';
 
     // Emit detection:start event with options
-    eventBus.emit('detection:start', {
+    eventBus.get('detection:start').next({
       motivation,
       options: {
         instructions: instructions.trim() || undefined,
@@ -86,7 +86,7 @@ export function DetectSection({
   }, [annotationType, instructions, tone, useDensity, density]); // eventBus is stable singleton - never in deps
 
   const handleDismissProgress = useCallback(() => {
-    eventBus.emit('detection:dismiss-progress', undefined);
+    eventBus.get('detection:dismiss-progress').next(undefined);
   }, []); // eventBus is stable singleton - never in deps
 
   return (

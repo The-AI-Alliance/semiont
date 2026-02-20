@@ -232,7 +232,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Emit completion event
     act(() => {
-      getEventBus().emit('detection:complete', { motivation: 'highlighting' });
+      getEventBus().get('detection:complete').next({ motivation: 'highlighting' });
     });
 
     // Verify: detecting flag cleared BUT progress still visible
@@ -265,7 +265,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Emit failure
     act(() => {
-      getEventBus().emit('detection:failed', { type: 'job.failed', resourceId: 'test-resource' as any, payload: { jobId: 'job-1' as any, jobType: 'detection', error: 'Network error' } });
+      getEventBus().get('detection:failed').next({ type: 'job.failed', resourceId: 'test-resource' as any, payload: { jobId: 'job-1' as any, jobType: 'detection', error: 'Network error' } });
     });
 
     // Verify: both detecting and progress cleared
@@ -381,7 +381,7 @@ function renderDetectionFlow(testUri: string) {
 
   return {
     emitDetectionStart: (motivation: Motivation, options: any) => {
-      eventBusInstance.emit('detection:start', { motivation, options });
+      eventBusInstance.get('detection:start').next({ motivation, options });
     },
     getEventBus: () => eventBusInstance,
   };

@@ -141,7 +141,7 @@ export function AssessmentPanel({
         ? [{ type: 'TextualBody' as const, value: newAssessmentText, purpose: 'assessing' as const }]
         : [];
 
-      eventBus.emit('annotation:create', {
+      eventBus.get('annotation:create').next({
         motivation: 'assessing',
         selector: pendingAnnotation.selector,
         body,
@@ -156,7 +156,7 @@ export function AssessmentPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.emit('annotation:cancel-pending', undefined);
+        eventBus.get('annotation:cancel-pending').next(undefined);
         setNewAssessmentText('');
       }
     };
@@ -209,7 +209,7 @@ export function AssessmentPanel({
             <div className="semiont-annotation-prompt__actions">
               <button
                 onClick={() => {
-                  eventBus.emit('annotation:cancel-pending', undefined);
+                  eventBus.get('annotation:cancel-pending').next(undefined);
                   setNewAssessmentText('');
                 }}
                 className="semiont-button semiont-button--secondary"

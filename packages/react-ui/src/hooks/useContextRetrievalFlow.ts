@@ -16,8 +16,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import type { Emitter } from 'mitt';
-import type { EventMap } from '@semiont/core';
+import type { EventBus } from '@semiont/core';
 import type { GenerationContext, SemiontApiClient, ResourceUri } from '@semiont/api-client';
 import { accessToken } from '@semiont/api-client';
 import { useAuthToken } from '../contexts/AuthTokenContext';
@@ -41,7 +40,7 @@ export interface ContextRetrievalFlowState {
 }
 
 export function useContextRetrievalFlow(
-  emitter: Emitter<EventMap>,
+  eventBus: EventBus,
   config: ContextRetrievalFlowConfig
 ): ContextRetrievalFlowState {
   const token = useAuthToken();
@@ -83,7 +82,7 @@ export function useContextRetrievalFlow(
         setRetrievalLoading(false);
 
         if (context) {
-          emitter.emit('context:retrieval-complete', {
+          eventBus.get('context:retrieval-complete').next({
             annotationUri: event.annotationUri,
             context,
           });
@@ -93,18 +92,16 @@ export function useContextRetrievalFlow(
         setRetrievalError(err);
         setRetrievalLoading(false);
 
-        emitter.emit('context:retrieval-failed', {
+        eventBus.get('context:retrieval-failed').next({
           annotationUri: event.annotationUri,
           error: err,
         });
       }
     };
 
-    emitter.on('context:retrieval-requested', handleContextRetrievalRequested);
-    return () => {
-      emitter.off('context:retrieval-requested', handleContextRetrievalRequested);
-    };
-  }, [emitter]);
+    const subscription = eventBus.get('context:retrieval-requested').subscribe(handleContextRetrievalRequested);
+    return () => subscription.unsubscribe();
+  }, [eventBus]);
 
   return { retrievalContext, retrievalLoading, retrievalError, retrievalAnnotationUri };
 }

@@ -28,7 +28,7 @@ export function DetectionProgressWidget({ progress, annotationType = 'reference'
 
   const handleCancel = () => {
     // Emit event for job cancellation
-    eventBus.emit('job:cancel-requested', { jobType: 'detection' });
+    eventBus.get('job:cancel-requested').next({ jobType: 'detection' });
   };
 
   if (!progress) return null;

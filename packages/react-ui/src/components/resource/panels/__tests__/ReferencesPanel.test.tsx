@@ -25,16 +25,16 @@ function createEventTracker() {
         events.push({ event: eventName, payload });
       };
 
-      const panelEvents = ['detection:start'];
+      const panelEvents = ['detection:start'] as const;
 
       panelEvents.forEach(eventName => {
         const handler = trackEvent(eventName);
-        eventBus.on(eventName, handler);
-        handlers.push(() => eventBus.off(eventName, handler));
+        const subscription = eventBus.get(eventName).subscribe(handler);
+        handlers.push(subscription);
       });
 
       return () => {
-        handlers.forEach(cleanup => cleanup());
+        handlers.forEach(sub => sub.unsubscribe());
       };
     }, [eventBus]);
 
