@@ -100,7 +100,6 @@
   },
   "dependencies": {
     "@semiont/api-client": "*",
-    "@semiont/core": "*",
-    "mitt": "^3.0.1"
+    "@semiont/core": "*"
   }
 }
