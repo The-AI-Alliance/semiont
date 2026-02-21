@@ -60,33 +60,26 @@ vi.mock('../../../contexts/TranslationContext', () => ({
 
 // Create a mock SSE stream that we can control
 class MockSSEStream {
-  private progressHandlers: Array<(chunk: any) => void> = [];
-  private completeHandlers: Array<(finalChunk?: any) => void> = [];
-  private errorHandlers: Array<(error: Error) => void> = [];
+  constructor(private eventBus: any) {}
 
-  onProgress(handler: (chunk: any) => void) {
-    this.progressHandlers.push(handler);
+  close() {
+    // Mock close method
   }
 
-  onComplete(handler: (finalChunk?: any) => void) {
-    this.completeHandlers.push(handler);
-  }
-
-  onError(handler: (error: Error) => void) {
-    this.errorHandlers.push(handler);
-  }
-
-  // Test helper methods
+  // Test helper methods that emit to EventBus
   emitProgress(chunk: any) {
-    this.progressHandlers.forEach(handler => handler(chunk));
+    this.eventBus.get('detection:progress').next(chunk);
   }
 
   emitComplete(finalChunk?: any) {
-    this.completeHandlers.forEach(handler => handler(finalChunk));
+    if (finalChunk) {
+      this.eventBus.get('detection:progress').next(finalChunk);
+    }
+    this.eventBus.get('detection:complete').next({});
   }
 
   emitError(error: Error) {
-    this.errorHandlers.forEach(handler => handler(error));
+    this.eventBus.get('detection:failed').next({ error });
   }
 }
 
@@ -135,11 +128,11 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
 
   beforeEach(() => {
     // Reset event bus for test isolation
-    resetEventBusForTesting();
+    const eventBus = resetEventBusForTesting();
     vi.clearAllMocks();
 
-    // Reset mocks
-    mockStream = new MockSSEStream();
+    // Reset mocks - create stream with eventBus
+    mockStream = new MockSSEStream(eventBus);
 
     // Spy on SSEClient prototype methods to inject mock stream
     vi.spyOn(SSEClient.prototype, 'detectHighlights').mockReturnValue(mockStream as any);

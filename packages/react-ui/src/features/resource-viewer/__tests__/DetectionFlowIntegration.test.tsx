@@ -272,7 +272,7 @@ describe('Detection Flow - Feature Integration', () => {
       expect(detectHighlightsSpy).toHaveBeenCalledTimes(1);
       expect(detectHighlightsSpy).toHaveBeenCalledWith(testUri, {
         instructions: 'Find important text',
-      }, { auth: undefined });
+      }, expect.objectContaining({ auth: undefined }));
     });
 
     // Reset for next test
@@ -293,7 +293,7 @@ describe('Detection Flow - Feature Integration', () => {
       expect(detectCommentsSpy).toHaveBeenCalledWith(testUri, {
         instructions: 'Add helpful comments',
         tone: 'educational',
-      }, { auth: undefined });
+      }, expect.objectContaining({ auth: undefined }));
     });
   });
 
