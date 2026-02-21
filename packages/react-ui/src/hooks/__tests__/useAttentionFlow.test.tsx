@@ -150,7 +150,7 @@ describe('useAttentionFlow', () => {
       expect(getState().hoveredAnnotationId).toBe('ann-hovered');
 
       // Click a different annotation — hover state should be unaffected
-      act(() => { getEventBus().get('annotation:click').next({ annotationId: 'ann-clicked', motivation: 'highlighting' }); }); });
+      act(() => { getEventBus().get('annotation:click').next({ annotationId: 'ann-clicked', motivation: 'highlighting' }); });
       expect(getState().hoveredAnnotationId).toBe('ann-hovered');
     });
   });
