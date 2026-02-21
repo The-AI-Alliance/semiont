@@ -15,6 +15,13 @@ echo "⚛️  Checking React Hooks ordering..."
 npx tsx "$COMPLIANCE_DIR/audit-hooks-ordering.ts"
 echo ""
 
+# EventBus/SSE architecture check (detects legacy callback patterns)
+echo "🔌 Checking EventBus/SSE architecture..."
+npx tsx "$COMPLIANCE_DIR/audit-eventbus-sse.ts" "$REPO_ROOT/packages/react-ui/src" || echo "⚠️  EventBus/SSE violations found in react-ui"
+npx tsx "$COMPLIANCE_DIR/audit-eventbus-sse.ts" "$REPO_ROOT/apps/frontend/src" || echo "⚠️  EventBus/SSE violations found in frontend"
+npx tsx "$COMPLIANCE_DIR/audit-eventbus-sse.ts" "$REPO_ROOT/packages/mcp-server/src" || echo "⚠️  EventBus/SSE violations found in mcp-server"
+echo ""
+
 # React-UI source code
 echo "📦 Auditing packages/react-ui source..."
 cd "$REPO_ROOT/packages/react-ui"
