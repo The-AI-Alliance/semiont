@@ -24,7 +24,7 @@ import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
-import { SemiontApiClient } from '@semiont/core';
+import { SemiontApiClient } from '@semiont/api-client';
 import { resourceUri } from '@semiont/core';
 import type { Emitter } from 'mitt';
 import type { EventMap } from '@semiont/core';
@@ -239,7 +239,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     const createdListener = vi.fn();
     // Set listener after first render so eventBus is captured
     await waitFor(() => expect(getEventBus()).toBeDefined());
-    getEventBus().on('annotation:created', createdListener);
+    const subscription = getEventBus().get('annotation:created').subscribe(createdListener);
 
     act(() => {
       emit('annotation:requested', { selector: TEXT_SELECTOR, motivation: 'linking' });
@@ -257,6 +257,8 @@ describe('Annotation creation clears pendingAnnotation', () => {
       expect(createdListener).toHaveBeenCalledTimes(1);
       expect(createdListener).toHaveBeenCalledWith({ annotation: MOCK_ANNOTATION });
     });
+
+    subscription.unsubscribe();
   });
 
   it('does NOT clear pendingAnnotation if API call fails', async () => {

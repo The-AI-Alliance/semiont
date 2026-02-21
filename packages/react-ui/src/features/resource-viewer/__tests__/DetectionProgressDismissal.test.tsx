@@ -25,7 +25,8 @@ import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
 import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
-import { SSEClient, resourceUri } from '@semiont/core';
+import { SSEClient } from '@semiont/api-client';
+import { resourceUri } from '@semiont/core';
 
 describe('Detection Progress Dismissal Bug', () => {
   let mockStream: any;

@@ -31,7 +31,7 @@ import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
 import { EventBusProvider, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
-import { SSEClient } from '@semiont/core';
+import { SSEClient } from '@semiont/api-client';
 import type { components } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];

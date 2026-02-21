@@ -17,7 +17,7 @@ import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
-import { SSEClient } from '@semiont/core';
+import { SSEClient } from '@semiont/api-client';
 
 describe('REPRODUCING BUG: Detection state not updating', () => {
   beforeEach(() => {

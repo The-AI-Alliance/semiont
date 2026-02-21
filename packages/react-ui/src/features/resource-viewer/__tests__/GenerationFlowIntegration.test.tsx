@@ -26,7 +26,7 @@ import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../..
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { useResolutionFlow } from '../../../hooks/useResolutionFlow';
-import { SSEClient } from '@semiont/core';
+import { SSEClient } from '@semiont/api-client';
 import type { ResourceUri, AnnotationUri } from '@semiont/core';
 import { resourceUri, annotationUri } from '@semiont/core';
 import type { Emitter } from 'mitt';
@@ -343,7 +343,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Add an additional event listener (simulating multiple subscribers)
     const additionalListener = vi.fn();
-    getEventBus().on('generation:start', additionalListener);
+    const subscription = getEventBus().get('generation:start').subscribe(additionalListener);
 
     // Trigger generation
     act(() => {
@@ -363,6 +363,8 @@ describe('Generation Flow - Feature Integration', () => {
 
     // VERIFY: Our additional listener was called (events work)
     expect(additionalListener).toHaveBeenCalledTimes(1);
+
+    subscription.unsubscribe();
   });
 
   it('should forward final chunk as progress before emitting complete', async () => {

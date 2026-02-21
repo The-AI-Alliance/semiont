@@ -29,7 +29,7 @@ import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
-import { SSEClient } from '@semiont/core';
+import { SSEClient } from '@semiont/api-client';
 import type { Motivation } from '@semiont/core';
 import { resourceUri } from '@semiont/core';
 import type { Emitter } from 'mitt';
@@ -322,7 +322,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Add an additional event listener (simulating multiple subscribers)
     const additionalListener = vi.fn();
-    getEventBus().on('detection:start', additionalListener);
+    const subscription = getEventBus().get('detection:start').subscribe(additionalListener);
 
     // Trigger detection
     act(() => {
@@ -339,6 +339,8 @@ describe('Detection Flow - Feature Integration', () => {
 
     // VERIFY: Our additional listener was called (events work)
     expect(additionalListener).toHaveBeenCalledTimes(1);
+
+    subscription.unsubscribe();
   });
 });
 
