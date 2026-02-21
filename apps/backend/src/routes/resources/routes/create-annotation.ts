@@ -7,7 +7,7 @@
 
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import { getTextPositionSelector, getSvgSelector, getFragmentSelector, validateSvgMarkup } from '@semiont/api-client';
 import type { AnnotationAddedEvent } from '@semiont/core';
 import { resourceId, userId, userToAgent } from '@semiont/core';

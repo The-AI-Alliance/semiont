@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { CacheProvider, useCacheManager } from '../CacheContext';
 import type { CacheManager } from '../../types/CacheManager';
-import { resourceUri } from '@semiont/api-client';
+import { resourceUri } from '@semiont/core';
 
 // Test component that uses the hook
 function TestConsumer() {

@@ -6,7 +6,7 @@
  * Keys use semantic names (not URL paths) and are properly typed with 'as const'
  */
 
-import type { ResourceUri, AnnotationUri, ResourceAnnotationUri } from '@semiont/api-client';
+import type { ResourceUri, AnnotationUri, ResourceAnnotationUri } from '@semiont/core';
 
 export const QUERY_KEYS = {
   users: {

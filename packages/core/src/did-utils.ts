@@ -5,7 +5,7 @@
  * between user representations and W3C Web Annotation Agent objects.
  */
 
-import type { components } from '@semiont/api-client';
+import type { components } from './types';
 
 type Agent = components['schemas']['Agent'];
 

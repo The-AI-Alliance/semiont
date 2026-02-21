@@ -17,9 +17,8 @@ import { OAuthService } from '../auth/oauth';
 import bcrypt from 'bcrypt';
 import type { User } from '@prisma/client';
 import type { JWTPayload as ValidatedJWTPayload } from '../types/jwt-types';
-import type { components } from '@semiont/api-client';
-import { userId as makeUserId } from '@semiont/core';
-import { email as makeEmail, googleCredential } from '@semiont/api-client';
+import type { components } from '@semiont/core';
+import { userId as makeUserId, googleCredential, email as makeEmail } from '@semiont/core';
 import { getLogger } from '../logger';
 import { createSafeLogContext } from '../utils/log-sanitizer';
 

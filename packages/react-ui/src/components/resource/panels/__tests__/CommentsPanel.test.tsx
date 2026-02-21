@@ -6,7 +6,7 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { CommentsPanel } from '../CommentsPanel';
 import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../../../contexts/EventBusContext';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -29,16 +29,16 @@ function createEventTracker() {
         events.push({ event: eventName, payload });
       };
 
-      const panelEvents = ['annotation:create'];
+      const panelEvents = ['annotation:create'] as const;
 
       panelEvents.forEach(eventName => {
         const handler = trackEvent(eventName);
-        eventBus.on(eventName, handler);
-        handlers.push(() => eventBus.off(eventName, handler));
+        const subscription = eventBus.get(eventName).subscribe(handler);
+        handlers.push(subscription);
       });
 
       return () => {
-        handlers.forEach(cleanup => cleanup());
+        handlers.forEach(sub => sub.unsubscribe());
       };
     }, [eventBus]);
 

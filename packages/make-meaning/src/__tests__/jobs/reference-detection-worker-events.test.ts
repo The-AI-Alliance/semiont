@@ -12,7 +12,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { ReferenceDetectionWorker } from '../../jobs/reference-detection-worker';
 import { JobQueue, type DetectionJob, type RunningJob, type DetectionParams, type DetectionProgress } from '@semiont/jobs';
 import { resourceId, userId, type EnvironmentConfig } from '@semiont/core';
-import { jobId, entityType } from '@semiont/api-client';
+import { jobId, entityType } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import { promises as fs } from 'fs';

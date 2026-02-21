@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import type { ResourceCreatedEvent, EnvironmentConfig } from '@semiont/core';
 import { resourceId, userId, annotationId } from '@semiont/core';
 import { CREATION_METHODS } from '@semiont/core';

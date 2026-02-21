@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
-import type { components, Selector } from '@semiont/api-client';
+import type { components, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
 import { TagEntry } from './TagEntry';
 import { PanelHeader } from './PanelHeader';
@@ -195,7 +195,7 @@ export function TaggingPanel({
 
   const handleDetect = () => {
     if (selectedCategories.size > 0) {
-      eventBus.emit('detection:start', {
+      eventBus.get('detection:start').next({
         motivation: 'tagging',
         options: {
           schemaId: selectedSchemaId,
@@ -212,7 +212,7 @@ export function TaggingPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.emit('annotation:cancel-pending', undefined);
+        eventBus.get('annotation:cancel-pending').next(undefined);
       }
     };
 
@@ -274,7 +274,7 @@ export function TaggingPanel({
                   className="semiont-select"
                   onChange={(e) => {
                     if (e.target.value && pendingAnnotation) {
-                      eventBus.emit('annotation:create', {
+                      eventBus.get('annotation:create').next({
                         motivation: 'tagging',
                         selector: pendingAnnotation.selector,
                         body: [
@@ -305,7 +305,7 @@ export function TaggingPanel({
             {/* Cancel button */}
             <div className="semiont-annotation-prompt__footer">
               <button
-                onClick={() => eventBus.emit('annotation:cancel-pending', undefined)}
+                onClick={() => eventBus.get('annotation:cancel-pending').next(undefined)}
                 className="semiont-button semiont-button--secondary"
                 data-type="tag"
               >

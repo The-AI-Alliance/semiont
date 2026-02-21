@@ -29,9 +29,8 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       expect(result.current).toBeDefined();
-      expect(result.current.emit).toBeDefined();
-      expect(result.current.on).toBeDefined();
-      expect(result.current.off).toBeDefined();
+      expect(result.current.get).toBeDefined();
+      expect(result.current.destroy).toBeDefined();
     });
   });
 
@@ -41,8 +40,8 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
-        result.current.on('annotation:hover', handler);
-        result.current.emit('annotation:hover', { annotationId: 'ann-123' });
+        result.current.get('annotation:hover').subscribe(handler);
+        result.current.get('annotation:hover').next({ annotationId: 'ann-123' });
       });
 
       expect(handler).toHaveBeenCalledWith({ annotationId: 'ann-123' });
@@ -53,8 +52,8 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
-        result.current.on('panel:toggle', handler);
-        result.current.emit('panel:toggle', { panel: 'comments' });
+        result.current.get('panel:toggle').subscribe(handler);
+        result.current.get('panel:toggle').next({ panel: 'comments' });
       });
 
       expect(handler).toHaveBeenCalledWith({ panel: 'comments' });
@@ -65,8 +64,8 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
-        result.current.on('toolbar:selection-changed', handler);
-        result.current.emit('toolbar:selection-changed', { motivation: 'highlighting' });
+        result.current.get('toolbar:selection-changed').subscribe(handler);
+        result.current.get('toolbar:selection-changed').next({ motivation: 'highlighting' });
       });
 
       expect(handler).toHaveBeenCalledWith({ motivation: 'highlighting' });
@@ -77,8 +76,8 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
-        result.current.on('navigation:sidebar-toggle', handler);
-        result.current.emit('navigation:sidebar-toggle', undefined);
+        result.current.get('navigation:sidebar-toggle').subscribe(handler);
+        result.current.get('navigation:sidebar-toggle').next(undefined);
       });
 
       expect(handler).toHaveBeenCalled();
@@ -89,8 +88,8 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
-        result.current.on('settings:theme-changed', handler);
-        result.current.emit('settings:theme-changed', { theme: 'dark' });
+        result.current.get('settings:theme-changed').subscribe(handler);
+        result.current.get('settings:theme-changed').next({ theme: 'dark' });
       });
 
       expect(handler).toHaveBeenCalledWith({ theme: 'dark' });
@@ -101,8 +100,8 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
-        result.current.on('annotation:create', handler);
-        result.current.emit('annotation:create', {
+        result.current.get('annotation:create').subscribe(handler);
+        result.current.get('annotation:create').next({
           motivation: 'highlighting',
           selector: { type: 'TextQuoteSelector', exact: 'test' },
           body: [{ type: 'TextualBody', value: 'highlight' }]
@@ -117,8 +116,8 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
-        result.current.on('detection:start', handler);
-        result.current.emit('detection:start', {
+        result.current.get('detection:start').subscribe(handler);
+        result.current.get('detection:start').next({
           motivation: 'highlighting',
           options: { instructions: 'Find important parts' }
         });
@@ -136,9 +135,9 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
-        result.current.on('annotation:hover', handler1);
-        result.current.on('annotation:hover', handler2);
-        result.current.emit('annotation:hover', { annotationId: 'ann-123' });
+        result.current.get('annotation:hover').subscribe(handler1);
+        result.current.get('annotation:hover').subscribe(handler2);
+        result.current.get('annotation:hover').next({ annotationId: 'ann-123' });
       });
 
       expect(handler1).toHaveBeenCalledWith({ annotationId: 'ann-123' });
@@ -150,17 +149,18 @@ describe('EventBusContext', () => {
     it('should allow unsubscribing from events', () => {
       const handler = vi.fn();
       const { result } = renderHook(() => useEventBus(), { wrapper });
+      let subscription: { unsubscribe: () => void } | undefined;
 
       act(() => {
-        result.current.on('annotation:hover', handler);
-        result.current.emit('annotation:hover', { annotationId: 'ann-1' });
+        subscription = result.current.get('annotation:hover').subscribe(handler);
+        result.current.get('annotation:hover').next({ annotationId: 'ann-1' });
       });
 
       expect(handler).toHaveBeenCalledTimes(1);
 
       act(() => {
-        result.current.off('annotation:hover', handler);
-        result.current.emit('annotation:hover', { annotationId: 'ann-2' });
+        subscription!.unsubscribe();
+        result.current.get('annotation:hover').next({ annotationId: 'ann-2' });
       });
 
       // Should still be called only once (from before unsubscribing)
@@ -171,15 +171,16 @@ describe('EventBusContext', () => {
       const handler1 = vi.fn();
       const handler2 = vi.fn();
       const { result } = renderHook(() => useEventBus(), { wrapper });
+      let subscription1: { unsubscribe: () => void } | undefined;
 
       act(() => {
-        result.current.on('annotation:hover', handler1);
-        result.current.on('annotation:hover', handler2);
+        subscription1 = result.current.get('annotation:hover').subscribe(handler1);
+        result.current.get('annotation:hover').subscribe(handler2);
 
         // Unsubscribe only handler1
-        result.current.off('annotation:hover', handler1);
+        subscription1.unsubscribe();
 
-        result.current.emit('annotation:hover', { annotationId: 'ann-1' });
+        result.current.get('annotation:hover').next({ annotationId: 'ann-1' });
       });
 
       expect(handler1).not.toHaveBeenCalled();
@@ -208,11 +209,11 @@ describe('EventBusContext', () => {
       const { result: result2 } = renderHook(() => useEventBus(), { wrapper: wrapper2 });
 
       act(() => {
-        result1.current.on('annotation:hover', handler1);
-        result2.current.on('annotation:hover', handler2);
+        result1.current.get('annotation:hover').subscribe(handler1);
+        result2.current.get('annotation:hover').subscribe(handler2);
 
         // Emit on bus 1 - should trigger both handlers since it's the same global bus
-        result1.current.emit('annotation:hover', { annotationId: 'ann-1' });
+        result1.current.get('annotation:hover').next({ annotationId: 'ann-1' });
       });
 
       // Both handlers should be called because they share the same global event bus
@@ -239,19 +240,19 @@ describe('EventBusContext', () => {
 
       act(() => {
         // Subscribe to annotation events
-        result.current.on('annotation:create', createHandler);
-        result.current.on('annotation:created', createdHandler);
-        result.current.on('annotation:hover', hoverHandler);
+        result.current.get('annotation:create').subscribe(createHandler);
+        result.current.get('annotation:created').subscribe(createdHandler);
+        result.current.get('annotation:hover').subscribe(hoverHandler);
 
         // Simulate annotation creation flow
-        result.current.emit('annotation:create', {
+        result.current.get('annotation:create').next({
           motivation: 'commenting',
           selector: { type: 'TextQuoteSelector', exact: 'important text' },
           body: [{ type: 'TextualBody', value: 'my comment' }]
         });
 
         // Simulate successful creation (would normally come from API)
-        result.current.emit('annotation:created', {
+        result.current.get('annotation:created').next({
           annotation: {
             '@context': 'http://www.w3.org/ns/anno.jsonld',
             type: 'Annotation',
@@ -263,7 +264,7 @@ describe('EventBusContext', () => {
         });
 
         // Simulate hover
-        result.current.emit('annotation:hover', { annotationId: 'ann-123' });
+        result.current.get('annotation:hover').next({ annotationId: 'ann-123' });
       });
 
       expect(createHandler).toHaveBeenCalled();
@@ -279,24 +280,24 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
-        result.current.on('detection:start', startHandler);
-        result.current.on('detection:progress', progressHandler);
-        result.current.on('detection:complete', completeHandler);
+        result.current.get('detection:start').subscribe(startHandler);
+        result.current.get('detection:progress').subscribe(progressHandler);
+        result.current.get('detection:complete').subscribe(completeHandler);
 
         // Start detection
-        result.current.emit('detection:start', {
+        result.current.get('detection:start').next({
           motivation: 'tagging',
           options: { schemaId: 'legal', categories: ['Issue', 'Rule'] }
         });
 
         // Progress update
-        result.current.emit('detection:progress', {
+        result.current.get('detection:progress').next({
           type: 'job.progress',
           payload: { current: 5, total: 10 }
         } as any);
 
         // Complete
-        result.current.emit('detection:complete', { motivation: 'tagging' });
+        result.current.get('detection:complete').next({ motivation: 'tagging' });
       });
 
       expect(startHandler).toHaveBeenCalled();

@@ -1,7 +1,7 @@
 'use client';
 
 import { forwardRef } from 'react';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import { getAnnotationExactText } from '@semiont/api-client';
 import { getTagCategory, getTagSchemaId } from '@semiont/ontology';
 import { getTagSchema } from '../../../lib/tag-schemas';
@@ -37,7 +37,7 @@ export const TagEntry = forwardRef<HTMLDivElement, TagEntryProps>(
     <div
       ref={ref}
       onClick={() => {
-        eventBus.emit('annotation:click', { annotationId: tag.id, motivation: tag.motivation });
+        eventBus.get('annotation:click').next({ annotationId: tag.id, motivation: tag.motivation });
       }}
       {...hoverProps}
       className={`semiont-annotation-entry${isHovered ? ' semiont-annotation-pulse' : ''}`}

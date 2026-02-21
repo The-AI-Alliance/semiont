@@ -8,9 +8,9 @@
  */
 
 import { WidgetType } from '@codemirror/view';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import { isResolvedReference, getBodySource } from '@semiont/api-client';
-import type { EventBus } from '../contexts/EventBusContext';
+import type { EventBus } from "@semiont/core"
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -170,7 +170,7 @@ export class ReferenceResolutionWidget extends WidgetType {
         indicator.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
-          eventBus.emit('navigation:reference-navigate', { documentId: bodySource });
+          eventBus.get('navigation:reference-navigate').next({ documentId: bodySource });
         });
       } else if (!isResolved && this.eventBus) {
         const eventBus = this.eventBus; // Capture for closure
@@ -178,7 +178,7 @@ export class ReferenceResolutionWidget extends WidgetType {
         indicator.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
-          eventBus.emit('annotation:click', { annotationId: annotation.id, motivation: annotation.motivation });
+          eventBus.get('annotation:click').next({ annotationId: annotation.id, motivation: annotation.motivation });
         });
       }
     }

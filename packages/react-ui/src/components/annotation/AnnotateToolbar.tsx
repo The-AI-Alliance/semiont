@@ -188,9 +188,9 @@ export function AnnotateToolbar({
   const handleSelectionClick = (motivation: SelectionMotivation | null) => {
     // If null is clicked, always deselect. Otherwise toggle.
     if (motivation === null) {
-      eventBus.emit('toolbar:selection-changed', { motivation: null });
+      eventBus.get('toolbar:selection-changed').next({ motivation: null });
     } else {
-      eventBus.emit('toolbar:selection-changed', {
+      eventBus.get('toolbar:selection-changed').next({
         motivation: selectedMotivation === motivation ? null : motivation
       });
     }
@@ -200,21 +200,21 @@ export function AnnotateToolbar({
   };
 
   const handleClickClick = (action: ClickAction) => {
-    eventBus.emit('toolbar:click-changed', { action });
+    eventBus.get('toolbar:click-changed').next({ action });
     // Close dropdown after selection
     setClickPinned(false);
     setClickHovered(false);
   };
 
   const handleShapeClick = (shape: ShapeType) => {
-    eventBus.emit('toolbar:shape-changed', { shape });
+    eventBus.get('toolbar:shape-changed').next({ shape });
     // Close dropdown after selection
     setShapePinned(false);
     setShapeHovered(false);
   };
 
   const handleModeToggle = () => {
-    eventBus.emit('view:mode-toggled', undefined);
+    eventBus.get('view:mode-toggled').next(undefined);
     setModePinned(false);
     setModeHovered(false);
   };

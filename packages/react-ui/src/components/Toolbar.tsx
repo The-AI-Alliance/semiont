@@ -28,7 +28,7 @@ export function Toolbar<T extends string = string>({
   const eventBus = useEventBus();
 
   const handlePanelToggle = (panel: string) => {
-    eventBus.emit('panel:toggle', { panel });
+    eventBus.get('panel:toggle').next({ panel });
   };
 
   return (

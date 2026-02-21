@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { MemoryGraphDatabase } from '../implementations/memorygraph';
 import type { GraphDatabase } from '../interface';
 import { resourceId, annotationId, uriToResourceId } from '@semiont/core';
-import { resourceUri, type ResourceUri, type AnnotationUri } from '@semiont/api-client';
+import { resourceUri, type ResourceUri, type AnnotationUri } from '@semiont/core';
 import {
   createTestResource,
   createTestHighlight,

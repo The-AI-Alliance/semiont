@@ -11,7 +11,8 @@
 
 import { HTTPException } from 'hono/http-exception';
 import type { AnnotationsRouterType } from '../shared';
-import { type components, getBodySource } from '@semiont/api-client';
+import type { components } from '@semiont/core';
+import { getBodySource } from '@semiont/api-client';
 import { AnnotationContext } from '@semiont/make-meaning';
 import { ResourceContext } from '@semiont/make-meaning';
 import { uriToResourceId } from '@semiont/core';

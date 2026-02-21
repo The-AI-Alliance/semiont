@@ -5,8 +5,9 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { remarkAnnotations, type PreparedAnnotation } from '../../lib/remark-annotations';
 import { rehypeRenderAnnotations } from '../../lib/rehype-render-annotations';
-import type { components } from '@semiont/api-client';
-import { getExactText, getTextPositionSelector, getTargetSelector, getBodySource, getMimeCategory, isPdfMimeType, resourceUri as toResourceUri } from '@semiont/api-client';
+import type { components } from '@semiont/core';
+import { resourceUri as toResourceUri } from '@semiont/core';
+import { getExactText, getTextPositionSelector, getTargetSelector, getBodySource, getMimeCategory, isPdfMimeType } from '@semiont/api-client';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import { createHoverHandlers } from '../../hooks/useAttentionFlow';
 import { ImageViewer } from '../viewers';
@@ -111,13 +112,13 @@ export function BrowseView({
       if (annotationId && annotationType === 'reference') {
         const annotation = allAnnotations.find(a => a.id === annotationId);
         if (annotation) {
-          eventBus.emit('annotation:click', { annotationId, motivation: annotation.motivation });
+          eventBus.get('annotation:click').next({ annotationId, motivation: annotation.motivation });
         }
       }
     };
 
     const { handleMouseEnter, handleMouseLeave, cleanup: cleanupHover } = createHoverHandlers(
-      (annotationId) => eventBus.emit('annotation:hover', { annotationId })
+      (annotationId) => eventBus.get('annotation:hover').next({ annotationId })
     );
 
     // Single mouseover handler for the container - fires once on enter

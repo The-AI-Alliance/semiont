@@ -12,7 +12,7 @@ import { generateResourceSummary, generateReferenceSuggestions } from './generat
 import type { InferenceClient } from '@semiont/inference';
 import { getResourceEntityTypes, getResourceId } from '@semiont/api-client';
 import { resourceId as makeResourceId, type EnvironmentConfig, type ResourceId } from '@semiont/core';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type ResourceLLMContextResponse = components['schemas']['ResourceLLMContextResponse'];

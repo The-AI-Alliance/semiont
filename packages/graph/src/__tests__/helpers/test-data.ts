@@ -3,9 +3,9 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import type { CreateAnnotationInternal } from '@semiont/core';
-import { resourceUri } from '@semiont/api-client';
+import { resourceUri } from '@semiont/core';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 

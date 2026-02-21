@@ -6,7 +6,7 @@
  */
 
 import type { StoredEvent, ResourceEventType } from '@semiont/core';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import { getExactText, getTargetSelector } from '@semiont/api-client';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 

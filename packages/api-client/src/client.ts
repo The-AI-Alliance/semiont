@@ -10,9 +10,11 @@
  */
 
 import ky, { type KyInstance } from 'ky';
-import type { paths } from './types';
-import type { AnnotationUri, ResourceUri, ResourceAnnotationUri } from './branded-types';
+import type { paths } from '@semiont/core';
 import type {
+  AnnotationUri,
+  ResourceUri,
+  ResourceAnnotationUri,
   AccessToken,
   BaseUrl,
   CloneToken,
@@ -25,7 +27,7 @@ import type {
   RefreshToken,
   SearchQuery,
   UserDID
-} from './branded-types';
+} from '@semiont/core';
 import { SSEClient } from './sse/index';
 import type { Logger } from './logger';
 

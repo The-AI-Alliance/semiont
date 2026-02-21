@@ -19,8 +19,8 @@ import { ResourceContext } from '@semiont/make-meaning';
 import type { JobQueue, PendingJob, DetectionParams } from '@semiont/jobs';
 import { nanoid } from 'nanoid';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
-import type { components } from '@semiont/api-client';
-import { jobId, entityType, resourceUri } from '@semiont/api-client';
+import type { components } from '@semiont/core';
+import { jobId, entityType, resourceUri } from '@semiont/core';
 import { userId, resourceId, type ResourceId } from '@semiont/core';
 
 type DetectReferencesStreamRequest = components['schemas']['DetectReferencesStreamRequest'];

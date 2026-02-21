@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import { getEntityTypes, getBodySource, isResolved } from './helpers/annotation-helpers';
 
 type Annotation = components['schemas']['Annotation'];

@@ -52,7 +52,7 @@ import { JWTService } from '../../auth/jwt';
 import { User } from '@prisma/client';
 import { faker } from '@faker-js/faker';
 import * as bcrypt from 'bcrypt';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 
 type AuthResponse = components["schemas"]["AuthResponse"];
 type ErrorResponse = components["schemas"]["ErrorResponse"];

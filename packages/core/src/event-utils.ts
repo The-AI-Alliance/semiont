@@ -6,7 +6,7 @@
  */
 
 import type { StoredEvent } from './events';
-import type { AnnotationUri } from '@semiont/api-client';
+import type { AnnotationUri } from './branded-types';
 
 // =============================================================================
 // EVENT TYPE GUARDS AND EXTRACTION

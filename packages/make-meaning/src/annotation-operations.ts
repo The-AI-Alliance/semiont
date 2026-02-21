@@ -9,11 +9,8 @@
 
 import type { EventStore } from '@semiont/event-sourcing';
 import { generateAnnotationId } from '@semiont/event-sourcing';
-import {
-  type components,
-  getTextPositionSelector,
-  getTargetSource,
-} from '@semiont/api-client';
+import type { components } from '@semiont/core';
+import { getTextPositionSelector, getTargetSource } from '@semiont/api-client';
 import type {
   AnnotationAddedEvent,
   BodyOperation,

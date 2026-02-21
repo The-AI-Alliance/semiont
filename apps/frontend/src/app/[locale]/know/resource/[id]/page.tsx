@@ -11,8 +11,8 @@ import { useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useLocale } from 'next-intl';
 import { useResources } from '@semiont/react-ui';
-import type { ResourceUri } from '@semiont/api-client';
-import { resourceUri } from '@semiont/api-client';
+import type { ResourceUri } from '@semiont/core';
+import { resourceUri } from '@semiont/core';
 import { Link, routes } from '@/lib/routing';
 import { useCacheManager } from '@/hooks/useCacheManager';
 

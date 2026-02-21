@@ -7,7 +7,7 @@
  * - Second body has purpose: "classifying" with schema ID
  */
 
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -27,9 +27,11 @@ function isTag(annotation: Annotation): boolean {
 export function getTagCategory(annotation: Annotation): string | undefined {
   if (!isTag(annotation)) return undefined;
   const bodies = Array.isArray(annotation.body) ? annotation.body : [annotation.body];
-  const taggingBody = bodies.find(b => b && 'purpose' in b && b.purpose === 'tagging');
+  const taggingBody = bodies.find((b): b is Extract<typeof b, { purpose?: string }> =>
+    b !== null && typeof b === 'object' && 'purpose' in b && b.purpose === 'tagging'
+  );
   if (taggingBody && 'value' in taggingBody) {
-    return taggingBody.value;
+    return taggingBody.value as string;
   }
   return undefined;
 }
@@ -43,9 +45,11 @@ export function getTagCategory(annotation: Annotation): string | undefined {
 export function getTagSchemaId(annotation: Annotation): string | undefined {
   if (!isTag(annotation)) return undefined;
   const bodies = Array.isArray(annotation.body) ? annotation.body : [annotation.body];
-  const classifyingBody = bodies.find(b => b && 'purpose' in b && b.purpose === 'classifying');
+  const classifyingBody = bodies.find((b): b is Extract<typeof b, { purpose?: string }> =>
+    b !== null && typeof b === 'object' && 'purpose' in b && b.purpose === 'classifying'
+  );
   if (classifyingBody && 'value' in classifyingBody) {
-    return classifyingBody.value;
+    return classifyingBody.value as string;
   }
   return undefined;
 }

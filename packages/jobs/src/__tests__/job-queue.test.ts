@@ -8,8 +8,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { JobQueue } from '../job-queue';
 import type { JobStatus, PendingJob, RunningJob, CompleteJob, FailedJob, DetectionParams, DetectionProgress, DetectionResult, GenerationParams } from '../types';
-import { entityType, jobId } from '@semiont/api-client';
-import { userId, resourceId, annotationId } from '@semiont/core';
+import { entityType, jobId, userId, resourceId, annotationId } from '@semiont/core';
 
 // Test helper - create detection jobs in various states
 function createPendingDetectionJob(id: string): PendingJob<DetectionParams> {

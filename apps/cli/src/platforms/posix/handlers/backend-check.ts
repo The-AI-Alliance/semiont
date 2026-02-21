@@ -4,7 +4,8 @@ import { isPortInUse } from '../../../core/io/network-utils.js';
 import { StateManager } from '../../../core/state-manager.js';
 import { getBackendPaths } from './backend-paths.js';
 import type { BackendServiceConfig } from '@semiont/core';
-import { SemiontApiClient, baseUrl } from '@semiont/api-client';
+import { baseUrl } from '@semiont/core';
+import { SemiontApiClient } from '@semiont/api-client';
 
 /**
  * Check handler for backend services on POSIX systems

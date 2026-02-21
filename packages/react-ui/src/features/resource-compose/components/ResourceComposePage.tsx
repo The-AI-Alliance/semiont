@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import { isImageMimeType, isPdfMimeType, LOCALES } from '@semiont/api-client';
 import { buttonStyles } from '../../../lib/button-styles';
 import { CodeMirrorRenderer } from '../../../components/CodeMirrorRenderer';

@@ -11,7 +11,7 @@
 import { Hono } from 'hono';
 import { authMiddleware } from '../middleware/auth';
 import type { User } from '@prisma/client';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 
 type StatusResponse = components['schemas']['StatusResponse'];
 

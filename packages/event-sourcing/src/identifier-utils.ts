@@ -14,13 +14,11 @@ import { nanoid } from 'nanoid';
 import {
   type ResourceId,
   type AnnotationId,
-} from '@semiont/core';
-import {
   type ResourceUri,
   type AnnotationUri,
   resourceUri,
   annotationUri,
-} from '@semiont/api-client';
+} from '@semiont/core';
 import type { IdentifierConfig } from './types';
 
 // Re-export IdentifierConfig for convenience

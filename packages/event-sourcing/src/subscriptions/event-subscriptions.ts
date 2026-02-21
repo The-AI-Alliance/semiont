@@ -13,8 +13,7 @@
  * @see docs/EVENT-STORE.md#eventsubscriptions for architecture details
  */
 
-import type { StoredEvent } from '@semiont/core';
-import type { ResourceUri } from '@semiont/api-client';
+import type { StoredEvent, ResourceUri } from '@semiont/core';
 
 export type EventCallback = (event: StoredEvent) => void | Promise<void>;
 

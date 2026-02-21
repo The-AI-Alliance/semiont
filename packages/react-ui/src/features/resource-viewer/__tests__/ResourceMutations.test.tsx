@@ -25,14 +25,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import { act } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { SemiontApiClient, resourceUri, accessToken } from '@semiont/api-client';
+import { SemiontApiClient } from '@semiont/api-client';
+import { resourceUri, accessToken } from '@semiont/core';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { useResources } from '../../../lib/api-hooks';
-import type { EventMap } from '../../../contexts/EventBusContext';
-import type { Emitter } from 'mitt';
+import type { EventMap, EventBus } from '@semiont/core';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -50,10 +50,10 @@ const CLONE_TOKEN = 'generated-clone-token-xyz';
  * The critical invariant under test: useMutation() is called at hook level
  * (inside useResources), not inside the useCallback bodies.
  */
-function ResourceMutationHarness({ onEventBus }: { onEventBus: (bus: Emitter<EventMap>) => void }) {
+function ResourceMutationHarness({ onEventBus }: { onEventBus: (eventBus: EventBus) => void }) {
   const eventBus = useEventBus();
 
-  // Capture the bus for the test to emit events
+  // Capture the eventBus for the test to emit events
   React.useEffect(() => {
     onEventBus(eventBus);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -91,7 +91,7 @@ function ResourceMutationHarness({ onEventBus }: { onEventBus: (bus: Emitter<Eve
 // ─── Test setup ───────────────────────────────────────────────────────────────
 
 function renderHarness() {
-  let capturedBus: Emitter<EventMap> | null = null;
+  let capturedEventBus: EventBus | null = null;
 
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -105,7 +105,7 @@ function renderHarness() {
       <ApiClientProvider baseUrl={BASE_URL}>
         <QueryClientProvider client={queryClient}>
           <EventBusProvider>
-            <ResourceMutationHarness onEventBus={(bus) => { capturedBus = bus; }} />
+            <ResourceMutationHarness onEventBus={(eventBus) => { capturedEventBus = eventBus; }} />
           </EventBusProvider>
         </QueryClientProvider>
       </ApiClientProvider>
@@ -113,7 +113,7 @@ function renderHarness() {
   );
 
   const emit = <K extends keyof EventMap>(event: K, payload: EventMap[K]) => {
-    act(() => { capturedBus!.emit(event, payload); });
+    act(() => { capturedEventBus!.get(event).next(payload); });
   };
 
   return { emit };

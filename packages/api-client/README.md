@@ -8,6 +8,8 @@
 
 TypeScript SDK for [Semiont](https://github.com/The-AI-Alliance/semiont) - a knowledge management system for semantic annotations, AI-powered annotation detection, and collaborative document analysis.
 
+This package provides the HTTP client, SSE streams, and utilities for working with the Semiont API. OpenAPI types are re-exported from [`@semiont/core`](../core/README.md) (the source of truth).
+
 ## What is Semiont?
 
 Semiont lets you:
@@ -110,11 +112,13 @@ const client = new SemiontApiClient({
 
 ## Key Features
 
-- **Type-safe** - Generated from OpenAPI spec with branded types
+- **Type-safe** - Re-exports OpenAPI types from `@semiont/core` with branded types
 - **W3C compliant** - Web Annotation standard with fuzzy text matching
 - **Real-time** - SSE streaming for long operations
 - **Framework-agnostic** - Pure TypeScript utilities work everywhere
 - **Character encoding** - Proper UTF-8, ISO-8859-1, Windows-1252 support
+
+**Note**: OpenAPI types are generated in `@semiont/core` (source of truth) and re-exported here for convenience.
 
 ## Use Cases
 

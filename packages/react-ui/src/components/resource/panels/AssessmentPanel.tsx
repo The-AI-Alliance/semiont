@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
-import type { components, Selector } from '@semiont/api-client';
+import type { components, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
 import { AssessmentEntry } from './AssessmentEntry';
 import { DetectSection } from './DetectSection';
@@ -141,7 +141,7 @@ export function AssessmentPanel({
         ? [{ type: 'TextualBody' as const, value: newAssessmentText, purpose: 'assessing' as const }]
         : [];
 
-      eventBus.emit('annotation:create', {
+      eventBus.get('annotation:create').next({
         motivation: 'assessing',
         selector: pendingAnnotation.selector,
         body,
@@ -156,7 +156,7 @@ export function AssessmentPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.emit('annotation:cancel-pending', undefined);
+        eventBus.get('annotation:cancel-pending').next(undefined);
         setNewAssessmentText('');
       }
     };
@@ -209,7 +209,7 @@ export function AssessmentPanel({
             <div className="semiont-annotation-prompt__actions">
               <button
                 onClick={() => {
-                  eventBus.emit('annotation:cancel-pending', undefined);
+                  eventBus.get('annotation:cancel-pending').next(undefined);
                   setNewAssessmentText('');
                 }}
                 className="semiont-button semiont-button--secondary"

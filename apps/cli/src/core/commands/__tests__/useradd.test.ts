@@ -171,7 +171,7 @@ describe('useradd command', () => {
     it('should set isModerator=true when --moderator flag is provided', async () => {
       const options = createUseraddOptions({
         email: 'moderator@example.com',
-        password: 'modpass',
+        password: 'modpass123',
         moderator: true
       });
 
@@ -190,14 +190,14 @@ describe('useradd command', () => {
       // Create initial user
       const initialOptions = createUseraddOptions({
         email: 'duplicate@example.com',
-        password: 'pass1'
+        password: 'password1'
       });
       await useradd(initialOptions);
 
       // Try to create again without update flag
       const duplicateOptions = createUseraddOptions({
         email: 'duplicate@example.com',
-        password: 'pass2'
+        password: 'password2'
       });
 
       await expect(useradd(duplicateOptions)).rejects.toThrow(/already exists/);
@@ -241,7 +241,7 @@ describe('useradd command', () => {
       // Create regular user
       const initialOptions = createUseraddOptions({
         email: 'roleupdate@example.com',
-        password: 'pass'
+        password: 'password1'
       });
       await useradd(initialOptions);
 
@@ -263,7 +263,7 @@ describe('useradd command', () => {
     it('should throw error when updating non-existent user', async () => {
       const options = createUseraddOptions({
         email: 'nonexistent@example.com',
-        password: 'pass',
+        password: 'password1',
         update: true
       });
 
@@ -275,7 +275,7 @@ describe('useradd command', () => {
     it('should throw error for invalid email format', async () => {
       const options = createUseraddOptions({
         email: 'not-an-email',
-        password: 'pass'
+        password: 'password1'
       });
 
       await expect(useradd(options)).rejects.toThrow(/invalid email/);
@@ -284,7 +284,7 @@ describe('useradd command', () => {
     it('should throw error for missing @ symbol', async () => {
       const options = createUseraddOptions({
         email: 'nodomain.com',
-        password: 'pass'
+        password: 'password1'
       });
 
       await expect(useradd(options)).rejects.toThrow(/invalid email/);
@@ -315,17 +315,17 @@ describe('useradd command', () => {
   describe('domain extraction', () => {
     it('should extract domain from email correctly', async () => {
       const options = createUseraddOptions({
-        email: 'user@company.org',
-        password: 'testpass'
+        email: 'user@example.com',
+        password: 'testpass123'
       });
 
       await useradd(options);
 
       const user = await prisma.user.findUnique({
-        where: { email: 'user@company.org' }
+        where: { email: 'user@example.com' }
       });
 
-      expect(user?.domain).toBe('company.org');
+      expect(user?.domain).toBe('example.com');
     });
   });
 
@@ -333,7 +333,7 @@ describe('useradd command', () => {
     it('should set isActive=false when --inactive flag is provided', async () => {
       const options = createUseraddOptions({
         email: 'inactive@example.com',
-        password: 'pass',
+        password: 'password1',
         inactive: true
       });
 
@@ -351,7 +351,7 @@ describe('useradd command', () => {
     it('should set name when --name flag is provided', async () => {
       const options = createUseraddOptions({
         email: 'named@example.com',
-        password: 'pass',
+        password: 'password1',
         name: 'John Doe'
       });
 
@@ -367,7 +367,7 @@ describe('useradd command', () => {
     it('should leave name null when not provided', async () => {
       const options = createUseraddOptions({
         email: 'noname@example.com',
-        password: 'pass'
+        password: 'password1'
       });
 
       await useradd(options);

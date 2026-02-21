@@ -10,10 +10,10 @@
 
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { userId } from '@semiont/core';
-import { email } from '@semiont/api-client';
+import { email } from '@semiont/core';
 import { JWTService } from '../../auth/jwt';
 import type { EnvironmentConfig } from '@semiont/core';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import type { User } from '@prisma/client';
 
 type GetReferencedByResponse = components['schemas']['GetReferencedByResponse'];

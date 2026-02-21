@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
-import type { ResourceUri } from '@semiont/api-client';
+import type { ResourceUri } from '@semiont/core';
 import { getPrimaryMediaType } from '@semiont/api-client';
 import { useToast } from '../components/Toast';
 import { useResources } from '../lib/api-hooks';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 

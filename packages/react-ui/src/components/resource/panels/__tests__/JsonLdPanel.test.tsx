@@ -4,7 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { JsonLdPanel } from '../JsonLdPanel';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 

@@ -70,7 +70,7 @@ export function ObservableLink({
 
   const handleClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
     // Emit event for observability
-    eventBus.emit('navigation:link-clicked', {
+    eventBus.get('navigation:link-clicked').next({
       href,
       label
     });

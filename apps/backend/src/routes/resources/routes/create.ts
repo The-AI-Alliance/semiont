@@ -12,7 +12,7 @@
 import { HTTPException } from 'hono/http-exception';
 import { userId, type CreationMethod } from '@semiont/core';
 import type { ResourcesRouterType } from '../shared';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import { ResourceOperations } from '@semiont/make-meaning';
 
 type ContentFormat = components['schemas']['ContentFormat'];

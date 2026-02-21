@@ -5,8 +5,8 @@ import { renderWithProviders, resetEventBusForTesting } from '../../../../test-u
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { CommentEntry } from '../CommentEntry';
-import type { components } from '@semiont/api-client';
-import type { EventBus } from '../../../../contexts/EventBusContext';
+import type { components } from '@semiont/core';
+import type { EventBus } from "@semiont/core"
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -250,7 +250,7 @@ describe('CommentEntry Component', () => {
       );
 
       // Subscribe to actual event on real event bus
-      eventBus!.on('annotation:click', clickHandler);
+      const subscription = eventBus!.get('annotation:click').subscribe(clickHandler);
 
       const commentDiv = container.firstChild as HTMLElement;
       await userEvent.click(commentDiv);
@@ -261,7 +261,7 @@ describe('CommentEntry Component', () => {
       });
 
       // Clean up
-      eventBus!.off('annotation:click', clickHandler);
+      subscription.unsubscribe();
     });
 
     it('should be clickable with cursor-pointer class', () => {
@@ -283,7 +283,7 @@ describe('CommentEntry Component', () => {
       );
 
       // Subscribe to actual event
-      eventBus!.on('annotation:hover', hoverHandler);
+      const subscription = eventBus!.get('annotation:hover').subscribe(hoverHandler);
 
       const commentDiv = container.firstChild as HTMLElement;
       fireEvent.mouseEnter(commentDiv);
@@ -297,7 +297,7 @@ describe('CommentEntry Component', () => {
       expect(hoverHandler).toHaveBeenCalledWith({ annotationId: 'comment-1' });
 
       // Clean up
-      eventBus!.off('annotation:hover', hoverHandler);
+      subscription.unsubscribe();
       vi.useRealTimers();
     });
 
@@ -311,7 +311,7 @@ describe('CommentEntry Component', () => {
       );
 
       // Subscribe to actual event
-      eventBus!.on('annotation:hover', hoverHandler);
+      const subscription = eventBus!.get('annotation:hover').subscribe(hoverHandler);
 
       const commentDiv = container.firstChild as HTMLElement;
       fireEvent.mouseEnter(commentDiv);
@@ -323,7 +323,7 @@ describe('CommentEntry Component', () => {
       expect(hoverHandler).not.toHaveBeenCalled();
 
       // Clean up
-      eventBus!.off('annotation:hover', hoverHandler);
+      subscription.unsubscribe();
       vi.useRealTimers();
     });
 
@@ -336,7 +336,7 @@ describe('CommentEntry Component', () => {
         { returnEventBus: true }
       );
 
-      eventBus!.on('annotation:hover', hoverHandler);
+      const subscription = eventBus!.get('annotation:hover').subscribe(hoverHandler);
 
       const commentDiv = container.firstChild as HTMLElement;
       fireEvent.mouseEnter(commentDiv);
@@ -347,7 +347,7 @@ describe('CommentEntry Component', () => {
       expect(hoverHandler).toHaveBeenNthCalledWith(1, { annotationId: 'comment-1' });
       expect(hoverHandler).toHaveBeenNthCalledWith(2, { annotationId: null });
 
-      eventBus!.off('annotation:hover', hoverHandler);
+      subscription.unsubscribe();
       vi.useRealTimers();
     });
 

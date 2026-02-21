@@ -10,7 +10,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { getShardPath } from './shard-utils';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import type { ResourceAnnotations, ResourceId } from '@semiont/core';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];

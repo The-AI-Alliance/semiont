@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
-import type { components, Selector } from '@semiont/api-client';
+import type { components, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
 import { HighlightEntry } from './HighlightEntry';
 import { DetectSection } from './DetectSection';
@@ -132,7 +132,7 @@ export function HighlightPanel({
   // immediately emit annotation:create event
   useEffect(() => {
     if (pendingAnnotation && pendingAnnotation.motivation === 'highlighting') {
-      eventBus.emit('annotation:create', {
+      eventBus.get('annotation:create').next({
         motivation: 'highlighting',
         selector: pendingAnnotation.selector,
         body: [],

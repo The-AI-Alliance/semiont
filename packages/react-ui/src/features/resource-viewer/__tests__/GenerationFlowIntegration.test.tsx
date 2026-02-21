@@ -27,32 +27,16 @@ import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { useResolutionFlow } from '../../../hooks/useResolutionFlow';
 import { SSEClient } from '@semiont/api-client';
-import type { ResourceUri, AnnotationUri } from '@semiont/api-client';
-import { resourceUri, annotationUri } from '@semiont/api-client';
+import type { ResourceUri, AnnotationUri } from '@semiont/core';
+import { resourceUri, annotationUri } from '@semiont/core';
 import type { Emitter } from 'mitt';
-import type { EventMap } from '../../../contexts/EventBusContext';
+import type { EventMap } from '@semiont/core';
 
-// Mock SSE stream that we can control in tests
+// Mock SSE stream - SSE now emits directly to EventBus, no callbacks
 const createMockGenerationStream = () => {
-  const stream = {
-    onProgressCallback: null as ((chunk: any) => void) | null,
-    onCompleteCallback: null as ((finalChunk: any) => void) | null,
-    onErrorCallback: null as ((error: Error) => void) | null,
-    onProgress: vi.fn((callback: (chunk: any) => void) => {
-      stream.onProgressCallback = callback;
-      return stream;
-    }),
-    onComplete: vi.fn((callback: (finalChunk: any) => void) => {
-      stream.onCompleteCallback = callback;
-      return stream;
-    }),
-    onError: vi.fn((callback: (error: Error) => void) => {
-      stream.onErrorCallback = callback;
-      return stream;
-    }),
+  return {
     close: vi.fn(),
   };
-  return stream;
 };
 
 describe('Generation Flow - Feature Integration', () => {
@@ -107,7 +91,7 @@ describe('Generation Flow - Feature Integration', () => {
     const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
     const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
 
-    const { emitGenerationStart } = renderGenerationFlow(
+    const { emitGenerationStart, getEventBus } = renderGenerationFlow(
       testResourceUri
     );
 
@@ -146,7 +130,7 @@ describe('Generation Flow - Feature Integration', () => {
           entityTypes: ['Person', 'Organization'],
         },
       },
-      { auth: undefined }
+      expect.objectContaining({ auth: undefined })
     );
   });
 
@@ -154,7 +138,7 @@ describe('Generation Flow - Feature Integration', () => {
     const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
     const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
 
-    const { emitGenerationStart } = renderGenerationFlow(
+    const { emitGenerationStart, getEventBus } = renderGenerationFlow(
       testResourceUri
     );
 
@@ -173,7 +157,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Simulate SSE progress callback being invoked
     act(() => {
-      mockStream.onProgressCallback!({
+      getEventBus().get('generation:progress').next({
         status: 'generating',
         message: 'Generating content...',
         percentage: 25,
@@ -191,7 +175,7 @@ describe('Generation Flow - Feature Integration', () => {
     const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
     const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
 
-    const { emitGenerationStart } = renderGenerationFlow(
+    const { emitGenerationStart, getEventBus } = renderGenerationFlow(
       testResourceUri
     );
 
@@ -209,7 +193,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // First progress update
     act(() => {
-      mockStream.onProgressCallback!({
+      getEventBus().get('generation:progress').next({
         status: 'started',
         message: 'Starting generation...',
         percentage: 0,
@@ -222,7 +206,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Second progress update
     act(() => {
-      mockStream.onProgressCallback!({
+      getEventBus().get('generation:progress').next({
         status: 'generating',
         message: 'Creating document structure...',
         percentage: 50,
@@ -235,11 +219,14 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Final progress update via onComplete
     act(() => {
-      mockStream.onCompleteCallback!({
-        status: 'complete',
-        message: 'Document created successfully',
-        percentage: 100,
-        resourceName: 'Generated Document',
+      getEventBus().get('generation:complete').next({
+        annotationUri: testAnnotationUri,
+        progress: {
+          status: 'complete',
+          message: 'Document created successfully',
+          percentage: 100,
+          resourceName: 'Generated Document',
+        }
       });
     });
 
@@ -271,7 +258,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Simulate completion with final chunk
     act(() => {
-      mockStream.onProgressCallback!({
+      getEventBus().get('generation:progress').next({
         status: 'complete',
         message: 'Complete',
         resourceName: 'Generated Document',
@@ -280,7 +267,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Emit completion event
     act(() => {
-      getEventBus().emit('generation:complete', {
+      getEventBus().get('generation:complete').next({
         annotationUri: testAnnotationUri,
         progress: {
           status: 'complete',
@@ -311,7 +298,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Add some progress
     act(() => {
-      mockStream.onProgressCallback!({
+      getEventBus().get('generation:progress').next({
         status: 'generating',
         message: 'Generating...',
       });
@@ -323,7 +310,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Emit failure
     act(() => {
-      getEventBus().emit('generation:failed', { error: new Error('Network error') });
+      getEventBus().get('generation:failed').next({ error: new Error('Network error') });
     });
 
     // Verify: progress cleared and not generating
@@ -343,7 +330,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Add an additional event listener (simulating multiple subscribers)
     const additionalListener = vi.fn();
-    getEventBus().on('generation:start', additionalListener);
+    const subscription = getEventBus().get('generation:start').subscribe(additionalListener);
 
     // Trigger generation
     act(() => {
@@ -363,13 +350,15 @@ describe('Generation Flow - Feature Integration', () => {
 
     // VERIFY: Our additional listener was called (events work)
     expect(additionalListener).toHaveBeenCalledTimes(1);
+
+    subscription.unsubscribe();
   });
 
   it('should forward final chunk as progress before emitting complete', async () => {
     const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
     const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
 
-    const { emitGenerationStart } = renderGenerationFlow(
+    const { emitGenerationStart, getEventBus } = renderGenerationFlow(
       testResourceUri
     );
 
@@ -387,11 +376,14 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Simulate onComplete with final chunk
     act(() => {
-      mockStream.onCompleteCallback!({
-        status: 'complete',
-        message: 'Document created: My Document',
-        resourceName: 'My Document',
-        percentage: 100,
+      getEventBus().get('generation:complete').next({
+        annotationUri: testAnnotationUri,
+        progress: {
+          status: 'complete',
+          message: 'Document created: My Document',
+          resourceName: 'My Document',
+          percentage: 100,
+        }
       });
     });
 
@@ -470,7 +462,7 @@ function renderGenerationFlow(
       resourceUri: ResourceUri,
       defaultTitle: string
     ) => {
-      eventBusInstance.emit('generation:modal-open', {
+      eventBusInstance.get('generation:modal-open').next({
         annotationUri,
         resourceUri,
         defaultTitle,
@@ -488,7 +480,7 @@ function renderGenerationFlow(
         context: any;
       }
     ) => {
-      eventBusInstance.emit('generation:start', {
+      eventBusInstance.get('generation:start').next({
         annotationUri,
         resourceUri,
         options,

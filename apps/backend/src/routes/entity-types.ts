@@ -12,7 +12,7 @@ import { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import { authMiddleware } from '../middleware/auth';
 import { validateRequestBody } from '../middleware/validate-openapi';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import { userId, type EnvironmentConfig } from '@semiont/core';
 import type { startMakeMeaning } from '@semiont/make-meaning';
 import { readEntityTypesProjection } from '@semiont/make-meaning';

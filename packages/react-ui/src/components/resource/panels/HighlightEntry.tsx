@@ -1,7 +1,7 @@
 'use client';
 
 import { forwardRef } from 'react';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import { getAnnotationExactText } from '@semiont/api-client';
 import { useEventBus } from '../../../contexts/EventBusContext';
 import { useHoverEmitter } from '../../../hooks/useAttentionFlow';
@@ -52,7 +52,7 @@ export const HighlightEntry = forwardRef<HTMLDivElement, HighlightEntryProps>(
       data-type="highlight"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        eventBus.emit('annotation:click', { annotationId: highlight.id, motivation: highlight.motivation });
+        eventBus.get('annotation:click').next({ annotationId: highlight.id, motivation: highlight.motivation });
       }}
       {...hoverProps}
     >

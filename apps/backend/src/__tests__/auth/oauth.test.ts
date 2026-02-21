@@ -1,4 +1,4 @@
-import { accessToken, googleCredential, email } from '@semiont/api-client';
+import { accessToken, googleCredential, email } from '@semiont/core';
 /**
  * Tests for OAuth service
  */

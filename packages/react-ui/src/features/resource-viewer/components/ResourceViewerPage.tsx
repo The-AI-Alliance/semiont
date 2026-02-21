@@ -7,8 +7,9 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { components, ResourceUri } from '@semiont/api-client';
-import { getLanguage, getPrimaryRepresentation, resourceAnnotationUri, getPrimaryMediaType } from '@semiont/api-client';
+import type { components, ResourceUri } from '@semiont/core';
+import { resourceAnnotationUri } from '@semiont/core';
+import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType } from '@semiont/api-client';
 import { uriToAnnotationId } from '@semiont/core';
 import { ANNOTATORS } from '@semiont/react-ui';
 import { ErrorBoundary } from '@semiont/react-ui';
@@ -308,7 +309,7 @@ export function ResourceViewerPage({
     try {
       const result = await generateCloneTokenMutation.mutateAsync(rUri);
       const token = result.token;
-      eventBus.emit('navigation:router-push', { path: `/know/compose?mode=clone&token=${token}`, reason: 'clone' });
+      eventBus.get('navigation:router-push').next({ path: `/know/compose?mode=clone&token=${token}`, reason: 'clone' });
     } catch (err) {
       console.error('Failed to generate clone token:', err);
       showError('Failed to generate clone link');
@@ -345,14 +346,14 @@ export function ResourceViewerPage({
   const handleReferenceNavigate = useCallback(({ documentId }: { documentId: string }) => {
     if (routes.resource) {
       const path = routes.resource.replace('[resourceId]', encodeURIComponent(documentId));
-      eventBus.emit('navigation:router-push', { path, reason: 'reference-link' });
+      eventBus.get('navigation:router-push').next({ path, reason: 'reference-link' });
     }
   }, [routes.resource]); // eventBus is stable singleton - never in deps
 
   const handleEntityTypeClicked = useCallback(({ entityType }: { entityType: string }) => {
     if (routes.know) {
       const path = `${routes.know}?entityType=${encodeURIComponent(entityType)}`;
-      eventBus.emit('navigation:router-push', { path, reason: 'entity-type-filter' });
+      eventBus.get('navigation:router-push').next({ path, reason: 'entity-type-filter' });
     }
   }, [routes.know]); // eventBus is stable singleton - never in deps
 
@@ -436,7 +437,7 @@ export function ResourceViewerPage({
   // Handlers for AnnotationHistory (legacy event-based interaction)
   const handleEventHover = useCallback((annotationId: string | null) => {
     if (annotationId) {
-      eventBus.emit('annotation:sparkle', { annotationId });
+      eventBus.get('annotation:sparkle').next({ annotationId });
     }
   }, []); // eventBus is stable singleton - never in deps
 
@@ -603,7 +604,7 @@ export function ResourceViewerPage({
               const resourceIdSegment = rUri.split('/').pop() || '';
               const nestedUri = `${window.location.origin}/resources/${resourceIdSegment}/annotations/${annotationIdShort}`;
 
-              eventBus.emit('annotation:update-body', {
+              eventBus.get('annotation:update-body').next({
                 annotationUri: resourceAnnotationUri(nestedUri),
                 resourceId: resourceIdSegment,
                 operations: [{

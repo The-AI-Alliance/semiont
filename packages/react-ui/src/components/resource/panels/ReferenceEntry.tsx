@@ -3,7 +3,7 @@
 import { forwardRef } from 'react';
 import type { RouteBuilder } from '../../../contexts/RoutingContext';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import { getAnnotationExactText, isBodyResolved, getBodySource, getFragmentSelector, getSvgSelector, getTargetSelector } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/ontology';
 import { getResourceIcon } from '../../../lib/resource-utils';
@@ -73,7 +73,7 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
   };
 
   const handleComposeDocument = () => {
-    eventBus.emit('reference:create-manual', {
+    eventBus.get('reference:create-manual').next({
       annotationUri: reference.id,
       title: selectedText,
       entityTypes,
@@ -86,7 +86,7 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
       ? reference.target.source
       : '';
     if (sourceUri) {
-      eventBus.emit('annotation:update-body', {
+      eventBus.get('annotation:update-body').next({
         annotationUri: reference.id,
         resourceId: sourceUri.split('/resources/')[1] || '',
         operations: [{ op: 'remove' }], // Remove all body items
@@ -100,7 +100,7 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
       : '';
 
     // Emit request to open generation modal
-    eventBus.emit('generation:modal-open', {
+    eventBus.get('generation:modal-open').next({
       annotationUri: reference.id,
       resourceUri,
       defaultTitle: selectedText,
@@ -108,7 +108,7 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
   };
 
   const handleSearch = () => {
-    eventBus.emit('reference:link', {
+    eventBus.get('reference:link').next({
       annotationUri: reference.id,
       searchTerm: selectedText,
     });
@@ -121,7 +121,7 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
       data-type="reference"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        eventBus.emit('annotation:click', { annotationId: reference.id, motivation: reference.motivation });
+        eventBus.get('annotation:click').next({ annotationId: reference.id, motivation: reference.motivation });
       }}
       {...hoverProps}
     >

@@ -27,7 +27,7 @@ describe('useEventSubscription', () => {
       );
 
       act(() => {
-        result.current.emit('annotation:hover', { annotationId: 'ann-1' });
+        result.current.get('annotation:hover').next({ annotationId: 'ann-1' });
       });
 
       expect(handler).toHaveBeenCalledWith({ annotationId: 'ann-1' });
@@ -54,7 +54,7 @@ describe('useEventSubscription', () => {
 
       // Emit with initial message
       act(() => {
-        result.current.emit('annotation:hover', { annotationId: 'ann-1' });
+        result.current.get('annotation:hover').next({ annotationId: 'ann-1' });
       });
       expect(calls).toEqual(['initial']);
 
@@ -64,7 +64,7 @@ describe('useEventSubscription', () => {
 
       // Emit again - should use UPDATED message (not stale 'initial')
       act(() => {
-        result.current.emit('annotation:hover', { annotationId: 'ann-2' });
+        result.current.get('annotation:hover').next({ annotationId: 'ann-2' });
       });
       expect(calls).toEqual(['initial', 'updated']);
     });
@@ -85,7 +85,7 @@ describe('useEventSubscription', () => {
 
       // Emit with first handler
       act(() => {
-        result.current.emit('annotation:hover', { annotationId: 'ann-1' });
+        result.current.get('annotation:hover').next({ annotationId: 'ann-1' });
       });
       expect(handler1).toHaveBeenCalledTimes(1);
 
@@ -95,7 +95,7 @@ describe('useEventSubscription', () => {
 
       // Emit again - should call NEW handler
       act(() => {
-        result.current.emit('annotation:hover', { annotationId: 'ann-2' });
+        result.current.get('annotation:hover').next({ annotationId: 'ann-2' });
       });
       expect(handler1).toHaveBeenCalledTimes(1); // Still only called once
       expect(handler2).toHaveBeenCalledTimes(1); // New handler called
@@ -115,7 +115,7 @@ describe('useEventSubscription', () => {
 
       // Emit before unmount
       act(() => {
-        result.current.emit('annotation:hover', { annotationId: 'ann-1' });
+        result.current.get('annotation:hover').next({ annotationId: 'ann-1' });
       });
       expect(handler).toHaveBeenCalledTimes(1);
 
@@ -124,7 +124,7 @@ describe('useEventSubscription', () => {
 
       // Emit after unmount - handler should NOT be called
       act(() => {
-        result.current.emit('annotation:hover', { annotationId: 'ann-2' });
+        result.current.get('annotation:hover').next({ annotationId: 'ann-2' });
       });
       expect(handler).toHaveBeenCalledTimes(1); // Still only 1
     });
@@ -150,8 +150,8 @@ describe('useEventSubscription', () => {
       );
 
       act(() => {
-        result.current.emit('annotation:hover', { annotationId: 'ann-1' });
-        result.current.emit('annotation:click', { annotationId: 'ann-2' });
+        result.current.get('annotation:hover').next({ annotationId: 'ann-1' });
+        result.current.get('annotation:click').next({ annotationId: 'ann-2' });
       });
 
       expect(handler1).toHaveBeenCalledWith({ annotationId: 'ann-1' });
@@ -177,7 +177,7 @@ describe('useEventSubscription', () => {
       );
 
       act(() => {
-        result.current.emit('annotation:hover', { annotationId: 'ann-1' });
+        result.current.get('annotation:hover').next({ annotationId: 'ann-1' });
       });
       expect(calls).toEqual(['hover:initial']);
 
@@ -186,7 +186,7 @@ describe('useEventSubscription', () => {
       rerender();
 
       act(() => {
-        result.current.emit('annotation:click', { annotationId: 'ann-2' });
+        result.current.get('annotation:click').next({ annotationId: 'ann-2' });
       });
       expect(calls).toEqual(['hover:initial', 'click:updated']);
     });
@@ -212,8 +212,8 @@ describe('useEventSubscription', () => {
       unmount();
 
       act(() => {
-        result.current.emit('annotation:hover', { annotationId: 'ann-1' });
-        result.current.emit('annotation:click', { annotationId: 'ann-2' });
+        result.current.get('annotation:hover').next({ annotationId: 'ann-1' });
+        result.current.get('annotation:click').next({ annotationId: 'ann-2' });
       });
 
       expect(handler1).not.toHaveBeenCalled();
@@ -238,8 +238,8 @@ describe('useEventSubscription', () => {
       );
 
       act(() => {
-        result.current.emit('annotation:hover', { annotationId: 'ann-1' });
-        result.current.emit('annotation:click', { annotationId: 'ann-2' });
+        result.current.get('annotation:hover').next({ annotationId: 'ann-1' });
+        result.current.get('annotation:click').next({ annotationId: 'ann-2' });
       });
 
       expect(handler1).toHaveBeenCalledTimes(1);

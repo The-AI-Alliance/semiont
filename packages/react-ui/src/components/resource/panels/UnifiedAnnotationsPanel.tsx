@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import type { components, Selector } from '@semiont/api-client';
+import type { components, Selector } from '@semiont/core';
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
 import type { Annotator } from '../../../lib/annotation-registry';
 import { StatisticsPanel } from './StatisticsPanel';

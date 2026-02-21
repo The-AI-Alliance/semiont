@@ -5,7 +5,7 @@
 import { describe, test, expect, beforeEach, vi } from 'vitest';
 import { ResourceContext } from '../resource-context';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 

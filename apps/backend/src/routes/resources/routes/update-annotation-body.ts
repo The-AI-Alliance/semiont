@@ -7,7 +7,7 @@
 
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import type { BodyOperation } from '@semiont/core';
 import { resourceId, annotationId, userId } from '@semiont/core';
 import { AnnotationContext } from '@semiont/make-meaning';

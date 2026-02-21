@@ -9,8 +9,7 @@ import * as os from 'os';
 import { JobQueue } from '../job-queue';
 import { JobWorker } from '../job-worker';
 import type { AnyJob, PendingJob, DetectionParams } from '../types';
-import { jobId, entityType } from '@semiont/api-client';
-import { userId, resourceId } from '@semiont/core';
+import { jobId, entityType, userId, resourceId } from '@semiont/core';
 
 // Test implementation of JobWorker
 class TestJobWorker extends JobWorker {

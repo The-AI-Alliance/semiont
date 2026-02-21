@@ -1,7 +1,8 @@
 import { execSync } from 'child_process';
 import { ContainerCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import type { FrontendServiceConfig, BackendServiceConfig } from '@semiont/core';
-import { SemiontApiClient, baseUrl } from '@semiont/api-client';
+import { baseUrl } from '@semiont/core';
+import { SemiontApiClient } from '@semiont/api-client';
 
 /**
  * Check handler for containerized web services

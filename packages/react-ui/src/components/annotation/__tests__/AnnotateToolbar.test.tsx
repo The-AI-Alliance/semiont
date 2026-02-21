@@ -55,16 +55,16 @@ function createEventTracker() {
         'toolbar:click-changed',
         'toolbar:selection-changed',
         'toolbar:shape-changed',
-      ];
+      ] as const;
 
       toolbarEvents.forEach(eventName => {
         const handler = trackEvent(eventName);
-        eventBus.on(eventName, handler);
-        handlers.push(() => eventBus.off(eventName, handler));
+        const subscription = eventBus.get(eventName).subscribe(handler);
+        handlers.push(subscription);
       });
 
       return () => {
-        handlers.forEach(cleanup => cleanup());
+        handlers.forEach(sub => sub.unsubscribe());
       };
     }, [eventBus]);
 

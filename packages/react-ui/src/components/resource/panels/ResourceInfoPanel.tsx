@@ -97,7 +97,7 @@ export function ResourceInfoPanel({
       {/* Clone Action */}
       <div className="semiont-resource-info-panel__action-section">
         <button
-          onClick={() => eventBus.emit('resource:clone', undefined)}
+          onClick={() => eventBus.get('resource:clone').next(undefined)}
           className="semiont-resource-button semiont-resource-button--secondary"
         >
           🔗 {t('clone')}
@@ -112,7 +112,7 @@ export function ResourceInfoPanel({
         {isArchived ? (
           <>
             <button
-              onClick={() => eventBus.emit('resource:unarchive', undefined)}
+              onClick={() => eventBus.get('resource:unarchive').next(undefined)}
               className="semiont-resource-button semiont-resource-button--secondary"
             >
               📤 {t('unarchive')}
@@ -124,7 +124,7 @@ export function ResourceInfoPanel({
         ) : (
           <>
             <button
-              onClick={() => eventBus.emit('resource:archive', undefined)}
+              onClick={() => eventBus.get('resource:archive').next(undefined)}
               className="semiont-resource-button semiont-resource-button--archive"
             >
               📦 {t('archive')}

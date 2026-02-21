@@ -30,32 +30,16 @@ import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../..
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { SSEClient } from '@semiont/api-client';
-import type { Motivation } from '@semiont/api-client';
-import { resourceUri } from '@semiont/api-client';
+import type { Motivation } from '@semiont/core';
+import { resourceUri } from '@semiont/core';
 import type { Emitter } from 'mitt';
-import type { EventMap } from '../../../contexts/EventBusContext';
+import type { EventMap } from '@semiont/core';
 
-// Mock SSE stream that we can control in tests
+// Mock SSE stream - SSE now emits directly to EventBus, no callbacks
 const createMockSSEStream = () => {
-  const stream = {
-    onProgressCallback: null as ((chunk: any) => void) | null,
-    onCompleteCallback: null as (() => void) | null,
-    onErrorCallback: null as ((error: Error) => void) | null,
-    onProgress: vi.fn((callback: (chunk: any) => void) => {
-      stream.onProgressCallback = callback;
-      return stream;
-    }),
-    onComplete: vi.fn((callback: () => void) => {
-      stream.onCompleteCallback = callback;
-      return stream;
-    }),
-    onError: vi.fn((callback: (error: Error) => void) => {
-      stream.onErrorCallback = callback;
-      return stream;
-    }),
+  return {
     close: vi.fn(),
   };
-  return stream;
 };
 
 describe('Detection Flow - Feature Integration', () => {
@@ -102,14 +86,14 @@ describe('Detection Flow - Feature Integration', () => {
       expect(detectReferencesSpy).toHaveBeenCalledTimes(1);
     });
 
-    // Verify correct parameters
+    // Verify correct parameters (eventBus is passed but we don't need to verify its exact value)
     expect(detectReferencesSpy).toHaveBeenCalledWith(
       testUri,
       {
         entityTypes: ['Person', 'Organization'],
         includeDescriptiveReferences: false,
       },
-      { auth: undefined }
+      expect.objectContaining({ auth: undefined })
     );
   });
 
@@ -117,7 +101,7 @@ describe('Detection Flow - Feature Integration', () => {
     const testUri = resourceUri('http://localhost:4000/resources/test-resource');
 
     // Render with state observer
-    const { emitDetectionStart } = renderDetectionFlow(testUri);
+    const { emitDetectionStart, getEventBus } = renderDetectionFlow(testUri);
 
     // Start detection
     act(() => {
@@ -131,9 +115,9 @@ describe('Detection Flow - Feature Integration', () => {
       expect(detectReferencesSpy).toHaveBeenCalled();
     });
 
-    // Simulate SSE progress callback being invoked
+    // Simulate SSE progress event being emitted to EventBus (how SSE actually works now)
     act(() => {
-      mockStream.onProgressCallback!({
+      getEventBus().get('detection:progress').next({
         status: 'scanning',
         message: 'Scanning for Person...',
         currentEntityType: 'Person',
@@ -152,7 +136,7 @@ describe('Detection Flow - Feature Integration', () => {
 
   it('should handle multiple progress updates correctly', async () => {
     const testUri = resourceUri('http://localhost:4000/resources/test-resource');
-    const { emitDetectionStart } = renderDetectionFlow(testUri);
+    const { emitDetectionStart, getEventBus } = renderDetectionFlow(testUri);
 
     // Start detection
     act(() => {
@@ -165,9 +149,9 @@ describe('Detection Flow - Feature Integration', () => {
       expect(detectHighlightsSpy).toHaveBeenCalledTimes(1);
     });
 
-    // First progress update
+    // First progress update via EventBus
     act(() => {
-      mockStream.onProgressCallback!({
+      getEventBus().get('detection:progress').next({
         status: 'started',
         message: 'Starting analysis...',
         percentage: 0,
@@ -178,9 +162,9 @@ describe('Detection Flow - Feature Integration', () => {
       expect(screen.getByTestId('progress')).toHaveTextContent('Starting analysis...');
     });
 
-    // Second progress update
+    // Second progress update via EventBus
     act(() => {
-      mockStream.onProgressCallback!({
+      getEventBus().get('detection:progress').next({
         status: 'analyzing',
         message: 'Analyzing text...',
         percentage: 50,
@@ -191,9 +175,9 @@ describe('Detection Flow - Feature Integration', () => {
       expect(screen.getByTestId('progress')).toHaveTextContent('Analyzing text...');
     });
 
-    // Final progress update
+    // Final progress update via EventBus
     act(() => {
-      mockStream.onProgressCallback!({
+      getEventBus().get('detection:progress').next({
         status: 'complete',
         message: 'Created 14 highlights',
         percentage: 100,
@@ -218,9 +202,9 @@ describe('Detection Flow - Feature Integration', () => {
       expect(screen.getByTestId('detecting')).toHaveTextContent('highlighting');
     });
 
-    // Send final progress
+    // Send final progress via EventBus
     act(() => {
-      mockStream.onProgressCallback!({
+      getEventBus().get('detection:progress').next({
         status: 'complete',
         message: 'Created 14 highlights',
       });
@@ -232,7 +216,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Emit completion event
     act(() => {
-      getEventBus().emit('detection:complete', { motivation: 'highlighting' });
+      getEventBus().get('detection:complete').next({ motivation: 'highlighting' });
     });
 
     // Verify: detecting flag cleared BUT progress still visible
@@ -251,9 +235,9 @@ describe('Detection Flow - Feature Integration', () => {
       emitDetectionStart('linking', { entityTypes: ['Person'] });
     });
 
-    // Add some progress
+    // Add some progress via EventBus
     act(() => {
-      mockStream.onProgressCallback!({
+      getEventBus().get('detection:progress').next({
         status: 'scanning',
         message: 'Scanning...',
       });
@@ -265,7 +249,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Emit failure
     act(() => {
-      getEventBus().emit('detection:failed', { type: 'job.failed', resourceId: 'test-resource' as any, payload: { jobId: 'job-1' as any, jobType: 'detection', error: 'Network error' } });
+      getEventBus().get('detection:failed').next({ type: 'job.failed', resourceId: 'test-resource' as any, payload: { jobId: 'job-1' as any, jobType: 'detection', error: 'Network error' } });
     });
 
     // Verify: both detecting and progress cleared
@@ -288,7 +272,7 @@ describe('Detection Flow - Feature Integration', () => {
       expect(detectHighlightsSpy).toHaveBeenCalledTimes(1);
       expect(detectHighlightsSpy).toHaveBeenCalledWith(testUri, {
         instructions: 'Find important text',
-      }, { auth: undefined });
+      }, expect.objectContaining({ auth: undefined }));
     });
 
     // Reset for next test
@@ -309,7 +293,7 @@ describe('Detection Flow - Feature Integration', () => {
       expect(detectCommentsSpy).toHaveBeenCalledWith(testUri, {
         instructions: 'Add helpful comments',
         tone: 'educational',
-      }, { auth: undefined });
+      }, expect.objectContaining({ auth: undefined }));
     });
   });
 
@@ -322,7 +306,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Add an additional event listener (simulating multiple subscribers)
     const additionalListener = vi.fn();
-    getEventBus().on('detection:start', additionalListener);
+    const subscription = getEventBus().get('detection:start').subscribe(additionalListener);
 
     // Trigger detection
     act(() => {
@@ -339,6 +323,8 @@ describe('Detection Flow - Feature Integration', () => {
 
     // VERIFY: Our additional listener was called (events work)
     expect(additionalListener).toHaveBeenCalledTimes(1);
+
+    subscription.unsubscribe();
   });
 });
 
@@ -381,7 +367,7 @@ function renderDetectionFlow(testUri: string) {
 
   return {
     emitDetectionStart: (motivation: Motivation, options: any) => {
-      eventBusInstance.emit('detection:start', { motivation, options });
+      eventBusInstance.get('detection:start').next({ motivation, options });
     },
     getEventBus: () => eventBusInstance,
   };

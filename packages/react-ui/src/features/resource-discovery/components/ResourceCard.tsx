@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 

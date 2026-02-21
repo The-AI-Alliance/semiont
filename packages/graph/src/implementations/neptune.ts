@@ -2,9 +2,8 @@
 // Uses Gremlin for graph traversal
 
 import { GraphDatabase } from '../interface';
-import { getBodySource } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/ontology';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import type {
   AnnotationCategory,
   GraphConnection,
@@ -15,12 +14,18 @@ import type {
   CreateAnnotationInternal,
   ResourceId,
   AnnotationId,
+  ResourceUri,
+  AnnotationUri,
 } from '@semiont/core';
-import type { ResourceUri, AnnotationUri } from '@semiont/api-client';
-import { getExactText } from '@semiont/api-client';
 import { v4 as uuidv4 } from 'uuid';
-import { getTargetSource, getTargetSelector } from '@semiont/api-client';
-import { getPrimaryRepresentation, getResourceId } from '@semiont/api-client';
+import {
+  getBodySource,
+  getExactText,
+  getTargetSource,
+  getTargetSelector,
+  getPrimaryRepresentation,
+  getResourceId
+} from '@semiont/api-client';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];

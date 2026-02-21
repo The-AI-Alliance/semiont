@@ -8,7 +8,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import type { AnyJob, JobStatus, JobQueryFilters, CancelledJob } from './types';
-import type { JobId } from '@semiont/api-client';
+import type { JobId } from '@semiont/core';
 
 export interface JobQueueConfig {
   dataDir: string;

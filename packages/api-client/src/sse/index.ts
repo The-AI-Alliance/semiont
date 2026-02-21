@@ -6,18 +6,10 @@
  */
 
 import { createSSEStream } from './stream';
-import type {
-  ReferenceDetectionProgress,
-  GenerationProgress,
-  HighlightDetectionProgress,
-  AssessmentDetectionProgress,
-  CommentDetectionProgress,
-  TagDetectionProgress,
-  SSEStream
-} from './types';
-import type { ResourceUri, AnnotationUri } from '../branded-types';
-import type { AccessToken, BaseUrl, EntityType } from '../branded-types';
-import type { components } from '../types';
+import type { SSEStream } from './types';
+import type { ResourceUri, AnnotationUri } from '@semiont/core';
+import type { AccessToken, BaseUrl, EntityType } from '@semiont/core';
+import type { components } from '@semiont/core';
 import type { Logger } from '../logger';
 
 /**
@@ -84,6 +76,8 @@ export interface SSEClientConfig {
  */
 export interface SSERequestOptions {
   auth?: AccessToken;
+  /** EventBus for event-driven architecture (required) */
+  eventBus: import('@semiont/core').EventBus;
 }
 
 /**
@@ -187,11 +181,11 @@ export class SSEClient {
     resourceId: ResourceUri,
     request: DetectReferencesStreamRequest,
     options?: SSERequestOptions
-  ): SSEStream<ReferenceDetectionProgress, ReferenceDetectionProgress> {
+  ): SSEStream {
     const id = this.extractId(resourceId);
     const url = `${this.baseUrl}/resources/${id}/detect-annotations-stream`;
 
-    return createSSEStream<ReferenceDetectionProgress, ReferenceDetectionProgress>(
+    return createSSEStream(
       url,
       {
         method: 'POST',
@@ -201,7 +195,9 @@ export class SSEClient {
       {
         progressEvents: ['reference-detection-started', 'reference-detection-progress'],
         completeEvent: 'reference-detection-complete',
-        errorEvent: 'reference-detection-error'
+        errorEvent: 'reference-detection-error',
+        eventBus: options?.eventBus,
+        eventPrefix: 'detection'
       },
       this.logger
     );
@@ -249,12 +245,12 @@ export class SSEClient {
     annotationId: AnnotationUri,
     request: GenerateResourceStreamRequest,
     options?: SSERequestOptions
-  ): SSEStream<GenerationProgress, GenerationProgress> {
+  ): SSEStream {
     const resId = this.extractId(resourceId);
     const annId = this.extractId(annotationId);
     const url = `${this.baseUrl}/resources/${resId}/annotations/${annId}/generate-resource-stream`;
 
-    return createSSEStream<GenerationProgress, GenerationProgress>(
+    return createSSEStream(
       url,
       {
         method: 'POST',
@@ -264,7 +260,9 @@ export class SSEClient {
       {
         progressEvents: ['generation-started', 'generation-progress'],
         completeEvent: 'generation-complete',
-        errorEvent: 'generation-error'
+        errorEvent: 'generation-error',
+        eventBus: options?.eventBus,
+        eventPrefix: 'generation'
       },
       this.logger
     );
@@ -309,11 +307,11 @@ export class SSEClient {
     resourceId: ResourceUri,
     request: DetectHighlightsStreamRequest = {},
     options?: SSERequestOptions
-  ): SSEStream<HighlightDetectionProgress, HighlightDetectionProgress> {
+  ): SSEStream {
     const id = this.extractId(resourceId);
     const url = `${this.baseUrl}/resources/${id}/detect-highlights-stream`;
 
-    return createSSEStream<HighlightDetectionProgress, HighlightDetectionProgress>(
+    return createSSEStream(
       url,
       {
         method: 'POST',
@@ -323,7 +321,9 @@ export class SSEClient {
       {
         progressEvents: ['highlight-detection-started', 'highlight-detection-progress'],
         completeEvent: 'highlight-detection-complete',
-        errorEvent: 'highlight-detection-error'
+        errorEvent: 'highlight-detection-error',
+        eventBus: options?.eventBus,
+        eventPrefix: 'detection'
       },
       this.logger
     );
@@ -368,11 +368,11 @@ export class SSEClient {
     resourceId: ResourceUri,
     request: DetectAssessmentsStreamRequest = {},
     options?: SSERequestOptions
-  ): SSEStream<AssessmentDetectionProgress, AssessmentDetectionProgress> {
+  ): SSEStream {
     const id = this.extractId(resourceId);
     const url = `${this.baseUrl}/resources/${id}/detect-assessments-stream`;
 
-    return createSSEStream<AssessmentDetectionProgress, AssessmentDetectionProgress>(
+    return createSSEStream(
       url,
       {
         method: 'POST',
@@ -382,7 +382,9 @@ export class SSEClient {
       {
         progressEvents: ['assessment-detection-started', 'assessment-detection-progress'],
         completeEvent: 'assessment-detection-complete',
-        errorEvent: 'assessment-detection-error'
+        errorEvent: 'assessment-detection-error',
+        eventBus: options?.eventBus,
+        eventPrefix: 'detection'
       },
       this.logger
     );
@@ -431,11 +433,11 @@ export class SSEClient {
     resourceId: ResourceUri,
     request: DetectCommentsStreamRequest = {},
     options?: SSERequestOptions
-  ): SSEStream<CommentDetectionProgress, CommentDetectionProgress> {
+  ): SSEStream {
     const id = this.extractId(resourceId);
     const url = `${this.baseUrl}/resources/${id}/detect-comments-stream`;
 
-    return createSSEStream<CommentDetectionProgress, CommentDetectionProgress>(
+    return createSSEStream(
       url,
       {
         method: 'POST',
@@ -445,7 +447,9 @@ export class SSEClient {
       {
         progressEvents: ['comment-detection-started', 'comment-detection-progress'],
         completeEvent: 'comment-detection-complete',
-        errorEvent: 'comment-detection-error'
+        errorEvent: 'comment-detection-error',
+        eventBus: options?.eventBus,
+        eventPrefix: 'detection'
       },
       this.logger
     );
@@ -495,11 +499,11 @@ export class SSEClient {
     resourceId: ResourceUri,
     request: DetectTagsStreamRequest,
     options?: SSERequestOptions
-  ): SSEStream<TagDetectionProgress, TagDetectionProgress> {
+  ): SSEStream {
     const id = this.extractId(resourceId);
     const url = `${this.baseUrl}/resources/${id}/detect-tags-stream`;
 
-    return createSSEStream<TagDetectionProgress, TagDetectionProgress>(
+    return createSSEStream(
       url,
       {
         method: 'POST',
@@ -509,7 +513,9 @@ export class SSEClient {
       {
         progressEvents: ['tag-detection-started', 'tag-detection-progress'],
         completeEvent: 'tag-detection-complete',
-        errorEvent: 'tag-detection-error'
+        errorEvent: 'tag-detection-error',
+        eventBus: options?.eventBus,
+        eventPrefix: 'detection'
       },
       this.logger
     );
@@ -552,11 +558,11 @@ export class SSEClient {
   resourceEvents(
     resourceId: ResourceUri,
     options?: SSERequestOptions & { onConnected?: () => void }
-  ): SSEStream<any, never> {
+  ): SSEStream {
     const id = this.extractId(resourceId);
     const url = `${this.baseUrl}/resources/${id}/events/stream`;
 
-    const stream = createSSEStream<any, never>(
+    const stream = createSSEStream(
       url,
       {
         method: 'GET',
@@ -569,7 +575,7 @@ export class SSEClient {
         customEventHandler: true // Use custom event handling
       },
       this.logger
-    ) as SSEStream<any, never> & { on?: (event: string, callback: (data?: any) => void) => void };
+    ) as SSEStream & { on?: (event: string, callback: (data?: any) => void) => void };
 
     // Register handler for stream-connected meta-event so it is filtered out
     // of the progress stream and callers don't need to cast to any

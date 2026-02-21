@@ -6,8 +6,9 @@ import { AnnotateView, type SelectionMotivation, type ClickAction, type ShapeTyp
 import { BrowseView } from './BrowseView';
 import { PopupContainer } from '../annotation-popups/SharedPopupElements';
 import { JsonLdView } from '../annotation-popups/JsonLdView';
-import type { components } from '@semiont/api-client';
-import { getExactText, getTargetSelector, resourceUri, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/api-client';
+import type { components } from '@semiont/core';
+import { resourceUri } from '@semiont/core';
+import { getExactText, getTargetSelector, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/api-client';
 import { useEventBus } from '../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../contexts/useEventSubscription';
 import { useCacheManager } from '../../contexts/CacheContext';
@@ -249,7 +250,7 @@ export function ResourceViewer({
 
   // Handle deleting annotations - emit event instead of direct call
   const handleDeleteAnnotation = useCallback((id: string) => {
-    eventBus.emit('annotation:delete', { annotationId: id });
+    eventBus.get('annotation:delete').next({ annotationId: id });
   }, []); // eventBus is stable
 
   // Handle annotation clicks - memoized
@@ -338,7 +339,7 @@ export function ResourceViewer({
 
     // All annotations open the unified annotations panel
     // The panel internally switches tabs based on the motivation → tab mapping in UnifiedAnnotationsPanel
-    eventBus.emit('panel:open', { panel: 'annotations', scrollToAnnotationId: annotationId, motivation });
+    eventBus.get('panel:open').next({ panel: 'annotations', scrollToAnnotationId: annotationId, motivation });
   }, [highlights, references, assessments, comments, tags, handleAnnotationClick, selectedClick]);
 
   // Event subscriptions - Combined into single useEventSubscriptions call to prevent hook ordering issues

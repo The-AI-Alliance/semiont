@@ -10,7 +10,7 @@
 import React, { useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { useAdmin, buttonStyles, Toolbar } from '@semiont/react-ui';
-import type { paths } from '@semiont/api-client';
+import type { paths } from '@semiont/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme, usePanelNavigation, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';

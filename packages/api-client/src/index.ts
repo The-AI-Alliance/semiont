@@ -1,46 +1,30 @@
 /**
  * @semiont/api-client
  *
- * Complete SDK for Semiont - types, client, and utilities
+ * HTTP client and utilities for the Semiont API
  *
  * This package provides:
- * - TypeScript types generated from the OpenAPI specification
  * - A SemiontApiClient class for making API requests
- * - Utilities for working with annotations, events, and text
+ * - SSE streaming client
+ * - Utilities for working with annotations and text
  *
- * Example:
+ * For OpenAPI types and branded types, import from @semiont/core:
  * ```typescript
- * import { SemiontApiClient, isReference, getExactText } from '@semiont/api-client';
+ * import type { components } from '@semiont/core';
+ * import { resourceUri, accessToken } from '@semiont/core';
+ * import { SemiontApiClient } from '@semiont/api-client';
  *
- * const client = new SemiontApiClient({ baseUrl: 'http://localhost:4000' });
- * await client.authenticateLocal('user@example.com', '123456');
- *
- * const doc = await client.createResource({
- *   name: 'My Resource',
- *   content: 'Hello World',
- *   format: 'text/plain',
- *   entityTypes: ['example']
- * });
- *
- * // Use utilities
- * if (isReference(annotation)) {
- *   const text = getExactText(annotation.target.selector);
- * }
+ * const client = new SemiontApiClient({ baseUrl: baseUrl('http://localhost:4000') });
+ * const token = accessToken('your-token');
+ * const rUri = resourceUri('http://localhost:4000/resources/doc-123');
  * ```
  */
 
-// Generated OpenAPI types and client
-export * from './types';
+// Export client
 export * from './client';
-export type { components } from './types';
-import type { components } from './types';
 
 // Logger interface for observability
 export type { Logger } from './logger';
-
-// Export specific types for generation context
-export type GenerationContext = components['schemas']['GenerationContext'];
-export type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
 
 // SSE streaming types and client
 export type {
@@ -65,6 +49,3 @@ export {
   getMimeCategory,
   type MimeCategory
 } from './mime-utils';
-
-// All branded types (URIs, tokens, identifiers, etc.)
-export * from './branded-types';

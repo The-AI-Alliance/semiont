@@ -14,7 +14,6 @@ export { type OpenResource as OpenResourceFromManager } from './types/OpenResour
 export * from './types/SessionManager';
 export * from './types/TranslationManager';
 export * from './types/resource-viewer';
-export * from './types/progress';
 
 // Lib utilities
 export * from './lib/annotation-registry';

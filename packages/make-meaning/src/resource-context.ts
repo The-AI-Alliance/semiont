@@ -8,7 +8,7 @@
 import { FilesystemViewStorage } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import { getPrimaryRepresentation, decodeRepresentation } from '@semiont/api-client';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];

@@ -7,8 +7,8 @@ import { markdown } from '@codemirror/lang-markdown';
 import { ANNOTATORS } from '../lib/annotation-registry';
 import { ReferenceResolutionWidget } from '../lib/codemirror-widgets';
 import { isHighlight, isReference, isResolvedReference, isComment, isAssessment, isTag, getBodySource } from '@semiont/api-client';
-import type { components } from '@semiont/api-client';
-import type { EventBus } from '../contexts/EventBusContext';
+import type { components } from '@semiont/core';
+import type { EventBus } from "@semiont/core";
 import { createHoverHandlers } from '../hooks/useAttentionFlow';
 
 type Annotation = components['schemas']['Annotation'];
@@ -343,7 +343,7 @@ export function CodeMirrorRenderer({
               const segment = segmentsRef.current.find(s => s.annotation?.id === annotationId);
               if (segment?.annotation) {
                 event.preventDefault();
-                eventBusRef.current.emit('annotation:click', {
+                eventBusRef.current.get('annotation:click').next({
                   annotationId,
                   motivation: segment.annotation.motivation
                 });
@@ -411,7 +411,7 @@ export function CodeMirrorRenderer({
     const container = view.dom;
 
     const { handleMouseEnter, handleMouseLeave, cleanup: cleanupHover } = createHoverHandlers(
-      (annotationId) => eventBusRef.current?.emit('annotation:hover', { annotationId })
+      (annotationId) => eventBusRef.current?.get('annotation:hover').next({ annotationId })
     );
 
     const handleMouseOver = (e: MouseEvent) => {

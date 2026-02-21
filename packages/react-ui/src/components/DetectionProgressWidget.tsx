@@ -2,8 +2,8 @@
 
 import { useTranslations } from '../contexts/TranslationContext';
 import { useEventBus } from '../contexts/EventBusContext';
-import type { DetectionProgress } from '../types/progress';
-import type { components } from '@semiont/api-client';
+import type { DetectionProgress } from '@semiont/core';
+import type { components } from '@semiont/core';
 
 type Motivation = components['schemas']['Motivation'];
 
@@ -28,7 +28,7 @@ export function DetectionProgressWidget({ progress, annotationType = 'reference'
 
   const handleCancel = () => {
     // Emit event for job cancellation
-    eventBus.emit('job:cancel-requested', { jobType: 'detection' });
+    eventBus.get('job:cancel-requested').next({ jobType: 'detection' });
   };
 
   if (!progress) return null;

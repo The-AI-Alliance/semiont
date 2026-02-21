@@ -31,8 +31,8 @@ The OpenAPI specification is the **source of truth** for the entire API:
 
 1. **Source**: `specs/src/openapi.json` and referenced files (tracked in git)
 2. **Build**: Bundled to `specs/openapi.json` by Redocly (generated, gitignored)
-3. **Types**: TypeScript types generated from bundled spec → `@semiont/api-client`
-4. **Consumption**: Backend imports types from `@semiont/api-client`
+3. **Types**: TypeScript types generated from bundled spec → `@semiont/core`
+4. **Consumption**: `@semiont/api-client` and backend import types from `@semiont/core`
 
 ```
 specs/src/openapi.json          (source - in git)
@@ -43,9 +43,11 @@ specs/openapi.json              (generated - gitignored)
         ↓
    openapi-typescript
         ↓
-@semiont/api-client/src/types.ts (generated types)
+@semiont/core/src/types.ts      (generated types - source of truth)
         ↓
-backend imports types
+@semiont/api-client re-exports types (for convenience)
+        ↓
+backend and frontend import from core
 ```
 
 ## Working with the Spec

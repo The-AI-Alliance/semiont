@@ -30,7 +30,8 @@ import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
-import { SemiontApiClient, resourceUri, accessToken } from '@semiont/api-client';
+import { SemiontApiClient } from '@semiont/api-client';
+import { resourceUri, accessToken } from '@semiont/core';
 
 describe('Annotation Deletion - Feature Integration', () => {
   let deleteAnnotationSpy: ReturnType<typeof vi.fn>;
@@ -78,7 +79,7 @@ describe('Annotation Deletion - Feature Integration', () => {
     return {
       emitDelete: (annotationId: string) => {
         act(() => {
-          eventBusInstance!.emit('annotation:delete', { annotationId });
+          eventBusInstance!.get('annotation:delete').next({ annotationId });
         });
       },
       eventBus: eventBusInstance!,
@@ -127,7 +128,7 @@ describe('Annotation Deletion - Feature Integration', () => {
     const deletedListener = vi.fn();
 
     // Subscribe to success event
-    eventBus.on('annotation:deleted', deletedListener);
+    eventBus.get('annotation:deleted').subscribe(deletedListener);
 
     emitDelete('annotation-789');
 
@@ -152,7 +153,7 @@ describe('Annotation Deletion - Feature Integration', () => {
     const failedListener = vi.fn();
 
     // Subscribe to failure event
-    eventBus.on('annotation:delete-failed', failedListener);
+    eventBus.get('annotation:delete-failed').subscribe(failedListener);
 
     emitDelete('annotation-error');
 

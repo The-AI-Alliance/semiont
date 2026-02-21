@@ -1,5 +1,5 @@
 import { userId } from '@semiont/core';
-import { email, accessToken } from '@semiont/api-client';
+import { email, accessToken } from '@semiont/core';
 /**
  * Integration tests for API endpoints
  * These tests make actual HTTP requests to test API functionality

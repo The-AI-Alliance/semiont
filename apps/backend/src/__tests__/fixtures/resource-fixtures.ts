@@ -2,7 +2,7 @@
  * Test fixtures for W3C ResourceDescriptor schema
  */
 
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type Representation = components['schemas']['Representation'];

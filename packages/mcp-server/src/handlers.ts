@@ -2,7 +2,8 @@
  * Tool execution handlers using @semiont/api-client
  */
 
-import { SemiontApiClient, getExactText, getBodySource, resourceUri, annotationUri, entityType, type AccessToken, type ReferenceDetectionProgress } from '@semiont/api-client';
+import { SemiontApiClient, getExactText, getBodySource, type ReferenceDetectionProgress, type GenerationProgress } from '@semiont/api-client';
+import { EventBus, resourceUri, annotationUri, entityType, type AccessToken } from '@semiont/core';
 
 export async function handleCreateResource(client: SemiontApiClient, auth: AccessToken, args: any) {
   // Create File from content string for multipart/form-data upload
@@ -59,36 +60,44 @@ export async function handleDetectAnnotations(client: SemiontApiClient, auth: Ac
 
   return new Promise<{ content: Array<{ type: 'text'; text: string }>; isError?: boolean }>((resolve) => {
     const mappedEntityTypes = (entityTypes as string[]).map(t => entityType(t));
-    const stream = client.sse.detectReferences(rUri, { entityTypes: mappedEntityTypes }, { auth });
-
+    const eventBus = new EventBus();
     const progressMessages: string[] = [];
 
-    stream.onProgress((progress: ReferenceDetectionProgress) => {
-      const msg = progress.status === 'scanning'
-        ? `Scanning for ${progress.currentEntityType}... (${progress.processedEntityTypes}/${progress.totalEntityTypes})`
+    // Subscribe to detection events
+    eventBus.get('detection:progress').subscribe((progress) => {
+      // Cast to ReferenceDetectionProgress for entity-type-specific fields
+      const refProgress = progress as unknown as ReferenceDetectionProgress;
+      const msg = progress.status === 'scanning' && refProgress.currentEntityType
+        ? `Scanning for ${refProgress.currentEntityType}... (${refProgress.processedEntityTypes}/${refProgress.totalEntityTypes})`
         : `Status: ${progress.status}`;
       progressMessages.push(msg);
       console.error(msg); // Send to stderr for MCP progress
     });
 
-    stream.onComplete((result: ReferenceDetectionProgress) => {
+    eventBus.get('detection:complete').subscribe((result) => {
+      const progress = result.progress as ReferenceDetectionProgress | undefined;
+      eventBus.destroy();
       resolve({
         content: [{
           type: 'text' as const,
-          text: `Entity detection complete!\nFound ${result.foundCount || 0} entities\n\nProgress:\n${progressMessages.join('\n')}`,
+          text: `Entity detection complete!\nFound ${progress?.foundCount || 0} entities\n\nProgress:\n${progressMessages.join('\n')}`,
         }],
       });
     });
 
-    stream.onError((error: Error) => {
+    eventBus.get('detection:failed').subscribe(() => {
+      eventBus.destroy();
       resolve({
         content: [{
           type: 'text' as const,
-          text: `Entity detection failed: ${error.message}`,
+          text: `Entity detection failed`,
         }],
         isError: true,
       });
     });
+
+    // Start detection - events auto-emit to EventBus
+    client.sse.detectReferences(rUri, { entityTypes: mappedEntityTypes }, { auth, eventBus });
   });
 }
 
@@ -195,34 +204,40 @@ export async function handleGenerateResourceFromAnnotation(client: SemiontApiCli
   };
 
   return new Promise<{ content: Array<{ type: 'text'; text: string }>; isError?: boolean }>((resolve) => {
-    const stream = client.sse.generateResourceFromAnnotation(rUri, aUri, request, { auth });
-
+    const eventBus = new EventBus();
     const progressMessages: string[] = [];
 
-    stream.onProgress((progress) => {
+    // Subscribe to generation events
+    eventBus.get('generation:progress').subscribe((progress: GenerationProgress) => {
       const msg = `${progress.status}: ${progress.percentage}% - ${progress.message || ''}`;
       progressMessages.push(msg);
       console.error(msg); // Send to stderr for MCP progress
     });
 
-    stream.onComplete((result) => {
+    eventBus.get('generation:complete').subscribe((result) => {
+      const progress = result.progress;
+      eventBus.destroy();
       resolve({
         content: [{
           type: 'text' as const,
-          text: `Resource generation complete!\nResource ID: ${result.resourceId || 'unknown'}\nResource Name: ${result.resourceName || 'unknown'}\n\nProgress:\n${progressMessages.join('\n')}`,
+          text: `Resource generation complete!\nResource ID: ${progress.resourceId || 'unknown'}\nResource Name: ${progress.resourceName || 'unknown'}\n\nProgress:\n${progressMessages.join('\n')}`,
         }],
       });
     });
 
-    stream.onError((error) => {
+    eventBus.get('generation:failed').subscribe(() => {
+      eventBus.destroy();
       resolve({
         content: [{
           type: 'text' as const,
-          text: `Resource generation failed: ${error.message}`,
+          text: `Resource generation failed`,
         }],
         isError: true,
       });
     });
+
+    // Start generation - events auto-emit to EventBus
+    client.sse.generateResourceFromAnnotation(rUri, aUri, request, { auth, eventBus });
   });
 }
 

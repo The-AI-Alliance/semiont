@@ -13,12 +13,12 @@
 
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { userId } from '@semiont/core';
-import { email } from '@semiont/api-client';
+import { email } from '@semiont/core';
 import { JWTService } from '../../auth/jwt';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import type { EnvironmentConfig } from '@semiont/core';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 
 type ListResourcesResponse = components['schemas']['ListResourcesResponse'];
 type GetResourceResponse = components['schemas']['GetResourceResponse'];

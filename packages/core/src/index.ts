@@ -2,13 +2,55 @@
  * @semiont/core
  *
  * Core domain logic and utilities for the Semiont semantic knowledge platform.
- * For OpenAPI types, import directly from @semiont/api-client.
+ * OpenAPI types are generated here and exported for use across the monorepo.
  */
 
-// NOTE: OpenAPI types are NOT re-exported from @semiont/core.
-// Import types directly from @semiont/api-client where needed:
-//   import type { components } from '@semiont/api-client';
-//   type Annotation = components['schemas']['Annotation'];
+// OpenAPI-generated types (source of truth for API schemas)
+export type { components, paths, operations } from './types';
+
+// Branded types (compile-time type safety)
+export type {
+  // OpenAPI types
+  Motivation,
+  ContentFormat,
+  // Authentication & tokens
+  Email,
+  AuthCode,
+  GoogleCredential,
+  AccessToken,
+  RefreshToken,
+  MCPToken,
+  CloneToken,
+  // System identifiers
+  JobId,
+  UserDID,
+  EntityType,
+  SearchQuery,
+  BaseUrl,
+  // HTTP URI types
+  ResourceUri,
+  AnnotationUri,
+  ResourceAnnotationUri,
+} from './branded-types';
+export {
+  // Helper functions
+  email,
+  authCode,
+  googleCredential,
+  accessToken,
+  refreshToken,
+  mcpToken,
+  cloneToken,
+  jobId,
+  userDID,
+  entityType,
+  searchQuery,
+  baseUrl,
+  // URI factory functions
+  resourceUri,
+  annotationUri,
+  resourceAnnotationUri,
+} from './branded-types';
 
 // Creation methods
 export { CREATION_METHODS } from './creation-methods';
@@ -84,6 +126,19 @@ export {
   isEventRelatedToAnnotation,
   isResourceEvent as isStoredEvent,
 } from './event-utils';
+
+// Event bus (RxJS-based, framework-agnostic)
+export { EventBus } from './event-bus';
+
+// Event protocol (application-level events for event bus)
+export type {
+  EventMap,
+  SelectionData,
+  DetectionProgress,
+  GenerationProgress,
+  Selector,
+  GenerationContext,
+} from './event-map';
 
 // Backend-specific annotation utilities
 export { findBodyItem } from './annotation-utils';

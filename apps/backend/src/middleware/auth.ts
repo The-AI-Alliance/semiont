@@ -1,7 +1,7 @@
 import { Context, Next } from 'hono';
 import { OAuthService } from '../auth/oauth';
 import { User } from '@prisma/client';
-import { accessToken } from '@semiont/api-client';
+import { accessToken } from '@semiont/core';
 
 interface Variables {
   user: User;

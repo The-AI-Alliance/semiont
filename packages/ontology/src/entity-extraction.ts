@@ -5,7 +5,7 @@
  * Entity types are stored as TextualBody with purpose: "tagging"
  */
 
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 

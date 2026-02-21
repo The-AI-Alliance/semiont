@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { CacheManager } from '@semiont/react-ui';
-import type { ResourceUri } from '@semiont/api-client';
+import type { ResourceUri } from '@semiont/core';
 
 /**
  * Frontend implementation of CacheManager using React Query

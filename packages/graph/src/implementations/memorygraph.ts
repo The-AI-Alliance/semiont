@@ -2,9 +2,8 @@
 // Used for development and testing without requiring a real graph database
 
 import { GraphDatabase } from '../interface';
-import { getResourceEntityTypes } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/ontology';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import type {
   AnnotationCategory,
   GraphConnection,
@@ -15,13 +14,18 @@ import type {
   CreateAnnotationInternal,
   ResourceId,
   AnnotationId,
+  ResourceUri,
+  AnnotationUri,
 } from '@semiont/core';
-import { resourceId as makeResourceId, uriToResourceId } from '@semiont/core';
-import type { ResourceUri, AnnotationUri } from '@semiont/api-client';
-import { resourceUri } from '@semiont/api-client';
+import { resourceId as makeResourceId, uriToResourceId, resourceUri } from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
-import { getBodySource, getTargetSource } from '@semiont/api-client';
-import { getResourceId, getPrimaryRepresentation } from '@semiont/api-client';
+import {
+  getBodySource,
+  getTargetSource,
+  getResourceId,
+  getPrimaryRepresentation,
+  getResourceEntityTypes
+} from '@semiont/api-client';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];

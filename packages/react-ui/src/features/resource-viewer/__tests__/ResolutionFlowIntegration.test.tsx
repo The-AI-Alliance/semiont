@@ -22,7 +22,8 @@ import { useResolutionFlow } from '../../../hooks/useResolutionFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
-import { SemiontApiClient, resourceUri, accessToken } from '@semiont/api-client';
+import { SemiontApiClient } from '@semiont/api-client';
+import { resourceUri, accessToken } from '@semiont/core';
 
 describe('Resolution Flow - Search Modal & Body Update Integration', () => {
   let updateAnnotationBodySpy: ReturnType<typeof vi.fn>;
@@ -66,15 +67,7 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
 
     return {
       getState: () => lastState!,
-      emit: (event: Parameters<typeof eventBusInstance.emit>[0], payload: Parameters<typeof eventBusInstance.emit>[1]) => {
-        act(() => { eventBusInstance!.emit(event as any, payload as any); });
-      },
-      on: (event: Parameters<typeof eventBusInstance.on>[0], handler: (payload: any) => void) => {
-        eventBusInstance!.on(event as any, handler);
-      },
-      off: (event: Parameters<typeof eventBusInstance.off>[0], handler: (payload: any) => void) => {
-        eventBusInstance!.off(event as any, handler);
-      },
+      getEventBus: () => eventBusInstance!,
     };
   }
 
@@ -89,12 +82,12 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
   // ─── reference:link ─────────────────────────────────────────────────────────
 
   it('reference:link emits resolution:search-requested with referenceId and searchTerm', () => {
-    const { emit, on, off } = renderResolutionFlow();
+    const { getEventBus } = renderResolutionFlow();
     const searchRequestedSpy = vi.fn();
 
-    on('resolution:search-requested', searchRequestedSpy);
-    emit('reference:link', { annotationUri: 'ann-uri-123', searchTerm: 'climate change' });
-    off('resolution:search-requested', searchRequestedSpy);
+    const subscription = getEventBus().get('resolution:search-requested').subscribe(searchRequestedSpy);
+    act(() => { getEventBus().get('reference:link').next({ annotationUri: 'ann-uri-123', searchTerm: 'climate change' }); });
+    subscription.unsubscribe();
 
     expect(searchRequestedSpy).toHaveBeenCalledTimes(1);
     expect(searchRequestedSpy).toHaveBeenCalledWith({
@@ -106,11 +99,11 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
   // ─── resolution:search-requested ────────────────────────────────────────────
 
   it('resolution:search-requested opens the search modal', async () => {
-    const { getState, emit } = renderResolutionFlow();
+    const { getState, getEventBus } = renderResolutionFlow();
 
     expect(getState().searchModalOpen).toBe(false);
 
-    emit('resolution:search-requested', { referenceId: 'ref-abc', searchTerm: 'oceans' });
+    act(() => { getEventBus().get('resolution:search-requested').next({ referenceId: 'ref-abc', searchTerm: 'oceans' }); });
 
     await waitFor(() => {
       expect(getState().searchModalOpen).toBe(true);
@@ -118,9 +111,9 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
   });
 
   it('resolution:search-requested sets pendingReferenceId', async () => {
-    const { getState, emit } = renderResolutionFlow();
+    const { getState, getEventBus } = renderResolutionFlow();
 
-    emit('resolution:search-requested', { referenceId: 'ref-xyz', searchTerm: 'forests' });
+    act(() => { getEventBus().get('resolution:search-requested').next({ referenceId: 'ref-xyz', searchTerm: 'forests' }); });
 
     await waitFor(() => {
       expect(getState().pendingReferenceId).toBe('ref-xyz');
@@ -128,10 +121,10 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
   });
 
   it('reference:link → resolution:search-requested chain opens modal end-to-end', async () => {
-    const { getState, emit } = renderResolutionFlow();
+    const { getState, getEventBus } = renderResolutionFlow();
 
     // Simulate the full user journey: user clicks "Link Document" on a reference entry
-    emit('reference:link', { annotationUri: 'ann-full-chain', searchTerm: 'biodiversity' });
+    act(() => { getEventBus().get('reference:link').next({ annotationUri: 'ann-full-chain', searchTerm: 'biodiversity' }); });
 
     await waitFor(() => {
       expect(getState().searchModalOpen).toBe(true);
@@ -142,9 +135,9 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
   // ─── onCloseSearchModal ──────────────────────────────────────────────────────
 
   it('onCloseSearchModal closes the search modal', async () => {
-    const { getState, emit } = renderResolutionFlow();
+    const { getState, getEventBus } = renderResolutionFlow();
 
-    emit('resolution:search-requested', { referenceId: 'ref-close', searchTerm: 'test' });
+    act(() => { getEventBus().get('resolution:search-requested').next({ referenceId: 'ref-close', searchTerm: 'test' }); });
 
     await waitFor(() => expect(getState().searchModalOpen).toBe(true));
 
@@ -156,9 +149,9 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
   });
 
   it('onCloseSearchModal does not clear pendingReferenceId (preserves for re-open)', async () => {
-    const { getState, emit } = renderResolutionFlow();
+    const { getState, getEventBus } = renderResolutionFlow();
 
-    emit('resolution:search-requested', { referenceId: 'ref-persist', searchTerm: 'test' });
+    act(() => { getEventBus().get('resolution:search-requested').next({ referenceId: 'ref-persist', searchTerm: 'test' }); });
     await waitFor(() => expect(getState().searchModalOpen).toBe(true));
 
     act(() => { getState().onCloseSearchModal(); });
@@ -171,13 +164,13 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
   // ─── annotation:update-body ──────────────────────────────────────────────────
 
   it('annotation:update-body calls updateAnnotationBody API', async () => {
-    const { emit } = renderResolutionFlow();
+    const { getEventBus } = renderResolutionFlow();
 
-    emit('annotation:update-body', {
+    act(() => { getEventBus().get('annotation:update-body').next({
       annotationUri: 'http://localhost:4000/resources/test-resource/annotations/ann-body-1',
       resourceId: 'linked-resource-id',
       operations: [{ op: 'add', item: { id: 'linked-resource-id' } }],
-    });
+    }); });
 
     await waitFor(() => {
       expect(updateAnnotationBodySpy).toHaveBeenCalledTimes(1);
@@ -185,13 +178,13 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
   });
 
   it('annotation:update-body passes auth token to API call', async () => {
-    const { emit } = renderResolutionFlow();
+    const { getEventBus } = renderResolutionFlow();
 
-    emit('annotation:update-body', {
+    act(() => { getEventBus().get('annotation:update-body').next({
       annotationUri: 'http://localhost:4000/resources/test-resource/annotations/ann-auth',
       resourceId: 'resource-id',
       operations: [{ op: 'replace', newItem: { id: 'resource-id' } }],
-    });
+    }); });
 
     await waitFor(() => {
       expect(updateAnnotationBodySpy).toHaveBeenCalled();
@@ -203,22 +196,22 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
   });
 
   it('annotation:update-body emits annotation:body-updated on success', async () => {
-    const { emit, on, off } = renderResolutionFlow();
+    const { getEventBus } = renderResolutionFlow();
     const bodyUpdatedSpy = vi.fn();
 
-    on('annotation:body-updated', bodyUpdatedSpy);
+    const subscription = getEventBus().get('annotation:body-updated').subscribe(bodyUpdatedSpy);
 
-    emit('annotation:update-body', {
+    act(() => { getEventBus().get('annotation:update-body').next({
       annotationUri: 'http://localhost:4000/resources/test-resource/annotations/ann-success',
       resourceId: 'resource-id',
       operations: [{ op: 'add', item: { id: 'resource-id' } }],
-    });
+    }); });
 
     await waitFor(() => {
       expect(bodyUpdatedSpy).toHaveBeenCalledTimes(1);
     });
 
-    off('annotation:body-updated', bodyUpdatedSpy);
+    subscription.unsubscribe();
 
     expect(bodyUpdatedSpy).toHaveBeenCalledWith({
       annotationUri: 'http://localhost:4000/resources/test-resource/annotations/ann-success',
@@ -228,22 +221,22 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
   it('annotation:update-body emits annotation:body-update-failed on API error', async () => {
     updateAnnotationBodySpy.mockRejectedValue(new Error('Update failed'));
 
-    const { emit, on, off } = renderResolutionFlow();
+    const { getEventBus } = renderResolutionFlow();
     const bodyUpdateFailedSpy = vi.fn();
 
-    on('annotation:body-update-failed', bodyUpdateFailedSpy);
+    const subscription = getEventBus().get('annotation:body-update-failed').subscribe(bodyUpdateFailedSpy);
 
-    emit('annotation:update-body', {
+    act(() => { getEventBus().get('annotation:update-body').next({
       annotationUri: 'http://localhost:4000/resources/test-resource/annotations/ann-fail',
       resourceId: 'resource-id',
       operations: [{ op: 'remove', item: { id: 'old-id' } }],
-    });
+    }); });
 
     await waitFor(() => {
       expect(bodyUpdateFailedSpy).toHaveBeenCalledTimes(1);
     });
 
-    off('annotation:body-update-failed', bodyUpdateFailedSpy);
+    subscription.unsubscribe();
 
     expect(bodyUpdateFailedSpy).toHaveBeenCalledWith({
       error: expect.any(Error),
@@ -251,13 +244,13 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
   });
 
   it('annotation:update-body called ONCE — no duplicate subscriptions', async () => {
-    const { emit } = renderResolutionFlow();
+    const { getEventBus } = renderResolutionFlow();
 
-    emit('annotation:update-body', {
+    act(() => { getEventBus().get('annotation:update-body').next({
       annotationUri: 'http://localhost:4000/resources/test-resource/annotations/ann-dedup',
       resourceId: 'resource-id',
       operations: [{ op: 'add', item: { id: 'resource-id' } }],
-    });
+    }); });
 
     await waitFor(() => {
       expect(updateAnnotationBodySpy).toHaveBeenCalledTimes(1);

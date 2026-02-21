@@ -45,7 +45,7 @@
  *   (BrowseView, CodeMirrorRenderer, AnnotationOverlay, PdfAnnotationCanvas).
  */
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useEventBus } from '../contexts/EventBusContext';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
 
@@ -62,12 +62,12 @@ export function useAttentionFlow(): AttentionFlowState {
   const handleAnnotationHover = useCallback(({ annotationId }: { annotationId: string | null }) => {
     setHoveredAnnotationId(annotationId);
     if (annotationId) {
-      eventBus.emit('annotation:sparkle', { annotationId });
+      eventBus.get('annotation:sparkle').next({ annotationId });
     }
   }, []); // eventBus is stable singleton - never in deps
 
   const handleAnnotationClick = useCallback(({ annotationId }: { annotationId: string }) => {
-    eventBus.emit('annotation:focus', { annotationId });
+    eventBus.get('annotation:focus').next({ annotationId });
     // Scroll to annotation handled by BrowseView via annotation:focus subscription
   }, []); // eventBus is stable singleton - never in deps
 
@@ -153,7 +153,7 @@ export function useHoverEmitter(annotationId: string): HoverEmitterProps {
     timerRef.current = setTimeout(() => {
       timerRef.current = null;
       currentHoverRef.current = annotationId;
-      eventBus.emit('annotation:hover', { annotationId });
+      eventBus.get('annotation:hover').next({ annotationId });
     }, HOVER_DELAY_MS);
   }, [annotationId]); // eventBus is stable singleton - never in deps
 
@@ -164,9 +164,19 @@ export function useHoverEmitter(annotationId: string): HoverEmitterProps {
     }
     if (currentHoverRef.current !== null) {
       currentHoverRef.current = null;
-      eventBus.emit('annotation:hover', { annotationId: null });
+      eventBus.get('annotation:hover').next({ annotationId: null });
     }
   }, []); // eventBus is stable singleton - never in deps
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current !== null) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, []);
 
   return { onMouseEnter, onMouseLeave };
 }

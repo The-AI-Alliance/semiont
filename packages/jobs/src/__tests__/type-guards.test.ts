@@ -18,8 +18,7 @@ import {
   type DetectionProgress,
   type DetectionResult,
 } from '../types';
-import { jobId, entityType } from '@semiont/api-client';
-import { userId, resourceId } from '@semiont/core';
+import { jobId, entityType, userId, resourceId } from '@semiont/core';
 
 // Helper functions to create test jobs
 function createPendingJob(): PendingJob<DetectionParams> {

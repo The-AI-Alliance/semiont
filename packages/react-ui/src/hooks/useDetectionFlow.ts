@@ -21,15 +21,15 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { Motivation, ResourceUri, Selector, components } from '@semiont/api-client';
-import { resourceAnnotationUri, accessToken, entityType } from '@semiont/api-client';
+import type { Motivation, ResourceUri, Selector, components } from '@semiont/core';
+import { resourceAnnotationUri, accessToken, entityType } from '@semiont/core';
 import { uriToAnnotationIdOrPassthrough } from '@semiont/core';
 import { useEventBus } from '../contexts/EventBusContext';
-import type { EventMap } from '../contexts/EventBusContext';
+import type { EventMap } from '@semiont/core';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
 import { useApiClient } from '../contexts/ApiClientContext';
 import { useAuthToken } from '../contexts/AuthTokenContext';
-import type { DetectionProgress } from '../types/progress';
+import type { DetectionProgress } from '@semiont/core';
 
 type SelectionData = EventMap['selection:comment-requested'];
 
@@ -121,7 +121,7 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
     };
 
     // Emit event to open the appropriate panel
-    eventBus.emit('panel:open', { panel: MOTIVATION_TO_TAB[pending.motivation] || 'annotations' });
+    eventBus.get('panel:open').next({ panel: MOTIVATION_TO_TAB[pending.motivation] || 'annotations' });
     setPendingAnnotation(pending);
   }, []); // eventBus is stable singleton - never in deps
 
@@ -271,11 +271,11 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
 
         if (result.annotation) {
           setPendingAnnotation(null);
-          eventBus.emit('annotation:created', { annotation: result.annotation });
+          eventBus.get('annotation:created').next({ annotation: result.annotation });
         }
       } catch (error) {
         console.error('Failed to create annotation:', error);
-        eventBus.emit('annotation:create-failed', { error: error as Error });
+        eventBus.get('annotation:create-failed').next({ error: error as Error });
       }
     };
 
@@ -292,10 +292,10 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
 
         await currentClient.deleteAnnotation(annotationUri, { auth: toAccessToken(tokenRef.current) });
 
-        eventBus.emit('annotation:deleted', { annotationId: event.annotationId });
+        eventBus.get('annotation:deleted').next({ annotationId: event.annotationId });
       } catch (error) {
         console.error('Failed to delete annotation:', error);
-        eventBus.emit('annotation:delete-failed', { error: error as Error });
+        eventBus.get('annotation:delete-failed').next({ error: error as Error });
       }
     };
 
@@ -333,94 +333,49 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
         setDetectingMotivation(event.motivation);
         setDetectionProgress(null);
 
-        const auth = { auth: toAccessToken(tokenRef.current) };
+        const auth = { auth: toAccessToken(tokenRef.current), eventBus };
 
         if (event.motivation === 'tagging') {
           const { schemaId, categories } = event.options;
           if (!schemaId || !categories || categories.length === 0) {
             throw new Error('Tag detection requires schemaId and categories');
           }
-          const stream = currentClient.sse.detectTags(currentRUri, { schemaId, categories }, auth);
-          stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk); });
-          stream.onComplete((finalChunk) => {
-            eventBus.emit('detection:progress', finalChunk);
-            eventBus.emit('detection:complete', { motivation: event.motivation });
-          });
-          stream.onError((error) => {
-            console.error('Detection failed:', error);
-            setDetectingMotivation(null);
-            setDetectionProgress(null);
-          });
+          currentClient.sse.detectTags(currentRUri, { schemaId, categories }, auth);
+          // Events auto-emit to EventBus: detection:progress, detection:complete, detection:failed
         } else if (event.motivation === 'linking') {
           const { entityTypes, includeDescriptiveReferences } = event.options;
           if (!entityTypes || entityTypes.length === 0) {
             throw new Error('Reference detection requires entityTypes');
           }
-          const stream = currentClient.sse.detectReferences(currentRUri, {
+          currentClient.sse.detectReferences(currentRUri, {
             entityTypes: entityTypes.map(et => entityType(et)),
             includeDescriptiveReferences: includeDescriptiveReferences || false,
           }, auth);
-          stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk); });
-          stream.onComplete((finalChunk) => {
-            eventBus.emit('detection:progress', finalChunk);
-            eventBus.emit('detection:complete', { motivation: event.motivation });
-          });
-          stream.onError((error) => {
-            console.error('[useDetectionFlow] Detection failed:', error);
-            setDetectingMotivation(null);
-            setDetectionProgress(null);
-          });
+          // Events auto-emit to EventBus: detection:progress, detection:complete, detection:failed
         } else if (event.motivation === 'highlighting') {
-          const stream = currentClient.sse.detectHighlights(currentRUri, {
+          currentClient.sse.detectHighlights(currentRUri, {
             instructions: event.options.instructions,
             density: event.options.density,
           }, auth);
-          stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk); });
-          stream.onComplete((finalChunk) => {
-            eventBus.emit('detection:progress', finalChunk);
-            eventBus.emit('detection:complete', { motivation: event.motivation });
-          });
-          stream.onError((error) => {
-            console.error('Detection failed:', error);
-            setDetectingMotivation(null);
-            setDetectionProgress(null);
-          });
+          // Events auto-emit to EventBus: detection:progress, detection:complete, detection:failed
         } else if (event.motivation === 'assessing') {
-          const stream = currentClient.sse.detectAssessments(currentRUri, {
+          currentClient.sse.detectAssessments(currentRUri, {
             instructions: event.options.instructions,
             tone: event.options.tone as 'analytical' | 'critical' | 'balanced' | 'constructive' | undefined,
             density: event.options.density,
           }, auth);
-          stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk); });
-          stream.onComplete((finalChunk) => {
-            eventBus.emit('detection:progress', finalChunk);
-            eventBus.emit('detection:complete', { motivation: event.motivation });
-          });
-          stream.onError((error) => {
-            console.error('[useDetectionFlow] Assessment detection error:', error);
-            setDetectingMotivation(null);
-            setDetectionProgress(null);
-          });
+          // Events auto-emit to EventBus: detection:progress, detection:complete, detection:failed
         } else if (event.motivation === 'commenting') {
-          const stream = currentClient.sse.detectComments(currentRUri, {
+          currentClient.sse.detectComments(currentRUri, {
             instructions: event.options.instructions,
             tone: event.options.tone as 'scholarly' | 'explanatory' | 'conversational' | 'technical' | undefined,
             density: event.options.density,
           }, auth);
-          stream.onProgress((chunk) => { eventBus.emit('detection:progress', chunk); });
-          stream.onComplete((finalChunk) => {
-            eventBus.emit('detection:progress', finalChunk);
-            eventBus.emit('detection:complete', { motivation: event.motivation });
-          });
-          stream.onError((error) => {
-            console.error('Detection failed:', error);
-            setDetectingMotivation(null);
-            setDetectionProgress(null);
-          });
+          // Events auto-emit to EventBus: detection:progress, detection:complete, detection:failed
         }
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
-          eventBus.emit('detection:cancelled', undefined);
+          eventBus.get('detection:cancelled').next(undefined);
         } else {
           console.error('Detection failed:', error);
           setDetectingMotivation(null);
@@ -440,16 +395,16 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
       }
     };
 
-    eventBus.on('annotation:create', handleAnnotationCreate);
-    eventBus.on('annotation:delete', handleAnnotationDelete);
-    eventBus.on('detection:start', handleDetectionStart);
-    eventBus.on('job:cancel-requested', handleJobCancelRequested);
+    const subscription1 = eventBus.get('annotation:create').subscribe(handleAnnotationCreate);
+    const subscription2 = eventBus.get('annotation:delete').subscribe(handleAnnotationDelete);
+    const subscription3 = eventBus.get('detection:start').subscribe(handleDetectionStart);
+    const subscription4 = eventBus.get('job:cancel-requested').subscribe(handleJobCancelRequested);
 
     return () => {
-      eventBus.off('annotation:create', handleAnnotationCreate);
-      eventBus.off('annotation:delete', handleAnnotationDelete);
-      eventBus.off('detection:start', handleDetectionStart);
-      eventBus.off('job:cancel-requested', handleJobCancelRequested);
+      subscription1.unsubscribe();
+      subscription2.unsubscribe();
+      subscription3.unsubscribe();
+      subscription4.unsubscribe();
       detectionStreamRef.current?.abort();
     };
   }, [eventBus]); // eventBus is stable singleton; client/rUri/token accessed via refs

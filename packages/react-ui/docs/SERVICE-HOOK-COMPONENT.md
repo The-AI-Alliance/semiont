@@ -6,11 +6,11 @@
 
 Semiont uses a strict three-layer architecture to separate concerns and maintain clean, testable code:
 
-1. **Service Layer** - SSE connection management (`useResourceEvents`)
-2. **Hook Layer** - Event subscriptions + React state (`useEventSubscriptions` + `useState`)
+1. **Service Layer** - SSE stream management (EventBus-native)
+2. **Hook Layer** - Event orchestration + React state (`useEventSubscriptions` + `useState`)
 3. **Component Layer** - Pure React (hooks + JSX)
 
-This architecture eliminates callback prop drilling, ensures proper separation of concerns, and makes components highly testable.
+This architecture leverages RxJS EventBus for event routing, eliminates callback prop drilling, ensures proper separation of concerns, and makes components highly testable.
 
 ---
 
@@ -18,14 +18,15 @@ This architecture eliminates callback prop drilling, ensures proper separation o
 
 ### Layer 1: Service Layer
 
-**Responsibility**: Manage Server-Sent Events (SSE) connections and emit events to the event bus.
+**Responsibility**: Manage Server-Sent Events (SSE) connections with EventBus-native streams.
 
 **Rules**:
 - ✅ Opens and manages SSE connections
-- ✅ Parses SSE data and emits events
+- ✅ SSE streams automatically emit to EventBus (no callbacks)
 - ✅ Handles connection errors and cleanup
 - ❌ NO React state (`useState`, `useEffect` for state)
 - ❌ NO JSX rendering
+- ❌ NO manual event forwarding (streams are EventBus-native)
 
 **Implementation**: `useResourceEvents` hook
 
@@ -36,17 +37,13 @@ export function useResourceEvents(rUri: ResourceUri) {
   const client = useApiClient();
 
   useEffect(() => {
-    // Open SSE connection
-    const stream = client!.sse.resourceEvents(rUri);
-
-    // Parse and emit events
-    stream.onProgress((data) => {
-      if (data.type === 'detection:progress') {
-        eventBus.emit('detection:progress', data.payload);
-      }
-      // ... other event types
+    // Open SSE connection - events auto-emit to EventBus
+    const stream = client!.sse.resourceEvents(rUri, {
+      auth: accessToken(token),
+      eventBus  // ← Stream auto-emits to EventBus
     });
 
+    // No callbacks needed - EventBus handles everything
     // Cleanup on unmount
     return () => stream.close();
   }, [rUri, eventBus, client]);
@@ -55,19 +52,26 @@ export function useResourceEvents(rUri: ResourceUri) {
 
 **Usage**: Called once per resource page, typically in the main page component.
 
+**Key Architecture Points**:
+- SSE streams are **EventBus-native** - they emit directly to EventBus
+- No manual `eventBus.get(...).next(...)` calls needed
+- No callbacks (`onProgress`, `onComplete`, `onError`) - deprecated
+- Cleaner separation: SSE layer just manages connections, EventBus handles routing
+
 ---
 
 ### Layer 2: Hook Layer
 
-**Responsibility**: Subscribe to events and manage React state.
+**Responsibility**: Orchestrate operations and manage React state.
 
 **Rules**:
 - ✅ Subscribes to events using `useEventSubscriptions`
 - ✅ Manages state with `useState`
+- ✅ Triggers SSE streams via API client (passing `eventBus`)
 - ✅ Returns data/state objects
-- ❌ NO direct `eventBus.on()` / `eventBus.off()` calls (use `useEventSubscriptions`)
+- ❌ NO direct `eventBus.get().subscribe()` calls (use `useEventSubscriptions`)
 - ❌ NO JSX rendering
-- ❌ NO SSE connection management
+- ❌ NO manual event forwarding
 
 **Example**: `useDetectionFlow` hook
 
@@ -81,24 +85,31 @@ export interface DetectionFlowState {
 export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
   const eventBus = useEventBus();
   const client = useApiClient();
+  const token = useAuthToken();
 
   // State management
   const [detectingMotivation, setDetectingMotivation] = useState<Motivation | null>(null);
   const [detectionProgress, setDetectionProgress] = useState<DetectionProgress | null>(null);
 
-  // API operations: useEffect subscribes to command events and calls the API
+  // API operations: Start SSE stream when 'detection:start' event is emitted
   useEffect(() => {
-    const handleDetectionStart = async (event: { motivation: Motivation }) => { /* ... */ };
-    eventBus.on('detection:start', handleDetectionStart);
-    return () => eventBus.off('detection:start', handleDetectionStart);
-  }, [eventBus, rUri]);
-
-  // State subscriptions (updates state when events are received)
-  useEventSubscriptions({
-    'detection:start': ({ motivation }) => {
-      setDetectingMotivation(motivation);
+    const handleDetectionStart = async (event: { motivation: Motivation; options: any }) => {
+      setDetectingMotivation(event.motivation);
       setDetectionProgress(null);
-    },
+
+      // Start SSE stream - events auto-emit to EventBus
+      client.sse.detectReferences(rUri, event.options, {
+        auth: accessToken(token),
+        eventBus  // ← Stream auto-emits detection:progress, detection:complete, detection:failed
+      });
+    };
+
+    const sub = eventBus.get('detection:start').subscribe(handleDetectionStart);
+    return () => sub.unsubscribe();
+  }, [eventBus, rUri, client, token]);
+
+  // State subscriptions (update state when SSE events arrive)
+  useEventSubscriptions({
     'detection:progress': (chunk) => {
       setDetectionProgress(chunk);
     },
@@ -118,6 +129,7 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
 
 **Key Points**:
 - Uses `useEventSubscriptions` for automatic cleanup
+- Starts SSE streams with `eventBus` parameter (EventBus-native)
 - Returns plain data objects
 - No JSX rendering
 
@@ -129,10 +141,10 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
 
 **Rules**:
 - ✅ Calls hooks to get data
-- ✅ Emits events for user actions (via `eventBus.emit()`)
+- ✅ Emits events for user actions (via `eventBus.get(...).next(...)`)
 - ✅ Renders JSX
-- ❌ NO direct `eventBus.on()` / `eventBus.off()` (use hooks)
-- ❌ NO `new EventSource()` (use `useResourceEvents`)
+- ❌ NO direct `eventBus.get(...).subscribe()` (use hooks)
+- ❌ NO SSE stream creation (use hooks)
 - ❌ NO SSE parsing
 
 **Example**: Component using hooks
@@ -150,7 +162,7 @@ export function ResourceViewerPage({ rUri, resource, ... }: ResourceViewerPagePr
   // Event emission (user interaction)
   const eventBus = useEventBus();
   const handleDetectClick = useCallback(() => {
-    eventBus.emit('detection:start', {
+    eventBus.get('detection:start').next({
       motivation: 'linking',
       options: { entityTypes: ['Person', 'Organization'] }
     });
@@ -201,20 +213,21 @@ export function ResourceViewerPage({ rUri, resource, ... }: ResourceViewerPagePr
                    │ subscribes to
                    ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ Event Bus (mitt)                                             │
+│ Event Bus (RxJS)                                             │
 │                                                              │
 │  - Routes events between layers                             │
 │  - Type-safe event contracts                                │
+│  - Direct SSE integration (no manual forwarding)            │
 └──────────────────┬──────────────────────────────────────────┘
                    │
-                   │ emits events
+                   │ auto-emits from SSE streams
                    ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ Layer 1: Service (useResourceEvents)                        │
 │                                                              │
 │  - Opens SSE connection                                     │
-│  - Parses SSE data                                          │
-│  - Emits events to bus                                      │
+│  - Passes eventBus to stream                                │
+│  - Stream auto-emits to EventBus                            │
 └─────────────────────────────────────────────────────────────┘
 ```
 

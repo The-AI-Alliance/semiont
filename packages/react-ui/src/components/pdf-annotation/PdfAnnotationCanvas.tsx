@@ -2,10 +2,10 @@
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import { createHoverHandlers } from '../../hooks/useAttentionFlow';
-import type { components, ResourceUri } from '@semiont/api-client';
+import type { components, ResourceUri } from '@semiont/core';
 import { getTargetSelector } from '@semiont/api-client';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
-import type { EventBus } from '../../contexts/EventBusContext';
+import type { EventBus } from "@semiont/core"
 import {
   canvasToPdfCoordinates,
   pdfToCanvasCoordinates,
@@ -285,7 +285,7 @@ export function PdfAnnotationCanvas({
         });
 
         if (clickedAnnotation) {
-          eventBus?.emit('annotation:click', { annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
+          eventBus?.get('annotation:click').next({ annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
           setIsDrawing(false);
           setSelection(null);
           return;
@@ -324,7 +324,7 @@ export function PdfAnnotationCanvas({
 
     // Emit annotation:requested event with FragmentSelector
     if (selectedMotivation) {
-      eventBus.emit('annotation:requested', {
+      eventBus.get('annotation:requested').next({
         selector: {
           type: 'FragmentSelector',
           conformsTo: 'http://tools.ietf.org/rfc/rfc3778',
@@ -362,7 +362,7 @@ export function PdfAnnotationCanvas({
 
   // Hover handlers with currentHover guard and dwell delay
   const { handleMouseEnter, handleMouseLeave } = useMemo(
-    () => createHoverHandlers((annotationId) => eventBus?.emit('annotation:hover', { annotationId })),
+    () => createHoverHandlers((annotationId) => eventBus?.get('annotation:hover').next({ annotationId })),
     [eventBus]
   );
 
@@ -462,7 +462,7 @@ export function PdfAnnotationCanvas({
                         cursor: 'pointer',
                         opacity: isSelected ? 1 : isHovered ? 0.9 : 0.7
                       }}
-                      onClick={() => eventBus?.emit('annotation:click', { annotationId: ann.id, motivation: ann.motivation })}
+                      onClick={() => eventBus?.get('annotation:click').next({ annotationId: ann.id, motivation: ann.motivation })}
                       onMouseEnter={() => handleMouseEnter(ann.id)}
                       onMouseLeave={handleMouseLeave}
                     />

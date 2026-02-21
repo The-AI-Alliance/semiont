@@ -1,257 +1,14 @@
 'use client';
 
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
-import mitt from 'mitt';
-import type { Handler } from 'mitt';
-import type { ResourceEvent } from '@semiont/core';
-import type { components, Selector, ResourceUri, GenerationContext } from '@semiont/api-client';
-import type { DetectionProgress, GenerationProgress } from '../types/progress';
-
-type Annotation = components['schemas']['Annotation'];
-type Motivation = components['schemas']['Motivation'];
-
-interface SelectionData {
-  exact: string;
-  start: number;
-  end: number;
-  svgSelector?: string;
-  fragmentSelector?: string;
-  conformsTo?: string;
-  prefix?: string;
-  suffix?: string;
-}
-
-/**
- * Unified event map for all application events
- *
- * Consolidates events from:
- * - MakeMeaningEventBus (document/annotation operations)
- * - NavigationEventBus (navigation and sidebar UI)
- * - GlobalSettingsEventBus (app-wide settings)
- */
-export type EventMap = {
-  // ===== BACKEND EVENTS (from SSE) =====
-
-  // Generic event (all types)
-  'make-meaning:event': ResourceEvent;
-
-  // Detection events (backend real-time stream via GET /resources/:id/events/stream)
-  'detection:started': Extract<ResourceEvent, { type: 'job.started' }>;
-  'detection:entity-found': Extract<ResourceEvent, { type: 'annotation.added' }>;
-  'detection:completed': Extract<ResourceEvent, { type: 'job.completed' }>;
-  'detection:failed': Extract<ResourceEvent, { type: 'job.failed' }>;
-  // Detection progress from SSE detection streams (all 5 motivation types)
-  'detection:progress': DetectionProgress;
-
-  // Annotation events (backend)
-  'annotation:added': Extract<ResourceEvent, { type: 'annotation.added' }>;
-  'annotation:removed': Extract<ResourceEvent, { type: 'annotation.removed' }>;
-  'annotation:updated': Extract<ResourceEvent, { type: 'annotation.body.updated' }>;
-
-  // Entity tag events (backend)
-  'entity-tag:added': Extract<ResourceEvent, { type: 'entitytag.added' }>;
-  'entity-tag:removed': Extract<ResourceEvent, { type: 'entitytag.removed' }>;
-
-  // Resource events (backend)
-  'resource:archived': Extract<ResourceEvent, { type: 'resource.archived' }>;
-  'resource:unarchived': Extract<ResourceEvent, { type: 'resource.unarchived' }>;
-
-  // ===== USER INTERACTION EVENTS =====
-
-  // Selection events (user highlighting text/regions)
-  'selection:comment-requested': SelectionData;
-  'selection:tag-requested': SelectionData;
-  'selection:assessment-requested': SelectionData;
-  'selection:reference-requested': SelectionData;
-
-  // Unified annotation request event (all motivations)
-  'annotation:requested': {
-    selector: Selector | Selector[];
-    motivation: Motivation;
-  };
-
-  // Annotation interaction events
-  'annotation:cancel-pending': void;
-  'annotation:hover': { annotationId: string | null }; // Bidirectional hover: annotation overlay ↔ panel entry
-  'annotation:click': { annotationId: string; motivation: Motivation }; // Click on annotation - includes motivation for panel coordination
-  'annotation:focus': { annotationId: string | null };
-  'annotation:sparkle': { annotationId: string };
-
-  // Panel management events
-  'panel:toggle': { panel: string };
-  'panel:open': { panel: string; scrollToAnnotationId?: string; motivation?: string };
-  'panel:close': void;
-
-  // View mode events
-  'view:mode-toggled': void;
-
-  // Toolbar events (annotation UI controls)
-  'toolbar:selection-changed': { motivation: string | null };
-  'toolbar:click-changed': { action: string };
-  'toolbar:shape-changed': { shape: string };
-
-  // Navigation events (sidebar UI)
-  'navigation:sidebar-toggle': void;
-  'navigation:resource-close': { resourceId: string };
-  'navigation:resource-reorder': { oldIndex: number; newIndex: number };
-  'navigation:link-clicked': { href: string; label?: string };
-  'navigation:router-push': { path: string; reason?: string };
-  'navigation:external-navigate': { url: string; resourceId?: string; cancelFallback: () => void };
-  'navigation:reference-navigate': { documentId: string };
-  'navigation:entity-type-clicked': { entityType: string };
-
-  // Settings events (app-wide)
-  'settings:theme-changed': { theme: 'light' | 'dark' | 'system' };
-  'settings:line-numbers-toggled': void;
-  'settings:locale-changed': { locale: string };
-
-  // ===== API OPERATION EVENTS =====
-
-  // Resource operations
-  'resource:archive': void;
-  'resource:unarchive': void;
-  'resource:clone': void;
-
-  // Job control
-  'job:cancel-requested': { jobType: 'detection' | 'generation' };
-
-  // Annotation CRUD operations
-  'annotation:create': {
-    motivation: Motivation;
-    selector: Selector | Selector[];
-    body: components['schemas']['AnnotationBody'][];
-  };
-  'annotation:created': { annotation: Annotation };
-  'annotation:create-failed': { error: Error };
-  'annotation:delete': { annotationId: string };
-  'annotation:deleted': { annotationId: string };
-  'annotation:delete-failed': { error: Error };
-  'annotation:update-body': {
-    annotationUri: string;
-    resourceId: string;
-    operations: Array<{
-      op: 'add' | 'remove' | 'replace';
-      item?: components['schemas']['AnnotationBody'];
-      oldItem?: components['schemas']['AnnotationBody'];
-      newItem?: components['schemas']['AnnotationBody'];
-    }>;
-  };
-  'annotation:body-updated': { annotationUri: string };
-  'annotation:body-update-failed': { error: Error };
-
-  // Detection operations
-  'detection:start': {
-    motivation: Motivation;
-    options: {
-      instructions?: string;
-      /** Comment tone */
-      tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical' | 'analytical' | 'critical' | 'balanced' | 'constructive';
-      density?: number;
-      entityTypes?: string[];
-      includeDescriptiveReferences?: boolean;
-      schemaId?: string;
-      categories?: string[];
-    };
-  };
-  'detection:complete': { motivation?: Motivation; resourceUri?: ResourceUri; progress?: DetectionProgress };
-  'detection:cancelled': void;
-  'detection:dismiss-progress': void;
-
-  // Resource generation operations (unified event-driven flow)
-  'generation:start': {
-    annotationUri: string;
-    resourceUri: string;
-    options: {
-      title: string;
-      prompt?: string;
-      language?: string;
-      temperature?: number;
-      maxTokens?: number;
-      context: GenerationContext;
-    };
-  };
-  'generation:progress': GenerationProgress;
-  'generation:complete': { annotationUri: string; progress: GenerationProgress };
-  'generation:failed': { error: Error };
-  'generation:modal-open': {
-    annotationUri: string;
-    resourceUri: string;
-    defaultTitle: string;
-  };
-  'reference:create-manual': {
-    annotationUri: string;
-    title: string;
-    entityTypes: string[];
-  };
-  'reference:link': {
-    annotationUri: string;
-    searchTerm: string;
-  };
-  'resolution:search-requested': {
-    referenceId: string;
-    searchTerm: string;
-  };
-  'context:retrieval-requested': {
-    annotationUri: string;
-    resourceUri: string;
-  };
-  'context:retrieval-complete': {
-    annotationUri: string;
-    context: GenerationContext;
-  };
-  'context:retrieval-failed': {
-    annotationUri: string;
-    error: Error;
-  };
-};
-
-export type EventBus = ReturnType<typeof mitt<EventMap>> & { busId: string };
+import { EventBus } from '@semiont/core';
 
 const EventBusContext = createContext<EventBus | null>(null);
 
 /**
- * Generate an 8-digit hex identifier for an event bus instance
- */
-function generateBusId(): string {
-  return Math.floor(Math.random() * 0xFFFFFFFF).toString(16).padStart(8, '0');
-}
-
-/**
- * Create an EventBus instance with logging and unique identifier
- */
-function createEventBus(): EventBus {
-  const bus = mitt<EventMap>() as EventBus;
-  const busId = generateBusId();
-
-  // Add busId property
-  bus.busId = busId;
-
-  // Wrap emit to add logging with busId
-  const originalEmit = bus.emit.bind(bus);
-  bus.emit = <Key extends keyof EventMap>(eventName: Key, payload?: EventMap[Key]) => {
-    console.info(`[EventBus:${busId}] emit:`, eventName, payload);
-    return originalEmit(eventName, payload as EventMap[Key]);
-  };
-
-  // Wrap on to add logging with busId
-  const originalOn = bus.on.bind(bus);
-  bus.on = <Key extends keyof EventMap>(eventName: Key, handler: Handler<EventMap[Key]>) => {
-    console.debug(`[EventBus:${busId}] subscribe:`, eventName);
-    return originalOn(eventName, handler);
-  };
-
-  // Wrap off to add logging with busId
-  const originalOff = bus.off.bind(bus);
-  bus.off = <Key extends keyof EventMap>(eventName: Key, handler?: Handler<EventMap[Key]>) => {
-    console.debug(`[EventBus:${busId}] unsubscribe:`, eventName);
-    return originalOff(eventName, handler);
-  };
-
-  return bus;
-}
-
-/**
  * Global singleton event bus.
+ *
+ * Uses RxJS-based EventBus from @semiont/core for framework-agnostic event routing.
  *
  * This ensures all components in the application share the same event bus instance,
  * which is critical for cross-component communication (e.g., hovering an annotation
@@ -279,7 +36,7 @@ function createEventBus(): EventBus {
  *
  * For now, single global bus is correct for single-window app.
  */
-let globalEventBus = createEventBus();
+let globalEventBus = new EventBus();
 
 /**
  * Reset the global event bus - FOR TESTING ONLY.
@@ -287,20 +44,23 @@ let globalEventBus = createEventBus();
  * Call this in test setup (beforeEach) to ensure test isolation.
  * Each test gets a fresh event bus with no lingering subscriptions.
  *
+ * @returns The new EventBus instance
+ *
  * @example
  * ```typescript
  * beforeEach(() => {
- *   resetEventBusForTesting();
+ *   const eventBus = resetEventBusForTesting();
  * });
  * ```
  */
-export function resetEventBusForTesting() {
-  globalEventBus = createEventBus();
+export function resetEventBusForTesting(): EventBus {
+  globalEventBus.destroy();
+  globalEventBus = new EventBus();
+  return globalEventBus;
 }
 
 export interface EventBusProviderProps {
   children: ReactNode;
-  // rUri and client removed - operation handlers are now set up via useResolutionFlow hook
 }
 
 /**
@@ -324,9 +84,7 @@ export interface EventBusProviderProps {
  * Operation handlers (API calls triggered by events) are set up separately via
  * the useResolutionFlow hook, which should be called at the resource page level.
  */
-export function EventBusProvider({
-  children,
-}: EventBusProviderProps) {
+export function EventBusProvider({ children }: EventBusProviderProps) {
   const eventBus = useMemo(() => globalEventBus, []);
 
   return (
@@ -349,22 +107,23 @@ export function EventBusProvider({
  * const eventBus = useEventBus();
  *
  * // Emit any event
- * eventBus.emit('annotation:hover', { annotationId: '123' });
- * eventBus.emit('navigation:sidebar-toggle', undefined);
- * eventBus.emit('settings:theme-changed', { theme: 'dark' });
+ * eventBus.get('annotation:hover').next({ annotationId: '123' });
+ * eventBus.get('navigation:sidebar-toggle').next(undefined);
+ * eventBus.get('settings:theme-changed').next({ theme: 'dark' });
  *
  * // Subscribe to any event
  * useEffect(() => {
- *   const handler = ({ annotationId }) => console.log(annotationId);
- *   eventBus.on('annotation:hover', handler);
- *   return () => eventBus.off('annotation:hover', handler);
+ *   const unsubscribe = eventBus.on('annotation:hover', ({ annotationId }) => {
+ *     console.log(annotationId);
+ *   });
+ *   return () => unsubscribe();
  * }, []);
  * ```
  */
 export function useEventBus(): EventBus {
-  const bus = useContext(EventBusContext);
-  if (!bus) {
+  const eventBus = useContext(EventBusContext);
+  if (!eventBus) {
     throw new Error('useEventBus must be used within EventBusProvider');
   }
-  return bus;
+  return eventBus;
 }

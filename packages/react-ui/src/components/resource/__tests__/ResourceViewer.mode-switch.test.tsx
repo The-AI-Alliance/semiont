@@ -20,7 +20,7 @@ import { TranslationProvider } from '../../../contexts/TranslationContext';
 import { ResourceAnnotationsProvider } from '../../../contexts/ResourceAnnotationsContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 

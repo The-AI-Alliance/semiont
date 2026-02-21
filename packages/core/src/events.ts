@@ -12,7 +12,8 @@
  */
 
 import type { CreationMethod } from './creation-methods';
-import type { components, AnnotationUri, JobId } from '@semiont/api-client';
+import type { components } from './types';
+import type { AnnotationUri, JobId } from './branded-types';
 import type { ResourceId, AnnotationId, UserId } from './identifiers';
 
 // Import OpenAPI types

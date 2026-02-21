@@ -12,13 +12,8 @@ import type { AnyJob, DetectionJob, JobQueue, RunningJob, DetectionParams, Detec
 import { ResourceContext } from '..';
 import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
 import { resourceIdToURI } from '@semiont/core';
-import type { EnvironmentConfig } from '@semiont/core';
-import {
-  type components,
-  getPrimaryRepresentation,
-  decodeRepresentation,
-  validateAndCorrectOffsets,
-} from '@semiont/api-client';
+import type { EnvironmentConfig, components } from '@semiont/core';
+import { getPrimaryRepresentation, decodeRepresentation, validateAndCorrectOffsets } from '@semiont/api-client';
 import { extractEntities } from '../detection/entity-extractor';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import type { InferenceClient } from '@semiont/inference';
