@@ -45,7 +45,7 @@
  *   (BrowseView, CodeMirrorRenderer, AnnotationOverlay, PdfAnnotationCanvas).
  */
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useEventBus } from '../contexts/EventBusContext';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
 
@@ -167,6 +167,16 @@ export function useHoverEmitter(annotationId: string): HoverEmitterProps {
       eventBus.get('annotation:hover').next({ annotationId: null });
     }
   }, []); // eventBus is stable singleton - never in deps
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current !== null) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, []);
 
   return { onMouseEnter, onMouseLeave };
 }

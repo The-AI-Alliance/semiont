@@ -99,9 +99,8 @@ jobs:
 
       - name: Run type check
         run: |
-          cd packages/${{ matrix.package }}
-          if grep -q '"typecheck"' package.json; then
-            npm run typecheck
+          if grep -q '"typecheck"' packages/${{ matrix.package }}/package.json; then
+            npm run typecheck --workspace=@semiont/${{ matrix.package }}
           else
             echo "No typecheck script found, skipping"
           fi
