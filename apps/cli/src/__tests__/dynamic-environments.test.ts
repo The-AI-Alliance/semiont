@@ -45,17 +45,38 @@ describe('Dynamic Environment Discovery', () => {
       'demo.json': {
         platform: { default: 'posix' },
         site: { domain: 'demo.local' },
-        services: { backend: { platform: { type: 'posix' } } }
+        services: {
+          backend: {
+            platform: { type: 'posix' },
+            port: 4000,
+            publicURL: 'http://demo.local:4000',
+            corsOrigin: 'http://demo.local:3000'
+          }
+        }
       },
       'feature-branch.json': {
         platform: { default: 'container' },
         site: { domain: 'feature.local' },
-        services: { api: { platform: { type: 'container' } } }
+        services: {
+          api: {
+            platform: { type: 'container' },
+            port: 8080,
+            publicURL: 'http://feature.local:8080',
+            corsOrigin: 'http://feature.local:3000'
+          }
+        }
       },
       'user-test.json': {
         platform: { default: 'aws' },
         site: { domain: 'usertest.com' },
-        services: { web: { platform: { type: 'aws' } } }
+        services: {
+          web: {
+            platform: { type: 'aws' },
+            port: 80,
+            publicURL: 'https://usertest.com',
+            corsOrigin: 'https://usertest.com'
+          }
+        }
       }
     };
     

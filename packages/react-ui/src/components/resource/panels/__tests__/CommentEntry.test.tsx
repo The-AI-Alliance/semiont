@@ -33,7 +33,7 @@ vi.mock('@semiont/api-client', async () => {
   };
 });
 
-import { getCommentText, getAnnotationExactText } from '@semiont/core';
+import { getCommentText, getAnnotationExactText } from '@semiont/api-client';
 import type { MockedFunction } from 'vitest';
 
 const mockGetCommentText = getCommentText as MockedFunction<typeof getCommentText>;

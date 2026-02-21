@@ -116,7 +116,7 @@ vi.mock('../CommentEntry', () => ({
   ),
 }));
 
-import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
+import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
 
 const mockGetTextPositionSelector = getTextPositionSelector as MockedFunction<typeof getTextPositionSelector>;
 const mockGetTargetSelector = getTargetSelector as MockedFunction<typeof getTargetSelector>;

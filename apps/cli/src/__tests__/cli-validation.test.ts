@@ -190,11 +190,15 @@ describe('CLI Environment Validation Logic', () => {
           backend: {
             platform: { type: 'posix' },
             port: 4001,
+            publicURL: 'http://test.local:4001',
+            corsOrigin: 'http://test.local:4000',
             command: 'npm start'
           },
           frontend: {
             platform: { type: 'posix' },
             port: 4000,
+            publicURL: 'http://test.local:4000',
+            siteName: 'Test Site',
             command: 'npm start'
           }
         }
