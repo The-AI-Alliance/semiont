@@ -2,8 +2,8 @@
  * Tool execution handlers using @semiont/api-client
  */
 
-import { SemiontApiClient, getExactText, getBodySource, resourceUri, annotationUri, entityType, type AccessToken, type ReferenceDetectionProgress, type GenerationProgress } from '@semiont/api-client';
-import { EventBus } from '@semiont/core';
+import { SemiontApiClient, getExactText, getBodySource, type ReferenceDetectionProgress, type GenerationProgress } from '@semiont/api-client';
+import { EventBus, resourceUri, annotationUri, entityType, type AccessToken } from '@semiont/core';
 
 export async function handleCreateResource(client: SemiontApiClient, auth: AccessToken, args: any) {
   // Create File from content string for multipart/form-data upload

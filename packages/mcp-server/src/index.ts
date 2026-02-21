@@ -7,7 +7,8 @@ import {
   ListResourcesRequestSchema,
   ListPromptsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { SemiontApiClient, baseUrl, accessToken } from '@semiont/api-client';
+import { SemiontApiClient } from '@semiont/api-client';
+import { baseUrl, accessToken } from '@semiont/core';
 
 /**
  * Semiont MCP Server
