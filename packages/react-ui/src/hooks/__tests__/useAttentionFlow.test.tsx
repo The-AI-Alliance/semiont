@@ -91,7 +91,7 @@ describe('useAttentionFlow', () => {
       unsubscribe.unsubscribe();
 
       expect(sparkleSpy).toHaveBeenCalledTimes(1);
-      expect(sparkleSpy).toHaveBeenCalledWith({ annotationId: 'ann-sparkle' }); });
+      expect(sparkleSpy).toHaveBeenCalledWith({ annotationId: 'ann-sparkle' });
     });
 
     it('does NOT emit annotation:sparkle when null is hovered', () => {
@@ -208,4 +208,5 @@ describe('useAttentionFlow', () => {
       expect(sparkleSpy).not.toHaveBeenCalled();
     });
   });
+
 });
