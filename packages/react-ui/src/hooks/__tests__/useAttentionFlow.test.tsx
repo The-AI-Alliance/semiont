@@ -36,19 +36,7 @@ function renderAttentionFlow() {
 
   return {
     getState: () => lastState!,
-    emit: <K extends Parameters<typeof eventBusInstance.emit>[0]>(
-      event: K,
-      payload: Parameters<typeof eventBusInstance.emit>[1]
-    ) => {
-      act(() => { eventBusInstance!.get(event as any).next(payload as any); });
-    },
-    on: <K extends Parameters<typeof eventBusInstance.on>[0]>(
-      event: K,
-      handler: Parameters<typeof eventBusInstance.on>[1]
-    ) => {
-      return eventBusInstance!.get(event as any).subscribe(handler as any);
-    },
-    eventBus: () => eventBusInstance!,
+    getEventBus: () => eventBusInstance!,
   };
 }
 
@@ -68,61 +56,61 @@ describe('useAttentionFlow', () => {
 
   describe('annotation:hover', () => {
     it('sets hoveredAnnotationId when annotation is hovered', () => {
-      const { getState, emit } = renderAttentionFlow();
+      const { getState, getEventBus } = renderAttentionFlow();
 
-      emit('annotation:hover', { annotationId: 'ann-1' });
+      act(() => { getEventBus().get('annotation:hover').next({ annotationId: 'ann-1' }); });
 
       expect(getState().hoveredAnnotationId).toBe('ann-1');
     });
 
     it('clears hoveredAnnotationId when null is hovered (mouse leaves)', () => {
-      const { getState, emit } = renderAttentionFlow();
+      const { getState, getEventBus } = renderAttentionFlow();
 
-      emit('annotation:hover', { annotationId: 'ann-1' });
+      act(() => { getEventBus().get('annotation:hover').next({ annotationId: 'ann-1' }); });
       expect(getState().hoveredAnnotationId).toBe('ann-1');
 
-      emit('annotation:hover', { annotationId: null });
+      act(() => { getEventBus().get('annotation:hover').next({ annotationId: null }); });
       expect(getState().hoveredAnnotationId).toBeNull();
     });
 
     it('updates hoveredAnnotationId when a different annotation is hovered', () => {
-      const { getState, emit } = renderAttentionFlow();
+      const { getState, getEventBus } = renderAttentionFlow();
 
-      emit('annotation:hover', { annotationId: 'ann-1' });
-      emit('annotation:hover', { annotationId: 'ann-2' });
+      act(() => { getEventBus().get('annotation:hover').next({ annotationId: 'ann-1' }); });
+      act(() => { getEventBus().get('annotation:hover').next({ annotationId: 'ann-2' }); });
 
       expect(getState().hoveredAnnotationId).toBe('ann-2');
     });
 
     it('emits annotation:sparkle when a non-null annotation is hovered', () => {
-      const { emit, on } = renderAttentionFlow();
+      const { getEventBus } = renderAttentionFlow();
       const sparkleSpy = vi.fn();
 
-      const unsubscribe = on('annotation:sparkle', sparkleSpy);
-      emit('annotation:hover', { annotationId: 'ann-sparkle' });
+      const unsubscribe = getEventBus().get('annotation:sparkle').subscribe(sparkleSpy);
+      act(() => { getEventBus().get('annotation:hover').next({ annotationId: 'ann-sparkle' }); });
       unsubscribe.unsubscribe();
 
       expect(sparkleSpy).toHaveBeenCalledTimes(1);
-      expect(sparkleSpy).toHaveBeenCalledWith({ annotationId: 'ann-sparkle' });
+      expect(sparkleSpy).toHaveBeenCalledWith({ annotationId: 'ann-sparkle' }); });
     });
 
     it('does NOT emit annotation:sparkle when null is hovered', () => {
-      const { emit, on } = renderAttentionFlow();
+      const { getEventBus } = renderAttentionFlow();
       const sparkleSpy = vi.fn();
 
-      const unsubscribe = on('annotation:sparkle', sparkleSpy);
-      emit('annotation:hover', { annotationId: null });
+      const unsubscribe = getEventBus().get('annotation:sparkle').subscribe(sparkleSpy);
+      act(() => { getEventBus().get('annotation:hover').next({ annotationId: null }); });
       unsubscribe.unsubscribe();
 
       expect(sparkleSpy).not.toHaveBeenCalled();
     });
 
     it('emits annotation:sparkle exactly ONCE per hover (no duplicate subscriptions)', () => {
-      const { emit, on } = renderAttentionFlow();
+      const { getEventBus } = renderAttentionFlow();
       const sparkleSpy = vi.fn();
 
-      const unsubscribe = on('annotation:sparkle', sparkleSpy);
-      emit('annotation:hover', { annotationId: 'ann-once' });
+      const unsubscribe = getEventBus().get('annotation:sparkle').subscribe(sparkleSpy);
+      act(() => { getEventBus().get('annotation:hover').next({ annotationId: 'ann-once' }); });
       unsubscribe.unsubscribe();
 
       // If useAttentionFlow were registered twice, sparkle would fire twice
@@ -132,11 +120,11 @@ describe('useAttentionFlow', () => {
 
   describe('annotation:click', () => {
     it('emits annotation:focus when an annotation is clicked', () => {
-      const { emit, on } = renderAttentionFlow();
+      const { getEventBus } = renderAttentionFlow();
       const focusSpy = vi.fn();
 
-      const unsubscribe = on('annotation:focus', focusSpy);
-      emit('annotation:click', { annotationId: 'ann-click', motivation: 'highlighting' });
+      const unsubscribe = getEventBus().get('annotation:focus').subscribe(focusSpy);
+      act(() => { getEventBus().get('annotation:click').next({ annotationId: 'ann-click', motivation: 'highlighting' }); });
       unsubscribe.unsubscribe();
 
       expect(focusSpy).toHaveBeenCalledTimes(1);
@@ -144,25 +132,25 @@ describe('useAttentionFlow', () => {
     });
 
     it('emits annotation:focus exactly ONCE per click (no duplicate subscriptions)', () => {
-      const { emit, on } = renderAttentionFlow();
+      const { getEventBus } = renderAttentionFlow();
       const focusSpy = vi.fn();
 
-      const unsubscribe = on('annotation:focus', focusSpy);
-      emit('annotation:click', { annotationId: 'ann-dedup', motivation: 'commenting' });
+      const unsubscribe = getEventBus().get('annotation:focus').subscribe(focusSpy);
+      act(() => { getEventBus().get('annotation:click').next({ annotationId: 'ann-dedup', motivation: 'commenting' }); });
       unsubscribe.unsubscribe();
 
       expect(focusSpy).toHaveBeenCalledTimes(1);
     });
 
     it('does NOT change hoveredAnnotationId on click', () => {
-      const { getState, emit } = renderAttentionFlow();
+      const { getState, getEventBus } = renderAttentionFlow();
 
       // Hover first
-      emit('annotation:hover', { annotationId: 'ann-hovered' });
+      act(() => { getEventBus().get('annotation:hover').next({ annotationId: 'ann-hovered' }); });
       expect(getState().hoveredAnnotationId).toBe('ann-hovered');
 
       // Click a different annotation — hover state should be unaffected
-      emit('annotation:click', { annotationId: 'ann-clicked', motivation: 'highlighting' });
+      act(() => { getEventBus().get('annotation:click').next({ annotationId: 'ann-clicked', motivation: 'highlighting' }); }); });
       expect(getState().hoveredAnnotationId).toBe('ann-hovered');
     });
   });
