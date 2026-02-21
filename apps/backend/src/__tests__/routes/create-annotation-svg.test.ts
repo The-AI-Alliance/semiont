@@ -7,7 +7,7 @@
 
 import { describe, test, expect } from 'vitest';
 import { validateSvgMarkup, getSvgSelector } from '@semiont/api-client';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 
 type SvgSelector = components['schemas']['SvgSelector'];
 type TextPositionSelector = components['schemas']['TextPositionSelector'];

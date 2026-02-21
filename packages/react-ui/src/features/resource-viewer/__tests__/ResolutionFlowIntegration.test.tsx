@@ -22,7 +22,7 @@ import { useResolutionFlow } from '../../../hooks/useResolutionFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
-import { SemiontApiClient, resourceUri, accessToken } from '@semiont/api-client';
+import { SemiontApiClient, resourceUri, accessToken } from '@semiont/core';
 
 describe('Resolution Flow - Search Modal & Body Update Integration', () => {
   let updateAnnotationBodySpy: ReturnType<typeof vi.fn>;

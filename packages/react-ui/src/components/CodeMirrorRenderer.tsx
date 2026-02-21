@@ -7,8 +7,8 @@ import { markdown } from '@codemirror/lang-markdown';
 import { ANNOTATORS } from '../lib/annotation-registry';
 import { ReferenceResolutionWidget } from '../lib/codemirror-widgets';
 import { isHighlight, isReference, isResolvedReference, isComment, isAssessment, isTag, getBodySource } from '@semiont/api-client';
-import type { components } from '@semiont/api-client';
-import type { EventBus } from "@semiont/core"
+import type { components } from '@semiont/core';
+import type { EventBus } from "@semiont/core";
 import { createHoverHandlers } from '../hooks/useAttentionFlow';
 
 type Annotation = components['schemas']['Annotation'];

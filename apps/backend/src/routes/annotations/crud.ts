@@ -16,7 +16,7 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
-import { type components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import { resourceId, userId } from '@semiont/core';
 import { validateRequestBody } from '../../middleware/validate-openapi';
 import { AnnotationOperations, AnnotationContext } from '@semiont/make-meaning';

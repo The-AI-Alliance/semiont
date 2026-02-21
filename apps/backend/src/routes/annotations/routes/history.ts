@@ -14,7 +14,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { AnnotationsRouterType } from '../shared';
 import { AnnotationContext } from '@semiont/make-meaning';
 import { getTargetSource } from '@semiont/api-client';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 
 type GetAnnotationHistoryResponse = components['schemas']['GetAnnotationHistoryResponse'];

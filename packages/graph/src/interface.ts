@@ -1,6 +1,6 @@
 // Graph database interface - all implementations must follow this contract
 
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import type {
   AnnotationCategory,
   GraphConnection,
@@ -11,8 +11,9 @@ import type {
   CreateAnnotationInternal,
   ResourceId,
   AnnotationId,
+  ResourceUri,
+  AnnotationUri,
 } from '@semiont/core';
-import type { ResourceUri, AnnotationUri } from '@semiont/api-client';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];

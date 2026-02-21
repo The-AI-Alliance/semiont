@@ -10,7 +10,7 @@
 
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import { ResourceContext } from '@semiont/make-meaning';
 import { getResourceEntityTypes } from '@semiont/api-client';
 

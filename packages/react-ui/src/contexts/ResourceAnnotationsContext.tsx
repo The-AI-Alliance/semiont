@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { useAnnotations } from '../lib/api-hooks';
-import type { components, AnnotationUri, ResourceUri, Selector } from '@semiont/api-client';
+import type { components, AnnotationUri, ResourceUri, Selector } from '@semiont/core';
 import { useDocumentAnnouncements } from '../components/LiveRegion';
 
 type Annotation = components['schemas']['Annotation'];

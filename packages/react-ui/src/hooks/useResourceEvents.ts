@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-import type { ResourceUri, SSEStream } from '@semiont/api-client';
-import { accessToken } from '@semiont/api-client';
+import type { ResourceUri } from '@semiont/core';
+import { SSEStream } from '@semiont/api-client';
+import { accessToken } from '@semiont/core';
 import type { ResourceEvent } from '@semiont/core';
 import { useApiClient } from '../contexts/ApiClientContext';
 import { useAuthToken } from '../contexts/AuthTokenContext';

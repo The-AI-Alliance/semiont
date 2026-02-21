@@ -7,7 +7,7 @@
  * - UI state (multiple props → 1)
  */
 
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 

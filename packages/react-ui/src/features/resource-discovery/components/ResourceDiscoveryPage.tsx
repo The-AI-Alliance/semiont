@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useCallback, useRef } from 'react';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import { getResourceId } from '@semiont/api-client';
 import { useRovingTabIndex } from '../../../hooks/useRovingTabIndex';
 import { Toolbar } from '../../../components/Toolbar';

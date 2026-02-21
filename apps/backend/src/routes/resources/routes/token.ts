@@ -16,10 +16,11 @@ import {
   userId,
 } from '@semiont/core';
 import { ResourceContext, ResourceOperations } from '@semiont/make-meaning';
-import { type CloneToken, cloneToken as makeCloneToken } from '@semiont/api-client';
+import type { CloneToken } from '@semiont/core';
+import { cloneToken as makeCloneToken } from '@semiont/core';
 import type { ResourcesRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 
 import { getPrimaryRepresentation, getResourceEntityTypes } from '@semiont/api-client';
 

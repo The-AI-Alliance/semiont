@@ -16,10 +16,11 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import type { EventBus } from '@semiont/core';
-import type { GenerationContext, SemiontApiClient, ResourceUri } from '@semiont/api-client';
-import { accessToken } from '@semiont/api-client';
+import type { EventBus, GenerationContext, ResourceUri } from '@semiont/core';
+import { SemiontApiClient } from '@semiont/api-client';
+import { accessToken } from '@semiont/core';
 import { useAuthToken } from '../contexts/AuthTokenContext';
+
 
 /** Helper to convert string | null to AccessToken | undefined */
 function toAccessToken(token: string | null) {

@@ -6,7 +6,7 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { AssessmentPanel } from '../AssessmentPanel';
 import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../../../contexts/EventBusContext';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -119,7 +119,7 @@ vi.mock('../DetectSection', () => ({
   ),
 }));
 
-import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
+import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
 
 const mockGetTextPositionSelector = getTextPositionSelector as MockedFunction<typeof getTextPositionSelector>;
 const mockGetTargetSelector = getTargetSelector as MockedFunction<typeof getTargetSelector>;

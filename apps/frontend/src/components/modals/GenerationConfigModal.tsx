@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 import { useTranslations, useLocale } from 'next-intl';
-import type { GenerationContext } from '@semiont/api-client';
+import type { GenerationContext } from '@semiont/core';
 import { LOCALES } from '@semiont/api-client';
 import { Fragment } from 'react';
 

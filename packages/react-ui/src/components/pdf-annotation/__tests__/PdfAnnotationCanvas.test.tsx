@@ -11,8 +11,8 @@ import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PdfAnnotationCanvas } from '../PdfAnnotationCanvas';
-import { resourceUri } from '@semiont/api-client';
-import type { components } from '@semiont/api-client';
+import { resourceUri } from '@semiont/core';
+import type { components } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, createContext, useContext, useCallback } from 'react';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import type { Annotator } from '../lib/annotation-registry';
 
 type Annotation = components['schemas']['Annotation'];

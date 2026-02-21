@@ -10,8 +10,8 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { userId, type EnvironmentConfig } from '@semiont/core';
 import { loadEnvironmentConfig, findProjectRoot } from '../../config-loader';
-import { email } from '@semiont/api-client';
-import type { components } from '@semiont/api-client';
+import { email } from '@semiont/core';
+import type { components } from '@semiont/core';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 

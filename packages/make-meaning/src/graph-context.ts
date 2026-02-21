@@ -13,7 +13,7 @@ import type {
   GraphConnection,
   GraphPath,
 } from '@semiont/core';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import { getResourceId, getResourceEntityTypes } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];

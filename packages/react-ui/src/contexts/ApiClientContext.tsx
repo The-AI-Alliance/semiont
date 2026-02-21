@@ -1,7 +1,8 @@
 'use client';
 
 import { createContext, useContext, ReactNode, useMemo } from 'react';
-import { SemiontApiClient, baseUrl } from '@semiont/api-client';
+import { baseUrl } from '@semiont/core';
+import { SemiontApiClient } from '@semiont/api-client';
 
 const ApiClientContext = createContext<SemiontApiClient | undefined>(undefined);
 

@@ -9,7 +9,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EventSubscriptions } from '../../subscriptions/event-subscriptions';
 import type { StoredEvent, ResourceEvent } from '@semiont/core';
-import { resourceUri } from '@semiont/api-client';
+import { resourceUri } from '@semiont/core';
 
 describe('EventSubscriptions', () => {
   let subscriptions: EventSubscriptions;

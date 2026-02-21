@@ -12,7 +12,7 @@
  * No aliasing, wrappers, or compatibility layers elsewhere.
  */
 
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import { isHighlight, isComment, isReference, isTag } from '@semiont/api-client';
 
 type Annotation = components['schemas']['Annotation'];

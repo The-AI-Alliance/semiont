@@ -24,11 +24,11 @@ import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
-import { SemiontApiClient } from '@semiont/api-client';
-import { resourceUri } from '@semiont/api-client';
+import { SemiontApiClient } from '@semiont/core';
+import { resourceUri } from '@semiont/core';
 import type { Emitter } from 'mitt';
 import type { EventMap } from '@semiont/core';
-import type { Motivation, Selector } from '@semiont/api-client';
+import type { Motivation, Selector } from '@semiont/core';
 
 const TEST_URI = resourceUri('http://localhost:4000/resources/test-resource');
 

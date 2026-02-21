@@ -13,7 +13,7 @@ import { authMiddleware } from '../middleware/auth';
 import { DatabaseConnection } from '../db';
 import { User } from '@prisma/client';
 import { validateRequestBody } from '../middleware/validate-openapi';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 
 type UpdateUserRequest = components['schemas']['UpdateUserRequest'];
 type UpdateUserResponse = components['schemas']['UpdateUserResponse'];

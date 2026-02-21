@@ -1,7 +1,7 @@
 'use client';
 
 import { forwardRef } from 'react';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import { getAnnotationExactText } from '@semiont/api-client';
 import { getTagCategory, getTagSchemaId } from '@semiont/ontology';
 import { getTagSchema } from '../../../lib/tag-schemas';

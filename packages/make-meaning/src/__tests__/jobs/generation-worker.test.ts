@@ -9,7 +9,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { GenerationWorker } from '../../jobs/generation-worker';
 import { JobQueue, type GenerationJob, type RunningJob, type GenerationParams, type GenerationProgress } from '@semiont/jobs';
 import { resourceId, userId, annotationId, type EnvironmentConfig, type JobCompletedEvent, type StoredEvent } from '@semiont/core';
-import { jobId } from '@semiont/api-client';
+import { jobId } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import { promises as fs } from 'fs';

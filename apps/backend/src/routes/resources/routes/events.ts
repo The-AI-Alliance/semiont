@@ -12,7 +12,7 @@ import { EventQuery } from '@semiont/event-sourcing';
 import type { ResourcesRouterType } from '../shared';
 import type { StoredEvent, EventQuery as EventQueryType } from '@semiont/core';
 import { resourceId } from '@semiont/core';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import { HTTPException } from 'hono/http-exception';
 
 type GetEventsResponse = components['schemas']['GetEventsResponse'];

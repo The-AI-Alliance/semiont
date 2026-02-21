@@ -10,7 +10,7 @@
 
 import { Hono } from 'hono';
 import { DatabaseConnection } from '../db';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 
 type HealthResponse = components['schemas']['HealthResponse'];
 

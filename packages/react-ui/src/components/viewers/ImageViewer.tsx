@@ -1,4 +1,4 @@
-import type { ResourceUri } from '@semiont/api-client';
+import type { ResourceUri } from '@semiont/core';
 
 interface ImageViewerProps {
   resourceUri: ResourceUri;

@@ -7,8 +7,9 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { components, ResourceUri } from '@semiont/api-client';
-import { getLanguage, getPrimaryRepresentation, resourceAnnotationUri, getPrimaryMediaType } from '@semiont/api-client';
+import type { components, ResourceUri } from '@semiont/core';
+import { resourceAnnotationUri } from '@semiont/core';
+import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType } from '@semiont/api-client';
 import { uriToAnnotationId } from '@semiont/core';
 import { ANNOTATORS } from '@semiont/react-ui';
 import { ErrorBoundary } from '@semiont/react-ui';

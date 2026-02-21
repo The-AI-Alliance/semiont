@@ -12,7 +12,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { ResourceContext, AnnotationContext, ResourceOperations } from '@semiont/make-meaning';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import { userId, resourceId } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 

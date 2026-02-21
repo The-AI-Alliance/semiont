@@ -25,7 +25,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import { act } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { SemiontApiClient, resourceUri, accessToken } from '@semiont/api-client';
+import { SemiontApiClient, resourceUri, accessToken } from '@semiont/core';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';

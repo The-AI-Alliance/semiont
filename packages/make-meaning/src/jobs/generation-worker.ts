@@ -12,12 +12,8 @@ import type { AnyJob, JobQueue, RunningJob, GenerationParams, GenerationProgress
 import { FilesystemRepresentationStore } from '@semiont/content';
 import { ResourceContext } from '..';
 import { generateResourceFromTopic } from '../generation/resource-generation';
-import {
-  getTargetSelector,
-  getExactText,
-  resourceUri,
-  annotationUri,
-} from '@semiont/api-client';
+import { resourceUri, annotationUri } from '@semiont/core';
+import { getTargetSelector, getExactText } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/ontology';
 import {
   CREATION_METHODS,

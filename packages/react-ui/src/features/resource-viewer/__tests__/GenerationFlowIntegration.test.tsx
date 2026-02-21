@@ -26,9 +26,9 @@ import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../..
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { useResolutionFlow } from '../../../hooks/useResolutionFlow';
-import { SSEClient } from '@semiont/api-client';
-import type { ResourceUri, AnnotationUri } from '@semiont/api-client';
-import { resourceUri, annotationUri } from '@semiont/api-client';
+import { SSEClient } from '@semiont/core';
+import type { ResourceUri, AnnotationUri } from '@semiont/core';
+import { resourceUri, annotationUri } from '@semiont/core';
 import type { Emitter } from 'mitt';
 import type { EventMap } from '@semiont/core';
 

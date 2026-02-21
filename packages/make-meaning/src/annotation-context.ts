@@ -20,7 +20,8 @@ import {
   getPrimaryRepresentation,
   decodeRepresentation,
 } from '@semiont/api-client';
-import type { components, AnnotationUri, GenerationContext } from '@semiont/api-client';
+import type { components, AnnotationUri, GenerationContext } from '@semiont/core';
+
 import { FilesystemRepresentationStore } from '@semiont/content';
 import { FilesystemViewStorage } from '@semiont/event-sourcing';
 import type {

@@ -11,9 +11,8 @@
  * - State machine is explicit and type-safe
  */
 
-import type { GenerationContext } from '@semiont/api-client';
-import type { JobId, EntityType } from '@semiont/api-client';
-import type { ResourceId, UserId, AnnotationId } from '@semiont/core';
+import type { JobId, EntityType, ResourceId, UserId, AnnotationId, GenerationContext } from '@semiont/core';
+
 
 export type JobType = 'detection' | 'generation' | 'highlight-detection' | 'assessment-detection' | 'comment-detection' | 'tag-detection';
 export type JobStatus = 'pending' | 'running' | 'complete' | 'failed' | 'cancelled';

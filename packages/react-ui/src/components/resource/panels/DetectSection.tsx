@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useEventBus } from '../../../contexts/EventBusContext';
-import type { Motivation } from '@semiont/api-client';
+import type { Motivation } from '@semiont/core';
 import './DetectSection.css';
 
 interface DetectSectionProps {

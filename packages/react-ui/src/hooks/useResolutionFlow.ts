@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ResourceUri } from '@semiont/api-client';
-import { resourceAnnotationUri, accessToken } from '@semiont/api-client';
+import type { ResourceUri } from '@semiont/core';
+import { resourceAnnotationUri, accessToken } from '@semiont/core';
 import { uriToAnnotationIdOrPassthrough } from '@semiont/core';
 import { useEventBus } from '../contexts/EventBusContext';
 import { useApiClient } from '../contexts/ApiClientContext';

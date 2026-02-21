@@ -8,16 +8,10 @@
  * - OpenAPI spec is the source of truth
  */
 
-import {
-  getExactText,
-  getTargetSource,
-  getTargetSelector,
-  type components,
-  resourceUri as makeResourceUri,
-} from '@semiont/api-client';
+import type { components } from '@semiont/core';
+import { resourceUri as makeResourceUri, resourceId as makeResourceId, resourceIdToURI } from '@semiont/core';
+import { getExactText, getTargetSource, getTargetSelector } from '@semiont/api-client';
 import type { ResourcesRouterType } from '../shared';
-import { resourceId as makeResourceId } from '@semiont/core';
-import { resourceIdToURI } from '@semiont/core';
 
 type GetReferencedByResponse = components['schemas']['GetReferencedByResponse'];
 

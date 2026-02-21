@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { QUERY_KEYS } from '../query-keys';
-import type { ResourceUri, AnnotationUri, ResourceAnnotationUri } from '@semiont/api-client';
+import type { ResourceUri, AnnotationUri, ResourceAnnotationUri } from '@semiont/core';
 
 describe('query-keys', () => {
   describe('QUERY_KEYS', () => {

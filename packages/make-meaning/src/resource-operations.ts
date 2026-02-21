@@ -10,7 +10,7 @@
 
 import type { EventStore } from '@semiont/event-sourcing';
 import type { RepresentationStore } from '@semiont/content';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import {
   CREATION_METHODS,
   type CreationMethod,

@@ -1,4 +1,4 @@
-import type { components, ResourceUri, Selector } from '@semiont/api-client';
+import type { components, ResourceUri, Selector } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 

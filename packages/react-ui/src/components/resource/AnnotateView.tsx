@@ -1,8 +1,9 @@
 'use client';
 
 import { useRef, useEffect, useCallback, lazy, Suspense } from 'react';
-import type { components } from '@semiont/api-client';
-import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMimeCategory, isPdfMimeType, resourceUri as toResourceUri, extractContext, findTextWithContext } from '@semiont/api-client';
+import type { components } from '@semiont/core';
+import { resourceUri as toResourceUri } from '@semiont/core';
+import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMimeCategory, isPdfMimeType, extractContext, findTextWithContext } from '@semiont/api-client';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import { SvgDrawingCanvas } from '../image-annotation/SvgDrawingCanvas';
 import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';

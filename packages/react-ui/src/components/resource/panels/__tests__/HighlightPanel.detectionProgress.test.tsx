@@ -16,7 +16,7 @@ import React from 'react';
 import { screen } from '@testing-library/react';
 import { renderWithProviders } from '../../../../test-utils';
 import { HighlightPanel } from '../HighlightPanel';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import { resetEventBusForTesting } from '../../../../contexts/EventBusContext';
 
 type Annotation = components['schemas']['Annotation'];

@@ -1,5 +1,5 @@
 import { userId } from '@semiont/core';
-import { email } from '@semiont/api-client';
+import { email } from '@semiont/core';
 /**
  * Comprehensive tests for JWT service
  * 

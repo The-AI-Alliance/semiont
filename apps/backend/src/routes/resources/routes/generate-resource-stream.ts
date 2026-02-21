@@ -16,13 +16,13 @@ import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import { getExactText } from '@semiont/api-client';
 import { AnnotationContext } from '@semiont/make-meaning';
 import type { JobQueue, PendingJob, GenerationParams } from '@semiont/jobs';
 import { nanoid } from 'nanoid';
 import { getTargetSelector } from '@semiont/api-client';
-import { jobId, entityType, resourceUri } from '@semiont/api-client';
+import { jobId, entityType, resourceUri } from '@semiont/core';
 import { userId, resourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 

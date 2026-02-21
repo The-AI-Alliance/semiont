@@ -3,18 +3,15 @@
 
 import gremlin from 'gremlin';
 import { GraphDatabase } from '../interface';
+import type { components, ResourceUri, AnnotationUri } from '@semiont/core';
+import { resourceUri, annotationIdToURI } from '@semiont/core';
 import {
   getBodySource,
   getPrimaryRepresentation,
   getResourceId,
   getExactText,
-  type components,
-  type ResourceUri,
-  type AnnotationUri,
-  resourceUri,
 } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/ontology';
-import { annotationIdToURI } from '@semiont/core';
 import type {
   AnnotationCategory,
   GraphConnection,

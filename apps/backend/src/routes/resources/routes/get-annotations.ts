@@ -10,7 +10,7 @@
 
 import type { ResourcesRouterType } from '../shared';
 import { AnnotationContext } from '@semiont/make-meaning';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import { resourceId } from '@semiont/core';
 
 type GetAnnotationsResponse = components['schemas']['GetAnnotationsResponse'];

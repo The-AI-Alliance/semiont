@@ -17,13 +17,13 @@ import type { components } from './types';
 import type { ResourceUri } from './branded-types';
 
 // W3C Annotation selector types
-type Selector =
+export type Selector =
   | components['schemas']['TextPositionSelector']
   | components['schemas']['TextQuoteSelector']
   | components['schemas']['SvgSelector']
   | components['schemas']['FragmentSelector'];
 
-type GenerationContext = components['schemas']['GenerationContext'];
+export type GenerationContext = components['schemas']['GenerationContext'];
 
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation'];

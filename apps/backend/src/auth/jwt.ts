@@ -1,9 +1,8 @@
 import jwt from 'jsonwebtoken';
 import { JWTPayloadSchema } from '../types/jwt-types';
 import type { JWTPayload as ValidatedJWTPayload } from '../types/jwt-types';
-import type { EnvironmentConfig, UserId } from '@semiont/core';
-import { userId as makeUserId } from '@semiont/core';
-import { type Email, email as makeEmail } from '@semiont/api-client';
+import type { EnvironmentConfig, UserId, Email } from '@semiont/core';
+import { userId as makeUserId, email as makeEmail } from '@semiont/core';
 
 export interface JWTPayload {
   userId: UserId;

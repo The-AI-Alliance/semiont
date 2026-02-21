@@ -13,7 +13,7 @@
 import { HTTPException } from 'hono/http-exception';
 import { EventQuery } from '@semiont/event-sourcing';
 import type { ResourcesRouterType } from '../shared';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import { getFrontendUrl } from '../../../middleware/content-negotiation';
 import { getPrimaryRepresentation, getPrimaryMediaType, decodeRepresentation } from '@semiont/api-client';
 import { ResourceContext } from '@semiont/make-meaning';

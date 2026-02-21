@@ -11,7 +11,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { SERVER_API_URL } from '@/lib/env';
-import { SemiontApiClient, resourceUri, type ResourceUri, type AccessToken, type BaseUrl, type ContentFormat } from '@semiont/api-client';
+import { resourceUri, ResourceUri, AccessToken, BaseUrl, ContentFormat } from '@semiont/core';
+import { SemiontApiClient } from '@semiont/api-client';
 
 export async function GET(
   request: NextRequest,

@@ -12,7 +12,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { AnnotationContext } from '@semiont/make-meaning';
 import { resourceId } from '@semiont/core';
-import { annotationUri } from '@semiont/api-client';
+import { annotationUri } from '@semiont/core';
 
 export function registerGetAnnotationLLMContext(router: ResourcesRouterType) {
   /**

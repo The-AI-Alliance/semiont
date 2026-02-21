@@ -9,7 +9,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { HighlightDetectionWorker } from '../../jobs/highlight-detection-worker';
 import { JobQueue, type HighlightDetectionJob, type RunningJob, type HighlightDetectionParams, type HighlightDetectionProgress } from '@semiont/jobs';
 import { resourceId, userId, type EnvironmentConfig } from '@semiont/core';
-import { jobId } from '@semiont/api-client';
+import { jobId } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import { promises as fs } from 'fs';

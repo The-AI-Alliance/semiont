@@ -136,6 +136,8 @@ export type {
   SelectionData,
   DetectionProgress,
   GenerationProgress,
+  Selector,
+  GenerationContext,
 } from './event-map';
 
 // Backend-specific annotation utilities

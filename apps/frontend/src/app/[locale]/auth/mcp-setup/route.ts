@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { SERVER_API_URL } from '@/lib/env';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
-import { SemiontApiClient, type BaseUrl, type AccessToken } from '@semiont/api-client';
+import type { BaseUrl, AccessToken } from '@semiont/core';
+import { SemiontApiClient } from '@semiont/api-client';
 
 // Mark this route as dynamic to prevent static optimization during build
 export const dynamic = 'force-dynamic';

@@ -6,8 +6,9 @@ import { AnnotateView, type SelectionMotivation, type ClickAction, type ShapeTyp
 import { BrowseView } from './BrowseView';
 import { PopupContainer } from '../annotation-popups/SharedPopupElements';
 import { JsonLdView } from '../annotation-popups/JsonLdView';
-import type { components } from '@semiont/api-client';
-import { getExactText, getTargetSelector, resourceUri, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/api-client';
+import type { components } from '@semiont/core';
+import { resourceUri } from '@semiont/core';
+import { getExactText, getTargetSelector, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/api-client';
 import { useEventBus } from '../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../contexts/useEventSubscription';
 import { useCacheManager } from '../../contexts/CacheContext';

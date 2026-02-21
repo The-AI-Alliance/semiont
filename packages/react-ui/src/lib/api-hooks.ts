@@ -16,7 +16,6 @@
 
 import { useQuery, useMutation, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
 import {
-  SemiontApiClient,
   type ResourceUri,
   type AnnotationUri,
   type ResourceAnnotationUri,
@@ -26,8 +25,8 @@ import {
   entityType,
   userDID,
   accessToken,
-  decodeWithCharset,
-} from '@semiont/api-client';
+} from '@semiont/core';
+import { SemiontApiClient, decodeWithCharset } from '@semiont/api-client';
 import { extractResourceUriFromAnnotationUri, uriToAnnotationId } from '@semiont/core';
 import { QUERY_KEYS } from './query-keys';
 import { useApiClient } from '../contexts/ApiClientContext';

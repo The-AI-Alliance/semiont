@@ -9,8 +9,9 @@
  */
 
 import { getLocaleEnglishName } from '@semiont/api-client';
-import type { GenerationContext } from '@semiont/api-client';
+import type { GenerationContext } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
+
 
 function getLanguageName(locale: string): string {
   return getLocaleEnglishName(locale) || locale;

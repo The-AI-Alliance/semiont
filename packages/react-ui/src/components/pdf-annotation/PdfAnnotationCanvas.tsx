@@ -2,7 +2,7 @@
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import { createHoverHandlers } from '../../hooks/useAttentionFlow';
-import type { components, ResourceUri } from '@semiont/api-client';
+import type { components, ResourceUri } from '@semiont/core';
 import { getTargetSelector } from '@semiont/api-client';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
 import type { EventBus } from "@semiont/core"

@@ -12,8 +12,8 @@ import { HTTPException } from 'hono/http-exception';
 import type { User } from '@prisma/client';
 import type { Context, Next } from 'hono';
 import type { JobQueue } from '@semiont/jobs';
-import type { components } from '@semiont/api-client';
-import { jobId } from '@semiont/api-client';
+import type { components } from '@semiont/core';
+import { jobId } from '@semiont/core';
 
 // Type for auth middleware - backend will provide this
 type AuthMiddleware = (c: Context, next: Next) => Promise<Response | void>;

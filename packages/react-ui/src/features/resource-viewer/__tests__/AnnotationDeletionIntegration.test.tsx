@@ -30,7 +30,7 @@ import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
-import { SemiontApiClient, resourceUri, accessToken } from '@semiont/api-client';
+import { SemiontApiClient, resourceUri, accessToken } from '@semiont/core';
 
 describe('Annotation Deletion - Feature Integration', () => {
   let deleteAnnotationSpy: ReturnType<typeof vi.fn>;

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import { getAnnotationExactText, getCommentText } from '@semiont/api-client';
 import { useEventBus } from '../../../contexts/EventBusContext';
 import { useHoverEmitter } from '../../../hooks/useAttentionFlow';

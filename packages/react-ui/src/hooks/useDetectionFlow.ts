@@ -21,8 +21,8 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { Motivation, ResourceUri, Selector, components } from '@semiont/api-client';
-import { resourceAnnotationUri, accessToken, entityType } from '@semiont/api-client';
+import type { Motivation, ResourceUri, Selector, components } from '@semiont/core';
+import { resourceAnnotationUri, accessToken, entityType } from '@semiont/core';
 import { uriToAnnotationIdOrPassthrough } from '@semiont/core';
 import { useEventBus } from '../contexts/EventBusContext';
 import type { EventMap } from '@semiont/core';

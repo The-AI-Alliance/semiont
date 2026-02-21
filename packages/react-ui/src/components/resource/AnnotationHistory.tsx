@@ -4,7 +4,7 @@ import React, { useEffect, useRef } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
 import type { RouteBuilder, LinkComponentProps } from '../../contexts/RoutingContext';
 import { useResources } from '../../lib/api-hooks';
-import type { ResourceUri } from '@semiont/api-client';
+import type { ResourceUri } from '@semiont/core';
 import type { StoredEvent } from '@semiont/core';
 import { getAnnotationUriFromEvent } from '@semiont/core';
 import { HistoryEvent } from './HistoryEvent';

@@ -5,7 +5,7 @@ import { renderWithProviders, resetEventBusForTesting } from '../../../../test-u
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { CommentEntry } from '../CommentEntry';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
 import type { EventBus } from "@semiont/core"
 
 type Annotation = components['schemas']['Annotation'];
@@ -33,7 +33,7 @@ vi.mock('@semiont/api-client', async () => {
   };
 });
 
-import { getCommentText, getAnnotationExactText } from '@semiont/api-client';
+import { getCommentText, getAnnotationExactText } from '@semiont/core';
 import type { MockedFunction } from 'vitest';
 
 const mockGetCommentText = getCommentText as MockedFunction<typeof getCommentText>;
