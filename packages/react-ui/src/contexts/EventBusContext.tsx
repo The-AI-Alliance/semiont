@@ -44,16 +44,19 @@ let globalEventBus = new EventBus();
  * Call this in test setup (beforeEach) to ensure test isolation.
  * Each test gets a fresh event bus with no lingering subscriptions.
  *
+ * @returns The new EventBus instance
+ *
  * @example
  * ```typescript
  * beforeEach(() => {
- *   resetEventBusForTesting();
+ *   const eventBus = resetEventBusForTesting();
  * });
  * ```
  */
-export function resetEventBusForTesting() {
+export function resetEventBusForTesting(): EventBus {
   globalEventBus.destroy();
   globalEventBus = new EventBus();
+  return globalEventBus;
 }
 
 export interface EventBusProviderProps {
