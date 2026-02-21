@@ -12,7 +12,7 @@ import type { AnyJob, JobQueue, RunningJob, GenerationParams, GenerationProgress
 import { FilesystemRepresentationStore } from '@semiont/content';
 import { ResourceContext } from '..';
 import { generateResourceFromTopic } from '../generation/resource-generation';
-import { resourceUri, annotationUri } from '@semiont/core';
+import { resourceUri, annotationUri, EventBus } from '@semiont/core';
 import { getTargetSelector, getExactText } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/ontology';
 import {
@@ -31,7 +31,8 @@ export class GenerationWorker extends JobWorker {
     jobQueue: JobQueue,
     private config: EnvironmentConfig,
     private eventStore: EventStore,
-    private inferenceClient: InferenceClient
+    private inferenceClient: InferenceClient,
+    private eventBus: EventBus
   ) {
     super(jobQueue);
   }
@@ -263,7 +264,7 @@ export class GenerationWorker extends JobWorker {
     job: RunningJob<GenerationParams, GenerationProgress>,
     result: GenerationResult
   ): Promise<void> {
-    await this.eventStore.appendEvent({
+    const completedEvent = await this.eventStore.appendEvent({
       type: 'job.completed',
       resourceId: job.params.sourceResourceId,
       userId: job.metadata.userId,
@@ -275,6 +276,10 @@ export class GenerationWorker extends JobWorker {
         annotationUri: annotationUri(`${this.config.services.backend!.publicURL}/annotations/${job.params.referenceId}`),
       },
     });
+
+    // Emit to EventBus for real-time subscribers
+    const resourceBus = this.eventBus.scope(job.params.sourceResourceId);
+    resourceBus.get('generation:completed').next(completedEvent.event as Extract<import('@semiont/core').ResourceEvent, { type: 'job.completed' }>);
   }
 
   /**
@@ -303,10 +308,12 @@ export class GenerationWorker extends JobWorker {
       version: 1,
     };
 
+    const resourceBus = this.eventBus.scope(genJob.params.sourceResourceId);
+
     // Emit appropriate event based on progress stage
     if (genJob.progress.stage === 'fetching' && genJob.progress.percentage === 20) {
       // First progress update - emit job.started
-      await this.eventStore.appendEvent({
+      const startedEvent = await this.eventStore.appendEvent({
         type: 'job.started',
         ...baseEvent,
         payload: {
@@ -315,6 +322,7 @@ export class GenerationWorker extends JobWorker {
           totalSteps: 5, // fetching, generating, creating, linking, complete
         },
       });
+      resourceBus.get('generation:started').next(startedEvent.event as Extract<import('@semiont/core').ResourceEvent, { type: 'job.started' }>);
     } else {
       // Intermediate progress - emit job.progress
       // Note: job.completed is now handled by emitCompletionEvent()
@@ -328,6 +336,13 @@ export class GenerationWorker extends JobWorker {
           percentage: genJob.progress.percentage,
           message: genJob.progress.message,
         },
+      });
+      resourceBus.get('generation:progress').next({
+        status: genJob.progress.stage as 'fetching' | 'generating' | 'creating',
+        referenceId: genJob.params.referenceId,
+        sourceResourceId: genJob.params.sourceResourceId,
+        percentage: genJob.progress.percentage,
+        message: genJob.progress.message
       });
     }
   }

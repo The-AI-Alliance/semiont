@@ -224,7 +224,9 @@ export type EventMap = {
       context: GenerationContext;
     };
   };
+  'generation:started': Extract<ResourceEvent, { type: 'job.started' }>;
   'generation:progress': GenerationProgress;
+  'generation:completed': Extract<ResourceEvent, { type: 'job.completed' }>;
   'generation:complete': { annotationUri: string; progress: GenerationProgress };
   'generation:failed': { error: Error };
   'generation:modal-open': {

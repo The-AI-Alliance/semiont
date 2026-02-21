@@ -9,7 +9,7 @@ import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import type { EnvironmentConfig } from '@semiont/core';
-import { loadEnvironmentConfig, findProjectRoot } from '../../config-loader';
+import { loadEnvironmentConfig, findProjectRoot } from '@semiont/core';
 import { JWTService } from '../../auth/jwt';
 
 type Variables = {

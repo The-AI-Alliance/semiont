@@ -11,7 +11,7 @@ import { JobWorker } from '@semiont/jobs';
 import type { AnyJob, DetectionJob, JobQueue, RunningJob, DetectionParams, DetectionProgress, DetectionResult } from '@semiont/jobs';
 import { ResourceContext } from '..';
 import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
-import { resourceIdToURI } from '@semiont/core';
+import { resourceIdToURI, EventBus } from '@semiont/core';
 import type { EnvironmentConfig, components } from '@semiont/core';
 import { getPrimaryRepresentation, decodeRepresentation, validateAndCorrectOffsets } from '@semiont/api-client';
 import { extractEntities } from '../detection/entity-extractor';
@@ -38,7 +38,8 @@ export class ReferenceDetectionWorker extends JobWorker {
     jobQueue: JobQueue,
     private config: EnvironmentConfig,
     private eventStore: EventStore,
-    private inferenceClient: InferenceClient
+    private inferenceClient: InferenceClient,
+    private eventBus: EventBus
   ) {
     super(jobQueue);
   }
@@ -275,13 +276,14 @@ export class ReferenceDetectionWorker extends JobWorker {
 
   /**
    * Emit completion event with result data
-   * Override base class to emit job.completed event
+   * Override base class to emit job.completed event (domain + progress)
    */
   protected override async emitCompletionEvent(
     job: RunningJob<DetectionParams, DetectionProgress>,
     result: DetectionResult
   ): Promise<void> {
-    await this.eventStore.appendEvent({
+    // DOMAIN EVENT: Write to EventStore (auto-publishes to EventBus)
+    const completedEvent = await this.eventStore.appendEvent({
       type: 'job.completed',
       resourceId: job.params.resourceId,
       userId: job.metadata.userId,
@@ -292,6 +294,11 @@ export class ReferenceDetectionWorker extends JobWorker {
         result,
       },
     });
+
+    // PROGRESS EVENT: Emit detection:completed directly to EventBus (ephemeral)
+    // Use the full StoredEvent.event from EventStore (has id + timestamp)
+    const resourceBus = this.eventBus.scope(job.params.resourceId);
+    resourceBus.get('detection:completed').next(completedEvent.event as Extract<import('@semiont/core').ResourceEvent, { type: 'job.completed' }>);
   }
 
   protected override async handleJobFailure(job: AnyJob, error: any): Promise<void> {
@@ -303,9 +310,8 @@ export class ReferenceDetectionWorker extends JobWorker {
       // Type narrowing: job is FailedJob<DetectionParams>
       const detJob = job as DetectionJob;
 
-      // Log the full error details to backend logs (already logged by parent)
-      // Send generic error message to frontend
-      await this.eventStore.appendEvent({
+      // DOMAIN EVENT: Write to EventStore (auto-publishes to EventBus)
+      const failedEvent = await this.eventStore.appendEvent({
         type: 'job.failed',
         resourceId: detJob.params.resourceId,
         userId: detJob.metadata.userId,
@@ -316,12 +322,17 @@ export class ReferenceDetectionWorker extends JobWorker {
           error: 'Entity detection failed. Please try again later.',
         },
       });
+
+      // PROGRESS EVENT: Emit detection:failed directly to EventBus (ephemeral)
+      // Use the full StoredEvent.event from EventStore (has id + timestamp)
+      const resourceBus = this.eventBus.scope(detJob.params.resourceId);
+      resourceBus.get('detection:failed').next(failedEvent.event as Extract<import('@semiont/core').ResourceEvent, { type: 'job.failed' }>);
     }
   }
 
   /**
-   * Update job progress and emit events to Event Store
-   * Overrides base class to also emit job progress events
+   * Update job progress and emit events to Event Store and EventBus
+   * Overrides base class to emit both domain events and progress events
    */
   protected override async updateJobProgress(job: AnyJob): Promise<void> {
     // Call parent to update job queue
@@ -348,9 +359,12 @@ export class ReferenceDetectionWorker extends JobWorker {
     // Determine if this is the first progress update (job.started)
     const isFirstUpdate = detJob.progress.processedEntityTypes === 0;
 
+    // Get resource-scoped EventBus for progress events
+    const resourceBus = this.eventBus.scope(detJob.params.resourceId);
+
     if (isFirstUpdate) {
-      // First progress update - emit job.started
-      await this.eventStore.appendEvent({
+      // First progress update - emit job.started (domain event)
+      const startedEvent = await this.eventStore.appendEvent({
         type: 'job.started',
         ...baseEvent,
         payload: {
@@ -359,9 +373,12 @@ export class ReferenceDetectionWorker extends JobWorker {
           totalSteps: detJob.params.entityTypes.length,
         },
       });
+
+      // PROGRESS EVENT: Emit detection:started directly to EventBus (ephemeral)
+      // Use the full StoredEvent.event from EventStore (has id + timestamp)
+      resourceBus.get('detection:started').next(startedEvent.event as Extract<import('@semiont/core').ResourceEvent, { type: 'job.started' }>);
     } else {
-      // Intermediate progress - emit job.progress
-      // Note: job.completed is now handled by emitCompletionEvent()
+      // Intermediate progress - emit job.progress (domain event)
       const percentage = Math.round((detJob.progress.processedEntityTypes / detJob.progress.totalEntityTypes) * 100);
       await this.eventStore.appendEvent({
         type: 'job.progress',
@@ -375,6 +392,14 @@ export class ReferenceDetectionWorker extends JobWorker {
           totalSteps: detJob.progress.totalEntityTypes,
           foundCount: detJob.progress.entitiesFound,
         },
+      });
+
+      // PROGRESS EVENT: Emit detection:progress directly to EventBus (ephemeral)
+      resourceBus.get('detection:progress').next({
+        status: 'scanning',
+        message: `Processing ${detJob.progress.currentEntityType}`,
+        currentEntityType: detJob.progress.currentEntityType,
+        percentage,
       });
     }
   }

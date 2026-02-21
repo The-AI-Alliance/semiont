@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { resourceId, userId } from '@semiont/core';
-import { loadEnvironmentConfig, findProjectRoot } from '../../config-loader';
+import { loadEnvironmentConfig, findProjectRoot } from '@semiont/core';
 import { resourceUri, jobId } from '@semiont/core';
 import type { EventStore } from '@semiont/event-sourcing';
 import { promises as fs } from 'fs';

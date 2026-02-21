@@ -128,7 +128,7 @@ export {
 } from './event-utils';
 
 // Event bus (RxJS-based, framework-agnostic)
-export { EventBus } from './event-bus';
+export { EventBus, ScopedEventBus } from './event-bus';
 
 // Event protocol (application-level events for event bus)
 export type {
@@ -166,6 +166,8 @@ export {
   getNodeEnvForEnvironment,
   hasAWSConfig,
   displayConfiguration,
+  findProjectRoot,
+  loadEnvironmentConfig,
   // Types
   type EnvironmentConfig,
   type ServiceConfig,

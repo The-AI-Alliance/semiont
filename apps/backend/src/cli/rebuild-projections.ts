@@ -12,8 +12,7 @@
 
 import { startMakeMeaning } from '@semiont/make-meaning';
 import { EventQuery, EventValidator } from '@semiont/event-sourcing';
-import { resourceId as makeResourceId } from '@semiont/core';
-import { loadEnvironmentConfig } from '../config-loader';
+import { resourceId as makeResourceId, loadEnvironmentConfig } from '@semiont/core';
 
 async function rebuildProjections(rId?: string) {
   console.log('🔄 Rebuilding annotation projections from events...\n');

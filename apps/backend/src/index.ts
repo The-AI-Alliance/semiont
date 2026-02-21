@@ -28,8 +28,7 @@ import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { swaggerUI } from '@hono/swagger-ui';
-import type { EnvironmentConfig } from '@semiont/core';
-import { loadEnvironmentConfig, findProjectRoot } from './config-loader';
+import { loadEnvironmentConfig, findProjectRoot, type EnvironmentConfig, EventBus } from '@semiont/core';
 import { startMakeMeaning } from '@semiont/make-meaning';
 
 import { User } from '@prisma/client';
@@ -49,9 +48,14 @@ if (!config.services.backend.corsOrigin) {
 
 const backendService = config.services.backend;
 
+// Create global EventBus for real-time events
+console.log('📡 Creating global EventBus...');
+const eventBus = new EventBus();
+console.log('✅ Global EventBus created');
+
 // Initialize make-meaning service (job queue, workers, graph consumer)
 console.log('🧠 Initializing make-meaning service...');
-const makeMeaning = await startMakeMeaning(config);
+const makeMeaning = await startMakeMeaning(config, eventBus);
 console.log('✅ Make-meaning service initialized');
 
 // Import route definitions

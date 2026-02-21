@@ -5,6 +5,8 @@
  * Handles semiont.json base config and environment-specific overrides.
  */
 
+import * as fs from 'fs';
+import * as path from 'path';
 import { ConfigurationError } from './configuration-error';
 import { PlatformType } from './platform-types';
 import { isObject } from '../index';
@@ -288,10 +290,70 @@ export function hasAWSConfig(config: EnvironmentConfig): config is EnvironmentCo
 
 /**
  * Display configuration for debugging
- * 
+ *
  * @param config - Configuration to display
  */
 export function displayConfiguration(config: EnvironmentConfig): void {
   console.log('Environment Configuration:');
   console.log(JSON.stringify(config, null, 2));
+}
+
+/**
+ * Find project root from SEMIONT_ROOT environment variable
+ *
+ * @returns Absolute path to project root
+ * @throws ConfigurationError if SEMIONT_ROOT is not set or points to non-existent directory
+ */
+export function findProjectRoot(): string {
+  const root = process.env.SEMIONT_ROOT;
+
+  if (!root) {
+    throw new ConfigurationError(
+      'SEMIONT_ROOT environment variable is not set',
+      undefined,
+      'Set SEMIONT_ROOT to your project directory'
+    );
+  }
+
+  if (!fs.existsSync(root)) {
+    throw new ConfigurationError(
+      `SEMIONT_ROOT points to non-existent directory: ${root}`,
+      undefined,
+      'Check that SEMIONT_ROOT environment variable is set correctly'
+    );
+  }
+
+  return root;
+}
+
+/**
+ * Load environment configuration from filesystem
+ * Wrapper around parseAndMergeConfigs that handles filesystem I/O
+ *
+ * @param projectRoot - Absolute path to project root
+ * @param environment - Environment name (e.g., 'local', 'production')
+ * @returns Merged and validated environment configuration
+ * @throws ConfigurationError if configuration files are missing or invalid
+ */
+export function loadEnvironmentConfig(projectRoot: string, environment: string): EnvironmentConfig {
+  // Load base semiont.json
+  const baseConfigPath = path.join(projectRoot, 'semiont.json');
+  const baseContent = fs.existsSync(baseConfigPath)
+    ? fs.readFileSync(baseConfigPath, 'utf-8')
+    : null;
+
+  // Load environment-specific config
+  const envPath = path.join(projectRoot, 'environments', `${environment}.json`);
+  if (!fs.existsSync(envPath)) {
+    throw new ConfigurationError(
+      `Environment configuration missing: ${envPath}`,
+      environment,
+      `Create the configuration file or use: semiont init`
+    );
+  }
+
+  const envContent = fs.readFileSync(envPath, 'utf-8');
+
+  // Use pure function with filesystem inputs
+  return parseAndMergeConfigs(baseContent, envContent, process.env, environment, projectRoot);
 }

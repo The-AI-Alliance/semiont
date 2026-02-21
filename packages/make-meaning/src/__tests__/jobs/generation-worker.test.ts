@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { GenerationWorker } from '../../jobs/generation-worker';
 import { JobQueue, type GenerationJob, type RunningJob, type GenerationParams, type GenerationProgress } from '@semiont/jobs';
-import { resourceId, userId, annotationId, type EnvironmentConfig, type JobCompletedEvent, type StoredEvent } from '@semiont/core';
+import { resourceId, userId, annotationId, type EnvironmentConfig, type JobCompletedEvent, type StoredEvent, EventBus } from '@semiont/core';
 import { jobId } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore } from '@semiont/content';
@@ -81,7 +81,7 @@ describe('GenerationWorker - Event Emission', () => {
     const jobQueue = new JobQueue({ dataDir: testDir });
     await jobQueue.initialize();
     testEventStore = createEventStore(testDir, config.services.backend!.publicURL);
-    worker = new GenerationWorker(jobQueue, config, testEventStore, mockInferenceClient.client);
+    worker = new GenerationWorker(jobQueue, config, testEventStore, mockInferenceClient.client, new EventBus());
 
     // Set default mock response
     mockInferenceClient.client.setResponses(['# Test Title\n\nTest content']);

@@ -10,7 +10,7 @@ import { JobWorker } from '@semiont/jobs';
 import type { AnyJob, TagDetectionJob, JobQueue, RunningJob, TagDetectionParams, TagDetectionProgress, TagDetectionResult } from '@semiont/jobs';
 import { ResourceContext, AnnotationDetection } from '..';
 import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
-import { resourceIdToURI } from '@semiont/core';
+import { resourceIdToURI, EventBus } from '@semiont/core';
 import { getTagSchema } from '@semiont/ontology';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
@@ -24,7 +24,8 @@ export class TagDetectionWorker extends JobWorker {
     jobQueue: JobQueue,
     private config: EnvironmentConfig,
     private eventStore: EventStore,
-    private inferenceClient: InferenceClient
+    private inferenceClient: InferenceClient,
+    private eventBus: EventBus
   ) {
     super(jobQueue);
   }
@@ -60,7 +61,7 @@ export class TagDetectionWorker extends JobWorker {
     job: RunningJob<TagDetectionParams, TagDetectionProgress>,
     result: TagDetectionResult
   ): Promise<void> {
-    await this.eventStore.appendEvent({
+    const completedEvent = await this.eventStore.appendEvent({
       type: 'job.completed',
       resourceId: job.params.resourceId,
       userId: job.metadata.userId,
@@ -71,6 +72,10 @@ export class TagDetectionWorker extends JobWorker {
         result,
       },
     });
+
+    // Emit to EventBus for real-time subscribers
+    const resourceBus = this.eventBus.scope(job.params.resourceId);
+    resourceBus.get('detection:completed').next(completedEvent.event as Extract<import('@semiont/core').ResourceEvent, { type: 'job.completed' }>);
   }
 
   /**
@@ -95,10 +100,12 @@ export class TagDetectionWorker extends JobWorker {
       version: 1,
     };
 
+    const resourceBus = this.eventBus.scope(tdJob.params.resourceId);
+
     if (this.isFirstProgress) {
       // First progress update - emit job.started
       this.isFirstProgress = false;
-      await this.eventStore.appendEvent({
+      const startedEvent = await this.eventStore.appendEvent({
         type: 'job.started',
         ...baseEvent,
         payload: {
@@ -106,6 +113,7 @@ export class TagDetectionWorker extends JobWorker {
           jobType: tdJob.metadata.type,
         },
       });
+      resourceBus.get('detection:started').next(startedEvent.event as Extract<import('@semiont/core').ResourceEvent, { type: 'job.started' }>);
     } else {
       // Intermediate progress - emit job.progress
       // Note: job.completed is now handled by emitCompletionEvent()
@@ -117,6 +125,14 @@ export class TagDetectionWorker extends JobWorker {
           jobType: tdJob.metadata.type,
           progress: tdJob.progress,
         },
+      });
+      resourceBus.get('detection:progress').next({
+        status: tdJob.progress.stage,
+        message: tdJob.progress.message,
+        percentage: tdJob.progress.percentage,
+        currentCategory: tdJob.progress.currentCategory,
+        processedCategories: tdJob.progress.processedCategories,
+        totalCategories: tdJob.progress.totalCategories
       });
     }
   }

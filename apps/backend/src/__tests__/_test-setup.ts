@@ -11,8 +11,7 @@ import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join, resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import type { EnvironmentConfig } from '@semiont/core';
-import { loadEnvironmentConfig } from '../config-loader';
+import { loadEnvironmentConfig, type EnvironmentConfig } from '@semiont/core';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

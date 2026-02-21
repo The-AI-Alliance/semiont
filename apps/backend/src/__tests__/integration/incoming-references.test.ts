@@ -9,7 +9,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { userId, type EnvironmentConfig } from '@semiont/core';
-import { loadEnvironmentConfig, findProjectRoot } from '../../config-loader';
+import { loadEnvironmentConfig, findProjectRoot } from '@semiont/core';
 import { email } from '@semiont/core';
 import type { components } from '@semiont/core';
 import type { Hono } from 'hono';
