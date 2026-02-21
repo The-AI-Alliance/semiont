@@ -100,7 +100,7 @@ describe('useAttentionFlow', () => {
 
       const unsubscribe = on('annotation:sparkle', sparkleSpy);
       emit('annotation:hover', { annotationId: 'ann-sparkle' });
-      subscription.unsubscribe();
+      unsubscribe.unsubscribe();
 
       expect(sparkleSpy).toHaveBeenCalledTimes(1);
       expect(sparkleSpy).toHaveBeenCalledWith({ annotationId: 'ann-sparkle' });
@@ -112,7 +112,7 @@ describe('useAttentionFlow', () => {
 
       const unsubscribe = on('annotation:sparkle', sparkleSpy);
       emit('annotation:hover', { annotationId: null });
-      subscription.unsubscribe();
+      unsubscribe.unsubscribe();
 
       expect(sparkleSpy).not.toHaveBeenCalled();
     });
@@ -123,7 +123,7 @@ describe('useAttentionFlow', () => {
 
       const unsubscribe = on('annotation:sparkle', sparkleSpy);
       emit('annotation:hover', { annotationId: 'ann-once' });
-      subscription.unsubscribe();
+      unsubscribe.unsubscribe();
 
       // If useAttentionFlow were registered twice, sparkle would fire twice
       expect(sparkleSpy).toHaveBeenCalledTimes(1);
@@ -137,7 +137,7 @@ describe('useAttentionFlow', () => {
 
       const unsubscribe = on('annotation:focus', focusSpy);
       emit('annotation:click', { annotationId: 'ann-click', motivation: 'highlighting' });
-      subscription.unsubscribe();
+      unsubscribe.unsubscribe();
 
       expect(focusSpy).toHaveBeenCalledTimes(1);
       expect(focusSpy).toHaveBeenCalledWith({ annotationId: 'ann-click' });
@@ -149,7 +149,7 @@ describe('useAttentionFlow', () => {
 
       const unsubscribe = on('annotation:focus', focusSpy);
       emit('annotation:click', { annotationId: 'ann-dedup', motivation: 'commenting' });
-      subscription.unsubscribe();
+      unsubscribe.unsubscribe();
 
       expect(focusSpy).toHaveBeenCalledTimes(1);
     });
@@ -215,7 +215,7 @@ describe('useAttentionFlow', () => {
       const sparkleSpy = vi.fn();
       const subscription = eventBusInstance!.get('annotation:sparkle').subscribe(sparkleSpy);
       act(() => { eventBusInstance!.get('annotation:hover').next({ annotationId: 'ghost' }); });
-      subscription.unsubscribe();
+      unsubscribe.unsubscribe();
 
       expect(sparkleSpy).not.toHaveBeenCalled();
     });

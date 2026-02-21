@@ -90,9 +90,9 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
     const { emit, on } = renderResolutionFlow();
     const searchRequestedSpy = vi.fn();
 
-    const unsubscribe = on('resolution:search-requested', searchRequestedSpy);
+    const subscription = on('resolution:search-requested', searchRequestedSpy);
     emit('reference:link', { annotationUri: 'ann-uri-123', searchTerm: 'climate change' });
-    unsubscribe();
+    subscription.unsubscribe();
 
     expect(searchRequestedSpy).toHaveBeenCalledTimes(1);
     expect(searchRequestedSpy).toHaveBeenCalledWith({
@@ -204,7 +204,7 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
     const { emit, on } = renderResolutionFlow();
     const bodyUpdatedSpy = vi.fn();
 
-    const unsubscribe = on('annotation:body-updated', bodyUpdatedSpy);
+    const subscription = on('annotation:body-updated', bodyUpdatedSpy);
 
     emit('annotation:update-body', {
       annotationUri: 'http://localhost:4000/resources/test-resource/annotations/ann-success',
@@ -216,7 +216,7 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
       expect(bodyUpdatedSpy).toHaveBeenCalledTimes(1);
     });
 
-    unsubscribe();
+    subscription.unsubscribe();
 
     expect(bodyUpdatedSpy).toHaveBeenCalledWith({
       annotationUri: 'http://localhost:4000/resources/test-resource/annotations/ann-success',
@@ -229,7 +229,7 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
     const { emit, on } = renderResolutionFlow();
     const bodyUpdateFailedSpy = vi.fn();
 
-    const unsubscribe = on('annotation:body-update-failed', bodyUpdateFailedSpy);
+    const subscription = on('annotation:body-update-failed', bodyUpdateFailedSpy);
 
     emit('annotation:update-body', {
       annotationUri: 'http://localhost:4000/resources/test-resource/annotations/ann-fail',
@@ -241,7 +241,7 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
       expect(bodyUpdateFailedSpy).toHaveBeenCalledTimes(1);
     });
 
-    unsubscribe();
+    subscription.unsubscribe();
 
     expect(bodyUpdateFailedSpy).toHaveBeenCalledWith({
       error: expect.any(Error),

@@ -92,7 +92,7 @@ describe('useGenerationFlow — progress state', () => {
     const mockProgress = makeProgress({ status: 'generating', percentage: 30, message: 'Generating content...' });
 
     act(() => {
-      bus.get('generation:progress').next(mockProgress);
+      eventBus.get('generation:progress').next(mockProgress);
     });
 
     await waitFor(() => {
@@ -109,7 +109,7 @@ describe('useGenerationFlow — progress state', () => {
     const secondProgress = makeProgress({ status: 'generating', percentage: 50, message: 'Half way...' });
 
     act(() => {
-      bus.get('generation:progress').next(firstProgress);
+      eventBus.get('generation:progress').next(firstProgress);
     });
 
     await waitFor(() => {
@@ -117,7 +117,7 @@ describe('useGenerationFlow — progress state', () => {
     });
 
     act(() => {
-      bus.get('generation:progress').next(secondProgress);
+      eventBus.get('generation:progress').next(secondProgress);
     });
 
     await waitFor(() => {
@@ -132,7 +132,7 @@ describe('useGenerationFlow — progress state', () => {
 
     // First simulate some progress
     act(() => {
-      bus.get('generation:progress').next(makeProgress({ percentage: 75, message: 'Almost done...' }));
+      eventBus.get('generation:progress').next(makeProgress({ percentage: 75, message: 'Almost done...' }));
     });
 
     await waitFor(() => {
@@ -143,7 +143,7 @@ describe('useGenerationFlow — progress state', () => {
     const finalProgress = makeProgress({ status: 'complete', percentage: 100, message: 'Generation complete!' });
 
     act(() => {
-      bus.get('generation:complete').next({
+      eventBus.get('generation:complete').next({
         annotationUri: 'http://localhost:4000/annotations/test-ref-id',
         progress: finalProgress,
       });
@@ -161,7 +161,7 @@ describe('useGenerationFlow — progress state', () => {
 
     // First simulate some progress
     act(() => {
-      bus.get('generation:progress').next(makeProgress({ percentage: 40 }));
+      eventBus.get('generation:progress').next(makeProgress({ percentage: 40 }));
     });
 
     await waitFor(() => {
@@ -170,7 +170,7 @@ describe('useGenerationFlow — progress state', () => {
 
     // Now fail
     act(() => {
-      bus.get('generation:failed').next({
+      eventBus.get('generation:failed').next({
         error: new Error('Generation failed'),
       });
     });
@@ -188,7 +188,7 @@ describe('useGenerationFlow — progress state', () => {
     const finalProgress = makeProgress({ status: 'complete', percentage: 100, message: 'Done!' });
 
     act(() => {
-      bus.get('generation:complete').next({
+      eventBus.get('generation:complete').next({
         annotationUri: 'http://localhost:4000/annotations/test-ref-id',
         progress: finalProgress,
       });
@@ -205,7 +205,7 @@ describe('useGenerationFlow — progress state', () => {
     const eventBus = captureEventBus();
 
     act(() => {
-      bus.get('generation:failed').next({
+      eventBus.get('generation:failed').next({
         error: new Error('Unexpected failure'),
       });
     });
