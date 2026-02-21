@@ -92,7 +92,7 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
 
     const unsubscribe = on('resolution:search-requested', searchRequestedSpy);
     emit('reference:link', { annotationUri: 'ann-uri-123', searchTerm: 'climate change' });
-    subscription.unsubscribe();
+    unsubscribe();
 
     expect(searchRequestedSpy).toHaveBeenCalledTimes(1);
     expect(searchRequestedSpy).toHaveBeenCalledWith({
@@ -216,7 +216,7 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
       expect(bodyUpdatedSpy).toHaveBeenCalledTimes(1);
     });
 
-    subscription.unsubscribe();
+    unsubscribe();
 
     expect(bodyUpdatedSpy).toHaveBeenCalledWith({
       annotationUri: 'http://localhost:4000/resources/test-resource/annotations/ann-success',
@@ -241,7 +241,7 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
       expect(bodyUpdateFailedSpy).toHaveBeenCalledTimes(1);
     });
 
-    subscription.unsubscribe();
+    unsubscribe();
 
     expect(bodyUpdateFailedSpy).toHaveBeenCalledWith({
       error: expect.any(Error),

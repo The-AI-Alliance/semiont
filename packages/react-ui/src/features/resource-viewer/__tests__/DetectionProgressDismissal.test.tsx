@@ -37,9 +37,6 @@ describe('Detection Progress Dismissal Bug', () => {
     vi.clearAllMocks();
 
     mockStream = {
-      onProgress: vi.fn().mockReturnThis(),
-      onComplete: vi.fn().mockReturnThis(),
-      onError: vi.fn().mockReturnThis(),
       close: vi.fn(),
     };
 
@@ -232,12 +229,10 @@ describe('Detection Progress Dismissal Bug', () => {
     });
   });
 
-  it('FIXED: useResolutionFlow now forwards final completion chunk data', async () => {
+  it('FIXED: SSE emits final completion chunk data as detection:progress', async () => {
     /**
-     * This test verifies the fix for the useResolutionFlow bug.
-     *
-     * FIX: useResolutionFlow.ts stream.onComplete(finalChunk) now emits detection:progress
-     * with the final chunk data BEFORE emitting detection:complete.
+     * This test verifies that SSE emits the final chunk as detection:progress
+     * BEFORE emitting detection:complete.
      *
      * This ensures the UI can display the final completion message with status:'complete'.
      */
@@ -255,20 +250,6 @@ describe('Detection Progress Dismissal Bug', () => {
         </div>
       );
     }
-
-    // Mock SSE stream to simulate backend behavior
-    let onProgressCallback: any;
-    let onCompleteCallback: any;
-
-    mockStream.onProgress.mockImplementation((cb: any) => {
-      onProgressCallback = cb;
-      return mockStream;
-    });
-
-    mockStream.onComplete.mockImplementation((cb: any) => {
-      onCompleteCallback = cb;
-      return mockStream;
-    });
 
     render(
       <EventBusProvider>
@@ -288,9 +269,9 @@ describe('Detection Progress Dismissal Bug', () => {
       });
     });
 
-    // Simulate SSE scanning chunk via stream.onProgress()
+    // Simulate SSE scanning chunk
     act(() => {
-      onProgressCallback?.({
+      eventBusInstance.get('detection:progress').next({
         status: 'scanning',
         message: 'Processing: Location',
       });
@@ -300,10 +281,9 @@ describe('Detection Progress Dismissal Bug', () => {
       expect(screen.getByTestId('progress-status')).toHaveTextContent('scanning');
     });
 
-    // Simulate backend sending final chunk to stream.onComplete(finalChunk)
-    // useResolutionFlow should forward this as detection:progress
+    // Simulate SSE emitting final chunk as detection:progress
     act(() => {
-      onCompleteCallback?.({
+      eventBusInstance.get('detection:progress').next({
         status: 'complete',
         message: 'Complete! Found 5 entities',
         foundCount: 5,
