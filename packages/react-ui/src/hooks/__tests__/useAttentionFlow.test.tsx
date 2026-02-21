@@ -215,7 +215,7 @@ describe('useAttentionFlow', () => {
       const sparkleSpy = vi.fn();
       const subscription = eventBusInstance!.get('annotation:sparkle').subscribe(sparkleSpy);
       act(() => { eventBusInstance!.get('annotation:hover').next({ annotationId: 'ghost' }); });
-      unsubscribe.unsubscribe();
+      subscription.unsubscribe();
 
       expect(sparkleSpy).not.toHaveBeenCalled();
     });
