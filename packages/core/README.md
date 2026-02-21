@@ -6,22 +6,24 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/core.svg)](https://www.npmjs.com/package/@semiont/core)
 [![License](https://img.shields.io/npm/l/@semiont/core.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-Backend domain logic for the Semiont semantic knowledge platform. This package provides **internal backend utilities** for event sourcing, cryptography, DID generation, and type guards.
+Core types and domain logic for the Semiont semantic knowledge platform. This package is the **source of truth for OpenAPI types** and provides backend utilities for event sourcing, URIs, DID generation, and the EventBus.
 
-> ⚠️ **Not for External Use**: If you're building applications that consume the Semiont API, use [`@semiont/api-client`](../api-client/README.md) instead. This package is for **backend internal use only**.
+> **Architecture Note**: This package generates TypeScript types from the OpenAPI specification. `@semiont/api-client` re-exports these types and provides HTTP client functionality.
 
 ## Who Should Use This
 
-- ✅ **Backend** (`apps/backend`) - Server implementation with event sourcing
-- ✅ **Internal Services** - System components requiring domain logic
-- ✅ **CLI Tools** - Command-line utilities with full system access
+- ✅ **Backend** (`apps/backend`) - Server implementation, imports types from core
+- ✅ **Packages** - Other monorepo packages that need OpenAPI types or EventBus
+- ✅ **Internal Utilities** - Type generation, validation, domain logic
 
-## Who Should NOT Use This
+## Who Should Use `@semiont/api-client` Instead
 
-- ❌ **External Applications** - Use [`@semiont/api-client`](../api-client/README.md)
-- ❌ **Frontend** - Use [`@semiont/api-client`](../api-client/README.md)
-- ❌ **MCP Servers** - Use [`@semiont/api-client`](../api-client/README.md)
-- ❌ **Demo Scripts** - Use [`@semiont/api-client`](../api-client/README.md)
+- **External Applications** - For HTTP client + utilities
+- **Frontend** (`apps/frontend`, `packages/react-ui`) - For API communication and W3C utilities
+- **Demo Scripts** - For higher-level API access
+- **MCP Servers** - For client-side annotation utilities
+
+**Rule of thumb**: If you need to make HTTP requests or work with W3C selectors, use `@semiont/api-client`. If you only need types and domain logic, use `@semiont/core`.
 
 ## Installation
 
@@ -39,15 +41,44 @@ npm install @semiont/core@dev
 
 ## What's Included
 
+### OpenAPI Types (Generated)
+
+TypeScript types generated from the OpenAPI specification - the **source of truth** for all API schemas:
+
+```typescript
+import type { components, paths, operations } from '@semiont/core';
+
+type Annotation = components['schemas']['Annotation'];
+type Resource = components['schemas']['Resource'];
+type CreateResourceRequest = components['schemas']['CreateResourceRequest'];
+```
+
+These types are generated during the build process:
+```bash
+npm run generate:openapi  # Bundles spec → generates types.ts
+```
+
+### Branded Types
+
+Compile-time type safety for URIs, tokens, and identifiers:
+
+```typescript
+import { resourceUri, annotationUri, accessToken, entityType } from '@semiont/core';
+
+const rUri = resourceUri('http://localhost:4000/resources/doc-123');
+const token = accessToken('eyJhbGc...');
+const eType = entityType('Person');
+```
+
 ### Event Sourcing Types
 
 Event types for the event-sourced architecture:
 
 ```typescript
 import type {
-  DocumentEvent,
-  DocumentCreatedEvent,
-  DocumentArchivedEvent,
+  ResourceEvent,
+  ResourceCreatedEvent,
+  ResourceArchivedEvent,
   DocumentUnarchivedEvent,
   AnnotationAddedEvent,
   AnnotationRemovedEvent,

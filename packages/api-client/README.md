@@ -8,6 +8,8 @@
 
 TypeScript SDK for [Semiont](https://github.com/The-AI-Alliance/semiont) - a knowledge management system for semantic annotations, AI-powered annotation detection, and collaborative document analysis.
 
+This package provides the HTTP client, SSE streams, and utilities for working with the Semiont API. OpenAPI types are re-exported from [`@semiont/core`](../core/README.md) (the source of truth).
+
 ## What is Semiont?
 
 Semiont lets you:
