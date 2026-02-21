@@ -2,7 +2,7 @@
  * Backend-specific annotation utility functions
  */
 
-import type { components } from '@semiont/api-client';
+import type { components } from './types';
 import type { BodyItem } from './events';
 
 type Annotation = components['schemas']['Annotation'];

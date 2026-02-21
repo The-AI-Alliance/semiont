@@ -13,19 +13,31 @@
  */
 
 import type { ResourceEvent } from './events';
-import type {
-  components,
-  Selector,
-  ResourceUri,
-  GenerationContext,
-  GenerationProgress as ApiGenerationProgress,
-} from '@semiont/api-client';
+import type { components } from './types';
+import type { ResourceUri } from './branded-types';
+
+// W3C Annotation selector types
+type Selector =
+  | components['schemas']['TextPositionSelector']
+  | components['schemas']['TextQuoteSelector']
+  | components['schemas']['SvgSelector']
+  | components['schemas']['FragmentSelector'];
+
+type GenerationContext = components['schemas']['GenerationContext'];
 
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation'];
 
-// Re-export GenerationProgress from API client for convenience
-export type GenerationProgress = ApiGenerationProgress;
+// GenerationProgress interface (SSE stream progress updates)
+export interface GenerationProgress {
+  status: 'started' | 'fetching' | 'generating' | 'creating' | 'complete' | 'error';
+  referenceId: string;
+  resourceName?: string;
+  resourceId?: string;
+  sourceResourceId?: string;
+  percentage: number;
+  message?: string;
+}
 
 /**
  * Selection data for user-initiated annotations

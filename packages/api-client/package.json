@@ -32,14 +32,10 @@
     "directory": "packages/api-client"
   },
   "scripts": {
-    "bundle-spec": "cd ../.. && npm run openapi:bundle",
-    "copy-spec": "cp ../../specs/openapi.json openapi.json",
-    "generate": "npm run bundle-spec && npm run copy-spec && openapi-typescript openapi.json -o src/types.ts",
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && tsup",
-    "prebuild": "npm run generate",
     "watch": "tsup --watch",
-    "clean": "rm -rf dist src/types.ts openapi.json",
+    "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
@@ -50,7 +46,6 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^3.0.0",
-    "openapi-typescript": "^7.10.1",
     "orval": "^6.31.0",
     "tsup": "^8.5.1",
     "typescript": "^5.6.3",

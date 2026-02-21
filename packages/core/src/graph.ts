@@ -2,7 +2,7 @@
  * Graph types - Models for graph connections and relationships
  */
 
-import type { components } from '@semiont/api-client';
+import type { components } from './types';
 
 // Import OpenAPI types
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];

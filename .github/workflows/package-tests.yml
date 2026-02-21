@@ -47,29 +47,30 @@ jobs:
           # Only build packages that this package actually depends on at test-time
           # Most packages only need @semiont/api-client and @semiont/core built
           case "${{ matrix.package }}" in
-            api-client)
+            core)
+              # core generates OpenAPI types - no dependencies
               npm run openapi:bundle
+              ;;
+            api-client)
+              # api-client depends on core for OpenAPI types
+              npm run openapi:bundle
+              npm run build --workspace=@semiont/core
               ;;
             ontology)
               npm run openapi:bundle
-              npm run build --workspace=@semiont/api-client
-              ;;
-            core)
-              npm run openapi:bundle
-              npm run build --workspace=@semiont/api-client
-              npm run build --workspace=@semiont/ontology
+              npm run build --workspace=@semiont/core
               ;;
             content|event-sourcing|jobs|graph|inference)
               npm run openapi:bundle
-              npm run build --workspace=@semiont/api-client
-              npm run build --workspace=@semiont/ontology
               npm run build --workspace=@semiont/core
+              npm run build --workspace=@semiont/ontology
+              npm run build --workspace=@semiont/api-client
               ;;
             make-meaning)
               npm run openapi:bundle
-              npm run build --workspace=@semiont/api-client
-              npm run build --workspace=@semiont/ontology
               npm run build --workspace=@semiont/core
+              npm run build --workspace=@semiont/ontology
+              npm run build --workspace=@semiont/api-client
               npm run build --workspace=@semiont/content
               npm run build --workspace=@semiont/event-sourcing
               npm run build --workspace=@semiont/jobs
@@ -78,12 +79,13 @@ jobs:
               ;;
             react-ui)
               npm run openapi:bundle
-              npm run build --workspace=@semiont/api-client
               npm run build --workspace=@semiont/core
               npm run build --workspace=@semiont/ontology
+              npm run build --workspace=@semiont/api-client
               ;;
             mcp-server)
               npm run openapi:bundle
+              npm run build --workspace=@semiont/core
               npm run build --workspace=@semiont/api-client
               ;;
           esac

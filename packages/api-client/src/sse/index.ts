@@ -7,9 +7,9 @@
 
 import { createSSEStream } from './stream';
 import type { SSEStream } from './types';
-import type { ResourceUri, AnnotationUri } from '../branded-types';
-import type { AccessToken, BaseUrl, EntityType } from '../branded-types';
-import type { components } from '../types';
+import type { ResourceUri, AnnotationUri } from '@semiont/core';
+import type { AccessToken, BaseUrl, EntityType } from '@semiont/core';
+import type { components } from '@semiont/core';
 import type { Logger } from '../logger';
 
 /**

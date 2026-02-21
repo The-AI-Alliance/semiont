@@ -4,9 +4,9 @@
  * Build all packages in dependency order with proper error handling
  *
  * Build order (SPEC-FIRST ARCHITECTURE):
- * 1. @semiont/api-client - Generates types from openapi.json (spec-first) - NO DEPENDENCIES
- * 2. @semiont/core - Core event types and utilities - depends on @semiont/api-client for OpenAPI types
- * 3. @semiont/ontology - Entity types, tag schemas, vocabularies (depends on @semiont/api-client only)
+ * 1. @semiont/core - Generates types from openapi.json (spec-first) - NO DEPENDENCIES
+ * 2. @semiont/api-client - API client SDK - depends on @semiont/core for OpenAPI types and branded types
+ * 3. @semiont/ontology - Entity types, tag schemas, vocabularies (depends on @semiont/core)
  * 4. @semiont/content - Content-addressed storage (depends on @semiont/core only)
  * 5. @semiont/event-sourcing - Event sourcing infrastructure (depends on @semiont/core and @semiont/api-client)
  * 6. @semiont/jobs - Job queue and worker infrastructure (depends on @semiont/core and @semiont/api-client)
@@ -14,7 +14,7 @@
  * 8. @semiont/inference - AI inference for entity extraction and text generation (depends on @semiont/core and @semiont/api-client)
  * 9. @semiont/make-meaning - Context assembly, pattern detection, and relationship reasoning (depends on @semiont/inference, @semiont/graph, @semiont/ontology)
  * 10. @semiont/react-ui - React components and hooks for Semiont applications (depends on @semiont/api-client, @semiont/core, @semiont/ontology)
- * 11. Backend - Consumes types from @semiont/api-client, @semiont/core, @semiont/ontology, @semiont/content, @semiont/event-sourcing, @semiont/jobs, @semiont/graph, @semiont/inference, and @semiont/make-meaning
+ * 11. Backend - Consumes types from @semiont/core, @semiont/api-client, @semiont/ontology, @semiont/content, @semiont/event-sourcing, @semiont/jobs, @semiont/graph, @semiont/inference, and @semiont/make-meaning
  * 12. @semiont/test-utils - Testing utilities
  * 13. @semiont/mcp-server - MCP server (depends on @semiont/api-client)
  */
@@ -43,14 +43,14 @@ try {
 
 const buildSteps = [
   {
-    name: '@semiont/api-client',
-    type: 'package',
-    description: 'API client (generates types from openapi.json - SPEC-FIRST, NO DEPENDENCIES)'
-  },
-  {
     name: '@semiont/core',
     type: 'package',
-    description: 'Core event types and utilities (depends on @semiont/api-client for OpenAPI types)'
+    description: 'Core event types and utilities (generates types from openapi.json - SPEC-FIRST, NO DEPENDENCIES)'
+  },
+  {
+    name: '@semiont/api-client',
+    type: 'package',
+    description: 'API client (depends on @semiont/core for OpenAPI types and branded types)'
   },
   {
     name: '@semiont/ontology',

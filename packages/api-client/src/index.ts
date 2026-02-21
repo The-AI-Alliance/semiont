@@ -29,16 +29,17 @@
  * ```
  */
 
-// Generated OpenAPI types and client
-export * from './types';
+// Re-export OpenAPI types from @semiont/core (source of truth)
+export type { components, paths, operations } from '@semiont/core';
+
+// Export client
 export * from './client';
-export type { components } from './types';
-import type { components } from './types';
 
 // Logger interface for observability
 export type { Logger } from './logger';
 
 // Export specific types for generation context
+import type { components } from '@semiont/core';
 export type GenerationContext = components['schemas']['GenerationContext'];
 export type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
 
@@ -66,5 +67,40 @@ export {
   type MimeCategory
 } from './mime-utils';
 
-// All branded types (URIs, tokens, identifiers, etc.)
-export * from './branded-types';
+// Re-export branded types from @semiont/core
+export type {
+  Motivation,
+  ContentFormat,
+  Email,
+  AuthCode,
+  GoogleCredential,
+  AccessToken,
+  RefreshToken,
+  MCPToken,
+  CloneToken,
+  JobId,
+  UserDID,
+  EntityType,
+  SearchQuery,
+  BaseUrl,
+  ResourceUri,
+  AnnotationUri,
+  ResourceAnnotationUri,
+} from '@semiont/core';
+export {
+  email,
+  authCode,
+  googleCredential,
+  accessToken,
+  refreshToken,
+  mcpToken,
+  cloneToken,
+  jobId,
+  userDID,
+  entityType,
+  searchQuery,
+  baseUrl,
+  resourceUri,
+  annotationUri,
+  resourceAnnotationUri,
+} from '@semiont/core';

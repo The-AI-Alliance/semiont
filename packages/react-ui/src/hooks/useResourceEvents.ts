@@ -6,6 +6,7 @@ import { accessToken } from '@semiont/api-client';
 import type { ResourceEvent } from '@semiont/core';
 import { useApiClient } from '../contexts/ApiClientContext';
 import { useAuthToken } from '../contexts/AuthTokenContext';
+import { useEventBus } from '../contexts/EventBusContext';
 
 /**
  * Stream connection status
@@ -62,10 +63,11 @@ export function useResourceEvents({
 }: UseResourceEventsOptions) {
   const client = useApiClient();
   const token = useAuthToken();
+  const eventBus = useEventBus();
   const [status, setStatus] = useState<StreamStatus>('disconnected');
   const [lastEvent, setLastEvent] = useState<ResourceEvent | null>(null);
   const [eventCount, setEventCount] = useState(0);
-  const streamRef = useRef<SSEStream<ResourceEvent, never> | null>(null);
+  const streamRef = useRef<SSEStream | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const connectingRef = useRef(false);
@@ -128,6 +130,15 @@ export function useResourceEvents({
     }
   }, []); // Empty deps - stable reference prevents reconnection!
 
+  // Subscribe to EventBus for resource events
+  useEffect(() => {
+    const subscription = eventBus.get('make-meaning:event').subscribe((event: ResourceEvent) => {
+      handleEvent(event);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [eventBus, handleEvent]);
+
   const connect = useCallback(async () => {
     // Prevent duplicate connections
     if (connectingRef.current || streamRef.current) {
@@ -154,49 +165,17 @@ export function useResourceEvents({
     setStatus('connecting');
 
     try {
-      // Start SSE stream using api-client (pass token for auth)
-      // onConnected is called by the api-client layer when stream-connected fires,
-      // so it never reaches onProgress as an untyped event
+      // Start SSE stream - events auto-emit to EventBus
       const stream = client.sse.resourceEvents(rUri, {
         ...(token ? { auth: accessToken(token) } : {}),
-        onConnected: () => {
-          setStatus('connected');
-          reconnectAttemptsRef.current = 0; // Reset reconnect counter
-        },
+        eventBus, // ← Stream auto-emits to EventBus
       });
       streamRef.current = stream;
 
-      // Handle progress events (typed ResourceEvent only - meta-events filtered by api-client)
-      stream.onProgress((event) => {
-        handleEvent(event);
-      });
-
-      // Handle errors and reconnection
-      stream.onError((error) => {
-        console.error(`[ResourceEvents] Stream error for ${rUri}:`, error);
-        setStatus('error');
-
-        // Don't retry on 404 - document doesn't exist
-        if (error.message.includes('404')) {
-          console.error(`[ResourceEvents] Document ${rUri} not found (404). Stopping reconnection attempts.`);
-          onErrorRef.current?.('Document not found');
-          streamRef.current = null;
-          connectingRef.current = false;
-          return;
-        }
-
-        // Immediate reconnection for network errors (likely chunked encoding issues from proxy)
-        // Use small delay to avoid tight loop on persistent errors
-        reconnectAttemptsRef.current++;
-        const delay = reconnectAttemptsRef.current === 1 ? 100 : Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current - 2), 30000);
-
-        reconnectTimeoutRef.current = setTimeout(() => {
-          if (!streamRef.current) {
-            // Reconnect - call connect directly to avoid circular dependency
-            connect();
-          }
-        }, delay);
-      });
+      // Set connected status
+      setStatus('connected');
+      reconnectAttemptsRef.current = 0;
+      connectingRef.current = false;
     } catch (error) {
       console.error('[ResourceEvents] Failed to connect:', error);
       setStatus('error');
@@ -204,7 +183,7 @@ export function useResourceEvents({
       connectingRef.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rUri, handleEvent, client]); // handleEvent now stable, client changes when auth state changes
+  }, [rUri, client, token, eventBus]);
 
   const disconnect = useCallback(() => {
     if (streamRef.current) {

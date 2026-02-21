@@ -9,9 +9,9 @@
  * Target can be simple string IRI or object with source and optional selector
  */
 
-import type { components } from '../types';
-import type { ResourceUri } from '../branded-types';
-import { resourceUri } from '../branded-types';
+import type { components } from '@semiont/core';
+import type { ResourceUri } from '@semiont/core';
+import { resourceUri } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 type HighlightAnnotation = Annotation;

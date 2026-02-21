@@ -6,7 +6,7 @@
  */
 
 import { resourceId, annotationId, type ResourceId, type AnnotationId } from './identifiers';
-import { resourceUri, annotationUri, type ResourceUri, type AnnotationUri, type ResourceAnnotationUri } from '@semiont/api-client';
+import { resourceUri, annotationUri, type ResourceUri, type AnnotationUri, type ResourceAnnotationUri } from './branded-types';
 
 /**
  * Convert resource ID to full URI
