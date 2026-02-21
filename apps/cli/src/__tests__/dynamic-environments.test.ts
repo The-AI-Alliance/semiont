@@ -190,17 +190,37 @@ describe('Dynamic Environment Discovery', () => {
       'sandbox.json': {
         platform: { default: 'container' },
         site: { domain: 'sandbox.example.com' },
-        services: { 
-          api: { platform: { type: 'container' }, port: 8080 },
-          web: { platform: { type: 'container' }, port: 3000 }
+        services: {
+          api: {
+            platform: { type: 'container' },
+            port: 8080,
+            publicURL: 'http://sandbox.example.com:8080',
+            corsOrigin: 'http://sandbox.example.com:3000'
+          },
+          web: {
+            platform: { type: 'container' },
+            port: 3000,
+            publicURL: 'http://sandbox.example.com:3000',
+            siteName: 'Sandbox'
+          }
         }
       },
       'integration-testing.json': {
         platform: { default: 'aws' },
         site: { domain: 'integration.example.com' },
         services: {
-          backend: { platform: { type: 'aws' } },
-          database: { platform: { type: 'aws' } }
+          backend: {
+            platform: { type: 'aws' },
+            port: 443,
+            publicURL: 'https://integration.example.com',
+            corsOrigin: 'https://integration.example.com'
+          },
+          database: {
+            platform: { type: 'aws' },
+            port: 5432,
+            host: 'db.integration.example.com',
+            type: 'postgresql'
+          }
         }
       }
     };

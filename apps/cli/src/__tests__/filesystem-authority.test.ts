@@ -77,6 +77,8 @@ describe('Filesystem Authority for Environment Validation', () => {
             "type": "container"
           },
           "port": 8080,
+          "publicURL": "http://foo.example.com:8080",
+          "corsOrigin": "http://foo.example.com:3000",
           "image": "my-backend:foo",
           "command": "npm start"
         },
@@ -85,6 +87,8 @@ describe('Filesystem Authority for Environment Validation', () => {
             "type": "container"
           },
           "port": 3000,
+          "publicURL": "http://foo.example.com:3000",
+          "siteName": "Foo Environment",
           "image": "my-frontend:foo",
           "command": "npm run start"
         },
@@ -94,6 +98,7 @@ describe('Filesystem Authority for Environment Validation', () => {
           },
           "host": "localhost",
           "port": 5432,
+          "type": "postgresql",
           "name": "semiont_foo",
           "user": "postgres"
         },

@@ -135,8 +135,18 @@ describe('Dynamic Environment Validation', () => {
         platform: { default: 'posix' },
         site: { domain: 'custom.example.com' },
         services: {
-          backend: { platform: { type: 'posix' }, port: 8080 },
-          frontend: { platform: { type: 'posix' }, port: 3000 }
+          backend: {
+            platform: { type: 'posix' },
+            port: 8080,
+            publicURL: 'http://custom.example.com:8080',
+            corsOrigin: 'http://custom.example.com:3000'
+          },
+          frontend: {
+            platform: { type: 'posix' },
+            port: 3000,
+            publicURL: 'http://custom.example.com:3000',
+            siteName: 'Custom Site'
+          }
         }
       };
       
@@ -226,8 +236,18 @@ describe('Environment Discovery Integration', () => {
         platform: { default: 'container' },
         site: { domain: `${env}.example.com` },
         services: {
-          backend: { platform: { type: 'container' }, port: 3001 },
-          frontend: { platform: { type: 'container' }, port: 3000 }
+          backend: {
+            platform: { type: 'container' },
+            port: 3001,
+            publicURL: `http://${env}.example.com:3001`,
+            corsOrigin: `http://${env}.example.com:3000`
+          },
+          frontend: {
+            platform: { type: 'container' },
+            port: 3000,
+            publicURL: `http://${env}.example.com:3000`,
+            siteName: `${env} Site`
+          }
         }
       };
       

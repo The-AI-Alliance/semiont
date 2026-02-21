@@ -36,7 +36,7 @@ import { PrismaClient } from '@prisma/client';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema } from '../base-options-schema.js';
-import { printInfo, printSuccess, printError } from '../io/cli-logger.js';
+import { printInfo, printSuccess } from '../io/cli-logger.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -62,11 +62,11 @@ export type UseraddOptions = z.output<typeof UseraddOptionsSchema>;
 function validateEmail(email: string): void {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
-    throw new Error(`Invalid email format: ${email}`);
+    throw new Error(`invalid email format: ${email}`);
   }
 
   if (!email.includes('@')) {
-    throw new Error('Invalid email: missing @ symbol');
+    throw new Error('invalid email: missing @ symbol');
   }
 }
 
@@ -102,30 +102,31 @@ export async function useradd(options: UseraddOptions): Promise<CommandResults> 
     validateEmail(options.email);
     const domain = extractDomain(options.email);
 
+    // Check if user exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email: options.email }
+    });
+
     // Handle password
-    let password: string;
+    let password: string | undefined;
+    let passwordHash: string | undefined;
     let generatedPassword: string | undefined;
 
     if (options.generatePassword) {
       password = generatePassword();
       generatedPassword = password;
+      passwordHash = await bcrypt.hash(password, 12);
       if (!options.quiet) {
         printInfo(`Generated password: ${password}`);
       }
     } else if (options.password) {
       password = options.password;
       validatePassword(password);
-    } else {
+      passwordHash = await bcrypt.hash(password, 12);
+    } else if (!existingUser) {
+      // Password required for new users
       throw new Error('Password required: use --password or --generate-password');
     }
-
-    // Hash password
-    const passwordHash = await bcrypt.hash(password, 12);
-
-    // Check if user exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email: options.email }
-    });
 
     let user;
 
@@ -169,7 +170,7 @@ export async function useradd(options: UseraddOptions): Promise<CommandResults> 
           name: options.name || null,
           provider: 'password',
           providerId: options.email,
-          passwordHash,
+          passwordHash: passwordHash!,
           domain,
           isActive: !options.inactive,
           isAdmin: options.admin,
@@ -222,37 +223,8 @@ export async function useradd(options: UseraddOptions): Promise<CommandResults> 
       duration
     };
   } catch (error) {
-    const duration = Date.now() - startTime;
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-
-    if (!options.quiet) {
-      printError(`Failed to add user: ${errorMessage}`);
-    }
-
-    return {
-      command: 'useradd',
-      environment: options.environment!,
-      timestamp: new Date(),
-      summary: {
-        succeeded: 0,
-        failed: 1,
-        total: 1,
-        warnings: 0
-      },
-      executionContext: {
-        user: process.env.USER || 'unknown',
-        workingDirectory: process.cwd(),
-        dryRun: options.dryRun
-      },
-      results: [{
-        entity: options.email,
-        platform: 'posix',
-        success: false,
-        error: errorMessage,
-        duration
-      }],
-      duration
-    };
+    await prisma.$disconnect();
+    throw error;
   } finally {
     await prisma.$disconnect();
   }
