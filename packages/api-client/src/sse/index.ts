@@ -76,8 +76,8 @@ export interface SSEClientConfig {
  */
 export interface SSERequestOptions {
   auth?: AccessToken;
-  /** Optional EventBus for event-driven architecture */
-  eventBus?: import('@semiont/core').EventBus;
+  /** EventBus for event-driven architecture (required) */
+  eventBus: import('@semiont/core').EventBus;
 }
 
 /**

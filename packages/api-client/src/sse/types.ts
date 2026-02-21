@@ -225,7 +225,10 @@ export interface TagDetectionProgress {
 /**
  * SSE stream controller interface
  *
- * Returned by all SSE methods. Events auto-emit to EventBus when provided.
+ * Returned by all SSE methods. Events auto-emit to EventBus (required).
+ *
+ * **Architecture Note**: All SSE methods require `eventBus` in options to enforce
+ * event-driven architecture. This is enforced at compile time via TypeScript.
  *
  * @example
  * ```typescript
@@ -236,7 +239,7 @@ export interface TagDetectionProgress {
  * eventBus.get('detection:complete').subscribe(() => console.log('Done!'));
  * eventBus.get('detection:failed').subscribe(({ error }) => console.error(error));
  *
- * // Start stream - events auto-emit to EventBus
+ * // Start stream - eventBus is required (TypeScript enforced)
  * const stream = client.sse.detectReferences(resourceId, request, { auth, eventBus });
  *
  * // Cleanup when done
