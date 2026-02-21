@@ -240,14 +240,15 @@ import { compareAnnotationIds, getEntityTypes, getBodySource } from '@semiont/ap
 Semiont follows a **spec-first architecture**:
 
 1. **OpenAPI Specification** ([specs/src/](../../specs/src/)) is the source of truth
-2. **@semiont/api-client** generates types from OpenAPI and provides utilities
-3. **@semiont/core** provides backend-specific domain logic not in the API
+2. **@semiont/core** generates types from OpenAPI and provides utilities
+3. **@semiont/api-client** re-exports types from core and provides HTTP client
 
 **Principle**:
-- API contract & data utilities → `@semiont/api-client`
-- Backend internal implementation → `@semiont/core`
+- OpenAPI types & domain utilities → `@semiont/core` (source of truth)
+- HTTP client & convenience re-exports → `@semiont/api-client`
+- Backend internal implementation → imports from `@semiont/core`
 
-**Deduplication (2025-10-24)**: Selector utilities, locale utilities, and public annotation utilities were moved from this package to `@semiont/api-client` as part of the spec-first architecture migration.
+**Type Generation Flow**: OpenAPI spec → `@semiont/core/src/types.ts` (via `openapi-typescript`) → re-exported by `@semiont/api-client` for convenience. This ensures no circular dependencies and clear build order.
 
 ## Development
 
