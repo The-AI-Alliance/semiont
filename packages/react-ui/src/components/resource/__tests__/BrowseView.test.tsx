@@ -101,20 +101,8 @@ function createEventTracker() {
   function EventTrackingWrapper({ children }: { children: React.ReactNode }) {
     const eventBus = useEventBus();
 
-    // Track subscriptions by wrapping the on method synchronously before render
-    const originalOn = React.useRef(eventBus.on.bind(eventBus));
-
-    if (!('__tracked' in eventBus.on)) {
-      const trackedOn = ((eventName: string, handler: Function) => {
-        subscriptions.add(eventName);
-        return originalOn.current(eventName, handler);
-      }) as typeof eventBus.on & { __tracked: true };
-      trackedOn.__tracked = true;
-      eventBus.on = trackedOn;
-    }
-
     React.useEffect(() => {
-      const handlers: Array<() => void> = [];
+      const handlers: Array<{ unsubscribe: () => void }> = [];
 
       // Track all annotation-related events
       const trackEvent = (eventName: string) => (payload: any) => {
@@ -128,6 +116,7 @@ function createEventTracker() {
       ] as const;
 
       annotationEvents.forEach(eventName => {
+        subscriptions.add(eventName);
         const handler = trackEvent(eventName);
         const subscription = eventBus.get(eventName).subscribe(handler);
         handlers.push(subscription);
