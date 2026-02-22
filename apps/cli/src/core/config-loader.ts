@@ -7,7 +7,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { parseAndMergeConfigs, listEnvironmentNames, ConfigurationError, type EnvironmentConfig } from '@semiont/core';
+import { createConfigLoader, listEnvironmentNames, ConfigurationError, type EnvironmentConfig, type ConfigFileReader } from '@semiont/core';
 
 /**
  * Find project root from SEMIONT_ROOT environment variable
@@ -47,30 +47,34 @@ export function findProjectRoot(): string {
 }
 
 /**
- * Load environment configuration from filesystem
+ * Node.js file reader implementation for CLI config loading
  */
-export function loadEnvironmentConfig(projectRoot: string, environment: string): EnvironmentConfig {
-  // Load base semiont.json
-  const baseConfigPath = path.join(projectRoot, 'semiont.json');
-  const baseContent = fs.existsSync(baseConfigPath)
-    ? fs.readFileSync(baseConfigPath, 'utf-8')
-    : null;
+const nodeFileReader: ConfigFileReader = {
+  readIfExists: (filePath: string) => {
+    const absolutePath = path.resolve(filePath);
+    return fs.existsSync(absolutePath)
+      ? fs.readFileSync(absolutePath, 'utf-8')
+      : null;
+  },
 
-  // Load environment-specific config
-  const envPath = path.join(projectRoot, 'environments', `${environment}.json`);
-  if (!fs.existsSync(envPath)) {
-    throw new ConfigurationError(
-      `Environment configuration missing: ${envPath}`,
-      environment,
-      `Create the configuration file or use: semiont init`
-    );
-  }
+  readRequired: (filePath: string) => {
+    const absolutePath = path.resolve(filePath);
+    if (!fs.existsSync(absolutePath)) {
+      throw new ConfigurationError(
+        `Configuration file not found: ${absolutePath}`,
+        undefined,
+        `Create the configuration file or use: semiont init`
+      );
+    }
+    return fs.readFileSync(absolutePath, 'utf-8');
+  },
+};
 
-  const envContent = fs.readFileSync(envPath, 'utf-8');
-
-  // Use pure function from @semiont/core with filesystem inputs
-  return parseAndMergeConfigs(baseContent, envContent, process.env, environment, projectRoot);
-}
+/**
+ * Load environment configuration from filesystem
+ * Uses createConfigLoader from @semiont/core with Node.js file reader
+ */
+export const loadEnvironmentConfig = createConfigLoader(nodeFileReader);
 
 /**
  * Get available environments by scanning environments directory
