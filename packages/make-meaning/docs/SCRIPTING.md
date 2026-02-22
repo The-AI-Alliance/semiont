@@ -413,13 +413,13 @@ See the test examples in `packages/make-meaning/src/__tests__/scripting-examples
    - Traversing relationships
    - Graph statistics
 
-And the real-world script:
+And the real-world example:
 
-4. **[scripts/batch-detect-entities.ts](../../../scripts/batch-detect-entities.ts)**
-   - Complete batch detection script
-   - Command-line argument parsing
-   - Progress monitoring and reporting
-   - Graceful shutdown handling
+4. **[src/__tests__/scripting-examples/batch-detect-entities.test.ts](../src/__tests__/scripting-examples/batch-detect-entities.test.ts)**
+   - Batch processing with completion tracking
+   - Parallel resource processing
+   - Progress monitoring across multiple resources
+   - Success and failure handling
 
 ## Differences from HTTP API
 
@@ -643,8 +643,8 @@ tsx scripts/your-script.ts
 
 ## Next Steps
 
-- **Review the examples**: Start with `create-resource.test.ts` for basics
-- **Try the batch script**: Run `npm run script:batch-detect -- --limit 5`
+- **Review the examples**: Start with `create-resource.test.ts` for basics, then explore `batch-detect-entities.test.ts` for parallel processing patterns
+- **Run the tests**: Use `npm test` in the make-meaning package to see the examples in action
 - **Explore subsystems**: Check EventStore, RepStore, and GraphDB APIs
 - **Build your workflow**: Combine patterns for your specific use case
 
