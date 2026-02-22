@@ -7,6 +7,7 @@ import { vi, beforeAll, afterEach, afterAll } from 'vitest';
 import { setupServer } from 'msw/node';
 import { handlers } from './mocks/server';
 import { promises as fs } from 'fs';
+import type { EnvironmentConfig } from '@semiont/core';
 
 // Create mock Prisma client that will be used by all tests
 const mockPrismaClient = {
@@ -37,43 +38,45 @@ vi.mock('../db', () => ({
   prisma: mockPrismaClient,
 }));
 
-// Mock project discovery to avoid needing actual semiont.json
 // Use a unique directory per worker thread to avoid race conditions
 const testDir = `/tmp/semiont-test-${process.pid}-${Date.now()}`;
 
-// Mock the config-loader module (where findProjectRoot and loadEnvironmentConfig now live)
-vi.mock('../config-loader', () => ({
-  findProjectRoot: vi.fn(() => '/tmp/test-project'),
-  loadEnvironmentConfig: vi.fn(() => ({
-    site: { domain: 'test.local', oauthAllowedDomains: ['test.local'] },
-    env: {
-      NODE_ENV: 'test'
-    },
+// Mock config loader to provide in-memory config (no filesystem needed)
+vi.mock('../utils/config', () => ({
+  loadEnvironmentConfig: vi.fn((_projectRoot: string, _env: string): EnvironmentConfig => ({
     services: {
       backend: {
-        platform: { type: 'posix' },
-        corsOrigin: 'http://localhost:3000',
+        platform: { type: 'posix' as const },
+        port: 4000,
         publicURL: 'http://localhost:4000',
-        port: 4000
-      },
-      frontend: {
-        platform: { type: 'posix' },
-        url: 'http://localhost:3000',
-        port: 3000,
-        siteName: 'Test Site'
+        corsOrigin: 'http://localhost:3000',
       },
       filesystem: {
-        platform: { type: 'posix' },
-        path: testDir
-      }
+        platform: { type: 'posix' as const },
+        path: testDir,
+      },
+      graph: {
+        platform: { type: 'posix' as const },
+        type: 'memory' as const,
+      },
     },
-    app: {}
+    site: {
+      siteName: 'Test Site',
+      domain: 'localhost',
+      adminEmail: 'admin@test.local',
+      oauthAllowedDomains: ['test.local'],
+    },
+    _metadata: {
+      environment: 'unit',
+      projectRoot: testDir,
+    },
   })),
 }));
 
 // Set minimal required environment variables
 process.env.NODE_ENV = 'test';
 process.env.SEMIONT_ENV = 'unit';
+process.env.SEMIONT_ROOT = testDir;
 process.env.JWT_SECRET = 'test-secret-key-for-testing-32char';
 
 // Setup MSW server for mocking HTTP requests

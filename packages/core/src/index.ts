@@ -128,7 +128,7 @@ export {
 } from './event-utils';
 
 // Event bus (RxJS-based, framework-agnostic)
-export { EventBus } from './event-bus';
+export { EventBus, ScopedEventBus } from './event-bus';
 
 // Event protocol (application-level events for event bus)
 export type {
@@ -157,11 +157,14 @@ export * from './type-guards';
 export * from './errors';
 export * from './did-utils';
 
-// Configuration loading - Pure functions (testable without filesystem)
+// Configuration - Pure functions only (no filesystem dependencies)
+// Callers should read config files themselves and pass contents to parseAndMergeConfigs
+// Or use createConfigLoader with a platform-specific file reader
 export {
   deepMerge,
   resolveEnvVars,
   parseAndMergeConfigs,
+  createConfigLoader,
   listEnvironmentNames,
   getNodeEnvForEnvironment,
   hasAWSConfig,
@@ -172,6 +175,7 @@ export {
   type AWSConfig,
   type SiteConfig,
   type AppConfig,
+  type ConfigFileReader,
 } from './config/environment-loader';
 
 export {

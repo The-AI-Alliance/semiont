@@ -167,10 +167,11 @@ export function useResourceEvents({
 
     try {
       // Start SSE stream - events auto-emit to EventBus
-      const stream = client.sse.resourceEvents(rUri, {
+      const sseOptions = {
         ...(token ? { auth: accessToken(token) } : {}),
         eventBus, // ← Stream auto-emits to EventBus
-      });
+      };
+      const stream = client.sse.resourceEvents(rUri, sseOptions);
       streamRef.current = stream;
 
       // Set connected status

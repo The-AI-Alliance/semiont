@@ -12,8 +12,8 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { ReferenceDetectionWorker, type DetectedAnnotation } from '../../jobs/reference-detection-worker';
 import { JobQueue } from '@semiont/jobs';
 import { FilesystemRepresentationStore } from '@semiont/content';
-import type { components } from '@semiont/core';
-import type { EnvironmentConfig } from '@semiont/core';
+import type { components, EnvironmentConfig } from '@semiont/core';
+import { EventBus } from '@semiont/core';
 import { createEventStore } from '@semiont/event-sourcing';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -105,10 +105,10 @@ describe('Entity Detection - Charset Handling', () => {
       },
     } as EnvironmentConfig;
 
-    const jobQueue = new JobQueue({ dataDir: config.services.filesystem!.path });
+    const jobQueue = new JobQueue({ dataDir: config.services.filesystem!.path }, new EventBus());
     await jobQueue.initialize();
     const eventStore = createEventStore(config.services.filesystem!.path, config.services.backend!.publicURL);
-    worker = new ReferenceDetectionWorker(jobQueue, config, eventStore, mockInferenceClient.client);
+    worker = new ReferenceDetectionWorker(jobQueue, config, eventStore, mockInferenceClient.client, new EventBus());
   });
 
   afterAll(async () => {

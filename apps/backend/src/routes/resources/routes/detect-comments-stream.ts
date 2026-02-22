@@ -1,10 +1,11 @@
 /**
- * Detect Comments Stream Route - Event-Driven Version
+ * Detect Comments Stream Route - EventBus Version
  *
- * Migrated from polling to Event Store subscriptions:
+ * Uses @semiont/core EventBus for real-time progress:
  * - No polling loops
- * - Subscribes to job.* events from Event Store
+ * - Subscribes to detection:* events from EventBus
  * - <50ms latency for progress updates
+ * - Resource-scoped event isolation
  * - Uses plain Hono (no @hono/zod-openapi)
  * - Validates request body with validateRequestBody middleware
  * - Types from generated OpenAPI types
@@ -20,7 +21,7 @@ import type { JobQueue, PendingJob, CommentDetectionParams } from '@semiont/jobs
 import { nanoid } from 'nanoid';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/core';
-import { jobId, resourceUri } from '@semiont/core';
+import { jobId } from '@semiont/core';
 import { userId, resourceId, type ResourceId } from '@semiont/core';
 
 type DetectCommentsStreamRequest = components['schemas']['DetectCommentsStreamRequest'];
@@ -77,11 +78,8 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
         throw new HTTPException(404, { message: 'Resource not found in view storage projections - resource may need to be recreated' });
       }
 
-      // Create Event Store instance for event subscriptions
-      const { eventStore } = c.get('makeMeaning');
-
-      // Construct full resource URI for event subscriptions
-      const rUri = resourceUri(`${config.services.backend!.publicURL}/resources/${id}`);
+      // Get EventBus for real-time progress subscriptions
+      const { eventBus } = c.get('makeMeaning');
 
       // Create a comment detection job
       const job: PendingJob<CommentDetectionParams> = {
@@ -105,11 +103,11 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
       await jobQueue.createJob(job);
       console.log(`[DetectComments] Created job ${job.metadata.id} for resource ${id}`);
 
-      // Stream job progress to the client using Event Store subscriptions
+      // Stream job progress to the client using EventBus subscriptions
       return streamSSE(c, async (stream) => {
         // Track if stream is closed to prevent double cleanup
         let isStreamClosed = false;
-        let subscription: ReturnType<typeof eventStore.bus.subscriptions.subscribe> | null = null;
+        const subscriptions: Array<{ unsubscribe: () => void }> = [];
         let keepAliveInterval: NodeJS.Timeout | null = null;
         let closeStreamCallback: (() => void) | null = null;
 
@@ -128,9 +126,7 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
             clearInterval(keepAliveInterval);
           }
 
-          if (subscription) {
-            subscription.unsubscribe();
-          }
+          subscriptions.forEach(sub => sub.unsubscribe());
 
           // Close the stream by resolving the promise
           if (closeStreamCallback) {
@@ -139,20 +135,16 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
         };
 
         try {
-          // Subscribe to Event Store for job events on this resource
-          // Workers emit job.started, job.progress, job.completed, job.failed events
-          console.log(`[DetectComments] Subscribing to events for resource ${rUri}, filtering for job ${job.metadata.id}`);
-          subscription = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent) => {
-            if (isStreamClosed) {
-              console.log(`[DetectComments] Stream already closed, ignoring event ${storedEvent.event.type}`);
-              return;
-            }
+          // Create resource-scoped EventBus for this resource
+          // Workers emit detection:started, detection:progress, detection:completed, detection:failed
+          const resourceBus = eventBus.scope(id);
+          console.log(`[DetectComments] Subscribing to EventBus for resource ${id}`);
 
-            const event = storedEvent.event;
-
-            // Filter to this job's events only
-            if (event.type === 'job.started' && event.payload.jobId === job.metadata.id) {
-              console.log(`[DetectComments] Job ${job.metadata.id} started`);
+          // Subscribe to detection:started
+          subscriptions.push(
+            resourceBus.get('detection:started').subscribe(async (_event) => {
+              if (isStreamClosed) return;
+              console.log(`[DetectComments] Detection started for resource ${id}`);
               try {
                 await stream.writeSSE({
                   data: JSON.stringify({
@@ -161,34 +153,44 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
                     message: 'Starting detection...'
                   } as CommentDetectionProgress),
                   event: 'comment-detection-started',
-                  id: storedEvent.metadata.sequenceNumber.toString()
+                  id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectComments] Client disconnected, job ${job.metadata.id} will continue`);
+                console.warn(`[DetectComments] Client disconnected during start`);
                 cleanup();
               }
-            } else if (event.type === 'job.progress' && event.payload.jobId === job.metadata.id) {
-              console.log(`[DetectComments] Job ${job.metadata.id} progress:`, event.payload);
+            })
+          );
+
+          // Subscribe to detection:progress
+          subscriptions.push(
+            resourceBus.get('detection:progress').subscribe(async (progress) => {
+              if (isStreamClosed) return;
+              console.log(`[DetectComments] Detection progress for resource ${id}:`, progress);
               try {
-                // Extract progress info from the job's progress field
-                const jobProgress = event.payload.progress;
                 await stream.writeSSE({
                   data: JSON.stringify({
-                    status: jobProgress?.stage || 'analyzing',
+                    status: progress.status || 'analyzing',
                     resourceId: resourceId(id),
-                    stage: jobProgress?.stage,
-                    percentage: jobProgress?.percentage,
-                    message: jobProgress?.message || 'Processing...'
+                    stage: progress.status === 'analyzing' || progress.status === 'creating' ? progress.status : undefined,
+                    percentage: progress.percentage,
+                    message: progress.message || 'Processing...'
                   } as CommentDetectionProgress),
                   event: 'comment-detection-progress',
-                  id: storedEvent.metadata.sequenceNumber.toString()
+                  id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectComments] Client disconnected, job ${job.metadata.id} will continue`);
+                console.warn(`[DetectComments] Client disconnected during progress`);
                 cleanup();
               }
-            } else if (event.type === 'job.completed' && event.payload.jobId === job.metadata.id) {
-              console.log(`[DetectComments] Job ${job.metadata.id} completed`);
+            })
+          );
+
+          // Subscribe to detection:completed
+          subscriptions.push(
+            resourceBus.get('detection:completed').subscribe(async (event) => {
+              if (isStreamClosed) return;
+              console.log(`[DetectComments] Detection completed for resource ${id}`);
               try {
                 const result = event.payload.result;
                 await stream.writeSSE({
@@ -203,14 +205,20 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
                       : 'Comment detection complete!'
                   } as CommentDetectionProgress),
                   event: 'comment-detection-complete',
-                  id: storedEvent.metadata.sequenceNumber.toString()
+                  id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectComments] Client disconnected after job ${job.metadata.id} completed`);
+                console.warn(`[DetectComments] Client disconnected after completion`);
               }
               cleanup();
-            } else if (event.type === 'job.failed' && event.payload.jobId === job.metadata.id) {
-              console.log(`[DetectComments] Job ${job.metadata.id} failed:`, event.payload.error);
+            })
+          );
+
+          // Subscribe to detection:failed
+          subscriptions.push(
+            resourceBus.get('detection:failed').subscribe(async (event) => {
+              if (isStreamClosed) return;
+              console.log(`[DetectComments] Detection failed for resource ${id}:`, event.payload.error);
               try {
                 await stream.writeSSE({
                   data: JSON.stringify({
@@ -219,14 +227,14 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
                     message: event.payload.error || 'Comment detection failed'
                   } as CommentDetectionProgress),
                   event: 'comment-detection-error',
-                  id: storedEvent.metadata.sequenceNumber.toString()
+                  id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectComments] Client disconnected after job ${job.metadata.id} failed`);
+                console.warn(`[DetectComments] Client disconnected after failure`);
               }
               cleanup();
-            }
-          });
+            })
+          );
 
           // Keep-alive ping every 30 seconds
           keepAliveInterval = setInterval(async () => {

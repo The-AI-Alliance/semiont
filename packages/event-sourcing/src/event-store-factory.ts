@@ -6,6 +6,7 @@
  */
 
 import * as path from 'path';
+import type { EventBus as CoreEventBus } from '@semiont/core';
 import { EventStore } from './event-store';
 import { FilesystemViewStorage } from './storage/view-storage';
 import type { EventStorageConfig } from './storage/event-storage';
@@ -17,6 +18,7 @@ import type { IdentifierConfig } from './types';
  * @param basePath - Absolute path to the data directory (must be resolved by caller)
  * @param baseUrl - Base URL for generating identifiers (e.g., "http://localhost:8080")
  * @param config - Optional additional storage configuration
+ * @param eventBus - Optional @semiont/core EventBus for publishing domain events
  * @returns Configured EventStore instance ready for use
  *
  * @example
@@ -37,7 +39,8 @@ import type { IdentifierConfig } from './types';
 export function createEventStore(
   basePath: string,
   baseUrl: string,
-  config?: Partial<EventStorageConfig>
+  config?: Partial<EventStorageConfig>,
+  eventBus?: CoreEventBus
 ): EventStore {
   if (!basePath) {
     throw new Error('basePath is required to create EventStore');
@@ -70,7 +73,8 @@ export function createEventStore(
       numShards: 65536, // 4 hex digits (0000-ffff)
     },
     viewStorage,
-    identifierConfig
+    identifierConfig,
+    eventBus
   );
 
   return eventStore;

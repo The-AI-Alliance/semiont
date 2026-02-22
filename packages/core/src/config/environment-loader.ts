@@ -1,8 +1,8 @@
 /**
  * Environment Loader Module
  *
- * Responsible for loading and merging environment configurations.
- * Handles semiont.json base config and environment-specific overrides.
+ * Responsible for parsing and merging environment configurations.
+ * Pure functions only - callers handle filesystem I/O.
  */
 
 import { ConfigurationError } from './configuration-error';
@@ -288,10 +288,59 @@ export function hasAWSConfig(config: EnvironmentConfig): config is EnvironmentCo
 
 /**
  * Display configuration for debugging
- * 
+ *
  * @param config - Configuration to display
  */
 export function displayConfiguration(config: EnvironmentConfig): void {
   console.log('Environment Configuration:');
   console.log(JSON.stringify(config, null, 2));
 }
+
+/**
+ * File reader abstraction for platform-agnostic config loading
+ * Implementations provide platform-specific file I/O (Node.js, Deno, Bun, etc.)
+ */
+export type ConfigFileReader = {
+  /** Read file if it exists, return null otherwise */
+  readIfExists: (path: string) => string | null;
+  /** Read file, throw error if it doesn't exist */
+  readRequired: (path: string) => string;
+};
+
+/**
+ * Create a config loader with a specific file reader implementation
+ * Higher-order function that returns a platform-specific config loader
+ *
+ * @param reader - Platform-specific file reader implementation
+ * @returns Function to load environment config from filesystem
+ *
+ * @example
+ * ```typescript
+ * import * as fs from 'fs';
+ * import { createConfigLoader } from '@semiont/core';
+ *
+ * const nodeReader = {
+ *   readIfExists: (path) => fs.existsSync(path) ? fs.readFileSync(path, 'utf-8') : null,
+ *   readRequired: (path) => {
+ *     if (!fs.existsSync(path)) throw new Error(`File not found: ${path}`);
+ *     return fs.readFileSync(path, 'utf-8');
+ *   },
+ * };
+ *
+ * const loadConfig = createConfigLoader(nodeReader);
+ * const config = loadConfig('/project/root', 'production');
+ * ```
+ */
+export function createConfigLoader(reader: ConfigFileReader) {
+  return (projectRoot: string, environment: string): EnvironmentConfig => {
+    // Read base semiont.json (optional)
+    const baseContent = reader.readIfExists(`${projectRoot}/semiont.json`);
+
+    // Read environment-specific config (required)
+    const envContent = reader.readRequired(`${projectRoot}/environments/${environment}.json`);
+
+    // Use pure function to parse and merge
+    return parseAndMergeConfigs(baseContent, envContent, process.env, environment, projectRoot);
+  };
+}
+

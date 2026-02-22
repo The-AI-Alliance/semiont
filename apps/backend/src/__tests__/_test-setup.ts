@@ -11,8 +11,7 @@ import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join, resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import type { EnvironmentConfig } from '@semiont/core';
-import { loadEnvironmentConfig } from '../config-loader';
+import { createConfigLoader, type EnvironmentConfig } from '@semiont/core';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -106,8 +105,30 @@ export async function setupTestEnvironment(envName?: string): Promise<TestEnviro
   process.env.SEMIONT_ROOT = testDir;
   process.env.SEMIONT_ENV = environment;
 
-  // Load the config we just created
-  const config = loadEnvironmentConfig(testDir, environment);
+  // Load the config we just created using async file reader
+  const asyncFileReader = {
+    readIfExists: async (filePath: string) => {
+      try {
+        return await fs.readFile(filePath, 'utf-8');
+      } catch {
+        return null;
+      }
+    },
+    readRequired: async (filePath: string) => {
+      return await fs.readFile(filePath, 'utf-8');
+    },
+  };
+
+  // Create loader and read files
+  const baseContent = await asyncFileReader.readIfExists(join(testDir, 'semiont.json'));
+  const envContent = await asyncFileReader.readRequired(join(envDir, `${environment}.json`));
+
+  // Use sync version of createConfigLoader for the actual parsing
+  const loadConfig = createConfigLoader({
+    readIfExists: () => baseContent,
+    readRequired: () => envContent!,
+  });
+  const config = loadConfig(testDir, environment);
 
   return {
     config,

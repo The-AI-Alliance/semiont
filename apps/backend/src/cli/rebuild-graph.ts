@@ -11,19 +11,26 @@
  */
 
 import { startMakeMeaning } from '@semiont/make-meaning';
-import { resourceId as makeResourceId } from '@semiont/core';
-import { loadEnvironmentConfig } from '../config-loader';
+import { resourceId as makeResourceId, EventBus } from '@semiont/core';
+import { loadEnvironmentConfig } from '../utils/config';
 
 async function rebuildGraph(rId?: string) {
   console.log('🔄 Rebuilding Neo4j graph from events...\n');
 
   // Load config - uses SEMIONT_ROOT and SEMIONT_ENV from environment
-  const projectRoot = process.env.SEMIONT_ROOT || process.cwd();
+  const projectRoot = process.env.SEMIONT_ROOT;
+  if (!projectRoot) {
+    throw new Error('SEMIONT_ROOT environment variable is not set');
+  }
   const environment = process.env.SEMIONT_ENV || 'development';
+
   const config = loadEnvironmentConfig(projectRoot, environment);
 
+  // Create EventBus
+  const eventBus = new EventBus();
+
   // Start make-meaning to get eventStore and graphConsumer
-  const makeMeaning = await startMakeMeaning(config);
+  const makeMeaning = await startMakeMeaning(config, eventBus);
   const { graphConsumer: consumer } = makeMeaning;
 
   if (rId) {
@@ -61,6 +68,7 @@ async function rebuildGraph(rId?: string) {
 
   // Shutdown make-meaning
   await makeMeaning.stop();
+  eventBus.destroy();
 
   console.log(`\n✅ Done!`);
 }

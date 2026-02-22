@@ -9,7 +9,7 @@ import * as os from 'os';
 import { JobQueue } from '../job-queue';
 import { JobWorker } from '../job-worker';
 import type { AnyJob, PendingJob, DetectionParams } from '../types';
-import { jobId, entityType, userId, resourceId } from '@semiont/core';
+import { jobId, entityType, userId, resourceId, EventBus } from '@semiont/core';
 
 // Test implementation of JobWorker
 class TestJobWorker extends JobWorker {
@@ -76,7 +76,7 @@ describe('JobWorker', () => {
 
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'job-worker-test-'));
-    jobQueue = new JobQueue({ dataDir: tempDir });
+    jobQueue = new JobQueue({ dataDir: tempDir }, new EventBus());
     await jobQueue.initialize();
     worker = new TestJobWorker(jobQueue, 50, 100); // Fast poll interval for tests
   });

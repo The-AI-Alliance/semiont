@@ -15,7 +15,7 @@ import { JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore, type EventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore, type RepresentationStore } from '@semiont/content';
 import type { EnvironmentConfig } from '@semiont/core';
-import { resourceId as makeResourceId } from '@semiont/core';
+import { EventBus } from '@semiont/core';
 import { getInferenceClient, type InferenceClient } from '@semiont/inference';
 import { getGraphDatabase, type GraphDatabase } from '@semiont/graph';
 import { ReferenceDetectionWorker } from './jobs/reference-detection-worker';
@@ -30,6 +30,7 @@ import { bootstrapEntityTypes } from './bootstrap/entity-types';
 export interface MakeMeaningService {
   jobQueue: JobQueue;
   eventStore: EventStore;
+  eventBus: EventBus;
   repStore: RepresentationStore;
   inferenceClient: InferenceClient;
   graphDb: GraphDatabase;
@@ -45,7 +46,7 @@ export interface MakeMeaningService {
   stop: () => Promise<void>;
 }
 
-export async function startMakeMeaning(config: EnvironmentConfig): Promise<MakeMeaningService> {
+export async function startMakeMeaning(config: EnvironmentConfig, eventBus: EventBus): Promise<MakeMeaningService> {
   console.log('🧠 Starting Make-Meaning service...');
 
   // 1. Validate configuration
@@ -70,61 +71,60 @@ export async function startMakeMeaning(config: EnvironmentConfig): Promise<MakeM
     basePath = path.resolve(configuredPath);
   }
 
-  // 2. Initialize job queue
+  // 2. EventBus is provided by caller (caller owns lifecycle)
+  console.log('📡 Using provided EventBus');
+
+  // 3. Initialize job queue
   console.log('💼 Initializing job queue...');
-  const jobQueue = new JobQueue({ dataDir: basePath });
+  const jobQueue = new JobQueue({ dataDir: basePath }, eventBus);
   await jobQueue.initialize();
   console.log('✅ Job queue initialized');
 
-  // 3. Create shared event store
+  // 4. Create shared event store with EventBus integration
   console.log('📊 Creating event store connection...');
-  const eventStore = createEventStoreCore(basePath, baseUrl);
+  const eventStore = createEventStoreCore(basePath, baseUrl, undefined, eventBus);
 
-  // 4. Bootstrap entity types (if projection doesn't exist)
+  // 5. Bootstrap entity types (if projection doesn't exist)
   console.log('🌱 Bootstrapping entity types...');
   await bootstrapEntityTypes(eventStore, config);
   console.log('✅ Entity types bootstrap complete');
 
-  // 5. Create shared representation store
+  // 6. Create shared representation store
   console.log('📦 Creating representation store...');
   const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
   console.log('✅ Representation store created');
 
-  // 6. Create inference client (shared across all workers)
+  // 7. Create inference client (shared across all workers)
   console.log('🤖 Creating inference client...');
   const inferenceClient = await getInferenceClient(config);
   console.log('✅ Inference client created');
 
-  // 7. Create graph database connection
+  // 8. Create graph database connection
   console.log('📊 Connecting to graph database...');
   const graphDb = await getGraphDatabase(config);
   console.log('✅ Graph database connected');
 
-  // 8. Start graph consumer
+  // 9. Start graph consumer
   console.log('🔄 Starting graph consumer...');
   const graphConsumer = new GraphDBConsumer(config, eventStore, graphDb);
   await graphConsumer.initialize();
 
-  // Subscribe to all existing resources
-  const allResourceIds = await eventStore.log.getAllResourceIds();
-  console.log(`[GraphDBConsumer] Subscribing to ${allResourceIds.length} resources`);
-  for (const resourceId of allResourceIds) {
-    await graphConsumer.subscribeToResource(makeResourceId(resourceId as string));
-  }
+  // GraphConsumer now uses global subscription to receive ALL events (including resource events)
+  // No need to subscribe to individual resources - the global subscription handles everything
   console.log('✅ Graph consumer started');
 
-  // 9. Instantiate workers
+  // 10. Instantiate workers with EventBus
   console.log('👷 Creating workers...');
   const workers = {
-    detection: new ReferenceDetectionWorker(jobQueue, config, eventStore, inferenceClient),
-    generation: new GenerationWorker(jobQueue, config, eventStore, inferenceClient),
-    highlight: new HighlightDetectionWorker(jobQueue, config, eventStore, inferenceClient),
-    assessment: new AssessmentDetectionWorker(jobQueue, config, eventStore, inferenceClient),
-    comment: new CommentDetectionWorker(jobQueue, config, eventStore, inferenceClient),
-    tag: new TagDetectionWorker(jobQueue, config, eventStore, inferenceClient),
+    detection: new ReferenceDetectionWorker(jobQueue, config, eventStore, inferenceClient, eventBus),
+    generation: new GenerationWorker(jobQueue, config, eventStore, inferenceClient, eventBus),
+    highlight: new HighlightDetectionWorker(jobQueue, config, eventStore, inferenceClient, eventBus),
+    assessment: new AssessmentDetectionWorker(jobQueue, config, eventStore, inferenceClient, eventBus),
+    comment: new CommentDetectionWorker(jobQueue, config, eventStore, inferenceClient, eventBus),
+    tag: new TagDetectionWorker(jobQueue, config, eventStore, inferenceClient, eventBus),
   };
 
-  // 10. Start all workers (non-blocking)
+  // 11. Start all workers (non-blocking)
   console.log('🚀 Starting workers...');
   workers.detection.start().catch((error: unknown) => {
     console.error('⚠️ Detection worker stopped:', error);
@@ -151,6 +151,7 @@ export async function startMakeMeaning(config: EnvironmentConfig): Promise<MakeM
   return {
     jobQueue,
     eventStore,
+    eventBus,
     repStore,
     inferenceClient,
     graphDb,
