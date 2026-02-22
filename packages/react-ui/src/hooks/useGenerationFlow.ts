@@ -213,11 +213,13 @@ export function useGenerationFlow(
         generationStreamRef.current?.abort();
         generationStreamRef.current = new AbortController();
 
+        const sseOptions = { auth: toAccessToken(tokenRef.current), eventBus };
+
         clientRef.current.sse.generateResourceFromAnnotation(
           event.resourceUri as any,
           event.annotationUri as any,
           event.options as any,
-          { auth: toAccessToken(tokenRef.current), eventBus }
+          sseOptions
         );
         // Events auto-emit to EventBus: generation:progress, generation:complete, generation:failed
       } catch (error) {

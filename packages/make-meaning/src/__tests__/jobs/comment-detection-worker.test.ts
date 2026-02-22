@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { CommentDetectionWorker } from '../../jobs/comment-detection-worker';
 import { JobQueue, type CommentDetectionJob, type RunningJob, type CommentDetectionParams, type CommentDetectionProgress } from '@semiont/jobs';
-import { resourceId, userId, type EnvironmentConfig } from '@semiont/core';
+import { resourceId, userId, type EnvironmentConfig, EventBus } from '@semiont/core';
 import { jobId } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore } from '@semiont/content';
@@ -78,10 +78,10 @@ describe('CommentDetectionWorker - Event Emission', () => {
     } as EnvironmentConfig;
 
     // Initialize job queue and event store
-    const jobQueue = new JobQueue({ dataDir: testDir });
+    const jobQueue = new JobQueue({ dataDir: testDir }, new EventBus());
     await jobQueue.initialize();
     testEventStore = createEventStore(testDir, config.services.backend!.publicURL);
-    worker = new CommentDetectionWorker(jobQueue, config, testEventStore, mockInferenceClient.client);
+    worker = new CommentDetectionWorker(jobQueue, config, testEventStore, mockInferenceClient.client, new EventBus());
 
     // Set default mock response
     mockInferenceClient.client.setResponses(['[]']);

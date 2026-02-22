@@ -1,10 +1,11 @@
 /**
- * Generate Resource Stream Route - Event-Driven Version
+ * Generate Resource Stream Route - EventBus Version
  *
- * Migrated from polling to Event Store subscriptions:
+ * Uses @semiont/core EventBus for real-time progress:
  * - No polling loops (previously 500ms intervals)
- * - Subscribes to job.* events from Event Store
+ * - Subscribes to generation:* events from EventBus
  * - <50ms latency for progress updates
+ * - Resource-scoped event isolation
  * - Uses plain Hono (no @hono/zod-openapi)
  * - Validates request body with validateRequestBody middleware
  * - Types from generated OpenAPI types
@@ -22,7 +23,7 @@ import { AnnotationContext } from '@semiont/make-meaning';
 import type { JobQueue, PendingJob, GenerationParams } from '@semiont/jobs';
 import { nanoid } from 'nanoid';
 import { getTargetSelector } from '@semiont/api-client';
-import { jobId, entityType, resourceUri } from '@semiont/core';
+import { jobId, entityType } from '@semiont/core';
 import { userId, resourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 
@@ -96,11 +97,8 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
       }
       console.log(`[GenerateResource] Found matching annotation:`, reference.id);
 
-      // Create Event Store instance for event subscriptions
-      const { eventStore } = c.get('makeMeaning');
-
-      // Construct full resource URI for event subscriptions
-      const rUri = resourceUri(`${config.services.backend!.publicURL}/resources/${resourceIdParam}`);
+      // Get EventBus for real-time progress subscriptions
+      const { eventBus } = c.get('makeMeaning');
 
       // Validate context is provided (required by schema)
       if (!body.context) {
@@ -139,11 +137,11 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
       const targetSelector = getTargetSelector(reference.target);
       const resourceName = body.title || (targetSelector ? getExactText(targetSelector) : '') || 'New Resource';
 
-      // Stream job progress to the client using Event Store subscriptions
+      // Stream job progress to the client using EventBus subscriptions
       return streamSSE(c, async (stream) => {
         // Track if stream is closed to prevent double cleanup
         let isStreamClosed = false;
-        let subscription: ReturnType<typeof eventStore.bus.subscriptions.subscribe> | null = null;
+        const subscriptions: Array<{ unsubscribe: () => void }> = [];
         let keepAliveInterval: NodeJS.Timeout | null = null;
         let closeStreamCallback: (() => void) | null = null;
 
@@ -162,9 +160,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
             clearInterval(keepAliveInterval);
           }
 
-          if (subscription) {
-            subscription.unsubscribe();
-          }
+          subscriptions.forEach(sub => sub.unsubscribe());
 
           // Close the stream by resolving the promise
           if (closeStreamCallback) {
@@ -172,29 +168,17 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
           }
         };
 
-        // Map job progress stages to SSE status
-        const statusMap: Record<'fetching' | 'generating' | 'creating' | 'linking', GenerationProgress['status']> = {
-          'fetching': 'fetching',
-          'generating': 'generating',
-          'creating': 'creating',
-          'linking': 'creating'
-        };
-
         try {
-          // Subscribe to Event Store for job events on this resource
-          // Workers emit job.started, job.progress, job.completed, job.failed events
-          console.log(`[GenerateResource] Subscribing to events for resource ${rUri}, filtering for job ${job.metadata.id}`);
-          subscription = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent) => {
-            if (isStreamClosed) {
-              console.log(`[GenerateResource] Stream already closed, ignoring event ${storedEvent.event.type}`);
-              return;
-            }
+          // Create resource-scoped EventBus for this resource
+          // Workers emit generation:started, generation:progress, generation:completed
+          const resourceBus = eventBus.scope(resourceIdParam);
+          console.log(`[GenerateResource] Subscribing to EventBus for resource ${resourceIdParam}`);
 
-            const event = storedEvent.event;
-
-            // Filter to this job's events only
-            if (event.type === 'job.started' && event.payload.jobId === job.metadata.id) {
-              console.log(`[GenerateResource] Job ${job.metadata.id} started`);
+          // Subscribe to generation:started
+          subscriptions.push(
+            resourceBus.get('generation:started').subscribe(async (_event) => {
+              if (isStreamClosed) return;
+              console.log(`[GenerateResource] Generation started for resource ${resourceIdParam}`);
               try {
                 await stream.writeSSE({
                   data: JSON.stringify({
@@ -205,33 +189,44 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
                     message: 'Starting...'
                   } as GenerationProgress),
                   event: 'generation-started',
-                  id: storedEvent.metadata.sequenceNumber.toString()
+                  id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[GenerateResource] Client disconnected, job ${job.metadata.id} will continue`);
+                console.warn(`[GenerateResource] Client disconnected during start`);
                 cleanup();
               }
-            } else if (event.type === 'job.progress' && event.payload.jobId === job.metadata.id) {
-              console.log(`[GenerateResource] Job ${job.metadata.id} progress:`, event.payload);
-              const stage = event.payload.currentStep as 'fetching' | 'generating' | 'creating' | 'linking';
+            })
+          );
+
+          // Subscribe to generation:progress
+          subscriptions.push(
+            resourceBus.get('generation:progress').subscribe(async (progress) => {
+              if (isStreamClosed) return;
+              console.log(`[GenerateResource] Generation progress for resource ${resourceIdParam}:`, progress);
               try {
                 await stream.writeSSE({
                   data: JSON.stringify({
-                    status: statusMap[stage] || 'generating',
+                    status: progress.status,
                     referenceId: reference.id,
                     resourceName,
-                    percentage: event.payload.percentage || 0,
-                    message: event.payload.message || `${stage}...`
+                    percentage: progress.percentage || 0,
+                    message: progress.message || `${progress.status}...`
                   } as GenerationProgress),
                   event: 'generation-progress',
-                  id: storedEvent.metadata.sequenceNumber.toString()
+                  id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[GenerateResource] Client disconnected, job ${job.metadata.id} will continue`);
+                console.warn(`[GenerateResource] Client disconnected during progress`);
                 cleanup();
               }
-            } else if (event.type === 'job.completed' && event.payload.jobId === job.metadata.id) {
-              console.log(`[GenerateResource] Job ${job.metadata.id} completed`);
+            })
+          );
+
+          // Subscribe to generation:completed
+          subscriptions.push(
+            resourceBus.get('generation:completed').subscribe(async (event) => {
+              if (isStreamClosed) return;
+              console.log(`[GenerateResource] Generation completed for resource ${resourceIdParam}`);
               try {
                 await stream.writeSSE({
                   data: JSON.stringify({
@@ -244,31 +239,14 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
                     message: 'Draft resource created! Ready for review.'
                   } as GenerationProgress),
                   event: 'generation-complete',
-                  id: storedEvent.metadata.sequenceNumber.toString()
+                  id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[GenerateResource] Client disconnected after job ${job.metadata.id} completed`);
+                console.warn(`[GenerateResource] Client disconnected after completion`);
               }
               cleanup();
-            } else if (event.type === 'job.failed' && event.payload.jobId === job.metadata.id) {
-              console.log(`[GenerateResource] Job ${job.metadata.id} failed:`, event.payload.error);
-              try {
-                await stream.writeSSE({
-                  data: JSON.stringify({
-                    status: 'error',
-                    referenceId: reference.id,
-                    percentage: 0,
-                    message: event.payload.error || 'Generation failed'
-                  } as GenerationProgress),
-                  event: 'generation-error',
-                  id: storedEvent.metadata.sequenceNumber.toString()
-                });
-              } catch (error) {
-                console.warn(`[GenerateResource] Client disconnected after job ${job.metadata.id} failed`);
-              }
-              cleanup();
-            }
-          });
+            })
+          );
 
           // Keep-alive ping every 30 seconds
           keepAliveInterval = setInterval(async () => {

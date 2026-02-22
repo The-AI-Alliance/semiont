@@ -110,6 +110,9 @@ export type EventMap = {
   'resource:archived': Extract<ResourceEvent, { type: 'resource.archived' }>;
   'resource:unarchived': Extract<ResourceEvent, { type: 'resource.unarchived' }>;
 
+  // Job queue lifecycle events
+  'job:queued': { jobId: string; jobType: string; resourceId: string };
+
   // ===== USER INTERACTION EVENTS =====
 
   // Selection events (user highlighting text/regions)
@@ -224,7 +227,9 @@ export type EventMap = {
       context: GenerationContext;
     };
   };
+  'generation:started': Extract<ResourceEvent, { type: 'job.started' }>;
   'generation:progress': GenerationProgress;
+  'generation:completed': Extract<ResourceEvent, { type: 'job.completed' }>;
   'generation:complete': { annotationUri: string; progress: GenerationProgress };
   'generation:failed': { error: Error };
   'generation:modal-open': {

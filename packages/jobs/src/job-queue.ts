@@ -9,6 +9,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import type { AnyJob, JobStatus, JobQueryFilters, CancelledJob } from './types';
 import type { JobId } from '@semiont/core';
+import type { EventBus } from '@semiont/core';
 
 export interface JobQueueConfig {
   dataDir: string;
@@ -17,7 +18,10 @@ export interface JobQueueConfig {
 export class JobQueue {
   private jobsDir: string;
 
-  constructor(config: JobQueueConfig) {
+  constructor(
+    config: JobQueueConfig,
+    private eventBus?: EventBus
+  ) {
     this.jobsDir = path.join(config.dataDir, 'jobs');
   }
 
@@ -42,6 +46,16 @@ export class JobQueue {
     const jobPath = this.getJobPath(job.metadata.id, job.status);
     await fs.writeFile(jobPath, JSON.stringify(job, null, 2), 'utf-8');
     console.log(`[JobQueue] Created job ${job.metadata.id} with status ${job.status}`);
+
+    // Emit job:queued event if EventBus is available
+    if (this.eventBus && 'params' in job && 'resourceId' in job.params) {
+      const resourceBus = this.eventBus.scope(job.params.resourceId);
+      resourceBus.get('job:queued').next({
+        jobId: job.metadata.id,
+        jobType: job.metadata.type,
+        resourceId: job.params.resourceId
+      });
+    }
   }
 
   /**

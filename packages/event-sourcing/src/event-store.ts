@@ -16,6 +16,7 @@ import type {
   StoredEvent,
   ResourceId,
 } from '@semiont/core';
+import { EventBus as CoreEventBus } from '@semiont/core';
 import type { ViewStorage } from './storage/view-storage';
 import type { IdentifierConfig } from './identifier-utils';
 
@@ -36,14 +37,17 @@ export class EventStore {
   readonly bus: EventBus;
   readonly views: ViewManager;
   readonly viewStorage: ViewStorage;
+  readonly coreEventBus?: CoreEventBus;
 
   constructor(
     config: EventStorageConfig,
     viewStorage: ViewStorage,
-    identifierConfig: IdentifierConfig
+    identifierConfig: IdentifierConfig,
+    coreEventBus?: CoreEventBus
   ) {
     // Store viewStorage for direct access
     this.viewStorage = viewStorage;
+    this.coreEventBus = coreEventBus;
 
     // Initialize focused components
     const logConfig: EventLogConfig = {
@@ -93,8 +97,16 @@ export class EventStore {
       );
     }
 
-    // 3. Notify subscribers (handles both resource and global subscriptions)
+    // 3. Notify subscribers (legacy event bus)
     await this.bus.publish(storedEvent);
+
+    // 4. Publish to @semiont/core EventBus if provided (domain events)
+    if (this.coreEventBus && resourceId !== '__system__') {
+      // Use resource-scoped bus for isolation
+      const scopedBus = this.coreEventBus.scope(resourceId as string);
+      // Publish domain event to generic 'make-meaning:event' channel
+      scopedBus.get('make-meaning:event').next(storedEvent.event);
+    }
 
     return storedEvent;
   }

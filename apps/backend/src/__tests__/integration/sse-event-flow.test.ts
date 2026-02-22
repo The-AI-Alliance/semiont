@@ -7,12 +7,12 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { resourceId, userId } from '@semiont/core';
-import { loadEnvironmentConfig, findProjectRoot } from '../../config-loader';
+import { loadEnvironmentConfig } from '../../utils/config';
 import { resourceUri, jobId } from '@semiont/core';
 import type { EventStore } from '@semiont/event-sourcing';
-import { promises as fs } from 'fs';
+import { promises as fsPromises } from 'fs';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import * as path from 'path';
 
 let testDir: string;
 
@@ -20,13 +20,15 @@ describe('SSE Event Flow - End-to-End', () => {
   let eventStore: EventStore;
 
   beforeAll(async () => {
-    testDir = join(tmpdir(), `semiont-test-e2e-${Date.now()}`);
-    await fs.mkdir(testDir, { recursive: true });
+    testDir = path.join(tmpdir(), `semiont-test-e2e-${Date.now()}`);
+    await fsPromises.mkdir(testDir, { recursive: true });
 
     // SEMIONT_ROOT and SEMIONT_ENV are set by the global test setup
     // Load config to pass to createEventStore
-    const projectRoot = process.env.SEMIONT_ROOT || findProjectRoot();
+    const projectRoot = process.env.SEMIONT_ROOT;
+    if (!projectRoot) throw new Error("SEMIONT_ROOT not set");
     const environment = process.env.SEMIONT_ENV || 'test';
+
     const config = loadEnvironmentConfig(projectRoot, environment);
 
     const { createEventStore } = await import('@semiont/event-sourcing');
@@ -40,7 +42,7 @@ describe('SSE Event Flow - End-to-End', () => {
   });
 
   afterAll(async () => {
-    await fs.rm(testDir, { recursive: true, force: true });
+    await fsPromises.rm(testDir, { recursive: true, force: true });
   });
 
   it('should flow detection events from worker to SSE subscriber', async () => {

@@ -15,7 +15,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { ReferenceDetectionWorker } from '../../jobs/reference-detection-worker';
 import { JobQueue, type RunningJob, type DetectionParams, type DetectionProgress } from '@semiont/jobs';
-import { resourceId, userId, type EnvironmentConfig } from '@semiont/core';
+import { resourceId, userId, type EnvironmentConfig, EventBus } from '@semiont/core';
 import { jobId, entityType } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore } from '@semiont/content';
@@ -93,10 +93,11 @@ describe('ReferenceDetectionWorker - Full Lifecycle', () => {
     } as EnvironmentConfig;
 
     // Initialize job queue and event store
-    jobQueue = new JobQueue({ dataDir: testDir });
+    jobQueue = new JobQueue({ dataDir: testDir }, new EventBus());
     await jobQueue.initialize();
     eventStore = createEventStore(testDir, config.services.backend!.publicURL);
-    worker = new ReferenceDetectionWorker(jobQueue, config, eventStore, mockInferenceClient);
+    const eventBus = new EventBus();
+    worker = new ReferenceDetectionWorker(jobQueue, config, eventStore, mockInferenceClient, eventBus);
 
     // Set default mock response (empty array - no entities found)
     mockInferenceClient.setResponses(['[]']);

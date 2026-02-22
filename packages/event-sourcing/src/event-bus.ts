@@ -37,8 +37,8 @@ export class EventBus {
 
   /**
    * Publish event to subscribers
-   * - Resource events: notifies resource-scoped subscribers
-   * - System events: notifies global subscribers
+   * - Resource events: notifies BOTH resource-scoped AND global subscribers
+   * - System events: notifies global subscribers only
    * @param event - Stored event (from @semiont/core)
    */
   async publish(event: StoredEvent): Promise<void> {
@@ -46,10 +46,12 @@ export class EventBus {
       // System-level event - notify global subscribers
       await this.subscriptions.notifyGlobalSubscribers(event);
     } else if (isResourceEvent(event.event)) {
-      // Resource event - convert ResourceId to ResourceUri and notify subscribers
+      // Resource event - notify BOTH resource-scoped AND global subscribers
+      // This enables projections (graph, search, etc.) to use global subscription
       const resourceId = event.event.resourceId as ResourceId;
       const resourceUri = toResourceUri(this.identifierConfig, resourceId);
       await this.subscriptions.notifySubscribers(resourceUri, event);
+      await this.subscriptions.notifyGlobalSubscribers(event);
     } else {
       // Shouldn't happen - events should be either resource or system
       console.warn('[EventBus] Event is neither resource nor system event:', (event.event as any).type);
