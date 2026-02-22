@@ -126,8 +126,6 @@ jobs:
           npm test
         env:
           CI: true
-          SEMIONT_ROOT: ${{ github.workspace }}
-          SEMIONT_ENV: unit
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
           JWT_SECRET: test-secret-for-ci
           GOOGLE_CLIENT_ID: test-client-id
@@ -141,8 +139,6 @@ jobs:
           npm run test:integration
         env:
           CI: true
-          SEMIONT_ROOT: ${{ github.workspace }}
-          SEMIONT_ENV: integration
           DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
           JWT_SECRET: test-secret-for-ci
           GOOGLE_CLIENT_ID: test-client-id
@@ -255,14 +251,13 @@ jobs:
           echo "Running comprehensive test suite..."
           # Run tests for each package
           cd apps/frontend && npm test && cd ../..
-          cd apps/backend && SEMIONT_ENV=unit npm test && SEMIONT_ENV=integration npm run test:integration && cd ../..
+          cd apps/backend && npm test && npm run test:integration && cd ../..
           cd apps/cli && npm run test:unit && cd ../..
 
           echo "All tests completed successfully"
         env:
           CI: true
           NODE_OPTIONS: "--max-old-space-size=4096"
-          SEMIONT_ROOT: ${{ github.workspace }}
           # Frontend environment variables
           SERVER_API_URL: http://localhost:4000
           NEXT_PUBLIC_SITE_NAME: Semiont
