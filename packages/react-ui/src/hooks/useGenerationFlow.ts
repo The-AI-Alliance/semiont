@@ -13,7 +13,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { AnnotationUri, GenerationContext, GenerationProgress } from '@semiont/core';
-import { annotationUri, accessToken, resourceUri } from '@semiont/core';
+import { annotationUri, accessToken } from '@semiont/core';
 
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
 import { useEventBus } from '../contexts/EventBusContext';
@@ -49,7 +49,6 @@ export interface GenerationFlowState {
  * @param resourceId - Resource ID for generation
  * @param showSuccess - Success toast callback
  * @param showError - Error toast callback
- * @param cacheManager - Cache manager for invalidation
  * @param clearNewAnnotationId - Clear animation callback
  * @emits generation:start - Start document generation (consumed internally by this hook)
  * @emits generation:progress - SSE progress chunk from generation stream
@@ -68,7 +67,6 @@ export function useGenerationFlow(
   resourceId: string,
   showSuccess: (message: string) => void,
   showError: (message: string) => void,
-  cacheManager: any,
   clearNewAnnotationId: (annotationId: AnnotationUri) => void
 ): GenerationFlowState {
   const eventBus = useEventBus();
@@ -170,16 +168,12 @@ export function useGenerationFlow(
       showSuccess('Resource created successfully!');
     }
 
-    // Refetch annotations to show the reference is now resolved
-    if (cacheManager && progress.sourceResourceId) {
-      // Build proper resource URI for cache invalidation
-      const rUri = resourceUri(`resource://${progress.sourceResourceId}`);
-      cacheManager.invalidateAnnotations(rUri);
-    }
+    // No cache invalidation needed - useResourceEvents receives annotation.body.updated
+    // event via SSE and optimistically updates the specific annotation in React Query cache
 
     // Clear progress widget after a delay to show completion state
     setTimeout(() => clearProgress(), 2000);
-  }, [showSuccess, cacheManager, clearProgress]);
+  }, [showSuccess, clearProgress]);
 
   const handleGenerationFailed = useCallback(({ error }: { error: Error }) => {
     // Update progress state and mark done

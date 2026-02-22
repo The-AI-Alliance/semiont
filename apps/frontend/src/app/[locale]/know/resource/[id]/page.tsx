@@ -14,7 +14,6 @@ import { useResources } from '@semiont/react-ui';
 import type { ResourceUri } from '@semiont/core';
 import { resourceUri } from '@semiont/core';
 import { Link, routes } from '@/lib/routing';
-import { useCacheManager } from '@/hooks/useCacheManager';
 
 // Feature components
 import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage, TranslationProvider } from '@semiont/react-ui';
@@ -29,7 +28,6 @@ import type { SemiontResource } from '@semiont/react-ui';
 export default function KnowledgeResourcePage() {
   const params = useParams();
   const locale = useLocale();
-  const cacheManager = useCacheManager();
 
   // Construct resource URI from URL param
   const initialUri = resourceUri(`${typeof window !== 'undefined' ? window.location.origin : 'http://localhost'}/resources/${params?.id}`);
@@ -92,7 +90,6 @@ export default function KnowledgeResourcePage() {
         resource={resource}
         rUri={canonicalUri}
         locale={locale}
-        cacheManager={cacheManager}
         Link={Link}
         routes={routes}
         ToolbarPanels={ToolbarPanels}

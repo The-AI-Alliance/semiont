@@ -63,11 +63,6 @@ export interface ResourceViewerPageProps {
   locale: string;
 
   /**
-   * Cache manager for detection
-   */
-  cacheManager: any;
-
-  /**
    * Link component for routing
    */
   Link: React.ComponentType<any>;
@@ -121,7 +116,6 @@ export function ResourceViewerPage({
   resource,
   rUri,
   locale,
-  cacheManager,
   Link,
   routes,
   ToolbarPanels,
@@ -172,7 +166,7 @@ export function ResourceViewerPage({
     generationDefaultTitle,
     onGenerateDocument,
     onCloseGenerationModal,
-  } = useGenerationFlow(locale, rUri.split('/').pop() || '', showSuccess, showError, cacheManager, clearNewAnnotationId);
+  } = useGenerationFlow(locale, rUri.split('/').pop() || '', showSuccess, showError, clearNewAnnotationId);
   const { retrievalContext, retrievalLoading, retrievalError } = useContextRetrievalFlow(eventBus, { client, resourceUri: rUri });
 
   // Debounced invalidation for real-time events

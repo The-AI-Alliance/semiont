@@ -426,7 +426,6 @@ function renderGenerationFlow(
       testResourceUri.split('/resources/')[1] || 'test-resource',
       vi.fn(),
       vi.fn(),
-      null,
       vi.fn()
     );
 

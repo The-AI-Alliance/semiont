@@ -44,12 +44,11 @@ function captureEventBus(): EventBus {
 const noop = () => {};
 const mockShowSuccess = vi.fn();
 const mockShowError = vi.fn();
-const mockCacheManager = { invalidate: vi.fn() };
 const mockClearNewAnnotationId = vi.fn();
 
 function renderGenerationFlow() {
   return renderHook(
-    () => useGenerationFlow('en', 'test-resource', mockShowSuccess, mockShowError, mockCacheManager, mockClearNewAnnotationId),
+    () => useGenerationFlow('en', 'test-resource', mockShowSuccess, mockShowError, mockClearNewAnnotationId),
     { wrapper }
   );
 }
