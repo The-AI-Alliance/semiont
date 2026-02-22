@@ -15,7 +15,7 @@ import { JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore, type EventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore, type RepresentationStore } from '@semiont/content';
 import type { EnvironmentConfig } from '@semiont/core';
-import { resourceId as makeResourceId, EventBus } from '@semiont/core';
+import { EventBus } from '@semiont/core';
 import { getInferenceClient, type InferenceClient } from '@semiont/inference';
 import { getGraphDatabase, type GraphDatabase } from '@semiont/graph';
 import { ReferenceDetectionWorker } from './jobs/reference-detection-worker';
@@ -109,12 +109,8 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus: Even
   const graphConsumer = new GraphDBConsumer(config, eventStore, graphDb);
   await graphConsumer.initialize();
 
-  // Subscribe to all existing resources
-  const allResourceIds = await eventStore.log.getAllResourceIds();
-  console.log(`[GraphDBConsumer] Subscribing to ${allResourceIds.length} resources`);
-  for (const resourceId of allResourceIds) {
-    await graphConsumer.subscribeToResource(makeResourceId(resourceId as string));
-  }
+  // GraphConsumer now uses global subscription to receive ALL events (including resource events)
+  // No need to subscribe to individual resources - the global subscription handles everything
   console.log('✅ Graph consumer started');
 
   // 10. Instantiate workers with EventBus

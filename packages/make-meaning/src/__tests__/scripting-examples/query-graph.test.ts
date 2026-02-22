@@ -17,7 +17,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventBus } from '@semiont/core';
 import { startMakeMeaning, ResourceOperations, AnnotationOperations } from '../..';
-import type { EnvironmentConfig, ResourceId } from '@semiont/core';
+import type { EnvironmentConfig } from '@semiont/core';
 import { userId, resourceUri, uriToResourceId } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -41,25 +41,6 @@ describe('Scripting Example: Query Graph Database', () => {
   let config: EnvironmentConfig;
   let makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>>;
   let eventBus: EventBus;
-
-  /**
-   * Helper: Subscribe GraphConsumer to a resource AND replay all its past events
-   * This ensures GraphConsumer processes events that were emitted before subscription
-   */
-  async function subscribeAndReplayResource(rId: ResourceId) {
-    // Subscribe for future events
-    await makeMeaning.graphConsumer.subscribeToResource(rId);
-
-    // Replay all past events for this resource
-    const events = await makeMeaning.eventStore.log.getEvents(rId);
-    for (const event of events) {
-      // Access the protected processEvent method via casting and await completion
-      await (makeMeaning.graphConsumer as any).processEvent(event);
-    }
-
-    // Give the graph a moment to fully persist changes
-    await new Promise(resolve => setTimeout(resolve, 100));
-  }
 
   beforeEach(async () => {
     // Create temporary test directory
@@ -142,12 +123,9 @@ describe('Scripting Example: Query Graph Database', () => {
     );
 
     const rUri = resourceUri(result.resource['@id']);
-    const rId = uriToResourceId(rUri);
 
-    // Subscribe GraphConsumer and replay past events
-    await subscribeAndReplayResource(rId);
-
-    // EVENTUAL CONSISTENCY: Wait for GraphConsumer to process events and update graph
+    // EVENTUAL CONSISTENCY: GraphConsumer receives events via global subscription
+    // Wait for async processing to complete
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Query graph directly via GraphDatabase interface
@@ -178,9 +156,6 @@ describe('Scripting Example: Query Graph Database', () => {
 
     const rUri = resourceUri(resourceResult.resource['@id']);
     const rId = uriToResourceId(rUri);
-
-    // Subscribe GraphConsumer and replay past events
-    await subscribeAndReplayResource(rId);
 
     // Create an annotation
     await AnnotationOperations.createAnnotation(
@@ -217,7 +192,7 @@ describe('Scripting Example: Query Graph Database', () => {
 
   it('demonstrates complex graph traversal', async () => {
     // Create multiple resources
-    const result1 = await ResourceOperations.createResource(
+    await ResourceOperations.createResource(
       {
         name: 'Document 1',
         content: Buffer.from('First document'),
@@ -230,7 +205,7 @@ describe('Scripting Example: Query Graph Database', () => {
       config
     );
 
-    const result2 = await ResourceOperations.createResource(
+    await ResourceOperations.createResource(
       {
         name: 'Document 2',
         content: Buffer.from('Second document'),
@@ -243,17 +218,8 @@ describe('Scripting Example: Query Graph Database', () => {
       config
     );
 
-    // Subscribe GraphConsumer and replay past events for both resources
-    const rId1 = uriToResourceId(result1.resource['@id']);
-    const rId2 = uriToResourceId(result2.resource['@id']);
-    await subscribeAndReplayResource(rId1);
-    await subscribeAndReplayResource(rId2);
-
-    // EVENTUAL CONSISTENCY: GraphConsumer processes events asynchronously.
-    // The graph is a projection - it updates after events are emitted.
-    // This timeout allows the GraphConsumer to receive and process the resource.created events
-    // and update the graph database before we query it.
-    // A proper fix would require GraphConsumer to emit completion events.
+    // EVENTUAL CONSISTENCY: GraphConsumer receives events via global subscription
+    // Wait for async processing to complete
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Query resources using GraphDatabase interface
@@ -290,9 +256,6 @@ describe('Scripting Example: Query Graph Database', () => {
 
     const rUri = resourceUri(resource.resource['@id']);
     const rId = uriToResourceId(rUri);
-
-    // Subscribe GraphConsumer and replay past events
-    await subscribeAndReplayResource(rId);
 
     // Create a few annotations
     for (let i = 0; i < 3; i++) {
@@ -336,7 +299,7 @@ describe('Scripting Example: Query Graph Database', () => {
     // This shows you have full access to the graph database
     // via the GraphDatabase interface methods
 
-    const result = await ResourceOperations.createResource(
+    await ResourceOperations.createResource(
       {
         name: 'Custom Query Test',
         content: Buffer.from('Testing graph database queries'),
@@ -349,11 +312,8 @@ describe('Scripting Example: Query Graph Database', () => {
       config
     );
 
-    // Subscribe GraphConsumer and replay past events
-    const rId = uriToResourceId(result.resource['@id']);
-    await subscribeAndReplayResource(rId);
-
-    // EVENTUAL CONSISTENCY: Wait for GraphConsumer to process events and update graph
+    // EVENTUAL CONSISTENCY: GraphConsumer receives events via global subscription
+    // Wait for async processing to complete
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Search for resources using GraphDatabase interface

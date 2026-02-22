@@ -122,6 +122,68 @@ describe('EventBus', () => {
       expect(resourceCallback).not.toHaveBeenCalled();
       expect(globalCallback).toHaveBeenCalledTimes(1);
     });
+
+    it('should publish resource events to BOTH resource-scoped AND global subscribers', async () => {
+      const rid = resourceId('doc1');
+      const resourceCallback = vi.fn();
+      const globalCallback = vi.fn();
+
+      bus.subscribe(rid, resourceCallback);
+      bus.subscribeGlobal(globalCallback);
+
+      const resourceEvent: StoredEvent = {
+        event: {
+          id: 'event1',
+          type: 'resource.created',
+          timestamp: new Date().toISOString(),
+          userId: userId('user1'),
+          resourceId: rid,
+          version: 1,
+          payload: {
+            name: 'Test Resource',
+            format: 'text/plain' as const,
+            contentChecksum: 'checksum1',
+            creationMethod: 'api' as const,
+          },
+        },
+        metadata: createEventMetadata(1),
+      };
+
+      await bus.publish(resourceEvent);
+
+      // Both callbacks should receive the event
+      expect(resourceCallback).toHaveBeenCalledWith(resourceEvent);
+      expect(resourceCallback).toHaveBeenCalledTimes(1);
+      expect(globalCallback).toHaveBeenCalledWith(resourceEvent);
+      expect(globalCallback).toHaveBeenCalledTimes(1);
+    });
+
+    it('should publish resource events to global subscribers even without resource-scoped subscribers', async () => {
+      const rid = resourceId('doc1');
+      const globalCallback = vi.fn();
+
+      // Only subscribe globally, not resource-scoped
+      bus.subscribeGlobal(globalCallback);
+
+      const resourceEvent: StoredEvent = {
+        event: {
+          id: 'event1',
+          type: 'resource.archived',
+          timestamp: new Date().toISOString(),
+          userId: userId('user1'),
+          resourceId: rid,
+          version: 2,
+          payload: {},
+        },
+        metadata: createEventMetadata(2),
+      };
+
+      await bus.publish(resourceEvent);
+
+      // Global callback should still receive resource events
+      expect(globalCallback).toHaveBeenCalledWith(resourceEvent);
+      expect(globalCallback).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('subscribe()', () => {

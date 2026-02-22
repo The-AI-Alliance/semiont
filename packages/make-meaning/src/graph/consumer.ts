@@ -12,14 +12,12 @@ import type { components } from '@semiont/core';
 import type { ResourceEvent, StoredEvent, EnvironmentConfig, ResourceId } from '@semiont/core';
 import { resourceId as makeResourceId, findBodyItem } from '@semiont/core';
 import { toResourceUri, toAnnotationUri } from '@semiont/event-sourcing';
-import { resourceUri } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 export class GraphDBConsumer {
-  private subscriptions: Map<string, any> = new Map();
-  private _globalSubscription: any = null;  // Subscription to system-level events (kept for cleanup)
+  private _globalSubscription: any = null;  // Global subscription (receives ALL events)
   private processing: Map<string, Promise<void>> = new Map();
   private lastProcessed: Map<string, number> = new Map();
 
@@ -31,21 +29,20 @@ export class GraphDBConsumer {
 
   async initialize() {
     console.log('[GraphDBConsumer] Initialized');
-    // Subscribe to global system-level events
+    // Subscribe globally to receive ALL events (both system and resource events)
     await this.subscribeToGlobalEvents();
   }
 
   /**
-   * Subscribe to global system-level events (no resourceId)
-   * This allows the consumer to react to events like entitytype.added
+   * Subscribe globally to ALL events (system AND resource events)
+   * Resource events are now sent to global subscribers (see EventBus.publish)
    */
   private async subscribeToGlobalEvents() {
     this._globalSubscription = this.eventStore.bus.subscriptions.subscribeGlobal(async (storedEvent: StoredEvent) => {
-      console.log(`[GraphDBConsumer] Received global event: ${storedEvent.event.type}`);
       await this.processEvent(storedEvent);
     });
 
-    console.log('[GraphDBConsumer] Subscribed to global system events');
+    console.log('[GraphDBConsumer] Subscribed to global events (system + resource)');
   }
 
   private ensureInitialized(): GraphDatabase {
@@ -53,22 +50,12 @@ export class GraphDBConsumer {
   }
 
   /**
-   * Subscribe to events for a resource
-   * Apply each event to GraphDB
+   * @deprecated No longer needed - GraphConsumer uses global subscription only
+   * Kept for backward compatibility with existing code (e.g., rebuild-graph.ts)
    */
   async subscribeToResource(resourceId: ResourceId) {
-    this.ensureInitialized();
-
-    // Convert plain ID to full URI for subscription (EventSubscriptions uses ResourceUri branded type)
-    const publicURL = this.config.services.backend!.publicURL;
-    const rUri = resourceUri(`${publicURL}/resources/${resourceId}`);
-
-    const subscription = this.eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent: StoredEvent) => {
-      await this.processEvent(storedEvent);
-    });
-
-    this.subscriptions.set(resourceId, subscription);
-    console.log(`[GraphDBConsumer] Subscribed to ${resourceId}`);
+    // No-op: Global subscription already receives all resource events
+    console.log(`[GraphDBConsumer] subscribeToResource(${resourceId}) - no-op (using global subscription)`);
   }
 
   /**
@@ -76,14 +63,6 @@ export class GraphDBConsumer {
    */
   async stop() {
     console.log('[GraphDBConsumer] Stopping...');
-
-    // Unsubscribe from all resource subscriptions
-    for (const subscription of this.subscriptions.values()) {
-      if (subscription && typeof subscription.unsubscribe === 'function') {
-        subscription.unsubscribe();
-      }
-    }
-    this.subscriptions.clear();
 
     // Unsubscribe from global subscription
     if (this._globalSubscription && typeof this._globalSubscription.unsubscribe === 'function') {
@@ -388,41 +367,32 @@ export class GraphDBConsumer {
     processing: string[];
   } {
     return {
-      subscriptions: this.subscriptions.size,
+      subscriptions: this._globalSubscription ? 1 : 0, // Only global subscription
       lastProcessed: Object.fromEntries(this.lastProcessed),
       processing: Array.from(this.processing.keys()),
     };
   }
 
   /**
-   * Unsubscribe from resource
+   * @deprecated No longer needed - GraphConsumer uses global subscription only
    */
   async unsubscribeFromResource(resourceId: ResourceId): Promise<void> {
-    const subscription = this.subscriptions.get(resourceId);
-    if (subscription) {
-      subscription.unsubscribe();
-      this.subscriptions.delete(resourceId);
-      console.log(`[GraphDBConsumer] Unsubscribed from ${resourceId}`);
-    }
+    // No-op: Using global subscription, can't unsubscribe from individual resources
+    console.log(`[GraphDBConsumer] unsubscribeFromResource(${resourceId}) - no-op (using global subscription)`);
   }
 
   /**
-   * Unsubscribe from all resources
+   * @deprecated No longer needed - GraphConsumer uses global subscription only
+   * Use stop() instead
    */
   async unsubscribeAll(): Promise<void> {
-    for (const [_resourceId, subscription] of this.subscriptions) {
-      subscription.unsubscribe();
-    }
-    this.subscriptions.clear();
-    console.log('[GraphDBConsumer] Unsubscribed from all resources');
+    console.log('[GraphDBConsumer] unsubscribeAll() - no-op (use stop() instead)');
   }
 
   /**
    * Shutdown consumer
    */
   async shutdown(): Promise<void> {
-    await this.unsubscribeAll();
-
     // Unsubscribe from global events
     if (this._globalSubscription) {
       this._globalSubscription.unsubscribe();
