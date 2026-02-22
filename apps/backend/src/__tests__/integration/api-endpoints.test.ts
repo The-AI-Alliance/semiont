@@ -9,7 +9,7 @@ import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
 import type { EnvironmentConfig } from '@semiont/core';
-import { loadEnvironmentConfig, findProjectRoot } from '@semiont/core';
+import { loadEnvironmentConfig } from '../../utils/config';
 import { JWTService } from '../../auth/jwt';
 
 type Variables = {
@@ -195,8 +195,10 @@ describe('API Endpoints Integration Tests', () => {
     process.env.NODE_ENV = 'test';
 
     // Load config and initialize JWT Service
-    const projectRoot = process.env.SEMIONT_ROOT || findProjectRoot();
+    const projectRoot = process.env.SEMIONT_ROOT;
+    if (!projectRoot) throw new Error("SEMIONT_ROOT not set");
     const environment = process.env.SEMIONT_ENV || 'integration';
+
     const config = loadEnvironmentConfig(projectRoot, environment);
     JWTService.initialize(config);
 

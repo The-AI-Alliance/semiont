@@ -9,7 +9,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { userId, type EnvironmentConfig } from '@semiont/core';
-import { loadEnvironmentConfig, findProjectRoot } from '@semiont/core';
+import { loadEnvironmentConfig } from '../../utils/config';
 import { email } from '@semiont/core';
 import type { components } from '@semiont/core';
 import type { Hono } from 'hono';
@@ -85,8 +85,10 @@ describe('Incoming References Integration Tests', () => {
   beforeAll(async () => {
     process.env.NODE_ENV = 'test';
 
-    const projectRoot = process.env.SEMIONT_ROOT || findProjectRoot();
+    const projectRoot = process.env.SEMIONT_ROOT;
+    if (!projectRoot) throw new Error("SEMIONT_ROOT not set");
     const environment = process.env.SEMIONT_ENV || 'integration';
+
     const config = loadEnvironmentConfig(projectRoot, environment);
 
     // Initialize JWT

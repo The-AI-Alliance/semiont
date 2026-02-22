@@ -37,39 +37,8 @@ vi.mock('../db', () => ({
   prisma: mockPrismaClient,
 }));
 
-// Mock project discovery to avoid needing actual semiont.json
 // Use a unique directory per worker thread to avoid race conditions
 const testDir = `/tmp/semiont-test-${process.pid}-${Date.now()}`;
-
-// Mock the config-loader module (where findProjectRoot and loadEnvironmentConfig now live)
-vi.mock('../config-loader', () => ({
-  findProjectRoot: vi.fn(() => '/tmp/test-project'),
-  loadEnvironmentConfig: vi.fn(() => ({
-    site: { domain: 'test.local', oauthAllowedDomains: ['test.local'] },
-    env: {
-      NODE_ENV: 'test'
-    },
-    services: {
-      backend: {
-        platform: { type: 'posix' },
-        corsOrigin: 'http://localhost:3000',
-        publicURL: 'http://localhost:4000',
-        port: 4000
-      },
-      frontend: {
-        platform: { type: 'posix' },
-        url: 'http://localhost:3000',
-        port: 3000,
-        siteName: 'Test Site'
-      },
-      filesystem: {
-        platform: { type: 'posix' },
-        path: testDir
-      }
-    },
-    app: {}
-  })),
-}));
 
 // Set minimal required environment variables
 process.env.NODE_ENV = 'test';

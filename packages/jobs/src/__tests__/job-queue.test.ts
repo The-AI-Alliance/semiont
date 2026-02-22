@@ -8,7 +8,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { JobQueue } from '../job-queue';
 import type { JobStatus, PendingJob, RunningJob, CompleteJob, FailedJob, DetectionParams, DetectionProgress, DetectionResult, GenerationParams } from '../types';
-import { entityType, jobId, userId, resourceId, annotationId } from '@semiont/core';
+import { entityType, jobId, userId, resourceId, annotationId, EventBus } from '@semiont/core';
 
 // Test helper - create detection jobs in various states
 function createPendingDetectionJob(id: string): PendingJob<DetectionParams> {
@@ -127,7 +127,7 @@ describe('JobQueue', () => {
   beforeEach(async () => {
     // Create a temporary directory for tests
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'job-queue-test-'));
-    jobQueue = new JobQueue({ dataDir: tempDir });
+    jobQueue = new JobQueue({ dataDir: tempDir }, new EventBus());
     await jobQueue.initialize();
   });
 
@@ -443,6 +443,43 @@ describe('JobQueue', () => {
       expect(stats.complete).toBe(1);
       expect(stats.failed).toBe(1);
       expect(stats.cancelled).toBe(0);
+    });
+  });
+
+  describe('EventBus Integration', () => {
+    test('should emit job:queued event when creating a job', async () => {
+      const eventBus = new EventBus();
+      const testQueue = new JobQueue({ dataDir: tempDir }, eventBus);
+      await testQueue.initialize();
+
+      const events: any[] = [];
+      const job = createPendingDetectionJob('job-with-event');
+      const resourceBus = eventBus.scope(job.params.resourceId);
+
+      // Subscribe to job:queued events
+      resourceBus.get('job:queued').subscribe(event => {
+        events.push(event);
+      });
+
+      await testQueue.createJob(job);
+
+      // Verify event was emitted
+      expect(events).toHaveLength(1);
+      expect(events[0]).toEqual({
+        jobId: jobId('job-with-event'),
+        jobType: 'detection',
+        resourceId: job.params.resourceId
+      });
+    });
+
+    test('should not fail when EventBus is not provided', async () => {
+      const testQueue = new JobQueue({ dataDir: tempDir });
+      await testQueue.initialize();
+
+      const job = createPendingDetectionJob('job-no-eventbus');
+
+      // Should not throw
+      await expect(testQueue.createJob(job)).resolves.not.toThrow();
     });
   });
 });

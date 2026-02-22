@@ -77,7 +77,7 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus?: Eve
 
   // 3. Initialize job queue
   console.log('💼 Initializing job queue...');
-  const jobQueue = new JobQueue({ dataDir: basePath });
+  const jobQueue = new JobQueue({ dataDir: basePath }, sharedEventBus);
   await jobQueue.initialize();
   console.log('✅ Job queue initialized');
 
