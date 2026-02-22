@@ -46,7 +46,7 @@ export interface MakeMeaningService {
   stop: () => Promise<void>;
 }
 
-export async function startMakeMeaning(config: EnvironmentConfig, eventBus?: EventBus): Promise<MakeMeaningService> {
+export async function startMakeMeaning(config: EnvironmentConfig, eventBus: EventBus): Promise<MakeMeaningService> {
   console.log('🧠 Starting Make-Meaning service...');
 
   // 1. Validate configuration
@@ -71,19 +71,18 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus?: Eve
     basePath = path.resolve(configuredPath);
   }
 
-  // 2. Create or use provided EventBus
-  const sharedEventBus = eventBus || new EventBus();
-  console.log('📡 EventBus initialized');
+  // 2. EventBus is provided by caller (caller owns lifecycle)
+  console.log('📡 Using provided EventBus');
 
   // 3. Initialize job queue
   console.log('💼 Initializing job queue...');
-  const jobQueue = new JobQueue({ dataDir: basePath }, sharedEventBus);
+  const jobQueue = new JobQueue({ dataDir: basePath }, eventBus);
   await jobQueue.initialize();
   console.log('✅ Job queue initialized');
 
   // 4. Create shared event store with EventBus integration
   console.log('📊 Creating event store connection...');
-  const eventStore = createEventStoreCore(basePath, baseUrl, undefined, sharedEventBus);
+  const eventStore = createEventStoreCore(basePath, baseUrl, undefined, eventBus);
 
   // 5. Bootstrap entity types (if projection doesn't exist)
   console.log('🌱 Bootstrapping entity types...');
@@ -121,12 +120,12 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus?: Eve
   // 10. Instantiate workers with EventBus
   console.log('👷 Creating workers...');
   const workers = {
-    detection: new ReferenceDetectionWorker(jobQueue, config, eventStore, inferenceClient, sharedEventBus),
-    generation: new GenerationWorker(jobQueue, config, eventStore, inferenceClient, sharedEventBus),
-    highlight: new HighlightDetectionWorker(jobQueue, config, eventStore, inferenceClient, sharedEventBus),
-    assessment: new AssessmentDetectionWorker(jobQueue, config, eventStore, inferenceClient, sharedEventBus),
-    comment: new CommentDetectionWorker(jobQueue, config, eventStore, inferenceClient, sharedEventBus),
-    tag: new TagDetectionWorker(jobQueue, config, eventStore, inferenceClient, sharedEventBus),
+    detection: new ReferenceDetectionWorker(jobQueue, config, eventStore, inferenceClient, eventBus),
+    generation: new GenerationWorker(jobQueue, config, eventStore, inferenceClient, eventBus),
+    highlight: new HighlightDetectionWorker(jobQueue, config, eventStore, inferenceClient, eventBus),
+    assessment: new AssessmentDetectionWorker(jobQueue, config, eventStore, inferenceClient, eventBus),
+    comment: new CommentDetectionWorker(jobQueue, config, eventStore, inferenceClient, eventBus),
+    tag: new TagDetectionWorker(jobQueue, config, eventStore, inferenceClient, eventBus),
   };
 
   // 11. Start all workers (non-blocking)
@@ -156,7 +155,7 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus?: Eve
   return {
     jobQueue,
     eventStore,
-    eventBus: sharedEventBus,
+    eventBus,
     repStore,
     inferenceClient,
     graphDb,
@@ -174,7 +173,6 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus?: Eve
       ]);
       await graphConsumer.stop();
       await graphDb.disconnect();
-      sharedEventBus.destroy();
       console.log('✅ Make-Meaning service stopped');
     },
   };

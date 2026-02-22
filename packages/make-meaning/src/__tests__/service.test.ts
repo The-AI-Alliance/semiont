@@ -19,6 +19,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { startMakeMeaning, type MakeMeaningService } from '../service';
 import type { EnvironmentConfig } from '@semiont/core';
+import { EventBus } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -27,11 +28,15 @@ describe('Make-Meaning Service', () => {
   let testDir: string;
   let config: EnvironmentConfig;
   let service: MakeMeaningService | null = null;
+  let eventBus: EventBus;
 
   beforeEach(async () => {
     // Create temporary test directory
     testDir = join(tmpdir(), `semiont-test-service-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
+
+    // Create EventBus
+    eventBus = new EventBus();
 
     // Create test configuration
     config = {
@@ -79,6 +84,11 @@ describe('Make-Meaning Service', () => {
       service = null;
     }
 
+    // Destroy EventBus
+    if (eventBus) {
+      eventBus.destroy();
+    }
+
     // Clean up test directory
     await fs.rm(testDir, { recursive: true, force: true });
   });
@@ -89,7 +99,7 @@ describe('Make-Meaning Service', () => {
       delete invalidConfig.services.filesystem;
 
       await expect(
-        startMakeMeaning(invalidConfig as EnvironmentConfig)
+        startMakeMeaning(invalidConfig as EnvironmentConfig, eventBus)
       ).rejects.toThrow('services.filesystem.path is required');
     });
 
@@ -98,12 +108,12 @@ describe('Make-Meaning Service', () => {
       delete invalidConfig.services.backend;
 
       await expect(
-        startMakeMeaning(invalidConfig as EnvironmentConfig)
+        startMakeMeaning(invalidConfig as EnvironmentConfig, eventBus)
       ).rejects.toThrow('services.backend.publicURL is required');
     });
 
     it('should initialize job queue', async () => {
-      service = await startMakeMeaning(config);
+      service = await startMakeMeaning(config, eventBus);
 
       expect(service.jobQueue).toBeDefined();
       expect(typeof service.jobQueue.createJob).toBe('function');
@@ -111,7 +121,7 @@ describe('Make-Meaning Service', () => {
     });
 
     it('should create event store', async () => {
-      service = await startMakeMeaning(config);
+      service = await startMakeMeaning(config, eventBus);
 
       expect(service.eventStore).toBeDefined();
       expect(typeof service.eventStore.appendEvent).toBe('function');
@@ -121,7 +131,7 @@ describe('Make-Meaning Service', () => {
     });
 
     it('should create representation store', async () => {
-      service = await startMakeMeaning(config);
+      service = await startMakeMeaning(config, eventBus);
 
       expect(service.repStore).toBeDefined();
       expect(typeof service.repStore.store).toBe('function');
@@ -129,28 +139,28 @@ describe('Make-Meaning Service', () => {
     });
 
     it('should create inference client', async () => {
-      service = await startMakeMeaning(config);
+      service = await startMakeMeaning(config, eventBus);
 
       expect(service.inferenceClient).toBeDefined();
       expect(typeof service.inferenceClient.generateText).toBe('function');
     });
 
     it('should connect to graph database', async () => {
-      service = await startMakeMeaning(config);
+      service = await startMakeMeaning(config, eventBus);
 
       expect(service.graphDb).toBeDefined();
       expect(typeof service.graphDb.disconnect).toBe('function');
     });
 
     it('should initialize graph consumer', async () => {
-      service = await startMakeMeaning(config);
+      service = await startMakeMeaning(config, eventBus);
 
       expect(service.graphConsumer).toBeDefined();
       expect(typeof service.graphConsumer.stop).toBe('function');
     });
 
     it('should instantiate all workers', async () => {
-      service = await startMakeMeaning(config);
+      service = await startMakeMeaning(config, eventBus);
 
       expect(service.workers).toBeDefined();
       expect(service.workers.detection).toBeDefined();
@@ -166,7 +176,7 @@ describe('Make-Meaning Service', () => {
     });
 
     it('should return service handle with stop method', async () => {
-      service = await startMakeMeaning(config);
+      service = await startMakeMeaning(config, eventBus);
 
       expect(service).toBeDefined();
       expect(typeof service.stop).toBe('function');
@@ -184,19 +194,19 @@ describe('Make-Meaning Service', () => {
         }
       };
 
-      service = await startMakeMeaning(relativeConfig);
+      service = await startMakeMeaning(relativeConfig, eventBus);
       expect(service).toBeDefined();
     });
 
     it('should handle absolute filesystem paths', async () => {
-      service = await startMakeMeaning(config);
+      service = await startMakeMeaning(config, eventBus);
       expect(service).toBeDefined();
     });
   });
 
   describe('lifecycle', () => {
     it('should start and stop cleanly', async () => {
-      service = await startMakeMeaning(config);
+      service = await startMakeMeaning(config, eventBus);
       expect(service).toBeDefined();
 
       // Should not throw
@@ -207,7 +217,7 @@ describe('Make-Meaning Service', () => {
     });
 
     it('should stop all workers on service stop', async () => {
-      service = await startMakeMeaning(config);
+      service = await startMakeMeaning(config, eventBus);
 
       // Spy on worker stop methods
       const detectionStopSpy = vi.spyOn(service.workers.detection, 'stop');
@@ -230,7 +240,7 @@ describe('Make-Meaning Service', () => {
     });
 
     it('should stop graph consumer on service stop', async () => {
-      service = await startMakeMeaning(config);
+      service = await startMakeMeaning(config, eventBus);
 
       const consumerStopSpy = vi.spyOn(service.graphConsumer, 'stop');
 
@@ -242,7 +252,7 @@ describe('Make-Meaning Service', () => {
     });
 
     it('should disconnect graph database on service stop', async () => {
-      service = await startMakeMeaning(config);
+      service = await startMakeMeaning(config, eventBus);
 
       const dbDisconnectSpy = vi.spyOn(service.graphDb, 'disconnect');
 
@@ -257,7 +267,7 @@ describe('Make-Meaning Service', () => {
   describe('integration', () => {
     it('should complete initialization without errors', async () => {
       // Service initialization includes bootstrap step
-      service = await startMakeMeaning(config);
+      service = await startMakeMeaning(config, eventBus);
 
       // If we got here, bootstrap completed successfully
       expect(service).toBeDefined();
@@ -285,8 +295,10 @@ describe('Make-Meaning Service', () => {
         }
       };
 
-      const service1 = await startMakeMeaning(config);
-      const service2 = await startMakeMeaning(config2);
+      const eventBus2 = new EventBus();
+
+      const service1 = await startMakeMeaning(config, eventBus);
+      const service2 = await startMakeMeaning(config2, eventBus2);
 
       expect(service1).toBeDefined();
       expect(service2).toBeDefined();
@@ -294,6 +306,7 @@ describe('Make-Meaning Service', () => {
 
       await service1.stop();
       await service2.stop();
+      eventBus2.destroy();
       await fs.rm(testDir2, { recursive: true, force: true });
 
       // Clear service reference since we stopped it
@@ -301,7 +314,7 @@ describe('Make-Meaning Service', () => {
     });
 
     it('should share event store and inference client across workers', async () => {
-      service = await startMakeMeaning(config);
+      service = await startMakeMeaning(config, eventBus);
 
       // All workers should share the same eventStore instance
       const eventStoreRefs = [
