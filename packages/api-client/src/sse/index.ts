@@ -193,9 +193,9 @@ export class SSEClient {
         body: JSON.stringify(request)
       },
       {
-        progressEvents: ['reference-detection-started', 'reference-detection-progress'],
-        completeEvent: 'reference-detection-complete',
-        errorEvent: 'reference-detection-error',
+        progressEvents: ['detection:started', 'detection:progress'],
+        completeEvent: 'detection:complete',
+        errorEvent: 'detection:failed',
         eventBus: options?.eventBus,
         eventPrefix: 'detection'
       },
@@ -258,9 +258,9 @@ export class SSEClient {
         body: JSON.stringify(request)
       },
       {
-        progressEvents: ['generation-started', 'generation-progress'],
-        completeEvent: 'generation-complete',
-        errorEvent: 'generation-error',
+        progressEvents: ['generation:started', 'generation:progress'],
+        completeEvent: 'generation:complete',
+        errorEvent: 'generation:failed',
         eventBus: options?.eventBus,
         eventPrefix: 'generation'
       },
@@ -319,9 +319,9 @@ export class SSEClient {
         body: JSON.stringify(request)
       },
       {
-        progressEvents: ['highlight-detection-started', 'highlight-detection-progress'],
-        completeEvent: 'highlight-detection-complete',
-        errorEvent: 'highlight-detection-error',
+        progressEvents: ['detection:started', 'detection:progress'],
+        completeEvent: 'detection:complete',
+        errorEvent: 'detection:failed',
         eventBus: options?.eventBus,
         eventPrefix: 'detection'
       },
@@ -380,9 +380,9 @@ export class SSEClient {
         body: JSON.stringify(request)
       },
       {
-        progressEvents: ['assessment-detection-started', 'assessment-detection-progress'],
-        completeEvent: 'assessment-detection-complete',
-        errorEvent: 'assessment-detection-error',
+        progressEvents: ['detection:started', 'detection:progress'],
+        completeEvent: 'detection:complete',
+        errorEvent: 'detection:failed',
         eventBus: options?.eventBus,
         eventPrefix: 'detection'
       },
@@ -445,9 +445,9 @@ export class SSEClient {
         body: JSON.stringify(request)
       },
       {
-        progressEvents: ['comment-detection-started', 'comment-detection-progress'],
-        completeEvent: 'comment-detection-complete',
-        errorEvent: 'comment-detection-error',
+        progressEvents: ['detection:started', 'detection:progress'],
+        completeEvent: 'detection:complete',
+        errorEvent: 'detection:failed',
         eventBus: options?.eventBus,
         eventPrefix: 'detection'
       },
@@ -511,9 +511,9 @@ export class SSEClient {
         body: JSON.stringify(request)
       },
       {
-        progressEvents: ['tag-detection-started', 'tag-detection-progress'],
-        completeEvent: 'tag-detection-complete',
-        errorEvent: 'tag-detection-error',
+        progressEvents: ['detection:started', 'detection:progress'],
+        completeEvent: 'detection:complete',
+        errorEvent: 'detection:failed',
         eventBus: options?.eventBus,
         eventPrefix: 'detection'
       },
@@ -576,6 +576,29 @@ export class SSEClient {
       },
       this.logger
     ) as SSEStream & { on?: (event: string, callback: (data?: any) => void) => void };
+
+    // Register handlers for all domain event types to emit to make-meaning:event
+    if (options?.eventBus) {
+      const eventBus = options.eventBus;
+
+      // Annotation events
+      stream.on?.('annotation.added', (event) => eventBus.get('make-meaning:event' as any).next(event));
+      stream.on?.('annotation.removed', (event) => eventBus.get('make-meaning:event' as any).next(event));
+      stream.on?.('annotation.body.updated', (event) => eventBus.get('make-meaning:event' as any).next(event));
+
+      // Entity tag events
+      stream.on?.('entitytag.added', (event) => eventBus.get('make-meaning:event' as any).next(event));
+      stream.on?.('entitytag.removed', (event) => eventBus.get('make-meaning:event' as any).next(event));
+
+      // Resource events
+      stream.on?.('resource.archived', (event) => eventBus.get('make-meaning:event' as any).next(event));
+      stream.on?.('resource.unarchived', (event) => eventBus.get('make-meaning:event' as any).next(event));
+
+      // Job events
+      stream.on?.('job.started', (event) => eventBus.get('make-meaning:event' as any).next(event));
+      stream.on?.('job.completed', (event) => eventBus.get('make-meaning:event' as any).next(event));
+      stream.on?.('job.failed', (event) => eventBus.get('make-meaning:event' as any).next(event));
+    }
 
     // Register handler for stream-connected meta-event so it is filtered out
     // of the progress stream and callers don't need to cast to any

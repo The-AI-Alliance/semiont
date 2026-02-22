@@ -169,7 +169,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
                     totalCategories: categories.length,
                     message: 'Starting detection...'
                   } as TagDetectionProgress),
-                  event: 'tag-detection-started',
+                  event: 'detection:started',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -196,7 +196,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
                     totalCategories: progress.totalCategories,
                     message: progress.message || 'Processing...'
                   } as TagDetectionProgress),
-                  event: 'tag-detection-progress',
+                  event: 'detection:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -225,7 +225,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
                       ? `Complete! Created ${result.tagsCreated} tags`
                       : 'Tag detection complete!'
                   } as TagDetectionProgress),
-                  event: 'tag-detection-complete',
+                  event: 'detection:complete',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -247,7 +247,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
                     resourceId: resourceId(id),
                     message: event.payload.error || 'Tag detection failed'
                   } as TagDetectionProgress),
-                  event: 'tag-detection-error',
+                  event: 'detection:failed',
                   id: String(Date.now())
                 });
               } catch (error) {

@@ -148,7 +148,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
                     processedEntityTypes: 0,
                     message: 'Starting entity detection...'
                   } as DetectionProgress),
-                  event: 'reference-detection-started',
+                  event: 'detection:started',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -176,7 +176,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
                       ? `Scanning for ${progress.currentEntityType}...`
                       : 'Processing...')
                   } as DetectionProgress),
-                  event: 'reference-detection-progress',
+                  event: 'detection:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -204,7 +204,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
                       ? `Detection complete! Found ${result.totalFound} entities`
                       : 'Detection complete!'
                   } as DetectionProgress),
-                  event: 'reference-detection-complete',
+                  event: 'detection:complete',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -228,7 +228,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
                     processedEntityTypes: 0,
                     message: event.payload.error || 'Detection failed'
                   } as DetectionProgress),
-                  event: 'reference-detection-error',
+                  event: 'detection:failed',
                   id: String(Date.now())
                 });
               } catch (error) {

@@ -152,7 +152,7 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
                     resourceId: resourceId(id),
                     message: 'Starting detection...'
                   } as CommentDetectionProgress),
-                  event: 'comment-detection-started',
+                  event: 'detection:started',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -176,7 +176,7 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
                     percentage: progress.percentage,
                     message: progress.message || 'Processing...'
                   } as CommentDetectionProgress),
-                  event: 'comment-detection-progress',
+                  event: 'detection:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -204,7 +204,7 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
                       ? `Complete! Created ${result.commentsCreated} comments`
                       : 'Comment detection complete!'
                   } as CommentDetectionProgress),
-                  event: 'comment-detection-complete',
+                  event: 'detection:complete',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -226,7 +226,7 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
                     resourceId: resourceId(id),
                     message: event.payload.error || 'Comment detection failed'
                   } as CommentDetectionProgress),
-                  event: 'comment-detection-error',
+                  event: 'detection:failed',
                   id: String(Date.now())
                 });
               } catch (error) {

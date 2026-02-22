@@ -188,7 +188,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
                     percentage: 0,
                     message: 'Starting...'
                   } as GenerationProgress),
-                  event: 'generation-started',
+                  event: 'generation:started',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -212,7 +212,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
                     percentage: progress.percentage || 0,
                     message: progress.message || `${progress.status}...`
                   } as GenerationProgress),
-                  event: 'generation-progress',
+                  event: 'generation:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -238,7 +238,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
                     percentage: 100,
                     message: 'Draft resource created! Ready for review.'
                   } as GenerationProgress),
-                  event: 'generation-complete',
+                  event: 'generation:complete',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -282,7 +282,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
                 percentage: 0,
                 message: error instanceof Error ? error.message : 'Generation failed'
               } as GenerationProgress),
-              event: 'generation-error',
+              event: 'generation:failed',
               id: String(Date.now())
             });
           } catch (sseError) {

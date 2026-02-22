@@ -151,7 +151,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
                     resourceId: resourceId(id),
                     message: 'Starting detection...'
                   } as HighlightDetectionProgress),
-                  event: 'highlight-detection-started',
+                  event: 'detection:started',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -175,7 +175,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
                     percentage: progress.percentage,
                     message: progress.message || 'Processing...'
                   } as HighlightDetectionProgress),
-                  event: 'highlight-detection-progress',
+                  event: 'detection:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -203,7 +203,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
                       ? `Complete! Created ${result.highlightsCreated} highlights`
                       : 'Highlight detection complete!'
                   } as HighlightDetectionProgress),
-                  event: 'highlight-detection-complete',
+                  event: 'detection:complete',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -225,7 +225,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
                     resourceId: resourceId(id),
                     message: event.payload.error || 'Highlight detection failed'
                   } as HighlightDetectionProgress),
-                  event: 'highlight-detection-error',
+                  event: 'detection:failed',
                   id: String(Date.now())
                 });
               } catch (error) {
