@@ -269,7 +269,7 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
                 resourceId: resourceId(id),
                 message: error instanceof Error ? error.message : 'Assessment detection failed'
               } as AssessmentDetectionProgress),
-              event: 'assessment-detection-error',
+              event: 'detection:failed',
               id: String(Date.now())
             });
           } catch (sseError) {

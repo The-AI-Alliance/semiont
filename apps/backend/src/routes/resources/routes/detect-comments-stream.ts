@@ -269,7 +269,7 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
                 resourceId: resourceId(id),
                 message: error instanceof Error ? error.message : 'Comment detection failed'
               } as CommentDetectionProgress),
-              event: 'comment-detection-error',
+              event: 'detection:failed',
               id: String(Date.now())
             });
           } catch (sseError) {

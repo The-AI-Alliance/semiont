@@ -290,7 +290,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
                 resourceId: resourceId(id),
                 message: error instanceof Error ? error.message : 'Tag detection failed'
               } as TagDetectionProgress),
-              event: 'tag-detection-error',
+              event: 'detection:failed',
               id: String(Date.now())
             });
           } catch (sseError) {

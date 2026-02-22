@@ -273,7 +273,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
                 processedEntityTypes: 0,
                 message: error instanceof Error ? error.message : 'Detection failed'
               } as DetectionProgress),
-              event: 'reference-detection-error',
+              event: 'detection:failed',
               id: String(Date.now())
             });
           } catch (sseError) {

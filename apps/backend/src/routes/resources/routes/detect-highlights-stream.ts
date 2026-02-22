@@ -268,7 +268,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
                 resourceId: resourceId(id),
                 message: error instanceof Error ? error.message : 'Highlight detection failed'
               } as HighlightDetectionProgress),
-              event: 'highlight-detection-error',
+              event: 'detection:failed',
               id: String(Date.now())
             });
           } catch (sseError) {
