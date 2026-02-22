@@ -13,7 +13,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { AnnotationUri, GenerationContext, GenerationProgress } from '@semiont/core';
-import { annotationUri, accessToken } from '@semiont/core';
+import { annotationUri, accessToken, resourceUri } from '@semiont/core';
 
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
 import { useEventBus } from '../contexts/EventBusContext';
@@ -171,8 +171,10 @@ export function useGenerationFlow(
     }
 
     // Refetch annotations to show the reference is now resolved
-    if (cacheManager) {
-      cacheManager.invalidate('annotations');
+    if (cacheManager && progress.sourceResourceId) {
+      // Build proper resource URI for cache invalidation
+      const rUri = resourceUri(`resource://${progress.sourceResourceId}`);
+      cacheManager.invalidateAnnotations(rUri);
     }
 
     // Clear progress widget after a delay to show completion state
