@@ -84,29 +84,60 @@ export interface DetectionProgress {
  * Unified event map for all application events
  */
 export type EventMap = {
-  // ===== BACKEND EVENTS (from SSE) =====
+  // ===== DOMAIN EVENTS (backend event sourcing - dot notation) =====
+  // These are emitted by the backend via /resources/:id/events/stream SSE endpoint
+  // and represent the source of truth from the event store
 
-  // Generic event (all types)
+  // Annotation domain events
+  'annotation.added': Extract<ResourceEvent, { type: 'annotation.added' }>;
+  'annotation.removed': Extract<ResourceEvent, { type: 'annotation.removed' }>;
+  'annotation.body.updated': Extract<ResourceEvent, { type: 'annotation.body.updated' }>;
+
+  // Entity tag domain events
+  'entitytag.added': Extract<ResourceEvent, { type: 'entitytag.added' }>;
+  'entitytag.removed': Extract<ResourceEvent, { type: 'entitytag.removed' }>;
+
+  // Resource domain events
+  'resource.archived': Extract<ResourceEvent, { type: 'resource.archived' }>;
+  'resource.unarchived': Extract<ResourceEvent, { type: 'resource.unarchived' }>;
+
+  // Job domain events
+  'job.started': Extract<ResourceEvent, { type: 'job.started' }>;
+  'job.completed': Extract<ResourceEvent, { type: 'job.completed' }>;
+  'job.failed': Extract<ResourceEvent, { type: 'job.failed' }>;
+
+  // Representation domain events
+  'representation.added': Extract<ResourceEvent, { type: 'representation.added' }>;
+  'representation.removed': Extract<ResourceEvent, { type: 'representation.removed' }>;
+
+  // ===== SSE META EVENTS =====
+  // Internal SSE stream lifecycle events
+
+  'stream-connected': void;
+
+  // ===== APPLICATION EVENTS (colon notation) =====
+  // These are higher-level events for UI/business logic coordination
+
+  // Generic event (all domain events)
   'make-meaning:event': ResourceEvent;
 
-  // Detection events (backend real-time stream via GET /resources/:id/events/stream)
+  // Detection events (SSE progress streams)
   'detection:started': Extract<ResourceEvent, { type: 'job.started' }>;
   'detection:entity-found': Extract<ResourceEvent, { type: 'annotation.added' }>;
   'detection:completed': Extract<ResourceEvent, { type: 'job.completed' }>;
   'detection:failed': Extract<ResourceEvent, { type: 'job.failed' }>;
-  // Detection progress from SSE detection streams (all 5 motivation types)
   'detection:progress': DetectionProgress;
 
-  // Annotation events (backend)
+  // Annotation events (application-level)
   'annotation:added': Extract<ResourceEvent, { type: 'annotation.added' }>;
   'annotation:removed': Extract<ResourceEvent, { type: 'annotation.removed' }>;
   'annotation:updated': Extract<ResourceEvent, { type: 'annotation.body.updated' }>;
 
-  // Entity tag events (backend)
+  // Entity tag events (application-level)
   'entity-tag:added': Extract<ResourceEvent, { type: 'entitytag.added' }>;
   'entity-tag:removed': Extract<ResourceEvent, { type: 'entitytag.removed' }>;
 
-  // Resource events (backend)
+  // Resource events (application-level)
   'resource:archived': Extract<ResourceEvent, { type: 'resource.archived' }>;
   'resource:unarchived': Extract<ResourceEvent, { type: 'resource.unarchived' }>;
 

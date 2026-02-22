@@ -29,10 +29,8 @@ interface SSEConfig {
    * For generic error handling: Use 'error'
    */
   errorEvent: EventName | 'error' | null;
-  /** If true, use custom event handlers instead of standard mapping */
-  customEventHandler?: boolean;
-  /** Optional EventBus for event-driven architecture */
-  eventBus?: EventBus;
+  /** EventBus for event-driven architecture (required) */
+  eventBus: EventBus;
   /** Event prefix for EventBus (e.g., 'detection' → 'detection:progress') */
   eventPrefix?: string;
 }
@@ -42,11 +40,11 @@ interface SSEConfig {
  *
  * Uses native fetch() with manual SSE parsing for fine-grained control.
  * Supports AbortController for cancellation.
- * Events automatically emit to EventBus when provided in config.
+ * All events automatically route to EventBus (required).
  *
  * @param url - Full URL to SSE endpoint
  * @param fetchOptions - fetch() options (method, headers, body)
- * @param config - Event mapping configuration (must include eventBus and eventPrefix)
+ * @param config - Event mapping configuration (eventBus required, eventPrefix optional)
  * @returns SSEStream controller with close() method
  *
  * @example
@@ -84,7 +82,6 @@ export function createSSEStream(
   logger?: Logger
 ): SSEStream {
   const abortController = new AbortController();
-  const customHandlers = new Map<string, (data?: any) => void>();
   let closed = false; // Flag to stop processing events after close/complete/error
 
   /**
@@ -235,32 +232,35 @@ export function createSSEStream(
         hasData: !!data
       });
 
-      // Custom event handler (for resourceEvents which handles all events)
-      if (config.customEventHandler) {
-        const handler = customHandlers.get(eventType);
-        if (handler) {
-          handler(parsed);
-          return;
-        }
+      // Auto-route domain events: Events with 'type' field are domain events from event store
+      // Emit them directly to both their specific event name AND to 'make-meaning:event'
+      if (typeof parsed === 'object' && parsed !== null && 'type' in parsed) {
+        // Emit to specific domain event channel (e.g., 'annotation.added')
+        config.eventBus.get(eventType as EventName).next(parsed);
+        // Also emit to generic domain event channel for broad subscribers
+        config.eventBus.get('make-meaning:event').next(parsed);
+      } else {
+        // Non-domain event (progress, complete, etc.) - emit to specific channel only
+        config.eventBus.get(eventType as EventName).next(parsed);
       }
 
-      // EventBus integration (required - all streams must provide EventBus)
-      if (config.eventBus && config.eventPrefix) {
+      // Additional event prefix mapping for progress streams (detection:progress, generation:complete, etc.)
+      if (config.eventPrefix) {
         // Progress events (supports wildcard '*' for all events)
         if (config.progressEvents.includes('*' as any) || config.progressEvents.includes(eventType as any)) {
-          config.eventBus.get(`${config.eventPrefix}:progress` as any).next(parsed);
+          config.eventBus.get(`${config.eventPrefix}:progress` as EventName).next(parsed);
         }
 
         // Complete event
         if (config.completeEvent && eventType === config.completeEvent) {
-          config.eventBus.get(`${config.eventPrefix}:complete` as any).next(parsed);
+          config.eventBus.get(`${config.eventPrefix}:complete` as EventName).next(parsed);
           closed = true;
           abortController.abort();
         }
 
         // Error event
         if (config.errorEvent && eventType === config.errorEvent) {
-          config.eventBus.get(`${config.eventPrefix}:failed` as any).next({ error: new Error(parsed.message || 'Stream error') });
+          config.eventBus.get(`${config.eventPrefix}:failed` as EventName).next({ error: new Error(parsed.message || 'Stream error') });
           closed = true;
           abortController.abort();
         }
@@ -279,13 +279,6 @@ export function createSSEStream(
   return {
     close() {
       abortController.abort();
-    },
-
-    // Internal method for custom event handlers (used by resourceEvents)
-    // Accepts domain event names (e.g., 'annotation.added', 'job.completed')
-    // which are NOT in the Event Map (Event Map contains app-level events)
-    on(event: string, callback: (data?: any) => void) {
-      customHandlers.set(event, callback);
     }
-  } as SSEStream & { on?: (event: string, callback: (data?: any) => void) => void };
+  };
 }

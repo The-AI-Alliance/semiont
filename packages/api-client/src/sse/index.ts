@@ -180,7 +180,7 @@ export class SSEClient {
   detectReferences(
     resourceId: ResourceUri,
     request: DetectReferencesStreamRequest,
-    options?: SSERequestOptions
+    options: SSERequestOptions
   ): SSEStream {
     const id = this.extractId(resourceId);
     const url = `${this.baseUrl}/resources/${id}/detect-annotations-stream`;
@@ -189,14 +189,14 @@ export class SSEClient {
       url,
       {
         method: 'POST',
-        headers: this.getHeaders(options?.auth),
+        headers: this.getHeaders(options.auth),
         body: JSON.stringify(request)
       },
       {
         progressEvents: ['detection:started', 'detection:progress'],
         completeEvent: 'detection:complete',
         errorEvent: 'detection:failed',
-        eventBus: options?.eventBus,
+        eventBus: options.eventBus,
         eventPrefix: 'detection'
       },
       this.logger
@@ -244,7 +244,7 @@ export class SSEClient {
     resourceId: ResourceUri,
     annotationId: AnnotationUri,
     request: GenerateResourceStreamRequest,
-    options?: SSERequestOptions
+    options: SSERequestOptions
   ): SSEStream {
     const resId = this.extractId(resourceId);
     const annId = this.extractId(annotationId);
@@ -254,14 +254,14 @@ export class SSEClient {
       url,
       {
         method: 'POST',
-        headers: this.getHeaders(options?.auth),
+        headers: this.getHeaders(options.auth),
         body: JSON.stringify(request)
       },
       {
         progressEvents: ['generation:started', 'generation:progress'],
         completeEvent: 'generation:complete',
         errorEvent: 'generation:failed',
-        eventBus: options?.eventBus,
+        eventBus: options.eventBus,
         eventPrefix: 'generation'
       },
       this.logger
@@ -306,7 +306,7 @@ export class SSEClient {
   detectHighlights(
     resourceId: ResourceUri,
     request: DetectHighlightsStreamRequest = {},
-    options?: SSERequestOptions
+    options: SSERequestOptions
   ): SSEStream {
     const id = this.extractId(resourceId);
     const url = `${this.baseUrl}/resources/${id}/detect-highlights-stream`;
@@ -315,14 +315,14 @@ export class SSEClient {
       url,
       {
         method: 'POST',
-        headers: this.getHeaders(options?.auth),
+        headers: this.getHeaders(options.auth),
         body: JSON.stringify(request)
       },
       {
         progressEvents: ['detection:started', 'detection:progress'],
         completeEvent: 'detection:complete',
         errorEvent: 'detection:failed',
-        eventBus: options?.eventBus,
+        eventBus: options.eventBus,
         eventPrefix: 'detection'
       },
       this.logger
@@ -367,7 +367,7 @@ export class SSEClient {
   detectAssessments(
     resourceId: ResourceUri,
     request: DetectAssessmentsStreamRequest = {},
-    options?: SSERequestOptions
+    options: SSERequestOptions
   ): SSEStream {
     const id = this.extractId(resourceId);
     const url = `${this.baseUrl}/resources/${id}/detect-assessments-stream`;
@@ -376,14 +376,14 @@ export class SSEClient {
       url,
       {
         method: 'POST',
-        headers: this.getHeaders(options?.auth),
+        headers: this.getHeaders(options.auth),
         body: JSON.stringify(request)
       },
       {
         progressEvents: ['detection:started', 'detection:progress'],
         completeEvent: 'detection:complete',
         errorEvent: 'detection:failed',
-        eventBus: options?.eventBus,
+        eventBus: options.eventBus,
         eventPrefix: 'detection'
       },
       this.logger
@@ -432,7 +432,7 @@ export class SSEClient {
   detectComments(
     resourceId: ResourceUri,
     request: DetectCommentsStreamRequest = {},
-    options?: SSERequestOptions
+    options: SSERequestOptions
   ): SSEStream {
     const id = this.extractId(resourceId);
     const url = `${this.baseUrl}/resources/${id}/detect-comments-stream`;
@@ -441,14 +441,14 @@ export class SSEClient {
       url,
       {
         method: 'POST',
-        headers: this.getHeaders(options?.auth),
+        headers: this.getHeaders(options.auth),
         body: JSON.stringify(request)
       },
       {
         progressEvents: ['detection:started', 'detection:progress'],
         completeEvent: 'detection:complete',
         errorEvent: 'detection:failed',
-        eventBus: options?.eventBus,
+        eventBus: options.eventBus,
         eventPrefix: 'detection'
       },
       this.logger
@@ -498,7 +498,7 @@ export class SSEClient {
   detectTags(
     resourceId: ResourceUri,
     request: DetectTagsStreamRequest,
-    options?: SSERequestOptions
+    options: SSERequestOptions
   ): SSEStream {
     const id = this.extractId(resourceId);
     const url = `${this.baseUrl}/resources/${id}/detect-tags-stream`;
@@ -507,14 +507,14 @@ export class SSEClient {
       url,
       {
         method: 'POST',
-        headers: this.getHeaders(options?.auth),
+        headers: this.getHeaders(options.auth),
         body: JSON.stringify(request)
       },
       {
         progressEvents: ['detection:started', 'detection:progress'],
         completeEvent: 'detection:complete',
         errorEvent: 'detection:failed',
-        eventBus: options?.eventBus,
+        eventBus: options.eventBus,
         eventPrefix: 'detection'
       },
       this.logger
@@ -557,56 +557,36 @@ export class SSEClient {
    */
   resourceEvents(
     resourceId: ResourceUri,
-    options?: SSERequestOptions & { onConnected?: () => void }
+    options: SSERequestOptions & { onConnected?: () => void }
   ): SSEStream {
     const id = this.extractId(resourceId);
     const url = `${this.baseUrl}/resources/${id}/events/stream`;
 
+    // Events auto-route to EventBus:
+    // - Domain events (annotation.added, job.completed, etc.) emit to both their specific channel and 'make-meaning:event'
+    // - stream-connected emits to 'stream-connected' channel (subscribers can handle or ignore)
+    // No manual .on() registration needed - declarative auto-routing based on Event Map
     const stream = createSSEStream(
       url,
       {
         method: 'GET',
-        headers: this.getHeaders(options?.auth)
+        headers: this.getHeaders(options.auth)
       },
       {
-        progressEvents: ['*'], // Accept all event types
-        completeEvent: null, // Long-lived stream - no completion
-        errorEvent: 'error', // Generic error event
-        customEventHandler: true // Use custom event handling
+        progressEvents: ['*'], // Accept all event types (long-lived stream)
+        completeEvent: null, // Never completes (long-lived)
+        errorEvent: null, // No error event (errors throw)
+        eventBus: options.eventBus
       },
       this.logger
-    ) as SSEStream & { on?: (event: string, callback: (data?: any) => void) => void };
+    );
 
-    // Register handlers for all domain event types to emit to make-meaning:event
-    if (options?.eventBus) {
-      const eventBus = options.eventBus;
-
-      // Annotation events
-      stream.on?.('annotation.added', (event) => eventBus.get('make-meaning:event' as any).next(event));
-      stream.on?.('annotation.removed', (event) => eventBus.get('make-meaning:event' as any).next(event));
-      stream.on?.('annotation.body.updated', (event) => eventBus.get('make-meaning:event' as any).next(event));
-
-      // Entity tag events
-      stream.on?.('entitytag.added', (event) => eventBus.get('make-meaning:event' as any).next(event));
-      stream.on?.('entitytag.removed', (event) => eventBus.get('make-meaning:event' as any).next(event));
-
-      // Resource events
-      stream.on?.('resource.archived', (event) => eventBus.get('make-meaning:event' as any).next(event));
-      stream.on?.('resource.unarchived', (event) => eventBus.get('make-meaning:event' as any).next(event));
-
-      // Job events
-      stream.on?.('job.started', (event) => eventBus.get('make-meaning:event' as any).next(event));
-      stream.on?.('job.completed', (event) => eventBus.get('make-meaning:event' as any).next(event));
-      stream.on?.('job.failed', (event) => eventBus.get('make-meaning:event' as any).next(event));
-    }
-
-    // Register handler for stream-connected meta-event so it is filtered out
-    // of the progress stream and callers don't need to cast to any
-    if (options?.onConnected) {
-      stream.on?.('stream-connected', options.onConnected);
-    } else {
-      // Always consume stream-connected so it never reaches onProgress
-      stream.on?.('stream-connected', () => {});
+    // Handle onConnected callback by subscribing to stream-connected event
+    if (options.onConnected) {
+      const sub = options.eventBus.get('stream-connected').subscribe(() => {
+        options.onConnected!();
+        sub.unsubscribe(); // One-time callback
+      });
     }
 
     return stream;
