@@ -193,7 +193,7 @@ describe('Scripting Example: Entity Detection with Progress', () => {
 
     // Verify event flow
     expect(jobQueuedEvents.length).toBe(1);
-    expect(jobQueuedEvents[0].jobType).toBe('detect-references');
+    expect(jobQueuedEvents[0].jobType).toBe('detection');
 
     expect(detectionStartedEvents.length).toBe(1);
     expect(detectionCompletedEvents.length).toBe(1);

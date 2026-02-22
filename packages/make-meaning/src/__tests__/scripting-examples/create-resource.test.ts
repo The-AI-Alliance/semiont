@@ -113,13 +113,15 @@ describe('Scripting Example: Create Resource', () => {
     // Verify resource was created
     expect(result.resource).toBeDefined();
     expect(result.resource.name).toBe('Test Document');
-    expect(result.resource.format).toBe('text/plain');
-    expect(result.resource.language).toBe('en');
 
     // Verify content was stored (retrieve by checksum, not ID)
+    // Note: format and language are in representations, not at top level
     const representations = Array.isArray(result.resource.representations)
       ? result.resource.representations
       : [result.resource.representations];
+
+    expect(representations[0]?.mediaType).toBe('text/plain');
+    expect(representations[0]?.language).toBe('en');
 
     expect(representations).toHaveLength(1);
     const checksum = representations[0]?.checksum;
@@ -153,18 +155,18 @@ describe('Scripting Example: Create Resource', () => {
     expect(rId).toBeDefined();
     const resourceBus = eventBus.scope(rId!);
 
-    // Subscribe to the generic domain event channel
+    // Subscribe to the generic domain event channel BEFORE creating the update event
     const sub = resourceBus.get('make-meaning:event').subscribe(event => {
       domainEvents.push(event);
     });
 
-    // Now create another event (like updating the resource)
+    // Now create another event (like archiving the resource)
     await ResourceOperations.updateResource(
       {
         resourceId: resourceId(rId!),
         userId: userId('test-script'),
         currentArchived: false,
-        updatedArchived: false,
+        updatedArchived: true,
       },
       makeMeaning.eventStore
     );
@@ -172,10 +174,10 @@ describe('Scripting Example: Create Resource', () => {
     // Give events time to propagate
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    // Verify we received the update event
+    // Verify we received the archive event
     expect(domainEvents.length).toBeGreaterThan(0);
-    const updateEvent = domainEvents.find(e => e.type === 'resource.updated');
-    expect(updateEvent).toBeDefined();
+    const archiveEvent = domainEvents.find(e => e.type === 'resource.archived');
+    expect(archiveEvent).toBeDefined();
 
     sub.unsubscribe();
   });
