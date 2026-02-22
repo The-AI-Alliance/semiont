@@ -19,7 +19,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventBus } from '@semiont/core';
 import { startMakeMeaning, ResourceOperations } from '../..';
 import type { EnvironmentConfig } from '@semiont/core';
-import { userId, entityType } from '@semiont/core';
+import { userId, entityType, resourceId } from '@semiont/core';
+import { getResourceId } from '@semiont/api-client';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -129,10 +130,11 @@ describe('Scripting Example: Entity Detection with Progress', () => {
       config
     );
 
-    const rId = result.resource.id;
+    const rId = getResourceId(result.resource);
+    expect(rId).toBeDefined();
 
     // Create resource-scoped event bus
-    const resourceBus = eventBus.scope(rId);
+    const resourceBus = eventBus.scope(rId!);
 
     // Track events
     const jobQueuedEvents: any[] = [];
@@ -168,11 +170,18 @@ describe('Scripting Example: Entity Detection with Progress', () => {
 
     // Enqueue detection job
     await makeMeaning.jobQueue.createJob({
-      type: 'detect-references',
+      status: 'pending',
+      metadata: {
+        id: `job-${Date.now()}` as any,
+        type: 'detection',
+        userId: userId('test-script'),
+        created: new Date().toISOString(),
+        retryCount: 0,
+        maxRetries: 1
+      },
       params: {
-        resourceId: rId,
-        entityTypes: [entityType('Person'), entityType('Organization')],
-        userId: userId('test-script')
+        resourceId: resourceId(rId!),
+        entityTypes: [entityType('Person'), entityType('Organization')]
       }
     });
 
@@ -227,25 +236,36 @@ describe('Scripting Example: Entity Detection with Progress', () => {
 
     // Subscribe to completion events for each resource
     for (const { resource } of resources) {
-      const resourceBus = eventBus.scope(resource.id);
+      const rId = getResourceId(resource);
+      expect(rId).toBeDefined();
+      const resourceBus = eventBus.scope(rId!);
       resourceBus.get('detection:completed').subscribe(() => {
-        completions.set(resource.id, true);
-        console.log(`✓ Completed: ${resource.name} (${resource.id})`);
+        completions.set(rId!, true);
+        console.log(`✓ Completed: ${resource.name} (${rId})`);
       });
     }
 
     // Enqueue detection jobs for all resources
     await Promise.all(
-      resources.map(({ resource }) =>
-        makeMeaning.jobQueue.createJob({
-          type: 'detect-references',
+      resources.map(({ resource }, index) => {
+        const rId = getResourceId(resource);
+        expect(rId).toBeDefined();
+        return makeMeaning.jobQueue.createJob({
+          status: 'pending',
+          metadata: {
+            id: `job-${Date.now()}-${index}` as any,
+            type: 'detection',
+            userId: userId('test-script'),
+            created: new Date().toISOString(),
+            retryCount: 0,
+            maxRetries: 1
+          },
           params: {
-            resourceId: resource.id,
-            entityTypes: [entityType('Person'), entityType('Organization')],
-            userId: userId('test-script')
+            resourceId: resourceId(rId!),
+            entityTypes: [entityType('Person'), entityType('Organization')]
           }
-        })
-      )
+        });
+      })
     );
 
     // Wait for all completions (with timeout)
@@ -264,7 +284,9 @@ describe('Scripting Example: Entity Detection with Progress', () => {
     // Verify all completed
     expect(completions.size).toBe(resources.length);
     resources.forEach(({ resource }) => {
-      expect(completions.get(resource.id)).toBe(true);
+      const rId = getResourceId(resource);
+      expect(rId).toBeDefined();
+      expect(completions.get(rId!)).toBe(true);
     });
   });
 
@@ -283,8 +305,9 @@ describe('Scripting Example: Entity Detection with Progress', () => {
       config
     );
 
-    const rId = result.resource.id;
-    const resourceBus = eventBus.scope(rId);
+    const rId = getResourceId(result.resource);
+    expect(rId).toBeDefined();
+    const resourceBus = eventBus.scope(rId!);
 
     // Track progress percentage
     const progressPercentages: number[] = [];
@@ -302,11 +325,18 @@ describe('Scripting Example: Entity Detection with Progress', () => {
 
     // Enqueue job
     await makeMeaning.jobQueue.createJob({
-      type: 'detect-references',
+      status: 'pending',
+      metadata: {
+        id: `job-${Date.now()}` as any,
+        type: 'detection',
+        userId: userId('test-script'),
+        created: new Date().toISOString(),
+        retryCount: 0,
+        maxRetries: 1
+      },
       params: {
-        resourceId: rId,
-        entityTypes: [entityType('Person')],
-        userId: userId('test-script')
+        resourceId: resourceId(rId!),
+        entityTypes: [entityType('Person')]
       }
     });
 

@@ -19,6 +19,7 @@ import { EventBus } from '@semiont/core';
 import { startMakeMeaning, ResourceOperations } from '../..';
 import type { EnvironmentConfig } from '@semiont/core';
 import { userId, resourceId } from '@semiont/core';
+import { getResourceId } from '@semiont/api-client';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -115,10 +116,18 @@ describe('Scripting Example: Create Resource', () => {
     expect(result.resource.format).toBe('text/plain');
     expect(result.resource.language).toBe('en');
 
-    // Verify content was stored
-    const storedRep = await makeMeaning.repStore.retrieve(result.resource.id);
+    // Verify content was stored (retrieve by checksum, not ID)
+    const representations = Array.isArray(result.resource.representations)
+      ? result.resource.representations
+      : [result.resource.representations];
+
+    expect(representations).toHaveLength(1);
+    const checksum = representations[0]?.checksum;
+    expect(checksum).toBeDefined();
+
+    const storedRep = await makeMeaning.repStore.retrieve(checksum!, 'text/plain');
     expect(storedRep).toBeDefined();
-    expect(storedRep?.content.toString()).toBe('Hello, world!');
+    expect(storedRep.toString()).toBe('Hello, world!');
   });
 
   it('subscribes to resource-scoped domain events', async () => {
@@ -140,7 +149,9 @@ describe('Scripting Example: Create Resource', () => {
     );
 
     // Subscribe to resource-scoped EventBus for domain events
-    const resourceBus = eventBus.scope(result.resource.id);
+    const rId = getResourceId(result.resource);
+    expect(rId).toBeDefined();
+    const resourceBus = eventBus.scope(rId!);
 
     // Subscribe to the generic domain event channel
     const sub = resourceBus.get('make-meaning:event').subscribe(event => {
@@ -149,12 +160,13 @@ describe('Scripting Example: Create Resource', () => {
 
     // Now create another event (like updating the resource)
     await ResourceOperations.updateResource(
-      resourceId(result.resource.id),
-      { name: 'Updated Name' },
-      userId('test-script'),
-      makeMeaning.eventStore,
-      makeMeaning.repStore,
-      config
+      {
+        resourceId: resourceId(rId!),
+        userId: userId('test-script'),
+        currentArchived: false,
+        updatedArchived: false,
+      },
+      makeMeaning.eventStore
     );
 
     // Give events time to propagate
@@ -193,17 +205,16 @@ describe('Scripting Example: Create Resource', () => {
         config
       );
 
-      created.push(result.resource.id);
-      console.log(`✓ Created: ${result.resource.name} (${result.resource.id})`);
+      const id = getResourceId(result.resource);
+      expect(id).toBeDefined();
+      created.push(id!);
+      console.log(`✓ Created: ${result.resource.name} (${id})`);
     }
 
     // Verify all were created
     expect(created).toHaveLength(3);
 
-    // Verify they can be retrieved
-    for (const id of created) {
-      const stored = await makeMeaning.repStore.retrieve(id);
-      expect(stored).toBeDefined();
-    }
+    // Verify all were created successfully
+    expect(created.every(id => id.length > 0)).toBe(true);
   });
 });

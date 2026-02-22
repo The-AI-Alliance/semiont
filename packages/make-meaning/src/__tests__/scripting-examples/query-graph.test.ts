@@ -18,7 +18,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventBus } from '@semiont/core';
 import { startMakeMeaning, ResourceOperations, AnnotationOperations } from '../..';
 import type { EnvironmentConfig } from '@semiont/core';
-import { userId, resourceId, entityType, annotationId } from '@semiont/core';
+import { userId, resourceUri, uriToResourceId } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -125,21 +125,17 @@ describe('Scripting Example: Query Graph Database', () => {
     // Allow time for graph consumer to process events
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    // Query graph directly - no HTTP layer
-    const queryResult = await makeMeaning.graphDb.query(
-      `MATCH (r:Resource {id: $resourceId})
-       RETURN r`,
-      { resourceId: result.resource.id }
-    );
+    const rUri = resourceUri(result.resource['@id']);
 
-    console.log(`Query returned ${queryResult.records.length} records`);
+    // Query graph directly via GraphDatabase interface
+    const resource = await makeMeaning.graphDb.getResource(rUri);
+
+    console.log(`Found resource: ${resource?.name || 'null'}`);
 
     // Verify resource exists in graph
-    expect(queryResult.records.length).toBeGreaterThan(0);
-    const record = queryResult.records[0];
-    const node = record.get('r');
-    expect(node.properties.id).toBe(result.resource.id);
-    expect(node.properties.name).toBe('Test Document');
+    expect(resource).toBeDefined();
+    expect(resource?.['@id']).toBe(result.resource['@id']);
+    expect(resource?.name).toBe('Test Document');
   });
 
   it('queries annotations and their relationships', async () => {
@@ -157,15 +153,16 @@ describe('Scripting Example: Query Graph Database', () => {
       config
     );
 
-    const rId = resourceResult.resource.id;
+    const rUri = resourceUri(resourceResult.resource['@id']);
+    const rId = uriToResourceId(rUri);
 
     // Create an annotation
     await AnnotationOperations.createAnnotation(
-      resourceId(rId),
       {
         motivation: 'commenting',
         body: [{ value: 'This is a test comment', type: 'text' }],
         target: {
+          source: rUri,
           selector: {
             type: 'TextPositionSelector',
             start: 0,
@@ -181,29 +178,20 @@ describe('Scripting Example: Query Graph Database', () => {
     // Allow time for graph consumer to process
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    // Query for resource and its annotations
-    const queryResult = await makeMeaning.graphDb.query(
-      `MATCH (r:Resource {id: $resourceId})-[:HAS_ANNOTATION]->(a:Annotation)
-       RETURN r, a`,
-      { resourceId: rId }
-    );
+    // Query annotations using GraphDatabase interface
+    const annotations = await makeMeaning.graphDb.getResourceAnnotations(rId);
 
-    console.log(`Found ${queryResult.records.length} resource-annotation relationships`);
+    console.log(`Found ${annotations.length} annotations`);
 
-    // Verify relationship exists
-    if (queryResult.records.length > 0) {
-      const record = queryResult.records[0];
-      const resource = record.get('r');
-      const annotation = record.get('a');
-
-      expect(resource.properties.id).toBe(rId);
-      expect(annotation.properties.motivation).toBe('commenting');
-    }
+    // Verify annotations exist
+    expect(annotations.length).toBeGreaterThan(0);
+    const annotation = annotations[0];
+    expect(annotation.motivation).toBe('commenting');
   });
 
   it('demonstrates complex graph traversal', async () => {
     // Create multiple resources
-    const doc1 = await ResourceOperations.createResource(
+    await ResourceOperations.createResource(
       {
         name: 'Document 1',
         content: Buffer.from('First document'),
@@ -216,7 +204,7 @@ describe('Scripting Example: Query Graph Database', () => {
       config
     );
 
-    const doc2 = await ResourceOperations.createResource(
+    await ResourceOperations.createResource(
       {
         name: 'Document 2',
         content: Buffer.from('Second document'),
@@ -232,25 +220,18 @@ describe('Scripting Example: Query Graph Database', () => {
     // Allow graph consumer to process
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    // Query all resources
-    const allResources = await makeMeaning.graphDb.query(
-      `MATCH (r:Resource)
-       RETURN r
-       ORDER BY r.name`
-    );
+    // Query resources using GraphDatabase interface
+    const allResources = await makeMeaning.graphDb.listResources({});
 
-    console.log(`Total resources in graph: ${allResources.records.length}`);
+    console.log(`Total resources in graph: ${allResources.total}`);
 
     // Verify both resources exist
-    expect(allResources.records.length).toBeGreaterThanOrEqual(2);
+    expect(allResources.total).toBeGreaterThanOrEqual(2);
+    expect(allResources.resources.length).toBeGreaterThanOrEqual(2);
 
     // Find specific resources by name
-    const foundDoc1 = allResources.records.find(r =>
-      r.get('r').properties.name === 'Document 1'
-    );
-    const foundDoc2 = allResources.records.find(r =>
-      r.get('r').properties.name === 'Document 2'
-    );
+    const foundDoc1 = allResources.resources.find(r => r.name === 'Document 1');
+    const foundDoc2 = allResources.resources.find(r => r.name === 'Document 2');
 
     expect(foundDoc1).toBeDefined();
     expect(foundDoc2).toBeDefined();
@@ -271,14 +252,17 @@ describe('Scripting Example: Query Graph Database', () => {
       config
     );
 
+    const rUri = resourceUri(resource.resource['@id']);
+    const rId = uriToResourceId(rUri);
+
     // Create a few annotations
     for (let i = 0; i < 3; i++) {
       await AnnotationOperations.createAnnotation(
-        resourceId(resource.resource.id),
         {
           motivation: 'commenting',
           body: [{ value: `Comment ${i + 1}`, type: 'text' }],
           target: {
+            source: rUri,
             selector: {
               type: 'TextPositionSelector',
               start: i * 5,
@@ -295,32 +279,28 @@ describe('Scripting Example: Query Graph Database', () => {
     // Allow processing
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    // Query graph statistics
-    const stats = await makeMeaning.graphDb.query(
-      `MATCH (r:Resource {id: $resourceId})-[:HAS_ANNOTATION]->(a:Annotation)
-       RETURN r.id as resourceId, r.name as resourceName, count(a) as annotationCount`,
-      { resourceId: resource.resource.id }
-    );
+    // Query graph statistics using GraphDatabase interface
+    const stats = await makeMeaning.graphDb.getStats();
+    const annotations = await makeMeaning.graphDb.getResourceAnnotations(rId);
 
     console.log('Graph statistics:');
-    if (stats.records.length > 0) {
-      const record = stats.records[0];
-      console.log(`  Resource: ${record.get('resourceName')}`);
-      console.log(`  Annotations: ${record.get('annotationCount')}`);
+    console.log(`  Total Resources: ${stats.resourceCount}`);
+    console.log(`  Total Annotations: ${stats.annotationCount}`);
+    console.log(`  Resource "${resource.resource.name}" has ${annotations.length} annotations`);
 
-      expect(record.get('resourceId')).toBe(resource.resource.id);
-      expect(record.get('annotationCount').toNumber()).toBeGreaterThanOrEqual(0);
-    }
+    expect(stats.resourceCount).toBeGreaterThan(0);
+    expect(stats.annotationCount).toBeGreaterThanOrEqual(0);
+    expect(annotations.length).toBeGreaterThanOrEqual(0);
   });
 
   it('demonstrates direct graph database access', async () => {
     // This shows you have full access to the graph database
-    // for any custom queries your script needs
+    // via the GraphDatabase interface methods
 
-    const result = await ResourceOperations.createResource(
+    await ResourceOperations.createResource(
       {
         name: 'Custom Query Test',
-        content: Buffer.from('Testing custom graph queries'),
+        content: Buffer.from('Testing graph database queries'),
         format: 'text/plain',
         language: 'en'
       },
@@ -332,18 +312,16 @@ describe('Scripting Example: Query Graph Database', () => {
 
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    // Custom Cypher query - you have full power of Neo4j/MemGraph
-    const customQuery = await makeMeaning.graphDb.query(
-      `MATCH (r:Resource)
-       WHERE r.name CONTAINS 'Custom'
-       RETURN r.id as id, r.name as name, r.format as format`
-    );
+    // Search for resources using GraphDatabase interface
+    const searchResults = await makeMeaning.graphDb.searchResources('Custom', 10);
 
-    console.log('Custom query results:');
-    customQuery.records.forEach(record => {
-      console.log(`  - ${record.get('name')} (${record.get('format')})`);
+    console.log('Search results:');
+    searchResults.forEach(resource => {
+      console.log(`  - ${resource.name} (${resource.format})`);
     });
 
-    expect(customQuery.records.length).toBeGreaterThan(0);
+    expect(searchResults.length).toBeGreaterThan(0);
+    const found = searchResults.find(r => r.name === 'Custom Query Test');
+    expect(found).toBeDefined();
   });
 });
