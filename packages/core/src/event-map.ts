@@ -263,3 +263,9 @@ export type EventMap = {
     error: Error;
   };
 };
+
+/**
+ * Union type of all valid event names
+ * Use this to enforce compile-time checking of event names
+ */
+export type EventName = keyof EventMap;

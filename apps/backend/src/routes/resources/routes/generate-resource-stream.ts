@@ -26,6 +26,7 @@ import { getTargetSelector } from '@semiont/api-client';
 import { jobId, entityType } from '@semiont/core';
 import { userId, resourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
+import { writeTypedSSE } from '../../../lib/sse-helpers';
 
 type GenerateResourceStreamRequest = components['schemas']['GenerateResourceStreamRequest'];
 
@@ -180,7 +181,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
               if (isStreamClosed) return;
               console.log(`[GenerateResource] Generation started for resource ${resourceIdParam}`);
               try {
-                await stream.writeSSE({
+                await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'started',
                     referenceId: reference.id,
@@ -204,7 +205,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
               if (isStreamClosed) return;
               console.log(`[GenerateResource] Generation progress for resource ${resourceIdParam}:`, progress);
               try {
-                await stream.writeSSE({
+                await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: progress.status,
                     referenceId: reference.id,
@@ -228,7 +229,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
               if (isStreamClosed) return;
               console.log(`[GenerateResource] Generation completed for resource ${resourceIdParam}`);
               try {
-                await stream.writeSSE({
+                await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'complete',
                     referenceId: reference.id,
@@ -275,7 +276,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
         } catch (error) {
           // Send error event
           try {
-            await stream.writeSSE({
+            await writeTypedSSE(stream, {
               data: JSON.stringify({
                 status: 'error',
                 referenceId: reference.id,

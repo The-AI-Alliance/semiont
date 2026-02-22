@@ -23,6 +23,7 @@ import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/core';
 import { jobId } from '@semiont/core';
 import { userId, resourceId, type ResourceId } from '@semiont/core';
+import { writeTypedSSE } from '../../../lib/sse-helpers';
 
 type DetectCommentsStreamRequest = components['schemas']['DetectCommentsStreamRequest'];
 
@@ -146,7 +147,7 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
               if (isStreamClosed) return;
               console.log(`[DetectComments] Detection started for resource ${id}`);
               try {
-                await stream.writeSSE({
+                await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'started',
                     resourceId: resourceId(id),
@@ -168,7 +169,7 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
               if (isStreamClosed) return;
               console.log(`[DetectComments] Detection progress for resource ${id}:`, progress);
               try {
-                await stream.writeSSE({
+                await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: progress.status || 'analyzing',
                     resourceId: resourceId(id),
@@ -193,7 +194,7 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
               console.log(`[DetectComments] Detection completed for resource ${id}`);
               try {
                 const result = event.payload.result;
-                await stream.writeSSE({
+                await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'complete',
                     resourceId: resourceId(id),
@@ -220,7 +221,7 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
               if (isStreamClosed) return;
               console.log(`[DetectComments] Detection failed for resource ${id}:`, event.payload.error);
               try {
-                await stream.writeSSE({
+                await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'error',
                     resourceId: resourceId(id),

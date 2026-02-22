@@ -9,18 +9,26 @@
 
 import type { SSEStream } from './types';
 import type { Logger } from '../logger';
-import type { EventBus } from '@semiont/core';
+import type { EventBus, EventName } from '@semiont/core';
 
 /**
  * Configuration for SSE stream event handling
  */
 interface SSEConfig {
-  /** Event types that trigger onProgress callback */
-  progressEvents: string[];
+  /**
+   * Event types that trigger onProgress callback
+   * For typed streams: Use EventName values from Event Map
+   * For wildcard streams: Use ['*'] to accept all events
+   */
+  progressEvents: (EventName | '*')[];
   /** Event type that triggers onComplete callback (null for long-lived streams) */
-  completeEvent: string | null;
-  /** Event type that triggers onError callback */
-  errorEvent: string | null;
+  completeEvent: EventName | null;
+  /**
+   * Event type that triggers onError callback
+   * For typed streams: Use EventName values from Event Map
+   * For generic error handling: Use 'error'
+   */
+  errorEvent: EventName | 'error' | null;
   /** If true, use custom event handlers instead of standard mapping */
   customEventHandler?: boolean;
   /** Optional EventBus for event-driven architecture */
@@ -238,8 +246,8 @@ export function createSSEStream(
 
       // EventBus integration (required - all streams must provide EventBus)
       if (config.eventBus && config.eventPrefix) {
-        // Progress events
-        if (config.progressEvents.includes(eventType)) {
+        // Progress events (supports wildcard '*' for all events)
+        if (config.progressEvents.includes('*' as any) || config.progressEvents.includes(eventType as any)) {
           config.eventBus.get(`${config.eventPrefix}:progress` as any).next(parsed);
         }
 
@@ -274,6 +282,8 @@ export function createSSEStream(
     },
 
     // Internal method for custom event handlers (used by resourceEvents)
+    // Accepts domain event names (e.g., 'annotation.added', 'job.completed')
+    // which are NOT in the Event Map (Event Map contains app-level events)
     on(event: string, callback: (data?: any) => void) {
       customHandlers.set(event, callback);
     }

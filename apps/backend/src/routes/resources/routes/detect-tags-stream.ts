@@ -23,6 +23,7 @@ import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/core';
 import { jobId } from '@semiont/core';
 import { userId, resourceId, type ResourceId } from '@semiont/core';
+import { writeTypedSSE } from '../../../lib/sse-helpers';
 import { getTagSchema } from '@semiont/ontology';
 
 type DetectTagsStreamRequest = components['schemas']['DetectTagsStreamRequest'];
@@ -162,7 +163,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
               if (isStreamClosed) return;
               console.log(`[DetectTags] Detection started for resource ${id}`);
               try {
-                await stream.writeSSE({
+                await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'started',
                     resourceId: resourceId(id),
@@ -185,7 +186,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
               if (isStreamClosed) return;
               console.log(`[DetectTags] Detection progress for resource ${id}:`, progress);
               try {
-                await stream.writeSSE({
+                await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: progress.status || 'analyzing',
                     resourceId: resourceId(id),
@@ -213,7 +214,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
               console.log(`[DetectTags] Detection completed for resource ${id}`);
               try {
                 const result = event.payload.result;
-                await stream.writeSSE({
+                await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'complete',
                     resourceId: resourceId(id),
@@ -241,7 +242,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
               if (isStreamClosed) return;
               console.log(`[DetectTags] Detection failed for resource ${id}:`, event.payload.error);
               try {
-                await stream.writeSSE({
+                await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'error',
                     resourceId: resourceId(id),

@@ -23,6 +23,7 @@ import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/core';
 import { jobId } from '@semiont/core';
 import { userId, resourceId, type ResourceId } from '@semiont/core';
+import { writeTypedSSE } from '../../../lib/sse-helpers';
 
 type DetectHighlightsStreamRequest = components['schemas']['DetectHighlightsStreamRequest'];
 
@@ -145,7 +146,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
               if (isStreamClosed) return;
               console.log(`[DetectHighlights] Detection started for resource ${id}`);
               try {
-                await stream.writeSSE({
+                await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'started',
                     resourceId: resourceId(id),
@@ -167,7 +168,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
               if (isStreamClosed) return;
               console.log(`[DetectHighlights] Detection progress for resource ${id}:`, progress);
               try {
-                await stream.writeSSE({
+                await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: progress.status || 'analyzing',
                     resourceId: resourceId(id),
@@ -192,7 +193,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
               console.log(`[DetectHighlights] Detection completed for resource ${id}`);
               try {
                 const result = event.payload.result;
-                await stream.writeSSE({
+                await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'complete',
                     resourceId: resourceId(id),
@@ -219,7 +220,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
               if (isStreamClosed) return;
               console.log(`[DetectHighlights] Detection failed for resource ${id}:`, event.payload.error);
               try {
-                await stream.writeSSE({
+                await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'error',
                     resourceId: resourceId(id),
