@@ -50,15 +50,6 @@ export class GraphDBConsumer {
   }
 
   /**
-   * @deprecated No longer needed - GraphConsumer uses global subscription only
-   * Kept for backward compatibility with existing code (e.g., rebuild-graph.ts)
-   */
-  async subscribeToResource(resourceId: ResourceId) {
-    // No-op: Global subscription already receives all resource events
-    console.log(`[GraphDBConsumer] subscribeToResource(${resourceId}) - no-op (using global subscription)`);
-  }
-
-  /**
    * Stop the consumer and unsubscribe from all events
    */
   async stop() {
@@ -371,22 +362,6 @@ export class GraphDBConsumer {
       lastProcessed: Object.fromEntries(this.lastProcessed),
       processing: Array.from(this.processing.keys()),
     };
-  }
-
-  /**
-   * @deprecated No longer needed - GraphConsumer uses global subscription only
-   */
-  async unsubscribeFromResource(resourceId: ResourceId): Promise<void> {
-    // No-op: Using global subscription, can't unsubscribe from individual resources
-    console.log(`[GraphDBConsumer] unsubscribeFromResource(${resourceId}) - no-op (using global subscription)`);
-  }
-
-  /**
-   * @deprecated No longer needed - GraphConsumer uses global subscription only
-   * Use stop() instead
-   */
-  async unsubscribeAll(): Promise<void> {
-    console.log('[GraphDBConsumer] unsubscribeAll() - no-op (use stop() instead)');
   }
 
   /**
