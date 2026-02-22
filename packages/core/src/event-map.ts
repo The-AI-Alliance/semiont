@@ -110,6 +110,9 @@ export type EventMap = {
   'resource:archived': Extract<ResourceEvent, { type: 'resource.archived' }>;
   'resource:unarchived': Extract<ResourceEvent, { type: 'resource.unarchived' }>;
 
+  // Job queue lifecycle events
+  'job:queued': { jobId: string; jobType: string; resourceId: string };
+
   // ===== USER INTERACTION EVENTS =====
 
   // Selection events (user highlighting text/regions)

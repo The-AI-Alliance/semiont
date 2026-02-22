@@ -1,12 +1,10 @@
 /**
  * Environment Loader Module
  *
- * Responsible for loading and merging environment configurations.
- * Handles semiont.json base config and environment-specific overrides.
+ * Responsible for parsing and merging environment configurations.
+ * Pure functions only - callers handle filesystem I/O.
  */
 
-import * as fs from 'fs';
-import * as path from 'path';
 import { ConfigurationError } from './configuration-error';
 import { PlatformType } from './platform-types';
 import { isObject } from '../index';
@@ -299,61 +297,50 @@ export function displayConfiguration(config: EnvironmentConfig): void {
 }
 
 /**
- * Find project root from SEMIONT_ROOT environment variable
- *
- * @returns Absolute path to project root
- * @throws ConfigurationError if SEMIONT_ROOT is not set or points to non-existent directory
+ * File reader abstraction for platform-agnostic config loading
+ * Implementations provide platform-specific file I/O (Node.js, Deno, Bun, etc.)
  */
-export function findProjectRoot(): string {
-  const root = process.env.SEMIONT_ROOT;
-
-  if (!root) {
-    throw new ConfigurationError(
-      'SEMIONT_ROOT environment variable is not set',
-      undefined,
-      'Set SEMIONT_ROOT to your project directory'
-    );
-  }
-
-  if (!fs.existsSync(root)) {
-    throw new ConfigurationError(
-      `SEMIONT_ROOT points to non-existent directory: ${root}`,
-      undefined,
-      'Check that SEMIONT_ROOT environment variable is set correctly'
-    );
-  }
-
-  return root;
-}
+export type ConfigFileReader = {
+  /** Read file if it exists, return null otherwise */
+  readIfExists: (path: string) => string | null;
+  /** Read file, throw error if it doesn't exist */
+  readRequired: (path: string) => string;
+};
 
 /**
- * Load environment configuration from filesystem
- * Wrapper around parseAndMergeConfigs that handles filesystem I/O
+ * Create a config loader with a specific file reader implementation
+ * Higher-order function that returns a platform-specific config loader
  *
- * @param projectRoot - Absolute path to project root
- * @param environment - Environment name (e.g., 'local', 'production')
- * @returns Merged and validated environment configuration
- * @throws ConfigurationError if configuration files are missing or invalid
+ * @param reader - Platform-specific file reader implementation
+ * @returns Function to load environment config from filesystem
+ *
+ * @example
+ * ```typescript
+ * import * as fs from 'fs';
+ * import { createConfigLoader } from '@semiont/core';
+ *
+ * const nodeReader = {
+ *   readIfExists: (path) => fs.existsSync(path) ? fs.readFileSync(path, 'utf-8') : null,
+ *   readRequired: (path) => {
+ *     if (!fs.existsSync(path)) throw new Error(`File not found: ${path}`);
+ *     return fs.readFileSync(path, 'utf-8');
+ *   },
+ * };
+ *
+ * const loadConfig = createConfigLoader(nodeReader);
+ * const config = loadConfig('/project/root', 'production');
+ * ```
  */
-export function loadEnvironmentConfig(projectRoot: string, environment: string): EnvironmentConfig {
-  // Load base semiont.json
-  const baseConfigPath = path.join(projectRoot, 'semiont.json');
-  const baseContent = fs.existsSync(baseConfigPath)
-    ? fs.readFileSync(baseConfigPath, 'utf-8')
-    : null;
+export function createConfigLoader(reader: ConfigFileReader) {
+  return (projectRoot: string, environment: string): EnvironmentConfig => {
+    // Read base semiont.json (optional)
+    const baseContent = reader.readIfExists(`${projectRoot}/semiont.json`);
 
-  // Load environment-specific config
-  const envPath = path.join(projectRoot, 'environments', `${environment}.json`);
-  if (!fs.existsSync(envPath)) {
-    throw new ConfigurationError(
-      `Environment configuration missing: ${envPath}`,
-      environment,
-      `Create the configuration file or use: semiont init`
-    );
-  }
+    // Read environment-specific config (required)
+    const envContent = reader.readRequired(`${projectRoot}/environments/${environment}.json`);
 
-  const envContent = fs.readFileSync(envPath, 'utf-8');
-
-  // Use pure function with filesystem inputs
-  return parseAndMergeConfigs(baseContent, envContent, process.env, environment, projectRoot);
+    // Use pure function to parse and merge
+    return parseAndMergeConfigs(baseContent, envContent, process.env, environment, projectRoot);
+  };
 }
+
