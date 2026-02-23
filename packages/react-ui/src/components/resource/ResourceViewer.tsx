@@ -48,7 +48,7 @@ interface Props {
 
 /**
  * @emits annotate:delete - User requested to delete annotation. Payload: { annotationId: string }
- * @emits panel:open - Request to open panel with annotation. Payload: { panel: string, scrollToAnnotationId?: string, motivation?: Motivation }
+ * @emits attend:panel-open - Request to open panel with annotation. Payload: { panel: string, scrollToAnnotationId?: string, motivation?: Motivation }
  *
  * @subscribes view:mode-toggled - Toggles between browse and annotate mode. Payload: { mode: 'browse' | 'annotate' }
  * @subscribes annotate:added - New annotation was added. Payload: { annotation: Annotation }
@@ -339,7 +339,7 @@ export function ResourceViewer({
 
     // All annotations open the unified annotations panel
     // The panel internally switches tabs based on the motivation → tab mapping in UnifiedAnnotationsPanel
-    eventBus.get('panel:open').next({ panel: 'annotations', scrollToAnnotationId: annotationId, motivation });
+    eventBus.get('attend:panel-open').next({ panel: 'annotations', scrollToAnnotationId: annotationId, motivation });
   }, [highlights, references, assessments, comments, tags, handleAnnotationClick, selectedClick]);
 
   // Event subscriptions - Combined into single useEventSubscriptions call to prevent hook ordering issues

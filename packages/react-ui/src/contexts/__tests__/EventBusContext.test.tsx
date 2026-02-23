@@ -52,8 +52,8 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
-        result.current.get('panel:toggle').subscribe(handler);
-        result.current.get('panel:toggle').next({ panel: 'comments' });
+        result.current.get('attend:panel-toggle').subscribe(handler);
+        result.current.get('attend:panel-toggle').next({ panel: 'comments' });
       });
 
       expect(handler).toHaveBeenCalledWith({ panel: 'comments' });
@@ -100,8 +100,8 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
-        result.current.get('annotate:create).subscribe(handler);
-        result.current.get('annotate:create).next({
+        result.current.get('annotate:create').subscribe(handler);
+        result.current.get('annotate:create').next({
           motivation: 'highlighting',
           selector: { type: 'TextQuoteSelector', exact: 'test' },
           body: [{ type: 'TextualBody', value: 'highlight' }]
@@ -240,12 +240,12 @@ describe('EventBusContext', () => {
 
       act(() => {
         // Subscribe to annotation events
-        result.current.get('annotate:create).subscribe(createHandler);
+        result.current.get('annotate:create').subscribe(createHandler);
         result.current.get('annotate:created').subscribe(createdHandler);
         result.current.get('attend:hover').subscribe(hoverHandler);
 
         // Simulate annotation creation flow
-        result.current.get('annotate:create).next({
+        result.current.get('annotate:create').next({
           motivation: 'commenting',
           selector: { type: 'TextQuoteSelector', exact: 'important text' },
           body: [{ type: 'TextualBody', value: 'my comment' }]

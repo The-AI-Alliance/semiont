@@ -57,7 +57,7 @@ export interface DetectionFlowState {
  * Hook for annotation detection flow (manual and AI-driven)
  *
  * @param rUri - Resource URI being detected
- * @emits panel:open - Open the annotations panel when annotation is requested
+ * @emits attend:panel-open - Open the annotations panel when annotation is requested
  * @emits annotate:created - Annotation successfully created
  * @emits annotate:create-failed - Annotation creation failed
  * @emits annotate:deleted - Annotation successfully deleted
@@ -121,7 +121,7 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
     };
 
     // Emit event to open the appropriate panel
-    eventBus.get('panel:open').next({ panel: MOTIVATION_TO_TAB[pending.motivation] || 'annotations' });
+    eventBus.get('attend:panel-open').next({ panel: MOTIVATION_TO_TAB[pending.motivation] || 'annotations' });
     setPendingAnnotation(pending);
   }, []); // eventBus is stable singleton - never in deps
 
