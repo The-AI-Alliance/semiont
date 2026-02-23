@@ -254,14 +254,15 @@ export type EventMap = {
   // ========================================================================
   // Resource management
   // ========================================================================
+  // Command/Event pairs: UI emits command → Backend confirms with domain event
 
-  // Domain Events (from backend event store)
-  'resource:archived': Extract<ResourceEvent, { type: 'resource.archived' }>;
-  'resource:unarchived': Extract<ResourceEvent, { type: 'resource.unarchived' }>;
-
-  // Resource operations
+  // Archive command (UI) → archived event (backend confirmation via SSE)
   'resource:archive': void;
+  'resource:archived': Extract<ResourceEvent, { type: 'resource.archived' }>;
+
+  // Unarchive command (UI) → unarchived event (backend confirmation via SSE)
   'resource:unarchive': void;
+  'resource:unarchived': Extract<ResourceEvent, { type: 'resource.unarchived' }>;
 
   // ========================================================================
   // Job control
