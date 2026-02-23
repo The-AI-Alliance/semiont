@@ -204,7 +204,6 @@ export function useGenerationFlow(
         context: any;
       };
     }) => {
-      console.log('[useGenerationFlow] handleGenerationStart called', { annotationUri: event.annotationUri, options: event.options });
       try {
         generationStreamRef.current?.abort();
         generationStreamRef.current = new AbortController();
@@ -219,9 +218,7 @@ export function useGenerationFlow(
         );
         // Events auto-emit to EventBus: generation:progress, generation:complete, generation:failed
       } catch (error) {
-        if ((error as any).name === 'AbortError') {
-          console.log('[useGenerationFlow] Generation cancelled');
-        } else {
+        if ((error as any).name !== 'AbortError') {
           console.error('[useGenerationFlow] Generation failed:', error);
           eventBus.get('generation:failed').next({ error: error as Error });
         }

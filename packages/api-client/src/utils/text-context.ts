@@ -147,7 +147,6 @@ export function validateAndCorrectOffsets(
 
   if (textAtOffset === exact) {
     // AI got it right! Just add proper context
-    console.log(`[validateAndCorrectOffsets] ✓ Offsets correct for: "${exactPreview}"`);
     const context = extractContext(content, aiStart, aiEnd);
     return {
       start: aiStart,

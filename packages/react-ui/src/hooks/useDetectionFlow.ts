@@ -317,7 +317,6 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
     }) => {
       const currentClient = clientRef.current;
       const currentRUri = rUriRef.current;
-      console.log('[useDetectionFlow] handleDetectionStart called', { motivation: event.motivation, options: event.options });
       try {
         // Cancel any existing detection
         if (detectionStreamRef.current) {
