@@ -157,9 +157,9 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
           const resourceBus = eventBus.scope(id);
           console.log(`[DetectTags] Subscribing to EventBus for resource ${id}`);
 
-          // Subscribe to detection:started
+          // Subscribe to detect:progress
           subscriptions.push(
-            resourceBus.get('detection:started').subscribe(async (_event) => {
+            resourceBus.get('detect:progress').subscribe(async (_event) => {
               if (isStreamClosed) return;
               console.log(`[DetectTags] Detection started for resource ${id}`);
               try {
@@ -170,7 +170,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
                     totalCategories: categories.length,
                     message: 'Starting detection...'
                   } as TagDetectionProgress),
-                  event: 'detection:started',
+                  event: 'detect:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -180,9 +180,9 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
             })
           );
 
-          // Subscribe to detection:progress
+          // Subscribe to detect:progress
           subscriptions.push(
-            resourceBus.get('detection:progress').subscribe(async (progress) => {
+            resourceBus.get('detect:progress').subscribe(async (progress) => {
               if (isStreamClosed) return;
               console.log(`[DetectTags] Detection progress for resource ${id}:`, progress);
               try {
@@ -197,7 +197,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
                     totalCategories: progress.totalCategories,
                     message: progress.message || 'Processing...'
                   } as TagDetectionProgress),
-                  event: 'detection:progress',
+                  event: 'detect:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -207,9 +207,10 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
             })
           );
 
-          // Subscribe to detection:completed
+          // Subscribe to job.completed
           subscriptions.push(
-            resourceBus.get('detection:completed').subscribe(async (event) => {
+            resourceBus.get('job.completed').subscribe(async (event) => {
+      if (event.payload.jobType !== 'detection') return;
               if (isStreamClosed) return;
               console.log(`[DetectTags] Detection completed for resource ${id}`);
               try {
@@ -226,7 +227,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
                       ? `Complete! Created ${result.tagsCreated} tags`
                       : 'Tag detection complete!'
                   } as TagDetectionProgress),
-                  event: 'detection:complete',
+                  event: 'detect:finished',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -236,9 +237,10 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
             })
           );
 
-          // Subscribe to detection:failed
+          // Subscribe to job.failed
           subscriptions.push(
-            resourceBus.get('detection:failed').subscribe(async (event) => {
+            resourceBus.get('job.failed').subscribe(async (event) => {
+      if (event.payload.jobType !== 'detection') return;
               if (isStreamClosed) return;
               console.log(`[DetectTags] Detection failed for resource ${id}:`, event.payload.error);
               try {
@@ -248,7 +250,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
                     resourceId: resourceId(id),
                     message: event.payload.error || 'Tag detection failed'
                   } as TagDetectionProgress),
-                  event: 'detection:failed',
+                  event: 'job.failed',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -291,7 +293,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
                 resourceId: resourceId(id),
                 message: error instanceof Error ? error.message : 'Tag detection failed'
               } as TagDetectionProgress),
-              event: 'detection:failed',
+              event: 'job.failed',
               id: String(Date.now())
             });
           } catch (sseError) {

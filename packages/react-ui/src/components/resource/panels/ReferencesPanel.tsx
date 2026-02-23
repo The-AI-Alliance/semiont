@@ -68,7 +68,7 @@ interface Props {
 /**
  * Panel for managing reference annotations with entity type detection
  *
- * @emits detection:start - Start reference detection. Payload: { motivation: 'linking', options: { entityTypes: string[], includeDescriptiveReferences: boolean } }
+ * @emits detect:request - Start reference detection. Payload: { motivation: 'linking', options: { entityTypes: string[], includeDescriptiveReferences: boolean } }
  * @emits annotation:create - Create new reference annotation. Payload: { motivation: 'linking', selector: Selector | Selector[], body: Body[] }
  * @emits annotation:cancel-pending - Cancel pending reference annotation. Payload: undefined
  * @subscribes annotation:click - Annotation clicked. Payload: { annotationId: string }
@@ -207,7 +207,7 @@ export function ReferencesPanel({
   // Clear log when starting new detection
   const handleDetect = () => {
     setLastDetectionLog(null);
-    eventBus.get('detection:start').next({
+    eventBus.get('detect:request').next({
       motivation: 'linking',
       options: {
         entityTypes: selectedEntityTypes,

@@ -61,7 +61,7 @@ describe('Annotation Deletion - Feature Integration', () => {
     function TestComponent() {
       eventBusInstance = useEventBus();
       // useDetectionFlow is the single registration point for useResolutionFlow
-      // (handles annotation:delete, annotation:create, detection:start, etc.)
+      // (handles annotation:delete, annotation:create, detect:request, etc.)
       useDetectionFlow(testUri);
       return null;
     }

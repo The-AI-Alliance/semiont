@@ -157,7 +157,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Simulate SSE progress callback being invoked
     act(() => {
-      getEventBus().get('generation:progress').next({
+      getEventBus().get('generate:progress').next({
         status: 'generating',
         message: 'Generating content...',
         percentage: 25,
@@ -193,7 +193,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // First progress update
     act(() => {
-      getEventBus().get('generation:progress').next({
+      getEventBus().get('generate:progress').next({
         status: 'started',
         message: 'Starting generation...',
         percentage: 0,
@@ -206,7 +206,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Second progress update
     act(() => {
-      getEventBus().get('generation:progress').next({
+      getEventBus().get('generate:progress').next({
         status: 'generating',
         message: 'Creating document structure...',
         percentage: 50,
@@ -219,7 +219,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Final progress update via onComplete
     act(() => {
-      getEventBus().get('generation:complete').next({
+      getEventBus().get('generate:finished').next({
         status: 'complete',
         referenceId: testAnnotationUri,
         message: 'Document created successfully',
@@ -256,7 +256,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Simulate completion with final chunk
     act(() => {
-      getEventBus().get('generation:progress').next({
+      getEventBus().get('generate:progress').next({
         status: 'complete',
         message: 'Complete',
         resourceName: 'Generated Document',
@@ -265,7 +265,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Emit completion event
     act(() => {
-      getEventBus().get('generation:complete').next({
+      getEventBus().get('generate:finished').next({
         status: 'complete',
         referenceId: testAnnotationUri,
         resourceName: 'Generated Document',
@@ -295,7 +295,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Add some progress
     act(() => {
-      getEventBus().get('generation:progress').next({
+      getEventBus().get('generate:progress').next({
         status: 'generating',
         message: 'Generating...',
       });
@@ -307,7 +307,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Emit failure
     act(() => {
-      getEventBus().get('generation:failed').next({ error: new Error('Network error') });
+      getEventBus().get('generate:failed').next({ error: new Error('Network error') });
     });
 
     // Verify: progress cleared and not generating
@@ -327,7 +327,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Add an additional event listener (simulating multiple subscribers)
     const additionalListener = vi.fn();
-    const subscription = getEventBus().get('generation:start').subscribe(additionalListener);
+    const subscription = getEventBus().get('generate:request').subscribe(additionalListener);
 
     // Trigger generation
     act(() => {
@@ -373,7 +373,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Simulate onComplete with final chunk
     act(() => {
-      getEventBus().get('generation:complete').next({
+      getEventBus().get('generate:finished').next({
         status: 'complete',
         referenceId: testAnnotationUri,
         message: 'Document created: My Document',
@@ -474,7 +474,7 @@ function renderGenerationFlow(
         context: any;
       }
     ) => {
-      eventBusInstance.get('generation:start').next({
+      eventBusInstance.get('generate:request').next({
         annotationUri,
         resourceUri,
         options,

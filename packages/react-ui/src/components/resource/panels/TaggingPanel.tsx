@@ -59,7 +59,7 @@ interface TaggingPanelProps {
 /**
  * Panel for managing tag annotations with schema-based detection
  *
- * @emits detection:start - Start tag detection. Payload: { motivation: 'tagging', options: { schemaId: string, categories: string[] } }
+ * @emits detect:request - Start tag detection. Payload: { motivation: 'tagging', options: { schemaId: string, categories: string[] } }
  * @emits annotation:cancel-pending - Cancel pending tag annotation. Payload: undefined
  * @emits annotation:create - Create new tag annotation. Payload: { motivation: 'tagging', selector: Selector | Selector[], body: Body[] }
  * @subscribes annotation:click - Annotation clicked. Payload: { annotationId: string }
@@ -195,7 +195,7 @@ export function TaggingPanel({
 
   const handleDetect = () => {
     if (selectedCategories.size > 0) {
-      eventBus.get('detection:start').next({
+      eventBus.get('detect:request').next({
         motivation: 'tagging',
         options: {
           schemaId: selectedSchemaId,

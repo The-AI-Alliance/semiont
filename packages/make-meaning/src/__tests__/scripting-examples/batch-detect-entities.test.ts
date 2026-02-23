@@ -167,19 +167,19 @@ describe('Scripting Example: Batch Entity Detection', () => {
       const resourceBus = eventBus.scope(rId!);
 
       // Track progress
-      resourceBus.get('detection:progress').subscribe(progress => {
+      resourceBus.get('detect:progress').subscribe(progress => {
         console.log(`[${rId}] ${progress.status}: ${progress.message || ''}`);
       });
 
       // Track completion
-      resourceBus.get('detection:completed').subscribe(() => {
+      resourceBus.get('detect:finished').subscribe(() => {
         completions.set(rId!, { success: true });
         processedCount++;
         console.log(`✓ [${rId}] Detection complete (${processedCount}/${resources.length})`);
       });
 
       // Track failures
-      resourceBus.get('detection:failed').subscribe(error => {
+      resourceBus.get('detect:failed').subscribe(error => {
         completions.set(rId!, { success: false, message: error.payload.error });
         processedCount++;
         console.log(`✗ [${rId}] Detection failed: ${error.payload.error || 'Unknown error'} (${processedCount}/${resources.length})`);
@@ -278,11 +278,11 @@ describe('Scripting Example: Batch Entity Detection', () => {
       expect(rId).toBeDefined();
       const resourceBus = eventBus.scope(rId!);
 
-      resourceBus.get('detection:completed').subscribe(() => {
+      resourceBus.get('detect:finished').subscribe(() => {
         completions.set(rId!, { success: true });
       });
 
-      resourceBus.get('detection:failed').subscribe(() => {
+      resourceBus.get('detect:failed').subscribe(() => {
         completions.set(rId!, { success: false });
       });
     }

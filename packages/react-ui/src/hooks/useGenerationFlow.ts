@@ -50,16 +50,16 @@ export interface GenerationFlowState {
  * @param showSuccess - Success toast callback
  * @param showError - Error toast callback
  * @param clearNewAnnotationId - Clear animation callback
- * @emits generation:start - Start document generation (consumed internally by this hook)
- * @emits generation:progress - SSE progress chunk from generation stream
- * @emits generation:complete - Generation completed successfully
- * @emits generation:failed - Error during generation
- * @subscribes generation:start - Triggers SSE call to generateResourceFromAnnotation
+ * @emits generate:request - Start document generation (consumed internally by this hook)
+ * @emits generate:progress - SSE progress chunk from generation stream
+ * @emits generate:finished - Generation completed successfully
+ * @emits generate:failed - Error during generation
+ * @subscribes generate:request - Triggers SSE call to generateResourceFromAnnotation
  * @subscribes job:cancel-requested - Cancels in-flight generation stream
  * @subscribes reference:create-manual - Navigates to compose page for new document reference
  * @subscribes generation:modal-open - Open the generation config modal; triggers context:retrieval-requested
- * @subscribes generation:complete - Generation completed successfully
- * @subscribes generation:failed - Error during generation
+ * @subscribes generate:finished - Generation completed successfully
+ * @subscribes generate:failed - Error during generation
  * @returns Generation flow state
  */
 export function useGenerationFlow(
@@ -127,8 +127,8 @@ export function useGenerationFlow(
     // Use full resource URI (W3C Web Annotation spec requires URIs)
     const resourceUriStr = `resource://${resourceId}`;
 
-    // Emit generation:start event instead of calling SSE directly
-    eventBus.get('generation:start').next({
+    // Emit generate:request event instead of calling SSE directly
+    eventBus.get('generate:request').next({
       annotationUri: referenceId,
       resourceUri: resourceUriStr,
       options: {
@@ -216,11 +216,11 @@ export function useGenerationFlow(
           event.options as any,
           sseOptions
         );
-        // Events auto-emit to EventBus: generation:progress, generation:complete, generation:failed
+        // Events auto-emit to EventBus: generate:progress, generate:finished, generate:failed
       } catch (error) {
         if ((error as any).name !== 'AbortError') {
           console.error('[useGenerationFlow] Generation failed:', error);
-          eventBus.get('generation:failed').next({ error: error as Error });
+          eventBus.get('generate:failed').next({ error: error as Error });
         }
       }
     };
@@ -256,7 +256,7 @@ export function useGenerationFlow(
       window.location.href = `${baseUrl}/know/compose?${params.toString()}`;
     };
 
-    const subscription1 = eventBus.get('generation:start').subscribe(handleGenerationStart);
+    const subscription1 = eventBus.get('generate:request').subscribe(handleGenerationStart);
     const subscription2 = eventBus.get('job:cancel-requested').subscribe(handleJobCancelRequested);
     const subscription3 = eventBus.get('reference:create-manual').subscribe(handleReferenceCreateManual);
 
@@ -270,9 +270,9 @@ export function useGenerationFlow(
 
   // Subscribe to generation events
   useEventSubscriptions({
-    'generation:progress': handleProgressEvent,
-    'generation:complete': handleGenerationComplete,
-    'generation:failed': handleGenerationFailed,
+    'generate:progress': handleProgressEvent,
+    'generate:finished': handleGenerationComplete,
+    'generate:failed': handleGenerationFailed,
     'generation:modal-open': handleGenerationModalOpen,
   });
 

@@ -283,7 +283,7 @@ export class ReferenceDetectionWorker extends JobWorker {
     result: DetectionResult
   ): Promise<void> {
     // DOMAIN EVENT: Write to EventStore (auto-publishes to EventBus)
-    const completedEvent = await this.eventStore.appendEvent({
+    await this.eventStore.appendEvent({
       type: 'job.completed',
       resourceId: job.params.resourceId,
       userId: job.metadata.userId,
@@ -295,10 +295,8 @@ export class ReferenceDetectionWorker extends JobWorker {
       },
     });
 
-    // PROGRESS EVENT: Emit detection:completed directly to EventBus (ephemeral)
-    // Use the full StoredEvent.event from EventStore (has id + timestamp)
-    const resourceBus = this.eventBus.scope(job.params.resourceId);
-    resourceBus.get('detection:completed').next(completedEvent.event as Extract<import('@semiont/core').ResourceEvent, { type: 'job.completed' }>);
+    // Domain event (job.completed) is automatically published to EventBus by EventStore
+    // Backend SSE endpoint will subscribe to job.completed and transform to detect:finished
   }
 
   protected override async handleJobFailure(job: AnyJob, error: any): Promise<void> {
@@ -311,7 +309,7 @@ export class ReferenceDetectionWorker extends JobWorker {
       const detJob = job as DetectionJob;
 
       // DOMAIN EVENT: Write to EventStore (auto-publishes to EventBus)
-      const failedEvent = await this.eventStore.appendEvent({
+      await this.eventStore.appendEvent({
         type: 'job.failed',
         resourceId: detJob.params.resourceId,
         userId: detJob.metadata.userId,
@@ -323,10 +321,8 @@ export class ReferenceDetectionWorker extends JobWorker {
         },
       });
 
-      // PROGRESS EVENT: Emit detection:failed directly to EventBus (ephemeral)
-      // Use the full StoredEvent.event from EventStore (has id + timestamp)
-      const resourceBus = this.eventBus.scope(detJob.params.resourceId);
-      resourceBus.get('detection:failed').next(failedEvent.event as Extract<import('@semiont/core').ResourceEvent, { type: 'job.failed' }>);
+      // Domain event (job.failed) is automatically published to EventBus by EventStore
+      // Backend SSE endpoint will subscribe to job.failed and transform to detect:failed
     }
   }
 
@@ -364,7 +360,7 @@ export class ReferenceDetectionWorker extends JobWorker {
 
     if (isFirstUpdate) {
       // First progress update - emit job.started (domain event)
-      const startedEvent = await this.eventStore.appendEvent({
+      await this.eventStore.appendEvent({
         type: 'job.started',
         ...baseEvent,
         payload: {
@@ -374,9 +370,8 @@ export class ReferenceDetectionWorker extends JobWorker {
         },
       });
 
-      // PROGRESS EVENT: Emit detection:started directly to EventBus (ephemeral)
-      // Use the full StoredEvent.event from EventStore (has id + timestamp)
-      resourceBus.get('detection:started').next(startedEvent.event as Extract<import('@semiont/core').ResourceEvent, { type: 'job.started' }>);
+      // Domain event (job.started) is automatically published to EventBus by EventStore
+      // Backend SSE endpoint will subscribe to job.started and transform to stream events
     } else {
       // Intermediate progress - emit job.progress (domain event)
       const percentage = Math.round((detJob.progress.processedEntityTypes / detJob.progress.totalEntityTypes) * 100);
@@ -395,7 +390,7 @@ export class ReferenceDetectionWorker extends JobWorker {
       });
 
       // PROGRESS EVENT: Emit detection:progress directly to EventBus (ephemeral)
-      resourceBus.get('detection:progress').next({
+      resourceBus.get('detect:progress').next({
         status: 'scanning',
         message: `Processing ${detJob.progress.currentEntityType}`,
         currentEntityType: detJob.progress.currentEntityType,

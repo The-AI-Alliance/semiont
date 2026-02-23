@@ -2,8 +2,8 @@
  * FAILING TEST: Reproduces the bug where detection events fire but state doesn't update
  *
  * Based on console logs from production:
- * ✅ detection:start emitted
- * ✅ detection:progress emitted
+ * ✅ detect:request emitted
+ * ✅ detect:progress emitted
  * ❌ detectingMotivation remains null
  * ❌ detectionProgress remains null
  *
@@ -35,7 +35,7 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
     vi.restoreAllMocks();
   });
 
-  it('SHOULD update state when detection:start event is emitted', async () => {
+  it('SHOULD update state when detect:request event is emitted', async () => {
     let eventBusInstance: any;
     let currentState: any;
 
@@ -72,17 +72,17 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
     expect(screen.getByTestId('detecting')).toHaveTextContent('null');
     expect(screen.getByTestId('progress')).toHaveTextContent('null');
 
-    console.log('[TEST] Emitting detection:start event...');
+    console.log('[TEST] Emitting detect:request event...');
 
-    // Emit detection:start event (exactly like production)
+    // Emit detect:request event (exactly like production)
     act(() => {
-      eventBusInstance.get('detection:start').next({
+      eventBusInstance.get('detect:request').next({
         motivation: 'linking',
         options: { entityTypes: ['Location'] }
       });
     });
 
-    console.log('[TEST] After detection:start, checking state...');
+    console.log('[TEST] After detect:request, checking state...');
 
     // THIS SHOULD PASS but currently FAILS
     await waitFor(() => {
@@ -93,7 +93,7 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
     expect(currentState.detectionProgress).toBeNull(); // Should clear on start
   });
 
-  it('SHOULD update state when detection:progress event is emitted', async () => {
+  it('SHOULD update state when detect:progress event is emitted', async () => {
     let eventBusInstance: any;
     let currentState: any;
 
@@ -120,11 +120,11 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
       </EventBusProvider>
     );
 
-    console.log('[TEST] Emitting detection:progress event...');
+    console.log('[TEST] Emitting detect:progress event...');
 
-    // Emit detection:progress event (exactly like production)
+    // Emit detect:progress event (exactly like production)
     act(() => {
-      eventBusInstance.get('detection:progress').next({
+      eventBusInstance.get('detect:progress').next({
         status: 'started',
         resourceId: 'test',
         totalEntityTypes: 1,
@@ -133,7 +133,7 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
       });
     });
 
-    console.log('[TEST] After detection:progress, checking state...');
+    console.log('[TEST] After detect:progress, checking state...');
 
     // THIS SHOULD PASS but currently FAILS
     await waitFor(() => {
@@ -182,18 +182,18 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
 
     // Exactly like production logs
     act(() => {
-      console.log('[EventBus] emit: detection:start {motivation: "linking", options: {...}}');
-      eventBusInstance.get('detection:start').next({
+      console.log('[EventBus] emit: detect:request {motivation: "linking", options: {...}}');
+      eventBusInstance.get('detect:request').next({
         motivation: 'linking',
         options: { entityTypes: ['Location'] }
       });
     });
 
-    console.log('After detection:start:', stateSnapshots[stateSnapshots.length - 1]);
+    console.log('After detect:request:', stateSnapshots[stateSnapshots.length - 1]);
 
     act(() => {
-      console.log('[EventBus] emit: detection:progress {status: "started", ...}');
-      eventBusInstance.get('detection:progress').next({
+      console.log('[EventBus] emit: detect:progress {status: "started", ...}');
+      eventBusInstance.get('detect:progress').next({
         status: 'started',
         resourceId: 'f45fd44f9cb0b0fe1b7980d3d034bc61',
         totalEntityTypes: 1,
@@ -202,11 +202,11 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
       });
     });
 
-    console.log('After detection:progress:', stateSnapshots[stateSnapshots.length - 1]);
+    console.log('After detect:progress:', stateSnapshots[stateSnapshots.length - 1]);
 
     act(() => {
-      console.log('[EventBus] emit: detection:progress {status: "scanning", ...}');
-      eventBusInstance.get('detection:progress').next({
+      console.log('[EventBus] emit: detect:progress {status: "scanning", ...}');
+      eventBusInstance.get('detect:progress').next({
         status: 'scanning',
         resourceId: 'f45fd44f9cb0b0fe1b7980d3d034bc61',
         currentEntityType: 'Location',
@@ -216,7 +216,7 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
       });
     });
 
-    console.log('After second detection:progress:', stateSnapshots[stateSnapshots.length - 1]);
+    console.log('After second detect:progress:', stateSnapshots[stateSnapshots.length - 1]);
     console.log('=== END REPRODUCTION ===\n');
 
     // THIS IS THE BUG: Events fire but state never updates

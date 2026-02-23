@@ -175,9 +175,9 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
           const resourceBus = eventBus.scope(resourceIdParam);
           console.log(`[GenerateResource] Subscribing to EventBus for resource ${resourceIdParam}`);
 
-          // Subscribe to generation:started
+          // Subscribe to generate:progress
           subscriptions.push(
-            resourceBus.get('generation:started').subscribe(async (_event) => {
+            resourceBus.get('generate:progress').subscribe(async (_event) => {
               if (isStreamClosed) return;
               console.log(`[GenerateResource] Generation started for resource ${resourceIdParam}`);
               try {
@@ -189,7 +189,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
                     percentage: 0,
                     message: 'Starting...'
                   } as GenerationProgress),
-                  event: 'generation:started',
+                  event: 'generate:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -199,9 +199,9 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
             })
           );
 
-          // Subscribe to generation:progress
+          // Subscribe to generate:progress
           subscriptions.push(
-            resourceBus.get('generation:progress').subscribe(async (progress) => {
+            resourceBus.get('generate:progress').subscribe(async (progress) => {
               if (isStreamClosed) return;
               console.log(`[GenerateResource] Generation progress for resource ${resourceIdParam}:`, progress);
               try {
@@ -213,7 +213,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
                     percentage: progress.percentage || 0,
                     message: progress.message || `${progress.status}...`
                   } as GenerationProgress),
-                  event: 'generation:progress',
+                  event: 'generate:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -223,9 +223,9 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
             })
           );
 
-          // Subscribe to generation:completed
+          // Subscribe to job.completed
           subscriptions.push(
-            resourceBus.get('generation:completed').subscribe(async (event) => {
+            resourceBus.get('job.completed').subscribe(async (event) => {
               if (isStreamClosed) return;
               console.log(`[GenerateResource] Generation completed for resource ${resourceIdParam}`);
               try {
@@ -239,7 +239,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
                     percentage: 100,
                     message: 'Draft resource created! Ready for review.'
                   } as GenerationProgress),
-                  event: 'generation:complete',
+                  event: 'generate:finished',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -283,7 +283,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
                 percentage: 0,
                 message: error instanceof Error ? error.message : 'Generation failed'
               } as GenerationProgress),
-              event: 'generation:failed',
+              event: 'job.failed',
               id: String(Date.now())
             });
           } catch (sseError) {

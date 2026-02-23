@@ -59,7 +59,7 @@ export class HighlightDetectionWorker extends JobWorker {
     job: RunningJob<HighlightDetectionParams, HighlightDetectionProgress>,
     result: HighlightDetectionResult
   ): Promise<void> {
-    const completedEvent = await this.eventStore.appendEvent({
+    await this.eventStore.appendEvent({
       type: 'job.completed',
       resourceId: job.params.resourceId,
       userId: job.metadata.userId,
@@ -72,8 +72,8 @@ export class HighlightDetectionWorker extends JobWorker {
     });
 
     // Emit to EventBus for real-time subscribers
-    const resourceBus = this.eventBus.scope(job.params.resourceId);
-    resourceBus.get('detection:completed').next(completedEvent.event as Extract<import('@semiont/core').ResourceEvent, { type: 'job.completed' }>);
+    // Domain event (job.completed) is automatically published to EventBus by EventStore
+    // Backend SSE endpoint will subscribe to job.completed and transform to detect:finished
   }
 
   /**
@@ -103,7 +103,7 @@ export class HighlightDetectionWorker extends JobWorker {
     if (this.isFirstProgress) {
       // First progress update - emit job.started
       this.isFirstProgress = false;
-      const startedEvent = await this.eventStore.appendEvent({
+      await this.eventStore.appendEvent({
         type: 'job.started',
         ...baseEvent,
         payload: {
@@ -111,7 +111,6 @@ export class HighlightDetectionWorker extends JobWorker {
           jobType: hlJob.metadata.type,
         },
       });
-      resourceBus.get('detection:started').next(startedEvent.event as Extract<import('@semiont/core').ResourceEvent, { type: 'job.started' }>);
     } else {
       // Intermediate progress - emit job.progress
       // Note: job.completed is now handled by emitCompletionEvent()
@@ -124,7 +123,7 @@ export class HighlightDetectionWorker extends JobWorker {
           progress: hlJob.progress,
         },
       });
-      resourceBus.get('detection:progress').next({
+      resourceBus.get('detect:progress').next({
         status: hlJob.progress.stage,
         message: hlJob.progress.message,
         percentage: hlJob.progress.percentage

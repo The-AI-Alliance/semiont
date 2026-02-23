@@ -116,8 +116,8 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
-        result.current.get('detection:start').subscribe(handler);
-        result.current.get('detection:start').next({
+        result.current.get('detect:request').subscribe(handler);
+        result.current.get('detect:request').next({
           motivation: 'highlighting',
           options: { instructions: 'Find important parts' }
         });
@@ -280,24 +280,24 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
-        result.current.get('detection:start').subscribe(startHandler);
-        result.current.get('detection:progress').subscribe(progressHandler);
-        result.current.get('detection:complete').subscribe(completeHandler);
+        result.current.get('detect:request').subscribe(startHandler);
+        result.current.get('detect:progress').subscribe(progressHandler);
+        result.current.get('detect:finished').subscribe(completeHandler);
 
         // Start detection
-        result.current.get('detection:start').next({
+        result.current.get('detect:request').next({
           motivation: 'tagging',
           options: { schemaId: 'legal', categories: ['Issue', 'Rule'] }
         });
 
         // Progress update
-        result.current.get('detection:progress').next({
+        result.current.get('detect:progress').next({
           type: 'job.progress',
           payload: { current: 5, total: 10 }
         } as any);
 
         // Complete
-        result.current.get('detection:complete').next({ motivation: 'tagging' });
+        result.current.get('detect:finished').next({ motivation: 'tagging' });
       });
 
       expect(startHandler).toHaveBeenCalled();

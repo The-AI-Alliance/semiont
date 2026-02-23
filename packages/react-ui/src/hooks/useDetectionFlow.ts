@@ -62,8 +62,8 @@ export interface DetectionFlowState {
  * @emits annotation:create-failed - Annotation creation failed
  * @emits annotation:deleted - Annotation successfully deleted
  * @emits annotation:delete-failed - Annotation deletion failed
- * @emits detection:progress - Progress update from SSE stream
- * @emits detection:complete - SSE detection completed
+ * @emits detect:progress - Progress update from SSE stream
+ * @emits detect:finished - SSE detection completed
  * @emits detection:failed - SSE detection failed
  * @emits detection:cancelled - SSE detection cancelled
  * @subscribes annotation:requested - User requested a new annotation
@@ -74,10 +74,10 @@ export interface DetectionFlowState {
  * @subscribes selection:assessment-requested - User selected text for an assessment
  * @subscribes selection:reference-requested - User selected text for a reference
  * @subscribes annotation:cancel-pending - Cancel pending annotation creation
- * @subscribes detection:start - Trigger AI detection SSE stream
+ * @subscribes detect:request - Trigger AI detection SSE stream
  * @subscribes job:cancel-requested - Cancels in-flight detection stream (detection half only)
- * @subscribes detection:progress - Progress update during detection
- * @subscribes detection:complete - Detection completed successfully
+ * @subscribes detect:progress - Progress update during detection
+ * @subscribes detect:finished - Detection completed successfully
  * @subscribes detection:failed - Error during detection
  * @subscribes detection:dismiss-progress - Manually dismiss progress display
  * @returns Detection state
@@ -340,7 +340,7 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
             throw new Error('Tag detection requires schemaId and categories');
           }
           currentClient.sse.detectTags(currentRUri, { schemaId, categories }, sseOptions);
-          // Events auto-emit to EventBus: detection:progress, detection:complete, detection:failed
+          // Events auto-emit to EventBus: detect:progress, detect:finished, detect:failed
         } else if (event.motivation === 'linking') {
           const { entityTypes, includeDescriptiveReferences } = event.options;
           if (!entityTypes || entityTypes.length === 0) {
@@ -350,31 +350,31 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
             entityTypes: entityTypes.map(et => entityType(et)),
             includeDescriptiveReferences: includeDescriptiveReferences || false,
           }, sseOptions);
-          // Events auto-emit to EventBus: detection:progress, detection:complete, detection:failed
+          // Events auto-emit to EventBus: detect:progress, detect:finished, detect:failed
         } else if (event.motivation === 'highlighting') {
           currentClient.sse.detectHighlights(currentRUri, {
             instructions: event.options.instructions,
             density: event.options.density,
           }, sseOptions);
-          // Events auto-emit to EventBus: detection:progress, detection:complete, detection:failed
+          // Events auto-emit to EventBus: detect:progress, detect:finished, detect:failed
         } else if (event.motivation === 'assessing') {
           currentClient.sse.detectAssessments(currentRUri, {
             instructions: event.options.instructions,
             tone: event.options.tone as 'analytical' | 'critical' | 'balanced' | 'constructive' | undefined,
             density: event.options.density,
           }, sseOptions);
-          // Events auto-emit to EventBus: detection:progress, detection:complete, detection:failed
+          // Events auto-emit to EventBus: detect:progress, detect:finished, detect:failed
         } else if (event.motivation === 'commenting') {
           currentClient.sse.detectComments(currentRUri, {
             instructions: event.options.instructions,
             tone: event.options.tone as 'scholarly' | 'explanatory' | 'conversational' | 'technical' | undefined,
             density: event.options.density,
           }, sseOptions);
-          // Events auto-emit to EventBus: detection:progress, detection:complete, detection:failed
+          // Events auto-emit to EventBus: detect:progress, detect:finished, detect:failed
         }
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
-          eventBus.get('detection:cancelled').next(undefined);
+          eventBus.get('detect:cancelled').next(undefined);
         } else {
           console.error('Detection failed:', error);
           setDetectingMotivation(null);
@@ -396,7 +396,7 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
 
     const subscription1 = eventBus.get('annotation:create').subscribe(handleAnnotationCreate);
     const subscription2 = eventBus.get('annotation:delete').subscribe(handleAnnotationDelete);
-    const subscription3 = eventBus.get('detection:start').subscribe(handleDetectionStart);
+    const subscription3 = eventBus.get('detect:request').subscribe(handleDetectionStart);
     const subscription4 = eventBus.get('job:cancel-requested').subscribe(handleJobCancelRequested);
 
     return () => {
@@ -421,10 +421,10 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
     'selection:reference-requested': handleReferenceRequested,
     'annotation:cancel-pending': handleAnnotationCancelPending,
     // AI detection state updates
-    'detection:progress': handleDetectionProgress,
-    'detection:complete': handleDetectionComplete,
-    'detection:failed': handleDetectionFailed,
-    'detection:dismiss-progress': handleDetectionDismissProgress,
+    'detect:progress': handleDetectionProgress,
+    'detect:finished': handleDetectionComplete,
+    'detect:failed': handleDetectionFailed,
+    'detect:dismiss-progress': handleDetectionDismissProgress,
   });
 
   // Cleanup timeout on unmount

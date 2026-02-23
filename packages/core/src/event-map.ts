@@ -78,8 +78,6 @@ export interface DetectionProgress {
   requestParams?: Array<{ label: string; value: string }>;
 }
 
-// Note: GenerationProgress is imported and re-exported from @semiont/api-client
-
 /**
  * Unified event map for all application events
  *
@@ -161,8 +159,8 @@ export type EventMap = {
   'annotation:deleted': { annotationId: string };
   'annotation:delete-failed': { error: Error };
 
-  // AI Detection (SSE streams)
-  'detection:start': {
+  // AI Detection
+  'detect:request': {
     motivation: Motivation;
     options: {
       instructions?: string;
@@ -174,14 +172,11 @@ export type EventMap = {
       categories?: string[];
     };
   };
-  'detection:started': Extract<ResourceEvent, { type: 'job.started' }>;
-  'detection:progress': DetectionProgress;
-  'detection:entity-found': Extract<ResourceEvent, { type: 'annotation.added' }>;
-  'detection:complete': { motivation?: Motivation; resourceUri?: ResourceUri; progress?: DetectionProgress };
-  'detection:completed': Extract<ResourceEvent, { type: 'job.completed' }>;
-  'detection:failed': Extract<ResourceEvent, { type: 'job.failed' }>;
-  'detection:cancelled': void;
-  'detection:dismiss-progress': void;
+  'detect:progress': DetectionProgress;
+  'detect:finished': { motivation?: Motivation; resourceUri?: ResourceUri; progress?: DetectionProgress };
+  'detect:failed': Extract<ResourceEvent, { type: 'job.failed' }>;
+  'detect:cancelled': void;
+  'detect:dismiss-progress': void;
 
   // ========================================================================
   // FLOW 3: GENERATION FLOW (useGenerationFlow)
@@ -193,7 +188,7 @@ export type EventMap = {
     resourceUri: string;
     defaultTitle: string;
   };
-  'generation:start': {
+  'generate:request': {
     annotationUri: string;
     resourceUri: string;
     options: {
@@ -205,11 +200,9 @@ export type EventMap = {
       context: GenerationContext;
     };
   };
-  'generation:started': Extract<ResourceEvent, { type: 'job.started' }>;
-  'generation:progress': GenerationProgress;
-  'generation:complete': GenerationProgress;
-  'generation:completed': Extract<ResourceEvent, { type: 'job.completed' }>;
-  'generation:failed': { error: Error };
+  'generate:progress': GenerationProgress;
+  'generate:finished': GenerationProgress;
+  'generate:failed': { error: Error };
 
   // ========================================================================
   // FLOW 4: RESOLUTION FLOW (useResolutionFlow)

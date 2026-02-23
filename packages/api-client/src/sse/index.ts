@@ -193,11 +193,11 @@ export class SSEClient {
         body: JSON.stringify(request)
       },
       {
-        progressEvents: ['detection:started', 'detection:progress'],
-        completeEvent: 'detection:complete',
-        errorEvent: 'detection:failed',
+        progressEvents: ['detect:progress'],
+        completeEvent: 'detect:finished',
+        errorEvent: 'detect:failed',
         eventBus: options.eventBus,
-        eventPrefix: 'detection'
+        eventPrefix: undefined
       },
       this.logger
     );
@@ -258,11 +258,11 @@ export class SSEClient {
         body: JSON.stringify(request)
       },
       {
-        progressEvents: ['generation:started', 'generation:progress'],
-        completeEvent: 'generation:complete',
-        errorEvent: 'generation:failed',
+        progressEvents: ['generate:progress'],
+        completeEvent: 'generate:finished',
+        errorEvent: 'generate:failed',
         eventBus: options.eventBus,
-        eventPrefix: 'generation'
+        eventPrefix: undefined
       },
       this.logger
     );
@@ -319,11 +319,11 @@ export class SSEClient {
         body: JSON.stringify(request)
       },
       {
-        progressEvents: ['detection:started', 'detection:progress'],
-        completeEvent: 'detection:complete',
-        errorEvent: 'detection:failed',
+        progressEvents: ['detect:progress'],
+        completeEvent: 'detect:finished',
+        errorEvent: 'detect:failed',
         eventBus: options.eventBus,
-        eventPrefix: 'detection'
+        eventPrefix: undefined
       },
       this.logger
     );
@@ -380,11 +380,11 @@ export class SSEClient {
         body: JSON.stringify(request)
       },
       {
-        progressEvents: ['detection:started', 'detection:progress'],
-        completeEvent: 'detection:complete',
-        errorEvent: 'detection:failed',
+        progressEvents: ['detect:progress'],
+        completeEvent: 'detect:finished',
+        errorEvent: 'detect:failed',
         eventBus: options.eventBus,
-        eventPrefix: 'detection'
+        eventPrefix: undefined
       },
       this.logger
     );
@@ -445,11 +445,11 @@ export class SSEClient {
         body: JSON.stringify(request)
       },
       {
-        progressEvents: ['detection:started', 'detection:progress'],
-        completeEvent: 'detection:complete',
-        errorEvent: 'detection:failed',
+        progressEvents: ['detect:progress'],
+        completeEvent: 'detect:finished',
+        errorEvent: 'detect:failed',
         eventBus: options.eventBus,
-        eventPrefix: 'detection'
+        eventPrefix: undefined
       },
       this.logger
     );
@@ -511,11 +511,11 @@ export class SSEClient {
         body: JSON.stringify(request)
       },
       {
-        progressEvents: ['detection:started', 'detection:progress'],
-        completeEvent: 'detection:complete',
-        errorEvent: 'detection:failed',
+        progressEvents: ['detect:progress'],
+        completeEvent: 'detect:finished',
+        errorEvent: 'detect:failed',
         eventBus: options.eventBus,
-        eventPrefix: 'detection'
+        eventPrefix: undefined
       },
       this.logger
     );

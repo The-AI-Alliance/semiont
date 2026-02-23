@@ -68,18 +68,18 @@ class MockSSEStream {
 
   // Test helper methods that emit to EventBus
   emitProgress(chunk: any) {
-    this.eventBus.get('detection:progress').next(chunk);
+    this.eventBus.get('detect:progress').next(chunk);
   }
 
   emitComplete(finalChunk?: any) {
     if (finalChunk) {
-      this.eventBus.get('detection:progress').next(finalChunk);
+      this.eventBus.get('detect:progress').next(finalChunk);
     }
-    this.eventBus.get('detection:complete').next({});
+    this.eventBus.get('detect:finished').next({});
   }
 
   emitError(error: Error) {
-    this.eventBus.get('detection:failed').next({ error });
+    this.eventBus.get('detect:failed').next({ error });
   }
 }
 
@@ -282,7 +282,7 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
     });
   });
 
-  it('should clear progress on detection:failed', async () => {
+  it('should clear progress on detect:failed', async () => {
     const user = userEvent.setup();
 
     renderDetectionFlow();

@@ -264,7 +264,7 @@ export class GenerationWorker extends JobWorker {
     job: RunningJob<GenerationParams, GenerationProgress>,
     result: GenerationResult
   ): Promise<void> {
-    const completedEvent = await this.eventStore.appendEvent({
+    await this.eventStore.appendEvent({
       type: 'job.completed',
       resourceId: job.params.sourceResourceId,
       userId: job.metadata.userId,
@@ -277,9 +277,8 @@ export class GenerationWorker extends JobWorker {
       },
     });
 
-    // Emit to EventBus for real-time subscribers
-    const resourceBus = this.eventBus.scope(job.params.sourceResourceId);
-    resourceBus.get('generation:completed').next(completedEvent.event as Extract<import('@semiont/core').ResourceEvent, { type: 'job.completed' }>);
+    // Domain event (job.completed) is automatically published to EventBus by EventStore
+    // Backend SSE endpoint will subscribe to job.completed and transform to generate:finished
   }
 
   /**
@@ -313,7 +312,7 @@ export class GenerationWorker extends JobWorker {
     // Emit appropriate event based on progress stage
     if (genJob.progress.stage === 'fetching' && genJob.progress.percentage === 20) {
       // First progress update - emit job.started
-      const startedEvent = await this.eventStore.appendEvent({
+      await this.eventStore.appendEvent({
         type: 'job.started',
         ...baseEvent,
         payload: {
@@ -322,7 +321,6 @@ export class GenerationWorker extends JobWorker {
           totalSteps: 5, // fetching, generating, creating, linking, complete
         },
       });
-      resourceBus.get('generation:started').next(startedEvent.event as Extract<import('@semiont/core').ResourceEvent, { type: 'job.started' }>);
     } else {
       // Intermediate progress - emit job.progress
       // Note: job.completed is now handled by emitCompletionEvent()
@@ -337,7 +335,7 @@ export class GenerationWorker extends JobWorker {
           message: genJob.progress.message,
         },
       });
-      resourceBus.get('generation:progress').next({
+      resourceBus.get('generate:progress').next({
         status: genJob.progress.stage as 'fetching' | 'generating' | 'creating',
         referenceId: genJob.params.referenceId,
         sourceResourceId: genJob.params.sourceResourceId,

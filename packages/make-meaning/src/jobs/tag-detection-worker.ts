@@ -61,7 +61,7 @@ export class TagDetectionWorker extends JobWorker {
     job: RunningJob<TagDetectionParams, TagDetectionProgress>,
     result: TagDetectionResult
   ): Promise<void> {
-    const completedEvent = await this.eventStore.appendEvent({
+    await this.eventStore.appendEvent({
       type: 'job.completed',
       resourceId: job.params.resourceId,
       userId: job.metadata.userId,
@@ -74,8 +74,8 @@ export class TagDetectionWorker extends JobWorker {
     });
 
     // Emit to EventBus for real-time subscribers
-    const resourceBus = this.eventBus.scope(job.params.resourceId);
-    resourceBus.get('detection:completed').next(completedEvent.event as Extract<import('@semiont/core').ResourceEvent, { type: 'job.completed' }>);
+    // Domain event (job.completed) is automatically published to EventBus by EventStore
+    // Backend SSE endpoint will subscribe to job.completed and transform to detect:finished
   }
 
   /**
@@ -105,7 +105,7 @@ export class TagDetectionWorker extends JobWorker {
     if (this.isFirstProgress) {
       // First progress update - emit job.started
       this.isFirstProgress = false;
-      const startedEvent = await this.eventStore.appendEvent({
+      await this.eventStore.appendEvent({
         type: 'job.started',
         ...baseEvent,
         payload: {
@@ -113,7 +113,6 @@ export class TagDetectionWorker extends JobWorker {
           jobType: tdJob.metadata.type,
         },
       });
-      resourceBus.get('detection:started').next(startedEvent.event as Extract<import('@semiont/core').ResourceEvent, { type: 'job.started' }>);
     } else {
       // Intermediate progress - emit job.progress
       // Note: job.completed is now handled by emitCompletionEvent()
@@ -126,7 +125,7 @@ export class TagDetectionWorker extends JobWorker {
           progress: tdJob.progress,
         },
       });
-      resourceBus.get('detection:progress').next({
+      resourceBus.get('detect:progress').next({
         status: tdJob.progress.stage,
         message: tdJob.progress.message,
         percentage: tdJob.progress.percentage,

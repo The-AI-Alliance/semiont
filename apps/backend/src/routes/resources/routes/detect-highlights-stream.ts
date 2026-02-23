@@ -140,9 +140,9 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
           const resourceBus = eventBus.scope(id);
           console.log(`[DetectHighlights] Subscribing to EventBus for resource ${id}`);
 
-          // Subscribe to detection:started
+          // Subscribe to detect:progress
           subscriptions.push(
-            resourceBus.get('detection:started').subscribe(async (_event) => {
+            resourceBus.get('detect:progress').subscribe(async (_event) => {
               if (isStreamClosed) return;
               console.log(`[DetectHighlights] Detection started for resource ${id}`);
               try {
@@ -152,7 +152,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
                     resourceId: resourceId(id),
                     message: 'Starting detection...'
                   } as HighlightDetectionProgress),
-                  event: 'detection:started',
+                  event: 'detect:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -162,9 +162,9 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
             })
           );
 
-          // Subscribe to detection:progress
+          // Subscribe to detect:progress
           subscriptions.push(
-            resourceBus.get('detection:progress').subscribe(async (progress) => {
+            resourceBus.get('detect:progress').subscribe(async (progress) => {
               if (isStreamClosed) return;
               console.log(`[DetectHighlights] Detection progress for resource ${id}:`, progress);
               try {
@@ -176,7 +176,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
                     percentage: progress.percentage,
                     message: progress.message || 'Processing...'
                   } as HighlightDetectionProgress),
-                  event: 'detection:progress',
+                  event: 'detect:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -186,9 +186,10 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
             })
           );
 
-          // Subscribe to detection:completed
+          // Subscribe to job.completed
           subscriptions.push(
-            resourceBus.get('detection:completed').subscribe(async (event) => {
+            resourceBus.get('job.completed').subscribe(async (event) => {
+      if (event.payload.jobType !== 'detection') return;
               if (isStreamClosed) return;
               console.log(`[DetectHighlights] Detection completed for resource ${id}`);
               try {
@@ -204,7 +205,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
                       ? `Complete! Created ${result.highlightsCreated} highlights`
                       : 'Highlight detection complete!'
                   } as HighlightDetectionProgress),
-                  event: 'detection:complete',
+                  event: 'detect:finished',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -214,9 +215,10 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
             })
           );
 
-          // Subscribe to detection:failed
+          // Subscribe to job.failed
           subscriptions.push(
-            resourceBus.get('detection:failed').subscribe(async (event) => {
+            resourceBus.get('job.failed').subscribe(async (event) => {
+      if (event.payload.jobType !== 'detection') return;
               if (isStreamClosed) return;
               console.log(`[DetectHighlights] Detection failed for resource ${id}:`, event.payload.error);
               try {
@@ -226,7 +228,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
                     resourceId: resourceId(id),
                     message: event.payload.error || 'Highlight detection failed'
                   } as HighlightDetectionProgress),
-                  event: 'detection:failed',
+                  event: 'job.failed',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -269,7 +271,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
                 resourceId: resourceId(id),
                 message: error instanceof Error ? error.message : 'Highlight detection failed'
               } as HighlightDetectionProgress),
-              event: 'detection:failed',
+              event: 'job.failed',
               id: String(Date.now())
             });
           } catch (sseError) {

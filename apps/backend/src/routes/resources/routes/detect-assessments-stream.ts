@@ -141,9 +141,9 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
           const resourceBus = eventBus.scope(id);
           console.log(`[DetectAssessments] Subscribing to EventBus for resource ${id}`);
 
-          // Subscribe to detection:started
+          // Subscribe to detect:progress
           subscriptions.push(
-            resourceBus.get('detection:started').subscribe(async (_event) => {
+            resourceBus.get('detect:progress').subscribe(async (_event) => {
               if (isStreamClosed) return;
               console.log(`[DetectAssessments] Detection started for resource ${id}`);
               try {
@@ -153,7 +153,7 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
                     resourceId: resourceId(id),
                     message: 'Starting detection...'
                   } as AssessmentDetectionProgress),
-                  event: 'detection:started',
+                  event: 'detect:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -163,9 +163,9 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
             })
           );
 
-          // Subscribe to detection:progress
+          // Subscribe to detect:progress
           subscriptions.push(
-            resourceBus.get('detection:progress').subscribe(async (progress) => {
+            resourceBus.get('detect:progress').subscribe(async (progress) => {
               if (isStreamClosed) return;
               console.log(`[DetectAssessments] Detection progress for resource ${id}:`, progress);
               try {
@@ -177,7 +177,7 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
                     percentage: progress.percentage,
                     message: progress.message || 'Processing...'
                   } as AssessmentDetectionProgress),
-                  event: 'detection:progress',
+                  event: 'detect:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -187,9 +187,10 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
             })
           );
 
-          // Subscribe to detection:completed
+          // Subscribe to job.completed
           subscriptions.push(
-            resourceBus.get('detection:completed').subscribe(async (event) => {
+            resourceBus.get('job.completed').subscribe(async (event) => {
+      if (event.payload.jobType !== 'detection') return;
               if (isStreamClosed) return;
               console.log(`[DetectAssessments] Detection completed for resource ${id}`);
               try {
@@ -205,7 +206,7 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
                       ? `Complete! Created ${result.assessmentsCreated} assessments`
                       : 'Assessment detection complete!'
                   } as AssessmentDetectionProgress),
-                  event: 'detection:complete',
+                  event: 'detect:finished',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -215,9 +216,10 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
             })
           );
 
-          // Subscribe to detection:failed
+          // Subscribe to job.failed
           subscriptions.push(
-            resourceBus.get('detection:failed').subscribe(async (event) => {
+            resourceBus.get('job.failed').subscribe(async (event) => {
+      if (event.payload.jobType !== 'detection') return;
               if (isStreamClosed) return;
               console.log(`[DetectAssessments] Detection failed for resource ${id}:`, event.payload.error);
               try {
@@ -227,7 +229,7 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
                     resourceId: resourceId(id),
                     message: event.payload.error || 'Assessment detection failed'
                   } as AssessmentDetectionProgress),
-                  event: 'detection:failed',
+                  event: 'job.failed',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -270,7 +272,7 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
                 resourceId: resourceId(id),
                 message: error instanceof Error ? error.message : 'Assessment detection failed'
               } as AssessmentDetectionProgress),
-              event: 'detection:failed',
+              event: 'job.failed',
               id: String(Date.now())
             });
           } catch (sseError) {

@@ -29,7 +29,7 @@ function createEventTracker() {
         events.push({ event: eventName, payload });
       };
 
-      const panelEvents = ['annotation:create', 'detection:start'] as const;
+      const panelEvents = ['annotation:create', 'detect:request'] as const;
 
       panelEvents.forEach(eventName => {
         const handler = trackEvent(eventName);
@@ -561,7 +561,7 @@ describe('TaggingPanel Component', () => {
       expect(detectButton).not.toBeDisabled();
     });
 
-    it('should emit detection:start event with selected schema and categories', async () => {
+    it('should emit detect:request event with selected schema and categories', async () => {
       const tracker = createEventTracker();
       renderWithEventBus(
         <TaggingPanel
@@ -582,7 +582,7 @@ describe('TaggingPanel Component', () => {
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'detection:start' &&
+          e.event === 'detect:request' &&
           e.payload?.motivation === 'tagging' &&
           e.payload?.options?.schemaId === 'legal-irac' &&
           e.payload?.options?.categories?.includes('Issue') &&

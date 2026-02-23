@@ -263,7 +263,7 @@ describe('DetectSection', () => {
   });
 
   describe('Event Emission', () => {
-    it('should emit detection:start event when detect button clicked', async () => {
+    it('should emit detect:request event when detect button clicked', async () => {
       const user = userEvent.setup();
       const detectionHandler = vi.fn();
 
@@ -276,7 +276,7 @@ describe('DetectSection', () => {
         { returnEventBus: true }
       );
 
-      const subscription = eventBus!.get('detection:start').subscribe(detectionHandler);
+      const subscription = eventBus!.get('detect:request').subscribe(detectionHandler);
 
       const detectButton = screen.getByRole('button', { name: /✨ Detect/ });
       await user.click(detectButton);
@@ -302,7 +302,7 @@ describe('DetectSection', () => {
         { returnEventBus: true }
       );
 
-      const subscription = eventBus!.get('detection:start').subscribe(detectionHandler);
+      const subscription = eventBus!.get('detect:request').subscribe(detectionHandler);
 
       const detectButton = screen.getByRole('button', { name: /✨ Detect/ });
       await user.click(detectButton);
@@ -328,7 +328,7 @@ describe('DetectSection', () => {
         { returnEventBus: true }
       );
 
-      const subscription = eventBus!.get('detection:start').subscribe(detectionHandler);
+      const subscription = eventBus!.get('detect:request').subscribe(detectionHandler);
 
       const detectButton = screen.getByRole('button', { name: /✨ Detect/ });
       await user.click(detectButton);
@@ -354,7 +354,7 @@ describe('DetectSection', () => {
         { returnEventBus: true }
       );
 
-      const subscription = eventBus!.get('detection:start').subscribe(detectionHandler);
+      const subscription = eventBus!.get('detect:request').subscribe(detectionHandler);
 
       const textarea = screen.getByPlaceholderText('Enter custom instructions...');
       await user.type(textarea, 'Find key concepts');
