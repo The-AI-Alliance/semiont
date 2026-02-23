@@ -71,7 +71,7 @@ interface Props {
  * @emits detect:request - Start reference detection. Payload: { motivation: 'linking', options: { entityTypes: string[], includeDescriptiveReferences: boolean } }
  * @emits annotation:create - Create new reference annotation. Payload: { motivation: 'linking', selector: Selector | Selector[], body: Body[] }
  * @emits annotation:cancel-pending - Cancel pending reference annotation. Payload: undefined
- * @subscribes annotation:click - Annotation clicked. Payload: { annotationId: string }
+ * @subscribes attend:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function ReferencesPanel({
   annotations = [],
@@ -201,7 +201,7 @@ export function ReferencesPanel({
   }, []);
 
   useEventSubscriptions({
-    'annotation:click': handleAnnotationClick,
+    'attend:click': handleAnnotationClick,
   });
 
   // Clear log when starting new detection

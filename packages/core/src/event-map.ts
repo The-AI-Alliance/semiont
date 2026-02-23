@@ -112,10 +112,10 @@ export type EventMap = {
   // ========================================================================
   // Manages which annotation has user's attention (hover/click/focus)
 
-  'annotation:hover': { annotationId: string | null };
-  'annotation:click': { annotationId: string; motivation: Motivation };
-  'annotation:focus': { annotationId: string | null };
-  'annotation:sparkle': { annotationId: string };
+  'attend:hover': { annotationId: string | null };
+  'attend:click': { annotationId: string; motivation: Motivation };
+  'attend:focus': { annotationId: string | null };
+  'attend:sparkle': { annotationId: string };
 
   // ========================================================================
   // DETECTION FLOW

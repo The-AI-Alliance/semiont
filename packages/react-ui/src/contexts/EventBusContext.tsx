@@ -107,13 +107,13 @@ export function EventBusProvider({ children }: EventBusProviderProps) {
  * const eventBus = useEventBus();
  *
  * // Emit any event
- * eventBus.get('annotation:hover').next({ annotationId: '123' });
+ * eventBus.get('attend:hover').next({ annotationId: '123' });
  * eventBus.get('navigation:sidebar-toggle').next(undefined);
  * eventBus.get('settings:theme-changed').next({ theme: 'dark' });
  *
  * // Subscribe to any event
  * useEffect(() => {
- *   const unsubscribe = eventBus.on('annotation:hover', ({ annotationId }) => {
+ *   const unsubscribe = eventBus.on('attend:hover', ({ annotationId }) => {
  *     console.log(annotationId);
  *   });
  *   return () => unsubscribe();

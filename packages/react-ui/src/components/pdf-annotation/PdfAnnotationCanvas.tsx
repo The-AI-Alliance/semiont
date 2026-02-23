@@ -60,9 +60,9 @@ interface PdfAnnotationCanvasProps {
 /**
  * PDF annotation canvas with page navigation and rectangle drawing
  *
- * @emits annotation:click - Annotation clicked on PDF. Payload: { annotationId: string, motivation: Motivation }
+ * @emits attend:click - Annotation clicked on PDF. Payload: { annotationId: string, motivation: Motivation }
  * @emits annotation:requested - New annotation drawn on PDF. Payload: { selector: FragmentSelector, motivation: SelectionMotivation }
- * @emits annotation:hover - Annotation hovered or unhovered. Payload: { annotationId: string | null }
+ * @emits attend:hover - Annotation hovered or unhovered. Payload: { annotationId: string | null }
  */
 export function PdfAnnotationCanvas({
   resourceUri,
@@ -285,7 +285,7 @@ export function PdfAnnotationCanvas({
         });
 
         if (clickedAnnotation) {
-          eventBus?.get('annotation:click').next({ annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
+          eventBus?.get('attend:click').next({ annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
           setIsDrawing(false);
           setSelection(null);
           return;
@@ -362,7 +362,7 @@ export function PdfAnnotationCanvas({
 
   // Hover handlers with currentHover guard and dwell delay
   const { handleMouseEnter, handleMouseLeave } = useMemo(
-    () => createHoverHandlers((annotationId) => eventBus?.get('annotation:hover').next({ annotationId })),
+    () => createHoverHandlers((annotationId) => eventBus?.get('attend:hover').next({ annotationId })),
     [eventBus]
   );
 
@@ -462,7 +462,7 @@ export function PdfAnnotationCanvas({
                         cursor: 'pointer',
                         opacity: isSelected ? 1 : isHovered ? 0.9 : 0.7
                       }}
-                      onClick={() => eventBus?.get('annotation:click').next({ annotationId: ann.id, motivation: ann.motivation })}
+                      onClick={() => eventBus?.get('attend:click').next({ annotationId: ann.id, motivation: ann.motivation })}
                       onMouseEnter={() => handleMouseEnter(ann.id)}
                       onMouseLeave={handleMouseLeave}
                     />

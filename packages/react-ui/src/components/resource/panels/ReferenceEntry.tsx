@@ -121,7 +121,7 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
       data-type="reference"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        eventBus.get('annotation:click').next({ annotationId: reference.id, motivation: reference.motivation });
+        eventBus.get('attend:click').next({ annotationId: reference.id, motivation: reference.motivation });
       }}
       {...hoverProps}
     >

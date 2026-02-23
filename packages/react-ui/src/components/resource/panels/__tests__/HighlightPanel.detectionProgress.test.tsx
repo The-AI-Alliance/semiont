@@ -6,7 +6,7 @@
  *
  * This is a Layer 2 test because it:
  * - Tests multiple real React components together (HighlightPanel + DetectSection)
- * - Uses real EventBus for annotation:click events
+ * - Uses real EventBus for attend:click events
  * - Mocks API and external dependencies
  * - Tests the data flow between parent and child components
  */

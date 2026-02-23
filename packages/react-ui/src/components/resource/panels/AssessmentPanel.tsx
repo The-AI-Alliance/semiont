@@ -57,7 +57,7 @@ interface AssessmentPanelProps {
  *
  * @emits annotation:create - Create new assessment annotation. Payload: { motivation: 'assessing', selector: Selector | Selector[], body: Body[] }
  * @emits annotation:cancel-pending - Cancel pending assessment annotation. Payload: undefined
- * @subscribes annotation:click - Annotation clicked. Payload: { annotationId: string }
+ * @subscribes attend:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function AssessmentPanel({
   annotations,
@@ -173,7 +173,7 @@ export function AssessmentPanel({
 
   // Subscribe to click events - update focused state
   useEventSubscriptions({
-    'annotation:click': handleAnnotationClick,
+    'attend:click': handleAnnotationClick,
   });
 
   return (

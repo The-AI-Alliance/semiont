@@ -131,7 +131,7 @@ function segmentTextWithAnnotations(content: string, annotations: Annotation[]):
  * @subscribes toolbar:selection-changed - Toolbar selection changed. Payload: { motivation: string | null }
  * @subscribes toolbar:click-changed - Toolbar click action changed. Payload: { action: string }
  * @subscribes toolbar:shape-changed - Toolbar shape changed. Payload: { shape: string }
- * @subscribes annotation:hover - Annotation hovered. Payload: { annotationId: string | null }
+ * @subscribes attend:hover - Annotation hovered. Payload: { annotationId: string | null }
  */
 export function AnnotateView({
   content,
@@ -186,7 +186,7 @@ export function AnnotateView({
     'toolbar:selection-changed': handleToolbarSelectionChanged,
     'toolbar:click-changed': handleToolbarClickChanged,
     'toolbar:shape-changed': handleToolbarShapeChanged,
-    'annotation:hover': handleAnnotationHover,
+    'attend:hover': handleAnnotationHover,
   });
 
   // Handle text annotation with sparkle or immediate creation

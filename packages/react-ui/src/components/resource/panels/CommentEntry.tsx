@@ -88,7 +88,7 @@ export const CommentEntry = forwardRef<HTMLDivElement, CommentEntryProps>(
       data-type="comment"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        eventBus.get('annotation:click').next({ annotationId: comment.id, motivation: comment.motivation });
+        eventBus.get('attend:click').next({ annotationId: comment.id, motivation: comment.motivation });
       }}
       {...hoverProps}
     >

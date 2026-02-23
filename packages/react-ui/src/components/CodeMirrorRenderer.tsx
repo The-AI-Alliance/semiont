@@ -343,7 +343,7 @@ export function CodeMirrorRenderer({
               const segment = segmentsRef.current.find(s => s.annotation?.id === annotationId);
               if (segment?.annotation) {
                 event.preventDefault();
-                eventBusRef.current.get('annotation:click').next({
+                eventBusRef.current.get('attend:click').next({
                   annotationId,
                   motivation: segment.annotation.motivation
                 });
@@ -411,7 +411,7 @@ export function CodeMirrorRenderer({
     const container = view.dom;
 
     const { handleMouseEnter, handleMouseLeave, cleanup: cleanupHover } = createHoverHandlers(
-      (annotationId) => eventBusRef.current?.get('annotation:hover').next({ annotationId })
+      (annotationId) => eventBusRef.current?.get('attend:hover').next({ annotationId })
     );
 
     const handleMouseOver = (e: MouseEvent) => {

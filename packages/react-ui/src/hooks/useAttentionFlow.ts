@@ -9,14 +9,14 @@
  * Follows react-rxjs-guide.md Layer 2 pattern: Hook bridge that
  * subscribes to events and pushes values into React state.
  *
- * Note: annotation:sparkle visual effect (triggerSparkleAnimation) is owned by
- * ResourceViewerPage, which subscribes to annotation:sparkle and delegates to
+ * Note: attend:sparkle visual effect (triggerSparkleAnimation) is owned by
+ * ResourceViewerPage, which subscribes to attend:sparkle and delegates to
  * ResourceAnnotationsContext. This hook emits the signal; it does not render the effect.
  *
- * @subscribes annotation:hover - Sets hoveredAnnotationId; emits annotation:sparkle
- * @subscribes annotation:click - Emits annotation:focus (attention relay only)
- * @emits      annotation:sparkle
- * @emits      annotation:focus
+ * @subscribes attend:hover - Sets hoveredAnnotationId; emits attend:sparkle
+ * @subscribes attend:click - Emits attend:focus (attention relay only)
+ * @emits      attend:sparkle
+ * @emits      attend:focus
  */
 
 /**
@@ -28,7 +28,7 @@
  *    moves within the same annotation element (prevents event bus noise).
  *
  * 2. Debounce delay (HOVER_DELAY_MS) — a short timer before emitting
- *    annotation:hover, so that transient pass-through movements (user dragging
+ *    attend:hover, so that transient pass-through movements (user dragging
  *    the mouse across the panel to reach a button elsewhere) do not trigger
  *    sparkle animations or cross-highlight effects.
  *    The delay is cancelled immediately on mouseLeave, so leaving is always instant.
@@ -62,18 +62,18 @@ export function useAttentionFlow(): AttentionFlowState {
   const handleAnnotationHover = useCallback(({ annotationId }: { annotationId: string | null }) => {
     setHoveredAnnotationId(annotationId);
     if (annotationId) {
-      eventBus.get('annotation:sparkle').next({ annotationId });
+      eventBus.get('attend:sparkle').next({ annotationId });
     }
   }, []); // eventBus is stable singleton - never in deps
 
   const handleAnnotationClick = useCallback(({ annotationId }: { annotationId: string }) => {
-    eventBus.get('annotation:focus').next({ annotationId });
-    // Scroll to annotation handled by BrowseView via annotation:focus subscription
+    eventBus.get('attend:focus').next({ annotationId });
+    // Scroll to annotation handled by BrowseView via attend:focus subscription
   }, []); // eventBus is stable singleton - never in deps
 
   useEventSubscriptions({
-    'annotation:hover': handleAnnotationHover,
-    'annotation:click': handleAnnotationClick,
+    'attend:hover': handleAnnotationHover,
+    'attend:click': handleAnnotationClick,
   });
 
   return { hoveredAnnotationId };
@@ -81,7 +81,7 @@ export function useAttentionFlow(): AttentionFlowState {
 
 // ─── createHoverHandlers (use inside useEffect / imperative setup) ────────────
 
-/** Milliseconds the mouse must dwell before annotation:hover is emitted. */
+/** Milliseconds the mouse must dwell before attend:hover is emitted. */
 export const HOVER_DELAY_MS = 150;
 
 type EmitHover = (annotationId: string | null) => void;
@@ -153,7 +153,7 @@ export function useHoverEmitter(annotationId: string): HoverEmitterProps {
     timerRef.current = setTimeout(() => {
       timerRef.current = null;
       currentHoverRef.current = annotationId;
-      eventBus.get('annotation:hover').next({ annotationId });
+      eventBus.get('attend:hover').next({ annotationId });
     }, HOVER_DELAY_MS);
   }, [annotationId]); // eventBus is stable singleton - never in deps
 
@@ -164,7 +164,7 @@ export function useHoverEmitter(annotationId: string): HoverEmitterProps {
     }
     if (currentHoverRef.current !== null) {
       currentHoverRef.current = null;
-      eventBus.get('annotation:hover').next({ annotationId: null });
+      eventBus.get('attend:hover').next({ annotationId: null });
     }
   }, []); // eventBus is stable singleton - never in deps
 

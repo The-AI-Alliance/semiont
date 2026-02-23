@@ -57,7 +57,7 @@ interface CommentsPanelProps {
  *
  * @emits annotation:create - Create new comment annotation. Payload: { motivation: 'commenting', selector: Selector | Selector[], body: Body[] }
  * @emits annotation:cancel-pending - Cancel pending comment annotation. Payload: undefined
- * @subscribes annotation:click - Annotation clicked. Payload: { annotationId: string }
+ * @subscribes attend:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function CommentsPanel({
   annotations,
@@ -162,7 +162,7 @@ export function CommentsPanel({
   }, []);
 
   useEventSubscriptions({
-    'annotation:click': handleAnnotationClick,
+    'attend:click': handleAnnotationClick,
   });
 
   const handleSaveNewComment = () => {

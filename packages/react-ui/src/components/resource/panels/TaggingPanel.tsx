@@ -62,7 +62,7 @@ interface TaggingPanelProps {
  * @emits detect:request - Start tag detection. Payload: { motivation: 'tagging', options: { schemaId: string, categories: string[] } }
  * @emits annotation:cancel-pending - Cancel pending tag annotation. Payload: undefined
  * @emits annotation:create - Create new tag annotation. Payload: { motivation: 'tagging', selector: Selector | Selector[], body: Body[] }
- * @subscribes annotation:click - Annotation clicked. Payload: { annotationId: string }
+ * @subscribes attend:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function TaggingPanel({
   annotations,
@@ -102,7 +102,7 @@ export function TaggingPanel({
   }, []);
 
   useEventSubscriptions({
-    'annotation:click': handleAnnotationClick,
+    'attend:click': handleAnnotationClick,
   });
 
   // Direct ref management

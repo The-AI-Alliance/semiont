@@ -41,8 +41,8 @@ function prepareAnnotations(annotations: Annotation[]): PreparedAnnotation[] {
 /**
  * View component for browsing resources with rendered annotations
  *
- * @emits annotation:click - Annotation clicked in browse view. Payload: { annotationId: string, motivation: Motivation }
- * @emits annotation:hover - Annotation hovered in browse view. Payload: { annotationId: string | null }
+ * @emits attend:click - Annotation clicked in browse view. Payload: { annotationId: string, motivation: Motivation }
+ * @emits attend:hover - Annotation hovered in browse view. Payload: { annotationId: string | null }
  */
   return annotations
     .map(ann => {
@@ -68,11 +68,11 @@ function prepareAnnotations(annotations: Annotation[]): PreparedAnnotation[] {
 /**
  * View component for browsing annotated resources in read-only mode
  *
- * @emits annotation:click - User clicked on annotation. Payload: { annotationId: string, motivation: Motivation }
- * @emits annotation:hover - User hovered over annotation. Payload: { annotationId: string | null }
+ * @emits attend:click - User clicked on annotation. Payload: { annotationId: string, motivation: Motivation }
+ * @emits attend:hover - User hovered over annotation. Payload: { annotationId: string | null }
  *
- * @subscribes annotation:hover - Highlight annotation on hover. Payload: { annotationId: string | null }
- * @subscribes annotation:focus - Scroll to and highlight annotation. Payload: { annotationId: string }
+ * @subscribes attend:hover - Highlight annotation on hover. Payload: { annotationId: string | null }
+ * @subscribes attend:focus - Scroll to and highlight annotation. Payload: { annotationId: string }
  */
 export function BrowseView({
   content,
@@ -112,13 +112,13 @@ export function BrowseView({
       if (annotationId && annotationType === 'reference') {
         const annotation = allAnnotations.find(a => a.id === annotationId);
         if (annotation) {
-          eventBus.get('annotation:click').next({ annotationId, motivation: annotation.motivation });
+          eventBus.get('attend:click').next({ annotationId, motivation: annotation.motivation });
         }
       }
     };
 
     const { handleMouseEnter, handleMouseLeave, cleanup: cleanupHover } = createHoverHandlers(
-      (annotationId) => eventBus.get('annotation:hover').next({ annotationId })
+      (annotationId) => eventBus.get('attend:hover').next({ annotationId })
     );
 
     // Single mouseover handler for the container - fires once on enter
@@ -212,8 +212,8 @@ export function BrowseView({
   }, [scrollToAnnotation]);
 
   useEventSubscriptions({
-    'annotation:hover': handleAnnotationHover,
-    'annotation:focus': handleAnnotationFocus,
+    'attend:hover': handleAnnotationHover,
+    'attend:focus': handleAnnotationFocus,
   });
 
   // Route to appropriate viewer based on MIME type category

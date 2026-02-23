@@ -47,7 +47,7 @@ interface SvgDrawingCanvasProps {
 /**
  * SVG-based drawing canvas for creating image annotations with shapes
  *
- * @emits annotation:click - Annotation clicked on canvas. Payload: { annotationId: string, motivation: Motivation }
+ * @emits attend:click - Annotation clicked on canvas. Payload: { annotationId: string, motivation: Motivation }
  * @emits annotation:requested - New annotation drawn on canvas. Payload: { selector: SvgSelector, motivation: SelectionMotivation }
  */
 export function SvgDrawingCanvas({
@@ -213,7 +213,7 @@ export function SvgDrawingCanvas({
         });
 
         if (clickedAnnotation) {
-          eventBus?.get('annotation:click').next({ annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
+          eventBus?.get('attend:click').next({ annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
           setIsDrawing(false);
           setStartPoint(null);
           setCurrentPoint(null);

@@ -57,7 +57,7 @@ interface Props {
  * @subscribes toolbar:selection-changed - Text selection tool changed. Payload: { selection: boolean }
  * @subscribes toolbar:click-changed - Click annotation tool changed. Payload: { click: 'detail' | 'scroll' | null }
  * @subscribes toolbar:shape-changed - Drawing shape changed. Payload: { shape: string }
- * @subscribes annotation:click - User clicked on annotation. Payload: { annotationId: string }
+ * @subscribes attend:click - User clicked on annotation. Payload: { annotationId: string }
  */
 export function ResourceViewer({
   resource,
@@ -359,7 +359,7 @@ export function ResourceViewer({
     'toolbar:shape-changed': handleToolbarShapeChanged,
 
     // Annotation clicks
-    'annotation:click': handleAnnotationClickEvent,
+    'attend:click': handleAnnotationClickEvent,
   });
 
   // Prepare props for child components

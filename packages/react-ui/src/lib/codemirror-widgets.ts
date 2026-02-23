@@ -178,7 +178,7 @@ export class ReferenceResolutionWidget extends WidgetType {
         indicator.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
-          eventBus.get('annotation:click').next({ annotationId: annotation.id, motivation: annotation.motivation });
+          eventBus.get('attend:click').next({ annotationId: annotation.id, motivation: annotation.motivation });
         });
       }
     }

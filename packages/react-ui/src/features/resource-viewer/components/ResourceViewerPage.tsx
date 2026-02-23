@@ -91,12 +91,12 @@ export interface ResourceViewerPageProps {
  * Uses hooks directly (NO containers, NO render props, NO ResourceViewerPageContent wrapper)
  *
  * @emits navigation:router-push - Navigate to a resource or filtered view
- * @emits annotation:sparkle - Trigger sparkle animation on an annotation
+ * @emits attend:sparkle - Trigger sparkle animation on an annotation
  * @emits annotation:update-body - Update annotation body content
  * @subscribes resource:archive - Archive the current resource
  * @subscribes resource:unarchive - Unarchive the current resource
  * @subscribes resource:clone - Clone the current resource
- * @subscribes annotation:sparkle - Trigger sparkle animation
+ * @subscribes attend:sparkle - Trigger sparkle animation
  * @subscribes annotation:created - Annotation was created
  * @subscribes annotation:deleted - Annotation was deleted
  * @subscribes annotation:create-failed - Annotation creation failed
@@ -364,7 +364,7 @@ export function ResourceViewerPage({
     'resource:archive': handleResourceArchive,
     'resource:unarchive': handleResourceUnarchive,
     'resource:clone': handleResourceClone,
-    'annotation:sparkle': handleAnnotationSparkle,
+    'attend:sparkle': handleAnnotationSparkle,
     'annotation:created': handleAnnotationCreated,
     'annotation:deleted': debouncedInvalidateAnnotations,
     'annotation:create-failed': handleAnnotationCreateFailed,
@@ -439,7 +439,7 @@ export function ResourceViewerPage({
   // Handlers for AnnotationHistory (legacy event-based interaction)
   const handleEventHover = useCallback((annotationId: string | null) => {
     if (annotationId) {
-      eventBus.get('annotation:sparkle').next({ annotationId });
+      eventBus.get('attend:sparkle').next({ annotationId });
     }
   }, []); // eventBus is stable singleton - never in deps
 
