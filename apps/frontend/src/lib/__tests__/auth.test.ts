@@ -190,9 +190,6 @@ describe('Auth Configuration', () => {
       });
 
       expect(result).toBe(true);
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('OAuth Debug: email=user@example.com')
-      );
     });
 
     it('should reject sign-in for disallowed domain', async () => {
@@ -208,9 +205,6 @@ describe('Auth Configuration', () => {
       });
 
       expect(result).toBe(false);
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Rejected login from domain: forbidden.com')
-      );
     });
 
     it('should reject sign-in for user without email', async () => {

@@ -133,6 +133,7 @@ export { EventBus, ScopedEventBus } from './event-bus';
 // Event protocol (application-level events for event bus)
 export type {
   EventMap,
+  EventName,
   SelectionData,
   DetectionProgress,
   GenerationProgress,

@@ -44,12 +44,11 @@ function captureEventBus(): EventBus {
 const noop = () => {};
 const mockShowSuccess = vi.fn();
 const mockShowError = vi.fn();
-const mockCacheManager = { invalidate: vi.fn() };
 const mockClearNewAnnotationId = vi.fn();
 
 function renderGenerationFlow() {
   return renderHook(
-    () => useGenerationFlow('en', 'test-resource', mockShowSuccess, mockShowError, mockCacheManager, mockClearNewAnnotationId),
+    () => useGenerationFlow('en', 'test-resource', mockShowSuccess, mockShowError, mockClearNewAnnotationId),
     { wrapper }
   );
 }
@@ -143,10 +142,7 @@ describe('useGenerationFlow — progress state', () => {
     const finalProgress = makeProgress({ status: 'complete', percentage: 100, message: 'Generation complete!' });
 
     act(() => {
-      eventBus.get('generation:complete').next({
-        annotationUri: 'http://localhost:4000/annotations/test-ref-id',
-        progress: finalProgress,
-      });
+      eventBus.get('generation:complete').next(finalProgress);
     });
 
     await waitFor(() => {
@@ -188,10 +184,7 @@ describe('useGenerationFlow — progress state', () => {
     const finalProgress = makeProgress({ status: 'complete', percentage: 100, message: 'Done!' });
 
     act(() => {
-      eventBus.get('generation:complete').next({
-        annotationUri: 'http://localhost:4000/annotations/test-ref-id',
-        progress: finalProgress,
-      });
+      eventBus.get('generation:complete').next(finalProgress);
     });
 
     await waitFor(() => {

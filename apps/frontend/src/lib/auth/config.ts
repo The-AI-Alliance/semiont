@@ -7,11 +7,6 @@ import {
 import type { NextAuthOptions } from 'next-auth';
 import { providers } from './providers';
 
-console.log('[Frontend Auth] Config loaded:', {
-  serverApiUrl: SERVER_API_URL,
-  allowedDomains: getAllowedDomains()
-});
-
 export const authOptions: NextAuthOptions = {
   providers,
   callbacks: {
@@ -30,34 +25,25 @@ export const authOptions: NextAuthOptions = {
           return false;
         }
 
-        console.log(`OAuth Debug: Allowed domains from config = ${JSON.stringify(allowedDomains)}`);
-
         if (!user.email) {
-          console.log('OAuth Debug: No email provided');
           return false;
         }
 
         const emailParts = user.email.split('@');
         if (emailParts.length !== 2 || !emailParts[1]) {
-          console.log(`OAuth Debug: Invalid email format: ${user.email}`);
           return false;
         }
 
         const emailDomain: string = emailParts[1];
-        console.log(`OAuth Debug: email=${user.email}, domain=${emailDomain}`);
 
         // Check if the domain is in the allowed list
         if (!allowedDomains.includes(emailDomain)) {
-          console.log(`Rejected login from domain: ${emailDomain} (allowed: ${allowedDomains.join(', ')})`);
           return false;
         }
-
-        console.log(`OAuth Debug: domain ${emailDomain} is allowed`);
 
         // Backend authentication for security validation and token generation
         try {
           const apiUrl = SERVER_API_URL;
-          console.log(`Calling backend at: ${apiUrl}/api/tokens/google`);
           const response = await fetch(`${apiUrl}/api/tokens/google`, {
             method: 'POST',
             headers: {

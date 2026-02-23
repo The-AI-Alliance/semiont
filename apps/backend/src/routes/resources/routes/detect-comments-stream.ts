@@ -23,6 +23,7 @@ import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/core';
 import { jobId } from '@semiont/core';
 import { userId, resourceId, type ResourceId } from '@semiont/core';
+import { writeTypedSSE } from '../../../lib/sse-helpers';
 
 type DetectCommentsStreamRequest = components['schemas']['DetectCommentsStreamRequest'];
 
@@ -146,13 +147,13 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
               if (isStreamClosed) return;
               console.log(`[DetectComments] Detection started for resource ${id}`);
               try {
-                await stream.writeSSE({
+                await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'started',
                     resourceId: resourceId(id),
                     message: 'Starting detection...'
                   } as CommentDetectionProgress),
-                  event: 'comment-detection-started',
+                  event: 'detection:started',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -168,7 +169,7 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
               if (isStreamClosed) return;
               console.log(`[DetectComments] Detection progress for resource ${id}:`, progress);
               try {
-                await stream.writeSSE({
+                await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: progress.status || 'analyzing',
                     resourceId: resourceId(id),
@@ -176,7 +177,7 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
                     percentage: progress.percentage,
                     message: progress.message || 'Processing...'
                   } as CommentDetectionProgress),
-                  event: 'comment-detection-progress',
+                  event: 'detection:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -193,7 +194,7 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
               console.log(`[DetectComments] Detection completed for resource ${id}`);
               try {
                 const result = event.payload.result;
-                await stream.writeSSE({
+                await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'complete',
                     resourceId: resourceId(id),
@@ -204,7 +205,7 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
                       ? `Complete! Created ${result.commentsCreated} comments`
                       : 'Comment detection complete!'
                   } as CommentDetectionProgress),
-                  event: 'comment-detection-complete',
+                  event: 'detection:complete',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -220,13 +221,13 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
               if (isStreamClosed) return;
               console.log(`[DetectComments] Detection failed for resource ${id}:`, event.payload.error);
               try {
-                await stream.writeSSE({
+                await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'error',
                     resourceId: resourceId(id),
                     message: event.payload.error || 'Comment detection failed'
                   } as CommentDetectionProgress),
-                  event: 'comment-detection-error',
+                  event: 'detection:failed',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -269,7 +270,7 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
                 resourceId: resourceId(id),
                 message: error instanceof Error ? error.message : 'Comment detection failed'
               } as CommentDetectionProgress),
-              event: 'comment-detection-error',
+              event: 'detection:failed',
               id: String(Date.now())
             });
           } catch (sseError) {

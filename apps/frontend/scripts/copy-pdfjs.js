@@ -30,8 +30,6 @@ const pdfjsFiles = [
   }
 ];
 
-console.log(`Downloading PDF.js v${PDFJS_VERSION} library files...`);
-
 /**
  * Download a file from URL to destination
  */
@@ -68,29 +66,35 @@ function downloadFile(url, dest) {
  * Download all PDF.js files
  */
 async function downloadAllFiles() {
+  let existsCount = 0;
+  let downloadedCount = 0;
+
   for (const fileInfo of pdfjsFiles) {
     const targetPath = path.join(targetDir, fileInfo.name);
 
     // Skip if file already exists
     if (fs.existsSync(targetPath)) {
-      console.log(`  ✓ Already exists: ${fileInfo.name}`);
+      existsCount++;
       continue;
     }
 
     try {
       await downloadFile(fileInfo.url, targetPath);
-      console.log(`  ✓ Downloaded ${fileInfo.name}`);
+      downloadedCount++;
     } catch (err) {
-      console.error(`  ✗ Failed to download ${fileInfo.name}: ${err.message}`);
+      console.error(`✗ Failed to download ${fileInfo.name}: ${err.message}`);
       process.exit(1);
     }
+  }
+
+  if (downloadedCount > 0) {
+    console.log(`✅ Downloaded ${downloadedCount} PDF.js files (${existsCount} already present)`);
+  } else if (existsCount > 0) {
+    console.log(`✅ PDF.js v${PDFJS_VERSION} ready (${existsCount} files)`);
   }
 }
 
 downloadAllFiles()
-  .then(() => {
-    console.log('PDF.js library files ready!');
-  })
   .catch((err) => {
     console.error('Failed to download PDF.js files:', err);
     process.exit(1);

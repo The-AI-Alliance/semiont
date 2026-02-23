@@ -23,6 +23,7 @@ import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/core';
 import { jobId } from '@semiont/core';
 import { userId, resourceId, type ResourceId } from '@semiont/core';
+import { writeTypedSSE } from '../../../lib/sse-helpers';
 import { getTagSchema } from '@semiont/ontology';
 
 type DetectTagsStreamRequest = components['schemas']['DetectTagsStreamRequest'];
@@ -162,14 +163,14 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
               if (isStreamClosed) return;
               console.log(`[DetectTags] Detection started for resource ${id}`);
               try {
-                await stream.writeSSE({
+                await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'started',
                     resourceId: resourceId(id),
                     totalCategories: categories.length,
                     message: 'Starting detection...'
                   } as TagDetectionProgress),
-                  event: 'tag-detection-started',
+                  event: 'detection:started',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -185,7 +186,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
               if (isStreamClosed) return;
               console.log(`[DetectTags] Detection progress for resource ${id}:`, progress);
               try {
-                await stream.writeSSE({
+                await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: progress.status || 'analyzing',
                     resourceId: resourceId(id),
@@ -196,7 +197,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
                     totalCategories: progress.totalCategories,
                     message: progress.message || 'Processing...'
                   } as TagDetectionProgress),
-                  event: 'tag-detection-progress',
+                  event: 'detection:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -213,7 +214,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
               console.log(`[DetectTags] Detection completed for resource ${id}`);
               try {
                 const result = event.payload.result;
-                await stream.writeSSE({
+                await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'complete',
                     resourceId: resourceId(id),
@@ -225,7 +226,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
                       ? `Complete! Created ${result.tagsCreated} tags`
                       : 'Tag detection complete!'
                   } as TagDetectionProgress),
-                  event: 'tag-detection-complete',
+                  event: 'detection:complete',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -241,13 +242,13 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
               if (isStreamClosed) return;
               console.log(`[DetectTags] Detection failed for resource ${id}:`, event.payload.error);
               try {
-                await stream.writeSSE({
+                await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'error',
                     resourceId: resourceId(id),
                     message: event.payload.error || 'Tag detection failed'
                   } as TagDetectionProgress),
-                  event: 'tag-detection-error',
+                  event: 'detection:failed',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -290,7 +291,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
                 resourceId: resourceId(id),
                 message: error instanceof Error ? error.message : 'Tag detection failed'
               } as TagDetectionProgress),
-              event: 'tag-detection-error',
+              event: 'detection:failed',
               id: String(Date.now())
             });
           } catch (sseError) {

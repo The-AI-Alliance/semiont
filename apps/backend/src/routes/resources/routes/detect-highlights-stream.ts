@@ -23,6 +23,7 @@ import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/core';
 import { jobId } from '@semiont/core';
 import { userId, resourceId, type ResourceId } from '@semiont/core';
+import { writeTypedSSE } from '../../../lib/sse-helpers';
 
 type DetectHighlightsStreamRequest = components['schemas']['DetectHighlightsStreamRequest'];
 
@@ -145,13 +146,13 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
               if (isStreamClosed) return;
               console.log(`[DetectHighlights] Detection started for resource ${id}`);
               try {
-                await stream.writeSSE({
+                await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'started',
                     resourceId: resourceId(id),
                     message: 'Starting detection...'
                   } as HighlightDetectionProgress),
-                  event: 'highlight-detection-started',
+                  event: 'detection:started',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -167,7 +168,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
               if (isStreamClosed) return;
               console.log(`[DetectHighlights] Detection progress for resource ${id}:`, progress);
               try {
-                await stream.writeSSE({
+                await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: progress.status || 'analyzing',
                     resourceId: resourceId(id),
@@ -175,7 +176,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
                     percentage: progress.percentage,
                     message: progress.message || 'Processing...'
                   } as HighlightDetectionProgress),
-                  event: 'highlight-detection-progress',
+                  event: 'detection:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -192,7 +193,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
               console.log(`[DetectHighlights] Detection completed for resource ${id}`);
               try {
                 const result = event.payload.result;
-                await stream.writeSSE({
+                await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'complete',
                     resourceId: resourceId(id),
@@ -203,7 +204,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
                       ? `Complete! Created ${result.highlightsCreated} highlights`
                       : 'Highlight detection complete!'
                   } as HighlightDetectionProgress),
-                  event: 'highlight-detection-complete',
+                  event: 'detection:complete',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -219,13 +220,13 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
               if (isStreamClosed) return;
               console.log(`[DetectHighlights] Detection failed for resource ${id}:`, event.payload.error);
               try {
-                await stream.writeSSE({
+                await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'error',
                     resourceId: resourceId(id),
                     message: event.payload.error || 'Highlight detection failed'
                   } as HighlightDetectionProgress),
-                  event: 'highlight-detection-error',
+                  event: 'detection:failed',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -268,7 +269,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
                 resourceId: resourceId(id),
                 message: error instanceof Error ? error.message : 'Highlight detection failed'
               } as HighlightDetectionProgress),
-              event: 'highlight-detection-error',
+              event: 'detection:failed',
               id: String(Date.now())
             });
           } catch (sseError) {

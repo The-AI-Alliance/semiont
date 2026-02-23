@@ -54,14 +54,10 @@ if (!config.services.backend.corsOrigin) {
 const backendService = config.services.backend;
 
 // Create global EventBus for real-time events
-console.log('📡 Creating global EventBus...');
 const eventBus = new EventBus();
-console.log('✅ Global EventBus created');
 
 // Initialize make-meaning service (job queue, workers, graph consumer)
-console.log('🧠 Initializing make-meaning service...');
 const makeMeaning = await startMakeMeaning(config, eventBus);
-console.log('✅ Make-meaning service initialized');
 
 // Import route definitions
 import { healthRouter } from './routes/health';
@@ -215,15 +211,6 @@ app.all('/api/*', (c) => {
 const port = backendService.port || 4000;
 const nodeEnv = config.env?.NODE_ENV || 'development';
 
-console.log(`🚀 Starting Semiont Backend...`);
-console.log(`Environment: ${nodeEnv}`);
-console.log(`Port: ${port}`);
-
-// Start server
-if (nodeEnv !== 'test') {
-  console.log('🚀 Starting HTTP server...');
-}
-
 // Only start server if not in test environment
 if (nodeEnv !== 'test') {
   serve({
@@ -231,33 +218,23 @@ if (nodeEnv !== 'test') {
     port: port,
     hostname: '0.0.0.0'
   }, async (info) => {
-    console.log(`🚀 Server ready at http://localhost:${info.port}`);
-    console.log(`📡 API ready at http://localhost:${info.port}/api`);
+    console.log(`🚀 Semiont Backend ready at http://localhost:${info.port}/api (${nodeEnv})`);
 
     // Initialize JWT Service with configuration
     try {
-      console.log('🔐 Initializing JWT Service...');
       const { JWTService } = await import('./auth/jwt');
       JWTService.initialize(config);
-      console.log('✅ JWT Service initialized');
     } catch (error) {
       console.error('⚠️ Failed to initialize JWT Service:', error);
-      // Continue running even if JWT initialization fails
     }
 
-    // Pre-populate tag collections from graph database
-    // Uses graphDb from MakeMeaningService (already initialized)
+    // Pre-load entity types from graph database for performance
     try {
-      console.log('🔧 Pre-loading entity types from graph database...');
       const entityTypes = await makeMeaning.graphDb.getEntityTypes();
-      console.log(`✅ Graph database warmed up with ${entityTypes.length} entity types`);
+      console.log(`✅ Loaded ${entityTypes.length} entity types from graph database`);
     } catch (error) {
       console.error('⚠️ Failed to pre-load entity types:', error);
-      // Continue running even if warmup fails
     }
-
-    // Note: InferenceClient is already initialized in MakeMeaningService
-    console.log('✅ Inference client ready (initialized in MakeMeaningService)');
   });
 }
 

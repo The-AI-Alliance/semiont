@@ -31,7 +31,8 @@ const faviconFiles = [
   'site.webmanifest'
 ];
 
-console.log('Copying favicon assets from @semiont/react-ui...');
+let copiedCount = 0;
+let missingCount = 0;
 
 faviconFiles.forEach(file => {
   const sourcePath = path.join(sourceDir, file);
@@ -39,10 +40,15 @@ faviconFiles.forEach(file => {
 
   if (fs.existsSync(sourcePath)) {
     fs.copyFileSync(sourcePath, targetPath);
-    console.log(`  ✓ Copied ${file}`);
+    copiedCount++;
   } else {
     console.warn(`  ⚠ Source file not found: ${file}`);
+    missingCount++;
   }
 });
 
-console.log('Favicon assets copied successfully!');
+if (missingCount === 0) {
+  console.log(`✅ Copied ${copiedCount} favicon assets`);
+} else {
+  console.log(`✅ Copied ${copiedCount} favicon assets (${missingCount} missing)`);
+}

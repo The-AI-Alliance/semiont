@@ -49,7 +49,6 @@ export interface GenerationFlowState {
  * @param resourceId - Resource ID for generation
  * @param showSuccess - Success toast callback
  * @param showError - Error toast callback
- * @param cacheManager - Cache manager for invalidation
  * @param clearNewAnnotationId - Clear animation callback
  * @emits generation:start - Start document generation (consumed internally by this hook)
  * @emits generation:progress - SSE progress chunk from generation stream
@@ -68,7 +67,6 @@ export function useGenerationFlow(
   resourceId: string,
   showSuccess: (message: string) => void,
   showError: (message: string) => void,
-  cacheManager: any,
   clearNewAnnotationId: (annotationId: AnnotationUri) => void
 ): GenerationFlowState {
   const eventBus = useEventBus();
@@ -158,7 +156,7 @@ export function useGenerationFlow(
     eventBus.get('context:retrieval-requested').next({ annotationUri: annUri, resourceUri });
   }, []);
 
-  const handleGenerationComplete = useCallback(({ progress }: { annotationUri: string; progress: GenerationProgress }) => {
+  const handleGenerationComplete = useCallback((progress: GenerationProgress) => {
     // Update progress state to final value and mark done
     setGenerationProgress(progress);
     setIsGenerating(false);
@@ -170,14 +168,12 @@ export function useGenerationFlow(
       showSuccess('Resource created successfully!');
     }
 
-    // Refetch annotations to show the reference is now resolved
-    if (cacheManager) {
-      cacheManager.invalidate('annotations');
-    }
+    // No cache invalidation needed - useResourceEvents receives annotation.body.updated
+    // event via SSE and optimistically updates the specific annotation in React Query cache
 
     // Clear progress widget after a delay to show completion state
     setTimeout(() => clearProgress(), 2000);
-  }, [showSuccess, cacheManager, clearProgress]);
+  }, [showSuccess, clearProgress]);
 
   const handleGenerationFailed = useCallback(({ error }: { error: Error }) => {
     // Update progress state and mark done
@@ -208,7 +204,6 @@ export function useGenerationFlow(
         context: any;
       };
     }) => {
-      console.log('[useGenerationFlow] handleGenerationStart called', { annotationUri: event.annotationUri, options: event.options });
       try {
         generationStreamRef.current?.abort();
         generationStreamRef.current = new AbortController();
@@ -223,9 +218,7 @@ export function useGenerationFlow(
         );
         // Events auto-emit to EventBus: generation:progress, generation:complete, generation:failed
       } catch (error) {
-        if ((error as any).name === 'AbortError') {
-          console.log('[useGenerationFlow] Generation cancelled');
-        } else {
+        if ((error as any).name !== 'AbortError') {
           console.error('[useGenerationFlow] Generation failed:', error);
           eventBus.get('generation:failed').next({ error: error as Error });
         }
