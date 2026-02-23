@@ -149,9 +149,12 @@ describe('Scripting Example: Entity Detection with Progress', () => {
     });
 
     // Subscribe to detection lifecycle events
-    resourceBus.get('annotate:detect-request').subscribe(event => {
-      detectionStartedEvents.push(event);
-      console.log(`[${rId}] Detection started`);
+    // Subscribe to domain event for job.started
+    resourceBus.get('make-meaning:event').subscribe(event => {
+      if (event.type === 'job.started') {
+        detectionStartedEvents.push(event);
+        console.log(`[${rId}] Detection started`);
+      }
     });
 
     resourceBus.get('annotate:detect-progress').subscribe(progress => {
@@ -160,11 +163,14 @@ describe('Scripting Example: Entity Detection with Progress', () => {
     });
 
     // Create promise to wait for completion
+    // Subscribe to domain event 'make-meaning:event' and filter for job.completed
     const completionPromise = new Promise(resolve => {
-      resourceBus.get('annotate:detect-finished').subscribe(event => {
-        detectionCompletedEvents.push(event);
-        console.log(`[${rId}] Detection complete`);
-        resolve(event);
+      resourceBus.get('make-meaning:event').subscribe(event => {
+        if (event.type === 'job.completed') {
+          detectionCompletedEvents.push(event);
+          console.log(`[${rId}] Detection complete`);
+          resolve(event);
+        }
       });
     });
 
@@ -235,13 +241,16 @@ describe('Scripting Example: Entity Detection with Progress', () => {
     const completions = new Map<string, boolean>();
 
     // Subscribe to completion events for each resource
+    // Subscribe to domain event 'make-meaning:event' and filter for job.completed
     for (const { resource } of resources) {
       const rId = getResourceId(resource);
       expect(rId).toBeDefined();
       const resourceBus = eventBus.scope(rId!);
-      resourceBus.get('annotate:detect-finished').subscribe(() => {
-        completions.set(rId!, true);
-        console.log(`✓ Completed: ${resource.name} (${rId})`);
+      resourceBus.get('make-meaning:event').subscribe((event) => {
+        if (event.type === 'job.completed') {
+          completions.set(rId!, true);
+          console.log(`✓ Completed: ${resource.name} (${rId})`);
+        }
       });
     }
 
@@ -319,8 +328,13 @@ describe('Scripting Example: Entity Detection with Progress', () => {
     });
 
     // Create completion promise
+    // Subscribe to domain event 'make-meaning:event' and filter for job.completed
     const completionPromise = new Promise(resolve => {
-      resourceBus.get('annotate:detect-finished').subscribe(resolve);
+      resourceBus.get('make-meaning:event').subscribe((event) => {
+        if (event.type === 'job.completed') {
+          resolve(event);
+        }
+      });
     });
 
     // Enqueue job
