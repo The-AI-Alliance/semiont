@@ -50,13 +50,13 @@ interface Props {
  * @emits annotate:delete - User requested to delete annotation. Payload: { annotationId: string }
  * @emits attend:panel-open - Request to open panel with annotation. Payload: { panel: string, scrollToAnnotationId?: string, motivation?: Motivation }
  *
- * @subscribes view:mode-toggled - Toggles between browse and annotate mode. Payload: { mode: 'browse' | 'annotate' }
+ * @subscribes annotate:mode-toggled - Toggles between browse and annotate mode. Payload: { mode: 'browse' | 'annotate' }
  * @subscribes annotate:added - New annotation was added. Payload: { annotation: Annotation }
  * @subscribes annotate:removed - Annotation was removed. Payload: { annotationId: string }
  * @subscribes annotate:body-updated - Annotation was updated. Payload: { annotation: Annotation }
- * @subscribes toolbar:selection-changed - Text selection tool changed. Payload: { selection: boolean }
- * @subscribes toolbar:click-changed - Click annotation tool changed. Payload: { click: 'detail' | 'scroll' | null }
- * @subscribes toolbar:shape-changed - Drawing shape changed. Payload: { shape: string }
+ * @subscribes annotate:selection-changed - Text selection tool changed. Payload: { selection: boolean }
+ * @subscribes annotate:click-changed - Click annotation tool changed. Payload: { click: 'detail' | 'scroll' | null }
+ * @subscribes annotate:shape-changed - Drawing shape changed. Payload: { shape: string }
  * @subscribes attend:click - User clicked on annotation. Payload: { annotationId: string }
  */
 export function ResourceViewer({
@@ -346,7 +346,7 @@ export function ResourceViewer({
   // IMPORTANT: All event subscriptions MUST be in a single call to maintain consistent hook order between renders
   useEventSubscriptions({
     // View mode
-    'view:mode-toggled': handleViewModeToggle,
+    'annotate:mode-toggled': handleViewModeToggle,
 
     // Annotation cache invalidation
     'annotate:added': handleAnnotateAdded,
@@ -354,9 +354,9 @@ export function ResourceViewer({
     'annotate:body-updated': handleAnnotateBodyUpdated,
 
     // Toolbar state
-    'toolbar:selection-changed': handleToolbarSelectionChanged,
-    'toolbar:click-changed': handleToolbarClickChanged,
-    'toolbar:shape-changed': handleToolbarShapeChanged,
+    'annotate:selection-changed': handleToolbarSelectionChanged,
+    'annotate:click-changed': handleToolbarClickChanged,
+    'annotate:shape-changed': handleToolbarShapeChanged,
 
     // Annotation clicks
     'attend:click': handleAnnotationClickEvent,

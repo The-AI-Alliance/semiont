@@ -103,6 +103,9 @@ export type EventMap = {
   'attend:click': { annotationId: string; motivation: Motivation };
   'attend:focus': { annotationId: string | null };
   'attend:sparkle': { annotationId: string };
+  'attend:panel-toggle': { panel: string };
+  'attend:panel-open': { panel: string; scrollToAnnotationId?: string; motivation?: string };
+  'attend:panel-close': void;
 
   // ========================================================================
   // ANNOTATION FLOW
@@ -152,6 +155,12 @@ export type EventMap = {
   'annotate:detect-failed': Extract<ResourceEvent, { type: 'job.failed' }>;
   'annotate:detect-cancelled': void;
   'annotate:detect-dismiss': void;
+
+  // Toolbar state (annotation UI controls)
+  'annotate:mode-toggled': void;
+  'annotate:selection-changed': { motivation: string | null };
+  'annotate:click-changed': { action: string };
+  'annotate:shape-changed': { shape: string };
 
   // Domain Events (from backend event store)
   'annotate:added': Extract<ResourceEvent, { type: 'annotation.added' }>;
@@ -243,7 +252,7 @@ export type EventMap = {
   'generate:clone': void;
 
   // ========================================================================
-  // INFRASTRUCTURE: Resource management
+  // Resource management
   // ========================================================================
 
   // Domain Events (from backend event store)
@@ -255,7 +264,7 @@ export type EventMap = {
   'resource:unarchive': void;
 
   // ========================================================================
-  // INFRASTRUCTURE: Job control
+  // Job control
   // ========================================================================
 
   // Domain Events (from backend event store)
@@ -268,29 +277,7 @@ export type EventMap = {
   'job:cancel-requested': { jobType: 'detection' | 'generation' };
 
   // ========================================================================
-  // INFRASTRUCTURE: Panel management
-  // ========================================================================
-
-  'panel:toggle': { panel: string };
-  'panel:open': { panel: string; scrollToAnnotationId?: string; motivation?: string };
-  'panel:close': void;
-
-  // ========================================================================
-  // INFRASTRUCTURE: View modes
-  // ========================================================================
-
-  'view:mode-toggled': void;
-
-  // ========================================================================
-  // INFRASTRUCTURE: Toolbar (annotation UI controls)
-  // ========================================================================
-
-  'toolbar:selection-changed': { motivation: string | null };
-  'toolbar:click-changed': { action: string };
-  'toolbar:shape-changed': { shape: string };
-
-  // ========================================================================
-  // INFRASTRUCTURE: Navigation
+  // UI
   // ========================================================================
 
   'navigation:sidebar-toggle': void;
@@ -303,7 +290,7 @@ export type EventMap = {
   'navigation:entity-type-clicked': { entityType: string };
 
   // ========================================================================
-  // INFRASTRUCTURE: Settings
+  // Settings
   // ========================================================================
 
   'settings:theme-changed': { theme: 'light' | 'dark' | 'system' };

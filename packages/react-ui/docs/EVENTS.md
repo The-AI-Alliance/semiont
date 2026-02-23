@@ -89,7 +89,10 @@ These events are emitted by the backend when domain changes occur:
 
 - `resource:archive` - Resource should be archived
 - `resource:unarchive` - Resource should be unarchived
-- `resource:clone` - Resource should be cloned
+
+**Generation Events**:
+
+- `generate:clone` - Resource should be cloned
 
 ### UI Events (Local User Interactions)
 

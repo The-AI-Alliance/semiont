@@ -128,9 +128,9 @@ function segmentTextWithAnnotations(content: string, annotations: Annotation[]):
  * View component for annotating resources with text selection and drawing
  *
  * @emits annotate:requested - User requested to create annotation. Payload: { selector: Selector | Selector[], motivation: SelectionMotivation }
- * @subscribes toolbar:selection-changed - Toolbar selection changed. Payload: { motivation: string | null }
- * @subscribes toolbar:click-changed - Toolbar click action changed. Payload: { action: string }
- * @subscribes toolbar:shape-changed - Toolbar shape changed. Payload: { shape: string }
+ * @subscribes annotate:selection-changed - Toolbar selection changed. Payload: { motivation: string | null }
+ * @subscribes annotate:click-changed - Toolbar click action changed. Payload: { action: string }
+ * @subscribes annotate:shape-changed - Toolbar shape changed. Payload: { shape: string }
  * @subscribes attend:hover - Annotation hovered. Payload: { annotationId: string | null }
  */
 export function AnnotateView({
@@ -183,9 +183,9 @@ export function AnnotateView({
 
   // Subscribe to toolbar events and annotation hover
   useEventSubscriptions({
-    'toolbar:selection-changed': handleToolbarSelectionChanged,
-    'toolbar:click-changed': handleToolbarClickChanged,
-    'toolbar:shape-changed': handleToolbarShapeChanged,
+    'annotate:selection-changed': handleToolbarSelectionChanged,
+    'annotate:click-changed': handleToolbarClickChanged,
+    'annotate:shape-changed': handleToolbarShapeChanged,
     'attend:hover': handleAnnotationHover,
   });
 

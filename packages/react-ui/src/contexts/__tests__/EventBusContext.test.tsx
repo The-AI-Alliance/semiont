@@ -64,8 +64,8 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
-        result.current.get('toolbar:selection-changed').subscribe(handler);
-        result.current.get('toolbar:selection-changed').next({ motivation: 'highlighting' });
+        result.current.get('annotate:selection-changed').subscribe(handler);
+        result.current.get('annotate:selection-changed').next({ motivation: 'highlighting' });
       });
 
       expect(handler).toHaveBeenCalledWith({ motivation: 'highlighting' });
