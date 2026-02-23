@@ -167,6 +167,37 @@ export type EventMap = {
   'detect:dismiss-progress': void;
 
   // ========================================================================
+  // RESOLUTION FLOW
+  // ========================================================================
+  // Reference linking and resolution (search modal)
+
+  'reference:create-manual': {
+    annotationUri: string;
+    title: string;
+    entityTypes: string[];
+  };
+  'reference:link': {
+    annotationUri: string;
+    searchTerm: string;
+  };
+  'resolution:search-requested': {
+    referenceId: string;
+    searchTerm: string;
+  };
+  'annotation:update-body': {
+    annotationUri: string;
+    resourceId: string;
+    operations: Array<{
+      op: 'add' | 'remove' | 'replace';
+      item?: components['schemas']['AnnotationBody'];
+      oldItem?: components['schemas']['AnnotationBody'];
+      newItem?: components['schemas']['AnnotationBody'];
+    }>;
+  };
+  'annotation:body-updated': { annotationUri: string };
+  'annotation:body-update-failed': { error: Error };
+
+  // ========================================================================
   // CONTEXT CORRELATION FLOW
   // ========================================================================
   // LLM context correlation from annotations for generation
@@ -209,37 +240,6 @@ export type EventMap = {
   'generate:progress': GenerationProgress;
   'generate:finished': GenerationProgress;
   'generate:failed': { error: Error };
-
-  // ========================================================================
-  // RESOLUTION FLOW
-  // ========================================================================
-  // Reference linking and resolution (search modal)
-
-  'reference:create-manual': {
-    annotationUri: string;
-    title: string;
-    entityTypes: string[];
-  };
-  'reference:link': {
-    annotationUri: string;
-    searchTerm: string;
-  };
-  'resolution:search-requested': {
-    referenceId: string;
-    searchTerm: string;
-  };
-  'annotation:update-body': {
-    annotationUri: string;
-    resourceId: string;
-    operations: Array<{
-      op: 'add' | 'remove' | 'replace';
-      item?: components['schemas']['AnnotationBody'];
-      oldItem?: components['schemas']['AnnotationBody'];
-      newItem?: components['schemas']['AnnotationBody'];
-    }>;
-  };
-  'annotation:body-updated': { annotationUri: string };
-  'annotation:body-update-failed': { error: Error };
 
   // ========================================================================
   // INFRASTRUCTURE: Application-level domain events
