@@ -55,8 +55,8 @@ interface AssessmentPanelProps {
 /**
  * Panel for managing assessment annotations with text input
  *
- * @emits annotation:create - Create new assessment annotation. Payload: { motivation: 'assessing', selector: Selector | Selector[], body: Body[] }
- * @emits annotation:cancel-pending - Cancel pending assessment annotation. Payload: undefined
+ * @emits annotate:create - Create new assessment annotation. Payload: { motivation: 'assessing', selector: Selector | Selector[], body: Body[] }
+ * @emits annotate:cancel-pending - Cancel pending assessment annotation. Payload: undefined
  * @subscribes attend:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function AssessmentPanel({
@@ -141,7 +141,7 @@ export function AssessmentPanel({
         ? [{ type: 'TextualBody' as const, value: newAssessmentText, purpose: 'assessing' as const }]
         : [];
 
-      eventBus.get('annotation:create').next({
+      eventBus.get('annotate:create').next({
         motivation: 'assessing',
         selector: pendingAnnotation.selector,
         body,
@@ -156,7 +156,7 @@ export function AssessmentPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.get('annotation:cancel-pending').next(undefined);
+        eventBus.get('annotate:cancel-pending').next(undefined);
         setNewAssessmentText('');
       }
     };
@@ -209,7 +209,7 @@ export function AssessmentPanel({
             <div className="semiont-annotation-prompt__actions">
               <button
                 onClick={() => {
-                  eventBus.get('annotation:cancel-pending').next(undefined);
+                  eventBus.get('annotate:cancel-pending').next(undefined);
                   setNewAssessmentText('');
                 }}
                 className="semiont-button semiont-button--secondary"

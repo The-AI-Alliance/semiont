@@ -31,7 +31,7 @@ import { useApiClient } from '../contexts/ApiClientContext';
 import { useAuthToken } from '../contexts/AuthTokenContext';
 import type { DetectionProgress } from '@semiont/core';
 
-type SelectionData = EventMap['selection:comment-requested'];
+type SelectionData = EventMap['annotate:select-comment'];
 
 /** Helper to convert string | null to AccessToken | undefined */
 function toAccessToken(token: string | null) {
@@ -58,28 +58,28 @@ export interface DetectionFlowState {
  *
  * @param rUri - Resource URI being detected
  * @emits panel:open - Open the annotations panel when annotation is requested
- * @emits annotation:created - Annotation successfully created
- * @emits annotation:create-failed - Annotation creation failed
- * @emits annotation:deleted - Annotation successfully deleted
- * @emits annotation:delete-failed - Annotation deletion failed
- * @emits detect:progress - Progress update from SSE stream
- * @emits detect:finished - SSE detection completed
- * @emits detection:failed - SSE detection failed
- * @emits detection:cancelled - SSE detection cancelled
- * @subscribes annotation:requested - User requested a new annotation
- * @subscribes annotation:create - Create annotation via API
- * @subscribes annotation:delete - Delete annotation via API
- * @subscribes selection:comment-requested - User selected text for a comment
- * @subscribes selection:tag-requested - User selected text for a tag
- * @subscribes selection:assessment-requested - User selected text for an assessment
- * @subscribes selection:reference-requested - User selected text for a reference
- * @subscribes annotation:cancel-pending - Cancel pending annotation creation
- * @subscribes detect:request - Trigger AI detection SSE stream
+ * @emits annotate:created - Annotation successfully created
+ * @emits annotate:create-failed - Annotation creation failed
+ * @emits annotate:deleted - Annotation successfully deleted
+ * @emits annotate:delete-failed - Annotation deletion failed
+ * @emits annotate:detect-progress - Progress update from SSE stream
+ * @emits annotate:detect-finished - SSE detection completed
+ * @emits annotate:detect-failed - SSE detection failed
+ * @emits annotate:detect-cancelled - SSE detection cancelled
+ * @subscribes annotate:requested - User requested a new annotation
+ * @subscribes annotate:create - Create annotation via API
+ * @subscribes annotate:delete - Delete annotation via API
+ * @subscribes annotate:select-comment - User selected text for a comment
+ * @subscribes annotate:select-tag - User selected text for a tag
+ * @subscribes annotate:select-assessment - User selected text for an assessment
+ * @subscribes annotate:select-reference - User selected text for a reference
+ * @subscribes annotate:cancel-pending - Cancel pending annotation creation
+ * @subscribes annotate:detect-request - Trigger AI detection SSE stream
  * @subscribes job:cancel-requested - Cancels in-flight detection stream (detection half only)
- * @subscribes detect:progress - Progress update during detection
- * @subscribes detect:finished - Detection completed successfully
- * @subscribes detection:failed - Error during detection
- * @subscribes detection:dismiss-progress - Manually dismiss progress display
+ * @subscribes annotate:detect-progress - Progress update during detection
+ * @subscribes annotate:detect-finished - Detection completed successfully
+ * @subscribes annotate:detect-failed - Error during detection
+ * @subscribes annotate:detect-dismiss - Manually dismiss progress display
  * @returns Detection state
  */
 export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
@@ -271,11 +271,11 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
 
         if (result.annotation) {
           setPendingAnnotation(null);
-          eventBus.get('annotation:created').next({ annotation: result.annotation });
+          eventBus.get('annotate:created').next({ annotation: result.annotation });
         }
       } catch (error) {
         console.error('Failed to create annotation:', error);
-        eventBus.get('annotation:create-failed').next({ error: error as Error });
+        eventBus.get('annotate:create-failed').next({ error: error as Error });
       }
     };
 
@@ -292,10 +292,10 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
 
         await currentClient.deleteAnnotation(annotationUri, { auth: toAccessToken(tokenRef.current) });
 
-        eventBus.get('annotation:deleted').next({ annotationId: event.annotationId });
+        eventBus.get('annotate:deleted').next({ annotationId: event.annotationId });
       } catch (error) {
         console.error('Failed to delete annotation:', error);
-        eventBus.get('annotation:delete-failed').next({ error: error as Error });
+        eventBus.get('annotate:delete-failed').next({ error: error as Error });
       }
     };
 
@@ -340,7 +340,7 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
             throw new Error('Tag detection requires schemaId and categories');
           }
           currentClient.sse.detectTags(currentRUri, { schemaId, categories }, sseOptions);
-          // Events auto-emit to EventBus: detect:progress, detect:finished, detect:failed
+          // Events auto-emit to EventBus: annotate:detect-progress, annotate:detect-finished, annotate:detect-failed
         } else if (event.motivation === 'linking') {
           const { entityTypes, includeDescriptiveReferences } = event.options;
           if (!entityTypes || entityTypes.length === 0) {
@@ -350,31 +350,31 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
             entityTypes: entityTypes.map(et => entityType(et)),
             includeDescriptiveReferences: includeDescriptiveReferences || false,
           }, sseOptions);
-          // Events auto-emit to EventBus: detect:progress, detect:finished, detect:failed
+          // Events auto-emit to EventBus: annotate:detect-progress, annotate:detect-finished, annotate:detect-failed
         } else if (event.motivation === 'highlighting') {
           currentClient.sse.detectHighlights(currentRUri, {
             instructions: event.options.instructions,
             density: event.options.density,
           }, sseOptions);
-          // Events auto-emit to EventBus: detect:progress, detect:finished, detect:failed
+          // Events auto-emit to EventBus: annotate:detect-progress, annotate:detect-finished, annotate:detect-failed
         } else if (event.motivation === 'assessing') {
           currentClient.sse.detectAssessments(currentRUri, {
             instructions: event.options.instructions,
             tone: event.options.tone as 'analytical' | 'critical' | 'balanced' | 'constructive' | undefined,
             density: event.options.density,
           }, sseOptions);
-          // Events auto-emit to EventBus: detect:progress, detect:finished, detect:failed
+          // Events auto-emit to EventBus: annotate:detect-progress, annotate:detect-finished, annotate:detect-failed
         } else if (event.motivation === 'commenting') {
           currentClient.sse.detectComments(currentRUri, {
             instructions: event.options.instructions,
             tone: event.options.tone as 'scholarly' | 'explanatory' | 'conversational' | 'technical' | undefined,
             density: event.options.density,
           }, sseOptions);
-          // Events auto-emit to EventBus: detect:progress, detect:finished, detect:failed
+          // Events auto-emit to EventBus: annotate:detect-progress, annotate:detect-finished, annotate:detect-failed
         }
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
-          eventBus.get('detect:cancelled').next(undefined);
+          eventBus.get('annotate:detect-cancelled').next(undefined);
         } else {
           console.error('Detection failed:', error);
           setDetectingMotivation(null);
@@ -394,9 +394,9 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
       }
     };
 
-    const subscription1 = eventBus.get('annotation:create').subscribe(handleAnnotationCreate);
-    const subscription2 = eventBus.get('annotation:delete').subscribe(handleAnnotationDelete);
-    const subscription3 = eventBus.get('detect:request').subscribe(handleDetectionStart);
+    const subscription1 = eventBus.get('annotate:create').subscribe(handleAnnotationCreate);
+    const subscription2 = eventBus.get('annotate:delete').subscribe(handleAnnotationDelete);
+    const subscription3 = eventBus.get('annotate:detect-request').subscribe(handleDetectionStart);
     const subscription4 = eventBus.get('job:cancel-requested').subscribe(handleJobCancelRequested);
 
     return () => {
@@ -414,17 +414,17 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
 
   useEventSubscriptions({
     // Manual detection
-    'annotation:requested': handleAnnotationRequested,
-    'selection:comment-requested': handleCommentRequested,
-    'selection:tag-requested': handleTagRequested,
-    'selection:assessment-requested': handleAssessmentRequested,
-    'selection:reference-requested': handleReferenceRequested,
-    'annotation:cancel-pending': handleAnnotationCancelPending,
+    'annotate:requested': handleAnnotationRequested,
+    'annotate:select-comment': handleCommentRequested,
+    'annotate:select-tag': handleTagRequested,
+    'annotate:select-assessment': handleAssessmentRequested,
+    'annotate:select-reference': handleReferenceRequested,
+    'annotate:cancel-pending': handleAnnotationCancelPending,
     // AI detection state updates
-    'detect:progress': handleDetectionProgress,
-    'detect:finished': handleDetectionComplete,
-    'detect:failed': handleDetectionFailed,
-    'detect:dismiss-progress': handleDetectionDismissProgress,
+    'annotate:detect-progress': handleDetectionProgress,
+    'annotate:detect-finished': handleDetectionComplete,
+    'annotate:detect-failed': handleDetectionFailed,
+    'annotate:detect-dismiss': handleDetectionDismissProgress,
   });
 
   // Cleanup timeout on unmount

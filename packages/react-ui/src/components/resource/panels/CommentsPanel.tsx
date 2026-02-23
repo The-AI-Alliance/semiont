@@ -55,8 +55,8 @@ interface CommentsPanelProps {
 /**
  * Panel for managing comment annotations with text input
  *
- * @emits annotation:create - Create new comment annotation. Payload: { motivation: 'commenting', selector: Selector | Selector[], body: Body[] }
- * @emits annotation:cancel-pending - Cancel pending comment annotation. Payload: undefined
+ * @emits annotate:create - Create new comment annotation. Payload: { motivation: 'commenting', selector: Selector | Selector[], body: Body[] }
+ * @emits annotate:cancel-pending - Cancel pending comment annotation. Payload: undefined
  * @subscribes attend:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function CommentsPanel({
@@ -167,7 +167,7 @@ export function CommentsPanel({
 
   const handleSaveNewComment = () => {
     if (newCommentText.trim() && pendingAnnotation) {
-      eventBus.get('annotation:create').next({
+      eventBus.get('annotate:create').next({
         motivation: 'commenting',
         selector: pendingAnnotation.selector,
         body: [{ type: 'TextualBody', value: newCommentText, purpose: 'commenting' }],
@@ -182,7 +182,7 @@ export function CommentsPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.get('annotation:cancel-pending').next(undefined);
+        eventBus.get('annotate:cancel-pending').next(undefined);
         setNewCommentText('');
       }
     };
@@ -224,7 +224,7 @@ export function CommentsPanel({
             <div className="semiont-annotation-prompt__actions">
               <button
                 onClick={() => {
-                  eventBus.get('annotation:cancel-pending').next(undefined);
+                  eventBus.get('annotate:cancel-pending').next(undefined);
                   setNewCommentText('');
                 }}
                 className="semiont-button semiont-button--secondary"

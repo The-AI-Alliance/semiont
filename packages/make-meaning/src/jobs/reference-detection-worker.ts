@@ -296,7 +296,7 @@ export class ReferenceDetectionWorker extends JobWorker {
     });
 
     // Domain event (job.completed) is automatically published to EventBus by EventStore
-    // Backend SSE endpoint will subscribe to job.completed and transform to detect:finished
+    // Backend SSE endpoint will subscribe to job.completed and transform to annotate:detect-finished
   }
 
   protected override async handleJobFailure(job: AnyJob, error: any): Promise<void> {
@@ -322,7 +322,7 @@ export class ReferenceDetectionWorker extends JobWorker {
       });
 
       // Domain event (job.failed) is automatically published to EventBus by EventStore
-      // Backend SSE endpoint will subscribe to job.failed and transform to detect:failed
+      // Backend SSE endpoint will subscribe to job.failed and transform to annotate:detect-failed
     }
   }
 
@@ -390,7 +390,7 @@ export class ReferenceDetectionWorker extends JobWorker {
       });
 
       // PROGRESS EVENT: Emit detection:progress directly to EventBus (ephemeral)
-      resourceBus.get('detect:progress').next({
+      resourceBus.get('annotate:detect-progress').next({
         status: 'scanning',
         message: `Processing ${detJob.progress.currentEntityType}`,
         currentEntityType: detJob.progress.currentEntityType,

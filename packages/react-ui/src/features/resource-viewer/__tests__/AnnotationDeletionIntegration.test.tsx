@@ -61,7 +61,7 @@ describe('Annotation Deletion - Feature Integration', () => {
     function TestComponent() {
       eventBusInstance = useEventBus();
       // useDetectionFlow is the single registration point for useResolutionFlow
-      // (handles annotation:delete, annotation:create, detect:request, etc.)
+      // (handles annotate:delete annotate:create annotate:detect-request, etc.)
       useDetectionFlow(testUri);
       return null;
     }
@@ -79,14 +79,14 @@ describe('Annotation Deletion - Feature Integration', () => {
     return {
       emitDelete: (annotationId: string) => {
         act(() => {
-          eventBusInstance!.get('annotation:delete').next({ annotationId });
+          eventBusInstance!.get('annotate:delete).next({ annotationId });
         });
       },
       eventBus: eventBusInstance!,
     };
   }
 
-  it('should call deleteAnnotation API exactly ONCE when annotation:delete event is emitted', async () => {
+  it('should call deleteAnnotation API exactly ONCE when annotate:deleteevent is emitted', async () => {
     const { emitDelete } = renderAnnotationFlow();
     const annotationId = 'annotation-123';
 
@@ -123,12 +123,12 @@ describe('Annotation Deletion - Feature Integration', () => {
     expect(callArgs[1].auth).toBe(accessToken(testToken));
   });
 
-  it('should emit annotation:deleted event on successful deletion', async () => {
+  it('should emit annotate:deleted event on successful deletion', async () => {
     const { emitDelete, eventBus } = renderAnnotationFlow();
     const deletedListener = vi.fn();
 
     // Subscribe to success event
-    eventBus.get('annotation:deleted').subscribe(deletedListener);
+    eventBus.get('annotate:deleted').subscribe(deletedListener);
 
     emitDelete('annotation-789');
 
@@ -145,7 +145,7 @@ describe('Annotation Deletion - Feature Integration', () => {
     });
   });
 
-  it('should emit annotation:delete-failed event on API error', async () => {
+  it('should emit annotate:delete-failed event on API error', async () => {
     // Make API call fail
     deleteAnnotationSpy.mockRejectedValue(new Error('Network error'));
 
@@ -153,7 +153,7 @@ describe('Annotation Deletion - Feature Integration', () => {
     const failedListener = vi.fn();
 
     // Subscribe to failure event
-    eventBus.get('annotation:delete-failed').subscribe(failedListener);
+    eventBus.get('annotate:delete-failed').subscribe(failedListener);
 
     emitDelete('annotation-error');
 
@@ -219,7 +219,7 @@ describe('Annotation Deletion - Feature Integration', () => {
      * that bypassed the event bus.
      *
      * The correct pattern is event-driven only:
-     * - UI emits annotation:delete event
+     * - UI emits annotate:deleteevent
      * - useResolutionFlow handles it
      * - No direct function calls
      */

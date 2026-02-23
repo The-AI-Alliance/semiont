@@ -127,7 +127,7 @@ function segmentTextWithAnnotations(content: string, annotations: Annotation[]):
 /**
  * View component for annotating resources with text selection and drawing
  *
- * @emits annotation:requested - User requested to create annotation. Payload: { selector: Selector | Selector[], motivation: SelectionMotivation }
+ * @emits annotate:requested - User requested to create annotation. Payload: { selector: Selector | Selector[], motivation: SelectionMotivation }
  * @subscribes toolbar:selection-changed - Toolbar selection changed. Payload: { motivation: string | null }
  * @subscribes toolbar:click-changed - Toolbar click action changed. Payload: { action: string }
  * @subscribes toolbar:shape-changed - Toolbar shape changed. Payload: { shape: string }
@@ -208,7 +208,7 @@ export function AnnotateView({
 
     const handleMouseUp = (e: MouseEvent) => {
       // Skip if the mouseUp came from PDF or image canvas
-      // (those components handle their own annotation:requested events)
+      // (those components handle their own annotate:requested events)
       const target = e.target as Element;
       if (target.closest('.semiont-pdf-annotation-canvas') ||
           target.closest('.semiont-svg-drawing-canvas')) {
@@ -248,7 +248,7 @@ export function AnnotateView({
 
         // Unified flow: all text annotations use BOTH TextPositionSelector and TextQuoteSelector
         if (selectedMotivation) {
-          eventBus.get('annotation:requested').next({
+          eventBus.get('annotate:requested').next({
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -282,7 +282,7 @@ export function AnnotateView({
 
         // Unified flow: all text annotations use BOTH TextPositionSelector and TextQuoteSelector
         if (selectedMotivation) {
-          eventBus.get('annotation:requested').next({
+          eventBus.get('annotate:requested').next({
             selector: [
               {
                 type: 'TextPositionSelector',

@@ -68,9 +68,9 @@ interface Props {
 /**
  * Panel for managing reference annotations with entity type detection
  *
- * @emits detect:request - Start reference detection. Payload: { motivation: 'linking', options: { entityTypes: string[], includeDescriptiveReferences: boolean } }
- * @emits annotation:create - Create new reference annotation. Payload: { motivation: 'linking', selector: Selector | Selector[], body: Body[] }
- * @emits annotation:cancel-pending - Cancel pending reference annotation. Payload: undefined
+ * @emits annotate:detect-request - Start reference detection. Payload: { motivation: 'linking', options: { entityTypes: string[], includeDescriptiveReferences: boolean } }
+ * @emits annotate:create - Create new reference annotation. Payload: { motivation: 'linking', selector: Selector | Selector[], body: Body[] }
+ * @emits annotate:cancel-pending - Cancel pending reference annotation. Payload: undefined
  * @subscribes attend:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function ReferencesPanel({
@@ -207,7 +207,7 @@ export function ReferencesPanel({
   // Clear log when starting new detection
   const handleDetect = () => {
     setLastDetectionLog(null);
-    eventBus.get('detect:request').next({
+    eventBus.get('annotate:detect-request').next({
       motivation: 'linking',
       options: {
         entityTypes: selectedEntityTypes,
@@ -250,7 +250,7 @@ export function ReferencesPanel({
   const handleCreateReference = () => {
     if (pendingAnnotation) {
       const entityType = pendingEntityTypes.join(',') || undefined;
-      eventBus.get('annotation:create').next({
+      eventBus.get('annotate:create').next({
         motivation: 'linking',
         selector: pendingAnnotation.selector,
         body: entityType ? [{ type: 'TextualBody', value: entityType, purpose: 'tagging' }] : [],
@@ -265,7 +265,7 @@ export function ReferencesPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.get('annotation:cancel-pending').next(undefined);
+        eventBus.get('annotate:cancel-pending').next(undefined);
         setPendingEntityTypes([]);
       }
     };
@@ -317,7 +317,7 @@ export function ReferencesPanel({
             <div className="semiont-annotation-prompt__actions">
               <button
                 onClick={() => {
-                  eventBus.get('annotation:cancel-pending').next(undefined);
+                  eventBus.get('annotate:cancel-pending').next(undefined);
                   setPendingEntityTypes([]);
                 }}
                 className="semiont-button semiont-button--secondary"

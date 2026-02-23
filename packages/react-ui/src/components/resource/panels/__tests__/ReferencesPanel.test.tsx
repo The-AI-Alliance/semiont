@@ -25,7 +25,7 @@ function createEventTracker() {
         events.push({ event: eventName, payload });
       };
 
-      const panelEvents = ['detect:request'] as const;
+      const panelEvents = ['annotate:detect-request'] as const;
 
       panelEvents.forEach(eventName => {
         const handler = trackEvent(eventName);
@@ -291,7 +291,7 @@ describe('ReferencesPanel Component', () => {
       expect(startButton).not.toBeDisabled();
     });
 
-    it('should emit detect:request event with selected types and includeDescriptiveReferences', async () => {
+    it('should emit annotate:detect-request event with selected types and includeDescriptiveReferences', async () => {
       const tracker = createEventTracker();
       renderWithEventBus(<ReferencesPanel {...defaultProps} />, tracker);
 
@@ -303,7 +303,7 @@ describe('ReferencesPanel Component', () => {
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'detect:request' &&
+          e.event === 'annotate:detect-request' &&
           e.payload?.motivation === 'linking' &&
           e.payload?.options?.entityTypes?.includes('Person') &&
           e.payload?.options?.entityTypes?.includes('Organization') &&
@@ -312,7 +312,7 @@ describe('ReferencesPanel Component', () => {
       });
     });
 
-    it('should emit detect:request event with includeDescriptiveReferences when checkbox is checked', async () => {
+    it('should emit annotate:detect-request event with includeDescriptiveReferences when checkbox is checked', async () => {
       const tracker = createEventTracker();
       renderWithEventBus(<ReferencesPanel {...defaultProps} />, tracker);
 
@@ -328,7 +328,7 @@ describe('ReferencesPanel Component', () => {
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'detect:request' &&
+          e.event === 'annotate:detect-request' &&
           e.payload?.motivation === 'linking' &&
           e.payload?.options?.entityTypes?.includes('Person') &&
           e.payload?.options?.includeDescriptiveReferences === true

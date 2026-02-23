@@ -171,7 +171,7 @@ useMutation({
 
 ```typescript
 // 1. User clicks "Save" → Event emitted
-eventBus.emit('annotation:create', { motivation, selector, body });
+eventBus.emit('annotate:create, { motivation, selector, body });
 
 // 2. Event handler calls API mutation
 const mutation = useAnnotations().create.useMutation();

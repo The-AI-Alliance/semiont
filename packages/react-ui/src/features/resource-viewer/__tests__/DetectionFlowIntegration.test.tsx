@@ -117,7 +117,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Simulate SSE progress event being emitted to EventBus (how SSE actually works now)
     act(() => {
-      getEventBus().get('detect:progress').next({
+      getEventBus().get('annotate:detect-progress').next({
         status: 'scanning',
         message: 'Scanning for Person...',
         currentEntityType: 'Person',
@@ -151,7 +151,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // First progress update via EventBus
     act(() => {
-      getEventBus().get('detect:progress').next({
+      getEventBus().get('annotate:detect-progress').next({
         status: 'started',
         message: 'Starting analysis...',
         percentage: 0,
@@ -164,7 +164,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Second progress update via EventBus
     act(() => {
-      getEventBus().get('detect:progress').next({
+      getEventBus().get('annotate:detect-progress').next({
         status: 'analyzing',
         message: 'Analyzing text...',
         percentage: 50,
@@ -177,7 +177,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Final progress update via EventBus
     act(() => {
-      getEventBus().get('detect:progress').next({
+      getEventBus().get('annotate:detect-progress').next({
         status: 'complete',
         message: 'Created 14 highlights',
         percentage: 100,
@@ -204,7 +204,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Send final progress via EventBus
     act(() => {
-      getEventBus().get('detect:progress').next({
+      getEventBus().get('annotate:detect-progress').next({
         status: 'complete',
         message: 'Created 14 highlights',
       });
@@ -216,7 +216,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Emit completion event
     act(() => {
-      getEventBus().get('detect:finished').next({ motivation: 'highlighting' });
+      getEventBus().get('annotate:detect-finished').next({ motivation: 'highlighting' });
     });
 
     // Verify: detecting flag cleared BUT progress still visible
@@ -237,7 +237,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Add some progress via EventBus
     act(() => {
-      getEventBus().get('detect:progress').next({
+      getEventBus().get('annotate:detect-progress').next({
         status: 'scanning',
         message: 'Scanning...',
       });
@@ -249,7 +249,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Emit failure
     act(() => {
-      getEventBus().get('detect:failed').next({ type: 'job.failed', resourceId: 'test-resource' as any, payload: { jobId: 'job-1' as any, jobType: 'detection', error: 'Network error' } });
+      getEventBus().get('annotate:detect-failed').next({ type: 'job.failed', resourceId: 'test-resource' as any, payload: { jobId: 'job-1' as any, jobType: 'detection', error: 'Network error' } });
     });
 
     // Verify: both detecting and progress cleared
@@ -306,7 +306,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Add an additional event listener (simulating multiple subscribers)
     const additionalListener = vi.fn();
-    const subscription = getEventBus().get('detect:request').subscribe(additionalListener);
+    const subscription = getEventBus().get('annotate:detect-request').subscribe(additionalListener);
 
     // Trigger detection
     act(() => {
@@ -367,7 +367,7 @@ function renderDetectionFlow(testUri: string) {
 
   return {
     emitDetectionStart: (motivation: Motivation, options: any) => {
-      eventBusInstance.get('detect:request').next({ motivation, options });
+      eventBusInstance.get('annotate:detect-request').next({ motivation, options });
     },
     getEventBus: () => eventBusInstance,
   };

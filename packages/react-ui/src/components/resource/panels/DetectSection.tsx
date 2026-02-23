@@ -28,8 +28,8 @@ interface DetectSectionProps {
  * - Detect button with sparkle animation
  * - Progress display during detection
  *
- * @emits detect:request - Start detection for annotation type. Payload: { motivation: Motivation, options: { instructions?: string, tone?: string, density?: number } }
- * @emits detect:dismiss-progress - Dismiss the detection progress display
+ * @emits annotate:detect-request - Start detection for annotation type. Payload: { motivation: Motivation, options: { instructions?: string, tone?: string, density?: number } }
+ * @emits annotate:detect-dismiss - Dismiss the detection progress display
  */
 export function DetectSection({
   annotationType,
@@ -70,8 +70,8 @@ export function DetectSection({
       annotationType === 'assessment' ? 'assessing' :
       'commenting';
 
-    // Emit detect:request event with options
-    eventBus.get('detect:request').next({
+    // Emit annotate:detect-request event with options
+    eventBus.get('annotate:detect-request').next({
       motivation,
       options: {
         instructions: instructions.trim() || undefined,
@@ -86,7 +86,7 @@ export function DetectSection({
   }, [annotationType, instructions, tone, useDensity, density]); // eventBus is stable singleton - never in deps
 
   const handleDismissProgress = useCallback(() => {
-    eventBus.get('detect:dismiss-progress').next(undefined);
+    eventBus.get('annotate:detect-dismiss').next(undefined);
   }, []); // eventBus is stable singleton - never in deps
 
   return (

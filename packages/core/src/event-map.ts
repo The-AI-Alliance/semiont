@@ -118,37 +118,37 @@ export type EventMap = {
   'attend:sparkle': { annotationId: string };
 
   // ========================================================================
-  // DETECTION FLOW
+  // ANNOTATION FLOW
   // ========================================================================
-  // Manual detection (user selections) + AI detection (SSE streams)
+  // Manual annotation (user selections) + AI-assisted annotation (detection)
 
   // Selection requests (user highlighting text)
-  'selection:comment-requested': SelectionData;
-  'selection:tag-requested': SelectionData;
-  'selection:assessment-requested': SelectionData;
-  'selection:reference-requested': SelectionData;
+  'annotate:select-comment': SelectionData;
+  'annotate:select-tag': SelectionData;
+  'annotate:select-assessment': SelectionData;
+  'annotate:select-reference': SelectionData;
 
   // Unified annotation request (all motivations)
-  'annotation:requested': {
+  'annotate:requested': {
     selector: Selector | Selector[];
     motivation: Motivation;
   };
-  'annotation:cancel-pending': void;
+  'annotate:cancel-pending': void;
 
   // Annotation CRUD operations
-  'annotation:create': {
+  'annotate:create': {
     motivation: Motivation;
     selector: Selector | Selector[];
     body: components['schemas']['AnnotationBody'][];
   };
-  'annotation:created': { annotation: Annotation };
-  'annotation:create-failed': { error: Error };
-  'annotation:delete': { annotationId: string };
-  'annotation:deleted': { annotationId: string };
-  'annotation:delete-failed': { error: Error };
+  'annotate:created': { annotation: Annotation };
+  'annotate:create-failed': { error: Error };
+  'annotate:delete': { annotationId: string };
+  'annotate:deleted': { annotationId: string };
+  'annotate:delete-failed': { error: Error };
 
-  // AI Detection
-  'detect:request': {
+  // AI-Assisted Annotation (Detection)
+  'annotate:detect-request': {
     motivation: Motivation;
     options: {
       instructions?: string;
@@ -160,11 +160,11 @@ export type EventMap = {
       categories?: string[];
     };
   };
-  'detect:progress': DetectionProgress;
-  'detect:finished': { motivation?: Motivation; resourceUri?: ResourceUri; progress?: DetectionProgress };
-  'detect:failed': Extract<ResourceEvent, { type: 'job.failed' }>;
-  'detect:cancelled': void;
-  'detect:dismiss-progress': void;
+  'annotate:detect-progress': DetectionProgress;
+  'annotate:detect-finished': { motivation?: Motivation; resourceUri?: ResourceUri; progress?: DetectionProgress };
+  'annotate:detect-failed': Extract<ResourceEvent, { type: 'job.failed' }>;
+  'annotate:detect-cancelled': void;
+  'annotate:detect-dismiss': void;
 
   // ========================================================================
   // RESOLUTION FLOW

@@ -38,7 +38,7 @@ interface HighlightPanelProps {
 /**
  * Panel for managing highlight annotations with auto-creation
  *
- * @emits annotation:create - Create new highlight annotation (auto-triggered). Payload: { motivation: 'highlighting', selector: Selector | Selector[], body: Body[] }
+ * @emits annotate:create - Create new highlight annotation (auto-triggered). Payload: { motivation: 'highlighting', selector: Selector | Selector[], body: Body[] }
  * @subscribes attend:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function HighlightPanel({
@@ -129,10 +129,10 @@ export function HighlightPanel({
   });
 
   // Highlights auto-create: when pendingAnnotation arrives with highlighting motivation,
-  // immediately emit annotation:create event
+  // immediately emit annotate:create event
   useEffect(() => {
     if (pendingAnnotation && pendingAnnotation.motivation === 'highlighting') {
-      eventBus.get('annotation:create').next({
+      eventBus.get('annotate:create').next({
         motivation: 'highlighting',
         selector: pendingAnnotation.selector,
         body: [],

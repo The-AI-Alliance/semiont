@@ -73,7 +73,7 @@ export class CommentDetectionWorker extends JobWorker {
 
     // Emit to EventBus for real-time subscribers
     // Domain event (job.completed) is automatically published to EventBus by EventStore
-    // Backend SSE endpoint will subscribe to job.completed and transform to detect:finished
+    // Backend SSE endpoint will subscribe to job.completed and transform to annotate:detect-finished
   }
 
   /**
@@ -123,7 +123,7 @@ export class CommentDetectionWorker extends JobWorker {
           progress: cdJob.progress,
         },
       });
-      resourceBus.get('detect:progress').next({
+      resourceBus.get('annotate:detect-progress').next({
         status: cdJob.progress.stage,
         message: cdJob.progress.message,
         percentage: cdJob.progress.percentage

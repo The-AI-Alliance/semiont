@@ -97,10 +97,10 @@ export interface ResourceViewerPageProps {
  * @subscribes resource:unarchive - Unarchive the current resource
  * @subscribes resource:clone - Clone the current resource
  * @subscribes attend:sparkle - Trigger sparkle animation
- * @subscribes annotation:created - Annotation was created
- * @subscribes annotation:deleted - Annotation was deleted
- * @subscribes annotation:create-failed - Annotation creation failed
- * @subscribes annotation:delete-failed - Annotation deletion failed
+ * @subscribes annotate:created - Annotation was created
+ * @subscribes annotate:deleted - Annotation was deleted
+ * @subscribes annotate:create-failed - Annotation creation failed
+ * @subscribes annotate:delete-failed - Annotation deletion failed
  * @subscribes resolve:body-updated - Annotation body was updated
  * @subscribes resolve:body-update-failed - Annotation body update failed
  * @subscribes settings:theme-changed - UI theme changed
@@ -365,16 +365,16 @@ export function ResourceViewerPage({
     'resource:unarchive': handleResourceUnarchive,
     'resource:clone': handleResourceClone,
     'attend:sparkle': handleAnnotationSparkle,
-    'annotation:created': handleAnnotationCreated,
-    'annotation:deleted': debouncedInvalidateAnnotations,
-    'annotation:create-failed': handleAnnotationCreateFailed,
-    'annotation:delete-failed': handleAnnotationDeleteFailed,
+    'annotate:created': handleAnnotationCreated,
+    'annotate:deleted': debouncedInvalidateAnnotations,
+    'annotate:create-failed': handleAnnotationCreateFailed,
+    'annotate:delete-failed': handleAnnotationDeleteFailed,
     'resolve:body-updated': handleResolveBodyUpdated,
     'resolve:body-update-failed': handleResolveBodyUpdateFailed,
     'settings:theme-changed': handleSettingsThemeChanged,
     'settings:line-numbers-toggled': toggleLineNumbers,
-    'detect:finished': handleDetectionComplete,
-    'detect:failed': handleDetectionFailed,
+    'annotate:detect-finished': handleDetectionComplete,
+    'annotate:detect-failed': handleDetectionFailed,
     'generate:finished': handleGenerationComplete,
     'generate:failed': handleGenerationFailed,
     'navigation:reference-navigate': handleReferenceNavigate,

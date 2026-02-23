@@ -149,19 +149,19 @@ describe('Scripting Example: Entity Detection with Progress', () => {
     });
 
     // Subscribe to detection lifecycle events
-    resourceBus.get('detect:request').subscribe(event => {
+    resourceBus.get('annotate:detect-request').subscribe(event => {
       detectionStartedEvents.push(event);
       console.log(`[${rId}] Detection started`);
     });
 
-    resourceBus.get('detect:progress').subscribe(progress => {
+    resourceBus.get('annotate:detect-progress').subscribe(progress => {
       detectionProgressEvents.push(progress);
       console.log(`[${rId}] Progress: ${progress.status} - ${progress.message || ''}`);
     });
 
     // Create promise to wait for completion
     const completionPromise = new Promise(resolve => {
-      resourceBus.get('detect:finished').subscribe(event => {
+      resourceBus.get('annotate:detect-finished').subscribe(event => {
         detectionCompletedEvents.push(event);
         console.log(`[${rId}] Detection complete`);
         resolve(event);
@@ -239,7 +239,7 @@ describe('Scripting Example: Entity Detection with Progress', () => {
       const rId = getResourceId(resource);
       expect(rId).toBeDefined();
       const resourceBus = eventBus.scope(rId!);
-      resourceBus.get('detect:finished').subscribe(() => {
+      resourceBus.get('annotate:detect-finished').subscribe(() => {
         completions.set(rId!, true);
         console.log(`✓ Completed: ${resource.name} (${rId})`);
       });
@@ -312,7 +312,7 @@ describe('Scripting Example: Entity Detection with Progress', () => {
     // Track progress percentage
     const progressPercentages: number[] = [];
 
-    resourceBus.get('detect:progress').subscribe(progress => {
+    resourceBus.get('annotate:detect-progress').subscribe(progress => {
       if (progress.percentage !== undefined) {
         progressPercentages.push(progress.percentage);
       }
@@ -320,7 +320,7 @@ describe('Scripting Example: Entity Detection with Progress', () => {
 
     // Create completion promise
     const completionPromise = new Promise(resolve => {
-      resourceBus.get('detect:finished').subscribe(resolve);
+      resourceBus.get('annotate:detect-finished').subscribe(resolve);
     });
 
     // Enqueue job

@@ -135,9 +135,9 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
           const resourceBus = eventBus.scope(id);
           console.log(`[DetectAnnotations] Subscribing to EventBus for resource ${id}`);
 
-          // Subscribe to detect:progress
+          // Subscribe to annotate:detect-progress
           subscriptions.push(
-            resourceBus.get('detect:progress').subscribe(async (_event) => {
+            resourceBus.get('annotate:detect-progress').subscribe(async (_event) => {
               if (isStreamClosed) return;
               console.log(`[DetectAnnotations] Detection started for resource ${id}`);
               try {
@@ -149,7 +149,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
                     processedEntityTypes: 0,
                     message: 'Starting entity detection...'
                   } as DetectionProgress),
-                  event: 'detect:progress',
+                  event: 'annotate:detect-progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -159,9 +159,9 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
             })
           );
 
-          // Subscribe to detect:progress
+          // Subscribe to annotate:detect-progress
           subscriptions.push(
-            resourceBus.get('detect:progress').subscribe(async (progress) => {
+            resourceBus.get('annotate:detect-progress').subscribe(async (progress) => {
               if (isStreamClosed) return;
               console.log(`[DetectAnnotations] Detection progress for resource ${id}:`, progress);
               try {
@@ -177,7 +177,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
                       ? `Scanning for ${progress.currentEntityType}...`
                       : 'Processing...')
                   } as DetectionProgress),
-                  event: 'detect:progress',
+                  event: 'annotate:detect-progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -206,7 +206,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
                       ? `Detection complete! Found ${result.totalFound} entities`
                       : 'Detection complete!'
                   } as DetectionProgress),
-                  event: 'detect:finished',
+                  event: 'annotate:detect-finished',
                   id: String(Date.now())
                 });
               } catch (error) {

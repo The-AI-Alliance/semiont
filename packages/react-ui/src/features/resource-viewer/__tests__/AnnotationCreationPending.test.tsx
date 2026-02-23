@@ -1,13 +1,13 @@
 /**
- * Regression test: pendingAnnotation cleared after annotation:create succeeds
+ * Regression test: pendingAnnotation cleared after annotate:createsucceeds
  *
  * Bug: handleAnnotationCreate in useDetectionFlow called the API and emitted
- * annotation:created, but never called setPendingAnnotation(null). The pending
+ * annotate:created, but never called setPendingAnnotation(null). The pending
  * creation form (e.g. "Create Reference", "Save" assessment) remained visible
  * after the user clicked the confirm button.
  *
  * Fix: setPendingAnnotation(null) added in handleAnnotationCreate on success,
- * before emitting annotation:created.
+ * before emitting annotate:created.
  *
  * This test covers all four motivations that have a pending form:
  * - linking  (ReferencesPanel: "Create Reference" button)
@@ -112,16 +112,16 @@ describe('Annotation creation clears pendingAnnotation', () => {
 
     // Set a pending annotation
     act(() => {
-      emit('annotation:requested', { selector: TEXT_SELECTOR, motivation: 'linking' });
+      emit('annotate:requested', { selector: TEXT_SELECTOR, motivation: 'linking' });
     });
 
     await waitFor(() => {
       expect(screen.getByTestId('pending-motivation')).toHaveTextContent('linking');
     });
 
-    // Emit annotation:create (what ReferencesPanel does when user clicks "Create Reference")
+    // Emit annotate:create(what ReferencesPanel does when user clicks "Create Reference")
     await act(async () => {
-      emit('annotation:create', {
+      emit('annotate:create, {
         motivation: 'linking',
         selector: TEXT_SELECTOR,
         body: [{ type: 'TextualBody', value: 'Person', purpose: 'tagging' }],
@@ -140,7 +140,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     const { emit } = renderDetectionFlow(TEST_URI);
 
     act(() => {
-      emit('annotation:requested', { selector: SVG_SELECTOR, motivation: 'assessing' });
+      emit('annotate:requested', { selector: SVG_SELECTOR, motivation: 'assessing' });
     });
 
     await waitFor(() => {
@@ -148,7 +148,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     });
 
     await act(async () => {
-      emit('annotation:create', {
+      emit('annotate:create, {
         motivation: 'assessing',
         selector: SVG_SELECTOR,
         body: [{ type: 'TextualBody', value: 'Looks good', purpose: 'assessing' }],
@@ -164,7 +164,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     const { emit } = renderDetectionFlow(TEST_URI);
 
     act(() => {
-      emit('annotation:requested', { selector: SVG_SELECTOR, motivation: 'assessing' });
+      emit('annotate:requested', { selector: SVG_SELECTOR, motivation: 'assessing' });
     });
 
     await waitFor(() => {
@@ -173,7 +173,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
 
     // Empty body is valid for assessments
     await act(async () => {
-      emit('annotation:create', {
+      emit('annotate:create, {
         motivation: 'assessing',
         selector: SVG_SELECTOR,
         body: [],
@@ -189,7 +189,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     const { emit } = renderDetectionFlow(TEST_URI);
 
     act(() => {
-      emit('annotation:requested', { selector: TEXT_SELECTOR, motivation: 'commenting' });
+      emit('annotate:requested', { selector: TEXT_SELECTOR, motivation: 'commenting' });
     });
 
     await waitFor(() => {
@@ -197,7 +197,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     });
 
     await act(async () => {
-      emit('annotation:create', {
+      emit('annotate:create, {
         motivation: 'commenting',
         selector: TEXT_SELECTOR,
         body: [{ type: 'TextualBody', value: 'Great point', purpose: 'commenting' }],
@@ -213,7 +213,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     const { emit } = renderDetectionFlow(TEST_URI);
 
     act(() => {
-      emit('annotation:requested', { selector: SVG_SELECTOR, motivation: 'tagging' });
+      emit('annotate:requested', { selector: SVG_SELECTOR, motivation: 'tagging' });
     });
 
     await waitFor(() => {
@@ -221,7 +221,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     });
 
     await act(async () => {
-      emit('annotation:create', {
+      emit('annotate:create, {
         motivation: 'tagging',
         selector: SVG_SELECTOR,
         body: [{ type: 'TextualBody', value: 'concept:trust', purpose: 'tagging' }],
@@ -233,20 +233,20 @@ describe('Annotation creation clears pendingAnnotation', () => {
     });
   });
 
-  it('emits annotation:created after successful creation', async () => {
+  it('emits annotate:created after successful creation', async () => {
     const { emit, getEventBus } = renderDetectionFlow(TEST_URI);
 
     const createdListener = vi.fn();
     // Set listener after first render so eventBus is captured
     await waitFor(() => expect(getEventBus()).toBeDefined());
-    const subscription = getEventBus().get('annotation:created').subscribe(createdListener);
+    const subscription = getEventBus().get('annotate:created').subscribe(createdListener);
 
     act(() => {
-      emit('annotation:requested', { selector: TEXT_SELECTOR, motivation: 'linking' });
+      emit('annotate:requested', { selector: TEXT_SELECTOR, motivation: 'linking' });
     });
 
     await act(async () => {
-      emit('annotation:create', {
+      emit('annotate:create, {
         motivation: 'linking',
         selector: TEXT_SELECTOR,
         body: [],
@@ -267,7 +267,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     const { emit } = renderDetectionFlow(TEST_URI);
 
     act(() => {
-      emit('annotation:requested', { selector: TEXT_SELECTOR, motivation: 'linking' });
+      emit('annotate:requested', { selector: TEXT_SELECTOR, motivation: 'linking' });
     });
 
     await waitFor(() => {
@@ -275,7 +275,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     });
 
     await act(async () => {
-      emit('annotation:create', {
+      emit('annotate:create, {
         motivation: 'linking',
         selector: TEXT_SELECTOR,
         body: [],
@@ -289,11 +289,11 @@ describe('Annotation creation clears pendingAnnotation', () => {
     });
   });
 
-  it('clears pendingAnnotation on cancel (annotation:cancel-pending)', async () => {
+  it('clears pendingAnnotation on cancel (annotate:cancel-pending)', async () => {
     const { emit } = renderDetectionFlow(TEST_URI);
 
     act(() => {
-      emit('annotation:requested', { selector: TEXT_SELECTOR, motivation: 'assessing' });
+      emit('annotate:requested', { selector: TEXT_SELECTOR, motivation: 'assessing' });
     });
 
     await waitFor(() => {
@@ -301,7 +301,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     });
 
     act(() => {
-      emit('annotation:cancel-pending', undefined);
+      emit('annotate:cancel-pending', undefined);
     });
 
     await waitFor(() => {

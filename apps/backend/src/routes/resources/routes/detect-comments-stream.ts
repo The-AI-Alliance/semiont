@@ -141,9 +141,9 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
           const resourceBus = eventBus.scope(id);
           console.log(`[DetectComments] Subscribing to EventBus for resource ${id}`);
 
-          // Subscribe to detect:progress
+          // Subscribe to annotate:detect-progress
           subscriptions.push(
-            resourceBus.get('detect:progress').subscribe(async (_event) => {
+            resourceBus.get('annotate:detect-progress').subscribe(async (_event) => {
               if (isStreamClosed) return;
               console.log(`[DetectComments] Detection started for resource ${id}`);
               try {
@@ -153,7 +153,7 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
                     resourceId: resourceId(id),
                     message: 'Starting detection...'
                   } as CommentDetectionProgress),
-                  event: 'detect:progress',
+                  event: 'annotate:detect-progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -163,9 +163,9 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
             })
           );
 
-          // Subscribe to detect:progress
+          // Subscribe to annotate:detect-progress
           subscriptions.push(
-            resourceBus.get('detect:progress').subscribe(async (progress) => {
+            resourceBus.get('annotate:detect-progress').subscribe(async (progress) => {
               if (isStreamClosed) return;
               console.log(`[DetectComments] Detection progress for resource ${id}:`, progress);
               try {
@@ -177,7 +177,7 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
                     percentage: progress.percentage,
                     message: progress.message || 'Processing...'
                   } as CommentDetectionProgress),
-                  event: 'detect:progress',
+                  event: 'annotate:detect-progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -206,7 +206,7 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
                       ? `Complete! Created ${result.commentsCreated} comments`
                       : 'Comment detection complete!'
                   } as CommentDetectionProgress),
-                  event: 'detect:finished',
+                  event: 'annotate:detect-finished',
                   id: String(Date.now())
                 });
               } catch (error) {

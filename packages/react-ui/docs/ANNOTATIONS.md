@@ -622,10 +622,10 @@ function TextSelector() {
 
   const handleSelection = (selection) => {
     // Emit locally
-    eventBus.emit('ui:selection:comment-requested', selection);
+    eventBus.emit('ui:annotate:select-comment', selection);
 
     // Future: Broadcast to peers for real-time collaboration
-    // peerConnection.broadcast('ui:selection:comment-requested', selection);
+    // peerConnection.broadcast('ui:annotate:select-comment', selection);
   };
 
   return <div onMouseUp={handleSelection}>...</div>;
@@ -641,8 +641,8 @@ function CollaborativeAnnotationPanel() {
       showPeerActivity(selection);
     };
 
-    eventBus.on('ui:selection:comment-requested', handler);
-    return () => eventBus.off('ui:selection:comment-requested', handler);
+    eventBus.on('ui:annotate:select-comment', handler);
+    return () => eventBus.off('ui:annotate:select-comment', handler);
   }, [eventBus]);
 }
 ```

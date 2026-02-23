@@ -64,7 +64,7 @@ export async function handleDetectAnnotations(client: SemiontApiClient, auth: Ac
     const progressMessages: string[] = [];
 
     // Subscribe to detection events
-    eventBus.get('detect:progress').subscribe((progress) => {
+    eventBus.get('annotate:detect-progress').subscribe((progress) => {
       // Cast to ReferenceDetectionProgress for entity-type-specific fields
       const refProgress = progress as unknown as ReferenceDetectionProgress;
       const msg = progress.status === 'scanning' && refProgress.currentEntityType
@@ -74,7 +74,7 @@ export async function handleDetectAnnotations(client: SemiontApiClient, auth: Ac
       console.error(msg); // Send to stderr for MCP progress
     });
 
-    eventBus.get('detect:finished').subscribe((result) => {
+    eventBus.get('annotate:detect-finished').subscribe((result) => {
       const progress = result.progress as ReferenceDetectionProgress | undefined;
       eventBus.destroy();
       resolve({
@@ -85,7 +85,7 @@ export async function handleDetectAnnotations(client: SemiontApiClient, auth: Ac
       });
     });
 
-    eventBus.get('detect:failed').subscribe(() => {
+    eventBus.get('annotate:detect-failed').subscribe(() => {
       eventBus.destroy();
       resolve({
         content: [{

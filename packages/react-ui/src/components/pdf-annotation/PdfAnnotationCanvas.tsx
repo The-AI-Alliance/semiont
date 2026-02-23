@@ -61,7 +61,7 @@ interface PdfAnnotationCanvasProps {
  * PDF annotation canvas with page navigation and rectangle drawing
  *
  * @emits attend:click - Annotation clicked on PDF. Payload: { annotationId: string, motivation: Motivation }
- * @emits annotation:requested - New annotation drawn on PDF. Payload: { selector: FragmentSelector, motivation: SelectionMotivation }
+ * @emits annotate:requested - New annotation drawn on PDF. Payload: { selector: FragmentSelector, motivation: SelectionMotivation }
  * @emits attend:hover - Annotation hovered or unhovered. Payload: { annotationId: string | null }
  */
 export function PdfAnnotationCanvas({
@@ -324,7 +324,7 @@ export function PdfAnnotationCanvas({
 
     // Emit annotation:requested event with FragmentSelector
     if (selectedMotivation) {
-      eventBus.get('annotation:requested').next({
+      eventBus.get('annotate:requested').next({
         selector: {
           type: 'FragmentSelector',
           conformsTo: 'http://tools.ietf.org/rfc/rfc3778',

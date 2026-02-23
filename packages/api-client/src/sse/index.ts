@@ -200,9 +200,9 @@ export class SSEClient {
         body: JSON.stringify(request)
       },
       {
-        progressEvents: ['detect:progress'],
-        completeEvent: 'detect:finished',
-        errorEvent: 'detect:failed',
+        progressEvents: ['annotate:detect-progress'],
+        completeEvent: 'annotate:detect-finished',
+        errorEvent: 'annotate:detect-failed',
         eventBus: options.eventBus,
         eventPrefix: undefined
       },
@@ -326,9 +326,9 @@ export class SSEClient {
         body: JSON.stringify(request)
       },
       {
-        progressEvents: ['detect:progress'],
-        completeEvent: 'detect:finished',
-        errorEvent: 'detect:failed',
+        progressEvents: ['annotate:detect-progress'],
+        completeEvent: 'annotate:detect-finished',
+        errorEvent: 'annotate:detect-failed',
         eventBus: options.eventBus,
         eventPrefix: undefined
       },
@@ -387,9 +387,9 @@ export class SSEClient {
         body: JSON.stringify(request)
       },
       {
-        progressEvents: ['detect:progress'],
-        completeEvent: 'detect:finished',
-        errorEvent: 'detect:failed',
+        progressEvents: ['annotate:detect-progress'],
+        completeEvent: 'annotate:detect-finished',
+        errorEvent: 'annotate:detect-failed',
         eventBus: options.eventBus,
         eventPrefix: undefined
       },
@@ -452,9 +452,9 @@ export class SSEClient {
         body: JSON.stringify(request)
       },
       {
-        progressEvents: ['detect:progress'],
-        completeEvent: 'detect:finished',
-        errorEvent: 'detect:failed',
+        progressEvents: ['annotate:detect-progress'],
+        completeEvent: 'annotate:detect-finished',
+        errorEvent: 'annotate:detect-failed',
         eventBus: options.eventBus,
         eventPrefix: undefined
       },
@@ -518,9 +518,9 @@ export class SSEClient {
         body: JSON.stringify(request)
       },
       {
-        progressEvents: ['detect:progress'],
-        completeEvent: 'detect:finished',
-        errorEvent: 'detect:failed',
+        progressEvents: ['annotate:detect-progress'],
+        completeEvent: 'annotate:detect-finished',
+        errorEvent: 'annotate:detect-failed',
         eventBus: options.eventBus,
         eventPrefix: undefined
       },

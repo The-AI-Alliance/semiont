@@ -157,9 +157,9 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
           const resourceBus = eventBus.scope(id);
           console.log(`[DetectTags] Subscribing to EventBus for resource ${id}`);
 
-          // Subscribe to detect:progress
+          // Subscribe to annotate:detect-progress
           subscriptions.push(
-            resourceBus.get('detect:progress').subscribe(async (_event) => {
+            resourceBus.get('annotate:detect-progress').subscribe(async (_event) => {
               if (isStreamClosed) return;
               console.log(`[DetectTags] Detection started for resource ${id}`);
               try {
@@ -170,7 +170,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
                     totalCategories: categories.length,
                     message: 'Starting detection...'
                   } as TagDetectionProgress),
-                  event: 'detect:progress',
+                  event: 'annotate:detect-progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -180,9 +180,9 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
             })
           );
 
-          // Subscribe to detect:progress
+          // Subscribe to annotate:detect-progress
           subscriptions.push(
-            resourceBus.get('detect:progress').subscribe(async (progress) => {
+            resourceBus.get('annotate:detect-progress').subscribe(async (progress) => {
               if (isStreamClosed) return;
               console.log(`[DetectTags] Detection progress for resource ${id}:`, progress);
               try {
@@ -197,7 +197,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
                     totalCategories: progress.totalCategories,
                     message: progress.message || 'Processing...'
                   } as TagDetectionProgress),
-                  event: 'detect:progress',
+                  event: 'annotate:detect-progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -227,7 +227,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
                       ? `Complete! Created ${result.tagsCreated} tags`
                       : 'Tag detection complete!'
                   } as TagDetectionProgress),
-                  event: 'detect:finished',
+                  event: 'annotate:detect-finished',
                   id: String(Date.now())
                 });
               } catch (error) {

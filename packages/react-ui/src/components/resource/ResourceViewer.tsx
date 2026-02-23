@@ -47,7 +47,7 @@ interface Props {
 }
 
 /**
- * @emits annotation:delete - User requested to delete annotation. Payload: { annotationId: string }
+ * @emits annotate:delete - User requested to delete annotation. Payload: { annotationId: string }
  * @emits panel:open - Request to open panel with annotation. Payload: { panel: string, scrollToAnnotationId?: string, motivation?: Motivation }
  *
  * @subscribes view:mode-toggled - Toggles between browse and annotate mode. Payload: { mode: 'browse' | 'annotate' }
@@ -250,7 +250,7 @@ export function ResourceViewer({
 
   // Handle deleting annotations - emit event instead of direct call
   const handleDeleteAnnotation = useCallback((id: string) => {
-    eventBus.get('annotation:delete').next({ annotationId: id });
+    eventBus.get('annotate:delete').next({ annotationId: id });
   }, []); // eventBus is stable
 
   // Handle annotation clicks - memoized

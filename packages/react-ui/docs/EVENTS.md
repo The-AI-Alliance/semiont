@@ -80,8 +80,8 @@ These events are emitted by the backend when domain changes occur:
 
 **Annotation Events**:
 
-- `annotation:created` - New annotation created
-- `annotation:deleted` - Annotation deleted
+- `annotate:created` - New annotation created
+- `annotate:deleted` - Annotation deleted
 - `resolve:body-updated` - Annotation body updated (resolution flow)
 - `attend:sparkle` - Annotation highlighted (UI animation)
 
@@ -123,7 +123,7 @@ function MyComponent({ rUri }) {
         motivation: selection.motivation
       });
     },
-    'annotation:created': () => {
+    'annotate:created': () => {
       setPendingAnnotation(null);
     },
   });
@@ -227,11 +227,11 @@ function MyComponent({ rUri }) {
   const queryClient = useQueryClient();
 
   useEventSubscriptions({
-    'annotation:created': () => {
+    'annotate:created': () => {
       // Backend created annotation → invalidate cache
       queryClient.invalidateQueries(['annotations', rUri]);
     },
-    'annotation:deleted': () => {
+    'annotate:deleted': () => {
       queryClient.invalidateQueries(['annotations', rUri]);
     },
   });
@@ -304,7 +304,7 @@ function ResourceViewerPage({ rUri }) {
 
 ```tsx
 useEventSubscriptions({
-  'annotation:created': (annotation) => {
+  'annotate:created': (annotation) => {
     // Handle event
   },
 });
@@ -316,8 +316,8 @@ useEventSubscriptions({
 // WRONG - compliance violation
 useEffect(() => {
   const handler = (event) => { /* ... */ };
-  eventBus.on('annotation:created', handler);
-  return () => eventBus.off('annotation:created', handler);
+  eventBus.on('annotate:created', handler);
+  return () => eventBus.off('annotate:created', handler);
 }, [eventBus]);
 ```
 
@@ -378,7 +378,7 @@ export function useAnnotationFlow(rUri: ResourceUri) {
         motivation: selection.motivation
       });
     },
-    'annotation:created': () => setPending(null),
+    'annotate:created': () => setPending(null),
     'annotation:failed': () => setPending(null),
   });
 
@@ -405,7 +405,7 @@ namespace:event-name
 **Examples**:
 
 - ✅ `detection:start` (correct)
-- ✅ `annotation:created` (correct)
+- ✅ `annotate:created` (correct)
 - ✅ `resource:archive` (correct)
 - ❌ `detection-start` (legacy - don't use hyphens for namespaces)
 
@@ -438,7 +438,7 @@ npm run audit:compliance
 import { render } from '@testing-library/react';
 import { EventBusProvider, createEventBus } from '@semiont/react-ui';
 
-it('should handle annotation:created event', async () => {
+it('should handle annotate:created event', async () => {
   const eventBus = createEventBus();
 
   render(
@@ -449,7 +449,7 @@ it('should handle annotation:created event', async () => {
 
   // Emit event
   act(() => {
-    eventBus.emit('annotation:created', { annotation: mockAnnotation });
+    eventBus.emit('annotate:created', { annotation: mockAnnotation });
   });
 
   // Assert state updated
@@ -498,7 +498,7 @@ it('should handle annotation:created event', async () => {
 ```tsx
 // ✅ CORRECT: Automatic cleanup
 useEventSubscriptions({
-  'annotation:created': (annotation) => { /* ... */ },
+  'annotate:created': (annotation) => { /* ... */ },
 });
 ```
 
