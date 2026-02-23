@@ -214,8 +214,7 @@ export async function handleGenerateResourceFromAnnotation(client: SemiontApiCli
       console.error(msg); // Send to stderr for MCP progress
     });
 
-    eventBus.get('generation:complete').subscribe((result) => {
-      const progress = result.progress;
+    eventBus.get('generation:complete').subscribe((progress: GenerationProgress) => {
       eventBus.destroy();
       resolve({
         content: [{
