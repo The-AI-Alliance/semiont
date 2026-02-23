@@ -20,6 +20,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { resourceId } from '@semiont/core';
 import { resourceUri } from '@semiont/core';
+import { SSE_STREAM_CONNECTED } from '@semiont/api-client';
 
 /**
  * Resource-scoped SSE event stream for real-time collaboration
@@ -70,7 +71,7 @@ export function registerGetEventStream(router: ResourcesRouterType) {
           timestamp: new Date().toISOString(),
           message: 'Event stream connected',
         }),
-        event: 'stream-connected',
+        event: SSE_STREAM_CONNECTED,
         id: String(Date.now()),
       });
 

@@ -13,6 +13,13 @@ import type { components } from '@semiont/core';
 import type { Logger } from '../logger';
 
 /**
+ * SSE meta event for stream connection lifecycle
+ * Internal to SSE infrastructure, not part of core event protocol
+ */
+export const SSE_STREAM_CONNECTED = 'stream-connected' as const;
+export type SSEStreamConnected = typeof SSE_STREAM_CONNECTED;
+
+/**
  * Request body for reference detection stream
  */
 export interface DetectReferencesStreamRequest {
@@ -581,9 +588,10 @@ export class SSEClient {
       this.logger
     );
 
-    // Handle onConnected callback by subscribing to stream-connected event
+    // Handle onConnected callback by subscribing to SSE stream-connected event
+    // Note: Type assertion needed because SSE_STREAM_CONNECTED is SSE infrastructure, not part of EventMap
     if (options.onConnected) {
-      const sub = options.eventBus.get('stream-connected').subscribe(() => {
+      const sub = options.eventBus.get(SSE_STREAM_CONNECTED as any).subscribe(() => {
         options.onConnected!();
         sub.unsubscribe(); // One-time callback
       });

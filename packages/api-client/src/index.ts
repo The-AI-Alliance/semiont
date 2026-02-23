@@ -32,11 +32,12 @@ export type {
   GenerationProgress,
   SSEStream
 } from './sse/types';
-export { SSEClient } from './sse/index';
+export { SSEClient, SSE_STREAM_CONNECTED } from './sse/index';
 export type {
   DetectReferencesStreamRequest,
   GenerateResourceStreamRequest,
-  SSEClientConfig
+  SSEClientConfig,
+  SSEStreamConnected
 } from './sse/index';
 
 // Handwritten utilities
