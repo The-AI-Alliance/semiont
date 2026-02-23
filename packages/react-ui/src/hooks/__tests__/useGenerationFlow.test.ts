@@ -142,10 +142,7 @@ describe('useGenerationFlow — progress state', () => {
     const finalProgress = makeProgress({ status: 'complete', percentage: 100, message: 'Generation complete!' });
 
     act(() => {
-      eventBus.get('generation:complete').next({
-        annotationUri: 'http://localhost:4000/annotations/test-ref-id',
-        progress: finalProgress,
-      });
+      eventBus.get('generation:complete').next(finalProgress);
     });
 
     await waitFor(() => {
@@ -187,10 +184,7 @@ describe('useGenerationFlow — progress state', () => {
     const finalProgress = makeProgress({ status: 'complete', percentage: 100, message: 'Done!' });
 
     act(() => {
-      eventBus.get('generation:complete').next({
-        annotationUri: 'http://localhost:4000/annotations/test-ref-id',
-        progress: finalProgress,
-      });
+      eventBus.get('generation:complete').next(finalProgress);
     });
 
     await waitFor(() => {

@@ -220,13 +220,11 @@ describe('Generation Flow - Feature Integration', () => {
     // Final progress update via onComplete
     act(() => {
       getEventBus().get('generation:complete').next({
-        annotationUri: testAnnotationUri,
-        progress: {
-          status: 'complete',
-          message: 'Document created successfully',
-          percentage: 100,
-          resourceName: 'Generated Document',
-        }
+        status: 'complete',
+        referenceId: testAnnotationUri,
+        message: 'Document created successfully',
+        percentage: 100,
+        resourceName: 'Generated Document',
       });
     });
 
@@ -268,11 +266,10 @@ describe('Generation Flow - Feature Integration', () => {
     // Emit completion event
     act(() => {
       getEventBus().get('generation:complete').next({
-        annotationUri: testAnnotationUri,
-        progress: {
-          status: 'complete',
-          resourceName: 'Generated Document',
-        },
+        status: 'complete',
+        referenceId: testAnnotationUri,
+        resourceName: 'Generated Document',
+        percentage: 100,
       });
     });
 
@@ -377,13 +374,11 @@ describe('Generation Flow - Feature Integration', () => {
     // Simulate onComplete with final chunk
     act(() => {
       getEventBus().get('generation:complete').next({
-        annotationUri: testAnnotationUri,
-        progress: {
-          status: 'complete',
-          message: 'Document created: My Document',
-          resourceName: 'My Document',
-          percentage: 100,
-        }
+        status: 'complete',
+        referenceId: testAnnotationUri,
+        message: 'Document created: My Document',
+        resourceName: 'My Document',
+        percentage: 100,
       });
     });
 
