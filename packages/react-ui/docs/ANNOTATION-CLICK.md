@@ -92,13 +92,13 @@ All events are defined in `EventBusContext.tsx` with TypeScript type safety:
 ```typescript
 interface EventMap {
   // User clicks annotation on resource overlay
-  'annotation:click': {
+  'attend:click': {
     annotationId: string;
     motivation: Motivation;
   };
 
   // Bidirectional hover: annotation overlay ↔ panel entry
-  'annotation:hover': {
+  'attend:hover': {
     annotationId: string | null;  // null = unhover
   };
 
@@ -153,8 +153,8 @@ sequenceDiagram
     participant Entry as ReferenceEntry
 
     User->>Overlay: Click annotation shape
-    Overlay->>Bus: emit('annotation:click', {<br/>  annotationId: 'anno-123',<br/>  motivation: 'linking'<br/>})
-    Bus->>Coord: annotation:click event
+    Overlay->>Bus: emit('attend:click', {<br/>  annotationId: 'anno-123',<br/>  motivation: 'linking'<br/>})
+    Bus->>Coord: attend:click event
 
     Note over Coord: Maps motivation → panel type<br/>'linking' → 'references'
 
@@ -201,8 +201,8 @@ sequenceDiagram
     participant Entry as ReferenceEntry
 
     User->>Overlay: Mouse enter annotation
-    Overlay->>Bus: emit('annotation:hover', {<br/>  annotationId: 'anno-123'<br/>})
-    Bus->>Page: annotation:hover event
+    Overlay->>Bus: emit('attend:hover', {<br/>  annotationId: 'anno-123'<br/>})
+    Bus->>Page: attend:hover event
 
     Page->>Page: setState({<br/>  hoveredAnnotationId: 'anno-123'<br/>})
 
@@ -226,8 +226,8 @@ sequenceDiagram
     Note over Entry: CSS animation plays
 
     User->>Overlay: Mouse leave annotation
-    Overlay->>Bus: emit('annotation:hover', {<br/>  annotationId: null<br/>})
-    Bus->>Page: annotation:hover event
+    Overlay->>Bus: emit('attend:hover', {<br/>  annotationId: null<br/>})
+    Bus->>Page: attend:hover event
 
     Page->>Page: setState({<br/>  hoveredAnnotationId: null<br/>})
 
@@ -255,8 +255,8 @@ sequenceDiagram
     participant Overlay as AnnotationOverlay
 
     User->>Entry: Mouse enter entry
-    Entry->>Bus: emit('annotation:hover', {<br/>  annotationId: 'anno-123'<br/>})
-    Bus->>Page: annotation:hover event
+    Entry->>Bus: emit('attend:hover', {<br/>  annotationId: 'anno-123'<br/>})
+    Bus->>Page: attend:hover event
 
     Page->>Page: setState({<br/>  hoveredAnnotationId: 'anno-123'<br/>})
 
@@ -268,8 +268,8 @@ sequenceDiagram
     Overlay->>Overlay: Apply highlight styles
 
     User->>Entry: Mouse leave entry
-    Entry->>Bus: emit('annotation:hover', {<br/>  annotationId: null<br/>})
-    Bus->>Page: annotation:hover event
+    Entry->>Bus: emit('attend:hover', {<br/>  annotationId: null<br/>})
+    Bus->>Page: attend:hover event
 
     Page->>Page: setState({<br/>  hoveredAnnotationId: null<br/>})
 
@@ -415,18 +415,18 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
         data-focused={isFocused ? 'true' : 'false'}
         onClick={() => {
           // Click → Open panel
-          eventBus.emit('annotation:click', {
+          eventBus.emit('attend:click', {
             annotationId: reference.id,
             motivation: reference.motivation
           });
         }}
         onMouseEnter={() => {
           // Hover entry → Highlight annotation on resource
-          eventBus.emit('annotation:hover', { annotationId: reference.id });
+          eventBus.emit('attend:hover', { annotationId: reference.id });
         }}
         onMouseLeave={() => {
           // Unhover entry → Clear annotation highlight
-          eventBus.emit('annotation:hover', { annotationId: null });
+          eventBus.emit('attend:hover', { annotationId: null });
         }}
       >
         {/* Entry content */}
@@ -448,7 +448,7 @@ export const ResourceViewerPage: FC<Props> = ({ resourceId }) => {
 
   // Subscribe to coordination events
   useEventSubscriptions({
-    'annotation:hover': ({ annotationId }: { annotationId: string | null }) => {
+    'attend:hover': ({ annotationId }: { annotationId: string | null }) => {
       // Central hover state - used by both resource overlay and panel entries
       setHoveredAnnotationId(annotationId);
     },

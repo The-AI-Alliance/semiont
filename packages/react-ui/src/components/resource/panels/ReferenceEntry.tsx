@@ -100,7 +100,7 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
       : '';
 
     // Emit request to open generation modal
-    eventBus.get('generation:modal-open').next({
+    eventBus.get('generate:modal-open').next({
       annotationUri: reference.id,
       resourceUri,
       defaultTitle: selectedText,

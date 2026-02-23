@@ -189,7 +189,7 @@ export type EventMap = {
   // ========================================================================
   // Resource generation from reference annotations
 
-  'generation:modal-open': {
+  'generate:modal-open': {
     annotationUri: string;
     resourceUri: string;
     defaultTitle: string;

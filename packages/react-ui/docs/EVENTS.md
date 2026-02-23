@@ -83,7 +83,7 @@ These events are emitted by the backend when domain changes occur:
 - `annotation:created` - New annotation created
 - `annotation:deleted` - Annotation deleted
 - `annotation:body-updated` - Annotation body updated
-- `annotation:sparkle` - Annotation highlighted (UI animation)
+- `attend:sparkle` - Annotation highlighted (UI animation)
 
 **Resource Events**:
 

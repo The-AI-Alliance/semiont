@@ -66,7 +66,7 @@ describe('Generation Flow - Feature Integration', () => {
     vi.restoreAllMocks();
   });
 
-  it('should open modal when generation:modal-open event is emitted', async () => {
+  it('should open modal when generate:modal-open event is emitted', async () => {
     const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
     const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
 
@@ -456,7 +456,7 @@ function renderGenerationFlow(
       resourceUri: ResourceUri,
       defaultTitle: string
     ) => {
-      eventBusInstance.get('generation:modal-open').next({
+      eventBusInstance.get('generate:modal-open').next({
         annotationUri,
         resourceUri,
         defaultTitle,

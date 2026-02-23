@@ -57,7 +57,7 @@ export interface GenerationFlowState {
  * @subscribes generate:request - Triggers SSE call to generateResourceFromAnnotation
  * @subscribes job:cancel-requested - Cancels in-flight generation stream
  * @subscribes reference:create-manual - Navigates to compose page for new document reference
- * @subscribes generation:modal-open - Open the generation config modal; triggers context:retrieval-requested
+ * @subscribes generate:modal-open - Open the generation config modal; triggers context:retrieval-requested
  * @subscribes generate:finished - Generation completed successfully
  * @subscribes generate:failed - Error during generation
  * @returns Generation flow state
@@ -273,7 +273,7 @@ export function useGenerationFlow(
     'generate:progress': handleProgressEvent,
     'generate:finished': handleGenerationComplete,
     'generate:failed': handleGenerationFailed,
-    'generation:modal-open': handleGenerationModalOpen,
+    'generate:modal-open': handleGenerationModalOpen,
   });
 
   return {
