@@ -403,7 +403,7 @@ function renderGenerationFlow(
   function EventBusCapture() {
     eventBusInstance = useEventBus();
 
-    // Set up resolution flow (annotation:update-body, reference:link)
+    // Set up resolution flow (resolve:update-body, resolve:link)
     useResolutionFlow(testResourceUri);
 
     return null;

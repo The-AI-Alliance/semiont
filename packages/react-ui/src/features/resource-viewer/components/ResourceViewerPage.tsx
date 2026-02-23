@@ -92,7 +92,7 @@ export interface ResourceViewerPageProps {
  *
  * @emits navigation:router-push - Navigate to a resource or filtered view
  * @emits attend:sparkle - Trigger sparkle animation on an annotation
- * @emits annotation:update-body - Update annotation body content
+ * @emits resolve:update-body - Update annotation body content
  * @subscribes resource:archive - Archive the current resource
  * @subscribes resource:unarchive - Unarchive the current resource
  * @subscribes resource:clone - Clone the current resource
@@ -101,8 +101,8 @@ export interface ResourceViewerPageProps {
  * @subscribes annotation:deleted - Annotation was deleted
  * @subscribes annotation:create-failed - Annotation creation failed
  * @subscribes annotation:delete-failed - Annotation deletion failed
- * @subscribes annotation:body-updated - Annotation body was updated
- * @subscribes annotation:body-update-failed - Annotation body update failed
+ * @subscribes resolve:body-updated - Annotation body was updated
+ * @subscribes resolve:body-update-failed - Annotation body update failed
  * @subscribes settings:theme-changed - UI theme changed
  * @subscribes settings:line-numbers-toggled - Line numbers display toggled
  * @subscribes detection:complete - Detection completed
@@ -321,10 +321,10 @@ export function ResourceViewerPage({
 
   const handleAnnotationCreateFailed = useCallback(() => showError('Failed to create annotation'), [showError]);
   const handleAnnotationDeleteFailed = useCallback(() => showError('Failed to delete annotation'), [showError]);
-  const handleAnnotationBodyUpdated = useCallback(() => {
+  const handleResolveBodyUpdated = useCallback(() => {
     // Success - optimistic update already applied via useResourceEvents
   }, []);
-  const handleAnnotationBodyUpdateFailed = useCallback(() => showError('Failed to update annotation'), [showError]);
+  const handleResolveBodyUpdateFailed = useCallback(() => showError('Failed to update annotation'), [showError]);
 
   const handleSettingsThemeChanged = useCallback(({ theme }: { theme: any }) => setTheme(theme), [setTheme]);
 
@@ -369,8 +369,8 @@ export function ResourceViewerPage({
     'annotation:deleted': debouncedInvalidateAnnotations,
     'annotation:create-failed': handleAnnotationCreateFailed,
     'annotation:delete-failed': handleAnnotationDeleteFailed,
-    'annotation:body-updated': handleAnnotationBodyUpdated,
-    'annotation:body-update-failed': handleAnnotationBodyUpdateFailed,
+    'resolve:body-updated': handleResolveBodyUpdated,
+    'resolve:body-update-failed': handleResolveBodyUpdateFailed,
     'settings:theme-changed': handleSettingsThemeChanged,
     'settings:line-numbers-toggled': toggleLineNumbers,
     'detect:finished': handleDetectionComplete,
@@ -606,7 +606,7 @@ export function ResourceViewerPage({
               const resourceIdSegment = rUri.split('/').pop() || '';
               const nestedUri = `${window.location.origin}/resources/${resourceIdSegment}/annotations/${annotationIdShort}`;
 
-              eventBus.get('annotation:update-body').next({
+              eventBus.get('resolve:update-body').next({
                 annotationUri: resourceAnnotationUri(nestedUri),
                 resourceId: resourceIdSegment,
                 operations: [{

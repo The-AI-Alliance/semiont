@@ -56,7 +56,7 @@ export interface GenerationFlowState {
  * @emits generate:failed - Error during generation
  * @subscribes generate:request - Triggers SSE call to generateResourceFromAnnotation
  * @subscribes job:cancel-requested - Cancels in-flight generation stream
- * @subscribes reference:create-manual - Navigates to compose page for new document reference
+ * @subscribes resolve:create-manual - Navigates to compose page for new document reference
  * @subscribes generate:modal-open - Open the generation config modal; triggers correlate:requested
  * @subscribes generate:finished - Generation completed successfully
  * @subscribes generate:failed - Error during generation
@@ -258,7 +258,7 @@ export function useGenerationFlow(
 
     const subscription1 = eventBus.get('generate:request').subscribe(handleGenerationStart);
     const subscription2 = eventBus.get('job:cancel-requested').subscribe(handleJobCancelRequested);
-    const subscription3 = eventBus.get('reference:create-manual').subscribe(handleReferenceCreateManual);
+    const subscription3 = eventBus.get('resolve:create-manual').subscribe(handleReferenceCreateManual);
 
     return () => {
       subscription1.unsubscribe();

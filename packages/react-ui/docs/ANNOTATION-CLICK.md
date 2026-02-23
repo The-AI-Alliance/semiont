@@ -109,7 +109,7 @@ interface EventMap {
   };
 
   // Reference creation and linking events
-  'reference:create-manual': {
+  'resolve:create-manual': {
     annotationUri: string;
     title: string;
     entityTypes: string[];
@@ -121,13 +121,13 @@ interface EventMap {
     options: { title: string };
   };
 
-  'reference:link': {
+  'resolve:link': {
     annotationUri: string;
     searchTerm: string;
   };
 
   // Annotation body updates
-  'annotation:update-body': {
+  'resolve:update-body': {
     annotationUri: string;
     resourceId: string;
     operations: Array<{ op: string; item: any }>;

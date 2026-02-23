@@ -171,20 +171,20 @@ export type EventMap = {
   // ========================================================================
   // Reference linking and resolution (search modal)
 
-  'reference:create-manual': {
+  'resolve:create-manual': {
     annotationUri: string;
     title: string;
     entityTypes: string[];
   };
-  'reference:link': {
+  'resolve:link': {
     annotationUri: string;
     searchTerm: string;
   };
-  'resolution:search-requested': {
+  'resolve:search-requested': {
     referenceId: string;
     searchTerm: string;
   };
-  'annotation:update-body': {
+  'resolve:update-body': {
     annotationUri: string;
     resourceId: string;
     operations: Array<{
@@ -194,8 +194,8 @@ export type EventMap = {
       newItem?: components['schemas']['AnnotationBody'];
     }>;
   };
-  'annotation:body-updated': { annotationUri: string };
-  'annotation:body-update-failed': { error: Error };
+  'resolve:body-updated': { annotationUri: string };
+  'resolve:body-update-failed': { error: Error };
 
   // ========================================================================
   // CONTEXT CORRELATION FLOW
