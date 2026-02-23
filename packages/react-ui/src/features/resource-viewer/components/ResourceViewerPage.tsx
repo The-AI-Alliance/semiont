@@ -95,7 +95,7 @@ export interface ResourceViewerPageProps {
  * @emits resolve:update-body - Update annotation body content
  * @subscribes resource:archive - Archive the current resource
  * @subscribes resource:unarchive - Unarchive the current resource
- * @subscribes resource:clone - Clone the current resource
+ * @subscribes generate:clone - Clone the current resource
  * @subscribes attend:sparkle - Trigger sparkle animation
  * @subscribes annotate:added - Annotation was created
  * @subscribes annotate:removed - Annotation was deleted
@@ -363,7 +363,7 @@ export function ResourceViewerPage({
   useEventSubscriptions({
     'resource:archive': handleResourceArchive,
     'resource:unarchive': handleResourceUnarchive,
-    'resource:clone': handleResourceClone,
+    'generate:clone': handleResourceClone,
     'attend:sparkle': handleAnnotationSparkle,
     'annotate:added': handleAnnotationAdded,
     'annotate:removed': debouncedInvalidateAnnotations,

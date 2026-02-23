@@ -16,7 +16,7 @@ interface Props {
 /**
  * Panel for displaying resource metadata and management actions
  *
- * @emits resource:clone - Clone this resource. Payload: undefined
+ * @emits generate:clone - Clone this resource. Payload: undefined
  * @emits resource:unarchive - Unarchive this resource. Payload: undefined
  * @emits resource:archive - Archive this resource. Payload: undefined
  */
@@ -97,7 +97,7 @@ export function ResourceInfoPanel({
       {/* Clone Action */}
       <div className="semiont-resource-info-panel__action-section">
         <button
-          onClick={() => eventBus.get('resource:clone').next(undefined)}
+          onClick={() => eventBus.get('generate:clone').next(undefined)}
           className="semiont-resource-button semiont-resource-button--secondary"
         >
           🔗 {t('clone')}

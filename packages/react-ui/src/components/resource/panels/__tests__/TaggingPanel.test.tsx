@@ -29,7 +29,7 @@ function createEventTracker() {
         events.push({ event: eventName, payload });
       };
 
-      const panelEvents = ['annotate:create, 'annotate:detect-request'] as const;
+      const panelEvents = ['annotate:create', 'annotate:detect-request'] as const;
 
       panelEvents.forEach(eventName => {
         const handler = trackEvent(eventName);
@@ -378,7 +378,7 @@ describe('TaggingPanel Component', () => {
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'annotate:create &&
+          e.event === 'annotate:create' &&
           e.payload?.motivation === 'tagging' &&
           e.payload?.body?.[0]?.value === 'Issue' &&
           e.payload?.body?.[0]?.type === 'TextualBody'
@@ -407,7 +407,7 @@ describe('TaggingPanel Component', () => {
       await userEvent.selectOptions(categorySelect!, 'Rule');
 
       await waitFor(() => {
-        const createEvent = tracker.events.find(e => e.event === 'annotate:create);
+        const createEvent = tracker.events.find(e => e.event === 'annotate:create');
         expect(createEvent).toBeDefined();
         const body: any[] = createEvent!.payload.body;
 

@@ -29,7 +29,7 @@ function createEventTracker() {
         events.push({ event: eventName, payload });
       };
 
-      const panelEvents = ['annotate:create] as const;
+      const panelEvents = ['annotate:create'] as const;
 
       panelEvents.forEach(eventName => {
         const handler = trackEvent(eventName);
@@ -416,7 +416,7 @@ describe('CommentsPanel Component', () => {
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'annotate:create &&
+          e.event === 'annotate:create' &&
           e.payload?.motivation === 'commenting' &&
           e.payload?.body?.[0]?.value === 'My new comment'
         )).toBe(true);

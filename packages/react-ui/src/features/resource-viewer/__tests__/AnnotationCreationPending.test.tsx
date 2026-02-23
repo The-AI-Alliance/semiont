@@ -121,7 +121,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
 
     // Emit annotate:create(what ReferencesPanel does when user clicks "Create Reference")
     await act(async () => {
-      emit('annotate:create, {
+      emit('annotate:create', {
         motivation: 'linking',
         selector: TEXT_SELECTOR,
         body: [{ type: 'TextualBody', value: 'Person', purpose: 'tagging' }],
@@ -148,7 +148,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     });
 
     await act(async () => {
-      emit('annotate:create, {
+      emit('annotate:create', {
         motivation: 'assessing',
         selector: SVG_SELECTOR,
         body: [{ type: 'TextualBody', value: 'Looks good', purpose: 'assessing' }],
@@ -173,7 +173,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
 
     // Empty body is valid for assessments
     await act(async () => {
-      emit('annotate:create, {
+      emit('annotate:create', {
         motivation: 'assessing',
         selector: SVG_SELECTOR,
         body: [],
@@ -197,7 +197,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     });
 
     await act(async () => {
-      emit('annotate:create, {
+      emit('annotate:create', {
         motivation: 'commenting',
         selector: TEXT_SELECTOR,
         body: [{ type: 'TextualBody', value: 'Great point', purpose: 'commenting' }],
@@ -221,7 +221,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     });
 
     await act(async () => {
-      emit('annotate:create, {
+      emit('annotate:create', {
         motivation: 'tagging',
         selector: SVG_SELECTOR,
         body: [{ type: 'TextualBody', value: 'concept:trust', purpose: 'tagging' }],
@@ -246,7 +246,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     });
 
     await act(async () => {
-      emit('annotate:create, {
+      emit('annotate:create', {
         motivation: 'linking',
         selector: TEXT_SELECTOR,
         body: [],
@@ -275,7 +275,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     });
 
     await act(async () => {
-      emit('annotate:create, {
+      emit('annotate:create', {
         motivation: 'linking',
         selector: TEXT_SELECTOR,
         body: [],

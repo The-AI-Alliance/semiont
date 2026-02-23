@@ -79,7 +79,7 @@ describe('Annotation Deletion - Feature Integration', () => {
     return {
       emitDelete: (annotationId: string) => {
         act(() => {
-          eventBusInstance!.get('annotate:delete).next({ annotationId });
+          eventBusInstance!.get('annotate:delete').next({ annotationId });
         });
       },
       eventBus: eventBusInstance!,

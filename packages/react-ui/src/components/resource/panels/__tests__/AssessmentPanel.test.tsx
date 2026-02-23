@@ -29,7 +29,7 @@ function createEventTracker() {
         events.push({ event: eventName, payload });
       };
 
-      const panelEvents = ['annotate:create] as const;
+      const panelEvents = ['annotate:create'] as const;
 
       panelEvents.forEach(eventName => {
         const handler = trackEvent(eventName);
@@ -379,7 +379,7 @@ describe('AssessmentPanel Component', () => {
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'annotate:create &&
+          e.event === 'annotate:create' &&
           e.payload?.motivation === 'assessing' &&
           e.payload?.body?.[0]?.value === 'My assessment'
         )).toBe(true);
@@ -420,7 +420,7 @@ describe('AssessmentPanel Component', () => {
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'annotate:create &&
+          e.event === 'annotate:create' &&
           e.payload?.motivation === 'assessing' &&
           Array.isArray(e.payload?.body) &&
           e.payload.body.length === 0

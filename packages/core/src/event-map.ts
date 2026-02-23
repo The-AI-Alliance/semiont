@@ -91,9 +91,6 @@ export type EventMap = {
   // Emitted by backend via /resources/:id/events/stream SSE endpoint
   // Represent source of truth from event store
 
-  'entitytag.added': Extract<ResourceEvent, { type: 'entitytag.added' }>;
-  'entitytag.removed': Extract<ResourceEvent, { type: 'entitytag.removed' }>;
-
   // Generic domain event (all types)
   'make-meaning:event': ResourceEvent;
 
@@ -160,6 +157,8 @@ export type EventMap = {
   'annotate:added': Extract<ResourceEvent, { type: 'annotation.added' }>;
   'annotate:removed': Extract<ResourceEvent, { type: 'annotation.removed' }>;
   'annotate:body-updated': Extract<ResourceEvent, { type: 'annotation.body.updated' }>;
+  'annotate:entity-tag-added': Extract<ResourceEvent, { type: 'entitytag.added' }>;
+  'annotate:entity-tag-removed': Extract<ResourceEvent, { type: 'entitytag.removed' }>;
 
   // ========================================================================
   // RESOLUTION FLOW
@@ -240,22 +239,20 @@ export type EventMap = {
   'generate:representation-added': Extract<ResourceEvent, { type: 'representation.added' }>;
   'generate:representation-removed': Extract<ResourceEvent, { type: 'representation.removed' }>;
 
+  // Resource operations
+  'generate:clone': void;
+
   // ========================================================================
-  // INFRASTRUCTURE: Application-level domain events
+  // INFRASTRUCTURE: Resource management
   // ========================================================================
 
-  'entity-tag:added': Extract<ResourceEvent, { type: 'entitytag.added' }>;
-  'entity-tag:removed': Extract<ResourceEvent, { type: 'entitytag.removed' }>;
+  // Domain Events (from backend event store)
   'resource:archived': Extract<ResourceEvent, { type: 'resource.archived' }>;
   'resource:unarchived': Extract<ResourceEvent, { type: 'resource.unarchived' }>;
 
-  // ========================================================================
-  // INFRASTRUCTURE: Resource operations
-  // ========================================================================
-
+  // Resource operations
   'resource:archive': void;
   'resource:unarchive': void;
-  'resource:clone': void;
 
   // ========================================================================
   // INFRASTRUCTURE: Job control
