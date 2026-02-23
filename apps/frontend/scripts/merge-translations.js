@@ -60,21 +60,16 @@ function getTranslationFiles(dir) {
  * Main merge function
  */
 function mergeTranslations() {
-  console.log('🔄 Merging react-ui translations into frontend messages...');
-
   // Ensure output directory exists
   if (!fs.existsSync(FRONTEND_MESSAGES_OUTPUT_DIR)) {
     fs.mkdirSync(FRONTEND_MESSAGES_OUTPUT_DIR, { recursive: true });
-    console.log(`   Created output directory: ${FRONTEND_MESSAGES_OUTPUT_DIR}`);
   }
 
   // Get all react-ui translation files
   const reactUIFiles = getTranslationFiles(REACT_UI_TRANSLATIONS_DIR);
-  console.log(`   Found ${reactUIFiles.length} react-ui translation files`);
 
   // Get all frontend source message files
   const frontendFiles = getTranslationFiles(FRONTEND_MESSAGES_SOURCE_DIR);
-  console.log(`   Found ${frontendFiles.length} frontend source message files`);
 
   // Create a map of existing frontend source messages
   const frontendMessages = new Map();
@@ -103,7 +98,6 @@ function mergeTranslations() {
         'utf-8'
       );
       mergedCount++;
-      console.log(`   ✓ Merged ${reactUIFile.locale}.json`);
     } else {
       // Create output file from react-ui translations only
       fs.writeFileSync(
@@ -112,14 +106,10 @@ function mergeTranslations() {
         'utf-8'
       );
       createdCount++;
-      console.log(`   ✓ Created ${reactUIFile.locale}.json`);
     }
   }
 
-  console.log(`✅ Translation merge complete!`);
-  console.log(`   Merged: ${mergedCount} locales`);
-  console.log(`   Created: ${createdCount} locales`);
-  console.log(`   Output: ${FRONTEND_MESSAGES_OUTPUT_DIR}`);
+  console.log(`✅ Merged ${mergedCount + createdCount} translation locales`);
 }
 
 // Run the merge
