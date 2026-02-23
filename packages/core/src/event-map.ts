@@ -167,19 +167,19 @@ export type EventMap = {
   'detect:dismiss-progress': void;
 
   // ========================================================================
-  // CONTEXT RETRIEVAL FLOW
+  // CONTEXT CORRELATION FLOW
   // ========================================================================
-  // LLM context fetching from annotations
+  // LLM context correlation from annotations for generation
 
-  'context:retrieval-requested': {
+  'correlate:requested': {
     annotationUri: string;
     resourceUri: string;
   };
-  'context:retrieval-complete': {
+  'correlate:complete': {
     annotationUri: string;
     context: GenerationContext;
   };
-  'context:retrieval-failed': {
+  'correlate:failed': {
     annotationUri: string;
     error: Error;
   };

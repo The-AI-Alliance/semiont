@@ -1,18 +1,18 @@
 /**
- * useContextRetrievalFlow - Context retrieval capability hook
+ * useContextRetrievalFlow - Context correlation capability hook
  *
- * Retrieval capability: given a reference annotation, fetch the surrounding
+ * Correlation capability: given a reference annotation, fetch the surrounding
  * text context (before/selected/after) from the source document so it can
- * be used as grounding material for generation.
+ * be correlated and used as grounding material for generation.
  *
- * This hook is the single owner of retrieval state. It is triggered by
- * context:retrieval-requested on the event bus, making the capability
+ * This hook is the single owner of correlation state. It is triggered by
+ * correlate:requested on the event bus, making the capability
  * accessible to both human UI flows and agents.
  *
- * @subscribes context:retrieval-requested - Fetch LLM context for an annotation
- * @emits context:retrieval-complete - Context successfully fetched
- * @emits context:retrieval-failed - Context fetch failed
- * @returns Retrieval state (context, loading, error, which annotation)
+ * @subscribes correlate:requested - Fetch LLM context for an annotation
+ * @emits correlate:complete - Context successfully fetched
+ * @emits correlate:failed - Context fetch failed
+ * @returns Correlation state (context, loading, error, which annotation)
  */
 
 import { useState, useEffect, useRef } from 'react';
@@ -83,7 +83,7 @@ export function useContextRetrievalFlow(
         setRetrievalLoading(false);
 
         if (context) {
-          eventBus.get('context:retrieval-complete').next({
+          eventBus.get('correlate:complete').next({
             annotationUri: event.annotationUri,
             context,
           });
@@ -93,14 +93,14 @@ export function useContextRetrievalFlow(
         setRetrievalError(err);
         setRetrievalLoading(false);
 
-        eventBus.get('context:retrieval-failed').next({
+        eventBus.get('correlate:failed').next({
           annotationUri: event.annotationUri,
           error: err,
         });
       }
     };
 
-    const subscription = eventBus.get('context:retrieval-requested').subscribe(handleContextRetrievalRequested);
+    const subscription = eventBus.get('correlate:requested').subscribe(handleContextRetrievalRequested);
     return () => subscription.unsubscribe();
   }, [eventBus]);
 

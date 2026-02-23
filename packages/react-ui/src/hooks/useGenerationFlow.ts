@@ -57,7 +57,7 @@ export interface GenerationFlowState {
  * @subscribes generate:request - Triggers SSE call to generateResourceFromAnnotation
  * @subscribes job:cancel-requested - Cancels in-flight generation stream
  * @subscribes reference:create-manual - Navigates to compose page for new document reference
- * @subscribes generate:modal-open - Open the generation config modal; triggers context:retrieval-requested
+ * @subscribes generate:modal-open - Open the generation config modal; triggers correlate:requested
  * @subscribes generate:finished - Generation completed successfully
  * @subscribes generate:failed - Error during generation
  * @returns Generation flow state
@@ -152,8 +152,8 @@ export function useGenerationFlow(
     setGenerationReferenceId(annUri);
     setGenerationDefaultTitle(defaultTitle);
     setGenerationModalOpen(true);
-    // Trigger context retrieval in parallel with modal open
-    eventBus.get('context:retrieval-requested').next({ annotationUri: annUri, resourceUri });
+    // Trigger context correlation in parallel with modal open
+    eventBus.get('correlate:requested').next({ annotationUri: annUri, resourceUri });
   }, []);
 
   const handleGenerationComplete = useCallback((progress: GenerationProgress) => {
