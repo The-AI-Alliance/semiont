@@ -91,18 +91,8 @@ export type EventMap = {
   // Emitted by backend via /resources/:id/events/stream SSE endpoint
   // Represent source of truth from event store
 
-  'annotation.added': Extract<ResourceEvent, { type: 'annotation.added' }>;
-  'annotation.removed': Extract<ResourceEvent, { type: 'annotation.removed' }>;
-  'annotation.body.updated': Extract<ResourceEvent, { type: 'annotation.body.updated' }>;
   'entitytag.added': Extract<ResourceEvent, { type: 'entitytag.added' }>;
   'entitytag.removed': Extract<ResourceEvent, { type: 'entitytag.removed' }>;
-  'resource.archived': Extract<ResourceEvent, { type: 'resource.archived' }>;
-  'resource.unarchived': Extract<ResourceEvent, { type: 'resource.unarchived' }>;
-  'job.started': Extract<ResourceEvent, { type: 'job.started' }>;
-  'job.completed': Extract<ResourceEvent, { type: 'job.completed' }>;
-  'job.failed': Extract<ResourceEvent, { type: 'job.failed' }>;
-  'representation.added': Extract<ResourceEvent, { type: 'representation.added' }>;
-  'representation.removed': Extract<ResourceEvent, { type: 'representation.removed' }>;
 
   // Generic domain event (all types)
   'make-meaning:event': ResourceEvent;
@@ -165,6 +155,11 @@ export type EventMap = {
   'annotate:detect-failed': Extract<ResourceEvent, { type: 'job.failed' }>;
   'annotate:detect-cancelled': void;
   'annotate:detect-dismiss': void;
+
+  // Domain Events (from backend event store)
+  'annotate:added': Extract<ResourceEvent, { type: 'annotation.added' }>;
+  'annotate:removed': Extract<ResourceEvent, { type: 'annotation.removed' }>;
+  'annotate:body-updated': Extract<ResourceEvent, { type: 'annotation.body.updated' }>;
 
   // ========================================================================
   // RESOLUTION FLOW
@@ -241,13 +236,14 @@ export type EventMap = {
   'generate:finished': GenerationProgress;
   'generate:failed': { error: Error };
 
+  // Domain Events (from backend event store)
+  'generate:representation-added': Extract<ResourceEvent, { type: 'representation.added' }>;
+  'generate:representation-removed': Extract<ResourceEvent, { type: 'representation.removed' }>;
+
   // ========================================================================
   // INFRASTRUCTURE: Application-level domain events
   // ========================================================================
 
-  'annotation:added': Extract<ResourceEvent, { type: 'annotation.added' }>;
-  'annotation:removed': Extract<ResourceEvent, { type: 'annotation.removed' }>;
-  'annotation:updated': Extract<ResourceEvent, { type: 'annotation.body.updated' }>;
   'entity-tag:added': Extract<ResourceEvent, { type: 'entitytag.added' }>;
   'entity-tag:removed': Extract<ResourceEvent, { type: 'entitytag.removed' }>;
   'resource:archived': Extract<ResourceEvent, { type: 'resource.archived' }>;
@@ -265,6 +261,12 @@ export type EventMap = {
   // INFRASTRUCTURE: Job control
   // ========================================================================
 
+  // Domain Events (from backend event store)
+  'job:started': Extract<ResourceEvent, { type: 'job.started' }>;
+  'job:completed': Extract<ResourceEvent, { type: 'job.completed' }>;
+  'job:failed': Extract<ResourceEvent, { type: 'job.failed' }>;
+
+  // Job operations
   'job:queued': { jobId: string; jobType: string; resourceId: string };
   'job:cancel-requested': { jobType: 'detection' | 'generation' };
 

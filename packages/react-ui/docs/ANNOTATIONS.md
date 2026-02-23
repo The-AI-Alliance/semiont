@@ -568,14 +568,14 @@ function AnnotationCacheManager({ rUri }: { rUri: ResourceUri }) {
       queryClient.invalidateQueries(['annotations', rUri]);
     };
 
-    eventBus.on('annotation:added', handleAnnotationAdded);
-    eventBus.on('annotation:removed', handleAnnotationRemoved);
-    eventBus.on('annotation:updated', handleAnnotationUpdated);
+    eventBus.on('annotate:added', handleAnnotationAdded);
+    eventBus.on('annotate:removed', handleAnnotationRemoved);
+    eventBus.on('annotate:body-updated', handleAnnotationUpdated);
 
     return () => {
-      eventBus.off('annotation:added', handleAnnotationAdded);
-      eventBus.off('annotation:removed', handleAnnotationRemoved);
-      eventBus.off('annotation:updated', handleAnnotationUpdated);
+      eventBus.off('annotate:added', handleAnnotationAdded);
+      eventBus.off('annotate:removed', handleAnnotationRemoved);
+      eventBus.off('annotate:body-updated', handleAnnotationUpdated);
     };
   }, [eventBus, queryClient, rUri]);
 

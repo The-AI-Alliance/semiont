@@ -223,9 +223,9 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
             })
           );
 
-          // Subscribe to job.completed
+          // Subscribe to job:completed
           subscriptions.push(
-            resourceBus.get('job.completed').subscribe(async (event) => {
+            resourceBus.get('job:completed').subscribe(async (event) => {
               if (isStreamClosed) return;
               console.log(`[GenerateResource] Generation completed for resource ${resourceIdParam}`);
               try {
@@ -283,7 +283,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
                 percentage: 0,
                 message: error instanceof Error ? error.message : 'Generation failed'
               } as GenerationProgress),
-              event: 'job.failed',
+              event: 'generate:failed',
               id: String(Date.now())
             });
           } catch (sseError) {

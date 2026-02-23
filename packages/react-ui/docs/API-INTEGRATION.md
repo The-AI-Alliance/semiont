@@ -761,8 +761,8 @@ function AnnotationCacheSync({ rUri }: { rUri: ResourceUri }) {
       queryClient.invalidateQueries(['annotations', rUri]);
     };
 
-    eventBus.on('annotation:added', handleAnnotationAdded);
-    return () => eventBus.off('annotation:added', handleAnnotationAdded);
+    eventBus.on('annotate:added', handleAnnotationAdded);
+    return () => eventBus.off('annotate:added', handleAnnotationAdded);
   }, [eventBus, queryClient, rUri]);
 
   return null;
@@ -806,9 +806,9 @@ These events are emitted by the backend via SSE and automatically invalidate rel
 - `generation:completed` → Invalidate resources list
 
 **Annotation Events:**
-- `annotation:added` → Invalidate annotations cache
-- `annotation:removed` → Invalidate annotations cache
-- `annotation:updated` → Invalidate annotation detail cache
+- `annotate:added` → Invalidate annotations cache
+- `annotate:removed` → Invalidate annotations cache
+- `annotate:body-updated` → Invalidate annotation detail cache
 
 **Entity Tag Events:**
 - `entity-tag:added` → Invalidate annotations cache
@@ -860,18 +860,18 @@ function ResourceCacheSync({ rUri }: { rUri: ResourceUri }) {
     };
 
     // Subscribe to all relevant events
-    eventBus.on('annotation:added', handleAnnotationChange);
-    eventBus.on('annotation:removed', handleAnnotationChange);
-    eventBus.on('annotation:updated', handleAnnotationChange);
+    eventBus.on('annotate:added', handleAnnotationChange);
+    eventBus.on('annotate:removed', handleAnnotationChange);
+    eventBus.on('annotate:body-updated', handleAnnotationChange);
     eventBus.on('detection:completed', handleDetectionComplete);
     eventBus.on('resource:archived', handleResourceChange);
     eventBus.on('resource:unarchived', handleResourceChange);
 
     return () => {
       // Cleanup all subscriptions
-      eventBus.off('annotation:added', handleAnnotationChange);
-      eventBus.off('annotation:removed', handleAnnotationChange);
-      eventBus.off('annotation:updated', handleAnnotationChange);
+      eventBus.off('annotate:added', handleAnnotationChange);
+      eventBus.off('annotate:removed', handleAnnotationChange);
+      eventBus.off('annotate:body-updated', handleAnnotationChange);
       eventBus.off('detection:completed', handleDetectionComplete);
       eventBus.off('resource:archived', handleResourceChange);
       eventBus.off('resource:unarchived', handleResourceChange);
@@ -942,7 +942,7 @@ updateAnnotation(data);
 Event-based cache invalidation enables real-time collaboration:
 
 1. **User A** creates an annotation
-2. **Backend** emits `annotation:added` event via SSE
+2. **Backend** emits `annotate:added` event via SSE
 3. **EventBus** receives event and broadcasts to all subscribers
 4. **User B's cache** automatically invalidates via event subscription
 5. **User B sees update** without manual refresh

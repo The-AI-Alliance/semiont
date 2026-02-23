@@ -207,9 +207,9 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
             })
           );
 
-          // Subscribe to job.completed
+          // Subscribe to job:completed
           subscriptions.push(
-            resourceBus.get('job.completed').subscribe(async (event) => {
+            resourceBus.get('job:completed').subscribe(async (event) => {
       if (event.payload.jobType !== 'detection') return;
               if (isStreamClosed) return;
               console.log(`[DetectTags] Detection completed for resource ${id}`);
@@ -237,9 +237,9 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
             })
           );
 
-          // Subscribe to job.failed
+          // Subscribe to job:failed
           subscriptions.push(
-            resourceBus.get('job.failed').subscribe(async (event) => {
+            resourceBus.get('job:failed').subscribe(async (event) => {
       if (event.payload.jobType !== 'detection') return;
               if (isStreamClosed) return;
               console.log(`[DetectTags] Detection failed for resource ${id}:`, event.payload.error);
@@ -250,7 +250,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
                     resourceId: resourceId(id),
                     message: event.payload.error || 'Tag detection failed'
                   } as TagDetectionProgress),
-                  event: 'job.failed',
+                  event: 'annotate:detect-failed',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -293,7 +293,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
                 resourceId: resourceId(id),
                 message: error instanceof Error ? error.message : 'Tag detection failed'
               } as TagDetectionProgress),
-              event: 'job.failed',
+              event: 'annotate:detect-failed',
               id: String(Date.now())
             });
           } catch (sseError) {

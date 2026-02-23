@@ -187,9 +187,9 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
             })
           );
 
-          // Subscribe to job.completed
+          // Subscribe to job:completed
           subscriptions.push(
-            resourceBus.get('job.completed').subscribe(async (event) => {
+            resourceBus.get('job:completed').subscribe(async (event) => {
       if (event.payload.jobType !== 'detection') return;
               if (isStreamClosed) return;
               console.log(`[DetectAssessments] Detection completed for resource ${id}`);
@@ -216,9 +216,9 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
             })
           );
 
-          // Subscribe to job.failed
+          // Subscribe to job:failed
           subscriptions.push(
-            resourceBus.get('job.failed').subscribe(async (event) => {
+            resourceBus.get('job:failed').subscribe(async (event) => {
       if (event.payload.jobType !== 'detection') return;
               if (isStreamClosed) return;
               console.log(`[DetectAssessments] Detection failed for resource ${id}:`, event.payload.error);
@@ -229,7 +229,7 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
                     resourceId: resourceId(id),
                     message: event.payload.error || 'Assessment detection failed'
                   } as AssessmentDetectionProgress),
-                  event: 'job.failed',
+                  event: 'annotate:detect-failed',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -272,7 +272,7 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
                 resourceId: resourceId(id),
                 message: error instanceof Error ? error.message : 'Assessment detection failed'
               } as AssessmentDetectionProgress),
-              event: 'job.failed',
+              event: 'annotate:detect-failed',
               id: String(Date.now())
             });
           } catch (sseError) {

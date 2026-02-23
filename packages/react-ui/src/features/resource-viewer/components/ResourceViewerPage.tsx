@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { components, ResourceUri } from '@semiont/core';
+import type { components, ResourceUri, ResourceEvent } from '@semiont/core';
 import { resourceAnnotationUri } from '@semiont/core';
 import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType } from '@semiont/api-client';
 import { uriToAnnotationId } from '@semiont/core';
@@ -97,12 +97,12 @@ export interface ResourceViewerPageProps {
  * @subscribes resource:unarchive - Unarchive the current resource
  * @subscribes resource:clone - Clone the current resource
  * @subscribes attend:sparkle - Trigger sparkle animation
- * @subscribes annotate:created - Annotation was created
- * @subscribes annotate:deleted - Annotation was deleted
+ * @subscribes annotate:added - Annotation was created
+ * @subscribes annotate:removed - Annotation was deleted
  * @subscribes annotate:create-failed - Annotation creation failed
  * @subscribes annotate:delete-failed - Annotation deletion failed
- * @subscribes resolve:body-updated - Annotation body was updated
- * @subscribes resolve:body-update-failed - Annotation body update failed
+ * @subscribes annotate:body-updated - Annotation body was updated
+ * @subscribes annotate:body-update-failed - Annotation body update failed
  * @subscribes settings:theme-changed - UI theme changed
  * @subscribes settings:line-numbers-toggled - Line numbers display toggled
  * @subscribes detection:complete - Detection completed
@@ -314,17 +314,17 @@ export function ResourceViewerPage({
     triggerSparkleAnimation(annotationId);
   }, [triggerSparkleAnimation]);
 
-  const handleAnnotationCreated = useCallback(({ annotation }: { annotation: { id: string } }) => {
-    triggerSparkleAnimation(annotation.id);
+  const handleAnnotationAdded = useCallback((event: Extract<ResourceEvent, { type: 'annotation.added' }>) => {
+    triggerSparkleAnimation(event.payload.annotation.id);
     debouncedInvalidateAnnotations();
   }, [triggerSparkleAnimation, debouncedInvalidateAnnotations]);
 
   const handleAnnotationCreateFailed = useCallback(() => showError('Failed to create annotation'), [showError]);
   const handleAnnotationDeleteFailed = useCallback(() => showError('Failed to delete annotation'), [showError]);
-  const handleResolveBodyUpdated = useCallback(() => {
+  const handleAnnotateBodyUpdated = useCallback(() => {
     // Success - optimistic update already applied via useResourceEvents
   }, []);
-  const handleResolveBodyUpdateFailed = useCallback(() => showError('Failed to update annotation'), [showError]);
+  const handleAnnotateBodyUpdateFailed = useCallback(() => showError('Failed to update annotation'), [showError]);
 
   const handleSettingsThemeChanged = useCallback(({ theme }: { theme: any }) => setTheme(theme), [setTheme]);
 
@@ -365,12 +365,12 @@ export function ResourceViewerPage({
     'resource:unarchive': handleResourceUnarchive,
     'resource:clone': handleResourceClone,
     'attend:sparkle': handleAnnotationSparkle,
-    'annotate:created': handleAnnotationCreated,
-    'annotate:deleted': debouncedInvalidateAnnotations,
+    'annotate:added': handleAnnotationAdded,
+    'annotate:removed': debouncedInvalidateAnnotations,
     'annotate:create-failed': handleAnnotationCreateFailed,
     'annotate:delete-failed': handleAnnotationDeleteFailed,
-    'resolve:body-updated': handleResolveBodyUpdated,
-    'resolve:body-update-failed': handleResolveBodyUpdateFailed,
+    'annotate:body-updated': handleAnnotateBodyUpdated,
+    'resolve:body-update-failed': handleAnnotateBodyUpdateFailed,
     'settings:theme-changed': handleSettingsThemeChanged,
     'settings:line-numbers-toggled': toggleLineNumbers,
     'annotate:detect-finished': handleDetectionComplete,
@@ -619,7 +619,7 @@ export function ResourceViewerPage({
                 }],
               });
               showSuccess('Reference linked successfully');
-              // Cache invalidation now handled by annotation:updated event
+              // Cache invalidation now handled by annotate:body-updated event
               onCloseSearchModal();
             } catch (error) {
               console.error('Failed to link reference:', error);

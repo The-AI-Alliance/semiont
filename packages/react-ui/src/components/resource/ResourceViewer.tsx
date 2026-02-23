@@ -24,7 +24,7 @@ type SemiontResource = components['schemas']['ResourceDescriptor'];
  * ResourceViewer - Display and interact with resource content and annotations
  *
  * This component uses event-driven architecture for real-time updates:
- * - Subscribes to make-meaning events (annotation:added, annotation:removed, annotation:updated)
+ * - Subscribes to make-meaning events (annotate:added, annotate:removed, annotate:body-updated)
  * - Automatically invalidates cache when annotations change
  * - No manual refetch needed - events handle cache invalidation
  *
@@ -51,9 +51,9 @@ interface Props {
  * @emits panel:open - Request to open panel with annotation. Payload: { panel: string, scrollToAnnotationId?: string, motivation?: Motivation }
  *
  * @subscribes view:mode-toggled - Toggles between browse and annotate mode. Payload: { mode: 'browse' | 'annotate' }
- * @subscribes annotation:added - New annotation was added. Payload: { annotation: Annotation }
- * @subscribes annotation:removed - Annotation was removed. Payload: { annotationId: string }
- * @subscribes annotation:updated - Annotation was updated. Payload: { annotation: Annotation }
+ * @subscribes annotate:added - New annotation was added. Payload: { annotation: Annotation }
+ * @subscribes annotate:removed - Annotation was removed. Payload: { annotationId: string }
+ * @subscribes annotate:body-updated - Annotation was updated. Payload: { annotation: Annotation }
  * @subscribes toolbar:selection-changed - Text selection tool changed. Payload: { selection: boolean }
  * @subscribes toolbar:click-changed - Click annotation tool changed. Payload: { click: 'detail' | 'scroll' | null }
  * @subscribes toolbar:shape-changed - Drawing shape changed. Payload: { shape: string }
@@ -122,19 +122,19 @@ export function ResourceViewer({
   // This replaces manual onRefetchAnnotations calls with automatic updates
   const cacheManager = useCacheManager();
 
-  const handleAnnotationAdded = useCallback(() => {
+  const handleAnnotateAdded = useCallback(() => {
     if (cacheManager) {
       cacheManager.invalidateAnnotations(rUri);
     }
   }, [cacheManager, rUri]);
 
-  const handleAnnotationRemoved = useCallback(() => {
+  const handleAnnotateRemoved = useCallback(() => {
     if (cacheManager) {
       cacheManager.invalidateAnnotations(rUri);
     }
   }, [cacheManager, rUri]);
 
-  const handleAnnotationUpdated = useCallback(() => {
+  const handleAnnotateBodyUpdated = useCallback(() => {
     if (cacheManager) {
       cacheManager.invalidateAnnotations(rUri);
     }
@@ -349,9 +349,9 @@ export function ResourceViewer({
     'view:mode-toggled': handleViewModeToggle,
 
     // Annotation cache invalidation
-    'annotation:added': handleAnnotationAdded,
-    'annotation:removed': handleAnnotationRemoved,
-    'annotation:updated': handleAnnotationUpdated,
+    'annotate:added': handleAnnotateAdded,
+    'annotate:removed': handleAnnotateRemoved,
+    'annotate:body-updated': handleAnnotateBodyUpdated,
 
     // Toolbar state
     'toolbar:selection-changed': handleToolbarSelectionChanged,

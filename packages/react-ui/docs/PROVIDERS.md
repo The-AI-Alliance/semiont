@@ -359,7 +359,7 @@ function AnnotationPanel() {
 Backend Events:
 - Detection: `detection:started`, `detection:progress`, `detection:entity-found`, `detection:completed`, `detection:failed`
 - Generation: `generation:started`, `generation:progress`, `generation:resource-created`, `generation:completed`
-- Annotation: `annotation:added`, `annotation:removed`, `annotation:updated`
+- Annotation: `annotate:added`, `annotate:removed`, `annotate:body-updated`
 - Entity Tags: `entity-tag:added`, `entity-tag:removed`
 - Resource: `resource:archived`, `resource:unarchived`
 
