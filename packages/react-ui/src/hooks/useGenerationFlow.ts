@@ -156,7 +156,7 @@ export function useGenerationFlow(
     eventBus.get('context:retrieval-requested').next({ annotationUri: annUri, resourceUri });
   }, []);
 
-  const handleGenerationComplete = useCallback(({ progress }: { annotationUri: string; progress: GenerationProgress }) => {
+  const handleGenerationComplete = useCallback((progress: GenerationProgress) => {
     // Update progress state to final value and mark done
     setGenerationProgress(progress);
     setIsGenerating(false);

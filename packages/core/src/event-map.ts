@@ -261,7 +261,7 @@ export type EventMap = {
   'generation:started': Extract<ResourceEvent, { type: 'job.started' }>;
   'generation:progress': GenerationProgress;
   'generation:completed': Extract<ResourceEvent, { type: 'job.completed' }>;
-  'generation:complete': { annotationUri: string; progress: GenerationProgress };
+  'generation:complete': GenerationProgress;  // SSE complete event sends GenerationProgress directly
   'generation:failed': { error: Error };
   'generation:modal-open': {
     annotationUri: string;
