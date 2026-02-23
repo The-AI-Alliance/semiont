@@ -86,12 +86,12 @@ export interface DetectionProgress {
  */
 export type EventMap = {
   // ========================================================================
-  // DOMAIN EVENTS (backend event sourcing - dot notation)
+  // DOMAIN EVENTS (Backend Event Sourcing)
   // ========================================================================
-  // Emitted by backend via /resources/:id/events/stream SSE endpoint
-  // Represent source of truth from event store
+  // Generic wrapper for all backend domain events (dot notation)
+  // Streamed via SSE from /resources/:id/events/stream endpoint
+  // Specific typed domain events are defined within their respective flow sections below
 
-  // Generic domain event (all types)
   'make-meaning:event': ResourceEvent;
 
   // ========================================================================
