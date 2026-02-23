@@ -329,13 +329,21 @@ export function ResourceViewerPage({
   const handleSettingsThemeChanged = useCallback(({ theme }: { theme: any }) => setTheme(theme), [setTheme]);
 
   const handleDetectionComplete = useCallback(() => {
-    showSuccess('Detection complete');
+    // Toast notification is handled by useDetectionFlow
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.annotations(rUri) });
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
-  }, [showSuccess, queryClient, rUri]);
-  const handleDetectionFailed = useCallback(() => showError('Detection failed'), [showError]);
-  const handleGenerationComplete = useCallback(() => showSuccess('Document generated'), [showSuccess]);
-  const handleGenerationFailed = useCallback(() => showError('Failed to generate document'), [showError]);
+  }, [queryClient, rUri]);
+  const handleDetectionFailed = useCallback(() => {
+    // Error notification is handled by useDetectionFlow
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.annotations(rUri) });
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
+  }, [queryClient, rUri]);
+  const handleGenerationComplete = useCallback(() => {
+    // Toast notification is handled by useGenerationFlow
+  }, []);
+  const handleGenerationFailed = useCallback(() => {
+    // Error notification is handled by useGenerationFlow
+  }, []);
 
   const handleReferenceNavigate = useCallback(({ documentId }: { documentId: string }) => {
     if (routes.resource) {

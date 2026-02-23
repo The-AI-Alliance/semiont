@@ -239,31 +239,19 @@ export function createSSEStream(
         config.eventBus.get(eventType as EventName).next(parsed);
         // Also emit to generic domain event channel for broad subscribers
         config.eventBus.get('make-meaning:event').next(parsed);
-      } else {
-        // Non-domain event (progress, complete, etc.) - emit to specific channel only
-        config.eventBus.get(eventType as EventName).next(parsed);
+        return; // Domain events don't need prefix mapping
       }
 
-      // Additional event prefix mapping for progress streams (detection:progress, generation:complete, etc.)
-      if (config.eventPrefix) {
-        // Progress events (supports wildcard '*' for all events)
-        if (config.progressEvents.includes('*' as any) || config.progressEvents.includes(eventType as any)) {
-          config.eventBus.get(`${config.eventPrefix}:progress` as EventName).next(parsed);
-        }
+      // Non-domain event (progress, complete, error) - emit to specific channel
+      config.eventBus.get(eventType as EventName).next(parsed);
 
-        // Complete event
-        if (config.completeEvent && eventType === config.completeEvent) {
-          config.eventBus.get(`${config.eventPrefix}:complete` as EventName).next(parsed);
-          closed = true;
-          abortController.abort();
-        }
-
-        // Error event
-        if (config.errorEvent && eventType === config.errorEvent) {
-          config.eventBus.get(`${config.eventPrefix}:failed` as EventName).next({ error: new Error(parsed.message || 'Stream error') });
-          closed = true;
-          abortController.abort();
-        }
+      // Handle stream lifecycle based on event type
+      if (config.completeEvent && eventType === config.completeEvent) {
+        closed = true;
+        abortController.abort();
+      } else if (config.errorEvent && eventType === config.errorEvent) {
+        closed = true;
+        abortController.abort();
       }
     } catch (error) {
       console.error('[SSE] Failed to parse event data:', error);
