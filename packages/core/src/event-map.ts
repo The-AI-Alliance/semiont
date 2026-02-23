@@ -82,11 +82,11 @@ export interface DetectionProgress {
  * Unified event map for all application events
  *
  * Organized by workflow ("flows"):
- * 1. AttentionFlow - Annotation hover/focus/sparkle coordination
- * 2. DetectionFlow - Manual + AI annotation detection (all motivations)
- * 3. GenerationFlow - Document generation from references
- * 4. ResolutionFlow - Reference linking/resolution (search modal)
- * 5. ContextRetrievalFlow - LLM context fetching from annotations
+ * 1. Attention Flow - Annotation hover/focus/sparkle coordination
+ * 2. Detection Flow - Manual + AI annotation detection (all motivations)
+ * 3. Context Retrieval Flow - LLM context fetching from annotations
+ * 4. Generation Flow - Resource generation from references
+ * 5. Resolution Flow - Reference linking/resolution (search modal)
  *
  * Plus infrastructure events (domain events, SSE, resource operations, navigation, settings)
  */
@@ -120,7 +120,7 @@ export type EventMap = {
   'stream-connected': void;
 
   // ========================================================================
-  // FLOW 1: ATTENTION FLOW (useAttentionFlow)
+  // ATTENTION FLOW (useAttentionFlow)
   // ========================================================================
   // Manages which annotation has user's attention (hover/click/focus)
 
@@ -130,7 +130,7 @@ export type EventMap = {
   'annotation:sparkle': { annotationId: string };
 
   // ========================================================================
-  // FLOW 2: DETECTION FLOW (useDetectionFlow)
+  // DETECTION FLOW
   // ========================================================================
   // Manual detection (user selections) + AI detection (SSE streams)
 
@@ -179,9 +179,27 @@ export type EventMap = {
   'detect:dismiss-progress': void;
 
   // ========================================================================
-  // FLOW 3: GENERATION FLOW (useGenerationFlow)
+  // CONTEXT RETRIEVAL FLOW
   // ========================================================================
-  // Document generation from reference annotations
+  // LLM context fetching from annotations
+
+  'context:retrieval-requested': {
+    annotationUri: string;
+    resourceUri: string;
+  };
+  'context:retrieval-complete': {
+    annotationUri: string;
+    context: GenerationContext;
+  };
+  'context:retrieval-failed': {
+    annotationUri: string;
+    error: Error;
+  };
+
+  // ========================================================================
+  // GENERATION FLOW
+  // ========================================================================
+  // Resource generation from reference annotations
 
   'generation:modal-open': {
     annotationUri: string;
@@ -205,7 +223,7 @@ export type EventMap = {
   'generate:failed': { error: Error };
 
   // ========================================================================
-  // FLOW 4: RESOLUTION FLOW (useResolutionFlow)
+  // RESOLUTION FLOW
   // ========================================================================
   // Reference linking and resolution (search modal)
 
@@ -234,24 +252,6 @@ export type EventMap = {
   };
   'annotation:body-updated': { annotationUri: string };
   'annotation:body-update-failed': { error: Error };
-
-  // ========================================================================
-  // FLOW 5: CONTEXT RETRIEVAL FLOW (useContextRetrievalFlow)
-  // ========================================================================
-  // LLM context fetching from annotations
-
-  'context:retrieval-requested': {
-    annotationUri: string;
-    resourceUri: string;
-  };
-  'context:retrieval-complete': {
-    annotationUri: string;
-    context: GenerationContext;
-  };
-  'context:retrieval-failed': {
-    annotationUri: string;
-    error: Error;
-  };
 
   // ========================================================================
   // INFRASTRUCTURE: Application-level domain events
