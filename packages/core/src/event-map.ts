@@ -1,15 +1,8 @@
 /**
  * Event Protocol Types
  *
- * Unified event map for all application events.
- * This is the single source of truth for event types across backend, frontend, and CLI.
- *
- * Consolidates events from:
- * - Backend events (SSE streams, job progress, resource operations)
- * - User interaction events (selection, annotation hover/click, panels, toolbar)
- * - Navigation events (sidebar, routing, links)
- * - Settings events (theme, line numbers, locale)
- * - API operation events (CRUD, detection, generation)
+ * Type definitions for the application's event-driven architecture.
+ * Single source of truth for all EventBus event types.
  */
 
 import type { ResourceEvent } from './events';
@@ -28,7 +21,9 @@ export type GenerationContext = components['schemas']['GenerationContext'];
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation'];
 
-// GenerationProgress interface (SSE stream progress updates)
+/**
+ * Progress state for resource generation workflow
+ */
 export interface GenerationProgress {
   status: 'started' | 'fetching' | 'generating' | 'creating' | 'complete' | 'error';
   referenceId: string;
@@ -54,12 +49,11 @@ export interface SelectionData {
 }
 
 /**
- * Common detection progress fields shared across all motivation types.
+ * Progress state for annotation detection workflow
  *
- * The five motivations have different SSE progress shapes
- * (ReferenceDetectionProgress uses entity-type steps; the others use percentage).
- * This type captures the subset of fields used by the detection UI
- * (DetectionProgressWidget, useDetectionFlow).
+ * Unified progress interface supporting different detection strategies:
+ * - Reference detection: entity-type steps
+ * - Other motivations: percentage-based progress
  */
 export interface DetectionProgress {
   status: string;
@@ -120,7 +114,7 @@ export type EventMap = {
   'stream-connected': void;
 
   // ========================================================================
-  // ATTENTION FLOW (useAttentionFlow)
+  // ATTENTION FLOW
   // ========================================================================
   // Manages which annotation has user's attention (hover/click/focus)
 
