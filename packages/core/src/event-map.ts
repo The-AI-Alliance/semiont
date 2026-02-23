@@ -277,7 +277,7 @@ export type EventMap = {
   'job:cancel-requested': { jobType: 'detection' | 'generation' };
 
   // ========================================================================
-  // UI
+  // Left Sidebar Navigation
   // ========================================================================
 
   'navigation:sidebar-toggle': void;
