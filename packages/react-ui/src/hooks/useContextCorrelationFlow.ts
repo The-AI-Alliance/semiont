@@ -1,5 +1,5 @@
 /**
- * useContextRetrievalFlow - Context correlation capability hook
+ * useContextCorrelationFlow - Context correlation capability hook
  *
  * Correlation capability: given a reference annotation, fetch the surrounding
  * text context (before/selected/after) from the source document so it can
@@ -27,29 +27,29 @@ function toAccessToken(token: string | null) {
   return token ? accessToken(token) : undefined;
 }
 
-export interface ContextRetrievalFlowConfig {
+export interface ContextCorrelationFlowConfig {
   client: SemiontApiClient;
   resourceUri: ResourceUri;
 }
 
-export interface ContextRetrievalFlowState {
-  retrievalContext: GenerationContext | null;
-  retrievalLoading: boolean;
-  retrievalError: Error | null;
-  /** The annotationUri for which context was most recently retrieved */
-  retrievalAnnotationUri: string | null;
+export interface ContextCorrelationFlowState {
+  correlationContext: GenerationContext | null;
+  correlationLoading: boolean;
+  correlationError: Error | null;
+  /** The annotationUri for which context was most recently correlated */
+  correlationAnnotationUri: string | null;
 }
 
-export function useContextRetrievalFlow(
+export function useContextCorrelationFlow(
   eventBus: EventBus,
-  config: ContextRetrievalFlowConfig
-): ContextRetrievalFlowState {
+  config: ContextCorrelationFlowConfig
+): ContextCorrelationFlowState {
   const token = useAuthToken();
 
-  const [retrievalContext, setRetrievalContext] = useState<GenerationContext | null>(null);
-  const [retrievalLoading, setRetrievalLoading] = useState(false);
-  const [retrievalError, setRetrievalError] = useState<Error | null>(null);
-  const [retrievalAnnotationUri, setRetrievalAnnotationUri] = useState<string | null>(null);
+  const [correlationContext, setCorrelationContext] = useState<GenerationContext | null>(null);
+  const [correlationLoading, setCorrelationLoading] = useState(false);
+  const [correlationError, setCorrelationError] = useState<Error | null>(null);
+  const [correlationAnnotationUri, setCorrelationAnnotationUri] = useState<string | null>(null);
 
   // Store latest config/token in refs to avoid re-subscribing when they change
   const configRef = useRef(config);
@@ -58,14 +58,14 @@ export function useContextRetrievalFlow(
   useEffect(() => { tokenRef.current = token; });
 
   useEffect(() => {
-    const handleContextRetrievalRequested = async (event: {
+    const handleContextCorrelationRequested = async (event: {
       annotationUri: string;
       resourceUri: string;
     }) => {
-      setRetrievalLoading(true);
-      setRetrievalError(null);
-      setRetrievalContext(null);
-      setRetrievalAnnotationUri(event.annotationUri);
+      setCorrelationLoading(true);
+      setCorrelationError(null);
+      setCorrelationContext(null);
+      setCorrelationAnnotationUri(event.annotationUri);
 
       try {
         const { client } = configRef.current;
@@ -79,8 +79,8 @@ export function useContextRetrievalFlow(
         );
 
         const context = response.context ?? null;
-        setRetrievalContext(context);
-        setRetrievalLoading(false);
+        setCorrelationContext(context);
+        setCorrelationLoading(false);
 
         if (context) {
           eventBus.get('correlate:complete').next({
@@ -90,8 +90,8 @@ export function useContextRetrievalFlow(
         }
       } catch (error) {
         const err = error as Error;
-        setRetrievalError(err);
-        setRetrievalLoading(false);
+        setCorrelationError(err);
+        setCorrelationLoading(false);
 
         eventBus.get('correlate:failed').next({
           annotationUri: event.annotationUri,
@@ -100,9 +100,9 @@ export function useContextRetrievalFlow(
       }
     };
 
-    const subscription = eventBus.get('correlate:requested').subscribe(handleContextRetrievalRequested);
+    const subscription = eventBus.get('correlate:requested').subscribe(handleContextCorrelationRequested);
     return () => subscription.unsubscribe();
   }, [eventBus]);
 
-  return { retrievalContext, retrievalLoading, retrievalError, retrievalAnnotationUri };
+  return { correlationContext, correlationLoading, correlationError, correlationAnnotationUri };
 }

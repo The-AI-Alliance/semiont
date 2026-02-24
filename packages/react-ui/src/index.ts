@@ -210,5 +210,5 @@ export * from './hooks/useAttentionFlow';
 export * from './hooks/useAnnotationFlow';
 export * from './hooks/usePanelNavigation';
 export * from './hooks/useGenerationFlow';
-export * from './hooks/useContextRetrievalFlow';
+export * from './hooks/useContextCorrelationFlow';
 export * from './hooks/useResolutionFlow';

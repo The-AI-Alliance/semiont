@@ -41,7 +41,7 @@ import { useAnnotationFlow } from '../../../hooks/useAnnotationFlow';
 import { useAttentionFlow } from '../../../hooks/useAttentionFlow';
 import { usePanelNavigation } from '../../../hooks/usePanelNavigation';
 import { useGenerationFlow } from '../../../hooks/useGenerationFlow';
-import { useContextRetrievalFlow } from '../../../hooks/useContextRetrievalFlow';
+import { useContextCorrelationFlow } from '../../../hooks/useContextCorrelationFlow';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
@@ -167,7 +167,7 @@ export function ResourceViewerPage({
     onGenerateDocument,
     onCloseGenerationModal,
   } = useGenerationFlow(locale, rUri.split('/').pop() || '', clearNewAnnotationId);
-  const { retrievalContext, retrievalLoading, retrievalError } = useContextRetrievalFlow(eventBus, { client, resourceUri: rUri });
+  const { correlationContext, correlationLoading, correlationError } = useContextCorrelationFlow(eventBus, { client, resourceUri: rUri });
 
   // Debounced invalidation for real-time events
   const debouncedInvalidateAnnotations = useDebouncedCallback(
@@ -639,9 +639,9 @@ export function ResourceViewerPage({
           }
         }}
         defaultTitle={generationDefaultTitle}
-        context={retrievalContext}
-        contextLoading={retrievalLoading}
-        contextError={retrievalError}
+        context={correlationContext}
+        contextLoading={correlationLoading}
+        contextError={correlationError}
       />
     </div>
   );
