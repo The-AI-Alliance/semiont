@@ -79,7 +79,7 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
       select: 'Select',
       deselect: 'Deselect',
       typesSelected: '{count} type(s) selected',
-      startAssist: 'Start Assist',
+      startAnnotate: 'Start Annotate',
       found: 'Found {count}',
       includeDescriptiveReferences: 'Include descriptive references',
       descriptiveReferencesTooltip: 'Also find phrases like \'the CEO\', \'the tech giant\', \'the physicist\' (in addition to names)',
@@ -95,12 +95,12 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
   TranslationProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-// Mock AnnotationProgressWidget - simplified to avoid module import issues
-vi.mock('@/components/AnnotationProgressWidget', () => ({
-  AnnotationProgressWidget: ({ progress }: any) => (
-    <div data-testid="detection-progress-widget">
+// Mock AnnotateReferencesProgressWidget - simplified to avoid module import issues
+vi.mock('@/components/AnnotateReferencesProgressWidget', () => ({
+  AnnotateReferencesProgressWidget: ({ progress }: any) => (
+    <div data-testid="annotation-progress-widget">
       <div data-testid="progress-data">{JSON.stringify(progress)}</div>
-      <button title="Cancel Detection">Cancel</button>
+      <button title="Cancel Annotation">Cancel</button>
     </div>
   ),
 }));

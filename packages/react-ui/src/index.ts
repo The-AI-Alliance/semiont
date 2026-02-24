@@ -62,7 +62,7 @@ export * from './contexts/TranslationContext';
 
 // Components - Top level
 export * from './components/CodeMirrorRenderer';
-export * from './components/AnnotationProgressWidget';
+export * from './components/AnnotateReferencesProgressWidget';
 export * from './components/ErrorBoundary';
 export * from './components/LiveRegion';
 export * from './components/ResizeHandle';

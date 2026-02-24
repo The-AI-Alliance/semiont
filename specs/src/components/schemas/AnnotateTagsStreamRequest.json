@@ -10,7 +10,7 @@
       "items": {
         "type": "string"
       },
-      "description": "Categories to detect from the selected schema (e.g., ['Issue', 'Rule', 'Application', 'Conclusion'])"
+      "description": "Categories to annotate from the selected schema (e.g., ['Issue', 'Rule', 'Application', 'Conclusion'])"
     }
   },
   "required": ["schemaId", "categories"]

@@ -98,9 +98,9 @@ export function AssistSection({
         type="button"
       >
         <span>
-          {t(annotationType === 'highlight' ? 'assistHighlights' :
-             annotationType === 'assessment' ? 'assistAssessments' :
-             'assistComments')}
+          {t(annotationType === 'highlight' ? 'annotateHighlights' :
+             annotationType === 'assessment' ? 'annotateAssessments' :
+             'annotateComments')}
         </span>
         <span className="semiont-panel__section-chevron" data-expanded={isExpanded}>
           ›
@@ -211,7 +211,7 @@ export function AssistSection({
               data-type={annotationType}
             >
               <span className="semiont-button-icon">✨</span>
-              <span>{t('assist')}</span>
+              <span>{t('annotate')}</span>
             </button>
           </>
         )}

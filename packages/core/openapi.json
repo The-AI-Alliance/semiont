@@ -1122,10 +1122,10 @@
         }
       }
     },
-    "/resources/{id}/detect-annotations-stream": {
+    "/resources/{id}/annotate-references-stream": {
       "post": {
-        "summary": "Detect Annotations with Progress (SSE)",
-        "description": "Stream real-time entity detection progress via Server-Sent Events",
+        "summary": "Annotate References with Progress (SSE)",
+        "description": "Stream real-time reference annotation progress via Server-Sent Events",
         "tags": [
           "Resources",
           "Annotations",
@@ -1150,7 +1150,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/DetectReferencesStreamRequest"
+                "$ref": "#/components/schemas/AnnotateReferencesStreamRequest"
               }
             }
           }
@@ -1175,10 +1175,10 @@
         }
       }
     },
-    "/resources/{id}/detect-highlights-stream": {
+    "/resources/{id}/annotate-highlights-stream": {
       "post": {
-        "summary": "Detect Highlights with Progress (SSE)",
-        "description": "Stream real-time highlight detection progress via Server-Sent Events",
+        "summary": "Annotate Highlights with Progress (SSE)",
+        "description": "Stream real-time highlight annotation progress via Server-Sent Events",
         "tags": [
           "Resources",
           "Annotations",
@@ -1203,7 +1203,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/DetectHighlightsStreamRequest"
+                "$ref": "#/components/schemas/AnnotateHighlightsStreamRequest"
               }
             }
           }
@@ -1228,10 +1228,10 @@
         }
       }
     },
-    "/resources/{id}/detect-assessments-stream": {
+    "/resources/{id}/annotate-assessments-stream": {
       "post": {
-        "summary": "Detect Assessments with Progress (SSE)",
-        "description": "Stream real-time assessment detection progress via Server-Sent Events",
+        "summary": "Annotate Assessments with Progress (SSE)",
+        "description": "Stream real-time assessment annotation progress via Server-Sent Events",
         "tags": [
           "Resources",
           "Annotations",
@@ -1256,7 +1256,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/DetectAssessmentsStreamRequest"
+                "$ref": "#/components/schemas/AnnotateAssessmentsStreamRequest"
               }
             }
           }
@@ -1281,10 +1281,10 @@
         }
       }
     },
-    "/resources/{id}/detect-comments-stream": {
+    "/resources/{id}/annotate-comments-stream": {
       "post": {
-        "summary": "Detect Comments with Progress (SSE)",
-        "description": "Stream real-time comment detection progress via Server-Sent Events",
+        "summary": "Annotate Comments with Progress (SSE)",
+        "description": "Stream real-time comment annotation progress via Server-Sent Events",
         "tags": [
           "Resources",
           "Annotations",
@@ -1309,7 +1309,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/DetectCommentsStreamRequest"
+                "$ref": "#/components/schemas/AnnotateCommentsStreamRequest"
               }
             }
           }
@@ -1334,10 +1334,10 @@
         }
       }
     },
-    "/resources/{id}/detect-tags-stream": {
+    "/resources/{id}/annotate-tags-stream": {
       "post": {
-        "summary": "Detect Tags with Progress (SSE)",
-        "description": "Stream real-time tag detection progress via Server-Sent Events. Identifies passages serving specific structural roles (IRAC, IMRAD, Toulmin frameworks).",
+        "summary": "Annotate Tags with Progress (SSE)",
+        "description": "Stream real-time tag annotation progress via Server-Sent Events. Identifies passages serving specific structural roles (IRAC, IMRAD, Toulmin frameworks).",
         "tags": [
           "Resources",
           "Annotations",
@@ -1362,7 +1362,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/DetectTagsStreamRequest"
+                "$ref": "#/components/schemas/AnnotateTagsStreamRequest"
               }
             }
           }
@@ -2966,7 +2966,7 @@
           "type": {
             "type": "string",
             "enum": [
-              "detection",
+              "reference-annotation",
               "generation"
             ]
           },
@@ -3396,7 +3396,7 @@
           "type": {
             "type": "string",
             "enum": [
-              "detection",
+              "reference-annotation",
               "generation"
             ]
           },
@@ -3624,7 +3624,7 @@
           "message"
         ]
       },
-      "DetectReferencesStreamRequest": {
+      "AnnotateReferencesStreamRequest": {
         "type": "object",
         "properties": {
           "entityTypes": {
@@ -3632,7 +3632,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Entity types to detect (e.g., 'Person', 'Organization', 'Location')"
+            "description": "Entity types to annotate (e.g., 'Person', 'Organization', 'Location')"
           },
           "includeDescriptiveReferences": {
             "type": "boolean",
@@ -3643,12 +3643,12 @@
           "entityTypes"
         ]
       },
-      "DetectHighlightsStreamRequest": {
+      "AnnotateHighlightsStreamRequest": {
         "type": "object",
         "properties": {
           "instructions": {
             "type": "string",
-            "description": "Optional instructions to guide AI highlight detection"
+            "description": "Optional instructions to guide AI highlight annotation"
           },
           "density": {
             "type": "number",
@@ -3658,12 +3658,12 @@
           }
         }
       },
-      "DetectAssessmentsStreamRequest": {
+      "AnnotateAssessmentsStreamRequest": {
         "type": "object",
         "properties": {
           "instructions": {
             "type": "string",
-            "description": "Optional instructions to guide AI assessment detection"
+            "description": "Optional instructions to guide AI assessment annotation"
           },
           "tone": {
             "type": "string",
@@ -3683,12 +3683,12 @@
           }
         }
       },
-      "DetectCommentsStreamRequest": {
+      "AnnotateCommentsStreamRequest": {
         "type": "object",
         "properties": {
           "instructions": {
             "type": "string",
-            "description": "Optional instructions to guide AI comment detection"
+            "description": "Optional instructions to guide AI comment annotation"
           },
           "tone": {
             "type": "string",
@@ -3708,7 +3708,7 @@
           }
         }
       },
-      "DetectTagsStreamRequest": {
+      "AnnotateTagsStreamRequest": {
         "type": "object",
         "properties": {
           "schemaId": {
@@ -3720,7 +3720,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Categories to detect from the selected schema (e.g., ['Issue', 'Rule', 'Application', 'Conclusion'])"
+            "description": "Categories to annotate from the selected schema (e.g., ['Issue', 'Rule', 'Application', 'Conclusion'])"
           }
         },
         "required": [
@@ -4401,12 +4401,12 @@
           "type": {
             "type": "string",
             "enum": [
-              "detection",
+              "reference-annotation",
               "generation",
-              "highlight-detection",
-              "assessment-detection",
-              "comment-detection",
-              "tag-detection"
+              "highlight-annotation",
+              "assessment-annotation",
+              "comment-annotation",
+              "tag-annotation"
             ]
           },
           "status": {

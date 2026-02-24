@@ -1,7 +1,7 @@
 {
   "post": {
-    "summary": "Detect Annotations with Progress (SSE)",
-    "description": "Stream real-time entity detection progress via Server-Sent Events",
+    "summary": "Annotate Assessments with Progress (SSE)",
+    "description": "Stream real-time assessment annotation progress via Server-Sent Events",
     "tags": [
       "Resources",
       "Annotations",
@@ -26,7 +26,7 @@
       "content": {
         "application/json": {
           "schema": {
-            "$ref": "../components/schemas/DetectReferencesStreamRequest.json"
+            "$ref": "../components/schemas/AnnotateAssessmentsStreamRequest.json"
           }
         }
       }

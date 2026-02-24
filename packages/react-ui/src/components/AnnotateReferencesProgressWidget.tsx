@@ -12,18 +12,18 @@ interface EnrichedAnnotationProgress extends AnnotationProgress {
   requestParams?: Array<{ label: string; value: string }>;
 }
 
-interface AnnotationProgressWidgetProps {
+interface AnnotateReferencesProgressWidgetProps {
   progress: AnnotationProgress | null;
   annotationType?: Motivation | 'reference';
 }
 
 /**
- * Widget for displaying annotation progress with cancel functionality
+ * Widget for displaying reference annotation progress with cancel functionality
  *
  * @emits job:cancel-requested - User requested to cancel annotation job. Payload: { jobType: string }
  */
-export function AnnotationProgressWidget({ progress, annotationType = 'reference' }: AnnotationProgressWidgetProps) {
-  const t = useTranslations('AnnotationProgressWidget');
+export function AnnotateReferencesProgressWidget({ progress, annotationType = 'reference' }: AnnotateReferencesProgressWidgetProps) {
+  const t = useTranslations('AnnotateReferencesProgressWidget');
   const eventBus = useEventBus();
 
   const handleCancel = () => {

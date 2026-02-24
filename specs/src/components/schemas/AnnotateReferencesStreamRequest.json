@@ -6,7 +6,7 @@
       "items": {
         "type": "string"
       },
-      "description": "Entity types to detect (e.g., 'Person', 'Organization', 'Location')"
+      "description": "Entity types to annotate (e.g., 'Person', 'Organization', 'Location')"
     },
     "includeDescriptiveReferences": {
       "type": "boolean",

@@ -1155,7 +1155,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/resources/{id}/detect-annotations-stream": {
+    "/resources/{id}/annotate-references-stream": {
         parameters: {
             query?: never;
             header?: never;
@@ -1165,8 +1165,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Detect Annotations with Progress (SSE)
-         * @description Stream real-time entity detection progress via Server-Sent Events
+         * Annotate References with Progress (SSE)
+         * @description Stream real-time reference annotation progress via Server-Sent Events
          */
         post: {
             parameters: {
@@ -1179,7 +1179,7 @@ export interface paths {
             };
             requestBody?: {
                 content: {
-                    "application/json": components["schemas"]["DetectReferencesStreamRequest"];
+                    "application/json": components["schemas"]["AnnotateReferencesStreamRequest"];
                 };
             };
             responses: {
@@ -1214,7 +1214,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/resources/{id}/detect-highlights-stream": {
+    "/resources/{id}/annotate-highlights-stream": {
         parameters: {
             query?: never;
             header?: never;
@@ -1224,8 +1224,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Detect Highlights with Progress (SSE)
-         * @description Stream real-time highlight detection progress via Server-Sent Events
+         * Annotate Highlights with Progress (SSE)
+         * @description Stream real-time highlight annotation progress via Server-Sent Events
          */
         post: {
             parameters: {
@@ -1238,7 +1238,7 @@ export interface paths {
             };
             requestBody?: {
                 content: {
-                    "application/json": components["schemas"]["DetectHighlightsStreamRequest"];
+                    "application/json": components["schemas"]["AnnotateHighlightsStreamRequest"];
                 };
             };
             responses: {
@@ -1273,7 +1273,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/resources/{id}/detect-assessments-stream": {
+    "/resources/{id}/annotate-assessments-stream": {
         parameters: {
             query?: never;
             header?: never;
@@ -1283,8 +1283,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Detect Assessments with Progress (SSE)
-         * @description Stream real-time assessment detection progress via Server-Sent Events
+         * Annotate Assessments with Progress (SSE)
+         * @description Stream real-time assessment annotation progress via Server-Sent Events
          */
         post: {
             parameters: {
@@ -1297,7 +1297,7 @@ export interface paths {
             };
             requestBody?: {
                 content: {
-                    "application/json": components["schemas"]["DetectAssessmentsStreamRequest"];
+                    "application/json": components["schemas"]["AnnotateAssessmentsStreamRequest"];
                 };
             };
             responses: {
@@ -1332,7 +1332,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/resources/{id}/detect-comments-stream": {
+    "/resources/{id}/annotate-comments-stream": {
         parameters: {
             query?: never;
             header?: never;
@@ -1342,8 +1342,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Detect Comments with Progress (SSE)
-         * @description Stream real-time comment detection progress via Server-Sent Events
+         * Annotate Comments with Progress (SSE)
+         * @description Stream real-time comment annotation progress via Server-Sent Events
          */
         post: {
             parameters: {
@@ -1356,7 +1356,7 @@ export interface paths {
             };
             requestBody?: {
                 content: {
-                    "application/json": components["schemas"]["DetectCommentsStreamRequest"];
+                    "application/json": components["schemas"]["AnnotateCommentsStreamRequest"];
                 };
             };
             responses: {
@@ -1391,7 +1391,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/resources/{id}/detect-tags-stream": {
+    "/resources/{id}/annotate-tags-stream": {
         parameters: {
             query?: never;
             header?: never;
@@ -1401,8 +1401,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Detect Tags with Progress (SSE)
-         * @description Stream real-time tag detection progress via Server-Sent Events. Identifies passages serving specific structural roles (IRAC, IMRAD, Toulmin frameworks).
+         * Annotate Tags with Progress (SSE)
+         * @description Stream real-time tag annotation progress via Server-Sent Events. Identifies passages serving specific structural roles (IRAC, IMRAD, Toulmin frameworks).
          */
         post: {
             parameters: {
@@ -1415,7 +1415,7 @@ export interface paths {
             };
             requestBody?: {
                 content: {
-                    "application/json": components["schemas"]["DetectTagsStreamRequest"];
+                    "application/json": components["schemas"]["AnnotateTagsStreamRequest"];
                 };
             };
             responses: {
@@ -2439,7 +2439,7 @@ export interface components {
             /** @enum {string} */
             status: "pending" | "running" | "complete" | "failed" | "cancelled";
             /** @enum {string} */
-            type: "detection" | "generation";
+            type: "reference-annotation" | "generation";
             created: string;
         };
         AuthResponse: {
@@ -2546,7 +2546,7 @@ export interface components {
         CreateJobResponse: {
             jobId: string;
             /** @enum {string} */
-            type: "detection" | "generation";
+            type: "reference-annotation" | "generation";
             /** @enum {string} */
             status: "pending" | "running" | "complete" | "failed" | "cancelled";
             created: string;
@@ -2612,20 +2612,20 @@ export interface components {
             success: boolean;
             message: string;
         };
-        DetectReferencesStreamRequest: {
-            /** @description Entity types to detect (e.g., 'Person', 'Organization', 'Location') */
+        AnnotateReferencesStreamRequest: {
+            /** @description Entity types to annotate (e.g., 'Person', 'Organization', 'Location') */
             entityTypes: string[];
             /** @description Include anaphoric/cataphoric references (e.g., 'the CEO', 'the tech giant') in addition to direct mentions */
             includeDescriptiveReferences?: boolean;
         };
-        DetectHighlightsStreamRequest: {
-            /** @description Optional instructions to guide AI highlight detection */
+        AnnotateHighlightsStreamRequest: {
+            /** @description Optional instructions to guide AI highlight annotation */
             instructions?: string;
             /** @description Optional density: desired number of highlights per 2000 words of text (1-15) */
             density?: number;
         };
-        DetectAssessmentsStreamRequest: {
-            /** @description Optional instructions to guide AI assessment detection */
+        AnnotateAssessmentsStreamRequest: {
+            /** @description Optional instructions to guide AI assessment annotation */
             instructions?: string;
             /**
              * @description Optional tone/style for generated assessments
@@ -2635,8 +2635,8 @@ export interface components {
             /** @description Optional density: desired number of assessments per 2000 words of text (1-10) */
             density?: number;
         };
-        DetectCommentsStreamRequest: {
-            /** @description Optional instructions to guide AI comment detection */
+        AnnotateCommentsStreamRequest: {
+            /** @description Optional instructions to guide AI comment annotation */
             instructions?: string;
             /**
              * @description Optional tone/style for generated comments
@@ -2646,10 +2646,10 @@ export interface components {
             /** @description Optional density: desired number of comments per 2000 words of text (2-12) */
             density?: number;
         };
-        DetectTagsStreamRequest: {
+        AnnotateTagsStreamRequest: {
             /** @description Tag schema ID (e.g., 'legal-irac', 'scientific-imrad', 'argument-toulmin') */
             schemaId: string;
-            /** @description Categories to detect from the selected schema (e.g., ['Issue', 'Rule', 'Application', 'Conclusion']) */
+            /** @description Categories to annotate from the selected schema (e.g., ['Issue', 'Rule', 'Application', 'Conclusion']) */
             categories: string[];
         };
         ErrorResponse: {
@@ -2834,7 +2834,7 @@ export interface components {
         JobStatusResponse: {
             jobId: string;
             /** @enum {string} */
-            type: "detection" | "generation" | "highlight-detection" | "assessment-detection" | "comment-detection" | "tag-detection";
+            type: "reference-annotation" | "generation" | "highlight-annotation" | "assessment-annotation" | "comment-annotation" | "tag-annotation";
             /** @enum {string} */
             status: "pending" | "running" | "complete" | "failed" | "cancelled";
             userId: string;

@@ -5,7 +5,7 @@ import { useTranslations } from '../../../contexts/TranslationContext';
 import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
-import { AnnotationProgressWidget } from '../../AnnotationProgressWidget';
+import { AnnotateReferencesProgressWidget } from '../../AnnotateReferencesProgressWidget';
 import { ReferenceEntry } from './ReferenceEntry';
 import type { components, paths, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
@@ -89,7 +89,7 @@ export function ReferencesPanel({
   onScrollCompleted,
   hoveredAnnotationId,
 }: Props) {
-  const t = useTranslations('AssistPanel');
+  const t = useTranslations('ReferencePanel');
   const tRef = useTranslations('ReferencesPanel');
   const eventBus = useEventBus();
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
@@ -434,13 +434,13 @@ export function ReferencesPanel({
               <button
                 onClick={handleAssist}
                 disabled={selectedEntityTypes.length === 0}
-                title={t('startAssist')}
+                title={t('startAnnotate')}
                 className="semiont-button"
                 data-variant="assist"
                 data-type="reference"
               >
                 <span className="semiont-button-icon">✨</span>
-                <span>{t('startAssist')}</span>
+                <span>{t('startAnnotate')}</span>
               </button>
             </>
             </div>
@@ -448,7 +448,7 @@ export function ReferencesPanel({
 
           {/* Annotation Progress - shown when active */}
           {isAssisting && progress && (
-            <AnnotationProgressWidget
+            <AnnotateReferencesProgressWidget
               progress={progress}
               annotationType="reference"
             />

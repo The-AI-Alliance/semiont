@@ -1,7 +1,7 @@
 {
   "post": {
-    "summary": "Detect Tags with Progress (SSE)",
-    "description": "Stream real-time tag detection progress via Server-Sent Events. Identifies passages serving specific structural roles (IRAC, IMRAD, Toulmin frameworks).",
+    "summary": "Annotate Comments with Progress (SSE)",
+    "description": "Stream real-time comment annotation progress via Server-Sent Events",
     "tags": [
       "Resources",
       "Annotations",
@@ -26,7 +26,7 @@
       "content": {
         "application/json": {
           "schema": {
-            "$ref": "../components/schemas/DetectTagsStreamRequest.json"
+            "$ref": "../components/schemas/AnnotateCommentsStreamRequest.json"
           }
         }
       }

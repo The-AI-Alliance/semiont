@@ -3,7 +3,7 @@
   "properties": {
     "instructions": {
       "type": "string",
-      "description": "Optional instructions to guide AI comment detection"
+      "description": "Optional instructions to guide AI comment annotation"
     },
     "tone": {
       "type": "string",

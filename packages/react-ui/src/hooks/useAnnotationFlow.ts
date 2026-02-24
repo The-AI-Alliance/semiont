@@ -348,33 +348,33 @@ export function useAnnotationFlow(rUri: ResourceUri): AnnotationFlowState {
           if (!schemaId || !categories || categories.length === 0) {
             throw new Error('Tag assist requires schemaId and categories');
           }
-          currentClient.sse.detectTags(currentRUri, { schemaId, categories }, sseOptions);
+          currentClient.sse.annotateTags(currentRUri, { schemaId, categories }, sseOptions);
           // Events auto-emit to EventBus: annotate:progress, annotate:assist-finished, annotate:assist-failed
         } else if (event.motivation === 'linking') {
           const { entityTypes, includeDescriptiveReferences } = event.options;
           if (!entityTypes || entityTypes.length === 0) {
             throw new Error('Reference assist requires entityTypes');
           }
-          currentClient.sse.detectReferences(currentRUri, {
+          currentClient.sse.annotateReferences(currentRUri, {
             entityTypes: entityTypes.map(et => entityType(et)),
             includeDescriptiveReferences: includeDescriptiveReferences || false,
           }, sseOptions);
           // Events auto-emit to EventBus: annotate:progress, annotate:assist-finished, annotate:assist-failed
         } else if (event.motivation === 'highlighting') {
-          currentClient.sse.detectHighlights(currentRUri, {
+          currentClient.sse.annotateHighlights(currentRUri, {
             instructions: event.options.instructions,
             density: event.options.density,
           }, sseOptions);
           // Events auto-emit to EventBus: annotate:progress, annotate:assist-finished, annotate:assist-failed
         } else if (event.motivation === 'assessing') {
-          currentClient.sse.detectAssessments(currentRUri, {
+          currentClient.sse.annotateAssessments(currentRUri, {
             instructions: event.options.instructions,
             tone: event.options.tone as 'analytical' | 'critical' | 'balanced' | 'constructive' | undefined,
             density: event.options.density,
           }, sseOptions);
           // Events auto-emit to EventBus: annotate:progress, annotate:assist-finished, annotate:assist-failed
         } else if (event.motivation === 'commenting') {
-          currentClient.sse.detectComments(currentRUri, {
+          currentClient.sse.annotateComments(currentRUri, {
             instructions: event.options.instructions,
             tone: event.options.tone as 'scholarly' | 'explanatory' | 'conversational' | 'technical' | undefined,
             density: event.options.density,
@@ -393,8 +393,8 @@ export function useAnnotationFlow(rUri: ResourceUri): AnnotationFlowState {
     };
 
     /**
-     * Handle job cancellation (assist half)
-     * Emitted by: AnnotationProgressWidget
+     * Handle job cancellation (annotation half)
+     * Emitted by: AnnotateReferencesProgressWidget
      */
     const handleJobCancelRequested = (event: { jobType: 'annotation' | 'generation' }) => {
       if (event.jobType === 'annotation') {

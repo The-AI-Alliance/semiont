@@ -20,9 +20,9 @@ export const SSE_STREAM_CONNECTED = 'stream-connected' as const;
 export type SSEStreamConnected = typeof SSE_STREAM_CONNECTED;
 
 /**
- * Request body for reference detection stream
+ * Request body for reference annotation stream
  */
-export interface DetectReferencesStreamRequest {
+export interface AnnotateReferencesStreamRequest {
   entityTypes: EntityType[];
   includeDescriptiveReferences?: boolean;
 }
@@ -34,18 +34,18 @@ export interface DetectReferencesStreamRequest {
 export type GenerateResourceStreamRequest = components['schemas']['GenerateResourceStreamRequest'];
 
 /**
- * Request body for highlight detection stream
+ * Request body for highlight annotation stream
  */
-export interface DetectHighlightsStreamRequest {
+export interface AnnotateHighlightsStreamRequest {
   instructions?: string;
   /** Desired number of highlights per 2000 words (1-15) */
   density?: number;
 }
 
 /**
- * Request body for assessment detection stream
+ * Request body for assessment annotation stream
  */
-export interface DetectAssessmentsStreamRequest {
+export interface AnnotateAssessmentsStreamRequest {
   instructions?: string;
   tone?: 'analytical' | 'critical' | 'balanced' | 'constructive';
   /** Desired number of assessments per 2000 words (1-10) */
@@ -53,9 +53,9 @@ export interface DetectAssessmentsStreamRequest {
 }
 
 /**
- * Request body for comment detection stream
+ * Request body for comment annotation stream
  */
-export interface DetectCommentsStreamRequest {
+export interface AnnotateCommentsStreamRequest {
   instructions?: string;
   tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical';
   /** Desired number of comments per 2000 words (2-12) */
@@ -63,9 +63,9 @@ export interface DetectCommentsStreamRequest {
 }
 
 /**
- * Request body for tag detection stream
+ * Request body for tag annotation stream
  */
-export interface DetectTagsStreamRequest {
+export interface AnnotateTagsStreamRequest {
   schemaId: string;
   categories: string[];
 }
@@ -101,7 +101,7 @@ export interface SSERequestOptions {
  *   baseUrl: 'http://localhost:4000'
  * });
  *
- * const stream = sseClient.detectReferences(
+ * const stream = sseClient.annotateReferences(
  *   'http://localhost:4000/resources/doc-123',
  *   { entityTypes: ['Person', 'Organization'] },
  *   { auth: 'your-token' }
@@ -161,7 +161,7 @@ export class SSEClient {
    *
    * @example
    * ```typescript
-   * const stream = sseClient.detectReferences(
+   * const stream = sseClient.annotateReferences(
    *   'http://localhost:4000/resources/doc-123',
    *   { entityTypes: ['Person', 'Organization'] },
    *   { auth: 'your-token' }
@@ -184,9 +184,9 @@ export class SSEClient {
    * stream.close();
    * ```
    */
-  detectReferences(
+  annotateReferences(
     resourceId: ResourceUri,
-    request: DetectReferencesStreamRequest,
+    request: AnnotateReferencesStreamRequest,
     options: SSERequestOptions
   ): SSEStream {
     const id = this.extractId(resourceId);
@@ -278,7 +278,7 @@ export class SSEClient {
   /**
    * Detect highlights in a resource (streaming)
    *
-   * Streams highlight detection progress via Server-Sent Events.
+   * Streams highlight annotation progress via Server-Sent Events.
    *
    * @param resourceId - Resource URI or ID
    * @param request - Detection configuration (optional instructions)
@@ -287,7 +287,7 @@ export class SSEClient {
    *
    * @example
    * ```typescript
-   * const stream = sseClient.detectHighlights(
+   * const stream = sseClient.annotateHighlights(
    *   'http://localhost:4000/resources/doc-123',
    *   { instructions: 'Focus on key technical points' },
    *   { auth: 'your-token' }
@@ -310,9 +310,9 @@ export class SSEClient {
    * stream.close();
    * ```
    */
-  detectHighlights(
+  annotateHighlights(
     resourceId: ResourceUri,
-    request: DetectHighlightsStreamRequest = {},
+    request: AnnotateHighlightsStreamRequest = {},
     options: SSERequestOptions
   ): SSEStream {
     const id = this.extractId(resourceId);
@@ -339,7 +339,7 @@ export class SSEClient {
   /**
    * Detect assessments in a resource (streaming)
    *
-   * Streams assessment detection progress via Server-Sent Events.
+   * Streams assessment annotation progress via Server-Sent Events.
    *
    * @param resourceId - Resource URI or ID
    * @param request - Detection configuration (optional instructions)
@@ -348,7 +348,7 @@ export class SSEClient {
    *
    * @example
    * ```typescript
-   * const stream = sseClient.detectAssessments(
+   * const stream = sseClient.annotateAssessments(
    *   'http://localhost:4000/resources/doc-123',
    *   { instructions: 'Evaluate claims for accuracy' },
    *   { auth: 'your-token' }
@@ -371,9 +371,9 @@ export class SSEClient {
    * stream.close();
    * ```
    */
-  detectAssessments(
+  annotateAssessments(
     resourceId: ResourceUri,
-    request: DetectAssessmentsStreamRequest = {},
+    request: AnnotateAssessmentsStreamRequest = {},
     options: SSERequestOptions
   ): SSEStream {
     const id = this.extractId(resourceId);
@@ -400,7 +400,7 @@ export class SSEClient {
   /**
    * Detect comments in a resource (streaming)
    *
-   * Streams comment detection progress via Server-Sent Events.
+   * Streams comment annotation progress via Server-Sent Events.
    * Uses AI to identify passages that would benefit from explanatory comments
    * and creates comment annotations with contextual information.
    *
@@ -411,7 +411,7 @@ export class SSEClient {
    *
    * @example
    * ```typescript
-   * const stream = sseClient.detectComments(
+   * const stream = sseClient.annotateComments(
    *   'http://localhost:4000/resources/doc-123',
    *   {
    *     instructions: 'Focus on technical terminology',
@@ -436,9 +436,9 @@ export class SSEClient {
    * stream.close();
    * ```
    */
-  detectComments(
+  annotateComments(
     resourceId: ResourceUri,
-    request: DetectCommentsStreamRequest = {},
+    request: AnnotateCommentsStreamRequest = {},
     options: SSERequestOptions
   ): SSEStream {
     const id = this.extractId(resourceId);
@@ -465,7 +465,7 @@ export class SSEClient {
   /**
    * Detect tags in a resource (streaming)
    *
-   * Streams tag detection progress via Server-Sent Events.
+   * Streams tag annotation progress via Server-Sent Events.
    * Uses AI to identify passages serving specific structural roles
    * (e.g., IRAC, IMRAD, Toulmin) and creates tag annotations with dual-body structure.
    *
@@ -476,7 +476,7 @@ export class SSEClient {
    *
    * @example
    * ```typescript
-   * const stream = sseClient.detectTags(
+   * const stream = sseClient.annotateTags(
    *   'http://localhost:4000/resources/doc-123',
    *   {
    *     schemaId: 'legal-irac',
@@ -502,9 +502,9 @@ export class SSEClient {
    * stream.close();
    * ```
    */
-  detectTags(
+  annotateTags(
     resourceId: ResourceUri,
-    request: DetectTagsStreamRequest,
+    request: AnnotateTagsStreamRequest,
     options: SSERequestOptions
   ): SSEStream {
     const id = this.extractId(resourceId);

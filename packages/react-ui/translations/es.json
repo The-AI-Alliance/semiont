@@ -77,7 +77,7 @@
     "save": "Guardar",
     "cancel": "Cancelar",
     "edit": "Editar",
-    "assistComments": "Asistir con Comentarios",
+    "annotateComments": "Anotar Comentarios",
     "instructions": "Instrucciones",
     "optional": "(opcional)",
     "instructionsPlaceholder": "ej., Enfócate en terminología técnica...",
@@ -98,8 +98,8 @@
   },
   "HighlightPanel": {
     "title": "Destacados",
-    "noHighlights": "Aún no hay destacados. Usa asistencia por IA para encontrar pasajes importantes.",
-    "assistHighlights": "Asistir con Destacados",
+    "noHighlights": "Aún no hay destacados. Usa anotación por IA para encontrar pasajes importantes.",
+    "annotateHighlights": "Anotar Destacados",
     "instructions": "Instrucciones",
     "optional": "(opcional)",
     "instructionsPlaceholder": "ej., Enfócate en conceptos técnicos clave...",
@@ -113,11 +113,11 @@
   },
   "AssessmentPanel": {
     "title": "Evaluaciones",
-    "noAssessments": "Aún no hay evaluaciones. Usa asistencia por IA para evaluar pasajes.",
+    "noAssessments": "Aún no hay evaluaciones. Usa anotación por IA para evaluar pasajes.",
     "assessmentPlaceholder": "Escriba su evaluación aquí...",
     "save": "Guardar",
     "cancel": "Cancelar",
-    "assistAssessments": "Asistir con Evaluaciones",
+    "annotateAssessments": "Anotar Evaluaciones",
     "instructions": "Instrucciones",
     "optional": "(opcional)",
     "instructionsPlaceholder": "ej., Evalúa afirmaciones por exactitud y evidencia...",
@@ -138,8 +138,8 @@
   },
   "TaggingPanel": {
     "title": "Etiquetas",
-    "noTags": "Aún no hay etiquetas. Usa asistencia por IA para identificar roles estructurales.",
-    "assistTags": "Asistir con Etiquetas",
+    "noTags": "Aún no hay etiquetas. Usa anotación por IA para identificar roles estructurales.",
+    "annotateTags": "Anotar Etiquetas",
     "selectSchema": "Seleccionar Marco",
     "schemaLegal": "Análisis Legal (IRAC)",
     "schemaScientific": "Artículo Científico (IMRAD)",
@@ -190,18 +190,18 @@
     "resolved": "Resuelto",
     "entityTypes": "Tipos de Entidad"
   },
-  "AssistPanel": {
-    "title": "Asistir con Referencias",
+  "ReferencePanel": {
+    "title": "Anotar Referencias",
     "selectEntityTypes": "Tipos de entidad:",
     "select": "Seleccionar",
     "deselect": "Deseleccionar",
     "noEntityTypes": "No hay tipos de entidad disponibles",
     "typesSelected": "{count, plural, =1 {1 tipo seleccionado} other {# tipos seleccionados}}",
-    "startAssist": "Asistir",
+    "startAnnotate": "Asistir",
     "found": "{count} encontrados",
     "more": "Más"
   },
-  "AnnotationProgressWidget": {
+  "AnnotateReferencesProgressWidget": {
     "title": "Anotando Referencias de Entidad",
     "cancelAnnotation": "Cancelar anotación",
     "found": "{count} encontrados",

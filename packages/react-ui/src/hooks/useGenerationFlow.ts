@@ -225,7 +225,7 @@ export function useGenerationFlow(
 
     /**
      * Handle job cancellation (generation half)
-     * Emitted by: AnnotationProgressWidget
+     * Emitted by: AnnotateReferencesProgressWidget
      */
     const handleJobCancelRequested = (event: { jobType: 'annotation' | 'generation' }) => {
       if (event.jobType === 'generation') {
