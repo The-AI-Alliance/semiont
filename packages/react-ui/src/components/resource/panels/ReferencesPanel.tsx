@@ -355,10 +355,25 @@ export function ReferencesPanel({
             </button>
             {isDetectExpanded && (
               <>
-                {/* Show annotation UI only when not detecting and no completed log */}
-                {!detectionProgress && !lastDetectionLog && (
+                {/* Show annotation UI when not actively detecting */}
+                {!isDetecting && (
                 <div className="semiont-detect-widget" data-type="reference">
             <>
+              {/* Completed detection log - shown after completion */}
+              {lastDetectionLog && lastDetectionLog.length > 0 && (
+                <div className="semiont-detect-widget__log">
+                  <div className="semiont-detect-widget__log-items">
+                    {lastDetectionLog.map((item, index) => (
+                      <div key={index} className="semiont-detect-widget__log-item">
+                        <span className="semiont-detect-widget__log-check">✓</span>
+                        <span className="semiont-detect-widget__log-type">{item.entityType}:</span>
+                        <span>{t('found', { count: item.foundCount })}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Entity Types Selection */}
               <div className="semiont-detect-widget__entity-types">
                 <p className="semiont-detect-widget__label">
@@ -432,34 +447,11 @@ export function ReferencesPanel({
           )}
 
           {/* Detection Progress - shown when active */}
-          {detectionProgress && (
+          {isDetecting && detectionProgress && (
             <DetectionProgressWidget
               progress={detectionProgress}
               annotationType="reference"
             />
-          )}
-
-          {/* Completed detection log - shown after completion */}
-          {!detectionProgress && lastDetectionLog && lastDetectionLog.length > 0 && (
-            <div className="semiont-detect-widget__log">
-              <div className="semiont-detect-widget__log-items">
-                {lastDetectionLog.map((item, index) => (
-                  <div key={index} className="semiont-detect-widget__log-item">
-                    <span className="semiont-detect-widget__log-check">✓</span>
-                    <span className="semiont-detect-widget__log-type">{item.entityType}:</span>
-                    <span>{t('found', { count: item.foundCount })}</span>
-                  </div>
-                ))}
-              </div>
-              <button
-                onClick={() => setLastDetectionLog(null)}
-                className="semiont-button"
-                data-variant="detect"
-                data-type="reference"
-              >
-                {t('more')}
-              </button>
-            </div>
           )}
               </>
             )}

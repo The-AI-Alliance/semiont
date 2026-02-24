@@ -81,7 +81,6 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
       typesSelected: '{count} type(s) selected',
       startDetection: 'Start Detection',
       found: 'Found {count}',
-      more: 'Detect More',
       includeDescriptiveReferences: 'Include descriptive references',
       descriptiveReferencesTooltip: 'Also find phrases like \'the CEO\', \'the tech giant\', \'the physicist\' (in addition to names)',
       cancel: 'Cancel',
@@ -526,7 +525,7 @@ describe('ReferencesPanel Component', () => {
       expect(screen.getByText('✓')).toBeInTheDocument();
     });
 
-    it('should show "Detect More" button after completion', () => {
+    it('should show detection log and selection UI together after completion', () => {
       const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
@@ -542,10 +541,13 @@ describe('ReferencesPanel Component', () => {
           <ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />
         </EventBusProvider>
       );
-      expect(screen.getByText('Detect More')).toBeInTheDocument();
+
+      // Should show both the completed log AND the selection UI
+      expect(screen.getByText('Person:')).toBeInTheDocument(); // Log entry
+      expect(screen.getByText('Select entity types')).toBeInTheDocument(); // Selection UI
     });
 
-    it('should clear log and show selection UI when clicking "Detect More"', async () => {
+    it('should show selection UI immediately after detection completes', async () => {
       const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
@@ -562,12 +564,9 @@ describe('ReferencesPanel Component', () => {
         </EventBusProvider>
       );
 
-      const detectMoreButton = screen.getByText('Detect More');
-      await userEvent.click(detectMoreButton);
-
-      // Should show selection UI again
+      // Selection UI should be immediately available (no button click needed)
       expect(screen.getByText('Select entity types')).toBeInTheDocument();
-      expect(screen.getByText('Person')).toBeInTheDocument();
+      expect(screen.getByText('Person')).toBeInTheDocument(); // Entity type chip
     });
 
     it('should not show log when empty', () => {
@@ -581,7 +580,9 @@ describe('ReferencesPanel Component', () => {
         />
       );
 
-      expect(screen.queryByText('Detect More')).not.toBeInTheDocument();
+      // Should not show any log items (but selection UI should still be visible)
+      expect(screen.queryByText('✓')).not.toBeInTheDocument();
+      expect(screen.getByText('Select entity types')).toBeInTheDocument();
     });
   });
 
@@ -641,10 +642,12 @@ describe('ReferencesPanel Component', () => {
       );
 
       expect(screen.queryByTestId('detection-progress-widget')).not.toBeInTheDocument();
-      expect(screen.getByText('Detect More')).toBeInTheDocument();
+      // Both log and selection UI should be visible
+      expect(screen.getByText('Person:')).toBeInTheDocument();
+      expect(screen.getByText('Select entity types')).toBeInTheDocument();
     });
 
-    it('should transition from complete to idle', async () => {
+    it('should show selection UI after detection completes', async () => {
       const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
@@ -662,8 +665,8 @@ describe('ReferencesPanel Component', () => {
         </EventBusProvider>
       );
 
-      const detectMoreButton = screen.getByText('Detect More');
-      await userEvent.click(detectMoreButton);
+      // Selection UI should be immediately available
+      expect(screen.getByText('Select entity types')).toBeInTheDocument();
 
       rerender(
         <EventBusProvider>

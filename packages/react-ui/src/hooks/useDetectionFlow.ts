@@ -87,7 +87,7 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
   const eventBus = useEventBus();
   const client = useApiClient();
   const token = useAuthToken();
-  const { showSuccess, showError } = useToast();
+  const { showSuccess, showError, showInfo } = useToast();
 
   // Keep latest client/rUri/token available inside useEffect handlers without re-subscribing
   const clientRef = useRef(client);
@@ -434,6 +434,10 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
     'annotate:detect-finished': handleDetectionComplete,
     'annotate:detect-failed': handleDetectionFailed,
     'annotate:detect-dismiss': handleDetectionDismissProgress,
+    'annotate:detect-cancelled': () => showInfo('Detection cancelled'),
+    // CRUD error notifications
+    'annotate:create-failed': ({ error }) => showError(`Failed to create annotation: ${error.message}`),
+    'annotate:delete-failed': ({ error }) => showError(`Failed to delete annotation: ${error.message}`),
   });
 
   // Cleanup timeout on unmount
