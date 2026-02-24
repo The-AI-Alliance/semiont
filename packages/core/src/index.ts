@@ -135,7 +135,7 @@ export type {
   EventMap,
   EventName,
   SelectionData,
-  DetectionProgress,
+  AnnotationProgress,
   GenerationProgress,
   Selector,
   GenerationContext,

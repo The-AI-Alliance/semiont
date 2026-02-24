@@ -109,15 +109,15 @@
 }
 
 /* ============================================
-   Detection Section in Unified Panel
+   Assist Section in Unified Panel
    ============================================ */
 .semiont-motivation-comment-section,
-.semiont-detect-section[data-type="comment"] {
+.semiont-assist-section[data-type="comment"] {
   border-color: var(--semiont-color-purple-500);
 }
 
 [data-theme="dark"] .semiont-motivation-comment-section,
-[data-theme="dark"] .semiont-detect-section[data-type="comment"] {
+[data-theme="dark"] .semiont-assist-section[data-type="comment"] {
   border-color: var(--semiont-color-purple-600);
 }
 
@@ -125,7 +125,7 @@
    Button Styling
    ============================================ */
 .semiont-motivation-comment-button,
-.semiont-button[data-variant="detect"][data-type="comment"] {
+.semiont-button[data-variant="assist"][data-type="comment"] {
   background: linear-gradient(to right, var(--semiont-color-gray-800), var(--semiont-color-gray-700)) !important;
   color: var(--semiont-color-white) !important;
   border: 1px solid var(--semiont-motivation-comment-border);
@@ -134,32 +134,32 @@
 }
 
 .semiont-motivation-comment-button:hover:not(:disabled),
-.semiont-button[data-variant="detect"][data-type="comment"]:hover:not(:disabled) {
+.semiont-button[data-variant="assist"][data-type="comment"]:hover:not(:disabled) {
   background: linear-gradient(to right, var(--semiont-color-gray-900), var(--semiont-color-gray-800)) !important;
   border-color: var(--semiont-color-gray-600);
 }
 
 [data-theme="dark"] .semiont-motivation-comment-button,
-[data-theme="dark"] .semiont-button[data-variant="detect"][data-type="comment"] {
+[data-theme="dark"] .semiont-button[data-variant="assist"][data-type="comment"] {
   background: linear-gradient(to right, var(--semiont-color-gray-600), var(--semiont-color-gray-500)) !important;
   color: var(--semiont-color-white) !important;
   border-color: var(--semiont-motivation-comment-dark-primary);
 }
 
 [data-theme="dark"] .semiont-motivation-comment-button:hover:not(:disabled),
-[data-theme="dark"] .semiont-button[data-variant="detect"][data-type="comment"]:hover:not(:disabled) {
+[data-theme="dark"] .semiont-button[data-variant="assist"][data-type="comment"]:hover:not(:disabled) {
   background: linear-gradient(to right, var(--semiont-color-gray-500), var(--semiont-color-gray-400)) !important;
   border-color: var(--semiont-color-gray-400);
 }
 
 .semiont-motivation-comment-button:focus-visible,
-.semiont-button[data-variant="detect"][data-type="comment"]:focus-visible {
+.semiont-button[data-variant="assist"][data-type="comment"]:focus-visible {
   outline: 2px solid var(--semiont-motivation-comment-primary);
   outline-offset: 2px;
 }
 
 [data-theme="dark"] .semiont-motivation-comment-button:focus-visible,
-[data-theme="dark"] .semiont-button[data-variant="detect"][data-type="comment"]:focus-visible {
+[data-theme="dark"] .semiont-button[data-variant="assist"][data-type="comment"]:focus-visible {
   outline: 2px solid var(--semiont-color-purple-400);
   outline-offset: 2px;
 }

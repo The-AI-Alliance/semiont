@@ -7,7 +7,7 @@ import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { components, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
 import { HighlightEntry } from './HighlightEntry';
-import { DetectSection } from './DetectSection';
+import { AssistSection } from './AssistSection';
 import { PanelHeader } from './PanelHeader';
 import './HighlightPanel.css';
 
@@ -23,8 +23,8 @@ interface PendingAnnotation {
 interface HighlightPanelProps {
   annotations: Annotation[];
   pendingAnnotation: PendingAnnotation | null;
-  isDetecting?: boolean;
-  detectionProgress?: {
+  isAssisting?: boolean;
+  progress?: {
     status: string;
     percentage?: number;
     message?: string;
@@ -44,8 +44,8 @@ interface HighlightPanelProps {
 export function HighlightPanel({
   annotations,
   pendingAnnotation,
-  isDetecting = false,
-  detectionProgress,
+  isAssisting = false,
+  progress,
   annotateMode = true,
   scrollToAnnotationId,
   onScrollCompleted,
@@ -146,12 +146,12 @@ export function HighlightPanel({
 
       {/* Scrollable content area */}
       <div ref={containerRef} className="semiont-panel__content">
-        {/* Detection Section - only in Annotate mode and for text resources */}
+        {/* Assist Section - only in Annotate mode and for text resources */}
         {annotateMode && (
-          <DetectSection
+          <AssistSection
             annotationType="highlight"
-            isDetecting={isDetecting}
-            detectionProgress={detectionProgress}
+            isAssisting={isAssisting}
+            progress={progress}
           />
         )}
 

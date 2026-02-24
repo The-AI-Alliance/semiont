@@ -223,8 +223,8 @@
   filter: brightness(0.9);
 }
 
-/* Detect variant - AI-powered detection button */
-.semiont-button[data-variant="detect"] {
+/* Assist variant - AI-powered annotation button */
+.semiont-button[data-variant="assist"] {
   width: 100%;
   padding: 0.75rem 1rem;
   font-size: var(--semiont-text-base);
@@ -237,7 +237,7 @@
   /* These base colors will be overridden by motivation CSS via data-type attribute */
 }
 
-[data-theme="dark"] .semiont-button[data-variant="detect"] {
+[data-theme="dark"] .semiont-button[data-variant="assist"] {
   border-color: rgba(255, 255, 255, 0.1);
 }
 

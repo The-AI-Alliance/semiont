@@ -7,7 +7,7 @@ import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { components, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
 import { CommentEntry } from './CommentEntry';
-import { DetectSection } from './DetectSection';
+import { AssistSection } from './AssistSection';
 import { PanelHeader } from './PanelHeader';
 import './CommentsPanel.css';
 
@@ -41,8 +41,8 @@ interface CommentsPanelProps {
   annotations: Annotation[];
   pendingAnnotation: PendingAnnotation | null;
   annotateMode?: boolean;
-  isDetecting?: boolean;
-  detectionProgress?: {
+  isAssisting?: boolean;
+  progress?: {
     status: string;
     percentage?: number;
     message?: string;
@@ -63,8 +63,8 @@ export function CommentsPanel({
   annotations,
   pendingAnnotation,
   annotateMode = true,
-  isDetecting = false,
-  detectionProgress,
+  isAssisting = false,
+  progress,
   scrollToAnnotationId,
   onScrollCompleted,
   hoveredAnnotationId,
@@ -247,12 +247,12 @@ export function CommentsPanel({
 
       {/* Scrollable content area */}
       <div ref={containerRef} className="semiont-panel__content">
-        {/* Detection Section - only in Annotate mode and for text resources */}
+        {/* Assist Section - only in Annotate mode and for text resources */}
         {annotateMode && (
-          <DetectSection
+          <AssistSection
             annotationType="comment"
-            isDetecting={isDetecting}
-            detectionProgress={detectionProgress}
+            isAssisting={isAssisting}
+            progress={progress}
           />
         )}
 

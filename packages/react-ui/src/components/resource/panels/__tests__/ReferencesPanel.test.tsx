@@ -25,7 +25,7 @@ function createEventTracker() {
         events.push({ event: eventName, payload });
       };
 
-      const panelEvents = ['annotate:detect-request'] as const;
+      const panelEvents = ['annotate:assist-request'] as const;
 
       panelEvents.forEach(eventName => {
         const handler = trackEvent(eventName);
@@ -95,9 +95,9 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
   TranslationProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-// Mock DetectionProgressWidget - simplified to avoid module import issues
-vi.mock('@/components/DetectionProgressWidget', () => ({
-  DetectionProgressWidget: ({ progress }: any) => (
+// Mock AnnotationProgressWidget - simplified to avoid module import issues
+vi.mock('@/components/AnnotationProgressWidget', () => ({
+  AnnotationProgressWidget: ({ progress }: any) => (
     <div data-testid="detection-progress-widget">
       <div data-testid="progress-data">{JSON.stringify(progress)}</div>
       <button title="Cancel Detection">Cancel</button>
@@ -118,8 +118,8 @@ describe('ReferencesPanel Component', () => {
 
   const defaultProps = {
     allEntityTypes: ['Person', 'Organization', 'Location', 'Date'],
-    isDetecting: false,
-    detectionProgress: null,
+    isAssisting: false,
+    progress: null,
     annotateMode: true,
     Link: MockLink,
     routes: mockRoutes,
@@ -302,7 +302,7 @@ describe('ReferencesPanel Component', () => {
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'annotate:detect-request' &&
+          e.event === 'annotate:assist-request' &&
           e.payload?.motivation === 'linking' &&
           e.payload?.options?.entityTypes?.includes('Person') &&
           e.payload?.options?.entityTypes?.includes('Organization') &&
@@ -327,7 +327,7 @@ describe('ReferencesPanel Component', () => {
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'annotate:detect-request' &&
+          e.event === 'annotate:assist-request' &&
           e.payload?.motivation === 'linking' &&
           e.payload?.options?.entityTypes?.includes('Person') &&
           e.payload?.options?.includeDescriptiveReferences === true
@@ -348,8 +348,8 @@ describe('ReferencesPanel Component', () => {
         <EventBusProvider>
           <ReferencesPanel
             {...defaultProps}
-            isDetecting={true}
-            detectionProgress={{ completedEntityTypes: [] }}
+            isAssisting={true}
+            progress={{ completedEntityTypes: [] }}
           />
         </EventBusProvider>
       );
@@ -359,8 +359,8 @@ describe('ReferencesPanel Component', () => {
         <EventBusProvider>
           <ReferencesPanel
             {...defaultProps}
-            isDetecting={false}
-            detectionProgress={{
+            isAssisting={false}
+            progress={{
               completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
             }}
           />
@@ -401,8 +401,8 @@ describe('ReferencesPanel Component', () => {
       renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
-          isDetecting={true}
-          detectionProgress={{ completedEntityTypes: [] }}
+          isAssisting={true}
+          progress={{ completedEntityTypes: [] }}
         />
       );
 
@@ -420,8 +420,8 @@ describe('ReferencesPanel Component', () => {
       renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
-          isDetecting={true}
-          detectionProgress={progress}
+          isAssisting={true}
+          progress={progress}
         />
       );
 
@@ -434,8 +434,8 @@ describe('ReferencesPanel Component', () => {
       renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
-          isDetecting={true}
-          detectionProgress={{ completedEntityTypes: [] }}
+          isAssisting={true}
+          progress={{ completedEntityTypes: [] }}
         />
       );
 
@@ -447,8 +447,8 @@ describe('ReferencesPanel Component', () => {
       renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
-          isDetecting={true}
-          detectionProgress={{ completedEntityTypes: [] }}
+          isAssisting={true}
+          progress={{ completedEntityTypes: [] }}
         />
       );
 
@@ -462,8 +462,8 @@ describe('ReferencesPanel Component', () => {
       const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
-          isDetecting={false}
-          detectionProgress={{
+          isAssisting={false}
+          progress={{
             completedEntityTypes: [
               { entityType: 'Person', foundCount: 5 },
               { entityType: 'Organization', foundCount: 3 },
@@ -472,13 +472,13 @@ describe('ReferencesPanel Component', () => {
         />
       );
 
-      // Parent clears detectionProgress after completion
+      // Parent clears progress after completion
       rerender(
         <EventBusProvider>
           <ReferencesPanel
             {...defaultProps}
-            isDetecting={false}
-            detectionProgress={null}
+            isAssisting={false}
+            progress={null}
           />
         </EventBusProvider>
       );
@@ -491,8 +491,8 @@ describe('ReferencesPanel Component', () => {
       const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
-          isDetecting={false}
-          detectionProgress={{
+          isAssisting={false}
+          progress={{
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
         />
@@ -500,7 +500,7 @@ describe('ReferencesPanel Component', () => {
 
       rerender(
         <EventBusProvider>
-          <ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />
+          <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
         </EventBusProvider>
       );
       expect(screen.getByText(/Found.*5/i)).toBeInTheDocument();
@@ -510,8 +510,8 @@ describe('ReferencesPanel Component', () => {
       const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
-          isDetecting={false}
-          detectionProgress={{
+          isAssisting={false}
+          progress={{
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
         />
@@ -519,7 +519,7 @@ describe('ReferencesPanel Component', () => {
 
       rerender(
         <EventBusProvider>
-          <ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />
+          <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
         </EventBusProvider>
       );
       expect(screen.getByText('✓')).toBeInTheDocument();
@@ -529,8 +529,8 @@ describe('ReferencesPanel Component', () => {
       const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
-          isDetecting={false}
-          detectionProgress={{
+          isAssisting={false}
+          progress={{
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
         />
@@ -538,7 +538,7 @@ describe('ReferencesPanel Component', () => {
 
       rerender(
         <EventBusProvider>
-          <ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />
+          <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
         </EventBusProvider>
       );
 
@@ -551,8 +551,8 @@ describe('ReferencesPanel Component', () => {
       const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
-          isDetecting={false}
-          detectionProgress={{
+          isAssisting={false}
+          progress={{
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
         />
@@ -560,7 +560,7 @@ describe('ReferencesPanel Component', () => {
 
       rerender(
         <EventBusProvider>
-          <ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />
+          <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
         </EventBusProvider>
       );
 
@@ -573,8 +573,8 @@ describe('ReferencesPanel Component', () => {
       renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
-          isDetecting={false}
-          detectionProgress={{
+          isAssisting={false}
+          progress={{
             completedEntityTypes: [],
           }}
         />
@@ -598,8 +598,8 @@ describe('ReferencesPanel Component', () => {
         <EventBusProvider>
           <ReferencesPanel
             {...defaultProps}
-            isDetecting={true}
-            detectionProgress={{ completedEntityTypes: [] }}
+            isAssisting={true}
+            progress={{ completedEntityTypes: [] }}
           />
         </EventBusProvider>
       );
@@ -613,8 +613,8 @@ describe('ReferencesPanel Component', () => {
       const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
-          isDetecting={true}
-          detectionProgress={{ completedEntityTypes: [] }}
+          isAssisting={true}
+          progress={{ completedEntityTypes: [] }}
         />
       );
 
@@ -626,18 +626,18 @@ describe('ReferencesPanel Component', () => {
         <EventBusProvider>
           <ReferencesPanel
             {...defaultProps}
-            isDetecting={false}
-            detectionProgress={{
+            isAssisting={false}
+            progress={{
               completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
             }}
           />
         </EventBusProvider>
       );
 
-      // Then clear detectionProgress to show the log
+      // Then clear progress to show the log
       rerender(
         <EventBusProvider>
-          <ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />
+          <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
         </EventBusProvider>
       );
 
@@ -651,17 +651,17 @@ describe('ReferencesPanel Component', () => {
       const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
-          isDetecting={false}
-          detectionProgress={{
+          isAssisting={false}
+          progress={{
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
         />
       );
 
-      // Clear detectionProgress to show the log
+      // Clear progress to show the log
       rerender(
         <EventBusProvider>
-          <ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />
+          <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
         </EventBusProvider>
       );
 
@@ -746,8 +746,8 @@ describe('ReferencesPanel Component', () => {
       renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
-          isDetecting={false}
-          detectionProgress={{
+          isAssisting={false}
+          progress={{
             completedEntityTypes: [{ entityType: 'Person', foundCount: 0 }],
           }}
         />
@@ -756,13 +756,13 @@ describe('ReferencesPanel Component', () => {
       expect(screen.getByText(/Found.*0/i)).toBeInTheDocument();
     });
 
-    it('should handle undefined detectionProgress', () => {
+    it('should handle undefined progress', () => {
       expect(() => {
         renderWithEventBus(
           <ReferencesPanel
             {...defaultProps}
-            isDetecting={false}
-            detectionProgress={undefined as any}
+            isAssisting={false}
+            progress={undefined as any}
           />
         );
       }).not.toThrow();

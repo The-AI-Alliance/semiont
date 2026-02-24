@@ -4,12 +4,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import { useEventBus } from '../../../contexts/EventBusContext';
 import type { Motivation } from '@semiont/core';
-import './DetectSection.css';
+import './AssistSection.css';
 
-interface DetectSectionProps {
+interface AssistSectionProps {
   annotationType: 'highlight' | 'assessment' | 'comment';
-  isDetecting: boolean;
-  detectionProgress?: {
+  isAssisting: boolean;
+  progress?: {
     status: string;
     percentage?: number;
     message?: string;
@@ -20,22 +20,22 @@ interface DetectSectionProps {
 // Color schemes are now handled via CSS data attributes
 
 /**
- * Shared detect section for Highlight, Assessment, and Comment panels
+ * Shared assist section for Highlight, Assessment, and Comment panels
  *
  * Provides:
  * - Optional instructions textarea
  * - Optional tone selector (for comments)
- * - Detect button with sparkle animation
- * - Progress display during detection
+ * - Assist button with sparkle animation
+ * - Progress display during annotation assist
  *
- * @emits annotate:detect-request - Start detection for annotation type. Payload: { motivation: Motivation, options: { instructions?: string, tone?: string, density?: number } }
- * @emits annotate:detect-dismiss - Dismiss the detection progress display
+ * @emits annotate:assist-request - Start assist for annotation type. Payload: { motivation: Motivation, options: { instructions?: string, tone?: string, density?: number } }
+ * @emits annotate:progress-dismiss - Dismiss the annotation progress display
  */
-export function DetectSection({
+export function AssistSection({
   annotationType,
-  isDetecting,
-  detectionProgress,
-}: DetectSectionProps) {
+  isAssisting,
+  progress,
+}: AssistSectionProps) {
 
   const panelName = annotationType === 'highlight' ? 'HighlightPanel' :
                      annotationType === 'assessment' ? 'AssessmentPanel' :
@@ -53,25 +53,25 @@ export function DetectSection({
   // Collapsible section state - load from localStorage, default expanded
   const [isExpanded, setIsExpanded] = useState(() => {
     if (typeof window === 'undefined') return true;
-    const stored = localStorage.getItem(`detect-section-expanded-${annotationType}`);
+    const stored = localStorage.getItem(`assist-section-expanded-${annotationType}`);
     return stored ? stored === 'true' : true;
   });
 
   // Persist expanded state to localStorage
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    localStorage.setItem(`detect-section-expanded-${annotationType}`, String(isExpanded));
+    localStorage.setItem(`assist-section-expanded-${annotationType}`, String(isExpanded));
   }, [isExpanded, annotationType]);
 
-  const handleDetect = useCallback(() => {
+  const handleAssist = useCallback(() => {
     // Map annotation type to motivation
     const motivation: Motivation =
       annotationType === 'highlight' ? 'highlighting' :
       annotationType === 'assessment' ? 'assessing' :
       'commenting';
 
-    // Emit annotate:detect-request event with options
-    eventBus.get('annotate:detect-request').next({
+    // Emit annotate:assist-request event with options
+    eventBus.get('annotate:assist-request').next({
       motivation,
       options: {
         instructions: instructions.trim() || undefined,
@@ -82,11 +82,11 @@ export function DetectSection({
 
     setInstructions('');
     setTone('');
-    // Don't reset density/useDensity - persist across detections
+    // Don't reset density/useDensity - persist across assists
   }, [annotationType, instructions, tone, useDensity, density]); // eventBus is stable singleton - never in deps
 
   const handleDismissProgress = useCallback(() => {
-    eventBus.get('annotate:detect-dismiss').next(undefined);
+    eventBus.get('annotate:progress-dismiss').next(undefined);
   }, []); // eventBus is stable singleton - never in deps
 
   return (
@@ -98,9 +98,9 @@ export function DetectSection({
         type="button"
       >
         <span>
-          {t(annotationType === 'highlight' ? 'detectHighlights' :
-             annotationType === 'assessment' ? 'detectAssessments' :
-             'detectComments')}
+          {t(annotationType === 'highlight' ? 'assistHighlights' :
+             annotationType === 'assessment' ? 'assistAssessments' :
+             'assistComments')}
         </span>
         <span className="semiont-panel__section-chevron" data-expanded={isExpanded}>
           ›
@@ -108,12 +108,12 @@ export function DetectSection({
       </button>
       {isExpanded && (
         <div
-          className="semiont-detect-widget"
-          data-detecting={isDetecting && detectionProgress ? 'true' : 'false'}
+          className="semiont-assist-widget"
+          data-assisting={isAssisting && progress ? 'true' : 'false'}
           data-type={annotationType}
         >
-        {/* Show form when NOT detecting and NO progress to display */}
-        {!detectionProgress && (
+        {/* Show form when NOT assisting and NO progress to display */}
+        {!progress && (
           <>
             <div className="semiont-form-field">
               <label className="semiont-form-field__label">
@@ -205,42 +205,42 @@ export function DetectSection({
             )}
 
             <button
-              onClick={handleDetect}
+              onClick={handleAssist}
               className="semiont-button"
-              data-variant="detect"
+              data-variant="assist"
               data-type={annotationType}
             >
               <span className="semiont-button-icon">✨</span>
-              <span>{t('detect')}</span>
+              <span>{t('assist')}</span>
             </button>
           </>
         )}
 
-        {/* Detection Progress - show whenever we have progress (during or after detection) */}
-        {detectionProgress && (
-          <div className="semiont-detection-progress" data-type={annotationType}>
+        {/* Annotation Progress - show whenever we have progress (during or after assist) */}
+        {progress && (
+          <div className="semiont-annotation-progress" data-type={annotationType}>
             {/* Request Parameters */}
-            {detectionProgress.requestParams && detectionProgress.requestParams.length > 0 && (
-              <div className="semiont-detection-progress__params" data-type={annotationType}>
-                <div className="semiont-detection-progress__params-title">Request Parameters:</div>
-                {detectionProgress.requestParams.map((param, idx) => (
-                  <div key={idx} className="semiont-detection-progress__param">
-                    <span className="semiont-detection-progress__param-label">{param.label}:</span> {param.value}
+            {progress.requestParams && progress.requestParams.length > 0 && (
+              <div className="semiont-annotation-progress__params" data-type={annotationType}>
+                <div className="semiont-annotation-progress__params-title">Request Parameters:</div>
+                {progress.requestParams.map((param, idx) => (
+                  <div key={idx} className="semiont-annotation-progress__param">
+                    <span className="semiont-annotation-progress__param-label">{param.label}:</span> {param.value}
                   </div>
                 ))}
               </div>
             )}
 
-            <div className="semiont-detection-progress__status">
-              <div className="semiont-detection-progress__message">
-                <span className="semiont-detection-progress__icon">✨</span>
-                <span>{detectionProgress.message}</span>
+            <div className="semiont-annotation-progress__status">
+              <div className="semiont-annotation-progress__message">
+                <span className="semiont-annotation-progress__icon">✨</span>
+                <span>{progress.message}</span>
               </div>
-              {/* Close button - shown after detection completes (when not actively detecting) */}
-              {!isDetecting && (
+              {/* Close button - shown after assist completes (when not actively assisting) */}
+              {!isAssisting && (
                 <button
                   onClick={handleDismissProgress}
-                  className="semiont-detection-progress__close"
+                  className="semiont-annotation-progress__close"
                   aria-label={t('closeProgress')}
                   title={t('closeProgress')}
                   type="button"

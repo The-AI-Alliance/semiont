@@ -10,7 +10,7 @@
    Base Detection Widget Container
    ============================================ */
 
-.semiont-detect-widget {
+.semiont-assist-widget {
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -20,7 +20,7 @@
   border: 1px solid var(--semiont-color-gray-200);
 }
 
-[data-theme="dark"] .semiont-detect-widget {
+[data-theme="dark"] .semiont-assist-widget {
   background-color: var(--semiont-color-gray-800);
   border-color: var(--semiont-color-gray-700);
 }
@@ -29,35 +29,35 @@
    Labels and Descriptive Text
    ============================================ */
 
-.semiont-detect-widget__label {
+.semiont-assist-widget__label {
   font-size: 0.875rem;
   font-weight: 500;
   color: var(--semiont-color-gray-700);
   margin-bottom: 0.5rem;
 }
 
-[data-theme="dark"] .semiont-detect-widget__label {
+[data-theme="dark"] .semiont-assist-widget__label {
   color: var(--semiont-color-gray-300);
 }
 
-.semiont-detect-widget__count {
+.semiont-assist-widget__count {
   font-size: 0.75rem;
   color: var(--semiont-color-gray-500);
   text-align: center;
   margin-bottom: 1rem;
 }
 
-[data-theme="dark"] .semiont-detect-widget__count {
+[data-theme="dark"] .semiont-assist-widget__count {
   color: var(--semiont-color-gray-400);
 }
 
-.semiont-detect-widget__no-types {
+.semiont-assist-widget__no-types {
   font-size: 0.875rem;
   color: var(--semiont-color-gray-500);
   font-style: italic;
 }
 
-[data-theme="dark"] .semiont-detect-widget__no-types {
+[data-theme="dark"] .semiont-assist-widget__no-types {
   color: var(--semiont-color-gray-400);
 }
 
@@ -65,11 +65,11 @@
    Entity Types / Chips Section (References)
    ============================================ */
 
-.semiont-detect-widget__entity-types {
+.semiont-assist-widget__entity-types {
   margin-bottom: 1rem;
 }
 
-.semiont-detect-widget__chips {
+.semiont-assist-widget__chips {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -79,11 +79,11 @@
    Checkbox Group (References)
    ============================================ */
 
-.semiont-detect-widget__checkbox-group {
+.semiont-assist-widget__checkbox-group {
   margin-bottom: 1rem;
 }
 
-.semiont-detect-widget__checkbox-label {
+.semiont-assist-widget__checkbox-label {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -92,33 +92,33 @@
   cursor: pointer;
 }
 
-[data-theme="dark"] .semiont-detect-widget__checkbox-label {
+[data-theme="dark"] .semiont-assist-widget__checkbox-label {
   color: var(--semiont-color-gray-300);
 }
 
-.semiont-detect-widget__checkbox {
+.semiont-assist-widget__checkbox {
   border-radius: 0.25rem;
   border: 1px solid var(--semiont-color-gray-300);
   color: var(--semiont-color-blue-600);
 }
 
-[data-theme="dark"] .semiont-detect-widget__checkbox {
+[data-theme="dark"] .semiont-assist-widget__checkbox {
   border-color: var(--semiont-color-gray-600);
 }
 
-.semiont-detect-widget__checkbox:focus {
+.semiont-assist-widget__checkbox:focus {
   outline: 2px solid var(--semiont-color-blue-500);
   outline-offset: 2px;
 }
 
-.semiont-detect-widget__checkbox-hint {
+.semiont-assist-widget__checkbox-hint {
   font-size: 0.75rem;
   color: var(--semiont-color-gray-500);
   margin-top: 0.25rem;
   margin-left: 1.5rem;
 }
 
-[data-theme="dark"] .semiont-detect-widget__checkbox-hint {
+[data-theme="dark"] .semiont-assist-widget__checkbox-hint {
   color: var(--semiont-color-gray-400);
 }
 
@@ -126,7 +126,7 @@
    Detection Log (Completed Results)
    ============================================ */
 
-.semiont-detect-widget__log {
+.semiont-assist-widget__log {
   background-color: var(--semiont-bg-primary);
   border-radius: 0.5rem;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
@@ -136,17 +136,17 @@
   gap: 0.75rem;
 }
 
-[data-theme="dark"] .semiont-detect-widget__log {
+[data-theme="dark"] .semiont-assist-widget__log {
   background-color: var(--semiont-color-gray-800);
 }
 
-.semiont-detect-widget__log-items {
+.semiont-assist-widget__log-items {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
 }
 
-.semiont-detect-widget__log-item {
+.semiont-assist-widget__log-item {
   font-size: 0.75rem;
   color: var(--semiont-color-gray-600);
   display: flex;
@@ -154,19 +154,19 @@
   gap: 0.5rem;
 }
 
-[data-theme="dark"] .semiont-detect-widget__log-item {
+[data-theme="dark"] .semiont-assist-widget__log-item {
   color: var(--semiont-color-gray-400);
 }
 
-.semiont-detect-widget__log-check {
+.semiont-assist-widget__log-check {
   color: var(--semiont-color-green-600);
 }
 
-[data-theme="dark"] .semiont-detect-widget__log-check {
+[data-theme="dark"] .semiont-assist-widget__log-check {
   color: var(--semiont-color-green-400);
 }
 
-.semiont-detect-widget__log-type {
+.semiont-assist-widget__log-type {
   font-weight: 500;
 }
 
@@ -174,7 +174,7 @@
    Detection Progress Display
    ============================================ */
 
-.semiont-detection-progress {
+.semiont-annotation-progress {
   background-color: var(--semiont-bg-primary);
   border-radius: 0.5rem;
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
@@ -182,20 +182,20 @@
   border: 2px solid var(--semiont-color-blue-500);
 }
 
-[data-theme="dark"] .semiont-detection-progress {
+[data-theme="dark"] .semiont-annotation-progress {
   background-color: var(--semiont-color-gray-800);
   border-color: var(--semiont-color-blue-600);
 }
 
 /* Header section */
-.semiont-detection-header {
+.semiont-annotation-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 0.75rem;
 }
 
-.semiont-detection-title {
+.semiont-annotation-title {
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--semiont-color-gray-900);
@@ -205,11 +205,11 @@
   margin: 0;
 }
 
-[data-theme="dark"] .semiont-detection-title {
+[data-theme="dark"] .semiont-annotation-title {
   color: var(--semiont-color-gray-100);
 }
 
-.semiont-detection-sparkle {
+.semiont-annotation-sparkle {
   font-size: 1.125rem;
   animation: semiont-sparkle-infinite 1.5s ease-in-out infinite;
 }
@@ -225,7 +225,7 @@
   }
 }
 
-.semiont-detection-cancel {
+.semiont-annotation-cancel {
   color: var(--semiont-color-gray-600);
   background: none;
   border: none;
@@ -235,27 +235,27 @@
   transition: color 0.2s;
 }
 
-.semiont-detection-cancel:hover {
+.semiont-annotation-cancel:hover {
   color: var(--semiont-color-gray-900);
 }
 
-[data-theme="dark"] .semiont-detection-cancel {
+[data-theme="dark"] .semiont-annotation-cancel {
   color: var(--semiont-color-gray-400);
 }
 
-[data-theme="dark"] .semiont-detection-cancel:hover {
+[data-theme="dark"] .semiont-annotation-cancel:hover {
   color: var(--semiont-color-gray-300);
 }
 
 /* Completed entity types log */
-.semiont-detection-log {
+.semiont-annotation-log {
   margin-bottom: 0.75rem;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
 }
 
-.semiont-detection-log-item {
+.semiont-annotation-log-item {
   font-size: 0.75rem;
   color: var(--semiont-color-gray-600);
   display: flex;
@@ -263,23 +263,23 @@
   gap: 0.5rem;
 }
 
-[data-theme="dark"] .semiont-detection-log-item {
+[data-theme="dark"] .semiont-annotation-log-item {
   color: var(--semiont-color-gray-400);
 }
 
-.semiont-detection-check {
+.semiont-annotation-check {
   color: var(--semiont-color-green-600);
 }
 
-[data-theme="dark"] .semiont-detection-check {
+[data-theme="dark"] .semiont-annotation-check {
   color: var(--semiont-color-green-400);
 }
 
-.semiont-detection-entity-type {
+.semiont-annotation-entity-type {
   font-weight: 500;
 }
 
-.semiont-detection-progress__params {
+.semiont-annotation-progress__params {
   margin-bottom: 0.75rem;
   padding: 0.5rem;
   background-color: rgba(59, 130, 246, 0.05);
@@ -287,43 +287,43 @@
   border: 1px solid rgba(59, 130, 246, 0.2);
 }
 
-[data-theme="dark"] .semiont-detection-progress__params {
+[data-theme="dark"] .semiont-annotation-progress__params {
   background-color: rgba(59, 130, 246, 0.1);
   border-color: rgba(59, 130, 246, 0.3);
 }
 
-.semiont-detection-progress__params-title {
+.semiont-annotation-progress__params-title {
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--semiont-color-blue-700);
   margin-bottom: 0.25rem;
 }
 
-[data-theme="dark"] .semiont-detection-progress__params-title {
+[data-theme="dark"] .semiont-annotation-progress__params-title {
   color: var(--semiont-color-blue-300);
 }
 
-.semiont-detection-progress__param {
+.semiont-annotation-progress__param {
   font-size: 0.75rem;
   color: var(--semiont-color-gray-700);
 }
 
-[data-theme="dark"] .semiont-detection-progress__param {
+[data-theme="dark"] .semiont-annotation-progress__param {
   color: var(--semiont-color-gray-300);
 }
 
-.semiont-detection-progress__param-label {
+.semiont-annotation-progress__param-label {
   font-weight: 500;
 }
 
-.semiont-detection-progress__status {
+.semiont-annotation-progress__status {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   position: relative;
 }
 
-.semiont-detection-progress__message {
+.semiont-annotation-progress__message {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -337,7 +337,7 @@
   animation: semiont-detection-pulse 2s ease-in-out infinite;
 }
 
-.semiont-detection-progress__close {
+.semiont-annotation-progress__close {
   position: absolute;
   top: 0.5rem;
   right: 0.5rem;
@@ -356,22 +356,22 @@
   transition: all 0.2s ease;
 }
 
-.semiont-detection-progress__close:hover {
+.semiont-annotation-progress__close:hover {
   background-color: rgba(0, 0, 0, 0.2);
   color: var(--semiont-color-gray-900);
 }
 
-[data-theme="dark"] .semiont-detection-progress__close {
+[data-theme="dark"] .semiont-annotation-progress__close {
   background-color: rgba(255, 255, 255, 0.1);
   color: var(--semiont-color-gray-300);
 }
 
-[data-theme="dark"] .semiont-detection-progress__close:hover {
+[data-theme="dark"] .semiont-annotation-progress__close:hover {
   background-color: rgba(255, 255, 255, 0.2);
   color: var(--semiont-color-gray-100);
 }
 
-[data-theme="dark"] .semiont-detection-progress__message {
+[data-theme="dark"] .semiont-annotation-progress__message {
   color: var(--semiont-color-gray-100);
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(37, 99, 235, 0.25));
   border-color: rgba(59, 130, 246, 0.5);
@@ -388,7 +388,7 @@
   }
 }
 
-.semiont-detection-progress__icon {
+.semiont-annotation-progress__icon {
   font-size: 1.125rem;
   animation: semiont-sparkle-rotate 2s linear infinite;
 }
@@ -416,12 +416,12 @@
   }
 }
 
-.semiont-detection-progress__details {
+.semiont-annotation-progress__details {
   font-size: 0.75rem;
   color: var(--semiont-color-gray-500);
 }
 
-[data-theme="dark"] .semiont-detection-progress__details {
+[data-theme="dark"] .semiont-annotation-progress__details {
   color: var(--semiont-color-gray-400);
 }
 
@@ -430,47 +430,47 @@
    ============================================ */
 
 /* Highlight */
-.semiont-detect-widget[data-type="highlight"] {
+.semiont-assist-widget[data-type="highlight"] {
   border-color: var(--semiont-color-yellow-300);
 }
 
-[data-theme="dark"] .semiont-detect-widget[data-type="highlight"] {
+[data-theme="dark"] .semiont-assist-widget[data-type="highlight"] {
   border-color: var(--semiont-color-yellow-600);
 }
 
 /* Comment */
-.semiont-detect-widget[data-type="comment"] {
+.semiont-assist-widget[data-type="comment"] {
   border-color: var(--semiont-color-gray-300);
 }
 
-[data-theme="dark"] .semiont-detect-widget[data-type="comment"] {
+[data-theme="dark"] .semiont-assist-widget[data-type="comment"] {
   border-color: var(--semiont-color-gray-600);
 }
 
 /* Assessment */
-.semiont-detect-widget[data-type="assessment"] {
+.semiont-assist-widget[data-type="assessment"] {
   border-color: var(--semiont-color-purple-300);
 }
 
-[data-theme="dark"] .semiont-detect-widget[data-type="assessment"] {
+[data-theme="dark"] .semiont-assist-widget[data-type="assessment"] {
   border-color: var(--semiont-color-purple-600);
 }
 
 /* Tag */
-.semiont-detect-widget[data-type="tag"] {
+.semiont-assist-widget[data-type="tag"] {
   border-color: var(--semiont-color-orange-300);
 }
 
-[data-theme="dark"] .semiont-detect-widget[data-type="tag"] {
+[data-theme="dark"] .semiont-assist-widget[data-type="tag"] {
   border-color: var(--semiont-color-orange-600);
 }
 
 /* Reference */
-.semiont-detect-widget[data-type="reference"] {
+.semiont-assist-widget[data-type="reference"] {
   border-color: var(--semiont-color-blue-300);
 }
 
-[data-theme="dark"] .semiont-detect-widget[data-type="reference"] {
+[data-theme="dark"] .semiont-assist-widget[data-type="reference"] {
   border-color: var(--semiont-color-blue-600);
 }
 
@@ -479,56 +479,56 @@
    ============================================ */
 
 /* Highlight - Yellow */
-.semiont-detection-progress[data-type="highlight"] .semiont-detection-progress__message {
+.semiont-annotation-progress[data-type="highlight"] .semiont-annotation-progress__message {
   background: linear-gradient(135deg, rgba(250, 204, 21, 0.15), rgba(234, 179, 8, 0.15));
   border-color: rgba(250, 204, 21, 0.3);
 }
 
-[data-theme="dark"] .semiont-detection-progress[data-type="highlight"] .semiont-detection-progress__message {
+[data-theme="dark"] .semiont-annotation-progress[data-type="highlight"] .semiont-annotation-progress__message {
   background: linear-gradient(135deg, rgba(250, 204, 21, 0.25), rgba(234, 179, 8, 0.25));
   border-color: rgba(250, 204, 21, 0.5);
 }
 
 /* Comment - Gray */
-.semiont-detection-progress[data-type="comment"] .semiont-detection-progress__message {
+.semiont-annotation-progress[data-type="comment"] .semiont-annotation-progress__message {
   background: linear-gradient(135deg, rgba(107, 114, 128, 0.15), rgba(75, 85, 99, 0.15));
   border-color: rgba(107, 114, 128, 0.3);
 }
 
-[data-theme="dark"] .semiont-detection-progress[data-type="comment"] .semiont-detection-progress__message {
+[data-theme="dark"] .semiont-annotation-progress[data-type="comment"] .semiont-annotation-progress__message {
   background: linear-gradient(135deg, rgba(107, 114, 128, 0.25), rgba(75, 85, 99, 0.25));
   border-color: rgba(107, 114, 128, 0.5);
 }
 
 /* Assessment - Purple */
-.semiont-detection-progress[data-type="assessment"] .semiont-detection-progress__message {
+.semiont-annotation-progress[data-type="assessment"] .semiont-annotation-progress__message {
   background: linear-gradient(135deg, rgba(168, 85, 247, 0.15), rgba(147, 51, 234, 0.15));
   border-color: rgba(168, 85, 247, 0.3);
 }
 
-[data-theme="dark"] .semiont-detection-progress[data-type="assessment"] .semiont-detection-progress__message {
+[data-theme="dark"] .semiont-annotation-progress[data-type="assessment"] .semiont-annotation-progress__message {
   background: linear-gradient(135deg, rgba(168, 85, 247, 0.25), rgba(147, 51, 234, 0.25));
   border-color: rgba(168, 85, 247, 0.5);
 }
 
 /* Tag - Orange */
-.semiont-detection-progress[data-type="tag"] .semiont-detection-progress__message {
+.semiont-annotation-progress[data-type="tag"] .semiont-annotation-progress__message {
   background: linear-gradient(135deg, rgba(251, 146, 60, 0.15), rgba(249, 115, 22, 0.15));
   border-color: rgba(251, 146, 60, 0.3);
 }
 
-[data-theme="dark"] .semiont-detection-progress[data-type="tag"] .semiont-detection-progress__message {
+[data-theme="dark"] .semiont-annotation-progress[data-type="tag"] .semiont-annotation-progress__message {
   background: linear-gradient(135deg, rgba(251, 146, 60, 0.25), rgba(249, 115, 22, 0.25));
   border-color: rgba(251, 146, 60, 0.5);
 }
 
 /* Reference - Blue */
-.semiont-detection-progress[data-type="reference"] .semiont-detection-progress__message {
+.semiont-annotation-progress[data-type="reference"] .semiont-annotation-progress__message {
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(37, 99, 235, 0.15));
   border-color: rgba(59, 130, 246, 0.3);
 }
 
-[data-theme="dark"] .semiont-detection-progress[data-type="reference"] .semiont-detection-progress__message {
+[data-theme="dark"] .semiont-annotation-progress[data-type="reference"] .semiont-annotation-progress__message {
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(37, 99, 235, 0.25));
   border-color: rgba(59, 130, 246, 0.5);
 }

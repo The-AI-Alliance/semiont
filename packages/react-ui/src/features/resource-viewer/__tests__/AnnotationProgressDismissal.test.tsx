@@ -8,8 +8,8 @@
  * 4. BUG: Progress modal stays visible showing "Processing: Location" indefinitely
  *
  * ROOT CAUSE:
- * - useAnnotationFlow.ts (line 54-62): annotate:detect-finished clears `detectingMotivation` but keeps `detectionProgress`
- * - DetectSection.tsx (line 214): Shows progress UI whenever `detectionProgress` is not null
+ * - useAnnotationFlow.ts (line 54-62): annotate:detect-finished clears `assistingMotivation` but keeps `progress`
+ * - AssistSection.tsx (line 214): Shows progress UI whenever `progress` is not null
  * - No mechanism to auto-dismiss or manually close the progress display
  *
  * FIX OPTIONS:
@@ -65,13 +65,13 @@ describe('Detection Progress Dismissal Bug', () => {
 
     function TestHarness() {
       eventBusInstance = useEventBus();
-      const { detectingMotivation, detectionProgress } = useAnnotationFlow(rUri);
+      const { assistingMotivation, progress } = useAnnotationFlow(rUri);
 
       return (
         <div>
-          <div data-testid="detecting">{detectingMotivation || 'none'}</div>
+          <div data-testid="detecting">{assistingMotivation || 'none'}</div>
           <div data-testid="progress">
-            {detectionProgress ? detectionProgress.message || 'has progress' : 'no progress'}
+            {progress ? progress.message || 'has progress' : 'no progress'}
           </div>
         </div>
       );
@@ -93,7 +93,7 @@ describe('Detection Progress Dismissal Bug', () => {
 
     // User clicks detect button (emits annotate:detect-request)
     act(() => {
-      eventBusInstance.get('annotate:detect-request').next({
+      eventBusInstance.get('annotate:assist-request').next({
         motivation: 'linking',
         options: { entityTypes: ['Location'] }
       });
@@ -106,7 +106,7 @@ describe('Detection Progress Dismissal Bug', () => {
 
     // SSE sends progress update
     act(() => {
-      eventBusInstance.get('annotate:detect-progress').next({
+      eventBusInstance.get('annotate:progress').next({
         status: 'scanning',
         message: 'Processing: Location',
         currentEntityType: 'Location',
@@ -120,10 +120,10 @@ describe('Detection Progress Dismissal Bug', () => {
 
     // Detection completes (SSE finishes, backend emits annotate:detect-finished)
     act(() => {
-      eventBusInstance.get('annotate:detect-finished').next({ motivation: 'linking' });
+      eventBusInstance.get('annotate:assist-finished').next({ motivation: 'linking' });
     });
 
-    // detectingMotivation cleared immediately
+    // assistingMotivation cleared immediately
     await waitFor(() => {
       expect(screen.getByTestId('detecting')).toHaveTextContent('none');
     });
@@ -138,11 +138,11 @@ describe('Detection Progress Dismissal Bug', () => {
 
     function TestHarness() {
       eventBusInstance = useEventBus();
-      const { detectionProgress } = useAnnotationFlow(rUri);
+      const { progress } = useAnnotationFlow(rUri);
 
       return (
         <div data-testid="progress">
-          {detectionProgress ? detectionProgress.message || 'has progress' : 'no progress'}
+          {progress ? progress.message || 'has progress' : 'no progress'}
         </div>
       );
     }
@@ -159,15 +159,15 @@ describe('Detection Progress Dismissal Bug', () => {
 
     // First detection with stuck progress
     act(() => {
-      eventBusInstance.get('annotate:detect-request').next({ motivation: 'linking', options: {} });
+      eventBusInstance.get('annotate:assist-request').next({ motivation: 'linking', options: {} });
     });
 
     act(() => {
-      eventBusInstance.get('annotate:detect-progress').next({ message: 'Old progress stuck here' });
+      eventBusInstance.get('annotate:progress').next({ message: 'Old progress stuck here' });
     });
 
     act(() => {
-      eventBusInstance.get('annotate:detect-finished').next({ motivation: 'linking' });
+      eventBusInstance.get('annotate:assist-finished').next({ motivation: 'linking' });
     });
 
     await waitFor(() => {
@@ -176,7 +176,7 @@ describe('Detection Progress Dismissal Bug', () => {
 
     // WORKAROUND: Start new detection clears old progress
     act(() => {
-      eventBusInstance.get('annotate:detect-request').next({ motivation: 'highlighting', options: {} });
+      eventBusInstance.get('annotate:assist-request').next({ motivation: 'highlighting', options: {} });
     });
 
     await waitFor(() => {
@@ -191,11 +191,11 @@ describe('Detection Progress Dismissal Bug', () => {
 
     function TestHarness() {
       eventBusInstance = useEventBus();
-      const { detectionProgress } = useAnnotationFlow(rUri);
+      const { progress } = useAnnotationFlow(rUri);
 
       return (
         <div data-testid="progress">
-          {detectionProgress ? 'visible' : 'dismissed'}
+          {progress ? 'visible' : 'dismissed'}
         </div>
       );
     }
@@ -212,18 +212,18 @@ describe('Detection Progress Dismissal Bug', () => {
 
     // Show progress
     act(() => {
-      eventBusInstance.get('annotate:detect-request').next({ motivation: 'linking', options: {} });
+      eventBusInstance.get('annotate:assist-request').next({ motivation: 'linking', options: {} });
     });
 
     act(() => {
-      eventBusInstance.get('annotate:detect-progress').next({
+      eventBusInstance.get('annotate:progress').next({
         status: 'complete',
         message: 'Complete! Created 5 annotations'
       });
     });
 
     act(() => {
-      eventBusInstance.get('annotate:detect-finished').next({ motivation: 'linking' });
+      eventBusInstance.get('annotate:assist-finished').next({ motivation: 'linking' });
     });
 
     // Progress visible initially
@@ -251,12 +251,12 @@ describe('Detection Progress Dismissal Bug', () => {
 
     function TestHarness() {
       eventBusInstance = useEventBus();
-      const { detectionProgress } = useAnnotationFlow(rUri);
+      const { progress } = useAnnotationFlow(rUri);
 
       return (
         <div>
-          <div data-testid="progress-status">{detectionProgress?.status || 'none'}</div>
-          <div data-testid="progress-message">{detectionProgress?.message || 'no message'}</div>
+          <div data-testid="progress-status">{progress?.status || 'none'}</div>
+          <div data-testid="progress-message">{progress?.message || 'no message'}</div>
         </div>
       );
     }
@@ -273,7 +273,7 @@ describe('Detection Progress Dismissal Bug', () => {
 
     // Start detection (triggers SSE stream creation)
     act(() => {
-      eventBusInstance.get('annotate:detect-request').next({
+      eventBusInstance.get('annotate:assist-request').next({
         motivation: 'linking',
         options: { entityTypes: ['Location'] }
       });
@@ -281,7 +281,7 @@ describe('Detection Progress Dismissal Bug', () => {
 
     // Simulate SSE scanning chunk
     act(() => {
-      eventBusInstance.get('annotate:detect-progress').next({
+      eventBusInstance.get('annotate:progress').next({
         status: 'scanning',
         message: 'Processing: Location',
       });
@@ -293,7 +293,7 @@ describe('Detection Progress Dismissal Bug', () => {
 
     // Simulate SSE emitting final chunk as annotate:detect-progress
     act(() => {
-      eventBusInstance.get('annotate:detect-progress').next({
+      eventBusInstance.get('annotate:progress').next({
         status: 'complete',
         message: 'Complete! Found 5 entities',
         foundCount: 5,

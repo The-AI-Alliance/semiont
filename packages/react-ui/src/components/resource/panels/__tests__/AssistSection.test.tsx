@@ -1,10 +1,10 @@
 /**
- * Layer 1 Unit Test: DetectSection Component
+ * Layer 1 Unit Test: AssistSection Component
  *
- * Tests the DetectSection component in isolation with mocked dependencies.
+ * Tests the AssistSection component in isolation with mocked dependencies.
  *
  * This test verifies:
- * - Detection progress rendering when detectionProgress prop is provided
+ * - Detection progress rendering when progress prop is provided
  * - Progress message display
  * - Request parameters display
  * - Form visibility toggling based on progress state
@@ -16,7 +16,7 @@ import React from 'react';
 import { screen } from '@testing-library/react';
 import { renderWithProviders } from '../../../../test-utils';
 import userEvent from '@testing-library/user-event';
-import { DetectSection } from '../DetectSection';
+import { AssistSection } from '../AssistSection';
 import { resetEventBusForTesting } from '../../../../contexts/EventBusContext';
 import type { EventBus } from "@semiont/core"
 
@@ -52,7 +52,7 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
   TranslationProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-describe('DetectSection', () => {
+describe('AssistSection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetEventBusForTesting();
@@ -63,12 +63,12 @@ describe('DetectSection', () => {
   });
 
   describe('Progress Display', () => {
-    it('should render progress message when detectionProgress prop provided', () => {
+    it('should render progress message when progress prop provided', () => {
       renderWithProviders(
-        <DetectSection
+        <AssistSection
           annotationType="highlight"
-          isDetecting={true}
-          detectionProgress={{
+          isAssisting={true}
+          progress={{
             status: 'analyzing',
             percentage: 30,
             message: 'Analyzing text for highlights...',
@@ -81,10 +81,10 @@ describe('DetectSection', () => {
 
     it('should render progress message with sparkle icon', () => {
       renderWithProviders(
-        <DetectSection
+        <AssistSection
           annotationType="highlight"
-          isDetecting={true}
-          detectionProgress={{
+          isAssisting={true}
+          progress={{
             status: 'analyzing',
             message: 'Processing...',
           }}
@@ -99,10 +99,10 @@ describe('DetectSection', () => {
 
     it('should render request parameters when provided', () => {
       renderWithProviders(
-        <DetectSection
+        <AssistSection
           annotationType="highlight"
-          isDetecting={true}
-          detectionProgress={{
+          isAssisting={true}
+          progress={{
             status: 'analyzing',
             message: 'Analyzing...',
             requestParams: [
@@ -120,12 +120,12 @@ describe('DetectSection', () => {
       expect(screen.getByText(/Density:/)).toBeInTheDocument();
     });
 
-    it('should hide form when detectionProgress is present', () => {
+    it('should hide form when progress is present', () => {
       renderWithProviders(
-        <DetectSection
+        <AssistSection
           annotationType="highlight"
-          isDetecting={true}
-          detectionProgress={{
+          isAssisting={true}
+          progress={{
             status: 'analyzing',
             message: 'Analyzing...',
           }}
@@ -137,12 +137,12 @@ describe('DetectSection', () => {
       expect(screen.queryByRole('button', { name: /✨ Detect/ })).not.toBeInTheDocument();
     });
 
-    it('should show form when detectionProgress is null', () => {
+    it('should show form when progress is null', () => {
       renderWithProviders(
-        <DetectSection
+        <AssistSection
           annotationType="highlight"
-          isDetecting={false}
-          detectionProgress={null}
+          isAssisting={false}
+          progress={null}
         />
       );
 
@@ -151,12 +151,12 @@ describe('DetectSection', () => {
       expect(screen.getByRole('button', { name: /✨ Detect/ })).toBeInTheDocument();
     });
 
-    it('should show form when detectionProgress is undefined', () => {
+    it('should show form when progress is undefined', () => {
       renderWithProviders(
-        <DetectSection
+        <AssistSection
           annotationType="highlight"
-          isDetecting={false}
-          detectionProgress={undefined}
+          isAssisting={false}
+          progress={undefined}
         />
       );
 
@@ -165,12 +165,12 @@ describe('DetectSection', () => {
       expect(screen.getByRole('button', { name: /✨ Detect/ })).toBeInTheDocument();
     });
 
-    it('should keep progress visible after detection completes (isDetecting=false but progress exists)', () => {
+    it('should keep progress visible after detection completes (isAssisting=false but progress exists)', () => {
       renderWithProviders(
-        <DetectSection
+        <AssistSection
           annotationType="highlight"
-          isDetecting={false}
-          detectionProgress={{
+          isAssisting={false}
+          progress={{
             status: 'complete',
             percentage: 100,
             message: 'Complete! Created 14 highlights',
@@ -188,10 +188,10 @@ describe('DetectSection', () => {
   describe('Annotation Type Variations', () => {
     it('should render for highlight type', () => {
       renderWithProviders(
-        <DetectSection
+        <AssistSection
           annotationType="highlight"
-          isDetecting={false}
-          detectionProgress={null}
+          isAssisting={false}
+          progress={null}
         />
       );
 
@@ -200,10 +200,10 @@ describe('DetectSection', () => {
 
     it('should render for assessment type', () => {
       renderWithProviders(
-        <DetectSection
+        <AssistSection
           annotationType="assessment"
-          isDetecting={false}
-          detectionProgress={null}
+          isAssisting={false}
+          progress={null}
         />
       );
 
@@ -212,10 +212,10 @@ describe('DetectSection', () => {
 
     it('should render for comment type', () => {
       renderWithProviders(
-        <DetectSection
+        <AssistSection
           annotationType="comment"
-          isDetecting={false}
-          detectionProgress={null}
+          isAssisting={false}
+          progress={null}
         />
       );
 
@@ -224,10 +224,10 @@ describe('DetectSection', () => {
 
     it('should show tone selector for comments', () => {
       renderWithProviders(
-        <DetectSection
+        <AssistSection
           annotationType="comment"
-          isDetecting={false}
-          detectionProgress={null}
+          isAssisting={false}
+          progress={null}
         />
       );
 
@@ -237,10 +237,10 @@ describe('DetectSection', () => {
 
     it('should show tone selector for assessments', () => {
       renderWithProviders(
-        <DetectSection
+        <AssistSection
           annotationType="assessment"
-          isDetecting={false}
-          detectionProgress={null}
+          isAssisting={false}
+          progress={null}
         />
       );
 
@@ -250,10 +250,10 @@ describe('DetectSection', () => {
 
     it('should not show tone selector for highlights', () => {
       renderWithProviders(
-        <DetectSection
+        <AssistSection
           annotationType="highlight"
-          isDetecting={false}
-          detectionProgress={null}
+          isAssisting={false}
+          progress={null}
         />
       );
 
@@ -268,15 +268,15 @@ describe('DetectSection', () => {
       const detectionHandler = vi.fn();
 
       const { eventBus } = renderWithProviders(
-        <DetectSection
+        <AssistSection
           annotationType="highlight"
-          isDetecting={false}
-          detectionProgress={null}
+          isAssisting={false}
+          progress={null}
         />,
         { returnEventBus: true }
       );
 
-      const subscription = eventBus!.get('annotate:detect-request').subscribe(detectionHandler);
+      const subscription = eventBus!.get('annotate:assist-request').subscribe(detectionHandler);
 
       const detectButton = screen.getByRole('button', { name: /✨ Detect/ });
       await user.click(detectButton);
@@ -294,15 +294,15 @@ describe('DetectSection', () => {
       const detectionHandler = vi.fn();
 
       const { eventBus } = renderWithProviders(
-        <DetectSection
+        <AssistSection
           annotationType="assessment"
-          isDetecting={false}
-          detectionProgress={null}
+          isAssisting={false}
+          progress={null}
         />,
         { returnEventBus: true }
       );
 
-      const subscription = eventBus!.get('annotate:detect-request').subscribe(detectionHandler);
+      const subscription = eventBus!.get('annotate:assist-request').subscribe(detectionHandler);
 
       const detectButton = screen.getByRole('button', { name: /✨ Detect/ });
       await user.click(detectButton);
@@ -320,15 +320,15 @@ describe('DetectSection', () => {
       const detectionHandler = vi.fn();
 
       const { eventBus } = renderWithProviders(
-        <DetectSection
+        <AssistSection
           annotationType="comment"
-          isDetecting={false}
-          detectionProgress={null}
+          isAssisting={false}
+          progress={null}
         />,
         { returnEventBus: true }
       );
 
-      const subscription = eventBus!.get('annotate:detect-request').subscribe(detectionHandler);
+      const subscription = eventBus!.get('annotate:assist-request').subscribe(detectionHandler);
 
       const detectButton = screen.getByRole('button', { name: /✨ Detect/ });
       await user.click(detectButton);
@@ -346,15 +346,15 @@ describe('DetectSection', () => {
       const detectionHandler = vi.fn();
 
       const { eventBus } = renderWithProviders(
-        <DetectSection
+        <AssistSection
           annotationType="highlight"
-          isDetecting={false}
-          detectionProgress={null}
+          isAssisting={false}
+          progress={null}
         />,
         { returnEventBus: true }
       );
 
-      const subscription = eventBus!.get('annotate:detect-request').subscribe(detectionHandler);
+      const subscription = eventBus!.get('annotate:assist-request').subscribe(detectionHandler);
 
       const textarea = screen.getByPlaceholderText('Enter custom instructions...');
       await user.type(textarea, 'Find key concepts');
@@ -377,10 +377,10 @@ describe('DetectSection', () => {
   describe('Collapsible Behavior', () => {
     it('should be expanded by default', () => {
       renderWithProviders(
-        <DetectSection
+        <AssistSection
           annotationType="highlight"
-          isDetecting={false}
-          detectionProgress={null}
+          isAssisting={false}
+          progress={null}
         />
       );
 
@@ -393,10 +393,10 @@ describe('DetectSection', () => {
       const user = userEvent.setup();
 
       renderWithProviders(
-        <DetectSection
+        <AssistSection
           annotationType="highlight"
-          isDetecting={false}
-          detectionProgress={null}
+          isAssisting={false}
+          progress={null}
         />
       );
 
@@ -411,10 +411,10 @@ describe('DetectSection', () => {
       const user = userEvent.setup();
 
       renderWithProviders(
-        <DetectSection
+        <AssistSection
           annotationType="highlight"
-          isDetecting={false}
-          detectionProgress={null}
+          isAssisting={false}
+          progress={null}
         />
       );
 
@@ -430,10 +430,10 @@ describe('DetectSection', () => {
   describe('Edge Cases', () => {
     it('should handle empty progress message', () => {
       renderWithProviders(
-        <DetectSection
+        <AssistSection
           annotationType="highlight"
-          isDetecting={true}
-          detectionProgress={{
+          isAssisting={true}
+          progress={{
             status: 'analyzing',
             message: '',
           }}
@@ -447,10 +447,10 @@ describe('DetectSection', () => {
 
     it('should handle progress without percentage', () => {
       renderWithProviders(
-        <DetectSection
+        <AssistSection
           annotationType="highlight"
-          isDetecting={true}
-          detectionProgress={{
+          isAssisting={true}
+          progress={{
             status: 'analyzing',
             message: 'Processing...',
             // no percentage
@@ -463,10 +463,10 @@ describe('DetectSection', () => {
 
     it('should handle progress with empty requestParams array', () => {
       renderWithProviders(
-        <DetectSection
+        <AssistSection
           annotationType="highlight"
-          isDetecting={true}
-          detectionProgress={{
+          isAssisting={true}
+          progress={{
             status: 'analyzing',
             message: 'Processing...',
             requestParams: [],

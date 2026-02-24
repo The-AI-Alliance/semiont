@@ -49,18 +49,18 @@ export interface SelectionData {
 }
 
 /**
- * Progress state for annotation detection workflow
+ * Progress state for annotation workflows (manual and assisted)
  *
- * Unified progress interface supporting different detection strategies:
- * - Reference detection: entity-type steps
+ * Unified progress interface supporting different annotation strategies:
+ * - Reference annotation: entity-type steps
  * - Other motivations: percentage-based progress
  */
-export interface DetectionProgress {
+export interface AnnotationProgress {
   status: string;
   message?: string;
-  /** Reference detection: currently scanning entity type */
+  /** Reference annotation: currently scanning entity type */
   currentEntityType?: string;
-  /** Reference detection: completed entity types with counts (frontend-only) */
+  /** Reference annotation: completed entity types with counts (frontend-only) */
   completedEntityTypes?: Array<{ entityType: string; foundCount: number }>;
   /** Percentage-based motivations (highlight, assessment, comment, tag) */
   percentage?: number;
@@ -77,7 +77,7 @@ export interface DetectionProgress {
  *
  * Organized by workflow ("flows"):
  * 1. Attention Flow - Annotation hover/focus/sparkle coordination
- * 2. Detection Flow - Manual + AI annotation detection (all motivations)
+ * 2. Annotation Flow - Manual + AI-assisted annotation (all motivations)
  * 3. Context Retrieval Flow - LLM context fetching from annotations
  * 4. Generation Flow - Resource generation from references
  * 5. Resolution Flow - Reference linking/resolution (search modal)
@@ -110,7 +110,7 @@ export type EventMap = {
   // ========================================================================
   // ANNOTATION FLOW
   // ========================================================================
-  // Manual annotation (user selections) + AI-assisted annotation (detection)
+  // Manual annotation (user selections) + AI-assisted annotation
 
   // Selection requests (user highlighting text)
   'annotate:select-comment': SelectionData;
@@ -137,8 +137,8 @@ export type EventMap = {
   'annotate:deleted': { annotationId: string };
   'annotate:delete-failed': { error: Error };
 
-  // AI-Assisted Annotation (Detection)
-  'annotate:detect-request': {
+  // AI-Assisted Annotation
+  'annotate:assist-request': {
     motivation: Motivation;
     options: {
       instructions?: string;
@@ -150,11 +150,11 @@ export type EventMap = {
       categories?: string[];
     };
   };
-  'annotate:detect-progress': DetectionProgress;
-  'annotate:detect-finished': { motivation?: Motivation; resourceUri?: ResourceUri; progress?: DetectionProgress };
-  'annotate:detect-failed': Extract<ResourceEvent, { type: 'job.failed' }>;
-  'annotate:detect-cancelled': void;
-  'annotate:detect-dismiss': void;
+  'annotate:progress': AnnotationProgress;
+  'annotate:assist-finished': { motivation?: Motivation; resourceUri?: ResourceUri; progress?: AnnotationProgress };
+  'annotate:assist-failed': Extract<ResourceEvent, { type: 'job.failed' }>;
+  'annotate:assist-cancelled': void;
+  'annotate:progress-dismiss': void;
 
   // Toolbar state (annotation UI controls)
   'annotate:mode-toggled': void;
@@ -275,7 +275,7 @@ export type EventMap = {
 
   // Job operations
   'job:queued': { jobId: string; jobType: string; resourceId: string };
-  'job:cancel-requested': { jobType: 'detection' | 'generation' };
+  'job:cancel-requested': { jobType: 'annotation' | 'generation' };
 
   // ========================================================================
   // Left Sidebar Navigation

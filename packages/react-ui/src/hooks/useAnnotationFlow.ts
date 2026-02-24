@@ -5,16 +5,16 @@
  * - Pending annotation state (user selected text, waiting for confirmation)
  * - Selection events → pending annotation conversion
  * - Annotation request routing to appropriate panel
- * - Tracking currently detecting motivation (AI-driven detection)
- * - Detection progress updates from SSE
- * - Detection lifecycle (start, progress, complete, failed)
+ * - Tracking currently assisting motivation (AI-assisted annotation)
+ * - Annotation progress updates from SSE
+ * - Assisted annotation lifecycle (start, progress, complete, failed)
  * - Auto-dismiss progress after completion (5 seconds)
- * - Manual dismiss via detection:dismiss-progress event
+ * - Manual dismiss via progress-dismiss event
  * - Annotation create/delete API calls
- * - AI detection SSE streams (all 5 motivation types)
+ * - AI-assisted annotation SSE streams (all 5 motivation types)
  *
- * "Detection" covers both forms: a human selecting text is manual detection;
- * AI-driven SSE streams are automated detection. Same concept, same hook.
+ * Covers both forms: a human selecting text is manual annotation;
+ * AI-driven SSE streams are assisted annotation. Same concept, same hook.
  *
  * Follows react-rxjs-guide.md Layer 2 pattern: Hook bridge that
  * subscribes to events and pushes values into React state.
@@ -29,7 +29,7 @@ import type { EventMap } from '@semiont/core';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
 import { useApiClient } from '../contexts/ApiClientContext';
 import { useAuthToken } from '../contexts/AuthTokenContext';
-import type { DetectionProgress } from '@semiont/core';
+import type { AnnotationProgress } from '@semiont/core';
 import { useToast } from '../components/Toast';
 
 type SelectionData = EventMap['annotate:select-comment'];
@@ -46,12 +46,12 @@ interface PendingAnnotation {
 }
 
 export interface AnnotationFlowState {
-  // Manual detection state
+  // Manual annotation state
   pendingAnnotation: PendingAnnotation | null;
-  // AI detection state
-  detectingMotivation: Motivation | null;
-  detectionProgress: DetectionProgress | null;
-  detectionStreamRef: React.MutableRefObject<AbortController | null>;
+  // AI-assisted annotation state
+  assistingMotivation: Motivation | null;
+  progress: AnnotationProgress | null;
+  assistStreamRef: React.MutableRefObject<AbortController | null>;
 }
 
 /**
@@ -63,10 +63,10 @@ export interface AnnotationFlowState {
  * @emits annotate:create-failed - Annotation creation failed
  * @emits annotate:deleted - Annotation successfully deleted
  * @emits annotate:delete-failed - Annotation deletion failed
- * @emits annotate:detect-progress - Progress update from SSE stream
- * @emits annotate:detect-finished - SSE detection completed
- * @emits annotate:detect-failed - SSE detection failed
- * @emits annotate:detect-cancelled - SSE detection cancelled
+ * @emits annotate:progress - Progress update from SSE stream
+ * @emits annotate:assist-finished - SSE assist completed
+ * @emits annotate:assist-failed - SSE assist failed
+ * @emits annotate:assist-cancelled - SSE assist cancelled
  * @subscribes annotate:requested - User requested a new annotation
  * @subscribes annotate:create - Create annotation via API
  * @subscribes annotate:delete - Delete annotation via API
@@ -75,12 +75,12 @@ export interface AnnotationFlowState {
  * @subscribes annotate:select-assessment - User selected text for an assessment
  * @subscribes annotate:select-reference - User selected text for a reference
  * @subscribes annotate:cancel-pending - Cancel pending annotation creation
- * @subscribes annotate:detect-request - Trigger AI detection SSE stream
- * @subscribes job:cancel-requested - Cancels in-flight detection stream (detection half only)
- * @subscribes annotate:detect-progress - Progress update during detection
- * @subscribes annotate:detect-finished - Detection completed successfully
- * @subscribes annotate:detect-failed - Error during detection
- * @subscribes annotate:detect-dismiss - Manually dismiss progress display
+ * @subscribes annotate:assist-request - Trigger AI-assisted annotation SSE stream
+ * @subscribes job:cancel-requested - Cancels in-flight assist stream (assist half only)
+ * @subscribes annotate:progress - Progress update during assist
+ * @subscribes annotate:assist-finished - Assist completed successfully
+ * @subscribes annotate:assist-failed - Error during assist
+ * @subscribes annotate:progress-dismiss - Manually dismiss progress display
  * @returns Annotation flow state
  */
 export function useAnnotationFlow(rUri: ResourceUri): AnnotationFlowState {
@@ -98,7 +98,7 @@ export function useAnnotationFlow(rUri: ResourceUri): AnnotationFlowState {
   useEffect(() => { tokenRef.current = token; });
 
   // ============================================================
-  // MANUAL DETECTION STATE
+  // MANUAL ANNOTATION STATE
   // ============================================================
 
   const [pendingAnnotation, setPendingAnnotation] = useState<PendingAnnotation | null>(null);
@@ -190,24 +190,24 @@ export function useAnnotationFlow(rUri: ResourceUri): AnnotationFlowState {
   }, []);
 
   // ============================================================
-  // AI DETECTION STATE
+  // AI-ASSISTED ANNOTATION STATE
   // ============================================================
 
-  const [detectingMotivation, setDetectingMotivation] = useState<Motivation | null>(null);
-  const [detectionProgress, setDetectionProgress] = useState<DetectionProgress | null>(null);
-  const detectionStreamRef = useRef<AbortController | null>(null);
+  const [assistingMotivation, setAssistingMotivation] = useState<Motivation | null>(null);
+  const [progress, setProgress] = useState<AnnotationProgress | null>(null);
+  const assistStreamRef = useRef<AbortController | null>(null);
 
   // Auto-dismiss timeout ref
   const progressDismissTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleDetectionProgress = useCallback((chunk: DetectionProgress) => {
-    setDetectionProgress(chunk);
+  const handleAnnotationProgress = useCallback((chunk: AnnotationProgress) => {
+    setProgress(chunk);
   }, []);
 
-  const handleDetectionComplete = useCallback(({ motivation }: { motivation?: Motivation }) => {
-    // Keep progress visible with final message - only clear detecting flag
+  const handleAnnotationComplete = useCallback(({ motivation }: { motivation?: Motivation }) => {
+    // Keep progress visible with final message - only clear assisting flag
     // Use callback form to get current state without closure
-    setDetectingMotivation(current => {
+    setAssistingMotivation(current => {
       if (motivation === current) {
         return null;
       }
@@ -215,43 +215,43 @@ export function useAnnotationFlow(rUri: ResourceUri): AnnotationFlowState {
     });
 
     // Show success notification
-    showSuccess('Detection complete');
+    showSuccess('Annotation complete');
 
     // Auto-dismiss progress after 5 seconds to give user time to read final message
     if (progressDismissTimeoutRef.current) {
       clearTimeout(progressDismissTimeoutRef.current);
     }
     progressDismissTimeoutRef.current = setTimeout(() => {
-      setDetectionProgress(null);
+      setProgress(null);
       progressDismissTimeoutRef.current = null;
     }, 5000);
   }, [showSuccess]);
 
-  const handleDetectionFailed = useCallback((event: Extract<ResourceEvent, { type: 'job.failed' }>) => {
+  const handleAnnotationFailed = useCallback((event: Extract<ResourceEvent, { type: 'job.failed' }>) => {
     // Clear timeout on failure
     if (progressDismissTimeoutRef.current) {
       clearTimeout(progressDismissTimeoutRef.current);
       progressDismissTimeoutRef.current = null;
     }
-    setDetectingMotivation(null);
-    setDetectionProgress(null);
+    setAssistingMotivation(null);
+    setProgress(null);
 
     // Show error notification
-    const errorMessage = event.payload.error || 'Detection failed';
+    const errorMessage = event.payload.error || 'Annotation failed';
     showError(errorMessage);
   }, [showError]);
 
-  const handleDetectionDismissProgress = useCallback(() => {
+  const handleProgressDismiss = useCallback(() => {
     // Manual dismiss - clear timeout and progress immediately
     if (progressDismissTimeoutRef.current) {
       clearTimeout(progressDismissTimeoutRef.current);
       progressDismissTimeoutRef.current = null;
     }
-    setDetectionProgress(null);
+    setProgress(null);
   }, []);
 
   // ============================================================
-  // ANNOTATION + DETECTION API OPERATIONS (useEffect-based, ref-closed)
+  // ANNOTATION + ASSIST API OPERATIONS (useEffect-based, ref-closed)
   // ============================================================
 
   useEffect(() => {
@@ -309,10 +309,10 @@ export function useAnnotationFlow(rUri: ResourceUri): AnnotationFlowState {
     };
 
     /**
-     * Handle detection start - AI-driven SSE stream
-     * Emitted by: DetectSection, TaggingPanel, ReferencesPanel
+     * Handle assist start - AI-driven SSE stream
+     * Emitted by: AssistSection, TaggingPanel, ReferencesPanel
      */
-    const handleDetectionStart = async (event: {
+    const handleAssistStart = async (event: {
       motivation: Motivation;
       options: {
         instructions?: string;
@@ -327,85 +327,85 @@ export function useAnnotationFlow(rUri: ResourceUri): AnnotationFlowState {
       const currentClient = clientRef.current;
       const currentRUri = rUriRef.current;
       try {
-        // Cancel any existing detection
-        if (detectionStreamRef.current) {
-          detectionStreamRef.current.abort();
+        // Cancel any existing assist
+        if (assistStreamRef.current) {
+          assistStreamRef.current.abort();
         }
-        detectionStreamRef.current = new AbortController();
+        assistStreamRef.current = new AbortController();
 
         // Update UI state
         if (progressDismissTimeoutRef.current) {
           clearTimeout(progressDismissTimeoutRef.current);
           progressDismissTimeoutRef.current = null;
         }
-        setDetectingMotivation(event.motivation);
-        setDetectionProgress(null);
+        setAssistingMotivation(event.motivation);
+        setProgress(null);
 
         const sseOptions = { auth: toAccessToken(tokenRef.current), eventBus };
 
         if (event.motivation === 'tagging') {
           const { schemaId, categories } = event.options;
           if (!schemaId || !categories || categories.length === 0) {
-            throw new Error('Tag detection requires schemaId and categories');
+            throw new Error('Tag assist requires schemaId and categories');
           }
           currentClient.sse.detectTags(currentRUri, { schemaId, categories }, sseOptions);
-          // Events auto-emit to EventBus: annotate:detect-progress, annotate:detect-finished, annotate:detect-failed
+          // Events auto-emit to EventBus: annotate:progress, annotate:assist-finished, annotate:assist-failed
         } else if (event.motivation === 'linking') {
           const { entityTypes, includeDescriptiveReferences } = event.options;
           if (!entityTypes || entityTypes.length === 0) {
-            throw new Error('Reference detection requires entityTypes');
+            throw new Error('Reference assist requires entityTypes');
           }
           currentClient.sse.detectReferences(currentRUri, {
             entityTypes: entityTypes.map(et => entityType(et)),
             includeDescriptiveReferences: includeDescriptiveReferences || false,
           }, sseOptions);
-          // Events auto-emit to EventBus: annotate:detect-progress, annotate:detect-finished, annotate:detect-failed
+          // Events auto-emit to EventBus: annotate:progress, annotate:assist-finished, annotate:assist-failed
         } else if (event.motivation === 'highlighting') {
           currentClient.sse.detectHighlights(currentRUri, {
             instructions: event.options.instructions,
             density: event.options.density,
           }, sseOptions);
-          // Events auto-emit to EventBus: annotate:detect-progress, annotate:detect-finished, annotate:detect-failed
+          // Events auto-emit to EventBus: annotate:progress, annotate:assist-finished, annotate:assist-failed
         } else if (event.motivation === 'assessing') {
           currentClient.sse.detectAssessments(currentRUri, {
             instructions: event.options.instructions,
             tone: event.options.tone as 'analytical' | 'critical' | 'balanced' | 'constructive' | undefined,
             density: event.options.density,
           }, sseOptions);
-          // Events auto-emit to EventBus: annotate:detect-progress, annotate:detect-finished, annotate:detect-failed
+          // Events auto-emit to EventBus: annotate:progress, annotate:assist-finished, annotate:assist-failed
         } else if (event.motivation === 'commenting') {
           currentClient.sse.detectComments(currentRUri, {
             instructions: event.options.instructions,
             tone: event.options.tone as 'scholarly' | 'explanatory' | 'conversational' | 'technical' | undefined,
             density: event.options.density,
           }, sseOptions);
-          // Events auto-emit to EventBus: annotate:detect-progress, annotate:detect-finished, annotate:detect-failed
+          // Events auto-emit to EventBus: annotate:progress, annotate:assist-finished, annotate:assist-failed
         }
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
-          eventBus.get('annotate:detect-cancelled').next(undefined);
+          eventBus.get('annotate:assist-cancelled').next(undefined);
         } else {
-          console.error('Detection failed:', error);
-          setDetectingMotivation(null);
-          setDetectionProgress(null);
+          console.error('Annotation assist failed:', error);
+          setAssistingMotivation(null);
+          setProgress(null);
         }
       }
     };
 
     /**
-     * Handle job cancellation (detection half)
-     * Emitted by: DetectionProgressWidget
+     * Handle job cancellation (assist half)
+     * Emitted by: AnnotationProgressWidget
      */
-    const handleJobCancelRequested = (event: { jobType: 'detection' | 'generation' }) => {
-      if (event.jobType === 'detection') {
-        detectionStreamRef.current?.abort();
-        detectionStreamRef.current = null;
+    const handleJobCancelRequested = (event: { jobType: 'annotation' | 'generation' }) => {
+      if (event.jobType === 'annotation') {
+        assistStreamRef.current?.abort();
+        assistStreamRef.current = null;
       }
     };
 
     const subscription1 = eventBus.get('annotate:create').subscribe(handleAnnotationCreate);
     const subscription2 = eventBus.get('annotate:delete').subscribe(handleAnnotationDelete);
-    const subscription3 = eventBus.get('annotate:detect-request').subscribe(handleDetectionStart);
+    const subscription3 = eventBus.get('annotate:assist-request').subscribe(handleAssistStart);
     const subscription4 = eventBus.get('job:cancel-requested').subscribe(handleJobCancelRequested);
 
     return () => {
@@ -413,7 +413,7 @@ export function useAnnotationFlow(rUri: ResourceUri): AnnotationFlowState {
       subscription2.unsubscribe();
       subscription3.unsubscribe();
       subscription4.unsubscribe();
-      detectionStreamRef.current?.abort();
+      assistStreamRef.current?.abort();
     };
   }, [eventBus]); // eventBus is stable singleton; client/rUri/token accessed via refs
 
@@ -422,19 +422,19 @@ export function useAnnotationFlow(rUri: ResourceUri): AnnotationFlowState {
   // ============================================================
 
   useEventSubscriptions({
-    // Manual detection
+    // Manual annotation
     'annotate:requested': handleAnnotationRequested,
     'annotate:select-comment': handleCommentRequested,
     'annotate:select-tag': handleTagRequested,
     'annotate:select-assessment': handleAssessmentRequested,
     'annotate:select-reference': handleReferenceRequested,
     'annotate:cancel-pending': handleAnnotationCancelPending,
-    // AI detection state updates
-    'annotate:detect-progress': handleDetectionProgress,
-    'annotate:detect-finished': handleDetectionComplete,
-    'annotate:detect-failed': handleDetectionFailed,
-    'annotate:detect-dismiss': handleDetectionDismissProgress,
-    'annotate:detect-cancelled': () => showInfo('Detection cancelled'),
+    // AI-assisted annotation state updates
+    'annotate:progress': handleAnnotationProgress,
+    'annotate:assist-finished': handleAnnotationComplete,
+    'annotate:assist-failed': handleAnnotationFailed,
+    'annotate:progress-dismiss': handleProgressDismiss,
+    'annotate:assist-cancelled': () => showInfo('Annotation cancelled'),
     // CRUD error notifications
     'annotate:create-failed': ({ error }) => showError(`Failed to create annotation: ${error.message}`),
     'annotate:delete-failed': ({ error }) => showError(`Failed to delete annotation: ${error.message}`),
@@ -451,8 +451,8 @@ export function useAnnotationFlow(rUri: ResourceUri): AnnotationFlowState {
 
   return {
     pendingAnnotation,
-    detectingMotivation,
-    detectionProgress,
-    detectionStreamRef,
+    assistingMotivation,
+    progress,
+    assistStreamRef,
   };
 }

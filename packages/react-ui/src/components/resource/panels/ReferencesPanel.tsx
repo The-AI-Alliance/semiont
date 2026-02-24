@@ -5,7 +5,7 @@ import { useTranslations } from '../../../contexts/TranslationContext';
 import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
-import { DetectionProgressWidget } from '../../DetectionProgressWidget';
+import { AnnotationProgressWidget } from '../../AnnotationProgressWidget';
 import { ReferenceEntry } from './ReferenceEntry';
 import type { components, paths, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
@@ -40,7 +40,7 @@ function getSelectorDisplayText(selector: Selector | Selector[]): string | null 
   return null;
 }
 
-interface DetectionLog {
+interface AnnotationLog {
   entityType: string;
   foundCount: number;
 }
@@ -48,8 +48,8 @@ interface DetectionLog {
 interface Props {
   // Generic panel props
   annotations?: Annotation[];
-  isDetecting: boolean;
-  detectionProgress: any; // TODO: type this properly
+  isAssisting: boolean;
+  progress: any; // TODO: type this properly
   annotateMode?: boolean;
   Link: React.ComponentType<LinkComponentProps>;
   routes: RouteBuilder;
@@ -66,17 +66,17 @@ interface Props {
 }
 
 /**
- * Panel for managing reference annotations with entity type detection
+ * Panel for managing reference annotations with entity type annotation
  *
- * @emits annotate:detect-request - Start reference detection. Payload: { motivation: 'linking', options: { entityTypes: string[], includeDescriptiveReferences: boolean } }
+ * @emits annotate:detect-request - Start reference annotation. Payload: { motivation: 'linking', options: { entityTypes: string[], includeDescriptiveReferences: boolean } }
  * @emits annotate:create - Create new reference annotation. Payload: { motivation: 'linking', selector: Selector | Selector[], body: Body[] }
  * @emits annotate:cancel-pending - Cancel pending reference annotation. Payload: undefined
  * @subscribes attend:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function ReferencesPanel({
   annotations = [],
-  isDetecting,
-  detectionProgress,
+  isAssisting,
+  progress,
   annotateMode = true,
   Link,
   routes,
@@ -89,28 +89,28 @@ export function ReferencesPanel({
   onScrollCompleted,
   hoveredAnnotationId,
 }: Props) {
-  const t = useTranslations('DetectPanel');
+  const t = useTranslations('AssistPanel');
   const tRef = useTranslations('ReferencesPanel');
   const eventBus = useEventBus();
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
-  const [lastDetectionLog, setLastDetectionLog] = useState<DetectionLog[] | null>(null);
+  const [lastAnnotationLog, setLastDetectionLog] = useState<DetectionLog[] | null>(null);
   const [pendingEntityTypes, setPendingEntityTypes] = useState<string[]>([]);
   const [includeDescriptiveReferences, setIncludeDescriptiveReferences] = useState(false);
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Collapsible detection section state - load from localStorage, default expanded
-  const [isDetectExpanded, setIsDetectExpanded] = useState(() => {
+  const [isAssistExpanded, setIsDetectExpanded] = useState(() => {
     if (typeof window === 'undefined') return true;
-    const stored = localStorage.getItem('detect-section-expanded-reference');
+    const stored = localStorage.getItem('assist-section-expanded-reference');
     return stored ? stored === 'true' : true;
   });
 
   // Persist detection section expanded state to localStorage
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    localStorage.setItem('detect-section-expanded-reference', String(isDetectExpanded));
-  }, [isDetectExpanded]);
+    localStorage.setItem('assist-section-expanded-reference', String(isAssistExpanded));
+  }, [isAssistExpanded]);
 
   // Direct ref management - replace useAnnotationPanel hook
   const entryRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -204,10 +204,10 @@ export function ReferencesPanel({
     'attend:click': handleAnnotationClick,
   });
 
-  // Clear log when starting new detection
-  const handleDetect = () => {
+  // Clear log when starting new annotation
+  const handleAssist = () => {
     setLastDetectionLog(null);
-    eventBus.get('annotate:detect-request').next({
+    eventBus.get('annotate:assist-request').next({
       motivation: 'linking',
       options: {
         entityTypes: selectedEntityTypes,
@@ -221,23 +221,23 @@ export function ReferencesPanel({
   const hasSavedLogRef = useRef(false);
 
   // Save detection log when detection completes
-  // Only depends on isDetecting boolean to avoid infinite loops from array reference changes
-  // Trade-off: If completedEntityTypes changes while isDetecting stays false, we won't update
-  // This is acceptable because in practice, completedEntityTypes only changes when detection finishes
+  // Only depends on isAssisting boolean to avoid infinite loops from array reference changes
+  // Trade-off: If completedEntityTypes changes while isAssisting stays false, we won't update
+  // This is acceptable because in practice, completedEntityTypes only changes when annotation finishes
   useEffect(() => {
-    // When detection starts, reset the flag
-    if (isDetecting) {
+    // When annotation starts, reset the flag
+    if (isAssisting) {
       hasSavedLogRef.current = false;
       return;
     }
 
-    // When detection is complete and we haven't saved yet, save the log
-    if (!isDetecting && !hasSavedLogRef.current && detectionProgress?.completedEntityTypes) {
+    // When annotation is complete and we haven't saved yet, save the log
+    if (!isAssisting && !hasSavedLogRef.current && progress?.completedEntityTypes) {
       hasSavedLogRef.current = true;
-      setLastDetectionLog(detectionProgress.completedEntityTypes);
+      setLastDetectionLog(progress.completedEntityTypes);
       setSelectedEntityTypes([]);
     }
-  }, [isDetecting, detectionProgress?.completedEntityTypes]); // Both dependencies needed to detect completion
+  }, [isAssisting, progress?.completedEntityTypes]); // Both dependencies needed to annotation completion
 
   const togglePendingEntityType = (type: string) => {
     setPendingEntityTypes(prev =>
@@ -339,34 +339,34 @@ export function ReferencesPanel({
 
       {/* Scrollable content area */}
       <div ref={containerRef} className="semiont-panel__content">
-        {/* Detection Section - only in Annotate mode and for text resources */}
+        {/* Assist Section - only in Annotate mode and for text resources */}
         {annotateMode && (
           <div className="semiont-panel__section">
             <button
-              onClick={() => setIsDetectExpanded(!isDetectExpanded)}
+              onClick={() => setIsDetectExpanded(!isAssistExpanded)}
               className="semiont-panel__section-title semiont-panel__section-title--collapsible"
-              aria-expanded={isDetectExpanded}
+              aria-expanded={isAssistExpanded}
               type="button"
             >
               <span>{t('title')}</span>
-              <span className="semiont-panel__section-chevron" data-expanded={isDetectExpanded}>
+              <span className="semiont-panel__section-chevron" data-expanded={isAssistExpanded}>
                 ›
               </span>
             </button>
-            {isDetectExpanded && (
+            {isAssistExpanded && (
               <>
-                {/* Show annotation UI when not actively detecting */}
-                {!isDetecting && (
-                <div className="semiont-detect-widget" data-type="reference">
+                {/* Show annotation UI when not actively assisting */}
+                {!isAssisting && (
+                <div className="semiont-assist-widget" data-type="reference">
             <>
-              {/* Completed detection log - shown after completion */}
-              {lastDetectionLog && lastDetectionLog.length > 0 && (
-                <div className="semiont-detect-widget__log">
-                  <div className="semiont-detect-widget__log-items">
-                    {lastDetectionLog.map((item, index) => (
-                      <div key={index} className="semiont-detect-widget__log-item">
-                        <span className="semiont-detect-widget__log-check">✓</span>
-                        <span className="semiont-detect-widget__log-type">{item.entityType}:</span>
+              {/* Completed annotation log - shown after completion */}
+              {lastAnnotationLog && lastAnnotationLog.length > 0 && (
+                <div className="semiont-assist-widget__log">
+                  <div className="semiont-assist-widget__log-items">
+                    {lastAnnotationLog.map((item, index) => (
+                      <div key={index} className="semiont-assist-widget__log-item">
+                        <span className="semiont-assist-widget__log-check">✓</span>
+                        <span className="semiont-assist-widget__log-type">{item.entityType}:</span>
                         <span>{t('found', { count: item.foundCount })}</span>
                       </div>
                     ))}
@@ -375,11 +375,11 @@ export function ReferencesPanel({
               )}
 
               {/* Entity Types Selection */}
-              <div className="semiont-detect-widget__entity-types">
-                <p className="semiont-detect-widget__label">
+              <div className="semiont-assist-widget__entity-types">
+                <p className="semiont-assist-widget__label">
                   {t('selectEntityTypes')}
                 </p>
-                <div className="semiont-detect-widget__chips">
+                <div className="semiont-assist-widget__chips">
                   {allEntityTypes.length > 0 ? (
                     allEntityTypes.map((type: string) => (
                       <button
@@ -400,7 +400,7 @@ export function ReferencesPanel({
                       </button>
                     ))
                   ) : (
-                    <p className="semiont-detect-widget__no-types">
+                    <p className="semiont-assist-widget__no-types">
                       {t('noEntityTypes')}
                     </p>
                   )}
@@ -409,47 +409,47 @@ export function ReferencesPanel({
 
               {/* Selected Count */}
               {selectedEntityTypes.length > 0 && (
-                <p className="semiont-detect-widget__count">
+                <p className="semiont-assist-widget__count">
                   {t('typesSelected', { count: selectedEntityTypes.length })}
                 </p>
               )}
 
               {/* Include Descriptive References Checkbox */}
-              <div className="semiont-detect-widget__checkbox-group">
-                <label className="semiont-detect-widget__checkbox-label">
+              <div className="semiont-assist-widget__checkbox-group">
+                <label className="semiont-assist-widget__checkbox-label">
                   <input
                     type="checkbox"
                     checked={includeDescriptiveReferences}
                     onChange={(e) => setIncludeDescriptiveReferences(e.target.checked)}
-                    className="semiont-detect-widget__checkbox"
+                    className="semiont-assist-widget__checkbox"
                   />
                   <span>{tRef('includeDescriptiveReferences')}</span>
                 </label>
-                <p className="semiont-detect-widget__checkbox-hint">
+                <p className="semiont-assist-widget__checkbox-hint">
                   {tRef('descriptiveReferencesTooltip')}
                 </p>
               </div>
 
-              {/* Start Detection Button */}
+              {/* Start Assist Button */}
               <button
-                onClick={handleDetect}
+                onClick={handleAssist}
                 disabled={selectedEntityTypes.length === 0}
-                title={t('startDetection')}
+                title={t('startAssist')}
                 className="semiont-button"
-                data-variant="detect"
+                data-variant="assist"
                 data-type="reference"
               >
                 <span className="semiont-button-icon">✨</span>
-                <span>{t('startDetection')}</span>
+                <span>{t('startAssist')}</span>
               </button>
             </>
             </div>
           )}
 
-          {/* Detection Progress - shown when active */}
-          {isDetecting && detectionProgress && (
-            <DetectionProgressWidget
-              progress={detectionProgress}
+          {/* Annotation Progress - shown when active */}
+          {isAssisting && progress && (
+            <AnnotationProgressWidget
+              progress={progress}
               annotationType="reference"
             />
           )}

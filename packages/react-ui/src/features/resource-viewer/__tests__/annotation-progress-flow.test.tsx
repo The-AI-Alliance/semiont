@@ -4,7 +4,7 @@
  * Tests the complete data flow from UI → EventBus → useResolutionFlow → SSE (mocked)
  *
  * This test uses COMPOSITION instead of mocking:
- * - Real React components composed together (useAnnotationFlow + HighlightPanel + DetectSection)
+ * - Real React components composed together (useAnnotationFlow + HighlightPanel + AssistSection)
  * - Real EventBus (mitt) passed via context
  * - Real useResolutionFlow hook with mock API client passed as prop
  * - Mock SSE stream (simulated API responses) provided via composition
@@ -78,18 +78,18 @@ class MockSSEStream {
 
   // Test helper methods that emit to EventBus
   emitProgress(chunk: any) {
-    this.eventBus.get('annotate:detect-progress').next(chunk);
+    this.eventBus.get('annotate:progress').next(chunk);
   }
 
   emitComplete(finalChunk?: any) {
     if (finalChunk) {
-      this.eventBus.get('annotate:detect-progress').next(finalChunk);
+      this.eventBus.get('annotate:progress').next(finalChunk);
     }
-    this.eventBus.get('annotate:detect-finished').next({});
+    this.eventBus.get('annotate:assist-finished').next({});
   }
 
   emitError(error: Error) {
-    this.eventBus.get('annotate:detect-failed').next({
+    this.eventBus.get('annotate:assist-failed').next({
       type: 'job.failed' as const,
       resourceId: 'test' as any,
       userId: 'user' as any,
@@ -113,15 +113,15 @@ function DetectionFlowTestHarness({
   rUri: string;
   annotations: Annotation[];
 }) {
-  const { detectingMotivation, detectionProgress } = useAnnotationFlow(rUri as any);
+  const { assistingMotivation, progress } = useAnnotationFlow(rUri as any);
 
   return (
     <HighlightPanel
       annotations={annotations}
       pendingAnnotation={null}
       hoveredAnnotationId={null}
-      isDetecting={detectingMotivation === 'highlighting'}
-      detectionProgress={detectionProgress}
+      isAssisting={assistingMotivation === 'highlighting'}
+      progress={progress}
       annotateMode={true}
     />
   );

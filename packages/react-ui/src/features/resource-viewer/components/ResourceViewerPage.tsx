@@ -156,7 +156,7 @@ export function ResourceViewerPage({
 
   // Flow state hooks (NO CONTAINERS)
   const { hoveredAnnotationId } = useAttentionFlow();
-  const { detectingMotivation, detectionProgress, pendingAnnotation } = useAnnotationFlow(rUri);
+  const { assistingMotivation, progress, pendingAnnotation } = useAnnotationFlow(rUri);
   const { activePanel, scrollToAnnotationId, panelInitialTab, onScrollCompleted } = usePanelNavigation();
   const { searchModalOpen, pendingReferenceId, onCloseSearchModal } = useResolutionFlow(rUri);
   const {
@@ -527,8 +527,8 @@ export function ResourceViewerPage({
                 annotations={annotations}
                 annotators={ANNOTATORS}
                 annotateMode={annotateMode}
-                detectingMotivation={detectingMotivation}
-                detectionProgress={detectionProgress}
+                assistingMotivation={assistingMotivation}
+                progress={progress}
                 pendingAnnotation={pendingAnnotation}
                 allEntityTypes={allEntityTypes}
                 generatingReferenceId={generationProgress?.referenceId ?? null}

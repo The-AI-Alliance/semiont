@@ -4,8 +4,8 @@
  * Based on console logs from production:
  * ✅ annotate:detect-request emitted
  * ✅ annotate:detect-progress emitted
- * ❌ detectingMotivation remains null
- * ❌ detectionProgress remains null
+ * ❌ assistingMotivation remains null
+ * ❌ progress remains null
  *
  * UPDATED: Now tests useAnnotationFlow hook instead of DetectionFlowContainer
  */
@@ -56,14 +56,14 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
       currentState = state;
 
       console.log('[TEST] useAnnotationFlow state:', {
-        detectingMotivation: state.detectingMotivation,
-        detectionProgress: state.detectionProgress,
+        assistingMotivation: state.assistingMotivation,
+        progress: state.progress,
       });
 
       return (
         <div>
-          <div data-testid="detecting">{state.detectingMotivation || 'null'}</div>
-          <div data-testid="progress">{state.detectionProgress?.message || 'null'}</div>
+          <div data-testid="detecting">{state.assistingMotivation || 'null'}</div>
+          <div data-testid="progress">{state.progress?.message || 'null'}</div>
         </div>
       );
     }
@@ -99,8 +99,8 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
       expect(screen.getByTestId('detecting')).toHaveTextContent('linking');
     }, { timeout: 1000 });
 
-    expect(currentState.detectingMotivation).toBe('linking');
-    expect(currentState.detectionProgress).toBeNull(); // Should clear on start
+    expect(currentState.assistingMotivation).toBe('linking');
+    expect(currentState.progress).toBeNull(); // Should clear on start
   });
 
   it('SHOULD update state when annotate:detect-progress event is emitted', async () => {
@@ -114,8 +114,8 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
 
       return (
         <div>
-          <div data-testid="detecting">{state.detectingMotivation || 'null'}</div>
-          <div data-testid="progress">{state.detectionProgress?.message || 'null'}</div>
+          <div data-testid="detecting">{state.assistingMotivation || 'null'}</div>
+          <div data-testid="progress">{state.progress?.message || 'null'}</div>
         </div>
       );
     }
@@ -150,7 +150,7 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
       expect(screen.getByTestId('progress')).toHaveTextContent('Starting entity detection...');
     }, { timeout: 1000 });
 
-    expect(currentState.detectionProgress).toMatchObject({
+    expect(currentState.progress).toMatchObject({
       status: 'started',
       message: 'Starting entity detection...'
     });
@@ -165,14 +165,14 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
       const state = useAnnotationFlow('http://localhost:8080/resources/f45fd44f9cb0b0fe1b7980d3d034bc61' as any);
 
       stateSnapshots.push({
-        detectingMotivation: state.detectingMotivation,
-        detectionProgress: state.detectionProgress,
+        assistingMotivation: state.assistingMotivation,
+        progress: state.progress,
       });
 
       return (
         <div>
-          <div data-testid="detecting">{state.detectingMotivation || 'null'}</div>
-          <div data-testid="progress">{state.detectionProgress?.message || 'null'}</div>
+          <div data-testid="detecting">{state.assistingMotivation || 'null'}</div>
+          <div data-testid="progress">{state.progress?.message || 'null'}</div>
         </div>
       );
     }
@@ -230,15 +230,15 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
     console.log('=== END REPRODUCTION ===\n');
 
     // THIS IS THE BUG: Events fire but state never updates
-    // Production logs show: detectingMotivation: null, detectionProgress: null
+    // Production logs show: assistingMotivation: null, progress: null
     // Even though events were emitted
     await waitFor(() => {
       const currentSnapshot = stateSnapshots[stateSnapshots.length - 1];
       console.log('Final state check:', currentSnapshot);
 
       // These SHOULD pass but will FAIL if bug is present
-      expect(currentSnapshot.detectingMotivation).toBe('linking');
-      expect(currentSnapshot.detectionProgress?.message).toBe('Scanning for Location...');
+      expect(currentSnapshot.assistingMotivation).toBe('linking');
+      expect(currentSnapshot.progress?.message).toBe('Scanning for Location...');
     }, { timeout: 2000 });
   });
 });

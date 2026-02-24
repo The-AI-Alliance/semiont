@@ -7,7 +7,7 @@ import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { components, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
 import { AssessmentEntry } from './AssessmentEntry';
-import { DetectSection } from './DetectSection';
+import { AssistSection } from './AssistSection';
 import { PanelHeader } from './PanelHeader';
 import './AssessmentPanel.css';
 
@@ -40,8 +40,8 @@ function getSelectorDisplayText(selector: Selector | Selector[]): string | null 
 interface AssessmentPanelProps {
   annotations: Annotation[];
   pendingAnnotation: PendingAnnotation | null;
-  isDetecting?: boolean;
-  detectionProgress?: {
+  isAssisting?: boolean;
+  progress?: {
     status: string;
     percentage?: number;
     message?: string;
@@ -62,8 +62,8 @@ interface AssessmentPanelProps {
 export function AssessmentPanel({
   annotations,
   pendingAnnotation,
-  isDetecting = false,
-  detectionProgress,
+  isAssisting = false,
+  progress,
   annotateMode = true,
   scrollToAnnotationId,
   onScrollCompleted,
@@ -231,12 +231,12 @@ export function AssessmentPanel({
 
       {/* Scrollable content area */}
       <div ref={containerRef} className="semiont-panel__content">
-        {/* Detection Section - only in Annotate mode and for text resources */}
+        {/* Assist Section - only in Annotate mode and for text resources */}
         {annotateMode && (
-          <DetectSection
+          <AssistSection
             annotationType="assessment"
-            isDetecting={isDetecting}
-            detectionProgress={detectionProgress}
+            isAssisting={isAssisting}
+            progress={progress}
           />
         )}
 
