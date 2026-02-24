@@ -89,7 +89,19 @@ class MockSSEStream {
   }
 
   emitError(error: Error) {
-    this.eventBus.get('annotate:detect-failed').next({ error });
+    this.eventBus.get('annotate:detect-failed').next({
+      type: 'job.failed' as const,
+      resourceId: 'test' as any,
+      userId: 'user' as any,
+      id: 'evt-1' as any,
+      timestamp: new Date().toISOString(),
+      version: 1,
+      payload: {
+        jobId: 'job-1' as any,
+        jobType: 'detection',
+        error: error.message,
+      },
+    });
   }
 }
 

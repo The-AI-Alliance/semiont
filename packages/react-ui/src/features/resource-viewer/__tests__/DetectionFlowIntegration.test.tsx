@@ -259,7 +259,19 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Emit failure
     act(() => {
-      getEventBus().get('annotate:detect-failed').next({ type: 'job.failed', resourceId: 'test-resource' as any, payload: { jobId: 'job-1' as any, jobType: 'detection', error: 'Network error' } });
+      getEventBus().get('annotate:detect-failed').next({
+        type: 'job.failed' as const,
+        resourceId: 'test-resource' as any,
+        userId: 'user' as any,
+        id: 'evt-1' as any,
+        timestamp: new Date().toISOString(),
+        version: 1,
+        payload: {
+          jobId: 'job-1' as any,
+          jobType: 'detection',
+          error: 'Network error',
+        },
+      });
     });
 
     // Verify: both detecting and progress cleared
