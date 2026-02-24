@@ -19,6 +19,7 @@ import { useEventSubscriptions } from '../contexts/useEventSubscription';
 import { useEventBus } from '../contexts/EventBusContext';
 import { useApiClient } from '../contexts/ApiClientContext';
 import { useAuthToken } from '../contexts/AuthTokenContext';
+import { useToast } from '../components/Toast';
 
 /** Helper to convert string | null to AccessToken | undefined */
 function toAccessToken(token: string | null) {
@@ -47,8 +48,6 @@ export interface GenerationFlowState {
  *
  * @param locale - Current locale for language defaults
  * @param resourceId - Resource ID for generation
- * @param showSuccess - Success toast callback
- * @param showError - Error toast callback
  * @param clearNewAnnotationId - Clear animation callback
  * @emits generate:request - Start document generation (consumed internally by this hook)
  * @emits generate:progress - SSE progress chunk from generation stream
@@ -65,13 +64,12 @@ export interface GenerationFlowState {
 export function useGenerationFlow(
   locale: string,
   resourceId: string,
-  showSuccess: (message: string) => void,
-  showError: (message: string) => void,
   clearNewAnnotationId: (annotationId: AnnotationUri) => void
 ): GenerationFlowState {
   const eventBus = useEventBus();
   const client = useApiClient();
   const token = useAuthToken();
+  const { showSuccess, showError } = useToast();
 
   // Keep latest client/token accessible inside useEffect without re-subscribing
   const clientRef = useRef(client);

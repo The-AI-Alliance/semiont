@@ -34,6 +34,16 @@ import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { SSEClient } from '@semiont/api-client';
 import type { components } from '@semiont/core';
 
+// Mock Toast module to prevent "useToast must be used within a ToastProvider" errors
+vi.mock('../../../components/Toast', () => ({
+  useToast: () => ({
+    showSuccess: vi.fn(),
+    showError: vi.fn(),
+    showInfo: vi.fn(),
+    showWarning: vi.fn(),
+  }),
+}));
+
 type Annotation = components['schemas']['Annotation'];
 
 // Mock translations

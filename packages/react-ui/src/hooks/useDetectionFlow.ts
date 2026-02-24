@@ -30,6 +30,7 @@ import { useEventSubscriptions } from '../contexts/useEventSubscription';
 import { useApiClient } from '../contexts/ApiClientContext';
 import { useAuthToken } from '../contexts/AuthTokenContext';
 import type { DetectionProgress } from '@semiont/core';
+import { useToast } from '../components/Toast';
 
 type SelectionData = EventMap['annotate:select-comment'];
 
@@ -86,6 +87,7 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
   const eventBus = useEventBus();
   const client = useApiClient();
   const token = useAuthToken();
+  const { showSuccess, showError } = useToast();
 
   // Keep latest client/rUri/token available inside useEffect handlers without re-subscribing
   const clientRef = useRef(client);
@@ -212,6 +214,9 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
       return current;
     });
 
+    // Show success notification
+    showSuccess('Detection complete');
+
     // Auto-dismiss progress after 5 seconds to give user time to read final message
     if (progressDismissTimeoutRef.current) {
       clearTimeout(progressDismissTimeoutRef.current);
@@ -220,9 +225,9 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
       setDetectionProgress(null);
       progressDismissTimeoutRef.current = null;
     }, 5000);
-  }, []);
+  }, [showSuccess]);
 
-  const handleDetectionFailed = useCallback(() => {
+  const handleDetectionFailed = useCallback((event?: { error?: Error }) => {
     // Clear timeout on failure
     if (progressDismissTimeoutRef.current) {
       clearTimeout(progressDismissTimeoutRef.current);
@@ -230,7 +235,11 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
     }
     setDetectingMotivation(null);
     setDetectionProgress(null);
-  }, []);
+
+    // Show error notification
+    const errorMessage = event?.error?.message || 'Detection failed';
+    showError(errorMessage);
+  }, [showError]);
 
   const handleDetectionDismissProgress = useCallback(() => {
     // Manual dismiss - clear timeout and progress immediately

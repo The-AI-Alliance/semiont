@@ -166,7 +166,7 @@ export function ResourceViewerPage({
     generationDefaultTitle,
     onGenerateDocument,
     onCloseGenerationModal,
-  } = useGenerationFlow(locale, rUri.split('/').pop() || '', showSuccess, showError, clearNewAnnotationId);
+  } = useGenerationFlow(locale, rUri.split('/').pop() || '', clearNewAnnotationId);
   const { retrievalContext, retrievalLoading, retrievalError } = useContextRetrievalFlow(eventBus, { client, resourceUri: rUri });
 
   // Debounced invalidation for real-time events

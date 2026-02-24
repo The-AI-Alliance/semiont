@@ -19,6 +19,16 @@ import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { SSEClient } from '@semiont/api-client';
 
+// Mock Toast module to prevent "useToast must be used within a ToastProvider" errors
+vi.mock('../../../components/Toast', () => ({
+  useToast: () => ({
+    showSuccess: vi.fn(),
+    showError: vi.fn(),
+    showInfo: vi.fn(),
+    showWarning: vi.fn(),
+  }),
+}));
+
 describe('REPRODUCING BUG: Detection state not updating', () => {
   beforeEach(() => {
     resetEventBusForTesting();

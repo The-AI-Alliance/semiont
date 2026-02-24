@@ -28,6 +28,16 @@ import { SemiontApiClient } from '@semiont/api-client';
 import { resourceUri } from '@semiont/core';
 import type { Emitter } from 'mitt';
 import type { EventMap } from '@semiont/core';
+
+// Mock Toast module to prevent "useToast must be used within a ToastProvider" errors
+vi.mock('../../../components/Toast', () => ({
+  useToast: () => ({
+    showSuccess: vi.fn(),
+    showError: vi.fn(),
+    showInfo: vi.fn(),
+    showWarning: vi.fn(),
+  }),
+}));
 import type { Motivation, Selector } from '@semiont/core';
 
 const TEST_URI = resourceUri('http://localhost:4000/resources/test-resource');

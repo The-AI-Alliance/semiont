@@ -18,6 +18,16 @@ import { ApiClientProvider } from '../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../contexts/AuthTokenContext';
 import type { GenerationProgress } from '@semiont/core';
 
+// Mock Toast module to prevent "useToast must be used within a ToastProvider" errors
+vi.mock('../../components/Toast', () => ({
+  useToast: () => ({
+    showSuccess: vi.fn(),
+    showError: vi.fn(),
+    showInfo: vi.fn(),
+    showWarning: vi.fn(),
+  }),
+}));
+
 // Full provider stack required by useGenerationFlow
 const wrapper = ({ children }: { children: ReactNode }) =>
   React.createElement(
@@ -42,13 +52,11 @@ function captureEventBus(): EventBus {
 
 // Stable no-op callbacks for useGenerationFlow params
 const noop = () => {};
-const mockShowSuccess = vi.fn();
-const mockShowError = vi.fn();
 const mockClearNewAnnotationId = vi.fn();
 
 function renderGenerationFlow() {
   return renderHook(
-    () => useGenerationFlow('en', 'test-resource', mockShowSuccess, mockShowError, mockClearNewAnnotationId),
+    () => useGenerationFlow('en', 'test-resource', mockClearNewAnnotationId),
     { wrapper }
   );
 }

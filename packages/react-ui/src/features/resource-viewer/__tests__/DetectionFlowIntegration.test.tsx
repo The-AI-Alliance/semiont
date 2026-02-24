@@ -33,6 +33,16 @@ import { SSEClient } from '@semiont/api-client';
 import type { Motivation } from '@semiont/core';
 import { resourceUri } from '@semiont/core';
 import type { Emitter } from 'mitt';
+
+// Mock Toast module to prevent "useToast must be used within a ToastProvider" errors
+vi.mock('../../../components/Toast', () => ({
+  useToast: () => ({
+    showSuccess: vi.fn(),
+    showError: vi.fn(),
+    showInfo: vi.fn(),
+    showWarning: vi.fn(),
+  }),
+}));
 import type { EventMap } from '@semiont/core';
 
 // Mock SSE stream - SSE now emits directly to EventBus, no callbacks
