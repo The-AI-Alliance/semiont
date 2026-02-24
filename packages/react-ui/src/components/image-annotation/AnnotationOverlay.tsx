@@ -18,7 +18,7 @@ interface AnnotationOverlayProps {
   eventBus?: EventBus;
   hoveredAnnotationId?: string | null;
   selectedAnnotationId?: string | null;
-  hoverDelayMs?: number;
+  hoverDelayMs: number;
 }
 
 /**
@@ -75,7 +75,7 @@ export function AnnotationOverlay({
   eventBus,
   hoveredAnnotationId,
   selectedAnnotationId,
-  hoverDelayMs = 150
+  hoverDelayMs
 }: AnnotationOverlayProps) {
   const scaleX = displayWidth / imageWidth;
   const scaleY = displayHeight / imageHeight;

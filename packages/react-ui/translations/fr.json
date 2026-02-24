@@ -328,7 +328,11 @@
     "themeModeActive": "Using {mode} mode",
     "language": "Language",
     "languageHint": "Change language in the main navigation",
-    "languageChanging": "Changing language..."
+    "languageChanging": "Changing language...",
+    "hoverDelay": "Hover Delay",
+    "hoverDelayFast": "Fast",
+    "hoverDelaySlow": "Slow",
+    "hoverDelayDescription": "{delay}ms delay before hover effects appear"
   },
   "AnnotateView": {}
 }

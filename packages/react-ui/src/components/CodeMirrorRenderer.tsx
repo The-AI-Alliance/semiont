@@ -42,7 +42,7 @@ interface Props {
   eventBus?: EventBus;
   getTargetDocumentName?: (documentId: string) => string | undefined;
   generatingReferenceId?: string | null; // ID of reference currently generating a document
-  hoverDelayMs?: number; // Hover delay in milliseconds for accessibility
+  hoverDelayMs: number; // Hover delay in milliseconds for accessibility
 }
 
 // Effect to update annotation decorations with segments and new IDs
@@ -289,7 +289,7 @@ export function CodeMirrorRenderer({
   eventBus,
   getTargetDocumentName,
   generatingReferenceId,
-  hoverDelayMs = 150
+  hoverDelayMs
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);

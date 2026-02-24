@@ -328,7 +328,11 @@
     "themeModeActive": "Usando modo {mode}",
     "language": "Idioma",
     "languageHint": "Cambia el idioma en la navegación principal",
-    "languageChanging": "Cambiando idioma..."
+    "languageChanging": "Cambiando idioma...",
+    "hoverDelay": "Retardo al Pasar el Ratón",
+    "hoverDelayFast": "Rápido",
+    "hoverDelaySlow": "Lento",
+    "hoverDelayDescription": "{delay}ms de retardo antes de que aparezcan los efectos al pasar el ratón"
   },
   "AnnotateView": {}
 }

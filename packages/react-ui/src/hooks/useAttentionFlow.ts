@@ -81,10 +81,7 @@ export function useAttentionFlow(): AttentionFlowState {
 
 // ─── createHoverHandlers (use inside useEffect / imperative setup) ────────────
 
-/**
- * Default milliseconds the mouse must dwell before attend:hover is emitted.
- * @deprecated Use useAccessibility().hoverDelayMs instead for user-configurable delay.
- */
+/** Default milliseconds the mouse must dwell before attend:hover is emitted. */
 export const HOVER_DELAY_MS = 150;
 
 type EmitHover = (annotationId: string | null) => void;
@@ -101,9 +98,9 @@ export interface HoverHandlers {
 /**
  * Creates hover handlers for imperative code (non-hook contexts).
  * @param emit - Callback to emit hover events
- * @param delayMs - Optional hover delay in milliseconds (defaults to HOVER_DELAY_MS for backward compatibility)
+ * @param delayMs - Hover delay in milliseconds
  */
-export function createHoverHandlers(emit: EmitHover, delayMs: number = HOVER_DELAY_MS): HoverHandlers {
+export function createHoverHandlers(emit: EmitHover, delayMs: number): HoverHandlers {
   let currentHover: string | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -147,9 +144,9 @@ export interface HoverEmitterProps {
  * annotation entry element.
  *
  * @param annotationId - The ID of the annotation this element represents.
- * @param hoverDelayMs - Optional hover delay in milliseconds (defaults to HOVER_DELAY_MS)
+ * @param hoverDelayMs - Hover delay in milliseconds
  */
-export function useHoverEmitter(annotationId: string, hoverDelayMs: number = HOVER_DELAY_MS): HoverEmitterProps {
+export function useHoverEmitter(annotationId: string, hoverDelayMs: number): HoverEmitterProps {
   const eventBus = useEventBus();
   const currentHoverRef = useRef<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
