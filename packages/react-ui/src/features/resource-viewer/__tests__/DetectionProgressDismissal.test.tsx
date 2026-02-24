@@ -8,7 +8,7 @@
  * 4. BUG: Progress modal stays visible showing "Processing: Location" indefinitely
  *
  * ROOT CAUSE:
- * - useDetectionFlow.ts (line 54-62): annotate:detect-finished clears `detectingMotivation` but keeps `detectionProgress`
+ * - useAnnotationFlow.ts (line 54-62): annotate:detect-finished clears `detectingMotivation` but keeps `detectionProgress`
  * - DetectSection.tsx (line 214): Shows progress UI whenever `detectionProgress` is not null
  * - No mechanism to auto-dismiss or manually close the progress display
  *
@@ -21,7 +21,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { act } from 'react';
-import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
+import { useAnnotationFlow } from '../../../hooks/useAnnotationFlow';
 import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
@@ -65,7 +65,7 @@ describe('Detection Progress Dismissal Bug', () => {
 
     function TestHarness() {
       eventBusInstance = useEventBus();
-      const { detectingMotivation, detectionProgress } = useDetectionFlow(rUri);
+      const { detectingMotivation, detectionProgress } = useAnnotationFlow(rUri);
 
       return (
         <div>
@@ -138,7 +138,7 @@ describe('Detection Progress Dismissal Bug', () => {
 
     function TestHarness() {
       eventBusInstance = useEventBus();
-      const { detectionProgress } = useDetectionFlow(rUri);
+      const { detectionProgress } = useAnnotationFlow(rUri);
 
       return (
         <div data-testid="progress">
@@ -191,7 +191,7 @@ describe('Detection Progress Dismissal Bug', () => {
 
     function TestHarness() {
       eventBusInstance = useEventBus();
-      const { detectionProgress } = useDetectionFlow(rUri);
+      const { detectionProgress } = useAnnotationFlow(rUri);
 
       return (
         <div data-testid="progress">
@@ -251,7 +251,7 @@ describe('Detection Progress Dismissal Bug', () => {
 
     function TestHarness() {
       eventBusInstance = useEventBus();
-      const { detectionProgress } = useDetectionFlow(rUri);
+      const { detectionProgress } = useAnnotationFlow(rUri);
 
       return (
         <div>

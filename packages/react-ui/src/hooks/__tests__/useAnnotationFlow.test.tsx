@@ -1,7 +1,7 @@
 /**
- * useDetectionFlow Hook Tests
+ * useAnnotationFlow Hook Tests
  *
- * Tests for the detection flow state management hook, covering:
+ * Tests for the annotation flow state management hook, covering:
  * - Toast notifications for CRUD operations
  * - Detection cancellation
  * - Auto-dismiss timeout behavior
@@ -15,7 +15,7 @@ import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../co
 import { ApiClientProvider } from '../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../contexts/AuthTokenContext';
 import { resourceUri } from '@semiont/core';
-import { useDetectionFlow } from '../useDetectionFlow';
+import { useAnnotationFlow } from '../useAnnotationFlow';
 
 // Mock the toast hook to track calls
 const mockShowSuccess = vi.fn();
@@ -55,14 +55,14 @@ vi.mock('../../contexts/ApiClientContext', async () => {
 
 // ─── Test harness ──────────────────────────────────────────────────────────────
 
-function renderDetectionFlow() {
+function renderAnnotationFlow() {
   const rUri = resourceUri('https://example.com/resources/test');
   let eventBusInstance: ReturnType<typeof useEventBus> | null = null;
-  let lastState: ReturnType<typeof useDetectionFlow> | null = null;
+  let lastState: ReturnType<typeof useAnnotationFlow> | null = null;
 
   function TestComponent() {
     eventBusInstance = useEventBus();
-    lastState = useDetectionFlow(rUri);
+    lastState = useAnnotationFlow(rUri);
     return null;
   }
 
@@ -84,7 +84,7 @@ function renderDetectionFlow() {
 
 // ─── Tests ─────────────────────────────────────────────────────────────────────
 
-describe('useDetectionFlow', () => {
+describe('useAnnotationFlow', () => {
   beforeEach(() => {
     resetEventBusForTesting();
     mockShowSuccess.mockClear();
@@ -102,7 +102,7 @@ describe('useDetectionFlow', () => {
 
   describe('CRUD Error Toast Notifications', () => {
     it('should show error toast when annotation creation fails', () => {
-      const { getEventBus } = renderDetectionFlow();
+      const { getEventBus } = renderAnnotationFlow();
 
       // Emit annotate:create-failed event
       act(() => {
@@ -116,7 +116,7 @@ describe('useDetectionFlow', () => {
     });
 
     it('should show error toast when annotation deletion fails', () => {
-      const { getEventBus } = renderDetectionFlow();
+      const { getEventBus } = renderAnnotationFlow();
 
       act(() => {
         getEventBus().get('annotate:delete-failed').next({
@@ -128,7 +128,7 @@ describe('useDetectionFlow', () => {
     });
 
     it('should handle error without message gracefully', () => {
-      const { getEventBus } = renderDetectionFlow();
+      const { getEventBus } = renderAnnotationFlow();
 
       act(() => {
         getEventBus().get('annotate:create-failed').next({
@@ -142,7 +142,7 @@ describe('useDetectionFlow', () => {
 
   describe('Detection Cancellation', () => {
     it('should show info toast when detection is cancelled', () => {
-      const { getEventBus } = renderDetectionFlow();
+      const { getEventBus } = renderAnnotationFlow();
 
       act(() => {
         getEventBus().get('annotate:detect-cancelled').next(undefined);
@@ -152,7 +152,7 @@ describe('useDetectionFlow', () => {
     });
 
     it('should clear detection state when cancelled', () => {
-      const { getState, getEventBus } = renderDetectionFlow();
+      const { getState, getEventBus } = renderAnnotationFlow();
 
       // Start detection
       act(() => {
@@ -187,7 +187,7 @@ describe('useDetectionFlow', () => {
 
   describe('Auto-Dismiss Timeout Behavior', () => {
     it('should keep progress visible for 5 seconds after completion', () => {
-      const { getState, getEventBus } = renderDetectionFlow();
+      const { getState, getEventBus } = renderAnnotationFlow();
 
       // Set progress
       act(() => {
@@ -228,7 +228,7 @@ describe('useDetectionFlow', () => {
     });
 
     it('should clear progress immediately on failure', () => {
-      const { getState, getEventBus } = renderDetectionFlow();
+      const { getState, getEventBus } = renderAnnotationFlow();
 
       // Set progress
       act(() => {
@@ -271,7 +271,7 @@ describe('useDetectionFlow', () => {
     });
 
     it('should cancel old timeout when new detection starts', () => {
-      const { getState, getEventBus } = renderDetectionFlow();
+      const { getState, getEventBus } = renderAnnotationFlow();
 
       // Complete first detection
       act(() => {
@@ -314,7 +314,7 @@ describe('useDetectionFlow', () => {
 
   describe('Manual Progress Dismissal', () => {
     it('should clear progress when user dismisses manually', () => {
-      const { getState, getEventBus } = renderDetectionFlow();
+      const { getState, getEventBus } = renderAnnotationFlow();
 
       // Complete detection (starts 5s auto-dismiss)
       act(() => {
@@ -354,7 +354,7 @@ describe('useDetectionFlow', () => {
     });
 
     it('should not throw error if dismissing when no progress exists', () => {
-      const { getState, getEventBus } = renderDetectionFlow();
+      const { getState, getEventBus } = renderAnnotationFlow();
 
       // Try to dismiss when no detection is active
       expect(() => {
@@ -369,7 +369,7 @@ describe('useDetectionFlow', () => {
 
   describe('Pending Annotation Lifecycle', () => {
     it('should set pending annotation on selection event', () => {
-      const { getState, getEventBus } = renderDetectionFlow();
+      const { getState, getEventBus } = renderAnnotationFlow();
 
       // User selects text for comment
       act(() => {
@@ -387,7 +387,7 @@ describe('useDetectionFlow', () => {
     });
 
     it('should clear pending annotation on cancel', () => {
-      const { getState, getEventBus } = renderDetectionFlow();
+      const { getState, getEventBus } = renderAnnotationFlow();
 
       // Create pending annotation
       act(() => {
@@ -409,7 +409,7 @@ describe('useDetectionFlow', () => {
     });
 
     it('should replace pending annotation when new selection made', () => {
-      const { getState, getEventBus } = renderDetectionFlow();
+      const { getState, getEventBus } = renderAnnotationFlow();
 
       // Create first pending annotation
       act(() => {
@@ -440,7 +440,7 @@ describe('useDetectionFlow', () => {
 
   describe('Detection Progress State Updates', () => {
     it('should update detection progress from events', () => {
-      const { getState, getEventBus } = renderDetectionFlow();
+      const { getState, getEventBus } = renderAnnotationFlow();
 
       // Send progress update
       act(() => {
@@ -461,7 +461,7 @@ describe('useDetectionFlow', () => {
     });
 
     it('should track multiple progress updates', () => {
-      const { getState, getEventBus } = renderDetectionFlow();
+      const { getState, getEventBus } = renderAnnotationFlow();
 
       // First update
       act(() => {

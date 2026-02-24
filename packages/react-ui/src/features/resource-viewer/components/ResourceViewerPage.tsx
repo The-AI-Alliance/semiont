@@ -37,7 +37,7 @@ import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsContext';
 import { useApiClient } from '../../../contexts/ApiClientContext';
 import { useResolutionFlow } from '../../../hooks/useResolutionFlow';
-import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
+import { useAnnotationFlow } from '../../../hooks/useAnnotationFlow';
 import { useAttentionFlow } from '../../../hooks/useAttentionFlow';
 import { usePanelNavigation } from '../../../hooks/usePanelNavigation';
 import { useGenerationFlow } from '../../../hooks/useGenerationFlow';
@@ -156,7 +156,7 @@ export function ResourceViewerPage({
 
   // Flow state hooks (NO CONTAINERS)
   const { hoveredAnnotationId } = useAttentionFlow();
-  const { detectingMotivation, detectionProgress, pendingAnnotation } = useDetectionFlow(rUri);
+  const { detectingMotivation, detectionProgress, pendingAnnotation } = useAnnotationFlow(rUri);
   const { activePanel, scrollToAnnotationId, panelInitialTab, onScrollCompleted } = usePanelNavigation();
   const { searchModalOpen, pendingReferenceId, onCloseSearchModal } = useResolutionFlow(rUri);
   const {
@@ -329,12 +329,12 @@ export function ResourceViewerPage({
   const handleSettingsThemeChanged = useCallback(({ theme }: { theme: any }) => setTheme(theme), [setTheme]);
 
   const handleDetectionComplete = useCallback(() => {
-    // Toast notification is handled by useDetectionFlow
+    // Toast notification is handled by useAnnotationFlow
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.annotations(rUri) });
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
   }, [queryClient, rUri]);
   const handleDetectionFailed = useCallback(() => {
-    // Error notification is handled by useDetectionFlow
+    // Error notification is handled by useAnnotationFlow
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.annotations(rUri) });
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
   }, [queryClient, rUri]);

@@ -7,13 +7,13 @@
  * ❌ detectingMotivation remains null
  * ❌ detectionProgress remains null
  *
- * UPDATED: Now tests useDetectionFlow hook instead of DetectionFlowContainer
+ * UPDATED: Now tests useAnnotationFlow hook instead of DetectionFlowContainer
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { act } from 'react';
-import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
+import { useAnnotationFlow } from '../../../hooks/useAnnotationFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
@@ -52,10 +52,10 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
     // Component to capture EventBus and hook state
     function TestComponent() {
       eventBusInstance = useEventBus();
-      const state = useDetectionFlow('http://localhost:8080/resources/test' as any);
+      const state = useAnnotationFlow('http://localhost:8080/resources/test' as any);
       currentState = state;
 
-      console.log('[TEST] useDetectionFlow state:', {
+      console.log('[TEST] useAnnotationFlow state:', {
         detectingMotivation: state.detectingMotivation,
         detectionProgress: state.detectionProgress,
       });
@@ -109,7 +109,7 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
 
     function TestComponent() {
       eventBusInstance = useEventBus();
-      const state = useDetectionFlow('http://localhost:8080/resources/test' as any);
+      const state = useAnnotationFlow('http://localhost:8080/resources/test' as any);
       currentState = state;
 
       return (
@@ -162,7 +162,7 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
 
     function TestComponent() {
       eventBusInstance = useEventBus();
-      const state = useDetectionFlow('http://localhost:8080/resources/f45fd44f9cb0b0fe1b7980d3d034bc61' as any);
+      const state = useAnnotationFlow('http://localhost:8080/resources/f45fd44f9cb0b0fe1b7980d3d034bc61' as any);
 
       stateSnapshots.push({
         detectingMotivation: state.detectingMotivation,

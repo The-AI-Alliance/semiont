@@ -1,7 +1,7 @@
 /**
  * Regression test: pendingAnnotation cleared after annotate:createsucceeds
  *
- * Bug: handleAnnotationCreate in useDetectionFlow called the API and emitted
+ * Bug: handleAnnotationCreate in useAnnotationFlow called the API and emitted
  * annotate:created, but never called setPendingAnnotation(null). The pending
  * creation form (e.g. "Create Reference", "Save" assessment) remained visible
  * after the user clicked the confirm button.
@@ -20,7 +20,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { act } from 'react';
-import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
+import { useAnnotationFlow } from '../../../hooks/useAnnotationFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
@@ -71,7 +71,7 @@ function renderDetectionFlow(testUri: string) {
   }
 
   function DetectionFlowHarness() {
-    const { pendingAnnotation } = useDetectionFlow(testUri as any);
+    const { pendingAnnotation } = useAnnotationFlow(testUri as any);
     return (
       <div>
         <div data-testid="pending-motivation">

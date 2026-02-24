@@ -207,7 +207,7 @@ export * from './features/resource-discovery/components/ResourceDiscoveryPage';
 export * from './features/resource-discovery/components/ResourceCard';
 export * from './features/resource-viewer/components/ResourceViewerPage';
 export * from './hooks/useAttentionFlow';
-export * from './hooks/useDetectionFlow';
+export * from './hooks/useAnnotationFlow';
 export * from './hooks/usePanelNavigation';
 export * from './hooks/useGenerationFlow';
 export * from './hooks/useContextRetrievalFlow';

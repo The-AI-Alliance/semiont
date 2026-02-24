@@ -4,7 +4,7 @@
  * This test verifies the fix for the issue identified in commit 9690806abc910bad490e684d6ef71d874a90579c.
  *
  * SOLUTION IMPLEMENTED:
- * - Pattern B: Both useDetectionFlow and useGenerationFlow call useToast internally
+ * - Pattern B: Both useAnnotationFlow and useGenerationFlow call useToast internally
  * - Toast notifications are shown from within the hooks (self-contained)
  *
  * EXPECTED BEHAVIOR (after fix):
@@ -20,7 +20,7 @@ import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../..
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { resourceUri } from '@semiont/core';
-import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
+import { useAnnotationFlow } from '../../../hooks/useAnnotationFlow';
 import { useGenerationFlow } from '../../../hooks/useGenerationFlow';
 
 // Mock the toast hook to track calls
@@ -51,7 +51,7 @@ describe('Toast Notifications - Verifies Toast Integration', () => {
    */
   function TestComponentWithDetection() {
     eventBusInstance = useEventBus();
-    useDetectionFlow(rUri);
+    useAnnotationFlow(rUri);
     return <div data-testid="test">Test</div>;
   }
 

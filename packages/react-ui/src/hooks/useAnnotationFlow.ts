@@ -1,7 +1,7 @@
 /**
- * useDetectionFlow - Detection state management hook
+ * useAnnotationFlow - Annotation state management hook
  *
- * Manages all annotation detection (manual and AI-driven):
+ * Manages all annotation workflows (manual and AI-driven):
  * - Pending annotation state (user selected text, waiting for confirmation)
  * - Selection events → pending annotation conversion
  * - Annotation request routing to appropriate panel
@@ -45,7 +45,7 @@ interface PendingAnnotation {
   motivation: Motivation;
 }
 
-export interface DetectionFlowState {
+export interface AnnotationFlowState {
   // Manual detection state
   pendingAnnotation: PendingAnnotation | null;
   // AI detection state
@@ -55,9 +55,9 @@ export interface DetectionFlowState {
 }
 
 /**
- * Hook for annotation detection flow (manual and AI-driven)
+ * Hook for annotation flow (manual and AI-driven)
  *
- * @param rUri - Resource URI being detected
+ * @param rUri - Resource URI being annotated
  * @emits attend:panel-open - Open the annotations panel when annotation is requested
  * @emits annotate:created - Annotation successfully created
  * @emits annotate:create-failed - Annotation creation failed
@@ -81,9 +81,9 @@ export interface DetectionFlowState {
  * @subscribes annotate:detect-finished - Detection completed successfully
  * @subscribes annotate:detect-failed - Error during detection
  * @subscribes annotate:detect-dismiss - Manually dismiss progress display
- * @returns Detection state
+ * @returns Annotation flow state
  */
-export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
+export function useAnnotationFlow(rUri: ResourceUri): AnnotationFlowState {
   const eventBus = useEventBus();
   const client = useApiClient();
   const token = useAuthToken();

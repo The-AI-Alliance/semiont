@@ -4,7 +4,7 @@
  * Tests the complete data flow from UI → EventBus → useResolutionFlow → SSE (mocked)
  *
  * This test uses COMPOSITION instead of mocking:
- * - Real React components composed together (useDetectionFlow + HighlightPanel + DetectSection)
+ * - Real React components composed together (useAnnotationFlow + HighlightPanel + DetectSection)
  * - Real EventBus (mitt) passed via context
  * - Real useResolutionFlow hook with mock API client passed as prop
  * - Mock SSE stream (simulated API responses) provided via composition
@@ -19,7 +19,7 @@
  * - That test verifies SYSTEM ARCHITECTURE (event wiring, API call count)
  * - This test verifies USER EXPERIENCE (button clicks, UI feedback)
  *
- * UPDATED: Now tests useDetectionFlow hook instead of DetectionFlowContainer
+ * UPDATED: Now tests useAnnotationFlow hook instead of DetectionFlowContainer
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -27,7 +27,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { act } from 'react';
 import { HighlightPanel } from '../../../components/resource/panels/HighlightPanel';
-import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
+import { useAnnotationFlow } from '../../../hooks/useAnnotationFlow';
 import { EventBusProvider, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
@@ -113,7 +113,7 @@ function DetectionFlowTestHarness({
   rUri: string;
   annotations: Annotation[];
 }) {
-  const { detectingMotivation, detectionProgress } = useDetectionFlow(rUri as any);
+  const { detectingMotivation, detectionProgress } = useAnnotationFlow(rUri as any);
 
   return (
     <HighlightPanel

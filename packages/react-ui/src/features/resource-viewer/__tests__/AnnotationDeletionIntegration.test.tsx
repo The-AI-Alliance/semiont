@@ -4,7 +4,7 @@
  * Tests the COMPLETE annotation deletion flow with real component composition:
  * - EventBusProvider (REAL)
  * - ApiClientProvider (REAL, with MOCKED client)
- * - useDetectionFlow (REAL) — single registration point for useResolutionFlow
+ * - useAnnotationFlow (REAL) — single registration point for useResolutionFlow
  * - useEventSubscriptions (REAL)
  *
  * This test focuses on ARCHITECTURE and EVENT WIRING:
@@ -18,15 +18,15 @@
  * - useResolutionFlow called in more than one hook (causes duplicate subscriptions)
  * - Auth token missing from API calls (401 errors)
  *
- * ARCHITECTURE: useResolutionFlow is called ONLY in useDetectionFlow.
- * useDetectionFlow handles all detection state (manual annotation selection
+ * ARCHITECTURE: useResolutionFlow is called ONLY in useAnnotationFlow.
+ * useAnnotationFlow handles all detection state (manual annotation selection
  * and AI-driven SSE detection) plus all API operations via useResolutionFlow.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import { act } from 'react';
-import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
+import { useAnnotationFlow } from '../../../hooks/useAnnotationFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 
 // Mock Toast module to prevent "useToast must be used within a ToastProvider" errors
@@ -70,9 +70,9 @@ describe('Annotation Deletion - Feature Integration', () => {
 
     function TestComponent() {
       eventBusInstance = useEventBus();
-      // useDetectionFlow is the single registration point for useResolutionFlow
+      // useAnnotationFlow is the single registration point for useResolutionFlow
       // (handles annotate:delete annotate:create annotate:detect-request, etc.)
-      useDetectionFlow(testUri);
+      useAnnotationFlow(testUri);
       return null;
     }
 
@@ -202,10 +202,10 @@ describe('Annotation Deletion - Feature Integration', () => {
     expect(deleteAnnotationSpy.mock.calls[1][0]).toContain('annotation-2');
   });
 
-  it('ARCHITECTURE: useResolutionFlow is called in useDetectionFlow (single registration point)', async () => {
+  it('ARCHITECTURE: useResolutionFlow is called in useAnnotationFlow (single registration point)', async () => {
     /**
      * This test validates that there's only ONE event-driven deletion path:
-     * - useDetectionFlow calls useResolutionFlow (the single registration point)
+     * - useAnnotationFlow calls useResolutionFlow (the single registration point)
      * - useResolutionFlow subscribes to annotation:delete
      *
      * If this test fails with 2 API calls, it means useResolutionFlow was added

@@ -4,7 +4,7 @@
  * Tests the COMPLETE detection flow with real component composition:
  * - EventBusProvider (REAL)
  * - ApiClientProvider (REAL, with MOCKED client)
- * - useDetectionFlow (REAL)
+ * - useAnnotationFlow (REAL)
  * - useResolutionFlow (REAL)
  * - useEventSubscriptions (REAL)
  *
@@ -25,7 +25,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { act } from 'react';
-import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
+import { useAnnotationFlow } from '../../../hooks/useAnnotationFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
@@ -107,7 +107,7 @@ describe('Detection Flow - Feature Integration', () => {
     );
   });
 
-  it('should propagate SSE progress events to useDetectionFlow state', async () => {
+  it('should propagate SSE progress events to useAnnotationFlow state', async () => {
     const testUri = resourceUri('http://localhost:4000/resources/test-resource');
 
     // Render with state observer
@@ -351,7 +351,7 @@ describe('Detection Flow - Feature Integration', () => {
 });
 
 /**
- * Helper: Render useDetectionFlow hook with real component composition
+ * Helper: Render useAnnotationFlow hook with real component composition
  * Returns methods to interact with the rendered component
  */
 function renderDetectionFlow(testUri: string) {
@@ -365,7 +365,7 @@ function renderDetectionFlow(testUri: string) {
 
   // Test harness component that uses the hook
   function DetectionFlowTestHarness() {
-    const { detectionProgress, detectingMotivation } = useDetectionFlow(testUri as any);
+    const { detectionProgress, detectingMotivation } = useAnnotationFlow(testUri as any);
     return (
       <div>
         <div data-testid="detecting">{detectingMotivation || 'none'}</div>
