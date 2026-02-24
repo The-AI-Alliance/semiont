@@ -28,6 +28,7 @@ import { useResourceContent } from '../../../hooks/useResourceContent';
 import { useToast } from '../../../components/Toast';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useLineNumbers } from '../../../hooks/useLineNumbers';
+import { useHoverDelay } from '../../../hooks/useHoverDelay';
 import { useResourceEvents } from '../../../hooks/useResourceEvents';
 import { useDebouncedCallback } from '../../../hooks/useDebounce';
 import { useOpenResources } from '../../../contexts/OpenResourcesContext';
@@ -132,6 +133,7 @@ export function ResourceViewerPage({
   const { showError, showSuccess } = useToast();
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
+  const { hoverDelayMs } = useHoverDelay();
   const { addResource } = useOpenResources();
   const { triggerSparkleAnimation, clearNewAnnotationId } = useResourceAnnotations();
 
@@ -373,8 +375,8 @@ export function ResourceViewerPage({
     'resolve:body-update-failed': handleAnnotateBodyUpdateFailed,
     'settings:theme-changed': handleSettingsThemeChanged,
     'settings:line-numbers-toggled': toggleLineNumbers,
-    'annotate:detect-finished': handleDetectionComplete,
-    'annotate:detect-failed': handleDetectionFailed,
+    'annotate:assist-finished': handleDetectionComplete,
+    'annotate:assist-failed': handleDetectionFailed,
     'generate:finished': handleGenerationComplete,
     'generate:failed': handleGenerationFailed,
     'navigation:reference-navigate': handleReferenceNavigate,
@@ -492,6 +494,7 @@ export function ResourceViewerPage({
                   annotations={groups}
                   generatingReferenceId={generationProgress?.referenceId ?? null}
                   showLineNumbers={showLineNumbers}
+                  hoverDelayMs={hoverDelayMs}
                   hoveredAnnotationId={hoveredAnnotationId}
                 />
               )}

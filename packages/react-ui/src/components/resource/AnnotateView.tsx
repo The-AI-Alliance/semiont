@@ -41,6 +41,7 @@ interface Props {
   getTargetDocumentName?: (documentId: string) => string | undefined;
   generatingReferenceId?: string | null;
   showLineNumbers?: boolean;
+  hoverDelayMs?: number;
   annotateMode: boolean;
 }
 
@@ -144,6 +145,7 @@ export function AnnotateView({
   getTargetDocumentName,
   generatingReferenceId,
   showLineNumbers = false,
+  hoverDelayMs = 150,
   annotateMode
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();
@@ -338,6 +340,7 @@ export function AnnotateView({
             {...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })}
             sourceView={true}
             showLineNumbers={showLineNumbers}
+            hoverDelayMs={hoverDelayMs}
             enableWidgets={enableWidgets}
             eventBus={eventBus}
             {...(getTargetDocumentName && { getTargetDocumentName })}
@@ -373,6 +376,7 @@ export function AnnotateView({
                     selectedMotivation={selectedMotivation}
                     eventBus={eventBus}
                     hoveredAnnotationId={hoveredCommentId || hoveredAnnotationId || null}
+                    hoverDelayMs={hoverDelayMs}
                   />
                 </Suspense>
               )}
@@ -402,6 +406,7 @@ export function AnnotateView({
                 selectedMotivation={selectedMotivation}
                 eventBus={eventBus}
                 hoveredAnnotationId={hoveredCommentId || hoveredAnnotationId || null}
+                hoverDelayMs={hoverDelayMs}
               />
             )}
           </div>

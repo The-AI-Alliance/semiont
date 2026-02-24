@@ -55,7 +55,7 @@ interface PdfAnnotationCanvasProps {
   eventBus?: EventBus;
   hoveredAnnotationId?: string | null;
   selectedAnnotationId?: string | null;
-  hoverDelayMs: number;
+  hoverDelayMs?: number;
 }
 
 /**
@@ -73,7 +73,7 @@ export function PdfAnnotationCanvas({
   eventBus,
   hoveredAnnotationId,
   selectedAnnotationId,
-  hoverDelayMs
+  hoverDelayMs = 150
 }: PdfAnnotationCanvasProps) {
   const pdfUrl = useMemo(() => {
     const resourceId = resourceUri.split('/').pop();

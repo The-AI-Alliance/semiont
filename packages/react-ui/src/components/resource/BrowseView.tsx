@@ -32,7 +32,7 @@ interface Props {
   hoveredCommentId?: string | null;
   selectedClick?: ClickAction;
   annotateMode: boolean;
-  hoverDelayMs: number;
+  hoverDelayMs?: number;
 }
 
 /**
@@ -83,7 +83,7 @@ export function BrowseView({
   annotations,
   selectedClick = 'detail',
   annotateMode,
-  hoverDelayMs
+  hoverDelayMs = 150
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();
   const eventBus = useEventBus();

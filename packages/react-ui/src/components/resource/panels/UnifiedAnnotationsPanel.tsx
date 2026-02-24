@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import type { components, Selector } from '@semiont/core';
+import type { components, Selector, AnnotationProgress } from '@semiont/core';
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
 import type { Annotator } from '../../../lib/annotation-registry';
 import { StatisticsPanel } from './StatisticsPanel';
@@ -45,17 +45,9 @@ interface UnifiedAnnotationsPanelProps {
   // Mode
   annotateMode?: boolean;
 
-  // Detection state (per motivation)
-  detectingMotivation?: Motivation | null;
-  detectionProgress?: {
-    status: string;
-    percentage?: number;
-    message?: string;
-    // Tag-specific progress fields
-    currentCategory?: string;
-    processedCategories?: number;
-    totalCategories?: number;
-  } | null;
+  // Annotation assistance state (per motivation)
+  assistingMotivation?: Motivation | null;
+  progress?: AnnotationProgress | null;
 
   // Unified pending annotation (for creating new annotations)
   pendingAnnotation: PendingAnnotation | null;
@@ -234,17 +226,17 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
           if (!annotator) return null;
 
           const annotations = grouped[activeTab] || [];
-          const isDetecting = props.detectingMotivation === annotator.motivation;
-          // Pass through detectionProgress even when not actively detecting
-          // This allows final progress message to display after detection completes
-          const detectionProgress = props.detectionProgress;
+          const isAssisting = props.assistingMotivation === annotator.motivation;
+          // Pass through progress even when not actively assisting
+          // This allows final progress message to display after assistance completes
+          const progress = props.progress ?? null;
 
           // Common props for all annotation panels
           const commonProps = {
             annotations,
             pendingAnnotation: props.pendingAnnotation,
-            isDetecting,
-            detectionProgress,
+            isAssisting,
+            progress,
             annotateMode: props.annotateMode,
             scrollToAnnotationId: props.scrollToAnnotationId,
             onScrollCompleted: props.onScrollCompleted,
@@ -265,8 +257,8 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
               <ReferencesPanel
                 annotations={commonProps.annotations}
                 pendingAnnotation={commonProps.pendingAnnotation}
-                isDetecting={commonProps.isDetecting}
-                detectionProgress={commonProps.detectionProgress}
+                isAssisting={commonProps.isAssisting}
+                progress={commonProps.progress}
                 annotateMode={commonProps.annotateMode}
                 scrollToAnnotationId={commonProps.scrollToAnnotationId}
                 onScrollCompleted={commonProps.onScrollCompleted}

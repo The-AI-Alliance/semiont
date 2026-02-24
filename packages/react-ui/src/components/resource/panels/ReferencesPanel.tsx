@@ -11,6 +11,7 @@ import type { components, paths, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
 import { PanelHeader } from './PanelHeader';
 import './ReferencesPanel.css';
+import type { AnnotationProgress } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation'];
@@ -40,16 +41,11 @@ function getSelectorDisplayText(selector: Selector | Selector[]): string | null 
   return null;
 }
 
-interface AnnotationLog {
-  entityType: string;
-  foundCount: number;
-}
-
 interface Props {
   // Generic panel props
   annotations?: Annotation[];
   isAssisting: boolean;
-  progress: any; // TODO: type this properly
+  progress: AnnotationProgress | null;
   annotateMode?: boolean;
   Link: React.ComponentType<LinkComponentProps>;
   routes: RouteBuilder;
@@ -93,7 +89,7 @@ export function ReferencesPanel({
   const tRef = useTranslations('ReferencesPanel');
   const eventBus = useEventBus();
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
-  const [lastAnnotationLog, setLastDetectionLog] = useState<DetectionLog[] | null>(null);
+  const [lastAnnotationLog, setLastDetectionLog] = useState<Array<{ entityType: string; foundCount: number }> | null>(null);
   const [pendingEntityTypes, setPendingEntityTypes] = useState<string[]>([]);
   const [includeDescriptiveReferences, setIncludeDescriptiveReferences] = useState(false);
   const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);

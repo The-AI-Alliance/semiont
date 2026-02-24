@@ -43,6 +43,7 @@ interface Props {
   annotations: AnnotationsCollection;
   generatingReferenceId?: string | null;
   showLineNumbers?: boolean;
+  hoverDelayMs?: number;
   hoveredAnnotationId?: string | null;
 }
 
@@ -64,6 +65,7 @@ export function ResourceViewer({
   annotations,
   generatingReferenceId,
   showLineNumbers = false,
+  hoverDelayMs,
   hoveredAnnotationId: hoveredAnnotationIdProp
 }: Props) {
   const t = useTranslations('ResourceViewer');
@@ -400,6 +402,7 @@ export function ResourceViewer({
           getTargetDocumentName={getTargetDocumentName}
           {...(generatingReferenceId !== undefined && { generatingReferenceId })}
           showLineNumbers={showLineNumbers}
+          hoverDelayMs={hoverDelayMs}
           annotateMode={annotateMode}
         />
       ) : (
@@ -410,6 +413,7 @@ export function ResourceViewer({
           annotations={annotationsCollection}
           hoveredCommentId={hoveredCommentId}
           selectedClick={selectedClick}
+          hoverDelayMs={hoverDelayMs}
           annotateMode={annotateMode}
         />
       )}

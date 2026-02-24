@@ -6,6 +6,7 @@ import { createRectangleSvg, createCircleSvg, createPolygonSvg, scaleSvgToNative
 import { AnnotationOverlay } from './AnnotationOverlay';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
 import type { EventBus } from "@semiont/core"
+import { useHoverDelay } from '../../hooks/useHoverDelay';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -42,6 +43,7 @@ interface SvgDrawingCanvasProps {
   eventBus?: EventBus;
   hoveredAnnotationId?: string | null;
   selectedAnnotationId?: string | null;
+  hoverDelayMs?: number;
 }
 
 /**
@@ -59,6 +61,7 @@ export function SvgDrawingCanvas({
   hoveredAnnotationId,
   selectedAnnotationId
 }: SvgDrawingCanvasProps) {
+  const { hoverDelayMs } = useHoverDelay();
   const imageUrl = useMemo(() => {
     const resourceId = resourceUri.split('/').pop();
     return `/api/resources/${resourceId}`;
@@ -338,6 +341,7 @@ export function SvgDrawingCanvas({
               imageHeight={imageDimensions.height}
               displayWidth={displayDimensions.width}
               displayHeight={displayDimensions.height}
+              hoverDelayMs={hoverDelayMs}
               {...(eventBus && { eventBus })}
               {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
               {...(selectedAnnotationId !== undefined && { selectedAnnotationId })}
