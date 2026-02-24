@@ -81,7 +81,10 @@ export function useAttentionFlow(): AttentionFlowState {
 
 // ─── createHoverHandlers (use inside useEffect / imperative setup) ────────────
 
-/** Milliseconds the mouse must dwell before attend:hover is emitted. */
+/**
+ * Default milliseconds the mouse must dwell before attend:hover is emitted.
+ * @deprecated Use useAccessibility().hoverDelayMs instead for user-configurable delay.
+ */
 export const HOVER_DELAY_MS = 150;
 
 type EmitHover = (annotationId: string | null) => void;
@@ -95,7 +98,12 @@ export interface HoverHandlers {
   cleanup: () => void;
 }
 
-export function createHoverHandlers(emit: EmitHover): HoverHandlers {
+/**
+ * Creates hover handlers for imperative code (non-hook contexts).
+ * @param emit - Callback to emit hover events
+ * @param delayMs - Optional hover delay in milliseconds (defaults to HOVER_DELAY_MS for backward compatibility)
+ */
+export function createHoverHandlers(emit: EmitHover, delayMs: number = HOVER_DELAY_MS): HoverHandlers {
   let currentHover: string | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -113,7 +121,7 @@ export function createHoverHandlers(emit: EmitHover): HoverHandlers {
       timer = null;
       currentHover = annotationId;
       emit(annotationId);
-    }, HOVER_DELAY_MS);
+    }, delayMs);
   };
 
   const handleMouseLeave = () => {
@@ -139,8 +147,9 @@ export interface HoverEmitterProps {
  * annotation entry element.
  *
  * @param annotationId - The ID of the annotation this element represents.
+ * @param hoverDelayMs - Optional hover delay in milliseconds (defaults to HOVER_DELAY_MS)
  */
-export function useHoverEmitter(annotationId: string): HoverEmitterProps {
+export function useHoverEmitter(annotationId: string, hoverDelayMs: number = HOVER_DELAY_MS): HoverEmitterProps {
   const eventBus = useEventBus();
   const currentHoverRef = useRef<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -154,8 +163,8 @@ export function useHoverEmitter(annotationId: string): HoverEmitterProps {
       timerRef.current = null;
       currentHoverRef.current = annotationId;
       eventBus.get('attend:hover').next({ annotationId });
-    }, HOVER_DELAY_MS);
-  }, [annotationId]); // eventBus is stable singleton - never in deps
+    }, hoverDelayMs);
+  }, [annotationId, hoverDelayMs]); // eventBus is stable singleton - never in deps
 
   const onMouseLeave = useCallback(() => {
     if (timerRef.current !== null) {

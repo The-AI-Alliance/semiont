@@ -55,6 +55,7 @@ interface PdfAnnotationCanvasProps {
   eventBus?: EventBus;
   hoveredAnnotationId?: string | null;
   selectedAnnotationId?: string | null;
+  hoverDelayMs?: number;
 }
 
 /**
@@ -71,7 +72,8 @@ export function PdfAnnotationCanvas({
   selectedMotivation,
   eventBus,
   hoveredAnnotationId,
-  selectedAnnotationId
+  selectedAnnotationId,
+  hoverDelayMs = 150
 }: PdfAnnotationCanvasProps) {
   const pdfUrl = useMemo(() => {
     const resourceId = resourceUri.split('/').pop();
@@ -362,8 +364,8 @@ export function PdfAnnotationCanvas({
 
   // Hover handlers with currentHover guard and dwell delay
   const { handleMouseEnter, handleMouseLeave } = useMemo(
-    () => createHoverHandlers((annotationId) => eventBus?.get('attend:hover').next({ annotationId })),
-    [eventBus]
+    () => createHoverHandlers((annotationId) => eventBus?.get('attend:hover').next({ annotationId }), hoverDelayMs),
+    [eventBus, hoverDelayMs]
   );
 
   // Calculate motivation color

@@ -42,6 +42,7 @@ interface Props {
   eventBus?: EventBus;
   getTargetDocumentName?: (documentId: string) => string | undefined;
   generatingReferenceId?: string | null; // ID of reference currently generating a document
+  hoverDelayMs?: number; // Hover delay in milliseconds for accessibility
 }
 
 // Effect to update annotation decorations with segments and new IDs
@@ -287,7 +288,8 @@ export function CodeMirrorRenderer({
   enableWidgets = false,
   eventBus,
   getTargetDocumentName,
-  generatingReferenceId
+  generatingReferenceId,
+  hoverDelayMs = 150
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -411,7 +413,8 @@ export function CodeMirrorRenderer({
     const container = view.dom;
 
     const { handleMouseEnter, handleMouseLeave, cleanup: cleanupHover } = createHoverHandlers(
-      (annotationId) => eventBusRef.current?.get('attend:hover').next({ annotationId })
+      (annotationId) => eventBusRef.current?.get('attend:hover').next({ annotationId }),
+      hoverDelayMs
     );
 
     const handleMouseOver = (e: MouseEvent) => {
@@ -437,7 +440,7 @@ export function CodeMirrorRenderer({
       view.destroy();
       viewRef.current = null;
     };
-  }, []); // Only initialize once
+  }, [hoverDelayMs]); // Re-initialize when hover delay changes
 
   // Update content when it changes externally (not from user typing)
   useEffect(() => {

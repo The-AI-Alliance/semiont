@@ -31,6 +31,7 @@ interface Props {
   hoveredCommentId?: string | null;
   selectedClick?: ClickAction;
   annotateMode: boolean;
+  hoverDelayMs?: number;
 }
 
 /**
@@ -80,7 +81,8 @@ export function BrowseView({
   resourceUri,
   annotations,
   selectedClick = 'detail',
-  annotateMode
+  annotateMode,
+  hoverDelayMs = 150
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();
   const eventBus = useEventBus();
@@ -118,7 +120,8 @@ export function BrowseView({
     };
 
     const { handleMouseEnter, handleMouseLeave, cleanup: cleanupHover } = createHoverHandlers(
-      (annotationId) => eventBus.get('attend:hover').next({ annotationId })
+      (annotationId) => eventBus.get('attend:hover').next({ annotationId }),
+      hoverDelayMs
     );
 
     // Single mouseover handler for the container - fires once on enter
@@ -157,7 +160,7 @@ export function BrowseView({
       container.removeEventListener('mouseout', handleMouseOut);
       cleanupHover();
     };
-  }, [content, allAnnotations, newAnnotationIds]);
+  }, [content, allAnnotations, newAnnotationIds, hoverDelayMs]);
 
   // Helper to scroll annotation into view with pulse effect
   const scrollToAnnotation = useCallback((annotationId: string | null, removePulse = false) => {

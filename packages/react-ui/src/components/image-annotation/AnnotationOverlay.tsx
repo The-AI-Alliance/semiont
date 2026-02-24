@@ -18,6 +18,7 @@ interface AnnotationOverlayProps {
   eventBus?: EventBus;
   hoveredAnnotationId?: string | null;
   selectedAnnotationId?: string | null;
+  hoverDelayMs?: number;
 }
 
 /**
@@ -73,14 +74,15 @@ export function AnnotationOverlay({
   displayHeight,
   eventBus,
   hoveredAnnotationId,
-  selectedAnnotationId
+  selectedAnnotationId,
+  hoverDelayMs = 150
 }: AnnotationOverlayProps) {
   const scaleX = displayWidth / imageWidth;
   const scaleY = displayHeight / imageHeight;
 
   const { handleMouseEnter, handleMouseLeave } = useMemo(
-    () => createHoverHandlers((annotationId) => eventBus?.get('attend:hover').next({ annotationId })),
-    [eventBus]
+    () => createHoverHandlers((annotationId) => eventBus?.get('attend:hover').next({ annotationId }), hoverDelayMs),
+    [eventBus, hoverDelayMs]
   );
 
   return (

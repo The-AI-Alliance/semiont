@@ -297,6 +297,7 @@ export type EventMap = {
   'settings:theme-changed': { theme: 'light' | 'dark' | 'system' };
   'settings:line-numbers-toggled': void;
   'settings:locale-changed': { locale: string };
+  'settings:hover-delay-changed': { hoverDelayMs: number };
 };
 
 /**
