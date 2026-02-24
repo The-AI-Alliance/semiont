@@ -125,7 +125,7 @@ export class TagDetectionWorker extends JobWorker {
           progress: tdJob.progress,
         },
       });
-      resourceBus.get('annotate:detect-progress').next({
+      resourceBus.get('annotate:progress').next({
         status: tdJob.progress.stage,
         message: tdJob.progress.message,
         percentage: tdJob.progress.percentage,

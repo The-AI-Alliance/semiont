@@ -123,7 +123,7 @@ export class HighlightDetectionWorker extends JobWorker {
           progress: hlJob.progress,
         },
       });
-      resourceBus.get('annotate:detect-progress').next({
+      resourceBus.get('annotate:progress').next({
         status: hlJob.progress.stage,
         message: hlJob.progress.message,
         percentage: hlJob.progress.percentage

@@ -389,8 +389,8 @@ export class ReferenceDetectionWorker extends JobWorker {
         },
       });
 
-      // PROGRESS EVENT: Emit detection:progress directly to EventBus (ephemeral)
-      resourceBus.get('annotate:detect-progress').next({
+      // PROGRESS EVENT: Emit annotate:progress directly to EventBus (ephemeral)
+      resourceBus.get('annotate:progress').next({
         status: 'scanning',
         message: `Processing ${detJob.progress.currentEntityType}`,
         currentEntityType: detJob.progress.currentEntityType,

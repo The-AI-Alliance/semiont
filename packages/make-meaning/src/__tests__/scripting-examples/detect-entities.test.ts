@@ -157,7 +157,7 @@ describe('Scripting Example: Entity Detection with Progress', () => {
       }
     });
 
-    resourceBus.get('annotate:detect-progress').subscribe(progress => {
+    resourceBus.get('annotate:progress').subscribe(progress => {
       detectionProgressEvents.push(progress);
       console.log(`[${rId}] Progress: ${progress.status} - ${progress.message || ''}`);
     });
@@ -321,7 +321,7 @@ describe('Scripting Example: Entity Detection with Progress', () => {
     // Track progress percentage
     const progressPercentages: number[] = [];
 
-    resourceBus.get('annotate:detect-progress').subscribe(progress => {
+    resourceBus.get('annotate:progress').subscribe(progress => {
       if (progress.percentage !== undefined) {
         progressPercentages.push(progress.percentage);
       }

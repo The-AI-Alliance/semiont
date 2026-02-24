@@ -123,7 +123,7 @@ export class CommentDetectionWorker extends JobWorker {
           progress: cdJob.progress,
         },
       });
-      resourceBus.get('annotate:detect-progress').next({
+      resourceBus.get('annotate:progress').next({
         status: cdJob.progress.stage,
         message: cdJob.progress.message,
         percentage: cdJob.progress.percentage
