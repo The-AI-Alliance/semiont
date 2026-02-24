@@ -6,6 +6,7 @@ import { EditorState, RangeSetBuilder, StateField, StateEffect, Compartment } fr
 import { markdown } from '@codemirror/lang-markdown';
 import { ANNOTATORS } from '../lib/annotation-registry';
 import { ReferenceResolutionWidget } from '../lib/codemirror-widgets';
+import { scrollAnnotationIntoView } from '../lib/scroll-utils';
 import { isHighlight, isReference, isResolvedReference, isComment, isAssessment, isTag, getBodySource } from '@semiont/api-client';
 import type { components } from '@semiont/core';
 import type { EventBus } from "@semiont/core";
@@ -600,29 +601,7 @@ export function CodeMirrorRenderer({
   // Handle scroll to annotation
   useEffect(() => {
     if (!viewRef.current || !scrollToAnnotationId) return;
-
-    const view = viewRef.current;
-
-    // Find the annotation element in the DOM
-    const element = view.contentDOM.querySelector(
-      `[data-annotation-id="${CSS.escape(scrollToAnnotationId)}"]`
-    ) as HTMLElement;
-
-    if (!element) return;
-
-    // Find the actual scroll container - could be annotate view or document viewer
-    const scrollContainer = (element.closest('.semiont-annotate-view__content') ||
-                            element.closest('.semiont-document-viewer__scrollable-body')) as HTMLElement;
-
-    if (scrollContainer) {
-      // Scroll using container.scrollTo to avoid scrolling ancestors
-      const elementTop = element.offsetTop;
-      const containerHeight = scrollContainer.clientHeight;
-      const elementHeight = element.offsetHeight;
-      const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
-
-      scrollContainer.scrollTo({ top: scrollTo, behavior: 'smooth' });
-    }
+    scrollAnnotationIntoView(scrollToAnnotationId, viewRef.current.contentDOM);
   }, [scrollToAnnotationId]);
 
   const containerClasses = sourceView

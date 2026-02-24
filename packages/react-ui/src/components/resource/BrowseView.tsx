@@ -10,6 +10,7 @@ import { resourceUri as toResourceUri } from '@semiont/core';
 import { getExactText, getTextPositionSelector, getTargetSelector, getBodySource, getMimeCategory, isPdfMimeType } from '@semiont/api-client';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import { createHoverHandlers } from '../../hooks/useAttentionFlow';
+import { scrollAnnotationIntoView } from '../../lib/scroll-utils';
 import { ImageViewer } from '../viewers';
 import { AnnotateToolbar, type ClickAction } from '../annotation/AnnotateToolbar';
 import type { AnnotationsCollection } from '../../types/annotation-props';
@@ -164,44 +165,9 @@ export function BrowseView({
 
   // Helper to scroll annotation into view with pulse effect
   const scrollToAnnotation = useCallback((annotationId: string | null, removePulse = false) => {
-    if (!containerRef.current || !annotationId) return;
-
-    const element = containerRef.current.querySelector(
-      `[data-annotation-id="${CSS.escape(annotationId)}"]`
-    ) as HTMLElement;
-
-    if (!element) return;
-
-    // Find the scroll container
-    const scrollContainer = element.closest('.semiont-browse-view__content') as HTMLElement;
-
-    if (scrollContainer) {
-      // Check visibility within the scroll container
-      const elementRect = element.getBoundingClientRect();
-      const containerRect = scrollContainer.getBoundingClientRect();
-
-      const isVisible =
-        elementRect.top >= containerRect.top &&
-        elementRect.bottom <= containerRect.bottom;
-
-      if (!isVisible) {
-        // Scroll using container.scrollTo to avoid scrolling ancestors
-        const elementTop = element.offsetTop;
-        const containerHeight = scrollContainer.clientHeight;
-        const elementHeight = element.offsetHeight;
-        const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
-
-        scrollContainer.scrollTo({ top: scrollTo, behavior: 'smooth' });
-      }
-    }
-
-    // Add pulse effect
-    element.classList.add('annotation-pulse');
-    if (removePulse) {
-      setTimeout(() => {
-        element.classList.remove('annotation-pulse');
-      }, 2000);
-    }
+    if (!containerRef.current) return;
+    // removePulse = true means "add pulse and auto-remove after 2s"
+    scrollAnnotationIntoView(annotationId, containerRef.current, { pulse: removePulse });
   }, []);
 
   // Handle hover events for scrolling

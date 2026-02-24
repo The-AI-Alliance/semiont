@@ -144,9 +144,9 @@ export interface HoverEmitterProps {
  * annotation entry element.
  *
  * @param annotationId - The ID of the annotation this element represents.
- * @param hoverDelayMs - Hover delay in milliseconds
+ * @param hoverDelayMs - Hover delay in milliseconds (defaults to HOVER_DELAY_MS for panel entries)
  */
-export function useHoverEmitter(annotationId: string, hoverDelayMs: number): HoverEmitterProps {
+export function useHoverEmitter(annotationId: string, hoverDelayMs: number = HOVER_DELAY_MS): HoverEmitterProps {
   const eventBus = useEventBus();
   const currentHoverRef = useRef<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
