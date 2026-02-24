@@ -73,13 +73,13 @@ const renderWithEventBus = (component: React.ReactElement, tracker?: ReturnType<
 vi.mock('../../../../contexts/TranslationContext', () => ({
   useTranslations: vi.fn(() => (key: string, params?: Record<string, any>) => {
     const translations: Record<string, string> = {
-      title: 'Detect Entities',
+      title: 'Assist with Entities',
       selectEntityTypes: 'Select entity types',
       noEntityTypes: 'No entity types available',
       select: 'Select',
       deselect: 'Deselect',
       typesSelected: '{count} type(s) selected',
-      startDetection: 'Start Detection',
+      startAssist: 'Start Assist',
       found: 'Found {count}',
       includeDescriptiveReferences: 'Include descriptive references',
       descriptiveReferencesTooltip: 'Also find phrases like \'the CEO\', \'the tech giant\', \'the physicist\' (in addition to names)',

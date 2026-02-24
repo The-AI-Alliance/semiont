@@ -225,9 +225,9 @@ export function useGenerationFlow(
 
     /**
      * Handle job cancellation (generation half)
-     * Emitted by: DetectionProgressWidget
+     * Emitted by: AnnotationProgressWidget
      */
-    const handleJobCancelRequested = (event: { jobType: 'detection' | 'generation' }) => {
+    const handleJobCancelRequested = (event: { jobType: 'annotation' | 'generation' }) => {
       if (event.jobType === 'generation') {
         generationStreamRef.current?.abort();
         generationStreamRef.current = null;

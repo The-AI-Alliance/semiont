@@ -324,7 +324,7 @@ export function TaggingPanel({
               aria-expanded={isAssistExpanded}
               type="button"
             >
-              <span>{t('detectTags')}</span>
+              <span>{t('assistTags')}</span>
               <span className="semiont-panel__section-chevron" data-expanded={isAssistExpanded}>
                 ›
               </span>
