@@ -16,6 +16,9 @@ import { useEventSubscriptions } from '../contexts/useEventSubscription';
 
 export type ToolbarPanelType = 'document' | 'history' | 'info' | 'annotations' | 'settings' | 'collaboration' | 'user' | 'jsonld';
 
+// Generation counter for panel initial tab - ensures re-render on repeated opens
+let tabGenerationCounter = 0;
+
 export interface PanelNavigationState {
   activePanel: ToolbarPanelType | null;
   scrollToAnnotationId: string | null;
@@ -81,7 +84,7 @@ export function usePanelNavigation(): PanelNavigationState {
       };
 
       const tab = motivationToTab[motivation] || 'highlight';
-      setPanelInitialTab({ tab, generation: Date.now() });
+      setPanelInitialTab({ tab, generation: ++tabGenerationCounter });
     }
 
     setActivePanel(panel as ToolbarPanelType);
