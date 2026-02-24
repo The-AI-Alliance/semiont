@@ -21,7 +21,7 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { Motivation, ResourceUri, Selector, components } from '@semiont/core';
+import type { Motivation, ResourceUri, Selector, components, ResourceEvent } from '@semiont/core';
 import { resourceAnnotationUri, accessToken, entityType } from '@semiont/core';
 import { uriToAnnotationIdOrPassthrough } from '@semiont/core';
 import { useEventBus } from '../contexts/EventBusContext';
@@ -227,7 +227,7 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
     }, 5000);
   }, [showSuccess]);
 
-  const handleDetectionFailed = useCallback((event?: { error?: Error }) => {
+  const handleDetectionFailed = useCallback((event: Extract<ResourceEvent, { type: 'job.failed' }>) => {
     // Clear timeout on failure
     if (progressDismissTimeoutRef.current) {
       clearTimeout(progressDismissTimeoutRef.current);
@@ -237,7 +237,7 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
     setDetectionProgress(null);
 
     // Show error notification
-    const errorMessage = event?.error?.message || 'Detection failed';
+    const errorMessage = event.payload.error || 'Detection failed';
     showError(errorMessage);
   }, [showError]);
 
