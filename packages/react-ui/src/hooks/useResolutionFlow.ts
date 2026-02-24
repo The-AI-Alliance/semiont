@@ -5,6 +5,8 @@ import { uriToAnnotationIdOrPassthrough } from '@semiont/core';
 import { useEventBus } from '../contexts/EventBusContext';
 import { useApiClient } from '../contexts/ApiClientContext';
 import { useAuthToken } from '../contexts/AuthTokenContext';
+import { useEventSubscriptions } from '../contexts/useEventSubscription';
+import { useToast } from '../components/Toast';
 
 /** Helper to convert string | null to AccessToken | undefined */
 function toAccessToken(token: string | null) {
@@ -35,6 +37,7 @@ export function useResolutionFlow(rUri: ResourceUri): ResolutionFlowState {
   const eventBus = useEventBus();
   const client = useApiClient();
   const token = useAuthToken();
+  const { showError } = useToast();
 
   // Resolution search modal state
   const [searchModalOpen, setSearchModalOpen] = useState(false);
@@ -125,6 +128,11 @@ export function useResolutionFlow(rUri: ResourceUri): ResolutionFlowState {
     const subscription = eventBus.get('resolve:search-requested').subscribe(handleResolutionSearchRequested);
     return () => subscription.unsubscribe();
   }, [eventBus]);
+
+  // Toast notifications for resolution errors (matching annotation flow pattern)
+  useEventSubscriptions({
+    'resolve:body-update-failed': ({ error }) => showError(`Failed to update reference: ${error.message}`),
+  });
 
   return { searchModalOpen, pendingReferenceId, onCloseSearchModal };
 }
