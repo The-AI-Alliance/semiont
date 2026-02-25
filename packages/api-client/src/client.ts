@@ -29,7 +29,7 @@ import type {
   UserDID
 } from '@semiont/core';
 import { SSEClient } from './sse/index';
-import type { Logger } from './logger';
+import type { Logger } from '@semiont/core';
 
 // Type helpers to extract request/response types from OpenAPI paths
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } }

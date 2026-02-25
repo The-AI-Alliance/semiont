@@ -23,8 +23,8 @@
 // Export client
 export * from './client';
 
-// Logger interface for observability
-export type { Logger } from './logger';
+// Logger interface for observability (re-export from core)
+export type { Logger } from '@semiont/core';
 
 // SSE streaming types and client
 export type {
