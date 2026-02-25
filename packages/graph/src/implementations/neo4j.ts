@@ -3,7 +3,7 @@
 
 import neo4j, { Driver, Session } from 'neo4j-driver';
 import { GraphDatabase } from '../interface';
-import type { components } from '@semiont/core';
+import type { components, Logger } from '@semiont/core';
 import type {
   AnnotationCategory,
   GraphConnection,
@@ -52,6 +52,7 @@ function motivationToLabel(motivation: string): string {
 export class Neo4jGraphDatabase implements GraphDatabase {
   private driver: Driver | null = null;
   private connected: boolean = false;
+  private logger?: Logger;
   private config: {
     uri?: string;
     username?: string;
@@ -67,8 +68,10 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     username?: string;
     password?: string;
     database?: string;
+    logger?: Logger;
   } = {}) {
     this.config = config;
+    this.logger = config.logger;
   }
 
   async connect(): Promise<void> {
@@ -91,7 +94,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         throw new Error('Neo4j database not configured! Pass database in config.');
       }
 
-      console.log(`Connecting to Neo4j at ${uri}...`);
+      this.logger?.info('Connecting to Neo4j', { uri });
 
       this.driver = neo4j.driver(
         uri,
@@ -111,10 +114,10 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       // Create constraints and indexes if they don't exist
       await this.ensureSchemaExists();
 
-      console.log('Successfully connected to Neo4j');
+      this.logger?.info('Successfully connected to Neo4j');
       this.connected = true;
     } catch (error) {
-      console.error('Failed to connect to Neo4j:', error);
+      this.logger?.error('Failed to connect to Neo4j', { error });
       throw new Error(`Neo4j connection failed: ${error}`);
     }
   }
@@ -159,7 +162,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         } catch (error: any) {
           // Ignore if constraint already exists
           if (!error.message?.includes('already exists')) {
-            console.warn(`Schema creation warning: ${error.message}`);
+            this.logger?.warn('Schema creation warning', { message: error.message });
           }
         }
       }
@@ -178,7 +181,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         } catch (error: any) {
           // Ignore if index already exists
           if (!error.message?.includes('already exists')) {
-            console.warn(`Index creation warning: ${error.message}`);
+            this.logger?.warn('Index creation warning', { message: error.message });
           }
         }
       }
@@ -227,7 +230,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
         }
       );
 
-      console.log(`[Neo4j] Resource created/enriched: ${id}`);
+      this.logger?.info('Resource created/enriched', { id });
       return this.parseResourceNode(result.records[0]!.get('d'));
     } finally {
       await session.close();
@@ -457,7 +460,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
   }
 
   async getAnnotation(id: AnnotationUri): Promise<Annotation | null> {
-    console.log(`[Neo4j] getAnnotation called for: ${id}`);
+    this.logger?.debug('Getting annotation', { id });
     const session = this.getSession();
     try {
       const result = await session.run(
@@ -468,10 +471,10 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       );
 
       if (result.records.length === 0) {
-        console.log(`[Neo4j] getAnnotation: Annotation ${id} NOT FOUND`);
+        this.logger?.debug('Annotation not found', { id });
         return null;
       }
-      console.log(`[Neo4j] getAnnotation: Annotation ${id} FOUND`);
+      this.logger?.debug('Annotation found', { id });
       return this.parseAnnotationNode(
         result.records[0]!.get('a'),
         result.records[0]!.get('entityTypes')
@@ -518,7 +521,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
       // If motivation was updated, update the label
       if (updates.motivation) {
         const newLabel = motivationToLabel(updates.motivation);
-        console.log(`[Neo4j] Updating motivation label to: ${newLabel}`);
+        this.logger?.debug('Updating motivation label', { newLabel });
 
         // Remove all possible motivation labels and add the new one
         const allMotivations = ['Assessing', 'Bookmarking', 'Classifying', 'Commenting',
@@ -532,25 +535,18 @@ export class Neo4jGraphDatabase implements GraphDatabase {
            SET a:${newLabel}`,
           { id }
         );
-        console.log(`[Neo4j] ✅ Motivation label updated to: ${newLabel}`);
+        this.logger?.debug('Motivation label updated', { newLabel });
       }
 
       // If body was updated and contains a SpecificResource, create REFERENCES relationship
       if (updates.body) {
-        console.log(`[Neo4j] ====== BODY UPDATE for Annotation ${id} ======`);
-        console.log(`[Neo4j] updates.body:`, JSON.stringify(updates.body));
+        this.logger?.debug('Body update for annotation', { id, body: updates.body });
         const bodyArray = Array.isArray(updates.body) ? updates.body : [updates.body];
-        console.log(`[Neo4j] bodyArray length: ${bodyArray.length}`);
-
-        bodyArray.forEach((item, idx) => {
-          console.log(`[Neo4j]   Body item ${idx}:`, JSON.stringify(item));
-        });
 
         const specificResource = bodyArray.find((item: any) => item.type === 'SpecificResource' && item.purpose === 'linking');
-        console.log(`[Neo4j] Found SpecificResource:`, specificResource ? JSON.stringify(specificResource) : 'null');
 
         if (specificResource && 'source' in specificResource && specificResource.source) {
-          console.log(`[Neo4j] ✅ Creating REFERENCES edge: ${id} -> ${specificResource.source}`);
+          this.logger?.debug('Creating REFERENCES edge', { annotationId: id, targetResourceId: specificResource.source });
           // Create REFERENCES relationship to the target resource
           // Use MERGE for target to create stub node if it doesn't exist yet (eventual consistency)
           // Stub will be enriched when resource.created event arrives
@@ -569,18 +565,18 @@ export class Neo4jGraphDatabase implements GraphDatabase {
           if (refResult.records.length > 0) {
             const wasStub = refResult.records[0]!.get('wasStub');
             if (wasStub) {
-              console.log(`[Neo4j] ✅ REFERENCES edge created with stub node for ${specificResource.source} (will be enriched by resource.created event)`);
+              this.logger?.debug('REFERENCES edge created with stub node', { targetResourceId: specificResource.source });
             } else {
-              console.log(`[Neo4j] ✅ REFERENCES edge created to existing resource ${specificResource.source}`);
+              this.logger?.debug('REFERENCES edge created to existing resource', { targetResourceId: specificResource.source });
             }
           } else {
-            console.log(`[Neo4j] ⚠️  REFERENCES edge creation returned no records`);
+            this.logger?.warn('REFERENCES edge creation returned no records');
           }
         } else {
-          console.log(`[Neo4j] No SpecificResource in body - this is a stub reference (not yet resolved)`);
+          this.logger?.debug('No SpecificResource in body - stub reference not yet resolved');
         }
       } else {
-        console.log(`[Neo4j] No body update for annotation ${id}`);
+        this.logger?.debug('No body update for annotation', { id });
       }
 
       return this.parseAnnotationNode(
@@ -769,8 +765,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
   async getResourceReferencedBy(resourceUri: ResourceUri, motivation?: string): Promise<Annotation[]> {
     const session = this.getSession();
     try {
-      const filterDesc = motivation ? ` with motivation=${motivation}` : '';
-      console.log(`[Neo4j] getResourceReferencedBy: Searching for annotations${filterDesc} referencing ${resourceUri}`);
+      this.logger?.debug('Searching for annotations referencing resource', { resourceUri, motivation });
 
       // Build query with optional motivation label filter
       // If motivation is specified, use the label for efficient filtering
@@ -782,7 +777,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
 
       const result = await session.run(cypher, { resourceUri });
 
-      console.log(`[Neo4j] getResourceReferencedBy: Found ${result.records.length} annotations`);
+      this.logger?.debug('Found annotations', { count: result.records.length });
 
       return result.records.map(record =>
         this.parseAnnotationNode(record.get('a'), record.get('entityTypes'))

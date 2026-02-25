@@ -3,7 +3,7 @@
 
 import gremlin from 'gremlin';
 import { GraphDatabase } from '../interface';
-import type { components, ResourceUri, AnnotationUri } from '@semiont/core';
+import type { components, ResourceUri, AnnotationUri, Logger } from '@semiont/core';
 import { resourceUri, annotationIdToURI } from '@semiont/core';
 import {
   getBodySource,
@@ -36,6 +36,7 @@ export class JanusGraphDatabase implements GraphDatabase {
   private connected: boolean = false;
   private connection: gremlin.driver.DriverRemoteConnection | null = null;
   private g: gremlin.process.GraphTraversalSource | null = null;
+  private logger?: Logger;
 
   // Tag Collections - cached in memory for performance
   private entityTypesCollection: Set<string> | null = null;
@@ -47,9 +48,12 @@ export class JanusGraphDatabase implements GraphDatabase {
       port?: number;
       storageBackend?: 'cassandra' | 'hbase' | 'berkeleydb';
       indexBackend?: 'elasticsearch' | 'solr' | 'lucene';
+      logger?: Logger;
     },
     private envConfig: EnvironmentConfig
-  ) {}
+  ) {
+    this.logger = graphConfig.logger;
+  }
   
   async connect(): Promise<void> {
     // Configuration must be provided via constructor
@@ -63,7 +67,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       throw new Error('JanusGraph port is required: provide in config');
     }
 
-    console.log(`Attempting to connect to JanusGraph at ws://${host}:${port}/gremlin`);
+    this.logger?.info('Connecting to JanusGraph', { host, port });
 
     this.connection = new DriverRemoteConnection(
       `ws://${host}:${port}/gremlin`,
@@ -76,7 +80,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     await this.g.V().limit(1).toList();
 
     this.connected = true;
-    console.log('Successfully connected to JanusGraph');
+    this.logger?.info('Successfully connected to JanusGraph');
 
     // Initialize schema if needed
     await this.initializeSchema();
@@ -97,7 +101,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     // Note: Schema management in JanusGraph typically requires direct access
     // to the management API, which isn't available through Gremlin.
     // In production, you'd run schema initialization scripts separately.
-    console.log('Schema initialization would happen here in production');
+    this.logger?.debug('Schema initialization would happen here in production');
   }
   
   // Helper function to convert vertex to Resource
@@ -271,7 +275,7 @@ export class JanusGraphDatabase implements GraphDatabase {
 
     await vertex.next();
 
-    console.log('Created resource vertex in JanusGraph:', id);
+    this.logger?.info('Created resource vertex in JanusGraph', { id });
     return resource;
   }
   
@@ -316,7 +320,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       .drop()
       .next();
 
-    console.log('Deleted resource from JanusGraph:', id);
+    this.logger?.info('Deleted resource from JanusGraph', { id });
   }
   
   async listResources(filter: ResourceFilter): Promise<{ resources: ResourceDescriptor[]; total: number }> {
@@ -441,7 +445,7 @@ export class JanusGraphDatabase implements GraphDatabase {
         .next();
     }
 
-    console.log('Created annotation in JanusGraph:', id);
+    this.logger?.info('Created annotation in JanusGraph', { id });
     return annotation;
   }
   
@@ -560,7 +564,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       .drop()
       .next();
 
-    console.log('Deleted annotation from JanusGraph:', id);
+    this.logger?.info('Deleted annotation from JanusGraph', { id });
   }
   
   async listAnnotations(filter: { resourceId?: ResourceId; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }> {
@@ -681,7 +685,7 @@ export class JanusGraphDatabase implements GraphDatabase {
 
     // Convert paths to connections
     // This is simplified - real implementation would process paths properly
-    console.log('Found paths:', paths.length);
+    this.logger?.debug('Found paths', { count: paths.length });
 
     // For now, also build connections from references
     const connections: GraphConnection[] = [];
@@ -824,7 +828,7 @@ export class JanusGraphDatabase implements GraphDatabase {
           .next();
       }
     } catch (error) {
-      console.error('Failed to add entity type:', error);
+      this.logger?.error('Failed to add entity type', { error });
     }
   }
 
@@ -852,7 +856,7 @@ export class JanusGraphDatabase implements GraphDatabase {
           .next();
       }
     } catch (error) {
-      console.error('Failed to add entity types:', error);
+      this.logger?.error('Failed to add entity types', { error });
     }
   }
 
@@ -896,6 +900,6 @@ export class JanusGraphDatabase implements GraphDatabase {
     await this.g!.V().drop().next();
     // Reset cached collections
     this.entityTypesCollection = null;
-    console.log('Cleared JanusGraph database');
+    this.logger?.info('Cleared JanusGraph database');
   }
 }

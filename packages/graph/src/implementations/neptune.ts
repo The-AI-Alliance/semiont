@@ -3,7 +3,7 @@
 
 import { GraphDatabase } from '../interface';
 import { getEntityTypes } from '@semiont/ontology';
-import type { components } from '@semiont/core';
+import type { components, Logger } from '@semiont/core';
 import type {
   AnnotationCategory,
   GraphConnection,
@@ -201,6 +201,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
   private neptuneEndpoint?: string;
   private neptunePort: number = 8182;
   private region?: string;
+  private logger?: Logger;
   private g: any; // Gremlin graph traversal source
   private connection: any; // Gremlin connection
 
@@ -226,15 +227,17 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
     return annotations;
   }
-  
+
   constructor(config: {
     endpoint?: string;
     port?: number;
     region?: string;
+    logger?: Logger;
   } = {}) {
     if (config.endpoint) this.neptuneEndpoint = config.endpoint;
     this.neptunePort = config.port || 8182;
     if (config.region) this.region = config.region;
+    this.logger = config.logger;
   }
   
   private async discoverNeptuneEndpoint(): Promise<void> {
@@ -290,10 +293,10 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       // Set the endpoint and port
       this.neptuneEndpoint = cluster.Endpoint;
       this.neptunePort = cluster.Port || 8182;
-      
-      console.log(`Discovered Neptune endpoint: ${this.neptuneEndpoint}:${this.neptunePort}`);
+
+      this.logger?.info('Discovered Neptune endpoint', { endpoint: this.neptuneEndpoint, port: this.neptunePort });
     } catch (error: any) {
-      console.error('Failed to discover Neptune endpoint:', error);
+      this.logger?.error('Failed to discover Neptune endpoint', { error });
       throw error;
     }
   }
@@ -312,25 +315,25 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       
       // Neptune requires WebSocket Secure (wss) protocol
       const connectionUrl = `wss://${this.neptuneEndpoint}:${this.neptunePort}/gremlin`;
-      console.log(`Connecting to Neptune at ${connectionUrl}`);
-      
+      this.logger?.info('Connecting to Neptune', { connectionUrl });
+
       // Create the connection
       this.connection = new DriverRemoteConnection(connectionUrl, {
         authenticator: null, // Neptune uses IAM authentication via task role
         rejectUnauthorized: true,
         traversalSource: 'g'
       });
-      
+
       // Create the graph traversal source
       this.g = traversal().withRemote(this.connection);
-      
+
       // Test the connection
       const count = await this.g.V().limit(1).count().next();
-      console.log(`Connected to Neptune. Vertex count test: ${count.value}`);
-      
+      this.logger?.info('Connected to Neptune', { vertexCountTest: count.value });
+
       this.connected = true;
     } catch (error: any) {
-      console.error('Failed to connect to Neptune:', error);
+      this.logger?.error('Failed to connect to Neptune', { error });
       throw error;
     }
   }
@@ -341,12 +344,12 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       try {
         await this.connection.close();
       } catch (error) {
-        console.error('Error closing Neptune connection:', error);
+        this.logger?.error('Error closing Neptune connection', { error });
       }
     }
-    
+
     this.connected = false;
-    console.log('Disconnected from Neptune');
+    this.logger?.info('Disconnected from Neptune');
   }
   
   isConnected(): boolean {
@@ -379,10 +382,10 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
       await vertex.next();
 
-      console.log(`Created resource vertex in Neptune: ${id}`);
+      this.logger?.info('Created resource vertex in Neptune', { id });
       return resource;
     } catch (error) {
-      console.error('Failed to create resource in Neptune:', error);
+      this.logger?.error('Failed to create resource in Neptune', { error });
       throw error;
     }
   }
@@ -401,7 +404,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       
       return vertexToResource(result.value);
     } catch (error) {
-      console.error('Failed to get resource from Neptune:', error);
+      this.logger?.error('Failed to get resource from Neptune', { error });
       throw error;
     }
   }
@@ -426,7 +429,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
       return vertexToResource(result.value);
     } catch (error) {
-      console.error('Failed to update resource in Neptune:', error);
+      this.logger?.error('Failed to update resource in Neptune', { error });
       throw error;
     }
   }
@@ -439,10 +442,10 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .has('id', id)
         .drop()
         .iterate();
-      
-      console.log(`Deleted resource from Neptune: ${id}`);
+
+      this.logger?.info('Deleted resource from Neptune', { id });
     } catch (error) {
-      console.error('Failed to delete resource from Neptune:', error);
+      this.logger?.error('Failed to delete resource from Neptune', { error });
       throw error;
     }
   }
@@ -486,7 +489,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       
       return { resources, total };
     } catch (error) {
-      console.error('Failed to list resources from Neptune:', error);
+      this.logger?.error('Failed to list resources from Neptune', { error });
       throw error;
     }
   }
@@ -504,7 +507,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       
       return results.map(vertexToResource);
     } catch (error) {
-      console.error('Failed to search resources in Neptune:', error);
+      this.logger?.error('Failed to search resources in Neptune', { error });
       throw error;
     }
   }
@@ -583,10 +586,10 @@ export class NeptuneGraphDatabase implements GraphDatabase {
           .next();
       }
 
-      console.log(`Created annotation vertex in Neptune: ${annotation.id}`);
+      this.logger?.info('Created annotation vertex in Neptune', { id: annotation.id });
       return annotation;
     } catch (error) {
-      console.error('Failed to create annotation in Neptune:', error);
+      this.logger?.error('Failed to create annotation in Neptune', { error });
       throw error;
     }
   }
@@ -616,7 +619,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
       return vertexToAnnotation(result.value, entityTypes);
     } catch (error) {
-      console.error('Failed to get annotation from Neptune:', error);
+      this.logger?.error('Failed to get annotation from Neptune', { error });
       throw error;
     }
   }
@@ -701,7 +704,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
       return vertexToAnnotation(result.value, entityTypes);
     } catch (error) {
-      console.error('Failed to update annotation in Neptune:', error);
+      this.logger?.error('Failed to update annotation in Neptune', { error });
       throw error;
     }
   }
@@ -713,10 +716,10 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .has('id', id)
         .drop()
         .iterate();
-      
-      console.log(`Deleted annotation from Neptune: ${id}`);
+
+      this.logger?.info('Deleted annotation from Neptune', { id });
     } catch (error) {
-      console.error('Failed to delete annotation from Neptune:', error);
+      this.logger?.error('Failed to delete annotation from Neptune', { error });
       throw error;
     }
   }
@@ -740,7 +743,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
       return { annotations, total: annotations.length };
     } catch (error) {
-      console.error('Failed to list annotations from Neptune:', error);
+      this.logger?.error('Failed to list annotations from Neptune', { error });
       throw error;
     }
   }
@@ -757,7 +760,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
       return await this.fetchAnnotationsWithEntityTypes(results);
     } catch (error) {
-      console.error('Failed to get highlights from Neptune:', error);
+      this.logger?.error('Failed to get highlights from Neptune', { error });
       throw error;
     }
   }
@@ -810,7 +813,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
       return vertexToAnnotation(result.value, entityTypes);
     } catch (error) {
-      console.error('Failed to resolve reference in Neptune:', error);
+      this.logger?.error('Failed to resolve reference in Neptune', { error });
       throw error;
     }
   }
@@ -826,7 +829,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
       return await this.fetchAnnotationsWithEntityTypes(results);
     } catch (error) {
-      console.error('Failed to get references from Neptune:', error);
+      this.logger?.error('Failed to get references from Neptune', { error });
       throw error;
     }
   }
@@ -853,7 +856,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
       return await this.fetchAnnotationsWithEntityTypes(results);
     } catch (error) {
-      console.error('Failed to get entity references from Neptune:', error);
+      this.logger?.error('Failed to get entity references from Neptune', { error });
       throw error;
     }
   }
@@ -868,7 +871,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
       return await this.fetchAnnotationsWithEntityTypes(results);
     } catch (error) {
-      console.error('Failed to get resource annotations from Neptune:', error);
+      this.logger?.error('Failed to get resource annotations from Neptune', { error });
       throw error;
     }
   }
@@ -883,7 +886,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
       return await this.fetchAnnotationsWithEntityTypes(results);
     } catch (error) {
-      console.error('Failed to get resource referenced by from Neptune:', error);
+      this.logger?.error('Failed to get resource referenced by from Neptune', { error });
       throw error;
     }
   }
@@ -974,7 +977,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
       return Array.from(connectionsMap.values());
     } catch (error) {
-      console.error('Failed to get resource connections from Neptune:', error);
+      this.logger?.error('Failed to get resource connections from Neptune', { error });
       throw error;
     }
   }
@@ -1020,7 +1023,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       
       return paths;
     } catch (error) {
-      console.error('Failed to find paths in Neptune:', error);
+      this.logger?.error('Failed to find paths in Neptune', { error });
       throw error;
     }
   }
@@ -1052,7 +1055,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
       
       return stats;
     } catch (error) {
-      console.error('Failed to get entity type stats from Neptune:', error);
+      this.logger?.error('Failed to get entity type stats from Neptune', { error });
       throw error;
     }
   }
@@ -1131,7 +1134,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         contentTypes,
       };
     } catch (error) {
-      console.error('Failed to get stats from Neptune:', error);
+      this.logger?.error('Failed to get stats from Neptune', { error });
       throw error;
     }
   }
@@ -1147,7 +1150,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
       return results;
     } catch (error) {
-      console.error('Failed to create annotations in Neptune:', error);
+      this.logger?.error('Failed to create annotations in Neptune', { error });
       throw error;
     }
   }
@@ -1164,7 +1167,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
 
       return results;
     } catch (error) {
-      console.error('Failed to resolve references in Neptune:', error);
+      this.logger?.error('Failed to resolve references in Neptune', { error });
       throw error;
     }
   }
@@ -1203,7 +1206,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         .property(cardinality.set, 'tags', tag)
         .iterate();
     } catch (error) {
-      console.error('Failed to add entity type:', error);
+      this.logger?.error('Failed to add entity type', { error });
     }
   }
   
@@ -1226,7 +1229,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         await vertex.property(cardinality.set, 'tags', tag).iterate();
       }
     } catch (error) {
-      console.error('Failed to add entity types:', error);
+      this.logger?.error('Failed to add entity types', { error });
     }
   }
   
@@ -1247,7 +1250,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
         }
       }
     } catch (error) {
-      console.log('No existing tag collections found, will initialize with defaults');
+      this.logger?.debug('No existing tag collections found, will initialize with defaults');
     }
 
     // Initialize with defaults if not present
@@ -1265,7 +1268,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
             .iterate();
         }
       } catch (error) {
-        console.error('Failed to initialize entity types:', error);
+        this.logger?.error('Failed to initialize entity types', { error });
       }
     }
   }
@@ -1278,11 +1281,11 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     try {
       // CAREFUL! This clears the entire graph
       await this.g.V().drop().iterate();
-      console.log('Cleared all data from Neptune');
+      this.logger?.info('Cleared all data from Neptune');
       // Reset tag collections
       this.entityTypesCollection = null;
     } catch (error) {
-      console.error('Failed to clear Neptune database:', error);
+      this.logger?.error('Failed to clear Neptune database', { error });
       throw error;
     }
   }

@@ -130,6 +130,9 @@ export {
 // Event bus (RxJS-based, framework-agnostic)
 export { EventBus, ScopedEventBus } from './event-bus';
 
+// Logger interface (framework-agnostic)
+export type { Logger } from './logger';
+
 // Event protocol (application-level events for event bus)
 export type {
   EventMap,
