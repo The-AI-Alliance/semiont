@@ -43,11 +43,11 @@ vi.mock('../../contexts/ApiClientContext', async () => {
       createAnnotation: mockCreateAnnotation,
       deleteAnnotation: mockDeleteAnnotation,
       sse: {
-        detectReferences: vi.fn(),
-        detectTags: vi.fn(),
-        detectHighlights: vi.fn(),
-        detectAssessments: vi.fn(),
-        detectComments: vi.fn(),
+        annotateReferences: vi.fn(),
+        annotateTags: vi.fn(),
+        annotateHighlights: vi.fn(),
+        annotateAssessments: vi.fn(),
+        annotateComments: vi.fn(),
       },
     }),
   };
@@ -148,7 +148,7 @@ describe('useAnnotationFlow', () => {
         getEventBus().get('annotate:detect-cancelled').next(undefined);
       });
 
-      expect(mockShowInfo).toHaveBeenCalledWith('Detection cancelled');
+      expect(mockShowInfo).toHaveBeenCalledWith('Annotation cancelled');
     });
 
     it('should clear detection state when cancelled', () => {
@@ -171,7 +171,7 @@ describe('useAnnotationFlow', () => {
         });
       });
 
-      expect(getState().detectingMotivation).toBe('linking');
+      expect(getState().assistingMotivation).toBe('linking');
 
       // Cancel detection
       act(() => {
@@ -199,7 +199,7 @@ describe('useAnnotationFlow', () => {
         });
       });
 
-      expect(getState().detectionProgress).toBeTruthy();
+      expect(getState().progress).toBeTruthy();
 
       // Complete detection
       act(() => {
@@ -209,22 +209,22 @@ describe('useAnnotationFlow', () => {
       });
 
       // Progress should still be visible immediately after completion
-      expect(getState().detectionProgress).toBeTruthy();
-      expect(getState().detectingMotivation).toBeNull();
+      expect(getState().progress).toBeTruthy();
+      expect(getState().assistingMotivation).toBeNull();
 
       // Advance time by 3 seconds - progress should still be visible
       act(() => {
         vi.advanceTimersByTime(3000);
       });
 
-      expect(getState().detectionProgress).toBeTruthy();
+      expect(getState().progress).toBeTruthy();
 
       // Advance time to complete the 5 second timeout
       act(() => {
         vi.advanceTimersByTime(2100);
       });
 
-      expect(getState().detectionProgress).toBeNull();
+      expect(getState().progress).toBeNull();
     });
 
     it('should clear progress immediately on failure', () => {
@@ -239,7 +239,7 @@ describe('useAnnotationFlow', () => {
         });
       });
 
-      expect(getState().detectionProgress).toBeTruthy();
+      expect(getState().progress).toBeTruthy();
 
       // Fail detection
       act(() => {
@@ -259,15 +259,15 @@ describe('useAnnotationFlow', () => {
       });
 
       // Progress should be cleared immediately
-      expect(getState().detectionProgress).toBeNull();
-      expect(getState().detectingMotivation).toBeNull();
+      expect(getState().progress).toBeNull();
+      expect(getState().assistingMotivation).toBeNull();
 
       // Advance time - progress should remain null
       act(() => {
         vi.advanceTimersByTime(6000);
       });
 
-      expect(getState().detectionProgress).toBeNull();
+      expect(getState().progress).toBeNull();
     });
 
     it('should cancel old timeout when new detection starts', () => {
@@ -300,7 +300,7 @@ describe('useAnnotationFlow', () => {
       });
 
       // Old timeout should be cancelled, new detection should start
-      expect(getState().detectingMotivation).toBe('commenting');
+      expect(getState().assistingMotivation).toBe('commenting');
 
       // Advance past original 5s timeout
       act(() => {
@@ -308,7 +308,7 @@ describe('useAnnotationFlow', () => {
       });
 
       // Progress should NOT be cleared (old timeout cancelled)
-      expect(getState().detectingMotivation).toBe('commenting');
+      expect(getState().assistingMotivation).toBe('commenting');
     });
   });
 
@@ -330,7 +330,7 @@ describe('useAnnotationFlow', () => {
         });
       });
 
-      expect(getState().detectionProgress).toBeTruthy();
+      expect(getState().progress).toBeTruthy();
 
       // User manually dismisses at 2 seconds
       act(() => {
@@ -342,7 +342,7 @@ describe('useAnnotationFlow', () => {
       });
 
       // Progress should be cleared immediately
-      expect(getState().detectionProgress).toBeNull();
+      expect(getState().progress).toBeNull();
 
       // Advance past original 5s timeout
       act(() => {
@@ -350,7 +350,7 @@ describe('useAnnotationFlow', () => {
       });
 
       // Progress should remain null (timeout was cancelled)
-      expect(getState().detectionProgress).toBeNull();
+      expect(getState().progress).toBeNull();
     });
 
     it('should not throw error if dismissing when no progress exists', () => {
@@ -363,7 +363,7 @@ describe('useAnnotationFlow', () => {
         });
       }).not.toThrow();
 
-      expect(getState().detectionProgress).toBeNull();
+      expect(getState().progress).toBeNull();
     });
   });
 
@@ -452,7 +452,7 @@ describe('useAnnotationFlow', () => {
         });
       });
 
-      expect(getState().detectionProgress).toEqual({
+      expect(getState().progress).toEqual({
         status: 'scanning',
         message: 'Scanning document for references',
         currentEntityType: 'Person',
@@ -473,7 +473,7 @@ describe('useAnnotationFlow', () => {
         });
       });
 
-      expect(getState().detectionProgress?.currentEntityType).toBe('Person');
+      expect(getState().progress?.currentEntityType).toBe('Person');
 
       // Second update
       act(() => {
@@ -485,8 +485,8 @@ describe('useAnnotationFlow', () => {
         });
       });
 
-      expect(getState().detectionProgress?.currentEntityType).toBe('Location');
-      expect(getState().detectionProgress?.percentage).toBe(66);
+      expect(getState().progress?.currentEntityType).toBe('Location');
+      expect(getState().progress?.percentage).toBe(66);
     });
   });
 });
