@@ -6,8 +6,6 @@
  * - Update annotation body (operations: add/remove/replace)
  * - Delete annotations (validation, event emission)
  *
- * NOTE: This class contains static utility methods without logger access.
- * Console statements kept for debugging - consider adding logger parameter in future.
  */
 
 import type { EventStore } from '@semiont/event-sourcing';
@@ -20,6 +18,7 @@ import type {
   EnvironmentConfig,
   ResourceId,
   UserId,
+  Logger,
 } from '@semiont/core';
 import { annotationId, uriToResourceId, uriToAnnotationId } from '@semiont/core';
 import { AnnotationContext } from './annotation-context';
@@ -150,7 +149,8 @@ export class AnnotationOperations {
     resourceIdUri: string,
     userId: UserId,
     eventStore: EventStore,
-    config: EnvironmentConfig
+    config: EnvironmentConfig,
+    logger?: Logger
   ): Promise<void> {
     const resourceId = uriToResourceId(resourceIdUri);
 
@@ -163,7 +163,7 @@ export class AnnotationOperations {
     }
 
     // Emit annotation.removed event
-    console.log('[AnnotationOperations] Emitting annotation.removed event for:', id);
+    logger?.debug('Emitting annotation.removed event', { annotationId: id });
     const storedEvent = await eventStore.appendEvent({
       type: 'annotation.removed',
       resourceId,
@@ -173,7 +173,7 @@ export class AnnotationOperations {
         annotationId: uriToAnnotationId(id),
       },
     });
-    console.log('[AnnotationOperations] Event emitted, sequence:', storedEvent.metadata.sequenceNumber);
+    logger?.debug('Event emitted', { sequenceNumber: storedEvent.metadata.sequenceNumber });
   }
 
   /**

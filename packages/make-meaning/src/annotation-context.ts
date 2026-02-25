@@ -88,37 +88,40 @@ export class AnnotationContext {
       throw new Error('contextWindow must be between 100 and 5000');
     }
 
-    console.log(`[AnnotationContext] buildLLMContext called with annotationUri=${annotationUri}, resourceId=${resourceId}`);
+    logger?.debug('Building LLM context', { annotationUri, resourceId });
 
     const basePath = config.services.filesystem!.path;
-    console.log(`[AnnotationContext] basePath=${basePath}`);
+    logger?.debug('Filesystem basePath', { basePath });
 
     const projectRoot = config._metadata?.projectRoot;
     const viewStorage = new FilesystemViewStorage(basePath, projectRoot);
     const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
 
     // Get source resource view
-    console.log(`[AnnotationContext] Getting view for resourceId=${resourceId}`);
+    logger?.debug('Getting view for resource', { resourceId });
     let sourceView;
     try {
       sourceView = await viewStorage.get(resourceId);
-      console.log(`[AnnotationContext] Got view:`, !!sourceView);
+      logger?.debug('Retrieved view', { hasView: !!sourceView });
 
       if (!sourceView) {
         throw new Error('Source resource not found');
       }
     } catch (error) {
-      console.error(`[AnnotationContext] Error getting view:`, error);
+      logger?.error('Error getting view', { resourceId, error });
       throw error;
     }
 
-    console.log(`[AnnotationContext] Looking for annotation ${annotationUri} in resource ${resourceId}`);
-    console.log(`[AnnotationContext] View has ${sourceView.annotations.annotations.length} annotations`);
-    console.log(`[AnnotationContext] First 5 annotation IDs:`, sourceView.annotations.annotations.slice(0, 5).map((a: Annotation) => a.id));
+    logger?.debug('Looking for annotation in resource', {
+      annotationUri,
+      resourceId,
+      totalAnnotations: sourceView.annotations.annotations.length,
+      firstFiveIds: sourceView.annotations.annotations.slice(0, 5).map((a: Annotation) => a.id)
+    });
 
     // Find the annotation in the view (annotations have full URIs as their id)
     const annotation = sourceView.annotations.annotations.find((a: Annotation) => a.id === annotationUri);
-    console.log(`[AnnotationContext] Found annotation:`, !!annotation);
+    logger?.debug('Annotation search result', { found: !!annotation });
 
     if (!annotation) {
       throw new Error('Annotation not found in view');
@@ -127,7 +130,7 @@ export class AnnotationContext {
     const targetSource = getTargetSource(annotation.target);
     // Extract resource ID from the target source URI (format: http://host/resources/{id})
     const targetResourceId = targetSource.split('/').pop();
-    console.log(`[AnnotationContext] Target source: ${targetSource}, Expected resource ID: ${resourceId}, Extracted ID: ${targetResourceId}`);
+    logger?.debug('Validating target resource', { targetSource, expectedResourceId: resourceId, extractedId: targetResourceId });
 
     if (targetResourceId !== resourceId) {
       throw new Error(`Annotation target resource ID (${targetResourceId}) does not match expected resource ID (${resourceId})`);
@@ -167,10 +170,10 @@ export class AnnotationContext {
       // Handle array of selectors - take the first one
       const targetSelector = Array.isArray(targetSelectorRaw) ? targetSelectorRaw[0] : targetSelectorRaw;
 
-      console.log(`[AnnotationContext] Target selector type:`, targetSelector?.type);
+      logger?.debug('Target selector', { type: targetSelector?.type });
 
       if (!targetSelector) {
-        console.warn(`[AnnotationContext] No target selector found`);
+        logger?.warn('No target selector found');
       } else if (targetSelector.type === 'TextPositionSelector') {
         // TypeScript now knows this is TextPositionSelector with required start/end
         const selector = targetSelector as TextPositionSelector;
@@ -182,7 +185,7 @@ export class AnnotationContext {
         const after = contentStr.slice(end, Math.min(contentStr.length, end + contextWindow));
 
         sourceContext = { before, selected, after };
-        console.log(`[AnnotationContext] Built source context using TextPositionSelector (${start}-${end})`);
+        logger?.debug('Built source context using TextPositionSelector', { start, end });
       } else if (targetSelector.type === 'TextQuoteSelector') {
         // TypeScript now knows this is TextQuoteSelector with required exact
         const selector = targetSelector as TextQuoteSelector;
@@ -198,12 +201,12 @@ export class AnnotationContext {
           const after = contentStr.slice(end, Math.min(contentStr.length, end + contextWindow));
 
           sourceContext = { before, selected, after };
-          console.log(`[AnnotationContext] Built source context using TextQuoteSelector (found at ${index})`);
+          logger?.debug('Built source context using TextQuoteSelector', { foundAt: index });
         } else {
-          console.warn(`[AnnotationContext] TextQuoteSelector exact text not found in content: "${exact.substring(0, 50)}..."`);
+          logger?.warn('TextQuoteSelector exact text not found in content', { exactPreview: exact.substring(0, 50) });
         }
       } else {
-        console.warn(`[AnnotationContext] Unknown selector type: ${(targetSelector as any).type}`);
+        logger?.warn('Unknown selector type', { type: (targetSelector as any).type });
       }
     }
 

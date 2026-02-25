@@ -7,12 +7,10 @@
  * - Reference suggestion generation
  * - Language handling and template processing
  *
- * NOTE: These are standalone utility functions without logger access.
- * Console statements kept for debugging - consider adding logger parameter in future.
  */
 
 import { getLocaleEnglishName } from '@semiont/api-client';
-import type { GenerationContext } from '@semiont/core';
+import type { GenerationContext, Logger } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 
 
@@ -31,10 +29,11 @@ export async function generateResourceFromTopic(
   locale?: string,
   context?: GenerationContext,
   temperature?: number,
-  maxTokens?: number
+  maxTokens?: number,
+  logger?: Logger
 ): Promise<{ title: string; content: string }> {
-  console.log('generateResourceFromTopic called with:', {
-    topic: topic.substring(0, 100),
+  logger?.debug('Generating resource from topic', {
+    topicPreview: topic.substring(0, 100),
     entityTypes,
     hasUserPrompt: !!userPrompt,
     locale,
@@ -105,12 +104,16 @@ Requirements:
     };
   };
 
-  console.log('Sending prompt to inference (length:', prompt.length, 'chars)', 'temp:', finalTemperature, 'maxTokens:', finalMaxTokens);
+  logger?.debug('Sending prompt to inference', {
+    promptLength: prompt.length,
+    temperature: finalTemperature,
+    maxTokens: finalMaxTokens
+  });
   const response = await client.generateText(prompt, finalMaxTokens, finalTemperature);
-  console.log('Got raw response (length:', response.length, 'chars)');
+  logger?.debug('Got response from inference', { responseLength: response.length });
 
   const result = parseResponse(response);
-  console.log('Parsed result:', {
+  logger?.debug('Parsed response', {
     hasTitle: !!result.title,
     titleLength: result.title?.length,
     hasContent: !!result.content,

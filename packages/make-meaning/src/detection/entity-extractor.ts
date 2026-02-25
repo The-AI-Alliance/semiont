@@ -1,4 +1,5 @@
 import type { InferenceClient } from '@semiont/inference';
+import type { Logger } from '@semiont/core';
 
 /**
  * Entity reference extracted from text
@@ -19,16 +20,16 @@ export interface ExtractedEntity {
  * @param entityTypes - Array of entity types to detect (optionally with examples)
  * @param client - Inference client for AI operations
  * @param includeDescriptiveReferences - Include anaphoric/cataphoric references (default: false)
+ * @param logger - Optional logger for debugging entity extraction
  * @returns Array of extracted entities with their character offsets
  */
 export async function extractEntities(
   exact: string,
   entityTypes: string[] | { type: string; examples?: string[] }[],
   client: InferenceClient,
-  includeDescriptiveReferences: boolean = false
+  includeDescriptiveReferences: boolean = false,
+  logger?: Logger
 ): Promise<ExtractedEntity[]> {
-  // NOTE: This is a standalone utility function without logger access.
-  // Console statements kept for debugging entity extraction - consider adding logger parameter in future.
 
   // Format entity types for the prompt
   const entityTypesDescription = entityTypes.map(et => {
@@ -90,15 +91,13 @@ Do not include markdown formatting or code fences, just the raw JSON array.
 Example output:
 [{"exact":"Alice","entityType":"Person","startOffset":0,"endOffset":5,"prefix":"","suffix":" went to"},{"exact":"Paris","entityType":"Location","startOffset":20,"endOffset":25,"prefix":"went to ","suffix":" yesterday"}]`;
 
-  console.log('Sending entity extraction request');
+  logger?.debug('Sending entity extraction request', { entityTypes: entityTypesDescription });
   const response = await client.generateTextWithMetadata(
     prompt,
     4000, // Increased to handle many entities without truncation
     0.3   // Lower temperature for more consistent extraction
   );
-  console.log('Got entity extraction response');
-
-  console.log('Entity extraction raw response length:', response.text.length);
+  logger?.debug('Got entity extraction response', { responseLength: response.text.length });
 
   try {
     // Clean up response if wrapped in markdown
@@ -108,12 +107,12 @@ Example output:
     }
 
     const entities = JSON.parse(jsonStr);
-    console.log('Parsed', entities.length, 'entities from response');
+    logger?.debug('Parsed entities from AI response', { count: entities.length });
 
     // Check if response was truncated - this is an ERROR condition
     if (response.stopReason === 'max_tokens') {
       const errorMsg = `AI response truncated: Found ${entities.length} entities but response hit max_tokens limit. Increase max_tokens or reduce resource size.`;
-      console.error(`❌ ${errorMsg}`);
+      logger?.error(errorMsg);
       throw new Error(errorMsg);
     }
 
@@ -122,35 +121,45 @@ Example output:
       let startOffset = entity.startOffset;
       let endOffset = entity.endOffset;
 
-      console.log(`\n[Entity ${idx + 1}/${entities.length}]`);
-      console.log(`  Type: ${entity.entityType}`);
-      console.log(`  Text: "${entity.exact}"`);
-      console.log(`  Offsets from AI: [${startOffset}, ${endOffset}]`);
+      logger?.debug('Processing entity', {
+        index: idx + 1,
+        total: entities.length,
+        type: entity.entityType,
+        text: entity.exact,
+        offsetsFromAI: `[${startOffset}:${endOffset}]`
+      });
 
       // Verify the offsets are correct by checking if the text matches
       const extractedText = exact.substring(startOffset, endOffset);
 
       // If the extracted text doesn't match, find the correct position using context
       if (extractedText !== entity.exact) {
-        console.log(`  ⚠️  Offset mismatch!`);
-        console.log(`  Expected: "${entity.exact}"`);
-        console.log(`  Found at AI offsets [${startOffset}:${endOffset}]: "${extractedText}"`);
+        logger?.warn('Offset mismatch detected', {
+          expected: entity.exact,
+          foundAtOffsets: `[${startOffset}:${endOffset}]`,
+          foundText: extractedText
+        });
 
         // Show context around the AI-provided offset
         const contextStart = Math.max(0, startOffset - 50);
         const contextEnd = Math.min(exact.length, endOffset + 50);
         const contextBefore = exact.substring(contextStart, startOffset);
         const contextAfter = exact.substring(endOffset, contextEnd);
-        console.log(`  Context: "...${contextBefore}[${extractedText}]${contextAfter}..."`);
+        logger?.debug('Context around AI offset', {
+          before: contextBefore,
+          extracted: extractedText,
+          after: contextAfter
+        });
 
-        console.log(`  Searching for exact match in resource...`);
+        logger?.debug('Searching for exact match in resource');
 
         // Try to find using prefix/suffix context if provided
         let found = false;
         if (entity.prefix || entity.suffix) {
-          console.log(`  Using LLM-provided context for disambiguation:`);
-          if (entity.prefix) console.log(`    Prefix: "${entity.prefix}"`);
-          if (entity.suffix) console.log(`    Suffix: "${entity.suffix}"`);
+          logger?.debug('Using LLM-provided context for disambiguation', {
+            prefix: entity.prefix,
+            suffix: entity.suffix
+          });
 
           // Search for all occurrences and find the one with matching context
           let searchPos = 0;
@@ -166,9 +175,12 @@ Example output:
             const suffixMatch = !entity.suffix || candidateSuffix.startsWith(entity.suffix);
 
             if (prefixMatch && suffixMatch) {
-              console.log(`  ✅ Found match using context at offset ${searchPos} (diff: ${searchPos - startOffset})`);
-              console.log(`    Candidate prefix: "${candidatePrefix}"`);
-              console.log(`    Candidate suffix: "${candidateSuffix}"`);
+              logger?.debug('Found match using context', {
+                offset: searchPos,
+                offsetDiff: searchPos - startOffset,
+                candidatePrefix,
+                candidateSuffix
+              });
               startOffset = searchPos;
               endOffset = searchPos + entity.exact.length;
               found = true;
@@ -179,7 +191,7 @@ Example output:
           }
 
           if (!found) {
-            console.log(`  ⚠️  No occurrence found with matching context`);
+            logger?.warn('No occurrence found with matching context', { text: entity.exact });
           }
         }
 
@@ -187,18 +199,24 @@ Example output:
         if (!found) {
           const index = exact.indexOf(entity.exact);
           if (index !== -1) {
-            console.log(`  ⚠️  Using first occurrence at offset ${index} (diff: ${index - startOffset})`);
+            logger?.warn('Using first occurrence', {
+              text: entity.exact,
+              offset: index,
+              offsetDiff: index - startOffset
+            });
             startOffset = index;
             endOffset = index + entity.exact.length;
           } else {
-            console.log(`  ❌ Cannot find "${entity.exact}" anywhere in resource`);
-            console.log(`  Resource starts with: "${exact.substring(0, 200)}..."`);
+            logger?.error('Cannot find entity anywhere in resource', {
+              text: entity.exact,
+              resourceStart: exact.substring(0, 200)
+            });
             // If we still can't find it, skip this entity
             return null;
           }
         }
       } else {
-        console.log(`  ✅ Offsets correct`);
+        logger?.debug('Offsets correct', { text: entity.exact });
       }
 
       return {
@@ -212,36 +230,50 @@ Example output:
     }).filter((entity: ExtractedEntity | null): entity is ExtractedEntity => {
       // Filter out nulls and ensure we have valid offsets
       if (entity === null) {
-        console.log('❌ Filtered entity: null');
+        logger?.debug('Filtered entity: null');
         return false;
       }
       if (entity.startOffset === undefined || entity.endOffset === undefined) {
-        console.log(`❌ Filtered entity "${entity.exact}": missing offsets`);
+        logger?.warn('Filtered entity: missing offsets', { text: entity.exact });
         return false;
       }
       if (entity.startOffset < 0) {
-        console.log(`❌ Filtered entity "${entity.exact}": negative startOffset (${entity.startOffset})`);
+        logger?.warn('Filtered entity: negative startOffset', {
+          text: entity.exact,
+          startOffset: entity.startOffset
+        });
         return false;
       }
       if (entity.endOffset > exact.length) {
-        console.log(`❌ Filtered entity "${entity.exact}": endOffset (${entity.endOffset}) > text length (${exact.length})`);
+        logger?.warn('Filtered entity: endOffset exceeds text length', {
+          text: entity.exact,
+          endOffset: entity.endOffset,
+          textLength: exact.length
+        });
         return false;
       }
 
       // Verify the text at the offsets matches
       const extractedText = exact.substring(entity.startOffset, entity.endOffset);
       if (extractedText !== entity.exact) {
-        console.log(`❌ Filtered entity "${entity.exact}": offset mismatch`);
-        console.log(`   Expected: "${entity.exact}"`);
-        console.log(`   Got at [${entity.startOffset}:${entity.endOffset}]: "${extractedText}"`);
+        logger?.warn('Filtered entity: offset mismatch', {
+          expected: entity.exact,
+          got: extractedText,
+          offsets: `[${entity.startOffset}:${entity.endOffset}]`
+        });
         return false;
       }
 
-      console.log(`✅ Accepted entity "${entity.exact}" at [${entity.startOffset}:${entity.endOffset}]`);
+      logger?.debug('Accepted entity', {
+        text: entity.exact,
+        offsets: `[${entity.startOffset}:${entity.endOffset}]`
+      });
       return true;
     });
   } catch (error) {
-    console.error('Failed to parse entity extraction response:', error);
+    logger?.error('Failed to parse entity extraction response', {
+      error: error instanceof Error ? error.message : String(error)
+    });
     return [];
   }
 }

@@ -103,7 +103,7 @@ export class ReferenceDetectionWorker extends JobWorker {
       const content = decodeRepresentation(contentBuffer, primaryRep.mediaType);
 
       // Use AI to extract entities (with optional anaphoric/cataphoric references)
-      const extractedEntities = await extractEntities(content, entityTypes, this.inferenceClient, includeDescriptiveReferences);
+      const extractedEntities = await extractEntities(content, entityTypes, this.inferenceClient, includeDescriptiveReferences, this.logger);
 
       // Validate and correct AI's offsets, then extract proper context
       // AI sometimes returns offsets that don't match the actual text position
@@ -401,8 +401,19 @@ export class ReferenceDetectionWorker extends JobWorker {
         },
       });
 
-      // Domain event (job.started) is automatically published to EventBus by EventStore
-      // Backend SSE endpoint will subscribe to job.started and transform to stream events
+      // ALSO emit initial annotate:progress for immediate frontend feedback
+      this.logger?.debug('[EventBus] Emitting initial annotate:progress', {
+        resourceId: detJob.params.resourceId,
+        currentEntityType: detJob.progress.currentEntityType
+      });
+      resourceBus.get('annotate:progress').next({
+        status: 'started',
+        message: detJob.progress.currentEntityType
+          ? `Starting ${detJob.progress.currentEntityType}...`
+          : 'Starting detection...',
+        currentEntityType: detJob.progress.currentEntityType,
+        percentage: 0,
+      });
     } else {
       // Intermediate progress - emit job.progress (domain event)
       const percentage = Math.round((detJob.progress.processedEntityTypes / detJob.progress.totalEntityTypes) * 100);

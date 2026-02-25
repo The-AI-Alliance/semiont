@@ -36,6 +36,7 @@ interface DetectionProgress {
   processedEntityTypes: number;
   message?: string;
   foundCount?: number;
+  percentage?: number;
 }
 
 export function registerAnnotateReferencesStream(router: ResourcesRouterType, jobQueue: JobQueue) {
@@ -150,37 +151,13 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
 
           // Subscribe to annotate:progress
           subscriptions.push(
-            resourceBus.get('annotate:progress').subscribe(async (_event) => {
-              if (isStreamClosed) return;
-              logger.info('Detection started');
-              try {
-                await writeTypedSSE(stream, {
-                  data: JSON.stringify({
-                    status: 'started',
-                    resourceId: resourceId(id),
-                    totalEntityTypes: entityTypes.length,
-                    processedEntityTypes: 0,
-                    message: 'Starting entity detection...'
-                  } as DetectionProgress),
-                  event: 'annotate:progress',
-                  id: String(Date.now())
-                });
-              } catch (error) {
-                logger.warn('Client disconnected during start');
-                cleanup();
-              }
-            })
-          );
-
-          // Subscribe to annotate:progress
-          subscriptions.push(
             resourceBus.get('annotate:progress').subscribe(async (progress) => {
               if (isStreamClosed) return;
               logger.info('[EventBus] Received annotate:progress event', { progress, resourceId: id });
               try {
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
-                    status: 'scanning',
+                    status: progress.status || 'scanning',
                     resourceId: resourceId(id),
                     currentEntityType: progress.currentEntityType,
                     totalEntityTypes: entityTypes.length,
@@ -188,7 +165,8 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
                     foundCount: progress.completedEntityTypes?.reduce((sum, et) => sum + et.foundCount, 0),
                     message: progress.message || (progress.currentEntityType
                       ? `Scanning for ${progress.currentEntityType}...`
-                      : 'Processing...')
+                      : 'Processing...'),
+                    percentage: progress.percentage
                   } as DetectionProgress),
                   event: 'annotate:progress',
                   id: String(Date.now())
