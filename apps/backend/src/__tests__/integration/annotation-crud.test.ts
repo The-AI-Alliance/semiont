@@ -3,9 +3,9 @@
  * Tests multi-body arrays with TextualBody (tagging) and SpecificResource (linking)
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import type { components } from '@semiont/core';
-import type { ResourceCreatedEvent, EnvironmentConfig } from '@semiont/core';
+import type { ResourceCreatedEvent, EnvironmentConfig, Logger } from '@semiont/core';
 import { resourceId, userId, annotationId } from '@semiont/core';
 import { CREATION_METHODS } from '@semiont/core';
 
@@ -14,6 +14,14 @@ type AnnotationBody = components['schemas']['AnnotationBody'];
 import { createEventStore } from '@semiont/event-sourcing';
 import { AnnotationContext } from '@semiont/make-meaning';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
+
+const mockLogger: Logger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger)
+};
 
 describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => {
   let testEnv: TestEnvironmentConfig;
@@ -28,7 +36,10 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
     // Create test resources in event store
     const eventStore = await createEventStore(
       testEnv.config.services.filesystem!.path,
-      testEnv.config.services.backend!.publicURL
+      testEnv.config.services.backend!.publicURL,
+      undefined,
+      undefined,
+      mockLogger
     );
 
     const docEvent1: Omit<ResourceCreatedEvent, 'id' | 'timestamp'> = {
@@ -73,7 +84,10 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       // Use SAME path from beforeAll
       const eventStore = await createEventStore(
       testEnv.config.services.filesystem!.path,
-      testEnv.config.services.backend!.publicURL
+      testEnv.config.services.backend!.publicURL,
+      undefined,
+      undefined,
+      mockLogger
     );
 
       const annotation: Omit<Annotation, 'creator' | 'created'> = {
@@ -122,7 +136,10 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       // Use SAME path from beforeAll
       const eventStore = await createEventStore(
       testEnv.config.services.filesystem!.path,
-      testEnv.config.services.backend!.publicURL
+      testEnv.config.services.backend!.publicURL,
+      undefined,
+      undefined,
+      mockLogger
     );
 
       const annotation: Omit<Annotation, 'creator' | 'created'> = {
@@ -197,7 +214,10 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       // Use SAME path from beforeAll
       const eventStore = await createEventStore(
       testEnv.config.services.filesystem!.path,
-      testEnv.config.services.backend!.publicURL
+      testEnv.config.services.backend!.publicURL,
+      undefined,
+      undefined,
+      mockLogger
     );
 
       // Create stub annotation with entity tags
@@ -300,7 +320,10 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       // Use SAME path from beforeAll
       const eventStore = await createEventStore(
       testEnv.config.services.filesystem!.path,
-      testEnv.config.services.backend!.publicURL
+      testEnv.config.services.backend!.publicURL,
+      undefined,
+      undefined,
+      mockLogger
     );
 
       // Create stub with empty body
@@ -414,7 +437,10 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       // Use SAME path from beforeAll
       const eventStore = await createEventStore(
       testEnv.config.services.filesystem!.path,
-      testEnv.config.services.backend!.publicURL
+      testEnv.config.services.backend!.publicURL,
+      undefined,
+      undefined,
+      mockLogger
     );
 
       // Create annotation
@@ -491,7 +517,10 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       // Use SAME path from beforeAll
       const eventStore = await createEventStore(
       testEnv.config.services.filesystem!.path,
-      testEnv.config.services.backend!.publicURL
+      testEnv.config.services.backend!.publicURL,
+      undefined,
+      undefined,
+      mockLogger
     );
 
       const w3cId = 'test-w3c-' + Date.now();

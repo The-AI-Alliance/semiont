@@ -5,14 +5,22 @@
  * to SSE stream delivery.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { resourceId, userId } from '@semiont/core';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { resourceId, userId, type Logger } from '@semiont/core';
 import { loadEnvironmentConfig } from '../../utils/config';
 import { resourceUri, jobId } from '@semiont/core';
 import type { EventStore } from '@semiont/event-sourcing';
 import { promises as fsPromises } from 'fs';
 import { tmpdir } from 'os';
 import * as path from 'path';
+
+const mockLogger: Logger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger)
+};
 
 let testDir: string;
 
@@ -38,7 +46,10 @@ describe('SSE Event Flow - End-to-End', () => {
       {
       enableSharding: false,
       maxEventsPerFile: 100,
-    });
+    },
+      undefined,
+      mockLogger
+    );
   });
 
   afterAll(async () => {
