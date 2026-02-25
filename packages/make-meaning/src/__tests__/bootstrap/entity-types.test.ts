@@ -10,14 +10,22 @@
  * - Path resolution (absolute and relative)
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { bootstrapEntityTypes, resetBootstrap } from '../../bootstrap/entity-types';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
-import { userId, type EnvironmentConfig } from '@semiont/core';
+import { userId, type EnvironmentConfig, type Logger } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+
+const mockLogger: Logger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger)
+};
 
 describe('Entity Types Bootstrap', () => {
   let testDir: string;
@@ -59,7 +67,7 @@ describe('Entity Types Bootstrap', () => {
     } as EnvironmentConfig;
 
     // Initialize event store
-    eventStore = createEventStore(testDir, config.services.backend!.publicURL);
+    eventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
   });
 
   afterEach(async () => {
@@ -224,7 +232,7 @@ describe('Entity Types Bootstrap', () => {
       resetBootstrap();
 
       // Create new event store for alternate directory
-      const alternateEventStore = createEventStore(alternateDir, config.services.backend!.publicURL);
+      const alternateEventStore = createEventStore(alternateDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
 
       await bootstrapEntityTypes(alternateEventStore, alternateConfig);
 

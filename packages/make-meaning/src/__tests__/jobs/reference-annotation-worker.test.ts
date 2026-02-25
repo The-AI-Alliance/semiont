@@ -103,7 +103,7 @@ describe('ReferenceDetectionWorker - Full Lifecycle', () => {
     // Initialize job queue and event store
     jobQueue = new JobQueue({ dataDir: testDir }, new EventBus());
     await jobQueue.initialize();
-    eventStore = createEventStore(testDir, config.services.backend!.publicURL);
+    eventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
     const eventBus = new EventBus();
     worker = new ReferenceDetectionWorker(jobQueue, config, eventStore, mockInferenceClient, eventBus, mockLogger);
 

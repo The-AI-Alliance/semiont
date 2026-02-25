@@ -88,7 +88,7 @@ describe('GenerationWorker - Event Emission', () => {
     // Initialize job queue and event store
     const jobQueue = new JobQueue({ dataDir: testDir }, new EventBus());
     await jobQueue.initialize();
-    testEventStore = createEventStore(testDir, config.services.backend!.publicURL);
+    testEventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
     worker = new GenerationWorker(jobQueue, config, testEventStore, mockInferenceClient.client, new EventBus(), mockLogger);
 
     // Set default mock response

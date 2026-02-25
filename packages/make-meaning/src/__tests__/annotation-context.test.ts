@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { AnnotationContext } from '../annotation-context';
-import { resourceId, userId, type EnvironmentConfig } from '@semiont/core';
+import { resourceId, userId, type EnvironmentConfig, type Logger } from '@semiont/core';
 import { createEventStore, FilesystemViewStorage } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import { promises as fs } from 'fs';
@@ -26,6 +26,14 @@ vi.mock('@semiont/inference', async () => {
     MockInferenceClient
   };
 });
+
+const mockLogger: Logger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger)
+};
 
 describe('AnnotationContext', () => {
   let testDir: string;
@@ -84,7 +92,7 @@ describe('AnnotationContext', () => {
   // Helper to create a test resource
   async function createTestResource(id: string, content: string): Promise<void> {
     const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir);
-    const eventStore = createEventStore(testDir, config.services.backend!.publicURL);
+    const eventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
 
     const testContent = Buffer.from(content, 'utf-8');
     const { checksum } = await repStore.store(testContent, { mediaType: 'text/plain' });
@@ -125,7 +133,7 @@ describe('AnnotationContext', () => {
     start: number,
     end: number
   ): Promise<void> {
-    const eventStore = createEventStore(testDir, config.services.backend!.publicURL);
+    const eventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
 
     await eventStore.appendEvent({
       type: 'annotation.added',
@@ -293,7 +301,7 @@ describe('AnnotationContext', () => {
     const testAnnId = `ann-no-position-${Date.now()}`;
     await createTestResource(testResourceId, 'Content for testing missing selector');
 
-    const eventStore = createEventStore(testDir, config.services.backend!.publicURL);
+    const eventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
 
     // Create annotation with only TextQuoteSelector
     await eventStore.appendEvent({

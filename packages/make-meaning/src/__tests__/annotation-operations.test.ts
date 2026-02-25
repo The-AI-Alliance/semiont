@@ -8,15 +8,23 @@
  * - W3C Annotation Model compliance
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { AnnotationOperations } from '../annotation-operations';
 import { ResourceOperations } from '../resource-operations';
-import { resourceId, userId, type EnvironmentConfig } from '@semiont/core';
+import { resourceId, userId, type EnvironmentConfig, type Logger } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore, type RepresentationStore } from '@semiont/content';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+
+const mockLogger: Logger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger)
+};
 
 describe('AnnotationOperations', () => {
   let testDir: string;
@@ -70,7 +78,7 @@ describe('AnnotationOperations', () => {
     } as EnvironmentConfig;
 
     // Initialize stores
-    testEventStore = createEventStore(testDir, config.services.backend!.publicURL);
+    testEventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
     testRepStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir);
 
     // Create a test resource for annotations
