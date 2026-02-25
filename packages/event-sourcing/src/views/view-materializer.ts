@@ -23,6 +23,7 @@ import type {
   StoredEvent,
   ResourceAnnotations,
   ResourceId,
+  Logger,
 } from '@semiont/core';
 import { findBodyItem } from '@semiont/core';
 import type { ViewStorage, ResourceView } from '../storage/view-storage';
@@ -36,10 +37,15 @@ export interface ViewMaterializerConfig {
  * ViewMaterializer builds and maintains materialized views from events
  */
 export class ViewMaterializer {
+  private logger?: Logger;
+
   constructor(
     private viewStorage: ViewStorage,
-    private config: ViewMaterializerConfig
-  ) {}
+    private config: ViewMaterializerConfig,
+    logger?: Logger
+  ) {
+    this.logger = logger;
+  }
 
   /**
    * Materialize resource view from events
@@ -72,19 +78,19 @@ export class ViewMaterializer {
     event: ResourceEvent,
     getAllEvents: () => Promise<StoredEvent[]>
   ): Promise<void> {
-    console.log(`[ViewMaterializer] Updating view for ${resourceId} with event ${event.type}`);
+    this.logger?.info('[ViewMaterializer] Updating view for resource with event', { resourceId, eventType: event.type });
 
     // Try to load existing view
     let view = await this.viewStorage.get(resourceId);
 
     if (!view) {
       // No view exists - do full rebuild from all events
-      console.log(`[ViewMaterializer] No view found, rebuilding from scratch`);
+      this.logger?.info('[ViewMaterializer] No view found, rebuilding from scratch', { resourceId });
       const events = await getAllEvents();
       view = this.materializeFromEvents(events, resourceId);
     } else {
       // Apply single event incrementally to existing view
-      console.log(`[ViewMaterializer] Applying event incrementally to existing view (version ${view.annotations.version})`);
+      this.logger?.info('[ViewMaterializer] Applying event incrementally to existing view', { resourceId, version: view.annotations.version });
       this.applyEventToResource(view.resource, event);
       this.applyEventToAnnotations(view.annotations, event);
       view.annotations.version++;
@@ -93,7 +99,7 @@ export class ViewMaterializer {
 
     // Save updated view
     await this.viewStorage.save(resourceId, view);
-    console.log(`[ViewMaterializer] View saved (version ${view.annotations.version}, ${view.annotations.annotations.length} annotations)`);
+    this.logger?.info('[ViewMaterializer] View saved', { resourceId, version: view.annotations.version, annotationCount: view.annotations.annotations.length });
   }
 
   /**

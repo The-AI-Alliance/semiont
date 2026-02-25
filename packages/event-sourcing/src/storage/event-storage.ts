@@ -15,7 +15,7 @@ import * as path from 'path';
 import { createReadStream } from 'fs';
 import * as readline from 'readline';
 import { v4 as uuidv4 } from 'uuid';
-import type { StoredEvent, ResourceEvent, EventMetadata, ResourceId } from '@semiont/core';
+import type { StoredEvent, ResourceEvent, EventMetadata, ResourceId, Logger } from '@semiont/core';
 import { resourceId as makeResourceId } from '@semiont/core';
 import { jumpConsistentHash, sha256 } from './shard-utils';
 
@@ -34,13 +34,15 @@ export interface EventStorageConfig {
  */
 export class EventStorage {
   private config: Required<EventStorageConfig>;
+  private logger?: Logger;
 
   // Per-resource sequence tracking: resourceId -> sequence number
   private resourceSequences: Map<string, number> = new Map();
   // Per-resource last event hash: resourceId -> hash
   private resourceLastHash: Map<string, string> = new Map();
 
-  constructor(config: EventStorageConfig) {
+  constructor(config: EventStorageConfig, logger?: Logger) {
+    this.logger = logger;
     this.config = {
       basePath: config.basePath,
       dataDir: config.dataDir,
@@ -108,7 +110,7 @@ export class EventStorage {
       // Initialize sequence number
       this.resourceSequences.set(resourceId, 0);
 
-      console.log(`[EventStorage] Initialized event stream for ${resourceId} at ${docPath}`);
+      this.logger?.info('[EventStorage] Initialized event stream', { resourceId, path: docPath });
     } else {
       // Load existing sequence number and last hash
       const files = await this.getEventFiles(resourceId);
@@ -253,7 +255,7 @@ export class EventStorage {
           const event = JSON.parse(trimmed) as StoredEvent;
           events.push(event);
         } catch (parseError) {
-          console.error(`[EventStorage] Failed to parse event in ${filePath}:`, parseError);
+          this.logger?.error('[EventStorage] Failed to parse event', { filePath, error: parseError });
           // Skip malformed lines
         }
       }
@@ -312,7 +314,7 @@ export class EventStorage {
 
     await fs.writeFile(filePath, '', 'utf-8');
 
-    console.log(`[EventStorage] Created new event file: ${filename} for ${resourceId}`);
+    this.logger?.info('[EventStorage] Created new event file', { filename, resourceId });
 
     return filename;
   }

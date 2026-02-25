@@ -15,6 +15,7 @@ import type {
   ResourceEvent,
   StoredEvent,
   ResourceId,
+  Logger,
 } from '@semiont/core';
 import { EventBus as CoreEventBus } from '@semiont/core';
 import type { ViewStorage } from './storage/view-storage';
@@ -43,7 +44,8 @@ export class EventStore {
     config: EventStorageConfig,
     viewStorage: ViewStorage,
     identifierConfig: IdentifierConfig,
-    coreEventBus?: CoreEventBus
+    coreEventBus?: CoreEventBus,
+    logger?: Logger
   ) {
     // Store viewStorage for direct access
     this.viewStorage = viewStorage;
@@ -56,18 +58,18 @@ export class EventStore {
       enableSharding: config.enableSharding,
       maxEventsPerFile: config.maxEventsPerFile,
     };
-    this.log = new EventLog(logConfig);
+    this.log = new EventLog(logConfig, logger?.child({ component: 'EventLog' }));
 
     const busConfig: EventBusConfig = {
       identifierConfig,
     };
-    this.bus = new EventBus(busConfig);
+    this.bus = new EventBus(busConfig, logger?.child({ component: 'EventBus' }));
 
     const viewConfig: ViewManagerConfig = {
       basePath: config.basePath,
       backendUrl: identifierConfig.baseUrl,
     };
-    this.views = new ViewManager(viewStorage, viewConfig);
+    this.views = new ViewManager(viewStorage, viewConfig, logger?.child({ component: 'ViewManager' }));
   }
 
   /**

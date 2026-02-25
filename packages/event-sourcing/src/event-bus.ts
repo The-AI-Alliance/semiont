@@ -11,7 +11,7 @@
  * - View updates (see ViewManager)
  */
 
-import { type StoredEvent, type ResourceId, isResourceEvent, isSystemEvent } from '@semiont/core';
+import { type StoredEvent, type ResourceId, isResourceEvent, isSystemEvent, type Logger } from '@semiont/core';
 import { toResourceUri, type IdentifierConfig } from './identifier-utils';
 import { getEventSubscriptions, type EventSubscriptions, type EventCallback, type EventSubscription } from './subscriptions/event-subscriptions';
 
@@ -27,12 +27,14 @@ export class EventBus {
   // Expose subscriptions for direct access (legacy compatibility)
   readonly subscriptions: EventSubscriptions;
   private identifierConfig: IdentifierConfig;
+  private logger?: Logger;
 
-  constructor(config: EventBusConfig) {
+  constructor(config: EventBusConfig, logger?: Logger) {
     this.identifierConfig = config.identifierConfig;
+    this.logger = logger;
     // Use global singleton EventSubscriptions to ensure all EventBus instances
     // share the same subscription registry (critical for SSE real-time events)
-    this.subscriptions = getEventSubscriptions();
+    this.subscriptions = getEventSubscriptions(logger?.child({ component: 'EventSubscriptions' }));
   }
 
   /**
@@ -54,7 +56,7 @@ export class EventBus {
       await this.subscriptions.notifyGlobalSubscribers(event);
     } else {
       // Shouldn't happen - events should be either resource or system
-      console.warn('[EventBus] Event is neither resource nor system event:', (event.event as any).type);
+      this.logger?.warn('[EventBus] Event is neither resource nor system event', { eventType: (event.event as any).type });
     }
   }
 

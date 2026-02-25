@@ -11,7 +11,7 @@
  * - View updates (see ViewManager)
  */
 
-import { type ResourceId, type StoredEvent, type ResourceEvent, type EventQuery } from '@semiont/core';
+import { type ResourceId, type StoredEvent, type ResourceEvent, type EventQuery, type Logger } from '@semiont/core';
 import { EventStorage } from './storage/event-storage';
 
 export interface EventLogConfig {
@@ -25,13 +25,13 @@ export class EventLog {
   // Expose storage for EventQuery (read operations)
   readonly storage: EventStorage;
 
-  constructor(config: EventLogConfig) {
+  constructor(config: EventLogConfig, logger?: Logger) {
     this.storage = new EventStorage({
       basePath: config.basePath,
       dataDir: config.dataDir,
       enableSharding: config.enableSharding ?? true,
       maxEventsPerFile: config.maxEventsPerFile ?? 10000,
-    });
+    }, logger?.child({ component: 'EventStorage' }));
   }
 
   /**

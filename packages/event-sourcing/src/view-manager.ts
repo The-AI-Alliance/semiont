@@ -11,7 +11,7 @@
  * - Pub/sub notifications (see EventBus)
  */
 
-import { type ResourceId, type ResourceEvent, type StoredEvent } from '@semiont/core';
+import { type ResourceId, type ResourceEvent, type StoredEvent, type Logger } from '@semiont/core';
 import { ViewMaterializer, type ViewMaterializerConfig } from './views/view-materializer';
 import type { ViewStorage, ResourceView } from './storage/view-storage';
 
@@ -30,13 +30,14 @@ export class ViewManager {
 
   constructor(
     viewStorage: ViewStorage,
-    config: ViewManagerConfig
+    config: ViewManagerConfig,
+    logger?: Logger
   ) {
     const materializerConfig: ViewMaterializerConfig = {
       basePath: config.basePath,
       backendUrl: config.backendUrl,
     };
-    this.materializer = new ViewMaterializer(viewStorage, materializerConfig);
+    this.materializer = new ViewMaterializer(viewStorage, materializerConfig, logger?.child({ component: 'ViewMaterializer' }));
   }
 
   /**
