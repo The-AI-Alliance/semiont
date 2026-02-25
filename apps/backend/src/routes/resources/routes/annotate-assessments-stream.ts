@@ -24,6 +24,7 @@ import type { components } from '@semiont/core';
 import { jobId } from '@semiont/core';
 import { userId, resourceId, type ResourceId } from '@semiont/core';
 import { writeTypedSSE } from '../../../lib/sse-helpers';
+import { getLogger } from '../../../logger';
 
 type AnnotateAssessmentsStreamRequest = components['schemas']['AnnotateAssessmentsStreamRequest'];
 
@@ -65,7 +66,12 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
         throw new HTTPException(400, { message: 'Invalid density. Must be a number between 1 and 10.' });
       }
 
-      console.log(`[DetectAssessments] Starting assessment detection for resource ${id}${instructions ? ' with instructions' : ''}${tone ? ` (tone: ${tone})` : ''}${density ? ` (density: ${density})` : ''}`);
+      const logger = getLogger().child({
+        component: 'annotate-assessments-stream',
+        resourceId: id
+      });
+
+      logger.info('Starting assessment detection', { instructions: !!instructions, tone, density });
 
       // User will be available from auth middleware since this is a POST request
       const user = c.get('user');
@@ -102,7 +108,11 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
       };
 
       await jobQueue.createJob(job);
-      console.log(`[DetectAssessments] Created job ${job.metadata.id} for resource ${id}`);
+      logger.info('Created detection job', { jobId: job.metadata.id });
+
+      // Disable proxy buffering for real-time SSE streaming
+      c.header('X-Accel-Buffering', 'no');
+      c.header('Cache-Control', 'no-cache, no-transform');
 
       // Stream job progress to the client using EventBus subscriptions
       return streamSSE(c, async (stream) => {
@@ -139,13 +149,13 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
           // Create resource-scoped EventBus for this resource
           // Workers emit detection:started, detection:progress, detection:completed, detection:failed
           const resourceBus = eventBus.scope(id);
-          console.log(`[DetectAssessments] Subscribing to EventBus for resource ${id}`);
+          logger.info('Subscribing to EventBus for resource');
 
           // Subscribe to annotate:progress
           subscriptions.push(
             resourceBus.get('annotate:progress').subscribe(async (_event) => {
               if (isStreamClosed) return;
-              console.log(`[DetectAssessments] Detection started for resource ${id}`);
+              logger.info('Detection started');
               try {
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
@@ -157,7 +167,7 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectAssessments] Client disconnected during start`);
+                logger.warn('Client disconnected during start');
                 cleanup();
               }
             })
@@ -167,7 +177,7 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
           subscriptions.push(
             resourceBus.get('annotate:progress').subscribe(async (progress) => {
               if (isStreamClosed) return;
-              console.log(`[DetectAssessments] Detection progress for resource ${id}:`, progress);
+              logger.info('Detection progress', { progress });
               try {
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
@@ -181,7 +191,7 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectAssessments] Client disconnected during progress`);
+                logger.warn('Client disconnected during progress');
                 cleanup();
               }
             })
@@ -192,11 +202,12 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
             resourceBus.get('job:completed').subscribe(async (event) => {
       if (event.payload.jobType !== 'assessment-annotation') return;
               if (isStreamClosed) return;
-              console.log(`[DetectAssessments] Detection completed for resource ${id}`);
+              logger.info('Detection completed');
               try {
                 const result = event.payload.result;
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
+                    motivation: 'assessing',
                     status: 'complete',
                     resourceId: resourceId(id),
                     percentage: 100,
@@ -210,7 +221,7 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectAssessments] Client disconnected after completion`);
+                logger.warn('Client disconnected after completion');
               }
               cleanup();
             })
@@ -221,7 +232,7 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
             resourceBus.get('job:failed').subscribe(async (event) => {
       if (event.payload.jobType !== 'assessment-annotation') return;
               if (isStreamClosed) return;
-              console.log(`[DetectAssessments] Detection failed for resource ${id}:`, event.payload.error);
+              logger.info('Detection failed', { error: event.payload.error });
               try {
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
@@ -233,7 +244,7 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectAssessments] Client disconnected after failure`);
+                logger.warn('Client disconnected after failure');
               }
               cleanup();
             })
@@ -259,7 +270,7 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
 
           // Cleanup on disconnect
           c.req.raw.signal.addEventListener('abort', () => {
-            console.log(`[DetectAssessments] Client disconnected from detection stream for resource ${id}, job ${job.metadata.id} will continue`);
+            logger.info('Client disconnected from detection stream, job will continue', { jobId: job.metadata.id });
             cleanup();
           });
 
@@ -277,7 +288,7 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
             });
           } catch (sseError) {
             // Client already disconnected
-            console.warn(`[DetectAssessments] Could not send error to client (disconnected), job ${job.metadata.id} status is preserved`);
+            logger.warn('Could not send error to client (disconnected), job status is preserved', { jobId: job.metadata.id });
           }
           cleanup();
         }

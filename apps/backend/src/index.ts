@@ -53,11 +53,18 @@ if (!config.services.backend.corsOrigin) {
 
 const backendService = config.services.backend;
 
+// Import logging utilities
+import { initializeLogger, getLogger } from './logger';
+
+// Initialize Winston logger with log level from environment config
+initializeLogger(config.logLevel);
+const logger = getLogger();
+
 // Create global EventBus for real-time events
 const eventBus = new EventBus();
 
 // Initialize make-meaning service (job queue, workers, graph consumer)
-const makeMeaning = await startMakeMeaning(config, eventBus);
+const makeMeaning = await startMakeMeaning(config, eventBus, logger);
 
 // Import route definitions
 import { healthRouter } from './routes/health';
@@ -83,7 +90,6 @@ const __dirname = path.dirname(__filename);
 // Import security headers middleware
 import { securityHeaders } from './middleware/security-headers';
 // Import logging middleware
-import { initializeLogger } from './logger';
 import { requestIdMiddleware } from './middleware/request-id';
 import { requestLoggerMiddleware } from './middleware/request-logger';
 import { errorLoggerMiddleware } from './middleware/error-logger';
@@ -93,9 +99,6 @@ type Variables = {
   config: EnvironmentConfig;
   makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>>;
 };
-
-// Initialize Winston logger with log level from environment config
-initializeLogger(config.logLevel);
 
 // Create Hono app with proper typing
 const app = new Hono<{ Variables: Variables }>();

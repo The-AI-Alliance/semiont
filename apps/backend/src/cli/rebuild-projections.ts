@@ -14,10 +14,9 @@ import { startMakeMeaning } from '@semiont/make-meaning';
 import { EventQuery, EventValidator } from '@semiont/event-sourcing';
 import { resourceId as makeResourceId, EventBus } from '@semiont/core';
 import { loadEnvironmentConfig } from '../utils/config';
+import { initializeLogger, getLogger } from '../logger';
 
 async function rebuildProjections(rId?: string) {
-  console.log('🔄 Rebuilding annotation projections from events...\n');
-
   // Load config - uses SEMIONT_ROOT and SEMIONT_ENV from environment
   const projectRoot = process.env.SEMIONT_ROOT;
   if (!projectRoot) {
@@ -27,11 +26,17 @@ async function rebuildProjections(rId?: string) {
 
   const config = loadEnvironmentConfig(projectRoot, environment);
 
+  // Initialize logger
+  initializeLogger(config.logLevel);
+  const logger = getLogger();
+
+  logger.info('Rebuilding annotation projections from events');
+
   // Create EventBus
   const eventBus = new EventBus();
 
   // Start make-meaning to get eventStore
-  const makeMeaning = await startMakeMeaning(config, eventBus);
+  const makeMeaning = await startMakeMeaning(config, eventBus, logger);
   const { eventStore } = makeMeaning;
   const query = new EventQuery(eventStore.log.storage);
   const validator = new EventValidator();

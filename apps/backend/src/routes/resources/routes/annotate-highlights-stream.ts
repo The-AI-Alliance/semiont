@@ -24,6 +24,7 @@ import type { components } from '@semiont/core';
 import { jobId } from '@semiont/core';
 import { userId, resourceId, type ResourceId } from '@semiont/core';
 import { writeTypedSSE } from '../../../lib/sse-helpers';
+import { getLogger } from '../../../logger';
 
 type AnnotateHighlightsStreamRequest = components['schemas']['AnnotateHighlightsStreamRequest'];
 
@@ -65,7 +66,12 @@ export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jo
         throw new HTTPException(400, { message: 'Invalid density. Must be a number between 1 and 15.' });
       }
 
-      console.log(`[DetectHighlights] Starting highlight detection for resource ${id}${instructions ? ' with instructions' : ''}${density ? ` (density: ${density})` : ''}`);
+      const logger = getLogger().child({
+        component: 'annotate-highlights-stream',
+        resourceId: id
+      });
+
+      logger.info('Starting highlight detection', { instructions: !!instructions, density });
 
       // User will be available from auth middleware since this is a POST request
       const user = c.get('user');
@@ -101,7 +107,11 @@ export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jo
       };
 
       await jobQueue.createJob(job);
-      console.log(`[DetectHighlights] Created job ${job.metadata.id} for resource ${id}`);
+      logger.info('Created detection job', { jobId: job.metadata.id });
+
+      // Disable proxy buffering for real-time SSE streaming
+      c.header('X-Accel-Buffering', 'no');
+      c.header('Cache-Control', 'no-cache, no-transform');
 
       // Stream job progress to the client using EventBus subscriptions
       return streamSSE(c, async (stream) => {
@@ -138,13 +148,13 @@ export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jo
           // Create resource-scoped EventBus for this resource
           // Workers emit detection:started, detection:progress, detection:completed, detection:failed
           const resourceBus = eventBus.scope(id);
-          console.log(`[DetectHighlights] Subscribing to EventBus for resource ${id}`);
+          logger.info('Subscribing to EventBus for resource');
 
           // Subscribe to annotate:progress
           subscriptions.push(
             resourceBus.get('annotate:progress').subscribe(async (_event) => {
               if (isStreamClosed) return;
-              console.log(`[DetectHighlights] Detection started for resource ${id}`);
+              logger.info('Detection started');
               try {
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
@@ -156,7 +166,7 @@ export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jo
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectHighlights] Client disconnected during start`);
+                logger.warn('Client disconnected during start');
                 cleanup();
               }
             })
@@ -166,7 +176,7 @@ export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jo
           subscriptions.push(
             resourceBus.get('annotate:progress').subscribe(async (progress) => {
               if (isStreamClosed) return;
-              console.log(`[DetectHighlights] Detection progress for resource ${id}:`, progress);
+              logger.info('Detection progress', { progress });
               try {
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
@@ -180,7 +190,7 @@ export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jo
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectHighlights] Client disconnected during progress`);
+                logger.warn('Client disconnected during progress');
                 cleanup();
               }
             })
@@ -191,11 +201,12 @@ export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jo
             resourceBus.get('job:completed').subscribe(async (event) => {
       if (event.payload.jobType !== 'highlight-annotation') return;
               if (isStreamClosed) return;
-              console.log(`[DetectHighlights] Detection completed for resource ${id}`);
+              logger.info('Detection completed');
               try {
                 const result = event.payload.result;
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
+                    motivation: 'highlighting',
                     status: 'complete',
                     resourceId: resourceId(id),
                     percentage: 100,
@@ -209,7 +220,7 @@ export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jo
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectHighlights] Client disconnected after completion`);
+                logger.warn('Client disconnected after completion');
               }
               cleanup();
             })
@@ -220,7 +231,7 @@ export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jo
             resourceBus.get('job:failed').subscribe(async (event) => {
       if (event.payload.jobType !== 'highlight-annotation') return;
               if (isStreamClosed) return;
-              console.log(`[DetectHighlights] Detection failed for resource ${id}:`, event.payload.error);
+              logger.info('Detection failed', { error: event.payload.error });
               try {
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
@@ -232,7 +243,7 @@ export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jo
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectHighlights] Client disconnected after failure`);
+                logger.warn('Client disconnected after failure');
               }
               cleanup();
             })
@@ -258,7 +269,7 @@ export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jo
 
           // Cleanup on disconnect
           c.req.raw.signal.addEventListener('abort', () => {
-            console.log(`[DetectHighlights] Client disconnected from detection stream for resource ${id}, job ${job.metadata.id} will continue`);
+            logger.info('Client disconnected from detection stream, job will continue', { jobId: job.metadata.id });
             cleanup();
           });
 
@@ -276,7 +287,7 @@ export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jo
             });
           } catch (sseError) {
             // Client already disconnected
-            console.warn(`[DetectHighlights] Could not send error to client (disconnected), job ${job.metadata.id} status is preserved`);
+            logger.warn('Could not send error to client (disconnected), job status is preserved', { jobId: job.metadata.id });
           }
           cleanup();
         }

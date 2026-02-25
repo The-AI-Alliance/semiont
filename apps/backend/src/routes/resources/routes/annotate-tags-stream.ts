@@ -25,6 +25,7 @@ import { jobId } from '@semiont/core';
 import { userId, resourceId, type ResourceId } from '@semiont/core';
 import { writeTypedSSE } from '../../../lib/sse-helpers';
 import { getTagSchema } from '@semiont/ontology';
+import { getLogger } from '../../../logger';
 
 type AnnotateTagsStreamRequest = components['schemas']['AnnotateTagsStreamRequest'];
 
@@ -65,7 +66,12 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
       const { schemaId, categories } = body;
       const config = c.get('config');
 
-      console.log(`[DetectTags] Starting tag detection for resource ${id} with schema ${schemaId}, categories: ${categories.join(', ')}`);
+      const logger = getLogger().child({
+        component: 'annotate-tags-stream',
+        resourceId: id
+      });
+
+      logger.info('Starting tag detection', { schemaId, categories });
 
       // User will be available from auth middleware since this is a POST request
       const user = c.get('user');
@@ -118,7 +124,11 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
       };
 
       await jobQueue.createJob(job);
-      console.log(`[DetectTags] Created job ${job.metadata.id} for resource ${id}`);
+      logger.info('Created detection job', { jobId: job.metadata.id });
+
+      // Disable proxy buffering for real-time SSE streaming
+      c.header('X-Accel-Buffering', 'no');
+      c.header('Cache-Control', 'no-cache, no-transform');
 
       // Stream job progress to the client using EventBus subscriptions
       return streamSSE(c, async (stream) => {
@@ -155,13 +165,13 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
           // Create resource-scoped EventBus for this resource
           // Workers emit detection:started, detection:progress, detection:completed, detection:failed
           const resourceBus = eventBus.scope(id);
-          console.log(`[DetectTags] Subscribing to EventBus for resource ${id}`);
+          logger.info('Subscribing to EventBus for resource');
 
           // Subscribe to annotate:progress
           subscriptions.push(
             resourceBus.get('annotate:progress').subscribe(async (_event) => {
               if (isStreamClosed) return;
-              console.log(`[DetectTags] Detection started for resource ${id}`);
+              logger.info('Detection started');
               try {
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
@@ -174,7 +184,7 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectTags] Client disconnected during start`);
+                logger.warn('Client disconnected during start');
                 cleanup();
               }
             })
@@ -184,7 +194,7 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
           subscriptions.push(
             resourceBus.get('annotate:progress').subscribe(async (progress) => {
               if (isStreamClosed) return;
-              console.log(`[DetectTags] Detection progress for resource ${id}:`, progress);
+              logger.info('Detection progress', { progress });
               try {
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
@@ -201,7 +211,7 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectTags] Client disconnected during progress`);
+                logger.warn('Client disconnected during progress');
                 cleanup();
               }
             })
@@ -212,11 +222,12 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
             resourceBus.get('job:completed').subscribe(async (event) => {
       if (event.payload.jobType !== 'tag-annotation') return;
               if (isStreamClosed) return;
-              console.log(`[DetectTags] Detection completed for resource ${id}`);
+              logger.info('Detection completed');
               try {
                 const result = event.payload.result;
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
+                    motivation: 'tagging',
                     status: 'complete',
                     resourceId: resourceId(id),
                     percentage: 100,
@@ -231,7 +242,7 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectTags] Client disconnected after completion`);
+                logger.warn('Client disconnected after completion');
               }
               cleanup();
             })
@@ -242,7 +253,7 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
             resourceBus.get('job:failed').subscribe(async (event) => {
       if (event.payload.jobType !== 'tag-annotation') return;
               if (isStreamClosed) return;
-              console.log(`[DetectTags] Detection failed for resource ${id}:`, event.payload.error);
+              logger.info('Detection failed', { error: event.payload.error });
               try {
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
@@ -254,7 +265,7 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectTags] Client disconnected after failure`);
+                logger.warn('Client disconnected after failure');
               }
               cleanup();
             })
@@ -280,7 +291,7 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
 
           // Cleanup on disconnect
           c.req.raw.signal.addEventListener('abort', () => {
-            console.log(`[DetectTags] Client disconnected from detection stream for resource ${id}, job ${job.metadata.id} will continue`);
+            logger.info('Client disconnected from detection stream, job will continue', { jobId: job.metadata.id });
             cleanup();
           });
 
@@ -298,7 +309,7 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
             });
           } catch (sseError) {
             // Client already disconnected
-            console.warn(`[DetectTags] Could not send error to client (disconnected), job ${job.metadata.id} status is preserved`);
+            logger.warn('Could not send error to client (disconnected), job status is preserved', { jobId: job.metadata.id });
           }
           cleanup();
         }

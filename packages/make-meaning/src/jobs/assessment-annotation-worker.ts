@@ -9,7 +9,7 @@ import { JobWorker } from '@semiont/jobs';
 import type { AnyJob, AssessmentDetectionJob, JobQueue, RunningJob, AssessmentDetectionParams, AssessmentDetectionProgress, AssessmentDetectionResult } from '@semiont/jobs';
 import { ResourceContext, AnnotationDetection } from '..';
 import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
-import { resourceIdToURI, EventBus } from '@semiont/core';
+import { resourceIdToURI, EventBus, type Logger } from '@semiont/core';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
 import type { AssessmentMatch } from '../detection/motivation-parsers';
@@ -17,15 +17,18 @@ import type { InferenceClient } from '@semiont/inference';
 
 export class AssessmentDetectionWorker extends JobWorker {
   private isFirstProgress = true;
+  private readonly logger: Logger;
 
   constructor(
     jobQueue: JobQueue,
     private config: EnvironmentConfig,
     private eventStore: EventStore,
     private inferenceClient: InferenceClient,
-    private eventBus: EventBus
+    private eventBus: EventBus,
+    logger: Logger
   ) {
     super(jobQueue);
+    this.logger = logger;
   }
 
   protected getWorkerName(): string {
@@ -155,7 +158,10 @@ export class AssessmentDetectionWorker extends JobWorker {
   }
 
   private async processAssessmentDetectionJob(job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>): Promise<AssessmentDetectionResult> {
-    console.log(`[AssessmentDetectionWorker] Processing assessment detection for resource ${job.params.resourceId} (job: ${job.metadata.id})`);
+    this.logger.info('Processing assessment detection job', {
+      resourceId: job.params.resourceId,
+      jobId: job.metadata.id
+    });
 
     // Fetch resource content
     const resource = await ResourceContext.getResourceMetadata(job.params.resourceId, this.config);
@@ -196,7 +202,7 @@ export class AssessmentDetectionWorker extends JobWorker {
       job.params.density
     );
 
-    console.log(`[AssessmentDetectionWorker] Found ${assessments.length} assessments to create`);
+    this.logger.info('Found assessments to create', { count: assessments.length });
 
     // Update progress
     updatedJob = {
@@ -216,7 +222,7 @@ export class AssessmentDetectionWorker extends JobWorker {
         await this.createAssessmentAnnotation(job.params.resourceId, job.metadata.userId, assessment);
         created++;
       } catch (error) {
-        console.error(`[AssessmentDetectionWorker] Failed to create assessment:`, error);
+        this.logger.error('Failed to create assessment', { error });
       }
     }
 
@@ -230,7 +236,7 @@ export class AssessmentDetectionWorker extends JobWorker {
     };
 
     await this.updateJobProgress(updatedJob);
-    console.log(`[AssessmentDetectionWorker] ✅ Created ${created}/${assessments.length} assessments`);
+    this.logger.info('Assessment detection complete', { created, total: assessments.length });
 
     // Return result - base class will use this for CompleteJob and emitCompletionEvent
     return {

@@ -5,6 +5,9 @@
  * - Create annotations (ID generation, validation, event emission)
  * - Update annotation body (operations: add/remove/replace)
  * - Delete annotations (validation, event emission)
+ *
+ * NOTE: This class contains static utility methods without logger access.
+ * Console statements kept for debugging - consider adding logger parameter in future.
  */
 
 import type { EventStore } from '@semiont/event-sourcing';

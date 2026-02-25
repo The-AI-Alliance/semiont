@@ -9,7 +9,7 @@ import { JobWorker } from '@semiont/jobs';
 import type { AnyJob, HighlightDetectionJob, JobQueue, RunningJob, HighlightDetectionParams, HighlightDetectionProgress, HighlightDetectionResult } from '@semiont/jobs';
 import { ResourceContext, AnnotationDetection } from '..';
 import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
-import { resourceIdToURI, EventBus } from '@semiont/core';
+import { resourceIdToURI, EventBus, type Logger } from '@semiont/core';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
 import type { HighlightMatch } from '../detection/motivation-parsers';
@@ -17,15 +17,18 @@ import type { InferenceClient } from '@semiont/inference';
 
 export class HighlightDetectionWorker extends JobWorker {
   private isFirstProgress = true;
+  private readonly logger: Logger;
 
   constructor(
     jobQueue: JobQueue,
     private config: EnvironmentConfig,
     private eventStore: EventStore,
     private inferenceClient: InferenceClient,
-    private eventBus: EventBus
+    private eventBus: EventBus,
+    logger: Logger
   ) {
     super(jobQueue);
+    this.logger = logger;
   }
 
   protected getWorkerName(): string {
@@ -156,7 +159,10 @@ export class HighlightDetectionWorker extends JobWorker {
   }
 
   private async processHighlightDetectionJob(job: RunningJob<HighlightDetectionParams, HighlightDetectionProgress>): Promise<HighlightDetectionResult> {
-    console.log(`[HighlightDetectionWorker] Processing highlight detection for resource ${job.params.resourceId} (job: ${job.metadata.id})`);
+    this.logger.info('Processing highlight detection job', {
+      resourceId: job.params.resourceId,
+      jobId: job.metadata.id
+    });
 
     // Fetch resource content
     const resource = await ResourceContext.getResourceMetadata(job.params.resourceId, this.config);
@@ -196,7 +202,7 @@ export class HighlightDetectionWorker extends JobWorker {
       job.params.density
     );
 
-    console.log(`[HighlightDetectionWorker] Found ${highlights.length} highlights to create`);
+    this.logger.info('Found highlights to create', { count: highlights.length });
 
     // Update progress
     updatedJob = {
@@ -216,7 +222,7 @@ export class HighlightDetectionWorker extends JobWorker {
         await this.createHighlightAnnotation(job.params.resourceId, job.metadata.userId, highlight);
         created++;
       } catch (error) {
-        console.error(`[HighlightDetectionWorker] Failed to create highlight:`, error);
+        this.logger.error('Failed to create highlight', { error });
       }
     }
 
@@ -230,7 +236,7 @@ export class HighlightDetectionWorker extends JobWorker {
     };
 
     await this.updateJobProgress(updatedJob);
-    console.log(`[HighlightDetectionWorker] ✅ Created ${created}/${highlights.length} highlights`);
+    this.logger.info('Highlight detection complete', { created, total: highlights.length });
 
     // Return result - base class will use this for CompleteJob and emitCompletionEvent
     return {

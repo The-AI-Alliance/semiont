@@ -24,6 +24,7 @@ import type { components } from '@semiont/core';
 import { jobId, entityType } from '@semiont/core';
 import { userId, resourceId, type ResourceId } from '@semiont/core';
 import { writeTypedSSE } from '../../../lib/sse-helpers';
+import { getLogger } from '../../../logger';
 
 type AnnotateReferencesStreamRequest = components['schemas']['AnnotateReferencesStreamRequest'];
 
@@ -60,7 +61,15 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
       const { entityTypes, includeDescriptiveReferences } = body;
       const config = c.get('config');
 
-      console.log(`[DetectAnnotations] Starting detection for resource ${id} with entity types:`, entityTypes, includeDescriptiveReferences ? '(including descriptive references)' : '');
+      const logger = getLogger().child({
+        component: 'annotate-references-stream',
+        resourceId: id
+      });
+
+      logger.info('Starting reference detection', {
+        entityTypes,
+        includeDescriptiveReferences
+      });
 
       // User will be available from auth middleware since this is a POST request
       const user = c.get('user');
@@ -96,7 +105,11 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
       };
 
       await jobQueue.createJob(job);
-      console.log(`[DetectAnnotations] Created job ${job.metadata.id} for resource ${id}`);
+      logger.info('Created detection job', { jobId: job.metadata.id });
+
+      // Disable proxy buffering for real-time SSE streaming
+      c.header('X-Accel-Buffering', 'no');
+      c.header('Cache-Control', 'no-cache, no-transform');
 
       // Stream job progress to the client using EventBus subscriptions
       return streamSSE(c, async (stream) => {
@@ -133,13 +146,13 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
           // Create resource-scoped EventBus for this resource
           // Workers emit detection:started, detection:progress, detection:completed, detection:failed
           const resourceBus = eventBus.scope(id);
-          console.log(`[DetectAnnotations] Subscribing to EventBus for resource ${id}`);
+          logger.info('Subscribing to EventBus for resource');
 
           // Subscribe to annotate:progress
           subscriptions.push(
             resourceBus.get('annotate:progress').subscribe(async (_event) => {
               if (isStreamClosed) return;
-              console.log(`[DetectAnnotations] Detection started for resource ${id}`);
+              logger.info('Detection started');
               try {
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
@@ -153,7 +166,7 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectAnnotations] Client disconnected during start`);
+                logger.warn('Client disconnected during start');
                 cleanup();
               }
             })
@@ -163,7 +176,7 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
           subscriptions.push(
             resourceBus.get('annotate:progress').subscribe(async (progress) => {
               if (isStreamClosed) return;
-              console.log(`[DetectAnnotations] Detection progress for resource ${id}:`, progress);
+              logger.info('Detection progress', { progress });
               try {
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
@@ -181,7 +194,7 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectAnnotations] Client disconnected during progress`);
+                logger.warn('Client disconnected during progress');
                 cleanup();
               }
             })
@@ -192,11 +205,12 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
             resourceBus.get('job:completed').subscribe(async (event) => {
       if (event.payload.jobType !== 'reference-annotation') return;
               if (isStreamClosed) return;
-              console.log(`[DetectAnnotations] Detection completed for resource ${id}`);
+              logger.info('Detection completed');
               try {
                 const result = event.payload.result;
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
+                    motivation: 'linking',
                     status: 'complete',
                     resourceId: resourceId(id),
                     totalEntityTypes: entityTypes.length,
@@ -210,7 +224,7 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectAnnotations] Client disconnected after completion`);
+                logger.warn('Client disconnected after completion');
               }
               cleanup();
             })
@@ -221,8 +235,8 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
             resourceBus.get('job:failed').subscribe(async (event) => {
       if (event.payload.jobType !== 'reference-annotation') return;
               if (isStreamClosed) return;
-              console.log(`[DetectAnnotations] Detection failed for resource ${id}:`, event.payload.error);
-              try {
+              logger.info('Detection failed', { error: event.payload.error });
+              try{
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'error',
@@ -235,7 +249,7 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectAnnotations] Client disconnected after failure`);
+                logger.warn('Client disconnected after failure');
               }
               cleanup();
             })
@@ -261,7 +275,7 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
 
           // Cleanup on disconnect
           c.req.raw.signal.addEventListener('abort', () => {
-            console.log(`[DetectAnnotations] Client disconnected from detection stream for resource ${id}, job ${job.metadata.id} will continue`);
+            logger.info('Client disconnected from detection stream, job will continue', { jobId: job.metadata.id });
             cleanup();
           });
 
@@ -281,7 +295,7 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
             });
           } catch (sseError) {
             // Client already disconnected
-            console.warn(`[DetectAnnotations] Could not send error to client (disconnected), job ${job.metadata.id} status is preserved`);
+            logger.warn('Could not send error to client (disconnected), job status is preserved', { jobId: job.metadata.id });
           }
           cleanup();
         }

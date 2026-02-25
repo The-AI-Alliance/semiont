@@ -6,6 +6,9 @@
  * - Resource summary generation
  * - Reference suggestion generation
  * - Language handling and template processing
+ *
+ * NOTE: These are standalone utility functions without logger access.
+ * Console statements kept for debugging - consider adding logger parameter in future.
  */
 
 import { getLocaleEnglishName } from '@semiont/api-client';

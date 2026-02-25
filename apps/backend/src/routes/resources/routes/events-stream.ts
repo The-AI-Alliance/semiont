@@ -21,6 +21,7 @@ import type { ResourcesRouterType } from '../shared';
 import { resourceId } from '@semiont/core';
 import { resourceUri } from '@semiont/core';
 import { SSE_STREAM_CONNECTED } from '@semiont/api-client';
+import { getLogger } from '../../../logger';
 
 /**
  * Resource-scoped SSE event stream for real-time collaboration
@@ -43,27 +44,31 @@ export function registerGetEventStream(router: ResourcesRouterType) {
     const { id } = c.req.param();
     const config = c.get('config');
 
+    const logger = getLogger().child({
+      component: 'events-stream',
+      resourceId: id
+    });
+
     // Construct full resource URI for event subscriptions (consistent with W3C Web Annotation spec)
     const rUri = resourceUri(`${config.services.backend!.publicURL}/resources/${id}`);
 
-    console.log(`[EventStream] Client connecting to resource events stream for ${id}`);
-    console.log(`[EventStream] Subscribing to events for resource URI: ${rUri}`);
+    logger.info('Client connecting to resource events stream', { resourceUri: rUri });
 
     // Verify resource exists in event store (Event Store - source of truth)
     const { eventStore } = c.get('makeMeaning');
     const query = new EventQuery(eventStore.log.storage);
     const events = await query.getResourceEvents(resourceId(id));
     if (events.length === 0) {
-      console.log(`[EventStream] Resource ${id} not found - no events exist`);
+      logger.warn('Resource not found - no events exist');
       throw new HTTPException(404, { message: 'Resource not found - no events exist for this resource' });
     }
 
-    console.log(`[EventStream] Resource ${id} exists with ${events.length} events`);
+    logger.info('Resource exists with events', { eventCount: events.length });
 
     return streamSSE(c, async (stream) => {
 
       // Send initial connection message
-      console.log(`[EventStream] Sending connection message to client for ${id}`);
+      logger.info('Sending connection message to client');
       await stream.writeSSE({
         data: JSON.stringify({
           type: 'connected',
@@ -108,14 +113,17 @@ export function registerGetEventStream(router: ResourcesRouterType) {
 
       // Subscribe to events for this resource using full URI
       const streamId = `${id.substring(0, 16)}...${Math.random().toString(36).substring(7)}`;
-      console.log(`[EventStream:${streamId}] Subscribing to events for resource URI ${rUri}`);
+      logger.info('Subscribing to events for resource URI', { streamId, resourceUri: rUri });
       subscription = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent) => {
         if (isStreamClosed) {
-          console.log(`[EventStream:${streamId}] Stream already closed for ${rUri}, ignoring event ${storedEvent.event.type}`);
+          logger.info('Stream already closed, ignoring event', { streamId, eventType: storedEvent.event.type });
           return;
         }
 
-        console.log(`[EventStream:${streamId}] Received event ${storedEvent.event.type} for resource ${rUri}, attempting to write to SSE stream`);
+        logger.info('Received event, attempting to write to SSE stream', {
+          streamId,
+          eventType: storedEvent.event.type
+        });
 
         try {
           const eventData = {
@@ -132,7 +140,7 @@ export function registerGetEventStream(router: ResourcesRouterType) {
             },
           };
 
-          console.log(`[EventStream:${streamId}] Event data prepared, calling writeSSE...`);
+          logger.info('Event data prepared, calling writeSSE', { streamId });
 
           // DEBUG: Test JSON.stringify separately
           let jsonData: string;
@@ -140,15 +148,22 @@ export function registerGetEventStream(router: ResourcesRouterType) {
             const startStringify = Date.now();
             jsonData = JSON.stringify(eventData);
             const stringifyTime = Date.now() - startStringify;
-            console.log(`[EventStream:${streamId}] JSON.stringify completed in ${stringifyTime}ms, size: ${jsonData.length} bytes`);
+            logger.info('JSON.stringify completed', {
+              streamId,
+              time: stringifyTime,
+              size: jsonData.length
+            });
           } catch (stringifyError) {
-            console.error(`[EventStream:${streamId}] JSON.stringify FAILED:`, stringifyError);
+            logger.error('JSON.stringify FAILED', { streamId, error: stringifyError });
             throw stringifyError;
           }
 
           // DEBUG: Log payload structure for annotation.body.updated
           if (storedEvent.event.type === 'annotation.body.updated') {
-            console.log(`[EventStream:${streamId}] annotation.body.updated payload:`, JSON.stringify(storedEvent.event.payload, null, 2));
+            logger.info('annotation.body.updated payload', {
+              streamId,
+              payload: storedEvent.event.payload
+            });
           }
 
           const startWrite = Date.now();
@@ -158,9 +173,17 @@ export function registerGetEventStream(router: ResourcesRouterType) {
             id: storedEvent.metadata.sequenceNumber.toString(),
           });
           const writeTime = Date.now() - startWrite;
-          console.log(`[EventStream:${streamId}] Successfully wrote event ${storedEvent.event.type} to SSE stream for ${rUri} in ${writeTime}ms`);
+          logger.info('Successfully wrote event to SSE stream', {
+            streamId,
+            eventType: storedEvent.event.type,
+            time: writeTime
+          });
         } catch (error) {
-          console.error(`[EventStream:${streamId}] Error writing event ${storedEvent.event.type} to SSE stream for ${rUri}:`, error);
+          logger.error('Error writing event to SSE stream', {
+            streamId,
+            eventType: storedEvent.event.type,
+            error
+          });
           cleanup();
         }
       });
@@ -185,7 +208,7 @@ export function registerGetEventStream(router: ResourcesRouterType) {
 
       // Cleanup on disconnect
       c.req.raw.signal.addEventListener('abort', () => {
-        console.log(`[EventStream] Client disconnected from resource events stream for ${id}`);
+        logger.info('Client disconnected from resource events stream');
         cleanup();
       });
 

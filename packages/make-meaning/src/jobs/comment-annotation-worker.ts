@@ -9,7 +9,7 @@ import { JobWorker } from '@semiont/jobs';
 import type { AnyJob, CommentDetectionJob, JobQueue, RunningJob, CommentDetectionParams, CommentDetectionProgress, CommentDetectionResult } from '@semiont/jobs';
 import { ResourceContext, AnnotationDetection } from '..';
 import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
-import { resourceIdToURI, EventBus } from '@semiont/core';
+import { resourceIdToURI, EventBus, type Logger } from '@semiont/core';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
 import type { CommentMatch } from '../detection/motivation-parsers';
@@ -17,15 +17,18 @@ import type { InferenceClient } from '@semiont/inference';
 
 export class CommentDetectionWorker extends JobWorker {
   private isFirstProgress = true;
+  private readonly logger: Logger;
 
   constructor(
     jobQueue: JobQueue,
     private config: EnvironmentConfig,
     private eventStore: EventStore,
     private inferenceClient: InferenceClient,
-    private eventBus: EventBus
+    private eventBus: EventBus,
+    logger: Logger
   ) {
     super(jobQueue);
+    this.logger = logger;
   }
 
   protected getWorkerName(): string {
@@ -156,7 +159,10 @@ export class CommentDetectionWorker extends JobWorker {
   }
 
   private async processCommentDetectionJob(job: RunningJob<CommentDetectionParams, CommentDetectionProgress>): Promise<CommentDetectionResult> {
-    console.log(`[CommentDetectionWorker] Processing comment detection for resource ${job.params.resourceId} (job: ${job.metadata.id})`);
+    this.logger.info('Processing comment detection job', {
+      resourceId: job.params.resourceId,
+      jobId: job.metadata.id
+    });
 
     // Fetch resource content
     const resource = await ResourceContext.getResourceMetadata(job.params.resourceId, this.config);
@@ -197,7 +203,7 @@ export class CommentDetectionWorker extends JobWorker {
       job.params.density
     );
 
-    console.log(`[CommentDetectionWorker] Found ${comments.length} comments to create`);
+    this.logger.info('Found comments to create', { count: comments.length });
 
     // Update progress
     updatedJob = {
@@ -217,7 +223,7 @@ export class CommentDetectionWorker extends JobWorker {
         await this.createCommentAnnotation(job.params.resourceId, job.metadata.userId, comment);
         created++;
       } catch (error) {
-        console.error(`[CommentDetectionWorker] Failed to create comment:`, error);
+        this.logger.error('Failed to create comment', { error });
       }
     }
 
@@ -231,7 +237,7 @@ export class CommentDetectionWorker extends JobWorker {
     };
 
     await this.updateJobProgress(updatedJob);
-    console.log(`[CommentDetectionWorker] ✅ Created ${created}/${comments.length} comments`);
+    this.logger.info('Comment detection complete', { created, total: comments.length });
 
     // Return result - base class will use this for CompleteJob and emitCompletionEvent
     return {
@@ -299,6 +305,9 @@ export class CommentDetectionWorker extends JobWorker {
       }
     });
 
-    console.log(`[CommentDetectionWorker] Created comment annotation ${annotationId} for "${comment.exact.substring(0, 50)}..."`);
+    this.logger.debug('Created comment annotation', {
+      annotationId,
+      exactPreview: comment.exact.substring(0, 50)
+    });
   }
 }

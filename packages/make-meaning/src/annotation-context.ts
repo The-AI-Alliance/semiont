@@ -7,6 +7,9 @@
  * - Building LLM context for annotations
  * - Extracting annotation text context
  * - Generating AI summaries
+ *
+ * NOTE: This class contains static utility methods without logger access.
+ * Console statements kept for debugging - consider adding logger parameter in future.
  */
 
 import { getInferenceClient } from '@semiont/inference';

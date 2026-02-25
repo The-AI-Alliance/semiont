@@ -12,7 +12,7 @@ import type { AnyJob, DetectionJob, JobQueue, RunningJob, DetectionParams, Detec
 import { ResourceContext } from '..';
 import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
 import { resourceIdToURI, EventBus } from '@semiont/core';
-import type { EnvironmentConfig, components } from '@semiont/core';
+import type { EnvironmentConfig, Logger, components } from '@semiont/core';
 import { getPrimaryRepresentation, decodeRepresentation, validateAndCorrectOffsets } from '@semiont/api-client';
 import { extractEntities } from '../detection/entity-extractor';
 import { FilesystemRepresentationStore } from '@semiont/content';
@@ -34,14 +34,18 @@ export interface DetectedAnnotation {
 }
 
 export class ReferenceDetectionWorker extends JobWorker {
+  private readonly logger: Logger;
+
   constructor(
     jobQueue: JobQueue,
     private config: EnvironmentConfig,
     private eventStore: EventStore,
     private inferenceClient: InferenceClient,
-    private eventBus: EventBus
+    private eventBus: EventBus,
+    logger: Logger
   ) {
     super(jobQueue);
+    this.logger = logger;
   }
 
   protected getWorkerName(): string {
@@ -76,7 +80,11 @@ export class ReferenceDetectionWorker extends JobWorker {
     entityTypes: string[],
     includeDescriptiveReferences: boolean = false
   ): Promise<DetectedAnnotation[]> {
-    console.log(`Detecting entities of types: ${entityTypes.join(', ')}${includeDescriptiveReferences ? ' (including descriptive references)' : ''}`);
+    this.logger.debug('Detecting entities', {
+      resourceId: resource.id,
+      entityTypes,
+      includeDescriptiveReferences
+    });
 
     const detectedAnnotations: DetectedAnnotation[] = [];
 
@@ -125,7 +133,7 @@ export class ReferenceDetectionWorker extends JobWorker {
           };
           detectedAnnotations.push(annotation);
         } catch (error) {
-          console.warn(`[ReferenceDetectionWorker] Skipping invalid entity "${entity.exact}":`, error);
+          this.logger.warn('Skipping invalid entity', { exact: entity.exact, error });
           // Skip this entity - AI hallucinated text that doesn't exist
         }
       }
@@ -135,8 +143,8 @@ export class ReferenceDetectionWorker extends JobWorker {
   }
 
   private async processDetectionJob(job: RunningJob<DetectionParams, DetectionProgress>): Promise<DetectionResult> {
-    console.log(`[ReferenceDetectionWorker] Processing detection for resource ${job.params.resourceId} (job: ${job.metadata.id})`);
-    console.log(`[ReferenceDetectionWorker] 🔍 Entity types: ${job.params.entityTypes.join(', ')}`);
+    this.logger.info('Processing detection job', { resourceId: job.params.resourceId, jobId: job.metadata.id });
+    this.logger.debug('Entity types to detect', { entityTypes: job.params.entityTypes });
 
     // Fetch resource content
     const resource = await ResourceContext.getResourceMetadata(job.params.resourceId, this.config);
@@ -167,13 +175,30 @@ export class ReferenceDetectionWorker extends JobWorker {
 
       if (!entityType) continue;
 
-      console.log(`[ReferenceDetectionWorker] 🤖 [${i + 1}/${job.params.entityTypes.length}] Detecting ${entityType}...`);
+      this.logger.info('Detecting entity type', {
+        entityType,
+        progress: `${i + 1}/${job.params.entityTypes.length}`
+      });
+
+      // Emit progress BEFORE inference call for immediate user feedback
+      updatedJob = {
+        ...updatedJob,
+        progress: {
+          totalEntityTypes: job.params.entityTypes.length,
+          processedEntityTypes: i,
+          currentEntityType: entityType,
+          entitiesFound: totalFound,
+          entitiesEmitted: totalEmitted
+        }
+      };
+      await this.updateJobProgress(updatedJob);
 
       // Detect entities using AI (loads content from filesystem internally)
+      // This is where the latency is - user now has feedback that work started
       const detectedAnnotations = await this.detectReferences(resource, [entityType], job.params.includeDescriptiveReferences);
 
       totalFound += detectedAnnotations.length;
-      console.log(`[ReferenceDetectionWorker] ✅ Found ${detectedAnnotations.length} ${entityType} entities`);
+      this.logger.info('Found entities', { entityType, count: detectedAnnotations.length });
 
       // Emit events for each detected entity
       // This happens INDEPENDENT of any HTTP client!
@@ -181,7 +206,7 @@ export class ReferenceDetectionWorker extends JobWorker {
         const detected = detectedAnnotations[idx];
 
         if (!detected) {
-          console.warn(`[ReferenceDetectionWorker] Skipping undefined entity at index ${idx}`);
+          this.logger.warn('Skipping undefined entity', { index: idx });
           continue;
         }
 
@@ -193,7 +218,7 @@ export class ReferenceDetectionWorker extends JobWorker {
           }
           referenceId = generateAnnotationId(backendUrl);
         } catch (error) {
-          console.error(`[ReferenceDetectionWorker] Failed to generate annotation ID:`, error);
+          this.logger.error('Failed to generate annotation ID', { error });
           throw new Error('Configuration error: Backend publicURL not set');
         }
 
@@ -238,17 +263,25 @@ export class ReferenceDetectionWorker extends JobWorker {
           totalEmitted++;
 
           if ((idx + 1) % 10 === 0 || idx === detectedAnnotations.length - 1) {
-            console.log(`[ReferenceDetectionWorker] 📤 Emitted ${idx + 1}/${detectedAnnotations.length} events for ${entityType}`);
+            this.logger.debug('Emitted events for entity type', {
+              entityType,
+              emitted: idx + 1,
+              total: detectedAnnotations.length
+            });
           }
 
         } catch (error) {
           totalErrors++;
-          console.error(`[ReferenceDetectionWorker] ❌ Failed to emit event for ${referenceId}:`, error);
+          this.logger.error('Failed to emit event', { referenceId, error });
           // Continue processing other entities even if one fails
         }
       }
 
-      console.log(`[ReferenceDetectionWorker] ✅ Completed ${entityType}: ${detectedAnnotations.length} found, ${detectedAnnotations.length - (totalErrors - (totalFound - totalEmitted))} emitted`);
+      this.logger.info('Completed entity type processing', {
+        entityType,
+        found: detectedAnnotations.length,
+        emitted: detectedAnnotations.length - (totalErrors - (totalFound - totalEmitted))
+      });
 
       // Update progress after processing this entity type
       updatedJob = {
@@ -264,7 +297,7 @@ export class ReferenceDetectionWorker extends JobWorker {
       await this.updateJobProgress(updatedJob);
     }
 
-    console.log(`[ReferenceDetectionWorker] ✅ Detection complete: ${totalFound} entities found, ${totalEmitted} events emitted, ${totalErrors} errors`);
+    this.logger.info('Detection complete', { totalFound, totalEmitted, totalErrors });
 
     // Return result - base class will use this for CompleteJob and emitCompletionEvent
     return {

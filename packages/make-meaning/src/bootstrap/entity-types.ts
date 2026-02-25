@@ -4,6 +4,9 @@
  * On startup, checks if the entity types projection exists.
  * If not, emits entitytype.added events for each DEFAULT_ENTITY_TYPES entry.
  * This ensures the system has entity types available immediately after first deployment.
+ *
+ * NOTE: This is a standalone bootstrap function without logger access.
+ * Console statements kept for debugging - consider adding logger parameter in future.
  */
 
 import { promises as fs } from 'fs';

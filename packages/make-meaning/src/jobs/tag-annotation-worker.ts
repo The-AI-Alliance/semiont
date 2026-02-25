@@ -10,7 +10,7 @@ import { JobWorker } from '@semiont/jobs';
 import type { AnyJob, TagDetectionJob, JobQueue, RunningJob, TagDetectionParams, TagDetectionProgress, TagDetectionResult } from '@semiont/jobs';
 import { ResourceContext, AnnotationDetection } from '..';
 import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
-import { resourceIdToURI, EventBus } from '@semiont/core';
+import { resourceIdToURI, EventBus, type Logger } from '@semiont/core';
 import { getTagSchema } from '@semiont/ontology';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
@@ -19,15 +19,18 @@ import type { InferenceClient } from '@semiont/inference';
 
 export class TagDetectionWorker extends JobWorker {
   private isFirstProgress = true;
+  private readonly logger: Logger;
 
   constructor(
     jobQueue: JobQueue,
     private config: EnvironmentConfig,
     private eventStore: EventStore,
     private inferenceClient: InferenceClient,
-    private eventBus: EventBus
+    private eventBus: EventBus,
+    logger: Logger
   ) {
     super(jobQueue);
+    this.logger = logger;
   }
 
   protected getWorkerName(): string {
@@ -159,7 +162,10 @@ export class TagDetectionWorker extends JobWorker {
   }
 
   private async processTagDetectionJob(job: RunningJob<TagDetectionParams, TagDetectionProgress>): Promise<TagDetectionResult> {
-    console.log(`[TagDetectionWorker] Processing tag detection for resource ${job.params.resourceId} (job: ${job.metadata.id})`);
+    this.logger.info('Processing tag detection job', {
+      resourceId: job.params.resourceId,
+      jobId: job.metadata.id
+    });
 
     // Validate schema
     const schema = getTagSchema(job.params.schemaId);
@@ -221,7 +227,7 @@ export class TagDetectionWorker extends JobWorker {
         job.params.schemaId,
         category
       );
-      console.log(`[TagDetectionWorker] Found ${tags.length} tags for category "${category}"`);
+      this.logger.info('Found tags for category', { category, count: tags.length });
 
       allTags.push(...tags);
       byCategory[category] = tags.length;
@@ -246,7 +252,7 @@ export class TagDetectionWorker extends JobWorker {
         await this.createTagAnnotation(job.params.resourceId, job.metadata.userId, job.params.schemaId, tag);
         created++;
       } catch (error) {
-        console.error(`[TagDetectionWorker] Failed to create tag:`, error);
+        this.logger.error('Failed to create tag', { error });
       }
     }
 
@@ -262,7 +268,11 @@ export class TagDetectionWorker extends JobWorker {
     };
 
     await this.updateJobProgress(updatedJob);
-    console.log(`[TagDetectionWorker] ✅ Created ${created}/${allTags.length} tags across ${job.params.categories.length} categories`);
+    this.logger.info('Tag detection complete', {
+      created,
+      total: allTags.length,
+      categoryCount: job.params.categories.length
+    });
 
     // Return result - base class will use this for CompleteJob and emitCompletionEvent
     return {
@@ -340,6 +350,10 @@ export class TagDetectionWorker extends JobWorker {
       }
     });
 
-    console.log(`[TagDetectionWorker] Created tag annotation ${annotationId} for "${tag.category}": "${tag.exact.substring(0, 50)}..."`);
+    this.logger.debug('Created tag annotation', {
+      annotationId,
+      category: tag.category,
+      exactPreview: tag.exact.substring(0, 50)
+    });
   }
 }

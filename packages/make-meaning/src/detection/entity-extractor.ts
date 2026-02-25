@@ -27,10 +27,8 @@ export async function extractEntities(
   client: InferenceClient,
   includeDescriptiveReferences: boolean = false
 ): Promise<ExtractedEntity[]> {
-  console.log('extractEntities called with:', {
-    textLength: exact.length,
-    entityTypes: Array.isArray(entityTypes) ? entityTypes.map(et => typeof et === 'string' ? et : et.type) : []
-  });
+  // NOTE: This is a standalone utility function without logger access.
+  // Console statements kept for debugging entity extraction - consider adding logger parameter in future.
 
   // Format entity types for the prompt
   const entityTypesDescription = entityTypes.map(et => {
