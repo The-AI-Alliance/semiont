@@ -111,7 +111,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
   // Helper to create a test resource with content
   async function createTestResource(id: string): Promise<void> {
     // Store content in representation store
-    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir);
+    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
 
     const testContent = Buffer.from('Test content for detection', 'utf-8');
     const { checksum } = await repStore.store(testContent, { mediaType: 'text/plain' });

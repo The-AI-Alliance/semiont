@@ -127,7 +127,7 @@ describe('AnnotationDetection', () => {
 
     // Initialize stores
     testEventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
-    testRepStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir);
+    testRepStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
 
     // Create a test resource for detection
     const content = Buffer.from(

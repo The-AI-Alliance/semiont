@@ -101,7 +101,7 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
 
   // Helper to create a test resource with content
   async function createTestResource(id: string, content: string = 'Claims requiring assessment'): Promise<void> {
-    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir);
+    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
 
     const testContent = Buffer.from(content, 'utf-8');
     const { checksum } = await repStore.store(testContent, { mediaType: 'text/plain' });

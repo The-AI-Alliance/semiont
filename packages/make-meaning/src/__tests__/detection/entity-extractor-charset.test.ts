@@ -133,7 +133,7 @@ describe('Entity Detection - Charset Handling', () => {
     const buffer = Buffer.from(text, 'utf8');
 
     // Store representation
-    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir);
+    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
     const stored = await repStore.store(buffer, { mediaType });
     const checksum = stored.checksum;
 
@@ -188,7 +188,7 @@ describe('Entity Detection - Charset Handling', () => {
     const buffer = Buffer.from(text, 'latin1');
 
     // Store representation
-    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir);
+    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
     const stored = await repStore.store(buffer, { mediaType });
     const checksum = stored.checksum;
 
@@ -244,7 +244,7 @@ describe('Entity Detection - Charset Handling', () => {
     const buffer = Buffer.from(text, 'latin1'); // Windows-1252 is a superset of Latin-1
 
     // Store representation
-    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir);
+    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
     const stored = await repStore.store(buffer, { mediaType });
     const checksum = stored.checksum;
 
@@ -289,7 +289,7 @@ describe('Entity Detection - Charset Handling', () => {
     const buffer = Buffer.from(text, 'latin1');
 
     // Store representation
-    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir);
+    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
     const stored = await repStore.store(buffer, { mediaType });
     const checksum = stored.checksum;
 
@@ -338,7 +338,7 @@ describe('Entity Detection - Charset Handling', () => {
     const bufferLatin1 = Buffer.from(textLatin1, 'latin1');
 
     // Store as Latin-1
-    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir);
+    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
     const stored = await repStore.store(bufferLatin1, { mediaType: 'text/plain; charset=iso-8859-1' });
     const checksum = stored.checksum;
 
@@ -395,7 +395,7 @@ describe('Entity Detection - Charset Handling', () => {
     const buffer = Buffer.from(text, 'utf8');
 
     // Store without charset in mediaType
-    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir);
+    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
     const stored = await repStore.store(buffer, { mediaType: 'text/plain' });
     const checksum = stored.checksum;
 

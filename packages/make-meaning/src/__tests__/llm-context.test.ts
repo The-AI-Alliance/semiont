@@ -101,7 +101,7 @@ describe('LLM Context', () => {
 
     // Initialize stores
     eventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
-    repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir);
+    repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
 
     // Create a test resource
     const content = Buffer.from('This is test content for LLM context building.', 'utf-8');

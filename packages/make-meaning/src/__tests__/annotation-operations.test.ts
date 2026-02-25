@@ -79,7 +79,7 @@ describe('AnnotationOperations', () => {
 
     // Initialize stores
     testEventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
-    testRepStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir);
+    testRepStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
 
     // Create a test resource for annotations
     const content = Buffer.from('This is test content for annotations. It has multiple sentences. We will annotate various parts.', 'utf-8');

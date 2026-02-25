@@ -75,7 +75,7 @@ describe('ResourceOperations', () => {
 
     // Initialize event store and representation store
     testEventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
-    testRepStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir);
+    testRepStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
   });
 
   afterAll(async () => {

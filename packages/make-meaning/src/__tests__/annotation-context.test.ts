@@ -91,7 +91,7 @@ describe('AnnotationContext', () => {
 
   // Helper to create a test resource
   async function createTestResource(id: string, content: string): Promise<void> {
-    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir);
+    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
     const eventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
 
     const testContent = Buffer.from(content, 'utf-8');
