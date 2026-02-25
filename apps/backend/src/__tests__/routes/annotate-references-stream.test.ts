@@ -1,7 +1,7 @@
 /**
- * Annotation Detection Stream API Tests
+ * Annotate References Stream API Tests
  *
- * Tests the HTTP contract of the POST /resources/:resourceId/detect-annotations-stream endpoint.
+ * Tests the HTTP contract of the POST /resources/:resourceId/annotate-references-stream endpoint.
  * Focuses on parameter validation, authentication, and response format.
  */
 
@@ -74,7 +74,7 @@ vi.mock('../../auth/oauth', () => ({
   },
 }));
 
-describe('POST /resources/:resourceId/detect-annotations-stream', () => {
+describe('POST /resources/:resourceId/annotate-references-stream', () => {
   let app: Hono<{ Variables: Variables }>;
   let authToken: string;
   const testUser = {
@@ -133,7 +133,7 @@ describe('POST /resources/:resourceId/detect-annotations-stream', () => {
   });
 
   it('should return SSE stream with proper content-type', async () => {
-    const response = await app.request('/resources/test-resource/detect-annotations-stream', {
+    const response = await app.request('/resources/test-resource/annotate-references-stream', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -148,7 +148,7 @@ describe('POST /resources/:resourceId/detect-annotations-stream', () => {
   });
 
   it('should accept valid entity detection request', async () => {
-    const response = await app.request('/resources/test-resource/detect-annotations-stream', {
+    const response = await app.request('/resources/test-resource/annotate-references-stream', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -164,7 +164,7 @@ describe('POST /resources/:resourceId/detect-annotations-stream', () => {
   });
 
   it('should require authentication', async () => {
-    const response = await app.request('/resources/test-resource/detect-annotations-stream', {
+    const response = await app.request('/resources/test-resource/annotate-references-stream', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -178,7 +178,7 @@ describe('POST /resources/:resourceId/detect-annotations-stream', () => {
   });
 
   it('should validate request body has entityTypes', async () => {
-    const response = await app.request('/resources/test-resource/detect-annotations-stream', {
+    const response = await app.request('/resources/test-resource/annotate-references-stream', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -195,7 +195,7 @@ describe('POST /resources/:resourceId/detect-annotations-stream', () => {
     const { ResourceContext } = await import('@semiont/make-meaning');
     vi.mocked(ResourceContext.getResourceMetadata).mockResolvedValueOnce(null);
 
-    const response = await app.request('/resources/nonexistent-resource/detect-annotations-stream', {
+    const response = await app.request('/resources/nonexistent-resource/annotate-references-stream', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -210,7 +210,7 @@ describe('POST /resources/:resourceId/detect-annotations-stream', () => {
   });
 
   it('should accept includeDescriptiveReferences parameter', async () => {
-    const response = await app.request('/resources/test-resource/detect-annotations-stream', {
+    const response = await app.request('/resources/test-resource/annotate-references-stream', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
@@ -227,7 +227,7 @@ describe('POST /resources/:resourceId/detect-annotations-stream', () => {
   });
 
   it('should accept includeDescriptiveReferences as false', async () => {
-    const response = await app.request('/resources/test-resource/detect-annotations-stream', {
+    const response = await app.request('/resources/test-resource/annotate-references-stream', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authToken}`,
