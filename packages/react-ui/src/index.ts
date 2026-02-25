@@ -35,6 +35,7 @@ export * from './hooks/useDebounce';
 export * from './lib/formatTime';
 export * from './hooks/useKeyboardShortcuts';
 export * from './hooks/useLineNumbers';
+export * from './hooks/useHoverDelay';
 export * from './hooks/useObservableNavigation';
 export * from './hooks/usePanelWidth';
 export * from './hooks/useResourceEvents';

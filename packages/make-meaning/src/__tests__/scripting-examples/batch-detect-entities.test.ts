@@ -197,7 +197,7 @@ describe('Scripting Example: Batch Entity Detection', () => {
         status: 'pending',
         metadata: {
           id: `job-${Date.now()}-${i}` as any,
-          type: 'detection',
+          type: 'reference-annotation',
           userId: userId('batch-script'),
           created: new Date().toISOString(),
           retryCount: 0,
@@ -298,7 +298,7 @@ describe('Scripting Example: Batch Entity Detection', () => {
         status: 'pending',
         metadata: {
           id: `job-${Date.now()}-${i}` as any,
-          type: 'detection',
+          type: 'reference-annotation',
           userId: userId('batch-script'),
           created: new Date().toISOString(),
           retryCount: 0,

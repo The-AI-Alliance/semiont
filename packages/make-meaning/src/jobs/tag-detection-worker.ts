@@ -35,11 +35,11 @@ export class TagDetectionWorker extends JobWorker {
   }
 
   protected canProcessJob(job: AnyJob): boolean {
-    return job.metadata.type === 'tag-detection';
+    return job.metadata.type === 'tag-annotation';
   }
 
   protected async executeJob(job: AnyJob): Promise<TagDetectionResult> {
-    if (job.metadata.type !== 'tag-detection') {
+    if (job.metadata.type !== 'tag-annotation') {
       throw new Error(`Invalid job type: ${job.metadata.type}`);
     }
 
@@ -68,7 +68,7 @@ export class TagDetectionWorker extends JobWorker {
       version: 1,
       payload: {
         jobId: job.metadata.id,
-        jobType: 'tag-detection',
+        jobType: 'tag-annotation',
         result,
       },
     });
@@ -85,7 +85,7 @@ export class TagDetectionWorker extends JobWorker {
     // Call parent to update filesystem
     await super.updateJobProgress(job);
 
-    if (job.metadata.type !== 'tag-detection') return;
+    if (job.metadata.type !== 'tag-annotation') return;
 
     // Type guard: only running jobs have progress
     if (job.status !== 'running') {
@@ -141,7 +141,7 @@ export class TagDetectionWorker extends JobWorker {
     await super.handleJobFailure(job, error);
 
     // If job permanently failed, emit job.failed event
-    if (job.status === 'failed' && job.metadata.type === 'tag-detection') {
+    if (job.status === 'failed' && job.metadata.type === 'tag-annotation') {
       const tdJob = job as TagDetectionJob;
 
       await this.eventStore.appendEvent({

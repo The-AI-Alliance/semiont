@@ -34,7 +34,7 @@ class TestJobWorker extends JobWorker {
   }
 
   protected canProcessJob(job: AnyJob): boolean {
-    return job.metadata.type === 'detection';
+    return job.metadata.type === 'reference-annotation';
   }
 
   protected async executeJob(job: AnyJob): Promise<void> {
@@ -56,7 +56,7 @@ function createTestJob(id: string): PendingJob<DetectionParams> {
     status: 'pending',
     metadata: {
       id: jobId(id),
-      type: 'detection',
+      type: 'reference-annotation',
       userId: userId('user-1'),
       created: new Date().toISOString(),
       retryCount: 0,

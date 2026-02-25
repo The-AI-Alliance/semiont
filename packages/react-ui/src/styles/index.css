@@ -71,7 +71,7 @@
 @import '../components/resource/panels/StatisticsPanel.css';
 @import '../components/resource/panels/TaggingPanel.css';
 @import '../components/resource/panels/UnifiedAnnotationsPanel.css';
-@import '../components/resource/panels/DetectSection.css';
+@import '../components/resource/panels/AssistSection.css';
 @import '../components/settings/SettingsPanel.css';
 @import '../components/navigation/CollapsibleResourceNavigation.css';
 @import '../components/navigation/NavigationMenu.css';

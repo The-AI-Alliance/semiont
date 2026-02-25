@@ -25,7 +25,7 @@ import { jobId, entityType } from '@semiont/core';
 import { userId, resourceId, type ResourceId } from '@semiont/core';
 import { writeTypedSSE } from '../../../lib/sse-helpers';
 
-type DetectReferencesStreamRequest = components['schemas']['DetectReferencesStreamRequest'];
+type AnnotateReferencesStreamRequest = components['schemas']['AnnotateReferencesStreamRequest'];
 
 interface DetectionProgress {
   status: 'started' | 'scanning' | 'complete' | 'error';
@@ -43,7 +43,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
    *
    * Stream real-time entity detection progress via Server-Sent Events
    * Requires authentication
-   * Validates request body against DetectReferencesStreamRequest schema
+   * Validates request body against AnnotateReferencesStreamRequest schema
    * Returns SSE stream with progress updates
    *
    * Event-Driven Architecture:
@@ -53,10 +53,10 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
    * - <50ms latency (no polling)
    */
   router.post('/resources/:id/detect-annotations-stream',
-    validateRequestBody('DetectReferencesStreamRequest'),
+    validateRequestBody('AnnotateReferencesStreamRequest'),
     async (c) => {
       const { id } = c.req.param();
-      const body = c.get('validatedBody') as DetectReferencesStreamRequest;
+      const body = c.get('validatedBody') as AnnotateReferencesStreamRequest;
       const { entityTypes, includeDescriptiveReferences } = body;
       const config = c.get('config');
 
@@ -82,7 +82,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
         status: 'pending',
         metadata: {
           id: jobId(`job-${nanoid()}`),
-          type: 'detection',
+          type: 'reference-annotation',
           userId: userId(user.id),
           created: new Date().toISOString(),
           retryCount: 0,
@@ -135,9 +135,9 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
           const resourceBus = eventBus.scope(id);
           console.log(`[DetectAnnotations] Subscribing to EventBus for resource ${id}`);
 
-          // Subscribe to annotate:detect-progress
+          // Subscribe to annotate:progress
           subscriptions.push(
-            resourceBus.get('annotate:detect-progress').subscribe(async (_event) => {
+            resourceBus.get('annotate:progress').subscribe(async (_event) => {
               if (isStreamClosed) return;
               console.log(`[DetectAnnotations] Detection started for resource ${id}`);
               try {
@@ -149,7 +149,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
                     processedEntityTypes: 0,
                     message: 'Starting entity detection...'
                   } as DetectionProgress),
-                  event: 'annotate:detect-progress',
+                  event: 'annotate:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -159,9 +159,9 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
             })
           );
 
-          // Subscribe to annotate:detect-progress
+          // Subscribe to annotate:progress
           subscriptions.push(
-            resourceBus.get('annotate:detect-progress').subscribe(async (progress) => {
+            resourceBus.get('annotate:progress').subscribe(async (progress) => {
               if (isStreamClosed) return;
               console.log(`[DetectAnnotations] Detection progress for resource ${id}:`, progress);
               try {
@@ -177,7 +177,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
                       ? `Scanning for ${progress.currentEntityType}...`
                       : 'Processing...')
                   } as DetectionProgress),
-                  event: 'annotate:detect-progress',
+                  event: 'annotate:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -190,7 +190,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
           // Subscribe to job:completed
           subscriptions.push(
             resourceBus.get('job:completed').subscribe(async (event) => {
-      if (event.payload.jobType !== 'detection') return;
+      if (event.payload.jobType !== 'reference-annotation') return;
               if (isStreamClosed) return;
               console.log(`[DetectAnnotations] Detection completed for resource ${id}`);
               try {
@@ -206,7 +206,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
                       ? `Detection complete! Found ${result.totalFound} entities`
                       : 'Detection complete!'
                   } as DetectionProgress),
-                  event: 'annotate:detect-finished',
+                  event: 'annotate:assist-finished',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -219,7 +219,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
           // Subscribe to job:failed
           subscriptions.push(
             resourceBus.get('job:failed').subscribe(async (event) => {
-      if (event.payload.jobType !== 'detection') return;
+      if (event.payload.jobType !== 'reference-annotation') return;
               if (isStreamClosed) return;
               console.log(`[DetectAnnotations] Detection failed for resource ${id}:`, event.payload.error);
               try {
@@ -231,7 +231,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
                     processedEntityTypes: 0,
                     message: event.payload.error || 'Detection failed'
                   } as DetectionProgress),
-                  event: 'annotate:detect-failed',
+                  event: 'annotate:assist-failed',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -276,7 +276,7 @@ export function registerDetectAnnotationsStream(router: ResourcesRouterType, job
                 processedEntityTypes: 0,
                 message: error instanceof Error ? error.message : 'Detection failed'
               } as DetectionProgress),
-              event: 'annotate:detect-failed',
+              event: 'annotate:assist-failed',
               id: String(Date.now())
             });
           } catch (sseError) {

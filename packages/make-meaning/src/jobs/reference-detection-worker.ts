@@ -49,11 +49,11 @@ export class ReferenceDetectionWorker extends JobWorker {
   }
 
   protected canProcessJob(job: AnyJob): boolean {
-    return job.metadata.type === 'detection';
+    return job.metadata.type === 'reference-annotation';
   }
 
   protected async executeJob(job: AnyJob): Promise<DetectionResult> {
-    if (job.metadata.type !== 'detection') {
+    if (job.metadata.type !== 'reference-annotation') {
       throw new Error(`Invalid job type: ${job.metadata.type}`);
     }
 
@@ -290,7 +290,7 @@ export class ReferenceDetectionWorker extends JobWorker {
       version: 1,
       payload: {
         jobId: job.metadata.id,
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         result,
       },
     });
@@ -304,7 +304,7 @@ export class ReferenceDetectionWorker extends JobWorker {
     await super.handleJobFailure(job, error);
 
     // If job permanently failed, emit job.failed event
-    if (job.status === 'failed' && job.metadata.type === 'detection') {
+    if (job.status === 'failed' && job.metadata.type === 'reference-annotation') {
       // Type narrowing: job is FailedJob<DetectionParams>
       const detJob = job as DetectionJob;
 
@@ -335,7 +335,7 @@ export class ReferenceDetectionWorker extends JobWorker {
     await super.updateJobProgress(job);
 
     // Emit events for detection jobs
-    if (job.metadata.type !== 'detection') {
+    if (job.metadata.type !== 'reference-annotation') {
       return;
     }
 

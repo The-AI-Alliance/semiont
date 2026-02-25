@@ -75,7 +75,7 @@ describe('SSE Event Flow - End-to-End', () => {
       version: 1,
       payload: {
         jobId: testJobId,
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         totalSteps: 3
       }
     });
@@ -87,7 +87,7 @@ describe('SSE Event Flow - End-to-End', () => {
       version: 1,
       payload: {
         jobId: testJobId,
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         percentage: 33,
         currentStep: 'Person',
         processedSteps: 1,
@@ -104,7 +104,7 @@ describe('SSE Event Flow - End-to-End', () => {
       version: 1,
       payload: {
         jobId: testJobId,
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         percentage: 66,
         currentStep: 'Organization',
         processedSteps: 2,
@@ -121,7 +121,7 @@ describe('SSE Event Flow - End-to-End', () => {
       version: 1,
       payload: {
         jobId: testJobId,
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         totalSteps: 3,
         foundCount: 7,
         message: 'Detection complete!'
@@ -249,7 +249,7 @@ describe('SSE Event Flow - End-to-End', () => {
       version: 1,
       payload: {
         jobId: testJobId,
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         totalSteps: 3
       }
     });
@@ -262,7 +262,7 @@ describe('SSE Event Flow - End-to-End', () => {
       version: 1,
       payload: {
         jobId: testJobId,
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         percentage: 50,
         currentStep: 'Person',
         message: 'Processing...'
@@ -277,7 +277,7 @@ describe('SSE Event Flow - End-to-End', () => {
       version: 1,
       payload: {
         jobId: testJobId,
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         error: 'AI service unavailable',
         details: 'Connection timeout after 30s'
       }
@@ -319,7 +319,7 @@ describe('SSE Event Flow - End-to-End', () => {
       version: 1,
       payload: {
         jobId: jobId1,
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         percentage: 50
       }
     });
@@ -331,7 +331,7 @@ describe('SSE Event Flow - End-to-End', () => {
       version: 1,
       payload: {
         jobId: jobId2,
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         percentage: 50
       }
     });
@@ -343,7 +343,7 @@ describe('SSE Event Flow - End-to-End', () => {
       version: 1,
       payload: {
         jobId: jobId1,
-        jobType: 'detection'
+        jobType: 'reference-annotation'
       }
     });
 
@@ -385,7 +385,7 @@ describe('SSE Event Flow - End-to-End', () => {
       version: 1,
       payload: {
         jobId: testJobId,
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         totalSteps: 2
       }
     });
@@ -397,7 +397,7 @@ describe('SSE Event Flow - End-to-End', () => {
       version: 1,
       payload: {
         jobId: testJobId,
-        jobType: 'detection'
+        jobType: 'reference-annotation'
       }
     });
 
@@ -431,7 +431,7 @@ describe('SSE Event Flow - End-to-End', () => {
       version: 1,
       payload: {
         jobId: testJobId,
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         percentage: 50
       }
     });

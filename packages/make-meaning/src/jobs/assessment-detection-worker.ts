@@ -33,11 +33,11 @@ export class AssessmentDetectionWorker extends JobWorker {
   }
 
   protected canProcessJob(job: AnyJob): boolean {
-    return job.metadata.type === 'assessment-detection';
+    return job.metadata.type === 'assessment-annotation';
   }
 
   protected async executeJob(job: AnyJob): Promise<AssessmentDetectionResult> {
-    if (job.metadata.type !== 'assessment-detection') {
+    if (job.metadata.type !== 'assessment-annotation') {
       throw new Error(`Invalid job type: ${job.metadata.type}`);
     }
 
@@ -66,7 +66,7 @@ export class AssessmentDetectionWorker extends JobWorker {
       version: 1,
       payload: {
         jobId: job.metadata.id,
-        jobType: 'assessment-detection',
+        jobType: 'assessment-annotation',
         result,
       },
     });
@@ -82,7 +82,7 @@ export class AssessmentDetectionWorker extends JobWorker {
     // Call parent to update filesystem
     await super.updateJobProgress(job);
 
-    if (job.metadata.type !== 'assessment-detection') return;
+    if (job.metadata.type !== 'assessment-annotation') return;
 
     // Type guard: only running jobs have progress
     if (job.status !== 'running') {
@@ -135,7 +135,7 @@ export class AssessmentDetectionWorker extends JobWorker {
     await super.handleJobFailure(job, error);
 
     // If job permanently failed, emit job.failed event
-    if (job.status === 'failed' && job.metadata.type === 'assessment-detection') {
+    if (job.status === 'failed' && job.metadata.type === 'assessment-annotation') {
       const aJob = job as AssessmentDetectionJob;
 
       // Log the full error details to backend logs (already logged by parent)

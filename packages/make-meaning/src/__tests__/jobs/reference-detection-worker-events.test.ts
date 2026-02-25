@@ -137,7 +137,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
       status: 'running',
       metadata: {
         id: jobId('job-test-1'),
-        type: 'detection',
+        type: 'reference-annotation',
         userId: userId('user-1'),
         created: new Date().toISOString(),
         retryCount: 0,
@@ -171,7 +171,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
       userId: userId('user-1'),
       payload: {
         jobId: 'job-test-1',
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         totalSteps: 1
       }
     });
@@ -185,7 +185,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
       status: 'running',
       metadata: {
         id: jobId('job-test-2'),
-        type: 'detection',
+        type: 'reference-annotation',
         userId: userId('user-1'),
         created: new Date().toISOString(),
         retryCount: 0,
@@ -218,7 +218,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
       resourceId: resourceId(testResourceId),
       payload: {
         jobId: 'job-test-2',
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         percentage: expect.any(Number),
         currentStep: 'Person',
         processedSteps: 1,
@@ -236,7 +236,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
       status: 'running',
       metadata: {
         id: jobId('job-test-3'),
-        type: 'detection',
+        type: 'reference-annotation',
         userId: userId('user-1'),
         created: new Date().toISOString(),
         retryCount: 0,
@@ -268,7 +268,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
       resourceId: resourceId(testResourceId),
       payload: {
         jobId: 'job-test-3',
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         result: expect.objectContaining({
           totalFound: expect.any(Number),
           totalEmitted: expect.any(Number)
@@ -285,7 +285,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
       status: 'running',
       metadata: {
         id: jobId('job-test-4'),
-        type: 'detection',
+        type: 'reference-annotation',
         userId: userId('user-1'),
         created: new Date().toISOString(),
         retryCount: 0,
@@ -341,7 +341,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
       status: 'running',
       metadata: {
         id: jobId('job-test-5'),
-        type: 'detection',
+        type: 'reference-annotation',
         userId: userId('user-1'),
         created: new Date().toISOString(),
         retryCount: 0,
@@ -387,7 +387,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
       status: 'running',
       metadata: {
         id: jobId('job-test-6'),
-        type: 'detection',
+        type: 'reference-annotation',
         userId: userId('user-1'),
         created: new Date().toISOString(),
         retryCount: 0,

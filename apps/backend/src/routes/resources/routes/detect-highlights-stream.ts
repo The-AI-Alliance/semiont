@@ -25,7 +25,7 @@ import { jobId } from '@semiont/core';
 import { userId, resourceId, type ResourceId } from '@semiont/core';
 import { writeTypedSSE } from '../../../lib/sse-helpers';
 
-type DetectHighlightsStreamRequest = components['schemas']['DetectHighlightsStreamRequest'];
+type AnnotateHighlightsStreamRequest = components['schemas']['AnnotateHighlightsStreamRequest'];
 
 interface HighlightDetectionProgress {
   status: 'started' | 'analyzing' | 'creating' | 'complete' | 'error';
@@ -43,7 +43,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
    *
    * Stream real-time highlight detection progress via Server-Sent Events
    * Requires authentication
-   * Validates request body against DetectHighlightsStreamRequest schema
+   * Validates request body against AnnotateHighlightsStreamRequest schema
    * Returns SSE stream with progress updates
    *
    * Event-Driven Architecture:
@@ -53,10 +53,10 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
    * - <50ms latency (no polling)
    */
   router.post('/resources/:id/detect-highlights-stream',
-    validateRequestBody('DetectHighlightsStreamRequest'),
+    validateRequestBody('AnnotateHighlightsStreamRequest'),
     async (c) => {
       const { id } = c.req.param();
-      const body = c.get('validatedBody') as DetectHighlightsStreamRequest;
+      const body = c.get('validatedBody') as AnnotateHighlightsStreamRequest;
       const { instructions, density } = body;
       const config = c.get('config');
 
@@ -87,7 +87,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
         status: 'pending',
         metadata: {
           id: jobId(`job-${nanoid()}`),
-          type: 'highlight-detection',
+          type: 'highlight-annotation',
           userId: userId(user.id),
           created: new Date().toISOString(),
           retryCount: 0,
@@ -140,9 +140,9 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
           const resourceBus = eventBus.scope(id);
           console.log(`[DetectHighlights] Subscribing to EventBus for resource ${id}`);
 
-          // Subscribe to annotate:detect-progress
+          // Subscribe to annotate:progress
           subscriptions.push(
-            resourceBus.get('annotate:detect-progress').subscribe(async (_event) => {
+            resourceBus.get('annotate:progress').subscribe(async (_event) => {
               if (isStreamClosed) return;
               console.log(`[DetectHighlights] Detection started for resource ${id}`);
               try {
@@ -152,7 +152,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
                     resourceId: resourceId(id),
                     message: 'Starting detection...'
                   } as HighlightDetectionProgress),
-                  event: 'annotate:detect-progress',
+                  event: 'annotate:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -162,9 +162,9 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
             })
           );
 
-          // Subscribe to annotate:detect-progress
+          // Subscribe to annotate:progress
           subscriptions.push(
-            resourceBus.get('annotate:detect-progress').subscribe(async (progress) => {
+            resourceBus.get('annotate:progress').subscribe(async (progress) => {
               if (isStreamClosed) return;
               console.log(`[DetectHighlights] Detection progress for resource ${id}:`, progress);
               try {
@@ -176,7 +176,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
                     percentage: progress.percentage,
                     message: progress.message || 'Processing...'
                   } as HighlightDetectionProgress),
-                  event: 'annotate:detect-progress',
+                  event: 'annotate:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -189,7 +189,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
           // Subscribe to job:completed
           subscriptions.push(
             resourceBus.get('job:completed').subscribe(async (event) => {
-      if (event.payload.jobType !== 'detection') return;
+      if (event.payload.jobType !== 'highlight-annotation') return;
               if (isStreamClosed) return;
               console.log(`[DetectHighlights] Detection completed for resource ${id}`);
               try {
@@ -205,7 +205,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
                       ? `Complete! Created ${result.highlightsCreated} highlights`
                       : 'Highlight detection complete!'
                   } as HighlightDetectionProgress),
-                  event: 'annotate:detect-finished',
+                  event: 'annotate:assist-finished',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -218,7 +218,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
           // Subscribe to job:failed
           subscriptions.push(
             resourceBus.get('job:failed').subscribe(async (event) => {
-      if (event.payload.jobType !== 'detection') return;
+      if (event.payload.jobType !== 'highlight-annotation') return;
               if (isStreamClosed) return;
               console.log(`[DetectHighlights] Detection failed for resource ${id}:`, event.payload.error);
               try {
@@ -228,7 +228,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
                     resourceId: resourceId(id),
                     message: event.payload.error || 'Highlight detection failed'
                   } as HighlightDetectionProgress),
-                  event: 'annotate:detect-failed',
+                  event: 'annotate:assist-failed',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -271,7 +271,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
                 resourceId: resourceId(id),
                 message: error instanceof Error ? error.message : 'Highlight detection failed'
               } as HighlightDetectionProgress),
-              event: 'annotate:detect-failed',
+              event: 'annotate:assist-failed',
               id: String(Date.now())
             });
           } catch (sseError) {

@@ -129,7 +129,7 @@ describe('HighlightDetectionWorker - Event Emission', () => {
       status: 'running',
       metadata: {
         id: jobId('job-highlight-1'),
-        type: 'highlight-detection',
+        type: 'highlight-annotation',
         userId: userId('user-1'),
         created: new Date().toISOString(),
         retryCount: 0,
@@ -161,7 +161,7 @@ describe('HighlightDetectionWorker - Event Emission', () => {
       userId: userId('user-1'),
       payload: {
         jobId: 'job-highlight-1',
-        jobType: 'highlight-detection'
+        jobType: 'highlight-annotation'
       }
     });
   });
@@ -185,7 +185,7 @@ describe('HighlightDetectionWorker - Event Emission', () => {
       status: 'running',
       metadata: {
         id: jobId('job-highlight-2'),
-        type: 'highlight-detection',
+        type: 'highlight-annotation',
         userId: userId('user-1'),
         created: new Date().toISOString(),
         retryCount: 0,
@@ -240,7 +240,7 @@ describe('HighlightDetectionWorker - Event Emission', () => {
       status: 'running',
       metadata: {
         id: jobId('job-highlight-3'),
-        type: 'highlight-detection',
+        type: 'highlight-annotation',
         userId: userId('user-1'),
         created: new Date().toISOString(),
         retryCount: 0,
@@ -302,7 +302,7 @@ describe('HighlightDetectionWorker - Event Emission', () => {
       status: 'running',
       metadata: {
         id: jobId('job-highlight-4'),
-        type: 'highlight-detection',
+        type: 'highlight-annotation',
         userId: userId('user-1'),
         created: new Date().toISOString(),
         retryCount: 0,

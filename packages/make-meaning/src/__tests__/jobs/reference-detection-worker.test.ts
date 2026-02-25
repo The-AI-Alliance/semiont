@@ -138,7 +138,7 @@ describe('ReferenceDetectionWorker - Full Lifecycle', () => {
         status: 'running',
         metadata: {
           id: jobId('job-execute-1'),
-          type: 'detection',
+          type: 'reference-annotation',
           userId: userId('user-1'),
           created: new Date().toISOString(),
           retryCount: 0,
@@ -176,7 +176,7 @@ describe('ReferenceDetectionWorker - Full Lifecycle', () => {
         status: 'running',
         metadata: {
           id: jobId('job-multi-1'),
-          type: 'detection',
+          type: 'reference-annotation',
           userId: userId('user-1'),
           created: new Date().toISOString(),
           retryCount: 0,
@@ -211,7 +211,7 @@ describe('ReferenceDetectionWorker - Full Lifecycle', () => {
         status: 'running',
         metadata: {
           id: jobId('job-none-1'),
-          type: 'detection',
+          type: 'reference-annotation',
           userId: userId('user-1'),
           created: new Date().toISOString(),
           retryCount: 0,
@@ -244,7 +244,7 @@ describe('ReferenceDetectionWorker - Full Lifecycle', () => {
         status: 'running',
         metadata: {
           id: jobId('job-notfound-1'),
-          type: 'detection',
+          type: 'reference-annotation',
           userId: userId('user-1'),
           created: new Date().toISOString(),
           retryCount: 0,
@@ -290,7 +290,7 @@ describe('ReferenceDetectionWorker - Full Lifecycle', () => {
         status: 'pending',
         metadata: {
           id: jobId('job-invalid-status-1'),
-          type: 'detection',
+          type: 'reference-annotation',
           userId: userId('user-1'),
           created: new Date().toISOString(),
           retryCount: 0,
@@ -321,7 +321,7 @@ describe('ReferenceDetectionWorker - Full Lifecycle', () => {
         status: 'running',
         metadata: {
           id: jobId('job-plain-1'),
-          type: 'detection',
+          type: 'reference-annotation',
           userId: userId('user-1'),
           created: new Date().toISOString(),
           retryCount: 0,
@@ -355,7 +355,7 @@ describe('ReferenceDetectionWorker - Full Lifecycle', () => {
         status: 'running',
         metadata: {
           id: jobId('job-markdown-1'),
-          type: 'detection',
+          type: 'reference-annotation',
           userId: userId('user-1'),
           created: new Date().toISOString(),
           retryCount: 0,
@@ -389,7 +389,7 @@ describe('ReferenceDetectionWorker - Full Lifecycle', () => {
         status: 'running',
         metadata: {
           id: jobId('job-charset-1'),
-          type: 'detection',
+          type: 'reference-annotation',
           userId: userId('user-1'),
           created: new Date().toISOString(),
           retryCount: 0,
@@ -423,7 +423,7 @@ describe('ReferenceDetectionWorker - Full Lifecycle', () => {
         status: 'running',
         metadata: {
           id: jobId('job-binary-1'),
-          type: 'detection',
+          type: 'reference-annotation',
           userId: userId('user-1'),
           created: new Date().toISOString(),
           retryCount: 0,
@@ -459,7 +459,7 @@ describe('ReferenceDetectionWorker - Full Lifecycle', () => {
         status: 'running',
         metadata: {
           id: jobId('job-completion-1'),
-          type: 'detection',
+          type: 'reference-annotation',
           userId: userId('user-1'),
           created: new Date().toISOString(),
           retryCount: 0,
@@ -488,7 +488,7 @@ describe('ReferenceDetectionWorker - Full Lifecycle', () => {
       expect(completedEvents.length).toBe(1);
       expect(completedEvents[0]!.event.payload).toMatchObject({
         jobId: 'job-completion-1',
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         result: {
           totalFound: 5,
           totalEmitted: 5,
@@ -505,7 +505,7 @@ describe('ReferenceDetectionWorker - Full Lifecycle', () => {
         status: 'running',
         metadata: {
           id: jobId('job-result-1'),
-          type: 'detection',
+          type: 'reference-annotation',
           userId: userId('user-1'),
           created: new Date().toISOString(),
           retryCount: 0,
@@ -550,7 +550,7 @@ describe('ReferenceDetectionWorker - Full Lifecycle', () => {
         status: 'running',
         metadata: {
           id: jobId('job-integration-1'),
-          type: 'detection',
+          type: 'reference-annotation',
           userId: userId('user-1'),
           created: new Date().toISOString(),
           retryCount: 0,
@@ -591,7 +591,7 @@ describe('ReferenceDetectionWorker - Full Lifecycle', () => {
         status: 'pending' as const,
         metadata: {
           id: jobId('test-1'),
-          type: 'detection' as const,
+          type: 'reference-annotation' as const,
           userId: userId('user-1'),
           created: new Date().toISOString(),
           retryCount: 0,

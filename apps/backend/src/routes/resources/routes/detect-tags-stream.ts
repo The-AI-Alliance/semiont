@@ -26,7 +26,7 @@ import { userId, resourceId, type ResourceId } from '@semiont/core';
 import { writeTypedSSE } from '../../../lib/sse-helpers';
 import { getTagSchema } from '@semiont/ontology';
 
-type DetectTagsStreamRequest = components['schemas']['DetectTagsStreamRequest'];
+type AnnotateTagsStreamRequest = components['schemas']['AnnotateTagsStreamRequest'];
 
 interface TagDetectionProgress {
   status: 'started' | 'analyzing' | 'creating' | 'complete' | 'error';
@@ -48,7 +48,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
    *
    * Stream real-time tag detection progress via Server-Sent Events
    * Requires authentication
-   * Validates request body against DetectTagsStreamRequest schema
+   * Validates request body against AnnotateTagsStreamRequest schema
    * Returns SSE stream with progress updates
    *
    * Event-Driven Architecture:
@@ -58,10 +58,10 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
    * - <50ms latency (no polling)
    */
   router.post('/resources/:id/detect-tags-stream',
-    validateRequestBody('DetectTagsStreamRequest'),
+    validateRequestBody('AnnotateTagsStreamRequest'),
     async (c) => {
       const { id } = c.req.param();
-      const body = c.get('validatedBody') as DetectTagsStreamRequest;
+      const body = c.get('validatedBody') as AnnotateTagsStreamRequest;
       const { schemaId, categories } = body;
       const config = c.get('config');
 
@@ -104,7 +104,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
         status: 'pending',
         metadata: {
           id: jobId(`job-${nanoid()}`),
-          type: 'tag-detection',
+          type: 'tag-annotation',
           userId: userId(user.id),
           created: new Date().toISOString(),
           retryCount: 0,
@@ -157,9 +157,9 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
           const resourceBus = eventBus.scope(id);
           console.log(`[DetectTags] Subscribing to EventBus for resource ${id}`);
 
-          // Subscribe to annotate:detect-progress
+          // Subscribe to annotate:progress
           subscriptions.push(
-            resourceBus.get('annotate:detect-progress').subscribe(async (_event) => {
+            resourceBus.get('annotate:progress').subscribe(async (_event) => {
               if (isStreamClosed) return;
               console.log(`[DetectTags] Detection started for resource ${id}`);
               try {
@@ -170,7 +170,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
                     totalCategories: categories.length,
                     message: 'Starting detection...'
                   } as TagDetectionProgress),
-                  event: 'annotate:detect-progress',
+                  event: 'annotate:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -180,9 +180,9 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
             })
           );
 
-          // Subscribe to annotate:detect-progress
+          // Subscribe to annotate:progress
           subscriptions.push(
-            resourceBus.get('annotate:detect-progress').subscribe(async (progress) => {
+            resourceBus.get('annotate:progress').subscribe(async (progress) => {
               if (isStreamClosed) return;
               console.log(`[DetectTags] Detection progress for resource ${id}:`, progress);
               try {
@@ -197,7 +197,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
                     totalCategories: progress.totalCategories,
                     message: progress.message || 'Processing...'
                   } as TagDetectionProgress),
-                  event: 'annotate:detect-progress',
+                  event: 'annotate:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -210,7 +210,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
           // Subscribe to job:completed
           subscriptions.push(
             resourceBus.get('job:completed').subscribe(async (event) => {
-      if (event.payload.jobType !== 'detection') return;
+      if (event.payload.jobType !== 'tag-annotation') return;
               if (isStreamClosed) return;
               console.log(`[DetectTags] Detection completed for resource ${id}`);
               try {
@@ -227,7 +227,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
                       ? `Complete! Created ${result.tagsCreated} tags`
                       : 'Tag detection complete!'
                   } as TagDetectionProgress),
-                  event: 'annotate:detect-finished',
+                  event: 'annotate:assist-finished',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -240,7 +240,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
           // Subscribe to job:failed
           subscriptions.push(
             resourceBus.get('job:failed').subscribe(async (event) => {
-      if (event.payload.jobType !== 'detection') return;
+      if (event.payload.jobType !== 'tag-annotation') return;
               if (isStreamClosed) return;
               console.log(`[DetectTags] Detection failed for resource ${id}:`, event.payload.error);
               try {
@@ -250,7 +250,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
                     resourceId: resourceId(id),
                     message: event.payload.error || 'Tag detection failed'
                   } as TagDetectionProgress),
-                  event: 'annotate:detect-failed',
+                  event: 'annotate:assist-failed',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -293,7 +293,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
                 resourceId: resourceId(id),
                 message: error instanceof Error ? error.message : 'Tag detection failed'
               } as TagDetectionProgress),
-              event: 'annotate:detect-failed',
+              event: 'annotate:assist-failed',
               id: String(Date.now())
             });
           } catch (sseError) {

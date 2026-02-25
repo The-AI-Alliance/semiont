@@ -33,11 +33,11 @@ export class CommentDetectionWorker extends JobWorker {
   }
 
   protected canProcessJob(job: AnyJob): boolean {
-    return job.metadata.type === 'comment-detection';
+    return job.metadata.type === 'comment-annotation';
   }
 
   protected async executeJob(job: AnyJob): Promise<CommentDetectionResult> {
-    if (job.metadata.type !== 'comment-detection') {
+    if (job.metadata.type !== 'comment-annotation') {
       throw new Error(`Invalid job type: ${job.metadata.type}`);
     }
 
@@ -66,7 +66,7 @@ export class CommentDetectionWorker extends JobWorker {
       version: 1,
       payload: {
         jobId: job.metadata.id,
-        jobType: 'comment-detection',
+        jobType: 'comment-annotation',
         result,
       },
     });
@@ -83,7 +83,7 @@ export class CommentDetectionWorker extends JobWorker {
     // Call parent to update filesystem
     await super.updateJobProgress(job);
 
-    if (job.metadata.type !== 'comment-detection') return;
+    if (job.metadata.type !== 'comment-annotation') return;
 
     // Type guard: only running jobs have progress
     if (job.status !== 'running') {
@@ -136,7 +136,7 @@ export class CommentDetectionWorker extends JobWorker {
     await super.handleJobFailure(job, error);
 
     // If job permanently failed, emit job.failed event
-    if (job.status === 'failed' && job.metadata.type === 'comment-detection') {
+    if (job.status === 'failed' && job.metadata.type === 'comment-annotation') {
       const cdJob = job as CommentDetectionJob;
 
       // Log the full error details to backend logs (already logged by parent)

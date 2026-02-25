@@ -129,7 +129,7 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
       status: 'running',
       metadata: {
         id: jobId('job-assessment-1'),
-        type: 'assessment-detection',
+        type: 'assessment-annotation',
         userId: userId('user-1'),
         created: new Date().toISOString(),
         retryCount: 0,
@@ -161,7 +161,7 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
       userId: userId('user-1'),
       payload: {
         jobId: 'job-assessment-1',
-        jobType: 'assessment-detection'
+        jobType: 'assessment-annotation'
       }
     });
   });
@@ -186,7 +186,7 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
       status: 'running',
       metadata: {
         id: jobId('job-assessment-2'),
-        type: 'assessment-detection',
+        type: 'assessment-annotation',
         userId: userId('user-1'),
         created: new Date().toISOString(),
         retryCount: 0,
@@ -242,7 +242,7 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
       status: 'running',
       metadata: {
         id: jobId('job-assessment-3'),
-        type: 'assessment-detection',
+        type: 'assessment-annotation',
         userId: userId('user-1'),
         created: new Date().toISOString(),
         retryCount: 0,
@@ -306,7 +306,7 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
       status: 'running',
       metadata: {
         id: jobId('job-assessment-4'),
-        type: 'assessment-detection',
+        type: 'assessment-annotation',
         userId: userId('user-1'),
         created: new Date().toISOString(),
         retryCount: 0,

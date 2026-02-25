@@ -25,7 +25,7 @@ import { jobId } from '@semiont/core';
 import { userId, resourceId, type ResourceId } from '@semiont/core';
 import { writeTypedSSE } from '../../../lib/sse-helpers';
 
-type DetectAssessmentsStreamRequest = components['schemas']['DetectAssessmentsStreamRequest'];
+type AnnotateAssessmentsStreamRequest = components['schemas']['AnnotateAssessmentsStreamRequest'];
 
 interface AssessmentDetectionProgress {
   status: 'started' | 'analyzing' | 'creating' | 'complete' | 'error';
@@ -43,7 +43,7 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
    *
    * Stream real-time assessment detection progress via Server-Sent Events
    * Requires authentication
-   * Validates request body against DetectAssessmentsStreamRequest schema
+   * Validates request body against AnnotateAssessmentsStreamRequest schema
    * Returns SSE stream with progress updates
    *
    * Event-Driven Architecture:
@@ -53,10 +53,10 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
    * - <50ms latency (no polling)
    */
   router.post('/resources/:id/detect-assessments-stream',
-    validateRequestBody('DetectAssessmentsStreamRequest'),
+    validateRequestBody('AnnotateAssessmentsStreamRequest'),
     async (c) => {
       const { id } = c.req.param();
-      const body = c.get('validatedBody') as DetectAssessmentsStreamRequest;
+      const body = c.get('validatedBody') as AnnotateAssessmentsStreamRequest;
       const { instructions, tone, density } = body;
       const config = c.get('config');
 
@@ -87,7 +87,7 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
         status: 'pending',
         metadata: {
           id: jobId(`job-${nanoid()}`),
-          type: 'assessment-detection',
+          type: 'assessment-annotation',
           userId: userId(user.id),
           created: new Date().toISOString(),
           retryCount: 0,
@@ -141,9 +141,9 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
           const resourceBus = eventBus.scope(id);
           console.log(`[DetectAssessments] Subscribing to EventBus for resource ${id}`);
 
-          // Subscribe to annotate:detect-progress
+          // Subscribe to annotate:progress
           subscriptions.push(
-            resourceBus.get('annotate:detect-progress').subscribe(async (_event) => {
+            resourceBus.get('annotate:progress').subscribe(async (_event) => {
               if (isStreamClosed) return;
               console.log(`[DetectAssessments] Detection started for resource ${id}`);
               try {
@@ -153,7 +153,7 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
                     resourceId: resourceId(id),
                     message: 'Starting detection...'
                   } as AssessmentDetectionProgress),
-                  event: 'annotate:detect-progress',
+                  event: 'annotate:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -163,9 +163,9 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
             })
           );
 
-          // Subscribe to annotate:detect-progress
+          // Subscribe to annotate:progress
           subscriptions.push(
-            resourceBus.get('annotate:detect-progress').subscribe(async (progress) => {
+            resourceBus.get('annotate:progress').subscribe(async (progress) => {
               if (isStreamClosed) return;
               console.log(`[DetectAssessments] Detection progress for resource ${id}:`, progress);
               try {
@@ -177,7 +177,7 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
                     percentage: progress.percentage,
                     message: progress.message || 'Processing...'
                   } as AssessmentDetectionProgress),
-                  event: 'annotate:detect-progress',
+                  event: 'annotate:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -190,7 +190,7 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
           // Subscribe to job:completed
           subscriptions.push(
             resourceBus.get('job:completed').subscribe(async (event) => {
-      if (event.payload.jobType !== 'detection') return;
+      if (event.payload.jobType !== 'assessment-annotation') return;
               if (isStreamClosed) return;
               console.log(`[DetectAssessments] Detection completed for resource ${id}`);
               try {
@@ -206,7 +206,7 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
                       ? `Complete! Created ${result.assessmentsCreated} assessments`
                       : 'Assessment detection complete!'
                   } as AssessmentDetectionProgress),
-                  event: 'annotate:detect-finished',
+                  event: 'annotate:assist-finished',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -219,7 +219,7 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
           // Subscribe to job:failed
           subscriptions.push(
             resourceBus.get('job:failed').subscribe(async (event) => {
-      if (event.payload.jobType !== 'detection') return;
+      if (event.payload.jobType !== 'assessment-annotation') return;
               if (isStreamClosed) return;
               console.log(`[DetectAssessments] Detection failed for resource ${id}:`, event.payload.error);
               try {
@@ -229,7 +229,7 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
                     resourceId: resourceId(id),
                     message: event.payload.error || 'Assessment detection failed'
                   } as AssessmentDetectionProgress),
-                  event: 'annotate:detect-failed',
+                  event: 'annotate:assist-failed',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -272,7 +272,7 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
                 resourceId: resourceId(id),
                 message: error instanceof Error ? error.message : 'Assessment detection failed'
               } as AssessmentDetectionProgress),
-              event: 'annotate:detect-failed',
+              event: 'annotate:assist-failed',
               id: String(Date.now())
             });
           } catch (sseError) {

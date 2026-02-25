@@ -33,11 +33,11 @@ export class HighlightDetectionWorker extends JobWorker {
   }
 
   protected canProcessJob(job: AnyJob): boolean {
-    return job.metadata.type === 'highlight-detection';
+    return job.metadata.type === 'highlight-annotation';
   }
 
   protected async executeJob(job: AnyJob): Promise<HighlightDetectionResult> {
-    if (job.metadata.type !== 'highlight-detection') {
+    if (job.metadata.type !== 'highlight-annotation') {
       throw new Error(`Invalid job type: ${job.metadata.type}`);
     }
 
@@ -66,7 +66,7 @@ export class HighlightDetectionWorker extends JobWorker {
       version: 1,
       payload: {
         jobId: job.metadata.id,
-        jobType: 'highlight-detection',
+        jobType: 'highlight-annotation',
         result,
       },
     });
@@ -83,7 +83,7 @@ export class HighlightDetectionWorker extends JobWorker {
     // Call parent to update filesystem
     await super.updateJobProgress(job);
 
-    if (job.metadata.type !== 'highlight-detection') return;
+    if (job.metadata.type !== 'highlight-annotation') return;
 
     // Type guard: only running jobs have progress
     if (job.status !== 'running') {
@@ -136,7 +136,7 @@ export class HighlightDetectionWorker extends JobWorker {
     await super.handleJobFailure(job, error);
 
     // If job permanently failed, emit job.failed event
-    if (job.status === 'failed' && job.metadata.type === 'highlight-detection') {
+    if (job.status === 'failed' && job.metadata.type === 'highlight-annotation') {
       const hlJob = job as HighlightDetectionJob;
 
       // Log the full error details to backend logs (already logged by parent)

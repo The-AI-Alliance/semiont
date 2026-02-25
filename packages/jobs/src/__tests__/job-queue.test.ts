@@ -16,7 +16,7 @@ function createPendingDetectionJob(id: string): PendingJob<DetectionParams> {
     status: 'pending',
     metadata: {
       id: jobId(id),
-      type: 'detection',
+      type: 'reference-annotation',
       userId: userId('user-1'),
       created: new Date().toISOString(),
       retryCount: 0,
@@ -34,7 +34,7 @@ function createRunningDetectionJob(id: string): RunningJob<DetectionParams, Dete
     status: 'running',
     metadata: {
       id: jobId(id),
-      type: 'detection',
+      type: 'reference-annotation',
       userId: userId('user-1'),
       created: new Date().toISOString(),
       retryCount: 0,
@@ -60,7 +60,7 @@ function createCompleteDetectionJob(id: string): CompleteJob<DetectionParams, De
     status: 'complete',
     metadata: {
       id: jobId(id),
-      type: 'detection',
+      type: 'reference-annotation',
       userId: userId('user-1'),
       created: new Date().toISOString(),
       retryCount: 0,
@@ -85,7 +85,7 @@ function createFailedDetectionJob(id: string): FailedJob<DetectionParams> {
     status: 'failed',
     metadata: {
       id: jobId(id),
-      type: 'detection',
+      type: 'reference-annotation',
       userId: userId('user-1'),
       created: new Date().toISOString(),
       retryCount: 1,
@@ -283,7 +283,7 @@ describe('JobQueue', () => {
       await jobQueue.createJob(detectionJob);
       await jobQueue.createJob(generationJob);
 
-      const detectionJobs = await jobQueue.listJobs({ type: 'detection' });
+      const detectionJobs = await jobQueue.listJobs({ type: 'reference-annotation' });
 
       expect(detectionJobs.length).toBe(1);
       expect(detectionJobs[0]?.metadata.id).toBe(jobId('job-1'));
@@ -467,7 +467,7 @@ describe('JobQueue', () => {
       expect(events).toHaveLength(1);
       expect(events[0]).toEqual({
         jobId: jobId('job-with-event'),
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         resourceId: job.params.resourceId
       });
     });

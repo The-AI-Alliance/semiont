@@ -155,7 +155,7 @@ describe('TagDetectionWorker - Event Emission', () => {
       status: 'running',
       metadata: {
         id: jobId('job-tag-1'),
-        type: 'tag-detection',
+        type: 'tag-annotation',
         userId: userId('user-1'),
         created: new Date().toISOString(),
         retryCount: 0,
@@ -191,7 +191,7 @@ describe('TagDetectionWorker - Event Emission', () => {
       userId: userId('user-1'),
       payload: {
         jobId: 'job-tag-1',
-        jobType: 'tag-detection'
+        jobType: 'tag-annotation'
       }
     });
   });
@@ -215,7 +215,7 @@ describe('TagDetectionWorker - Event Emission', () => {
       status: 'running',
       metadata: {
         id: jobId('job-tag-2'),
-        type: 'tag-detection',
+        type: 'tag-annotation',
         userId: userId('user-1'),
         created: new Date().toISOString(),
         retryCount: 0,
@@ -273,7 +273,7 @@ describe('TagDetectionWorker - Event Emission', () => {
       status: 'running',
       metadata: {
         id: jobId('job-tag-3'),
-        type: 'tag-detection',
+        type: 'tag-annotation',
         userId: userId('user-1'),
         created: new Date().toISOString(),
         retryCount: 0,
@@ -356,7 +356,7 @@ describe('TagDetectionWorker - Event Emission', () => {
       status: 'running',
       metadata: {
         id: jobId('job-tag-4'),
-        type: 'tag-detection',
+        type: 'tag-annotation',
         userId: userId('user-1'),
         created: new Date().toISOString(),
         retryCount: 0,

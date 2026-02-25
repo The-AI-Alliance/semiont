@@ -129,7 +129,7 @@ describe('CommentDetectionWorker - Event Emission', () => {
       status: 'running',
       metadata: {
         id: jobId('job-comment-1'),
-        type: 'comment-detection',
+        type: 'comment-annotation',
         userId: userId('user-1'),
         created: new Date().toISOString(),
         retryCount: 0,
@@ -161,7 +161,7 @@ describe('CommentDetectionWorker - Event Emission', () => {
       userId: userId('user-1'),
       payload: {
         jobId: 'job-comment-1',
-        jobType: 'comment-detection'
+        jobType: 'comment-annotation'
       }
     });
   });
@@ -186,7 +186,7 @@ describe('CommentDetectionWorker - Event Emission', () => {
       status: 'running',
       metadata: {
         id: jobId('job-comment-2'),
-        type: 'comment-detection',
+        type: 'comment-annotation',
         userId: userId('user-1'),
         created: new Date().toISOString(),
         retryCount: 0,
@@ -241,7 +241,7 @@ describe('CommentDetectionWorker - Event Emission', () => {
       status: 'running',
       metadata: {
         id: jobId('job-comment-3'),
-        type: 'comment-detection',
+        type: 'comment-annotation',
         userId: userId('user-1'),
         created: new Date().toISOString(),
         retryCount: 0,
@@ -304,7 +304,7 @@ describe('CommentDetectionWorker - Event Emission', () => {
       status: 'running',
       metadata: {
         id: jobId('job-comment-4'),
-        type: 'comment-detection',
+        type: 'comment-annotation',
         userId: userId('user-1'),
         created: new Date().toISOString(),
         retryCount: 0,
