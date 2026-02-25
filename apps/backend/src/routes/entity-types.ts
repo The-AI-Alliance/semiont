@@ -18,7 +18,8 @@ import type { startMakeMeaning } from '@semiont/make-meaning';
 import { readEntityTypesProjection } from '@semiont/make-meaning';
 import { getLogger } from '../logger';
 
-const logger = getLogger().child({ component: 'entity-types' });
+// Lazy initialization to avoid calling getLogger() at module load time
+const getRouteLogger = () => getLogger().child({ component: 'entity-types' });
 
 type AddEntityTypeRequest = components['schemas']['AddEntityTypeRequest'];
 type AddEntityTypeResponse = components['schemas']['AddEntityTypeResponse'];
@@ -41,7 +42,7 @@ entityTypesRouter.get('/api/entity-types', async (c) => {
     const response: GetEntityTypesResponse = { entityTypes };
     return c.json(response, 200);
   } catch (error) {
-    logger.error('Error fetching entity types', {
+    getRouteLogger().error('Error fetching entity types', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined
     });

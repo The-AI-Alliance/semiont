@@ -22,7 +22,8 @@ import { userId as makeUserId, googleCredential, email as makeEmail } from '@sem
 import { getLogger } from '../logger';
 import { createSafeLogContext } from '../utils/log-sanitizer';
 
-const logger = getLogger().child({ component: 'auth' });
+// Lazy initialization to avoid calling getLogger() at module load time
+const getRouteLogger = () => getLogger().child({ component: 'auth' });
 
 // Types from OpenAPI spec (generated)
 type PasswordAuthRequest = components['schemas']['PasswordAuthRequest'];
@@ -53,7 +54,7 @@ authRouter.post('/api/tokens/password',
       const body = c.get('validatedBody') as PasswordAuthRequest;
       const { email, password } = body;
 
-      logger.debug('Password auth attempt', { email });
+      getRouteLogger().debug('Password auth attempt', { email });
 
       // Get user from database by email
       const prisma = DatabaseConnection.getClient();
@@ -63,13 +64,13 @@ authRouter.post('/api/tokens/password',
 
       // Return same error for user not found and wrong password (security)
       if (!user) {
-        logger.debug('Password auth failed: user not found', { email });
+        getRouteLogger().debug('Password auth failed: user not found', { email });
         return c.json({
           error: 'Invalid credentials'
         }, 401);
       }
 
-      logger.debug('User found', createSafeLogContext({
+      getRouteLogger().debug('User found', createSafeLogContext({
         email,
         provider: user.provider,
         isActive: user.isActive,
@@ -78,7 +79,7 @@ authRouter.post('/api/tokens/password',
 
       // Verify user is password provider
       if (user.provider !== 'password') {
-        logger.debug('Password auth failed: wrong provider', {
+        getRouteLogger().debug('Password auth failed: wrong provider', {
           email,
           provider: user.provider
         });
@@ -89,7 +90,7 @@ authRouter.post('/api/tokens/password',
 
       // Verify password hash exists
       if (!user.passwordHash) {
-        logger.debug('Password auth failed: no password hash', { email });
+        getRouteLogger().debug('Password auth failed: no password hash', { email });
         return c.json({
           error: 'Password not set for this account'
         }, 400);
@@ -98,7 +99,7 @@ authRouter.post('/api/tokens/password',
       // Verify password
       const isValid = await bcrypt.compare(password, user.passwordHash);
       if (!isValid) {
-        logger.debug('Password auth failed: invalid password', { email });
+        getRouteLogger().debug('Password auth failed: invalid password', { email });
         return c.json({
           error: 'Invalid credentials'
         }, 401);
@@ -106,13 +107,13 @@ authRouter.post('/api/tokens/password',
 
       // Check if user is active
       if (!user.isActive) {
-        logger.debug('Password auth failed: inactive account', { email });
+        getRouteLogger().debug('Password auth failed: inactive account', { email });
         return c.json({
           error: 'Account is not active'
         }, 403);
       }
 
-      logger.debug('Password auth successful', { email });
+      getRouteLogger().debug('Password auth successful', { email });
 
       // Generate JWT token
       const jwtPayload: Omit<ValidatedJWTPayload, 'iat' | 'exp'> = {
@@ -148,7 +149,7 @@ authRouter.post('/api/tokens/password',
 
       return c.json(response, 200);
     } catch (error) {
-      logger.error('Password auth error', {
+      getRouteLogger().error('Password auth error', {
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined
       });
@@ -203,7 +204,7 @@ authRouter.post('/api/tokens/google',
 
       return c.json(response, 200);
     } catch (error) {
-      logger.error('OAuth authentication error', {
+      getRouteLogger().error('OAuth authentication error', {
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined
       });
@@ -225,24 +226,24 @@ authRouter.post('/api/tokens/google',
 authRouter.post('/api/tokens/refresh',
   validateRequestBody('TokenRefreshRequest'),
   async (c) => {
-    logger.debug('Refresh endpoint hit');
+    getRouteLogger().debug('Refresh endpoint hit');
     const body = c.get('validatedBody') as TokenRefreshRequest;
     const { refreshToken } = body;
 
     if (!refreshToken) {
-      logger.debug('Refresh endpoint: No refresh token provided');
+      getRouteLogger().debug('Refresh endpoint: No refresh token provided');
       return c.json({ error: 'Refresh token required' }, 401);
     }
 
-    logger.debug('Refresh endpoint: Attempting to verify token');
+    getRouteLogger().debug('Refresh endpoint: Attempting to verify token');
 
     try {
       // Verify refresh token
       const payload = JWTService.verifyToken(refreshToken);
-      logger.debug('Refresh endpoint: Token verified', { userId: payload.userId });
+      getRouteLogger().debug('Refresh endpoint: Token verified', { userId: payload.userId });
 
       if (!payload.userId) {
-        logger.debug('Refresh endpoint: No userId in token payload');
+        getRouteLogger().debug('Refresh endpoint: No userId in token payload');
         return c.json({ error: 'Invalid token payload' }, 401);
       }
 
@@ -274,7 +275,7 @@ authRouter.post('/api/tokens/refresh',
       return c.json(response, 200);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('Token refresh error', {
+      getRouteLogger().error('Token refresh error', {
         error: errorMessage,
         stack: error instanceof Error ? error.stack : undefined
       });
@@ -347,7 +348,7 @@ authRouter.post('/api/tokens/mcp-generate', authMiddleware, async (c) => {
 
     return c.json(response, 200);
   } catch (error) {
-    logger.error('MCP token generation error', {
+    getRouteLogger().error('MCP token generation error', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined
     });

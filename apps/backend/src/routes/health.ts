@@ -13,7 +13,8 @@ import { DatabaseConnection } from '../db';
 import type { components } from '@semiont/core';
 import { getLogger } from '../logger';
 
-const logger = getLogger().child({ component: 'health' });
+// Lazy initialization to avoid calling getLogger() at module load time
+const getRouteLogger = () => getLogger().child({ component: 'health' });
 
 type HealthResponse = components['schemas']['HealthResponse'];
 
@@ -41,7 +42,7 @@ healthRouter.get('/api/health', async (c) => {
       if (startupStatus.startsWith('FAILED')) {
         startupFailed = true;
         // Log internally but don't expose details
-        logger.error('Startup script failure detected', { startupStatus });
+        getRouteLogger().error('Startup script failure detected', { startupStatus });
       }
     }
   } catch (e) {
