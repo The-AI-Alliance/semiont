@@ -14,7 +14,8 @@ import { getExactText, getTargetSource, getTargetSelector } from '@semiont/api-c
 import type { ResourcesRouterType } from '../shared';
 import { getLogger } from '../../../logger';
 
-const logger = getLogger().child({ component: 'referenced-by' });
+// Lazy initialization to avoid calling getLogger() at module load time
+const getRouteLogger = () => getLogger().child({ component: 'referenced-by' });
 
 type GetReferencedByResponse = components['schemas']['GetReferencedByResponse'];
 
@@ -38,33 +39,33 @@ export function registerGetReferencedBy(router: ResourcesRouterType) {
     // Get all annotations that reference this resource
     // Convert to full URI for graph database lookup
     const resourceUri = resourceIdToURI(makeResourceId(id), config.services.backend!.publicURL);
-    logger.debug('Looking for annotations referencing resource', {
+    getRouteLogger().debug('Looking for annotations referencing resource', {
       resourceId: id,
       resourceUri,
       motivation: motivation || 'all'
     });
     const references = await graphDb.getResourceReferencedBy(resourceUri, motivation);
-    logger.debug('Found annotations', { count: references.length });
+    getRouteLogger().debug('Found annotations', { count: references.length });
 
     // Get unique resources from the selections
     const docIds = [...new Set(references.map(ref => getTargetSource(ref.target)))];
-    logger.debug('Unique source resource IDs', { docIds });
+    getRouteLogger().debug('Unique source resource IDs', { docIds });
     const resources = await Promise.all(docIds.map(docId => graphDb.getResource(makeResourceUri(docId))));
-    logger.debug('Fetched resources', {
+    getRouteLogger().debug('Fetched resources', {
       total: resources.length,
       notFound: resources.filter(r => r === null).length
     });
 
     // Build resource map for lookup (ResourceDescriptor uses @id, not id)
     const docMap = new Map(resources.filter(doc => doc !== null).map(doc => [doc['@id'], doc]));
-    logger.debug('Resource map created', { keys: Array.from(docMap.keys()) });
+    getRouteLogger().debug('Resource map created', { keys: Array.from(docMap.keys()) });
 
     // Transform into ReferencedBy structure
     const referencedBy = references.map(ref => {
       const targetSource = getTargetSource(ref.target);
       const targetSelector = getTargetSelector(ref.target);
       const doc = docMap.get(targetSource);
-      logger.debug('Reference lookup', {
+      getRouteLogger().debug('Reference lookup', {
         targetSource,
         found: !!doc,
         name: doc?.name || 'unknown'

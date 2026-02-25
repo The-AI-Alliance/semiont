@@ -15,7 +15,8 @@ import { generateAnnotationId } from '@semiont/event-sourcing';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import { getLogger } from '../../../logger';
 
-const logger = getLogger().child({ component: 'create-annotation' });
+// Lazy initialization to avoid calling getLogger() at module load time
+const getRouteLogger = () => getLogger().child({ component: 'create-annotation' });
 
 type Annotation = components['schemas']['Annotation'];
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
@@ -43,7 +44,7 @@ export function registerCreateAnnotation(router: ResourcesRouterType) {
         }
         newAnnotationId = generateAnnotationId(backendUrl);
       } catch (error) {
-        logger.error('Failed to generate annotation ID', {
+        getRouteLogger().error('Failed to generate annotation ID', {
           error: error instanceof Error ? error.message : String(error),
           stack: error instanceof Error ? error.stack : undefined
         });

@@ -21,7 +21,8 @@ import { resourceId } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 import { getLogger } from '../../../logger';
 
-const logger = getLogger().child({ component: 'get-resource-uri' });
+// Lazy initialization to avoid calling getLogger() at module load time
+const getRouteLogger = () => getLogger().child({ component: 'get-resource-uri' });
 
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
 type Annotation = components['schemas']['Annotation'];
@@ -60,7 +61,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
       try {
         resource = await ResourceContext.getResourceMetadata(resourceId(id), config);
       } catch (error: any) {
-        logger.error('Failed to get resource metadata', {
+        getRouteLogger().error('Failed to get resource metadata', {
           resourceId: id,
           error: error instanceof Error ? error.message : String(error),
           stack: error instanceof Error ? error.stack : undefined
@@ -113,7 +114,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
       stored = await eventStore.views.materializer.materialize(events, resourceId(id));
     } catch (error: any) {
       // Handle corrupted views or broken event chains gracefully
-      logger.error('Failed to materialize view', {
+      getRouteLogger().error('Failed to materialize view', {
         resourceId: id,
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined

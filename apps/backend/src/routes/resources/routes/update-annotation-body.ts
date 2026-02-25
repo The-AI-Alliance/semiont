@@ -14,7 +14,8 @@ import { AnnotationContext } from '@semiont/make-meaning';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import { getLogger } from '../../../logger';
 
-const logger = getLogger().child({ component: 'update-annotation-body' });
+// Lazy initialization to avoid calling getLogger() at module load time
+const getRouteLogger = () => getLogger().child({ component: 'update-annotation-body' });
 
 type UpdateAnnotationBodyRequest = components['schemas']['UpdateAnnotationBodyRequest'];
 type UpdateAnnotationBodyResponse = components['schemas']['UpdateAnnotationBodyResponse'];
@@ -32,7 +33,7 @@ export function registerUpdateAnnotationBody(router: ResourcesRouterType) {
       const user = c.get('user');
       const config = c.get('config');
 
-      logger.debug('Body update handler called', {
+      getRouteLogger().debug('Body update handler called', {
         annotationId: annotationIdParam,
         operations: request.operations
       });
@@ -43,13 +44,13 @@ export function registerUpdateAnnotationBody(router: ResourcesRouterType) {
         resourceId(resourceIdParam),
         config
       );
-      logger.debug('View storage lookup result', {
+      getRouteLogger().debug('View storage lookup result', {
         annotationId: annotationIdParam,
         found: !!annotation
       });
 
       if (!annotation) {
-        logger.warn('Annotation not found in view storage', {
+        getRouteLogger().warn('Annotation not found in view storage', {
           annotationId: annotationIdParam,
           resourceId: resourceIdParam
         });
