@@ -79,7 +79,8 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus: Even
   const eventStore = createEventStoreCore(basePath, baseUrl, undefined, eventBus, eventStoreLogger);
 
   // 4. Bootstrap entity types (if projection doesn't exist)
-  await bootstrapEntityTypes(eventStore, config);
+  const bootstrapLogger = logger.child({ component: 'entity-types-bootstrap' });
+  await bootstrapEntityTypes(eventStore, config, bootstrapLogger);
 
   // 5. Create shared representation store
   const repStoreLogger = logger.child({ component: 'representation-store' });

@@ -387,6 +387,7 @@ export class ReferenceDetectionWorker extends JobWorker {
 
     // Get resource-scoped EventBus for progress events
     const resourceBus = this.eventBus.scope(detJob.params.resourceId);
+    this.logger?.debug('[EventBus] Scoping to resourceId', { resourceId: detJob.params.resourceId });
 
     if (isFirstUpdate) {
       // First progress update - emit job.started (domain event)
@@ -420,6 +421,11 @@ export class ReferenceDetectionWorker extends JobWorker {
       });
 
       // PROGRESS EVENT: Emit annotate:progress directly to EventBus (ephemeral)
+      this.logger?.debug('[EventBus] Emitting annotate:progress', {
+        resourceId: detJob.params.resourceId,
+        currentEntityType: detJob.progress.currentEntityType,
+        percentage
+      });
       resourceBus.get('annotate:progress').next({
         status: 'scanning',
         message: `Processing ${detJob.progress.currentEntityType}`,

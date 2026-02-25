@@ -146,7 +146,7 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
           // Create resource-scoped EventBus for this resource
           // Workers emit detection:started, detection:progress, detection:completed, detection:failed
           const resourceBus = eventBus.scope(id);
-          logger.info('Subscribing to EventBus for resource');
+          logger.info('[EventBus] Subscribing to EventBus for resource', { resourceId: id, scopeKey: `${id}:annotate:progress` });
 
           // Subscribe to annotate:progress
           subscriptions.push(
@@ -176,7 +176,7 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
           subscriptions.push(
             resourceBus.get('annotate:progress').subscribe(async (progress) => {
               if (isStreamClosed) return;
-              logger.info('Detection progress', { progress });
+              logger.info('[EventBus] Received annotate:progress event', { progress, resourceId: id });
               try {
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
