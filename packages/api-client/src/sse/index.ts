@@ -8,9 +8,8 @@
 import { createSSEStream } from './stream';
 import type { SSEStream } from './types';
 import type { ResourceUri, AnnotationUri } from '@semiont/core';
-import type { AccessToken, BaseUrl, EntityType } from '@semiont/core';
+import type { AccessToken, BaseUrl, EntityType, Logger } from '@semiont/core';
 import type { components } from '@semiont/core';
-import type { Logger } from '../logger';
 
 /**
  * SSE meta event for stream connection lifecycle

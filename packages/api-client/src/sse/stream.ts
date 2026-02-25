@@ -8,8 +8,7 @@
  */
 
 import type { SSEStream } from './types';
-import type { Logger } from '../logger';
-import type { EventBus, EventName } from '@semiont/core';
+import type { Logger, EventBus, EventName } from '@semiont/core';
 
 /**
  * Configuration for SSE stream event handling
@@ -158,7 +157,8 @@ export function createSSEStream(
 
         if (done || closed) break;
 
-        buffer += decoder.decode(value, { stream: true });
+        const chunk = decoder.decode(value, { stream: true });
+        buffer += chunk;
         const lines = buffer.split('\n');
 
         // Keep the last partial line in the buffer
