@@ -145,7 +145,7 @@ describe('useAnnotationFlow', () => {
       const { getEventBus } = renderAnnotationFlow();
 
       act(() => {
-        getEventBus().get('annotate:detect-cancelled').next(undefined);
+        getEventBus().get('annotate:assist-cancelled').next(undefined);
       });
 
       expect(mockShowInfo).toHaveBeenCalledWith('Annotation cancelled');
@@ -156,7 +156,7 @@ describe('useAnnotationFlow', () => {
 
       // Start detection
       act(() => {
-        getEventBus().get('annotate:detect-request').next({
+        getEventBus().get('annotate:assist-request').next({
           motivation: 'linking',
           options: { entityTypes: ['Person'] }
         });
@@ -164,7 +164,7 @@ describe('useAnnotationFlow', () => {
 
       // Set some progress
       act(() => {
-        getEventBus().get('annotate:detect-progress').next({
+        getEventBus().get('annotate:progress').next({
           status: 'processing',
           message: 'Scanning document...',
           percentage: 50
@@ -176,12 +176,12 @@ describe('useAnnotationFlow', () => {
       // Cancel detection
       act(() => {
         getEventBus().get('job:cancel-requested').next({
-          jobType: 'detection'
+          jobType: 'annotation'
         });
       });
 
       // Stream should be aborted
-      expect(getState().detectionStreamRef.current).toBeNull();
+      expect(getState().assistStreamRef.current).toBeNull();
     });
   });
 
@@ -191,7 +191,7 @@ describe('useAnnotationFlow', () => {
 
       // Set progress
       act(() => {
-        getEventBus().get('annotate:detect-progress').next({
+        getEventBus().get('annotate:progress').next({
           status: 'complete',
           message: 'Found 5 references',
           currentEntityType: 'Person',
@@ -203,7 +203,7 @@ describe('useAnnotationFlow', () => {
 
       // Complete detection
       act(() => {
-        getEventBus().get('annotate:detect-finished').next({
+        getEventBus().get('annotate:assist-finished').next({
           motivation: 'linking'
         });
       });
@@ -232,7 +232,7 @@ describe('useAnnotationFlow', () => {
 
       // Set progress
       act(() => {
-        getEventBus().get('annotate:detect-progress').next({
+        getEventBus().get('annotate:progress').next({
           status: 'processing',
           message: 'Scanning...',
           percentage: 50
@@ -243,7 +243,7 @@ describe('useAnnotationFlow', () => {
 
       // Fail detection
       act(() => {
-        getEventBus().get('annotate:detect-failed').next({
+        getEventBus().get('annotate:assist-failed').next({
           type: 'job.failed' as const,
           resourceId: 'test' as any,
           userId: 'user' as any,
@@ -252,7 +252,7 @@ describe('useAnnotationFlow', () => {
           version: 1,
           payload: {
             jobId: 'job-1' as any,
-            jobType: 'detection',
+            jobType: 'annotation',
             error: 'AI service unavailable',
           },
         });
@@ -275,14 +275,14 @@ describe('useAnnotationFlow', () => {
 
       // Complete first detection
       act(() => {
-        getEventBus().get('annotate:detect-progress').next({
+        getEventBus().get('annotate:progress').next({
           status: 'complete',
           message: 'Found 3 highlights'
         });
       });
 
       act(() => {
-        getEventBus().get('annotate:detect-finished').next({
+        getEventBus().get('annotate:assist-finished').next({
           motivation: 'highlighting'
         });
       });
@@ -293,7 +293,7 @@ describe('useAnnotationFlow', () => {
       });
 
       act(() => {
-        getEventBus().get('annotate:detect-request').next({
+        getEventBus().get('annotate:assist-request').next({
           motivation: 'commenting',
           options: {}
         });
@@ -318,14 +318,14 @@ describe('useAnnotationFlow', () => {
 
       // Complete detection (starts 5s auto-dismiss)
       act(() => {
-        getEventBus().get('annotate:detect-progress').next({
+        getEventBus().get('annotate:progress').next({
           status: 'complete',
           message: 'Detection complete'
         });
       });
 
       act(() => {
-        getEventBus().get('annotate:detect-finished').next({
+        getEventBus().get('annotate:assist-finished').next({
           motivation: 'linking'
         });
       });
@@ -338,7 +338,7 @@ describe('useAnnotationFlow', () => {
       });
 
       act(() => {
-        getEventBus().get('annotate:detect-dismiss').next(undefined);
+        getEventBus().get('annotate:progress-dismiss').next(undefined);
       });
 
       // Progress should be cleared immediately
@@ -359,7 +359,7 @@ describe('useAnnotationFlow', () => {
       // Try to dismiss when no detection is active
       expect(() => {
         act(() => {
-          getEventBus().get('annotate:detect-dismiss').next(undefined);
+          getEventBus().get('annotate:progress-dismiss').next(undefined);
         });
       }).not.toThrow();
 
@@ -444,7 +444,7 @@ describe('useAnnotationFlow', () => {
 
       // Send progress update
       act(() => {
-        getEventBus().get('annotate:detect-progress').next({
+        getEventBus().get('annotate:progress').next({
           status: 'scanning',
           message: 'Scanning document for references',
           currentEntityType: 'Person',
@@ -465,7 +465,7 @@ describe('useAnnotationFlow', () => {
 
       // First update
       act(() => {
-        getEventBus().get('annotate:detect-progress').next({
+        getEventBus().get('annotate:progress').next({
           status: 'scanning',
           message: 'Scanning Person entities',
           currentEntityType: 'Person',
@@ -477,7 +477,7 @@ describe('useAnnotationFlow', () => {
 
       // Second update
       act(() => {
-        getEventBus().get('annotate:detect-progress').next({
+        getEventBus().get('annotate:progress').next({
           status: 'scanning',
           message: 'Scanning Location entities',
           currentEntityType: 'Location',
