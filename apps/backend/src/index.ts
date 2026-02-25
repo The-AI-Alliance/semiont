@@ -21,7 +21,8 @@ if (!process.env.DATABASE_URL && process.env.DB_HOST && process.env.DB_USER && p
   url.searchParams.set('sslmode', 'require');
 
   process.env.DATABASE_URL = url.toString();
-  console.log('✅ DATABASE_URL constructed from components');
+  // Note: Logger not yet initialized at this point, using console
+  console.log('DATABASE_URL constructed from components');
 }
 
 import { cors } from 'hono/cors';
@@ -193,7 +194,10 @@ app.get('/api/docs', async (c) => {
     // - Context type incompatibility requires 'as any' cast
     return await swaggerHandler(c as any, async () => {});
   } catch (error) {
-    console.error('Error in /api/docs handler:', error);
+    logger.error('Error in /api/docs handler', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
     return c.json({ error: 'Failed to load resourceation', details: String(error) }, 500);
   }
 });
@@ -221,22 +225,33 @@ if (nodeEnv !== 'test') {
     port: port,
     hostname: '0.0.0.0'
   }, async (info) => {
-    console.log(`🚀 Semiont Backend ready at http://localhost:${info.port}/api (${nodeEnv})`);
+    logger.info('Semiont Backend ready', {
+      url: `http://localhost:${info.port}/api`,
+      environment: nodeEnv
+    });
 
     // Initialize JWT Service with configuration
     try {
       const { JWTService } = await import('./auth/jwt');
       JWTService.initialize(config);
     } catch (error) {
-      console.error('⚠️ Failed to initialize JWT Service:', error);
+      logger.error('Failed to initialize JWT Service', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
     }
 
     // Pre-load entity types from graph database for performance
     try {
       const entityTypes = await makeMeaning.graphDb.getEntityTypes();
-      console.log(`✅ Loaded ${entityTypes.length} entity types from graph database`);
+      logger.info('Loaded entity types from graph database', {
+        count: entityTypes.length
+      });
     } catch (error) {
-      console.error('⚠️ Failed to pre-load entity types:', error);
+      logger.error('Failed to pre-load entity types', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
     }
   });
 }

@@ -12,7 +12,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { ReferenceDetectionWorker, type DetectedAnnotation } from '../../jobs/reference-annotation-worker';
 import { JobQueue } from '@semiont/jobs';
 import { FilesystemRepresentationStore } from '@semiont/content';
-import type { components, EnvironmentConfig } from '@semiont/core';
+import type { components, EnvironmentConfig, Logger } from '@semiont/core';
 import { EventBus } from '@semiont/core';
 import { createEventStore } from '@semiont/event-sourcing';
 import { promises as fs } from 'fs';
@@ -58,6 +58,14 @@ vi.mock('../../detection/entity-extractor', () => ({
     return entities;
   })
 }));
+
+const mockLogger: Logger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger)
+};
 
 describe('Entity Detection - Charset Handling', () => {
   let testDir: string;
@@ -108,7 +116,7 @@ describe('Entity Detection - Charset Handling', () => {
     const jobQueue = new JobQueue({ dataDir: config.services.filesystem!.path }, new EventBus());
     await jobQueue.initialize();
     const eventStore = createEventStore(config.services.filesystem!.path, config.services.backend!.publicURL);
-    worker = new ReferenceDetectionWorker(jobQueue, config, eventStore, mockInferenceClient.client, new EventBus());
+    worker = new ReferenceDetectionWorker(jobQueue, config, eventStore, mockInferenceClient.client, new EventBus(), mockLogger);
   });
 
   afterAll(async () => {

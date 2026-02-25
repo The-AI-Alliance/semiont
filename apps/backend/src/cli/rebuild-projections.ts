@@ -43,58 +43,60 @@ async function rebuildProjections(rId?: string) {
 
   if (rId) {
     // Rebuild single resource
-    console.log(`📄 Rebuilding projection for resource: ${rId}`);
+    logger.info('Rebuilding projection for resource', { resourceId: rId });
 
     const events = await query.getResourceEvents(makeResourceId(rId));
     if (events.length === 0) {
-      console.error(`❌ No events found for resource: ${rId}`);
+      logger.error('No events found for resource', { resourceId: rId });
       process.exit(1);
     }
 
-    console.log(`   Found ${events.length} events`);
+    logger.info('Found events for resource', { resourceId: rId, eventCount: events.length });
 
     // Validate event chain
     const validation = validator.validateEventChain(events);
     if (!validation.valid) {
-      console.error(`❌ Event chain validation failed:`);
-      validation.errors.forEach(err => console.error(`   - ${err}`));
+      logger.error('Event chain validation failed', { resourceId: rId, errors: validation.errors });
+      validation.errors.forEach(err => logger.error('Validation error', { error: err }));
       process.exit(1);
     }
-    console.log(`   ✅ Event chain valid`);
+    logger.info('Event chain valid', { resourceId: rId });
 
     // Rebuild projection
     const stored = await eventStore.views.materializer.materialize(events, makeResourceId(rId));
     if (!stored) {
-      console.error(`❌ Failed to build projection`);
+      logger.error('Failed to build projection', { resourceId: rId });
       process.exit(1);
     }
 
-    console.log(`   ✅ Projection rebuilt:`);
-    console.log(`      - Name: ${stored.resource.name}`);
-    console.log(`      - Annotations: ${stored.annotations.annotations.length}`);
-    console.log(`      - Entity Types: ${stored.resource.entityTypes?.join(', ') || 'none'}`);
-    console.log(`      - Version: ${stored.annotations.version}`);
-    console.log(`      - Archived: ${stored.resource.archived}`);
+    logger.info('Projection rebuilt successfully', {
+      resourceId: rId,
+      name: stored.resource.name,
+      annotationCount: stored.annotations.annotations.length,
+      entityTypes: stored.resource.entityTypes?.join(', ') || 'none',
+      version: stored.annotations.version,
+      archived: stored.resource.archived
+    });
 
   } else {
     // Rebuild all projections
-    console.log(`📚 Rebuilding all projections...`);
-    console.log(`   (Note: This scans all event shards - may take time for large datasets)\n`);
+    logger.info('Rebuilding all projections');
+    logger.info('Note: This scans all event shards - may take time for large datasets');
 
     // TODO: Implement full directory scan across all shards
     // For now, show usage message
-    console.log(`   To rebuild all projections, you need to:`);
-    console.log(`   1. Scan all event shards in ${config.services.filesystem!.path}/events/shards/`);
-    console.log(`   2. For each resource found, call eventStore.materializer.materialize(resourceId)`);
-    console.log(`   3. Views are automatically saved to ViewStorage\n`);
-    console.log(`   For now, rebuild individual resources by ID.`);
+    logger.info('To rebuild all projections, you need to:');
+    logger.info(`1. Scan all event shards in ${config.services.filesystem!.path}/events/shards/`);
+    logger.info('2. For each resource found, call eventStore.materializer.materialize(resourceId)');
+    logger.info('3. Views are automatically saved to ViewStorage');
+    logger.info('For now, rebuild individual resources by ID');
   }
 
   // Shutdown make-meaning
   await makeMeaning.stop();
   eventBus.destroy();
 
-  console.log(`\n✅ Done!`);
+  logger.info('Rebuild projections completed');
 }
 
 // Parse command line arguments
@@ -102,6 +104,10 @@ const rId = process.argv[2];
 
 rebuildProjections(rId)
   .catch(err => {
-    console.error(`\n❌ Error:`, err.message);
+    const logger = getLogger();
+    logger.error('Rebuild projections failed', {
+      error: err.message,
+      stack: err.stack
+    });
     process.exit(1);
   });

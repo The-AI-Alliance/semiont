@@ -13,6 +13,9 @@ import type { AnnotationAddedEvent } from '@semiont/core';
 import { resourceId, userId, userToAgent } from '@semiont/core';
 import { generateAnnotationId } from '@semiont/event-sourcing';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
+import { getLogger } from '../../../logger';
+
+const logger = getLogger().child({ component: 'create-annotation' });
 
 type Annotation = components['schemas']['Annotation'];
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
@@ -40,7 +43,10 @@ export function registerCreateAnnotation(router: ResourcesRouterType) {
         }
         newAnnotationId = generateAnnotationId(backendUrl);
       } catch (error) {
-        console.error('Failed to generate annotation ID:', error);
+        logger.error('Failed to generate annotation ID', {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined
+        });
         throw new HTTPException(500, { message: 'Failed to create annotation' });
       }
 

@@ -14,8 +14,8 @@
  * - Automation pipelines
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { EventBus } from '@semiont/core';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { EventBus, type Logger } from '@semiont/core';
 import { startMakeMeaning, ResourceOperations } from '../..';
 import type { EnvironmentConfig } from '@semiont/core';
 import { userId, resourceId } from '@semiont/core';
@@ -23,6 +23,14 @@ import { getResourceId } from '@semiont/api-client';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+
+const mockLogger: Logger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger)
+};
 
 describe('Scripting Example: Create Resource', () => {
   let testDir: string;
@@ -77,7 +85,7 @@ describe('Scripting Example: Create Resource', () => {
     eventBus = new EventBus();
 
     // Start make-meaning service (no HTTP server)
-    makeMeaning = await startMakeMeaning(config, eventBus);
+    makeMeaning = await startMakeMeaning(config, eventBus, mockLogger);
   });
 
   afterEach(async () => {

@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { TagDetectionWorker } from '../../jobs/tag-annotation-worker';
 import { JobQueue, type TagDetectionJob, type RunningJob, type TagDetectionParams, type TagDetectionProgress } from '@semiont/jobs';
-import { resourceId, userId, type EnvironmentConfig, EventBus } from '@semiont/core';
+import { resourceId, userId, type EnvironmentConfig, EventBus, type Logger } from '@semiont/core';
 import { jobId } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore } from '@semiont/content';
@@ -53,6 +53,14 @@ vi.mock('@semiont/ontology', () => ({
     examples: [`What is ${categoryName.toLowerCase()}?`, `How does ${categoryName.toLowerCase()} work?`]
   }))
 }));
+
+const mockLogger: Logger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger)
+};
 
 describe('TagDetectionWorker - Event Emission', () => {
   let worker: TagDetectionWorker;
@@ -107,7 +115,7 @@ describe('TagDetectionWorker - Event Emission', () => {
     const jobQueue = new JobQueue({ dataDir: testDir }, new EventBus());
     await jobQueue.initialize();
     testEventStore = createEventStore(testDir, config.services.backend!.publicURL);
-    worker = new TagDetectionWorker(jobQueue, config, testEventStore, mockInferenceClient.client, new EventBus());
+    worker = new TagDetectionWorker(jobQueue, config, testEventStore, mockInferenceClient.client, new EventBus(), mockLogger);
 
     // Set default mock response
     mockGenerateText.mockResolvedValue('[]');

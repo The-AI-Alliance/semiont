@@ -16,7 +16,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { EventBus } from '@semiont/core';
+import { EventBus, type Logger } from '@semiont/core';
 import { startMakeMeaning, ResourceOperations } from '../..';
 import type { EnvironmentConfig } from '@semiont/core';
 import { userId, entityType, resourceId } from '@semiont/core';
@@ -43,6 +43,14 @@ vi.mock('@semiont/inference', async () => {
     MockInferenceClient,
   };
 });
+
+const mockLogger: Logger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger)
+};
 
 describe('Scripting Example: Batch Entity Detection', () => {
   let testDir: string;
@@ -97,7 +105,7 @@ describe('Scripting Example: Batch Entity Detection', () => {
     eventBus = new EventBus();
 
     // Start make-meaning service
-    makeMeaning = await startMakeMeaning(config, eventBus);
+    makeMeaning = await startMakeMeaning(config, eventBus, mockLogger);
   });
 
   afterEach(async () => {

@@ -19,6 +19,9 @@ import { getPrimaryRepresentation, getPrimaryMediaType, decodeRepresentation } f
 import { ResourceContext } from '@semiont/make-meaning';
 import { resourceId } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
+import { getLogger } from '../../../logger';
+
+const logger = getLogger().child({ component: 'get-resource-uri' });
 
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
 type Annotation = components['schemas']['Annotation'];
@@ -57,7 +60,11 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
       try {
         resource = await ResourceContext.getResourceMetadata(resourceId(id), config);
       } catch (error: any) {
-        console.error(`[GET /resources/${id}] Failed to get resource metadata:`, error);
+        logger.error('Failed to get resource metadata', {
+          resourceId: id,
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined
+        });
         throw new HTTPException(500, {
           message: 'Failed to retrieve resource'
         });
@@ -106,7 +113,11 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
       stored = await eventStore.views.materializer.materialize(events, resourceId(id));
     } catch (error: any) {
       // Handle corrupted views or broken event chains gracefully
-      console.error(`[GET /resources/${id}] Failed to materialize view:`, error);
+      logger.error('Failed to materialize view', {
+        resourceId: id,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
       throw new HTTPException(500, {
         message: 'Failed to retrieve resource'
       });

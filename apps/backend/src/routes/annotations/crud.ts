@@ -20,6 +20,9 @@ import type { components } from '@semiont/core';
 import { resourceId, userId } from '@semiont/core';
 import { validateRequestBody } from '../../middleware/validate-openapi';
 import { AnnotationOperations, AnnotationContext } from '@semiont/make-meaning';
+import { getLogger } from '../../logger';
+
+const logger = getLogger().child({ component: 'annotations-crud' });
 
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
 type UpdateAnnotationBodyRequest = components['schemas']['UpdateAnnotationBodyRequest'];
@@ -79,7 +82,10 @@ crudRouter.put('/api/annotations/:id/body',
     const { eventStore } = c.get('makeMeaning');
     const config = c.get('config');
 
-    console.log(`[BODY UPDATE HANDLER] Called for annotation ${id}, operations:`, request.operations);
+    logger.debug('Body update handler called', {
+      annotationId: id,
+      operations: request.operations
+    });
 
     // Delegate to make-meaning for body update
     try {
@@ -90,11 +96,11 @@ crudRouter.put('/api/annotations/:id/body',
         eventStore,
         config
       );
-      console.log(`[BODY UPDATE HANDLER] Successfully updated annotation ${id}`);
+      logger.debug('Successfully updated annotation', { annotationId: id });
       return c.json(response);
     } catch (error) {
       if (error instanceof Error && error.message === 'Annotation not found') {
-        console.log(`[BODY UPDATE HANDLER] Throwing 404 - annotation ${id} not found in view storage`);
+        logger.warn('Annotation not found in view storage', { annotationId: id });
         throw new HTTPException(404, { message: 'Annotation not found' });
       }
       throw error;

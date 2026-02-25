@@ -40,33 +40,41 @@ async function rebuildGraph(rId?: string) {
 
   if (rId) {
     // Rebuild single resource
-    console.log(`📄 Rebuilding graph for resource: ${rId}`);
+    logger.info('Rebuilding graph for resource', { resourceId: rId });
 
     try {
       await consumer.rebuildResource(makeResourceId(rId));
-      console.log(`   ✅ Resource rebuilt successfully`);
+      logger.info('Resource rebuilt successfully', { resourceId: rId });
     } catch (error) {
-      console.error(`   ❌ Failed to rebuild resource:`, error instanceof Error ? error.message : error);
+      logger.error('Failed to rebuild resource', {
+        resourceId: rId,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
       process.exit(1);
     }
 
   } else {
     // Rebuild entire graph
-    console.log(`📚 Rebuilding entire Neo4j graph...`);
-    console.log(`   (Note: This clears the database and replays all events)\n`);
+    logger.info('Rebuilding entire Neo4j graph');
+    logger.info('Note: This clears the database and replays all events');
 
     try {
       await consumer.rebuildAll();
-      console.log(`   ✅ Graph rebuilt successfully`);
+      logger.info('Graph rebuilt successfully');
 
       // Show health metrics
       const health = consumer.getHealthMetrics();
-      console.log(`\n   📊 Consumer Health:`);
-      console.log(`      - Active subscriptions: ${health.subscriptions}`);
-      console.log(`      - Resources processed: ${Object.keys(health.lastProcessed).length}`);
+      logger.info('Consumer health metrics', {
+        activeSubscriptions: health.subscriptions,
+        resourcesProcessed: Object.keys(health.lastProcessed).length
+      });
 
     } catch (error) {
-      console.error(`   ❌ Failed to rebuild graph:`, error instanceof Error ? error.message : error);
+      logger.error('Failed to rebuild graph', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
       process.exit(1);
     }
   }
@@ -75,7 +83,7 @@ async function rebuildGraph(rId?: string) {
   await makeMeaning.stop();
   eventBus.destroy();
 
-  console.log(`\n✅ Done!`);
+  logger.info('Rebuild graph completed');
 }
 
 // Parse command line arguments
@@ -83,9 +91,10 @@ const rId = process.argv[2];
 
 rebuildGraph(rId)
   .catch(err => {
-    console.error(`\n❌ Error:`, err.message);
-    if (err.stack) {
-      console.error(err.stack);
-    }
+    const logger = getLogger();
+    logger.error('Rebuild graph failed', {
+      error: err.message,
+      stack: err.stack
+    });
     process.exit(1);
   });

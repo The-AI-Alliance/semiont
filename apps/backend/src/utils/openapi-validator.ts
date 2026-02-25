@@ -8,6 +8,9 @@
 import Ajv, { type ErrorObject } from 'ajv';
 import addFormats from 'ajv-formats';
 import openapiSpec from '../../../../specs/openapi.json';
+import { getLogger } from '../logger';
+
+const logger = getLogger().child({ component: 'openapi-validator' });
 
 // Initialize Ajv with OpenAPI-compatible settings
 const ajv = new Ajv({
@@ -25,11 +28,16 @@ for (const [name, schema] of Object.entries(openapiSpec.components.schemas)) {
   try {
     ajv.addSchema(schema, `#/components/schemas/${name}`);
   } catch (error) {
-    console.error(`Failed to load schema ${name}:`, error);
+    logger.error('Failed to load schema', {
+      schemaName: name,
+      error: error instanceof Error ? error.message : String(error)
+    });
   }
 }
 
-console.log(`[OpenAPI Validator] Loaded ${Object.keys(openapiSpec.components.schemas).length} schemas`);
+logger.info('OpenAPI schemas loaded', {
+  count: Object.keys(openapiSpec.components.schemas).length
+});
 
 export interface ValidationResult {
   valid: boolean;
@@ -54,8 +62,10 @@ export function validateSchema(schemaName: string, data: unknown): ValidationRes
   const validate = ajv.getSchema(`#/components/schemas/${schemaName}`);
 
   if (!validate) {
-    console.error(`[OpenAPI Validator] Schema not found: ${schemaName}`);
-    console.error(`[OpenAPI Validator] Available schemas:`, Object.keys(openapiSpec.components.schemas));
+    logger.error('Schema not found', {
+      schemaName,
+      availableSchemas: Object.keys(openapiSpec.components.schemas)
+    });
     return {
       valid: false,
       errors: null,

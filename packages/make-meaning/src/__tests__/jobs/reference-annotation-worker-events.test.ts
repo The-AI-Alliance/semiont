@@ -11,7 +11,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { ReferenceDetectionWorker } from '../../jobs/reference-annotation-worker';
 import { JobQueue, type DetectionJob, type RunningJob, type DetectionParams, type DetectionProgress } from '@semiont/jobs';
-import { resourceId, userId, type EnvironmentConfig, EventBus } from '@semiont/core';
+import { resourceId, userId, type EnvironmentConfig, EventBus, type Logger } from '@semiont/core';
 import { jobId, entityType } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore } from '@semiont/content';
@@ -39,6 +39,14 @@ vi.mock('@semiont/inference', async () => {
     ])
   };
 });
+
+const mockLogger: Logger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger)
+};
 
 describe('ReferenceDetectionWorker - Event Emission', () => {
   let worker: ReferenceDetectionWorker;
@@ -93,7 +101,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
     const jobQueue = new JobQueue({ dataDir: testDir }, new EventBus());
     await jobQueue.initialize();
     testEventStore = createEventStore(testDir, config.services.backend!.publicURL);
-    worker = new ReferenceDetectionWorker(jobQueue, config, testEventStore, mockInferenceClient.client, new EventBus());
+    worker = new ReferenceDetectionWorker(jobQueue, config, testEventStore, mockInferenceClient.client, new EventBus(), mockLogger);
   });
 
   afterAll(async () => {

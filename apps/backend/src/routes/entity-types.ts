@@ -16,6 +16,9 @@ import type { components } from '@semiont/core';
 import { userId, type EnvironmentConfig } from '@semiont/core';
 import type { startMakeMeaning } from '@semiont/make-meaning';
 import { readEntityTypesProjection } from '@semiont/make-meaning';
+import { getLogger } from '../logger';
+
+const logger = getLogger().child({ component: 'entity-types' });
 
 type AddEntityTypeRequest = components['schemas']['AddEntityTypeRequest'];
 type AddEntityTypeResponse = components['schemas']['AddEntityTypeResponse'];
@@ -38,7 +41,10 @@ entityTypesRouter.get('/api/entity-types', async (c) => {
     const response: GetEntityTypesResponse = { entityTypes };
     return c.json(response, 200);
   } catch (error) {
-    console.error('[EntityTypes] Error fetching entity types:', error);
+    logger.error('Error fetching entity types', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
     return c.json({ error: 'Failed to fetch entity types', details: error instanceof Error ? error.message : String(error) }, 500);
   }
 });

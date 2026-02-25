@@ -15,7 +15,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { ReferenceDetectionWorker } from '../../jobs/reference-annotation-worker';
 import { JobQueue, type RunningJob, type DetectionParams, type DetectionProgress } from '@semiont/jobs';
-import { resourceId, userId, type EnvironmentConfig, EventBus } from '@semiont/core';
+import { resourceId, userId, type EnvironmentConfig, EventBus, type Logger } from '@semiont/core';
 import { jobId, entityType } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore } from '@semiont/content';
@@ -35,6 +35,14 @@ vi.mock('@semiont/inference', async () => {
     MockInferenceClient
   };
 });
+
+const mockLogger: Logger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger)
+};
 
 describe('ReferenceDetectionWorker - Full Lifecycle', () => {
   let worker: ReferenceDetectionWorker;
@@ -97,7 +105,7 @@ describe('ReferenceDetectionWorker - Full Lifecycle', () => {
     await jobQueue.initialize();
     eventStore = createEventStore(testDir, config.services.backend!.publicURL);
     const eventBus = new EventBus();
-    worker = new ReferenceDetectionWorker(jobQueue, config, eventStore, mockInferenceClient, eventBus);
+    worker = new ReferenceDetectionWorker(jobQueue, config, eventStore, mockInferenceClient, eventBus, mockLogger);
 
     // Set default mock response (empty array - no entities found)
     mockInferenceClient.setResponses(['[]']);

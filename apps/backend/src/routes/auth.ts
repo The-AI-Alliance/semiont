@@ -22,6 +22,8 @@ import { userId as makeUserId, googleCredential, email as makeEmail } from '@sem
 import { getLogger } from '../logger';
 import { createSafeLogContext } from '../utils/log-sanitizer';
 
+const logger = getLogger().child({ component: 'auth' });
+
 // Types from OpenAPI spec (generated)
 type PasswordAuthRequest = components['schemas']['PasswordAuthRequest'];
 type GoogleAuthRequest = components['schemas']['GoogleAuthRequest'];
@@ -47,8 +49,6 @@ export const authRouter = new Hono<{ Variables: { user: User; validatedBody: unk
 authRouter.post('/api/tokens/password',
   validateRequestBody('PasswordAuthRequest'),
   async (c) => {
-    const logger = getLogger();
-
     try {
       const body = c.get('validatedBody') as PasswordAuthRequest;
       const { email, password } = body;
@@ -203,7 +203,10 @@ authRouter.post('/api/tokens/google',
 
       return c.json(response, 200);
     } catch (error) {
-      console.error('OAuth error:', error);
+      logger.error('OAuth authentication error', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
       const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
       return c.json({ error: errorMessage }, 400);
     }
@@ -222,24 +225,24 @@ authRouter.post('/api/tokens/google',
 authRouter.post('/api/tokens/refresh',
   validateRequestBody('TokenRefreshRequest'),
   async (c) => {
-    console.log('Refresh endpoint hit');
+    logger.debug('Refresh endpoint hit');
     const body = c.get('validatedBody') as TokenRefreshRequest;
     const { refreshToken } = body;
 
     if (!refreshToken) {
-      console.log('Refresh endpoint: No refresh token provided');
+      logger.debug('Refresh endpoint: No refresh token provided');
       return c.json({ error: 'Refresh token required' }, 401);
     }
 
-    console.log('Refresh endpoint: Attempting to verify token');
+    logger.debug('Refresh endpoint: Attempting to verify token');
 
     try {
       // Verify refresh token
       const payload = JWTService.verifyToken(refreshToken);
-      console.log('Refresh endpoint: Token verified, userId:', payload.userId);
+      logger.debug('Refresh endpoint: Token verified', { userId: payload.userId });
 
       if (!payload.userId) {
-        console.log('Refresh endpoint: No userId in token payload');
+        logger.debug('Refresh endpoint: No userId in token payload');
         return c.json({ error: 'Invalid token payload' }, 401);
       }
 
@@ -271,10 +274,10 @@ authRouter.post('/api/tokens/refresh',
       return c.json(response, 200);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('Token refresh error:', errorMessage);
-      if (error instanceof Error) {
-        console.error('Error stack:', error.stack);
-      }
+      logger.error('Token refresh error', {
+        error: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined
+      });
 
       // Provide specific error messages for different failure modes
       if (errorMessage.includes('expired')) {
@@ -344,7 +347,10 @@ authRouter.post('/api/tokens/mcp-generate', authMiddleware, async (c) => {
 
     return c.json(response, 200);
   } catch (error) {
-    console.error('MCP token generation error:', error);
+    logger.error('MCP token generation error', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
     return c.json({ error: 'Failed to generate refresh token' }, 401);
   }
 });
