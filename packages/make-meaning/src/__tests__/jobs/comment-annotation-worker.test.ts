@@ -1,13 +1,13 @@
 /**
- * Assessment Detection Worker Event Emission Tests
+ * Comment Detection Worker Event Emission Tests
  *
- * Tests that AssessmentDetectionWorker emits proper job progress events to Event Store
- * during assessment detection processing.
+ * Tests that CommentDetectionWorker emits proper job progress events to Event Store
+ * during comment detection processing.
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { AssessmentDetectionWorker } from '../../jobs/assessment-detection-worker';
-import { JobQueue, type AssessmentDetectionJob, type RunningJob, type AssessmentDetectionParams, type AssessmentDetectionProgress } from '@semiont/jobs';
+import { CommentDetectionWorker } from '../../jobs/comment-annotation-worker';
+import { JobQueue, type CommentDetectionJob, type RunningJob, type CommentDetectionParams, type CommentDetectionProgress } from '@semiont/jobs';
 import { resourceId, userId, type EnvironmentConfig, EventBus } from '@semiont/core';
 import { jobId } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
@@ -28,15 +28,15 @@ vi.mock('@semiont/inference', async () => {
   };
 });
 
-describe('AssessmentDetectionWorker - Event Emission', () => {
-  let worker: AssessmentDetectionWorker;
+describe('CommentDetectionWorker - Event Emission', () => {
+  let worker: CommentDetectionWorker;
   let testDir: string;
   let testEventStore: EventStore;
   let config: EnvironmentConfig;
 
   beforeAll(async () => {
     // Create temporary test directory
-    testDir = join(tmpdir(), `semiont-test-assessment-worker-${Date.now()}`);
+    testDir = join(tmpdir(), `semiont-test-comment-worker-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
     // Create test configuration
@@ -81,7 +81,7 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
     const jobQueue = new JobQueue({ dataDir: testDir }, new EventBus());
     await jobQueue.initialize();
     testEventStore = createEventStore(testDir, config.services.backend!.publicURL);
-    worker = new AssessmentDetectionWorker(jobQueue, config, testEventStore, mockInferenceClient.client, new EventBus());
+    worker = new CommentDetectionWorker(jobQueue, config, testEventStore, mockInferenceClient.client, new EventBus());
 
     // Set default mock response
     mockInferenceClient.client.setResponses(['[]']);
@@ -92,7 +92,7 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
   });
 
   // Helper to create a test resource with content
-  async function createTestResource(id: string, content: string = 'Claims requiring assessment'): Promise<void> {
+  async function createTestResource(id: string, content: string = 'Test content for comment detection'): Promise<void> {
     const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir);
 
     const testContent = Buffer.from(content, 'utf-8');
@@ -118,18 +118,18 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
     return allEvents;
   }
 
-  it('should emit job.started event when assessment detection begins', async () => {
-    const testResourceId = `resource-assessment-started-${Date.now()}`;
+  it('should emit job.started event when comment detection begins', async () => {
+    const testResourceId = `resource-comment-started-${Date.now()}`;
     await createTestResource(testResourceId);
 
     // Mock AI response
     mockInferenceClient.client.setResponses([JSON.stringify([])]);
 
-    const job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress> = {
+    const job: RunningJob<CommentDetectionParams, CommentDetectionProgress> = {
       status: 'running',
       metadata: {
-        id: jobId('job-assessment-1'),
-        type: 'assessment-annotation',
+        id: jobId('job-comment-1'),
+        type: 'comment-annotation',
         userId: userId('user-1'),
         created: new Date().toISOString(),
         retryCount: 0,
@@ -146,8 +146,8 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
       }
     };
 
-    const result = await (worker as unknown as { executeJob: (job: AssessmentDetectionJob) => Promise<any> }).executeJob(job);
-    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
+    const result = await (worker as unknown as { executeJob: (job: CommentDetectionJob) => Promise<any> }).executeJob(job);
+    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<CommentDetectionParams, CommentDetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
     const events = await getResourceEvents(testResourceId);
     const startedEvents = events.filter(e => e.event.type === 'job.started');
@@ -160,33 +160,33 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
       resourceId: resourceId(testResourceId),
       userId: userId('user-1'),
       payload: {
-        jobId: 'job-assessment-1',
-        jobType: 'assessment-annotation'
+        jobId: 'job-comment-1',
+        jobType: 'comment-annotation'
       }
     });
   });
 
-  it('should emit job.progress events during assessment detection', async () => {
-    const testResourceId = `resource-assessment-progress-${Date.now()}`;
-    await createTestResource(testResourceId, 'This claim requires critical evaluation');
+  it('should emit job.progress events during comment detection', async () => {
+    const testResourceId = `resource-comment-progress-${Date.now()}`;
+    await createTestResource(testResourceId, 'Test content for progress tracking');
 
-    // Mock AI response with assessments
+    // Mock AI response with comments
     mockInferenceClient.client.setResponses([JSON.stringify([
           {
-            exact: 'This claim',
+            exact: 'Test content',
             start: 0,
-            end: 10,
-            assessment: 'This claim lacks supporting evidence',
+            end: 12,
+            comment: 'This is a test comment',
             prefix: '',
-            suffix: ' requires critical'
+            suffix: ' for progress'
           }
         ])]);
 
-    const job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress> = {
+    const job: RunningJob<CommentDetectionParams, CommentDetectionProgress> = {
       status: 'running',
       metadata: {
-        id: jobId('job-assessment-2'),
-        type: 'assessment-annotation',
+        id: jobId('job-comment-2'),
+        type: 'comment-annotation',
         userId: userId('user-1'),
         created: new Date().toISOString(),
         retryCount: 0,
@@ -203,8 +203,8 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
       }
     };
 
-    const result = await (worker as unknown as { executeJob: (job: AssessmentDetectionJob) => Promise<any> }).executeJob(job);
-    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
+    const result = await (worker as unknown as { executeJob: (job: CommentDetectionJob) => Promise<any> }).executeJob(job);
+    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<CommentDetectionParams, CommentDetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
     const events = await getResourceEvents(testResourceId);
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
@@ -216,33 +216,32 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
       resourceId: resourceId(testResourceId),
       userId: userId('user-1'),
       payload: {
-        jobId: 'job-assessment-2',
-        
+        jobId: 'job-comment-2'
       }
     });
   });
 
-  it('should emit job.completed event when assessment detection finishes', async () => {
-    const testResourceId = `resource-assessment-complete-${Date.now()}`;
+  it('should emit job.completed event when comment detection finishes', async () => {
+    const testResourceId = `resource-comment-complete-${Date.now()}`;
     await createTestResource(testResourceId);
 
     // Mock AI response
     mockInferenceClient.client.setResponses([JSON.stringify([
           {
-            exact: 'Claims',
+            exact: 'Test',
             start: 0,
-            end: 6,
-            assessment: 'Needs verification',
+            end: 4,
+            comment: 'A comment',
             prefix: '',
-            suffix: ' requiring assessment'
+            suffix: ' content'
           }
         ])]);
 
-    const job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress> = {
+    const job: RunningJob<CommentDetectionParams, CommentDetectionProgress> = {
       status: 'running',
       metadata: {
-        id: jobId('job-assessment-3'),
-        type: 'assessment-annotation',
+        id: jobId('job-comment-3'),
+        type: 'comment-annotation',
         userId: userId('user-1'),
         created: new Date().toISOString(),
         retryCount: 0,
@@ -259,8 +258,8 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
       }
     };
 
-    const result = await (worker as unknown as { executeJob: (job: AssessmentDetectionJob) => Promise<any> }).executeJob(job);
-    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
+    const result = await (worker as unknown as { executeJob: (job: CommentDetectionJob) => Promise<any> }).executeJob(job);
+    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<CommentDetectionParams, CommentDetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
     const events = await getResourceEvents(testResourceId);
     const completedEvents = events.filter(e => e.event.type === 'job.completed');
@@ -272,41 +271,40 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
       resourceId: resourceId(testResourceId),
       userId: userId('user-1'),
       payload: {
-        jobId: 'job-assessment-3',
-        
+        jobId: 'job-comment-3'
       }
     });
   });
 
-  it('should emit annotation.created events for detected assessments', async () => {
-    const testResourceId = `resource-assessment-annotations-${Date.now()}`;
-    await createTestResource(testResourceId, 'First claim needs review. Second claim also questionable.');
+  it('should emit annotation.created events for detected comments', async () => {
+    const testResourceId = `resource-comment-annotations-${Date.now()}`;
+    await createTestResource(testResourceId, 'Content for annotation testing');
 
-    // Mock AI response with multiple assessments
+    // Mock AI response with multiple comments
     mockInferenceClient.client.setResponses([JSON.stringify([
-          {
-            exact: 'First claim',
-            start: 0,
-            end: 11,
-            assessment: 'This claim lacks empirical support',
-            prefix: '',
-            suffix: ' needs review'
-          },
-          {
-            exact: 'Second claim',
-            start: 26,
-            end: 38,
-            assessment: 'Requires additional verification',
-            prefix: 'needs review. ',
-            suffix: ' also questionable'
-          }
-        ])]);
+      {
+        exact: 'Content',
+        start: 0,
+        end: 7,
+        comment: 'First comment',
+        prefix: '',
+        suffix: ' for annotation'
+      },
+      {
+        exact: 'annotation',
+        start: 12,
+        end: 22,
+        comment: 'Second comment',
+        prefix: 'Content for ',
+        suffix: ' testing'
+      }
+    ])]);
 
-    const job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress> = {
+    const job: RunningJob<CommentDetectionParams, CommentDetectionProgress> = {
       status: 'running',
       metadata: {
-        id: jobId('job-assessment-4'),
-        type: 'assessment-annotation',
+        id: jobId('job-comment-4'),
+        type: 'comment-annotation',
         userId: userId('user-1'),
         created: new Date().toISOString(),
         retryCount: 0,
@@ -323,39 +321,43 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
       }
     };
 
-    const result = await (worker as unknown as { executeJob: (job: AssessmentDetectionJob) => Promise<any> }).executeJob(job);
-    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
+    const result = await (worker as unknown as { executeJob: (job: CommentDetectionJob) => Promise<any> }).executeJob(job);
+    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<CommentDetectionParams, CommentDetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
     const events = await getResourceEvents(testResourceId);
     const annotationEvents = events.filter(e => e.event.type === 'annotation.added');
     expect(annotationEvents.length).toBe(2);
 
-    // Check first assessment annotation
+    // Check first annotation
     expect(annotationEvents[0]!.event).toMatchObject({
       type: 'annotation.added',
       resourceId: resourceId(testResourceId),
       userId: userId('user-1'),
       payload: {
         annotation: {
-          motivation: 'assessing',
-          body: expect.objectContaining({
-            value: 'This claim lacks empirical support'
-          })
+          motivation: 'commenting',
+          body: expect.arrayContaining([
+            expect.objectContaining({
+              value: 'First comment'
+            })
+          ])
         }
       }
     });
 
-    // Check second assessment annotation
+    // Check second annotation
     expect(annotationEvents[1]!.event).toMatchObject({
       type: 'annotation.added',
       resourceId: resourceId(testResourceId),
       userId: userId('user-1'),
       payload: {
         annotation: {
-          motivation: 'assessing',
-          body: expect.objectContaining({
-            value: 'Requires additional verification'
-          })
+          motivation: 'commenting',
+          body: expect.arrayContaining([
+            expect.objectContaining({
+              value: 'Second comment'
+            })
+          ])
         }
       }
     });

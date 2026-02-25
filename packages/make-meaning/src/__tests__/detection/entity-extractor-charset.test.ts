@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { ReferenceDetectionWorker, type DetectedAnnotation } from '../../jobs/reference-detection-worker';
+import { ReferenceDetectionWorker, type DetectedAnnotation } from '../../jobs/reference-annotation-worker';
 import { JobQueue } from '@semiont/jobs';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import type { components, EnvironmentConfig } from '@semiont/core';

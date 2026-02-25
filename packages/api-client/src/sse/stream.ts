@@ -57,7 +57,7 @@ interface SSEConfig {
  *
  * // Start stream - events auto-emit
  * const stream = createSSEStream(
- *   'http://localhost:4000/resources/123/detect-annotations-stream',
+ *   'http://localhost:4000/resources/123/annotate-references-stream',
  *   {
  *     method: 'POST',
  *     headers: { 'Authorization': 'Bearer token', 'Content-Type': 'application/json' },

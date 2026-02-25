@@ -1,5 +1,5 @@
 /**
- * Detect Highlights Stream Route - EventBus Version
+ * Detect Assessments Stream Route - EventBus Version
  *
  * Uses @semiont/core EventBus for real-time progress:
  * - No polling loops
@@ -17,7 +17,7 @@ import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { ResourceContext } from '@semiont/make-meaning';
-import type { JobQueue, PendingJob, HighlightDetectionParams } from '@semiont/jobs';
+import type { JobQueue, PendingJob, AssessmentDetectionParams } from '@semiont/jobs';
 import { nanoid } from 'nanoid';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/core';
@@ -25,9 +25,9 @@ import { jobId } from '@semiont/core';
 import { userId, resourceId, type ResourceId } from '@semiont/core';
 import { writeTypedSSE } from '../../../lib/sse-helpers';
 
-type AnnotateHighlightsStreamRequest = components['schemas']['AnnotateHighlightsStreamRequest'];
+type AnnotateAssessmentsStreamRequest = components['schemas']['AnnotateAssessmentsStreamRequest'];
 
-interface HighlightDetectionProgress {
+interface AssessmentDetectionProgress {
   status: 'started' | 'analyzing' | 'creating' | 'complete' | 'error';
   resourceId: ResourceId;
   stage?: 'analyzing' | 'creating';
@@ -37,35 +37,35 @@ interface HighlightDetectionProgress {
   createdCount?: number;
 }
 
-export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQueue: JobQueue) {
+export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, jobQueue: JobQueue) {
   /**
-   * POST /resources/:id/detect-highlights-stream
+   * POST /resources/:id/detect-assessments-stream
    *
-   * Stream real-time highlight detection progress via Server-Sent Events
+   * Stream real-time assessment detection progress via Server-Sent Events
    * Requires authentication
-   * Validates request body against AnnotateHighlightsStreamRequest schema
+   * Validates request body against AnnotateAssessmentsStreamRequest schema
    * Returns SSE stream with progress updates
    *
    * Event-Driven Architecture:
-   * - Creates highlight detection job
+   * - Creates assessment detection job
    * - Subscribes to Event Store for job.* events
    * - Forwards events to client as SSE
    * - <50ms latency (no polling)
    */
-  router.post('/resources/:id/detect-highlights-stream',
-    validateRequestBody('AnnotateHighlightsStreamRequest'),
+  router.post('/resources/:id/annotate-assessments-stream',
+    validateRequestBody('AnnotateAssessmentsStreamRequest'),
     async (c) => {
       const { id } = c.req.param();
-      const body = c.get('validatedBody') as AnnotateHighlightsStreamRequest;
-      const { instructions, density } = body;
+      const body = c.get('validatedBody') as AnnotateAssessmentsStreamRequest;
+      const { instructions, tone, density } = body;
       const config = c.get('config');
 
       // Validate density if provided
-      if (density !== undefined && (typeof density !== 'number' || density < 1 || density > 15)) {
-        throw new HTTPException(400, { message: 'Invalid density. Must be a number between 1 and 15.' });
+      if (density !== undefined && (typeof density !== 'number' || density < 1 || density > 10)) {
+        throw new HTTPException(400, { message: 'Invalid density. Must be a number between 1 and 10.' });
       }
 
-      console.log(`[DetectHighlights] Starting highlight detection for resource ${id}${instructions ? ' with instructions' : ''}${density ? ` (density: ${density})` : ''}`);
+      console.log(`[DetectAssessments] Starting assessment detection for resource ${id}${instructions ? ' with instructions' : ''}${tone ? ` (tone: ${tone})` : ''}${density ? ` (density: ${density})` : ''}`);
 
       // User will be available from auth middleware since this is a POST request
       const user = c.get('user');
@@ -82,12 +82,12 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
       // Get EventBus for real-time progress subscriptions
       const { eventBus } = c.get('makeMeaning');
 
-      // Create a highlight detection job
-      const job: PendingJob<HighlightDetectionParams> = {
+      // Create an assessment detection job
+      const job: PendingJob<AssessmentDetectionParams> = {
         status: 'pending',
         metadata: {
           id: jobId(`job-${nanoid()}`),
-          type: 'highlight-annotation',
+          type: 'assessment-annotation',
           userId: userId(user.id),
           created: new Date().toISOString(),
           retryCount: 0,
@@ -96,12 +96,13 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
         params: {
           resourceId: resourceId(id),
           instructions,
+          tone,
           density
         }
       };
 
       await jobQueue.createJob(job);
-      console.log(`[DetectHighlights] Created job ${job.metadata.id} for resource ${id}`);
+      console.log(`[DetectAssessments] Created job ${job.metadata.id} for resource ${id}`);
 
       // Stream job progress to the client using EventBus subscriptions
       return streamSSE(c, async (stream) => {
@@ -138,25 +139,25 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
           // Create resource-scoped EventBus for this resource
           // Workers emit detection:started, detection:progress, detection:completed, detection:failed
           const resourceBus = eventBus.scope(id);
-          console.log(`[DetectHighlights] Subscribing to EventBus for resource ${id}`);
+          console.log(`[DetectAssessments] Subscribing to EventBus for resource ${id}`);
 
           // Subscribe to annotate:progress
           subscriptions.push(
             resourceBus.get('annotate:progress').subscribe(async (_event) => {
               if (isStreamClosed) return;
-              console.log(`[DetectHighlights] Detection started for resource ${id}`);
+              console.log(`[DetectAssessments] Detection started for resource ${id}`);
               try {
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'started',
                     resourceId: resourceId(id),
                     message: 'Starting detection...'
-                  } as HighlightDetectionProgress),
+                  } as AssessmentDetectionProgress),
                   event: 'annotate:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectHighlights] Client disconnected during start`);
+                console.warn(`[DetectAssessments] Client disconnected during start`);
                 cleanup();
               }
             })
@@ -166,7 +167,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
           subscriptions.push(
             resourceBus.get('annotate:progress').subscribe(async (progress) => {
               if (isStreamClosed) return;
-              console.log(`[DetectHighlights] Detection progress for resource ${id}:`, progress);
+              console.log(`[DetectAssessments] Detection progress for resource ${id}:`, progress);
               try {
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
@@ -175,12 +176,12 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
                     stage: progress.status === 'analyzing' || progress.status === 'creating' ? progress.status : undefined,
                     percentage: progress.percentage,
                     message: progress.message || 'Processing...'
-                  } as HighlightDetectionProgress),
+                  } as AssessmentDetectionProgress),
                   event: 'annotate:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectHighlights] Client disconnected during progress`);
+                console.warn(`[DetectAssessments] Client disconnected during progress`);
                 cleanup();
               }
             })
@@ -189,9 +190,9 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
           // Subscribe to job:completed
           subscriptions.push(
             resourceBus.get('job:completed').subscribe(async (event) => {
-      if (event.payload.jobType !== 'highlight-annotation') return;
+      if (event.payload.jobType !== 'assessment-annotation') return;
               if (isStreamClosed) return;
-              console.log(`[DetectHighlights] Detection completed for resource ${id}`);
+              console.log(`[DetectAssessments] Detection completed for resource ${id}`);
               try {
                 const result = event.payload.result;
                 await writeTypedSSE(stream, {
@@ -199,17 +200,17 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
                     status: 'complete',
                     resourceId: resourceId(id),
                     percentage: 100,
-                    foundCount: result?.highlightsFound,
-                    createdCount: result?.highlightsCreated,
-                    message: result?.highlightsCreated !== undefined
-                      ? `Complete! Created ${result.highlightsCreated} highlights`
-                      : 'Highlight detection complete!'
-                  } as HighlightDetectionProgress),
+                    foundCount: result?.assessmentsFound,
+                    createdCount: result?.assessmentsCreated,
+                    message: result?.assessmentsCreated !== undefined
+                      ? `Complete! Created ${result.assessmentsCreated} assessments`
+                      : 'Assessment detection complete!'
+                  } as AssessmentDetectionProgress),
                   event: 'annotate:assist-finished',
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectHighlights] Client disconnected after completion`);
+                console.warn(`[DetectAssessments] Client disconnected after completion`);
               }
               cleanup();
             })
@@ -218,21 +219,21 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
           // Subscribe to job:failed
           subscriptions.push(
             resourceBus.get('job:failed').subscribe(async (event) => {
-      if (event.payload.jobType !== 'highlight-annotation') return;
+      if (event.payload.jobType !== 'assessment-annotation') return;
               if (isStreamClosed) return;
-              console.log(`[DetectHighlights] Detection failed for resource ${id}:`, event.payload.error);
+              console.log(`[DetectAssessments] Detection failed for resource ${id}:`, event.payload.error);
               try {
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'error',
                     resourceId: resourceId(id),
-                    message: event.payload.error || 'Highlight detection failed'
-                  } as HighlightDetectionProgress),
+                    message: event.payload.error || 'Assessment detection failed'
+                  } as AssessmentDetectionProgress),
                   event: 'annotate:assist-failed',
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectHighlights] Client disconnected after failure`);
+                console.warn(`[DetectAssessments] Client disconnected after failure`);
               }
               cleanup();
             })
@@ -258,7 +259,7 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
 
           // Cleanup on disconnect
           c.req.raw.signal.addEventListener('abort', () => {
-            console.log(`[DetectHighlights] Client disconnected from detection stream for resource ${id}, job ${job.metadata.id} will continue`);
+            console.log(`[DetectAssessments] Client disconnected from detection stream for resource ${id}, job ${job.metadata.id} will continue`);
             cleanup();
           });
 
@@ -269,14 +270,14 @@ export function registerDetectHighlightsStream(router: ResourcesRouterType, jobQ
               data: JSON.stringify({
                 status: 'error',
                 resourceId: resourceId(id),
-                message: error instanceof Error ? error.message : 'Highlight detection failed'
-              } as HighlightDetectionProgress),
+                message: error instanceof Error ? error.message : 'Assessment detection failed'
+              } as AssessmentDetectionProgress),
               event: 'annotate:assist-failed',
               id: String(Date.now())
             });
           } catch (sseError) {
             // Client already disconnected
-            console.warn(`[DetectHighlights] Could not send error to client (disconnected), job ${job.metadata.id} status is preserved`);
+            console.warn(`[DetectAssessments] Could not send error to client (disconnected), job ${job.metadata.id} status is preserved`);
           }
           cleanup();
         }

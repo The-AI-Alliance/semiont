@@ -1,5 +1,5 @@
 /**
- * Detect Tags Stream Route - EventBus Version
+ * Detect Highlights Stream Route - EventBus Version
  *
  * Uses @semiont/core EventBus for real-time progress:
  * - No polling loops
@@ -17,77 +17,60 @@ import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { ResourceContext } from '@semiont/make-meaning';
-import type { JobQueue, PendingJob, TagDetectionParams } from '@semiont/jobs';
+import type { JobQueue, PendingJob, HighlightDetectionParams } from '@semiont/jobs';
 import { nanoid } from 'nanoid';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/core';
 import { jobId } from '@semiont/core';
 import { userId, resourceId, type ResourceId } from '@semiont/core';
 import { writeTypedSSE } from '../../../lib/sse-helpers';
-import { getTagSchema } from '@semiont/ontology';
 
-type AnnotateTagsStreamRequest = components['schemas']['AnnotateTagsStreamRequest'];
+type AnnotateHighlightsStreamRequest = components['schemas']['AnnotateHighlightsStreamRequest'];
 
-interface TagDetectionProgress {
+interface HighlightDetectionProgress {
   status: 'started' | 'analyzing' | 'creating' | 'complete' | 'error';
   resourceId: ResourceId;
   stage?: 'analyzing' | 'creating';
   percentage?: number;
-  currentCategory?: string;
-  processedCategories?: number;
-  totalCategories?: number;
   message?: string;
   foundCount?: number;
   createdCount?: number;
-  byCategory?: Record<string, number>;
 }
 
-export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: JobQueue) {
+export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jobQueue: JobQueue) {
   /**
-   * POST /resources/:id/detect-tags-stream
+   * POST /resources/:id/detect-highlights-stream
    *
-   * Stream real-time tag detection progress via Server-Sent Events
+   * Stream real-time highlight detection progress via Server-Sent Events
    * Requires authentication
-   * Validates request body against AnnotateTagsStreamRequest schema
+   * Validates request body against AnnotateHighlightsStreamRequest schema
    * Returns SSE stream with progress updates
    *
    * Event-Driven Architecture:
-   * - Creates tag detection job
+   * - Creates highlight detection job
    * - Subscribes to Event Store for job.* events
    * - Forwards events to client as SSE
    * - <50ms latency (no polling)
    */
-  router.post('/resources/:id/detect-tags-stream',
-    validateRequestBody('AnnotateTagsStreamRequest'),
+  router.post('/resources/:id/annotate-highlights-stream',
+    validateRequestBody('AnnotateHighlightsStreamRequest'),
     async (c) => {
       const { id } = c.req.param();
-      const body = c.get('validatedBody') as AnnotateTagsStreamRequest;
-      const { schemaId, categories } = body;
+      const body = c.get('validatedBody') as AnnotateHighlightsStreamRequest;
+      const { instructions, density } = body;
       const config = c.get('config');
 
-      console.log(`[DetectTags] Starting tag detection for resource ${id} with schema ${schemaId}, categories: ${categories.join(', ')}`);
+      // Validate density if provided
+      if (density !== undefined && (typeof density !== 'number' || density < 1 || density > 15)) {
+        throw new HTTPException(400, { message: 'Invalid density. Must be a number between 1 and 15.' });
+      }
+
+      console.log(`[DetectHighlights] Starting highlight detection for resource ${id}${instructions ? ' with instructions' : ''}${density ? ` (density: ${density})` : ''}`);
 
       // User will be available from auth middleware since this is a POST request
       const user = c.get('user');
       if (!user) {
         throw new HTTPException(401, { message: 'Authentication required' });
-      }
-
-      // Validate schema exists
-      const schema = getTagSchema(schemaId);
-      if (!schema) {
-        throw new HTTPException(400, { message: `Invalid tag schema: ${schemaId}` });
-      }
-
-      // Validate categories
-      for (const category of categories) {
-        if (!schema.tags.some(t => t.name === category)) {
-          throw new HTTPException(400, { message: `Invalid category "${category}" for schema ${schemaId}` });
-        }
-      }
-
-      if (categories.length === 0) {
-        throw new HTTPException(400, { message: 'At least one category must be selected' });
       }
 
       // Validate resource exists using view storage
@@ -99,12 +82,12 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
       // Get EventBus for real-time progress subscriptions
       const { eventBus } = c.get('makeMeaning');
 
-      // Create a tag detection job
-      const job: PendingJob<TagDetectionParams> = {
+      // Create a highlight detection job
+      const job: PendingJob<HighlightDetectionParams> = {
         status: 'pending',
         metadata: {
           id: jobId(`job-${nanoid()}`),
-          type: 'tag-annotation',
+          type: 'highlight-annotation',
           userId: userId(user.id),
           created: new Date().toISOString(),
           retryCount: 0,
@@ -112,13 +95,13 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
         },
         params: {
           resourceId: resourceId(id),
-          schemaId,
-          categories
+          instructions,
+          density
         }
       };
 
       await jobQueue.createJob(job);
-      console.log(`[DetectTags] Created job ${job.metadata.id} for resource ${id}`);
+      console.log(`[DetectHighlights] Created job ${job.metadata.id} for resource ${id}`);
 
       // Stream job progress to the client using EventBus subscriptions
       return streamSSE(c, async (stream) => {
@@ -155,26 +138,25 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
           // Create resource-scoped EventBus for this resource
           // Workers emit detection:started, detection:progress, detection:completed, detection:failed
           const resourceBus = eventBus.scope(id);
-          console.log(`[DetectTags] Subscribing to EventBus for resource ${id}`);
+          console.log(`[DetectHighlights] Subscribing to EventBus for resource ${id}`);
 
           // Subscribe to annotate:progress
           subscriptions.push(
             resourceBus.get('annotate:progress').subscribe(async (_event) => {
               if (isStreamClosed) return;
-              console.log(`[DetectTags] Detection started for resource ${id}`);
+              console.log(`[DetectHighlights] Detection started for resource ${id}`);
               try {
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'started',
                     resourceId: resourceId(id),
-                    totalCategories: categories.length,
                     message: 'Starting detection...'
-                  } as TagDetectionProgress),
+                  } as HighlightDetectionProgress),
                   event: 'annotate:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectTags] Client disconnected during start`);
+                console.warn(`[DetectHighlights] Client disconnected during start`);
                 cleanup();
               }
             })
@@ -184,7 +166,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
           subscriptions.push(
             resourceBus.get('annotate:progress').subscribe(async (progress) => {
               if (isStreamClosed) return;
-              console.log(`[DetectTags] Detection progress for resource ${id}:`, progress);
+              console.log(`[DetectHighlights] Detection progress for resource ${id}:`, progress);
               try {
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
@@ -192,16 +174,13 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
                     resourceId: resourceId(id),
                     stage: progress.status === 'analyzing' || progress.status === 'creating' ? progress.status : undefined,
                     percentage: progress.percentage,
-                    currentCategory: progress.currentCategory,
-                    processedCategories: progress.processedCategories,
-                    totalCategories: progress.totalCategories,
                     message: progress.message || 'Processing...'
-                  } as TagDetectionProgress),
+                  } as HighlightDetectionProgress),
                   event: 'annotate:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectTags] Client disconnected during progress`);
+                console.warn(`[DetectHighlights] Client disconnected during progress`);
                 cleanup();
               }
             })
@@ -210,9 +189,9 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
           // Subscribe to job:completed
           subscriptions.push(
             resourceBus.get('job:completed').subscribe(async (event) => {
-      if (event.payload.jobType !== 'tag-annotation') return;
+      if (event.payload.jobType !== 'highlight-annotation') return;
               if (isStreamClosed) return;
-              console.log(`[DetectTags] Detection completed for resource ${id}`);
+              console.log(`[DetectHighlights] Detection completed for resource ${id}`);
               try {
                 const result = event.payload.result;
                 await writeTypedSSE(stream, {
@@ -220,18 +199,17 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
                     status: 'complete',
                     resourceId: resourceId(id),
                     percentage: 100,
-                    foundCount: result?.tagsFound,
-                    createdCount: result?.tagsCreated,
-                    byCategory: result?.byCategory,
-                    message: result?.tagsCreated !== undefined
-                      ? `Complete! Created ${result.tagsCreated} tags`
-                      : 'Tag detection complete!'
-                  } as TagDetectionProgress),
+                    foundCount: result?.highlightsFound,
+                    createdCount: result?.highlightsCreated,
+                    message: result?.highlightsCreated !== undefined
+                      ? `Complete! Created ${result.highlightsCreated} highlights`
+                      : 'Highlight detection complete!'
+                  } as HighlightDetectionProgress),
                   event: 'annotate:assist-finished',
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectTags] Client disconnected after completion`);
+                console.warn(`[DetectHighlights] Client disconnected after completion`);
               }
               cleanup();
             })
@@ -240,21 +218,21 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
           // Subscribe to job:failed
           subscriptions.push(
             resourceBus.get('job:failed').subscribe(async (event) => {
-      if (event.payload.jobType !== 'tag-annotation') return;
+      if (event.payload.jobType !== 'highlight-annotation') return;
               if (isStreamClosed) return;
-              console.log(`[DetectTags] Detection failed for resource ${id}:`, event.payload.error);
+              console.log(`[DetectHighlights] Detection failed for resource ${id}:`, event.payload.error);
               try {
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'error',
                     resourceId: resourceId(id),
-                    message: event.payload.error || 'Tag detection failed'
-                  } as TagDetectionProgress),
+                    message: event.payload.error || 'Highlight detection failed'
+                  } as HighlightDetectionProgress),
                   event: 'annotate:assist-failed',
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectTags] Client disconnected after failure`);
+                console.warn(`[DetectHighlights] Client disconnected after failure`);
               }
               cleanup();
             })
@@ -280,7 +258,7 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
 
           // Cleanup on disconnect
           c.req.raw.signal.addEventListener('abort', () => {
-            console.log(`[DetectTags] Client disconnected from detection stream for resource ${id}, job ${job.metadata.id} will continue`);
+            console.log(`[DetectHighlights] Client disconnected from detection stream for resource ${id}, job ${job.metadata.id} will continue`);
             cleanup();
           });
 
@@ -291,14 +269,14 @@ export function registerDetectTagsStream(router: ResourcesRouterType, jobQueue: 
               data: JSON.stringify({
                 status: 'error',
                 resourceId: resourceId(id),
-                message: error instanceof Error ? error.message : 'Tag detection failed'
-              } as TagDetectionProgress),
+                message: error instanceof Error ? error.message : 'Highlight detection failed'
+              } as HighlightDetectionProgress),
               event: 'annotate:assist-failed',
               id: String(Date.now())
             });
           } catch (sseError) {
             // Client already disconnected
-            console.warn(`[DetectTags] Could not send error to client (disconnected), job ${job.metadata.id} status is preserved`);
+            console.warn(`[DetectHighlights] Could not send error to client (disconnected), job ${job.metadata.id} status is preserved`);
           }
           cleanup();
         }

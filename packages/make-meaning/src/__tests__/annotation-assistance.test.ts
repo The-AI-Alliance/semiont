@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { AnnotationDetection } from '../annotation-detection';
+import { AnnotationDetection } from '../annotation-assistance';
 import { ResourceOperations } from '../resource-operations';
 import { resourceId, userId, type EnvironmentConfig } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';

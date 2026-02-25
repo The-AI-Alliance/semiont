@@ -33,7 +33,7 @@ export { LLMContext } from './llm-context';
 export type { LLMContextOptions } from './llm-context';
 
 // Detection exports
-export { AnnotationDetection } from './annotation-detection';
+export { AnnotationDetection } from './annotation-assistance';
 export { MotivationPrompts } from './detection/motivation-prompts';
 export { MotivationParsers } from './detection/motivation-parsers';
 export type {
@@ -53,11 +53,11 @@ export {
 } from './generation/resource-generation';
 
 // Job workers (exported for direct instantiation if needed)
-export { CommentDetectionWorker } from './jobs/comment-detection-worker';
-export { HighlightDetectionWorker } from './jobs/highlight-detection-worker';
-export { AssessmentDetectionWorker } from './jobs/assessment-detection-worker';
-export { TagDetectionWorker } from './jobs/tag-detection-worker';
-export { ReferenceDetectionWorker } from './jobs/reference-detection-worker';
+export { CommentDetectionWorker } from './jobs/comment-annotation-worker';
+export { HighlightDetectionWorker } from './jobs/highlight-annotation-worker';
+export { AssessmentDetectionWorker } from './jobs/assessment-annotation-worker';
+export { TagDetectionWorker } from './jobs/tag-annotation-worker';
+export { ReferenceDetectionWorker } from './jobs/reference-annotation-worker';
 export { GenerationWorker } from './jobs/generation-worker';
 
 // Reasoning exports (future)

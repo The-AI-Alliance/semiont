@@ -18,12 +18,12 @@ import type { EnvironmentConfig } from '@semiont/core';
 import { EventBus } from '@semiont/core';
 import { getInferenceClient, type InferenceClient } from '@semiont/inference';
 import { getGraphDatabase, type GraphDatabase } from '@semiont/graph';
-import { ReferenceDetectionWorker } from './jobs/reference-detection-worker';
+import { ReferenceDetectionWorker } from './jobs/reference-annotation-worker';
 import { GenerationWorker } from './jobs/generation-worker';
-import { HighlightDetectionWorker } from './jobs/highlight-detection-worker';
-import { AssessmentDetectionWorker } from './jobs/assessment-detection-worker';
-import { CommentDetectionWorker } from './jobs/comment-detection-worker';
-import { TagDetectionWorker } from './jobs/tag-detection-worker';
+import { HighlightDetectionWorker } from './jobs/highlight-annotation-worker';
+import { AssessmentDetectionWorker } from './jobs/assessment-annotation-worker';
+import { CommentDetectionWorker } from './jobs/comment-annotation-worker';
+import { TagDetectionWorker } from './jobs/tag-annotation-worker';
 import { GraphDBConsumer } from './graph/consumer';
 import { bootstrapEntityTypes } from './bootstrap/entity-types';
 

@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { ReferenceDetectionWorker } from '../../jobs/reference-detection-worker';
+import { ReferenceDetectionWorker } from '../../jobs/reference-annotation-worker';
 import { JobQueue, type DetectionJob, type RunningJob, type DetectionParams, type DetectionProgress } from '@semiont/jobs';
 import { resourceId, userId, type EnvironmentConfig, EventBus } from '@semiont/core';
 import { jobId, entityType } from '@semiont/core';

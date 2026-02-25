@@ -9,7 +9,7 @@
 /**
  * Progress event for reference/linking detection stream
  *
- * Sent by POST /resources/:id/detect-annotations-stream
+ * Sent by POST /resources/:id/annotate-references-stream
  *
  * @example
  * ```typescript
@@ -71,7 +71,7 @@ export interface GenerationProgress {
 /**
  * Progress event for highlight detection stream
  *
- * Sent by POST /resources/:id/detect-highlights-stream
+ * Sent by POST /resources/:id/annotate-highlights-stream
  *
  * @example
  * ```typescript
@@ -102,7 +102,7 @@ export interface HighlightDetectionProgress {
 /**
  * Progress event for assessment detection stream
  *
- * Sent by POST /resources/:id/detect-assessments-stream
+ * Sent by POST /resources/:id/annotate-assessments-stream
  *
  * @example
  * ```typescript
@@ -133,7 +133,7 @@ export interface AssessmentDetectionProgress {
 /**
  * Progress event for comment detection stream
  *
- * Sent by POST /resources/:id/detect-comments-stream
+ * Sent by POST /resources/:id/annotate-comments-stream
  *
  * @example
  * ```typescript
@@ -164,7 +164,7 @@ export interface CommentDetectionProgress {
 /**
  * Progress event for tag detection stream
  *
- * Sent by POST /resources/:id/detect-tags-stream
+ * Sent by POST /resources/:id/annotate-tags-stream
  *
  * @example
  * ```typescript

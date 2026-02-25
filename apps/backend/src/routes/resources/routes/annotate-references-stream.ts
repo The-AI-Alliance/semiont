@@ -1,5 +1,5 @@
 /**
- * Detect Assessments Stream Route - EventBus Version
+ * Detect Annotations Stream Route - EventBus Version
  *
  * Uses @semiont/core EventBus for real-time progress:
  * - No polling loops
@@ -17,55 +17,50 @@ import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { ResourceContext } from '@semiont/make-meaning';
-import type { JobQueue, PendingJob, AssessmentDetectionParams } from '@semiont/jobs';
+import type { JobQueue, PendingJob, DetectionParams } from '@semiont/jobs';
 import { nanoid } from 'nanoid';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/core';
-import { jobId } from '@semiont/core';
+import { jobId, entityType } from '@semiont/core';
 import { userId, resourceId, type ResourceId } from '@semiont/core';
 import { writeTypedSSE } from '../../../lib/sse-helpers';
 
-type AnnotateAssessmentsStreamRequest = components['schemas']['AnnotateAssessmentsStreamRequest'];
+type AnnotateReferencesStreamRequest = components['schemas']['AnnotateReferencesStreamRequest'];
 
-interface AssessmentDetectionProgress {
-  status: 'started' | 'analyzing' | 'creating' | 'complete' | 'error';
+interface DetectionProgress {
+  status: 'started' | 'scanning' | 'complete' | 'error';
   resourceId: ResourceId;
-  stage?: 'analyzing' | 'creating';
-  percentage?: number;
+  currentEntityType?: string;
+  totalEntityTypes: number;
+  processedEntityTypes: number;
   message?: string;
   foundCount?: number;
-  createdCount?: number;
 }
 
-export function registerDetectAssessmentsStream(router: ResourcesRouterType, jobQueue: JobQueue) {
+export function registerAnnotateReferencesStream(router: ResourcesRouterType, jobQueue: JobQueue) {
   /**
-   * POST /resources/:id/detect-assessments-stream
+   * POST /resources/:id/detect-annotations-stream
    *
-   * Stream real-time assessment detection progress via Server-Sent Events
+   * Stream real-time entity detection progress via Server-Sent Events
    * Requires authentication
-   * Validates request body against AnnotateAssessmentsStreamRequest schema
+   * Validates request body against AnnotateReferencesStreamRequest schema
    * Returns SSE stream with progress updates
    *
    * Event-Driven Architecture:
-   * - Creates assessment detection job
+   * - Creates detection job
    * - Subscribes to Event Store for job.* events
    * - Forwards events to client as SSE
    * - <50ms latency (no polling)
    */
-  router.post('/resources/:id/detect-assessments-stream',
-    validateRequestBody('AnnotateAssessmentsStreamRequest'),
+  router.post('/resources/:id/annotate-references-stream',
+    validateRequestBody('AnnotateReferencesStreamRequest'),
     async (c) => {
       const { id } = c.req.param();
-      const body = c.get('validatedBody') as AnnotateAssessmentsStreamRequest;
-      const { instructions, tone, density } = body;
+      const body = c.get('validatedBody') as AnnotateReferencesStreamRequest;
+      const { entityTypes, includeDescriptiveReferences } = body;
       const config = c.get('config');
 
-      // Validate density if provided
-      if (density !== undefined && (typeof density !== 'number' || density < 1 || density > 10)) {
-        throw new HTTPException(400, { message: 'Invalid density. Must be a number between 1 and 10.' });
-      }
-
-      console.log(`[DetectAssessments] Starting assessment detection for resource ${id}${instructions ? ' with instructions' : ''}${tone ? ` (tone: ${tone})` : ''}${density ? ` (density: ${density})` : ''}`);
+      console.log(`[DetectAnnotations] Starting detection for resource ${id} with entity types:`, entityTypes, includeDescriptiveReferences ? '(including descriptive references)' : '');
 
       // User will be available from auth middleware since this is a POST request
       const user = c.get('user');
@@ -82,12 +77,12 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
       // Get EventBus for real-time progress subscriptions
       const { eventBus } = c.get('makeMeaning');
 
-      // Create an assessment detection job
-      const job: PendingJob<AssessmentDetectionParams> = {
+      // Create a detection job (this decouples event emission from HTTP client)
+      const job: PendingJob<DetectionParams> = {
         status: 'pending',
         metadata: {
           id: jobId(`job-${nanoid()}`),
-          type: 'assessment-annotation',
+          type: 'reference-annotation',
           userId: userId(user.id),
           created: new Date().toISOString(),
           retryCount: 0,
@@ -95,14 +90,13 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
         },
         params: {
           resourceId: resourceId(id),
-          instructions,
-          tone,
-          density
+          entityTypes: entityTypes.map(et => entityType(et)),
+          includeDescriptiveReferences
         }
       };
 
       await jobQueue.createJob(job);
-      console.log(`[DetectAssessments] Created job ${job.metadata.id} for resource ${id}`);
+      console.log(`[DetectAnnotations] Created job ${job.metadata.id} for resource ${id}`);
 
       // Stream job progress to the client using EventBus subscriptions
       return streamSSE(c, async (stream) => {
@@ -139,25 +133,27 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
           // Create resource-scoped EventBus for this resource
           // Workers emit detection:started, detection:progress, detection:completed, detection:failed
           const resourceBus = eventBus.scope(id);
-          console.log(`[DetectAssessments] Subscribing to EventBus for resource ${id}`);
+          console.log(`[DetectAnnotations] Subscribing to EventBus for resource ${id}`);
 
           // Subscribe to annotate:progress
           subscriptions.push(
             resourceBus.get('annotate:progress').subscribe(async (_event) => {
               if (isStreamClosed) return;
-              console.log(`[DetectAssessments] Detection started for resource ${id}`);
+              console.log(`[DetectAnnotations] Detection started for resource ${id}`);
               try {
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'started',
                     resourceId: resourceId(id),
-                    message: 'Starting detection...'
-                  } as AssessmentDetectionProgress),
+                    totalEntityTypes: entityTypes.length,
+                    processedEntityTypes: 0,
+                    message: 'Starting entity detection...'
+                  } as DetectionProgress),
                   event: 'annotate:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectAssessments] Client disconnected during start`);
+                console.warn(`[DetectAnnotations] Client disconnected during start`);
                 cleanup();
               }
             })
@@ -167,21 +163,25 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
           subscriptions.push(
             resourceBus.get('annotate:progress').subscribe(async (progress) => {
               if (isStreamClosed) return;
-              console.log(`[DetectAssessments] Detection progress for resource ${id}:`, progress);
+              console.log(`[DetectAnnotations] Detection progress for resource ${id}:`, progress);
               try {
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
-                    status: progress.status || 'analyzing',
+                    status: 'scanning',
                     resourceId: resourceId(id),
-                    stage: progress.status === 'analyzing' || progress.status === 'creating' ? progress.status : undefined,
-                    percentage: progress.percentage,
-                    message: progress.message || 'Processing...'
-                  } as AssessmentDetectionProgress),
+                    currentEntityType: progress.currentEntityType,
+                    totalEntityTypes: entityTypes.length,
+                    processedEntityTypes: progress.completedEntityTypes?.length || 0,
+                    foundCount: progress.completedEntityTypes?.reduce((sum, et) => sum + et.foundCount, 0),
+                    message: progress.message || (progress.currentEntityType
+                      ? `Scanning for ${progress.currentEntityType}...`
+                      : 'Processing...')
+                  } as DetectionProgress),
                   event: 'annotate:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectAssessments] Client disconnected during progress`);
+                console.warn(`[DetectAnnotations] Client disconnected during progress`);
                 cleanup();
               }
             })
@@ -190,27 +190,27 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
           // Subscribe to job:completed
           subscriptions.push(
             resourceBus.get('job:completed').subscribe(async (event) => {
-      if (event.payload.jobType !== 'assessment-annotation') return;
+      if (event.payload.jobType !== 'reference-annotation') return;
               if (isStreamClosed) return;
-              console.log(`[DetectAssessments] Detection completed for resource ${id}`);
+              console.log(`[DetectAnnotations] Detection completed for resource ${id}`);
               try {
                 const result = event.payload.result;
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'complete',
                     resourceId: resourceId(id),
-                    percentage: 100,
-                    foundCount: result?.assessmentsFound,
-                    createdCount: result?.assessmentsCreated,
-                    message: result?.assessmentsCreated !== undefined
-                      ? `Complete! Created ${result.assessmentsCreated} assessments`
-                      : 'Assessment detection complete!'
-                  } as AssessmentDetectionProgress),
+                    totalEntityTypes: entityTypes.length,
+                    processedEntityTypes: entityTypes.length,
+                    foundCount: result?.totalFound,
+                    message: result?.totalFound !== undefined
+                      ? `Detection complete! Found ${result.totalFound} entities`
+                      : 'Detection complete!'
+                  } as DetectionProgress),
                   event: 'annotate:assist-finished',
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectAssessments] Client disconnected after completion`);
+                console.warn(`[DetectAnnotations] Client disconnected after completion`);
               }
               cleanup();
             })
@@ -219,21 +219,23 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
           // Subscribe to job:failed
           subscriptions.push(
             resourceBus.get('job:failed').subscribe(async (event) => {
-      if (event.payload.jobType !== 'assessment-annotation') return;
+      if (event.payload.jobType !== 'reference-annotation') return;
               if (isStreamClosed) return;
-              console.log(`[DetectAssessments] Detection failed for resource ${id}:`, event.payload.error);
+              console.log(`[DetectAnnotations] Detection failed for resource ${id}:`, event.payload.error);
               try {
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
                     status: 'error',
                     resourceId: resourceId(id),
-                    message: event.payload.error || 'Assessment detection failed'
-                  } as AssessmentDetectionProgress),
+                    totalEntityTypes: entityTypes.length,
+                    processedEntityTypes: 0,
+                    message: event.payload.error || 'Detection failed'
+                  } as DetectionProgress),
                   event: 'annotate:assist-failed',
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[DetectAssessments] Client disconnected after failure`);
+                console.warn(`[DetectAnnotations] Client disconnected after failure`);
               }
               cleanup();
             })
@@ -259,7 +261,7 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
 
           // Cleanup on disconnect
           c.req.raw.signal.addEventListener('abort', () => {
-            console.log(`[DetectAssessments] Client disconnected from detection stream for resource ${id}, job ${job.metadata.id} will continue`);
+            console.log(`[DetectAnnotations] Client disconnected from detection stream for resource ${id}, job ${job.metadata.id} will continue`);
             cleanup();
           });
 
@@ -270,14 +272,16 @@ export function registerDetectAssessmentsStream(router: ResourcesRouterType, job
               data: JSON.stringify({
                 status: 'error',
                 resourceId: resourceId(id),
-                message: error instanceof Error ? error.message : 'Assessment detection failed'
-              } as AssessmentDetectionProgress),
+                totalEntityTypes: entityTypes.length,
+                processedEntityTypes: 0,
+                message: error instanceof Error ? error.message : 'Detection failed'
+              } as DetectionProgress),
               event: 'annotate:assist-failed',
               id: String(Date.now())
             });
           } catch (sseError) {
             // Client already disconnected
-            console.warn(`[DetectAssessments] Could not send error to client (disconnected), job ${job.metadata.id} status is preserved`);
+            console.warn(`[DetectAnnotations] Could not send error to client (disconnected), job ${job.metadata.id} status is preserved`);
           }
           cleanup();
         }

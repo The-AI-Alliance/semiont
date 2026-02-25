@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { HighlightDetectionWorker } from '../../jobs/highlight-detection-worker';
+import { HighlightDetectionWorker } from '../../jobs/highlight-annotation-worker';
 import { JobQueue, type HighlightDetectionJob, type RunningJob, type HighlightDetectionParams, type HighlightDetectionProgress } from '@semiont/jobs';
 import { resourceId, userId, type EnvironmentConfig, EventBus } from '@semiont/core';
 import { jobId } from '@semiont/core';

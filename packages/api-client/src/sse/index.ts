@@ -190,7 +190,7 @@ export class SSEClient {
     options: SSERequestOptions
   ): SSEStream {
     const id = this.extractId(resourceId);
-    const url = `${this.baseUrl}/resources/${id}/detect-annotations-stream`;
+    const url = `${this.baseUrl}/resources/${id}/annotate-references-stream`;
 
     return createSSEStream(
       url,
@@ -316,7 +316,7 @@ export class SSEClient {
     options: SSERequestOptions
   ): SSEStream {
     const id = this.extractId(resourceId);
-    const url = `${this.baseUrl}/resources/${id}/detect-highlights-stream`;
+    const url = `${this.baseUrl}/resources/${id}/annotate-highlights-stream`;
 
     return createSSEStream(
       url,
@@ -377,7 +377,7 @@ export class SSEClient {
     options: SSERequestOptions
   ): SSEStream {
     const id = this.extractId(resourceId);
-    const url = `${this.baseUrl}/resources/${id}/detect-assessments-stream`;
+    const url = `${this.baseUrl}/resources/${id}/annotate-assessments-stream`;
 
     return createSSEStream(
       url,
@@ -442,7 +442,7 @@ export class SSEClient {
     options: SSERequestOptions
   ): SSEStream {
     const id = this.extractId(resourceId);
-    const url = `${this.baseUrl}/resources/${id}/detect-comments-stream`;
+    const url = `${this.baseUrl}/resources/${id}/annotate-comments-stream`;
 
     return createSSEStream(
       url,
@@ -508,7 +508,7 @@ export class SSEClient {
     options: SSERequestOptions
   ): SSEStream {
     const id = this.extractId(resourceId);
-    const url = `${this.baseUrl}/resources/${id}/detect-tags-stream`;
+    const url = `${this.baseUrl}/resources/${id}/annotate-tags-stream`;
 
     return createSSEStream(
       url,

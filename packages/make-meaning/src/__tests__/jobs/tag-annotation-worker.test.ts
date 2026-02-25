@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { TagDetectionWorker } from '../../jobs/tag-detection-worker';
+import { TagDetectionWorker } from '../../jobs/tag-annotation-worker';
 import { JobQueue, type TagDetectionJob, type RunningJob, type TagDetectionParams, type TagDetectionProgress } from '@semiont/jobs';
 import { resourceId, userId, type EnvironmentConfig, EventBus } from '@semiont/core';
 import { jobId } from '@semiont/core';

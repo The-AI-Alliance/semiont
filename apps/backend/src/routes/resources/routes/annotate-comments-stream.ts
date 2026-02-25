@@ -37,7 +37,7 @@ interface CommentDetectionProgress {
   createdCount?: number;
 }
 
-export function registerDetectCommentsStream(router: ResourcesRouterType, jobQueue: JobQueue) {
+export function registerAnnotateCommentsStream(router: ResourcesRouterType, jobQueue: JobQueue) {
   /**
    * POST /resources/:id/detect-comments-stream
    *
@@ -52,7 +52,7 @@ export function registerDetectCommentsStream(router: ResourcesRouterType, jobQue
    * - Forwards events to client as SSE
    * - <50ms latency (no polling)
    */
-  router.post('/resources/:id/detect-comments-stream',
+  router.post('/resources/:id/annotate-comments-stream',
     validateRequestBody('AnnotateCommentsStreamRequest'),
     async (c) => {
       const { id } = c.req.param();
