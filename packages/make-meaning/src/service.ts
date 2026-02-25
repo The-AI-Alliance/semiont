@@ -81,7 +81,8 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus: Even
   await bootstrapEntityTypes(eventStore, config);
 
   // 5. Create shared representation store
-  const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
+  const repStoreLogger = logger.child({ component: 'representation-store' });
+  const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot, repStoreLogger);
 
   // 6. Create inference client (shared across all workers)
   const inferenceClient = await getInferenceClient(config);
