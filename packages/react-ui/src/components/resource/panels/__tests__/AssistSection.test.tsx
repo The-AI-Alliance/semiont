@@ -23,9 +23,9 @@ import type { EventBus } from "@semiont/core"
 // Mock translations
 const mockT = vi.fn((key: string) => {
   const translations: Record<string, string> = {
-    detectHighlights: 'Detect Highlights',
-    detectAssessments: 'Detect Assessments',
-    detectComments: 'Detect Comments',
+    annotateHighlights: 'Annotate Highlights',
+    annotateAssessments: 'Annotate Assessments',
+    annotateComments: 'Annotate Comments',
     instructions: 'Instructions',
     optional: '(optional)',
     instructionsPlaceholder: 'Enter custom instructions...',
@@ -42,7 +42,8 @@ const mockT = vi.fn((key: string) => {
     densityLabel: 'Density',
     densitySparse: 'Sparse',
     densityDense: 'Dense',
-    detect: 'Detect',
+    annotate: 'Annotate',
+    annotating: 'Annotating...',
   };
   return translations[key] || key;
 });
@@ -92,9 +93,9 @@ describe('AssistSection', () => {
       );
 
       // Check for icon and message
-      const progressDiv = screen.getByText('Processing...').closest('.semiont-detection-progress__message');
+      const progressDiv = screen.getByText('Processing...').closest('.semiont-annotation-progress__message');
       expect(progressDiv).toBeInTheDocument();
-      expect(progressDiv?.querySelector('.semiont-detection-progress__icon')).toBeInTheDocument();
+      expect(progressDiv?.querySelector('.semiont-annotation-progress__icon')).toBeInTheDocument();
     });
 
     it('should render request parameters when provided', () => {
@@ -134,7 +135,7 @@ describe('AssistSection', () => {
 
       // Form should not be visible
       expect(screen.queryByPlaceholderText('Enter custom instructions...')).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /✨ Detect/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /✨ Annotate/ })).not.toBeInTheDocument();
     });
 
     it('should show form when progress is null', () => {
@@ -148,7 +149,7 @@ describe('AssistSection', () => {
 
       // Form should be visible
       expect(screen.getByPlaceholderText('Enter custom instructions...')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /✨ Detect/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /✨ Annotate/ })).toBeInTheDocument();
     });
 
     it('should show form when progress is undefined', () => {
@@ -162,7 +163,7 @@ describe('AssistSection', () => {
 
       // Form should be visible
       expect(screen.getByPlaceholderText('Enter custom instructions...')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /✨ Detect/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /✨ Annotate/ })).toBeInTheDocument();
     });
 
     it('should keep progress visible after detection completes (isAssisting=false but progress exists)', () => {
@@ -195,7 +196,7 @@ describe('AssistSection', () => {
         />
       );
 
-      expect(screen.getByText('Detect Highlights')).toBeInTheDocument();
+      expect(screen.getByText('Annotate Highlights')).toBeInTheDocument();
     });
 
     it('should render for assessment type', () => {
@@ -207,7 +208,7 @@ describe('AssistSection', () => {
         />
       );
 
-      expect(screen.getByText('Detect Assessments')).toBeInTheDocument();
+      expect(screen.getByText('Annotate Assessments')).toBeInTheDocument();
     });
 
     it('should render for comment type', () => {
@@ -219,7 +220,7 @@ describe('AssistSection', () => {
         />
       );
 
-      expect(screen.getByText('Detect Comments')).toBeInTheDocument();
+      expect(screen.getByText('Annotate Comments')).toBeInTheDocument();
     });
 
     it('should show tone selector for comments', () => {
@@ -278,8 +279,8 @@ describe('AssistSection', () => {
 
       const subscription = eventBus!.get('annotate:assist-request').subscribe(detectionHandler);
 
-      const detectButton = screen.getByRole('button', { name: /✨ Detect/ });
-      await user.click(detectButton);
+      const annotateButton = screen.getByRole('button', { name: /✨ Annotate/ });
+      await user.click(annotateButton);
 
       expect(detectionHandler).toHaveBeenCalledWith({
         motivation: 'highlighting',
@@ -304,8 +305,8 @@ describe('AssistSection', () => {
 
       const subscription = eventBus!.get('annotate:assist-request').subscribe(detectionHandler);
 
-      const detectButton = screen.getByRole('button', { name: /✨ Detect/ });
-      await user.click(detectButton);
+      const annotateButton = screen.getByRole('button', { name: /✨ Annotate/ });
+      await user.click(annotateButton);
 
       expect(detectionHandler).toHaveBeenCalledWith({
         motivation: 'assessing',
@@ -330,8 +331,8 @@ describe('AssistSection', () => {
 
       const subscription = eventBus!.get('annotate:assist-request').subscribe(detectionHandler);
 
-      const detectButton = screen.getByRole('button', { name: /✨ Detect/ });
-      await user.click(detectButton);
+      const annotateButton = screen.getByRole('button', { name: /✨ Annotate/ });
+      await user.click(annotateButton);
 
       expect(detectionHandler).toHaveBeenCalledWith({
         motivation: 'commenting',
@@ -359,8 +360,8 @@ describe('AssistSection', () => {
       const textarea = screen.getByPlaceholderText('Enter custom instructions...');
       await user.type(textarea, 'Find key concepts');
 
-      const detectButton = screen.getByRole('button', { name: /✨ Detect/ });
-      await user.click(detectButton);
+      const annotateButton = screen.getByRole('button', { name: /✨ Annotate/ });
+      await user.click(annotateButton);
 
       expect(detectionHandler).toHaveBeenCalledWith({
         motivation: 'highlighting',
@@ -384,7 +385,7 @@ describe('AssistSection', () => {
         />
       );
 
-      const collapseButton = screen.getByRole('button', { name: /Detect Highlights/ });
+      const collapseButton = screen.getByRole('button', { name: /Annotate Highlights/ });
       expect(collapseButton).toHaveAttribute('aria-expanded', 'true');
       expect(screen.getByPlaceholderText('Enter custom instructions...')).toBeInTheDocument();
     });
@@ -400,7 +401,7 @@ describe('AssistSection', () => {
         />
       );
 
-      const collapseButton = screen.getByRole('button', { name: /Detect Highlights/ });
+      const collapseButton = screen.getByRole('button', { name: /Annotate Highlights/ });
       await user.click(collapseButton);
 
       expect(collapseButton).toHaveAttribute('aria-expanded', 'false');
@@ -418,7 +419,7 @@ describe('AssistSection', () => {
         />
       );
 
-      const collapseButton = screen.getByRole('button', { name: /Detect Highlights/ });
+      const collapseButton = screen.getByRole('button', { name: /Annotate Highlights/ });
       await user.click(collapseButton); // Collapse
       await user.click(collapseButton); // Expand
 
@@ -441,7 +442,7 @@ describe('AssistSection', () => {
       );
 
       // Should render progress section even with empty message
-      const progressDiv = document.querySelector('.semiont-detection-progress');
+      const progressDiv = document.querySelector('.semiont-annotation-progress');
       expect(progressDiv).toBeInTheDocument();
     });
 

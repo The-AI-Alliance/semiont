@@ -23,7 +23,7 @@ interface AnnotateReferencesProgressWidgetProps {
  * @emits job:cancel-requested - User requested to cancel annotation job. Payload: { jobType: string }
  */
 export function AnnotateReferencesProgressWidget({ progress, annotationType = 'reference' }: AnnotateReferencesProgressWidgetProps) {
-  const t = useTranslations('AnnotateReferencesProgressWidget');
+  const t = useTranslations('ReferencesPanel');
   const eventBus = useEventBus();
 
   const handleCancel = () => {
@@ -43,7 +43,7 @@ export function AnnotateReferencesProgressWidget({ progress, annotationType = 'r
       <div className="semiont-annotation-header">
         <h3 className="semiont-annotation-title">
           <span className="semiont-annotation-sparkle">✨</span>
-          {t('title')}
+          {t('annotationProgressTitle')}
         </h3>
         {progress.status !== 'complete' && (
           <button

@@ -54,8 +54,8 @@ const createMockSSEStream = () => {
 
 describe('Detection Flow - Feature Integration', () => {
   let mockStream: ReturnType<typeof createMockSSEStream>;
-  let detectReferencesSpy: any;
-  let detectHighlightsSpy: any;
+  let annotateReferencesSpy: any;
+  let annotateHighlightsSpy: any;
   let detectCommentsSpy: any;
 
   beforeEach(() => {
@@ -66,8 +66,8 @@ describe('Detection Flow - Feature Integration', () => {
     mockStream = createMockSSEStream();
 
     // Spy on SSEClient prototype methods
-    detectReferencesSpy = vi.spyOn(SSEClient.prototype, 'detectReferences').mockReturnValue(mockStream as any);
-    detectHighlightsSpy = vi.spyOn(SSEClient.prototype, 'detectHighlights').mockReturnValue(mockStream as any);
+    annotateReferencesSpy = vi.spyOn(SSEClient.prototype, 'annotateReferences').mockReturnValue(mockStream as any);
+    annotateHighlightsSpy = vi.spyOn(SSEClient.prototype, 'annotateHighlights').mockReturnValue(mockStream as any);
     detectCommentsSpy = vi.spyOn(SSEClient.prototype, 'detectComments').mockReturnValue(mockStream as any);
     vi.spyOn(SSEClient.prototype, 'detectAssessments').mockReturnValue(mockStream as any);
   });
@@ -76,13 +76,13 @@ describe('Detection Flow - Feature Integration', () => {
     vi.restoreAllMocks();
   });
 
-  it('should call detectReferences exactly ONCE when detection starts (not twice)', async () => {
+  it('should call annotateReferences exactly ONCE when detection starts (not twice)', async () => {
     const testUri = resourceUri('http://localhost:4000/resources/test-resource');
 
     // Render with real component composition
     const { emitDetectionStart } = renderDetectionFlow(testUri);
 
-    // Trigger detection for linking (uses detectReferences)
+    // Trigger detection for linking (uses annotateReferences)
     act(() => {
       emitDetectionStart('linking', {
         entityTypes: ['Person', 'Organization'],
@@ -93,11 +93,11 @@ describe('Detection Flow - Feature Integration', () => {
     // CRITICAL ASSERTION: API called exactly once (not twice!)
     // This would FAIL if useResolutionFlow was called in multiple places
     await waitFor(() => {
-      expect(detectReferencesSpy).toHaveBeenCalledTimes(1);
+      expect(annotateReferencesSpy).toHaveBeenCalledTimes(1);
     });
 
     // Verify correct parameters (eventBus is passed but we don't need to verify its exact value)
-    expect(detectReferencesSpy).toHaveBeenCalledWith(
+    expect(annotateReferencesSpy).toHaveBeenCalledWith(
       testUri,
       {
         entityTypes: ['Person', 'Organization'],
@@ -122,12 +122,12 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Wait for stream to be created
     await waitFor(() => {
-      expect(detectReferencesSpy).toHaveBeenCalled();
+      expect(annotateReferencesSpy).toHaveBeenCalled();
     });
 
     // Simulate SSE progress event being emitted to EventBus (how SSE actually works now)
     act(() => {
-      getEventBus().get('annotate:detect-progress').next({
+      getEventBus().get('annotate:assist-progress').next({
         status: 'scanning',
         message: 'Scanning for Person...',
         currentEntityType: 'Person',
@@ -156,12 +156,12 @@ describe('Detection Flow - Feature Integration', () => {
     });
 
     await waitFor(() => {
-      expect(detectHighlightsSpy).toHaveBeenCalledTimes(1);
+      expect(annotateHighlightsSpy).toHaveBeenCalledTimes(1);
     });
 
     // First progress update via EventBus
     act(() => {
-      getEventBus().get('annotate:detect-progress').next({
+      getEventBus().get('annotate:assist-progress').next({
         status: 'started',
         message: 'Starting analysis...',
         percentage: 0,
@@ -174,7 +174,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Second progress update via EventBus
     act(() => {
-      getEventBus().get('annotate:detect-progress').next({
+      getEventBus().get('annotate:assist-progress').next({
         status: 'analyzing',
         message: 'Analyzing text...',
         percentage: 50,
@@ -187,7 +187,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Final progress update via EventBus
     act(() => {
-      getEventBus().get('annotate:detect-progress').next({
+      getEventBus().get('annotate:assist-progress').next({
         status: 'complete',
         message: 'Created 14 highlights',
         percentage: 100,
@@ -214,7 +214,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Send final progress via EventBus
     act(() => {
-      getEventBus().get('annotate:detect-progress').next({
+      getEventBus().get('annotate:assist-progress').next({
         status: 'complete',
         message: 'Created 14 highlights',
       });
@@ -226,7 +226,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Emit completion event
     act(() => {
-      getEventBus().get('annotate:detect-finished').next({ motivation: 'highlighting' });
+      getEventBus().get('annotate:assist-finished').next({ motivation: 'highlighting' });
     });
 
     // Verify: detecting flag cleared BUT progress still visible
@@ -247,7 +247,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Add some progress via EventBus
     act(() => {
-      getEventBus().get('annotate:detect-progress').next({
+      getEventBus().get('annotate:assist-progress').next({
         status: 'scanning',
         message: 'Scanning...',
       });
@@ -291,8 +291,8 @@ describe('Detection Flow - Feature Integration', () => {
     });
 
     await waitFor(() => {
-      expect(detectHighlightsSpy).toHaveBeenCalledTimes(1);
-      expect(detectHighlightsSpy).toHaveBeenCalledWith(testUri, {
+      expect(annotateHighlightsSpy).toHaveBeenCalledTimes(1);
+      expect(annotateHighlightsSpy).toHaveBeenCalledWith(testUri, {
         instructions: 'Find important text',
       }, expect.objectContaining({ auth: undefined }));
     });
@@ -328,7 +328,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Add an additional event listener (simulating multiple subscribers)
     const additionalListener = vi.fn();
-    const subscription = getEventBus().get('annotate:detect-request').subscribe(additionalListener);
+    const subscription = getEventBus().get('annotate:assist-request').subscribe(additionalListener);
 
     // Trigger detection
     act(() => {
@@ -337,11 +337,11 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Wait for operation to complete
     await waitFor(() => {
-      expect(detectReferencesSpy).toHaveBeenCalled();
+      expect(annotateReferencesSpy).toHaveBeenCalled();
     });
 
     // VERIFY: API called exactly once, even though multiple listeners exist
-    expect(detectReferencesSpy).toHaveBeenCalledTimes(1);
+    expect(annotateReferencesSpy).toHaveBeenCalledTimes(1);
 
     // VERIFY: Our additional listener was called (events work)
     expect(additionalListener).toHaveBeenCalledTimes(1);
@@ -389,7 +389,7 @@ function renderDetectionFlow(testUri: string) {
 
   return {
     emitDetectionStart: (motivation: Motivation, options: any) => {
-      eventBusInstance.get('annotate:detect-request').next({ motivation, options });
+      eventBusInstance.get('annotate:assist-request').next({ motivation, options });
     },
     getEventBus: () => eventBusInstance,
   };

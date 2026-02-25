@@ -424,7 +424,7 @@ export function TaggingPanel({
                 data-type="tag"
               >
                 <span className="semiont-button-icon">✨</span>
-                <span>{t('assist')}</span>
+                <span>{t('annotate')}</span>
               </button>
 
               {/* Annotation Progress */}

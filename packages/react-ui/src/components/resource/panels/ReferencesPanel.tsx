@@ -85,8 +85,7 @@ export function ReferencesPanel({
   onScrollCompleted,
   hoveredAnnotationId,
 }: Props) {
-  const t = useTranslations('ReferencePanel');
-  const tRef = useTranslations('ReferencesPanel');
+  const t = useTranslations('ReferencesPanel');
   const eventBus = useEventBus();
   const [selectedEntityTypes, setSelectedEntityTypes] = useState<string[]>([]);
   const [lastAnnotationLog, setLastDetectionLog] = useState<Array<{ entityType: string; foundCount: number }> | null>(null);
@@ -272,7 +271,7 @@ export function ReferencesPanel({
 
   return (
     <div className="semiont-panel">
-      <PanelHeader annotationType="reference" count={annotations.length} title={tRef('referencesTitle')} />
+      <PanelHeader annotationType="reference" count={annotations.length} title={t('title')} />
 
       {/* New reference creation - shown when there's a pending annotation with linking motivation */}
       {pendingAnnotation && pendingAnnotation.motivation === 'linking' && (
@@ -284,7 +283,7 @@ export function ReferencesPanel({
                 return `"${displayText.substring(0, 100)}${displayText.length > 100 ? '...' : ''}"`;
               }
               // Generic labels for PDF/image annotations without text
-              return tRef('fragmentSelected');
+              return t('fragmentSelected');
             })()}
           </div>
 
@@ -292,7 +291,7 @@ export function ReferencesPanel({
           {allEntityTypes.length > 0 && (
             <div className="semiont-form-field">
               <p className="semiont-form-field__label">
-                {tRef('entityTypesOptional')}
+                {t('entityTypesOptional')}
               </p>
               <div className="semiont-tag-selector">
                 {allEntityTypes.map((type: string) => (
@@ -319,14 +318,14 @@ export function ReferencesPanel({
                 className="semiont-button semiont-button--secondary"
                 data-type="reference"
               >
-                {tRef('cancel')}
+                {t('cancel')}
               </button>
               <button
                 onClick={handleCreateReference}
                 className="semiont-button semiont-button--primary"
                 data-type="reference"
               >
-                🔗 {tRef('createReference')}
+                🔗 {t('createReference')}
               </button>
             </div>
           </div>
@@ -344,7 +343,7 @@ export function ReferencesPanel({
               aria-expanded={isAssistExpanded}
               type="button"
             >
-              <span>{t('title')}</span>
+              <span>{t('annotateReferences')}</span>
               <span className="semiont-panel__section-chevron" data-expanded={isAssistExpanded}>
                 ›
               </span>
@@ -419,10 +418,10 @@ export function ReferencesPanel({
                     onChange={(e) => setIncludeDescriptiveReferences(e.target.checked)}
                     className="semiont-assist-widget__checkbox"
                   />
-                  <span>{tRef('includeDescriptiveReferences')}</span>
+                  <span>{t('includeDescriptiveReferences')}</span>
                 </label>
                 <p className="semiont-assist-widget__checkbox-hint">
-                  {tRef('descriptiveReferencesTooltip')}
+                  {t('descriptiveReferencesTooltip')}
                 </p>
               </div>
 
@@ -430,13 +429,13 @@ export function ReferencesPanel({
               <button
                 onClick={handleAssist}
                 disabled={selectedEntityTypes.length === 0}
-                title={t('startAnnotate')}
+                title={t('annotate')}
                 className="semiont-button"
                 data-variant="assist"
                 data-type="reference"
               >
                 <span className="semiont-button-icon">✨</span>
-                <span>{t('startAnnotate')}</span>
+                <span>{t('annotate')}</span>
               </button>
             </>
             </div>
@@ -458,14 +457,14 @@ export function ReferencesPanel({
         <div>
           <div className="semiont-panel__divider">
             <h3 className="semiont-panel__subtitle">
-              {tRef('outgoingReferences')} ({sortedAnnotations.length})
+              {t('outgoingReferences')} ({sortedAnnotations.length})
             </h3>
           </div>
 
           <div className="semiont-panel__list">
             {sortedAnnotations.length === 0 ? (
               <p className="semiont-panel__empty-message">
-                {tRef('noReferences')}
+                {t('noReferences')}
               </p>
             ) : (
               sortedAnnotations.map((reference) => (
@@ -488,9 +487,9 @@ export function ReferencesPanel({
         <div>
           <div className="semiont-panel__divider">
             <h3 className="semiont-panel__subtitle">
-              {tRef('incomingReferences')} ({referencedBy.length})
+              {t('incomingReferences')} ({referencedBy.length})
               {referencedByLoading && (
-                <span className="semiont-panel__loading-indicator">({tRef('loading')})</span>
+                <span className="semiont-panel__loading-indicator">({t('loading')})</span>
               )}
             </h3>
           </div>
@@ -505,18 +504,18 @@ export function ReferencesPanel({
                   <div key={ref.id} className="semiont-reference-item semiont-reference-item--incoming">
                     <div className="semiont-reference-item__header">
                       <span className="semiont-reference-item__title">
-                        {ref.resourceName || tRef('untitledResource')}
+                        {ref.resourceName || t('untitledResource')}
                       </span>
                       <Link
                         href={routes.resourceDetail(resourceId)}
                         className="semiont-reference-item__link"
-                        title={tRef('open')}
+                        title={t('open')}
                       >
                         🔗
                       </Link>
                     </div>
                     <span className="semiont-reference-item__excerpt">
-                      "{ref.target.selector?.exact || tRef('noText')}"
+                      "{ref.target.selector?.exact || t('noText')}"
                     </span>
                   </div>
                 );
@@ -524,7 +523,7 @@ export function ReferencesPanel({
             </div>
           ) : (
             <p className="semiont-panel__empty-message semiont-panel__empty-message--small">
-              {referencedByLoading ? tRef('loadingEllipsis') : tRef('noIncomingReferences')}
+              {referencedByLoading ? t('loadingEllipsis') : t('noIncomingReferences')}
             </p>
           )}
         </div>

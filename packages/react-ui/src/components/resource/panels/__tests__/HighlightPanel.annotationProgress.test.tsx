@@ -27,14 +27,14 @@ const mockT = vi.fn((key: string) => {
   const translations: Record<string, string> = {
     title: 'Highlights',
     noHighlights: 'No highlights yet',
-    detectHighlights: 'Detect Highlights',
+    annotateHighlights: 'Annotate Highlights',
     instructions: 'Instructions',
     optional: '(optional)',
     instructionsPlaceholder: 'Enter custom instructions...',
     densityLabel: 'Density',
     densitySparse: 'Sparse',
     densityDense: 'Dense',
-    detect: 'Detect',
+    annotate: 'Annotate',
   };
   return translations[key] || key;
 });
@@ -106,7 +106,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
 
       // Form should be visible (meaning progress was null)
       expect(screen.getByPlaceholderText('Enter custom instructions...')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /✨ Detect/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /✨ Annotate/ })).toBeInTheDocument();
     });
 
     it('should pass undefined progress to AssistSection', () => {
@@ -122,7 +122,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
 
       // Form should be visible (meaning progress was undefined)
       expect(screen.getByPlaceholderText('Enter custom instructions...')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /✨ Detect/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /✨ Annotate/ })).toBeInTheDocument();
     });
 
     it('should keep progress visible after detection completes (isAssisting=false)', () => {
@@ -182,7 +182,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
         />
       );
 
-      expect(screen.getByText('Detect Highlights')).toBeInTheDocument();
+      expect(screen.getByText('Annotate Highlights')).toBeInTheDocument();
     });
 
     it('should NOT render AssistSection when annotateMode is false', () => {
@@ -196,7 +196,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
         />
       );
 
-      expect(screen.queryByText('Detect Highlights')).not.toBeInTheDocument();
+      expect(screen.queryByText('Annotate Highlights')).not.toBeInTheDocument();
     });
 
     it('should hide progress when switching to browse mode (annotateMode=false)', () => {

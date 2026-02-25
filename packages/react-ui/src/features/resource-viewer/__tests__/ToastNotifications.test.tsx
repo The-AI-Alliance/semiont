@@ -86,7 +86,7 @@ describe('Toast Notifications - Verifies Toast Integration', () => {
   }
 
   describe('Detection Events Trigger Toasts', () => {
-    it('annotate:detect-finished shows success toast', async () => {
+    it('annotate:assist-finished shows success toast', async () => {
       renderDetectionTest();
 
       // Clear any potential mount-related calls
@@ -95,7 +95,7 @@ describe('Toast Notifications - Verifies Toast Integration', () => {
 
       // Emit detection finished event (what SSE would emit)
       act(() => {
-        eventBusInstance.get('annotate:detect-finished').next({
+        eventBusInstance.get('annotate:assist-finished').next({
           motivation: 'linking' as any
         });
       });
@@ -106,7 +106,7 @@ describe('Toast Notifications - Verifies Toast Integration', () => {
       });
     });
 
-    it('annotate:detect-failed shows error toast', async () => {
+    it('annotate:assist-failed shows error toast', async () => {
       renderDetectionTest();
 
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -114,7 +114,7 @@ describe('Toast Notifications - Verifies Toast Integration', () => {
 
       // Emit detection failed event
       act(() => {
-        eventBusInstance.get('annotate:detect-failed').next({
+        eventBusInstance.get('annotate:assist-failed').next({
           type: 'job.failed' as const,
           resourceId: 'test' as any,
           userId: 'user' as any,

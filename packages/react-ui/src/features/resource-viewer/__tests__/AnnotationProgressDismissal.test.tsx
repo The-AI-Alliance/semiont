@@ -8,14 +8,14 @@
  * 4. BUG: Progress modal stays visible showing "Processing: Location" indefinitely
  *
  * ROOT CAUSE:
- * - useAnnotationFlow.ts (line 54-62): annotate:detect-finished clears `assistingMotivation` but keeps `progress`
+ * - useAnnotationFlow.ts (line 54-62): annotate:assist-finished clears `assistingMotivation` but keeps `progress`
  * - AssistSection.tsx (line 214): Shows progress UI whenever `progress` is not null
  * - No mechanism to auto-dismiss or manually close the progress display
  *
  * FIX OPTIONS:
  * A) Auto-dismiss after timeout (3s after completion)
  * B) Add "Close" button to progress display
- * C) Clear progress on next annotate:detect-request (already works but not ideal UX)
+ * C) Clear progress on next annotate:assist-request (already works but not ideal UX)
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -91,7 +91,7 @@ describe('Detection Progress Dismissal Bug', () => {
     expect(screen.getByTestId('detecting')).toHaveTextContent('none');
     expect(screen.getByTestId('progress')).toHaveTextContent('no progress');
 
-    // User clicks detect button (emits annotate:detect-request)
+    // User clicks detect button (emits annotate:assist-request)
     act(() => {
       eventBusInstance.get('annotate:assist-request').next({
         motivation: 'linking',
@@ -118,7 +118,7 @@ describe('Detection Progress Dismissal Bug', () => {
       expect(screen.getByTestId('progress')).toHaveTextContent('Processing: Location');
     });
 
-    // Detection completes (SSE finishes, backend emits annotate:detect-finished)
+    // Detection completes (SSE finishes, backend emits annotate:assist-finished)
     act(() => {
       eventBusInstance.get('annotate:assist-finished').next({ motivation: 'linking' });
     });
@@ -239,10 +239,10 @@ describe('Detection Progress Dismissal Bug', () => {
     });
   });
 
-  it('FIXED: SSE emits final completion chunk data as annotate:detect-progress', async () => {
+  it('FIXED: SSE emits final completion chunk data as annotate:assist-progress', async () => {
     /**
-     * This test verifies that SSE emits the final chunk as annotate:detect-progress
-     * BEFORE emitting annotate:detect-finished.
+     * This test verifies that SSE emits the final chunk as annotate:assist-progress
+     * BEFORE emitting annotate:assist-finished.
      *
      * This ensures the UI can display the final completion message with status:'complete'.
      */
@@ -291,7 +291,7 @@ describe('Detection Progress Dismissal Bug', () => {
       expect(screen.getByTestId('progress-status')).toHaveTextContent('scanning');
     });
 
-    // Simulate SSE emitting final chunk as annotate:detect-progress
+    // Simulate SSE emitting final chunk as annotate:assist-progress
     act(() => {
       eventBusInstance.get('annotate:progress').next({
         status: 'complete',

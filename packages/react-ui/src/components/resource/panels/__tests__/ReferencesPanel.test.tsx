@@ -73,13 +73,13 @@ const renderWithEventBus = (component: React.ReactElement, tracker?: ReturnType<
 vi.mock('../../../../contexts/TranslationContext', () => ({
   useTranslations: vi.fn(() => (key: string, params?: Record<string, any>) => {
     const translations: Record<string, string> = {
-      title: 'Assist with Entities',
+      annotateReferences: 'Annotate References',
       selectEntityTypes: 'Select entity types',
       noEntityTypes: 'No entity types available',
       select: 'Select',
       deselect: 'Deselect',
       typesSelected: '{count} type(s) selected',
-      startAnnotate: 'Start Annotate',
+      annotate: 'Annotate',
       found: 'Found {count}',
       includeDescriptiveReferences: 'Include descriptive references',
       descriptiveReferencesTooltip: 'Also find phrases like \'the CEO\', \'the tech giant\', \'the physicist\' (in addition to names)',
@@ -139,7 +139,7 @@ describe('ReferencesPanel Component', () => {
     it('should render panel with title', () => {
       renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
-      expect(screen.getByText('Detect Entities')).toBeInTheDocument();
+      expect(screen.getByText('Annotate References')).toBeInTheDocument();
     });
 
     it('should render all entity type buttons', () => {
@@ -160,7 +160,7 @@ describe('ReferencesPanel Component', () => {
     it('should render start detection button', () => {
       renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
-      expect(screen.getByTitle('Start Detection')).toBeInTheDocument();
+      expect(screen.getByTitle('Annotate')).toBeInTheDocument();
     });
   });
 
@@ -270,11 +270,11 @@ describe('ReferencesPanel Component', () => {
     });
   });
 
-  describe('Start Detection Button', () => {
+  describe('Start Annotate Button', () => {
     it('should be disabled when no types selected', () => {
       renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
-      const startButton = screen.getByTitle('Start Detection');
+      const startButton = screen.getByTitle('Annotate');
 
       expect(startButton).toBeDisabled();
     });
@@ -285,7 +285,7 @@ describe('ReferencesPanel Component', () => {
       const personButton = screen.getByText('Person');
       await userEvent.click(personButton);
 
-      const startButton = screen.getByTitle('Start Detection');
+      const startButton = screen.getByTitle('Annotate');
 
       expect(startButton).not.toBeDisabled();
     });
@@ -297,7 +297,7 @@ describe('ReferencesPanel Component', () => {
       await userEvent.click(screen.getByText('Person'));
       await userEvent.click(screen.getByText('Organization'));
 
-      const startButton = screen.getByTitle('Start Detection');
+      const startButton = screen.getByTitle('Annotate');
       await userEvent.click(startButton);
 
       await waitFor(() => {
@@ -322,7 +322,7 @@ describe('ReferencesPanel Component', () => {
       const checkbox = checkboxLabel.previousElementSibling as HTMLInputElement;
       await userEvent.click(checkbox);
 
-      const startButton = screen.getByTitle('Start Detection');
+      const startButton = screen.getByTitle('Annotate');
       await userEvent.click(startButton);
 
       await waitFor(() => {
@@ -340,7 +340,7 @@ describe('ReferencesPanel Component', () => {
 
       await userEvent.click(screen.getByText('Person'));
 
-      const startButton = screen.getByTitle('Start Detection');
+      const startButton = screen.getByTitle('Annotate');
       await userEvent.click(startButton);
 
       // Simulate detection starting
@@ -374,10 +374,10 @@ describe('ReferencesPanel Component', () => {
     it('should have proper styling when disabled', () => {
       renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
-      const startButton = screen.getByTitle('Start Detection');
+      const startButton = screen.getByTitle('Annotate');
 
       expect(startButton).toHaveClass('semiont-button');
-      expect(startButton).toHaveAttribute('data-variant', 'detect');
+      expect(startButton).toHaveAttribute('data-variant', 'assist');
       expect(startButton).toHaveAttribute('data-type', 'reference');
       expect(startButton).toBeDisabled();
     });
@@ -387,10 +387,10 @@ describe('ReferencesPanel Component', () => {
 
       await userEvent.click(screen.getByText('Person'));
 
-      const startButton = screen.getByTitle('Start Detection');
+      const startButton = screen.getByTitle('Annotate');
 
       expect(startButton).toHaveClass('semiont-button');
-      expect(startButton).toHaveAttribute('data-variant', 'detect');
+      expect(startButton).toHaveAttribute('data-variant', 'assist');
       expect(startButton).toHaveAttribute('data-type', 'reference');
       expect(startButton).not.toBeDisabled();
     });
@@ -406,7 +406,7 @@ describe('ReferencesPanel Component', () => {
         />
       );
 
-      expect(screen.getByTestId('detection-progress-widget')).toBeInTheDocument();
+      expect(screen.getByTestId('annotation-progress-widget')).toBeInTheDocument();
     });
 
     it('should pass progress data to widget', () => {
@@ -452,7 +452,7 @@ describe('ReferencesPanel Component', () => {
         />
       );
 
-      const cancelButton = screen.getByTitle('Cancel Detection');
+      const cancelButton = screen.getByTitle('Cancel Annotation');
       expect(cancelButton).toBeInTheDocument();
     });
   });
@@ -605,7 +605,7 @@ describe('ReferencesPanel Component', () => {
       );
 
       // Detecting state
-      expect(screen.getByTestId('detection-progress-widget')).toBeInTheDocument();
+      expect(screen.getByTestId('annotation-progress-widget')).toBeInTheDocument();
       expect(screen.queryByText('Select entity types')).not.toBeInTheDocument();
     });
 
@@ -619,7 +619,7 @@ describe('ReferencesPanel Component', () => {
       );
 
       // Detecting
-      expect(screen.getByTestId('detection-progress-widget')).toBeInTheDocument();
+      expect(screen.getByTestId('annotation-progress-widget')).toBeInTheDocument();
 
       // Complete - first trigger useEffect to copy to lastDetectionLog
       rerender(
@@ -641,7 +641,7 @@ describe('ReferencesPanel Component', () => {
         </EventBusProvider>
       );
 
-      expect(screen.queryByTestId('detection-progress-widget')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('annotation-progress-widget')).not.toBeInTheDocument();
       // Both log and selection UI should be visible
       expect(screen.getByText('Person:')).toBeInTheDocument();
       expect(screen.getByText('Select entity types')).toBeInTheDocument();
@@ -790,14 +790,14 @@ describe('ReferencesPanel Component', () => {
       // The emoji is no longer in the title (it's only in the tab now)
       const title = screen.getByRole('heading', { level: 2 });
       expect(title.textContent).not.toContain('🔵');
-      expect(title.textContent).toContain('referencesTitle');
+      expect(title.textContent).toContain('title');
     });
 
     it('should have proper button layout', () => {
       renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       const buttonContainer = screen.getByText('Person').parentElement;
-      expect(buttonContainer).toHaveClass('semiont-detect-widget__chips');
+      expect(buttonContainer).toHaveClass('semiont-assist-widget__chips');
     });
   });
 

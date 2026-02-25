@@ -157,10 +157,10 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
     mockStream = new MockSSEStream(eventBus);
 
     // Spy on SSEClient prototype methods to inject mock stream
-    vi.spyOn(SSEClient.prototype, 'detectHighlights').mockReturnValue(mockStream as any);
-    vi.spyOn(SSEClient.prototype, 'detectAssessments').mockReturnValue(mockStream as any);
-    vi.spyOn(SSEClient.prototype, 'detectComments').mockReturnValue(mockStream as any);
-    vi.spyOn(SSEClient.prototype, 'detectReferences').mockReturnValue(mockStream as any);
+    vi.spyOn(SSEClient.prototype, 'annotateHighlights').mockReturnValue(mockStream as any);
+    vi.spyOn(SSEClient.prototype, 'annotateAssessments').mockReturnValue(mockStream as any);
+    vi.spyOn(SSEClient.prototype, 'annotateComments').mockReturnValue(mockStream as any);
+    vi.spyOn(SSEClient.prototype, 'annotateReferences').mockReturnValue(mockStream as any);
 
     mockAnnotations = [];
   });
@@ -304,7 +304,7 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
     });
   });
 
-  it('should clear progress on annotate:detect-failed', async () => {
+  it('should clear progress on annotate:assist-failed', async () => {
     const user = userEvent.setup();
 
     renderDetectionFlow();
