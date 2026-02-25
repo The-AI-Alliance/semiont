@@ -10,7 +10,8 @@ import addFormats from 'ajv-formats';
 import openapiSpec from '../../../../specs/openapi.json';
 import { getLogger } from '../logger';
 
-const logger = getLogger().child({ component: 'openapi-validator' });
+// Lazy initialization to avoid calling getLogger() at module load time
+const getValidatorLogger = () => getLogger().child({ component: 'openapi-validator' });
 
 // Initialize Ajv with OpenAPI-compatible settings
 const ajv = new Ajv({
@@ -22,22 +23,33 @@ const ajv = new Ajv({
 // Add format validators (email, uri, date-time, etc.)
 addFormats(ajv);
 
-// Load all schemas from OpenAPI spec into Ajv
-// This allows us to validate against any schema by name
-for (const [name, schema] of Object.entries(openapiSpec.components.schemas)) {
-  try {
-    ajv.addSchema(schema, `#/components/schemas/${name}`);
-  } catch (error) {
-    logger.error('Failed to load schema', {
-      schemaName: name,
-      error: error instanceof Error ? error.message : String(error)
-    });
-  }
-}
+// Lazy initialization flag to ensure schemas are loaded only once
+let schemasLoaded = false;
 
-logger.info('OpenAPI schemas loaded', {
-  count: Object.keys(openapiSpec.components.schemas).length
-});
+/**
+ * Load all schemas from OpenAPI spec into Ajv
+ * This is called lazily on first validation to avoid logger initialization issues
+ */
+function loadSchemas(): void {
+  if (schemasLoaded) return;
+
+  for (const [name, schema] of Object.entries(openapiSpec.components.schemas)) {
+    try {
+      ajv.addSchema(schema, `#/components/schemas/${name}`);
+    } catch (error) {
+      getValidatorLogger().error('Failed to load schema', {
+        schemaName: name,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  getValidatorLogger().info('OpenAPI schemas loaded', {
+    count: Object.keys(openapiSpec.components.schemas).length
+  });
+
+  schemasLoaded = true;
+}
 
 export interface ValidationResult {
   valid: boolean;
@@ -59,10 +71,13 @@ export interface ValidationResult {
  * }
  */
 export function validateSchema(schemaName: string, data: unknown): ValidationResult {
+  // Ensure schemas are loaded before validation
+  loadSchemas();
+
   const validate = ajv.getSchema(`#/components/schemas/${schemaName}`);
 
   if (!validate) {
-    logger.error('Schema not found', {
+    getValidatorLogger().error('Schema not found', {
       schemaName,
       availableSchemas: Object.keys(openapiSpec.components.schemas)
     });

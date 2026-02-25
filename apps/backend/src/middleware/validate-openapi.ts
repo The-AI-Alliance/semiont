@@ -10,7 +10,8 @@ import { HTTPException } from 'hono/http-exception';
 import { validateSchema } from '../utils/openapi-validator';
 import { getLogger } from '../logger';
 
-const logger = getLogger().child({ component: 'validate-openapi' });
+// Lazy initialization to avoid calling getLogger() at module load time
+const getMiddlewareLogger = () => getLogger().child({ component: 'validate-openapi' });
 
 /**
  * Validate request body against an OpenAPI schema
@@ -42,7 +43,7 @@ export function validateRequestBody(schemaName: string): MiddlewareHandler {
     const { valid, errors, errorMessage } = validateSchema(schemaName, body);
 
     if (!valid) {
-      logger.warn('Request body validation failed', {
+      getMiddlewareLogger().warn('Request body validation failed', {
         schemaName,
         errorMessage,
         errors
@@ -73,7 +74,7 @@ export function validateQuery(schemaName: string): MiddlewareHandler {
     const { valid, errors, errorMessage } = validateSchema(schemaName, query);
 
     if (!valid) {
-      logger.warn('Query params validation failed', {
+      getMiddlewareLogger().warn('Query params validation failed', {
         schemaName,
         errorMessage,
         errors
@@ -103,7 +104,7 @@ export function validateParams(schemaName: string): MiddlewareHandler {
     const { valid, errors, errorMessage } = validateSchema(schemaName, params);
 
     if (!valid) {
-      logger.warn('Path params validation failed', {
+      getMiddlewareLogger().warn('Path params validation failed', {
         schemaName,
         errorMessage,
         errors
