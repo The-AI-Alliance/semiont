@@ -74,7 +74,8 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus: Even
   await jobQueue.initialize();
 
   // 3. Create shared event store with EventBus integration
-  const eventStore = createEventStoreCore(basePath, baseUrl, undefined, eventBus);
+  const eventStoreLogger = logger.child({ component: 'event-store' });
+  const eventStore = createEventStoreCore(basePath, baseUrl, undefined, eventBus, eventStoreLogger);
 
   // 4. Bootstrap entity types (if projection doesn't exist)
   await bootstrapEntityTypes(eventStore, config);
