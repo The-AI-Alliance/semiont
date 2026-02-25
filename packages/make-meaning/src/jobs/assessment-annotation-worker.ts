@@ -17,7 +17,6 @@ import type { InferenceClient } from '@semiont/inference';
 
 export class AssessmentDetectionWorker extends JobWorker {
   private isFirstProgress = true;
-  private readonly logger: Logger;
 
   constructor(
     jobQueue: JobQueue,
@@ -27,8 +26,7 @@ export class AssessmentDetectionWorker extends JobWorker {
     private eventBus: EventBus,
     logger: Logger
   ) {
-    super(jobQueue);
-    this.logger = logger;
+    super(jobQueue, undefined, undefined, logger);
   }
 
   protected getWorkerName(): string {
@@ -158,7 +156,7 @@ export class AssessmentDetectionWorker extends JobWorker {
   }
 
   private async processAssessmentDetectionJob(job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>): Promise<AssessmentDetectionResult> {
-    this.logger.info('Processing assessment detection job', {
+    this.logger?.info('Processing assessment detection job', {
       resourceId: job.params.resourceId,
       jobId: job.metadata.id
     });
@@ -202,7 +200,7 @@ export class AssessmentDetectionWorker extends JobWorker {
       job.params.density
     );
 
-    this.logger.info('Found assessments to create', { count: assessments.length });
+    this.logger?.info('Found assessments to create', { count: assessments.length });
 
     // Update progress
     updatedJob = {
@@ -222,7 +220,7 @@ export class AssessmentDetectionWorker extends JobWorker {
         await this.createAssessmentAnnotation(job.params.resourceId, job.metadata.userId, assessment);
         created++;
       } catch (error) {
-        this.logger.error('Failed to create assessment', { error });
+        this.logger?.error('Failed to create assessment', { error });
       }
     }
 
@@ -236,7 +234,7 @@ export class AssessmentDetectionWorker extends JobWorker {
     };
 
     await this.updateJobProgress(updatedJob);
-    this.logger.info('Assessment detection complete', { created, total: assessments.length });
+    this.logger?.info('Assessment detection complete', { created, total: assessments.length });
 
     // Return result - base class will use this for CompleteJob and emitCompletionEvent
     return {

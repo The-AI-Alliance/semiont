@@ -86,7 +86,7 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
     } as EnvironmentConfig;
 
     // Initialize job queue and event store
-    const jobQueue = new JobQueue({ dataDir: testDir }, new EventBus());
+    const jobQueue = new JobQueue({ dataDir: testDir }, mockLogger, new EventBus());
     await jobQueue.initialize();
     testEventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
     worker = new AssessmentDetectionWorker(jobQueue, config, testEventStore, mockInferenceClient.client, new EventBus(), mockLogger);

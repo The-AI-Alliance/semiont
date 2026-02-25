@@ -113,7 +113,7 @@ describe('Entity Detection - Charset Handling', () => {
       },
     } as EnvironmentConfig;
 
-    const jobQueue = new JobQueue({ dataDir: config.services.filesystem!.path }, new EventBus());
+    const jobQueue = new JobQueue({ dataDir: config.services.filesystem!.path }, mockLogger, new EventBus());
     await jobQueue.initialize();
     const eventStore = createEventStore(config.services.filesystem!.path, config.services.backend!.publicURL, undefined, undefined, mockLogger);
     worker = new ReferenceDetectionWorker(jobQueue, config, eventStore, mockInferenceClient.client, new EventBus(), mockLogger);

@@ -17,7 +17,6 @@ import type { InferenceClient } from '@semiont/inference';
 
 export class CommentDetectionWorker extends JobWorker {
   private isFirstProgress = true;
-  private readonly logger: Logger;
 
   constructor(
     jobQueue: JobQueue,
@@ -27,8 +26,7 @@ export class CommentDetectionWorker extends JobWorker {
     private eventBus: EventBus,
     logger: Logger
   ) {
-    super(jobQueue);
-    this.logger = logger;
+    super(jobQueue, undefined, undefined, logger);
   }
 
   protected getWorkerName(): string {
@@ -159,7 +157,7 @@ export class CommentDetectionWorker extends JobWorker {
   }
 
   private async processCommentDetectionJob(job: RunningJob<CommentDetectionParams, CommentDetectionProgress>): Promise<CommentDetectionResult> {
-    this.logger.info('Processing comment detection job', {
+    this.logger?.info('Processing comment detection job', {
       resourceId: job.params.resourceId,
       jobId: job.metadata.id
     });
@@ -203,7 +201,7 @@ export class CommentDetectionWorker extends JobWorker {
       job.params.density
     );
 
-    this.logger.info('Found comments to create', { count: comments.length });
+    this.logger?.info('Found comments to create', { count: comments.length });
 
     // Update progress
     updatedJob = {
@@ -223,7 +221,7 @@ export class CommentDetectionWorker extends JobWorker {
         await this.createCommentAnnotation(job.params.resourceId, job.metadata.userId, comment);
         created++;
       } catch (error) {
-        this.logger.error('Failed to create comment', { error });
+        this.logger?.error('Failed to create comment', { error });
       }
     }
 
@@ -237,7 +235,7 @@ export class CommentDetectionWorker extends JobWorker {
     };
 
     await this.updateJobProgress(updatedJob);
-    this.logger.info('Comment detection complete', { created, total: comments.length });
+    this.logger?.info('Comment detection complete', { created, total: comments.length });
 
     // Return result - base class will use this for CompleteJob and emitCompletionEvent
     return {
@@ -305,7 +303,7 @@ export class CommentDetectionWorker extends JobWorker {
       }
     });
 
-    this.logger.debug('Created comment annotation', {
+    this.logger?.debug('Created comment annotation', {
       annotationId,
       exactPreview: comment.exact.substring(0, 50)
     });

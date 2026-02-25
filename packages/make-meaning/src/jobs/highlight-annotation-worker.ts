@@ -17,7 +17,6 @@ import type { InferenceClient } from '@semiont/inference';
 
 export class HighlightDetectionWorker extends JobWorker {
   private isFirstProgress = true;
-  private readonly logger: Logger;
 
   constructor(
     jobQueue: JobQueue,
@@ -27,8 +26,7 @@ export class HighlightDetectionWorker extends JobWorker {
     private eventBus: EventBus,
     logger: Logger
   ) {
-    super(jobQueue);
-    this.logger = logger;
+    super(jobQueue, undefined, undefined, logger);
   }
 
   protected getWorkerName(): string {
@@ -159,7 +157,7 @@ export class HighlightDetectionWorker extends JobWorker {
   }
 
   private async processHighlightDetectionJob(job: RunningJob<HighlightDetectionParams, HighlightDetectionProgress>): Promise<HighlightDetectionResult> {
-    this.logger.info('Processing highlight detection job', {
+    this.logger?.info('Processing highlight detection job', {
       resourceId: job.params.resourceId,
       jobId: job.metadata.id
     });
@@ -202,7 +200,7 @@ export class HighlightDetectionWorker extends JobWorker {
       job.params.density
     );
 
-    this.logger.info('Found highlights to create', { count: highlights.length });
+    this.logger?.info('Found highlights to create', { count: highlights.length });
 
     // Update progress
     updatedJob = {
@@ -222,7 +220,7 @@ export class HighlightDetectionWorker extends JobWorker {
         await this.createHighlightAnnotation(job.params.resourceId, job.metadata.userId, highlight);
         created++;
       } catch (error) {
-        this.logger.error('Failed to create highlight', { error });
+        this.logger?.error('Failed to create highlight', { error });
       }
     }
 
@@ -236,7 +234,7 @@ export class HighlightDetectionWorker extends JobWorker {
     };
 
     await this.updateJobProgress(updatedJob);
-    this.logger.info('Highlight detection complete', { created, total: highlights.length });
+    this.logger?.info('Highlight detection complete', { created, total: highlights.length });
 
     // Return result - base class will use this for CompleteJob and emitCompletionEvent
     return {

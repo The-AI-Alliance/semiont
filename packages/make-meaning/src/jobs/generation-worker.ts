@@ -27,8 +27,6 @@ import type { EnvironmentConfig } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 
 export class GenerationWorker extends JobWorker {
-  private readonly logger: Logger;
-
   constructor(
     jobQueue: JobQueue,
     private config: EnvironmentConfig,
@@ -37,8 +35,7 @@ export class GenerationWorker extends JobWorker {
     private eventBus: EventBus,
     logger: Logger
   ) {
-    super(jobQueue);
-    this.logger = logger;
+    super(jobQueue, undefined, undefined, logger);
   }
 
   protected getWorkerName(): string {
@@ -63,7 +60,7 @@ export class GenerationWorker extends JobWorker {
   }
 
   private async processGenerationJob(job: RunningJob<GenerationParams, GenerationProgress>): Promise<GenerationResult> {
-    this.logger.info('Processing generation job', {
+    this.logger?.info('Processing generation job', {
       referenceId: job.params.referenceId,
       jobId: job.metadata.id
     });
@@ -81,7 +78,7 @@ export class GenerationWorker extends JobWorker {
         message: 'Fetching source resource...'
       }
     };
-    this.logger.debug('Generation progress', { stage: updatedJob.progress.stage, message: updatedJob.progress.message });
+    this.logger?.debug('Generation progress', { stage: updatedJob.progress.stage, message: updatedJob.progress.message });
     await this.updateJobProgress(updatedJob);
 
     // Fetch annotation from view storage
@@ -112,13 +109,13 @@ export class GenerationWorker extends JobWorker {
     // Determine resource name
     const targetSelector = getTargetSelector(annotation.target);
     const resourceName = job.params.title || (targetSelector ? getExactText(targetSelector) : '') || 'New Resource';
-    this.logger.info('Generating resource', { resourceName });
+    this.logger?.info('Generating resource', { resourceName });
 
     // Verify context is provided (required for generation)
     if (!job.params.context) {
       throw new Error('Generation context is required but was not provided in job');
     }
-    this.logger.debug('Using pre-fetched context', {
+    this.logger?.debug('Using pre-fetched context', {
       beforeLength: job.params.context.sourceContext?.before?.length || 0,
       selectedLength: job.params.context.sourceContext?.selected?.length || 0,
       afterLength: job.params.context.sourceContext?.after?.length || 0
@@ -133,7 +130,7 @@ export class GenerationWorker extends JobWorker {
         message: 'Creating content with AI...'
       }
     };
-    this.logger.debug('Generation progress', { stage: updatedJob.progress.stage, message: updatedJob.progress.message });
+    this.logger?.debug('Generation progress', { stage: updatedJob.progress.stage, message: updatedJob.progress.message });
     await this.updateJobProgress(updatedJob);
 
     // Generate content using AI with context from job
@@ -152,7 +149,7 @@ export class GenerationWorker extends JobWorker {
       job.params.maxTokens     // NEW - from job
     );
 
-    this.logger.info('Content generated', { contentLength: generatedContent.content.length });
+    this.logger?.info('Content generated', { contentLength: generatedContent.content.length });
 
     // Update progress: creating
     updatedJob = {
@@ -177,7 +174,7 @@ export class GenerationWorker extends JobWorker {
         message: 'Saving resource...'
       }
     };
-    this.logger.debug('Generation progress', { stage: updatedJob.progress.stage, message: updatedJob.progress.message });
+    this.logger?.debug('Generation progress', { stage: updatedJob.progress.stage, message: updatedJob.progress.message });
     await this.updateJobProgress(updatedJob);
 
     // Save content to RepresentationStore
@@ -185,7 +182,7 @@ export class GenerationWorker extends JobWorker {
       mediaType: 'text/markdown',
       rel: 'original',
     });
-    this.logger.info('Saved resource representation', { resourceId: rId });
+    this.logger?.info('Saved resource representation', { resourceId: rId });
 
     // Emit resource.created event
     await this.eventStore.appendEvent({
@@ -205,7 +202,7 @@ export class GenerationWorker extends JobWorker {
         generationPrompt: undefined,  // Could be added if we track the prompt
       },
     });
-    this.logger.info('Emitted resource.created event', { resourceId: rId });
+    this.logger?.info('Emitted resource.created event', { resourceId: rId });
 
     // Update progress: linking
     updatedJob = {
@@ -216,7 +213,7 @@ export class GenerationWorker extends JobWorker {
         message: 'Linking reference...'
       }
     };
-    this.logger.debug('Generation progress', { stage: updatedJob.progress.stage, message: updatedJob.progress.message });
+    this.logger?.debug('Generation progress', { stage: updatedJob.progress.stage, message: updatedJob.progress.message });
     await this.updateJobProgress(updatedJob);
 
     // Emit annotation.body.updated event to link the annotation to the new resource
@@ -245,7 +242,7 @@ export class GenerationWorker extends JobWorker {
         operations,
       },
     });
-    this.logger.info('Emitted annotation.body.updated event', {
+    this.logger?.info('Emitted annotation.body.updated event', {
       referenceId: job.params.referenceId,
       targetResourceId: rId
     });
@@ -261,7 +258,7 @@ export class GenerationWorker extends JobWorker {
     };
     await this.updateJobProgress(updatedJob);
 
-    this.logger.info('Generation complete', { createdResourceId: rId });
+    this.logger?.info('Generation complete', { createdResourceId: rId });
 
     // Return result - base class will use this for CompleteJob and emitCompletionEvent
     return {

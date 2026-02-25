@@ -19,7 +19,6 @@ import type { InferenceClient } from '@semiont/inference';
 
 export class TagDetectionWorker extends JobWorker {
   private isFirstProgress = true;
-  private readonly logger: Logger;
 
   constructor(
     jobQueue: JobQueue,
@@ -29,8 +28,7 @@ export class TagDetectionWorker extends JobWorker {
     private eventBus: EventBus,
     logger: Logger
   ) {
-    super(jobQueue);
-    this.logger = logger;
+    super(jobQueue, undefined, undefined, logger);
   }
 
   protected getWorkerName(): string {
@@ -162,7 +160,7 @@ export class TagDetectionWorker extends JobWorker {
   }
 
   private async processTagDetectionJob(job: RunningJob<TagDetectionParams, TagDetectionProgress>): Promise<TagDetectionResult> {
-    this.logger.info('Processing tag detection job', {
+    this.logger?.info('Processing tag detection job', {
       resourceId: job.params.resourceId,
       jobId: job.metadata.id
     });
@@ -227,7 +225,7 @@ export class TagDetectionWorker extends JobWorker {
         job.params.schemaId,
         category
       );
-      this.logger.info('Found tags for category', { category, count: tags.length });
+      this.logger?.info('Found tags for category', { category, count: tags.length });
 
       allTags.push(...tags);
       byCategory[category] = tags.length;
@@ -252,7 +250,7 @@ export class TagDetectionWorker extends JobWorker {
         await this.createTagAnnotation(job.params.resourceId, job.metadata.userId, job.params.schemaId, tag);
         created++;
       } catch (error) {
-        this.logger.error('Failed to create tag', { error });
+        this.logger?.error('Failed to create tag', { error });
       }
     }
 
@@ -268,7 +266,7 @@ export class TagDetectionWorker extends JobWorker {
     };
 
     await this.updateJobProgress(updatedJob);
-    this.logger.info('Tag detection complete', {
+    this.logger?.info('Tag detection complete', {
       created,
       total: allTags.length,
       categoryCount: job.params.categories.length
@@ -350,7 +348,7 @@ export class TagDetectionWorker extends JobWorker {
       }
     });
 
-    this.logger.debug('Created tag annotation', {
+    this.logger?.debug('Created tag annotation', {
       annotationId,
       category: tag.category,
       exactPreview: tag.exact.substring(0, 50)

@@ -2,13 +2,21 @@
  * Unit tests for JobQueue class
  */
 
-import { describe, test, expect, beforeEach, afterEach } from 'vitest';
+import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { JobQueue } from '../job-queue';
 import type { JobStatus, PendingJob, RunningJob, CompleteJob, FailedJob, DetectionParams, DetectionProgress, DetectionResult, GenerationParams } from '../types';
 import { entityType, jobId, userId, resourceId, annotationId, EventBus } from '@semiont/core';
+
+const mockLogger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger)
+};
 
 // Test helper - create detection jobs in various states
 function createPendingDetectionJob(id: string): PendingJob<DetectionParams> {
@@ -127,7 +135,7 @@ describe('JobQueue', () => {
   beforeEach(async () => {
     // Create a temporary directory for tests
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'job-queue-test-'));
-    jobQueue = new JobQueue({ dataDir: tempDir }, new EventBus());
+    jobQueue = new JobQueue({ dataDir: tempDir }, mockLogger, new EventBus());
     await jobQueue.initialize();
   });
 
@@ -449,7 +457,7 @@ describe('JobQueue', () => {
   describe('EventBus Integration', () => {
     test('should emit job:queued event when creating a job', async () => {
       const eventBus = new EventBus();
-      const testQueue = new JobQueue({ dataDir: tempDir }, eventBus);
+      const testQueue = new JobQueue({ dataDir: tempDir }, mockLogger, eventBus);
       await testQueue.initialize();
 
       const events: any[] = [];
@@ -473,7 +481,7 @@ describe('JobQueue', () => {
     });
 
     test('should not fail when EventBus is not provided', async () => {
-      const testQueue = new JobQueue({ dataDir: tempDir });
+      const testQueue = new JobQueue({ dataDir: tempDir }, mockLogger, undefined);
       await testQueue.initialize();
 
       const job = createPendingDetectionJob('job-no-eventbus');

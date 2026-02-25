@@ -70,7 +70,8 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus: Even
   }
 
   // 2. Initialize job queue
-  const jobQueue = new JobQueue({ dataDir: basePath }, eventBus);
+  const jobQueueLogger = logger.child({ component: 'job-queue' });
+  const jobQueue = new JobQueue({ dataDir: basePath }, jobQueueLogger, eventBus);
   await jobQueue.initialize();
 
   // 3. Create shared event store with EventBus integration
