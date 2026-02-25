@@ -2,7 +2,6 @@
 // Used for development and testing without requiring a real graph database
 
 import { GraphDatabase } from '../interface';
-import { getEntityTypes } from '@semiont/ontology';
 import type { components, Logger } from '@semiont/core';
 import type {
   AnnotationCategory,
