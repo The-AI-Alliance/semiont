@@ -34,6 +34,7 @@
 
 import { promises as fs } from 'fs';
 import path from 'path';
+import type { Logger } from '@semiont/core';
 import { calculateChecksum } from './checksum';
 import { getExtensionForMimeType } from './mime-extensions';
 
@@ -86,11 +87,14 @@ export interface RepresentationStore {
  */
 export class FilesystemRepresentationStore implements RepresentationStore {
   private basePath: string;
+  private logger?: Logger;
 
   constructor(
     config: { basePath: string },
-    projectRoot?: string
+    projectRoot?: string,
+    logger?: Logger
   ) {
+    this.logger = logger;
     // If path is absolute, use it directly
     if (path.isAbsolute(config.basePath)) {
       this.basePath = config.basePath;
@@ -133,11 +137,25 @@ export class FilesystemRepresentationStore implements RepresentationStore {
       `rep-${checksum}${extension}`
     );
 
+    this.logger?.debug('Storing representation', {
+      checksum,
+      mediaType: baseMediaType,
+      byteSize: content.length,
+      filename: metadata.filename
+    });
+
     // Create directory structure programmatically
     await fs.mkdir(path.dirname(filePath), { recursive: true });
 
     // Write content (idempotent - same content = same file)
     await fs.writeFile(filePath, content);
+
+    this.logger?.info('Representation stored', {
+      checksum,
+      mediaType: baseMediaType,
+      byteSize: content.length,
+      path: filePath
+    });
 
     return {
       '@id': checksum, // Use checksum as the ID (content-addressed)
@@ -173,12 +191,35 @@ export class FilesystemRepresentationStore implements RepresentationStore {
       `rep-${checksum}${extension}`
     );
 
+    this.logger?.debug('Retrieving representation', {
+      checksum,
+      mediaType: baseMediaType
+    });
+
     try {
-      return await fs.readFile(filePath);
+      const content = await fs.readFile(filePath);
+      this.logger?.info('Representation retrieved', {
+        checksum,
+        mediaType: baseMediaType,
+        byteSize: content.length,
+        path: filePath
+      });
+      return content;
     } catch (error: any) {
       if (error.code === 'ENOENT') {
+        this.logger?.warn('Representation not found', {
+          checksum,
+          mediaType: baseMediaType,
+          path: filePath
+        });
         throw new Error(`Representation not found for checksum ${checksum} with mediaType ${mediaType}`);
       }
+      this.logger?.error('Failed to retrieve representation', {
+        checksum,
+        mediaType: baseMediaType,
+        error: error.message,
+        path: filePath
+      });
       throw error;
     }
   }
