@@ -1,6 +1,7 @@
 // Environment variables are loaded via Node's --env-file flag (see package.json)
 // Construct DATABASE_URL from components if not already set
 // MUST be done before any Prisma imports!
+let databaseUrlConstructed = false;
 if (!process.env.DATABASE_URL && process.env.DB_HOST && process.env.DB_USER && process.env.DB_PASSWORD) {
   const dbPort = process.env.DB_PORT;
   const dbName = process.env.DB_NAME;
@@ -21,8 +22,7 @@ if (!process.env.DATABASE_URL && process.env.DB_HOST && process.env.DB_USER && p
   url.searchParams.set('sslmode', 'require');
 
   process.env.DATABASE_URL = url.toString();
-  // Note: Logger not yet initialized at this point, using console
-  console.log('DATABASE_URL constructed from components');
+  databaseUrlConstructed = true;
 }
 
 import { cors } from 'hono/cors';
@@ -60,6 +60,16 @@ import { initializeLogger, getLogger } from './logger';
 // Initialize Winston logger with log level from environment config
 initializeLogger(config.logLevel);
 const logger = getLogger();
+
+// Log database configuration after logger is initialized
+if (databaseUrlConstructed) {
+  logger.info('DATABASE_URL constructed from environment components', {
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT,
+    database: process.env.DB_NAME,
+    ssl: 'required'
+  });
+}
 
 // Create global EventBus for real-time events
 const eventBus = new EventBus();
