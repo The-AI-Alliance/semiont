@@ -134,7 +134,7 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
 
     // Emit annotate:assist-progress event (exactly like production)
     act(() => {
-      eventBusInstance.get('annotate:assist-progress').next({
+      eventBusInstance.get('annotate:progress').next({
         status: 'started',
         resourceId: 'test',
         totalEntityTypes: 1,
@@ -203,7 +203,7 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
 
     act(() => {
       console.log('[EventBus] emit: annotate:assist-progress {status: "started", ...}');
-      eventBusInstance.get('annotate:assist-progress').next({
+      eventBusInstance.get('annotate:progress').next({
         status: 'started',
         resourceId: 'f45fd44f9cb0b0fe1b7980d3d034bc61',
         totalEntityTypes: 1,
@@ -216,7 +216,7 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
 
     act(() => {
       console.log('[EventBus] emit: annotate:assist-progress {status: "scanning", ...}');
-      eventBusInstance.get('annotate:assist-progress').next({
+      eventBusInstance.get('annotate:progress').next({
         status: 'scanning',
         resourceId: 'f45fd44f9cb0b0fe1b7980d3d034bc61',
         currentEntityType: 'Location',

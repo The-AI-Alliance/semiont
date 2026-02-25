@@ -127,7 +127,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Simulate SSE progress event being emitted to EventBus (how SSE actually works now)
     act(() => {
-      getEventBus().get('annotate:assist-progress').next({
+      getEventBus().get('annotate:progress').next({
         status: 'scanning',
         message: 'Scanning for Person...',
         currentEntityType: 'Person',
@@ -161,7 +161,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // First progress update via EventBus
     act(() => {
-      getEventBus().get('annotate:assist-progress').next({
+      getEventBus().get('annotate:progress').next({
         status: 'started',
         message: 'Starting analysis...',
         percentage: 0,
@@ -174,7 +174,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Second progress update via EventBus
     act(() => {
-      getEventBus().get('annotate:assist-progress').next({
+      getEventBus().get('annotate:progress').next({
         status: 'analyzing',
         message: 'Analyzing text...',
         percentage: 50,
@@ -187,7 +187,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Final progress update via EventBus
     act(() => {
-      getEventBus().get('annotate:assist-progress').next({
+      getEventBus().get('annotate:progress').next({
         status: 'complete',
         message: 'Created 14 highlights',
         percentage: 100,
@@ -214,7 +214,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Send final progress via EventBus
     act(() => {
-      getEventBus().get('annotate:assist-progress').next({
+      getEventBus().get('annotate:progress').next({
         status: 'complete',
         message: 'Created 14 highlights',
       });
@@ -247,7 +247,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Add some progress via EventBus
     act(() => {
-      getEventBus().get('annotate:assist-progress').next({
+      getEventBus().get('annotate:progress').next({
         status: 'scanning',
         message: 'Scanning...',
       });
@@ -259,7 +259,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Emit failure
     act(() => {
-      getEventBus().get('annotate:detect-failed').next({
+      getEventBus().get('annotate:assist-failed').next({
         type: 'job.failed' as const,
         resourceId: 'test-resource' as any,
         userId: 'user' as any,
@@ -365,12 +365,12 @@ function renderDetectionFlow(testUri: string) {
 
   // Test harness component that uses the hook
   function DetectionFlowTestHarness() {
-    const { detectionProgress, detectingMotivation } = useAnnotationFlow(testUri as any);
+    const { progress, assistingMotivation } = useAnnotationFlow(testUri as any);
     return (
       <div>
-        <div data-testid="detecting">{detectingMotivation || 'none'}</div>
+        <div data-testid="detecting">{assistingMotivation || 'none'}</div>
         <div data-testid="progress">
-          {detectionProgress?.message || 'No progress'}
+          {progress?.message || 'No progress'}
         </div>
       </div>
     );
