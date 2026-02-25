@@ -489,4 +489,204 @@ describe('useAnnotationFlow', () => {
       expect(getState().progress?.percentage).toBe(66);
     });
   });
+
+  describe('Completion Event Motivation Field', () => {
+    it('should clear assistingMotivation when completion event has matching motivation', () => {
+      const { getState, getEventBus } = renderAnnotationFlow();
+
+      // Start annotation with motivation 'highlighting'
+      act(() => {
+        getEventBus().get('annotate:assist-request').next({
+          motivation: 'highlighting',
+          options: {}
+        });
+      });
+
+      expect(getState().assistingMotivation).toBe('highlighting');
+
+      // Send completion event with matching motivation
+      act(() => {
+        getEventBus().get('annotate:assist-finished').next({
+          motivation: 'highlighting'
+        });
+      });
+
+      // assistingMotivation should be cleared
+      expect(getState().assistingMotivation).toBeNull();
+    });
+
+    it('should NOT clear assistingMotivation when completion event has mismatched motivation', () => {
+      const { getState, getEventBus } = renderAnnotationFlow();
+
+      // Start annotation with motivation 'highlighting'
+      act(() => {
+        getEventBus().get('annotate:assist-request').next({
+          motivation: 'highlighting',
+          options: {}
+        });
+      });
+
+      expect(getState().assistingMotivation).toBe('highlighting');
+
+      // Send completion event with WRONG motivation
+      act(() => {
+        getEventBus().get('annotate:assist-finished').next({
+          motivation: 'linking' as any
+        });
+      });
+
+      // assistingMotivation should NOT be cleared (stays as 'highlighting')
+      expect(getState().assistingMotivation).toBe('highlighting');
+    });
+
+    it('should NOT clear assistingMotivation when completion event is missing motivation field', () => {
+      const { getState, getEventBus } = renderAnnotationFlow();
+
+      // Start annotation with motivation 'commenting'
+      act(() => {
+        getEventBus().get('annotate:assist-request').next({
+          motivation: 'commenting',
+          options: {}
+        });
+      });
+
+      expect(getState().assistingMotivation).toBe('commenting');
+
+      // Send completion event WITHOUT motivation field (this was the bug)
+      act(() => {
+        getEventBus().get('annotate:assist-finished').next({} as any);
+      });
+
+      // assistingMotivation should NOT be cleared (this test would have passed before fix, exposing the bug)
+      expect(getState().assistingMotivation).toBe('commenting');
+    });
+  });
+
+  describe('Progress Widget Lifecycle', () => {
+    it('should show progress widget throughout annotation lifecycle and auto-dismiss', () => {
+      const { getState, getEventBus } = renderAnnotationFlow();
+
+      // 1. Initial state: widget should be hidden
+      expect(getState().assistingMotivation).toBeNull();
+      expect(getState().progress).toBeNull();
+      // Widget visibility condition: {isAssisting && progress && ...}
+      // Both must be true for widget to show, so widget is hidden
+
+      // 2. Start annotation: assistingMotivation set, progress still null
+      act(() => {
+        getEventBus().get('annotate:assist-request').next({
+          motivation: 'highlighting',
+          options: {}
+        });
+      });
+
+      expect(getState().assistingMotivation).toBe('highlighting');
+      expect(getState().progress).toBeNull();
+      // Widget still hidden (progress is null)
+
+      // 3. First progress update: widget should now be visible
+      act(() => {
+        getEventBus().get('annotate:progress').next({
+          status: 'processing',
+          message: 'Scanning document for highlights',
+          percentage: 25
+        });
+      });
+
+      expect(getState().assistingMotivation).toBe('highlighting');
+      expect(getState().progress).toEqual({
+        status: 'processing',
+        message: 'Scanning document for highlights',
+        percentage: 25
+      });
+      // Widget is now visible (both conditions true)
+
+      // 4. More progress updates
+      act(() => {
+        getEventBus().get('annotate:progress').next({
+          status: 'processing',
+          message: 'Extracting highlights',
+          percentage: 75
+        });
+      });
+
+      expect(getState().progress?.percentage).toBe(75);
+
+      // 5. Completion: assistingMotivation cleared, progress remains
+      act(() => {
+        getEventBus().get('annotate:assist-finished').next({
+          motivation: 'highlighting'
+        });
+      });
+
+      expect(getState().assistingMotivation).toBeNull();
+      expect(getState().progress).toBeTruthy();
+      // Widget is now partially hidden (isAssisting is false, but progress still shows final message)
+
+      // 6. After 3 seconds: progress should still be visible
+      act(() => {
+        vi.advanceTimersByTime(3000);
+      });
+
+      expect(getState().progress).toBeTruthy();
+
+      // 7. After 5 seconds total: progress should auto-dismiss
+      act(() => {
+        vi.advanceTimersByTime(2100);
+      });
+
+      expect(getState().progress).toBeNull();
+      // Widget is now fully hidden
+    });
+
+    it('should keep widget visible if user starts new annotation during auto-dismiss period', () => {
+      const { getState, getEventBus } = renderAnnotationFlow();
+
+      // Complete first annotation
+      act(() => {
+        getEventBus().get('annotate:assist-request').next({
+          motivation: 'highlighting',
+          options: {}
+        });
+      });
+
+      act(() => {
+        getEventBus().get('annotate:progress').next({
+          status: 'complete',
+          message: 'Complete! Created 5 highlights'
+        });
+      });
+
+      act(() => {
+        getEventBus().get('annotate:assist-finished').next({
+          motivation: 'highlighting'
+        });
+      });
+
+      expect(getState().assistingMotivation).toBeNull();
+      expect(getState().progress).toBeTruthy();
+
+      // After 2 seconds, start a NEW annotation (before auto-dismiss completes)
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+
+      act(() => {
+        getEventBus().get('annotate:assist-request').next({
+          motivation: 'commenting',
+          options: {}
+        });
+      });
+
+      expect(getState().assistingMotivation).toBe('commenting');
+
+      // Advance past original 5-second timeout
+      act(() => {
+        vi.advanceTimersByTime(4000);
+      });
+
+      // Widget should still be visible (old timeout was cancelled)
+      expect(getState().assistingMotivation).toBe('commenting');
+    });
+  });
 });

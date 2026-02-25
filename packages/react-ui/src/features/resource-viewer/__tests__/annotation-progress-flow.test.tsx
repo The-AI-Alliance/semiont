@@ -82,11 +82,11 @@ class MockSSEStream {
     this.eventBus.get('annotate:progress').next(chunk);
   }
 
-  emitComplete(finalChunk?: any) {
+  emitComplete(finalChunk?: any, motivation: string = 'highlighting') {
     if (finalChunk) {
       this.eventBus.get('annotate:progress').next(finalChunk);
     }
-    this.eventBus.get('annotate:assist-finished').next({});
+    this.eventBus.get('annotate:assist-finished').next({ motivation });
   }
 
   emitError(error: Error) {
