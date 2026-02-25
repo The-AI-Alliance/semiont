@@ -2,6 +2,15 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { getInferenceClient, createInferenceClient } from '../factory.js';
 import { createConfigWithEnvVar } from './helpers/mock-config.js';
 import type { InferenceClientConfig } from '../factory.js';
+import type { Logger } from '@semiont/core';
+
+const mockLogger: Logger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger)
+};
 
 describe('@semiont/inference - edge cases', () => {
   beforeEach(() => {
@@ -53,7 +62,7 @@ describe('@semiont/inference - edge cases', () => {
       vi.stubEnv('SPECIAL_KEY', 'key-with-!@#$%^&*()');
       const config = createConfigWithEnvVar('SPECIAL_KEY');
 
-      const client = await getInferenceClient(config);
+      const client = await getInferenceClient(config, mockLogger);
 
       expect(client).toBeDefined();
     });
@@ -62,7 +71,7 @@ describe('@semiont/inference - edge cases', () => {
       vi.stubEnv('KEY_WITH_SPACES', '  spaces around  ');
       const config = createConfigWithEnvVar('KEY_WITH_SPACES');
 
-      const client = await getInferenceClient(config);
+      const client = await getInferenceClient(config, mockLogger);
 
       expect(client).toBeDefined();
     });
@@ -70,7 +79,7 @@ describe('@semiont/inference - edge cases', () => {
     it('should throw error for undefined environment variable', async () => {
       const config = createConfigWithEnvVar('UNDEFINED_VAR');
 
-      await expect(getInferenceClient(config)).rejects.toThrow('Environment variable UNDEFINED_VAR is not set');
+      await expect(getInferenceClient(config, mockLogger)).rejects.toThrow('Environment variable UNDEFINED_VAR is not set');
     });
   });
 
@@ -79,8 +88,8 @@ describe('@semiont/inference - edge cases', () => {
       vi.stubEnv('TEST_KEY', 'test-value');
       const config = createConfigWithEnvVar('TEST_KEY');
 
-      const client1 = await getInferenceClient(config);
-      const client2 = await getInferenceClient(config);
+      const client1 = await getInferenceClient(config, mockLogger);
+      const client2 = await getInferenceClient(config, mockLogger);
 
       // No singleton pattern - each call creates new instance
       // Singleton behavior is managed by MakeMeaningService

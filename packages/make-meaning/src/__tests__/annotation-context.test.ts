@@ -183,7 +183,8 @@ describe('AnnotationContext', () => {
         'http://localhost:4000/annotations/test-1' as any,
         resourceId(testResourceId),
         config,
-        { contextWindow: 50 }
+        { contextWindow: 50 },
+        mockLogger
       )
     ).rejects.toThrow('contextWindow must be between 100 and 5000');
 
@@ -193,7 +194,8 @@ describe('AnnotationContext', () => {
         'http://localhost:4000/annotations/test-2' as any,
         resourceId(testResourceId),
         config,
-        { contextWindow: 6000 }
+        { contextWindow: 6000 },
+        mockLogger
       )
     ).rejects.toThrow('contextWindow must be between 100 and 5000');
   });
@@ -213,7 +215,8 @@ describe('AnnotationContext', () => {
         `http://localhost:4000/annotations/${testAnnId}` as any,
         resourceId(testResourceId),
         config,
-        { contextWindow: 100 }
+        { contextWindow: 100 },
+        mockLogger
       )
     ).resolves.toBeDefined();
 
@@ -223,7 +226,8 @@ describe('AnnotationContext', () => {
         `http://localhost:4000/annotations/${testAnnId}` as any,
         resourceId(testResourceId),
         config,
-        { contextWindow: 5000 }
+        { contextWindow: 5000 },
+        mockLogger
       )
     ).resolves.toBeDefined();
 
@@ -233,7 +237,8 @@ describe('AnnotationContext', () => {
         `http://localhost:4000/annotations/${testAnnId}` as any,
         resourceId(testResourceId),
         config,
-        { contextWindow: 1500 }
+        { contextWindow: 1500 },
+        mockLogger
       )
     ).resolves.toBeDefined();
   });
@@ -250,7 +255,9 @@ describe('AnnotationContext', () => {
     const result = await AnnotationContext.buildLLMContext(
       `http://localhost:4000/annotations/${testAnnId}` as any,
       resourceId(testResourceId),
-      config
+      config,
+      {},
+      mockLogger
     );
 
     expect(result).toBeDefined();
@@ -271,14 +278,16 @@ describe('AnnotationContext', () => {
       `http://localhost:4000/annotations/${testAnnId}` as any,
       resourceId(testResourceId),
       config,
-      { includeSourceContext: true }
+      { includeSourceContext: true },
+      mockLogger
     );
 
     const withoutContext = await AnnotationContext.buildLLMContext(
       `http://localhost:4000/annotations/${testAnnId}` as any,
       resourceId(testResourceId),
       config,
-      { includeSourceContext: false }
+      { includeSourceContext: false },
+      mockLogger
     );
 
     expect(withContext).toBeDefined();
@@ -291,7 +300,9 @@ describe('AnnotationContext', () => {
       AnnotationContext.buildLLMContext(
         'http://localhost:4000/annotations/nonexistent' as any,
         resourceId('nonexistent-resource'),
-        config
+        config,
+        {},
+        mockLogger
       )
     ).rejects.toThrow();
   });
@@ -342,7 +353,9 @@ describe('AnnotationContext', () => {
     const result = await AnnotationContext.buildLLMContext(
       `http://localhost:4000/annotations/${testAnnId}` as any,
       resourceId(testResourceId),
-      config
+      config,
+      {},
+      mockLogger
     );
 
     expect(result).toBeDefined();

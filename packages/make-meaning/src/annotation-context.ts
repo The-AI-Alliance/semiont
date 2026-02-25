@@ -33,6 +33,7 @@ import type {
   ResourceAnnotations,
   AnnotationId,
   AnnotationCategory,
+  Logger,
 } from '@semiont/core';
 import { resourceId as createResourceId, uriToResourceId } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
@@ -73,7 +74,8 @@ export class AnnotationContext {
     annotationUri: AnnotationUri,
     resourceId: ResourceId,
     config: EnvironmentConfig,
-    options: BuildContextOptions = {}
+    options: BuildContextOptions = {},
+    logger?: Logger
   ): Promise<AnnotationLLMContextResponse> {
     const {
       includeSourceContext = true,
@@ -214,7 +216,7 @@ export class AnnotationContext {
         const contentStr = decodeRepresentation(targetContent, targetRep.mediaType);
 
         // Create inference client for this request (HTTP handler context)
-        const client = await getInferenceClient(config);
+        const client = await getInferenceClient(config, logger);
 
         targetContext = {
           content: contentStr.slice(0, contextWindow * 2),
@@ -482,7 +484,8 @@ export class AnnotationContext {
   static async generateAnnotationSummary(
     annotationId: AnnotationId,
     resourceId: ResourceId,
-    config: EnvironmentConfig
+    config: EnvironmentConfig,
+    logger?: Logger
   ): Promise<ContextualSummaryResponse> {
     const basePath = config.services.filesystem!.path;
     const projectRoot = config._metadata?.projectRoot;
@@ -514,7 +517,7 @@ export class AnnotationContext {
     const annotationEntityTypes = getEntityTypes(annotation);
 
     // Generate summary using LLM
-    const summary = await this.generateSummary(resource, context, annotationEntityTypes, config);
+    const summary = await this.generateSummary(resource, context, annotationEntityTypes, config, logger);
 
     return {
       summary,
@@ -581,7 +584,8 @@ export class AnnotationContext {
     resource: ResourceDescriptor,
     context: AnnotationTextContext,
     entityTypes: string[],
-    config: EnvironmentConfig
+    config: EnvironmentConfig,
+    logger?: Logger
   ): Promise<string> {
     const summaryPrompt = `Summarize this text in context:
 
@@ -593,7 +597,7 @@ Resource: ${resource.name}
 Entity types: ${entityTypes.join(', ')}`;
 
     // Create client for this HTTP request
-    const client = await getInferenceClient(config);
+    const client = await getInferenceClient(config, logger);
     return await client.generateText(summaryPrompt, 500, 0.5);
   }
 }

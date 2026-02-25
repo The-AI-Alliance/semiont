@@ -85,7 +85,8 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus: Even
   const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot, repStoreLogger);
 
   // 6. Create inference client (shared across all workers)
-  const inferenceClient = await getInferenceClient(config);
+  const inferenceLogger = logger.child({ component: 'inference-client' });
+  const inferenceClient = await getInferenceClient(config, inferenceLogger);
 
   // 7. Create graph database connection
   const graphDb = await getGraphDatabase(config);
