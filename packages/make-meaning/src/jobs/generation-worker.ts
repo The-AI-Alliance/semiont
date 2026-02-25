@@ -8,7 +8,7 @@
  */
 
 import { JobWorker } from '@semiont/jobs';
-import type { AnyJob, JobQueue, RunningJob, GenerationParams, GenerationProgress, GenerationResult } from '@semiont/jobs';
+import type { AnyJob, JobQueue, RunningJob, GenerationParams, GenerationProgress, GenerationResult, GenerationJob } from '@semiont/jobs';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import { ResourceContext } from '..';
 import { generateResourceFromTopic } from '../generation/resource-generation';
@@ -275,7 +275,8 @@ export class GenerationWorker extends JobWorker {
     job: RunningJob<GenerationParams, GenerationProgress>,
     result: GenerationResult
   ): Promise<void> {
-    await this.eventStore.appendEvent({
+    // DOMAIN EVENT: Write to EventStore (auto-publishes to global EventBus)
+    const storedEvent = await this.eventStore.appendEvent({
       type: 'job.completed',
       resourceId: job.params.sourceResourceId,
       userId: job.metadata.userId,
@@ -288,8 +289,47 @@ export class GenerationWorker extends JobWorker {
       },
     });
 
-    // Domain event (job.completed) is automatically published to EventBus by EventStore
-    // Backend SSE endpoint will subscribe to job.completed and transform to generate:finished
+    // ALSO emit to resource-scoped EventBus for SSE streams
+    const resourceBus = this.eventBus.scope(job.params.sourceResourceId);
+    this.logger?.debug('[EventBus] Emitting job:completed to resource-scoped bus', {
+      resourceId: job.params.sourceResourceId,
+      jobId: job.metadata.id
+    });
+    resourceBus.get('job:completed').next(storedEvent.event as Extract<typeof storedEvent.event, { type: 'job.completed' }>);
+  }
+
+  protected override async handleJobFailure(job: AnyJob, error: any): Promise<void> {
+    // Call parent to handle the failure logic
+    await super.handleJobFailure(job, error);
+
+    // If job permanently failed, emit job.failed event
+    if (job.status === 'failed' && job.metadata.type === 'generation') {
+      // Type narrowing: job is FailedJob<GenerationParams>
+      const genJob = job as GenerationJob;
+
+      const errorMessage = 'Resource generation failed. Please try again later.';
+
+      // DOMAIN EVENT: Write to EventStore (auto-publishes to EventBus)
+      const storedEvent = await this.eventStore.appendEvent({
+        type: 'job.failed',
+        resourceId: genJob.params.sourceResourceId,
+        userId: genJob.metadata.userId,
+        version: 1,
+        payload: {
+          jobId: genJob.metadata.id,
+          jobType: genJob.metadata.type,
+          error: errorMessage,
+        },
+      });
+
+      // ALSO emit to resource-scoped EventBus for SSE streams
+      const resourceBus = this.eventBus.scope(genJob.params.sourceResourceId);
+      this.logger?.debug('[EventBus] Emitting job:failed to resource-scoped bus', {
+        resourceId: genJob.params.sourceResourceId,
+        jobId: genJob.metadata.id
+      });
+      resourceBus.get('job:failed').next(storedEvent.event as Extract<typeof storedEvent.event, { type: 'job.failed' }>);
+    }
   }
 
   /**
