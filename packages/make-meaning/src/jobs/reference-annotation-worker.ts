@@ -313,7 +313,7 @@ export class ReferenceDetectionWorker extends JobWorker {
     result: DetectionResult
   ): Promise<void> {
     // DOMAIN EVENT: Write to EventStore (auto-publishes to EventBus)
-    await this.eventStore.appendEvent({
+    const storedEvent = await this.eventStore.appendEvent({
       type: 'job.completed',
       resourceId: job.params.resourceId,
       userId: job.metadata.userId,
@@ -325,8 +325,13 @@ export class ReferenceDetectionWorker extends JobWorker {
       },
     });
 
-    // Domain event (job.completed) is automatically published to EventBus by EventStore
-    // Backend SSE endpoint will subscribe to job.completed and transform to annotate:detect-finished
+    // ALSO emit to resource-scoped EventBus for SSE streams
+    const resourceBus = this.eventBus.scope(job.params.resourceId);
+    this.logger?.debug('[EventBus] Emitting job:completed to resource-scoped bus', {
+      resourceId: job.params.resourceId,
+      jobId: job.metadata.id
+    });
+    resourceBus.get('job:completed').next(storedEvent.event as Extract<typeof storedEvent.event, { type: 'job.completed' }>);
   }
 
   protected override async handleJobFailure(job: AnyJob, error: any): Promise<void> {
@@ -338,8 +343,10 @@ export class ReferenceDetectionWorker extends JobWorker {
       // Type narrowing: job is FailedJob<DetectionParams>
       const detJob = job as DetectionJob;
 
+      const errorMessage = 'Entity detection failed. Please try again later.';
+
       // DOMAIN EVENT: Write to EventStore (auto-publishes to EventBus)
-      await this.eventStore.appendEvent({
+      const storedEvent = await this.eventStore.appendEvent({
         type: 'job.failed',
         resourceId: detJob.params.resourceId,
         userId: detJob.metadata.userId,
@@ -347,12 +354,17 @@ export class ReferenceDetectionWorker extends JobWorker {
         payload: {
           jobId: detJob.metadata.id,
           jobType: detJob.metadata.type,
-          error: 'Entity detection failed. Please try again later.',
+          error: errorMessage,
         },
       });
 
-      // Domain event (job.failed) is automatically published to EventBus by EventStore
-      // Backend SSE endpoint will subscribe to job.failed and transform to annotate:detect-failed
+      // ALSO emit to resource-scoped EventBus for SSE streams
+      const resourceBus = this.eventBus.scope(detJob.params.resourceId);
+      this.logger?.debug('[EventBus] Emitting job:failed to resource-scoped bus', {
+        resourceId: detJob.params.resourceId,
+        jobId: detJob.metadata.id
+      });
+      resourceBus.get('job:failed').next(storedEvent.event as Extract<typeof storedEvent.event, { type: 'job.failed' }>);
     }
   }
 
