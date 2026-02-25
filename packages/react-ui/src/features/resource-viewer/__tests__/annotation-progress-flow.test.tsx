@@ -51,14 +51,15 @@ const mockT = vi.fn((key: string) => {
   const translations: Record<string, string> = {
     title: 'Highlights',
     noHighlights: 'No highlights yet',
-    detectHighlights: 'Detect Highlights',
+    annotateHighlights: 'Annotate Highlights',
     instructions: 'Instructions',
     optional: '(optional)',
     instructionsPlaceholder: 'Enter custom instructions...',
     densityLabel: 'Density',
     densitySparse: 'Sparse',
     densityDense: 'Dense',
-    detect: 'Detect',
+    annotate: 'Annotate',
+    annotating: 'Annotating...',
   };
   return translations[key] || key;
 });
@@ -178,9 +179,9 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
     // Initial state: no progress visible
     expect(screen.queryByText(/Analyzing/)).not.toBeInTheDocument();
 
-    // Click detect button
-    const detectButton = screen.getByRole('button', { name: /✨ Detect/ });
-    await user.click(detectButton);
+    // Click annotate button
+    const annotateButton = screen.getByRole('button', { name: /✨ Annotate/ });
+    await user.click(annotateButton);
 
     // Simulate SSE progress chunk #1: Starting
     act(() => {
@@ -242,9 +243,9 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
 
     renderDetectionFlow();
 
-    // Click detect
-    const detectButton = screen.getByRole('button', { name: /✨ Detect/ });
-    await user.click(detectButton);
+    // Click annotate button
+    const annotateButton = screen.getByRole('button', { name: /✨ Annotate/ });
+    await user.click(annotateButton);
 
     // Simulate initial progress
     act(() => {
@@ -283,8 +284,8 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
 
     renderDetectionFlow();
 
-    const detectButton = screen.getByRole('button', { name: /✨ Detect/ });
-    await user.click(detectButton);
+    const annotateButton = screen.getByRole('button', { name: /✨ Annotate/ });
+    await user.click(annotateButton);
 
     // Simulate progress with request parameters
     act(() => {
@@ -309,8 +310,8 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
 
     renderDetectionFlow();
 
-    const detectButton = screen.getByRole('button', { name: /✨ Detect/ });
-    await user.click(detectButton);
+    const annotateButton = screen.getByRole('button', { name: /✨ Annotate/ });
+    await user.click(annotateButton);
 
     // Show progress
     act(() => {

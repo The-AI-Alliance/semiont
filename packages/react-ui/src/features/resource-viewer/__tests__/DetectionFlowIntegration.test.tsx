@@ -68,8 +68,8 @@ describe('Detection Flow - Feature Integration', () => {
     // Spy on SSEClient prototype methods
     annotateReferencesSpy = vi.spyOn(SSEClient.prototype, 'annotateReferences').mockReturnValue(mockStream as any);
     annotateHighlightsSpy = vi.spyOn(SSEClient.prototype, 'annotateHighlights').mockReturnValue(mockStream as any);
-    detectCommentsSpy = vi.spyOn(SSEClient.prototype, 'detectComments').mockReturnValue(mockStream as any);
-    vi.spyOn(SSEClient.prototype, 'detectAssessments').mockReturnValue(mockStream as any);
+    detectCommentsSpy = vi.spyOn(SSEClient.prototype, 'annotateComments').mockReturnValue(mockStream as any);
+    vi.spyOn(SSEClient.prototype, 'annotateAssessments').mockReturnValue(mockStream as any);
   });
 
   afterEach(() => {

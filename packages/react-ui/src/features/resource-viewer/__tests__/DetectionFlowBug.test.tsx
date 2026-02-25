@@ -35,10 +35,10 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
     vi.clearAllMocks();
 
     // Minimal mock - SSE streams not needed for this test
-    vi.spyOn(SSEClient.prototype, 'detectReferences').mockReturnValue({ onProgress: vi.fn().mockReturnThis(), onComplete: vi.fn().mockReturnThis(), onError: vi.fn().mockReturnThis(), close: vi.fn() } as any);
-    vi.spyOn(SSEClient.prototype, 'detectHighlights').mockReturnValue({ onProgress: vi.fn().mockReturnThis(), onComplete: vi.fn().mockReturnThis(), onError: vi.fn().mockReturnThis(), close: vi.fn() } as any);
-    vi.spyOn(SSEClient.prototype, 'detectComments').mockReturnValue({ onProgress: vi.fn().mockReturnThis(), onComplete: vi.fn().mockReturnThis(), onError: vi.fn().mockReturnThis(), close: vi.fn() } as any);
-    vi.spyOn(SSEClient.prototype, 'detectAssessments').mockReturnValue({ onProgress: vi.fn().mockReturnThis(), onComplete: vi.fn().mockReturnThis(), onError: vi.fn().mockReturnThis(), close: vi.fn() } as any);
+    vi.spyOn(SSEClient.prototype, 'annotateReferences').mockReturnValue({ onProgress: vi.fn().mockReturnThis(), onComplete: vi.fn().mockReturnThis(), onError: vi.fn().mockReturnThis(), close: vi.fn() } as any);
+    vi.spyOn(SSEClient.prototype, 'annotateHighlights').mockReturnValue({ onProgress: vi.fn().mockReturnThis(), onComplete: vi.fn().mockReturnThis(), onError: vi.fn().mockReturnThis(), close: vi.fn() } as any);
+    vi.spyOn(SSEClient.prototype, 'annotateComments').mockReturnValue({ onProgress: vi.fn().mockReturnThis(), onComplete: vi.fn().mockReturnThis(), onError: vi.fn().mockReturnThis(), close: vi.fn() } as any);
+    vi.spyOn(SSEClient.prototype, 'annotateAssessments').mockReturnValue({ onProgress: vi.fn().mockReturnThis(), onComplete: vi.fn().mockReturnThis(), onError: vi.fn().mockReturnThis(), close: vi.fn() } as any);
   });
 
   afterEach(() => {

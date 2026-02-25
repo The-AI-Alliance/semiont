@@ -102,7 +102,7 @@ describe('Toast Notifications - Verifies Toast Integration', () => {
 
       // Wait for toast to be called
       await waitFor(() => {
-        expect(mockShowSuccess).toHaveBeenCalledWith('Detection complete');
+        expect(mockShowSuccess).toHaveBeenCalledWith('Annotation complete');
       });
     });
 
