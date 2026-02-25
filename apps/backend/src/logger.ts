@@ -51,7 +51,7 @@ export function getLoggerConfig(logLevel?: LogLevel): LoggerConfig {
   return {
     level,
     format,
-    transports: ['console', 'file']
+    transports: ['file']
   };
 }
 
