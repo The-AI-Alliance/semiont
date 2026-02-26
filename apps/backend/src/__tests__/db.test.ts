@@ -20,6 +20,7 @@ declare global {
 const mockPrismaClient = {
   $connect: vi.fn(),
   $disconnect: vi.fn().mockResolvedValue(undefined),
+  $on: vi.fn(),
 };
 
 const mockPrismaConstructor = vi.fn(() => mockPrismaClient);
@@ -67,7 +68,7 @@ describe('Database Connection', () => {
     DatabaseConnection.getClient();
     
     expect(mockPrismaConstructor).toHaveBeenCalledWith({
-      log: ['error'],
+      log: [{ emit: 'event', level: 'error' }],
     });
   });
 
@@ -81,31 +82,36 @@ describe('Database Connection', () => {
     DatabaseConnection.getClient();
 
     expect(mockPrismaConstructor).toHaveBeenCalledWith({
-      log: ['query', 'error', 'warn'],
+      log: [
+        { emit: 'event', level: 'query' },
+        { emit: 'event', level: 'error' },
+        { emit: 'event', level: 'warn' },
+        { emit: 'event', level: 'info' },
+      ],
     });
   });
 
   it('should use error-only logging in production mode', async () => {
     process.env.NODE_ENV = 'production';
-    
+
     vi.resetModules();
     const { DatabaseConnection } = await import('../db');
     DatabaseConnection.getClient();
-    
+
     expect(mockPrismaConstructor).toHaveBeenCalledWith({
-      log: ['error'],
+      log: [{ emit: 'event', level: 'error' }],
     });
   });
 
   it('should use error-only logging in test mode', async () => {
     process.env.NODE_ENV = 'test';
-    
+
     vi.resetModules();
     const { DatabaseConnection } = await import('../db');
     DatabaseConnection.getClient();
-    
+
     expect(mockPrismaConstructor).toHaveBeenCalledWith({
-      log: ['error'],
+      log: [{ emit: 'event', level: 'error' }],
     });
   });
 
@@ -164,7 +170,7 @@ describe('Database Connection', () => {
     DatabaseConnection.getClient();
     
     expect(mockPrismaConstructor).toHaveBeenCalledWith({
-      log: ['error'], // Default to error-only when NODE_ENV undefined
+      log: [{ emit: 'event', level: 'error' }], // Default to error-only when NODE_ENV undefined
     });
     expect(global.prisma).toBe(mockPrismaClient); // Should set global since not production
   });
@@ -172,10 +178,15 @@ describe('Database Connection', () => {
   describe('Prisma Client Configuration', () => {
     it('should configure appropriate log levels for different environments', async () => {
       const testCases = [
-        { env: 'development', expectedLogs: ['query', 'error', 'warn'] },
-        { env: 'production', expectedLogs: ['error'] },
-        { env: 'test', expectedLogs: ['error'] },
-        { env: 'staging', expectedLogs: ['error'] }, // Any non-development env
+        { env: 'development', expectedLogs: [
+          { emit: 'event', level: 'query' },
+          { emit: 'event', level: 'error' },
+          { emit: 'event', level: 'warn' },
+          { emit: 'event', level: 'info' },
+        ]},
+        { env: 'production', expectedLogs: [{ emit: 'event', level: 'error' }] },
+        { env: 'test', expectedLogs: [{ emit: 'event', level: 'error' }] },
+        { env: 'staging', expectedLogs: [{ emit: 'event', level: 'error' }] }, // Any non-development env
       ];
 
       for (const { env, expectedLogs } of testCases) {
@@ -185,10 +196,10 @@ describe('Database Connection', () => {
         vi.resetModules();
         vi.clearAllMocks();
         mockPrismaConstructor.mockClear();
-        
+
         const { DatabaseConnection } = await import('../db');
         DatabaseConnection.getClient();
-        
+
         expect(mockPrismaConstructor).toHaveBeenCalledWith({
           log: expectedLogs,
         });
