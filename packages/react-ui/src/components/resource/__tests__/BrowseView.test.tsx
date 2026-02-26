@@ -45,14 +45,14 @@ vi.mock('remark-gfm', () => ({
   default: vi.fn(),
 }));
 
-// Mock remark-annotations
-vi.mock('../../../lib/remark-annotations', () => ({
-  remarkAnnotations: vi.fn(),
-}));
-
-// Mock rehype-render-annotations
-vi.mock('../../../lib/rehype-render-annotations', () => ({
-  rehypeRenderAnnotations: vi.fn(),
+// Mock annotation-overlay — DOM Range API is not available in jsdom
+vi.mock('../../../lib/annotation-overlay', () => ({
+  buildSourceToRenderedMap: vi.fn(() => new Map()),
+  buildTextNodeIndex: vi.fn(() => []),
+  resolveAnnotationRanges: vi.fn(() => new Map()),
+  applyHighlights: vi.fn(),
+  clearHighlights: vi.fn(),
+  toOverlayAnnotations: vi.fn(() => []),
 }));
 
 // Mock ANNOTATORS

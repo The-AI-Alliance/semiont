@@ -210,7 +210,7 @@ Full markdown rendering with extended features:
 - Table of contents auto-generation (future)
 - Collapsible sections (future)
 
-See [REACT-MARKDOWN.md](./REACT-MARKDOWN.md) for markdown rendering details.
+See [ANNOTATION-OVERLAY.md](../../../ANNOTATION-OVERLAY.md) for markdown rendering details.
 
 ### Images (PNG/JPEG)
 

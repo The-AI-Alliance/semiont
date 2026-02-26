@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
 import { AnnotateView, type SelectionMotivation, type ClickAction, type ShapeType } from './AnnotateView';
 import { BrowseView } from './BrowseView';
@@ -364,9 +364,11 @@ export function ResourceViewer({
     'attend:click': handleAnnotationClickEvent,
   });
 
-  // Prepare props for child components
-  // Note: These objects are created inline - React's reconciliation handles re-renders efficiently
-  const annotationsCollection = { highlights, references, assessments, comments, tags };
+  // Prepare props for child components (memoized to prevent unnecessary re-renders of BrowseView/AnnotateView)
+  const annotationsCollection = useMemo(
+    () => ({ highlights, references, assessments, comments, tags }),
+    [highlights, references, assessments, comments, tags]
+  );
 
   const uiState = {
     selectedMotivation,

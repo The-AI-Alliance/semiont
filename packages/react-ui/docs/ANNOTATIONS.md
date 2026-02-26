@@ -449,12 +449,13 @@ import ReactMarkdown from 'react-markdown';
 </ReactMarkdown>
 ```
 
-### Prepared Annotations
+### Overlay Annotations
 
-Convert W3C annotations to remark format:
+Convert W3C annotations to overlay format:
 
 ```typescript
-function prepareAnnotations(annotations: Annotation[]): PreparedAnnotation[] {
+// annotation-overlay.ts
+function toOverlayAnnotations(annotations: Annotation[]): OverlayAnnotation[] {
   return annotations.map(ann => {
     const posSelector = getTextPositionSelector(getTargetSelector(ann.target));
     return {

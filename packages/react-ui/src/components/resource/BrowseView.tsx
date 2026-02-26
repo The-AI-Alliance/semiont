@@ -1,24 +1,28 @@
 'use client';
 
-import { useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import { useEffect, useRef, useCallback, useMemo, memo, lazy, Suspense } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { remarkAnnotations, type PreparedAnnotation } from '../../lib/remark-annotations';
-import { rehypeRenderAnnotations } from '../../lib/rehype-render-annotations';
-import type { components } from '@semiont/core';
 import { resourceUri as toResourceUri } from '@semiont/core';
-import { getExactText, getTextPositionSelector, getTargetSelector, getBodySource, getMimeCategory, isPdfMimeType } from '@semiont/api-client';
+import { getMimeCategory, isPdfMimeType } from '@semiont/api-client';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import { createHoverHandlers } from '../../hooks/useAttentionFlow';
 import { scrollAnnotationIntoView } from '../../lib/scroll-utils';
 import { ImageViewer } from '../viewers';
 import { AnnotateToolbar, type ClickAction } from '../annotation/AnnotateToolbar';
 import type { AnnotationsCollection } from '../../types/annotation-props';
+import {
+  buildSourceToRenderedMap,
+  buildTextNodeIndex,
+  resolveAnnotationRanges,
+  applyHighlights,
+  clearHighlights,
+  toOverlayAnnotations,
+} from '../../lib/annotation-overlay';
 
 // Lazy load PDF component to avoid SSR issues with browser PDF.js loading
 const PdfAnnotationCanvas = lazy(() => import('../pdf-annotation/PdfAnnotationCanvas.client').then(mod => ({ default: mod.PdfAnnotationCanvas })));
 
-type Annotation = components['schemas']['Annotation'];
 import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
 import { useEventBus } from '../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../contexts/useEventSubscription';
@@ -36,39 +40,29 @@ interface Props {
 }
 
 /**
- * Convert W3C Annotations to simplified format for remark plugin.
- * Extracts position info and converts start/end to offset/length.
+ * Memoized markdown renderer — only re-renders when content changes.
+ * No annotation plugins: annotations are applied as a DOM overlay after paint.
  */
-function prepareAnnotations(annotations: Annotation[]): PreparedAnnotation[] {
+const MemoizedMarkdown = memo(function MemoizedMarkdown({
+  content,
+}: {
+  content: string;
+}) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+});
+
 /**
- * View component for browsing resources with rendered annotations
+ * View component for browsing annotated resources in read-only mode.
  *
- * @emits attend:click - Annotation clicked in browse view. Payload: { annotationId: string, motivation: Motivation }
- * @emits attend:hover - Annotation hovered in browse view. Payload: { annotationId: string | null }
- */
-  return annotations
-    .map(ann => {
-      const targetSelector = getTargetSelector(ann.target);
-      const posSelector = getTextPositionSelector(targetSelector);
-      const start = posSelector?.start ?? 0;
-      const end = posSelector?.end ?? 0;
-
-      // Use ANNOTATORS registry to determine type
-      const type = Object.values(ANNOTATORS).find(a => a.matchesAnnotation(ann))?.internalType || 'highlight';
-
-      return {
-        id: ann.id,
-        exact: getExactText(targetSelector),
-        offset: start,           // remark plugin expects 'offset'
-        length: end - start,      // remark plugin expects 'length', not 'end'
-        type,
-        source: getBodySource(ann.body)
-      };
-    });
-}
-
-/**
- * View component for browsing annotated resources in read-only mode
+ * Two-layer rendering:
+ * - Layer 1: Markdown renders once (MemoizedMarkdown, cached by content)
+ * - Layer 2: Annotation overlay applied via DOM Range API after paint
  *
  * @emits attend:click - User clicked on annotation. Payload: { annotationId: string, motivation: Motivation }
  * @emits attend:hover - User hovered over annotation. Payload: { annotationId: string | null }
@@ -76,7 +70,7 @@ function prepareAnnotations(annotations: Annotation[]): PreparedAnnotation[] {
  * @subscribes attend:hover - Highlight annotation on hover. Payload: { annotationId: string | null }
  * @subscribes attend:focus - Scroll to and highlight annotation. Payload: { annotationId: string }
  */
-export function BrowseView({
+export const BrowseView = memo(function BrowseView({
   content,
   mimeType,
   resourceUri,
@@ -93,9 +87,36 @@ export function BrowseView({
 
   const { highlights, references, assessments, comments, tags } = annotations;
 
-  const allAnnotations = [...highlights, ...references, ...assessments, ...comments, ...tags];
+  const allAnnotations = useMemo(
+    () => [...highlights, ...references, ...assessments, ...comments, ...tags],
+    [highlights, references, assessments, comments, tags]
+  );
 
-  const preparedAnnotations = prepareAnnotations(allAnnotations);
+  const overlayAnnotations = useMemo(
+    () => toOverlayAnnotations(allAnnotations),
+    [allAnnotations]
+  );
+
+  // Cache offset map (recomputed only when content changes)
+  const offsetMapRef = useRef<Map<number, number> | null>(null);
+
+  // Build offset map after markdown DOM paints (once per content change)
+  useEffect(() => {
+    if (!containerRef.current) return;
+    offsetMapRef.current = buildSourceToRenderedMap(content, containerRef.current);
+  }, [content]);
+
+  // Layer 2: overlay annotations after DOM paint
+  useEffect(() => {
+    if (!containerRef.current || !offsetMapRef.current || overlayAnnotations.length === 0) return;
+
+    const container = containerRef.current;
+    const textNodeIndex = buildTextNodeIndex(container);
+    const ranges = resolveAnnotationRanges(overlayAnnotations, offsetMapRef.current, textNodeIndex);
+    applyHighlights(ranges);
+
+    return () => clearHighlights(container);
+  }, [overlayAnnotations]);
 
   // Attach click handler, hover handler, and animations after render
   useEffect(() => {
@@ -199,17 +220,7 @@ export function BrowseView({
             annotators={ANNOTATORS}
           />
           <div ref={containerRef} className="semiont-browse-view__content">
-            <ReactMarkdown
-              remarkPlugins={[
-                remarkGfm,
-                [remarkAnnotations, { annotations: preparedAnnotations }]
-              ]}
-              rehypePlugins={[
-                rehypeRenderAnnotations
-              ]}
-            >
-              {content}
-            </ReactMarkdown>
+            <MemoizedMarkdown content={content} />
           </div>
         </div>
       );
@@ -280,4 +291,4 @@ export function BrowseView({
         </div>
       );
   }
-}
+});
