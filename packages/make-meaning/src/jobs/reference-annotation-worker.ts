@@ -33,7 +33,7 @@ export interface DetectedAnnotation {
   };
 }
 
-export class ReferenceDetectionWorker extends JobWorker {
+export class ReferenceAnnotationWorker extends JobWorker {
   constructor(
     jobQueue: JobQueue,
     private config: EnvironmentConfig,
@@ -46,7 +46,7 @@ export class ReferenceDetectionWorker extends JobWorker {
   }
 
   protected getWorkerName(): string {
-    return 'ReferenceDetectionWorker';
+    return 'ReferenceAnnotationWorker';
   }
 
   protected canProcessJob(job: AnyJob): boolean {

@@ -1,12 +1,12 @@
 /**
  * Assessment Detection Worker Event Emission Tests
  *
- * Tests that AssessmentDetectionWorker emits proper job progress events to Event Store
+ * Tests that AssessmentAnnotationWorker emits proper job progress events to Event Store
  * during assessment detection processing.
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { AssessmentDetectionWorker } from '../../jobs/assessment-annotation-worker';
+import { AssessmentAnnotationWorker } from '../../jobs/assessment-annotation-worker';
 import { JobQueue, type AssessmentDetectionJob, type RunningJob, type AssessmentDetectionParams, type AssessmentDetectionProgress } from '@semiont/jobs';
 import { resourceId, userId, type EnvironmentConfig, EventBus, type Logger } from '@semiont/core';
 import { jobId } from '@semiont/core';
@@ -36,8 +36,8 @@ const mockLogger: Logger = {
   child: vi.fn(() => mockLogger)
 };
 
-describe('AssessmentDetectionWorker - Event Emission', () => {
-  let worker: AssessmentDetectionWorker;
+describe('AssessmentAnnotationWorker - Event Emission', () => {
+  let worker: AssessmentAnnotationWorker;
   let testDir: string;
   let testEventStore: EventStore;
   let config: EnvironmentConfig;
@@ -89,7 +89,7 @@ describe('AssessmentDetectionWorker - Event Emission', () => {
     const jobQueue = new JobQueue({ dataDir: testDir }, mockLogger, new EventBus());
     await jobQueue.initialize();
     testEventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
-    worker = new AssessmentDetectionWorker(jobQueue, config, testEventStore, mockInferenceClient.client, new EventBus(), mockLogger);
+    worker = new AssessmentAnnotationWorker(jobQueue, config, testEventStore, mockInferenceClient.client, new EventBus(), mockLogger);
 
     // Set default mock response
     mockInferenceClient.client.setResponses(['[]']);

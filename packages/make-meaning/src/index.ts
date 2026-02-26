@@ -53,11 +53,11 @@ export {
 } from './generation/resource-generation';
 
 // Job workers (exported for direct instantiation if needed)
-export { CommentDetectionWorker } from './jobs/comment-annotation-worker';
-export { HighlightDetectionWorker } from './jobs/highlight-annotation-worker';
-export { AssessmentDetectionWorker } from './jobs/assessment-annotation-worker';
-export { TagDetectionWorker } from './jobs/tag-annotation-worker';
-export { ReferenceDetectionWorker } from './jobs/reference-annotation-worker';
+export { CommentAnnotationWorker } from './jobs/comment-annotation-worker';
+export { HighlightAnnotationWorker } from './jobs/highlight-annotation-worker';
+export { AssessmentAnnotationWorker } from './jobs/assessment-annotation-worker';
+export { TagAnnotationWorker } from './jobs/tag-annotation-worker';
+export { ReferenceAnnotationWorker } from './jobs/reference-annotation-worker';
 export { GenerationWorker } from './jobs/generation-worker';
 
 // Reasoning exports (future)

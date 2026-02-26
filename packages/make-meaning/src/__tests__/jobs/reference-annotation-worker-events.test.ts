@@ -1,15 +1,15 @@
 /**
  * Reference Detection Worker Event Emission Tests
  *
- * Tests that ReferenceDetectionWorker emits proper job progress events to Event Store
+ * Tests that ReferenceAnnotationWorker emits proper job progress events to Event Store
  * during entity detection processing.
  *
  * MOVED FROM: apps/backend/src/__tests__/jobs/detection-worker-events.test.ts
- * This test belongs in make-meaning because it tests ReferenceDetectionWorker directly.
+ * This test belongs in make-meaning because it tests ReferenceAnnotationWorker directly.
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { ReferenceDetectionWorker } from '../../jobs/reference-annotation-worker';
+import { ReferenceAnnotationWorker } from '../../jobs/reference-annotation-worker';
 import { JobQueue, type DetectionJob, type RunningJob, type DetectionParams, type DetectionProgress } from '@semiont/jobs';
 import { resourceId, userId, type EnvironmentConfig, EventBus, type Logger } from '@semiont/core';
 import { jobId, entityType } from '@semiont/core';
@@ -48,8 +48,8 @@ const mockLogger: Logger = {
   child: vi.fn(() => mockLogger)
 };
 
-describe('ReferenceDetectionWorker - Event Emission', () => {
-  let worker: ReferenceDetectionWorker;
+describe('ReferenceAnnotationWorker - Event Emission', () => {
+  let worker: ReferenceAnnotationWorker;
   let testDir: string;
   let testEventStore: EventStore;
   let config: EnvironmentConfig;
@@ -101,7 +101,7 @@ describe('ReferenceDetectionWorker - Event Emission', () => {
     const jobQueue = new JobQueue({ dataDir: testDir }, mockLogger, new EventBus());
     await jobQueue.initialize();
     testEventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
-    worker = new ReferenceDetectionWorker(jobQueue, config, testEventStore, mockInferenceClient.client, new EventBus(), mockLogger);
+    worker = new ReferenceAnnotationWorker(jobQueue, config, testEventStore, mockInferenceClient.client, new EventBus(), mockLogger);
   });
 
   afterAll(async () => {

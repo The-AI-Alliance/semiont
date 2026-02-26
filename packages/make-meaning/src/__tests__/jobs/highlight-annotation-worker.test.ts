@@ -1,12 +1,12 @@
 /**
  * Highlight Detection Worker Event Emission Tests
  *
- * Tests that HighlightDetectionWorker emits proper job progress events to Event Store
+ * Tests that HighlightAnnotationWorker emits proper job progress events to Event Store
  * during highlight detection processing.
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { HighlightDetectionWorker } from '../../jobs/highlight-annotation-worker';
+import { HighlightAnnotationWorker } from '../../jobs/highlight-annotation-worker';
 import { JobQueue, type HighlightDetectionJob, type RunningJob, type HighlightDetectionParams, type HighlightDetectionProgress } from '@semiont/jobs';
 import { resourceId, userId, type EnvironmentConfig, EventBus, type Logger } from '@semiont/core';
 import { jobId } from '@semiont/core';
@@ -36,8 +36,8 @@ const mockLogger: Logger = {
   child: vi.fn(() => mockLogger)
 };
 
-describe('HighlightDetectionWorker - Event Emission', () => {
-  let worker: HighlightDetectionWorker;
+describe('HighlightAnnotationWorker - Event Emission', () => {
+  let worker: HighlightAnnotationWorker;
   let testDir: string;
   let testEventStore: EventStore;
   let config: EnvironmentConfig;
@@ -89,7 +89,7 @@ describe('HighlightDetectionWorker - Event Emission', () => {
     const jobQueue = new JobQueue({ dataDir: testDir }, mockLogger, new EventBus());
     await jobQueue.initialize();
     testEventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
-    worker = new HighlightDetectionWorker(jobQueue, config, testEventStore, mockInferenceClient.client, new EventBus(), mockLogger);
+    worker = new HighlightAnnotationWorker(jobQueue, config, testEventStore, mockInferenceClient.client, new EventBus(), mockLogger);
 
     // Set default mock response
     mockInferenceClient.client.setResponses(['[]']);

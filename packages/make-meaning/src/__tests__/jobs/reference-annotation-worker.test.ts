@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
-import { ReferenceDetectionWorker } from '../../jobs/reference-annotation-worker';
+import { ReferenceAnnotationWorker } from '../../jobs/reference-annotation-worker';
 import { JobQueue, type RunningJob, type DetectionParams, type DetectionProgress } from '@semiont/jobs';
 import { resourceId, userId, type EnvironmentConfig, EventBus, type Logger } from '@semiont/core';
 import { jobId, entityType } from '@semiont/core';
@@ -44,8 +44,8 @@ const mockLogger: Logger = {
   child: vi.fn(() => mockLogger)
 };
 
-describe('ReferenceDetectionWorker - Full Lifecycle', () => {
-  let worker: ReferenceDetectionWorker;
+describe('ReferenceAnnotationWorker - Full Lifecycle', () => {
+  let worker: ReferenceAnnotationWorker;
   let testDir: string;
   let eventStore: EventStore;
   let jobQueue: JobQueue;
@@ -105,7 +105,7 @@ describe('ReferenceDetectionWorker - Full Lifecycle', () => {
     await jobQueue.initialize();
     eventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
     const eventBus = new EventBus();
-    worker = new ReferenceDetectionWorker(jobQueue, config, eventStore, mockInferenceClient, eventBus, mockLogger);
+    worker = new ReferenceAnnotationWorker(jobQueue, config, eventStore, mockInferenceClient, eventBus, mockLogger);
 
     // Set default mock response (empty array - no entities found)
     mockInferenceClient.setResponses(['[]']);
@@ -636,7 +636,7 @@ describe('ReferenceDetectionWorker - Full Lifecycle', () => {
     });
 
     it('should return correct worker name', async () => {
-      expect((worker as any).getWorkerName()).toBe('ReferenceDetectionWorker');
+      expect((worker as any).getWorkerName()).toBe('ReferenceAnnotationWorker');
     });
   });
 });

@@ -15,7 +15,7 @@ import { userId } from '@semiont/core';
 import type { CommentMatch } from '../detection/motivation-parsers';
 import type { InferenceClient } from '@semiont/inference';
 
-export class CommentDetectionWorker extends JobWorker {
+export class CommentAnnotationWorker extends JobWorker {
   private isFirstProgress = true;
 
   constructor(
@@ -30,7 +30,7 @@ export class CommentDetectionWorker extends JobWorker {
   }
 
   protected getWorkerName(): string {
-    return 'CommentDetectionWorker';
+    return 'CommentAnnotationWorker';
   }
 
   protected canProcessJob(job: AnyJob): boolean {

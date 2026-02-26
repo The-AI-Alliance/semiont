@@ -1,12 +1,12 @@
 /**
  * Comment Detection Worker Event Emission Tests
  *
- * Tests that CommentDetectionWorker emits proper job progress events to Event Store
+ * Tests that CommentAnnotationWorker emits proper job progress events to Event Store
  * during comment detection processing.
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { CommentDetectionWorker } from '../../jobs/comment-annotation-worker';
+import { CommentAnnotationWorker } from '../../jobs/comment-annotation-worker';
 import { JobQueue, type CommentDetectionJob, type RunningJob, type CommentDetectionParams, type CommentDetectionProgress } from '@semiont/jobs';
 import { resourceId, userId, type EnvironmentConfig, EventBus, type Logger } from '@semiont/core';
 import { jobId } from '@semiont/core';
@@ -36,8 +36,8 @@ const mockLogger: Logger = {
   child: vi.fn(() => mockLogger)
 };
 
-describe('CommentDetectionWorker - Event Emission', () => {
-  let worker: CommentDetectionWorker;
+describe('CommentAnnotationWorker - Event Emission', () => {
+  let worker: CommentAnnotationWorker;
   let testDir: string;
   let testEventStore: EventStore;
   let config: EnvironmentConfig;
@@ -89,7 +89,7 @@ describe('CommentDetectionWorker - Event Emission', () => {
     const jobQueue = new JobQueue({ dataDir: testDir }, mockLogger, new EventBus());
     await jobQueue.initialize();
     testEventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
-    worker = new CommentDetectionWorker(jobQueue, config, testEventStore, mockInferenceClient.client, new EventBus(), mockLogger);
+    worker = new CommentAnnotationWorker(jobQueue, config, testEventStore, mockInferenceClient.client, new EventBus(), mockLogger);
 
     // Set default mock response
     mockInferenceClient.client.setResponses(['[]']);

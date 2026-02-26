@@ -17,7 +17,7 @@ import { userId } from '@semiont/core';
 import type { TagMatch } from '../detection/motivation-parsers';
 import type { InferenceClient } from '@semiont/inference';
 
-export class TagDetectionWorker extends JobWorker {
+export class TagAnnotationWorker extends JobWorker {
   private isFirstProgress = true;
 
   constructor(
@@ -32,7 +32,7 @@ export class TagDetectionWorker extends JobWorker {
   }
 
   protected getWorkerName(): string {
-    return 'TagDetectionWorker';
+    return 'TagAnnotationWorker';
   }
 
   protected canProcessJob(job: AnyJob): boolean {

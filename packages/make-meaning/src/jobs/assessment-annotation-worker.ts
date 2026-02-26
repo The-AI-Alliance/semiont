@@ -15,7 +15,7 @@ import { userId } from '@semiont/core';
 import type { AssessmentMatch } from '../detection/motivation-parsers';
 import type { InferenceClient } from '@semiont/inference';
 
-export class AssessmentDetectionWorker extends JobWorker {
+export class AssessmentAnnotationWorker extends JobWorker {
   private isFirstProgress = true;
 
   constructor(
@@ -30,7 +30,7 @@ export class AssessmentDetectionWorker extends JobWorker {
   }
 
   protected getWorkerName(): string {
-    return 'AssessmentDetectionWorker';
+    return 'AssessmentAnnotationWorker';
   }
 
   protected canProcessJob(job: AnyJob): boolean {

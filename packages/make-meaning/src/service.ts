@@ -18,12 +18,12 @@ import type { EnvironmentConfig, Logger } from '@semiont/core';
 import { EventBus } from '@semiont/core';
 import { getInferenceClient, type InferenceClient } from '@semiont/inference';
 import { getGraphDatabase, type GraphDatabase } from '@semiont/graph';
-import { ReferenceDetectionWorker } from './jobs/reference-annotation-worker';
+import { ReferenceAnnotationWorker } from './jobs/reference-annotation-worker';
 import { GenerationWorker } from './jobs/generation-worker';
-import { HighlightDetectionWorker } from './jobs/highlight-annotation-worker';
-import { AssessmentDetectionWorker } from './jobs/assessment-annotation-worker';
-import { CommentDetectionWorker } from './jobs/comment-annotation-worker';
-import { TagDetectionWorker } from './jobs/tag-annotation-worker';
+import { HighlightAnnotationWorker } from './jobs/highlight-annotation-worker';
+import { AssessmentAnnotationWorker } from './jobs/assessment-annotation-worker';
+import { CommentAnnotationWorker } from './jobs/comment-annotation-worker';
+import { TagAnnotationWorker } from './jobs/tag-annotation-worker';
 import { GraphDBConsumer } from './graph/consumer';
 import { bootstrapEntityTypes } from './bootstrap/entity-types';
 
@@ -35,12 +35,12 @@ export interface MakeMeaningService {
   inferenceClient: InferenceClient;
   graphDb: GraphDatabase;
   workers: {
-    detection: ReferenceDetectionWorker;
+    detection: ReferenceAnnotationWorker;
     generation: GenerationWorker;
-    highlight: HighlightDetectionWorker;
-    assessment: AssessmentDetectionWorker;
-    comment: CommentDetectionWorker;
-    tag: TagDetectionWorker;
+    highlight: HighlightAnnotationWorker;
+    assessment: AssessmentAnnotationWorker;
+    comment: CommentAnnotationWorker;
+    tag: TagAnnotationWorker;
   };
   graphConsumer: GraphDBConsumer;
   stop: () => Promise<void>;
@@ -108,12 +108,12 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus: Even
 
   // 10. Instantiate workers with EventBus and logger
   const workers = {
-    detection: new ReferenceDetectionWorker(jobQueue, config, eventStore, inferenceClient, eventBus, detectionLogger),
+    detection: new ReferenceAnnotationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, detectionLogger),
     generation: new GenerationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, generationLogger),
-    highlight: new HighlightDetectionWorker(jobQueue, config, eventStore, inferenceClient, eventBus, highlightLogger),
-    assessment: new AssessmentDetectionWorker(jobQueue, config, eventStore, inferenceClient, eventBus, assessmentLogger),
-    comment: new CommentDetectionWorker(jobQueue, config, eventStore, inferenceClient, eventBus, commentLogger),
-    tag: new TagDetectionWorker(jobQueue, config, eventStore, inferenceClient, eventBus, tagLogger),
+    highlight: new HighlightAnnotationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, highlightLogger),
+    assessment: new AssessmentAnnotationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, assessmentLogger),
+    comment: new CommentAnnotationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, commentLogger),
+    tag: new TagAnnotationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, tagLogger),
   };
 
   // 11. Start all workers (non-blocking)

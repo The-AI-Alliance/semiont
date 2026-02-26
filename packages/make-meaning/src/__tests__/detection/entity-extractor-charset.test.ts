@@ -5,11 +5,11 @@
  * to prevent annotation offset bugs.
  *
  * MOVED FROM: apps/backend/src/__tests__/routes/entity-detection-charset.test.ts
- * This test belongs in make-meaning because it tests ReferenceDetectionWorker directly.
+ * This test belongs in make-meaning because it tests ReferenceAnnotationWorker directly.
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { ReferenceDetectionWorker, type DetectedAnnotation } from '../../jobs/reference-annotation-worker';
+import { ReferenceAnnotationWorker, type DetectedAnnotation } from '../../jobs/reference-annotation-worker';
 import { JobQueue } from '@semiont/jobs';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import type { components, EnvironmentConfig, Logger } from '@semiont/core';
@@ -70,7 +70,7 @@ const mockLogger: Logger = {
 describe('Entity Detection - Charset Handling', () => {
   let testDir: string;
   let config: EnvironmentConfig;
-  let worker: ReferenceDetectionWorker;
+  let worker: ReferenceAnnotationWorker;
 
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-test-charset-${Date.now()}`);
@@ -116,7 +116,7 @@ describe('Entity Detection - Charset Handling', () => {
     const jobQueue = new JobQueue({ dataDir: config.services.filesystem!.path }, mockLogger, new EventBus());
     await jobQueue.initialize();
     const eventStore = createEventStore(config.services.filesystem!.path, config.services.backend!.publicURL, undefined, undefined, mockLogger);
-    worker = new ReferenceDetectionWorker(jobQueue, config, eventStore, mockInferenceClient.client, new EventBus(), mockLogger);
+    worker = new ReferenceAnnotationWorker(jobQueue, config, eventStore, mockInferenceClient.client, new EventBus(), mockLogger);
   });
 
   afterAll(async () => {
