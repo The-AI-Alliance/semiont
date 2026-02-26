@@ -32,7 +32,7 @@ static_resources:
           - name: envoy.filters.http.buffer
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.filters.http.buffer.v3.Buffer
-              max_request_bytes: 1048576  # 1MB max request size
+              max_request_bytes: 10485760  # 10MB max request size
           - name: envoy.filters.http.router
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
