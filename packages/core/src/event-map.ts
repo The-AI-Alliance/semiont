@@ -270,6 +270,7 @@ export type EventMap = {
 
   // Domain Events (from backend event store)
   'job:started': Extract<ResourceEvent, { type: 'job.started' }>;
+  'job:progress': Extract<ResourceEvent, { type: 'job.progress' }>;
   'job:completed': Extract<ResourceEvent, { type: 'job.completed' }>;
   'job:failed': Extract<ResourceEvent, { type: 'job.failed' }>;
 

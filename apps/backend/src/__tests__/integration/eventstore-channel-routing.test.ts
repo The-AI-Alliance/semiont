@@ -264,7 +264,7 @@ describe('EventStore Channel Routing Integration', () => {
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
-      payload: { jobId: testJobId, currentStep: 1, message: 'Processing...' }
+      payload: { jobId: testJobId, jobType: 'tag-annotation' as const, percentage: 50, currentStep: 'Processing...', message: 'Processing...' }
     });
 
     await eventStore.appendEvent({
@@ -272,7 +272,7 @@ describe('EventStore Channel Routing Integration', () => {
       resourceId: rId,
       userId: userId('user-1'),
       version: 1,
-      payload: { jobId: testJobId, result: { tagsCreated: 7 } }
+      payload: { jobId: testJobId, jobType: 'tag-annotation' as const, result: { tagsCreated: 7 } }
     });
 
     // Wait for async processing
