@@ -200,7 +200,11 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
           // Subscribe to job:completed
           subscriptions.push(
             resourceBus.get('job:completed').subscribe(async (event) => {
-      if (event.payload.jobType !== 'assessment-annotation') return;
+              logger.info('Received job:completed event', { jobType: event.payload.jobType, isStreamClosed });
+              if (event.payload.jobType !== 'assessment-annotation') {
+                logger.info('Skipping job:completed - wrong jobType', { expected: 'assessment-annotation', actual: event.payload.jobType });
+                return;
+              }
               if (isStreamClosed) return;
               logger.info('Detection completed');
               try {

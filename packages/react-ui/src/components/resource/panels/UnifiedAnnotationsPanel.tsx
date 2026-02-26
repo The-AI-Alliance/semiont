@@ -227,9 +227,9 @@ export function UnifiedAnnotationsPanel(props: UnifiedAnnotationsPanelProps) {
 
           const annotations = grouped[activeTab] || [];
           const isAssisting = props.assistingMotivation === annotator.motivation;
-          // Pass through progress even when not actively assisting
-          // This allows final progress message to display after assistance completes
-          const progress = props.progress ?? null;
+          // Only pass progress to the panel whose motivation matches assistingMotivation
+          // This prevents progress from appearing in wrong tabs
+          const progress = isAssisting ? (props.progress ?? null) : null;
 
           // Common props for all annotation panels
           const commonProps = {
