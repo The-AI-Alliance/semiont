@@ -140,8 +140,6 @@ export function validateAndCorrectOffsets(
   aiEnd: number,
   exact: string
 ): ValidatedAnnotation {
-  const exactPreview = exact.length > 50 ? exact.substring(0, 50) + '...' : exact;
-
   // First, check if AI's offsets are correct
   const textAtOffset = content.substring(aiStart, aiEnd);
 
@@ -160,27 +158,9 @@ export function validateAndCorrectOffsets(
   }
 
   // AI's offsets are wrong - try to find the text using multiple strategies
-  const foundPreview = textAtOffset.length > 50 ? textAtOffset.substring(0, 50) + '...' : textAtOffset;
-
-  console.warn(
-    '[validateAndCorrectOffsets] ⚠ AI offset mismatch:\n' +
-    `  Expected text: "${exactPreview}"\n` +
-    `  Found at AI offset (${aiStart}-${aiEnd}): "${foundPreview}"\n` +
-    `  Attempting multi-strategy search...`
-  );
-
   const match = findBestTextMatch(content, exact, aiStart);
 
   if (!match) {
-    const exactLong = exact.length > 100 ? exact.substring(0, 100) + '...' : exact;
-    console.error(
-      '[validateAndCorrectOffsets] ✗ No acceptable match found:\n' +
-      `  AI offsets: start=${aiStart}, end=${aiEnd}\n` +
-      `  AI text: "${exactLong}"\n` +
-      `  Text at AI offset: "${foundPreview}"\n` +
-      '  All search strategies (exact, case-insensitive, fuzzy) failed.\n' +
-      '  This suggests the AI hallucinated text that doesn\'t exist in the document.'
-    );
     throw new Error(
       'Cannot find acceptable match for text in content. ' +
       'All search strategies failed. Text may be hallucinated.'
@@ -189,28 +169,6 @@ export function validateAndCorrectOffsets(
 
   // Found a match! Extract the actual text from content
   const actualText = content.substring(match.start, match.end);
-  const actualPreview = actualText.length > 50 ? actualText.substring(0, 50) + '...' : actualText;
-
-  const offsetDelta = match.start - aiStart;
-  const matchSymbol = match.matchQuality === 'exact' ? '✓' : match.matchQuality === 'case-insensitive' ? '≈' : '~';
-
-  console.warn(
-    `[validateAndCorrectOffsets] ${matchSymbol} Found ${match.matchQuality} match:\n` +
-    `  AI offsets: start=${aiStart}, end=${aiEnd}\n` +
-    `  Corrected: start=${match.start}, end=${match.end}\n` +
-    `  Offset delta: ${offsetDelta} characters\n` +
-    `  Actual text: "${actualPreview}"`
-  );
-
-  // If fuzzy match, log the difference for debugging
-  if (match.matchQuality === 'fuzzy') {
-    console.warn(
-      '[validateAndCorrectOffsets] Fuzzy match details:\n' +
-      `  AI provided: "${exactPreview}"\n` +
-      `  Found in doc: "${actualPreview}"\n` +
-      '  Minor text differences detected - using document version'
-    );
-  }
 
   // Extract context using corrected offsets
   const context = extractContext(content, match.start, match.end);

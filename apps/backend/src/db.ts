@@ -1,8 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { getLogger } from './logger';
-
-// Lazy initialization to avoid calling getLogger() at module load time
-const getDBLogger = () => getLogger().child({ component: 'database' });
+import type { Logger } from '@semiont/core';
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient | undefined };
 
@@ -26,31 +23,66 @@ export class DatabaseConnection {
     if (globalForPrisma.prisma) {
       return globalForPrisma.prisma;
     }
-    
+
     if (this.instance) {
       return this.instance;
     }
-    
+
     // Prevent multiple simultaneous initializations
     if (this.isInitializing) {
       throw new Error('Database connection is already being initialized');
     }
-    
+
     this.isInitializing = true;
     try {
-      // Determine log level based on environment
-      const logLevel = this.getLogLevel();
-      
+      // Determine which events to enable based on environment
+      const logLevels = this.getLogLevel();
+
       // Create new PrismaClient instance
+      // Use 'emit' type to trigger $on() handlers without stdout logging
+      const logConfig = logLevels.map(level => ({ emit: 'event' as const, level }));
+
       this.instance = new PrismaClient({
-        log: logLevel,
+        log: logConfig,  // Enable events but not stdout logging
       });
-      
+
+      // Setup custom logging to Winston (logs/combined.log)
+      // Logger is retrieved lazily inside each handler to avoid initialization order issues
+      this.instance.$on('query' as never, (e: any) => {
+        this.getDBLogger()?.debug('Query', {
+          query: e.query,
+          params: e.params,
+          duration: `${e.duration}ms`,
+          target: e.target
+        });
+      });
+
+      this.instance.$on('error' as never, (e: any) => {
+        this.getDBLogger()?.error('Database error', {
+          message: e.message,
+          target: e.target
+        });
+      });
+
+      this.instance.$on('warn' as never, (e: any) => {
+        this.getDBLogger()?.warn('Database warning', {
+          message: e.message,
+          target: e.target
+        });
+      });
+
+      this.instance.$on('info' as never, (e: any) => {
+        this.getDBLogger()?.info('Database info', {
+          message: e.message,
+          target: e.target
+        });
+      });
+
       // In non-production, store in global for hot-reload persistence
       if (process.env.NODE_ENV !== 'production') {
         globalForPrisma.prisma = this.instance;
       }
-      
+
       return this.instance;
     } finally {
       this.isInitializing = false;
@@ -59,14 +91,16 @@ export class DatabaseConnection {
   
   /**
    * Get appropriate log level based on environment
+   * These events are captured by $on() handlers and routed to Winston
    */
   private static getLogLevel(): Array<'query' | 'error' | 'warn' | 'info'> {
     const env = process.env.NODE_ENV;
-    
+
     if (env === 'development') {
-      return ['query', 'error', 'warn'];
+      // Enable query logging in development (goes to logs/combined.log via Winston)
+      return ['query', 'error', 'warn', 'info'];
     }
-    
+
     // Default to error-only logging for production and test
     return ['error'];
   }
@@ -114,6 +148,21 @@ export class DatabaseConnection {
   }
   
   /**
+   * Get database logger safely (returns null if logger not initialized)
+   * This avoids initialization order issues
+   */
+  private static getDBLogger(): Logger | null {
+    try {
+      // Dynamic import to avoid circular dependency
+      const { getLogger } = require('./logger');
+      return getLogger().child({ component: 'database' });
+    } catch (error) {
+      // Logger not initialized yet - return null and log events will be skipped
+      return null;
+    }
+  }
+
+  /**
    * Check database health by attempting a simple query
    * Returns true if connected, false otherwise
    */
@@ -124,7 +173,7 @@ export class DatabaseConnection {
       await client.$queryRaw`SELECT 1`;
       return true;
     } catch (error) {
-      getDBLogger().error('Database health check failed', {
+      this.getDBLogger()?.error('Database health check failed', {
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined
       });

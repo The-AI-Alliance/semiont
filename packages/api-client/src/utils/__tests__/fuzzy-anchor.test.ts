@@ -167,12 +167,6 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
         expect(result).not.toBeNull();
         // Fuzzy match should find it despite whitespace mismatch
         expect(result!.start).toBe(14); // Second "cat" position
-        expect(consoleWarnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('[FuzzyAnchor] Multiple matches found but none match prefix/suffix exactly')
-        );
-        expect(consoleWarnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('[FuzzyAnchor] Using fuzzy context match')
-        );
       });
 
       it('should fallback to first occurrence when no context matches', () => {
@@ -184,9 +178,6 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
 
         // Should return first occurrence as fallback
         expect(result).toEqual({ start: 0, end: 7 });
-        expect(consoleWarnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('[FuzzyAnchor] Multiple matches but no context match')
-        );
       });
     });
 
@@ -198,12 +189,6 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
         const result = findTextWithContext(content, exact);
 
         expect(result).toBeNull();
-        expect(consoleWarnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('[FuzzyAnchor] Exact text not found, trying fuzzy match')
-        );
-        expect(consoleWarnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('[FuzzyAnchor] No acceptable match found')
-        );
       });
 
       it('should return null for empty exact text', () => {
@@ -224,12 +209,6 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
 
         expect(result).not.toBeNull();
         expect(result!.start).toBeGreaterThanOrEqual(0);
-        expect(consoleWarnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('[FuzzyAnchor] Exact text not found, trying fuzzy match')
-        );
-        expect(consoleWarnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('[FuzzyAnchor] Found normalized match')
-        );
       });
 
       it('should find text with different quotes', () => {
@@ -239,7 +218,6 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
         const result = findTextWithContext(content, exact);
 
         expect(result).not.toBeNull();
-        expect(consoleWarnSpy).toHaveBeenCalled();
       });
 
       it('should find text case-insensitively when exact fails', () => {
@@ -250,9 +228,6 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
 
         expect(result).not.toBeNull();
         expect(result!.start).toBe(4);
-        expect(consoleWarnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('[FuzzyAnchor] Found case-insensitive match')
-        );
       });
     });
 

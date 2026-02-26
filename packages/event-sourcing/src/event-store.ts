@@ -106,7 +106,13 @@ export class EventStore {
     if (this.coreEventBus && resourceId !== '__system__') {
       // Use resource-scoped bus for isolation
       const scopedBus = this.coreEventBus.scope(resourceId as string);
-      // Publish domain event to generic 'make-meaning:event' channel
+
+      // Publish to specific event type channel (convert dot notation to colon notation)
+      // e.g., type: 'job.completed' → channel 'job:completed'
+      const eventChannel = storedEvent.event.type.replace(/\./g, ':') as any;
+      scopedBus.get(eventChannel).next(storedEvent.event);
+
+      // Also publish to generic 'make-meaning:event' channel for broad subscribers
       scopedBus.get('make-meaning:event').next(storedEvent.event);
     }
 

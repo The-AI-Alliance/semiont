@@ -202,18 +202,12 @@ export function findTextWithContext(
 
   // No exact matches found - try fuzzy matching
   if (occurrences.length === 0) {
-    console.warn(`[FuzzyAnchor] Exact text not found, trying fuzzy match: "${exact.substring(0, 50)}..."`);
-
     const fuzzyMatch = findBestTextMatch(content, exact, positionHint);
 
     if (fuzzyMatch) {
-      console.warn(
-        `[FuzzyAnchor] Found ${fuzzyMatch.matchQuality} match at position ${fuzzyMatch.start}`
-      );
       return { start: fuzzyMatch.start, end: fuzzyMatch.end };
     }
 
-    console.warn(`[FuzzyAnchor] No acceptable match found for: "${exact.substring(0, 50)}..."`);
     return null;
   }
 
@@ -245,15 +239,7 @@ export function findTextWithContext(
       }
     }
 
-    // No match with exact prefix/suffix - try fuzzy matching
-    console.warn(
-      `[FuzzyAnchor] Multiple matches found but none match prefix/suffix exactly. ` +
-      `Exact: "${exact.substring(0, 30)}...", ` +
-      `Prefix: "${prefix?.substring(0, 20) || 'none'}", ` +
-      `Suffix: "${suffix?.substring(0, 20) || 'none'}"`
-    );
-
-    // Fallback: try partial prefix/suffix match
+    // No match with exact prefix/suffix - try partial prefix/suffix match
     for (const pos of occurrences) {
       const actualPrefix = content.substring(Math.max(0, pos - (prefix?.length || 0)), pos);
       const actualSuffix = content.substring(pos + exact.length, pos + exact.length + (suffix?.length || 0));
@@ -263,17 +249,12 @@ export function findTextWithContext(
       const fuzzySuffixMatch = !suffix || actualSuffix.includes(suffix.trim());
 
       if (fuzzyPrefixMatch && fuzzySuffixMatch) {
-        console.warn(`[FuzzyAnchor] Using fuzzy context match at position ${pos}`);
         return { start: pos, end: pos + exact.length };
       }
     }
   }
 
   // Fallback: return first occurrence if no prefix/suffix or no match
-  console.warn(
-    `[FuzzyAnchor] Multiple matches but no context match. Using first occurrence. ` +
-    `Exact: "${exact.substring(0, 30)}..."`
-  );
   const pos = occurrences[0]!; // Safe: we checked length > 0 earlier
   return { start: pos, end: pos + exact.length };
 }
