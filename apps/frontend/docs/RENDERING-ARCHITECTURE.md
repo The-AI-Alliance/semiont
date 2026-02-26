@@ -27,7 +27,7 @@ We maintain **two separate rendering systems** with different purposes:
 - **Renderer**: react-markdown with remark/rehype plugins
 - **Styling**: Variable-width font, text colors, document-like appearance
 - **Features**: Simple click-to-navigate, clean reading experience
-- **See**: [REACT-MARKDOWN.md](./REACT-MARKDOWN.md)
+- **See**: [ANNOTATION-OVERLAY.md](../../../ANNOTATION-OVERLAY.md)
 
 ## Component Hierarchy
 
@@ -94,7 +94,7 @@ Document Page (/know/document/[id]/page.tsx)
 - Handles annotation clicks for navigation
 - Provides clean, document-like reading experience
 
-**See**: [REACT-MARKDOWN.md](./REACT-MARKDOWN.md) for detailed implementation
+**See**: [ANNOTATION-OVERLAY.md](../../../ANNOTATION-OVERLAY.md) for detailed implementation
 
 ### CodeMirrorRenderer (AnnotateView Renderer)
 
@@ -456,7 +456,7 @@ The rendering system is tested through:
 - [W3C-WEB-ANNOTATION.md](../../../specs/docs/W3C-WEB-ANNOTATION.md) - Complete W3C implementation across all layers
 - [ANNOTATIONS.md](./ANNOTATIONS.md) - Annotation UI/UX and workflows
 - [CODEMIRROR-INTEGRATION.md](./CODEMIRROR-INTEGRATION.md) - AnnotateView rendering implementation
-- [REACT-MARKDOWN.md](./REACT-MARKDOWN.md) - BrowseView rendering implementation
+- [ANNOTATION-OVERLAY.md](../../../ANNOTATION-OVERLAY.md) - BrowseView rendering implementation
 - [ANNOTATION-RENDERING-PRINCIPLES.md](../../../packages/react-ui/docs/ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms and correctness properties
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - Overall frontend architecture
 - [ADDING-LANGUAGE.md](./ADDING-LANGUAGE.md) - How to add new content types

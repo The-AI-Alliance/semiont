@@ -4,7 +4,7 @@
 
 Inline widgets enhance the **AnnotateView** document curation experience by adding interactive visual indicators next to annotations.
 
-**Important**: This document describes widgets used **only in AnnotateView** (curation mode). BrowseView uses a completely different rendering approach (ReactMarkdown) that does not include widgets. See [REACT-MARKDOWN.md](./REACT-MARKDOWN.md) for BrowseView details.
+**Important**: This document describes widgets used **only in AnnotateView** (curation mode). BrowseView uses a completely different rendering approach (ReactMarkdown) that does not include widgets. See [../../../ANNOTATION-OVERLAY.md](./../../../ANNOTATION-OVERLAY.md) for BrowseView details.
 
 **Current Implementation**: The widgets system currently provides one type of enhancement:
 
@@ -356,7 +356,7 @@ describe('CodeMirrorRenderer with widgets', () => {
 ## Related Documentation
 
 - [CODEMIRROR-INTEGRATION.md](./CODEMIRROR-INTEGRATION.md) - CodeMirror integration for AnnotateView
-- [REACT-MARKDOWN.md](./REACT-MARKDOWN.md) - ReactMarkdown integration for BrowseView (no widgets)
+- [../../../ANNOTATION-OVERLAY.md](./../../../ANNOTATION-OVERLAY.md) - ReactMarkdown integration for BrowseView (no widgets)
 - [RENDERING-ARCHITECTURE.md](./RENDERING-ARCHITECTURE.md) - Dual rendering architecture
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - Frontend architecture overview
 - [ANNOTATIONS.md](./ANNOTATIONS.md) - Annotation UI/UX and workflows

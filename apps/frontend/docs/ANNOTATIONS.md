@@ -325,7 +325,7 @@ That's it! All styling, filtering, hover behavior, click handling, and accessibi
 
 The registry is imported and used in `@semiont/react-ui` components:
 
-- [`@semiont/react-ui/src/lib/rehype-render-annotations.ts`](../../../packages/react-ui/src/lib/rehype-render-annotations.ts) - Markdown rendering
+- [`@semiont/react-ui/src/lib/annotation-overlay.ts`](../../../packages/react-ui/src/lib/annotation-overlay.ts) - Annotation overlay (DOM Range-based)
 - [`@semiont/react-ui/src/components/CodeMirrorRenderer.tsx`](../../../packages/react-ui/src/components/CodeMirrorRenderer.tsx) - Code editor rendering
 - [`@semiont/react-ui/src/components/resource/BrowseView.tsx`](../../../packages/react-ui/src/components/resource/BrowseView.tsx) - Browse mode rendering
 - [`@semiont/react-ui/src/components/resource/AnnotateView.tsx`](../../../packages/react-ui/src/components/resource/AnnotateView.tsx) - Annotate mode rendering
@@ -616,21 +616,21 @@ interface W3CAnnotation {
 
 ### Frontend-Specific Types
 
-The frontend uses a simplified `PreparedAnnotation` type for rendering in remark/rehype:
+The frontend uses a simplified `OverlayAnnotation` type for the DOM overlay:
 
 ```typescript
-// src/lib/remark-annotations.ts
-export interface PreparedAnnotation {
+// src/lib/annotation-overlay.ts
+export interface OverlayAnnotation {
   id: string;
   exact: string;    // The annotated text
-  offset: number;   // Character offset in document
+  offset: number;   // Character offset in markdown source
   length: number;   // Length of annotation
   type: string;     // Internal type from registry ('highlight', 'comment', etc.)
   source: string | null;  // Referenced document URI (for references)
 }
 ```
 
-This lightweight format is created by `remark-annotations.ts` from the full W3C annotations for efficient rendering.
+This lightweight format is created by `toOverlayAnnotations()` from the full W3C annotations for efficient DOM Range-based rendering.
 
 ## Conclusion
 
@@ -651,7 +651,7 @@ The modular architecture ensures maintainability and extensibility, while the pr
 - [CODEMIRROR-INTEGRATION.md](./CODEMIRROR-INTEGRATION.md) - Document rendering and editor implementation
 - [ANNOTATION-RENDERING-PRINCIPLES.md](../../../packages/react-ui/docs/ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms and correctness properties
 - [RENDERING-ARCHITECTURE.md](./RENDERING-ARCHITECTURE.md) - Document rendering pipeline
-- [REACT-MARKDOWN.md](./REACT-MARKDOWN.md) - Markdown rendering with remark/rehype
+- [ANNOTATION-OVERLAY.md](../../../ANNOTATION-OVERLAY.md) - BrowseView annotation rendering (DOM Range overlay)
 
 ### System Documentation
 - [ARCHITECTURE.md](../../../docs/ARCHITECTURE.md) - Overall system architecture

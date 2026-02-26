@@ -207,7 +207,7 @@ Some operations run asynchronously via background job workers:
 ### Specialized Topics
 - **[CodeMirror Integration](./docs/CODEMIRROR-INTEGRATION.md)** - Editor implementation details
 - **[CodeMirror Widgets](./docs/CODEMIRROR-WIDGETS.md)** - Custom editor widgets
-- **[React Markdown](./docs/REACT-MARKDOWN.md)** - Markdown rendering details
+- **[Annotation Overlay](../../ANNOTATION-OVERLAY.md)** - BrowseView annotation rendering (DOM Range overlay)
 - **[Annotation Rendering](./docs/ANNOTATION-RENDERING-PRINCIPLES.md)** - Annotation rendering principles
 - **[Adding Languages](./docs/ADDING-LANGUAGE.md)** - Internationalization
 - **[Archive & Clone](./docs/ARCHIVE-CLONE.md)** - Document archiving and cloning

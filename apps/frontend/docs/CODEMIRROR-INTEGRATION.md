@@ -4,7 +4,7 @@
 
 The Semiont frontend uses CodeMirror 6 for **AnnotateView** (curation mode) to render markdown documents with annotations. This document explains why we chose CodeMirror for annotation editing, how it's integrated, and future improvements.
 
-**Important**: This document describes CodeMirror integration for **AnnotateView only**. BrowseView uses a completely different rendering approach (ReactMarkdown) documented in [REACT-MARKDOWN.md](./REACT-MARKDOWN.md).
+**Important**: This document describes CodeMirror integration for **AnnotateView only**. BrowseView uses a completely different rendering approach (ReactMarkdown) documented in [ANNOTATION-OVERLAY.md](../../../ANNOTATION-OVERLAY.md).
 
 ## Why CodeMirror?
 
@@ -375,7 +375,7 @@ const end = start + text.length;
 
 **Location**: `/src/components/resource/BrowseView.tsx`
 
-**Note**: BrowseView does **NOT** use CodeMirrorRenderer. It uses ReactMarkdown instead for a clean, prose-style reading experience. See [REACT-MARKDOWN.md](./REACT-MARKDOWN.md) for details.
+**Note**: BrowseView does **NOT** use CodeMirrorRenderer. It uses ReactMarkdown instead for a clean, prose-style reading experience. See [ANNOTATION-OVERLAY.md](../../../ANNOTATION-OVERLAY.md) for details.
 
 ## Comparison with Previous Approaches
 
@@ -399,7 +399,7 @@ const end = start + text.length;
 - Applies annotations via custom rehype plugin
 - Used in BrowseView for prose-style display
 
-**Note**: See [REACT-MARKDOWN.md](./REACT-MARKDOWN.md) for details on BrowseView's ReactMarkdown implementation.
+**Note**: See [ANNOTATION-OVERLAY.md](../../../ANNOTATION-OVERLAY.md) for details on BrowseView's ReactMarkdown implementation.
 
 ### CodeMirror Approach (Current - AnnotateView)
 
