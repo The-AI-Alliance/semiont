@@ -204,9 +204,12 @@ export function useAnnotationFlow(rUri: ResourceUri): AnnotationFlowState {
     setProgress(chunk);
   }, []);
 
-  const handleAnnotationComplete = useCallback(() => {
-    // Keep progress visible with final message - only clear assisting flag
-    setAssistingMotivation(null);
+  const handleAnnotationComplete = useCallback((event: EventMap['annotate:assist-finished']) => {
+    // Only clear if the completion event's motivation matches the current one
+    setAssistingMotivation(prev => {
+      if (!event.motivation || event.motivation !== prev) return prev;
+      return null;
+    });
 
     // Show success notification
     showSuccess('Annotation complete');
