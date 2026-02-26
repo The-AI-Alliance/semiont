@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import { useEffect, useRef, useCallback, useMemo, memo, lazy, Suspense } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { remarkAnnotations, type PreparedAnnotation } from '../../lib/remark-annotations';
@@ -68,6 +68,33 @@ function prepareAnnotations(annotations: Annotation[]): PreparedAnnotation[] {
 }
 
 /**
+ * Memoized markdown renderer — only re-renders when content or annotations change.
+ * Prevents the expensive ReactMarkdown + remark/rehype pipeline from re-running
+ * on unrelated state changes (hover, tab switch, progress update, etc.).
+ */
+const MemoizedMarkdown = memo(function MemoizedMarkdown({
+  content,
+  preparedAnnotations,
+}: {
+  content: string;
+  preparedAnnotations: PreparedAnnotation[];
+}) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[
+        remarkGfm,
+        [remarkAnnotations, { annotations: preparedAnnotations }]
+      ]}
+      rehypePlugins={[
+        rehypeRenderAnnotations
+      ]}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+});
+
+/**
  * View component for browsing annotated resources in read-only mode
  *
  * @emits attend:click - User clicked on annotation. Payload: { annotationId: string, motivation: Motivation }
@@ -76,7 +103,7 @@ function prepareAnnotations(annotations: Annotation[]): PreparedAnnotation[] {
  * @subscribes attend:hover - Highlight annotation on hover. Payload: { annotationId: string | null }
  * @subscribes attend:focus - Scroll to and highlight annotation. Payload: { annotationId: string }
  */
-export function BrowseView({
+export const BrowseView = memo(function BrowseView({
   content,
   mimeType,
   resourceUri,
@@ -93,9 +120,15 @@ export function BrowseView({
 
   const { highlights, references, assessments, comments, tags } = annotations;
 
-  const allAnnotations = [...highlights, ...references, ...assessments, ...comments, ...tags];
+  const allAnnotations = useMemo(
+    () => [...highlights, ...references, ...assessments, ...comments, ...tags],
+    [highlights, references, assessments, comments, tags]
+  );
 
-  const preparedAnnotations = prepareAnnotations(allAnnotations);
+  const preparedAnnotations = useMemo(
+    () => prepareAnnotations(allAnnotations),
+    [allAnnotations]
+  );
 
   // Attach click handler, hover handler, and animations after render
   useEffect(() => {
@@ -199,17 +232,7 @@ export function BrowseView({
             annotators={ANNOTATORS}
           />
           <div ref={containerRef} className="semiont-browse-view__content">
-            <ReactMarkdown
-              remarkPlugins={[
-                remarkGfm,
-                [remarkAnnotations, { annotations: preparedAnnotations }]
-              ]}
-              rehypePlugins={[
-                rehypeRenderAnnotations
-              ]}
-            >
-              {content}
-            </ReactMarkdown>
+            <MemoizedMarkdown content={content} preparedAnnotations={preparedAnnotations} />
           </div>
         </div>
       );
@@ -280,4 +303,4 @@ export function BrowseView({
         </div>
       );
   }
-}
+});

@@ -414,26 +414,28 @@ export function ResourceViewerPage({
     return false;
   });
 
-  // Group annotations by type using static ANNOTATORS
-  const result = {
-    highlights: [] as Annotation[],
-    references: [] as Annotation[],
-    assessments: [] as Annotation[],
-    comments: [] as Annotation[],
-    tags: [] as Annotation[]
-  };
+  // Group annotations by type using static ANNOTATORS (memoized to avoid re-grouping on unrelated re-renders)
+  const groups = useMemo(() => {
+    const result = {
+      highlights: [] as Annotation[],
+      references: [] as Annotation[],
+      assessments: [] as Annotation[],
+      comments: [] as Annotation[],
+      tags: [] as Annotation[]
+    };
 
-  for (const ann of annotations) {
-    const annotator = Object.values(ANNOTATORS).find(a => a.matchesAnnotation(ann));
-    if (annotator) {
-      const key = annotator.internalType + 's'; // highlight -> highlights
-      if (result[key as keyof typeof result]) {
-        result[key as keyof typeof result].push(ann);
+    for (const ann of annotations) {
+      const annotator = Object.values(ANNOTATORS).find(a => a.matchesAnnotation(ann));
+      if (annotator) {
+        const key = annotator.internalType + 's'; // highlight -> highlights
+        if (result[key as keyof typeof result]) {
+          result[key as keyof typeof result].push(ann);
+        }
       }
     }
-  }
 
-  const groups = result;
+    return result;
+  }, [annotations]);
 
   // Combine resource with content
   const resourceWithContent = { ...resource, content };
