@@ -24,7 +24,7 @@ type SemiontResource = components['schemas']['ResourceDescriptor'];
  * ResourceViewer - Display and interact with resource content and annotations
  *
  * This component uses event-driven architecture for real-time updates:
- * - Subscribes to make-meaning events (annotation:added, annotation:removed, annotation:updated)
+ * - Subscribes to make-meaning events (annotate:added, annotate:removed, annotate:body-updated)
  * - Automatically invalidates cache when annotations change
  * - No manual refetch needed - events handle cache invalidation
  *
@@ -43,27 +43,29 @@ interface Props {
   annotations: AnnotationsCollection;
   generatingReferenceId?: string | null;
   showLineNumbers?: boolean;
+  hoverDelayMs?: number;
   hoveredAnnotationId?: string | null;
 }
 
 /**
- * @emits annotation:delete - User requested to delete annotation. Payload: { annotationId: string }
- * @emits panel:open - Request to open panel with annotation. Payload: { panel: string, scrollToAnnotationId?: string, motivation?: Motivation }
+ * @emits annotate:delete - User requested to delete annotation. Payload: { annotationId: string }
+ * @emits attend:panel-open - Request to open panel with annotation. Payload: { panel: string, scrollToAnnotationId?: string, motivation?: Motivation }
  *
- * @subscribes view:mode-toggled - Toggles between browse and annotate mode. Payload: { mode: 'browse' | 'annotate' }
- * @subscribes annotation:added - New annotation was added. Payload: { annotation: Annotation }
- * @subscribes annotation:removed - Annotation was removed. Payload: { annotationId: string }
- * @subscribes annotation:updated - Annotation was updated. Payload: { annotation: Annotation }
- * @subscribes toolbar:selection-changed - Text selection tool changed. Payload: { selection: boolean }
- * @subscribes toolbar:click-changed - Click annotation tool changed. Payload: { click: 'detail' | 'scroll' | null }
- * @subscribes toolbar:shape-changed - Drawing shape changed. Payload: { shape: string }
- * @subscribes annotation:click - User clicked on annotation. Payload: { annotationId: string }
+ * @subscribes annotate:mode-toggled - Toggles between browse and annotate mode. Payload: { mode: 'browse' | 'annotate' }
+ * @subscribes annotate:added - New annotation was added. Payload: { annotation: Annotation }
+ * @subscribes annotate:removed - Annotation was removed. Payload: { annotationId: string }
+ * @subscribes annotate:body-updated - Annotation was updated. Payload: { annotation: Annotation }
+ * @subscribes annotate:selection-changed - Text selection tool changed. Payload: { selection: boolean }
+ * @subscribes annotate:click-changed - Click annotation tool changed. Payload: { click: 'detail' | 'scroll' | null }
+ * @subscribes annotate:shape-changed - Drawing shape changed. Payload: { shape: string }
+ * @subscribes attend:click - User clicked on annotation. Payload: { annotationId: string }
  */
 export function ResourceViewer({
   resource,
   annotations,
   generatingReferenceId,
   showLineNumbers = false,
+  hoverDelayMs,
   hoveredAnnotationId: hoveredAnnotationIdProp
 }: Props) {
   const t = useTranslations('ResourceViewer');
@@ -122,19 +124,19 @@ export function ResourceViewer({
   // This replaces manual onRefetchAnnotations calls with automatic updates
   const cacheManager = useCacheManager();
 
-  const handleAnnotationAdded = useCallback(() => {
+  const handleAnnotateAdded = useCallback(() => {
     if (cacheManager) {
       cacheManager.invalidateAnnotations(rUri);
     }
   }, [cacheManager, rUri]);
 
-  const handleAnnotationRemoved = useCallback(() => {
+  const handleAnnotateRemoved = useCallback(() => {
     if (cacheManager) {
       cacheManager.invalidateAnnotations(rUri);
     }
   }, [cacheManager, rUri]);
 
-  const handleAnnotationUpdated = useCallback(() => {
+  const handleAnnotateBodyUpdated = useCallback(() => {
     if (cacheManager) {
       cacheManager.invalidateAnnotations(rUri);
     }
@@ -250,7 +252,7 @@ export function ResourceViewer({
 
   // Handle deleting annotations - emit event instead of direct call
   const handleDeleteAnnotation = useCallback((id: string) => {
-    eventBus.get('annotation:delete').next({ annotationId: id });
+    eventBus.get('annotate:delete').next({ annotationId: id });
   }, []); // eventBus is stable
 
   // Handle annotation clicks - memoized
@@ -339,27 +341,27 @@ export function ResourceViewer({
 
     // All annotations open the unified annotations panel
     // The panel internally switches tabs based on the motivation → tab mapping in UnifiedAnnotationsPanel
-    eventBus.get('panel:open').next({ panel: 'annotations', scrollToAnnotationId: annotationId, motivation });
+    eventBus.get('attend:panel-open').next({ panel: 'annotations', scrollToAnnotationId: annotationId, motivation });
   }, [highlights, references, assessments, comments, tags, handleAnnotationClick, selectedClick]);
 
   // Event subscriptions - Combined into single useEventSubscriptions call to prevent hook ordering issues
   // IMPORTANT: All event subscriptions MUST be in a single call to maintain consistent hook order between renders
   useEventSubscriptions({
     // View mode
-    'view:mode-toggled': handleViewModeToggle,
+    'annotate:mode-toggled': handleViewModeToggle,
 
     // Annotation cache invalidation
-    'annotation:added': handleAnnotationAdded,
-    'annotation:removed': handleAnnotationRemoved,
-    'annotation:updated': handleAnnotationUpdated,
+    'annotate:added': handleAnnotateAdded,
+    'annotate:removed': handleAnnotateRemoved,
+    'annotate:body-updated': handleAnnotateBodyUpdated,
 
     // Toolbar state
-    'toolbar:selection-changed': handleToolbarSelectionChanged,
-    'toolbar:click-changed': handleToolbarClickChanged,
-    'toolbar:shape-changed': handleToolbarShapeChanged,
+    'annotate:selection-changed': handleToolbarSelectionChanged,
+    'annotate:click-changed': handleToolbarClickChanged,
+    'annotate:shape-changed': handleToolbarShapeChanged,
 
     // Annotation clicks
-    'annotation:click': handleAnnotationClickEvent,
+    'attend:click': handleAnnotationClickEvent,
   });
 
   // Prepare props for child components
@@ -400,6 +402,7 @@ export function ResourceViewer({
           getTargetDocumentName={getTargetDocumentName}
           {...(generatingReferenceId !== undefined && { generatingReferenceId })}
           showLineNumbers={showLineNumbers}
+          hoverDelayMs={hoverDelayMs}
           annotateMode={annotateMode}
         />
       ) : (
@@ -410,6 +413,7 @@ export function ResourceViewer({
           annotations={annotationsCollection}
           hoveredCommentId={hoveredCommentId}
           selectedClick={selectedClick}
+          hoverDelayMs={hoverDelayMs}
           annotateMode={annotateMode}
         />
       )}

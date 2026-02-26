@@ -113,15 +113,15 @@
 }
 
 /* ============================================
-   Detection Section in Unified Panel
+   Assist Section in Unified Panel
    ============================================ */
 .semiont-motivation-tag-section,
-.semiont-detect-section[data-type="tag"] {
+.semiont-assist-section[data-type="tag"] {
   border-color: var(--semiont-motivation-tag-primary);
 }
 
 [data-theme="dark"] .semiont-motivation-tag-section,
-[data-theme="dark"] .semiont-detect-section[data-type="tag"] {
+[data-theme="dark"] .semiont-assist-section[data-type="tag"] {
   border-color: var(--semiont-motivation-tag-dark-primary);
 }
 
@@ -129,7 +129,7 @@
    Button Styling
    ============================================ */
 .semiont-motivation-tag-button,
-.semiont-button[data-variant="detect"][data-type="tag"] {
+.semiont-button[data-variant="assist"][data-type="tag"] {
   background: linear-gradient(to right, var(--semiont-color-orange-500), var(--semiont-color-amber-500)) !important;
   color: var(--semiont-color-white) !important;
   border: 1px solid var(--semiont-motivation-tag-border);
@@ -138,29 +138,29 @@
 }
 
 .semiont-motivation-tag-button:hover,
-.semiont-button[data-variant="detect"][data-type="tag"]:hover:not(:disabled) {
+.semiont-button[data-variant="assist"][data-type="tag"]:hover:not(:disabled) {
   background: var(--semiont-motivation-tag-button-bg-hover);
   border-color: var(--semiont-motivation-tag-primary);
 }
 
 [data-theme="dark"] .semiont-motivation-tag-button,
-[data-theme="dark"] .semiont-button[data-variant="detect"][data-type="tag"] {
+[data-theme="dark"] .semiont-button[data-variant="assist"][data-type="tag"] {
   border-color: var(--semiont-motivation-tag-dark-outline);
 }
 
 [data-theme="dark"] .semiont-motivation-tag-button:hover,
-[data-theme="dark"] .semiont-button[data-variant="detect"][data-type="tag"]:hover:not(:disabled) {
+[data-theme="dark"] .semiont-button[data-variant="assist"][data-type="tag"]:hover:not(:disabled) {
   border-color: var(--semiont-motivation-tag-dark-primary);
 }
 
 .semiont-motivation-tag-button:focus-visible,
-.semiont-button[data-variant="detect"][data-type="tag"]:focus-visible {
+.semiont-button[data-variant="assist"][data-type="tag"]:focus-visible {
   outline: 2px solid var(--semiont-motivation-tag-primary);
   outline-offset: 2px;
 }
 
 [data-theme="dark"] .semiont-motivation-tag-button:focus-visible,
-[data-theme="dark"] .semiont-button[data-variant="detect"][data-type="tag"]:focus-visible {
+[data-theme="dark"] .semiont-button[data-variant="assist"][data-type="tag"]:focus-visible {
   outline: 2px solid var(--semiont-motivation-tag-dark-primary);
   outline-offset: 2px;
 }

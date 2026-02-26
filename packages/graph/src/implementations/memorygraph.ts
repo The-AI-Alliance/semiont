@@ -2,8 +2,7 @@
 // Used for development and testing without requiring a real graph database
 
 import { GraphDatabase } from '../interface';
-import { getEntityTypes } from '@semiont/ontology';
-import type { components } from '@semiont/core';
+import type { components, Logger } from '@semiont/core';
 import type {
   AnnotationCategory,
   GraphConnection,
@@ -35,19 +34,19 @@ type Annotation = components['schemas']['Annotation'];
 
 export class MemoryGraphDatabase implements GraphDatabase {
   private connected: boolean = false;
-  
+  private logger?: Logger;
+
   // In-memory storage using Maps
   private resources: Map<string, ResourceDescriptor> = new Map();
   private annotations: Map<string, Annotation> = new Map();
-  
-  constructor(config: any = {}) {
-    // Config is ignored for in-memory implementation
-    void config;
+
+  constructor(config: { logger?: Logger } = {}) {
+    this.logger = config.logger;
   }
   
   async connect(): Promise<void> {
     // No actual connection needed for in-memory storage
-    console.log('Using in-memory graph database...');
+    this.logger?.info('Using in-memory graph database');
     this.connected = true;
   }
   
@@ -189,7 +188,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
     };
 
     this.annotations.set(id, annotation);
-    console.log('Memory: Created annotation:', {
+    this.logger?.debug('Created annotation', {
       id,
       motivation: annotation.motivation,
       hasSource: !!getBodySource(annotation.body),
@@ -254,7 +253,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
         const targetResourceId = targetSource ? uriToResourceId(targetSource) : null;
         return targetResourceId === resourceIdStr && sel.motivation === 'highlighting';
       });
-    console.log(`Memory: getHighlights for ${resourceId} found ${highlights.length} highlights`);
+    this.logger?.debug('Got highlights for resource', { resourceId, count: highlights.length });
     return highlights;
   }
 
@@ -289,14 +288,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
         const targetResourceId = targetSource ? uriToResourceId(targetSource) : null;
         return targetResourceId === resourceIdStr && sel.motivation === 'linking';
       });
-    console.log(`Memory: getReferences for ${resourceId} found ${references.length} references`);
-    references.forEach(ref => {
-      console.log('  Reference:', {
-        id: ref.id,
-        source: getBodySource(ref.body),
-        entityTypes: getEntityTypes(ref) // from body
-      });
-    });
+    this.logger?.debug('Got references for resource', { resourceId, count: references.length });
     return references;
   }
 

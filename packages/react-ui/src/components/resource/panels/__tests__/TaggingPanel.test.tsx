@@ -29,7 +29,7 @@ function createEventTracker() {
         events.push({ event: eventName, payload });
       };
 
-      const panelEvents = ['annotation:create', 'detection:start'] as const;
+      const panelEvents = ['annotate:create', 'annotate:assist-request'] as const;
 
       panelEvents.forEach(eventName => {
         const handler = trackEvent(eventName);
@@ -87,8 +87,8 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
       schemaLegal: 'Legal (IRAC)',
       schemaScientific: 'Scientific (IMRAD)',
       schemaArgument: 'Argument',
-      detectTags: 'Detect Tags',
-      detect: 'Detect',
+      annotateTags: 'Annotate Tags',
+      annotate: 'Annotate',
       cancel: 'Cancel',
       fragmentSelected: 'Fragment selected',
       selectAll: 'Select All',
@@ -354,7 +354,7 @@ describe('TaggingPanel Component', () => {
       expect(screen.getByText(/Select category/)).toBeInTheDocument();
     });
 
-    it('should emit annotation:create event when category is selected', async () => {
+    it('should emit annotate:createevent when category is selected', async () => {
       const tracker = createEventTracker();
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
@@ -378,7 +378,7 @@ describe('TaggingPanel Component', () => {
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'annotation:create' &&
+          e.event === 'annotate:create' &&
           e.payload?.motivation === 'tagging' &&
           e.payload?.body?.[0]?.value === 'Issue' &&
           e.payload?.body?.[0]?.type === 'TextualBody'
@@ -407,7 +407,7 @@ describe('TaggingPanel Component', () => {
       await userEvent.selectOptions(categorySelect!, 'Rule');
 
       await waitFor(() => {
-        const createEvent = tracker.events.find(e => e.event === 'annotation:create');
+        const createEvent = tracker.events.find(e => e.event === 'annotate:create');
         expect(createEvent).toBeDefined();
         const body: any[] = createEvent!.payload.body;
 
@@ -482,7 +482,7 @@ describe('TaggingPanel Component', () => {
         />
       );
 
-      expect(screen.getByText(/Detect Tags/)).toBeInTheDocument();
+      expect(screen.getByText(/Annotate Tags/)).toBeInTheDocument();
     });
 
     it('should not render detection section when annotateMode is false', () => {
@@ -493,7 +493,7 @@ describe('TaggingPanel Component', () => {
         />
       );
 
-      expect(screen.queryByText(/Detect Tags/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Annotate Tags/)).not.toBeInTheDocument();
     });
 
     it('should show schema selector in detection section', () => {
@@ -542,8 +542,8 @@ describe('TaggingPanel Component', () => {
         />
       );
 
-      const detectButton = screen.getByRole('button', { name: /✨ Detect/i });
-      expect(detectButton).toBeDisabled();
+      const annotateButton = screen.getByRole('button', { name: /✨ Annotate/i });
+      expect(annotateButton).toBeDisabled();
     });
 
     it('should enable detect button when categories are selected', async () => {
@@ -557,11 +557,11 @@ describe('TaggingPanel Component', () => {
       const issueCheckbox = screen.getByLabelText(/Issue/);
       await userEvent.click(issueCheckbox);
 
-      const detectButton = screen.getByRole('button', { name: /✨ Detect/i });
-      expect(detectButton).not.toBeDisabled();
+      const annotateButton = screen.getByRole('button', { name: /✨ Annotate/i });
+      expect(annotateButton).not.toBeDisabled();
     });
 
-    it('should emit detection:start event with selected schema and categories', async () => {
+    it('should emit annotate:detect-request event with selected schema and categories', async () => {
       const tracker = createEventTracker();
       renderWithEventBus(
         <TaggingPanel
@@ -577,12 +577,12 @@ describe('TaggingPanel Component', () => {
       await userEvent.click(issueCheckbox);
       await userEvent.click(ruleCheckbox);
 
-      const detectButton = screen.getByRole('button', { name: /✨ Detect/i });
-      await userEvent.click(detectButton);
+      const annotateButton = screen.getByRole('button', { name: /✨ Annotate/i });
+      await userEvent.click(annotateButton);
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'detection:start' &&
+          e.event === 'annotate:assist-request' &&
           e.payload?.motivation === 'tagging' &&
           e.payload?.options?.schemaId === 'legal-irac' &&
           e.payload?.options?.categories?.includes('Issue') &&

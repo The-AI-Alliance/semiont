@@ -5,6 +5,8 @@ import { uriToAnnotationIdOrPassthrough } from '@semiont/core';
 import { useEventBus } from '../contexts/EventBusContext';
 import { useApiClient } from '../contexts/ApiClientContext';
 import { useAuthToken } from '../contexts/AuthTokenContext';
+import { useEventSubscriptions } from '../contexts/useEventSubscription';
+import { useToast } from '../components/Toast';
 
 /** Helper to convert string | null to AccessToken | undefined */
 function toAccessToken(token: string | null) {
@@ -24,17 +26,18 @@ export interface ResolutionFlowState {
  * @param rUri - Resource URI being viewed
  * @returns Resolution flow state (search modal open state and close handler)
  *
- * @emits annotation:body-updated - Annotation body successfully updated
- * @emits annotation:body-update-failed - Annotation body update failed
- * @emits resolution:search-requested - Search modal requested
- * @subscribes annotation:update-body - Update annotation body via API
- * @subscribes reference:link - User clicked "Link Document"; opens search modal
- * @subscribes resolution:search-requested - Opens search modal with pending reference
+ * @emits resolve:body-updated - Annotation body successfully updated
+ * @emits resolve:body-update-failed - Annotation body update failed
+ * @emits resolve:search-requested - Search modal requested
+ * @subscribes resolve:update-body - Update annotation body via API
+ * @subscribes resolve:link - User clicked "Link Document"; opens search modal
+ * @subscribes resolve:search-requested - Opens search modal with pending reference
  */
 export function useResolutionFlow(rUri: ResourceUri): ResolutionFlowState {
   const eventBus = useEventBus();
   const client = useApiClient();
   const token = useAuthToken();
+  const { showError } = useToast();
 
   // Resolution search modal state
   const [searchModalOpen, setSearchModalOpen] = useState(false);
@@ -86,10 +89,10 @@ export function useResolutionFlow(rUri: ResourceUri): ResolutionFlowState {
           operations: event.operations as any,
         }, { auth: toAccessToken(tokenRef.current) });
 
-        eventBus.get('annotation:body-updated').next({ annotationUri: event.annotationUri });
+        eventBus.get('resolve:body-updated').next({ annotationUri: event.annotationUri });
       } catch (error) {
         console.error('Failed to update annotation body:', error);
-        eventBus.get('annotation:body-update-failed').next({ error: error as Error });
+        eventBus.get('resolve:body-update-failed').next({ error: error as Error });
       }
     };
 
@@ -101,14 +104,14 @@ export function useResolutionFlow(rUri: ResourceUri): ResolutionFlowState {
       annotationUri: string;
       searchTerm: string;
     }) => {
-      eventBus.get('resolution:search-requested').next({
+      eventBus.get('resolve:search-requested').next({
         referenceId: event.annotationUri,
         searchTerm: event.searchTerm,
       });
     };
 
-    const subscription1 = eventBus.get('annotation:update-body').subscribe(handleAnnotationUpdateBody);
-    const subscription2 = eventBus.get('reference:link').subscribe(handleReferenceLink);
+    const subscription1 = eventBus.get('resolve:update-body').subscribe(handleAnnotationUpdateBody);
+    const subscription2 = eventBus.get('resolve:link').subscribe(handleReferenceLink);
 
     return () => {
       subscription1.unsubscribe();
@@ -122,9 +125,14 @@ export function useResolutionFlow(rUri: ResourceUri): ResolutionFlowState {
       setSearchModalOpen(true);
     };
 
-    const subscription = eventBus.get('resolution:search-requested').subscribe(handleResolutionSearchRequested);
+    const subscription = eventBus.get('resolve:search-requested').subscribe(handleResolutionSearchRequested);
     return () => subscription.unsubscribe();
   }, [eventBus]);
+
+  // Toast notifications for resolution errors (matching annotation flow pattern)
+  useEventSubscriptions({
+    'resolve:body-update-failed': ({ error }) => showError(`Failed to update reference: ${error.message}`),
+  });
 
   return { searchModalOpen, pendingReferenceId, onCloseSearchModal };
 }

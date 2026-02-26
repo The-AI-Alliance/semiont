@@ -8,7 +8,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import type { AnyJob, JobStatus, JobQueryFilters, CancelledJob } from './types';
-import type { JobId } from '@semiont/core';
+import type { JobId, Logger } from '@semiont/core';
 import type { EventBus } from '@semiont/core';
 
 export interface JobQueueConfig {
@@ -17,12 +17,15 @@ export interface JobQueueConfig {
 
 export class JobQueue {
   private jobsDir: string;
+  private logger: Logger;
 
   constructor(
     config: JobQueueConfig,
+    logger: Logger,
     private eventBus?: EventBus
   ) {
     this.jobsDir = path.join(config.dataDir, 'jobs');
+    this.logger = logger;
   }
 
   /**
@@ -36,7 +39,7 @@ export class JobQueue {
       await fs.mkdir(dir, { recursive: true });
     }
 
-    console.log('[JobQueue] Initialized job directories');
+    this.logger.info('Job queue initialized');
   }
 
   /**
@@ -45,7 +48,7 @@ export class JobQueue {
   async createJob(job: AnyJob): Promise<void> {
     const jobPath = this.getJobPath(job.metadata.id, job.status);
     await fs.writeFile(jobPath, JSON.stringify(job, null, 2), 'utf-8');
-    console.log(`[JobQueue] Created job ${job.metadata.id} with status ${job.status}`);
+    this.logger.info('Job created', { jobId: job.metadata.id, status: job.status });
 
     // Emit job:queued event if EventBus is available
     if (this.eventBus && 'params' in job && 'resourceId' in job.params) {
@@ -97,9 +100,9 @@ export class JobQueue {
     await fs.writeFile(newPath, JSON.stringify(job, null, 2), 'utf-8');
 
     if (oldStatus && oldStatus !== job.status) {
-      console.log(`[JobQueue] Moved job ${job.metadata.id} from ${oldStatus} to ${job.status}`);
+      this.logger.info('Job moved', { jobId: job.metadata.id, oldStatus, newStatus: job.status });
     } else {
-      console.log(`[JobQueue] Updated job ${job.metadata.id} (status: ${job.status})`);
+      this.logger.info('Job updated', { jobId: job.metadata.id, status: job.status });
     }
   }
 
@@ -125,7 +128,7 @@ export class JobQueue {
       const content = await fs.readFile(jobPath, 'utf-8');
       return JSON.parse(content) as AnyJob;
     } catch (error) {
-      console.error('[JobQueue] Error polling pending jobs:', error);
+      this.logger.error('Error polling pending jobs', { error: error instanceof Error ? error.message : String(error) });
       return null;
     }
   }
@@ -234,12 +237,12 @@ export class JobQueue {
           }
         }
       } catch (error) {
-        console.error(`[JobQueue] Error cleaning up ${status} jobs:`, error);
+        this.logger.error('Error cleaning up jobs', { status, error: error instanceof Error ? error.message : String(error) });
       }
     }
 
     if (deletedCount > 0) {
-      console.log(`[JobQueue] Cleaned up ${deletedCount} old jobs`);
+      this.logger.info('Jobs cleaned up', { deletedCount });
     }
 
     return deletedCount;
@@ -298,8 +301,8 @@ export function getJobQueue(): JobQueue {
   return jobQueue;
 }
 
-export async function initializeJobQueue(config: JobQueueConfig): Promise<JobQueue> {
-  jobQueue = new JobQueue(config);
+export async function initializeJobQueue(config: JobQueueConfig, logger: Logger, eventBus?: EventBus): Promise<JobQueue> {
+  jobQueue = new JobQueue(config, logger, eventBus);
   await jobQueue.initialize();
   return jobQueue;
 }

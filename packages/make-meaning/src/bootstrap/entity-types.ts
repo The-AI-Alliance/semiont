@@ -10,7 +10,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import type { EventStore } from '@semiont/event-sourcing';
 import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
-import { userId, type EnvironmentConfig } from '@semiont/core';
+import { userId, type EnvironmentConfig, type Logger } from '@semiont/core';
 
 // Singleton flag to ensure bootstrap only runs once per process
 let bootstrapCompleted = false;
@@ -19,9 +19,9 @@ let bootstrapCompleted = false;
  * Bootstrap entity types projection if it doesn't exist.
  * Uses a system user ID (00000000-0000-0000-0000-000000000000) for bootstrap events.
  */
-export async function bootstrapEntityTypes(eventStore: EventStore, config: EnvironmentConfig): Promise<void> {
+export async function bootstrapEntityTypes(eventStore: EventStore, config: EnvironmentConfig, logger?: Logger): Promise<void> {
   if (bootstrapCompleted) {
-    console.log('[EntityTypesBootstrap] Already completed, skipping');
+    logger?.debug('Entity types bootstrap already completed, skipping');
     return;
   }
 
@@ -47,7 +47,7 @@ export async function bootstrapEntityTypes(eventStore: EventStore, config: Envir
   try {
     // Check if projection exists
     await fs.access(projectionPath);
-    console.log('[EntityTypesBootstrap] Projection already exists, skipping bootstrap');
+    logger?.info('Entity types projection already exists, skipping bootstrap');
     bootstrapCompleted = true;
     return;
   } catch (error: any) {
@@ -55,16 +55,15 @@ export async function bootstrapEntityTypes(eventStore: EventStore, config: Envir
       throw error;
     }
     // File doesn't exist - proceed with bootstrap
+    logger?.info('Entity types projection does not exist, bootstrapping with DEFAULT_ENTITY_TYPES');
   }
-
-  console.log('[EntityTypesBootstrap] Projection does not exist, bootstrapping with DEFAULT_ENTITY_TYPES');
 
   // System user ID for bootstrap events
   const SYSTEM_USER_ID = userId('00000000-0000-0000-0000-000000000000');
 
   // Emit one entitytype.added event for each default entity type
   for (const entityType of DEFAULT_ENTITY_TYPES) {
-    console.log(`[EntityTypesBootstrap] Emitting entitytype.added for: ${entityType}`);
+    logger?.debug('Emitting entitytype.added event', { entityType });
     await eventStore.appendEvent({
       type: 'entitytype.added',
       // resourceId: undefined - system-level event
@@ -76,7 +75,7 @@ export async function bootstrapEntityTypes(eventStore: EventStore, config: Envir
     });
   }
 
-  console.log(`[EntityTypesBootstrap] Completed: ${DEFAULT_ENTITY_TYPES.length} entity types bootstrapped`);
+  logger?.info('Entity types bootstrap completed', { count: DEFAULT_ENTITY_TYPES.length });
   bootstrapCompleted = true;
 }
 

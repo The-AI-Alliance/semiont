@@ -16,12 +16,20 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { LLMContext } from '../llm-context';
 import { ResourceOperations } from '../resource-operations';
 import { AnnotationOperations } from '../annotation-operations';
-import { resourceId, userId, type EnvironmentConfig } from '@semiont/core';
+import { resourceId, userId, type EnvironmentConfig, type Logger } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore, type RepresentationStore } from '@semiont/content';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+
+const mockLogger: Logger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger)
+};
 
 // Mock @semiont/inference to avoid external API calls
 let mockClient: any;
@@ -92,8 +100,8 @@ describe('LLM Context', () => {
     } as EnvironmentConfig;
 
     // Initialize stores
-    eventStore = createEventStore(testDir, config.services.backend!.publicURL);
-    repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir);
+    eventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
+    repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
 
     // Create a test resource
     const content = Buffer.from('This is test content for LLM context building.', 'utf-8');

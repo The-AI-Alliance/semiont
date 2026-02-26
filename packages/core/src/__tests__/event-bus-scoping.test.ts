@@ -21,11 +21,11 @@ describe('EventBus scoping', () => {
     const events1: any[] = [];
     const events2: any[] = [];
 
-    resource1.get('detection:progress').subscribe(e => events1.push(e));
-    resource2.get('detection:progress').subscribe(e => events2.push(e));
+    resource1.get('annotate:progress').subscribe(e => events1.push(e));
+    resource2.get('annotate:progress').subscribe(e => events2.push(e));
 
-    resource1.get('detection:progress').next({ status: 'started' });
-    resource2.get('detection:progress').next({ status: 'complete' });
+    resource1.get('annotate:progress').next({ status: 'started' });
+    resource2.get('annotate:progress').next({ status: 'complete' });
 
     expect(events1).toHaveLength(1);
     expect(events1[0].status).toBe('started');
@@ -41,8 +41,8 @@ describe('EventBus scoping', () => {
     const events1: any[] = [];
     const events2: any[] = [];
 
-    resource1.get('annotation:created').subscribe(e => events1.push(e));
-    resource2.get('annotation:created').subscribe(e => events2.push(e));
+    resource1.get('annotate:created').subscribe(e => events1.push(e));
+    resource2.get('annotate:created').subscribe(e => events2.push(e));
 
     // Emit to resource1 only
     const mockAnnotation = {
@@ -53,7 +53,7 @@ describe('EventBus scoping', () => {
       target: 'http://localhost:4000/resources/resource-1',
       body: []
     };
-    resource1.get('annotation:created').next({ annotation: mockAnnotation });
+    resource1.get('annotate:created').next({ annotation: mockAnnotation });
 
     expect(events1).toHaveLength(1);
     expect(events1[0].annotation.id).toBe('http://localhost:4000/annotations/ann-1');
@@ -68,12 +68,12 @@ describe('EventBus scoping', () => {
     const resourceEvents: any[] = [];
     const subsystemEvents: any[] = [];
 
-    resourceScope.get('detection:progress').subscribe(e => resourceEvents.push(e));
-    subsystemScope.get('detection:progress').subscribe(e => subsystemEvents.push(e));
+    resourceScope.get('annotate:progress').subscribe(e => resourceEvents.push(e));
+    subsystemScope.get('annotate:progress').subscribe(e => subsystemEvents.push(e));
 
     // Events to different scopes are isolated
-    resourceScope.get('detection:progress').next({ status: 'started', message: 'resource level' });
-    subsystemScope.get('detection:progress').next({ status: 'started', message: 'subsystem level' });
+    resourceScope.get('annotate:progress').next({ status: 'started', message: 'resource level' });
+    subsystemScope.get('annotate:progress').next({ status: 'started', message: 'subsystem level' });
 
     expect(resourceEvents).toHaveLength(1);
     expect(resourceEvents[0].message).toBe('resource level');
@@ -95,7 +95,7 @@ describe('EventBus scoping', () => {
     const resourceScope = eventBus.scope('resource-1');
 
     // Type should be preserved
-    const subject = resourceScope.get('detection:progress');
+    const subject = resourceScope.get('annotate:progress');
 
     const events: any[] = [];
     // Subscribe first

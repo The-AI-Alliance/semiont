@@ -14,7 +14,7 @@
 import type { JobId, EntityType, ResourceId, UserId, AnnotationId, GenerationContext } from '@semiont/core';
 
 
-export type JobType = 'detection' | 'generation' | 'highlight-detection' | 'assessment-detection' | 'comment-detection' | 'tag-detection';
+export type JobType = 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
 export type JobStatus = 'pending' | 'running' | 'complete' | 'failed' | 'cancelled';
 
 // ============================================================================

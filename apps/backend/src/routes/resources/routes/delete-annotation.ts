@@ -11,6 +11,10 @@ import type { components } from '@semiont/core';
 import { annotationUri } from '@semiont/core';
 import { resourceId, annotationId, userId } from '@semiont/core';
 import { AnnotationContext } from '@semiont/make-meaning';
+import { getLogger } from '../../../logger';
+
+// Lazy initialization to avoid calling getLogger() at module load time
+const getRouteLogger = () => getLogger().child({ component: 'delete-annotation' });
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -43,7 +47,10 @@ export function registerDeleteAnnotation(router: ResourcesRouterType) {
 
     // Emit unified annotation.removed event
     const { eventStore } = c.get('makeMeaning');
-    console.log('[DeleteAnnotation] Emitting annotation.removed event for:', annotationIdParam);
+    getRouteLogger().debug('Emitting annotation.removed event', {
+      annotationId: annotationIdParam,
+      resourceId: resourceIdParam
+    });
     const storedEvent = await eventStore.appendEvent({
       type: 'annotation.removed',
       resourceId: resourceId(resourceIdParam),
@@ -53,7 +60,10 @@ export function registerDeleteAnnotation(router: ResourcesRouterType) {
         annotationId: annotationId(annotationIdParam),
       },
     });
-    console.log('[DeleteAnnotation] Event emitted, sequence:', storedEvent.metadata.sequenceNumber);
+    getRouteLogger().debug('Event emitted', {
+      annotationId: annotationIdParam,
+      sequenceNumber: storedEvent.metadata.sequenceNumber
+    });
 
     return c.body(null, 204);
   });

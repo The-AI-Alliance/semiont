@@ -7,6 +7,7 @@
 
 import type { AnyJob, RunningJob, CompleteJob, FailedJob, PendingJob } from './types';
 import type { JobQueue } from './job-queue';
+import type { Logger } from '@semiont/core';
 
 export abstract class JobWorker {
   private running = false;
@@ -14,15 +15,18 @@ export abstract class JobWorker {
   private pollIntervalMs: number;
   private errorBackoffMs: number;
   protected jobQueue: JobQueue;
+  protected logger: Logger;
 
   constructor(
     jobQueue: JobQueue,
     pollIntervalMs: number = 1000,
-    errorBackoffMs: number = 5000
+    errorBackoffMs: number = 5000,
+    logger: Logger
   ) {
     this.jobQueue = jobQueue;
     this.pollIntervalMs = pollIntervalMs;
     this.errorBackoffMs = errorBackoffMs;
+    this.logger = logger;
   }
 
   /**
@@ -30,7 +34,7 @@ export abstract class JobWorker {
    */
   async start(): Promise<void> {
     this.running = true;
-    console.log(`[${this.getWorkerName()}] Started`);
+    this.logger.info('Worker started', { worker: this.getWorkerName() });
 
     while (this.running) {
       try {
@@ -43,20 +47,20 @@ export abstract class JobWorker {
           await this.sleep(this.pollIntervalMs);
         }
       } catch (error) {
-        console.error(`[${this.getWorkerName()}] Error in main loop:`, error);
+        this.logger.error('Error in worker main loop', { worker: this.getWorkerName(), error: error instanceof Error ? error.message : String(error) });
         // Back off on error to avoid tight error loops
         await this.sleep(this.errorBackoffMs);
       }
     }
 
-    console.log(`[${this.getWorkerName()}] Stopped`);
+    this.logger.info('Worker stopped', { worker: this.getWorkerName() });
   }
 
   /**
    * Stop the worker (graceful shutdown)
    */
   async stop(): Promise<void> {
-    console.log(`[${this.getWorkerName()}] Stopping...`);
+    this.logger.info('Stopping worker', { worker: this.getWorkerName() });
     this.running = false;
 
     // Wait for current job to finish (with timeout)
@@ -68,7 +72,7 @@ export abstract class JobWorker {
     }
 
     if (this.currentJob) {
-      console.warn(`[${this.getWorkerName()}] Forced shutdown while processing job ${this.currentJob.metadata.id}`);
+      this.logger.warn('Forced worker shutdown', { worker: this.getWorkerName(), jobId: this.currentJob.metadata.id });
     }
   }
 
@@ -94,7 +98,7 @@ export abstract class JobWorker {
     try {
       // Only process pending jobs
       if (job.status !== 'pending') {
-        console.warn(`[${this.getWorkerName()}] Skipping non-pending job ${job.metadata.id}`);
+        this.logger.warn('Skipping non-pending job', { worker: this.getWorkerName(), jobId: job.metadata.id, status: job.status });
         return;
       }
 
@@ -109,7 +113,7 @@ export abstract class JobWorker {
 
       await this.jobQueue.updateJob(runningJob, 'pending');
 
-      console.log(`[${this.getWorkerName()}] 🔄 Processing job ${job.metadata.id} (type: ${job.metadata.type})`);
+      this.logger.info('Processing job', { worker: this.getWorkerName(), jobId: job.metadata.id, jobType: job.metadata.type });
 
       // Execute job-specific logic (passing running job) and get result
       const result = await this.executeJob(runningJob);
@@ -129,7 +133,7 @@ export abstract class JobWorker {
 
       await this.jobQueue.updateJob(completeJob, 'running');
 
-      console.log(`[${this.getWorkerName()}] ✅ Job ${job.metadata.id} completed successfully`);
+      this.logger.info('Job completed successfully', { worker: this.getWorkerName(), jobId: job.metadata.id });
 
     } catch (error) {
       await this.handleJobFailure(job, error);
@@ -148,8 +152,8 @@ export abstract class JobWorker {
     };
 
     if (updatedMetadata.retryCount < updatedMetadata.maxRetries) {
-      console.log(`[${this.getWorkerName()}] Job ${job.metadata.id} failed, will retry (${updatedMetadata.retryCount}/${updatedMetadata.maxRetries})`);
-      console.log(`[${this.getWorkerName()}] Error:`, error);
+      this.logger.info('Job failed, will retry', { worker: this.getWorkerName(), jobId: job.metadata.id, retryCount: updatedMetadata.retryCount, maxRetries: updatedMetadata.maxRetries });
+      this.logger.debug('Job error details', { error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined });
 
       // Move back to pending for retry
       const retryJob: PendingJob<any> = {
@@ -161,8 +165,8 @@ export abstract class JobWorker {
       await this.jobQueue.updateJob(retryJob, job.status);
 
     } else {
-      console.error(`[${this.getWorkerName()}] ❌ Job ${job.metadata.id} failed permanently after ${updatedMetadata.retryCount} retries`);
-      console.error(`[${this.getWorkerName()}] Error:`, error);
+      this.logger.error('Job failed permanently', { worker: this.getWorkerName(), jobId: job.metadata.id, retryCount: updatedMetadata.retryCount });
+      this.logger.error('Job error details', { error: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : undefined });
 
       // Move to failed state
       const failedJob: FailedJob<any> = {
@@ -185,7 +189,7 @@ export abstract class JobWorker {
     try {
       await this.jobQueue.updateJob(job);
     } catch (error) {
-      console.warn(`[${this.getWorkerName()}] Failed to update job progress:`, error);
+      this.logger.warn('Failed to update job progress', { worker: this.getWorkerName(), error: error instanceof Error ? error.message : String(error) });
       // Don't throw - progress updates are best-effort
     }
   }

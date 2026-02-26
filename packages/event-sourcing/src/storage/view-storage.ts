@@ -11,7 +11,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { getShardPath } from './shard-utils';
 import type { components } from '@semiont/core';
-import type { ResourceAnnotations, ResourceId } from '@semiont/core';
+import type { ResourceAnnotations, ResourceId, Logger } from '@semiont/core';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
@@ -31,8 +31,10 @@ export interface ViewStorage {
 
 export class FilesystemViewStorage implements ViewStorage {
   private basePath: string;
+  private logger?: Logger;
 
-  constructor(basePath: string, projectRoot?: string) {
+  constructor(basePath: string, projectRoot?: string, logger?: Logger) {
+    this.logger = logger;
     // If path is absolute, use it directly
     if (path.isAbsolute(basePath)) {
       this.basePath = basePath;
@@ -77,12 +79,12 @@ export class FilesystemViewStorage implements ViewStorage {
       // Auto-delete corrupted view files (views are derived data, can be rebuilt from events)
       // This only handles JSON parsing errors, not broken event chains
       if (error instanceof SyntaxError) {
-        console.error(`[ViewStorage] Corrupted view file detected for ${resourceId}: ${error.message}`);
-        console.error(`[ViewStorage] Deleting corrupted view file: ${projPath}`);
+        this.logger?.error('[ViewStorage] Corrupted view file detected', { resourceId, error: error.message });
+        this.logger?.error('[ViewStorage] Deleting corrupted view file', { path: projPath });
         try {
           await fs.unlink(projPath);
         } catch (unlinkError) {
-          console.error(`[ViewStorage] Failed to delete corrupted file:`, unlinkError);
+          this.logger?.error('[ViewStorage] Failed to delete corrupted file', { error: unlinkError });
         }
         return null;
       }
@@ -134,7 +136,7 @@ export class FilesystemViewStorage implements ViewStorage {
               const view = JSON.parse(content) as ResourceView;
               views.push(view);
             } catch (error) {
-              console.error(`[ViewStorage] Failed to read view ${fullPath}:`, error);
+              this.logger?.error('[ViewStorage] Failed to read view', { path: fullPath, error });
               // Skip invalid view files
             }
           }

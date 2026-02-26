@@ -4,7 +4,7 @@
  * Tests the COMPLETE annotation deletion flow with real component composition:
  * - EventBusProvider (REAL)
  * - ApiClientProvider (REAL, with MOCKED client)
- * - useDetectionFlow (REAL) — single registration point for useResolutionFlow
+ * - useAnnotationFlow (REAL) — single registration point for useResolutionFlow
  * - useEventSubscriptions (REAL)
  *
  * This test focuses on ARCHITECTURE and EVENT WIRING:
@@ -18,16 +18,26 @@
  * - useResolutionFlow called in more than one hook (causes duplicate subscriptions)
  * - Auth token missing from API calls (401 errors)
  *
- * ARCHITECTURE: useResolutionFlow is called ONLY in useDetectionFlow.
- * useDetectionFlow handles all detection state (manual annotation selection
+ * ARCHITECTURE: useResolutionFlow is called ONLY in useAnnotationFlow.
+ * useAnnotationFlow handles all detection state (manual annotation selection
  * and AI-driven SSE detection) plus all API operations via useResolutionFlow.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import { act } from 'react';
-import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
+import { useAnnotationFlow } from '../../../hooks/useAnnotationFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
+
+// Mock Toast module to prevent "useToast must be used within a ToastProvider" errors
+vi.mock('../../../components/Toast', () => ({
+  useToast: () => ({
+    showSuccess: vi.fn(),
+    showError: vi.fn(),
+    showInfo: vi.fn(),
+    showWarning: vi.fn(),
+  }),
+}));
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { SemiontApiClient } from '@semiont/api-client';
@@ -60,9 +70,9 @@ describe('Annotation Deletion - Feature Integration', () => {
 
     function TestComponent() {
       eventBusInstance = useEventBus();
-      // useDetectionFlow is the single registration point for useResolutionFlow
-      // (handles annotation:delete, annotation:create, detection:start, etc.)
-      useDetectionFlow(testUri);
+      // useAnnotationFlow is the single registration point for useResolutionFlow
+      // (handles annotate:delete annotate:create annotate:detect-request, etc.)
+      useAnnotationFlow(testUri);
       return null;
     }
 
@@ -79,14 +89,14 @@ describe('Annotation Deletion - Feature Integration', () => {
     return {
       emitDelete: (annotationId: string) => {
         act(() => {
-          eventBusInstance!.get('annotation:delete').next({ annotationId });
+          eventBusInstance!.get('annotate:delete').next({ annotationId });
         });
       },
       eventBus: eventBusInstance!,
     };
   }
 
-  it('should call deleteAnnotation API exactly ONCE when annotation:delete event is emitted', async () => {
+  it('should call deleteAnnotation API exactly ONCE when annotate:deleteevent is emitted', async () => {
     const { emitDelete } = renderAnnotationFlow();
     const annotationId = 'annotation-123';
 
@@ -123,12 +133,12 @@ describe('Annotation Deletion - Feature Integration', () => {
     expect(callArgs[1].auth).toBe(accessToken(testToken));
   });
 
-  it('should emit annotation:deleted event on successful deletion', async () => {
+  it('should emit annotate:deleted event on successful deletion', async () => {
     const { emitDelete, eventBus } = renderAnnotationFlow();
     const deletedListener = vi.fn();
 
     // Subscribe to success event
-    eventBus.get('annotation:deleted').subscribe(deletedListener);
+    eventBus.get('annotate:deleted').subscribe(deletedListener);
 
     emitDelete('annotation-789');
 
@@ -145,7 +155,7 @@ describe('Annotation Deletion - Feature Integration', () => {
     });
   });
 
-  it('should emit annotation:delete-failed event on API error', async () => {
+  it('should emit annotate:delete-failed event on API error', async () => {
     // Make API call fail
     deleteAnnotationSpy.mockRejectedValue(new Error('Network error'));
 
@@ -153,7 +163,7 @@ describe('Annotation Deletion - Feature Integration', () => {
     const failedListener = vi.fn();
 
     // Subscribe to failure event
-    eventBus.get('annotation:delete-failed').subscribe(failedListener);
+    eventBus.get('annotate:delete-failed').subscribe(failedListener);
 
     emitDelete('annotation-error');
 
@@ -192,10 +202,10 @@ describe('Annotation Deletion - Feature Integration', () => {
     expect(deleteAnnotationSpy.mock.calls[1][0]).toContain('annotation-2');
   });
 
-  it('ARCHITECTURE: useResolutionFlow is called in useDetectionFlow (single registration point)', async () => {
+  it('ARCHITECTURE: useResolutionFlow is called in useAnnotationFlow (single registration point)', async () => {
     /**
      * This test validates that there's only ONE event-driven deletion path:
-     * - useDetectionFlow calls useResolutionFlow (the single registration point)
+     * - useAnnotationFlow calls useResolutionFlow (the single registration point)
      * - useResolutionFlow subscribes to annotation:delete
      *
      * If this test fails with 2 API calls, it means useResolutionFlow was added
@@ -219,7 +229,7 @@ describe('Annotation Deletion - Feature Integration', () => {
      * that bypassed the event bus.
      *
      * The correct pattern is event-driven only:
-     * - UI emits annotation:delete event
+     * - UI emits annotate:deleteevent
      * - useResolutionFlow handles it
      * - No direct function calls
      */

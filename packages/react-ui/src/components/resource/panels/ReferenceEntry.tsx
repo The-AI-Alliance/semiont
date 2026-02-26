@@ -73,7 +73,7 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
   };
 
   const handleComposeDocument = () => {
-    eventBus.get('reference:create-manual').next({
+    eventBus.get('resolve:create-manual').next({
       annotationUri: reference.id,
       title: selectedText,
       entityTypes,
@@ -86,7 +86,7 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
       ? reference.target.source
       : '';
     if (sourceUri) {
-      eventBus.get('annotation:update-body').next({
+      eventBus.get('resolve:update-body').next({
         annotationUri: reference.id,
         resourceId: sourceUri.split('/resources/')[1] || '',
         operations: [{ op: 'remove' }], // Remove all body items
@@ -100,7 +100,7 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
       : '';
 
     // Emit request to open generation modal
-    eventBus.get('generation:modal-open').next({
+    eventBus.get('generate:modal-open').next({
       annotationUri: reference.id,
       resourceUri,
       defaultTitle: selectedText,
@@ -108,7 +108,7 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
   };
 
   const handleSearch = () => {
-    eventBus.get('reference:link').next({
+    eventBus.get('resolve:link').next({
       annotationUri: reference.id,
       searchTerm: selectedText,
     });
@@ -121,7 +121,7 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
       data-type="reference"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        eventBus.get('annotation:click').next({ annotationId: reference.id, motivation: reference.motivation });
+        eventBus.get('attend:click').next({ annotationId: reference.id, motivation: reference.motivation });
       }}
       {...hoverProps}
     >

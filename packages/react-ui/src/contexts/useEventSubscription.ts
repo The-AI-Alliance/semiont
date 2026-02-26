@@ -10,7 +10,7 @@ import { useEventBus } from './EventBusContext';
  *
  * @example
  * ```tsx
- * useEventSubscription('annotation:created', ({ annotation }) => {
+ * useEventSubscription('annotate:created', ({ annotation }) => {
  *   // This always uses the latest props/state
  *   triggerSparkleAnimation(annotation.id);
  * });
@@ -51,8 +51,8 @@ export function useEventSubscription<K extends keyof EventMap>(
  * @example
  * ```tsx
  * useEventSubscriptions({
- *   'annotation:created': ({ annotation }) => setNewAnnotation(annotation),
- *   'annotation:deleted': ({ annotationId }) => removeAnnotation(annotationId),
+ *   'annotate:created': ({ annotation }) => setNewAnnotation(annotation),
+ *   'annotate:deleted': ({ annotationId }) => removeAnnotation(annotationId),
  * });
  * ```
  */

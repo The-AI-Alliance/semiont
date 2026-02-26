@@ -23,8 +23,8 @@
 // Export client
 export * from './client';
 
-// Logger interface for observability
-export type { Logger } from './logger';
+// Logger interface for observability (re-export from core)
+export type { Logger } from '@semiont/core';
 
 // SSE streaming types and client
 export type {
@@ -32,11 +32,12 @@ export type {
   GenerationProgress,
   SSEStream
 } from './sse/types';
-export { SSEClient } from './sse/index';
+export { SSEClient, SSE_STREAM_CONNECTED } from './sse/index';
 export type {
-  DetectReferencesStreamRequest,
+  AnnotateReferencesStreamRequest,
   GenerateResourceStreamRequest,
-  SSEClientConfig
+  SSEClientConfig,
+  SSEStreamConnected
 } from './sse/index';
 
 // Handwritten utilities

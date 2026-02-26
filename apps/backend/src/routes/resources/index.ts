@@ -8,11 +8,11 @@ import { registerCreateResource } from './routes/create';
 import { registerGetResourceUri } from './routes/get-uri';
 import { registerListResources } from './routes/list';
 import { registerUpdateResource } from './routes/update';
-import { registerDetectAnnotationsStream } from './routes/detect-annotations-stream';
-import { registerDetectHighlightsStream } from './routes/detect-highlights-stream';
-import { registerDetectAssessmentsStream } from './routes/detect-assessments-stream';
-import { registerDetectCommentsStream } from './routes/detect-comments-stream';
-import { registerDetectTagsStream } from './routes/detect-tags-stream';
+import { registerAnnotateReferencesStream } from './routes/annotate-references-stream';
+import { registerAnnotateHighlightsStream } from './routes/annotate-highlights-stream';
+import { registerAnnotateAssessmentsStream } from './routes/annotate-assessments-stream';
+import { registerAnnotateCommentsStream } from './routes/annotate-comments-stream';
+import { registerAnnotateTagsStream } from './routes/annotate-tags-stream';
 import { registerGetResourceLLMContext } from './routes/llm-context';
 import { registerGetAnnotationLLMContext } from './routes/annotation-llm-context';
 import { registerGetReferencedBy } from './routes/referenced-by';
@@ -45,11 +45,11 @@ registerListResources(resourcesRouter);  // GET /resources
 registerTokenRoutes(resourcesRouter);  // GET /api/clone-tokens/:token, POST /api/clone-tokens/create-resource, POST /resources/:id/clone-with-token
 
   // Routes with :id and specific suffixes
-  registerDetectAnnotationsStream(resourcesRouter, jobQueue);  // POST /resources/:id/detect-annotations-stream
-  registerDetectHighlightsStream(resourcesRouter, jobQueue);  // POST /resources/:id/detect-highlights-stream
-  registerDetectAssessmentsStream(resourcesRouter, jobQueue);  // POST /resources/:id/detect-assessments-stream
-  registerDetectCommentsStream(resourcesRouter, jobQueue);  // POST /resources/:id/detect-comments-stream
-  registerDetectTagsStream(resourcesRouter, jobQueue);  // POST /resources/:id/detect-tags-stream
+  registerAnnotateReferencesStream(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-references-stream
+  registerAnnotateHighlightsStream(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-highlights-stream
+  registerAnnotateAssessmentsStream(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-assessments-stream
+  registerAnnotateCommentsStream(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-comments-stream
+  registerAnnotateTagsStream(resourcesRouter, jobQueue);  // POST /resources/:id/annotate-tags-stream
   registerGetResourceLLMContext(resourcesRouter);  // GET /resources/:id/llm-context
   registerGetAnnotationLLMContext(resourcesRouter);  // GET /resources/:resourceId/annotations/:annotationId/llm-context
   registerGetReferencedBy(resourcesRouter);  // GET /resources/:id/referenced-by

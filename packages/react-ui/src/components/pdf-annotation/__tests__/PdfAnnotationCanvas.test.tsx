@@ -156,7 +156,7 @@ describe('PdfAnnotationCanvas', () => {
     expect(rects?.length).toBeGreaterThan(0);
   });
 
-  test('emits annotation:requested via eventBus when drawing with sufficient drag', async () => {
+  test('emits annotate:requested via eventBus when drawing with sufficient drag', async () => {
     const mockEventBus = {
       emit: vi.fn(),
       on: vi.fn(),

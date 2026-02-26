@@ -7,12 +7,12 @@
     "type": {
       "type": "string",
       "enum": [
-        "detection",
+        "reference-annotation",
         "generation",
-        "highlight-detection",
-        "assessment-detection",
-        "comment-detection",
-        "tag-detection"
+        "highlight-annotation",
+        "assessment-annotation",
+        "comment-annotation",
+        "tag-annotation"
       ]
     },
     "status": {

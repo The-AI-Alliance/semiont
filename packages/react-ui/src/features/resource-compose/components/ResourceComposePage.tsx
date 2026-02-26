@@ -42,6 +42,7 @@ export interface ResourceComposePageProps {
   // UI state
   theme: 'light' | 'dark';
   showLineNumbers: boolean;
+  hoverDelayMs: number;
   activePanel: string | null;
 
   // Actions
@@ -110,6 +111,7 @@ export function ResourceComposePage({
   initialLocale,
   theme,
   showLineNumbers,
+  hoverDelayMs,
   activePanel,
   onSaveResource,
   onCancel,
@@ -527,6 +529,7 @@ export function ResourceComposePage({
                     editable={!isCreating}
                     sourceView={true}
                     showLineNumbers={showLineNumbers}
+                    hoverDelayMs={hoverDelayMs}
                     onChange={(newContent) => setNewResourceContent(newContent)}
                   />
                 </div>

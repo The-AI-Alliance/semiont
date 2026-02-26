@@ -12,6 +12,7 @@ interface SettingsPanelProps {
   theme: 'light' | 'dark' | 'system';
   locale: string;
   isPendingLocaleChange?: boolean;
+  hoverDelayMs: number;
 }
 
 /**
@@ -20,12 +21,14 @@ interface SettingsPanelProps {
  * @emits settings:locale-changed - Locale changed by user. Payload: { locale: string }
  * @emits settings:line-numbers-toggled - Line numbers toggled on/off. Payload: undefined
  * @emits settings:theme-changed - Theme changed by user. Payload: { theme: 'light' | 'dark' | 'system' }
+ * @emits settings:hover-delay-changed - Hover delay changed by user. Payload: { hoverDelayMs: number }
  */
 export function SettingsPanel({
   showLineNumbers,
   theme,
   locale,
-  isPendingLocaleChange = false
+  isPendingLocaleChange = false,
+  hoverDelayMs
 }: SettingsPanelProps) {
   const t = useTranslations('Settings');
   const eventBus = useEventBus();
@@ -153,6 +156,31 @@ export function SettingsPanel({
               {t('languageChanging')}
             </p>
           )}
+        </div>
+
+        {/* Hover Delay Slider */}
+        <div className="semiont-settings-panel__field">
+          <label htmlFor="hover-delay-slider" className="semiont-form__label">
+            {t('hoverDelay')}
+          </label>
+          <input
+            id="hover-delay-slider"
+            type="range"
+            min="0"
+            max="500"
+            step="50"
+            value={hoverDelayMs}
+            onChange={(e) => eventBus.get('settings:hover-delay-changed').next({ hoverDelayMs: Number(e.target.value) })}
+            className="semiont-slider"
+            aria-describedby="hover-delay-description"
+          />
+          <div className="semiont-slider__labels">
+            <span>{t('hoverDelayFast')}</span>
+            <span>{t('hoverDelaySlow')}</span>
+          </div>
+          <p id="hover-delay-description" className="semiont-form__help">
+            {t('hoverDelayDescription', { delay: hoverDelayMs })}
+          </p>
         </div>
       </div>
     </div>

@@ -148,7 +148,7 @@ export interface JobStartedEvent extends BaseEvent {
   resourceId: ResourceId;  // Required - job is scoped to a resource
   payload: {
     jobId: JobId;
-    jobType: 'detection' | 'generation' | 'highlight-detection' | 'assessment-detection' | 'comment-detection' | 'tag-detection';
+    jobType: 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
     totalSteps?: number;  // Optional - total number of steps if known
   };
 }
@@ -158,7 +158,7 @@ export interface JobProgressEvent extends BaseEvent {
   resourceId: ResourceId;  // Required - job is scoped to a resource
   payload: {
     jobId: JobId;
-    jobType: 'detection' | 'generation' | 'highlight-detection' | 'assessment-detection' | 'comment-detection' | 'tag-detection';
+    jobType: 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
     percentage: number;  // 0-100
     currentStep?: string;  // Human-readable current step (e.g., "Scanning for Person")
     processedSteps?: number;  // Number of steps completed
@@ -174,7 +174,7 @@ export interface JobCompletedEvent extends BaseEvent {
   resourceId: ResourceId;  // Required - job is scoped to a resource
   payload: {
     jobId: JobId;
-    jobType: 'detection' | 'generation' | 'highlight-detection' | 'assessment-detection' | 'comment-detection' | 'tag-detection';
+    jobType: 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
     totalSteps?: number;  // Total steps completed
     foundCount?: number;  // For detection: total entities found
     resultResourceId?: ResourceId;  // For generation: ID of generated resource (branded type)
@@ -189,7 +189,7 @@ export interface JobFailedEvent extends BaseEvent {
   resourceId: ResourceId;  // Required - job is scoped to a resource
   payload: {
     jobId: JobId;
-    jobType: 'detection' | 'generation' | 'highlight-detection' | 'assessment-detection' | 'comment-detection' | 'tag-detection';
+    jobType: 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
     error: string;  // Error message
     details?: string;  // Optional detailed error information
   };

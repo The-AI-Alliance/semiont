@@ -27,6 +27,7 @@ import { jobId, entityType } from '@semiont/core';
 import { userId, resourceId, annotationId as makeAnnotationId } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 import { writeTypedSSE } from '../../../lib/sse-helpers';
+import { getLogger } from '../../../logger';
 
 type GenerateResourceStreamRequest = components['schemas']['GenerateResourceStreamRequest'];
 
@@ -61,7 +62,13 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
       const { resourceId: resourceIdParam, annotationId: annotationIdParam } = c.req.param();
       const body = c.get('validatedBody') as GenerateResourceStreamRequest;
 
-      console.log('[GenerateResourceStream] Received request body:', body);
+      const logger = getLogger().child({
+        component: 'generate-resource-stream',
+        resourceId: resourceIdParam,
+        annotationId: annotationIdParam
+      });
+
+      logger.info('Received generation request', { body });
 
       // User will be available from auth middleware
       const user = c.get('user');
@@ -70,33 +77,34 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
         throw new HTTPException(401, { message: 'Authentication required' });
       }
 
-      console.log(`[GenerateResource] Starting generation for annotation ${annotationIdParam} in resource ${resourceIdParam}`);
-      console.log(`[GenerateResource] Locale from request:`, body.language);
+      logger.info('Starting resource generation', { language: body.language });
 
       // Validate annotation exists using view storage
       const projection = await AnnotationContext.getResourceAnnotations(resourceId(resourceIdParam), config);
 
       // Debug: log what annotations exist
       const linkingAnnotations = projection.annotations.filter((a: any) => a.motivation === 'linking');
-      console.log(`[GenerateResource] Found ${linkingAnnotations.length} linking annotations in resource`);
-      linkingAnnotations.forEach((a: any, i: number) => {
-        console.log(`  [${i}] id: ${a.id}`);
+      logger.info('Found linking annotations in resource', {
+        count: linkingAnnotations.length,
+        ids: linkingAnnotations.map((a: any) => a.id)
       });
 
       // Compare by ID - need to match full annotation URI
       const expectedAnnotationUri = `${config.services.backend!.publicURL}/annotations/${annotationIdParam}`;
-      console.log(`[GenerateResource] Looking for annotation URI: ${expectedAnnotationUri}`);
+      logger.info('Looking for annotation URI', { expectedAnnotationUri });
 
       const reference = projection.annotations.find((a: any) =>
         a.id === expectedAnnotationUri && a.motivation === 'linking'
       );
 
       if (!reference) {
-        console.log(`[GenerateResource] Annotation not found. Expected: ${expectedAnnotationUri}`);
-        console.log(`[GenerateResource] Available IDs:`, projection.annotations.map((a: any) => a.id));
+        logger.warn('Annotation not found', {
+          expectedUri: expectedAnnotationUri,
+          availableIds: projection.annotations.map((a: any) => a.id)
+        });
         throw new HTTPException(404, { message: `Annotation ${annotationIdParam} not found in resource ${resourceIdParam}` });
       }
-      console.log(`[GenerateResource] Found matching annotation:`, reference.id);
+      logger.info('Found matching annotation', { annotationId: reference.id });
 
       // Get EventBus for real-time progress subscriptions
       const { eventBus } = c.get('makeMeaning');
@@ -131,8 +139,10 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
       };
 
       await jobQueue.createJob(job);
-      console.log(`[GenerateResource] Created job ${job.metadata.id} for annotation ${annotationIdParam}`);
-      console.log(`[GenerateResource] Job includes locale:`, job.params.language);
+      logger.info('Created generation job', {
+        jobId: job.metadata.id,
+        language: job.params.language
+      });
 
       // Determine resource name for progress messages
       const targetSelector = getTargetSelector(reference.target);
@@ -173,13 +183,13 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
           // Create resource-scoped EventBus for this resource
           // Workers emit generation:started, generation:progress, generation:completed
           const resourceBus = eventBus.scope(resourceIdParam);
-          console.log(`[GenerateResource] Subscribing to EventBus for resource ${resourceIdParam}`);
+          logger.info('Subscribing to EventBus for resource');
 
-          // Subscribe to generation:started
+          // Subscribe to generate:progress
           subscriptions.push(
-            resourceBus.get('generation:started').subscribe(async (_event) => {
+            resourceBus.get('generate:progress').subscribe(async (_event) => {
               if (isStreamClosed) return;
-              console.log(`[GenerateResource] Generation started for resource ${resourceIdParam}`);
+              logger.info('Generation started');
               try {
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
@@ -189,21 +199,21 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
                     percentage: 0,
                     message: 'Starting...'
                   } as GenerationProgress),
-                  event: 'generation:started',
+                  event: 'generate:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[GenerateResource] Client disconnected during start`);
+                logger.warn('Client disconnected during start');
                 cleanup();
               }
             })
           );
 
-          // Subscribe to generation:progress
+          // Subscribe to generate:progress
           subscriptions.push(
-            resourceBus.get('generation:progress').subscribe(async (progress) => {
+            resourceBus.get('generate:progress').subscribe(async (progress) => {
               if (isStreamClosed) return;
-              console.log(`[GenerateResource] Generation progress for resource ${resourceIdParam}:`, progress);
+              logger.info('Generation progress', { progress });
               try {
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
@@ -213,21 +223,21 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
                     percentage: progress.percentage || 0,
                     message: progress.message || `${progress.status}...`
                   } as GenerationProgress),
-                  event: 'generation:progress',
+                  event: 'generate:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[GenerateResource] Client disconnected during progress`);
+                logger.warn('Client disconnected during progress');
                 cleanup();
               }
             })
           );
 
-          // Subscribe to generation:completed
+          // Subscribe to job:completed
           subscriptions.push(
-            resourceBus.get('generation:completed').subscribe(async (event) => {
+            resourceBus.get('job:completed').subscribe(async (event) => {
               if (isStreamClosed) return;
-              console.log(`[GenerateResource] Generation completed for resource ${resourceIdParam}`);
+              logger.info('Generation completed');
               try {
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
@@ -239,11 +249,11 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
                     percentage: 100,
                     message: 'Draft resource created! Ready for review.'
                   } as GenerationProgress),
-                  event: 'generation:complete',
+                  event: 'generate:finished',
                   id: String(Date.now())
                 });
               } catch (error) {
-                console.warn(`[GenerateResource] Client disconnected after completion`);
+                logger.warn('Client disconnected after completion');
               }
               cleanup();
             })
@@ -269,7 +279,7 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
 
           // Cleanup on disconnect
           c.req.raw.signal.addEventListener('abort', () => {
-            console.log(`[GenerateResource] Client disconnected from generation stream for annotation ${annotationIdParam}, job ${job.metadata.id} will continue`);
+            logger.info('Client disconnected from generation stream, job will continue', { jobId: job.metadata.id });
             cleanup();
           });
 
@@ -283,12 +293,12 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
                 percentage: 0,
                 message: error instanceof Error ? error.message : 'Generation failed'
               } as GenerationProgress),
-              event: 'generation:failed',
+              event: 'generate:failed',
               id: String(Date.now())
             });
           } catch (sseError) {
             // Client already disconnected
-            console.warn(`[GenerateResource] Could not send error to client (disconnected), job ${job.metadata.id} status is preserved`);
+            logger.warn('Could not send error to client (disconnected), job status is preserved', { jobId: job.metadata.id });
           }
           cleanup();
         }

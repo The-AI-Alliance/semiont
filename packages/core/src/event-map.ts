@@ -1,15 +1,8 @@
 /**
  * Event Protocol Types
  *
- * Unified event map for all application events.
- * This is the single source of truth for event types across backend, frontend, and CLI.
- *
- * Consolidates events from:
- * - Backend events (SSE streams, job progress, resource operations)
- * - User interaction events (selection, annotation hover/click, panels, toolbar)
- * - Navigation events (sidebar, routing, links)
- * - Settings events (theme, line numbers, locale)
- * - API operation events (CRUD, detection, generation)
+ * Type definitions for the application's event-driven architecture.
+ * Single source of truth for all EventBus event types.
  */
 
 import type { ResourceEvent } from './events';
@@ -28,7 +21,9 @@ export type GenerationContext = components['schemas']['GenerationContext'];
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation'];
 
-// GenerationProgress interface (SSE stream progress updates)
+/**
+ * Progress state for resource generation workflow
+ */
 export interface GenerationProgress {
   status: 'started' | 'fetching' | 'generating' | 'creating' | 'complete' | 'error';
   referenceId: string;
@@ -54,19 +49,18 @@ export interface SelectionData {
 }
 
 /**
- * Common detection progress fields shared across all motivation types.
+ * Progress state for annotation workflows (manual and assisted)
  *
- * The five motivations have different SSE progress shapes
- * (ReferenceDetectionProgress uses entity-type steps; the others use percentage).
- * This type captures the subset of fields used by the detection UI
- * (DetectionProgressWidget, useDetectionFlow).
+ * Unified progress interface supporting different annotation strategies:
+ * - Reference annotation: entity-type steps
+ * - Other motivations: percentage-based progress
  */
-export interface DetectionProgress {
+export interface AnnotationProgress {
   status: string;
   message?: string;
-  /** Reference detection: currently scanning entity type */
+  /** Reference annotation: currently scanning entity type */
   currentEntityType?: string;
-  /** Reference detection: completed entity types with counts (frontend-only) */
+  /** Reference annotation: completed entity types with counts (frontend-only) */
   completedEntityTypes?: Array<{ entityType: string; foundCount: number }>;
   /** Percentage-based motivations (highlight, assessment, comment, tag) */
   percentage?: number;
@@ -78,91 +72,73 @@ export interface DetectionProgress {
   requestParams?: Array<{ label: string; value: string }>;
 }
 
-// Note: GenerationProgress is imported and re-exported from @semiont/api-client
-
 /**
  * Unified event map for all application events
  *
  * Organized by workflow ("flows"):
- * 1. AttentionFlow - Annotation hover/focus/sparkle coordination
- * 2. DetectionFlow - Manual + AI annotation detection (all motivations)
- * 3. GenerationFlow - Document generation from references
- * 4. ResolutionFlow - Reference linking/resolution (search modal)
- * 5. ContextRetrievalFlow - LLM context fetching from annotations
+ * 1. Attention Flow - Annotation hover/focus/sparkle coordination
+ * 2. Annotation Flow - Manual + AI-assisted annotation (all motivations)
+ * 3. Context Retrieval Flow - LLM context fetching from annotations
+ * 4. Generation Flow - Resource generation from references
+ * 5. Resolution Flow - Reference linking/resolution (search modal)
  *
  * Plus infrastructure events (domain events, SSE, resource operations, navigation, settings)
  */
 export type EventMap = {
   // ========================================================================
-  // DOMAIN EVENTS (backend event sourcing - dot notation)
+  // DOMAIN EVENTS (Backend Event Sourcing)
   // ========================================================================
-  // Emitted by backend via /resources/:id/events/stream SSE endpoint
-  // Represent source of truth from event store
+  // Generic wrapper for all backend domain events (dot notation)
+  // Streamed via SSE from /resources/:id/events/stream endpoint
+  // Specific typed domain events are defined within their respective flow sections below
 
-  'annotation.added': Extract<ResourceEvent, { type: 'annotation.added' }>;
-  'annotation.removed': Extract<ResourceEvent, { type: 'annotation.removed' }>;
-  'annotation.body.updated': Extract<ResourceEvent, { type: 'annotation.body.updated' }>;
-  'entitytag.added': Extract<ResourceEvent, { type: 'entitytag.added' }>;
-  'entitytag.removed': Extract<ResourceEvent, { type: 'entitytag.removed' }>;
-  'resource.archived': Extract<ResourceEvent, { type: 'resource.archived' }>;
-  'resource.unarchived': Extract<ResourceEvent, { type: 'resource.unarchived' }>;
-  'job.started': Extract<ResourceEvent, { type: 'job.started' }>;
-  'job.completed': Extract<ResourceEvent, { type: 'job.completed' }>;
-  'job.failed': Extract<ResourceEvent, { type: 'job.failed' }>;
-  'representation.added': Extract<ResourceEvent, { type: 'representation.added' }>;
-  'representation.removed': Extract<ResourceEvent, { type: 'representation.removed' }>;
-
-  // Generic domain event (all types)
   'make-meaning:event': ResourceEvent;
 
   // ========================================================================
-  // SSE META EVENTS
-  // ========================================================================
-
-  'stream-connected': void;
-
-  // ========================================================================
-  // FLOW 1: ATTENTION FLOW (useAttentionFlow)
+  // ATTENTION FLOW
   // ========================================================================
   // Manages which annotation has user's attention (hover/click/focus)
 
-  'annotation:hover': { annotationId: string | null };
-  'annotation:click': { annotationId: string; motivation: Motivation };
-  'annotation:focus': { annotationId: string | null };
-  'annotation:sparkle': { annotationId: string };
+  'attend:hover': { annotationId: string | null };
+  'attend:click': { annotationId: string; motivation: Motivation };
+  'attend:focus': { annotationId: string | null };
+  'attend:sparkle': { annotationId: string };
+  'attend:panel-toggle': { panel: string };
+  'attend:panel-open': { panel: string; scrollToAnnotationId?: string; motivation?: string };
+  'attend:panel-close': void;
 
   // ========================================================================
-  // FLOW 2: DETECTION FLOW (useDetectionFlow)
+  // ANNOTATION FLOW
   // ========================================================================
-  // Manual detection (user selections) + AI detection (SSE streams)
+  // Manual annotation (user selections) + AI-assisted annotation
 
   // Selection requests (user highlighting text)
-  'selection:comment-requested': SelectionData;
-  'selection:tag-requested': SelectionData;
-  'selection:assessment-requested': SelectionData;
-  'selection:reference-requested': SelectionData;
+  'annotate:select-comment': SelectionData;
+  'annotate:select-tag': SelectionData;
+  'annotate:select-assessment': SelectionData;
+  'annotate:select-reference': SelectionData;
 
   // Unified annotation request (all motivations)
-  'annotation:requested': {
+  'annotate:requested': {
     selector: Selector | Selector[];
     motivation: Motivation;
   };
-  'annotation:cancel-pending': void;
+  'annotate:cancel-pending': void;
 
   // Annotation CRUD operations
-  'annotation:create': {
+  'annotate:create': {
     motivation: Motivation;
     selector: Selector | Selector[];
     body: components['schemas']['AnnotationBody'][];
   };
-  'annotation:created': { annotation: Annotation };
-  'annotation:create-failed': { error: Error };
-  'annotation:delete': { annotationId: string };
-  'annotation:deleted': { annotationId: string };
-  'annotation:delete-failed': { error: Error };
+  'annotate:created': { annotation: Annotation };
+  'annotate:create-failed': { error: Error };
+  'annotate:delete': { annotationId: string };
+  'annotate:deleted': { annotationId: string };
+  'annotate:delete-failed': { error: Error };
 
-  // AI Detection (SSE streams)
-  'detection:start': {
+  // AI-Assisted Annotation
+  'annotate:assist-request': {
     motivation: Motivation;
     options: {
       instructions?: string;
@@ -174,26 +150,85 @@ export type EventMap = {
       categories?: string[];
     };
   };
-  'detection:started': Extract<ResourceEvent, { type: 'job.started' }>;
-  'detection:progress': DetectionProgress;
-  'detection:entity-found': Extract<ResourceEvent, { type: 'annotation.added' }>;
-  'detection:complete': { motivation?: Motivation; resourceUri?: ResourceUri; progress?: DetectionProgress };
-  'detection:completed': Extract<ResourceEvent, { type: 'job.completed' }>;
-  'detection:failed': Extract<ResourceEvent, { type: 'job.failed' }>;
-  'detection:cancelled': void;
-  'detection:dismiss-progress': void;
+  'annotate:progress': AnnotationProgress;
+  'annotate:assist-finished': { motivation?: Motivation; resourceUri?: ResourceUri; progress?: AnnotationProgress };
+  'annotate:assist-failed': Extract<ResourceEvent, { type: 'job.failed' }>;
+  'annotate:assist-cancelled': void;
+  'annotate:progress-dismiss': void;
+
+  // Toolbar state (annotation UI controls)
+  'annotate:mode-toggled': void;
+  'annotate:selection-changed': { motivation: string | null };
+  'annotate:click-changed': { action: string };
+  'annotate:shape-changed': { shape: string };
+
+  // Domain Events (from backend event store)
+  'annotate:added': Extract<ResourceEvent, { type: 'annotation.added' }>;
+  'annotate:removed': Extract<ResourceEvent, { type: 'annotation.removed' }>;
+  'annotate:body-updated': Extract<ResourceEvent, { type: 'annotation.body.updated' }>;
+  'annotate:entity-tag-added': Extract<ResourceEvent, { type: 'entitytag.added' }>;
+  'annotate:entity-tag-removed': Extract<ResourceEvent, { type: 'entitytag.removed' }>;
 
   // ========================================================================
-  // FLOW 3: GENERATION FLOW (useGenerationFlow)
+  // RESOLUTION FLOW
   // ========================================================================
-  // Document generation from reference annotations
+  // Reference linking and resolution (search modal)
 
-  'generation:modal-open': {
+  'resolve:create-manual': {
+    annotationUri: string;
+    title: string;
+    entityTypes: string[];
+  };
+  'resolve:link': {
+    annotationUri: string;
+    searchTerm: string;
+  };
+  'resolve:search-requested': {
+    referenceId: string;
+    searchTerm: string;
+  };
+  'resolve:update-body': {
+    annotationUri: string;
+    resourceId: string;
+    operations: Array<{
+      op: 'add' | 'remove' | 'replace';
+      item?: components['schemas']['AnnotationBody'];
+      oldItem?: components['schemas']['AnnotationBody'];
+      newItem?: components['schemas']['AnnotationBody'];
+    }>;
+  };
+  'resolve:body-updated': { annotationUri: string };
+  'resolve:body-update-failed': { error: Error };
+
+  // ========================================================================
+  // CONTEXT CORRELATION FLOW
+  // ========================================================================
+  // LLM context correlation from annotations for generation
+
+  'correlate:requested': {
+    annotationUri: string;
+    resourceUri: string;
+  };
+  'correlate:complete': {
+    annotationUri: string;
+    context: GenerationContext;
+  };
+  'correlate:failed': {
+    annotationUri: string;
+    error: Error;
+  };
+
+  // ========================================================================
+  // GENERATION FLOW
+  // ========================================================================
+  // Resource generation from reference annotations
+
+  'generate:modal-open': {
     annotationUri: string;
     resourceUri: string;
     defaultTitle: string;
   };
-  'generation:start': {
+  'generate:request': {
     annotationUri: string;
     resourceUri: string;
     options: {
@@ -205,112 +240,45 @@ export type EventMap = {
       context: GenerationContext;
     };
   };
-  'generation:started': Extract<ResourceEvent, { type: 'job.started' }>;
-  'generation:progress': GenerationProgress;
-  'generation:complete': GenerationProgress;
-  'generation:completed': Extract<ResourceEvent, { type: 'job.completed' }>;
-  'generation:failed': { error: Error };
+  'generate:progress': GenerationProgress;
+  'generate:finished': GenerationProgress;
+  'generate:failed': { error: Error };
+
+  // Domain Events (from backend event store)
+  'generate:representation-added': Extract<ResourceEvent, { type: 'representation.added' }>;
+  'generate:representation-removed': Extract<ResourceEvent, { type: 'representation.removed' }>;
+
+  // Resource operations
+  'generate:clone': void;
 
   // ========================================================================
-  // FLOW 4: RESOLUTION FLOW (useResolutionFlow)
+  // Resource management
   // ========================================================================
-  // Reference linking and resolution (search modal)
+  // Command/Event pairs: UI emits command → Backend confirms with domain event
 
-  'reference:create-manual': {
-    annotationUri: string;
-    title: string;
-    entityTypes: string[];
-  };
-  'reference:link': {
-    annotationUri: string;
-    searchTerm: string;
-  };
-  'resolution:search-requested': {
-    referenceId: string;
-    searchTerm: string;
-  };
-  'annotation:update-body': {
-    annotationUri: string;
-    resourceId: string;
-    operations: Array<{
-      op: 'add' | 'remove' | 'replace';
-      item?: components['schemas']['AnnotationBody'];
-      oldItem?: components['schemas']['AnnotationBody'];
-      newItem?: components['schemas']['AnnotationBody'];
-    }>;
-  };
-  'annotation:body-updated': { annotationUri: string };
-  'annotation:body-update-failed': { error: Error };
-
-  // ========================================================================
-  // FLOW 5: CONTEXT RETRIEVAL FLOW (useContextRetrievalFlow)
-  // ========================================================================
-  // LLM context fetching from annotations
-
-  'context:retrieval-requested': {
-    annotationUri: string;
-    resourceUri: string;
-  };
-  'context:retrieval-complete': {
-    annotationUri: string;
-    context: GenerationContext;
-  };
-  'context:retrieval-failed': {
-    annotationUri: string;
-    error: Error;
-  };
-
-  // ========================================================================
-  // INFRASTRUCTURE: Application-level domain events
-  // ========================================================================
-
-  'annotation:added': Extract<ResourceEvent, { type: 'annotation.added' }>;
-  'annotation:removed': Extract<ResourceEvent, { type: 'annotation.removed' }>;
-  'annotation:updated': Extract<ResourceEvent, { type: 'annotation.body.updated' }>;
-  'entity-tag:added': Extract<ResourceEvent, { type: 'entitytag.added' }>;
-  'entity-tag:removed': Extract<ResourceEvent, { type: 'entitytag.removed' }>;
+  // Archive command (UI) → archived event (backend confirmation via SSE)
+  'resource:archive': void;
   'resource:archived': Extract<ResourceEvent, { type: 'resource.archived' }>;
+
+  // Unarchive command (UI) → unarchived event (backend confirmation via SSE)
+  'resource:unarchive': void;
   'resource:unarchived': Extract<ResourceEvent, { type: 'resource.unarchived' }>;
 
   // ========================================================================
-  // INFRASTRUCTURE: Resource operations
+  // Job control
   // ========================================================================
 
-  'resource:archive': void;
-  'resource:unarchive': void;
-  'resource:clone': void;
+  // Domain Events (from backend event store)
+  'job:started': Extract<ResourceEvent, { type: 'job.started' }>;
+  'job:completed': Extract<ResourceEvent, { type: 'job.completed' }>;
+  'job:failed': Extract<ResourceEvent, { type: 'job.failed' }>;
 
-  // ========================================================================
-  // INFRASTRUCTURE: Job control
-  // ========================================================================
-
+  // Job operations
   'job:queued': { jobId: string; jobType: string; resourceId: string };
-  'job:cancel-requested': { jobType: 'detection' | 'generation' };
+  'job:cancel-requested': { jobType: 'annotation' | 'generation' };
 
   // ========================================================================
-  // INFRASTRUCTURE: Panel management
-  // ========================================================================
-
-  'panel:toggle': { panel: string };
-  'panel:open': { panel: string; scrollToAnnotationId?: string; motivation?: string };
-  'panel:close': void;
-
-  // ========================================================================
-  // INFRASTRUCTURE: View modes
-  // ========================================================================
-
-  'view:mode-toggled': void;
-
-  // ========================================================================
-  // INFRASTRUCTURE: Toolbar (annotation UI controls)
-  // ========================================================================
-
-  'toolbar:selection-changed': { motivation: string | null };
-  'toolbar:click-changed': { action: string };
-  'toolbar:shape-changed': { shape: string };
-
-  // ========================================================================
-  // INFRASTRUCTURE: Navigation
+  // Left Sidebar Navigation
   // ========================================================================
 
   'navigation:sidebar-toggle': void;
@@ -323,12 +291,13 @@ export type EventMap = {
   'navigation:entity-type-clicked': { entityType: string };
 
   // ========================================================================
-  // INFRASTRUCTURE: Settings
+  // Settings
   // ========================================================================
 
   'settings:theme-changed': { theme: 'light' | 'dark' | 'system' };
   'settings:line-numbers-toggled': void;
   'settings:locale-changed': { locale: string };
+  'settings:hover-delay-changed': { hoverDelayMs: number };
 };
 
 /**

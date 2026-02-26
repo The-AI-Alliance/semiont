@@ -29,7 +29,7 @@ function createEventTracker() {
         events.push({ event: eventName, payload });
       };
 
-      const panelEvents = ['annotation:create'] as const;
+      const panelEvents = ['annotate:create'] as const;
 
       panelEvents.forEach(eventName => {
         const handler = trackEvent(eventName);
@@ -108,13 +108,13 @@ vi.mock('../AssessmentEntry', () => ({
   ),
 }));
 
-// Mock DetectSection component - it will internally use the mocked useEventBus
+// Mock AssistSection component - it will internally use the mocked useEventBus
 // Just render a simplified version
-vi.mock('../DetectSection', () => ({
-  DetectSection: ({ annotationType, isDetecting }: any) => (
+vi.mock('../AssistSection', () => ({
+  AssistSection: ({ annotationType, isAssisting }: any) => (
     <div data-testid="detect-section">
       <button>Start Detection</button>
-      {isDetecting && <div>Detecting...</div>}
+      {isAssisting && <div>Detecting...</div>}
     </div>
   ),
 }));
@@ -359,7 +359,7 @@ describe('AssessmentPanel Component', () => {
       expect(textarea).toHaveFocus();
     });
 
-    it('should emit annotation:create event when save is clicked', async () => {
+    it('should emit annotate:createevent when save is clicked', async () => {
       const tracker = createEventTracker();
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
@@ -379,7 +379,7 @@ describe('AssessmentPanel Component', () => {
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'annotation:create' &&
+          e.event === 'annotate:create' &&
           e.payload?.motivation === 'assessing' &&
           e.payload?.body?.[0]?.value === 'My assessment'
         )).toBe(true);
@@ -420,7 +420,7 @@ describe('AssessmentPanel Component', () => {
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'annotation:create' &&
+          e.event === 'annotate:create' &&
           e.payload?.motivation === 'assessing' &&
           Array.isArray(e.payload?.body) &&
           e.payload.body.length === 0
@@ -472,7 +472,7 @@ describe('AssessmentPanel Component', () => {
   });
 
   describe('Detection Section', () => {
-    it('should render DetectSection when annotateMode is true', () => {
+    it('should render AssistSection when annotateMode is true', () => {
       renderWithEventBus(
         <AssessmentPanel
           {...defaultProps}
@@ -483,7 +483,7 @@ describe('AssessmentPanel Component', () => {
       expect(screen.getByTestId('detect-section')).toBeInTheDocument();
     });
 
-    it('should not render DetectSection when annotateMode is false', () => {
+    it('should not render AssistSection when annotateMode is false', () => {
       renderWithEventBus(
         <AssessmentPanel
           {...defaultProps}
@@ -494,7 +494,7 @@ describe('AssessmentPanel Component', () => {
       expect(screen.queryByTestId('detect-section')).not.toBeInTheDocument();
     });
 
-    it('should render DetectSection with correct annotationType', () => {
+    it('should render AssistSection with correct annotationType', () => {
       renderWithEventBus(
         <AssessmentPanel
           {...defaultProps}
@@ -502,7 +502,7 @@ describe('AssessmentPanel Component', () => {
         />
       );
 
-      // DetectSection is rendered (mocked component renders the button)
+      // AssistSection is rendered (mocked component renders the button)
       expect(screen.getByText('Start Detection')).toBeInTheDocument();
     });
   });

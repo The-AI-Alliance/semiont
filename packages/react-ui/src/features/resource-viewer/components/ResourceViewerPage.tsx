@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { components, ResourceUri } from '@semiont/core';
+import type { components, ResourceUri, ResourceEvent } from '@semiont/core';
 import { resourceAnnotationUri } from '@semiont/core';
 import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType } from '@semiont/api-client';
 import { uriToAnnotationId } from '@semiont/core';
@@ -28,6 +28,7 @@ import { useResourceContent } from '../../../hooks/useResourceContent';
 import { useToast } from '../../../components/Toast';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useLineNumbers } from '../../../hooks/useLineNumbers';
+import { useHoverDelay } from '../../../hooks/useHoverDelay';
 import { useResourceEvents } from '../../../hooks/useResourceEvents';
 import { useDebouncedCallback } from '../../../hooks/useDebounce';
 import { useOpenResources } from '../../../contexts/OpenResourcesContext';
@@ -37,11 +38,11 @@ import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsContext';
 import { useApiClient } from '../../../contexts/ApiClientContext';
 import { useResolutionFlow } from '../../../hooks/useResolutionFlow';
-import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
+import { useAnnotationFlow } from '../../../hooks/useAnnotationFlow';
 import { useAttentionFlow } from '../../../hooks/useAttentionFlow';
 import { usePanelNavigation } from '../../../hooks/usePanelNavigation';
 import { useGenerationFlow } from '../../../hooks/useGenerationFlow';
-import { useContextRetrievalFlow } from '../../../hooks/useContextRetrievalFlow';
+import { useContextCorrelationFlow } from '../../../hooks/useContextCorrelationFlow';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
@@ -91,18 +92,18 @@ export interface ResourceViewerPageProps {
  * Uses hooks directly (NO containers, NO render props, NO ResourceViewerPageContent wrapper)
  *
  * @emits navigation:router-push - Navigate to a resource or filtered view
- * @emits annotation:sparkle - Trigger sparkle animation on an annotation
- * @emits annotation:update-body - Update annotation body content
+ * @emits attend:sparkle - Trigger sparkle animation on an annotation
+ * @emits resolve:update-body - Update annotation body content
  * @subscribes resource:archive - Archive the current resource
  * @subscribes resource:unarchive - Unarchive the current resource
- * @subscribes resource:clone - Clone the current resource
- * @subscribes annotation:sparkle - Trigger sparkle animation
- * @subscribes annotation:created - Annotation was created
- * @subscribes annotation:deleted - Annotation was deleted
- * @subscribes annotation:create-failed - Annotation creation failed
- * @subscribes annotation:delete-failed - Annotation deletion failed
- * @subscribes annotation:body-updated - Annotation body was updated
- * @subscribes annotation:body-update-failed - Annotation body update failed
+ * @subscribes generate:clone - Clone the current resource
+ * @subscribes attend:sparkle - Trigger sparkle animation
+ * @subscribes annotate:added - Annotation was created
+ * @subscribes annotate:removed - Annotation was deleted
+ * @subscribes annotate:create-failed - Annotation creation failed
+ * @subscribes annotate:delete-failed - Annotation deletion failed
+ * @subscribes annotate:body-updated - Annotation body was updated
+ * @subscribes annotate:body-update-failed - Annotation body update failed
  * @subscribes settings:theme-changed - UI theme changed
  * @subscribes settings:line-numbers-toggled - Line numbers display toggled
  * @subscribes detection:complete - Detection completed
@@ -132,6 +133,7 @@ export function ResourceViewerPage({
   const { showError, showSuccess } = useToast();
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
+  const { hoverDelayMs } = useHoverDelay();
   const { addResource } = useOpenResources();
   const { triggerSparkleAnimation, clearNewAnnotationId } = useResourceAnnotations();
 
@@ -156,7 +158,7 @@ export function ResourceViewerPage({
 
   // Flow state hooks (NO CONTAINERS)
   const { hoveredAnnotationId } = useAttentionFlow();
-  const { detectingMotivation, detectionProgress, pendingAnnotation } = useDetectionFlow(rUri);
+  const { assistingMotivation, progress, pendingAnnotation } = useAnnotationFlow(rUri);
   const { activePanel, scrollToAnnotationId, panelInitialTab, onScrollCompleted } = usePanelNavigation();
   const { searchModalOpen, pendingReferenceId, onCloseSearchModal } = useResolutionFlow(rUri);
   const {
@@ -166,8 +168,8 @@ export function ResourceViewerPage({
     generationDefaultTitle,
     onGenerateDocument,
     onCloseGenerationModal,
-  } = useGenerationFlow(locale, rUri.split('/').pop() || '', showSuccess, showError, clearNewAnnotationId);
-  const { retrievalContext, retrievalLoading, retrievalError } = useContextRetrievalFlow(eventBus, { client, resourceUri: rUri });
+  } = useGenerationFlow(locale, rUri.split('/').pop() || '', clearNewAnnotationId);
+  const { correlationContext, correlationLoading, correlationError } = useContextCorrelationFlow(eventBus, { client, resourceUri: rUri });
 
   // Debounced invalidation for real-time events
   const debouncedInvalidateAnnotations = useDebouncedCallback(
@@ -314,28 +316,36 @@ export function ResourceViewerPage({
     triggerSparkleAnimation(annotationId);
   }, [triggerSparkleAnimation]);
 
-  const handleAnnotationCreated = useCallback(({ annotation }: { annotation: { id: string } }) => {
-    triggerSparkleAnimation(annotation.id);
+  const handleAnnotationAdded = useCallback((event: Extract<ResourceEvent, { type: 'annotation.added' }>) => {
+    triggerSparkleAnimation(event.payload.annotation.id);
     debouncedInvalidateAnnotations();
   }, [triggerSparkleAnimation, debouncedInvalidateAnnotations]);
 
   const handleAnnotationCreateFailed = useCallback(() => showError('Failed to create annotation'), [showError]);
   const handleAnnotationDeleteFailed = useCallback(() => showError('Failed to delete annotation'), [showError]);
-  const handleAnnotationBodyUpdated = useCallback(() => {
+  const handleAnnotateBodyUpdated = useCallback(() => {
     // Success - optimistic update already applied via useResourceEvents
   }, []);
-  const handleAnnotationBodyUpdateFailed = useCallback(() => showError('Failed to update annotation'), [showError]);
+  const handleAnnotateBodyUpdateFailed = useCallback(() => showError('Failed to update annotation'), [showError]);
 
   const handleSettingsThemeChanged = useCallback(({ theme }: { theme: any }) => setTheme(theme), [setTheme]);
 
   const handleDetectionComplete = useCallback(() => {
-    showSuccess('Detection complete');
+    // Toast notification is handled by useAnnotationFlow
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.annotations(rUri) });
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
-  }, [showSuccess, queryClient, rUri]);
-  const handleDetectionFailed = useCallback(() => showError('Detection failed'), [showError]);
-  const handleGenerationComplete = useCallback(() => showSuccess('Document generated'), [showSuccess]);
-  const handleGenerationFailed = useCallback(() => showError('Failed to generate document'), [showError]);
+  }, [queryClient, rUri]);
+  const handleDetectionFailed = useCallback(() => {
+    // Error notification is handled by useAnnotationFlow
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.annotations(rUri) });
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
+  }, [queryClient, rUri]);
+  const handleGenerationComplete = useCallback(() => {
+    // Toast notification is handled by useGenerationFlow
+  }, []);
+  const handleGenerationFailed = useCallback(() => {
+    // Error notification is handled by useGenerationFlow
+  }, []);
 
   const handleReferenceNavigate = useCallback(({ documentId }: { documentId: string }) => {
     if (routes.resource) {
@@ -355,20 +365,20 @@ export function ResourceViewerPage({
   useEventSubscriptions({
     'resource:archive': handleResourceArchive,
     'resource:unarchive': handleResourceUnarchive,
-    'resource:clone': handleResourceClone,
-    'annotation:sparkle': handleAnnotationSparkle,
-    'annotation:created': handleAnnotationCreated,
-    'annotation:deleted': debouncedInvalidateAnnotations,
-    'annotation:create-failed': handleAnnotationCreateFailed,
-    'annotation:delete-failed': handleAnnotationDeleteFailed,
-    'annotation:body-updated': handleAnnotationBodyUpdated,
-    'annotation:body-update-failed': handleAnnotationBodyUpdateFailed,
+    'generate:clone': handleResourceClone,
+    'attend:sparkle': handleAnnotationSparkle,
+    'annotate:added': handleAnnotationAdded,
+    'annotate:removed': debouncedInvalidateAnnotations,
+    'annotate:create-failed': handleAnnotationCreateFailed,
+    'annotate:delete-failed': handleAnnotationDeleteFailed,
+    'annotate:body-updated': handleAnnotateBodyUpdated,
+    'resolve:body-update-failed': handleAnnotateBodyUpdateFailed,
     'settings:theme-changed': handleSettingsThemeChanged,
     'settings:line-numbers-toggled': toggleLineNumbers,
-    'detection:complete': handleDetectionComplete,
-    'detection:failed': handleDetectionFailed,
-    'generation:complete': handleGenerationComplete,
-    'generation:failed': handleGenerationFailed,
+    'annotate:assist-finished': handleDetectionComplete,
+    'annotate:assist-failed': handleDetectionFailed,
+    'generate:finished': handleGenerationComplete,
+    'generate:failed': handleGenerationFailed,
     'navigation:reference-navigate': handleReferenceNavigate,
     'navigation:entity-type-clicked': handleEntityTypeClicked,
   });
@@ -431,7 +441,7 @@ export function ResourceViewerPage({
   // Handlers for AnnotationHistory (legacy event-based interaction)
   const handleEventHover = useCallback((annotationId: string | null) => {
     if (annotationId) {
-      eventBus.get('annotation:sparkle').next({ annotationId });
+      eventBus.get('attend:sparkle').next({ annotationId });
     }
   }, []); // eventBus is stable singleton - never in deps
 
@@ -484,6 +494,7 @@ export function ResourceViewerPage({
                   annotations={groups}
                   generatingReferenceId={generationProgress?.referenceId ?? null}
                   showLineNumbers={showLineNumbers}
+                  hoverDelayMs={hoverDelayMs}
                   hoveredAnnotationId={hoveredAnnotationId}
                 />
               )}
@@ -519,8 +530,8 @@ export function ResourceViewerPage({
                 annotations={annotations}
                 annotators={ANNOTATORS}
                 annotateMode={annotateMode}
-                detectingMotivation={detectingMotivation}
-                detectionProgress={detectionProgress}
+                assistingMotivation={assistingMotivation}
+                progress={progress}
                 pendingAnnotation={pendingAnnotation}
                 allEntityTypes={allEntityTypes}
                 generatingReferenceId={generationProgress?.referenceId ?? null}
@@ -598,7 +609,7 @@ export function ResourceViewerPage({
               const resourceIdSegment = rUri.split('/').pop() || '';
               const nestedUri = `${window.location.origin}/resources/${resourceIdSegment}/annotations/${annotationIdShort}`;
 
-              eventBus.get('annotation:update-body').next({
+              eventBus.get('resolve:update-body').next({
                 annotationUri: resourceAnnotationUri(nestedUri),
                 resourceId: resourceIdSegment,
                 operations: [{
@@ -611,7 +622,7 @@ export function ResourceViewerPage({
                 }],
               });
               showSuccess('Reference linked successfully');
-              // Cache invalidation now handled by annotation:updated event
+              // Cache invalidation now handled by annotate:body-updated event
               onCloseSearchModal();
             } catch (error) {
               console.error('Failed to link reference:', error);
@@ -631,9 +642,9 @@ export function ResourceViewerPage({
           }
         }}
         defaultTitle={generationDefaultTitle}
-        context={retrievalContext}
-        contextLoading={retrievalLoading}
-        contextError={retrievalError}
+        context={correlationContext}
+        contextLoading={correlationLoading}
+        contextError={correlationError}
       />
     </div>
   );

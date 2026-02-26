@@ -10,6 +10,7 @@ import { resourceUri as toResourceUri } from '@semiont/core';
 import { getExactText, getTextPositionSelector, getTargetSelector, getBodySource, getMimeCategory, isPdfMimeType } from '@semiont/api-client';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import { createHoverHandlers } from '../../hooks/useAttentionFlow';
+import { scrollAnnotationIntoView } from '../../lib/scroll-utils';
 import { ImageViewer } from '../viewers';
 import { AnnotateToolbar, type ClickAction } from '../annotation/AnnotateToolbar';
 import type { AnnotationsCollection } from '../../types/annotation-props';
@@ -31,6 +32,7 @@ interface Props {
   hoveredCommentId?: string | null;
   selectedClick?: ClickAction;
   annotateMode: boolean;
+  hoverDelayMs?: number;
 }
 
 /**
@@ -41,8 +43,8 @@ function prepareAnnotations(annotations: Annotation[]): PreparedAnnotation[] {
 /**
  * View component for browsing resources with rendered annotations
  *
- * @emits annotation:click - Annotation clicked in browse view. Payload: { annotationId: string, motivation: Motivation }
- * @emits annotation:hover - Annotation hovered in browse view. Payload: { annotationId: string | null }
+ * @emits attend:click - Annotation clicked in browse view. Payload: { annotationId: string, motivation: Motivation }
+ * @emits attend:hover - Annotation hovered in browse view. Payload: { annotationId: string | null }
  */
   return annotations
     .map(ann => {
@@ -68,11 +70,11 @@ function prepareAnnotations(annotations: Annotation[]): PreparedAnnotation[] {
 /**
  * View component for browsing annotated resources in read-only mode
  *
- * @emits annotation:click - User clicked on annotation. Payload: { annotationId: string, motivation: Motivation }
- * @emits annotation:hover - User hovered over annotation. Payload: { annotationId: string | null }
+ * @emits attend:click - User clicked on annotation. Payload: { annotationId: string, motivation: Motivation }
+ * @emits attend:hover - User hovered over annotation. Payload: { annotationId: string | null }
  *
- * @subscribes annotation:hover - Highlight annotation on hover. Payload: { annotationId: string | null }
- * @subscribes annotation:focus - Scroll to and highlight annotation. Payload: { annotationId: string }
+ * @subscribes attend:hover - Highlight annotation on hover. Payload: { annotationId: string | null }
+ * @subscribes attend:focus - Scroll to and highlight annotation. Payload: { annotationId: string }
  */
 export function BrowseView({
   content,
@@ -80,7 +82,8 @@ export function BrowseView({
   resourceUri,
   annotations,
   selectedClick = 'detail',
-  annotateMode
+  annotateMode,
+  hoverDelayMs = 150
 }: Props) {
   const { newAnnotationIds } = useResourceAnnotations();
   const eventBus = useEventBus();
@@ -112,13 +115,14 @@ export function BrowseView({
       if (annotationId && annotationType === 'reference') {
         const annotation = allAnnotations.find(a => a.id === annotationId);
         if (annotation) {
-          eventBus.get('annotation:click').next({ annotationId, motivation: annotation.motivation });
+          eventBus.get('attend:click').next({ annotationId, motivation: annotation.motivation });
         }
       }
     };
 
     const { handleMouseEnter, handleMouseLeave, cleanup: cleanupHover } = createHoverHandlers(
-      (annotationId) => eventBus.get('annotation:hover').next({ annotationId })
+      (annotationId) => eventBus.get('attend:hover').next({ annotationId }),
+      hoverDelayMs
     );
 
     // Single mouseover handler for the container - fires once on enter
@@ -157,48 +161,13 @@ export function BrowseView({
       container.removeEventListener('mouseout', handleMouseOut);
       cleanupHover();
     };
-  }, [content, allAnnotations, newAnnotationIds]);
+  }, [content, allAnnotations, newAnnotationIds, hoverDelayMs]);
 
   // Helper to scroll annotation into view with pulse effect
   const scrollToAnnotation = useCallback((annotationId: string | null, removePulse = false) => {
-    if (!containerRef.current || !annotationId) return;
-
-    const element = containerRef.current.querySelector(
-      `[data-annotation-id="${CSS.escape(annotationId)}"]`
-    ) as HTMLElement;
-
-    if (!element) return;
-
-    // Find the scroll container
-    const scrollContainer = element.closest('.semiont-browse-view__content') as HTMLElement;
-
-    if (scrollContainer) {
-      // Check visibility within the scroll container
-      const elementRect = element.getBoundingClientRect();
-      const containerRect = scrollContainer.getBoundingClientRect();
-
-      const isVisible =
-        elementRect.top >= containerRect.top &&
-        elementRect.bottom <= containerRect.bottom;
-
-      if (!isVisible) {
-        // Scroll using container.scrollTo to avoid scrolling ancestors
-        const elementTop = element.offsetTop;
-        const containerHeight = scrollContainer.clientHeight;
-        const elementHeight = element.offsetHeight;
-        const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
-
-        scrollContainer.scrollTo({ top: scrollTo, behavior: 'smooth' });
-      }
-    }
-
-    // Add pulse effect
-    element.classList.add('annotation-pulse');
-    if (removePulse) {
-      setTimeout(() => {
-        element.classList.remove('annotation-pulse');
-      }, 2000);
-    }
+    if (!containerRef.current) return;
+    // removePulse = true means "add pulse and auto-remove after 2s"
+    scrollAnnotationIntoView(annotationId, containerRef.current, { pulse: removePulse });
   }, []);
 
   // Handle hover events for scrolling
@@ -212,8 +181,8 @@ export function BrowseView({
   }, [scrollToAnnotation]);
 
   useEventSubscriptions({
-    'annotation:hover': handleAnnotationHover,
-    'annotation:focus': handleAnnotationFocus,
+    'attend:hover': handleAnnotationHover,
+    'attend:focus': handleAnnotationFocus,
   });
 
   // Route to appropriate viewer based on MIME type category

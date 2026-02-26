@@ -7,7 +7,7 @@ import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { components, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
 import { AssessmentEntry } from './AssessmentEntry';
-import { DetectSection } from './DetectSection';
+import { AssistSection } from './AssistSection';
 import { PanelHeader } from './PanelHeader';
 import './AssessmentPanel.css';
 
@@ -40,8 +40,8 @@ function getSelectorDisplayText(selector: Selector | Selector[]): string | null 
 interface AssessmentPanelProps {
   annotations: Annotation[];
   pendingAnnotation: PendingAnnotation | null;
-  isDetecting?: boolean;
-  detectionProgress?: {
+  isAssisting?: boolean;
+  progress?: {
     status: string;
     percentage?: number;
     message?: string;
@@ -55,15 +55,15 @@ interface AssessmentPanelProps {
 /**
  * Panel for managing assessment annotations with text input
  *
- * @emits annotation:create - Create new assessment annotation. Payload: { motivation: 'assessing', selector: Selector | Selector[], body: Body[] }
- * @emits annotation:cancel-pending - Cancel pending assessment annotation. Payload: undefined
- * @subscribes annotation:click - Annotation clicked. Payload: { annotationId: string }
+ * @emits annotate:create - Create new assessment annotation. Payload: { motivation: 'assessing', selector: Selector | Selector[], body: Body[] }
+ * @emits annotate:cancel-pending - Cancel pending assessment annotation. Payload: undefined
+ * @subscribes attend:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function AssessmentPanel({
   annotations,
   pendingAnnotation,
-  isDetecting = false,
-  detectionProgress,
+  isAssisting = false,
+  progress,
   annotateMode = true,
   scrollToAnnotationId,
   onScrollCompleted,
@@ -141,7 +141,7 @@ export function AssessmentPanel({
         ? [{ type: 'TextualBody' as const, value: newAssessmentText, purpose: 'assessing' as const }]
         : [];
 
-      eventBus.get('annotation:create').next({
+      eventBus.get('annotate:create').next({
         motivation: 'assessing',
         selector: pendingAnnotation.selector,
         body,
@@ -156,7 +156,7 @@ export function AssessmentPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.get('annotation:cancel-pending').next(undefined);
+        eventBus.get('annotate:cancel-pending').next(undefined);
         setNewAssessmentText('');
       }
     };
@@ -173,7 +173,7 @@ export function AssessmentPanel({
 
   // Subscribe to click events - update focused state
   useEventSubscriptions({
-    'annotation:click': handleAnnotationClick,
+    'attend:click': handleAnnotationClick,
   });
 
   return (
@@ -209,7 +209,7 @@ export function AssessmentPanel({
             <div className="semiont-annotation-prompt__actions">
               <button
                 onClick={() => {
-                  eventBus.get('annotation:cancel-pending').next(undefined);
+                  eventBus.get('annotate:cancel-pending').next(undefined);
                   setNewAssessmentText('');
                 }}
                 className="semiont-button semiont-button--secondary"
@@ -231,12 +231,12 @@ export function AssessmentPanel({
 
       {/* Scrollable content area */}
       <div ref={containerRef} className="semiont-panel__content">
-        {/* Detection Section - only in Annotate mode and for text resources */}
+        {/* Assist Section - only in Annotate mode and for text resources */}
         {annotateMode && (
-          <DetectSection
+          <AssistSection
             annotationType="assessment"
-            isDetecting={isDetecting}
-            detectionProgress={detectionProgress}
+            isAssisting={isAssisting}
+            progress={progress}
           />
         )}
 

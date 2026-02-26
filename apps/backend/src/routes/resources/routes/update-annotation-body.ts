@@ -12,6 +12,10 @@ import type { BodyOperation } from '@semiont/core';
 import { resourceId, annotationId, userId } from '@semiont/core';
 import { AnnotationContext } from '@semiont/make-meaning';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
+import { getLogger } from '../../../logger';
+
+// Lazy initialization to avoid calling getLogger() at module load time
+const getRouteLogger = () => getLogger().child({ component: 'update-annotation-body' });
 
 type UpdateAnnotationBodyRequest = components['schemas']['UpdateAnnotationBodyRequest'];
 type UpdateAnnotationBodyResponse = components['schemas']['UpdateAnnotationBodyResponse'];
@@ -29,7 +33,10 @@ export function registerUpdateAnnotationBody(router: ResourcesRouterType) {
       const user = c.get('user');
       const config = c.get('config');
 
-      console.log(`[BODY UPDATE HANDLER] Called for annotation ${annotationIdParam}, operations:`, request.operations);
+      getRouteLogger().debug('Body update handler called', {
+        annotationId: annotationIdParam,
+        operations: request.operations
+      });
 
       // Get annotation from view storage
       const annotation = await AnnotationContext.getAnnotation(
@@ -37,10 +44,16 @@ export function registerUpdateAnnotationBody(router: ResourcesRouterType) {
         resourceId(resourceIdParam),
         config
       );
-      console.log(`[BODY UPDATE HANDLER] view storage lookup result for ${annotationIdParam}:`, annotation ? 'FOUND' : 'NOT FOUND');
+      getRouteLogger().debug('View storage lookup result', {
+        annotationId: annotationIdParam,
+        found: !!annotation
+      });
 
       if (!annotation) {
-        console.log(`[BODY UPDATE HANDLER] Throwing 404 - annotation ${annotationIdParam} not found in view storage`);
+        getRouteLogger().warn('Annotation not found in view storage', {
+          annotationId: annotationIdParam,
+          resourceId: resourceIdParam
+        });
         throw new HTTPException(404, { message: 'Annotation not found' });
       }
 

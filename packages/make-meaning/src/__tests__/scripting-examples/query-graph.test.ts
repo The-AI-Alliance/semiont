@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { EventBus } from '@semiont/core';
+import { EventBus, type Logger } from '@semiont/core';
 import { startMakeMeaning, ResourceOperations, AnnotationOperations } from '../..';
 import type { EnvironmentConfig } from '@semiont/core';
 import { userId, resourceUri, uriToResourceId } from '@semiont/core';
@@ -35,6 +35,14 @@ vi.mock('@semiont/inference', async () => {
     MockInferenceClient,
   };
 });
+
+const mockLogger: Logger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger)
+};
 
 describe('Scripting Example: Query Graph Database', () => {
   let testDir: string;
@@ -89,7 +97,7 @@ describe('Scripting Example: Query Graph Database', () => {
     eventBus = new EventBus();
 
     // Start make-meaning service
-    makeMeaning = await startMakeMeaning(config, eventBus);
+    makeMeaning = await startMakeMeaning(config, eventBus, mockLogger);
   });
 
   afterEach(async () => {

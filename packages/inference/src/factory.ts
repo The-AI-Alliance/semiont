@@ -1,6 +1,6 @@
 // Factory for creating inference client instances based on configuration
 
-import type { EnvironmentConfig } from '@semiont/core';
+import type { EnvironmentConfig, Logger } from '@semiont/core';
 import { InferenceClient } from './interface.js';
 import { AnthropicInferenceClient } from './implementations/anthropic.js';
 
@@ -14,7 +14,7 @@ export interface InferenceClientConfig {
   baseURL?: string;
 }
 
-export function createInferenceClient(config: InferenceClientConfig): InferenceClient {
+export function createInferenceClient(config: InferenceClientConfig, logger?: Logger): InferenceClient {
   switch (config.type) {
     case 'anthropic': {
       if (!config.apiKey || config.apiKey.trim() === '') {
@@ -23,7 +23,8 @@ export function createInferenceClient(config: InferenceClientConfig): InferenceC
       return new AnthropicInferenceClient(
         config.apiKey,
         config.model,
-        config.endpoint || config.baseURL
+        config.endpoint || config.baseURL,
+        logger
       );
     }
 
@@ -46,7 +47,7 @@ function evaluateEnvVar(value: string | undefined): string | undefined {
   });
 }
 
-export async function getInferenceClient(config: EnvironmentConfig): Promise<InferenceClient> {
+export async function getInferenceClient(config: EnvironmentConfig, logger?: Logger): Promise<InferenceClient> {
   const inferenceConfig = config.services.inference;
   if (!inferenceConfig) {
     throw new Error('services.inference is required in environment config');
@@ -64,16 +65,19 @@ export async function getInferenceClient(config: EnvironmentConfig): Promise<Inf
     baseURL: inferenceConfig.baseURL,
   };
 
-  console.log('Inference config loaded:', {
+  logger?.info('Loading inference client configuration', {
     type: clientConfig.type,
     model: clientConfig.model,
     endpoint: clientConfig.endpoint,
     hasApiKey: !!clientConfig.apiKey
   });
 
-  const client = createInferenceClient(clientConfig);
+  const client = createInferenceClient(clientConfig, logger);
 
-  console.log(`Initialized ${inferenceConfig.type} inference client with model ${inferenceConfig.model}`);
+  logger?.info('Inference client initialized', {
+    type: inferenceConfig.type,
+    model: inferenceConfig.model
+  });
   return client;
 }
 

@@ -1,0 +1,294 @@
+/**
+ * Highlight Detection Worker
+ *
+ * Processes highlight-detection jobs: runs AI inference to find passages
+ * that should be highlighted and creates highlight annotations.
+ */
+
+import { JobWorker } from '@semiont/jobs';
+import type { AnyJob, HighlightDetectionJob, JobQueue, RunningJob, HighlightDetectionParams, HighlightDetectionProgress, HighlightDetectionResult } from '@semiont/jobs';
+import { ResourceContext, AnnotationDetection } from '..';
+import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
+import { resourceIdToURI, EventBus, type Logger } from '@semiont/core';
+import type { EnvironmentConfig, ResourceId } from '@semiont/core';
+import { userId } from '@semiont/core';
+import type { HighlightMatch } from '../detection/motivation-parsers';
+import type { InferenceClient } from '@semiont/inference';
+
+export class HighlightAnnotationWorker extends JobWorker {
+  private isFirstProgress = true;
+
+  constructor(
+    jobQueue: JobQueue,
+    private config: EnvironmentConfig,
+    private eventStore: EventStore,
+    private inferenceClient: InferenceClient,
+    private eventBus: EventBus,
+    logger: Logger
+  ) {
+    super(jobQueue, undefined, undefined, logger);
+  }
+
+  protected getWorkerName(): string {
+    return 'HighlightAnnotationWorker';
+  }
+
+  protected canProcessJob(job: AnyJob): boolean {
+    return job.metadata.type === 'highlight-annotation';
+  }
+
+  protected async executeJob(job: AnyJob): Promise<HighlightDetectionResult> {
+    if (job.metadata.type !== 'highlight-annotation') {
+      throw new Error(`Invalid job type: ${job.metadata.type}`);
+    }
+
+    // Type guard: job must be running to execute
+    if (job.status !== 'running') {
+      throw new Error(`Job must be in running state to execute, got: ${job.status}`);
+    }
+
+    // Reset progress tracking
+    this.isFirstProgress = true;
+    return await this.processHighlightDetectionJob(job as RunningJob<HighlightDetectionParams, HighlightDetectionProgress>);
+  }
+
+  /**
+   * Emit completion event with result data
+   * Override base class to emit job.completed event
+   */
+  protected override async emitCompletionEvent(
+    job: RunningJob<HighlightDetectionParams, HighlightDetectionProgress>,
+    result: HighlightDetectionResult
+  ): Promise<void> {
+    await this.eventStore.appendEvent({
+      type: 'job.completed',
+      resourceId: job.params.resourceId,
+      userId: job.metadata.userId,
+      version: 1,
+      payload: {
+        jobId: job.metadata.id,
+        jobType: 'highlight-annotation',
+        result,
+      },
+    });
+
+    // Emit to EventBus for real-time subscribers
+    // Domain event (job.completed) is automatically published to EventBus by EventStore
+    // Backend SSE endpoint will subscribe to job.completed and transform to annotate:detect-finished
+  }
+
+  /**
+   * Override updateJobProgress to emit events to Event Store
+   */
+  protected override async updateJobProgress(job: AnyJob): Promise<void> {
+    // Call parent to update filesystem
+    await super.updateJobProgress(job);
+
+    if (job.metadata.type !== 'highlight-annotation') return;
+
+    // Type guard: only running jobs have progress
+    if (job.status !== 'running') {
+      return;
+    }
+
+    const hlJob = job as RunningJob<HighlightDetectionParams, HighlightDetectionProgress>;
+
+    const baseEvent = {
+      resourceId: hlJob.params.resourceId,
+      userId: hlJob.metadata.userId,
+      version: 1,
+    };
+
+    const resourceBus = this.eventBus.scope(hlJob.params.resourceId);
+
+    if (this.isFirstProgress) {
+      // First progress update - emit job.started
+      this.isFirstProgress = false;
+      await this.eventStore.appendEvent({
+        type: 'job.started',
+        ...baseEvent,
+        payload: {
+          jobId: hlJob.metadata.id,
+          jobType: hlJob.metadata.type,
+        },
+      });
+    } else {
+      // Intermediate progress - emit job.progress
+      // Note: job.completed is now handled by emitCompletionEvent()
+      await this.eventStore.appendEvent({
+        type: 'job.progress',
+        ...baseEvent,
+        payload: {
+          jobId: hlJob.metadata.id,
+          jobType: hlJob.metadata.type,
+          progress: hlJob.progress,
+        },
+      });
+      resourceBus.get('annotate:progress').next({
+        status: hlJob.progress.stage,
+        message: hlJob.progress.message,
+        percentage: hlJob.progress.percentage
+      });
+    }
+  }
+
+  protected override async handleJobFailure(job: AnyJob, error: any): Promise<void> {
+    // Call parent to handle the failure logic
+    await super.handleJobFailure(job, error);
+
+    // If job permanently failed, emit job.failed event
+    if (job.status === 'failed' && job.metadata.type === 'highlight-annotation') {
+      const hlJob = job as HighlightDetectionJob;
+
+      // Log the full error details to backend logs (already logged by parent)
+      // Send generic error message to frontend
+      await this.eventStore.appendEvent({
+        type: 'job.failed',
+        resourceId: hlJob.params.resourceId,
+        userId: hlJob.metadata.userId,
+        version: 1,
+        payload: {
+          jobId: hlJob.metadata.id,
+          jobType: hlJob.metadata.type,
+          error: 'Highlight detection failed. Please try again later.',
+        },
+      });
+    }
+  }
+
+  private async processHighlightDetectionJob(job: RunningJob<HighlightDetectionParams, HighlightDetectionProgress>): Promise<HighlightDetectionResult> {
+    this.logger?.info('Processing highlight detection job', {
+      resourceId: job.params.resourceId,
+      jobId: job.metadata.id
+    });
+
+    // Fetch resource content
+    const resource = await ResourceContext.getResourceMetadata(job.params.resourceId, this.config);
+
+    if (!resource) {
+      throw new Error(`Resource ${job.params.resourceId} not found`);
+    }
+
+    // Emit job.started and start analyzing
+    let updatedJob: RunningJob<HighlightDetectionParams, HighlightDetectionProgress> = {
+      ...job,
+      progress: {
+        stage: 'analyzing',
+        percentage: 10,
+        message: 'Loading resource...'
+      }
+    };
+    await this.updateJobProgress(updatedJob);
+
+    // Update progress
+    updatedJob = {
+      ...updatedJob,
+      progress: {
+        stage: 'analyzing',
+        percentage: 30,
+        message: 'Analyzing text...'
+      }
+    };
+    await this.updateJobProgress(updatedJob);
+
+    // Use AI to detect highlights
+    const highlights = await AnnotationDetection.detectHighlights(
+      job.params.resourceId,
+      this.config,
+      this.inferenceClient,
+      job.params.instructions,
+      job.params.density
+    );
+
+    this.logger?.info('Found highlights to create', { count: highlights.length });
+
+    // Update progress
+    updatedJob = {
+      ...updatedJob,
+      progress: {
+        stage: 'creating',
+        percentage: 60,
+        message: `Creating ${highlights.length} annotations...`
+      }
+    };
+    await this.updateJobProgress(updatedJob);
+
+    // Create annotations for each highlight
+    let created = 0;
+    for (const highlight of highlights) {
+      try {
+        await this.createHighlightAnnotation(job.params.resourceId, job.metadata.userId, highlight);
+        created++;
+      } catch (error) {
+        this.logger?.error('Failed to create highlight', { error });
+      }
+    }
+
+    updatedJob = {
+      ...updatedJob,
+      progress: {
+        stage: 'creating',
+        percentage: 100,
+        message: `Complete! Created ${created} highlights`
+      }
+    };
+
+    await this.updateJobProgress(updatedJob);
+    this.logger?.info('Highlight detection complete', { created, total: highlights.length });
+
+    // Return result - base class will use this for CompleteJob and emitCompletionEvent
+    return {
+      highlightsFound: highlights.length,
+      highlightsCreated: created
+    };
+  }
+
+  private async createHighlightAnnotation(
+    resourceId: ResourceId,
+    creatorUserId: string,
+    highlight: HighlightMatch
+  ): Promise<void> {
+    const backendUrl = this.config.services.backend?.publicURL;
+    if (!backendUrl) throw new Error('Backend publicURL not configured');
+
+    const annotationId = generateAnnotationId(backendUrl);
+    const resourceUri = resourceIdToURI(resourceId, backendUrl);
+
+    // Create W3C annotation with motivation: highlighting
+    // Use both TextPositionSelector and TextQuoteSelector (with prefix/suffix for fuzzy anchoring)
+    const annotation = {
+      '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+      'type': 'Annotation' as const,
+      'id': annotationId,
+      'motivation': 'highlighting' as const,
+      'creator': userId(creatorUserId),
+      'created': new Date().toISOString(),
+      'target': {
+        type: 'SpecificResource' as const,
+        source: resourceUri,
+        selector: [
+          {
+            type: 'TextPositionSelector' as const,
+            start: highlight.start,
+            end: highlight.end,
+          },
+          {
+            type: 'TextQuoteSelector' as const,
+            exact: highlight.exact,
+            ...(highlight.prefix && { prefix: highlight.prefix }),
+            ...(highlight.suffix && { suffix: highlight.suffix }),
+          },
+        ]
+      },
+      'body': []  // Empty body for highlights
+    };
+
+    await this.eventStore.appendEvent({
+      type: 'annotation.added',
+      resourceId,
+      userId: userId(creatorUserId),
+      version: 1,
+      payload: { annotation }
+    });
+  }
+}

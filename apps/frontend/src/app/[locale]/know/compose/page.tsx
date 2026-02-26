@@ -17,6 +17,7 @@ import { useToast } from '@semiont/react-ui';
 import { useTheme } from '@semiont/react-ui';
 import { usePanelNavigation } from '@semiont/react-ui';
 import { useLineNumbers } from '@semiont/react-ui';
+import { useHoverDelay } from '@semiont/react-ui';
 import { useEventSubscriptions } from '@semiont/react-ui';
 import { Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
@@ -60,6 +61,7 @@ function ComposeResourceContent() {
   const { activePanel } = usePanelNavigation();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
+  const { hoverDelayMs } = useHoverDelay();
 
   // Subscribe to settings events
   useEventSubscriptions({
@@ -264,6 +266,7 @@ function ComposeResourceContent() {
       initialLocale={locale}
       theme={resolvedTheme}
       showLineNumbers={showLineNumbers}
+      hoverDelayMs={hoverDelayMs}
       activePanel={activePanel}
       onSaveResource={handleSaveResource}
       onCancel={() => router.push('/know/discover')}

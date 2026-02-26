@@ -40,8 +40,8 @@ function getSelectorDisplayText(selector: Selector | Selector[]): string | null 
 interface TaggingPanelProps {
   annotations: Annotation[];
   annotateMode?: boolean;
-  isDetecting?: boolean;
-  detectionProgress?: {
+  isAssisting?: boolean;
+  progress?: {
     status: string;
     percentage?: number;
     currentCategory?: string;
@@ -57,18 +57,18 @@ interface TaggingPanelProps {
 }
 
 /**
- * Panel for managing tag annotations with schema-based detection
+ * Panel for managing tag annotations with schema-based annotation
  *
- * @emits detection:start - Start tag detection. Payload: { motivation: 'tagging', options: { schemaId: string, categories: string[] } }
- * @emits annotation:cancel-pending - Cancel pending tag annotation. Payload: undefined
- * @emits annotation:create - Create new tag annotation. Payload: { motivation: 'tagging', selector: Selector | Selector[], body: Body[] }
- * @subscribes annotation:click - Annotation clicked. Payload: { annotationId: string }
+ * @emits annotate:detect-request - Start tag annotation. Payload: { motivation: 'tagging', options: { schemaId: string, categories: string[] } }
+ * @emits annotate:cancel-pending - Cancel pending tag annotation. Payload: undefined
+ * @emits annotate:create - Create new tag annotation. Payload: { motivation: 'tagging', selector: Selector | Selector[], body: Body[] }
+ * @subscribes attend:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function TaggingPanel({
   annotations,
   annotateMode = true,
-  isDetecting = false,
-  detectionProgress,
+  isAssisting = false,
+  progress,
   pendingAnnotation,
   scrollToAnnotationId,
   onScrollCompleted,
@@ -82,17 +82,17 @@ export function TaggingPanel({
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Collapsible detection section state - load from localStorage, default expanded
-  const [isDetectExpanded, setIsDetectExpanded] = useState(() => {
+  const [isAssistExpanded, setIsDetectExpanded] = useState(() => {
     if (typeof window === 'undefined') return true;
-    const stored = localStorage.getItem('detect-section-expanded-tag');
+    const stored = localStorage.getItem('assist-section-expanded-tag');
     return stored ? stored === 'true' : true;
   });
 
   // Persist detection section expanded state to localStorage
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    localStorage.setItem('detect-section-expanded-tag', String(isDetectExpanded));
-  }, [isDetectExpanded]);
+    localStorage.setItem('assist-section-expanded-tag', String(isAssistExpanded));
+  }, [isAssistExpanded]);
 
   // Subscribe to click events - update focused state
   // Event handler for annotation clicks (extracted to avoid inline arrow function)
@@ -102,7 +102,7 @@ export function TaggingPanel({
   }, []);
 
   useEventSubscriptions({
-    'annotation:click': handleAnnotationClick,
+    'attend:click': handleAnnotationClick,
   });
 
   // Direct ref management
@@ -193,16 +193,16 @@ export function TaggingPanel({
     setSelectedCategories(new Set());
   };
 
-  const handleDetect = () => {
+  const handleAssist = () => {
     if (selectedCategories.size > 0) {
-      eventBus.get('detection:start').next({
+      eventBus.get('annotate:assist-request').next({
         motivation: 'tagging',
         options: {
           schemaId: selectedSchemaId,
           categories: Array.from(selectedCategories),
         },
       });
-      setSelectedCategories(new Set()); // Reset after detection
+      setSelectedCategories(new Set()); // Reset after annotation
     }
   };
 
@@ -212,7 +212,7 @@ export function TaggingPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.get('annotation:cancel-pending').next(undefined);
+        eventBus.get('annotate:cancel-pending').next(undefined);
       }
     };
 
@@ -274,7 +274,7 @@ export function TaggingPanel({
                   className="semiont-select"
                   onChange={(e) => {
                     if (e.target.value && pendingAnnotation) {
-                      eventBus.get('annotation:create').next({
+                      eventBus.get('annotate:create').next({
                         motivation: 'tagging',
                         selector: pendingAnnotation.selector,
                         body: [
@@ -305,7 +305,7 @@ export function TaggingPanel({
             {/* Cancel button */}
             <div className="semiont-annotation-prompt__footer">
               <button
-                onClick={() => eventBus.get('annotation:cancel-pending').next(undefined)}
+                onClick={() => eventBus.get('annotate:cancel-pending').next(undefined)}
                 className="semiont-button semiont-button--secondary"
                 data-type="tag"
               >
@@ -315,23 +315,23 @@ export function TaggingPanel({
           </div>
         )}
 
-        {/* Detection Section - only in Annotate mode */}
+        {/* Assist Section - only in Annotate mode */}
         {annotateMode && (
           <div className="semiont-panel__section">
             <button
-              onClick={() => setIsDetectExpanded(!isDetectExpanded)}
+              onClick={() => setIsDetectExpanded(!isAssistExpanded)}
               className="semiont-panel__section-title semiont-panel__section-title--collapsible"
-              aria-expanded={isDetectExpanded}
+              aria-expanded={isAssistExpanded}
               type="button"
             >
-              <span>{t('detectTags')}</span>
-              <span className="semiont-panel__section-chevron" data-expanded={isDetectExpanded}>
+              <span>{t('annotateTags')}</span>
+              <span className="semiont-panel__section-chevron" data-expanded={isAssistExpanded}>
                 ›
               </span>
             </button>
-            {isDetectExpanded && (
-              <div className="semiont-detect-widget" data-detecting={isDetecting && detectionProgress ? 'true' : 'false'} data-type="tag">
-              {!isDetecting && !detectionProgress && (
+            {isAssistExpanded && (
+              <div className="semiont-assist-widget" data-assisting={isAssisting && progress ? 'true' : 'false'} data-type="tag">
+              {!isAssisting && !progress && (
                 <>
                   {/* Schema Selector */}
                   <div className="semiont-form-field">
@@ -415,53 +415,53 @@ export function TaggingPanel({
                 </>
               )}
 
-              {/* Detect Button - Always visible */}
+              {/* Assist Button - Always visible */}
               <button
-                onClick={handleDetect}
-                disabled={selectedCategories.size === 0 || isDetecting}
+                onClick={handleAssist}
+                disabled={selectedCategories.size === 0 || isAssisting}
                 className="semiont-button"
-                data-variant="detect"
+                data-variant="assist"
                 data-type="tag"
               >
                 <span className="semiont-button-icon">✨</span>
-                <span>{t('detect')}</span>
+                <span>{t('annotate')}</span>
               </button>
 
-              {/* Detection Progress */}
-              {isDetecting && detectionProgress && (
-                <div className="semiont-detection-progress" data-type="tag">
+              {/* Annotation Progress */}
+              {isAssisting && progress && (
+                <div className="semiont-annotation-progress" data-type="tag">
                   {/* Request Parameters */}
-                  {detectionProgress.requestParams && detectionProgress.requestParams.length > 0 && (
-                    <div className="semiont-detection-progress__params" data-type="tag">
-                      <div className="semiont-detection-progress__params-title">Request Parameters:</div>
-                      {detectionProgress.requestParams.map((param, idx) => (
-                        <div key={idx} className="semiont-detection-progress__param">
-                          <span className="semiont-detection-progress__param-label">{param.label}:</span> {param.value}
+                  {progress.requestParams && progress.requestParams.length > 0 && (
+                    <div className="semiont-annotation-progress__params" data-type="tag">
+                      <div className="semiont-annotation-progress__params-title">Request Parameters:</div>
+                      {progress.requestParams.map((param, idx) => (
+                        <div key={idx} className="semiont-annotation-progress__param">
+                          <span className="semiont-annotation-progress__param-label">{param.label}:</span> {param.value}
                         </div>
                       ))}
                     </div>
                   )}
 
-                  <div className="semiont-detection-progress__status">
-                    <div className="semiont-detection-progress__message">
-                      <span className="semiont-detection-progress__icon">✨</span>
-                      <span>{detectionProgress.message}</span>
+                  <div className="semiont-annotation-progress__status">
+                    <div className="semiont-annotation-progress__message">
+                      <span className="semiont-annotation-progress__icon">✨</span>
+                      <span>{progress.message}</span>
                     </div>
-                    {detectionProgress.currentCategory && (
-                      <div className="semiont-detection-progress__details">
-                        Processing: {detectionProgress.currentCategory}
-                        {detectionProgress.processedCategories !== undefined && detectionProgress.totalCategories !== undefined && (
-                          <> ({detectionProgress.processedCategories}/{detectionProgress.totalCategories})</>
+                    {progress.currentCategory && (
+                      <div className="semiont-annotation-progress__details">
+                        Processing: {progress.currentCategory}
+                        {progress.processedCategories !== undefined && progress.totalCategories !== undefined && (
+                          <> ({progress.processedCategories}/{progress.totalCategories})</>
                         )}
                       </div>
                     )}
                   </div>
-                  {detectionProgress.percentage !== undefined && (
+                  {progress.percentage !== undefined && (
                     <div className="semiont-progress-bar">
                       <div
                         className="semiont-progress-bar__fill"
                         data-type="tag"
-                        style={{ width: `${detectionProgress.percentage}%` }}
+                        style={{ width: `${progress.percentage}%` }}
                       />
                     </div>
                   )}

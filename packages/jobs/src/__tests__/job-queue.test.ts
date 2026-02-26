@@ -2,7 +2,7 @@
  * Unit tests for JobQueue class
  */
 
-import { describe, test, expect, beforeEach, afterEach } from 'vitest';
+import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -10,13 +10,21 @@ import { JobQueue } from '../job-queue';
 import type { JobStatus, PendingJob, RunningJob, CompleteJob, FailedJob, DetectionParams, DetectionProgress, DetectionResult, GenerationParams } from '../types';
 import { entityType, jobId, userId, resourceId, annotationId, EventBus } from '@semiont/core';
 
+const mockLogger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger)
+};
+
 // Test helper - create detection jobs in various states
 function createPendingDetectionJob(id: string): PendingJob<DetectionParams> {
   return {
     status: 'pending',
     metadata: {
       id: jobId(id),
-      type: 'detection',
+      type: 'reference-annotation',
       userId: userId('user-1'),
       created: new Date().toISOString(),
       retryCount: 0,
@@ -34,7 +42,7 @@ function createRunningDetectionJob(id: string): RunningJob<DetectionParams, Dete
     status: 'running',
     metadata: {
       id: jobId(id),
-      type: 'detection',
+      type: 'reference-annotation',
       userId: userId('user-1'),
       created: new Date().toISOString(),
       retryCount: 0,
@@ -60,7 +68,7 @@ function createCompleteDetectionJob(id: string): CompleteJob<DetectionParams, De
     status: 'complete',
     metadata: {
       id: jobId(id),
-      type: 'detection',
+      type: 'reference-annotation',
       userId: userId('user-1'),
       created: new Date().toISOString(),
       retryCount: 0,
@@ -85,7 +93,7 @@ function createFailedDetectionJob(id: string): FailedJob<DetectionParams> {
     status: 'failed',
     metadata: {
       id: jobId(id),
-      type: 'detection',
+      type: 'reference-annotation',
       userId: userId('user-1'),
       created: new Date().toISOString(),
       retryCount: 1,
@@ -127,7 +135,7 @@ describe('JobQueue', () => {
   beforeEach(async () => {
     // Create a temporary directory for tests
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'job-queue-test-'));
-    jobQueue = new JobQueue({ dataDir: tempDir }, new EventBus());
+    jobQueue = new JobQueue({ dataDir: tempDir }, mockLogger, new EventBus());
     await jobQueue.initialize();
   });
 
@@ -283,7 +291,7 @@ describe('JobQueue', () => {
       await jobQueue.createJob(detectionJob);
       await jobQueue.createJob(generationJob);
 
-      const detectionJobs = await jobQueue.listJobs({ type: 'detection' });
+      const detectionJobs = await jobQueue.listJobs({ type: 'reference-annotation' });
 
       expect(detectionJobs.length).toBe(1);
       expect(detectionJobs[0]?.metadata.id).toBe(jobId('job-1'));
@@ -449,7 +457,7 @@ describe('JobQueue', () => {
   describe('EventBus Integration', () => {
     test('should emit job:queued event when creating a job', async () => {
       const eventBus = new EventBus();
-      const testQueue = new JobQueue({ dataDir: tempDir }, eventBus);
+      const testQueue = new JobQueue({ dataDir: tempDir }, mockLogger, eventBus);
       await testQueue.initialize();
 
       const events: any[] = [];
@@ -467,13 +475,13 @@ describe('JobQueue', () => {
       expect(events).toHaveLength(1);
       expect(events[0]).toEqual({
         jobId: jobId('job-with-event'),
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         resourceId: job.params.resourceId
       });
     });
 
     test('should not fail when EventBus is not provided', async () => {
-      const testQueue = new JobQueue({ dataDir: tempDir });
+      const testQueue = new JobQueue({ dataDir: tempDir }, mockLogger, undefined);
       await testQueue.initialize();
 
       const job = createPendingDetectionJob('job-no-eventbus');

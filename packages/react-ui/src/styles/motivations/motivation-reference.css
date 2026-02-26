@@ -103,15 +103,15 @@
 }
 
 /* ============================================
-   Detection Section in Unified Panel
+   Assist Section in Unified Panel
    ============================================ */
 .semiont-motivation-reference-section,
-.semiont-detect-section[data-type="reference"] {
+.semiont-assist-section[data-type="reference"] {
   border-color: var(--semiont-color-cyan-500);
 }
 
 [data-theme="dark"] .semiont-motivation-reference-section,
-[data-theme="dark"] .semiont-detect-section[data-type="reference"] {
+[data-theme="dark"] .semiont-assist-section[data-type="reference"] {
   border-color: var(--semiont-color-cyan-600);
 }
 
@@ -119,7 +119,7 @@
    Button Styling
    ============================================ */
 .semiont-motivation-reference-button,
-.semiont-button[data-variant="detect"][data-type="reference"] {
+.semiont-button[data-variant="assist"][data-type="reference"] {
   background: linear-gradient(to right, var(--semiont-color-cyan-600), var(--semiont-color-blue-500)) !important;
   color: var(--semiont-color-white) !important;
   border: 1px solid var(--semiont-motivation-reference-border);
@@ -128,29 +128,29 @@
 }
 
 .semiont-motivation-reference-button:hover,
-.semiont-button[data-variant="detect"][data-type="reference"]:hover {
+.semiont-button[data-variant="assist"][data-type="reference"]:hover {
   background: var(--semiont-motivation-reference-button-bg-hover);
   border-color: var(--semiont-motivation-reference-primary);
 }
 
 [data-theme="dark"] .semiont-motivation-reference-button,
-[data-theme="dark"] .semiont-button[data-variant="detect"][data-type="reference"] {
+[data-theme="dark"] .semiont-button[data-variant="assist"][data-type="reference"] {
   border-color: var(--semiont-motivation-reference-dark-outline);
 }
 
 [data-theme="dark"] .semiont-motivation-reference-button:hover,
-[data-theme="dark"] .semiont-button[data-variant="detect"][data-type="reference"]:hover {
+[data-theme="dark"] .semiont-button[data-variant="assist"][data-type="reference"]:hover {
   border-color: var(--semiont-motivation-reference-dark-primary);
 }
 
 .semiont-motivation-reference-button:focus-visible,
-.semiont-button[data-variant="detect"][data-type="reference"]:focus-visible {
+.semiont-button[data-variant="assist"][data-type="reference"]:focus-visible {
   outline: 2px solid var(--semiont-motivation-reference-primary);
   outline-offset: 2px;
 }
 
 [data-theme="dark"] .semiont-motivation-reference-button:focus-visible,
-[data-theme="dark"] .semiont-button[data-variant="detect"][data-type="reference"]:focus-visible {
+[data-theme="dark"] .semiont-button[data-variant="assist"][data-type="reference"]:focus-visible {
   outline: 2px solid var(--semiont-motivation-reference-dark-primary);
   outline-offset: 2px;
 }

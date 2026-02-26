@@ -194,8 +194,8 @@
   color: var(--semiont-color-gray-100);
 }
 /* ============================================
-   Detect Section Form Fields (single-dash BEM variant)
-   Used in DetectSection component
+   Assist Section Form Fields (single-dash BEM variant)
+   Used in AssistSection component
    ============================================ */
 
 .semiont-form-field {

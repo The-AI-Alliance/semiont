@@ -40,8 +40,8 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
-        result.current.get('annotation:hover').subscribe(handler);
-        result.current.get('annotation:hover').next({ annotationId: 'ann-123' });
+        result.current.get('attend:hover').subscribe(handler);
+        result.current.get('attend:hover').next({ annotationId: 'ann-123' });
       });
 
       expect(handler).toHaveBeenCalledWith({ annotationId: 'ann-123' });
@@ -52,8 +52,8 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
-        result.current.get('panel:toggle').subscribe(handler);
-        result.current.get('panel:toggle').next({ panel: 'comments' });
+        result.current.get('attend:panel-toggle').subscribe(handler);
+        result.current.get('attend:panel-toggle').next({ panel: 'comments' });
       });
 
       expect(handler).toHaveBeenCalledWith({ panel: 'comments' });
@@ -64,8 +64,8 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
-        result.current.get('toolbar:selection-changed').subscribe(handler);
-        result.current.get('toolbar:selection-changed').next({ motivation: 'highlighting' });
+        result.current.get('annotate:selection-changed').subscribe(handler);
+        result.current.get('annotate:selection-changed').next({ motivation: 'highlighting' });
       });
 
       expect(handler).toHaveBeenCalledWith({ motivation: 'highlighting' });
@@ -100,8 +100,8 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
-        result.current.get('annotation:create').subscribe(handler);
-        result.current.get('annotation:create').next({
+        result.current.get('annotate:create').subscribe(handler);
+        result.current.get('annotate:create').next({
           motivation: 'highlighting',
           selector: { type: 'TextQuoteSelector', exact: 'test' },
           body: [{ type: 'TextualBody', value: 'highlight' }]
@@ -116,8 +116,8 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
-        result.current.get('detection:start').subscribe(handler);
-        result.current.get('detection:start').next({
+        result.current.get('annotate:detect-request').subscribe(handler);
+        result.current.get('annotate:detect-request').next({
           motivation: 'highlighting',
           options: { instructions: 'Find important parts' }
         });
@@ -135,9 +135,9 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
-        result.current.get('annotation:hover').subscribe(handler1);
-        result.current.get('annotation:hover').subscribe(handler2);
-        result.current.get('annotation:hover').next({ annotationId: 'ann-123' });
+        result.current.get('attend:hover').subscribe(handler1);
+        result.current.get('attend:hover').subscribe(handler2);
+        result.current.get('attend:hover').next({ annotationId: 'ann-123' });
       });
 
       expect(handler1).toHaveBeenCalledWith({ annotationId: 'ann-123' });
@@ -152,15 +152,15 @@ describe('EventBusContext', () => {
       let subscription: { unsubscribe: () => void } | undefined;
 
       act(() => {
-        subscription = result.current.get('annotation:hover').subscribe(handler);
-        result.current.get('annotation:hover').next({ annotationId: 'ann-1' });
+        subscription = result.current.get('attend:hover').subscribe(handler);
+        result.current.get('attend:hover').next({ annotationId: 'ann-1' });
       });
 
       expect(handler).toHaveBeenCalledTimes(1);
 
       act(() => {
         subscription!.unsubscribe();
-        result.current.get('annotation:hover').next({ annotationId: 'ann-2' });
+        result.current.get('attend:hover').next({ annotationId: 'ann-2' });
       });
 
       // Should still be called only once (from before unsubscribing)
@@ -174,13 +174,13 @@ describe('EventBusContext', () => {
       let subscription1: { unsubscribe: () => void } | undefined;
 
       act(() => {
-        subscription1 = result.current.get('annotation:hover').subscribe(handler1);
-        result.current.get('annotation:hover').subscribe(handler2);
+        subscription1 = result.current.get('attend:hover').subscribe(handler1);
+        result.current.get('attend:hover').subscribe(handler2);
 
         // Unsubscribe only handler1
         subscription1.unsubscribe();
 
-        result.current.get('annotation:hover').next({ annotationId: 'ann-1' });
+        result.current.get('attend:hover').next({ annotationId: 'ann-1' });
       });
 
       expect(handler1).not.toHaveBeenCalled();
@@ -209,11 +209,11 @@ describe('EventBusContext', () => {
       const { result: result2 } = renderHook(() => useEventBus(), { wrapper: wrapper2 });
 
       act(() => {
-        result1.current.get('annotation:hover').subscribe(handler1);
-        result2.current.get('annotation:hover').subscribe(handler2);
+        result1.current.get('attend:hover').subscribe(handler1);
+        result2.current.get('attend:hover').subscribe(handler2);
 
         // Emit on bus 1 - should trigger both handlers since it's the same global bus
-        result1.current.get('annotation:hover').next({ annotationId: 'ann-1' });
+        result1.current.get('attend:hover').next({ annotationId: 'ann-1' });
       });
 
       // Both handlers should be called because they share the same global event bus
@@ -240,19 +240,19 @@ describe('EventBusContext', () => {
 
       act(() => {
         // Subscribe to annotation events
-        result.current.get('annotation:create').subscribe(createHandler);
-        result.current.get('annotation:created').subscribe(createdHandler);
-        result.current.get('annotation:hover').subscribe(hoverHandler);
+        result.current.get('annotate:create').subscribe(createHandler);
+        result.current.get('annotate:created').subscribe(createdHandler);
+        result.current.get('attend:hover').subscribe(hoverHandler);
 
         // Simulate annotation creation flow
-        result.current.get('annotation:create').next({
+        result.current.get('annotate:create').next({
           motivation: 'commenting',
           selector: { type: 'TextQuoteSelector', exact: 'important text' },
           body: [{ type: 'TextualBody', value: 'my comment' }]
         });
 
         // Simulate successful creation (would normally come from API)
-        result.current.get('annotation:created').next({
+        result.current.get('annotate:created').next({
           annotation: {
             '@context': 'http://www.w3.org/ns/anno.jsonld',
             type: 'Annotation',
@@ -264,7 +264,7 @@ describe('EventBusContext', () => {
         });
 
         // Simulate hover
-        result.current.get('annotation:hover').next({ annotationId: 'ann-123' });
+        result.current.get('attend:hover').next({ annotationId: 'ann-123' });
       });
 
       expect(createHandler).toHaveBeenCalled();
@@ -280,24 +280,24 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
-        result.current.get('detection:start').subscribe(startHandler);
-        result.current.get('detection:progress').subscribe(progressHandler);
-        result.current.get('detection:complete').subscribe(completeHandler);
+        result.current.get('annotate:detect-request').subscribe(startHandler);
+        result.current.get('annotate:detect-progress').subscribe(progressHandler);
+        result.current.get('annotate:detect-finished').subscribe(completeHandler);
 
         // Start detection
-        result.current.get('detection:start').next({
+        result.current.get('annotate:detect-request').next({
           motivation: 'tagging',
           options: { schemaId: 'legal', categories: ['Issue', 'Rule'] }
         });
 
         // Progress update
-        result.current.get('detection:progress').next({
+        result.current.get('annotate:detect-progress').next({
           type: 'job.progress',
           payload: { current: 5, total: 10 }
         } as any);
 
         // Complete
-        result.current.get('detection:complete').next({ motivation: 'tagging' });
+        result.current.get('annotate:detect-finished').next({ motivation: 'tagging' });
       });
 
       expect(startHandler).toHaveBeenCalled();

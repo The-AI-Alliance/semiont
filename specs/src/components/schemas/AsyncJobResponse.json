@@ -17,7 +17,7 @@
     "type": {
       "type": "string",
       "enum": [
-        "detection",
+        "reference-annotation",
         "generation"
       ]
     },

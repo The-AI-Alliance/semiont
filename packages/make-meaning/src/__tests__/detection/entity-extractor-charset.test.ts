@@ -5,14 +5,14 @@
  * to prevent annotation offset bugs.
  *
  * MOVED FROM: apps/backend/src/__tests__/routes/entity-detection-charset.test.ts
- * This test belongs in make-meaning because it tests ReferenceDetectionWorker directly.
+ * This test belongs in make-meaning because it tests ReferenceAnnotationWorker directly.
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { ReferenceDetectionWorker, type DetectedAnnotation } from '../../jobs/reference-detection-worker';
+import { ReferenceAnnotationWorker, type DetectedAnnotation } from '../../jobs/reference-annotation-worker';
 import { JobQueue } from '@semiont/jobs';
 import { FilesystemRepresentationStore } from '@semiont/content';
-import type { components, EnvironmentConfig } from '@semiont/core';
+import type { components, EnvironmentConfig, Logger } from '@semiont/core';
 import { EventBus } from '@semiont/core';
 import { createEventStore } from '@semiont/event-sourcing';
 import { promises as fs } from 'fs';
@@ -59,10 +59,18 @@ vi.mock('../../detection/entity-extractor', () => ({
   })
 }));
 
+const mockLogger: Logger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger)
+};
+
 describe('Entity Detection - Charset Handling', () => {
   let testDir: string;
   let config: EnvironmentConfig;
-  let worker: ReferenceDetectionWorker;
+  let worker: ReferenceAnnotationWorker;
 
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-test-charset-${Date.now()}`);
@@ -105,10 +113,10 @@ describe('Entity Detection - Charset Handling', () => {
       },
     } as EnvironmentConfig;
 
-    const jobQueue = new JobQueue({ dataDir: config.services.filesystem!.path }, new EventBus());
+    const jobQueue = new JobQueue({ dataDir: config.services.filesystem!.path }, mockLogger, new EventBus());
     await jobQueue.initialize();
-    const eventStore = createEventStore(config.services.filesystem!.path, config.services.backend!.publicURL);
-    worker = new ReferenceDetectionWorker(jobQueue, config, eventStore, mockInferenceClient.client, new EventBus());
+    const eventStore = createEventStore(config.services.filesystem!.path, config.services.backend!.publicURL, undefined, undefined, mockLogger);
+    worker = new ReferenceAnnotationWorker(jobQueue, config, eventStore, mockInferenceClient.client, new EventBus(), mockLogger);
   });
 
   afterAll(async () => {
@@ -125,7 +133,7 @@ describe('Entity Detection - Charset Handling', () => {
     const buffer = Buffer.from(text, 'utf8');
 
     // Store representation
-    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir);
+    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
     const stored = await repStore.store(buffer, { mediaType });
     const checksum = stored.checksum;
 
@@ -180,7 +188,7 @@ describe('Entity Detection - Charset Handling', () => {
     const buffer = Buffer.from(text, 'latin1');
 
     // Store representation
-    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir);
+    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
     const stored = await repStore.store(buffer, { mediaType });
     const checksum = stored.checksum;
 
@@ -236,7 +244,7 @@ describe('Entity Detection - Charset Handling', () => {
     const buffer = Buffer.from(text, 'latin1'); // Windows-1252 is a superset of Latin-1
 
     // Store representation
-    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir);
+    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
     const stored = await repStore.store(buffer, { mediaType });
     const checksum = stored.checksum;
 
@@ -281,7 +289,7 @@ describe('Entity Detection - Charset Handling', () => {
     const buffer = Buffer.from(text, 'latin1');
 
     // Store representation
-    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir);
+    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
     const stored = await repStore.store(buffer, { mediaType });
     const checksum = stored.checksum;
 
@@ -330,7 +338,7 @@ describe('Entity Detection - Charset Handling', () => {
     const bufferLatin1 = Buffer.from(textLatin1, 'latin1');
 
     // Store as Latin-1
-    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir);
+    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
     const stored = await repStore.store(bufferLatin1, { mediaType: 'text/plain; charset=iso-8859-1' });
     const checksum = stored.checksum;
 
@@ -387,7 +395,7 @@ describe('Entity Detection - Charset Handling', () => {
     const buffer = Buffer.from(text, 'utf8');
 
     // Store without charset in mediaType
-    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir);
+    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
     const stored = await repStore.store(buffer, { mediaType: 'text/plain' });
     const checksum = stored.checksum;
 

@@ -4,6 +4,9 @@
  * Provides static methods to parse and validate AI responses for each motivation type.
  * Includes offset validation and correction logic.
  * Extracted from worker implementations to centralize parsing logic.
+ *
+ * NOTE: These are static utility methods without logger access.
+ * Console statements kept for debugging - consider adding logger parameter in future.
  */
 
 import { validateAndCorrectOffsets } from '@semiont/api-client';

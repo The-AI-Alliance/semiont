@@ -66,7 +66,7 @@ function createEventTracker() {
       };
 
       const resourceEvents = [
-        'resource:clone',
+        'generate:clone',
         'resource:archive',
         'resource:unarchive',
       ] as const;
@@ -248,7 +248,7 @@ describe('ResourceInfoPanel Component', () => {
       expect(screen.getByText('Generate a shareable clone link for this resource')).toBeInTheDocument();
     });
 
-    it('should emit resource:clone event when clone button clicked', async () => {
+    it('should emit generate:clone event when clone button clicked', async () => {
       const tracker = createEventTracker();
       renderWithEventBus(
         <ResourceInfoPanel
@@ -261,7 +261,7 @@ describe('ResourceInfoPanel Component', () => {
       fireEvent.click(button);
 
       await waitFor(() => {
-        expect(tracker.events.some(e => e.event === 'resource:clone')).toBe(true);
+        expect(tracker.events.some(e => e.event === 'generate:clone')).toBe(true);
       });
     });
   });

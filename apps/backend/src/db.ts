@@ -1,4 +1,8 @@
 import { PrismaClient } from '@prisma/client';
+import { getLogger } from './logger';
+
+// Lazy initialization to avoid calling getLogger() at module load time
+const getDBLogger = () => getLogger().child({ component: 'database' });
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient | undefined };
 
@@ -120,7 +124,10 @@ export class DatabaseConnection {
       await client.$queryRaw`SELECT 1`;
       return true;
     } catch (error) {
-      console.error('Database health check failed:', error);
+      getDBLogger().error('Database health check failed', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
       return false;
     }
   }

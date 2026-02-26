@@ -29,7 +29,7 @@ function createEventTracker() {
         events.push({ event: eventName, payload });
       };
 
-      const panelEvents = ['annotation:create'] as const;
+      const panelEvents = ['annotate:create'] as const;
 
       panelEvents.forEach(eventName => {
         const handler = trackEvent(eventName);
@@ -396,7 +396,7 @@ describe('CommentsPanel Component', () => {
       expect(textarea).toHaveFocus();
     });
 
-    it('should emit annotation:create event when save is clicked', async () => {
+    it('should emit annotate:createevent when save is clicked', async () => {
       const tracker = createEventTracker();
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
@@ -416,7 +416,7 @@ describe('CommentsPanel Component', () => {
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'annotation:create' &&
+          e.event === 'annotate:create' &&
           e.payload?.motivation === 'commenting' &&
           e.payload?.body?.[0]?.value === 'My new comment'
         )).toBe(true);

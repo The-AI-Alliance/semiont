@@ -102,10 +102,10 @@ function DropdownGroup({
 /**
  * Toolbar for annotation controls with mode, selection, click, and shape options
  *
- * @emits toolbar:selection-changed - Selection motivation changed. Payload: { motivation: SelectionMotivation | null }
- * @emits toolbar:click-changed - Click action mode changed. Payload: { action: ClickAction }
- * @emits toolbar:shape-changed - Drawing shape changed. Payload: { shape: ShapeType }
- * @emits view:mode-toggled - View mode toggled between browse and annotate. Payload: undefined
+ * @emits annotate:selection-changed - Selection motivation changed. Payload: { motivation: SelectionMotivation | null }
+ * @emits annotate:click-changed - Click action mode changed. Payload: { action: ClickAction }
+ * @emits annotate:shape-changed - Drawing shape changed. Payload: { shape: ShapeType }
+ * @emits annotate:mode-toggled - View mode toggled between browse and annotate. Payload: undefined
  */
 export function AnnotateToolbar({
   selectedMotivation,
@@ -188,9 +188,9 @@ export function AnnotateToolbar({
   const handleSelectionClick = (motivation: SelectionMotivation | null) => {
     // If null is clicked, always deselect. Otherwise toggle.
     if (motivation === null) {
-      eventBus.get('toolbar:selection-changed').next({ motivation: null });
+      eventBus.get('annotate:selection-changed').next({ motivation: null });
     } else {
-      eventBus.get('toolbar:selection-changed').next({
+      eventBus.get('annotate:selection-changed').next({
         motivation: selectedMotivation === motivation ? null : motivation
       });
     }
@@ -200,21 +200,21 @@ export function AnnotateToolbar({
   };
 
   const handleClickClick = (action: ClickAction) => {
-    eventBus.get('toolbar:click-changed').next({ action });
+    eventBus.get('annotate:click-changed').next({ action });
     // Close dropdown after selection
     setClickPinned(false);
     setClickHovered(false);
   };
 
   const handleShapeClick = (shape: ShapeType) => {
-    eventBus.get('toolbar:shape-changed').next({ shape });
+    eventBus.get('annotate:shape-changed').next({ shape });
     // Close dropdown after selection
     setShapePinned(false);
     setShapeHovered(false);
   };
 
   const handleModeToggle = () => {
-    eventBus.get('view:mode-toggled').next(undefined);
+    eventBus.get('annotate:mode-toggled').next(undefined);
     setModePinned(false);
     setModeHovered(false);
   };

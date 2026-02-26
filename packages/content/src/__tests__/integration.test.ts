@@ -3,12 +3,21 @@
  * Tests for complete store-retrieve workflows and real-world scenarios
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { FilesystemRepresentationStore } from '../representation-store';
 import { calculateChecksum } from '../checksum';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import type { Logger } from '@semiont/core';
+
+const mockLogger: Logger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger)
+};
 
 describe('FilesystemRepresentationStore - Integration', () => {
   let testDir: string;
@@ -17,7 +26,7 @@ describe('FilesystemRepresentationStore - Integration', () => {
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-integration-test-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
-    store = new FilesystemRepresentationStore({ basePath: testDir });
+    store = new FilesystemRepresentationStore({ basePath: testDir }, undefined, mockLogger);
   });
 
   afterAll(async () => {

@@ -25,7 +25,7 @@ function createEventTracker() {
         events.push({ event: eventName, payload });
       };
 
-      const panelEvents = ['detection:start'] as const;
+      const panelEvents = ['annotate:assist-request'] as const;
 
       panelEvents.forEach(eventName => {
         const handler = trackEvent(eventName);
@@ -73,15 +73,14 @@ const renderWithEventBus = (component: React.ReactElement, tracker?: ReturnType<
 vi.mock('../../../../contexts/TranslationContext', () => ({
   useTranslations: vi.fn(() => (key: string, params?: Record<string, any>) => {
     const translations: Record<string, string> = {
-      title: 'Detect Entities',
+      annotateReferences: 'Annotate References',
       selectEntityTypes: 'Select entity types',
       noEntityTypes: 'No entity types available',
       select: 'Select',
       deselect: 'Deselect',
       typesSelected: '{count} type(s) selected',
-      startDetection: 'Start Detection',
+      annotate: 'Annotate',
       found: 'Found {count}',
-      more: 'Detect More',
       includeDescriptiveReferences: 'Include descriptive references',
       descriptiveReferencesTooltip: 'Also find phrases like \'the CEO\', \'the tech giant\', \'the physicist\' (in addition to names)',
       cancel: 'Cancel',
@@ -96,12 +95,12 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
   TranslationProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-// Mock DetectionProgressWidget - simplified to avoid module import issues
-vi.mock('@/components/DetectionProgressWidget', () => ({
-  DetectionProgressWidget: ({ progress }: any) => (
-    <div data-testid="detection-progress-widget">
+// Mock AnnotateReferencesProgressWidget - simplified to avoid module import issues
+vi.mock('@/components/AnnotateReferencesProgressWidget', () => ({
+  AnnotateReferencesProgressWidget: ({ progress }: any) => (
+    <div data-testid="annotation-progress-widget">
       <div data-testid="progress-data">{JSON.stringify(progress)}</div>
-      <button title="Cancel Detection">Cancel</button>
+      <button title="Cancel Annotation">Cancel</button>
     </div>
   ),
 }));
@@ -119,8 +118,8 @@ describe('ReferencesPanel Component', () => {
 
   const defaultProps = {
     allEntityTypes: ['Person', 'Organization', 'Location', 'Date'],
-    isDetecting: false,
-    detectionProgress: null,
+    isAssisting: false,
+    progress: null,
     annotateMode: true,
     Link: MockLink,
     routes: mockRoutes,
@@ -140,7 +139,7 @@ describe('ReferencesPanel Component', () => {
     it('should render panel with title', () => {
       renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
-      expect(screen.getByText('Detect Entities')).toBeInTheDocument();
+      expect(screen.getByText('Annotate References')).toBeInTheDocument();
     });
 
     it('should render all entity type buttons', () => {
@@ -161,7 +160,7 @@ describe('ReferencesPanel Component', () => {
     it('should render start detection button', () => {
       renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
-      expect(screen.getByTitle('Start Detection')).toBeInTheDocument();
+      expect(screen.getByTitle('Annotate')).toBeInTheDocument();
     });
   });
 
@@ -271,11 +270,11 @@ describe('ReferencesPanel Component', () => {
     });
   });
 
-  describe('Start Detection Button', () => {
+  describe('Start Annotate Button', () => {
     it('should be disabled when no types selected', () => {
       renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
-      const startButton = screen.getByTitle('Start Detection');
+      const startButton = screen.getByTitle('Annotate');
 
       expect(startButton).toBeDisabled();
     });
@@ -286,24 +285,24 @@ describe('ReferencesPanel Component', () => {
       const personButton = screen.getByText('Person');
       await userEvent.click(personButton);
 
-      const startButton = screen.getByTitle('Start Detection');
+      const startButton = screen.getByTitle('Annotate');
 
       expect(startButton).not.toBeDisabled();
     });
 
-    it('should emit detection:start event with selected types and includeDescriptiveReferences', async () => {
+    it('should emit annotate:detect-request event with selected types and includeDescriptiveReferences', async () => {
       const tracker = createEventTracker();
       renderWithEventBus(<ReferencesPanel {...defaultProps} />, tracker);
 
       await userEvent.click(screen.getByText('Person'));
       await userEvent.click(screen.getByText('Organization'));
 
-      const startButton = screen.getByTitle('Start Detection');
+      const startButton = screen.getByTitle('Annotate');
       await userEvent.click(startButton);
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'detection:start' &&
+          e.event === 'annotate:assist-request' &&
           e.payload?.motivation === 'linking' &&
           e.payload?.options?.entityTypes?.includes('Person') &&
           e.payload?.options?.entityTypes?.includes('Organization') &&
@@ -312,7 +311,7 @@ describe('ReferencesPanel Component', () => {
       });
     });
 
-    it('should emit detection:start event with includeDescriptiveReferences when checkbox is checked', async () => {
+    it('should emit annotate:detect-request event with includeDescriptiveReferences when checkbox is checked', async () => {
       const tracker = createEventTracker();
       renderWithEventBus(<ReferencesPanel {...defaultProps} />, tracker);
 
@@ -323,12 +322,12 @@ describe('ReferencesPanel Component', () => {
       const checkbox = checkboxLabel.previousElementSibling as HTMLInputElement;
       await userEvent.click(checkbox);
 
-      const startButton = screen.getByTitle('Start Detection');
+      const startButton = screen.getByTitle('Annotate');
       await userEvent.click(startButton);
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'detection:start' &&
+          e.event === 'annotate:assist-request' &&
           e.payload?.motivation === 'linking' &&
           e.payload?.options?.entityTypes?.includes('Person') &&
           e.payload?.options?.includeDescriptiveReferences === true
@@ -341,7 +340,7 @@ describe('ReferencesPanel Component', () => {
 
       await userEvent.click(screen.getByText('Person'));
 
-      const startButton = screen.getByTitle('Start Detection');
+      const startButton = screen.getByTitle('Annotate');
       await userEvent.click(startButton);
 
       // Simulate detection starting
@@ -349,8 +348,8 @@ describe('ReferencesPanel Component', () => {
         <EventBusProvider>
           <ReferencesPanel
             {...defaultProps}
-            isDetecting={true}
-            detectionProgress={{ completedEntityTypes: [] }}
+            isAssisting={true}
+            progress={{ completedEntityTypes: [] }}
           />
         </EventBusProvider>
       );
@@ -360,8 +359,8 @@ describe('ReferencesPanel Component', () => {
         <EventBusProvider>
           <ReferencesPanel
             {...defaultProps}
-            isDetecting={false}
-            detectionProgress={{
+            isAssisting={false}
+            progress={{
               completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
             }}
           />
@@ -375,10 +374,10 @@ describe('ReferencesPanel Component', () => {
     it('should have proper styling when disabled', () => {
       renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
-      const startButton = screen.getByTitle('Start Detection');
+      const startButton = screen.getByTitle('Annotate');
 
       expect(startButton).toHaveClass('semiont-button');
-      expect(startButton).toHaveAttribute('data-variant', 'detect');
+      expect(startButton).toHaveAttribute('data-variant', 'assist');
       expect(startButton).toHaveAttribute('data-type', 'reference');
       expect(startButton).toBeDisabled();
     });
@@ -388,10 +387,10 @@ describe('ReferencesPanel Component', () => {
 
       await userEvent.click(screen.getByText('Person'));
 
-      const startButton = screen.getByTitle('Start Detection');
+      const startButton = screen.getByTitle('Annotate');
 
       expect(startButton).toHaveClass('semiont-button');
-      expect(startButton).toHaveAttribute('data-variant', 'detect');
+      expect(startButton).toHaveAttribute('data-variant', 'assist');
       expect(startButton).toHaveAttribute('data-type', 'reference');
       expect(startButton).not.toBeDisabled();
     });
@@ -402,12 +401,12 @@ describe('ReferencesPanel Component', () => {
       renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
-          isDetecting={true}
-          detectionProgress={{ completedEntityTypes: [] }}
+          isAssisting={true}
+          progress={{ completedEntityTypes: [] }}
         />
       );
 
-      expect(screen.getByTestId('detection-progress-widget')).toBeInTheDocument();
+      expect(screen.getByTestId('annotation-progress-widget')).toBeInTheDocument();
     });
 
     it('should pass progress data to widget', () => {
@@ -421,8 +420,8 @@ describe('ReferencesPanel Component', () => {
       renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
-          isDetecting={true}
-          detectionProgress={progress}
+          isAssisting={true}
+          progress={progress}
         />
       );
 
@@ -435,8 +434,8 @@ describe('ReferencesPanel Component', () => {
       renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
-          isDetecting={true}
-          detectionProgress={{ completedEntityTypes: [] }}
+          isAssisting={true}
+          progress={{ completedEntityTypes: [] }}
         />
       );
 
@@ -448,12 +447,12 @@ describe('ReferencesPanel Component', () => {
       renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
-          isDetecting={true}
-          detectionProgress={{ completedEntityTypes: [] }}
+          isAssisting={true}
+          progress={{ completedEntityTypes: [] }}
         />
       );
 
-      const cancelButton = screen.getByTitle('Cancel Detection');
+      const cancelButton = screen.getByTitle('Cancel Annotation');
       expect(cancelButton).toBeInTheDocument();
     });
   });
@@ -463,8 +462,8 @@ describe('ReferencesPanel Component', () => {
       const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
-          isDetecting={false}
-          detectionProgress={{
+          isAssisting={false}
+          progress={{
             completedEntityTypes: [
               { entityType: 'Person', foundCount: 5 },
               { entityType: 'Organization', foundCount: 3 },
@@ -473,13 +472,13 @@ describe('ReferencesPanel Component', () => {
         />
       );
 
-      // Parent clears detectionProgress after completion
+      // Parent clears progress after completion
       rerender(
         <EventBusProvider>
           <ReferencesPanel
             {...defaultProps}
-            isDetecting={false}
-            detectionProgress={null}
+            isAssisting={false}
+            progress={null}
           />
         </EventBusProvider>
       );
@@ -492,8 +491,8 @@ describe('ReferencesPanel Component', () => {
       const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
-          isDetecting={false}
-          detectionProgress={{
+          isAssisting={false}
+          progress={{
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
         />
@@ -501,7 +500,7 @@ describe('ReferencesPanel Component', () => {
 
       rerender(
         <EventBusProvider>
-          <ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />
+          <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
         </EventBusProvider>
       );
       expect(screen.getByText(/Found.*5/i)).toBeInTheDocument();
@@ -511,8 +510,8 @@ describe('ReferencesPanel Component', () => {
       const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
-          isDetecting={false}
-          detectionProgress={{
+          isAssisting={false}
+          progress={{
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
         />
@@ -520,18 +519,18 @@ describe('ReferencesPanel Component', () => {
 
       rerender(
         <EventBusProvider>
-          <ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />
+          <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
         </EventBusProvider>
       );
       expect(screen.getByText('✓')).toBeInTheDocument();
     });
 
-    it('should show "Detect More" button after completion', () => {
+    it('should show detection log and selection UI together after completion', () => {
       const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
-          isDetecting={false}
-          detectionProgress={{
+          isAssisting={false}
+          progress={{
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
         />
@@ -539,18 +538,21 @@ describe('ReferencesPanel Component', () => {
 
       rerender(
         <EventBusProvider>
-          <ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />
+          <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
         </EventBusProvider>
       );
-      expect(screen.getByText('Detect More')).toBeInTheDocument();
+
+      // Should show both the completed log AND the selection UI
+      expect(screen.getByText('Person:')).toBeInTheDocument(); // Log entry
+      expect(screen.getByText('Select entity types')).toBeInTheDocument(); // Selection UI
     });
 
-    it('should clear log and show selection UI when clicking "Detect More"', async () => {
+    it('should show selection UI immediately after detection completes', async () => {
       const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
-          isDetecting={false}
-          detectionProgress={{
+          isAssisting={false}
+          progress={{
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
         />
@@ -558,30 +560,29 @@ describe('ReferencesPanel Component', () => {
 
       rerender(
         <EventBusProvider>
-          <ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />
+          <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
         </EventBusProvider>
       );
 
-      const detectMoreButton = screen.getByText('Detect More');
-      await userEvent.click(detectMoreButton);
-
-      // Should show selection UI again
+      // Selection UI should be immediately available (no button click needed)
       expect(screen.getByText('Select entity types')).toBeInTheDocument();
-      expect(screen.getByText('Person')).toBeInTheDocument();
+      expect(screen.getByText('Person')).toBeInTheDocument(); // Entity type chip
     });
 
     it('should not show log when empty', () => {
       renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
-          isDetecting={false}
-          detectionProgress={{
+          isAssisting={false}
+          progress={{
             completedEntityTypes: [],
           }}
         />
       );
 
-      expect(screen.queryByText('Detect More')).not.toBeInTheDocument();
+      // Should not show any log items (but selection UI should still be visible)
+      expect(screen.queryByText('✓')).not.toBeInTheDocument();
+      expect(screen.getByText('Select entity types')).toBeInTheDocument();
     });
   });
 
@@ -597,14 +598,14 @@ describe('ReferencesPanel Component', () => {
         <EventBusProvider>
           <ReferencesPanel
             {...defaultProps}
-            isDetecting={true}
-            detectionProgress={{ completedEntityTypes: [] }}
+            isAssisting={true}
+            progress={{ completedEntityTypes: [] }}
           />
         </EventBusProvider>
       );
 
       // Detecting state
-      expect(screen.getByTestId('detection-progress-widget')).toBeInTheDocument();
+      expect(screen.getByTestId('annotation-progress-widget')).toBeInTheDocument();
       expect(screen.queryByText('Select entity types')).not.toBeInTheDocument();
     });
 
@@ -612,58 +613,60 @@ describe('ReferencesPanel Component', () => {
       const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
-          isDetecting={true}
-          detectionProgress={{ completedEntityTypes: [] }}
+          isAssisting={true}
+          progress={{ completedEntityTypes: [] }}
         />
       );
 
       // Detecting
-      expect(screen.getByTestId('detection-progress-widget')).toBeInTheDocument();
+      expect(screen.getByTestId('annotation-progress-widget')).toBeInTheDocument();
 
       // Complete - first trigger useEffect to copy to lastDetectionLog
       rerender(
         <EventBusProvider>
           <ReferencesPanel
             {...defaultProps}
-            isDetecting={false}
-            detectionProgress={{
+            isAssisting={false}
+            progress={{
               completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
             }}
           />
         </EventBusProvider>
       );
 
-      // Then clear detectionProgress to show the log
+      // Then clear progress to show the log
       rerender(
         <EventBusProvider>
-          <ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />
+          <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
         </EventBusProvider>
       );
 
-      expect(screen.queryByTestId('detection-progress-widget')).not.toBeInTheDocument();
-      expect(screen.getByText('Detect More')).toBeInTheDocument();
+      expect(screen.queryByTestId('annotation-progress-widget')).not.toBeInTheDocument();
+      // Both log and selection UI should be visible
+      expect(screen.getByText('Person:')).toBeInTheDocument();
+      expect(screen.getByText('Select entity types')).toBeInTheDocument();
     });
 
-    it('should transition from complete to idle', async () => {
+    it('should show selection UI after detection completes', async () => {
       const { rerender } = renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
-          isDetecting={false}
-          detectionProgress={{
+          isAssisting={false}
+          progress={{
             completedEntityTypes: [{ entityType: 'Person', foundCount: 5 }],
           }}
         />
       );
 
-      // Clear detectionProgress to show the log
+      // Clear progress to show the log
       rerender(
         <EventBusProvider>
-          <ReferencesPanel {...defaultProps} isDetecting={false} detectionProgress={null} />
+          <ReferencesPanel {...defaultProps} isAssisting={false} progress={null} />
         </EventBusProvider>
       );
 
-      const detectMoreButton = screen.getByText('Detect More');
-      await userEvent.click(detectMoreButton);
+      // Selection UI should be immediately available
+      expect(screen.getByText('Select entity types')).toBeInTheDocument();
 
       rerender(
         <EventBusProvider>
@@ -743,8 +746,8 @@ describe('ReferencesPanel Component', () => {
       renderWithEventBus(
         <ReferencesPanel
           {...defaultProps}
-          isDetecting={false}
-          detectionProgress={{
+          isAssisting={false}
+          progress={{
             completedEntityTypes: [{ entityType: 'Person', foundCount: 0 }],
           }}
         />
@@ -753,13 +756,13 @@ describe('ReferencesPanel Component', () => {
       expect(screen.getByText(/Found.*0/i)).toBeInTheDocument();
     });
 
-    it('should handle undefined detectionProgress', () => {
+    it('should handle undefined progress', () => {
       expect(() => {
         renderWithEventBus(
           <ReferencesPanel
             {...defaultProps}
-            isDetecting={false}
-            detectionProgress={undefined as any}
+            isAssisting={false}
+            progress={undefined as any}
           />
         );
       }).not.toThrow();
@@ -787,14 +790,14 @@ describe('ReferencesPanel Component', () => {
       // The emoji is no longer in the title (it's only in the tab now)
       const title = screen.getByRole('heading', { level: 2 });
       expect(title.textContent).not.toContain('🔵');
-      expect(title.textContent).toContain('referencesTitle');
+      expect(title.textContent).toContain('title');
     });
 
     it('should have proper button layout', () => {
       renderWithEventBus(<ReferencesPanel {...defaultProps} />);
 
       const buttonContainer = screen.getByText('Person').parentElement;
-      expect(buttonContainer).toHaveClass('semiont-detect-widget__chips');
+      expect(buttonContainer).toHaveClass('semiont-assist-widget__chips');
     });
   });
 

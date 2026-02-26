@@ -14,16 +14,16 @@ import * as path from 'path';
 import { JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore, type EventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore, type RepresentationStore } from '@semiont/content';
-import type { EnvironmentConfig } from '@semiont/core';
+import type { EnvironmentConfig, Logger } from '@semiont/core';
 import { EventBus } from '@semiont/core';
 import { getInferenceClient, type InferenceClient } from '@semiont/inference';
 import { getGraphDatabase, type GraphDatabase } from '@semiont/graph';
-import { ReferenceDetectionWorker } from './jobs/reference-detection-worker';
+import { ReferenceAnnotationWorker } from './jobs/reference-annotation-worker';
 import { GenerationWorker } from './jobs/generation-worker';
-import { HighlightDetectionWorker } from './jobs/highlight-detection-worker';
-import { AssessmentDetectionWorker } from './jobs/assessment-detection-worker';
-import { CommentDetectionWorker } from './jobs/comment-detection-worker';
-import { TagDetectionWorker } from './jobs/tag-detection-worker';
+import { HighlightAnnotationWorker } from './jobs/highlight-annotation-worker';
+import { AssessmentAnnotationWorker } from './jobs/assessment-annotation-worker';
+import { CommentAnnotationWorker } from './jobs/comment-annotation-worker';
+import { TagAnnotationWorker } from './jobs/tag-annotation-worker';
 import { GraphDBConsumer } from './graph/consumer';
 import { bootstrapEntityTypes } from './bootstrap/entity-types';
 
@@ -35,18 +35,18 @@ export interface MakeMeaningService {
   inferenceClient: InferenceClient;
   graphDb: GraphDatabase;
   workers: {
-    detection: ReferenceDetectionWorker;
+    detection: ReferenceAnnotationWorker;
     generation: GenerationWorker;
-    highlight: HighlightDetectionWorker;
-    assessment: AssessmentDetectionWorker;
-    comment: CommentDetectionWorker;
-    tag: TagDetectionWorker;
+    highlight: HighlightAnnotationWorker;
+    assessment: AssessmentAnnotationWorker;
+    comment: CommentAnnotationWorker;
+    tag: TagAnnotationWorker;
   };
   graphConsumer: GraphDBConsumer;
   stop: () => Promise<void>;
 }
 
-export async function startMakeMeaning(config: EnvironmentConfig, eventBus: EventBus): Promise<MakeMeaningService> {
+export async function startMakeMeaning(config: EnvironmentConfig, eventBus: EventBus, logger: Logger): Promise<MakeMeaningService> {
   // 1. Validate configuration
   const configuredPath = config.services?.filesystem?.path;
   if (!configuredPath) {
@@ -70,56 +70,70 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus: Even
   }
 
   // 2. Initialize job queue
-  const jobQueue = new JobQueue({ dataDir: basePath }, eventBus);
+  const jobQueueLogger = logger.child({ component: 'job-queue' });
+  const jobQueue = new JobQueue({ dataDir: basePath }, jobQueueLogger, eventBus);
   await jobQueue.initialize();
 
   // 3. Create shared event store with EventBus integration
-  const eventStore = createEventStoreCore(basePath, baseUrl, undefined, eventBus);
+  const eventStoreLogger = logger.child({ component: 'event-store' });
+  const eventStore = createEventStoreCore(basePath, baseUrl, undefined, eventBus, eventStoreLogger);
 
   // 4. Bootstrap entity types (if projection doesn't exist)
-  await bootstrapEntityTypes(eventStore, config);
+  const bootstrapLogger = logger.child({ component: 'entity-types-bootstrap' });
+  await bootstrapEntityTypes(eventStore, config, bootstrapLogger);
 
   // 5. Create shared representation store
-  const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
+  const repStoreLogger = logger.child({ component: 'representation-store' });
+  const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot, repStoreLogger);
 
   // 6. Create inference client (shared across all workers)
-  const inferenceClient = await getInferenceClient(config);
+  const inferenceLogger = logger.child({ component: 'inference-client' });
+  const inferenceClient = await getInferenceClient(config, inferenceLogger);
 
   // 7. Create graph database connection
   const graphDb = await getGraphDatabase(config);
 
-  // 8. Start graph consumer
-  const graphConsumer = new GraphDBConsumer(config, eventStore, graphDb);
+  // 8. Create child loggers for each component
+  const detectionLogger = logger.child({ component: 'reference-detection-worker' });
+  const generationLogger = logger.child({ component: 'generation-worker' });
+  const highlightLogger = logger.child({ component: 'highlight-detection-worker' });
+  const assessmentLogger = logger.child({ component: 'assessment-detection-worker' });
+  const commentLogger = logger.child({ component: 'comment-detection-worker' });
+  const tagLogger = logger.child({ component: 'tag-detection-worker' });
+  const graphConsumerLogger = logger.child({ component: 'graph-consumer' });
+
+  // 9. Start graph consumer
+  const graphConsumer = new GraphDBConsumer(config, eventStore, graphDb, graphConsumerLogger);
   await graphConsumer.initialize();
 
-  // 9. Instantiate workers with EventBus
+  // 10. Instantiate workers with EventBus and logger
   const workers = {
-    detection: new ReferenceDetectionWorker(jobQueue, config, eventStore, inferenceClient, eventBus),
-    generation: new GenerationWorker(jobQueue, config, eventStore, inferenceClient, eventBus),
-    highlight: new HighlightDetectionWorker(jobQueue, config, eventStore, inferenceClient, eventBus),
-    assessment: new AssessmentDetectionWorker(jobQueue, config, eventStore, inferenceClient, eventBus),
-    comment: new CommentDetectionWorker(jobQueue, config, eventStore, inferenceClient, eventBus),
-    tag: new TagDetectionWorker(jobQueue, config, eventStore, inferenceClient, eventBus),
+    detection: new ReferenceAnnotationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, detectionLogger),
+    generation: new GenerationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, generationLogger),
+    highlight: new HighlightAnnotationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, highlightLogger),
+    assessment: new AssessmentAnnotationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, assessmentLogger),
+    comment: new CommentAnnotationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, commentLogger),
+    tag: new TagAnnotationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, tagLogger),
   };
 
-  // 10. Start all workers (non-blocking)
+  // 11. Start all workers (non-blocking)
   workers.detection.start().catch((error: unknown) => {
-    console.error('⚠️ Detection worker stopped:', error);
+    detectionLogger.error('Worker stopped unexpectedly', { error });
   });
   workers.generation.start().catch((error: unknown) => {
-    console.error('⚠️ Generation worker stopped:', error);
+    generationLogger.error('Worker stopped unexpectedly', { error });
   });
   workers.highlight.start().catch((error: unknown) => {
-    console.error('⚠️ Highlight worker stopped:', error);
+    highlightLogger.error('Worker stopped unexpectedly', { error });
   });
   workers.assessment.start().catch((error: unknown) => {
-    console.error('⚠️ Assessment worker stopped:', error);
+    assessmentLogger.error('Worker stopped unexpectedly', { error });
   });
   workers.comment.start().catch((error: unknown) => {
-    console.error('⚠️ Comment worker stopped:', error);
+    commentLogger.error('Worker stopped unexpectedly', { error });
   });
   workers.tag.start().catch((error: unknown) => {
-    console.error('⚠️ Tag worker stopped:', error);
+    tagLogger.error('Worker stopped unexpectedly', { error });
   });
 
   return {
@@ -132,7 +146,7 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus: Even
     workers,
     graphConsumer,
     stop: async () => {
-      console.log('⏹️ Stopping Make-Meaning service...');
+      logger.info('Stopping Make-Meaning service');
       await Promise.all([
         workers.detection.stop(),
         workers.generation.stop(),
@@ -143,7 +157,7 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus: Even
       ]);
       await graphConsumer.stop();
       await graphDb.disconnect();
-      console.log('✅ Make-Meaning service stopped');
+      logger.info('Make-Meaning service stopped');
     },
   };
 }

@@ -6,6 +6,7 @@ import { createRectangleSvg, createCircleSvg, createPolygonSvg, scaleSvgToNative
 import { AnnotationOverlay } from './AnnotationOverlay';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
 import type { EventBus } from "@semiont/core"
+import { useHoverDelay } from '../../hooks/useHoverDelay';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -42,13 +43,14 @@ interface SvgDrawingCanvasProps {
   eventBus?: EventBus;
   hoveredAnnotationId?: string | null;
   selectedAnnotationId?: string | null;
+  hoverDelayMs?: number;
 }
 
 /**
  * SVG-based drawing canvas for creating image annotations with shapes
  *
- * @emits annotation:click - Annotation clicked on canvas. Payload: { annotationId: string, motivation: Motivation }
- * @emits annotation:requested - New annotation drawn on canvas. Payload: { selector: SvgSelector, motivation: SelectionMotivation }
+ * @emits attend:click - Annotation clicked on canvas. Payload: { annotationId: string, motivation: Motivation }
+ * @emits annotate:requested - New annotation drawn on canvas. Payload: { selector: SvgSelector, motivation: SelectionMotivation }
  */
 export function SvgDrawingCanvas({
   resourceUri,
@@ -59,6 +61,7 @@ export function SvgDrawingCanvas({
   hoveredAnnotationId,
   selectedAnnotationId
 }: SvgDrawingCanvasProps) {
+  const { hoverDelayMs } = useHoverDelay();
   const imageUrl = useMemo(() => {
     const resourceId = resourceUri.split('/').pop();
     return `/api/resources/${resourceId}`;
@@ -213,7 +216,7 @@ export function SvgDrawingCanvas({
         });
 
         if (clickedAnnotation) {
-          eventBus?.get('annotation:click').next({ annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
+          eventBus?.get('attend:click').next({ annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
           setIsDrawing(false);
           setStartPoint(null);
           setCurrentPoint(null);
@@ -276,7 +279,7 @@ export function SvgDrawingCanvas({
 
     // Emit annotation:requested event with SvgSelector
     if (eventBus && selectedMotivation) {
-      eventBus.get('annotation:requested').next({
+      eventBus.get('annotate:requested').next({
         selector: {
           type: 'SvgSelector',
           value: nativeSvg
@@ -338,6 +341,7 @@ export function SvgDrawingCanvas({
               imageHeight={imageDimensions.height}
               displayWidth={displayDimensions.width}
               displayHeight={displayDimensions.height}
+              hoverDelayMs={hoverDelayMs}
               {...(eventBus && { eventBus })}
               {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
               {...(selectedAnnotationId !== undefined && { selectedAnnotationId })}

@@ -2,7 +2,7 @@
  * Unit tests for JobWorker base class
  */
 
-import { describe, test, expect, beforeEach, afterEach } from 'vitest';
+import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -10,6 +10,14 @@ import { JobQueue } from '../job-queue';
 import { JobWorker } from '../job-worker';
 import type { AnyJob, PendingJob, DetectionParams } from '../types';
 import { jobId, entityType, userId, resourceId, EventBus } from '@semiont/core';
+
+const mockLogger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger)
+};
 
 // Test implementation of JobWorker
 class TestJobWorker extends JobWorker {
@@ -34,7 +42,7 @@ class TestJobWorker extends JobWorker {
   }
 
   protected canProcessJob(job: AnyJob): boolean {
-    return job.metadata.type === 'detection';
+    return job.metadata.type === 'reference-annotation';
   }
 
   protected async executeJob(job: AnyJob): Promise<void> {
@@ -56,7 +64,7 @@ function createTestJob(id: string): PendingJob<DetectionParams> {
     status: 'pending',
     metadata: {
       id: jobId(id),
-      type: 'detection',
+      type: 'reference-annotation',
       userId: userId('user-1'),
       created: new Date().toISOString(),
       retryCount: 0,
@@ -76,9 +84,9 @@ describe('JobWorker', () => {
 
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'job-worker-test-'));
-    jobQueue = new JobQueue({ dataDir: tempDir }, new EventBus());
+    jobQueue = new JobQueue({ dataDir: tempDir }, mockLogger, new EventBus());
     await jobQueue.initialize();
-    worker = new TestJobWorker(jobQueue, 50, 100); // Fast poll interval for tests
+    worker = new TestJobWorker(jobQueue, 50, 100, mockLogger); // Fast poll interval for tests
   });
 
   afterEach(async () => {
@@ -340,7 +348,7 @@ describe('JobWorker', () => {
         }
       }
 
-      const progressWorker = new ProgressWorker(jobQueue, 50, 100);
+      const progressWorker = new ProgressWorker(jobQueue, 50, 100, mockLogger);
 
       // Start worker
       void progressWorker.start();

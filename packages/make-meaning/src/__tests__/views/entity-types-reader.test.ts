@@ -10,15 +10,23 @@
  * - Integration with bootstrap (after bootstrap, reader returns types)
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { readEntityTypesProjection } from '../../views/entity-types-reader';
 import { bootstrapEntityTypes, resetBootstrap } from '../../bootstrap/entity-types';
 import { createEventStore } from '@semiont/event-sourcing';
 import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
-import type { EnvironmentConfig } from '@semiont/core';
+import type { EnvironmentConfig, Logger } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+
+const mockLogger: Logger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger)
+};
 
 describe('Entity Types Projection Reader', () => {
   let testDir: string;
@@ -94,7 +102,7 @@ describe('Entity Types Projection Reader', () => {
       resetBootstrap();
 
       // Bootstrap creates the projection
-      const eventStore = createEventStore(testDir, config.services.backend!.publicURL);
+      const eventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
       await bootstrapEntityTypes(eventStore, config);
 
       // Reader should return all bootstrapped types
@@ -228,7 +236,7 @@ describe('Entity Types Projection Reader', () => {
     it('should read types after bootstrap process', async () => {
       resetBootstrap();
 
-      const eventStore = createEventStore(testDir, config.services.backend!.publicURL);
+      const eventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
 
       // Initially no projection
       const beforeBootstrap = await readEntityTypesProjection(config);

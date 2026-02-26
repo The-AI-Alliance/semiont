@@ -9,6 +9,15 @@ import { calculateChecksum } from '../checksum';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import type { Logger } from '@semiont/core';
+
+const mockLogger: Logger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger)
+};
 
 describe('FilesystemRepresentationStore', () => {
   let testDir: string;
@@ -17,7 +26,7 @@ describe('FilesystemRepresentationStore', () => {
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-rep-store-test-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
-    store = new FilesystemRepresentationStore({ basePath: testDir });
+    store = new FilesystemRepresentationStore({ basePath: testDir }, undefined, mockLogger);
   });
 
   afterAll(async () => {
@@ -27,26 +36,26 @@ describe('FilesystemRepresentationStore', () => {
   describe('Constructor', () => {
     it('should accept absolute basePath', () => {
       const absolutePath = join(tmpdir(), 'test-absolute');
-      const testStore = new FilesystemRepresentationStore({ basePath: absolutePath });
+      const testStore = new FilesystemRepresentationStore({ basePath: absolutePath }, undefined, mockLogger);
       expect(testStore).toBeDefined();
     });
 
     it('should resolve relative basePath against projectRoot', () => {
       const projectRoot = tmpdir();
       const relativePath = 'data/representations';
-      const testStore = new FilesystemRepresentationStore({ basePath: relativePath }, projectRoot);
+      const testStore = new FilesystemRepresentationStore({ basePath: relativePath }, projectRoot, mockLogger);
       expect(testStore).toBeDefined();
     });
 
     it('should resolve relative basePath against cwd when no projectRoot', () => {
       const relativePath = 'data';
-      const testStore = new FilesystemRepresentationStore({ basePath: relativePath });
+      const testStore = new FilesystemRepresentationStore({ basePath: relativePath }, undefined, mockLogger);
       expect(testStore).toBeDefined();
     });
 
     it('should normalize paths with trailing slashes', () => {
       const pathWithSlash = join(tmpdir(), 'test-trailing/');
-      const testStore = new FilesystemRepresentationStore({ basePath: pathWithSlash });
+      const testStore = new FilesystemRepresentationStore({ basePath: pathWithSlash }, undefined, mockLogger);
       expect(testStore).toBeDefined();
     });
   });

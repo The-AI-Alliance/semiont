@@ -26,7 +26,7 @@ function createPendingJob(): PendingJob<DetectionParams> {
     status: 'pending',
     metadata: {
       id: jobId('test-pending'),
-      type: 'detection',
+      type: 'reference-annotation',
       userId: userId('user-1'),
       created: new Date().toISOString(),
       retryCount: 0,
@@ -44,7 +44,7 @@ function createRunningJob(): RunningJob<DetectionParams, DetectionProgress> {
     status: 'running',
     metadata: {
       id: jobId('test-running'),
-      type: 'detection',
+      type: 'reference-annotation',
       userId: userId('user-1'),
       created: new Date().toISOString(),
       retryCount: 0,
@@ -69,7 +69,7 @@ function createCompleteJob(): CompleteJob<DetectionParams, DetectionResult> {
     status: 'complete',
     metadata: {
       id: jobId('test-complete'),
-      type: 'detection',
+      type: 'reference-annotation',
       userId: userId('user-1'),
       created: new Date().toISOString(),
       retryCount: 0,
@@ -94,7 +94,7 @@ function createFailedJob(): FailedJob<DetectionParams> {
     status: 'failed',
     metadata: {
       id: jobId('test-failed'),
-      type: 'detection',
+      type: 'reference-annotation',
       userId: userId('user-1'),
       created: new Date().toISOString(),
       retryCount: 3,
@@ -115,7 +115,7 @@ function createCancelledJob(): CancelledJob<DetectionParams> {
     status: 'cancelled',
     metadata: {
       id: jobId('test-cancelled'),
-      type: 'detection',
+      type: 'reference-annotation',
       userId: userId('user-1'),
       created: new Date().toISOString(),
       retryCount: 0,

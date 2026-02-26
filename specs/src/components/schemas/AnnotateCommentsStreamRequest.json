@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "properties": {
+    "instructions": {
+      "type": "string",
+      "description": "Optional instructions to guide AI comment annotation"
+    },
+    "tone": {
+      "type": "string",
+      "enum": ["scholarly", "explanatory", "conversational", "technical"],
+      "description": "Optional tone/style for generated comments"
+    },
+    "density": {
+      "type": "number",
+      "minimum": 2,
+      "maximum": 12,
+      "description": "Optional density: desired number of comments per 2000 words of text (2-12)"
+    }
+  }
+}

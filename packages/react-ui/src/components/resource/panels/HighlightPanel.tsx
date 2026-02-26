@@ -7,7 +7,7 @@ import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import type { components, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
 import { HighlightEntry } from './HighlightEntry';
-import { DetectSection } from './DetectSection';
+import { AssistSection } from './AssistSection';
 import { PanelHeader } from './PanelHeader';
 import './HighlightPanel.css';
 
@@ -23,8 +23,8 @@ interface PendingAnnotation {
 interface HighlightPanelProps {
   annotations: Annotation[];
   pendingAnnotation: PendingAnnotation | null;
-  isDetecting?: boolean;
-  detectionProgress?: {
+  isAssisting?: boolean;
+  progress?: {
     status: string;
     percentage?: number;
     message?: string;
@@ -38,14 +38,14 @@ interface HighlightPanelProps {
 /**
  * Panel for managing highlight annotations with auto-creation
  *
- * @emits annotation:create - Create new highlight annotation (auto-triggered). Payload: { motivation: 'highlighting', selector: Selector | Selector[], body: Body[] }
- * @subscribes annotation:click - Annotation clicked. Payload: { annotationId: string }
+ * @emits annotate:create - Create new highlight annotation (auto-triggered). Payload: { motivation: 'highlighting', selector: Selector | Selector[], body: Body[] }
+ * @subscribes attend:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function HighlightPanel({
   annotations,
   pendingAnnotation,
-  isDetecting = false,
-  detectionProgress,
+  isAssisting = false,
+  progress,
   annotateMode = true,
   scrollToAnnotationId,
   onScrollCompleted,
@@ -125,14 +125,14 @@ export function HighlightPanel({
   }, []);
 
   useEventSubscriptions({
-    'annotation:click': handleAnnotationClick,
+    'attend:click': handleAnnotationClick,
   });
 
   // Highlights auto-create: when pendingAnnotation arrives with highlighting motivation,
-  // immediately emit annotation:create event
+  // immediately emit annotate:create event
   useEffect(() => {
     if (pendingAnnotation && pendingAnnotation.motivation === 'highlighting') {
-      eventBus.get('annotation:create').next({
+      eventBus.get('annotate:create').next({
         motivation: 'highlighting',
         selector: pendingAnnotation.selector,
         body: [],
@@ -146,12 +146,12 @@ export function HighlightPanel({
 
       {/* Scrollable content area */}
       <div ref={containerRef} className="semiont-panel__content">
-        {/* Detection Section - only in Annotate mode and for text resources */}
+        {/* Assist Section - only in Annotate mode and for text resources */}
         {annotateMode && (
-          <DetectSection
+          <AssistSection
             annotationType="highlight"
-            isDetecting={isDetecting}
-            detectionProgress={detectionProgress}
+            isAssisting={isAssisting}
+            progress={progress}
           />
         )}
 

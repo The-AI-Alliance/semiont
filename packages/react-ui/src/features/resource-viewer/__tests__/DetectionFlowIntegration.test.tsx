@@ -4,7 +4,7 @@
  * Tests the COMPLETE detection flow with real component composition:
  * - EventBusProvider (REAL)
  * - ApiClientProvider (REAL, with MOCKED client)
- * - useDetectionFlow (REAL)
+ * - useAnnotationFlow (REAL)
  * - useResolutionFlow (REAL)
  * - useEventSubscriptions (REAL)
  *
@@ -25,7 +25,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { act } from 'react';
-import { useDetectionFlow } from '../../../hooks/useDetectionFlow';
+import { useAnnotationFlow } from '../../../hooks/useAnnotationFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
@@ -33,6 +33,16 @@ import { SSEClient } from '@semiont/api-client';
 import type { Motivation } from '@semiont/core';
 import { resourceUri } from '@semiont/core';
 import type { Emitter } from 'mitt';
+
+// Mock Toast module to prevent "useToast must be used within a ToastProvider" errors
+vi.mock('../../../components/Toast', () => ({
+  useToast: () => ({
+    showSuccess: vi.fn(),
+    showError: vi.fn(),
+    showInfo: vi.fn(),
+    showWarning: vi.fn(),
+  }),
+}));
 import type { EventMap } from '@semiont/core';
 
 // Mock SSE stream - SSE now emits directly to EventBus, no callbacks
@@ -44,8 +54,8 @@ const createMockSSEStream = () => {
 
 describe('Detection Flow - Feature Integration', () => {
   let mockStream: ReturnType<typeof createMockSSEStream>;
-  let detectReferencesSpy: any;
-  let detectHighlightsSpy: any;
+  let annotateReferencesSpy: any;
+  let annotateHighlightsSpy: any;
   let detectCommentsSpy: any;
 
   beforeEach(() => {
@@ -56,23 +66,23 @@ describe('Detection Flow - Feature Integration', () => {
     mockStream = createMockSSEStream();
 
     // Spy on SSEClient prototype methods
-    detectReferencesSpy = vi.spyOn(SSEClient.prototype, 'detectReferences').mockReturnValue(mockStream as any);
-    detectHighlightsSpy = vi.spyOn(SSEClient.prototype, 'detectHighlights').mockReturnValue(mockStream as any);
-    detectCommentsSpy = vi.spyOn(SSEClient.prototype, 'detectComments').mockReturnValue(mockStream as any);
-    vi.spyOn(SSEClient.prototype, 'detectAssessments').mockReturnValue(mockStream as any);
+    annotateReferencesSpy = vi.spyOn(SSEClient.prototype, 'annotateReferences').mockReturnValue(mockStream as any);
+    annotateHighlightsSpy = vi.spyOn(SSEClient.prototype, 'annotateHighlights').mockReturnValue(mockStream as any);
+    detectCommentsSpy = vi.spyOn(SSEClient.prototype, 'annotateComments').mockReturnValue(mockStream as any);
+    vi.spyOn(SSEClient.prototype, 'annotateAssessments').mockReturnValue(mockStream as any);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('should call detectReferences exactly ONCE when detection starts (not twice)', async () => {
+  it('should call annotateReferences exactly ONCE when detection starts (not twice)', async () => {
     const testUri = resourceUri('http://localhost:4000/resources/test-resource');
 
     // Render with real component composition
     const { emitDetectionStart } = renderDetectionFlow(testUri);
 
-    // Trigger detection for linking (uses detectReferences)
+    // Trigger detection for linking (uses annotateReferences)
     act(() => {
       emitDetectionStart('linking', {
         entityTypes: ['Person', 'Organization'],
@@ -83,11 +93,11 @@ describe('Detection Flow - Feature Integration', () => {
     // CRITICAL ASSERTION: API called exactly once (not twice!)
     // This would FAIL if useResolutionFlow was called in multiple places
     await waitFor(() => {
-      expect(detectReferencesSpy).toHaveBeenCalledTimes(1);
+      expect(annotateReferencesSpy).toHaveBeenCalledTimes(1);
     });
 
     // Verify correct parameters (eventBus is passed but we don't need to verify its exact value)
-    expect(detectReferencesSpy).toHaveBeenCalledWith(
+    expect(annotateReferencesSpy).toHaveBeenCalledWith(
       testUri,
       {
         entityTypes: ['Person', 'Organization'],
@@ -97,7 +107,7 @@ describe('Detection Flow - Feature Integration', () => {
     );
   });
 
-  it('should propagate SSE progress events to useDetectionFlow state', async () => {
+  it('should propagate SSE progress events to useAnnotationFlow state', async () => {
     const testUri = resourceUri('http://localhost:4000/resources/test-resource');
 
     // Render with state observer
@@ -112,12 +122,12 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Wait for stream to be created
     await waitFor(() => {
-      expect(detectReferencesSpy).toHaveBeenCalled();
+      expect(annotateReferencesSpy).toHaveBeenCalled();
     });
 
     // Simulate SSE progress event being emitted to EventBus (how SSE actually works now)
     act(() => {
-      getEventBus().get('detection:progress').next({
+      getEventBus().get('annotate:progress').next({
         status: 'scanning',
         message: 'Scanning for Person...',
         currentEntityType: 'Person',
@@ -146,12 +156,12 @@ describe('Detection Flow - Feature Integration', () => {
     });
 
     await waitFor(() => {
-      expect(detectHighlightsSpy).toHaveBeenCalledTimes(1);
+      expect(annotateHighlightsSpy).toHaveBeenCalledTimes(1);
     });
 
     // First progress update via EventBus
     act(() => {
-      getEventBus().get('detection:progress').next({
+      getEventBus().get('annotate:progress').next({
         status: 'started',
         message: 'Starting analysis...',
         percentage: 0,
@@ -164,7 +174,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Second progress update via EventBus
     act(() => {
-      getEventBus().get('detection:progress').next({
+      getEventBus().get('annotate:progress').next({
         status: 'analyzing',
         message: 'Analyzing text...',
         percentage: 50,
@@ -177,7 +187,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Final progress update via EventBus
     act(() => {
-      getEventBus().get('detection:progress').next({
+      getEventBus().get('annotate:progress').next({
         status: 'complete',
         message: 'Created 14 highlights',
         percentage: 100,
@@ -204,7 +214,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Send final progress via EventBus
     act(() => {
-      getEventBus().get('detection:progress').next({
+      getEventBus().get('annotate:progress').next({
         status: 'complete',
         message: 'Created 14 highlights',
       });
@@ -216,7 +226,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Emit completion event
     act(() => {
-      getEventBus().get('detection:complete').next({ motivation: 'highlighting' });
+      getEventBus().get('annotate:assist-finished').next({ motivation: 'highlighting' });
     });
 
     // Verify: detecting flag cleared BUT progress still visible
@@ -237,7 +247,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Add some progress via EventBus
     act(() => {
-      getEventBus().get('detection:progress').next({
+      getEventBus().get('annotate:progress').next({
         status: 'scanning',
         message: 'Scanning...',
       });
@@ -249,7 +259,19 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Emit failure
     act(() => {
-      getEventBus().get('detection:failed').next({ type: 'job.failed', resourceId: 'test-resource' as any, payload: { jobId: 'job-1' as any, jobType: 'detection', error: 'Network error' } });
+      getEventBus().get('annotate:assist-failed').next({
+        type: 'job.failed' as const,
+        resourceId: 'test-resource' as any,
+        userId: 'user' as any,
+        id: 'evt-1' as any,
+        timestamp: new Date().toISOString(),
+        version: 1,
+        payload: {
+          jobId: 'job-1' as any,
+          jobType: 'detection',
+          error: 'Network error',
+        },
+      });
     });
 
     // Verify: both detecting and progress cleared
@@ -269,8 +291,8 @@ describe('Detection Flow - Feature Integration', () => {
     });
 
     await waitFor(() => {
-      expect(detectHighlightsSpy).toHaveBeenCalledTimes(1);
-      expect(detectHighlightsSpy).toHaveBeenCalledWith(testUri, {
+      expect(annotateHighlightsSpy).toHaveBeenCalledTimes(1);
+      expect(annotateHighlightsSpy).toHaveBeenCalledWith(testUri, {
         instructions: 'Find important text',
       }, expect.objectContaining({ auth: undefined }));
     });
@@ -306,7 +328,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Add an additional event listener (simulating multiple subscribers)
     const additionalListener = vi.fn();
-    const subscription = getEventBus().get('detection:start').subscribe(additionalListener);
+    const subscription = getEventBus().get('annotate:assist-request').subscribe(additionalListener);
 
     // Trigger detection
     act(() => {
@@ -315,11 +337,11 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Wait for operation to complete
     await waitFor(() => {
-      expect(detectReferencesSpy).toHaveBeenCalled();
+      expect(annotateReferencesSpy).toHaveBeenCalled();
     });
 
     // VERIFY: API called exactly once, even though multiple listeners exist
-    expect(detectReferencesSpy).toHaveBeenCalledTimes(1);
+    expect(annotateReferencesSpy).toHaveBeenCalledTimes(1);
 
     // VERIFY: Our additional listener was called (events work)
     expect(additionalListener).toHaveBeenCalledTimes(1);
@@ -329,7 +351,7 @@ describe('Detection Flow - Feature Integration', () => {
 });
 
 /**
- * Helper: Render useDetectionFlow hook with real component composition
+ * Helper: Render useAnnotationFlow hook with real component composition
  * Returns methods to interact with the rendered component
  */
 function renderDetectionFlow(testUri: string) {
@@ -343,12 +365,12 @@ function renderDetectionFlow(testUri: string) {
 
   // Test harness component that uses the hook
   function DetectionFlowTestHarness() {
-    const { detectionProgress, detectingMotivation } = useDetectionFlow(testUri as any);
+    const { progress, assistingMotivation } = useAnnotationFlow(testUri as any);
     return (
       <div>
-        <div data-testid="detecting">{detectingMotivation || 'none'}</div>
+        <div data-testid="detecting">{assistingMotivation || 'none'}</div>
         <div data-testid="progress">
-          {detectionProgress?.message || 'No progress'}
+          {progress?.message || 'No progress'}
         </div>
       </div>
     );
@@ -367,7 +389,7 @@ function renderDetectionFlow(testUri: string) {
 
   return {
     emitDetectionStart: (motivation: Motivation, options: any) => {
-      eventBusInstance.get('detection:start').next({ motivation, options });
+      eventBusInstance.get('annotate:assist-request').next({ motivation, options });
     },
     getEventBus: () => eventBusInstance,
   };

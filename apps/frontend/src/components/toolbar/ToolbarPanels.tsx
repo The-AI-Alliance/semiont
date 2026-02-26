@@ -13,6 +13,8 @@ interface ToolbarPanelsProps {
   theme: 'light' | 'dark' | 'system';
   /** Line numbers setting */
   showLineNumbers: boolean;
+  /** Hover delay setting */
+  hoverDelayMs: number;
   /** Custom panel content for context-specific panels */
   children?: React.ReactNode;
 }
@@ -49,6 +51,7 @@ export function ToolbarPanels({
   activePanel,
   theme,
   showLineNumbers,
+  hoverDelayMs,
   children
 }: ToolbarPanelsProps) {
   const locale = useLocale();
@@ -104,6 +107,7 @@ export function ToolbarPanels({
           <SettingsPanel
             showLineNumbers={showLineNumbers}
             theme={theme}
+            hoverDelayMs={hoverDelayMs}
             locale={locale}
             isPendingLocaleChange={isPending}
           />

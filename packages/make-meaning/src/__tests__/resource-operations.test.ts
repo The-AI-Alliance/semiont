@@ -7,14 +7,22 @@
  * - Event emission for all state changes
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { ResourceOperations } from '../resource-operations';
-import { resourceId, userId, type EnvironmentConfig, CREATION_METHODS } from '@semiont/core';
+import { resourceId, userId, type EnvironmentConfig, CREATION_METHODS, type Logger } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore, type RepresentationStore } from '@semiont/content';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+
+const mockLogger: Logger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger)
+};
 
 describe('ResourceOperations', () => {
   let testDir: string;
@@ -66,8 +74,8 @@ describe('ResourceOperations', () => {
     } as EnvironmentConfig;
 
     // Initialize event store and representation store
-    testEventStore = createEventStore(testDir, config.services.backend!.publicURL);
-    testRepStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir);
+    testEventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
+    testRepStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
   });
 
   afterAll(async () => {

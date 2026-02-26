@@ -6,6 +6,7 @@ import { EditorState, RangeSetBuilder, StateField, StateEffect, Compartment } fr
 import { markdown } from '@codemirror/lang-markdown';
 import { ANNOTATORS } from '../lib/annotation-registry';
 import { ReferenceResolutionWidget } from '../lib/codemirror-widgets';
+import { scrollAnnotationIntoView } from '../lib/scroll-utils';
 import { isHighlight, isReference, isResolvedReference, isComment, isAssessment, isTag, getBodySource } from '@semiont/api-client';
 import type { components } from '@semiont/core';
 import type { EventBus } from "@semiont/core";
@@ -42,6 +43,7 @@ interface Props {
   eventBus?: EventBus;
   getTargetDocumentName?: (documentId: string) => string | undefined;
   generatingReferenceId?: string | null; // ID of reference currently generating a document
+  hoverDelayMs: number; // Hover delay in milliseconds for accessibility
 }
 
 // Effect to update annotation decorations with segments and new IDs
@@ -287,7 +289,8 @@ export function CodeMirrorRenderer({
   enableWidgets = false,
   eventBus,
   getTargetDocumentName,
-  generatingReferenceId
+  generatingReferenceId,
+  hoverDelayMs
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -343,7 +346,7 @@ export function CodeMirrorRenderer({
               const segment = segmentsRef.current.find(s => s.annotation?.id === annotationId);
               if (segment?.annotation) {
                 event.preventDefault();
-                eventBusRef.current.get('annotation:click').next({
+                eventBusRef.current.get('attend:click').next({
                   annotationId,
                   motivation: segment.annotation.motivation
                 });
@@ -411,7 +414,8 @@ export function CodeMirrorRenderer({
     const container = view.dom;
 
     const { handleMouseEnter, handleMouseLeave, cleanup: cleanupHover } = createHoverHandlers(
-      (annotationId) => eventBusRef.current?.get('annotation:hover').next({ annotationId })
+      (annotationId) => eventBusRef.current?.get('attend:hover').next({ annotationId }),
+      hoverDelayMs
     );
 
     const handleMouseOver = (e: MouseEvent) => {
@@ -437,7 +441,7 @@ export function CodeMirrorRenderer({
       view.destroy();
       viewRef.current = null;
     };
-  }, []); // Only initialize once
+  }, [hoverDelayMs]); // Re-initialize when hover delay changes
 
   // Update content when it changes externally (not from user typing)
   useEffect(() => {
@@ -597,29 +601,7 @@ export function CodeMirrorRenderer({
   // Handle scroll to annotation
   useEffect(() => {
     if (!viewRef.current || !scrollToAnnotationId) return;
-
-    const view = viewRef.current;
-
-    // Find the annotation element in the DOM
-    const element = view.contentDOM.querySelector(
-      `[data-annotation-id="${CSS.escape(scrollToAnnotationId)}"]`
-    ) as HTMLElement;
-
-    if (!element) return;
-
-    // Find the actual scroll container - could be annotate view or document viewer
-    const scrollContainer = (element.closest('.semiont-annotate-view__content') ||
-                            element.closest('.semiont-document-viewer__scrollable-body')) as HTMLElement;
-
-    if (scrollContainer) {
-      // Scroll using container.scrollTo to avoid scrolling ancestors
-      const elementTop = element.offsetTop;
-      const containerHeight = scrollContainer.clientHeight;
-      const elementHeight = element.offsetHeight;
-      const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
-
-      scrollContainer.scrollTo({ top: scrollTo, behavior: 'smooth' });
-    }
+    scrollAnnotationIntoView(scrollToAnnotationId, viewRef.current.contentDOM);
   }, [scrollToAnnotationId]);
 
   const containerClasses = sourceView

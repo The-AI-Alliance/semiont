@@ -66,20 +66,20 @@
     "/resources": {
       "$ref": "paths/resources.json"
     },
-    "/resources/{id}/detect-annotations-stream": {
-      "$ref": "paths/resources_{id}_detect-annotations-stream.json"
+    "/resources/{id}/annotate-references-stream": {
+      "$ref": "paths/resources_{id}_annotate-references-stream.json"
     },
-    "/resources/{id}/detect-highlights-stream": {
-      "$ref": "paths/resources_{id}_detect-highlights-stream.json"
+    "/resources/{id}/annotate-highlights-stream": {
+      "$ref": "paths/resources_{id}_annotate-highlights-stream.json"
     },
-    "/resources/{id}/detect-assessments-stream": {
-      "$ref": "paths/resources_{id}_detect-assessments-stream.json"
+    "/resources/{id}/annotate-assessments-stream": {
+      "$ref": "paths/resources_{id}_annotate-assessments-stream.json"
     },
-    "/resources/{id}/detect-comments-stream": {
-      "$ref": "paths/resources_{id}_detect-comments-stream.json"
+    "/resources/{id}/annotate-comments-stream": {
+      "$ref": "paths/resources_{id}_annotate-comments-stream.json"
     },
-    "/resources/{id}/detect-tags-stream": {
-      "$ref": "paths/resources_{id}_detect-tags-stream.json"
+    "/resources/{id}/annotate-tags-stream": {
+      "$ref": "paths/resources_{id}_annotate-tags-stream.json"
     },
     "/resources/{id}/llm-context": {
       "$ref": "paths/resources_{id}_llm-context.json"
@@ -241,20 +241,20 @@
       "DeleteUserResponse": {
         "$ref": "components/schemas/DeleteUserResponse.json"
       },
-      "DetectReferencesStreamRequest": {
-        "$ref": "components/schemas/DetectReferencesStreamRequest.json"
+      "AnnotateReferencesStreamRequest": {
+        "$ref": "components/schemas/AnnotateReferencesStreamRequest.json"
       },
-      "DetectHighlightsStreamRequest": {
-        "$ref": "components/schemas/DetectHighlightsStreamRequest.json"
+      "AnnotateHighlightsStreamRequest": {
+        "$ref": "components/schemas/AnnotateHighlightsStreamRequest.json"
       },
-      "DetectAssessmentsStreamRequest": {
-        "$ref": "components/schemas/DetectAssessmentsStreamRequest.json"
+      "AnnotateAssessmentsStreamRequest": {
+        "$ref": "components/schemas/AnnotateAssessmentsStreamRequest.json"
       },
-      "DetectCommentsStreamRequest": {
-        "$ref": "components/schemas/DetectCommentsStreamRequest.json"
+      "AnnotateCommentsStreamRequest": {
+        "$ref": "components/schemas/AnnotateCommentsStreamRequest.json"
       },
-      "DetectTagsStreamRequest": {
-        "$ref": "components/schemas/DetectTagsStreamRequest.json"
+      "AnnotateTagsStreamRequest": {
+        "$ref": "components/schemas/AnnotateTagsStreamRequest.json"
       },
       "ErrorResponse": {
         "$ref": "components/schemas/ErrorResponse.json"

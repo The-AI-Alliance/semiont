@@ -13,6 +13,7 @@ import type { ResourcesRouterType } from '../shared';
 import { AnnotationContext } from '@semiont/make-meaning';
 import { resourceId } from '@semiont/core';
 import { annotationUri } from '@semiont/core';
+import { getLogger } from '../../../logger';
 
 export function registerGetAnnotationLLMContext(router: ResourcesRouterType) {
   /**
@@ -45,12 +46,18 @@ export function registerGetAnnotationLLMContext(router: ResourcesRouterType) {
       // Construct full annotation URI (annotations in views use full URIs as their id)
       const fullAnnotationUri = `${config.services.backend!.publicURL}/annotations/${annotationIdParam}`;
 
+      const logger = getLogger().child({
+        route: 'annotation-llm-context',
+        resourceId: resourceIdParam,
+        annotationId: annotationIdParam
+      });
+
       // Use shared service to build context
       const response = await AnnotationContext.buildLLMContext(annotationUri(fullAnnotationUri), resourceId(resourceIdParam), config, {
         includeSourceContext,
         includeTargetContext,
         contextWindow
-      });
+      }, logger);
 
       return c.json(response);
     } catch (error) {

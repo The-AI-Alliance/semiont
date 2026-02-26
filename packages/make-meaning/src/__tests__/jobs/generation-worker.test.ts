@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { GenerationWorker } from '../../jobs/generation-worker';
 import { JobQueue, type GenerationJob, type RunningJob, type GenerationParams, type GenerationProgress } from '@semiont/jobs';
-import { resourceId, userId, annotationId, type EnvironmentConfig, type JobCompletedEvent, type StoredEvent, EventBus } from '@semiont/core';
+import { resourceId, userId, annotationId, type EnvironmentConfig, type JobCompletedEvent, type StoredEvent, EventBus, type Logger } from '@semiont/core';
 import { jobId } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore } from '@semiont/content';
@@ -27,6 +27,14 @@ vi.mock('@semiont/inference', async () => {
     MockInferenceClient
   };
 });
+
+const mockLogger: Logger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger)
+};
 
 describe('GenerationWorker - Event Emission', () => {
   let worker: GenerationWorker;
@@ -78,10 +86,10 @@ describe('GenerationWorker - Event Emission', () => {
     } as EnvironmentConfig;
 
     // Initialize job queue and event store
-    const jobQueue = new JobQueue({ dataDir: testDir }, new EventBus());
+    const jobQueue = new JobQueue({ dataDir: testDir }, mockLogger, new EventBus());
     await jobQueue.initialize();
-    testEventStore = createEventStore(testDir, config.services.backend!.publicURL);
-    worker = new GenerationWorker(jobQueue, config, testEventStore, mockInferenceClient.client, new EventBus());
+    testEventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
+    worker = new GenerationWorker(jobQueue, config, testEventStore, mockInferenceClient.client, new EventBus(), mockLogger);
 
     // Set default mock response
     mockInferenceClient.client.setResponses(['# Test Title\n\nTest content']);
@@ -93,7 +101,7 @@ describe('GenerationWorker - Event Emission', () => {
 
   // Helper to create a test resource with content
   async function createTestResource(id: string, content: string = 'Test source resource for generation'): Promise<void> {
-    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir);
+    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
 
     const testContent = Buffer.from(content, 'utf-8');
     const { checksum } = await repStore.store(testContent, { mediaType: 'text/plain' });

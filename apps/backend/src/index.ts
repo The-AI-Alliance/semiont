@@ -1,6 +1,7 @@
 // Environment variables are loaded via Node's --env-file flag (see package.json)
 // Construct DATABASE_URL from components if not already set
 // MUST be done before any Prisma imports!
+let databaseUrlConstructed = false;
 if (!process.env.DATABASE_URL && process.env.DB_HOST && process.env.DB_USER && process.env.DB_PASSWORD) {
   const dbPort = process.env.DB_PORT;
   const dbName = process.env.DB_NAME;
@@ -21,7 +22,7 @@ if (!process.env.DATABASE_URL && process.env.DB_HOST && process.env.DB_USER && p
   url.searchParams.set('sslmode', 'require');
 
   process.env.DATABASE_URL = url.toString();
-  console.log('✅ DATABASE_URL constructed from components');
+  databaseUrlConstructed = true;
 }
 
 import { cors } from 'hono/cors';
@@ -53,11 +54,28 @@ if (!config.services.backend.corsOrigin) {
 
 const backendService = config.services.backend;
 
+// Import logging utilities
+import { initializeLogger, getLogger } from './logger';
+
+// Initialize Winston logger with log level from environment config
+initializeLogger(config.logLevel);
+const logger = getLogger();
+
+// Log database configuration after logger is initialized
+if (databaseUrlConstructed) {
+  logger.info('DATABASE_URL constructed from environment components', {
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT,
+    database: process.env.DB_NAME,
+    ssl: 'required'
+  });
+}
+
 // Create global EventBus for real-time events
 const eventBus = new EventBus();
 
 // Initialize make-meaning service (job queue, workers, graph consumer)
-const makeMeaning = await startMakeMeaning(config, eventBus);
+const makeMeaning = await startMakeMeaning(config, eventBus, logger);
 
 // Import route definitions
 import { healthRouter } from './routes/health';
@@ -83,7 +101,6 @@ const __dirname = path.dirname(__filename);
 // Import security headers middleware
 import { securityHeaders } from './middleware/security-headers';
 // Import logging middleware
-import { initializeLogger } from './logger';
 import { requestIdMiddleware } from './middleware/request-id';
 import { requestLoggerMiddleware } from './middleware/request-logger';
 import { errorLoggerMiddleware } from './middleware/error-logger';
@@ -93,9 +110,6 @@ type Variables = {
   config: EnvironmentConfig;
   makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>>;
 };
-
-// Initialize Winston logger with log level from environment config
-initializeLogger(config.logLevel);
 
 // Create Hono app with proper typing
 const app = new Hono<{ Variables: Variables }>();
@@ -190,7 +204,10 @@ app.get('/api/docs', async (c) => {
     // - Context type incompatibility requires 'as any' cast
     return await swaggerHandler(c as any, async () => {});
   } catch (error) {
-    console.error('Error in /api/docs handler:', error);
+    logger.error('Error in /api/docs handler', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
     return c.json({ error: 'Failed to load resourceation', details: String(error) }, 500);
   }
 });
@@ -218,22 +235,33 @@ if (nodeEnv !== 'test') {
     port: port,
     hostname: '0.0.0.0'
   }, async (info) => {
-    console.log(`🚀 Semiont Backend ready at http://localhost:${info.port}/api (${nodeEnv})`);
+    logger.info('Semiont Backend ready', {
+      url: `http://localhost:${info.port}/api`,
+      environment: nodeEnv
+    });
 
     // Initialize JWT Service with configuration
     try {
       const { JWTService } = await import('./auth/jwt');
       JWTService.initialize(config);
     } catch (error) {
-      console.error('⚠️ Failed to initialize JWT Service:', error);
+      logger.error('Failed to initialize JWT Service', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
     }
 
     // Pre-load entity types from graph database for performance
     try {
       const entityTypes = await makeMeaning.graphDb.getEntityTypes();
-      console.log(`✅ Loaded ${entityTypes.length} entity types from graph database`);
+      logger.info('Loaded entity types from graph database', {
+        count: entityTypes.length
+      });
     } catch (error) {
-      console.error('⚠️ Failed to pre-load entity types:', error);
+      logger.error('Failed to pre-load entity types', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
     }
   });
 }

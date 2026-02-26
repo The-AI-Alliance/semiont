@@ -5,14 +5,22 @@
  * to SSE stream delivery.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { resourceId, userId } from '@semiont/core';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { resourceId, userId, type Logger } from '@semiont/core';
 import { loadEnvironmentConfig } from '../../utils/config';
 import { resourceUri, jobId } from '@semiont/core';
 import type { EventStore } from '@semiont/event-sourcing';
 import { promises as fsPromises } from 'fs';
 import { tmpdir } from 'os';
 import * as path from 'path';
+
+const mockLogger: Logger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger)
+};
 
 let testDir: string;
 
@@ -38,7 +46,10 @@ describe('SSE Event Flow - End-to-End', () => {
       {
       enableSharding: false,
       maxEventsPerFile: 100,
-    });
+    },
+      undefined,
+      mockLogger
+    );
   });
 
   afterAll(async () => {
@@ -75,7 +86,7 @@ describe('SSE Event Flow - End-to-End', () => {
       version: 1,
       payload: {
         jobId: testJobId,
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         totalSteps: 3
       }
     });
@@ -87,7 +98,7 @@ describe('SSE Event Flow - End-to-End', () => {
       version: 1,
       payload: {
         jobId: testJobId,
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         percentage: 33,
         currentStep: 'Person',
         processedSteps: 1,
@@ -104,7 +115,7 @@ describe('SSE Event Flow - End-to-End', () => {
       version: 1,
       payload: {
         jobId: testJobId,
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         percentage: 66,
         currentStep: 'Organization',
         processedSteps: 2,
@@ -121,7 +132,7 @@ describe('SSE Event Flow - End-to-End', () => {
       version: 1,
       payload: {
         jobId: testJobId,
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         totalSteps: 3,
         foundCount: 7,
         message: 'Detection complete!'
@@ -249,7 +260,7 @@ describe('SSE Event Flow - End-to-End', () => {
       version: 1,
       payload: {
         jobId: testJobId,
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         totalSteps: 3
       }
     });
@@ -262,7 +273,7 @@ describe('SSE Event Flow - End-to-End', () => {
       version: 1,
       payload: {
         jobId: testJobId,
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         percentage: 50,
         currentStep: 'Person',
         message: 'Processing...'
@@ -277,7 +288,7 @@ describe('SSE Event Flow - End-to-End', () => {
       version: 1,
       payload: {
         jobId: testJobId,
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         error: 'AI service unavailable',
         details: 'Connection timeout after 30s'
       }
@@ -319,7 +330,7 @@ describe('SSE Event Flow - End-to-End', () => {
       version: 1,
       payload: {
         jobId: jobId1,
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         percentage: 50
       }
     });
@@ -331,7 +342,7 @@ describe('SSE Event Flow - End-to-End', () => {
       version: 1,
       payload: {
         jobId: jobId2,
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         percentage: 50
       }
     });
@@ -343,7 +354,7 @@ describe('SSE Event Flow - End-to-End', () => {
       version: 1,
       payload: {
         jobId: jobId1,
-        jobType: 'detection'
+        jobType: 'reference-annotation'
       }
     });
 
@@ -385,7 +396,7 @@ describe('SSE Event Flow - End-to-End', () => {
       version: 1,
       payload: {
         jobId: testJobId,
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         totalSteps: 2
       }
     });
@@ -397,7 +408,7 @@ describe('SSE Event Flow - End-to-End', () => {
       version: 1,
       payload: {
         jobId: testJobId,
-        jobType: 'detection'
+        jobType: 'reference-annotation'
       }
     });
 
@@ -431,7 +442,7 @@ describe('SSE Event Flow - End-to-End', () => {
       version: 1,
       payload: {
         jobId: testJobId,
-        jobType: 'detection',
+        jobType: 'reference-annotation',
         percentage: 50
       }
     });

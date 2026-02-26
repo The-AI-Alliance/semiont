@@ -19,6 +19,7 @@ import { useEventSubscriptions } from '../contexts/useEventSubscription';
 import { useEventBus } from '../contexts/EventBusContext';
 import { useApiClient } from '../contexts/ApiClientContext';
 import { useAuthToken } from '../contexts/AuthTokenContext';
+import { useToast } from '../components/Toast';
 
 /** Helper to convert string | null to AccessToken | undefined */
 function toAccessToken(token: string | null) {
@@ -47,31 +48,28 @@ export interface GenerationFlowState {
  *
  * @param locale - Current locale for language defaults
  * @param resourceId - Resource ID for generation
- * @param showSuccess - Success toast callback
- * @param showError - Error toast callback
  * @param clearNewAnnotationId - Clear animation callback
- * @emits generation:start - Start document generation (consumed internally by this hook)
- * @emits generation:progress - SSE progress chunk from generation stream
- * @emits generation:complete - Generation completed successfully
- * @emits generation:failed - Error during generation
- * @subscribes generation:start - Triggers SSE call to generateResourceFromAnnotation
+ * @emits generate:request - Start document generation (consumed internally by this hook)
+ * @emits generate:progress - SSE progress chunk from generation stream
+ * @emits generate:finished - Generation completed successfully
+ * @emits generate:failed - Error during generation
+ * @subscribes generate:request - Triggers SSE call to generateResourceFromAnnotation
  * @subscribes job:cancel-requested - Cancels in-flight generation stream
- * @subscribes reference:create-manual - Navigates to compose page for new document reference
- * @subscribes generation:modal-open - Open the generation config modal; triggers context:retrieval-requested
- * @subscribes generation:complete - Generation completed successfully
- * @subscribes generation:failed - Error during generation
+ * @subscribes resolve:create-manual - Navigates to compose page for new document reference
+ * @subscribes generate:modal-open - Open the generation config modal; triggers correlate:requested
+ * @subscribes generate:finished - Generation completed successfully
+ * @subscribes generate:failed - Error during generation
  * @returns Generation flow state
  */
 export function useGenerationFlow(
   locale: string,
   resourceId: string,
-  showSuccess: (message: string) => void,
-  showError: (message: string) => void,
   clearNewAnnotationId: (annotationId: AnnotationUri) => void
 ): GenerationFlowState {
   const eventBus = useEventBus();
   const client = useApiClient();
   const token = useAuthToken();
+  const { showSuccess, showError } = useToast();
 
   // Keep latest client/token accessible inside useEffect without re-subscribing
   const clientRef = useRef(client);
@@ -127,8 +125,8 @@ export function useGenerationFlow(
     // Use full resource URI (W3C Web Annotation spec requires URIs)
     const resourceUriStr = `resource://${resourceId}`;
 
-    // Emit generation:start event instead of calling SSE directly
-    eventBus.get('generation:start').next({
+    // Emit generate:request event instead of calling SSE directly
+    eventBus.get('generate:request').next({
       annotationUri: referenceId,
       resourceUri: resourceUriStr,
       options: {
@@ -152,8 +150,8 @@ export function useGenerationFlow(
     setGenerationReferenceId(annUri);
     setGenerationDefaultTitle(defaultTitle);
     setGenerationModalOpen(true);
-    // Trigger context retrieval in parallel with modal open
-    eventBus.get('context:retrieval-requested').next({ annotationUri: annUri, resourceUri });
+    // Trigger context correlation in parallel with modal open
+    eventBus.get('correlate:requested').next({ annotationUri: annUri, resourceUri });
   }, []);
 
   const handleGenerationComplete = useCallback((progress: GenerationProgress) => {
@@ -216,20 +214,20 @@ export function useGenerationFlow(
           event.options as any,
           sseOptions
         );
-        // Events auto-emit to EventBus: generation:progress, generation:complete, generation:failed
+        // Events auto-emit to EventBus: generate:progress, generate:finished, generate:failed
       } catch (error) {
         if ((error as any).name !== 'AbortError') {
           console.error('[useGenerationFlow] Generation failed:', error);
-          eventBus.get('generation:failed').next({ error: error as Error });
+          eventBus.get('generate:failed').next({ error: error as Error });
         }
       }
     };
 
     /**
      * Handle job cancellation (generation half)
-     * Emitted by: DetectionProgressWidget
+     * Emitted by: AnnotateReferencesProgressWidget
      */
-    const handleJobCancelRequested = (event: { jobType: 'detection' | 'generation' }) => {
+    const handleJobCancelRequested = (event: { jobType: 'annotation' | 'generation' }) => {
       if (event.jobType === 'generation') {
         generationStreamRef.current?.abort();
         generationStreamRef.current = null;
@@ -256,9 +254,9 @@ export function useGenerationFlow(
       window.location.href = `${baseUrl}/know/compose?${params.toString()}`;
     };
 
-    const subscription1 = eventBus.get('generation:start').subscribe(handleGenerationStart);
+    const subscription1 = eventBus.get('generate:request').subscribe(handleGenerationStart);
     const subscription2 = eventBus.get('job:cancel-requested').subscribe(handleJobCancelRequested);
-    const subscription3 = eventBus.get('reference:create-manual').subscribe(handleReferenceCreateManual);
+    const subscription3 = eventBus.get('resolve:create-manual').subscribe(handleReferenceCreateManual);
 
     return () => {
       subscription1.unsubscribe();
@@ -270,10 +268,10 @@ export function useGenerationFlow(
 
   // Subscribe to generation events
   useEventSubscriptions({
-    'generation:progress': handleProgressEvent,
-    'generation:complete': handleGenerationComplete,
-    'generation:failed': handleGenerationFailed,
-    'generation:modal-open': handleGenerationModalOpen,
+    'generate:progress': handleProgressEvent,
+    'generate:finished': handleGenerationComplete,
+    'generate:failed': handleGenerationFailed,
+    'generate:modal-open': handleGenerationModalOpen,
   });
 
   return {

@@ -6,6 +6,15 @@ import {
   createConfigWithoutModel,
   createConfigWithEnvVar,
 } from './helpers/mock-config.js';
+import type { Logger } from '@semiont/core';
+
+const mockLogger: Logger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger)
+};
 
 describe('@semiont/inference - factory', () => {
   beforeEach(() => {
@@ -44,7 +53,7 @@ describe('@semiont/inference - factory', () => {
   describe('getInferenceClient', () => {
     it('should create Anthropic client on first call', async () => {
       const config = createTestConfig();
-      const client = await getInferenceClient(config);
+      const client = await getInferenceClient(config, mockLogger);
 
       expect(client).toBeDefined();
     });
@@ -52,8 +61,8 @@ describe('@semiont/inference - factory', () => {
     it('should create new client instance on each call', async () => {
       const config = createTestConfig();
 
-      const client1 = await getInferenceClient(config);
-      const client2 = await getInferenceClient(config);
+      const client1 = await getInferenceClient(config, mockLogger);
+      const client2 = await getInferenceClient(config, mockLogger);
 
       // Should be different instances (no singleton pattern)
       // Singleton behavior is managed by MakeMeaningService
@@ -66,7 +75,7 @@ describe('@semiont/inference - factory', () => {
     it('should throw error if services.inference missing', async () => {
       const config = createConfigWithoutInference();
 
-      await expect(getInferenceClient(config)).rejects.toThrow(
+      await expect(getInferenceClient(config, mockLogger)).rejects.toThrow(
         'services.inference is required in environment config'
       );
     });
@@ -76,14 +85,14 @@ describe('@semiont/inference - factory', () => {
       const config = createConfigWithEnvVar('ANTHROPIC_API_KEY');
 
       // Should not throw - means expansion worked
-      const client = await getInferenceClient(config);
+      const client = await getInferenceClient(config, mockLogger);
       expect(client).toBeDefined();
     });
 
     it('should throw error if environment variable not set', async () => {
       const config = createConfigWithEnvVar('NONEXISTENT_VAR');
 
-      await expect(getInferenceClient(config)).rejects.toThrow(
+      await expect(getInferenceClient(config, mockLogger)).rejects.toThrow(
         'Environment variable NONEXISTENT_VAR is not set'
       );
     });
@@ -91,18 +100,19 @@ describe('@semiont/inference - factory', () => {
     it('should log configuration on initialization', async () => {
       const config = createTestConfig({ model: 'claude-3-opus-20240229' });
 
-      await getInferenceClient(config);
+      await getInferenceClient(config, mockLogger);
 
-      expect(console.log).toHaveBeenCalledWith('Inference config loaded:', {
+      expect(mockLogger.info).toHaveBeenCalledWith('Loading inference client configuration', {
         type: 'anthropic',
         model: 'claude-3-opus-20240229',
         endpoint: undefined,
         hasApiKey: true,
       });
 
-      expect(console.log).toHaveBeenCalledWith(
-        'Initialized anthropic inference client with model claude-3-opus-20240229'
-      );
+      expect(mockLogger.info).toHaveBeenCalledWith('Inference client initialized', {
+        type: 'anthropic',
+        model: 'claude-3-opus-20240229'
+      });
     });
   });
 });

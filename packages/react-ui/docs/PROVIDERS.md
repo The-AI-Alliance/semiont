@@ -305,7 +305,7 @@ function TextSelector() {
   const eventBus = useMakeMeaningEvents();
 
   const handleSelection = (selection: Selection) => {
-    eventBus.emit('ui:selection:comment-requested', {
+    eventBus.emit('ui:annotate:select-comment', {
       exact: selection.exact,
       start: selection.start,
       end: selection.end,
@@ -337,8 +337,8 @@ function AnnotationPanel() {
       });
     };
 
-    eventBus.on('ui:selection:comment-requested', handler);
-    return () => eventBus.off('ui:selection:comment-requested', handler);
+    eventBus.on('ui:annotate:select-comment', handler);
+    return () => eventBus.off('ui:annotate:select-comment', handler);
   }, [eventBus]);
 
   return <div>{/* Render annotation form */}</div>;
@@ -359,12 +359,12 @@ function AnnotationPanel() {
 Backend Events:
 - Detection: `detection:started`, `detection:progress`, `detection:entity-found`, `detection:completed`, `detection:failed`
 - Generation: `generation:started`, `generation:progress`, `generation:resource-created`, `generation:completed`
-- Annotation: `annotation:added`, `annotation:removed`, `annotation:updated`
+- Annotation: `annotate:added`, `annotate:removed`, `annotate:body-updated`
 - Entity Tags: `entity-tag:added`, `entity-tag:removed`
 - Resource: `resource:archived`, `resource:unarchived`
 
 UI Events:
-- Selection: `ui:selection:comment-requested`, `ui:selection:tag-requested`, `ui:selection:assessment-requested`, `ui:selection:reference-requested`
+- Selection: `ui:annotate:select-comment`, `ui:annotate:select-tag`, `ui:annotate:select-assessment`, `ui:annotate:select-reference`
 
 **Important:** This provider is resource-scoped, not application-scoped. It should wrap individual resource pages, not the entire app. Multiple resource pages can have independent event buses.
 
