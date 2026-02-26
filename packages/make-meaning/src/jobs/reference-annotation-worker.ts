@@ -394,8 +394,17 @@ export class ReferenceDetectionWorker extends JobWorker {
       version: 1,
     };
 
-    // Determine if this is the first progress update (job.started)
-    const isFirstUpdate = detJob.progress.processedEntityTypes === 0;
+    // Determine update type based on progress state
+    const isFirstUpdate = detJob.progress.processedEntityTypes === 0 && !detJob.progress.currentEntityType;
+
+    // "Before processing" updates are emitted when we're about to START an entity type
+    // They have processedEntityTypes < totalEntityTypes (not done yet) and currentEntityType set
+    // The key distinction: if the currentEntityType matches the NEXT entity to process (not yet in processed count),
+    // then this is a "before" update that should only emit ephemeral progress, not a domain event
+    const currentIndex = detJob.progress.currentEntityType
+      ? detJob.params.entityTypes.findIndex(et => et === detJob.progress.currentEntityType)
+      : -1;
+    const isBeforeProcessing = currentIndex !== -1 && detJob.progress.processedEntityTypes === currentIndex;
 
     // Get resource-scoped EventBus for progress events
     const resourceBus = this.eventBus.scope(detJob.params.resourceId);
@@ -426,8 +435,22 @@ export class ReferenceDetectionWorker extends JobWorker {
         currentEntityType: detJob.progress.currentEntityType,
         percentage: 0,
       });
+    } else if (isBeforeProcessing) {
+      // Before processing an entity type - only emit ephemeral annotate:progress (no domain event)
+      // This provides immediate UX feedback that we're starting work on this entity type
+      const percentage = 0; // Starting this entity type
+      this.logger?.debug('[EventBus] Emitting annotate:progress (before processing)', {
+        resourceId: detJob.params.resourceId,
+        currentEntityType: detJob.progress.currentEntityType
+      });
+      resourceBus.get('annotate:progress').next({
+        status: 'scanning',
+        message: `Starting ${detJob.progress.currentEntityType}...`,
+        currentEntityType: detJob.progress.currentEntityType,
+        percentage,
+      });
     } else {
-      // Intermediate progress - emit job.progress (domain event)
+      // After processing an entity type - emit job.progress (domain event)
       const percentage = Math.round((detJob.progress.processedEntityTypes / detJob.progress.totalEntityTypes) * 100);
       await this.eventStore.appendEvent({
         type: 'job.progress',
