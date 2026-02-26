@@ -26,31 +26,64 @@ export class DatabaseConnection {
     if (globalForPrisma.prisma) {
       return globalForPrisma.prisma;
     }
-    
+
     if (this.instance) {
       return this.instance;
     }
-    
+
     // Prevent multiple simultaneous initializations
     if (this.isInitializing) {
       throw new Error('Database connection is already being initialized');
     }
-    
+
     this.isInitializing = true;
     try {
       // Determine log level based on environment
       const logLevel = this.getLogLevel();
-      
+
       // Create new PrismaClient instance
       this.instance = new PrismaClient({
         log: logLevel,
       });
-      
+
+      // Setup custom logging to Winston (logs/combined.log)
+      const logger = getDBLogger();
+
+      this.instance.$on('query' as never, (e: any) => {
+        logger.debug('Query', {
+          query: e.query,
+          params: e.params,
+          duration: `${e.duration}ms`,
+          target: e.target
+        });
+      });
+
+      this.instance.$on('error' as never, (e: any) => {
+        logger.error('Database error', {
+          message: e.message,
+          target: e.target
+        });
+      });
+
+      this.instance.$on('warn' as never, (e: any) => {
+        logger.warn('Database warning', {
+          message: e.message,
+          target: e.target
+        });
+      });
+
+      this.instance.$on('info' as never, (e: any) => {
+        logger.info('Database info', {
+          message: e.message,
+          target: e.target
+        });
+      });
+
       // In non-production, store in global for hot-reload persistence
       if (process.env.NODE_ENV !== 'production') {
         globalForPrisma.prisma = this.instance;
       }
-      
+
       return this.instance;
     } finally {
       this.isInitializing = false;
@@ -59,14 +92,16 @@ export class DatabaseConnection {
   
   /**
    * Get appropriate log level based on environment
+   * These events are captured by $on() handlers and routed to Winston
    */
   private static getLogLevel(): Array<'query' | 'error' | 'warn' | 'info'> {
     const env = process.env.NODE_ENV;
-    
+
     if (env === 'development') {
-      return ['query', 'error', 'warn'];
+      // Enable query logging in development (goes to logs/combined.log via Winston)
+      return ['query', 'error', 'warn', 'info'];
     }
-    
+
     // Default to error-only logging for production and test
     return ['error'];
   }
