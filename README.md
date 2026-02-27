@@ -13,9 +13,21 @@
 
 > ⚠️ **Early Development**: Semiont is in active alpha development. The API is not yet stable and breaking changes are expected. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to participate.
 
-**The open-source, future-proof framework that enables humans and intelligent agents to co-create shared knowledge — governed by you and built to last.**
+**Semiont is an open-source knowledge kernel where humans and AI agents collaboratively annotate, link, and extend a shared corpus of documents.**
 
-Semiont is a standards-compliant multimedia resource management system built on the **W3C Web Annotation** model. It transforms unstructured content into interconnected semantic networks through collaborative markup, linking, and AI-powered knowledge extraction—all stored as standard, interoperable annotations.
+Built on the W3C Web Annotation standard, Semiont transforms unstructured content into interconnected semantic networks — all stored as portable, interoperable annotations. Run it on your infrastructure with your data for true sovereign AI.
+
+## Why Semiont
+
+**Eliminate Cold Starts** — Import a set of documents and the five flows immediately begin producing value: AI agents detect entity mentions, propose annotations, and generate linked resources while humans review, correct, and extend the results. The knowledge graph grows as a byproduct of annotation — no upfront schema design, manual data entry, or batch ETL pipeline required.
+
+**Calibrate the Human–AI Mix** — Because humans and AI agents share identical interfaces, organizations can dial the mix to fit their constraints. A domain with abundant expert availability and a high accuracy bar can run human-primary workflows with AI suggestions; a domain rich in GPU capacity but short on specialists can run agent-primary pipelines with human spot-checks. Supervision depth, automation ratio, and quality gates are deployment decisions — not architectural rewrites.
+
+## Core Tenets
+
+**Peer Collaboration** — Humans and AI agents are architectural equals. Every operation flows through the same API, event bus, and event-sourced storage regardless of who initiates it. Any workflow can be performed manually, automated by an agent, or done collaboratively.
+
+**Document-Grounded Knowledge** — Knowledge is always anchored to source documents. Annotations point into specific passages; references link documents to each other. The knowledge graph is a projection of these grounded relationships, not a replacement for the original material.
 
 **Five Collaborative Flows** — humans and AI agents work as peers through five composable workflows (Attend → Annotate → Resolve → Correlate → Generate):
 
@@ -23,9 +35,7 @@ Semiont is a standards-compliant multimedia resource management system built on 
 - **[Annotate](docs/flows/ANNOTATE.md)** — Create highlights, assessments, comments, tags, and entity references — manually or via AI-assisted detection
 - **[Resolve](docs/flows/RESOLVE.md)** — Link reference annotations to existing resources or create new ones
 - **[Correlate](docs/flows/CORRELATE.md)** — Extract semantic context from annotations and the knowledge graph for downstream use
-- **[Generate](docs/flows/GENERATE.md)** — Synthesize new resources from reference annotations using correlated context
-
-Use it as a Wiki, an Annotator, or a Research tool. Run it on your infrastructure with your data for true **sovereign AI**.
+- **[Generate](docs/flows/GENERATE.md)** — Synthesize new resources from reference annotations using correlated context.
 
 ## 📁 File Layout
 
