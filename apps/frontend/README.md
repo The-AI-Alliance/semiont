@@ -188,7 +188,7 @@ Some operations run asynchronously via background job workers:
 
 ### Architecture & Design
 - **[Frontend Architecture](./docs/ARCHITECTURE.md)** - High-level system design, state management, routing
-- **[Rendering Architecture](./docs/RENDERING-ARCHITECTURE.md)** - Document rendering pipeline
+- **[Rendering Architecture](../../packages/react-ui/docs/RENDERING-ARCHITECTURE.md)** - Document rendering pipeline
 - **[API Integration](./docs/API-INTEGRATION.md)** - API client usage, async operations, W3C annotations
 
 ### Features & UI
@@ -205,8 +205,8 @@ Some operations run asynchronously via background job workers:
 - **[Keyboard Navigation](./docs/KEYBOARD-NAV.md)** - WCAG 2.1 Level AA compliant keyboard shortcuts
 
 ### Specialized Topics
-- **[CodeMirror Integration](./docs/CODEMIRROR-INTEGRATION.md)** - Editor implementation details
-- **[CodeMirror Widgets](./docs/CODEMIRROR-WIDGETS.md)** - Custom editor widgets
+- **[CodeMirror Integration](../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md)** - Editor implementation details
+- **[CodeMirror Widgets](../../packages/react-ui/docs/CODEMIRROR-WIDGETS.md)** - Custom editor widgets
 - **[Annotation Overlay](../../ANNOTATION-OVERLAY.md)** - BrowseView annotation rendering (DOM Range overlay)
 - **[Annotation Rendering](./docs/ANNOTATION-RENDERING-PRINCIPLES.md)** - Annotation rendering principles
 - **[Adding Languages](./docs/ADDING-LANGUAGE.md)** - Internationalization

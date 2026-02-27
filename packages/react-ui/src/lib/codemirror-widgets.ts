@@ -2,27 +2,30 @@
  * CodeMirror Inline Widgets
  *
  * Custom widgets for enhancing the document editing experience:
- * - Wiki link pills (clickable, styled)
- * - Reference previews (hover for context)
- * - Entity type badges
+ * - Reference resolution indicators (resolved 🔗, generating ✨, stub ❓)
+ *
+ * Event handling uses delegation — no per-widget listeners.
+ * Data attributes on the container enable CodeMirrorRenderer to handle
+ * clicks and hovers via a single set of delegated handlers.
  */
 
 import { WidgetType } from '@codemirror/view';
 import type { components } from '@semiont/core';
 import { isResolvedReference, getBodySource } from '@semiont/api-client';
-import type { EventBus } from "@semiont/core"
 
 type Annotation = components['schemas']['Annotation'];
 
 /**
  * Reference Resolution Widget
- * Shows a small indicator next to references with hover preview
+ * Shows a small indicator next to references with hover preview.
+ *
+ * All event handling is delegated — the widget sets data attributes
+ * and CodeMirrorRenderer handles events via container-level listeners.
  */
 export class ReferenceResolutionWidget extends WidgetType {
   constructor(
     readonly annotation: Annotation,
     readonly targetDocumentName?: string,
-    readonly eventBus?: EventBus,
     readonly isGenerating?: boolean
   ) {
     super();
@@ -47,13 +50,20 @@ export class ReferenceResolutionWidget extends WidgetType {
       position: relative;
     `;
 
+    // Data attributes for delegated event handling
+    const isResolved = isResolvedReference(this.annotation);
+    const bodySource = getBodySource(this.annotation.body);
+    container.dataset.widgetAnnotationId = this.annotation.id;
+    container.dataset.widgetMotivation = this.annotation.motivation;
+    container.dataset.widgetResolved = isResolved ? 'true' : 'false';
+    if (bodySource) container.dataset.widgetBodySource = bodySource;
+    if (this.targetDocumentName) container.dataset.widgetTargetName = this.targetDocumentName;
+    if (this.isGenerating) container.dataset.widgetGenerating = 'true';
+
     // Use button element for keyboard accessibility
     const indicator = document.createElement('button');
     indicator.className = 'reference-indicator';
     indicator.type = 'button';
-
-    // Different states: resolved, generating, or stub
-    const isResolved = isResolvedReference(this.annotation);
 
     if (isResolved) {
       indicator.innerHTML = '<span aria-hidden="true">🔗</span>';
@@ -73,14 +83,6 @@ export class ReferenceResolutionWidget extends WidgetType {
         padding: 0;
         margin: 0;
         vertical-align: baseline;
-      `;
-      // Add focus styles
-      indicator.style.cssText += `
-        &:focus {
-          outline: 2px solid #3b82f6;
-          outline-offset: 2px;
-          opacity: 1;
-        }
       `;
     } else if (this.isGenerating) {
       // Create circled sparkle matching the text selection sparkle
@@ -133,97 +135,52 @@ export class ReferenceResolutionWidget extends WidgetType {
         margin: 0;
         vertical-align: baseline;
       `;
-      // Add focus styles
-      indicator.style.cssText += `
-        &:focus {
-          outline: 2px solid #3b82f6;
-          outline-offset: 2px;
-          opacity: 1;
-        }
-      `;
-    }
-
-    // Only add hover/click handlers if not generating
-    if (!this.isGenerating) {
-      indicator.addEventListener('mouseenter', () => {
-        indicator.style.opacity = '1';
-
-        // NEVER show custom preview tooltip for unresolved references
-        // Only show it for resolved references that have a valid document name
-        if (isResolved && this.targetDocumentName && this.targetDocumentName.trim() !== '') {
-          this.showPreview(container, this.targetDocumentName);
-        }
-      });
-
-      indicator.addEventListener('mouseleave', () => {
-        indicator.style.opacity = '0.6';
-        // Only hide preview if it was shown (for resolved references)
-        if (isResolved) {
-          this.hidePreview(container);
-        }
-      });
-
-      // Click handler: navigate for resolved, show popup for unresolved
-      const bodySource = getBodySource(this.annotation.body);
-      if (isResolved && bodySource && this.eventBus) {
-        const eventBus = this.eventBus; // Capture for closure
-        indicator.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          eventBus.get('navigation:reference-navigate').next({ documentId: bodySource });
-        });
-      } else if (!isResolved && this.eventBus) {
-        const eventBus = this.eventBus; // Capture for closure
-        const annotation: Annotation = this.annotation; // Capture for closure with explicit type
-        indicator.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          eventBus.get('attend:click').next({ annotationId: annotation.id, motivation: annotation.motivation });
-        });
-      }
     }
 
     container.appendChild(indicator);
     return container;
   }
 
-  private showPreview(container: HTMLElement, documentName: string) {
-    // Don't show preview if there's no document name
-    if (!documentName || documentName.trim() === '') {
-      return;
-    }
-
-    const tooltip = document.createElement('div');
-    tooltip.className = 'reference-tooltip';
-    tooltip.textContent = `→ ${documentName}`;
-
-    tooltip.style.cssText = `
-      position: absolute;
-      bottom: 100%;
-      left: 50%;
-      transform: translateX(-50%) translateY(-4px);
-      padding: 4px 8px;
-      background: rgba(0, 0, 0, 0.8);
-      color: white;
-      border-radius: 4px;
-      font-size: 11px;
-      white-space: nowrap;
-      pointer-events: none;
-      z-index: 1000;
-      animation: fadeIn 0.2s ease;
-    `;
-
-    container.appendChild(tooltip);
-  }
-
-  private hidePreview(container: HTMLElement) {
-    const tooltip = container.querySelector('.reference-tooltip');
-    if (tooltip) {
-      tooltip.remove();
-    }
-  }
-
   override ignoreEvent(event: Event): boolean {
     return event.type === 'click';
   }
+}
+
+/**
+ * Show a tooltip preview on a widget container.
+ * Called from delegated mouseenter handler in CodeMirrorRenderer.
+ */
+export function showWidgetPreview(container: HTMLElement, documentName: string): void {
+  if (!documentName || documentName.trim() === '') return;
+
+  const tooltip = document.createElement('div');
+  tooltip.className = 'reference-tooltip';
+  tooltip.textContent = `→ ${documentName}`;
+
+  tooltip.style.cssText = `
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-4px);
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 1000;
+    animation: fadeIn 0.2s ease;
+  `;
+
+  container.appendChild(tooltip);
+}
+
+/**
+ * Hide the tooltip preview from a widget container.
+ * Called from delegated mouseleave handler in CodeMirrorRenderer.
+ */
+export function hideWidgetPreview(container: HTMLElement): void {
+  const tooltip = container.querySelector('.reference-tooltip');
+  if (tooltip) tooltip.remove();
 }

@@ -108,9 +108,6 @@ export interface AnnotationUIState {
   /** ID of currently hovered annotation (optional - only set when hovering) */
   hoveredAnnotationId?: string | null;
 
-  /** ID of currently hovered comment for panel highlighting (optional - only set when hovering) */
-  hoveredCommentId?: string | null;
-
   /** ID of annotation to scroll to (optional - only set when scrolling needed) */
   scrollToAnnotationId?: string | null;
 }

@@ -641,7 +641,7 @@ For detailed styling guidelines, see the [Style Guide](./style-guide.md).
 
 ### Architecture
 - [Frontend Architecture](./ARCHITECTURE.md) - High-level system design
-- [Rendering Architecture](./RENDERING-ARCHITECTURE.md) - Document rendering pipeline
+- [Rendering Architecture](../../../packages/react-ui/docs/RENDERING-ARCHITECTURE.md) - Document rendering pipeline
 - [Authentication](./AUTHENTICATION.md) - OAuth, JWT, session management
 
 ### Features

@@ -7,7 +7,7 @@
 - [W3C Selectors](../../specs/docs/W3C-SELECTORS.md) - TextPositionSelector and TextQuoteSelector details
 - [Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - Event Store, View Storage, Graph Database flow
 - [Frontend Annotations](../../apps/frontend/docs/ANNOTATIONS.md) - UI patterns and component architecture
-- [CodeMirror Integration](../../apps/frontend/docs/CODEMIRROR-INTEGRATION.md) - Position accuracy and CRLF handling
+- [CodeMirror Integration](../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - Position accuracy and CRLF handling
 - [@semiont/make-meaning](../../packages/make-meaning/README.md) - Detection API and job workers
 - [Make-Meaning Job Workers](../../packages/make-meaning/docs/job-workers.md) - Worker implementation details
 - [Make-Meaning API Reference](../../packages/make-meaning/docs/api-reference.md) - AnnotationDetection methods
@@ -149,13 +149,13 @@ See [W3C-SELECTORS.md](../../specs/docs/W3C-SELECTORS.md) for complete selector 
 
 ### Fuzzy Anchoring Implementation
 
-Frontend uses fuzzy anchoring ([CODEMIRROR-INTEGRATION.md](../../apps/frontend/docs/CODEMIRROR-INTEGRATION.md)) to handle:
+Frontend uses fuzzy anchoring ([CODEMIRROR-INTEGRATION.md](../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md)) to handle:
 - Documents edited after annotation creation
 - Character position shifts from insertions/deletions
 - Line ending normalization (CRLF → LF)
 - Multiple occurrences of same text
 
-**Implementation**: [apps/frontend/src/lib/fuzzy-anchor.ts](../../apps/frontend/src/lib/fuzzy-anchor.ts) with 23 comprehensive tests.
+**Implementation**: [packages/api-client/src/utils/fuzzy-anchor.ts](../../packages/api-client/src/utils/fuzzy-anchor.ts) with comprehensive tests.
 
 ---
 
@@ -617,7 +617,7 @@ After detection completes:
 
 1. Frontend refetches annotations from backend (View Storage)
 2. Annotations converted to TextSegments with positions
-3. CRLF → LF position conversion applied ([CODEMIRROR-INTEGRATION.md](../../apps/frontend/docs/CODEMIRROR-INTEGRATION.md))
+3. CRLF → LF position conversion applied ([CODEMIRROR-INTEGRATION.md](../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md))
 4. Visual feedback (sparkle animation for new annotations)
 5. Annotations render at correct positions with appropriate styling
 
@@ -636,7 +636,7 @@ After detection completes:
 
 - **Position accuracy**: Annotations render at correct character positions
 - **Fuzzy anchoring**: Finds correct text even when LLM positions are wrong by searching for exact text and using prefix/suffix context for disambiguation
-- **CRLF handling**: Windows line endings normalized correctly ([CODEMIRROR-INTEGRATION.md:139-197](../../apps/frontend/docs/CODEMIRROR-INTEGRATION.md))
+- **CRLF handling**: Windows line endings normalized correctly ([CODEMIRROR-INTEGRATION.md](../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md))
 - **Content limits**: Highlights/assessments/comments process first 8000 chars, references process full document
 - **User instructions**: Influence LLM detection results as expected (highlights/assessments/comments)
 - **Tone selection**: Tone influences writing style as expected
@@ -697,4 +697,4 @@ After detection completes:
 - [W3C Selectors](../../specs/docs/W3C-SELECTORS.md) - Dual selector strategy
 - [Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - Event Store architecture
 - [Frontend Annotations](../../apps/frontend/docs/ANNOTATIONS.md) - UI patterns and components
-- [CodeMirror Integration](../../apps/frontend/docs/CODEMIRROR-INTEGRATION.md) - CRLF position handling
+- [CodeMirror Integration](../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - CRLF position handling
