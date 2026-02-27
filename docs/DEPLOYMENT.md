@@ -21,6 +21,8 @@ Most `semiont` commands are run from your project directory, and the `--semiont-
 - [Monitoring & Maintenance](#monitoring--maintenance)
 - [Troubleshooting](#troubleshooting)
 
+**Related guides**: [Platforms](./platforms/README.md) | [Scaling](./SCALING.md) | [Maintenance](./MAINTENANCE.md) | [Troubleshooting](./TROUBLESHOOTING.md)
+
 ## Quick Start
 
 ```bash

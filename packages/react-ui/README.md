@@ -242,6 +242,7 @@ See [docs/TESTING.md](docs/TESTING.md) for details.
 - [STYLES.md](docs/STYLES.md) - CSS architecture and styling guide
 - [FAVICON.md](docs/FAVICON.md) - Favicon assets and usage
 - [ANNOTATIONS.md](docs/ANNOTATIONS.md) - Annotation system (coming soon)
+- [ACCESSIBILITY.md](docs/ACCESSIBILITY.md) - Accessibility architecture and WCAG compliance
 
 ## Examples
 

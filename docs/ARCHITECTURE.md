@@ -237,6 +237,8 @@ See [AWS Deployment Guide](./platforms/AWS.md) for production setup.
 ## Service Documentation
 
 For detailed service documentation and implementation:
+
+- **Services**: [docs/services/README.md](./services/README.md) — service index and 4-layer data architecture
 - **Service Overview**: [docs/services/OVERVIEW.md](./services/OVERVIEW.md)
 - **Package APIs**: See individual package docs directories
 - **Backend Implementation**: [apps/backend/docs/](../apps/backend/docs/)

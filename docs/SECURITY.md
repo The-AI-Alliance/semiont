@@ -21,7 +21,7 @@ The current implementation includes:
 - **Router-Level Authentication**: Each backend router applies JWT authentication middleware to protected routes
 - **JWT Token Validation**: Bearer token authentication for API access with HMAC SHA256 signature verification
 - **User Identification**: Each request includes user context (id, email, isAdmin, isModerator) for audit trails
-- **Role-Based Access Control**: Admin and moderator roles implemented with middleware enforcement
+- **Role-Based Access Control**: Admin and moderator roles implemented with middleware enforcement (see [RBAC.md](./RBAC.md))
 - **OpenAPI Security Spec**: All routes documented with security requirements in OpenAPI specification
 
 **Access Levels**:

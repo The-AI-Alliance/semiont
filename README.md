@@ -99,57 +99,24 @@ Semiont publishes npm packages and container images for easy integration and dep
 
 ## 📖 Documentation
 
-### Development Guides
-
 | Document | Description |
-|----------|-------------|
-| [LOCAL-DEVELOPMENT.md](docs/LOCAL-DEVELOPMENT.md) | Complete local development setup guide |
-| [API Client README](packages/api-client/README.md) | Generated OpenAPI client for external applications |
-| [Core SDK README](packages/core/README.md) | Core TypeScript types, schemas, and utilities |
-| [Demo README](demo/README.md) | Example scripts demonstrating API client usage |
-| [Frontend README](apps/frontend/README.md) | Next.js development guide, patterns, and API integration |
-| [Frontend Performance](apps/frontend/docs/PERFORMANCE.md) | Frontend performance optimization guide |
-| [Backend README](apps/backend/README.md) | Hono API development guide, type safety, and database patterns |
-| [CLI README](apps/cli/README.md) | Semiont CLI command reference, architecture, and development guide |
-| [Test Utils README](packages/test-utils/README.md) | Shared testing utilities and mock factories |
-| [MCP Server README](packages/mcp-server/README.md) | Model Context Protocol server for AI integration |
+| --- | --- |
+| **[Architecture](docs/ARCHITECTURE.md)** | System design, event sourcing, and layered package structure |
+| **[W3C Web Annotation](specs/docs/W3C-WEB-ANNOTATION.md)** | How Semiont implements the W3C standard across all layers |
+| **[Local Development](docs/LOCAL-DEVELOPMENT.md)** | Get running locally — prerequisites, configuration, first launch |
+| **[API Reference](specs/docs/API.md)** | HTTP endpoints ([OpenAPI spec](specs/README.md)) |
+| **[Packages](packages/README.md)** | All published npm packages with dependency graph |
+| **[Deployment](docs/DEPLOYMENT.md)** | Production deployment, platforms, scaling, and maintenance |
+| **[Security](docs/SECURITY.md)** | Authentication, RBAC, and security controls |
+| **[Contributing](CONTRIBUTING.md)** | How to participate, testing guide, and development standards |
 
-### API Specifications
+### Applications
 
-| Document | Description |
-|----------|-------------|
-| [OpenAPI Specification](specs/README.md) | REST API specification (OpenAPI 3.0) - source of truth for API contract (source files in [specs/src/](specs/src/)) |
-| [API Reference](specs/docs/API.md) | Complete HTTP API endpoint documentation |
-| [W3C Web Annotation](specs/docs/W3C-WEB-ANNOTATION.md) | W3C Web Annotation implementation across all layers |
-
-### System Documentation
-
-| Document | Description |
-|----------|-------------|
-| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | AWS cloud deployment guide with validation steps |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture and design decisions |
-| [CONFIGURATION.md](docs/CONFIGURATION.md) | Configuration management and environment setup |
-| [Services](docs/services/README.md) | All service documentation and 4-layer data architecture |
-| [Platforms](docs/platforms/README.md) | Platform implementations (POSIX, Container, AWS, External, Mock) |
-| [TESTING.md](docs/TESTING.md) | Testing strategy, frameworks, and best practices |
-
-### Operations & Security
-
-| Document | Description |
-|----------|-------------|
-| [SECURITY.md](docs/SECURITY.md) | Security controls, compliance, and best practices |
-| [RBAC.md](docs/RBAC.md) | Role-based access control implementation |
-| [SCALING.md](docs/SCALING.md) | Performance scaling and cost optimization |
-| [MAINTENANCE.md](docs/MAINTENANCE.md) | Operational maintenance procedures |
-| [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Common issues and diagnostic commands |
-
-### Accessibility
-
-| Document | Description |
-|----------|-------------|
-| [Frontend Accessibility](apps/frontend/docs/ACCESSIBILITY.md) | Frontend-specific accessibility features and testing |
-| [React UI Accessibility](packages/react-ui/docs/ACCESSIBILITY.md) | Component library accessibility architecture |
-| [Keyboard Navigation](apps/frontend/docs/KEYBOARD-NAV.md) | Comprehensive keyboard navigation guide |
+| Application | Description |
+| --- | --- |
+| **[Backend](apps/backend/README.md)** | Hono API server — routes, event bridging, real-time SSE, logging |
+| **[Frontend](apps/frontend/README.md)** | Next.js app — annotations, accessibility, i18n, performance |
+| **[CLI](apps/cli/README.md)** | Environment management, service orchestration, deployment commands |
 
 ## 📜 License
 

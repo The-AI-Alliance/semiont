@@ -202,6 +202,7 @@ Some operations run asynchronously via background job workers:
 
 ### Performance & Accessibility
 - **[Performance Optimization](./docs/PERFORMANCE.md)** - Bundle optimization, Lighthouse CI, monitoring
+- **[Accessibility](./docs/ACCESSIBILITY.md)** - WCAG 2.1 Level AA compliance, screen reader support, testing
 - **[Keyboard Navigation](./docs/KEYBOARD-NAV.md)** - WCAG 2.1 Level AA compliant keyboard shortcuts
 
 ### Specialized Topics
