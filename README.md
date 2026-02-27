@@ -17,12 +17,13 @@
 
 Semiont is a standards-compliant multimedia resource management system built on the **W3C Web Annotation** model. It transforms unstructured content into interconnected semantic networks through collaborative markup, linking, and AI-powered knowledge extraction—all stored as standard, interoperable annotations.
 
-**AI-Native Enhancements** (Attend → Annotate → Resolve → Correlate → Generate):
+**Five Collaborative Flows** — humans and AI agents work as peers through five composable workflows (Attend → Annotate → Resolve → Correlate → Generate):
 
-- **[Annotation Detection](docs/ai/DETECTION.md)** - Automatically detect highlights, assessments, comments, tags, and entity references
-- **Entity Resolution** - Link detected entities to specific resources or external knowledge bases
-- **Context Correlation** - Extract semantic context from the knowledge graph for LLM consumption
-- **[Resource Generation](docs/ai/GENERATION.md)** - AI-powered creation of new resources from reference annotations
+- **[Attend](docs/flows/ATTEND.md)** — Focus on a resource or annotation; hover, click, and navigation signals coordinate all panels and views
+- **[Annotate](docs/flows/ANNOTATE.md)** — Create highlights, assessments, comments, tags, and entity references — manually or via AI-assisted detection
+- **[Resolve](docs/flows/RESOLVE.md)** — Link reference annotations to existing resources or create new ones
+- **[Correlate](docs/flows/CORRELATE.md)** — Extract semantic context from annotations and the knowledge graph for downstream use
+- **[Generate](docs/flows/GENERATE.md)** — Synthesize new resources from reference annotations using correlated context
 
 Use it as a Wiki, an Annotator, or a Research tool. Run it on your infrastructure with your data for true **sovereign AI**.
 

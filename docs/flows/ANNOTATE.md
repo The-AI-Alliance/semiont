@@ -1,6 +1,6 @@
-# AI-Powered Annotation Detection
+# Annotate Flow
 
-**Purpose**: Automatic detection and creation of W3C Web Annotations using AI inference to identify important passages (highlights), evaluate content (assessments), extract entity references (references/links), and generate explanatory comments (comments).
+**Purpose**: Create W3C Web Annotations on resources — manually by selecting text, or via AI-assisted detection that identifies highlights, assessments, comments, tags, and entity references. Both human and AI agents participate as peers in annotation creation.
 
 **Related Documentation**:
 - [W3C Web Annotation Data Model](../../specs/docs/W3C-WEB-ANNOTATION.md) - Complete W3C specification implementation
@@ -14,7 +14,7 @@
 
 ## Overview
 
-Semiont uses AI to automatically detect and create W3C-compliant annotations in documents. This system combines:
+Semiont creates W3C-compliant annotations through two complementary paths: **manual annotation** (a human selects text and chooses a motivation) and **AI-assisted detection** (an AI agent scans the document and proposes annotations). Both paths produce identical W3C Web Annotations and flow through the same event-sourced pipeline. This system combines:
 
 1. **W3C Web Annotation Data Model** - Standards-compliant annotation structure with dual selectors
 2. **AI Inference** - LLM-powered text analysis with configurable prompts and user instructions

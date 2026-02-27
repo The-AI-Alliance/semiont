@@ -1,18 +1,18 @@
-# AI-Powered Resource Generation
+# Generate Flow
 
-**Purpose**: Automatic generation of new resources from reference annotations using AI inference to create contextually relevant content based on entity references.
+**Purpose**: Synthesize new resources from reference annotations using correlated context. A human may compose the new resource manually, or an AI agent may generate it — both paths create a new resource and link the reference annotation to it.
 
 **Related Documentation**:
 - [W3C Web Annotation Data Model](../../specs/docs/W3C-WEB-ANNOTATION.md) - Reference annotation structure
 - [Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - Event Store architecture
 - [Real-Time Event Architecture](../../apps/backend/docs/REAL-TIME.md) - SSE streaming and event flow
-- [Detection](./DETECTION.md) - Annotation detection and creation
+- [Annotate Flow](./ANNOTATE.md) - Annotation detection and creation
 - [@semiont/make-meaning](../../packages/make-meaning/README.md) - Generation worker and detection API
 - [Make-Meaning Job Workers](../../packages/make-meaning/docs/job-workers.md) - GenerationWorker implementation
 
 ## Overview
 
-Semiont generates new resources from reference annotations (motivation: `linking`) that lack resolved content. The system:
+The Generate flow creates new resources from reference annotations (motivation: `linking`) that lack resolved content. A human can compose the resource manually via the compose page, or an AI agent can generate it from correlated context. The system:
 
 1. Identifies unresolved reference annotations (empty body or stub SpecificResource)
 2. Uses AI to generate contextually relevant content based on the reference text
@@ -437,4 +437,4 @@ See [REAL-TIME.md](../../apps/backend/docs/REAL-TIME.md) for complete SSE archit
 - [W3C Web Annotation Data Model](../../specs/docs/W3C-WEB-ANNOTATION.md) - Annotation structure
 - [Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - Event Store flow
 - [Real-Time Event Architecture](../../apps/backend/docs/REAL-TIME.md) - SSE streaming details
-- [Detection](./DETECTION.md) - Reference detection
+- [Annotate Flow](./ANNOTATE.md) - Reference detection
