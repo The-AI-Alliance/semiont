@@ -45,7 +45,8 @@ await queue.initialize();
 
 **What `initialize()` does:**
 - Creates status directories (`pending/`, `running/`, etc.)
-- Ensures directory structure exists
+- Loads existing pending jobs into an in-memory queue
+- Starts `fs.watch` on the `pending/` directory to pick up external changes (debounced)
 - Idempotent (safe to call multiple times)
 
 ### Singleton Helper
@@ -107,6 +108,7 @@ await queue.createJob(job);
 - Writes job to `{dataDir}/jobs/{status}/{jobId}.json`
 - Creates parent directories if needed
 - Overwrites if job with same ID already exists at that status
+- If status is `pending`, pushes to the in-memory queue for immediate worker pickup
 
 **Common patterns:**
 
@@ -314,7 +316,7 @@ interface JobQueryFilters {
 
 ### `pollNextPendingJob(): Promise<Job | null>`
 
-Gets the next pending job (FIFO order).
+Gets the next pending job (FIFO order) from the in-memory queue.
 
 ```typescript
 const next = await queue.pollNextPendingJob();
@@ -328,10 +330,9 @@ if (next) {
 ```
 
 **Behavior:**
-- Lists files in `pending/` directory
-- Sorts by filename (job IDs) for FIFO order
-- Returns first job
-- Returns `null` if pending directory is empty
+- Shifts the next job from the in-memory pending queue (no filesystem I/O)
+- Queue is populated at `initialize()` and kept in sync by `createJob()`, `updateJob()`, and `fs.watch`
+- Returns `null` if queue is empty
 
 **Worker pattern:**
 
@@ -352,6 +353,20 @@ while (running) {
 - Multiple workers can safely poll concurrently
 - Once a worker moves job to `running`, other workers won't see it
 - No explicit locking needed (status directories provide isolation)
+
+## Cleanup and Lifecycle
+
+### `destroy(): void`
+
+Cleans up the filesystem watcher and internal timers. Call when shutting down the queue.
+
+```typescript
+queue.destroy();
+```
+
+**Behavior:**
+- Closes the `fs.watch` watcher on the `pending/` directory
+- Clears any pending debounce timers
 
 ## Cleanup
 
@@ -490,9 +505,9 @@ No explicit locking needed - atomic file operations and status directories preve
 - Consider splitting load across multiple queues for high throughput
 
 **Polling overhead:**
-- Each poll reads directory listing
-- Workers should use appropriate poll intervals (1000ms default)
-- Increase interval if queue is usually empty
+- `pollNextPendingJob()` reads from an in-memory array — no filesystem I/O per poll
+- The in-memory queue is populated once at startup and kept in sync via `createJob()`, `updateJob()`, and a debounced `fs.watch` listener on the `pending/` directory
+- Workers can poll at high frequency without filesystem overhead
 
 **File I/O:**
 - Each job operation reads/writes JSON file

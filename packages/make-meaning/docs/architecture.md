@@ -31,6 +31,7 @@ graph TB
 - Context assembly from event-sourced storage
 - AI-powered pattern detection
 - Graph traversal and relationship reasoning
+- GraphDB event consumer (RxJS burst-buffered pipeline)
 - Job worker implementations
 - Annotation creation logic
 
@@ -215,7 +216,7 @@ Content is immutable and deduplicated by checksum.
 
 ### Job Queue
 
-Filesystem-based job queue:
+Filesystem-based job queue with in-memory pending queue:
 
 ```
 data/
@@ -230,21 +231,40 @@ data/
       <job-id>.json
 ```
 
-Jobs transition between directories as they progress.
+Jobs are persisted to disk by status directory. Pending jobs are also held in an in-memory sorted array for fast polling (no filesystem I/O per poll). The in-memory queue is populated at startup and kept in sync via `fs.watch`.
 
 ## Dependency Graph
 
 ```
 @semiont/make-meaning
-├── @semiont/core          # Types, utilities
+├── @semiont/core          # Types, utilities, burstBuffer RxJS operator
 ├── @semiont/api-client    # OpenAPI-generated types
 ├── @semiont/event-sourcing # Event Store, View Storage
 ├── @semiont/content       # RepresentationStore
-├── @semiont/graph         # Neo4j graph operations
+├── @semiont/graph         # Graph database interface + implementations
 ├── @semiont/ontology      # Tag schemas
 ├── @semiont/inference     # AI primitives
 └── @semiont/jobs          # Job queue, workers
 ```
+
+## Graph Consumer
+
+The `GraphDBConsumer` (`src/graph/consumer.ts`) subscribes to all events globally and projects graph-relevant events into the graph database. It uses an RxJS pipeline with adaptive burst buffering:
+
+```
+EventBus (callback, fire-and-forget)
+  → Pre-filter: 9 graph-relevant event types
+    → Subject<StoredEvent> (callback-to-RxJS bridge)
+      → groupBy(resourceId)        — one stream per resource
+        → burstBuffer(50ms, 500, 200ms) — adaptive batching per resource
+          → concatMap               — sequential per resource
+            → Single event: applyEventToGraph()
+            → Batch: processBatch() → batchCreateResources / createAnnotations
+```
+
+The `burstBuffer` operator (from `@semiont/core`) passes the first event through immediately for zero-latency interactive use, then batches subsequent events during bursts. After an idle period, it returns to passthrough mode. Batch processing uses bulk graph operations where available (e.g., Neo4j UNWIND queries via `batchCreateResources`).
+
+`rebuildAll()` and `rebuildResource()` bypass the live pipeline — they read events directly from the event store and call `applyEventToGraph()` sequentially.
 
 ## Worker Architecture
 
@@ -262,7 +282,7 @@ export abstract class JobWorker {
 
   async start(): Promise<void> {
     while (this.running) {
-      const job = await this.pollNextJob();
+      const job = await this.pollNextJob(); // Reads from in-memory queue (no fs I/O)
       if (job) await this.processJob(job);
     }
   }

@@ -69,6 +69,7 @@ export interface GraphDatabase {
   }>;
   
   // Bulk operations
+  batchCreateResources(resources: ResourceDescriptor[]): Promise<ResourceDescriptor[]>;
   createAnnotations(inputs: CreateAnnotationInternal[]): Promise<Annotation[]>;
   resolveReferences(inputs: { annotationId: AnnotationId; source: ResourceId }[]): Promise<Annotation[]>;
 

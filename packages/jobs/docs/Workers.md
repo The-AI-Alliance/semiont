@@ -20,7 +20,7 @@ Workers are long-running processes that poll the job queue and execute jobs. The
 
 The `JobWorker` base class handles:
 
-- ✅ Polling the job queue at configurable intervals
+- ✅ Polling the in-memory job queue at configurable intervals
 - ✅ Moving jobs from `pending` → `running` → `complete/failed`
 - ✅ Error recovery with exponential backoff
 - ✅ Graceful shutdown (finishes current job)
@@ -200,7 +200,7 @@ process.on('SIGINT', async () => {
 The `JobWorker` base class handles the following flow automatically:
 
 ```
-1. Poll queue
+1. Poll in-memory queue (no filesystem I/O)
    ↓
 2. Get next pending job
    ↓

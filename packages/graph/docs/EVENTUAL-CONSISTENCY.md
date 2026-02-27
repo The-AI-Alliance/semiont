@@ -29,17 +29,23 @@ This means:
 
 ### Per-Resource Sequential Processing
 
-The GraphDBConsumer (`apps/backend/src/events/consumers/graph-consumer.ts`) processes events:
+The GraphDBConsumer (`packages/make-meaning/src/graph/consumer.ts`) subscribes globally and pre-filters events to only the 9 graph-relevant types (`resource.created`, `annotation.added`, etc.) before any processing. Irrelevant events (`job.*`, `detection.*`, `generation.*`) are discarded immediately.
+
+Relevant events are piped through an RxJS pipeline with adaptive burst buffering:
 
 ```typescript
-// Sequential processing PER resource
-const previousProcessing = this.processing.get(resourceId);
-if (previousProcessing) {
-  await previousProcessing;  // Wait for previous event on SAME resource
-}
+eventSubject.pipe(
+  groupBy(se => se.event.resourceId ?? '__system__'),  // One stream per resource
+  mergeMap(group => group.pipe(                         // Cross-resource parallelism
+    burstBuffer({ burstWindowMs: 50, maxBatchSize: 500, idleTimeoutMs: 200 }),
+    concatMap(eventOrBatch => /* process sequentially */)  // Per-resource ordering
+  ))
+)
 ```
 
-**Key insight**: Events for the **same resource** are sequential, but events for **different resources** process in parallel.
+The `burstBuffer` operator passes the first event through immediately (zero latency for interactive use), then batches subsequent events during bursts. Batched events use bulk graph operations where available (e.g., `batchCreateResources` with Neo4j UNWIND).
+
+**Key insight**: Events for the **same resource** are sequential (`concatMap`), but events for **different resources** process in parallel (`mergeMap` over groups).
 
 ## The Race Condition Problem
 

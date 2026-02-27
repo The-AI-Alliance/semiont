@@ -1139,6 +1139,14 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
+  async batchCreateResources(resources: ResourceDescriptor[]): Promise<ResourceDescriptor[]> {
+    const results: ResourceDescriptor[] = [];
+    for (const resource of resources) {
+      results.push(await this.createResource(resource));
+    }
+    return results;
+  }
+
   async createAnnotations(inputs: CreateAnnotationInternal[]): Promise<Annotation[]> {
     const results: Annotation[] = [];
 

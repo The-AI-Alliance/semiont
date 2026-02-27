@@ -203,12 +203,11 @@ This prevents filesystem bottlenecks when storing millions of resources.
 When `maxEventsPerFile` is reached, a new file is created:
 
 ```
-doc-abc123.jsonl          ← Active file
-doc-abc123.jsonl.1        ← Rotated file
-doc-abc123.jsonl.2        ← Older rotated file
+events-000001.jsonl       ← Rotated file
+events-000002.jsonl       ← Active file
 ```
 
-**Note:** File rotation is not yet implemented - all events go to a single file per resource.
+File rotation is automatic. The current file and its event count are cached in memory per resource, so rotation checks don't require `fs.readdir()` or reading the file to count lines — only the first append per resource (cold start) reads from disk.
 
 ## Event Metadata
 
@@ -270,6 +269,7 @@ Checksums enable:
 ### Write Performance
 
 - **Append-only** - No updates, only appends (fast)
+- **Cached file handles** - Current file path and event count cached per resource; only the first append (cold start) reads from disk
 - **No indexes** - No index maintenance overhead
 - **Buffered writes** - Node.js buffers I/O automatically
 

@@ -80,13 +80,7 @@ export abstract class JobWorker {
    * Poll for next job to process
    */
   private async pollNextJob(): Promise<AnyJob | null> {
-    const job = await this.jobQueue.pollNextPendingJob();
-
-    if (job && this.canProcessJob(job)) {
-      return job;
-    }
-
-    return null;
+    return this.jobQueue.pollNextPendingJob(job => this.canProcessJob(job));
   }
 
   /**

@@ -40,6 +40,8 @@ export class EventStorage {
   private resourceSequences: Map<string, number> = new Map();
   // Per-resource last event hash: resourceId -> hash
   private resourceLastHash: Map<string, string> = new Map();
+  // Per-resource current file cache: avoids fs.readdir() + countEventsInFile() on every append
+  private currentFiles: Map<string, { path: string; eventCount: number }> = new Map();
 
   constructor(config: EventStorageConfig, logger?: Logger) {
     this.logger = logger;
@@ -177,39 +179,39 @@ export class EventStorage {
   /**
    * Write an event to storage (append to JSONL)
    * Internal method - use appendEvent() instead
+   *
+   * Uses currentFiles cache to avoid fs.readdir() + countEventsInFile() on every append.
+   * Cache is populated on first append (cold start) and updated on rotation.
    */
   private async writeEvent(event: StoredEvent, resourceId: ResourceId): Promise<void> {
     const docPath = this.getResourcePath(resourceId);
+    let current = this.currentFiles.get(resourceId);
 
-    // Get current event files
-    const files = await this.getEventFiles(resourceId);
-
-    // Determine target file (rotate if needed)
-    let targetFile: string;
-    if (files.length === 0) {
-      // No files yet - create first one
-      targetFile = await this.createNewEventFile(resourceId);
-    } else {
-      const currentFile = files[files.length - 1];
-      if (!currentFile) {
-        // Shouldn't happen, but handle it
-        targetFile = await this.createNewEventFile(resourceId);
+    if (!current) {
+      // Cold start: read from disk once
+      const files = await this.getEventFiles(resourceId);
+      const lastFile = files[files.length - 1];
+      if (lastFile) {
+        const count = await this.countEventsInFile(resourceId, lastFile);
+        current = { path: lastFile, eventCount: count };
       } else {
-        const eventCount = await this.countEventsInFile(resourceId, currentFile);
-
-        if (eventCount >= this.config.maxEventsPerFile) {
-          // Rotate to new file
-          targetFile = await this.createNewEventFile(resourceId);
-        } else {
-          targetFile = currentFile;
-        }
+        const newFile = await this.createNewEventFile(resourceId);
+        current = { path: newFile, eventCount: 0 };
       }
+      this.currentFiles.set(resourceId, current);
+    }
+
+    if (current.eventCount >= this.config.maxEventsPerFile) {
+      const newFile = await this.createNewEventFile(resourceId);
+      current = { path: newFile, eventCount: 0 };
+      this.currentFiles.set(resourceId, current);
     }
 
     // Append event to file (JSONL format)
-    const targetPath = path.join(docPath, targetFile);
+    const targetPath = path.join(docPath, current.path);
     const eventLine = JSON.stringify(event) + '\n';
     await fs.appendFile(targetPath, eventLine, 'utf-8');
+    current.eventCount++;
   }
 
   /**

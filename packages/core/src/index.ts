@@ -130,6 +130,9 @@ export {
 // Event bus (RxJS-based, framework-agnostic)
 export { EventBus, ScopedEventBus } from './event-bus';
 
+// RxJS operators
+export { burstBuffer, type BurstBufferOptions } from './operators/burst-buffer';
+
 // Logger interface (framework-agnostic)
 export type { Logger } from './logger';
 
