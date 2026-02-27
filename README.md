@@ -29,7 +29,7 @@ Built on the W3C Web Annotation standard, Semiont transforms unstructured conten
 
 **Document-Grounded Knowledge** — Knowledge is always anchored to source documents. Annotations point into specific passages; references link documents to each other. The knowledge graph is a projection of these grounded relationships, not a replacement for the original material.
 
-**Five Collaborative Flows** — humans and AI agents work as peers through five composable workflows (Attend → Annotate → Resolve → Correlate → Generate):
+**Five Collaborative Flows** — humans and AI agents work as peers through five composable workflows:
 
 - **[Attend](docs/flows/ATTEND.md)** — Focus on a resource or annotation; hover, click, and navigation signals coordinate all panels and views
 - **[Annotate](docs/flows/ANNOTATE.md)** — Create highlights, assessments, comments, tags, and entity references — manually or via AI-assisted detection
