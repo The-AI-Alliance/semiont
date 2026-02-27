@@ -37,41 +37,6 @@ Built on the W3C Web Annotation standard, Semiont transforms unstructured conten
 - **[Correlate](docs/flows/CORRELATE.md)** — Extract semantic context from annotations and the knowledge graph for downstream use
 - **[Generate](docs/flows/GENERATE.md)** — Synthesize new resources from reference annotations using correlated context.
 
-## 📁 File Layout
-
-```text
-semiont/
-├── specs/                      # API specifications (spec-first architecture)
-│   ├── src/                    # OpenAPI source files (tracked in git)
-│   │   ├── openapi.json        # Root spec with $ref to all paths/schemas
-│   │   ├── paths/              # Individual endpoint definitions (37 files)
-│   │   └── components/
-│   │       └── schemas/        # Schema definitions (79 files)
-│   ├── openapi.json            # Generated bundle (gitignored, built by Redocly)
-│   └── docs/                   # API and W3C annotation documentation
-├── apps/                       # Application packages
-│   ├── frontend/               # Next.js 14 frontend application
-│   ├── backend/                # Hono backend API server
-│   └── cli/                    # Semiont management CLI
-├── packages/                   # Shared workspace packages (see packages/README.md)
-│   ├── api-client/             # OpenAPI-generated TypeScript SDK
-│   ├── core/                   # Core types and utilities
-│   ├── event-sourcing/         # Event store and view storage
-│   ├── content/                # Content-addressed storage
-│   ├── graph/                  # Graph database abstraction
-│   ├── ontology/               # Entity types and tag schemas
-│   ├── inference/              # AI prompts, parsers, and text generation
-│   ├── make-meaning/           # Context assembly, detection, reasoning
-│   ├── jobs/                   # Job queue and worker infrastructure
-│   ├── react-ui/               # React components and hooks
-│   ├── mcp-server/             # Model Context Protocol server
-│   └── test-utils/             # Testing utilities and mock factories
-├── docs/                       # System documentation
-└── scripts/                    # Build and utility scripts
-```
-
-**See [packages/README.md](packages/README.md) for detailed package documentation, architecture overview, and dependency graph.**
-
 ## 🚀 Getting Started
 
 ### For Development & Contributing
@@ -127,6 +92,41 @@ Semiont publishes npm packages and container images for easy integration and dep
 | **[Backend](apps/backend/README.md)** | Hono API server — routes, event bridging, real-time SSE, logging |
 | **[Frontend](apps/frontend/README.md)** | Next.js app — annotations, accessibility, i18n, performance |
 | **[CLI](apps/cli/README.md)** | Environment management, service orchestration, deployment commands |
+
+## 📁 File Layout
+
+```text
+semiont/
+├── specs/                      # API specifications (spec-first architecture)
+│   ├── src/                    # OpenAPI source files (tracked in git)
+│   │   ├── openapi.json        # Root spec with $ref to all paths/schemas
+│   │   ├── paths/              # Individual endpoint definitions (37 files)
+│   │   └── components/
+│   │       └── schemas/        # Schema definitions (79 files)
+│   ├── openapi.json            # Generated bundle (gitignored, built by Redocly)
+│   └── docs/                   # API and W3C annotation documentation
+├── apps/                       # Application packages
+│   ├── frontend/               # Next.js 14 frontend application
+│   ├── backend/                # Hono backend API server
+│   └── cli/                    # Semiont management CLI
+├── packages/                   # Shared workspace packages (see packages/README.md)
+│   ├── api-client/             # OpenAPI-generated TypeScript SDK
+│   ├── core/                   # Core types and utilities
+│   ├── event-sourcing/         # Event store and view storage
+│   ├── content/                # Content-addressed storage
+│   ├── graph/                  # Graph database abstraction
+│   ├── ontology/               # Entity types and tag schemas
+│   ├── inference/              # AI prompts, parsers, and text generation
+│   ├── make-meaning/           # Context assembly, detection, reasoning
+│   ├── jobs/                   # Job queue and worker infrastructure
+│   ├── react-ui/               # React components and hooks
+│   ├── mcp-server/             # Model Context Protocol server
+│   └── test-utils/             # Testing utilities and mock factories
+├── docs/                       # System documentation
+└── scripts/                    # Build and utility scripts
+```
+
+**See [packages/README.md](packages/README.md) for detailed package documentation, architecture overview, and dependency graph.**
 
 ## 📜 License
 
