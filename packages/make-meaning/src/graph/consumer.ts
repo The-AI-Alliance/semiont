@@ -17,6 +17,13 @@ type Annotation = components['schemas']['Annotation'];
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 export class GraphDBConsumer {
+  // Event types that produce GraphDB mutations — filter everything else before processEvent()
+  private static readonly GRAPH_RELEVANT_EVENTS = new Set([
+    'resource.created', 'resource.archived', 'resource.unarchived',
+    'annotation.added', 'annotation.removed', 'annotation.body.updated',
+    'entitytag.added', 'entitytag.removed', 'entitytype.added',
+  ]);
+
   private _globalSubscription: any = null;  // Global subscription (receives ALL events)
   private processing: Map<string, Promise<void>> = new Map();
   private lastProcessed: Map<string, number> = new Map();
@@ -43,6 +50,7 @@ export class GraphDBConsumer {
    */
   private async subscribeToGlobalEvents() {
     this._globalSubscription = this.eventStore.bus.subscriptions.subscribeGlobal(async (storedEvent: StoredEvent) => {
+      if (!GraphDBConsumer.GRAPH_RELEVANT_EVENTS.has(storedEvent.event.type)) return;
       await this.processEvent(storedEvent);
     });
 

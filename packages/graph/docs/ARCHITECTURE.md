@@ -90,11 +90,12 @@ graph LR
 
 ### Event Processing Guarantees
 
-1. **Sequential Processing per Resource**: Events for the same resource processed in order
-2. **System Event Routing**: System events processed immediately
-3. **Fail-Fast**: Errors propagate to prevent data corruption
-4. **Idempotent Operations**: Repeated events produce same result
-5. **Order-Independent Projections**: MERGE-based operations handle events in any order
+1. **Event Type Pre-Filter**: Only the 9 graph-relevant event types are processed; all others (`job.*`, `detection.*`, `generation.*`) are discarded before entering the processing pipeline
+2. **Sequential Processing per Resource**: Events for the same resource processed in order
+3. **System Event Routing**: System events (no `resourceId`) processed immediately without ordering
+4. **Fail-Fast**: Errors propagate to prevent data corruption
+5. **Idempotent Operations**: Repeated events produce same result
+6. **Order-Independent Projections**: MERGE-based operations handle events in any order
 
 For details on handling race conditions and eventual consistency, see [Eventual Consistency](./EVENTUAL-CONSISTENCY.md).
 
@@ -153,7 +154,7 @@ await consumer.rebuildAll();
 ```typescript
 const health = consumer.getHealthMetrics();
 // {
-//   subscriptions: 42,
+//   subscriptions: 1,  // Single global subscription (with event type pre-filter)
 //   lastProcessed: { 'doc-123': 15 },
 //   processing: ['doc-789']
 // }

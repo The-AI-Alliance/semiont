@@ -5,7 +5,7 @@
  * Jobs are stored in directories by status for easy polling.
  */
 
-import { promises as fs } from 'fs';
+import { promises as fs, watch, type FSWatcher } from 'fs';
 import * as path from 'path';
 import type { AnyJob, JobStatus, JobQueryFilters, CancelledJob } from './types';
 import type { JobId, Logger } from '@semiont/core';
@@ -18,6 +18,10 @@ export interface JobQueueConfig {
 export class JobQueue {
   private jobsDir: string;
   private logger: Logger;
+  // In-memory pending queue: avoids fs.readdir() on every poll (6×/sec with 6 workers)
+  private pendingQueue: AnyJob[] = [];
+  private watcher: FSWatcher | null = null;
+  private loadDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     config: JobQueueConfig,
@@ -29,7 +33,7 @@ export class JobQueue {
   }
 
   /**
-   * Initialize job queue directories
+   * Initialize job queue directories, load pending jobs, and start fs.watch
    */
   async initialize(): Promise<void> {
     const statuses: JobStatus[] = ['pending', 'running', 'complete', 'failed', 'cancelled'];
@@ -39,7 +43,72 @@ export class JobQueue {
       await fs.mkdir(dir, { recursive: true });
     }
 
+    // Load existing pending jobs into memory
+    await this.loadPendingJobs();
+
+    // Watch for external changes (other processes, crash recovery)
+    const pendingDir = path.join(this.jobsDir, 'pending');
+    try {
+      this.watcher = watch(pendingDir, () => {
+        this.debouncedLoadPendingJobs();
+      });
+    } catch (error) {
+      this.logger.warn('Failed to watch pending directory', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+
     this.logger.info('Job queue initialized');
+  }
+
+  /**
+   * Clean up watcher
+   */
+  destroy(): void {
+    if (this.watcher) {
+      this.watcher.close();
+      this.watcher = null;
+    }
+    if (this.loadDebounceTimer) {
+      clearTimeout(this.loadDebounceTimer);
+      this.loadDebounceTimer = null;
+    }
+  }
+
+  /**
+   * Load pending jobs from disk into in-memory queue
+   */
+  private async loadPendingJobs(): Promise<void> {
+    const pendingDir = path.join(this.jobsDir, 'pending');
+    try {
+      const files = await fs.readdir(pendingDir);
+      files.sort();
+
+      const jobs: AnyJob[] = [];
+      for (const file of files) {
+        try {
+          const content = await fs.readFile(path.join(pendingDir, file), 'utf-8');
+          jobs.push(JSON.parse(content) as AnyJob);
+        } catch {
+          // Skip unreadable files
+        }
+      }
+      this.pendingQueue = jobs;
+    } catch {
+      // Directory might not exist yet
+      this.pendingQueue = [];
+    }
+  }
+
+  /**
+   * Debounced version of loadPendingJobs — fs.watch can fire rapidly
+   */
+  private debouncedLoadPendingJobs(): void {
+    if (this.loadDebounceTimer) return;
+    this.loadDebounceTimer = setTimeout(async () => {
+      this.loadDebounceTimer = null;
+      await this.loadPendingJobs();
+    }, 100);
   }
 
   /**
@@ -49,6 +118,12 @@ export class JobQueue {
     const jobPath = this.getJobPath(job.metadata.id, job.status);
     await fs.writeFile(jobPath, JSON.stringify(job, null, 2), 'utf-8');
     this.logger.info('Job created', { jobId: job.metadata.id, status: job.status });
+
+    // Push to in-memory queue for immediate pickup
+    if (job.status === 'pending') {
+      this.pendingQueue.push(job);
+      this.pendingQueue.sort((a, b) => a.metadata.id.localeCompare(b.metadata.id));
+    }
 
     // Emit job:queued event if EventBus is available
     if (this.eventBus && 'params' in job && 'resourceId' in job.params) {
@@ -93,6 +168,18 @@ export class JobQueue {
       } catch (error) {
         // Ignore if file doesn't exist
       }
+
+      // Keep in-memory queue in sync
+      if (oldStatus === 'pending') {
+        // Leaving pending: remove from queue
+        const idx = this.pendingQueue.findIndex(j => j.metadata.id === job.metadata.id);
+        if (idx !== -1) this.pendingQueue.splice(idx, 1);
+      }
+      if (job.status === 'pending') {
+        // Entering pending (e.g., retry): add to queue
+        this.pendingQueue.push(job);
+        this.pendingQueue.sort((a, b) => a.metadata.id.localeCompare(b.metadata.id));
+      }
     }
 
     // Write to new location
@@ -107,30 +194,17 @@ export class JobQueue {
   }
 
   /**
-   * Poll for next pending job (FIFO)
+   * Poll for next pending job (FIFO) from in-memory queue.
+   * If a predicate is provided, returns the first matching job (skipping non-matching ones).
    */
-  async pollNextPendingJob(): Promise<AnyJob | null> {
-    const pendingDir = path.join(this.jobsDir, 'pending');
-
-    try {
-      const files = await fs.readdir(pendingDir);
-
-      if (files.length === 0) {
-        return null;
-      }
-
-      // Sort by filename (job IDs have timestamps via nanoid)
-      files.sort();
-
-      const jobFile = files[0]!;
-      const jobPath = path.join(pendingDir, jobFile);
-
-      const content = await fs.readFile(jobPath, 'utf-8');
-      return JSON.parse(content) as AnyJob;
-    } catch (error) {
-      this.logger.error('Error polling pending jobs', { error: error instanceof Error ? error.message : String(error) });
-      return null;
+  async pollNextPendingJob(predicate?: (job: AnyJob) => boolean): Promise<AnyJob | null> {
+    if (!predicate) {
+      return this.pendingQueue.shift() ?? null;
     }
+
+    const index = this.pendingQueue.findIndex(predicate);
+    if (index === -1) return null;
+    return this.pendingQueue.splice(index, 1)[0] ?? null;
   }
 
   /**

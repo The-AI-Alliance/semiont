@@ -215,7 +215,7 @@ Content is immutable and deduplicated by checksum.
 
 ### Job Queue
 
-Filesystem-based job queue:
+Filesystem-based job queue with in-memory pending queue:
 
 ```
 data/
@@ -230,7 +230,7 @@ data/
       <job-id>.json
 ```
 
-Jobs transition between directories as they progress.
+Jobs are persisted to disk by status directory. Pending jobs are also held in an in-memory sorted array for fast polling (no filesystem I/O per poll). The in-memory queue is populated at startup and kept in sync via `fs.watch`.
 
 ## Dependency Graph
 
@@ -262,7 +262,7 @@ export abstract class JobWorker {
 
   async start(): Promise<void> {
     while (this.running) {
-      const job = await this.pollNextJob();
+      const job = await this.pollNextJob(); // Reads from in-memory queue (no fs I/O)
       if (job) await this.processJob(job);
     }
   }

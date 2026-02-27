@@ -29,7 +29,9 @@ This means:
 
 ### Per-Resource Sequential Processing
 
-The GraphDBConsumer (`apps/backend/src/events/consumers/graph-consumer.ts`) processes events:
+The GraphDBConsumer (`packages/make-meaning/src/graph/consumer.ts`) subscribes globally and pre-filters events to only the 9 graph-relevant types (`resource.created`, `annotation.added`, etc.) before any processing. Irrelevant events (`job.*`, `detection.*`, `generation.*`) are discarded immediately.
+
+For relevant events, processing is sequential per resource:
 
 ```typescript
 // Sequential processing PER resource
