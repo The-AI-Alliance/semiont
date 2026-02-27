@@ -5,7 +5,7 @@ import { EditorView, Decoration, DecorationSet, lineNumbers } from '@codemirror/
 import { EditorState, RangeSetBuilder, StateField, StateEffect, Compartment } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
 import { ANNOTATORS } from '../lib/annotation-registry';
-import { ReferenceResolutionWidget } from '../lib/codemirror-widgets';
+import { ReferenceResolutionWidget, showWidgetPreview, hideWidgetPreview } from '../lib/codemirror-widgets';
 import { scrollAnnotationIntoView } from '../lib/scroll-utils';
 import { isHighlight, isReference, isResolvedReference, isComment, isAssessment, isTag, getBodySource } from '@semiont/api-client';
 import type { components } from '@semiont/core';
@@ -35,7 +35,6 @@ interface Props {
   editable?: boolean;
   newAnnotationIds?: Set<string>;
   hoveredAnnotationId?: string | null;
-  hoveredCommentId?: string | null;
   scrollToAnnotationId?: string | null;
   sourceView?: boolean; // If true, show raw source (no markdown rendering)
   showLineNumbers?: boolean; // If true, show line numbers
@@ -59,7 +58,6 @@ interface WidgetUpdate {
   content: string;
   segments: TextSegment[];
   generatingReferenceId?: string | null | undefined;
-  eventBus?: EventBus;
   getTargetDocumentName?: (documentId: string) => string | undefined;
 }
 
@@ -88,11 +86,16 @@ function convertSegmentPositions(segments: TextSegment[], content: string): Text
     }
   }
 
-  // Convert a single position from CRLF space to LF space
+  // Binary search: count CRLFs before a position in O(log n)
   const convertPosition = (pos: number): number => {
-    // Count how many CRLFs appear before this position
-    const crlfsBefore = crlfPositions.filter(crlfPos => crlfPos < pos).length;
-    return pos - crlfsBefore;
+    let lo = 0;
+    let hi = crlfPositions.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (crlfPositions[mid]! < pos) lo = mid + 1;
+      else hi = mid;
+    }
+    return pos - lo;
   };
 
   return segments.map(seg => ({
@@ -203,12 +206,9 @@ function buildWidgetDecorations(
   _content: string,
   segments: TextSegment[],
   generatingReferenceId: string | null | undefined,
-  eventBus: any,
   getTargetDocumentName?: (documentId: string) => string | undefined
 ): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
-
-  // Wiki link widgets removed (WikiLinkWidget was deleted)
 
   // Process all annotations (references and highlights) in sorted order
   // This ensures decorations are added in the correct order for CodeMirror
@@ -222,20 +222,17 @@ function buildWidgetDecorations(
     const annotation = segment.annotation;
 
     // For references: add resolution widget (🔗, ✨ pulsing, or ❓)
-    // Use W3C helper to determine if this is a reference
     if (isReference(annotation)) {
       const bodySource = getBodySource(annotation.body);
       const targetName = bodySource
         ? getTargetDocumentName?.(bodySource)
         : undefined;
-      // Compare by ID portion (handle both URI and internal ID formats)
       const isGenerating = generatingReferenceId
         ? annotation.id === generatingReferenceId
         : false;
       const widget = new ReferenceResolutionWidget(
         annotation,
         targetName,
-        eventBus,
         isGenerating
       );
       builder.add(
@@ -264,7 +261,6 @@ const widgetDecorationsField = StateField.define<DecorationSet>({
           effect.value.content,
           effect.value.segments,
           effect.value.generatingReferenceId,
-          effect.value.eventBus,
           effect.value.getTargetDocumentName
         );
       }
@@ -282,7 +278,6 @@ export function CodeMirrorRenderer({
   editable = false,
   newAnnotationIds,
   hoveredAnnotationId,
-  hoveredCommentId,
   scrollToAnnotationId,
   sourceView = false,
   showLineNumbers = false,
@@ -301,12 +296,19 @@ export function CodeMirrorRenderer({
   const convertedSegments = convertSegmentPositions(segments, content);
 
   const segmentsRef = useRef(convertedSegments);
+  // Index segments by annotation ID for O(1) click lookups
+  const segmentsByIdRef = useRef(new Map<string, TextSegment>());
   const lineNumbersCompartment = useRef(new Compartment());
   const eventBusRef = useRef(eventBus);
   const getTargetDocumentNameRef = useRef(getTargetDocumentName);
 
   // Update refs when they change
   segmentsRef.current = segments;
+  const segmentsById = new Map<string, TextSegment>();
+  for (const s of segments) {
+    if (s.annotation) segmentsById.set(s.annotation.id, s);
+  }
+  segmentsByIdRef.current = segmentsById;
   eventBusRef.current = eventBus;
   getTargetDocumentNameRef.current = getTargetDocumentName;
 
@@ -343,7 +345,7 @@ export function CodeMirrorRenderer({
             const annotationId = annotationElement?.getAttribute('data-annotation-id');
 
             if (annotationId && eventBusRef.current) {
-              const segment = segmentsRef.current.find(s => s.annotation?.id === annotationId);
+              const segment = segmentsByIdRef.current.get(annotationId);
               if (segment?.annotation) {
                 event.preventDefault();
                 eventBusRef.current.get('attend:click').next({
@@ -431,12 +433,67 @@ export function CodeMirrorRenderer({
       if (annotationElement) handleMouseLeave();
     };
 
+    // Delegated widget event handlers (replaces per-widget listeners)
+    const handleWidgetClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const widget = target.closest('.reference-preview-widget') as HTMLElement | null;
+      if (!widget || widget.dataset.widgetGenerating === 'true') return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const annotationId = widget.dataset.widgetAnnotationId;
+      const bodySource = widget.dataset.widgetBodySource;
+      const isResolved = widget.dataset.widgetResolved === 'true';
+
+      if (!annotationId || !eventBusRef.current) return;
+
+      if (isResolved && bodySource) {
+        eventBusRef.current.get('navigation:reference-navigate').next({ documentId: bodySource });
+      } else {
+        const motivation = (widget.dataset.widgetMotivation || 'linking') as Annotation['motivation'];
+        eventBusRef.current.get('attend:click').next({ annotationId, motivation });
+      }
+    };
+
+    const handleWidgetMouseEnter = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const widget = target.closest('.reference-preview-widget') as HTMLElement | null;
+      if (!widget || widget.dataset.widgetGenerating === 'true') return;
+
+      const indicator = widget.querySelector('.reference-indicator') as HTMLElement | null;
+      if (indicator) indicator.style.opacity = '1';
+
+      if (widget.dataset.widgetResolved === 'true' && widget.dataset.widgetTargetName) {
+        showWidgetPreview(widget, widget.dataset.widgetTargetName);
+      }
+    };
+
+    const handleWidgetMouseLeave = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const widget = target.closest('.reference-preview-widget') as HTMLElement | null;
+      if (!widget) return;
+
+      const indicator = widget.querySelector('.reference-indicator') as HTMLElement | null;
+      if (indicator) indicator.style.opacity = '0.6';
+
+      if (widget.dataset.widgetResolved === 'true') {
+        hideWidgetPreview(widget);
+      }
+    };
+
     container.addEventListener('mouseover', handleMouseOver);
     container.addEventListener('mouseout', handleMouseOut);
+    container.addEventListener('click', handleWidgetClick);
+    container.addEventListener('mouseenter', handleWidgetMouseEnter, true);
+    container.addEventListener('mouseleave', handleWidgetMouseLeave, true);
 
     return () => {
       container.removeEventListener('mouseover', handleMouseOver);
       container.removeEventListener('mouseout', handleMouseOut);
+      container.removeEventListener('click', handleWidgetClick);
+      container.removeEventListener('mouseenter', handleWidgetMouseEnter, true);
+      container.removeEventListener('mouseleave', handleWidgetMouseLeave, true);
       cleanupHover();
       view.destroy();
       viewRef.current = null;
@@ -496,7 +553,6 @@ export function CodeMirrorRenderer({
         content,
         segments: convertedSegments,
         generatingReferenceId,
-        eventBus: eventBusRef.current,
         getTargetDocumentName: getTargetDocumentNameRef.current
       })
     });
@@ -549,54 +605,6 @@ export function CodeMirrorRenderer({
       element.classList.remove('annotation-pulse');
     };
   }, [hoveredAnnotationId]);
-
-  // Handle hovered comment - add pulse effect and scroll if not visible
-  useEffect(() => {
-    if (!viewRef.current || !hoveredCommentId) return undefined;
-
-    const view = viewRef.current;
-
-    // Find the comment element in the DOM
-    const element = view.contentDOM.querySelector(
-      `[data-annotation-id="${CSS.escape(hoveredCommentId)}"]`
-    ) as HTMLElement;
-
-    if (!element) return undefined;
-
-    // Find the actual scroll container - could be annotate view or document viewer
-    const scrollContainer = (element.closest('.semiont-annotate-view__content') ||
-                            element.closest('.semiont-document-viewer__scrollable-body')) as HTMLElement;
-
-    if (scrollContainer) {
-      // Check visibility within the scroll container, not window
-      const elementRect = element.getBoundingClientRect();
-      const containerRect = scrollContainer.getBoundingClientRect();
-
-      const isVisible =
-        elementRect.top >= containerRect.top &&
-        elementRect.bottom <= containerRect.bottom;
-
-      if (!isVisible) {
-        // Manually scroll the container instead of using scrollIntoView
-        const elementTop = element.offsetTop;
-        const containerHeight = scrollContainer.clientHeight;
-        const elementHeight = element.offsetHeight;
-        const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
-
-        scrollContainer.scrollTo({ top: scrollTo, behavior: 'smooth' });
-      }
-    }
-
-    // Add pulse effect after a brief delay to ensure element is visible
-    const timeoutId = setTimeout(() => {
-      element.classList.add('annotation-pulse');
-    }, 100);
-
-    return () => {
-      clearTimeout(timeoutId);
-      element.classList.remove('annotation-pulse');
-    };
-  }, [hoveredCommentId]);
 
   // Handle scroll to annotation
   useEffect(() => {

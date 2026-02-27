@@ -3,7 +3,7 @@
 import { useRef, useEffect, useCallback, lazy, Suspense } from 'react';
 import type { components } from '@semiont/core';
 import { resourceUri as toResourceUri } from '@semiont/core';
-import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMimeCategory, isPdfMimeType, extractContext, findTextWithContext } from '@semiont/api-client';
+import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMimeCategory, isPdfMimeType, extractContext, findTextWithContext, buildContentCache } from '@semiont/api-client';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import { SvgDrawingCanvas } from '../image-annotation/SvgDrawingCanvas';
 import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
@@ -51,6 +51,9 @@ function segmentTextWithAnnotations(content: string, annotations: Annotation[]):
     return [{ exact: '', start: 0, end: 0 }];
   }
 
+  // Pre-compute normalized/lowered content once for all annotations
+  const cache = buildContentCache(content);
+
   const normalizedAnnotations = annotations
     .map(ann => {
       const targetSelector = getTargetSelector(ann.target);
@@ -66,7 +69,8 @@ function segmentTextWithAnnotations(content: string, annotations: Annotation[]):
           quoteSelector.exact,
           quoteSelector.prefix,
           quoteSelector.suffix,
-          posSelector?.start // Position hint for fuzzy matching
+          posSelector?.start,
+          cache
         );
       }
 
@@ -160,7 +164,7 @@ export function AnnotateView({
   const segments = segmentTextWithAnnotations(content, allAnnotations);
 
   // Extract UI state
-  const { selectedMotivation, selectedClick, selectedShape, hoveredAnnotationId, hoveredCommentId, scrollToAnnotationId } = uiState;
+  const { selectedMotivation, selectedClick, selectedShape, hoveredAnnotationId, scrollToAnnotationId } = uiState;
 
   // Store onUIStateChange in ref to avoid dependency issues
   const onUIStateChangeRef = useRef(onUIStateChange);
@@ -336,7 +340,6 @@ export function AnnotateView({
             editable={false}
             newAnnotationIds={newAnnotationIds}
             {...(hoveredAnnotationId !== undefined && { hoveredAnnotationId })}
-            {...(hoveredCommentId !== undefined && { hoveredCommentId })}
             {...(scrollToAnnotationId !== undefined && { scrollToAnnotationId })}
             sourceView={true}
             showLineNumbers={showLineNumbers}
@@ -375,7 +378,7 @@ export function AnnotateView({
                     drawingMode={selectedMotivation ? selectedShape : null}
                     selectedMotivation={selectedMotivation}
                     eventBus={eventBus}
-                    hoveredAnnotationId={hoveredCommentId || hoveredAnnotationId || null}
+                    hoveredAnnotationId={hoveredAnnotationId || null}
                     hoverDelayMs={hoverDelayMs}
                   />
                 </Suspense>
@@ -405,7 +408,7 @@ export function AnnotateView({
                 drawingMode={selectedMotivation ? selectedShape : null}
                 selectedMotivation={selectedMotivation}
                 eventBus={eventBus}
-                hoveredAnnotationId={hoveredCommentId || hoveredAnnotationId || null}
+                hoveredAnnotationId={hoveredAnnotationId || null}
                 hoverDelayMs={hoverDelayMs}
               />
             )}

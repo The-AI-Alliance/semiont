@@ -62,19 +62,42 @@ function levenshteinDistance(str1: string, str2: string): number {
 }
 
 /**
+ * Pre-computed content strings for batch fuzzy matching.
+ * Avoids recomputing normalizeText(content) and content.toLowerCase()
+ * for every annotation when processing many annotations against the same content.
+ */
+export interface ContentCache {
+  normalizedContent: string;
+  lowerContent: string;
+}
+
+/**
+ * Build a ContentCache for a given content string.
+ * Call once per content, pass to findBestTextMatch/findTextWithContext for all annotations.
+ */
+export function buildContentCache(content: string): ContentCache {
+  return {
+    normalizedContent: normalizeText(content),
+    lowerContent: content.toLowerCase()
+  };
+}
+
+/**
  * Find best match for text in content using multi-strategy search
  *
  * Shared core logic used by both findTextWithContext and validateAndCorrectOffsets.
  *
  * @param content - Full text content to search within
  * @param searchText - The text to find
- * @param positionHint - Optional hint for where to search (TextPositionSelector.start)
+ * @param positionHint - Hint for where to search (TextPositionSelector.start)
+ * @param cache - Pre-computed normalized/lowered content (from buildContentCache)
  * @returns Match with position and quality, or null if not found
  */
 export function findBestTextMatch(
   content: string,
   searchText: string,
-  positionHint?: number
+  positionHint: number | undefined,
+  cache: ContentCache
 ): { start: number; end: number; matchQuality: MatchQuality } | null {
   const maxFuzzyDistance = Math.max(5, Math.floor(searchText.length * 0.05)); // 5% tolerance or min 5 chars
 
@@ -90,8 +113,7 @@ export function findBestTextMatch(
 
   // Strategy 2: Normalized match (handles whitespace/quote variations)
   const normalizedSearch = normalizeText(searchText);
-  const normalizedContent = normalizeText(content);
-  const normalizedIndex = normalizedContent.indexOf(normalizedSearch);
+  const normalizedIndex = cache.normalizedContent.indexOf(normalizedSearch);
   if (normalizedIndex !== -1) {
     // Find actual position in original content by counting characters
     let actualPos = 0;
@@ -112,9 +134,8 @@ export function findBestTextMatch(
   }
 
   // Strategy 3: Case-insensitive match
-  const lowerContent = content.toLowerCase();
   const lowerSearch = searchText.toLowerCase();
-  const caseInsensitiveIndex = lowerContent.indexOf(lowerSearch);
+  const caseInsensitiveIndex = cache.lowerContent.indexOf(lowerSearch);
   if (caseInsensitiveIndex !== -1) {
     return {
       start: caseInsensitiveIndex,
@@ -186,11 +207,19 @@ export function findBestTextMatch(
 export function findTextWithContext(
   content: string,
   exact: string,
-  prefix?: string,
-  suffix?: string,
-  positionHint?: number
+  prefix: string | undefined,
+  suffix: string | undefined,
+  positionHint: number | undefined,
+  cache: ContentCache
 ): TextPosition | null {
   if (!exact) return null;
+
+  // Fast path: if positionHint points directly at the exact text, return immediately
+  if (positionHint !== undefined && positionHint >= 0 && positionHint + exact.length <= content.length) {
+    if (content.substring(positionHint, positionHint + exact.length) === exact) {
+      return { start: positionHint, end: positionHint + exact.length };
+    }
+  }
 
   // Find all occurrences of exact text
   const occurrences: number[] = [];
@@ -202,7 +231,7 @@ export function findTextWithContext(
 
   // No exact matches found - try fuzzy matching
   if (occurrences.length === 0) {
-    const fuzzyMatch = findBestTextMatch(content, exact, positionHint);
+    const fuzzyMatch = findBestTextMatch(content, exact, positionHint, cache);
 
     if (fuzzyMatch) {
       return { start: fuzzyMatch.start, end: fuzzyMatch.end };

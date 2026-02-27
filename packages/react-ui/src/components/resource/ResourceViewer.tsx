@@ -224,7 +224,6 @@ export function ResourceViewer({
   // Internal UI state for hover, focus, and scroll
   // Use prop value when provided (controlled by parent), otherwise null
   const hoveredAnnotationId = hoveredAnnotationIdProp ?? null;
-  const [hoveredCommentId, _setHoveredCommentId] = useState<string | null>(null);
   const [scrollToAnnotationId, setScrollToAnnotationId] = useState<string | null>(null);
   const [_focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
 
@@ -413,7 +412,6 @@ export function ResourceViewer({
           mimeType={mimeType}
           resourceUri={resource['@id']}
           annotations={annotationsCollection}
-          hoveredCommentId={hoveredCommentId}
           selectedClick={selectedClick}
           hoverDelayMs={hoverDelayMs}
           annotateMode={annotateMode}

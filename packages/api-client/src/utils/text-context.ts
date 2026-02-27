@@ -10,7 +10,7 @@
  * @see https://www.w3.org/TR/annotation-model/#text-quote-selector
  */
 
-import { findBestTextMatch, type MatchQuality } from './fuzzy-anchor';
+import { findBestTextMatch, buildContentCache, type MatchQuality } from './fuzzy-anchor';
 
 /**
  * Extract prefix and suffix context for TextQuoteSelector
@@ -158,7 +158,8 @@ export function validateAndCorrectOffsets(
   }
 
   // AI's offsets are wrong - try to find the text using multiple strategies
-  const match = findBestTextMatch(content, exact, aiStart);
+  const cache = buildContentCache(content);
+  const match = findBestTextMatch(content, exact, aiStart, cache);
 
   if (!match) {
     throw new Error(

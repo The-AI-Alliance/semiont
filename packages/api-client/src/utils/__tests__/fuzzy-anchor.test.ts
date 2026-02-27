@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { findTextWithContext, verifyPosition, normalizeText, findBestTextMatch } from '../fuzzy-anchor';
+import { findTextWithContext, verifyPosition, normalizeText, findBestTextMatch, buildContentCache } from '../fuzzy-anchor';
 
 describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
   let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
@@ -39,14 +39,14 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
   describe('findBestTextMatch', () => {
     it('should find exact match first', () => {
       const content = 'The quick brown fox';
-      const result = findBestTextMatch(content, 'brown fox');
+      const result = findBestTextMatch(content, 'brown fox', undefined, buildContentCache(content));
 
       expect(result).toEqual({ start: 10, end: 19, matchQuality: 'exact' });
     });
 
     it('should find normalized match when exact fails', () => {
       const content = 'The quick  brown fox'; // Two spaces
-      const result = findBestTextMatch(content, 'quick brown'); // One space
+      const result = findBestTextMatch(content, 'quick brown', undefined, buildContentCache(content)); // One space
 
       expect(result).not.toBeNull();
       expect(result!.matchQuality).toBe('normalized');
@@ -54,7 +54,7 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
 
     it('should find case-insensitive match when normalized fails', () => {
       const content = 'The Quick Brown Fox';
-      const result = findBestTextMatch(content, 'quick brown');
+      const result = findBestTextMatch(content, 'quick brown', undefined, buildContentCache(content));
 
       expect(result).toEqual({ start: 4, end: 15, matchQuality: 'case-insensitive' });
     });
@@ -62,7 +62,7 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
     it('should use position hint for fuzzy search', () => {
       const content = 'The quick brown fox jumps over the lazy dog';
       const searchText = 'brvwn fox'; // Typo: 'o' → 'v'
-      const result = findBestTextMatch(content, searchText, 10); // Hint near actual position
+      const result = findBestTextMatch(content, searchText, 10, buildContentCache(content)); // Hint near actual position
 
       expect(result).not.toBeNull();
       expect(result!.matchQuality).toBe('fuzzy');
@@ -71,7 +71,7 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
 
     it('should return null when no acceptable match found', () => {
       const content = 'The quick brown fox';
-      const result = findBestTextMatch(content, 'lazy dog');
+      const result = findBestTextMatch(content, 'lazy dog', undefined, buildContentCache(content));
 
       expect(result).toBeNull();
     });
@@ -83,7 +83,7 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
         const content = 'The quick brown fox jumps over the lazy dog';
         const exact = 'brown fox';
 
-        const result = findTextWithContext(content, exact);
+        const result = findTextWithContext(content, exact, undefined, undefined, undefined, buildContentCache(content));
 
         expect(result).toEqual({ start: 10, end: 19 });
         expect(consoleWarnSpy).not.toHaveBeenCalled();
@@ -93,7 +93,7 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
         const content = 'The quick brown fox jumps over the lazy dog';
         const exact = 'brown fox';
 
-        const result = findTextWithContext(content, exact, 'quick ', ' jumps');
+        const result = findTextWithContext(content, exact, 'quick ', ' jumps', undefined, buildContentCache(content));
 
         expect(result).toEqual({ start: 10, end: 19 });
         expect(consoleWarnSpy).not.toHaveBeenCalled();
@@ -103,7 +103,7 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
         const content = 'The quick brown fox';
         const exact = 'The quick';
 
-        const result = findTextWithContext(content, exact);
+        const result = findTextWithContext(content, exact, undefined, undefined, undefined, buildContentCache(content));
 
         expect(result).toEqual({ start: 0, end: 9 });
       });
@@ -112,7 +112,27 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
         const content = 'The quick brown fox';
         const exact = 'brown fox';
 
-        const result = findTextWithContext(content, exact);
+        const result = findTextWithContext(content, exact, undefined, undefined, undefined, buildContentCache(content));
+
+        expect(result).toEqual({ start: 10, end: 19 });
+      });
+
+      it('should short-circuit via positionHint when hint points at exact text', () => {
+        const content = 'The cat sat. The cat ran. The cat jumped.';
+        const exact = 'The cat';
+
+        // Hint points directly at the third occurrence (position 26)
+        const result = findTextWithContext(content, exact, undefined, undefined, 26, buildContentCache(content));
+
+        expect(result).toEqual({ start: 26, end: 33 });
+      });
+
+      it('should ignore positionHint when it does not point at exact text', () => {
+        const content = 'The quick brown fox';
+        const exact = 'brown fox';
+
+        // Hint points at wrong position — should fall through to normal search
+        const result = findTextWithContext(content, exact, undefined, undefined, 5, buildContentCache(content));
 
         expect(result).toEqual({ start: 10, end: 19 });
       });
@@ -124,7 +144,7 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
         const exact = 'The cat';
         const prefix = 'sat. ';
 
-        const result = findTextWithContext(content, exact, prefix);
+        const result = findTextWithContext(content, exact, prefix, undefined, undefined, buildContentCache(content));
 
         // Should find second "The cat" (after "sat. ")
         expect(result).toEqual({ start: 13, end: 20 });
@@ -136,7 +156,7 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
         const exact = 'The cat';
         const suffix = ' jumped.';
 
-        const result = findTextWithContext(content, exact, undefined, suffix);
+        const result = findTextWithContext(content, exact, undefined, suffix, undefined, buildContentCache(content));
 
         // Should find third "The cat" (before " jumped.")
         expect(result).toEqual({ start: 26, end: 33 });
@@ -149,7 +169,7 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
         const prefix = '. ';
         const suffix = ' ran.';
 
-        const result = findTextWithContext(content, exact, prefix, suffix);
+        const result = findTextWithContext(content, exact, prefix, suffix, undefined, buildContentCache(content));
 
         // Should find second "The cat" (after ". " and before " ran.")
         expect(result).toEqual({ start: 13, end: 20 });
@@ -161,7 +181,7 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
         const exact = 'cat';
         const prefix = ' the'; // Expects leading space + "the", but actual is "the " (no leading space, trailing space)
 
-        const result = findTextWithContext(content, exact, prefix);
+        const result = findTextWithContext(content, exact, prefix, undefined, undefined, buildContentCache(content));
 
         // Should find second "cat" using fuzzy match (handles whitespace variations)
         expect(result).not.toBeNull();
@@ -174,7 +194,7 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
         const exact = 'The cat';
         const prefix = 'NONEXISTENT';
 
-        const result = findTextWithContext(content, exact, prefix);
+        const result = findTextWithContext(content, exact, prefix, undefined, undefined, buildContentCache(content));
 
         // Should return first occurrence as fallback
         expect(result).toEqual({ start: 0, end: 7 });
@@ -186,7 +206,7 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
         const content = 'The quick brown fox';
         const exact = 'lazy dog';
 
-        const result = findTextWithContext(content, exact);
+        const result = findTextWithContext(content, exact, undefined, undefined, undefined, buildContentCache(content));
 
         expect(result).toBeNull();
       });
@@ -195,7 +215,7 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
         const content = 'The quick brown fox';
         const exact = '';
 
-        const result = findTextWithContext(content, exact);
+        const result = findTextWithContext(content, exact, undefined, undefined, undefined, buildContentCache(content));
 
         expect(result).toBeNull();
         expect(consoleWarnSpy).not.toHaveBeenCalled();
@@ -205,7 +225,7 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
         const content = 'The quick  brown fox'; // Two spaces
         const exact = 'quick brown'; // One space
 
-        const result = findTextWithContext(content, exact);
+        const result = findTextWithContext(content, exact, undefined, undefined, undefined, buildContentCache(content));
 
         expect(result).not.toBeNull();
         expect(result!.start).toBeGreaterThanOrEqual(0);
@@ -215,7 +235,7 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
         const content = 'He said \u201Chello\u201D'; // Curly quotes
         const exact = 'said "hello"'; // Straight quotes
 
-        const result = findTextWithContext(content, exact);
+        const result = findTextWithContext(content, exact, undefined, undefined, undefined, buildContentCache(content));
 
         expect(result).not.toBeNull();
       });
@@ -224,7 +244,7 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
         const content = 'The Quick Brown Fox';
         const exact = 'quick brown';
 
-        const result = findTextWithContext(content, exact);
+        const result = findTextWithContext(content, exact, undefined, undefined, undefined, buildContentCache(content));
 
         expect(result).not.toBeNull();
         expect(result!.start).toBe(4);
@@ -237,7 +257,7 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
         const exact = '$50.00';
         const suffix = ' (after discount)';
 
-        const result = findTextWithContext(content, exact, undefined, suffix);
+        const result = findTextWithContext(content, exact, undefined, suffix, undefined, buildContentCache(content));
 
         // Should find second occurrence
         expect(result).toEqual({ start: 22, end: 28 });
@@ -248,7 +268,7 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
         const exact = 'Line 2';
         const prefix = 'Line 3\n';
 
-        const result = findTextWithContext(content, exact, prefix);
+        const result = findTextWithContext(content, exact, prefix, undefined, undefined, buildContentCache(content));
 
         // Should find second "Line 2"
         expect(result).toEqual({ start: 21, end: 27 });
@@ -259,7 +279,7 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
         const exact = '世界';
         const prefix = '. Hello ';
 
-        const result = findTextWithContext(content, exact, prefix);
+        const result = findTextWithContext(content, exact, prefix, undefined, undefined, buildContentCache(content));
 
         expect(result).not.toBeNull();
         expect(result?.start).toBeGreaterThan(0);
@@ -270,7 +290,7 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
         const exact = 'cat';
         const prefix = 'this is a very long prefix that does not exist';
 
-        const result = findTextWithContext(content, exact, prefix);
+        const result = findTextWithContext(content, exact, prefix, undefined, undefined, buildContentCache(content));
 
         // Should still find the text (single occurrence)
         expect(result).toEqual({ start: 0, end: 3 });
@@ -281,7 +301,7 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
         const exact = 'cat';
         const suffix = 'this is a very long suffix that does not exist';
 
-        const result = findTextWithContext(content, exact, undefined, suffix);
+        const result = findTextWithContext(content, exact, undefined, suffix, undefined, buildContentCache(content));
 
         // Should still find the text (single occurrence)
         expect(result).toEqual({ start: 0, end: 3 });
@@ -298,7 +318,7 @@ describe('Fuzzy Anchoring (W3C TextQuoteSelector)', () => {
         const exact = 'John Smith';
         const prefix = '. \n          '; // Before second mention
 
-        const result = findTextWithContext(content, exact, prefix);
+        const result = findTextWithContext(content, exact, prefix, undefined, undefined, buildContentCache(content));
 
         expect(result).not.toBeNull();
         // Should find second "John Smith"
@@ -314,7 +334,7 @@ function main() { validate(); }
         const exact = 'validate()';
         const prefix = 'main() { ';
 
-        const result = findTextWithContext(code, exact, prefix);
+        const result = findTextWithContext(code, exact, prefix, undefined, undefined, buildContentCache(code));
 
         expect(result).not.toBeNull();
         // Should find second validate() call (in main function)
@@ -362,7 +382,7 @@ function main() { validate(); }
       const exact = 'The cat';
       const prefix = 'sat. ';
 
-      const position = findTextWithContext(content, exact, prefix);
+      const position = findTextWithContext(content, exact, prefix, undefined, undefined, buildContentCache(content));
 
       expect(position).not.toBeNull();
       expect(verifyPosition(content, position!, exact)).toBe(true);

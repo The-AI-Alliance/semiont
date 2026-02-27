@@ -209,7 +209,6 @@ describe('BrowseView Component', () => {
       tags: [],
     },
     hoveredAnnotationId: null,
-    hoveredCommentId: null,
     selectedClick: 'detail' as const,
     annotateMode: false,
   };

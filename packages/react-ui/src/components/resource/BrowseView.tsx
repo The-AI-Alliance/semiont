@@ -33,7 +33,6 @@ interface Props {
   resourceUri: string;
   annotations: AnnotationsCollection;
   hoveredAnnotationId?: string | null;
-  hoveredCommentId?: string | null;
   selectedClick?: ClickAction;
   annotateMode: boolean;
   hoverDelayMs?: number;
