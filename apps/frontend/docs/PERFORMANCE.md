@@ -278,7 +278,7 @@ ANALYZE=true npm run build
 
 ### Architecture
 - [Frontend Architecture](./ARCHITECTURE.md) - High-level system design
-- [Rendering Architecture](./RENDERING-ARCHITECTURE.md) - Document rendering pipeline
+- [Rendering Architecture](../../../packages/react-ui/docs/RENDERING-ARCHITECTURE.md) - Document rendering pipeline
 
 ### External Resources
 - [Next.js Performance](https://nextjs.org/docs/advanced-features/measuring-performance)

@@ -388,12 +388,12 @@ Generate new documents from annotations using AI.
 ### Technical Documentation
 - [API Integration](./API-INTEGRATION.md) - API usage, async operations, W3C annotations
 - [Frontend Architecture](./ARCHITECTURE.md) - High-level system design
-- [Rendering Architecture](./RENDERING-ARCHITECTURE.md) - Document rendering pipeline
+- [Rendering Architecture](../../../packages/react-ui/docs/RENDERING-ARCHITECTURE.md) - Document rendering pipeline
 
 ### Development Guides
 - [Development Guide](./DEVELOPMENT.md) - Local development workflows
 - [Style Guide](./style-guide.md) - UI/UX patterns and component guidelines
-- [CodeMirror Integration](./CODEMIRROR-INTEGRATION.md) - Editor implementation
+- [CodeMirror Integration](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - Editor implementation
 
 ### External Resources
 - [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/) - Official specification
