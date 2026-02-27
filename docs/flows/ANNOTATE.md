@@ -23,6 +23,47 @@ Semiont creates W3C-compliant annotations through two complementary paths: **man
 
 **Supported Formats**: Currently available for text-based formats (`text/plain`, `text/markdown`). Support for images and PDFs is planned for future releases
 
+## Using the API Client
+
+**Manual annotation** — create an annotation directly:
+
+```typescript
+import { SemiontApiClient } from '@semiont/api-client';
+
+const client = new SemiontApiClient({ baseUrl: 'http://localhost:4000' });
+
+// Create a highlight annotation on selected text
+await client.createAnnotation(resourceUri, {
+  motivation: 'highlighting',
+  target: {
+    source: resourceUri,
+    selector: {
+      type: 'TextQuoteSelector',
+      exact: 'Ouranos',
+      prefix: 'In the beginning, ',
+      suffix: ' ruled the universe',
+    },
+  },
+  body: [],
+});
+```
+
+**AI-assisted annotation** — stream detection results via SSE:
+
+```typescript
+// Detect highlights with AI (results stream via event bus)
+client.sse.annotateHighlights(resourceUri, {
+  instructions: 'Focus on key technical points',
+  density: 5,
+}, { eventBus });
+
+// Detect entity references
+client.sse.annotateReferences(resourceUri, {
+  entityTypes: [entityType('Person'), entityType('Location')],
+  includeDescriptiveReferences: false,
+}, { eventBus });
+```
+
 ## Supported Detection Types
 
 | Motivation | W3C Spec | Purpose | Body Content | User Control |

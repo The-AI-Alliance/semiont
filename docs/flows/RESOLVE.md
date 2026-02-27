@@ -18,6 +18,42 @@ Resolution can happen in two ways:
 
 Both paths result in an `annotation.body.updated` event that adds the `SpecificResource` link.
 
+## Using the API Client
+
+Resolve a reference annotation by adding a `SpecificResource` link to its body:
+
+```typescript
+import { SemiontApiClient } from '@semiont/api-client';
+
+const client = new SemiontApiClient({ baseUrl: 'http://localhost:4000' });
+
+// Link a reference annotation to an existing resource
+await client.updateAnnotationBody(annotationUri, {
+  resourceId,
+  operations: [{
+    op: 'add',
+    item: {
+      type: 'SpecificResource',
+      source: 'resource://target-doc-789',
+      purpose: 'linking',
+    },
+  }],
+});
+
+// Unlink — remove the SpecificResource body item
+await client.updateAnnotationBody(annotationUri, {
+  resourceId,
+  operations: [{
+    op: 'remove',
+    oldItem: {
+      type: 'SpecificResource',
+      source: 'resource://target-doc-789',
+      purpose: 'linking',
+    },
+  }],
+});
+```
+
 ## Events
 
 | Event | Payload | Description |

@@ -22,6 +22,38 @@ The Generate flow creates new resources from reference annotations (motivation: 
 
 **Supported Formats**: Currently available for text-based formats (`text/plain`, `text/markdown`). Generated resources are always created as `text/plain`. Support for generating from annotations in images and PDFs is planned for future releases
 
+## Using the API Client
+
+Generate a new resource from a reference annotation via SSE:
+
+```typescript
+import { SemiontApiClient } from '@semiont/api-client';
+
+const client = new SemiontApiClient({ baseUrl: 'http://localhost:4000' });
+
+// First, correlate context for the annotation (see Correlate flow)
+const { context } = await client.getAnnotationLLMContext(
+  resourceUri, annotationId, { contextWindow: 2000 }
+);
+
+// Generate a new resource from the reference annotation
+client.sse.generateResourceFromAnnotation(
+  resourceUri,
+  annotationUri,
+  {
+    title: 'Ouranos',
+    language: 'en',
+    context,
+  },
+  { eventBus }
+);
+
+// Progress and completion events auto-emit to the event bus:
+//   generate:progress  — { status, percentage, message }
+//   generate:finished  — { resourceId, resourceName }
+//   generate:failed    — { error }
+```
+
 ## Reference Annotation Structure
 
 **Unresolved Reference** (needs generation):

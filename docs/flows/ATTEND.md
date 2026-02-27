@@ -14,6 +14,22 @@ The Attend flow is the coordination layer for user focus. When a human hovers ov
 
 Attention is purely a frontend concern. It produces no backend events and no persistent state. It is the entry point of the five-flow pipeline: you attend to something before you annotate, resolve, correlate, or generate from it.
 
+## Using the API Client
+
+Attention is a frontend concern — it coordinates focus through the event bus, not through backend API calls. However, the annotations that attention targets are fetched via `@semiont/api-client`:
+
+```typescript
+import { SemiontApiClient } from '@semiont/api-client';
+
+const client = new SemiontApiClient({ baseUrl: 'http://localhost:4000' });
+
+// Fetch annotations for a resource (the targets of attention)
+const { annotations } = await client.listAnnotations(resourceUri);
+
+// Programmatically direct attention via the event bus
+eventBus.get('attend:focus').next({ annotationId: annotations[0].id });
+```
+
 ## Events
 
 | Event | Payload | Description |

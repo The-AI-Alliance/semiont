@@ -14,6 +14,28 @@ When a user or agent wants to generate a new resource from a reference annotatio
 
 Correlation is triggered automatically when the generation modal opens. It runs in parallel with the modal rendering, so context is typically ready by the time the user submits.
 
+## Using the API Client
+
+Fetch the assembled context for an annotation:
+
+```typescript
+import { SemiontApiClient } from '@semiont/api-client';
+
+const client = new SemiontApiClient({ baseUrl: 'http://localhost:4000' });
+
+// Get LLM-ready context for an annotation
+const { context } = await client.getAnnotationLLMContext(
+  resourceUri,
+  annotationId,
+  { contextWindow: 2000 }
+);
+
+// context contains: selectedText, beforeText, afterText, metadata
+console.log(context.selectedText);  // The exact text the annotation targets
+console.log(context.beforeText);    // Surrounding passage before the selection
+console.log(context.afterText);     // Surrounding passage after the selection
+```
+
 ## Events
 
 | Event | Payload | Description |
