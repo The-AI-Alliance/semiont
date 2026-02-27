@@ -499,13 +499,15 @@ export class MemoryGraphDatabase implements GraphDatabase {
     };
   }
   
+  async batchCreateResources(resources: ResourceDescriptor[]): Promise<ResourceDescriptor[]> {
+    const results: ResourceDescriptor[] = [];
+    for (const resource of resources) {
+      results.push(await this.createResource(resource));
+    }
+    return results;
+  }
+
   async createAnnotations(inputs: CreateAnnotationInternal[]): Promise<Annotation[]> {
-    // In production: Use batch operations for better performance
-    // const tx = graph.tx()
-    // tx.rollback()
-    // ... batch operations ...
-    // tx.commit()
-    
     const results: Annotation[] = [];
     for (const input of inputs) {
       results.push(await this.createAnnotation(input));

@@ -994,6 +994,53 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
+  async batchCreateResources(resources: ResourceDescriptor[]): Promise<ResourceDescriptor[]> {
+    if (resources.length === 0) return [];
+    const session = this.getSession();
+    try {
+      const params = resources.map(resource => {
+        const primaryRep = getPrimaryRepresentation(resource);
+        if (!primaryRep) throw new Error('Resource must have at least one representation');
+        return {
+          id: resource['@id'],
+          name: resource.name,
+          entityTypes: resource.entityTypes,
+          format: primaryRep.mediaType,
+          archived: resource.archived || false,
+          created: resource.dateCreated,
+          creator: JSON.stringify(resource.wasAttributedTo),
+          creationMethod: resource.creationMethod,
+          contentChecksum: primaryRep.checksum,
+          sourceAnnotationId: resource.sourceAnnotationId ?? null,
+          sourceResourceId: resource.sourceResourceId ?? null,
+        };
+      });
+
+      const result = await session.run(
+        `UNWIND $resources AS r
+         MERGE (d:Resource {id: r.id})
+         SET d.name = r.name,
+             d.entityTypes = r.entityTypes,
+             d.format = r.format,
+             d.archived = r.archived,
+             d.created = datetime(r.created),
+             d.creator = r.creator,
+             d.creationMethod = r.creationMethod,
+             d.contentChecksum = r.contentChecksum,
+             d.sourceAnnotationId = r.sourceAnnotationId,
+             d.sourceResourceId = r.sourceResourceId,
+             d.stub = false
+         RETURN d`,
+        { resources: params }
+      );
+
+      this.logger?.info('Batch created/enriched resources', { count: resources.length });
+      return result.records.map(record => this.parseResourceNode(record.get('d')));
+    } finally {
+      await session.close();
+    }
+  }
+
   async createAnnotations(inputs: CreateAnnotationInternal[]): Promise<Annotation[]> {
     const results: Annotation[] = [];
     for (const input of inputs) {

@@ -91,11 +91,13 @@ graph LR
 ### Event Processing Guarantees
 
 1. **Event Type Pre-Filter**: Only the 9 graph-relevant event types are processed; all others (`job.*`, `detection.*`, `generation.*`) are discarded before entering the processing pipeline
-2. **Sequential Processing per Resource**: Events for the same resource processed in order
-3. **System Event Routing**: System events (no `resourceId`) processed immediately without ordering
-4. **Fail-Fast**: Errors propagate to prevent data corruption
-5. **Idempotent Operations**: Repeated events produce same result
-6. **Order-Independent Projections**: MERGE-based operations handle events in any order
+2. **RxJS Pipeline**: Events flow through `groupBy(resourceId) → burstBuffer → concatMap`, providing per-resource ordering and cross-resource parallelism declaratively
+3. **Adaptive Burst Buffering**: First event after idle passes through immediately (zero latency for interactive use). Subsequent events in a burst are batched and flushed together, using batch graph operations where available (e.g., Neo4j UNWIND)
+4. **Sequential Processing per Resource**: Events for the same resource processed in order via `concatMap` within each resource group
+5. **System Event Routing**: System events (no `resourceId`) processed immediately without burst buffering
+6. **Error Isolation**: Failed events are logged but don't kill the pipeline — processing continues
+7. **Idempotent Operations**: Repeated events produce same result
+8. **Order-Independent Projections**: MERGE-based operations handle events in any order
 
 For details on handling race conditions and eventual consistency, see [Eventual Consistency](./EVENTUAL-CONSISTENCY.md).
 
@@ -154,9 +156,9 @@ await consumer.rebuildAll();
 ```typescript
 const health = consumer.getHealthMetrics();
 // {
-//   subscriptions: 1,  // Single global subscription (with event type pre-filter)
+//   subscriptions: 1,       // Single global subscription (with event type pre-filter)
 //   lastProcessed: { 'doc-123': 15 },
-//   processing: ['doc-789']
+//   pipelineActive: true    // RxJS burst-buffered pipeline is running
 // }
 ```
 

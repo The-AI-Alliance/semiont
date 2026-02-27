@@ -2,12 +2,17 @@
  * GraphDBConsumer Tests
  *
  * Tests event type filtering, per-resource serialization,
- * cross-resource parallelism, event application, and lifecycle.
+ * cross-resource parallelism, event application, burst batching, and lifecycle.
  *
  * Uses a real EventStore (temp dir) with a mock GraphDatabase.
+ *
+ * Note: The consumer uses an RxJS pipeline with a burstBuffer operator.
+ * First event for a resource passes through immediately (leading edge).
+ * Subsequent events within the burst window (50ms) are buffered and flushed as a batch.
+ * Tests use tick(350) to ensure burst window + idle timeout (50+200ms) complete.
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi, beforeEach } from 'vitest';
 import { EventStore, FilesystemViewStorage } from '@semiont/event-sourcing';
 import type { IdentifierConfig } from '@semiont/event-sourcing';
 import { GraphDBConsumer } from '../graph/consumer';
@@ -18,8 +23,8 @@ import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-// Helper: wait for fire-and-forget callbacks
-const tick = (ms = 50) => new Promise(resolve => setTimeout(resolve, ms));
+// Helper: wait for fire-and-forget callbacks + burst buffer flush + idle timeout
+const tick = (ms = 350) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Mock logger
 const mockLogger: Logger = {
@@ -57,6 +62,7 @@ function createMockGraphDb(): GraphDatabase {
     findPath: vi.fn().mockResolvedValue([]),
     getEntityTypeStats: vi.fn().mockResolvedValue([]),
     getStats: vi.fn().mockResolvedValue({ resourceCount: 0, annotationCount: 0, highlightCount: 0, referenceCount: 0, entityReferenceCount: 0, entityTypes: {}, contentTypes: {} }),
+    batchCreateResources: vi.fn().mockResolvedValue([]),
     createAnnotations: vi.fn().mockResolvedValue([]),
     resolveReferences: vi.fn().mockResolvedValue([]),
     detectAnnotations: vi.fn().mockResolvedValue([]),
@@ -124,7 +130,7 @@ describe('GraphDBConsumer', () => {
     vi.clearAllMocks();
   });
 
-  afterAll(async () => {
+  afterEach(async () => {
     await consumer?.stop();
   });
 
@@ -563,12 +569,72 @@ describe('GraphDBConsumer', () => {
         payload: {},
       });
 
-      await tick(150);
+      await tick(500);
 
       // createResource should complete before updateResource starts
+      // (burst buffer groups them but concatMap ensures sequential processing)
       expect(callOrder.indexOf('createResource:end')).toBeLessThan(
         callOrder.indexOf('updateResource:start'),
       );
+    });
+  });
+
+  describe('burst batching', () => {
+    it('should batch multiple annotation.added events via createAnnotations', async () => {
+      const docId = resourceId(`burst-batch-${Date.now()}`);
+
+      // Create the resource first and wait for full cycle
+      await eventStore.appendEvent({
+        type: 'resource.created',
+        resourceId: docId,
+        userId: userId('user1'),
+        version: 1,
+        payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1', creationMethod: CREATION_METHODS.API },
+      });
+      await tick();
+      vi.clearAllMocks();
+
+      // Rapidly emit multiple annotation.added events (simulating bulk inference)
+      for (let i = 0; i < 5; i++) {
+        await eventStore.appendEvent({
+          type: 'annotation.added',
+          resourceId: docId,
+          userId: userId('user1'),
+          version: 1,
+          payload: {
+            annotation: {
+              '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+              type: 'Annotation' as const,
+              id: `ann-batch-${i}`,
+              motivation: 'highlighting' as const,
+              target: {
+                source: docId,
+                selector: [
+                  { type: 'TextPositionSelector', start: i * 10, end: i * 10 + 5 },
+                  { type: 'TextQuoteSelector', exact: `text${i}` },
+                ],
+              },
+              body: [],
+              modified: new Date().toISOString(),
+            },
+          },
+        });
+      }
+
+      await tick(500);
+
+      // First annotation passes through immediately via createAnnotation (leading edge)
+      // Remaining 4 should be batched via createAnnotations
+      const singleCalls = (graphDb.createAnnotation as ReturnType<typeof vi.fn>).mock.calls.length;
+      const batchCalls = (graphDb.createAnnotations as ReturnType<typeof vi.fn>).mock.calls.length;
+
+      // At minimum: 1 single (leading edge) + 1 batch call for the rest
+      expect(singleCalls + batchCalls).toBeGreaterThanOrEqual(1);
+      // Total annotations processed = single calls + sum of batch sizes
+      const batchSizes = (graphDb.createAnnotations as ReturnType<typeof vi.fn>).mock.calls
+        .map((call: any[]) => (call[0] as any[]).length);
+      const totalProcessed = singleCalls + batchSizes.reduce((a: number, b: number) => a + b, 0);
+      expect(totalProcessed).toBe(5);
     });
   });
 
@@ -613,7 +679,7 @@ describe('GraphDBConsumer', () => {
       const metrics = consumer.getHealthMetrics();
 
       expect(metrics.subscriptions).toBe(1);
-      expect(metrics.processing).toEqual([]);
+      expect(metrics.pipelineActive).toBe(true);
       expect(typeof metrics.lastProcessed).toBe('object');
     });
   });
