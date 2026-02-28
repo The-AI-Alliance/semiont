@@ -5,34 +5,35 @@ title: Semiont - Your Sovereign AI Knowledge Platform
 
 ## Semiont
 
-**The open-source, future-proof framework that enables humans and intelligent agents to co-create shared knowledge — governed by you and built to last.**
+**Semiont is an open-source platform that builds a knowledge base directly from your documents — annotated, linked, and extended by humans and AI agents working together.**
 
-Semiont is a standards-compliant multimedia resource management system built on the **W3C Web Annotation** model. It transforms unstructured content into interconnected semantic networks through collaborative markup, linking, and AI-powered knowledge extraction—all stored as standard, interoperable annotations.
+Most organizations sit on vast document collections that are searchable but not *understood*. Semiont closes that gap. Import your corpus — contracts, research papers, product specs, regulatory filings — and the system immediately begins identifying entities, proposing annotations, and linking related concepts across documents. Domain experts review and refine what AI proposes; AI scales what experts start. The result is a grounded knowledge graph where every node traces back to a specific passage in a specific document.
+
+That graph becomes infrastructure. Use it to power semantic search and contextual recommendations in your products. Feed it to RAG pipelines so your AI assistants answer from verified, cited sources instead of hallucinating. Automate compliance checks by querying relationships across regulatory documents. Surface hidden connections across research portfolios that would take analysts months to find manually. Every annotation your team creates — or your agents produce — compounds into an asset that makes the next query smarter, the next review faster, and the next product feature possible.
+
+Built on the W3C Web Annotation standard — portable, interoperable, and sovereign on your infrastructure.
 
 ### Why Semiont?
 
-- **Standards-Based** - Built on W3C Web Annotation for long-term interoperability and data portability
-- **AI-Native** - Designed from the ground up to work seamlessly with large language models and intelligent agents
-- **Self-Sovereign** - Run on your infrastructure with your data — no cloud dependencies, no vendor lock-in
-- **Future-Proof** - Open standards ensure your knowledge remains accessible regardless of technology changes
+**Eliminate Cold Starts** — Import a set of documents and the five flows immediately begin producing value: AI agents detect entity mentions, propose annotations, and generate linked resources while humans review, correct, and extend the results. The knowledge graph grows as a byproduct of annotation — no upfront schema design, manual data entry, or batch ETL pipeline required.
 
-## AI-Powered Knowledge Management
+**Calibrate the Human–AI Mix** — Because humans and AI agents share identical interfaces, organizations can dial the mix to fit their constraints. A domain with abundant expert availability and a high accuracy bar can run human-primary workflows with AI suggestions; a domain rich in GPU capacity but short on specialists can run agent-primary pipelines with human spot-checks. Supervision depth, automation ratio, and quality gates are deployment decisions — not architectural rewrites.
 
-### [Annotation Detection](https://github.com/The-AI-Alliance/semiont/blob/main/docs/ai/DETECTION.md)
+### Core Tenets
 
-Automatically detect and create semantic annotations including highlights, assessments, comments, tags, and entity references — turning raw content into structured knowledge.
+**Peer Collaboration** — Humans and AI agents are architectural equals. Every operation flows through the same API, event bus, and event-sourced storage regardless of who initiates it. Any workflow can be performed manually, automated by an agent, or done collaboratively.
 
-### Entity Resolution
+**Document-Grounded Knowledge** — Knowledge is always anchored to source documents. Annotations point into specific passages; references link documents to each other. The knowledge graph is a projection of these grounded relationships, not a replacement for the original material.
 
-Link detected entities to specific resources or external knowledge bases, building a rich semantic network that connects related concepts across your entire knowledge system.
+### Five Collaborative Flows
 
-### Context Retrieval
+Humans and AI agents work as peers through five composable workflows:
 
-Extract precise semantic context from your knowledge graph for LLM consumption, enabling AI assistants to reason over your specific domain knowledge.
-
-### Contextualized Generation
-
-Create new resources aligned with your existing knowledge, maintaining consistency and coherence across all AI-generated content.
+- **[Attend](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/ATTEND.md)** — Focus on a resource or annotation; hover, click, and navigation signals coordinate all panels and views
+- **[Annotate](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/ANNOTATE.md)** — Create highlights, assessments, comments, tags, and entity references — manually or via AI-assisted detection
+- **[Resolve](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/RESOLVE.md)** — Link reference annotations to existing resources or create new ones
+- **[Correlate](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/CORRELATE.md)** — Extract semantic context from annotations and the knowledge graph for downstream use
+- **[Generate](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/GENERATE.md)** — Synthesize new resources from reference annotations using correlated context
 
 ## Use Cases
 
@@ -44,46 +45,18 @@ Create new resources aligned with your existing knowledge, maintaining consisten
 
 ## Get Started Today
 
-### Try in the Cloud
+The [Semiont Agents Demo](https://github.com/The-AI-Alliance/semiont-agents) provides ready-to-run examples including document processing workflows, annotation detection, and interactive demos across various datasets.
 
-Launch a fully-configured development environment in seconds — no installation required:
-
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new/The-AI-Alliance/semiont)
-
-Perfect for exploring Semiont's capabilities without any local setup. All dependencies pre-installed and ready to go.
-
-### Deploy to Production
-
-Ready for production use? Choose your deployment:
-
-- **Container Deployment** - Run with Docker on any infrastructure
-- **AWS Deployment** - Auto-scaling production deployment with managed services
-- **Local Development** - Full control for development and testing
-
-[View deployment options →](https://github.com/The-AI-Alliance/semiont/blob/main/docs/DEPLOYMENT.md)
-
-### Integrate with Your App
-
-Use Semiont's TypeScript SDK to add semantic annotation capabilities to your application:
-
-```bash
-npm install @semiont/api-client
-```
-
-[SDK documentation →](https://github.com/The-AI-Alliance/semiont/blob/main/packages/api-client/README.md)
+[![Open Semiont Agents Demo](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new/The-AI-Alliance/semiont-agents)
 
 ## Open Source & Community
 
-[![Continuous Integration](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
-[![Security Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/security-tests.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/security-tests.yml?query=branch%3Amain)
 [![License](https://img.shields.io/github/license/The-AI-Alliance/semiont)](https://github.com/The-AI-Alliance/semiont/tree/main?tab=Apache-2.0-1-ov-file#readme)
 [![GitHub stars](https://img.shields.io/github/stars/The-AI-Alliance/semiont?style=social)](https://github.com/The-AI-Alliance/semiont/stargazers)
 
 Semiont is Apache 2.0 licensed and developed in the open. We welcome contributions from the community.
 
 - **[View on GitHub](https://github.com/The-AI-Alliance/semiont)** - Explore the source code and documentation
-- **[Report Issues](https://github.com/The-AI-Alliance/semiont/issues)** - Found a bug or have a feature request?
-- **[Contributing Guide](https://github.com/The-AI-Alliance/semiont/blob/main/CONTRIBUTING.md)** - Learn how to contribute to the project
 
 ---
 
