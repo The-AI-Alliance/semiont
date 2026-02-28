@@ -9,6 +9,7 @@
 import React, { useState, useEffect } from 'react';
 import type { components } from '@semiont/core';
 import { isImageMimeType, isPdfMimeType, LOCALES } from '@semiont/api-client';
+import { COMMON_PANELS, type ToolbarPanelType } from '../../../hooks/usePanelNavigation';
 import { buttonStyles } from '../../../lib/button-styles';
 import { CodeMirrorRenderer } from '../../../components/CodeMirrorRenderer';
 import { useFormAnnouncements } from '../../../components/LiveRegion';
@@ -254,7 +255,7 @@ export function ResourceComposePage({
   const isReferenceCompletion = mode === 'reference';
 
   return (
-    <div className={`semiont-page${activePanel ? ' semiont-page--panel-open' : ''}`}>
+    <div className={`semiont-page${activePanel && COMMON_PANELS.includes(activePanel as ToolbarPanelType) ? ' semiont-page--panel-open' : ''}`}>
       {/* Main Content Area */}
       <div className="semiont-page__content semiont-page__compose">
         {/* Page Title */}

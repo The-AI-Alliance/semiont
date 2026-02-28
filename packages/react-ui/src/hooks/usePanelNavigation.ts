@@ -14,7 +14,13 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
 
-export type ToolbarPanelType = 'document' | 'history' | 'info' | 'annotations' | 'settings' | 'collaboration' | 'user' | 'jsonld';
+export type ToolbarPanelType = 'history' | 'info' | 'annotations' | 'settings' | 'collaboration' | 'user' | 'jsonld';
+
+/** Panels available on all pages */
+export const COMMON_PANELS: readonly ToolbarPanelType[] = ['user', 'settings'] as const;
+
+/** Panels available only on resource viewer pages */
+export const RESOURCE_PANELS: readonly ToolbarPanelType[] = ['history', 'info', 'annotations', 'collaboration', 'jsonld'] as const;
 
 // Generation counter for panel initial tab - ensures re-render on repeated opens
 let tabGenerationCounter = 0;
