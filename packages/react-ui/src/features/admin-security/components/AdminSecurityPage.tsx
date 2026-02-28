@@ -12,6 +12,7 @@ import {
   CheckCircleIcon,
   InformationCircleIcon
 } from '@heroicons/react/24/outline';
+import { COMMON_PANELS, type ToolbarPanelType } from '../../../hooks/usePanelNavigation';
 
 export interface OAuthProvider {
   name: string;
@@ -67,7 +68,7 @@ export function AdminSecurityPage({
   Toolbar,
 }: AdminSecurityPageProps) {
   return (
-    <div className={`semiont-page${activePanel ? ' semiont-page--panel-open' : ''}`}>
+    <div className={`semiont-page${activePanel && COMMON_PANELS.includes(activePanel as ToolbarPanelType) ? ' semiont-page--panel-open' : ''}`}>
       {/* Main Content Area */}
       <div className="semiont-page__content">
         <div className="semiont-page__sections">

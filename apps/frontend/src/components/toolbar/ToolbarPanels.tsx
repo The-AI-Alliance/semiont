@@ -5,6 +5,7 @@ import { SettingsPanel, ResizeHandle, usePanelWidth, EventBusProvider, useEventS
 import { UserPanel } from '../UserPanel';
 import { useLocale } from 'next-intl';
 import { usePathname, useRouter } from '@/i18n/routing';
+import { COMMON_PANELS } from '@semiont/react-ui';
 import type { ToolbarPanelType } from '@semiont/react-ui';
 
 interface ToolbarPanelsProps {
@@ -79,6 +80,12 @@ export function ToolbarPanels({
 
   // Don't render container if no panel is active
   if (!activePanel) {
+    return null;
+  }
+
+  // In simple context (no children), only user and settings panels are valid.
+  // If a resource-specific panel is still active from a previous route, hide the container.
+  if (!children && !COMMON_PANELS.includes(activePanel)) {
     return null;
   }
 
