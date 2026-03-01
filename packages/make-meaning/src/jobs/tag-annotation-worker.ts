@@ -126,7 +126,7 @@ export class TagAnnotationWorker extends JobWorker {
           progress: tdJob.progress,
         },
       });
-      resourceBus.get('annotate:progress').next({
+      resourceBus.get('mark:progress').next({
         status: tdJob.progress.stage,
         message: tdJob.progress.message,
         percentage: tdJob.progress.percentage,

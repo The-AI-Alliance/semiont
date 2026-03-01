@@ -37,7 +37,7 @@ Data attributes set by widgets:
 **States**:
 
 1. **Resolved (🔗)**: Has a referenced document
-   - Click: Emits `navigation:reference-navigate` event
+   - Click: Emits `browse:reference-navigate` event
    - Hover: Shows tooltip with target document name via `showWidgetPreview()`
 
 2. **Generating (✨)**: Document is being created
@@ -45,7 +45,7 @@ Data attributes set by widgets:
    - Disabled (no click handler)
 
 3. **Stub/Unresolved (❓)**: No target document
-   - Click: Emits `attend:click` event to open resolution UI
+   - Click: Emits `browse:click` event to open resolution UI
 
 **Constructor** (3 parameters — no eventBus):
 
@@ -80,7 +80,7 @@ hideWidgetPreview(container: HTMLElement): void
 
 In `CodeMirrorRenderer.tsx`, three handlers manage widget interactions:
 
-**`handleWidgetClick`**: Finds `.reference-preview-widget` via `closest()`. If resolved with a body source, emits `navigation:reference-navigate`. Otherwise emits `attend:click`.
+**`handleWidgetClick`**: Finds `.reference-preview-widget` via `closest()`. If resolved with a body source, emits `browse:reference-navigate`. Otherwise emits `browse:click`.
 
 **`handleWidgetMouseEnter`** (capture phase): Sets indicator opacity to 1. If resolved with a target name, calls `showWidgetPreview()`.
 

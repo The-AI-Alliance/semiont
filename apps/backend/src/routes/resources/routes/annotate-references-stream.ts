@@ -147,13 +147,13 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
           // Create resource-scoped EventBus for this resource
           // Workers emit detection:started, detection:progress, detection:completed, detection:failed
           const resourceBus = eventBus.scope(id);
-          logger.info('[EventBus] Subscribing to EventBus for resource', { resourceId: id, scopeKey: `${id}:annotate:progress` });
+          logger.info('[EventBus] Subscribing to EventBus for resource', { resourceId: id, scopeKey: `${id}:mark:progress` });
 
-          // Subscribe to annotate:progress
+          // Subscribe to mark:progress
           subscriptions.push(
-            resourceBus.get('annotate:progress').subscribe(async (progress) => {
+            resourceBus.get('mark:progress').subscribe(async (progress) => {
               if (isStreamClosed) return;
-              logger.info('[EventBus] Received annotate:progress event', { progress, resourceId: id });
+              logger.info('[EventBus] Received mark:progress event', { progress, resourceId: id });
               try {
                 await writeTypedSSE(stream, {
                   data: JSON.stringify({
@@ -168,7 +168,7 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
                       : 'Processing...'),
                     percentage: progress.percentage
                   } as DetectionProgress),
-                  event: 'annotate:progress',
+                  event: 'mark:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -198,7 +198,7 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
                       ? `Detection complete! Found ${result.totalFound} entities`
                       : 'Detection complete!'
                   } as DetectionProgress),
-                  event: 'annotate:assist-finished',
+                  event: 'mark:assist-finished',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -223,7 +223,7 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
                     processedEntityTypes: 0,
                     message: event.payload.error || 'Detection failed'
                   } as DetectionProgress),
-                  event: 'annotate:assist-failed',
+                  event: 'mark:assist-failed',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -268,7 +268,7 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
                 processedEntityTypes: 0,
                 message: error instanceof Error ? error.message : 'Detection failed'
               } as DetectionProgress),
-              event: 'annotate:assist-failed',
+              event: 'mark:assist-failed',
               id: String(Date.now())
             });
           } catch (sseError) {

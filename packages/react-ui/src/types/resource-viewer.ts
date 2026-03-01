@@ -2,7 +2,7 @@
  * Type definitions for resource viewer feature
  */
 
-import type { components, GenerationContext } from '@semiont/core';
+import type { components, YieldContext } from '@semiont/core';
 
 export type SemiontResource = components['schemas']['ResourceDescriptor'];
 export type Annotation = components['schemas']['Annotation'];
@@ -29,5 +29,5 @@ export interface GenerationOptions {
   language?: string;
   temperature?: number;
   maxTokens?: number;
-  context?: GenerationContext;
+  context?: YieldContext;
 }

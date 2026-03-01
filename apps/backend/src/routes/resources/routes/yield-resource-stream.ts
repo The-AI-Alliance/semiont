@@ -29,9 +29,9 @@ import { getEntityTypes } from '@semiont/ontology';
 import { writeTypedSSE } from '../../../lib/sse-helpers';
 import { getLogger } from '../../../logger';
 
-type GenerateResourceStreamRequest = components['schemas']['GenerateResourceStreamRequest'];
+type YieldResourceStreamRequest = components['schemas']['YieldResourceStreamRequest'];
 
-interface GenerationProgress {
+interface YieldProgress {
   status: 'started' | 'fetching' | 'generating' | 'creating' | 'complete' | 'error';
   referenceId: string;
   resourceName?: string;
@@ -41,13 +41,13 @@ interface GenerationProgress {
   message?: string;
 }
 
-export function registerGenerateResourceStream(router: ResourcesRouterType, jobQueue: JobQueue) {
+export function registerYieldResourceStream(router: ResourcesRouterType, jobQueue: JobQueue) {
   /**
-   * POST /resources/:resourceId/annotations/:annotationId/generate-resource-stream
+   * POST /resources/:resourceId/annotations/:annotationId/yield-resource-stream
    *
-   * Generate a resource from an annotation with streaming progress updates via SSE
+   * Yield a resource from an annotation with streaming progress updates via SSE
    * Requires authentication
-   * Validates request body against GenerateResourceStreamRequest schema
+   * Validates request body against YieldResourceStreamRequest schema
    * Returns SSE stream with progress updates
    *
    * Event-Driven Architecture:
@@ -56,14 +56,14 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
    * - Forwards events to client as SSE
    * - <50ms latency (no polling)
    */
-  router.post('/resources/:resourceId/annotations/:annotationId/generate-resource-stream',
-    validateRequestBody('GenerateResourceStreamRequest'),
+  router.post('/resources/:resourceId/annotations/:annotationId/yield-resource-stream',
+    validateRequestBody('YieldResourceStreamRequest'),
     async (c) => {
       const { resourceId: resourceIdParam, annotationId: annotationIdParam } = c.req.param();
-      const body = c.get('validatedBody') as GenerateResourceStreamRequest;
+      const body = c.get('validatedBody') as YieldResourceStreamRequest;
 
       const logger = getLogger().child({
-        component: 'generate-resource-stream',
+        component: 'yield-resource-stream',
         resourceId: resourceIdParam,
         annotationId: annotationIdParam
       });
@@ -185,9 +185,9 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
           const resourceBus = eventBus.scope(resourceIdParam);
           logger.info('Subscribing to EventBus for resource');
 
-          // Subscribe to generate:progress
+          // Subscribe to yield:progress
           subscriptions.push(
-            resourceBus.get('generate:progress').subscribe(async (_event) => {
+            resourceBus.get('yield:progress').subscribe(async (_event) => {
               if (isStreamClosed) return;
               logger.info('Generation started');
               try {
@@ -198,8 +198,8 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
                     resourceName,
                     percentage: 0,
                     message: 'Starting...'
-                  } as GenerationProgress),
-                  event: 'generate:progress',
+                  } as YieldProgress),
+                  event: 'yield:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -209,9 +209,9 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
             })
           );
 
-          // Subscribe to generate:progress
+          // Subscribe to yield:progress
           subscriptions.push(
-            resourceBus.get('generate:progress').subscribe(async (progress) => {
+            resourceBus.get('yield:progress').subscribe(async (progress) => {
               if (isStreamClosed) return;
               logger.info('Generation progress', { progress });
               try {
@@ -222,8 +222,8 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
                     resourceName,
                     percentage: progress.percentage || 0,
                     message: progress.message || `${progress.status}...`
-                  } as GenerationProgress),
-                  event: 'generate:progress',
+                  } as YieldProgress),
+                  event: 'yield:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -248,8 +248,8 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
                     sourceResourceId: resourceIdParam,
                     percentage: 100,
                     message: 'Draft resource created! Ready for review.'
-                  } as GenerationProgress),
-                  event: 'generate:finished',
+                  } as YieldProgress),
+                  event: 'yield:finished',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -292,8 +292,8 @@ export function registerGenerateResourceStream(router: ResourcesRouterType, jobQ
                 referenceId: reference.id,
                 percentage: 0,
                 message: error instanceof Error ? error.message : 'Generation failed'
-              } as GenerationProgress),
-              event: 'generate:failed',
+              } as YieldProgress),
+              event: 'yield:failed',
               id: String(Date.now())
             });
           } catch (sseError) {

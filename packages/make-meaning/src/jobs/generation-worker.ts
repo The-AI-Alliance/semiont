@@ -8,7 +8,7 @@
  */
 
 import { JobWorker } from '@semiont/jobs';
-import type { AnyJob, JobQueue, RunningJob, GenerationParams, GenerationProgress, GenerationResult, GenerationJob } from '@semiont/jobs';
+import type { AnyJob, JobQueue, RunningJob, GenerationParams, YieldProgress, GenerationResult, GenerationJob } from '@semiont/jobs';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import { ResourceContext } from '..';
 import { generateResourceFromTopic } from '../generation/resource-generation';
@@ -56,10 +56,10 @@ export class GenerationWorker extends JobWorker {
       throw new Error(`Job must be in running state to execute, got: ${job.status}`);
     }
 
-    return await this.processGenerationJob(job as RunningJob<GenerationParams, GenerationProgress>);
+    return await this.processGenerationJob(job as RunningJob<GenerationParams, YieldProgress>);
   }
 
-  private async processGenerationJob(job: RunningJob<GenerationParams, GenerationProgress>): Promise<GenerationResult> {
+  private async processGenerationJob(job: RunningJob<GenerationParams, YieldProgress>): Promise<GenerationResult> {
     this.logger?.info('Processing generation job', {
       referenceId: job.params.referenceId,
       jobId: job.metadata.id
@@ -70,7 +70,7 @@ export class GenerationWorker extends JobWorker {
     const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
 
     // Update progress: fetching
-    let updatedJob: RunningJob<GenerationParams, GenerationProgress> = {
+    let updatedJob: RunningJob<GenerationParams, YieldProgress> = {
       ...job,
       progress: {
         stage: 'fetching',
@@ -272,7 +272,7 @@ export class GenerationWorker extends JobWorker {
    * Override base class to emit job.completed event with resultResourceId
    */
   protected override async emitCompletionEvent(
-    job: RunningJob<GenerationParams, GenerationProgress>,
+    job: RunningJob<GenerationParams, YieldProgress>,
     result: GenerationResult
   ): Promise<void> {
     // DOMAIN EVENT: Write to EventStore (auto-publishes to global EventBus)
@@ -350,7 +350,7 @@ export class GenerationWorker extends JobWorker {
       return;
     }
 
-    const genJob = job as RunningJob<GenerationParams, GenerationProgress>;
+    const genJob = job as RunningJob<GenerationParams, YieldProgress>;
 
     const baseEvent = {
       resourceId: genJob.params.sourceResourceId,
@@ -386,7 +386,7 @@ export class GenerationWorker extends JobWorker {
           message: genJob.progress.message,
         },
       });
-      resourceBus.get('generate:progress').next({
+      resourceBus.get('yield:progress').next({
         status: genJob.progress.stage as 'fetching' | 'generating' | 'creating',
         referenceId: genJob.params.referenceId,
         sourceResourceId: genJob.params.sourceResourceId,

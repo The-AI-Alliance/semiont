@@ -66,9 +66,9 @@ function createEventTracker() {
       };
 
       const resourceEvents = [
-        'generate:clone',
-        'resource:archive',
-        'resource:unarchive',
+        'yield:clone',
+        'mark:archive',
+        'mark:unarchive',
       ] as const;
 
       resourceEvents.forEach(eventName => {
@@ -248,7 +248,7 @@ describe('ResourceInfoPanel Component', () => {
       expect(screen.getByText('Generate a shareable clone link for this resource')).toBeInTheDocument();
     });
 
-    it('should emit generate:clone event when clone button clicked', async () => {
+    it('should emit yield:clone event when clone button clicked', async () => {
       const tracker = createEventTracker();
       renderWithEventBus(
         <ResourceInfoPanel
@@ -261,7 +261,7 @@ describe('ResourceInfoPanel Component', () => {
       fireEvent.click(button);
 
       await waitFor(() => {
-        expect(tracker.events.some(e => e.event === 'generate:clone')).toBe(true);
+        expect(tracker.events.some(e => e.event === 'yield:clone')).toBe(true);
       });
     });
   });
@@ -291,7 +291,7 @@ describe('ResourceInfoPanel Component', () => {
       expect(screen.getByText('Restore this resource to active status')).toBeInTheDocument();
     });
 
-    it('should emit resource:archive event when archive button clicked', async () => {
+    it('should emit mark:archive event when archive button clicked', async () => {
       const tracker = createEventTracker();
       renderWithEventBus(
         <ResourceInfoPanel
@@ -305,11 +305,11 @@ describe('ResourceInfoPanel Component', () => {
       fireEvent.click(button);
 
       await waitFor(() => {
-        expect(tracker.events.some(e => e.event === 'resource:archive')).toBe(true);
+        expect(tracker.events.some(e => e.event === 'mark:archive')).toBe(true);
       });
     });
 
-    it('should emit resource:unarchive event when unarchive button clicked', async () => {
+    it('should emit mark:unarchive event when unarchive button clicked', async () => {
       const tracker = createEventTracker();
       renderWithEventBus(
         <ResourceInfoPanel
@@ -323,7 +323,7 @@ describe('ResourceInfoPanel Component', () => {
       fireEvent.click(button);
 
       await waitFor(() => {
-        expect(tracker.events.some(e => e.event === 'resource:unarchive')).toBe(true);
+        expect(tracker.events.some(e => e.event === 'mark:unarchive')).toBe(true);
       });
     });
   });

@@ -175,7 +175,7 @@ describe('Scripting Example: Batch Entity Detection', () => {
       const resourceBus = eventBus.scope(rId!);
 
       // Track progress
-      resourceBus.get('annotate:progress').subscribe(progress => {
+      resourceBus.get('mark:progress').subscribe(progress => {
         console.log(`[${rId}] ${progress.status}: ${progress.message || ''}`);
       });
 

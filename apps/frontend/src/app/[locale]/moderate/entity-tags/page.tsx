@@ -14,7 +14,7 @@ import { useTranslations } from 'next-intl';
 import { useEntityTypes, Toolbar } from '@semiont/react-ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { useTheme, usePanelNavigation, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
+import { useTheme, usePanelBrowse, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
 import { EntityTagsPage } from '@semiont/react-ui';
 
 export default function EntityTagsPageWrapper() {
@@ -25,7 +25,7 @@ export default function EntityTagsPageWrapper() {
   const queryClient = useQueryClient();
 
   // Toolbar and settings state
-  const { activePanel } = usePanelNavigation();
+  const { activePanel } = usePanelBrowse();
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 

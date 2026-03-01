@@ -1,5 +1,5 @@
 /**
- * useAnnotationFlow Hook Tests
+ * useMarkFlow Hook Tests
  *
  * Tests for the annotation flow state management hook, covering:
  * - Toast notifications for CRUD operations
@@ -15,7 +15,7 @@ import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../co
 import { ApiClientProvider } from '../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../contexts/AuthTokenContext';
 import { resourceUri } from '@semiont/core';
-import { useAnnotationFlow } from '../useAnnotationFlow';
+import { useMarkFlow } from '../useMarkFlow';
 
 // Mock the toast hook to track calls
 const mockShowSuccess = vi.fn();
@@ -58,11 +58,11 @@ vi.mock('../../contexts/ApiClientContext', async () => {
 function renderAnnotationFlow() {
   const rUri = resourceUri('https://example.com/resources/test');
   let eventBusInstance: ReturnType<typeof useEventBus> | null = null;
-  let lastState: ReturnType<typeof useAnnotationFlow> | null = null;
+  let lastState: ReturnType<typeof useMarkFlow> | null = null;
 
   function TestComponent() {
     eventBusInstance = useEventBus();
-    lastState = useAnnotationFlow(rUri);
+    lastState = useMarkFlow(rUri);
     return null;
   }
 
@@ -84,7 +84,7 @@ function renderAnnotationFlow() {
 
 // ─── Tests ─────────────────────────────────────────────────────────────────────
 
-describe('useAnnotationFlow', () => {
+describe('useMarkFlow', () => {
   beforeEach(() => {
     resetEventBusForTesting();
     mockShowSuccess.mockClear();
@@ -104,9 +104,9 @@ describe('useAnnotationFlow', () => {
     it('should show error toast when annotation creation fails', () => {
       const { getEventBus } = renderAnnotationFlow();
 
-      // Emit annotate:create-failed event
+      // Emit mark:create-failed event
       act(() => {
-        getEventBus().get('annotate:create-failed').next({
+        getEventBus().get('mark:create-failed').next({
           error: new Error('Network connection failed')
         });
       });
@@ -119,7 +119,7 @@ describe('useAnnotationFlow', () => {
       const { getEventBus } = renderAnnotationFlow();
 
       act(() => {
-        getEventBus().get('annotate:delete-failed').next({
+        getEventBus().get('mark:delete-failed').next({
           error: new Error('Annotation not found')
         });
       });
@@ -131,7 +131,7 @@ describe('useAnnotationFlow', () => {
       const { getEventBus } = renderAnnotationFlow();
 
       act(() => {
-        getEventBus().get('annotate:create-failed').next({
+        getEventBus().get('mark:create-failed').next({
           error: {} as Error
         });
       });
@@ -145,7 +145,7 @@ describe('useAnnotationFlow', () => {
       const { getEventBus } = renderAnnotationFlow();
 
       act(() => {
-        getEventBus().get('annotate:assist-cancelled').next(undefined);
+        getEventBus().get('mark:assist-cancelled').next(undefined);
       });
 
       expect(mockShowInfo).toHaveBeenCalledWith('Annotation cancelled');
@@ -156,7 +156,7 @@ describe('useAnnotationFlow', () => {
 
       // Start detection
       act(() => {
-        getEventBus().get('annotate:assist-request').next({
+        getEventBus().get('mark:assist-request').next({
           motivation: 'linking',
           options: { entityTypes: ['Person'] }
         });
@@ -164,7 +164,7 @@ describe('useAnnotationFlow', () => {
 
       // Set some progress
       act(() => {
-        getEventBus().get('annotate:progress').next({
+        getEventBus().get('mark:progress').next({
           status: 'processing',
           message: 'Scanning document...',
           percentage: 50
@@ -191,7 +191,7 @@ describe('useAnnotationFlow', () => {
 
       // Set progress
       act(() => {
-        getEventBus().get('annotate:progress').next({
+        getEventBus().get('mark:progress').next({
           status: 'complete',
           message: 'Found 5 references',
           currentEntityType: 'Person',
@@ -203,7 +203,7 @@ describe('useAnnotationFlow', () => {
 
       // Complete detection
       act(() => {
-        getEventBus().get('annotate:assist-finished').next({
+        getEventBus().get('mark:assist-finished').next({
           motivation: 'linking'
         });
       });
@@ -232,7 +232,7 @@ describe('useAnnotationFlow', () => {
 
       // Set progress
       act(() => {
-        getEventBus().get('annotate:progress').next({
+        getEventBus().get('mark:progress').next({
           status: 'processing',
           message: 'Scanning...',
           percentage: 50
@@ -243,7 +243,7 @@ describe('useAnnotationFlow', () => {
 
       // Fail detection
       act(() => {
-        getEventBus().get('annotate:assist-failed').next({
+        getEventBus().get('mark:assist-failed').next({
           type: 'job.failed' as const,
           resourceId: 'test' as any,
           userId: 'user' as any,
@@ -275,14 +275,14 @@ describe('useAnnotationFlow', () => {
 
       // Complete first detection
       act(() => {
-        getEventBus().get('annotate:progress').next({
+        getEventBus().get('mark:progress').next({
           status: 'complete',
           message: 'Found 3 highlights'
         });
       });
 
       act(() => {
-        getEventBus().get('annotate:assist-finished').next({
+        getEventBus().get('mark:assist-finished').next({
           motivation: 'highlighting'
         });
       });
@@ -293,7 +293,7 @@ describe('useAnnotationFlow', () => {
       });
 
       act(() => {
-        getEventBus().get('annotate:assist-request').next({
+        getEventBus().get('mark:assist-request').next({
           motivation: 'commenting',
           options: {}
         });
@@ -318,14 +318,14 @@ describe('useAnnotationFlow', () => {
 
       // Complete detection (starts 5s auto-dismiss)
       act(() => {
-        getEventBus().get('annotate:progress').next({
+        getEventBus().get('mark:progress').next({
           status: 'complete',
           message: 'Detection complete'
         });
       });
 
       act(() => {
-        getEventBus().get('annotate:assist-finished').next({
+        getEventBus().get('mark:assist-finished').next({
           motivation: 'linking'
         });
       });
@@ -338,7 +338,7 @@ describe('useAnnotationFlow', () => {
       });
 
       act(() => {
-        getEventBus().get('annotate:progress-dismiss').next(undefined);
+        getEventBus().get('mark:progress-dismiss').next(undefined);
       });
 
       // Progress should be cleared immediately
@@ -359,7 +359,7 @@ describe('useAnnotationFlow', () => {
       // Try to dismiss when no detection is active
       expect(() => {
         act(() => {
-          getEventBus().get('annotate:progress-dismiss').next(undefined);
+          getEventBus().get('mark:progress-dismiss').next(undefined);
         });
       }).not.toThrow();
 
@@ -373,7 +373,7 @@ describe('useAnnotationFlow', () => {
 
       // User selects text for comment
       act(() => {
-        getEventBus().get('annotate:select-comment').next({
+        getEventBus().get('mark:select-comment').next({
           exact: 'Selected text',
           start: 0,
           end: 13,
@@ -391,7 +391,7 @@ describe('useAnnotationFlow', () => {
 
       // Create pending annotation
       act(() => {
-        getEventBus().get('annotate:select-comment').next({
+        getEventBus().get('mark:select-comment').next({
           exact: 'Test',
           start: 0,
           end: 4
@@ -402,7 +402,7 @@ describe('useAnnotationFlow', () => {
 
       // Cancel pending annotation
       act(() => {
-        getEventBus().get('annotate:cancel-pending').next(undefined);
+        getEventBus().get('mark:cancel-pending').next(undefined);
       });
 
       expect(getState().pendingAnnotation).toBeNull();
@@ -413,7 +413,7 @@ describe('useAnnotationFlow', () => {
 
       // Create first pending annotation
       act(() => {
-        getEventBus().get('annotate:select-comment').next({
+        getEventBus().get('mark:select-comment').next({
           exact: 'First selection',
           start: 0,
           end: 15
@@ -424,7 +424,7 @@ describe('useAnnotationFlow', () => {
 
       // Create second pending annotation with different motivation
       act(() => {
-        getEventBus().get('annotate:select-assessment').next({
+        getEventBus().get('mark:select-assessment').next({
           exact: 'Second selection',
           start: 20,
           end: 36
@@ -444,7 +444,7 @@ describe('useAnnotationFlow', () => {
 
       // Send progress update
       act(() => {
-        getEventBus().get('annotate:progress').next({
+        getEventBus().get('mark:progress').next({
           status: 'scanning',
           message: 'Scanning document for references',
           currentEntityType: 'Person',
@@ -465,7 +465,7 @@ describe('useAnnotationFlow', () => {
 
       // First update
       act(() => {
-        getEventBus().get('annotate:progress').next({
+        getEventBus().get('mark:progress').next({
           status: 'scanning',
           message: 'Scanning Person entities',
           currentEntityType: 'Person',
@@ -477,7 +477,7 @@ describe('useAnnotationFlow', () => {
 
       // Second update
       act(() => {
-        getEventBus().get('annotate:progress').next({
+        getEventBus().get('mark:progress').next({
           status: 'scanning',
           message: 'Scanning Location entities',
           currentEntityType: 'Location',
@@ -496,7 +496,7 @@ describe('useAnnotationFlow', () => {
 
       // Start annotation with motivation 'highlighting'
       act(() => {
-        getEventBus().get('annotate:assist-request').next({
+        getEventBus().get('mark:assist-request').next({
           motivation: 'highlighting',
           options: {}
         });
@@ -506,7 +506,7 @@ describe('useAnnotationFlow', () => {
 
       // Send completion event with matching motivation
       act(() => {
-        getEventBus().get('annotate:assist-finished').next({
+        getEventBus().get('mark:assist-finished').next({
           motivation: 'highlighting'
         });
       });
@@ -520,7 +520,7 @@ describe('useAnnotationFlow', () => {
 
       // Start annotation with motivation 'highlighting'
       act(() => {
-        getEventBus().get('annotate:assist-request').next({
+        getEventBus().get('mark:assist-request').next({
           motivation: 'highlighting',
           options: {}
         });
@@ -530,7 +530,7 @@ describe('useAnnotationFlow', () => {
 
       // Send completion event with WRONG motivation
       act(() => {
-        getEventBus().get('annotate:assist-finished').next({
+        getEventBus().get('mark:assist-finished').next({
           motivation: 'linking' as any
         });
       });
@@ -544,7 +544,7 @@ describe('useAnnotationFlow', () => {
 
       // Start annotation with motivation 'commenting'
       act(() => {
-        getEventBus().get('annotate:assist-request').next({
+        getEventBus().get('mark:assist-request').next({
           motivation: 'commenting',
           options: {}
         });
@@ -554,7 +554,7 @@ describe('useAnnotationFlow', () => {
 
       // Send completion event WITHOUT motivation field (this was the bug)
       act(() => {
-        getEventBus().get('annotate:assist-finished').next({} as any);
+        getEventBus().get('mark:assist-finished').next({} as any);
       });
 
       // assistingMotivation should NOT be cleared (this test would have passed before fix, exposing the bug)
@@ -574,7 +574,7 @@ describe('useAnnotationFlow', () => {
 
       // 2. Start annotation: assistingMotivation set, progress still null
       act(() => {
-        getEventBus().get('annotate:assist-request').next({
+        getEventBus().get('mark:assist-request').next({
           motivation: 'highlighting',
           options: {}
         });
@@ -586,7 +586,7 @@ describe('useAnnotationFlow', () => {
 
       // 3. First progress update: widget should now be visible
       act(() => {
-        getEventBus().get('annotate:progress').next({
+        getEventBus().get('mark:progress').next({
           status: 'processing',
           message: 'Scanning document for highlights',
           percentage: 25
@@ -603,7 +603,7 @@ describe('useAnnotationFlow', () => {
 
       // 4. More progress updates
       act(() => {
-        getEventBus().get('annotate:progress').next({
+        getEventBus().get('mark:progress').next({
           status: 'processing',
           message: 'Extracting highlights',
           percentage: 75
@@ -614,7 +614,7 @@ describe('useAnnotationFlow', () => {
 
       // 5. Completion: assistingMotivation cleared, progress remains
       act(() => {
-        getEventBus().get('annotate:assist-finished').next({
+        getEventBus().get('mark:assist-finished').next({
           motivation: 'highlighting'
         });
       });
@@ -644,21 +644,21 @@ describe('useAnnotationFlow', () => {
 
       // Complete first annotation
       act(() => {
-        getEventBus().get('annotate:assist-request').next({
+        getEventBus().get('mark:assist-request').next({
           motivation: 'highlighting',
           options: {}
         });
       });
 
       act(() => {
-        getEventBus().get('annotate:progress').next({
+        getEventBus().get('mark:progress').next({
           status: 'complete',
           message: 'Complete! Created 5 highlights'
         });
       });
 
       act(() => {
-        getEventBus().get('annotate:assist-finished').next({
+        getEventBus().get('mark:assist-finished').next({
           motivation: 'highlighting'
         });
       });
@@ -672,7 +672,7 @@ describe('useAnnotationFlow', () => {
       });
 
       act(() => {
-        getEventBus().get('annotate:assist-request').next({
+        getEventBus().get('mark:assist-request').next({
           motivation: 'commenting',
           options: {}
         });

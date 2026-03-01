@@ -11,7 +11,7 @@
  * - State machine is explicit and type-safe
  */
 
-import type { JobId, EntityType, ResourceId, UserId, AnnotationId, GenerationContext } from '@semiont/core';
+import type { JobId, EntityType, ResourceId, UserId, AnnotationId, YieldContext } from '@semiont/core';
 
 
 export type JobType = 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
@@ -52,7 +52,7 @@ export interface GenerationParams {
   title?: string;
   entityTypes?: EntityType[];
   language?: string;
-  context?: GenerationContext;
+  context?: YieldContext;
   temperature?: number;
   maxTokens?: number;
 }
@@ -122,7 +122,7 @@ export interface DetectionResult {
 /**
  * Generation job progress
  */
-export interface GenerationProgress {
+export interface YieldProgress {
   stage: 'fetching' | 'generating' | 'creating' | 'linking';
   percentage: number;
   message?: string;
@@ -282,7 +282,7 @@ export type Job<P, PG, R> =
 // ============================================================================
 
 export type DetectionJob = Job<DetectionParams, DetectionProgress, DetectionResult>;
-export type GenerationJob = Job<GenerationParams, GenerationProgress, GenerationResult>;
+export type GenerationJob = Job<GenerationParams, YieldProgress, GenerationResult>;
 export type HighlightDetectionJob = Job<HighlightDetectionParams, HighlightDetectionProgress, HighlightDetectionResult>;
 export type AssessmentDetectionJob = Job<AssessmentDetectionParams, AssessmentDetectionProgress, AssessmentDetectionResult>;
 export type CommentDetectionJob = Job<CommentDetectionParams, CommentDetectionProgress, CommentDetectionResult>;

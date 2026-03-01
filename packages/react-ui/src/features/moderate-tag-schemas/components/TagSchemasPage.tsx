@@ -11,7 +11,7 @@ import {
   ScaleIcon,
   LightBulbIcon
 } from '@heroicons/react/24/outline';
-import { COMMON_PANELS, type ToolbarPanelType } from '../../../hooks/usePanelNavigation';
+import { COMMON_PANELS, type ToolbarPanelType } from '../../../hooks/usePanelBrowse';
 import type { TagSchema } from '@semiont/react-ui';
 
 export interface TagSchemasPageProps {

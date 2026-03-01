@@ -23,7 +23,7 @@ import {
   getPrimaryRepresentation,
   decodeRepresentation,
 } from '@semiont/api-client';
-import type { components, AnnotationUri, GenerationContext } from '@semiont/core';
+import type { components, AnnotationUri, YieldContext } from '@semiont/core';
 
 import { FilesystemRepresentationStore } from '@semiont/content';
 import { FilesystemViewStorage } from '@semiont/event-sourcing';
@@ -231,8 +231,8 @@ export class AnnotationContext {
     // TODO: Generate suggested resolution using AI
     const suggestedResolution = undefined;
 
-    // Build GenerationContext structure
-    const generationContext: GenerationContext | undefined = sourceContext ? {
+    // Build YieldContext structure
+    const generationContext: YieldContext | undefined = sourceContext ? {
       sourceContext: {
         before: sourceContext.before || '',
         selected: sourceContext.selected,

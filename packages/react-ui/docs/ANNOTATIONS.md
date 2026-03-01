@@ -569,14 +569,14 @@ function AnnotationCacheManager({ rUri }: { rUri: ResourceUri }) {
       queryClient.invalidateQueries(['annotations', rUri]);
     };
 
-    eventBus.on('annotate:added', handleAnnotationAdded);
-    eventBus.on('annotate:removed', handleAnnotationRemoved);
-    eventBus.on('annotate:body-updated', handleAnnotationUpdated);
+    eventBus.on('mark:added', handleAnnotationAdded);
+    eventBus.on('mark:removed', handleAnnotationRemoved);
+    eventBus.on('mark:body-updated', handleAnnotationUpdated);
 
     return () => {
-      eventBus.off('annotate:added', handleAnnotationAdded);
-      eventBus.off('annotate:removed', handleAnnotationRemoved);
-      eventBus.off('annotate:body-updated', handleAnnotationUpdated);
+      eventBus.off('mark:added', handleAnnotationAdded);
+      eventBus.off('mark:removed', handleAnnotationRemoved);
+      eventBus.off('mark:body-updated', handleAnnotationUpdated);
     };
   }, [eventBus, queryClient, rUri]);
 
@@ -623,10 +623,10 @@ function TextSelector() {
 
   const handleSelection = (selection) => {
     // Emit locally
-    eventBus.emit('ui:annotate:select-comment', selection);
+    eventBus.emit('ui:mark:select-comment', selection);
 
     // Future: Broadcast to peers for real-time collaboration
-    // peerConnection.broadcast('ui:annotate:select-comment', selection);
+    // peerConnection.broadcast('ui:mark:select-comment', selection);
   };
 
   return <div onMouseUp={handleSelection}>...</div>;
@@ -642,8 +642,8 @@ function CollaborativeAnnotationPanel() {
       showPeerActivity(selection);
     };
 
-    eventBus.on('ui:annotate:select-comment', handler);
-    return () => eventBus.off('ui:annotate:select-comment', handler);
+    eventBus.on('ui:mark:select-comment', handler);
+    return () => eventBus.off('ui:mark:select-comment', handler);
   }, [eventBus]);
 }
 ```

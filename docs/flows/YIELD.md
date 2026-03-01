@@ -1,4 +1,4 @@
-# Generate Flow
+# Yield Flow
 
 **Purpose**: Synthesize new resources from reference annotations using correlated context. A human may compose the new resource manually, or an AI agent may generate it — both paths create a new resource and link the reference annotation to it.
 
@@ -6,13 +6,15 @@
 - [W3C Web Annotation Data Model](../../specs/docs/W3C-WEB-ANNOTATION.md) - Reference annotation structure
 - [Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - Event Store architecture
 - [Real-Time Event Architecture](../../apps/backend/docs/REAL-TIME.md) - SSE streaming and event flow
-- [Annotate Flow](./ANNOTATE.md) - Annotation detection and creation
+- [Mark Flow](./MARK.md) - Annotation detection and creation
 - [@semiont/make-meaning](../../packages/make-meaning/README.md) - Generation worker and detection API
 - [Make-Meaning Job Workers](../../packages/make-meaning/docs/job-workers.md) - GenerationWorker implementation
 
 ## Overview
 
-The Generate flow creates new resources from reference annotations (motivation: `linking`) that lack resolved content. A human can compose the resource manually via the compose page, or an AI agent can generate it from correlated context. The system:
+The Yield flow introduces new resources into the system. A document is uploaded, a page is loaded, or an AI agent produces a new resource — text or structured output — that is persisted to the knowledge base as a first-class W3C Resource. In the attention framework, yielding is the step that creates new objects available for subsequent annotation, linking, and navigation.
+
+The Yield flow creates new resources from reference annotations (motivation: `linking`) that lack resolved content. A human can compose the resource manually via the compose page, or an AI agent can generate it from correlated context. The system:
 
 1. Identifies unresolved reference annotations (empty body or stub SpecificResource)
 2. Uses AI to generate contextually relevant content based on the reference text
@@ -31,7 +33,7 @@ import { SemiontApiClient } from '@semiont/api-client';
 
 const client = new SemiontApiClient({ baseUrl: 'http://localhost:4000' });
 
-// First, correlate context for the annotation (see Correlate flow)
+// First, correlate context for the annotation (see Gather flow)
 const { context } = await client.getAnnotationLLMContext(
   resourceUri, annotationId, { contextWindow: 2000 }
 );
@@ -49,9 +51,9 @@ client.sse.generateResourceFromAnnotation(
 );
 
 // Progress and completion events auto-emit to the event bus:
-//   generate:progress  — { status, percentage, message }
-//   generate:finished  — { resourceId, resourceName }
-//   generate:failed    — { error }
+//   yield:progress  — { status, percentage, message }
+//   yield:finished  — { resourceId, resourceName }
+//   yield:failed    — { error }
 ```
 
 ## Reference Annotation Structure
@@ -118,7 +120,7 @@ client.sse.generateResourceFromAnnotation(
 }
 ```
 
-## Generation Flow
+## Yield Flow
 
 ```
 User clicks "Generate" on reference annotation ❓
@@ -336,7 +338,7 @@ const stream = client.sse.generateResourceFromAnnotation(
 
 // Handle progress
 stream.onProgress((progress) => {
-  setGenerationProgress({
+  setYieldProgress({
     status: progress.status,
     percentage: progress.percentage,
     message: progress.message
@@ -459,7 +461,7 @@ See [REAL-TIME.md](../../apps/backend/docs/REAL-TIME.md) for complete SSE archit
 ### Frontend
 
 - [apps/frontend/src/components/resource/panels/ReferencesPanel.tsx](../../apps/frontend/src/components/resource/panels/ReferencesPanel.tsx) - Generation UI
-- [packages/react-ui/src/hooks/useGenerationFlow.ts](../../packages/react-ui/src/hooks/useGenerationFlow.ts) - Generation flow hook (manages SSE, modal state, and progress state)
+- [packages/react-ui/src/hooks/useYieldFlow.ts](../../packages/react-ui/src/hooks/useYieldFlow.ts) - Generation flow hook (manages SSE, modal state, and progress state)
 - [packages/react-ui/src/hooks/useResourceEvents.ts](../../packages/react-ui/src/hooks/useResourceEvents.ts) - Resource events hook
 - [packages/api-client/src/sse/index.ts](../../packages/api-client/src/sse/index.ts) - SSE client
 
@@ -469,4 +471,4 @@ See [REAL-TIME.md](../../apps/backend/docs/REAL-TIME.md) for complete SSE archit
 - [W3C Web Annotation Data Model](../../specs/docs/W3C-WEB-ANNOTATION.md) - Annotation structure
 - [Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - Event Store flow
 - [Real-Time Event Architecture](../../apps/backend/docs/REAL-TIME.md) - SSE streaming details
-- [Annotate Flow](./ANNOTATE.md) - Reference detection
+- [Mark Flow](./MARK.md) - Reference detection

@@ -1,8 +1,8 @@
 /**
- * Tests for useResolutionFlow hook
+ * Tests for useBindFlow hook
  *
  * Validates the resolution capability:
- * - Event subscription to resolve:link, resolve:update-body
+ * - Event subscription to bind:link, bind:update-body
  * - API calls with correct parameters
  * - Modal state management
  * - Success/failure event emission
@@ -16,7 +16,7 @@ import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../co
 import { ApiClientProvider } from '../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../contexts/AuthTokenContext';
 import { resourceUri } from '@semiont/core';
-import { useResolutionFlow } from '../useResolutionFlow';
+import { useBindFlow } from '../useBindFlow';
 
 // Mock the toast hook to track calls
 const mockShowSuccess = vi.fn();
@@ -47,14 +47,14 @@ vi.mock('../../contexts/ApiClientContext', async () => {
 });
 
 // Test harness
-function renderResolutionFlow() {
+function renderBindFlow() {
   const rUri = resourceUri('http://example.com/resources/resource-123');
   let eventBusInstance: ReturnType<typeof useEventBus> | null = null;
-  let lastState: ReturnType<typeof useResolutionFlow> | null = null;
+  let lastState: ReturnType<typeof useBindFlow> | null = null;
 
   function TestComponent() {
     eventBusInstance = useEventBus();
-    lastState = useResolutionFlow(rUri);
+    lastState = useBindFlow(rUri);
     return null;
   }
 
@@ -74,7 +74,7 @@ function renderResolutionFlow() {
   };
 }
 
-describe('useResolutionFlow', () => {
+describe('useBindFlow', () => {
   const testAnnotationUri = 'http://example.com/annotations/anno-456';
 
   beforeEach(() => {
@@ -89,34 +89,34 @@ describe('useResolutionFlow', () => {
     // Cleanup
   });
 
-  it('subscribes to resolve:link event', () => {
-    const { getState, getEventBus } = renderResolutionFlow();
+  it('subscribes to bind:link event', () => {
+    const { getState, getEventBus } = renderBindFlow();
 
     // Initial state
     expect(getState().searchModalOpen).toBe(false);
     expect(getState().pendingReferenceId).toBe(null);
 
     // Verify subscription exists by checking if event can be triggered
-    const resolveLinkChannel = getEventBus().get('resolve:link');
+    const resolveLinkChannel = getEventBus().get('bind:link');
     expect(resolveLinkChannel).toBeDefined();
   });
 
-  it('opens search modal on resolve:link event', async () => {
-    const { getEventBus } = renderResolutionFlow();
+  it('opens search modal on bind:link event', async () => {
+    const { getEventBus } = renderBindFlow();
 
-    // Subscribe to resolve:search-requested to verify relay
+    // Subscribe to bind:search-requested to verify relay
     const searchRequestedSpy = vi.fn();
-    getEventBus().get('resolve:search-requested').subscribe(searchRequestedSpy);
+    getEventBus().get('bind:search-requested').subscribe(searchRequestedSpy);
 
-    // Trigger resolve:link event
+    // Trigger bind:link event
     act(() => {
-      getEventBus().get('resolve:link').next({
+      getEventBus().get('bind:link').next({
         annotationUri: testAnnotationUri,
         searchTerm: 'test search term',
       });
     });
 
-    // Should relay to resolve:search-requested
+    // Should relay to bind:search-requested
     await waitFor(() => {
       expect(searchRequestedSpy).toHaveBeenCalledWith({
         referenceId: testAnnotationUri,
@@ -125,8 +125,8 @@ describe('useResolutionFlow', () => {
     });
   });
 
-  it('opens modal and stores pending reference on resolve:search-requested', async () => {
-    const { getState, getEventBus } = renderResolutionFlow();
+  it('opens modal and stores pending reference on bind:search-requested', async () => {
+    const { getState, getEventBus } = renderBindFlow();
 
     // Initially closed
     expect(getState().searchModalOpen).toBe(false);
@@ -134,7 +134,7 @@ describe('useResolutionFlow', () => {
 
     // Trigger search requested
     act(() => {
-      getEventBus().get('resolve:search-requested').next({
+      getEventBus().get('bind:search-requested').next({
         referenceId: testAnnotationUri,
         searchTerm: 'test search',
       });
@@ -148,11 +148,11 @@ describe('useResolutionFlow', () => {
   });
 
   it('closes modal when onCloseSearchModal is called', async () => {
-    const { getState, getEventBus } = renderResolutionFlow();
+    const { getState, getEventBus } = renderBindFlow();
 
     // Open the modal first
     act(() => {
-      getEventBus().get('resolve:search-requested').next({
+      getEventBus().get('bind:search-requested').next({
         referenceId: testAnnotationUri,
         searchTerm: 'test',
       });
@@ -175,7 +175,7 @@ describe('useResolutionFlow', () => {
   it('handles body update with add operation', async () => {
     mockUpdateAnnotationBody.mockResolvedValue(undefined);
 
-    const { getEventBus } = renderResolutionFlow();
+    const { getEventBus } = renderBindFlow();
 
     const newBodyItem = {
       type: 'SpecificResource' as const,
@@ -186,7 +186,7 @@ describe('useResolutionFlow', () => {
 
     // Trigger body update with add operation
     act(() => {
-      getEventBus().get('resolve:update-body').next({
+      getEventBus().get('bind:update-body').next({
         annotationUri: testAnnotationUri,
         resourceId: testResourceUri,
         operations: [
@@ -207,7 +207,7 @@ describe('useResolutionFlow', () => {
   it('handles body update with remove operation', async () => {
     mockUpdateAnnotationBody.mockResolvedValue(undefined);
 
-    const { getEventBus } = renderResolutionFlow();
+    const { getEventBus } = renderBindFlow();
 
     const oldBodyItem = {
       type: 'SpecificResource' as const,
@@ -218,7 +218,7 @@ describe('useResolutionFlow', () => {
 
     // Trigger body update with remove operation
     act(() => {
-      getEventBus().get('resolve:update-body').next({
+      getEventBus().get('bind:update-body').next({
         annotationUri: testAnnotationUri,
         resourceId: testResourceUri,
         operations: [
@@ -239,7 +239,7 @@ describe('useResolutionFlow', () => {
   it('handles body update with replace operation', async () => {
     mockUpdateAnnotationBody.mockResolvedValue(undefined);
 
-    const { getEventBus } = renderResolutionFlow();
+    const { getEventBus } = renderBindFlow();
 
     const oldBodyItem = {
       type: 'SpecificResource' as const,
@@ -255,7 +255,7 @@ describe('useResolutionFlow', () => {
 
     // Trigger body update with replace operation
     act(() => {
-      getEventBus().get('resolve:update-body').next({
+      getEventBus().get('bind:update-body').next({
         annotationUri: testAnnotationUri,
         resourceId: testResourceUri,
         operations: [
@@ -274,20 +274,20 @@ describe('useResolutionFlow', () => {
     });
   });
 
-  it('emits resolve:body-updated on successful update', async () => {
+  it('emits bind:body-updated on successful update', async () => {
     mockUpdateAnnotationBody.mockResolvedValue(undefined);
 
-    const { getEventBus } = renderResolutionFlow();
+    const { getEventBus } = renderBindFlow();
 
-    // Subscribe to resolve:body-updated event
+    // Subscribe to bind:body-updated event
     const bodyUpdatedSpy = vi.fn();
-    getEventBus().get('resolve:body-updated').subscribe(bodyUpdatedSpy);
+    getEventBus().get('bind:body-updated').subscribe(bodyUpdatedSpy);
 
     const testResourceUri = resourceUri('http://example.com/resources/resource-123');
 
     // Trigger body update
     act(() => {
-      getEventBus().get('resolve:update-body').next({
+      getEventBus().get('bind:update-body').next({
         annotationUri: testAnnotationUri,
         resourceId: testResourceUri,
         operations: [
@@ -307,21 +307,21 @@ describe('useResolutionFlow', () => {
     });
   });
 
-  it('emits resolve:body-update-failed on API error', async () => {
+  it('emits bind:body-update-failed on API error', async () => {
     const testError = new Error('Network error');
     mockUpdateAnnotationBody.mockRejectedValue(testError);
 
-    const { getEventBus } = renderResolutionFlow();
+    const { getEventBus } = renderBindFlow();
 
-    // Subscribe to resolve:body-update-failed event
+    // Subscribe to bind:body-update-failed event
     const bodyUpdateFailedSpy = vi.fn();
-    getEventBus().get('resolve:body-update-failed').subscribe(bodyUpdateFailedSpy);
+    getEventBus().get('bind:body-update-failed').subscribe(bodyUpdateFailedSpy);
 
     const testResourceUri = resourceUri('http://example.com/resources/resource-123');
 
     // Trigger body update
     act(() => {
-      getEventBus().get('resolve:update-body').next({
+      getEventBus().get('bind:update-body').next({
         annotationUri: testAnnotationUri,
         resourceId: testResourceUri,
         operations: [
@@ -345,13 +345,13 @@ describe('useResolutionFlow', () => {
     const testError = new Error('Failed to link reference');
     mockUpdateAnnotationBody.mockRejectedValue(testError);
 
-    const { getEventBus } = renderResolutionFlow();
+    const { getEventBus } = renderBindFlow();
 
     const testResourceUri = resourceUri('http://example.com/resources/resource-123');
 
     // Trigger body update
     act(() => {
-      getEventBus().get('resolve:update-body').next({
+      getEventBus().get('bind:update-body').next({
         annotationUri: testAnnotationUri,
         resourceId: testResourceUri,
         operations: [

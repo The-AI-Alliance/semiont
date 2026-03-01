@@ -151,9 +151,9 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
           const resourceBus = eventBus.scope(id);
           logger.info('Subscribing to EventBus for resource');
 
-          // Subscribe to annotate:progress
+          // Subscribe to mark:progress
           subscriptions.push(
-            resourceBus.get('annotate:progress').subscribe(async (_event) => {
+            resourceBus.get('mark:progress').subscribe(async (_event) => {
               if (isStreamClosed) return;
               logger.info('Detection started');
               try {
@@ -163,7 +163,7 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
                     resourceId: resourceId(id),
                     message: 'Starting detection...'
                   } as AssessmentDetectionProgress),
-                  event: 'annotate:progress',
+                  event: 'mark:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -173,9 +173,9 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
             })
           );
 
-          // Subscribe to annotate:progress
+          // Subscribe to mark:progress
           subscriptions.push(
-            resourceBus.get('annotate:progress').subscribe(async (progress) => {
+            resourceBus.get('mark:progress').subscribe(async (progress) => {
               if (isStreamClosed) return;
               logger.info('Detection progress', { progress });
               try {
@@ -187,7 +187,7 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
                     percentage: progress.percentage,
                     message: progress.message || 'Processing...'
                   } as AssessmentDetectionProgress),
-                  event: 'annotate:progress',
+                  event: 'mark:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -221,7 +221,7 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
                       ? `Complete! Created ${result.assessmentsCreated} assessments`
                       : 'Assessment detection complete!'
                   } as AssessmentDetectionProgress),
-                  event: 'annotate:assist-finished',
+                  event: 'mark:assist-finished',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -244,7 +244,7 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
                     resourceId: resourceId(id),
                     message: event.payload.error || 'Assessment detection failed'
                   } as AssessmentDetectionProgress),
-                  event: 'annotate:assist-failed',
+                  event: 'mark:assist-failed',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -287,7 +287,7 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
                 resourceId: resourceId(id),
                 message: error instanceof Error ? error.message : 'Assessment detection failed'
               } as AssessmentDetectionProgress),
-              event: 'annotate:assist-failed',
+              event: 'mark:assist-failed',
               id: String(Date.now())
             });
           } catch (sseError) {

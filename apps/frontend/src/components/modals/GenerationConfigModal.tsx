@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 import { useTranslations, useLocale } from 'next-intl';
-import type { GenerationContext } from '@semiont/core';
+import type { YieldContext } from '@semiont/core';
 import { LOCALES } from '@semiont/api-client';
 import { Fragment } from 'react';
 
@@ -16,10 +16,10 @@ interface GenerationConfigModalProps {
     language?: string;
     temperature?: number;
     maxTokens?: number;
-    context: GenerationContext;
+    context: YieldContext;
   }) => void;
   defaultTitle: string;          // Selected text from reference
-  context: GenerationContext | null;
+  context: YieldContext | null;
   contextLoading: boolean;
   contextError: Error | null;
 }

@@ -82,7 +82,7 @@ export interface EventBusProviderProps {
  * same global bus.
  *
  * Operation handlers (API calls triggered by events) are set up separately via
- * the useResolutionFlow hook, which should be called at the resource page level.
+ * the useBindFlow hook, which should be called at the resource page level.
  */
 export function EventBusProvider({ children }: EventBusProviderProps) {
   const eventBus = useMemo(() => globalEventBus, []);
@@ -107,13 +107,13 @@ export function EventBusProvider({ children }: EventBusProviderProps) {
  * const eventBus = useEventBus();
  *
  * // Emit any event
- * eventBus.get('attend:hover').next({ annotationId: '123' });
- * eventBus.get('navigation:sidebar-toggle').next(undefined);
+ * eventBus.get('beckon:hover').next({ annotationId: '123' });
+ * eventBus.get('browse:sidebar-toggle').next(undefined);
  * eventBus.get('settings:theme-changed').next({ theme: 'dark' });
  *
  * // Subscribe to any event
  * useEffect(() => {
- *   const unsubscribe = eventBus.on('attend:hover', ({ annotationId }) => {
+ *   const unsubscribe = eventBus.on('beckon:hover', ({ annotationId }) => {
  *     console.log(annotationId);
  *   });
  *   return () => unsubscribe();

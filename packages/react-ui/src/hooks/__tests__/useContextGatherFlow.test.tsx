@@ -1,8 +1,8 @@
 /**
- * Tests for useContextCorrelationFlow hook
+ * Tests for useContextGatherFlow hook
  *
- * Validates the context correlation capability:
- * - Event subscription to correlate:requested
+ * Validates the gather capability:
+ * - Event subscription to gather:requested
  * - API calls with correct parameters
  * - Success/failure event emission
  * - URI extraction and tracking
@@ -12,13 +12,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import React from 'react';
 import { renderHook, waitFor, act } from '@testing-library/react';
-import { EventBus, resourceUri, type GenerationContext } from '@semiont/core';
+import { EventBus, resourceUri, type YieldContext } from '@semiont/core';
 import { SemiontApiClient } from '@semiont/api-client';
-import { useContextCorrelationFlow } from '../useContextCorrelationFlow';
+import { useContextGatherFlow } from '../useContextGatherFlow';
 import { AuthTokenProvider } from '../../contexts/AuthTokenContext';
 
 
-describe('useContextCorrelationFlow', () => {
+describe('useContextGatherFlow', () => {
   let eventBus: EventBus;
   let mockClient: vi.Mocked<SemiontApiClient>;
   const testToken = 'test-token-123';
@@ -26,7 +26,7 @@ describe('useContextCorrelationFlow', () => {
   const testAnnotationUri = 'http://example.com/annotations/anno-456';
   const testAnnotationId = 'anno-456';
 
-  const mockContext: GenerationContext = {
+  const mockContext: YieldContext = {
     beforeText: 'This is text before the selection.',
     selectedText: 'Selected entity reference',
     afterText: 'This is text after the selection.',
@@ -50,9 +50,9 @@ describe('useContextCorrelationFlow', () => {
     <AuthTokenProvider token={testToken}>{children}</AuthTokenProvider>
   );
 
-  it('subscribes to correlate:requested event', () => {
+  it('subscribes to gather:requested event', () => {
     const { result } = renderHook(
-      () => useContextCorrelationFlow(eventBus, {
+      () => useContextGatherFlow(eventBus, {
         client: mockClient,
         resourceUri: testResourceUri,
       }),
@@ -60,14 +60,14 @@ describe('useContextCorrelationFlow', () => {
     );
 
     // Initial state
-    expect(result.current.correlationLoading).toBe(false);
-    expect(result.current.correlationContext).toBe(null);
-    expect(result.current.correlationError).toBe(null);
-    expect(result.current.correlationAnnotationUri).toBe(null);
+    expect(result.current.gatherLoading).toBe(false);
+    expect(result.current.gatherContext).toBe(null);
+    expect(result.current.gatherError).toBe(null);
+    expect(result.current.gatherAnnotationUri).toBe(null);
 
     // Verify subscription exists by checking if event can be triggered
-    const correlateRequestedChannel = eventBus.get('correlate:requested');
-    expect(correlateRequestedChannel).toBeDefined();
+    const gatherRequestedChannel = eventBus.get('gather:requested');
+    expect(gatherRequestedChannel).toBeDefined();
   });
 
   it('fetches context from API with correct parameters', async () => {
@@ -76,15 +76,15 @@ describe('useContextCorrelationFlow', () => {
     });
 
     renderHook(
-      () => useContextCorrelationFlow(eventBus, {
+      () => useContextGatherFlow(eventBus, {
         client: mockClient,
         resourceUri: testResourceUri,
       }),
       { wrapper }
     );
 
-    // Trigger correlate:requested event
-    eventBus.get('correlate:requested').next({
+    // Trigger gather:requested event
+    eventBus.get('gather:requested').next({
       annotationUri: testAnnotationUri,
       resourceUri: testResourceUri,
     });
@@ -101,25 +101,25 @@ describe('useContextCorrelationFlow', () => {
     });
   });
 
-  it('emits correlate:complete on success', async () => {
+  it('emits gather:complete on success', async () => {
     mockClient.getAnnotationLLMContext.mockResolvedValue({
       context: mockContext,
     });
 
     renderHook(
-      () => useContextCorrelationFlow(eventBus, {
+      () => useContextGatherFlow(eventBus, {
         client: mockClient,
         resourceUri: testResourceUri,
       }),
       { wrapper }
     );
 
-    // Subscribe to correlate:complete event
+    // Subscribe to gather:complete event
     const completeSpy = vi.fn();
-    eventBus.get('correlate:complete').subscribe(completeSpy);
+    eventBus.get('gather:complete').subscribe(completeSpy);
 
-    // Trigger correlate:requested
-    eventBus.get('correlate:requested').next({
+    // Trigger gather:requested
+    eventBus.get('gather:requested').next({
       annotationUri: testAnnotationUri,
       resourceUri: testResourceUri,
     });
@@ -132,24 +132,24 @@ describe('useContextCorrelationFlow', () => {
     });
   });
 
-  it('emits correlate:failed on error', async () => {
+  it('emits gather:failed on error', async () => {
     const testError = new Error('API request failed');
     mockClient.getAnnotationLLMContext.mockRejectedValue(testError);
 
     renderHook(
-      () => useContextCorrelationFlow(eventBus, {
+      () => useContextGatherFlow(eventBus, {
         client: mockClient,
         resourceUri: testResourceUri,
       }),
       { wrapper }
     );
 
-    // Subscribe to correlate:failed event
+    // Subscribe to gather:failed event
     const failedSpy = vi.fn();
-    eventBus.get('correlate:failed').subscribe(failedSpy);
+    eventBus.get('gather:failed').subscribe(failedSpy);
 
-    // Trigger correlate:requested
-    eventBus.get('correlate:requested').next({
+    // Trigger gather:requested
+    eventBus.get('gather:requested').next({
       annotationUri: testAnnotationUri,
       resourceUri: testResourceUri,
     });
@@ -168,7 +168,7 @@ describe('useContextCorrelationFlow', () => {
     });
 
     renderHook(
-      () => useContextCorrelationFlow(eventBus, {
+      () => useContextGatherFlow(eventBus, {
         client: mockClient,
         resourceUri: testResourceUri,
       }),
@@ -176,7 +176,7 @@ describe('useContextCorrelationFlow', () => {
     );
 
     // Test with full URI
-    eventBus.get('correlate:requested').next({
+    eventBus.get('gather:requested').next({
       annotationUri: testAnnotationUri,
       resourceUri: testResourceUri,
     });
@@ -203,7 +203,7 @@ describe('useContextCorrelationFlow', () => {
     });
 
     const { result } = renderHook(
-      () => useContextCorrelationFlow(eventBus, {
+      () => useContextGatherFlow(eventBus, {
         client: mockClient,
         resourceUri: testResourceUri,
       }),
@@ -212,14 +212,14 @@ describe('useContextCorrelationFlow', () => {
 
     // First request
     act(() => {
-      eventBus.get('correlate:requested').next({
+      eventBus.get('gather:requested').next({
         annotationUri: testAnnotationUri,
         resourceUri: testResourceUri,
       });
     });
 
     await waitFor(() => {
-      expect(result.current.correlationContext).toEqual(mockContext);
+      expect(result.current.gatherContext).toEqual(mockContext);
     });
 
     // Second request - use deferred promise so we can check state before it completes
@@ -228,7 +228,7 @@ describe('useContextCorrelationFlow', () => {
     const newAnnotationUri = 'http://example.com/annotations/anno-789';
 
     act(() => {
-      eventBus.get('correlate:requested').next({
+      eventBus.get('gather:requested').next({
         annotationUri: newAnnotationUri,
         resourceUri: testResourceUri,
       });
@@ -236,9 +236,9 @@ describe('useContextCorrelationFlow', () => {
 
     // Wait for state to be cleared (should happen immediately in event handler)
     await waitFor(() => {
-      expect(result.current.correlationContext).toBe(null);
-      expect(result.current.correlationError).toBe(null);
-      expect(result.current.correlationLoading).toBe(true);
+      expect(result.current.gatherContext).toBe(null);
+      expect(result.current.gatherError).toBe(null);
+      expect(result.current.gatherLoading).toBe(true);
     });
 
     // Now resolve the second request
@@ -248,7 +248,7 @@ describe('useContextCorrelationFlow', () => {
 
     // Wait for new context to load
     await waitFor(() => {
-      expect(result.current.correlationContext).toEqual(mockContext);
+      expect(result.current.gatherContext).toEqual(mockContext);
     });
   });
 
@@ -258,7 +258,7 @@ describe('useContextCorrelationFlow', () => {
     });
 
     const { result } = renderHook(
-      () => useContextCorrelationFlow(eventBus, {
+      () => useContextGatherFlow(eventBus, {
         client: mockClient,
         resourceUri: testResourceUri,
       }),
@@ -266,23 +266,23 @@ describe('useContextCorrelationFlow', () => {
     );
 
     // Initial state - no annotation URI
-    expect(result.current.correlationAnnotationUri).toBe(null);
+    expect(result.current.gatherAnnotationUri).toBe(null);
 
-    // Trigger correlation
-    eventBus.get('correlate:requested').next({
+    // Trigger gather
+    eventBus.get('gather:requested').next({
       annotationUri: testAnnotationUri,
       resourceUri: testResourceUri,
     });
 
     // Annotation URI should be stored immediately
     await waitFor(() => {
-      expect(result.current.correlationAnnotationUri).toBe(testAnnotationUri);
+      expect(result.current.gatherAnnotationUri).toBe(testAnnotationUri);
     });
 
     // Annotation URI should persist after completion
     await waitFor(() => {
-      expect(result.current.correlationContext).toEqual(mockContext);
-      expect(result.current.correlationAnnotationUri).toBe(testAnnotationUri);
+      expect(result.current.gatherContext).toEqual(mockContext);
+      expect(result.current.gatherAnnotationUri).toBe(testAnnotationUri);
     });
   });
 
@@ -295,7 +295,7 @@ describe('useContextCorrelationFlow', () => {
     mockClient.getAnnotationLLMContext.mockReturnValue(delayedPromise as any);
 
     const { result } = renderHook(
-      () => useContextCorrelationFlow(eventBus, {
+      () => useContextGatherFlow(eventBus, {
         client: mockClient,
         resourceUri: testResourceUri,
       }),
@@ -303,17 +303,17 @@ describe('useContextCorrelationFlow', () => {
     );
 
     // Initial state - not loading
-    expect(result.current.correlationLoading).toBe(false);
+    expect(result.current.gatherLoading).toBe(false);
 
-    // Trigger correlation
-    eventBus.get('correlate:requested').next({
+    // Trigger gather
+    eventBus.get('gather:requested').next({
       annotationUri: testAnnotationUri,
       resourceUri: testResourceUri,
     });
 
     // Should be loading
     await waitFor(() => {
-      expect(result.current.correlationLoading).toBe(true);
+      expect(result.current.gatherLoading).toBe(true);
     });
 
     // Resolve the API call
@@ -321,7 +321,7 @@ describe('useContextCorrelationFlow', () => {
 
     // Should stop loading
     await waitFor(() => {
-      expect(result.current.correlationLoading).toBe(false);
+      expect(result.current.gatherLoading).toBe(false);
     });
   });
 
@@ -330,24 +330,24 @@ describe('useContextCorrelationFlow', () => {
     mockClient.getAnnotationLLMContext.mockRejectedValue(testError);
 
     const { result } = renderHook(
-      () => useContextCorrelationFlow(eventBus, {
+      () => useContextGatherFlow(eventBus, {
         client: mockClient,
         resourceUri: testResourceUri,
       }),
       { wrapper }
     );
 
-    // Trigger correlation
-    eventBus.get('correlate:requested').next({
+    // Trigger gather
+    eventBus.get('gather:requested').next({
       annotationUri: testAnnotationUri,
       resourceUri: testResourceUri,
     });
 
     // Wait for error to be set
     await waitFor(() => {
-      expect(result.current.correlationError).toEqual(testError);
-      expect(result.current.correlationLoading).toBe(false);
-      expect(result.current.correlationContext).toBe(null);
+      expect(result.current.gatherError).toEqual(testError);
+      expect(result.current.gatherLoading).toBe(false);
+      expect(result.current.gatherContext).toBe(null);
     });
   });
 
@@ -357,7 +357,7 @@ describe('useContextCorrelationFlow', () => {
     });
 
     const { result } = renderHook(
-      () => useContextCorrelationFlow(eventBus, {
+      () => useContextGatherFlow(eventBus, {
         client: mockClient,
         resourceUri: testResourceUri,
       }),
@@ -366,20 +366,20 @@ describe('useContextCorrelationFlow', () => {
 
     // Subscribe to events
     const completeSpy = vi.fn();
-    eventBus.get('correlate:complete').subscribe(completeSpy);
+    eventBus.get('gather:complete').subscribe(completeSpy);
 
-    // Trigger correlation
-    eventBus.get('correlate:requested').next({
+    // Trigger gather
+    eventBus.get('gather:requested').next({
       annotationUri: testAnnotationUri,
       resourceUri: testResourceUri,
     });
 
     await waitFor(() => {
-      expect(result.current.correlationContext).toBe(null);
-      expect(result.current.correlationLoading).toBe(false);
+      expect(result.current.gatherContext).toBe(null);
+      expect(result.current.gatherLoading).toBe(false);
     });
 
-    // Should NOT emit correlate:complete when context is null
+    // Should NOT emit gather:complete when context is null
     expect(completeSpy).not.toHaveBeenCalled();
   });
 });

@@ -40,7 +40,7 @@ export type {
   CommentDetectionParams,
   TagDetectionParams,
   DetectionProgress,
-  GenerationProgress,
+  YieldProgress,
   HighlightDetectionProgress,
   AssessmentDetectionProgress,
   CommentDetectionProgress,

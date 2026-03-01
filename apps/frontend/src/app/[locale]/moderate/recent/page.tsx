@@ -7,7 +7,7 @@ import { useTranslations } from 'next-intl';
 import { Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme } from '@semiont/react-ui';
-import { usePanelNavigation } from '@semiont/react-ui';
+import { usePanelBrowse } from '@semiont/react-ui';
 import { useLineNumbers } from '@semiont/react-ui';
 import { useEventSubscriptions } from '@semiont/react-ui';
 import { RecentDocumentsPage } from '@semiont/react-ui';
@@ -17,7 +17,7 @@ export default function RecentDocumentsPageWrapper() {
   const { data: session, status } = useSession();
 
   // Toolbar and settings state
-  const { activePanel } = usePanelNavigation();
+  const { activePanel } = usePanelBrowse();
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 

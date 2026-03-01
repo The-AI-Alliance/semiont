@@ -6,7 +6,7 @@ import remarkGfm from 'remark-gfm';
 import { resourceUri as toResourceUri } from '@semiont/core';
 import { getMimeCategory, isPdfMimeType } from '@semiont/api-client';
 import { ANNOTATORS } from '../../lib/annotation-registry';
-import { createHoverHandlers } from '../../hooks/useAttentionFlow';
+import { createHoverHandlers } from '../../hooks/useBeckonFlow';
 import { scrollAnnotationIntoView } from '../../lib/scroll-utils';
 import { ImageViewer } from '../viewers';
 import { AnnotateToolbar, type ClickAction } from '../annotation/AnnotateToolbar';
@@ -63,11 +63,11 @@ const MemoizedMarkdown = memo(function MemoizedMarkdown({
  * - Layer 1: Markdown renders once (MemoizedMarkdown, cached by content)
  * - Layer 2: Annotation overlay applied via DOM Range API after paint
  *
- * @emits attend:click - User clicked on annotation. Payload: { annotationId: string, motivation: Motivation }
- * @emits attend:hover - User hovered over annotation. Payload: { annotationId: string | null }
+ * @emits browse:click - User clicked on annotation. Payload: { annotationId: string, motivation: Motivation }
+ * @emits beckon:hover - User hovered over annotation. Payload: { annotationId: string | null }
  *
- * @subscribes attend:hover - Highlight annotation on hover. Payload: { annotationId: string | null }
- * @subscribes attend:focus - Scroll to and highlight annotation. Payload: { annotationId: string }
+ * @subscribes beckon:hover - Highlight annotation on hover. Payload: { annotationId: string | null }
+ * @subscribes beckon:focus - Scroll to and highlight annotation. Payload: { annotationId: string }
  */
 export const BrowseView = memo(function BrowseView({
   content,
@@ -135,13 +135,13 @@ export const BrowseView = memo(function BrowseView({
       if (annotationId && annotationType === 'reference') {
         const annotation = allAnnotations.find(a => a.id === annotationId);
         if (annotation) {
-          eventBus.get('attend:click').next({ annotationId, motivation: annotation.motivation });
+          eventBus.get('browse:click').next({ annotationId, motivation: annotation.motivation });
         }
       }
     };
 
     const { handleMouseEnter, handleMouseLeave, cleanup: cleanupHover } = createHoverHandlers(
-      (annotationId) => eventBus.get('attend:hover').next({ annotationId }),
+      (annotationId) => eventBus.get('beckon:hover').next({ annotationId }),
       hoverDelayMs
     );
 
@@ -201,8 +201,8 @@ export const BrowseView = memo(function BrowseView({
   }, [scrollToAnnotation]);
 
   useEventSubscriptions({
-    'attend:hover': handleAnnotationHover,
-    'attend:focus': handleAnnotationFocus,
+    'beckon:hover': handleAnnotationHover,
+    'beckon:focus': handleAnnotationFocus,
   });
 
   // Route to appropriate viewer based on MIME type category

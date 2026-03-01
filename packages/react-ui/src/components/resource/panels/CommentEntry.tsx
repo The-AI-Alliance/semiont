@@ -5,7 +5,7 @@ import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components } from '@semiont/core';
 import { getAnnotationExactText, getCommentText } from '@semiont/api-client';
 import { useEventBus } from '../../../contexts/EventBusContext';
-import { useHoverEmitter } from '../../../hooks/useAttentionFlow';
+import { useHoverEmitter } from '../../../hooks/useBeckonFlow';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -88,7 +88,7 @@ export const CommentEntry = forwardRef<HTMLDivElement, CommentEntryProps>(
       data-type="comment"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        eventBus.get('attend:click').next({ annotationId: comment.id, motivation: comment.motivation });
+        eventBus.get('browse:click').next({ annotationId: comment.id, motivation: comment.motivation });
       }}
       {...hoverProps}
     >

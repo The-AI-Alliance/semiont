@@ -123,7 +123,7 @@ export class AssessmentAnnotationWorker extends JobWorker {
           progress: assJob.progress,
         },
       });
-      resourceBus.get('annotate:progress').next({
+      resourceBus.get('mark:progress').next({
         status: assJob.progress.stage,
         message: assJob.progress.message,
         percentage: assJob.progress.percentage

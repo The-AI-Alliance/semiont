@@ -29,7 +29,7 @@ function createEventTracker() {
         events.push({ event: eventName, payload });
       };
 
-      const panelEvents = ['annotate:create'] as const;
+      const panelEvents = ['mark:create'] as const;
 
       panelEvents.forEach(eventName => {
         const handler = trackEvent(eventName);
@@ -359,7 +359,7 @@ describe('AssessmentPanel Component', () => {
       expect(textarea).toHaveFocus();
     });
 
-    it('should emit annotate:createevent when save is clicked', async () => {
+    it('should emit mark:createevent when save is clicked', async () => {
       const tracker = createEventTracker();
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
@@ -379,7 +379,7 @@ describe('AssessmentPanel Component', () => {
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'annotate:create' &&
+          e.event === 'mark:create' &&
           e.payload?.motivation === 'assessing' &&
           e.payload?.body?.[0]?.value === 'My assessment'
         )).toBe(true);
@@ -420,7 +420,7 @@ describe('AssessmentPanel Component', () => {
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'annotate:create' &&
+          e.event === 'mark:create' &&
           e.payload?.motivation === 'assessing' &&
           Array.isArray(e.payload?.body) &&
           e.payload.body.length === 0

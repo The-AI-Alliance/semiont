@@ -4,8 +4,8 @@
  * Tests the COMPLETE generation flow with real component composition:
  * - EventBusProvider (REAL)
  * - ApiClientProvider (REAL, with MOCKED client)
- * - useGenerationFlow (REAL, with inlined progress state)
- * - useResolutionFlow (REAL)
+ * - useYieldFlow (REAL, with inlined progress state)
+ * - useBindFlow (REAL)
  * - useEventSubscriptions (REAL)
  *
  * This test focuses on ARCHITECTURE and EVENT WIRING:
@@ -21,11 +21,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { act } from 'react';
-import { useGenerationFlow } from '../../../hooks/useGenerationFlow';
+import { useYieldFlow } from '../../../hooks/useYieldFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
-import { useResolutionFlow } from '../../../hooks/useResolutionFlow';
+import { useBindFlow } from '../../../hooks/useBindFlow';
 import { SSEClient } from '@semiont/api-client';
 import type { ResourceUri, AnnotationUri } from '@semiont/core';
 import { resourceUri, annotationUri } from '@semiont/core';
@@ -64,7 +64,7 @@ describe('Generation Flow - Feature Integration', () => {
     mockStream = createMockGenerationStream();
 
     // Spy on SSEClient prototype method
-    generateResourceSpy = vi.spyOn(SSEClient.prototype, 'generateResourceFromAnnotation').mockReturnValue(mockStream as any);
+    generateResourceSpy = vi.spyOn(SSEClient.prototype, 'yieldResourceFromAnnotation').mockReturnValue(mockStream as any);
 
     // Mock callbacks
     mockShowSuccess = vi.fn();
@@ -76,11 +76,11 @@ describe('Generation Flow - Feature Integration', () => {
     vi.restoreAllMocks();
   });
 
-  it('should open modal when generate:modal-open event is emitted', async () => {
+  it('should open modal when yield:modal-open event is emitted', async () => {
     const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
     const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
 
-    const { emitModalOpen } = renderGenerationFlow(
+    const { emitModalOpen } = renderYieldFlow(
       testResourceUri
     );
 
@@ -97,11 +97,11 @@ describe('Generation Flow - Feature Integration', () => {
     });
   });
 
-  it('should call generateResourceFromAnnotation exactly ONCE when generation starts', async () => {
+  it('should call yieldResourceFromAnnotation exactly ONCE when generation starts', async () => {
     const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
     const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
 
-    const { emitGenerationStart, getEventBus } = renderGenerationFlow(
+    const { emitGenerationStart, getEventBus } = renderYieldFlow(
       testResourceUri
     );
 
@@ -144,11 +144,11 @@ describe('Generation Flow - Feature Integration', () => {
     );
   });
 
-  it('should propagate SSE progress events to useGenerationProgress state', async () => {
+  it('should propagate SSE progress events to useYieldProgress state', async () => {
     const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
     const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
 
-    const { emitGenerationStart, getEventBus } = renderGenerationFlow(
+    const { emitGenerationStart, getEventBus } = renderYieldFlow(
       testResourceUri
     );
 
@@ -167,7 +167,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Simulate SSE progress callback being invoked
     act(() => {
-      getEventBus().get('generate:progress').next({
+      getEventBus().get('yield:progress').next({
         status: 'generating',
         message: 'Generating content...',
         percentage: 25,
@@ -185,7 +185,7 @@ describe('Generation Flow - Feature Integration', () => {
     const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
     const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
 
-    const { emitGenerationStart, getEventBus } = renderGenerationFlow(
+    const { emitGenerationStart, getEventBus } = renderYieldFlow(
       testResourceUri
     );
 
@@ -203,7 +203,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // First progress update
     act(() => {
-      getEventBus().get('generate:progress').next({
+      getEventBus().get('yield:progress').next({
         status: 'started',
         message: 'Starting generation...',
         percentage: 0,
@@ -216,7 +216,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Second progress update
     act(() => {
-      getEventBus().get('generate:progress').next({
+      getEventBus().get('yield:progress').next({
         status: 'generating',
         message: 'Creating document structure...',
         percentage: 50,
@@ -229,7 +229,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Final progress update via onComplete
     act(() => {
-      getEventBus().get('generate:finished').next({
+      getEventBus().get('yield:finished').next({
         status: 'complete',
         referenceId: testAnnotationUri,
         message: 'Document created successfully',
@@ -248,7 +248,7 @@ describe('Generation Flow - Feature Integration', () => {
     const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
     const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
 
-    const { emitGenerationStart, getEventBus } = renderGenerationFlow(
+    const { emitGenerationStart, getEventBus } = renderYieldFlow(
       testResourceUri
     );
 
@@ -266,7 +266,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Simulate completion with final chunk
     act(() => {
-      getEventBus().get('generate:progress').next({
+      getEventBus().get('yield:progress').next({
         status: 'complete',
         message: 'Complete',
         resourceName: 'Generated Document',
@@ -275,7 +275,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Emit completion event
     act(() => {
-      getEventBus().get('generate:finished').next({
+      getEventBus().get('yield:finished').next({
         status: 'complete',
         referenceId: testAnnotationUri,
         resourceName: 'Generated Document',
@@ -291,7 +291,7 @@ describe('Generation Flow - Feature Integration', () => {
     const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
     const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
 
-    const { emitGenerationStart, getEventBus } = renderGenerationFlow(
+    const { emitGenerationStart, getEventBus } = renderYieldFlow(
       testResourceUri
     );
 
@@ -305,7 +305,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Add some progress
     act(() => {
-      getEventBus().get('generate:progress').next({
+      getEventBus().get('yield:progress').next({
         status: 'generating',
         message: 'Generating...',
       });
@@ -317,7 +317,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Emit failure
     act(() => {
-      getEventBus().get('generate:failed').next({ error: new Error('Network error') });
+      getEventBus().get('yield:failed').next({ error: new Error('Network error') });
     });
 
     // Verify: progress cleared and not generating
@@ -331,13 +331,13 @@ describe('Generation Flow - Feature Integration', () => {
     const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
     const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
 
-    const { emitGenerationStart, getEventBus } = renderGenerationFlow(
+    const { emitGenerationStart, getEventBus } = renderYieldFlow(
       testResourceUri
     );
 
     // Add an additional event listener (simulating multiple subscribers)
     const additionalListener = vi.fn();
-    const subscription = getEventBus().get('generate:request').subscribe(additionalListener);
+    const subscription = getEventBus().get('yield:request').subscribe(additionalListener);
 
     // Trigger generation
     act(() => {
@@ -365,7 +365,7 @@ describe('Generation Flow - Feature Integration', () => {
     const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
     const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
 
-    const { emitGenerationStart, getEventBus } = renderGenerationFlow(
+    const { emitGenerationStart, getEventBus } = renderYieldFlow(
       testResourceUri
     );
 
@@ -383,7 +383,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Simulate onComplete with final chunk
     act(() => {
-      getEventBus().get('generate:finished').next({
+      getEventBus().get('yield:finished').next({
         status: 'complete',
         referenceId: testAnnotationUri,
         message: 'Document created: My Document',
@@ -401,10 +401,10 @@ describe('Generation Flow - Feature Integration', () => {
 });
 
 /**
- * Helper: Render useGenerationFlow hook with real component composition
+ * Helper: Render useYieldFlow hook with real component composition
  * Returns methods to interact with the rendered component
  */
-function renderGenerationFlow(
+function renderYieldFlow(
   testResourceUri: ResourceUri
 ) {
   let eventBusInstance: Emitter<EventMap>;
@@ -414,19 +414,19 @@ function renderGenerationFlow(
     eventBusInstance = useEventBus();
 
     // Set up resolution flow (resolve:update-body, resolve:link)
-    useResolutionFlow(testResourceUri);
+    useBindFlow(testResourceUri);
 
     return null;
   }
 
   // Test harness component that uses the hook
-  function GenerationFlowTestHarness() {
+  function YieldFlowTestHarness() {
     const {
       generationProgress,
       generationModalOpen,
       generationReferenceId,
       generationDefaultTitle,
-    } = useGenerationFlow(
+    } = useYieldFlow(
       'en',
       testResourceUri.split('/resources/')[1] || 'test-resource',
       vi.fn()
@@ -452,7 +452,7 @@ function renderGenerationFlow(
       <AuthTokenProvider token={null}>
         <ApiClientProvider baseUrl="http://localhost:4000">
           <EventBusCapture />
-          <GenerationFlowTestHarness />
+          <YieldFlowTestHarness />
         </ApiClientProvider>
       </AuthTokenProvider>
     </EventBusProvider>
@@ -464,7 +464,7 @@ function renderGenerationFlow(
       resourceUri: ResourceUri,
       defaultTitle: string
     ) => {
-      eventBusInstance.get('generate:modal-open').next({
+      eventBusInstance.get('yield:modal-open').next({
         annotationUri,
         resourceUri,
         defaultTitle,
@@ -482,7 +482,7 @@ function renderGenerationFlow(
         context: any;
       }
     ) => {
-      eventBusInstance.get('generate:request').next({
+      eventBusInstance.get('yield:request').next({
         annotationUri,
         resourceUri,
         options,

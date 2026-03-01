@@ -13,7 +13,7 @@ function toAccessToken(token: string | null) {
   return token ? accessToken(token) : undefined;
 }
 
-export interface ResolutionFlowState {
+export interface BindFlowState {
   searchModalOpen: boolean;
   pendingReferenceId: string | null;
   onCloseSearchModal: () => void;
@@ -26,14 +26,14 @@ export interface ResolutionFlowState {
  * @param rUri - Resource URI being viewed
  * @returns Resolution flow state (search modal open state and close handler)
  *
- * @emits resolve:body-updated - Annotation body successfully updated
- * @emits resolve:body-update-failed - Annotation body update failed
- * @emits resolve:search-requested - Search modal requested
- * @subscribes resolve:update-body - Update annotation body via API
- * @subscribes resolve:link - User clicked "Link Document"; opens search modal
- * @subscribes resolve:search-requested - Opens search modal with pending reference
+ * @emits bind:body-updated - Annotation body successfully updated
+ * @emits bind:body-update-failed - Annotation body update failed
+ * @emits bind:search-requested - Search modal requested
+ * @subscribes bind:update-body - Update annotation body via API
+ * @subscribes bind:link - User clicked "Link Document"; opens search modal
+ * @subscribes bind:search-requested - Opens search modal with pending reference
  */
-export function useResolutionFlow(rUri: ResourceUri): ResolutionFlowState {
+export function useBindFlow(rUri: ResourceUri): BindFlowState {
   const eventBus = useEventBus();
   const client = useApiClient();
   const token = useAuthToken();
@@ -89,10 +89,10 @@ export function useResolutionFlow(rUri: ResourceUri): ResolutionFlowState {
           operations: event.operations as any,
         }, { auth: toAccessToken(tokenRef.current) });
 
-        eventBus.get('resolve:body-updated').next({ annotationUri: event.annotationUri });
+        eventBus.get('bind:body-updated').next({ annotationUri: event.annotationUri });
       } catch (error) {
         console.error('Failed to update annotation body:', error);
-        eventBus.get('resolve:body-update-failed').next({ error: error as Error });
+        eventBus.get('bind:body-update-failed').next({ error: error as Error });
       }
     };
 
@@ -104,14 +104,14 @@ export function useResolutionFlow(rUri: ResourceUri): ResolutionFlowState {
       annotationUri: string;
       searchTerm: string;
     }) => {
-      eventBus.get('resolve:search-requested').next({
+      eventBus.get('bind:search-requested').next({
         referenceId: event.annotationUri,
         searchTerm: event.searchTerm,
       });
     };
 
-    const subscription1 = eventBus.get('resolve:update-body').subscribe(handleAnnotationUpdateBody);
-    const subscription2 = eventBus.get('resolve:link').subscribe(handleReferenceLink);
+    const subscription1 = eventBus.get('bind:update-body').subscribe(handleAnnotationUpdateBody);
+    const subscription2 = eventBus.get('bind:link').subscribe(handleReferenceLink);
 
     return () => {
       subscription1.unsubscribe();
@@ -125,13 +125,13 @@ export function useResolutionFlow(rUri: ResourceUri): ResolutionFlowState {
       setSearchModalOpen(true);
     };
 
-    const subscription = eventBus.get('resolve:search-requested').subscribe(handleResolutionSearchRequested);
+    const subscription = eventBus.get('bind:search-requested').subscribe(handleResolutionSearchRequested);
     return () => subscription.unsubscribe();
   }, [eventBus]);
 
   // Toast notifications for resolution errors (matching annotation flow pattern)
   useEventSubscriptions({
-    'resolve:body-update-failed': ({ error }) => showError(`Failed to update reference: ${error.message}`),
+    'bind:body-update-failed': ({ error }) => showError(`Failed to update reference: ${error.message}`),
   });
 
   return { searchModalOpen, pendingReferenceId, onCloseSearchModal };

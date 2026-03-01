@@ -25,7 +25,7 @@ function createEventTracker() {
         events.push({ event: eventName, payload });
       };
 
-      const panelEvents = ['annotate:assist-request'] as const;
+      const panelEvents = ['mark:assist-request'] as const;
 
       panelEvents.forEach(eventName => {
         const handler = trackEvent(eventName);
@@ -302,7 +302,7 @@ describe('ReferencesPanel Component', () => {
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'annotate:assist-request' &&
+          e.event === 'mark:assist-request' &&
           e.payload?.motivation === 'linking' &&
           e.payload?.options?.entityTypes?.includes('Person') &&
           e.payload?.options?.entityTypes?.includes('Organization') &&
@@ -327,7 +327,7 @@ describe('ReferencesPanel Component', () => {
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'annotate:assist-request' &&
+          e.event === 'mark:assist-request' &&
           e.payload?.motivation === 'linking' &&
           e.payload?.options?.entityTypes?.includes('Person') &&
           e.payload?.options?.includeDescriptiveReferences === true

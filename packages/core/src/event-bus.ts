@@ -20,16 +20,16 @@ import type { EventMap } from './event-map';
  * const eventBus = new EventBus();
  *
  * // Emit events
- * eventBus.get('attend:hover').next({ annotationId: 'ann-1' });
+ * eventBus.get('beckon:hover').next({ annotationId: 'ann-1' });
  *
  * // Subscribe to events
- * const subscription = eventBus.get('attend:hover').subscribe(({ annotationId }) => {
+ * const subscription = eventBus.get('beckon:hover').subscribe(({ annotationId }) => {
  *   console.log('Hover:', annotationId);
  * });
  *
  * // Use RxJS operators
  * import { debounceTime } from 'rxjs/operators';
- * eventBus.get('attend:hover')
+ * eventBus.get('beckon:hover')
  *   .pipe(debounceTime(100))
  *   .subscribe(handleHover);
  *
@@ -59,13 +59,13 @@ export class EventBus {
    * @example
    * ```typescript
    * // Emit
-   * eventBus.get('attend:hover').next({ annotationId: 'ann-1' });
+   * eventBus.get('beckon:hover').next({ annotationId: 'ann-1' });
    *
    * // Subscribe
-   * const sub = eventBus.get('attend:hover').subscribe(handleHover);
+   * const sub = eventBus.get('beckon:hover').subscribe(handleHover);
    *
    * // With operators
-   * eventBus.get('attend:hover')
+   * eventBus.get('beckon:hover')
    *   .pipe(debounceTime(100), distinctUntilChanged())
    *   .subscribe(handleHover);
    * ```

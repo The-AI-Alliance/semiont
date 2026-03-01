@@ -67,9 +67,9 @@ export function KnowledgeNavigation({ isCollapsed, toggleCollapsed, navigationMe
 
   // Subscribe to navigation events
   useEventSubscriptions({
-    'navigation:sidebar-toggle': handleSidebarToggle,
-    'navigation:resource-close': handleResourceClose,
-    'navigation:resource-reorder': handleResourceReorder,
+    'browse:sidebar-toggle': handleSidebarToggle,
+    'browse:resource-close': handleResourceClose,
+    'browse:resource-reorder': handleResourceReorder,
   });
 
   // Handle navigation

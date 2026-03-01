@@ -75,7 +75,7 @@ export interface GenerationOptions {
   language?: string;
   temperature?: number;
   maxTokens?: number;
-  context: any; // GenerationContext from api-client
+  context: any; // YieldContext from api-client
 }
 
 /**

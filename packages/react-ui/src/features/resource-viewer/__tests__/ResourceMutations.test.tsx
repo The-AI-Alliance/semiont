@@ -80,9 +80,9 @@ function ResourceMutationHarness({ onEventBus }: { onEventBus: (eventBus: EventB
   }, [generateCloneTokenMutation]);
 
   useEventSubscriptions({
-    'resource:archive': handleResourceArchive,
-    'resource:unarchive': handleResourceUnarchive,
-    'generate:clone': handleResourceClone,
+    'mark:archive': handleResourceArchive,
+    'mark:unarchive': handleResourceUnarchive,
+    'yield:clone': handleResourceClone,
   });
 
   return null;
@@ -153,11 +153,11 @@ describe('Resource mutations — hooks hoisted to top level', () => {
 
   // ── Clone ──────────────────────────────────────────────────────────────────
 
-  it('calls generateCloneToken API when generate:clone event fires', async () => {
+  it('calls generateCloneToken API when yield:clone event fires', async () => {
     const { emit } = renderHarness();
 
     await act(async () => {
-      emit('generate:clone', undefined);
+      emit('yield:clone', undefined);
     });
 
     await waitFor(() => {
@@ -169,7 +169,7 @@ describe('Resource mutations — hooks hoisted to top level', () => {
     const { emit } = renderHarness();
 
     await act(async () => {
-      emit('generate:clone', undefined);
+      emit('yield:clone', undefined);
     });
 
     await waitFor(() => {
@@ -184,7 +184,7 @@ describe('Resource mutations — hooks hoisted to top level', () => {
     const { emit } = renderHarness();
 
     await act(async () => {
-      emit('generate:clone', undefined);
+      emit('yield:clone', undefined);
     });
 
     await waitFor(() => {
@@ -199,7 +199,7 @@ describe('Resource mutations — hooks hoisted to top level', () => {
     const { emit } = renderHarness();
 
     await act(async () => {
-      emit('generate:clone', undefined);
+      emit('yield:clone', undefined);
     });
 
     await waitFor(() => {
@@ -211,11 +211,11 @@ describe('Resource mutations — hooks hoisted to top level', () => {
     expect(writtenUrl).toContain('/know/clone?token=');
   });
 
-  it('does NOT call updateResource when generate:clone fires', async () => {
+  it('does NOT call updateResource when yield:clone fires', async () => {
     const { emit } = renderHarness();
 
     await act(async () => {
-      emit('generate:clone', undefined);
+      emit('yield:clone', undefined);
     });
 
     await waitFor(() => {
@@ -227,11 +227,11 @@ describe('Resource mutations — hooks hoisted to top level', () => {
 
   // ── Archive ────────────────────────────────────────────────────────────────
 
-  it('calls updateResource with archived:true when resource:archive fires', async () => {
+  it('calls updateResource with archived:true when mark:archive fires', async () => {
     const { emit } = renderHarness();
 
     await act(async () => {
-      emit('resource:archive', undefined);
+      emit('mark:archive', undefined);
     });
 
     await waitFor(() => {
@@ -245,11 +245,11 @@ describe('Resource mutations — hooks hoisted to top level', () => {
     );
   });
 
-  it('does NOT call generateCloneToken when resource:archive fires', async () => {
+  it('does NOT call generateCloneToken when mark:archive fires', async () => {
     const { emit } = renderHarness();
 
     await act(async () => {
-      emit('resource:archive', undefined);
+      emit('mark:archive', undefined);
     });
 
     await waitFor(() => {
@@ -261,11 +261,11 @@ describe('Resource mutations — hooks hoisted to top level', () => {
 
   // ── Unarchive ──────────────────────────────────────────────────────────────
 
-  it('calls updateResource with archived:false when resource:unarchive fires', async () => {
+  it('calls updateResource with archived:false when mark:unarchive fires', async () => {
     const { emit } = renderHarness();
 
     await act(async () => {
-      emit('resource:unarchive', undefined);
+      emit('mark:unarchive', undefined);
     });
 
     await waitFor(() => {
@@ -281,15 +281,15 @@ describe('Resource mutations — hooks hoisted to top level', () => {
 
   // ── Isolation ─────────────────────────────────────────────────────────────
 
-  it('resource:archive and generate:clone events each call their own API exactly once', async () => {
+  it('mark:archive and yield:clone events each call their own API exactly once', async () => {
     const { emit } = renderHarness();
 
     await act(async () => {
-      emit('resource:archive', undefined);
+      emit('mark:archive', undefined);
     });
 
     await act(async () => {
-      emit('generate:clone', undefined);
+      emit('yield:clone', undefined);
     });
 
     await waitFor(() => {

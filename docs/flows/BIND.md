@@ -1,20 +1,22 @@
-# Resolve Flow
+# Bind Flow
 
-**Purpose**: Link reference annotations to existing resources or create new ones. When an annotation with motivation `linking` is created (by a human or AI agent), the Resolve flow lets a collaborator search for an existing resource to link it to, or navigate to the compose page to create a new one manually.
+**Purpose**: Link reference annotations to existing resources or create new ones. When an annotation with motivation `linking` is created (by a human or AI agent), the Bind flow lets a collaborator search for an existing resource to link it to, or navigate to the compose page to create a new one manually.
 
 **Related Documentation**:
 - [W3C Web Annotation Data Model](../../specs/docs/W3C-WEB-ANNOTATION.md) - Reference annotation and SpecificResource body structure
 - [Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - Event Store and annotation body updates
-- [Annotate Flow](./ANNOTATE.md) - How reference annotations are created
-- [Generate Flow](./GENERATE.md) - AI-powered resource generation (alternative to manual resolution)
+- [Mark Flow](./MARK.md) - How reference annotations are created
+- [Yield Flow](./YIELD.md) - AI-powered resource generation (alternative to manual resolution)
 
 ## Overview
 
-A reference annotation (motivation: `linking`) identifies an entity mention in a document — a person, place, concept, etc. Initially unresolved, it contains only entity type tags in its body. Resolution adds a `SpecificResource` body item that links the annotation to a concrete resource.
+The Bind flow resolves ambiguous references to specific resources. A detected entity mention such as "John Smith" is linked to the correct resource in the knowledge base, converting an unresolved annotation into a concrete cross-document link. AI agents perform entity linking, coreference resolution, and grounding (hallucination — binding to a nonexistent referent — is the primary failure mode). Human collaborators verify and confirm matches by cross-checking records and disambiguating between candidate entities.
+
+A reference annotation (motivation: `linking`) identifies an entity mention in a document — a person, place, concept, etc. Initially unresolved, it contains only entity type tags in its body. Binding adds a `SpecificResource` body item that links the annotation to a concrete resource.
 
 Resolution can happen in two ways:
 1. **Link to existing resource** — Search for and select a resource already in the system
-2. **Create new resource** — Navigate to the compose page with pre-filled parameters, or use the [Generate flow](./GENERATE.md) to have an AI agent create the resource
+2. **Create new resource** — Navigate to the compose page with pre-filled parameters, or use the [Yield flow](./YIELD.md) to have an AI agent create the resource
 
 Both paths result in an `annotation.body.updated` event that adds the `SpecificResource` link.
 
@@ -58,12 +60,12 @@ await client.updateAnnotationBody(annotationUri, {
 
 | Event | Payload | Description |
 |-------|---------|-------------|
-| `resolve:link` | `{ annotationUri, searchTerm }` | User clicked "Link Document" on a reference |
-| `resolve:search-requested` | `{ referenceId, searchTerm }` | Open the resource search modal |
-| `resolve:update-body` | `{ annotationUri, resourceId, operations }` | Update annotation body (add/remove link) |
-| `resolve:body-updated` | `{ annotationUri }` | Annotation body successfully updated |
-| `resolve:body-update-failed` | `{ error }` | Annotation body update failed |
-| `resolve:create-manual` | `{ annotationUri, title, entityTypes }` | Navigate to compose page for manual resource creation |
+| `bind:link` | `{ annotationUri, searchTerm }` | User clicked "Link Document" on a reference |
+| `bind:search-requested` | `{ referenceId, searchTerm }` | Open the resource search modal |
+| `bind:update-body` | `{ annotationUri, resourceId, operations }` | Update annotation body (add/remove link) |
+| `bind:body-updated` | `{ annotationUri }` | Annotation body successfully updated |
+| `bind:body-update-failed` | `{ error }` | Annotation body update failed |
+| `bind:create-manual` | `{ annotationUri, title, entityTypes }` | Navigate to compose page for manual resource creation |
 
 ## Resolution Workflow
 
@@ -72,15 +74,15 @@ await client.updateAnnotationBody(annotationUri, {
 ```
 User clicks "Link Document" on unresolved reference
     |
-resolve:link → resolve:search-requested
+bind:link → bind:search-requested
     |
 Search modal opens with pre-filled search term
     |
 User selects a resource from search results
     |
-resolve:update-body → API call (PATCH annotation body)
+bind:update-body → API call (PATCH annotation body)
     |
-resolve:body-updated → UI updates: unresolved → linked
+bind:body-updated → UI updates: unresolved → linked
 ```
 
 ### Create New Resource (Manual)
@@ -88,7 +90,7 @@ resolve:body-updated → UI updates: unresolved → linked
 ```
 User clicks "Create Document" on unresolved reference
     |
-resolve:create-manual
+bind:create-manual
     |
 Navigate to /know/compose?annotationUri=...&name=...&entityTypes=...
     |
@@ -99,7 +101,7 @@ annotation.body.updated event links the reference
 
 ### Unlinking
 
-Resolution is reversible. A user can remove a link via `resolve:update-body` with an `op: 'remove'` operation, returning the reference to its unresolved state.
+Resolution is reversible. A user can remove a link via `bind:update-body` with an `op: 'remove'` operation, returning the reference to its unresolved state.
 
 ## Annotation Body Structure
 
@@ -124,6 +126,6 @@ Resolution is reversible. A user can remove a link via `resolve:update-body` wit
 
 ## Implementation
 
-- **Hook**: [packages/react-ui/src/hooks/useResolutionFlow.ts](../../packages/react-ui/src/hooks/useResolutionFlow.ts)
+- **Hook**: [packages/react-ui/src/hooks/useBindFlow.ts](../../packages/react-ui/src/hooks/useBindFlow.ts)
 - **Event definitions**: [packages/core/src/event-map.ts](../../packages/core/src/event-map.ts) — `RESOLUTION FLOW` section
 - **API**: `updateAnnotationBody` in [@semiont/api-client](../../packages/api-client/README.md)

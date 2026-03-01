@@ -12,7 +12,7 @@ import { getExactText, getTargetSelector, isHighlight, isAssessment, isReference
 import { useEventBus } from '../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../contexts/useEventSubscription';
 import { useCacheManager } from '../../contexts/CacheContext';
-import { useObservableExternalNavigation } from '../../hooks/useObservableNavigation';
+import { useObservableExternalNavigation } from '../../hooks/useObservableBrowse';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import type { AnnotationsCollection } from '../../types/annotation-props';
 import { getSelectorType, getSelectedShapeForSelectorType, saveSelectedShapeForSelectorType } from '../../lib/media-shapes';
@@ -24,7 +24,7 @@ type SemiontResource = components['schemas']['ResourceDescriptor'];
  * ResourceViewer - Display and interact with resource content and annotations
  *
  * This component uses event-driven architecture for real-time updates:
- * - Subscribes to make-meaning events (annotate:added, annotate:removed, annotate:body-updated)
+ * - Subscribes to make-meaning events (mark:added, mark:removed, mark:body-updated)
  * - Automatically invalidates cache when annotations change
  * - No manual refetch needed - events handle cache invalidation
  *
@@ -48,17 +48,17 @@ interface Props {
 }
 
 /**
- * @emits annotate:delete - User requested to delete annotation. Payload: { annotationId: string }
- * @emits attend:panel-open - Request to open panel with annotation. Payload: { panel: string, scrollToAnnotationId?: string, motivation?: Motivation }
+ * @emits mark:delete - User requested to delete annotation. Payload: { annotationId: string }
+ * @emits browse:panel-open - Request to open panel with annotation. Payload: { panel: string, scrollToAnnotationId?: string, motivation?: Motivation }
  *
- * @subscribes annotate:mode-toggled - Toggles between browse and annotate mode. Payload: { mode: 'browse' | 'annotate' }
- * @subscribes annotate:added - New annotation was added. Payload: { annotation: Annotation }
- * @subscribes annotate:removed - Annotation was removed. Payload: { annotationId: string }
- * @subscribes annotate:body-updated - Annotation was updated. Payload: { annotation: Annotation }
- * @subscribes annotate:selection-changed - Text selection tool changed. Payload: { selection: boolean }
- * @subscribes annotate:click-changed - Click annotation tool changed. Payload: { click: 'detail' | 'scroll' | null }
- * @subscribes annotate:shape-changed - Drawing shape changed. Payload: { shape: string }
- * @subscribes attend:click - User clicked on annotation. Payload: { annotationId: string }
+ * @subscribes mark:mode-toggled - Toggles between browse and annotate mode. Payload: { mode: 'browse' | 'annotate' }
+ * @subscribes mark:added - New annotation was added. Payload: { annotation: Annotation }
+ * @subscribes mark:removed - Annotation was removed. Payload: { annotationId: string }
+ * @subscribes mark:body-updated - Annotation was updated. Payload: { annotation: Annotation }
+ * @subscribes mark:selection-changed - Text selection tool changed. Payload: { selection: boolean }
+ * @subscribes mark:click-changed - Click annotation tool changed. Payload: { click: 'detail' | 'scroll' | null }
+ * @subscribes mark:shape-changed - Drawing shape changed. Payload: { shape: string }
+ * @subscribes browse:click - User clicked on annotation. Payload: { annotationId: string }
  */
 export function ResourceViewer({
   resource,
@@ -251,7 +251,7 @@ export function ResourceViewer({
 
   // Handle deleting annotations - emit event instead of direct call
   const handleDeleteAnnotation = useCallback((id: string) => {
-    eventBus.get('annotate:delete').next({ annotationId: id });
+    eventBus.get('mark:delete').next({ annotationId: id });
   }, []); // eventBus is stable
 
   // Handle annotation clicks - memoized
@@ -279,7 +279,7 @@ export function ResourceViewer({
     if (selectedClick === 'follow' && isReference(annotation)) {
       const bodySource = getBodySource(annotation.body);
       if (bodySource) {
-        // Navigate to the linked resource - emits 'navigation:external-navigate' event
+        // Navigate to the linked resource - emits 'browse:external-navigate' event
         const resourceId = bodySource.split('/resources/')[1];
         if (resourceId) {
           navigate(`/know/resource/${resourceId}`, { resourceId });
@@ -340,27 +340,27 @@ export function ResourceViewer({
 
     // All annotations open the unified annotations panel
     // The panel internally switches tabs based on the motivation → tab mapping in UnifiedAnnotationsPanel
-    eventBus.get('attend:panel-open').next({ panel: 'annotations', scrollToAnnotationId: annotationId, motivation });
+    eventBus.get('browse:panel-open').next({ panel: 'annotations', scrollToAnnotationId: annotationId, motivation });
   }, [highlights, references, assessments, comments, tags, handleAnnotationClick, selectedClick]);
 
   // Event subscriptions - Combined into single useEventSubscriptions call to prevent hook ordering issues
   // IMPORTANT: All event subscriptions MUST be in a single call to maintain consistent hook order between renders
   useEventSubscriptions({
     // View mode
-    'annotate:mode-toggled': handleViewModeToggle,
+    'mark:mode-toggled': handleViewModeToggle,
 
     // Annotation cache invalidation
-    'annotate:added': handleAnnotateAdded,
-    'annotate:removed': handleAnnotateRemoved,
-    'annotate:body-updated': handleAnnotateBodyUpdated,
+    'mark:added': handleAnnotateAdded,
+    'mark:removed': handleAnnotateRemoved,
+    'mark:body-updated': handleAnnotateBodyUpdated,
 
     // Toolbar state
-    'annotate:selection-changed': handleToolbarSelectionChanged,
-    'annotate:click-changed': handleToolbarClickChanged,
-    'annotate:shape-changed': handleToolbarShapeChanged,
+    'mark:selection-changed': handleToolbarSelectionChanged,
+    'mark:click-changed': handleToolbarClickChanged,
+    'mark:shape-changed': handleToolbarShapeChanged,
 
     // Annotation clicks
-    'attend:click': handleAnnotationClickEvent,
+    'browse:click': handleAnnotationClickEvent,
   });
 
   // Prepare props for child components (memoized to prevent unnecessary re-renders of BrowseView/AnnotateView)

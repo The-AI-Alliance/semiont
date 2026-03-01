@@ -55,7 +55,7 @@ ResourceViewer
 
 - Routes to appropriate viewer based on MIME type category (`text`, `image`, `unsupported`)
 - Manages text selection for annotation creation using CodeMirror's `posAtDOM()` API
-- Emits `annotate:requested` events with dual selectors (`TextPositionSelector` + `TextQuoteSelector`)
+- Emits `mark:requested` events with dual selectors (`TextPositionSelector` + `TextQuoteSelector`)
 - Subscribes to toolbar events and hover events via `useEventSubscriptions`
 - Pre-computes text segments with fuzzy anchoring via `segmentTextWithAnnotations()`
 
@@ -71,7 +71,7 @@ ResourceViewer
 - Applies annotations as DOM overlays after paint using `annotation-overlay.ts`
 - Builds source→rendered position map, text node index, resolves annotation ranges, and applies highlights
 - Handles hover via delegated `createHoverHandlers` with configurable delay
-- Emits `attend:click` and `attend:hover` events
+- Emits `browse:click` and `beckon:hover` events
 
 **See**: [ANNOTATION-OVERLAY.md](../../../ANNOTATION-OVERLAY.md) for detailed implementation.
 
@@ -131,7 +131,7 @@ User selects text in AnnotateView
 → mouseup handler
 → CodeMirror posAtDOM() for accurate source positions
 → extractContext() for prefix/suffix
-→ eventBus.get('annotate:requested').next({
+→ eventBus.get('mark:requested').next({
     selector: [TextPositionSelector, TextQuoteSelector],
     motivation
   })
@@ -141,11 +141,11 @@ User selects text in AnnotateView
 
 ```text
 History → Document:
-  attend:hover event → hoveredAnnotationId prop
+  beckon:hover event → hoveredAnnotationId prop
   → CodeMirrorRenderer scrolls to annotation + pulse animation
 
 Document → History:
-  mouseover delegation → attend:hover event
+  mouseover delegation → beckon:hover event
   → History panel scrolls to corresponding event
 ```
 

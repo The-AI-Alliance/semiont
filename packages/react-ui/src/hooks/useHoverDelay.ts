@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { HOVER_DELAY_MS } from './useAttentionFlow';
+import { HOVER_DELAY_MS } from './useBeckonFlow';
 
 /**
  * Hook to manage hover delay setting with localStorage persistence

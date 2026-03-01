@@ -18,7 +18,7 @@
       ]
     },
     "context": {
-      "$ref": "./GenerationContext.json",
+      "$ref": "./YieldContext.json",
       "description": "Generation context for this annotation"
     },
     "sourceContext": {

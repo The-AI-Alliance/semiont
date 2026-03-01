@@ -141,10 +141,10 @@ export type {
   EventMap,
   EventName,
   SelectionData,
-  AnnotationProgress,
-  GenerationProgress,
+  MarkProgress,
+  YieldProgress,
   Selector,
-  GenerationContext,
+  YieldContext,
 } from './event-map';
 
 // Backend-specific annotation utilities

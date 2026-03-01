@@ -16,9 +16,9 @@ interface Props {
 /**
  * Panel for displaying resource metadata and management actions
  *
- * @emits generate:clone - Clone this resource. Payload: undefined
- * @emits resource:unarchive - Unarchive this resource. Payload: undefined
- * @emits resource:archive - Archive this resource. Payload: undefined
+ * @emits yield:clone - Clone this resource. Payload: undefined
+ * @emits mark:unarchive - Unarchive this resource. Payload: undefined
+ * @emits mark:archive - Archive this resource. Payload: undefined
  */
 export function ResourceInfoPanel({
   documentEntityTypes,
@@ -97,7 +97,7 @@ export function ResourceInfoPanel({
       {/* Clone Action */}
       <div className="semiont-resource-info-panel__action-section">
         <button
-          onClick={() => eventBus.get('generate:clone').next(undefined)}
+          onClick={() => eventBus.get('yield:clone').next(undefined)}
           className="semiont-resource-button semiont-resource-button--secondary"
         >
           🔗 {t('clone')}
@@ -112,7 +112,7 @@ export function ResourceInfoPanel({
         {isArchived ? (
           <>
             <button
-              onClick={() => eventBus.get('resource:unarchive').next(undefined)}
+              onClick={() => eventBus.get('mark:unarchive').next(undefined)}
               className="semiont-resource-button semiont-resource-button--secondary"
             >
               📤 {t('unarchive')}
@@ -124,7 +124,7 @@ export function ResourceInfoPanel({
         ) : (
           <>
             <button
-              onClick={() => eventBus.get('resource:archive').next(undefined)}
+              onClick={() => eventBus.get('mark:archive').next(undefined)}
               className="semiont-resource-button semiont-resource-button--archive"
             >
               📦 {t('archive')}

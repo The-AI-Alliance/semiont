@@ -29,13 +29,13 @@ export type { Logger } from '@semiont/core';
 // SSE streaming types and client
 export type {
   ReferenceDetectionProgress,
-  GenerationProgress,
+  YieldProgress,
   SSEStream
 } from './sse/types';
 export { SSEClient, SSE_STREAM_CONNECTED } from './sse/index';
 export type {
   AnnotateReferencesStreamRequest,
-  GenerateResourceStreamRequest,
+  YieldResourceStreamRequest,
   SSEClientConfig,
   SSEStreamConnected
 } from './sse/index';

@@ -1,5 +1,5 @@
 /**
- * useGenerationFlow - Document generation flow hook
+ * useYieldFlow - Document generation flow hook
  *
  * Manages document generation state:
  * - Generation progress tracking
@@ -12,7 +12,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { AnnotationUri, GenerationContext, GenerationProgress } from '@semiont/core';
+import type { AnnotationUri, YieldContext, YieldProgress } from '@semiont/core';
 import { annotationUri, accessToken } from '@semiont/core';
 
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
@@ -26,9 +26,9 @@ function toAccessToken(token: string | null) {
   return token ? accessToken(token) : undefined;
 }
 
-export interface GenerationFlowState {
+export interface YieldFlowState {
   isGenerating: boolean;
-  generationProgress: GenerationProgress | null;
+  generationProgress: YieldProgress | null;
   generationModalOpen: boolean;
   generationReferenceId: string | null;
   generationDefaultTitle: string;
@@ -38,7 +38,7 @@ export interface GenerationFlowState {
     language?: string;
     temperature?: number;
     maxTokens?: number;
-    context?: GenerationContext;
+    context?: YieldContext;
   }) => void;
   onCloseGenerationModal: () => void;
 }
@@ -49,23 +49,23 @@ export interface GenerationFlowState {
  * @param locale - Current locale for language defaults
  * @param resourceId - Resource ID for generation
  * @param clearNewAnnotationId - Clear animation callback
- * @emits generate:request - Start document generation (consumed internally by this hook)
- * @emits generate:progress - SSE progress chunk from generation stream
- * @emits generate:finished - Generation completed successfully
- * @emits generate:failed - Error during generation
- * @subscribes generate:request - Triggers SSE call to generateResourceFromAnnotation
+ * @emits yield:request - Start document generation (consumed internally by this hook)
+ * @emits yield:progress - SSE progress chunk from generation stream
+ * @emits yield:finished - Generation completed successfully
+ * @emits yield:failed - Error during generation
+ * @subscribes yield:request - Triggers SSE call to yieldResourceFromAnnotation
  * @subscribes job:cancel-requested - Cancels in-flight generation stream
- * @subscribes resolve:create-manual - Navigates to compose page for new document reference
- * @subscribes generate:modal-open - Open the generation config modal; triggers correlate:requested
- * @subscribes generate:finished - Generation completed successfully
- * @subscribes generate:failed - Error during generation
+ * @subscribes bind:create-manual - Navigates to compose page for new document reference
+ * @subscribes yield:modal-open - Open the generation config modal; triggers gather:requested
+ * @subscribes yield:finished - Generation completed successfully
+ * @subscribes yield:failed - Error during generation
  * @returns Generation flow state
  */
-export function useGenerationFlow(
+export function useYieldFlow(
   locale: string,
   resourceId: string,
   clearNewAnnotationId: (annotationId: AnnotationUri) => void
-): GenerationFlowState {
+): YieldFlowState {
   const eventBus = useEventBus();
   const client = useApiClient();
   const token = useAuthToken();
@@ -80,17 +80,17 @@ export function useGenerationFlow(
   // SSE stream ref for generation cancellation
   const generationStreamRef = useRef<AbortController | null>(null);
 
-  // Generation progress state (inlined from former useGenerationProgress)
+  // Generation progress state (inlined from former useYieldProgress)
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generationProgress, setGenerationProgress] = useState<GenerationProgress | null>(null);
+  const [generationProgress, setYieldProgress] = useState<YieldProgress | null>(null);
 
-  const handleProgressEvent = useCallback((chunk: GenerationProgress) => {
-    setGenerationProgress(chunk);
+  const handleProgressEvent = useCallback((chunk: YieldProgress) => {
+    setYieldProgress(chunk);
     setIsGenerating(true);
   }, []);
 
   const clearProgress = useCallback(() => {
-    setGenerationProgress(null);
+    setYieldProgress(null);
   }, []);
 
   // Modal state
@@ -107,7 +107,7 @@ export function useGenerationFlow(
       language?: string;
       temperature?: number;
       maxTokens?: number;
-      context?: GenerationContext;
+      context?: YieldContext;
     }
   ) => {
     // Only open modal if this is the initial click (no context provided)
@@ -125,8 +125,8 @@ export function useGenerationFlow(
     // Use full resource URI (W3C Web Annotation spec requires URIs)
     const resourceUriStr = `resource://${resourceId}`;
 
-    // Emit generate:request event instead of calling SSE directly
-    eventBus.get('generate:request').next({
+    // Emit yield:request event instead of calling SSE directly
+    eventBus.get('yield:request').next({
       annotationUri: referenceId,
       resourceUri: resourceUriStr,
       options: {
@@ -150,13 +150,13 @@ export function useGenerationFlow(
     setGenerationReferenceId(annUri);
     setGenerationDefaultTitle(defaultTitle);
     setGenerationModalOpen(true);
-    // Trigger context correlation in parallel with modal open
-    eventBus.get('correlate:requested').next({ annotationUri: annUri, resourceUri });
+    // Trigger gather in parallel with modal open
+    eventBus.get('gather:requested').next({ annotationUri: annUri, resourceUri });
   }, []);
 
-  const handleGenerationComplete = useCallback((progress: GenerationProgress) => {
+  const handleGenerationComplete = useCallback((progress: YieldProgress) => {
     // Update progress state to final value and mark done
-    setGenerationProgress(progress);
+    setYieldProgress(progress);
     setIsGenerating(false);
 
     // Show success notification
@@ -175,7 +175,7 @@ export function useGenerationFlow(
 
   const handleGenerationFailed = useCallback(({ error }: { error: Error }) => {
     // Update progress state and mark done
-    setGenerationProgress(null);
+    setYieldProgress(null);
     setIsGenerating(false);
 
     showError(`Resource generation failed: ${error.message}`);
@@ -208,17 +208,17 @@ export function useGenerationFlow(
 
         const sseOptions = { auth: toAccessToken(tokenRef.current), eventBus };
 
-        clientRef.current.sse.generateResourceFromAnnotation(
+        clientRef.current.sse.yieldResourceFromAnnotation(
           event.resourceUri as any,
           event.annotationUri as any,
           event.options as any,
           sseOptions
         );
-        // Events auto-emit to EventBus: generate:progress, generate:finished, generate:failed
+        // Events auto-emit to EventBus: yield:progress, yield:finished, yield:failed
       } catch (error) {
         if ((error as any).name !== 'AbortError') {
-          console.error('[useGenerationFlow] Generation failed:', error);
-          eventBus.get('generate:failed').next({ error: error as Error });
+          console.error('[useYieldFlow] Generation failed:', error);
+          eventBus.get('yield:failed').next({ error: error as Error });
         }
       }
     };
@@ -254,9 +254,9 @@ export function useGenerationFlow(
       window.location.href = `${baseUrl}/know/compose?${params.toString()}`;
     };
 
-    const subscription1 = eventBus.get('generate:request').subscribe(handleGenerationStart);
+    const subscription1 = eventBus.get('yield:request').subscribe(handleGenerationStart);
     const subscription2 = eventBus.get('job:cancel-requested').subscribe(handleJobCancelRequested);
-    const subscription3 = eventBus.get('resolve:create-manual').subscribe(handleReferenceCreateManual);
+    const subscription3 = eventBus.get('bind:create-manual').subscribe(handleReferenceCreateManual);
 
     return () => {
       subscription1.unsubscribe();
@@ -268,10 +268,10 @@ export function useGenerationFlow(
 
   // Subscribe to generation events
   useEventSubscriptions({
-    'generate:progress': handleProgressEvent,
-    'generate:finished': handleGenerationComplete,
-    'generate:failed': handleGenerationFailed,
-    'generate:modal-open': handleGenerationModalOpen,
+    'yield:progress': handleProgressEvent,
+    'yield:finished': handleGenerationComplete,
+    'yield:failed': handleGenerationFailed,
+    'yield:modal-open': handleGenerationModalOpen,
   });
 
   return {

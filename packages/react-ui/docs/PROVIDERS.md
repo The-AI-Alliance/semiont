@@ -305,7 +305,7 @@ function TextSelector() {
   const eventBus = useMakeMeaningEvents();
 
   const handleSelection = (selection: Selection) => {
-    eventBus.emit('ui:annotate:select-comment', {
+    eventBus.emit('ui:mark:select-comment', {
       exact: selection.exact,
       start: selection.start,
       end: selection.end,
@@ -337,8 +337,8 @@ function AnnotationPanel() {
       });
     };
 
-    eventBus.on('ui:annotate:select-comment', handler);
-    return () => eventBus.off('ui:annotate:select-comment', handler);
+    eventBus.on('ui:mark:select-comment', handler);
+    return () => eventBus.off('ui:mark:select-comment', handler);
   }, [eventBus]);
 
   return <div>{/* Render annotation form */}</div>;
@@ -359,12 +359,12 @@ function AnnotationPanel() {
 Backend Events:
 - Detection: `detection:started`, `detection:progress`, `detection:entity-found`, `detection:completed`, `detection:failed`
 - Generation: `generation:started`, `generation:progress`, `generation:resource-created`, `generation:completed`
-- Annotation: `annotate:added`, `annotate:removed`, `annotate:body-updated`
+- Annotation: `mark:added`, `mark:removed`, `mark:body-updated`
 - Entity Tags: `entity-tag:added`, `entity-tag:removed`
-- Resource: `resource:archived`, `resource:unarchived`
+- Resource: `mark:archived`, `mark:unarchived`
 
 UI Events:
-- Selection: `ui:annotate:select-comment`, `ui:annotate:select-tag`, `ui:annotate:select-assessment`, `ui:annotate:select-reference`
+- Selection: `ui:mark:select-comment`, `ui:mark:select-tag`, `ui:mark:select-assessment`, `ui:mark:select-reference`
 
 **Important:** This provider is resource-scoped, not application-scoped. It should wrap individual resource pages, not the entire app. Multiple resource pages can have independent event buses.
 

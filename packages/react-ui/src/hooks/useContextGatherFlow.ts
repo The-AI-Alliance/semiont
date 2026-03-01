@@ -1,22 +1,22 @@
 /**
- * useContextCorrelationFlow - Context correlation capability hook
+ * useContextGatherFlow - Context gather capability hook
  *
- * Correlation capability: given a reference annotation, fetch the surrounding
+ * Gather capability: given a reference annotation, fetch the surrounding
  * text context (before/selected/after) from the source document so it can
- * be correlated and used as grounding material for generation.
+ * be gathered and used as grounding material for generation.
  *
- * This hook is the single owner of correlation state. It is triggered by
- * correlate:requested on the event bus, making the capability
+ * This hook is the single owner of gather state. It is triggered by
+ * gather:requested on the event bus, making the capability
  * accessible to both human UI flows and agents.
  *
- * @subscribes correlate:requested - Fetch LLM context for an annotation
- * @emits correlate:complete - Context successfully fetched
- * @emits correlate:failed - Context fetch failed
- * @returns Correlation state (context, loading, error, which annotation)
+ * @subscribes gather:requested - Fetch LLM context for an annotation
+ * @emits gather:complete - Context successfully fetched
+ * @emits gather:failed - Context fetch failed
+ * @returns Gather state (context, loading, error, which annotation)
  */
 
 import { useState, useEffect, useRef } from 'react';
-import type { EventBus, GenerationContext, ResourceUri } from '@semiont/core';
+import type { EventBus, YieldContext, ResourceUri } from '@semiont/core';
 import { SemiontApiClient } from '@semiont/api-client';
 import { accessToken } from '@semiont/core';
 import { useAuthToken } from '../contexts/AuthTokenContext';
@@ -27,29 +27,29 @@ function toAccessToken(token: string | null) {
   return token ? accessToken(token) : undefined;
 }
 
-export interface ContextCorrelationFlowConfig {
+export interface ContextGatherFlowConfig {
   client: SemiontApiClient;
   resourceUri: ResourceUri;
 }
 
-export interface ContextCorrelationFlowState {
-  correlationContext: GenerationContext | null;
-  correlationLoading: boolean;
-  correlationError: Error | null;
-  /** The annotationUri for which context was most recently correlated */
-  correlationAnnotationUri: string | null;
+export interface ContextGatherFlowState {
+  gatherContext: YieldContext | null;
+  gatherLoading: boolean;
+  gatherError: Error | null;
+  /** The annotationUri for which context was most recently gathered */
+  gatherAnnotationUri: string | null;
 }
 
-export function useContextCorrelationFlow(
+export function useContextGatherFlow(
   eventBus: EventBus,
-  config: ContextCorrelationFlowConfig
-): ContextCorrelationFlowState {
+  config: ContextGatherFlowConfig
+): ContextGatherFlowState {
   const token = useAuthToken();
 
-  const [correlationContext, setCorrelationContext] = useState<GenerationContext | null>(null);
-  const [correlationLoading, setCorrelationLoading] = useState(false);
-  const [correlationError, setCorrelationError] = useState<Error | null>(null);
-  const [correlationAnnotationUri, setCorrelationAnnotationUri] = useState<string | null>(null);
+  const [gatherContext, setCorrelationContext] = useState<YieldContext | null>(null);
+  const [gatherLoading, setCorrelationLoading] = useState(false);
+  const [gatherError, setCorrelationError] = useState<Error | null>(null);
+  const [gatherAnnotationUri, setCorrelationAnnotationUri] = useState<string | null>(null);
 
   // Store latest config/token in refs to avoid re-subscribing when they change
   const configRef = useRef(config);
@@ -58,7 +58,7 @@ export function useContextCorrelationFlow(
   useEffect(() => { tokenRef.current = token; });
 
   useEffect(() => {
-    const handleContextCorrelationRequested = async (event: {
+    const handleGatherRequested = async (event: {
       annotationUri: string;
       resourceUri: string;
     }) => {
@@ -83,7 +83,7 @@ export function useContextCorrelationFlow(
         setCorrelationLoading(false);
 
         if (context) {
-          eventBus.get('correlate:complete').next({
+          eventBus.get('gather:complete').next({
             annotationUri: event.annotationUri,
             context,
           });
@@ -93,16 +93,16 @@ export function useContextCorrelationFlow(
         setCorrelationError(err);
         setCorrelationLoading(false);
 
-        eventBus.get('correlate:failed').next({
+        eventBus.get('gather:failed').next({
           annotationUri: event.annotationUri,
           error: err,
         });
       }
     };
 
-    const subscription = eventBus.get('correlate:requested').subscribe(handleContextCorrelationRequested);
+    const subscription = eventBus.get('gather:requested').subscribe(handleGatherRequested);
     return () => subscription.unsubscribe();
   }, [eventBus]);
 
-  return { correlationContext, correlationLoading, correlationError, correlationAnnotationUri };
+  return { gatherContext, gatherLoading, gatherError, gatherAnnotationUri };
 }

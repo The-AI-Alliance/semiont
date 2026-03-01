@@ -8,7 +8,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 import type { components } from '@semiont/core';
 import { getResourceId } from '@semiont/api-client';
-import { COMMON_PANELS, type ToolbarPanelType } from '../../../hooks/usePanelNavigation';
+import { COMMON_PANELS, type ToolbarPanelType } from '../../../hooks/usePanelBrowse';
 import { useRovingTabIndex } from '../../../hooks/useRovingTabIndex';
 import { Toolbar } from '../../../components/Toolbar';
 import { ResourceCard } from './ResourceCard';

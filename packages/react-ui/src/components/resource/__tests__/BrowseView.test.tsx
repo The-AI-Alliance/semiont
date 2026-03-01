@@ -110,9 +110,9 @@ function createEventTracker() {
       };
 
       const annotationEvents = [
-        'attend:hover',
-        'attend:click',
-        'attend:focus',
+        'beckon:hover',
+        'browse:click',
+        'beckon:focus',
       ] as const;
 
       annotationEvents.forEach(eventName => {
@@ -274,7 +274,7 @@ describe('BrowseView Component', () => {
       // (actual handler testing requires DOM interaction)
     });
 
-    it('should emit attend:hover when mouse enters annotation', async () => {
+    it('should emit beckon:hover when mouse enters annotation', async () => {
       const tracker = createEventTracker();
       const annotations = {
         ...defaultProps.annotations,
@@ -303,12 +303,12 @@ describe('BrowseView Component', () => {
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'attend:hover' && e.payload?.annotationId === 'ref-1'
+          e.event === 'beckon:hover' && e.payload?.annotationId === 'ref-1'
         )).toBe(true);
       });
     });
 
-    it('should emit attend:hover with null when mouse exits after dwell', async () => {
+    it('should emit beckon:hover with null when mouse exits after dwell', async () => {
       vi.useFakeTimers();
       const tracker = createEventTracker();
       const annotations = {
@@ -336,7 +336,7 @@ describe('BrowseView Component', () => {
       fireEvent.mouseOut(browseContainer!, { target: mockTarget });
 
       expect(tracker.events.some(e =>
-        e.event === 'attend:hover' && e.payload?.annotationId === null
+        e.event === 'beckon:hover' && e.payload?.annotationId === null
       )).toBe(true);
 
       vi.useRealTimers();
@@ -395,7 +395,7 @@ describe('BrowseView Component', () => {
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'attend:hover' && e.payload?.annotationId === 'ref-1'
+          e.event === 'beckon:hover' && e.payload?.annotationId === 'ref-1'
         )).toBe(true);
       });
 
@@ -406,7 +406,7 @@ describe('BrowseView Component', () => {
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'attend:hover' && e.payload?.annotationId === null
+          e.event === 'beckon:hover' && e.payload?.annotationId === null
         )).toBe(true);
       });
 
@@ -417,12 +417,12 @@ describe('BrowseView Component', () => {
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'attend:hover' && e.payload?.annotationId === 'ref-2'
+          e.event === 'beckon:hover' && e.payload?.annotationId === 'ref-2'
         )).toBe(true);
       });
     });
 
-    it('should emit attend:click only for reference annotations', async () => {
+    it('should emit browse:click only for reference annotations', async () => {
       const tracker = createEventTracker();
       const annotations = {
         ...defaultProps.annotations,
@@ -455,7 +455,7 @@ describe('BrowseView Component', () => {
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'attend:click' &&
+          e.event === 'browse:click' &&
           e.payload?.annotationId === 'ref-1' &&
           e.payload?.motivation === 'linking'
         )).toBe(true);
@@ -467,31 +467,31 @@ describe('BrowseView Component', () => {
       fireEvent.click(browseContainer!, { target: mockHighlightTarget });
 
       await new Promise(resolve => setTimeout(resolve, 50));
-      expect(tracker.events.filter(e => e.event === 'attend:click').length).toBe(0);
+      expect(tracker.events.filter(e => e.event === 'browse:click').length).toBe(0);
     });
   });
 
   describe('Event Subscriptions', () => {
-    it('should subscribe to attend:hover event', () => {
+    it('should subscribe to beckon:hover event', () => {
       const tracker = createEventTracker();
       renderWithEventTracking(<BrowseView {...defaultProps} />, tracker);
 
-      expect(tracker.subscriptions.has('attend:hover')).toBe(true);
+      expect(tracker.subscriptions.has('beckon:hover')).toBe(true);
     });
 
-    it('should subscribe to attend:hover event (legacy test)', () => {
+    it('should subscribe to beckon:hover event (legacy test)', () => {
       const tracker = createEventTracker();
       renderWithEventTracking(<BrowseView {...defaultProps} />, tracker);
 
-      // BrowseView subscribes to attend:hover (not annotation-entry:hover)
-      expect(tracker.subscriptions.has('attend:hover')).toBe(true);
+      // BrowseView subscribes to beckon:hover (not annotation-entry:hover)
+      expect(tracker.subscriptions.has('beckon:hover')).toBe(true);
     });
 
-    it('should subscribe to attend:focus event', () => {
+    it('should subscribe to beckon:focus event', () => {
       const tracker = createEventTracker();
       renderWithEventTracking(<BrowseView {...defaultProps} />, tracker);
 
-      expect(tracker.subscriptions.has('attend:focus')).toBe(true);
+      expect(tracker.subscriptions.has('beckon:focus')).toBe(true);
     });
   });
 
@@ -525,15 +525,15 @@ describe('BrowseView Component', () => {
         React.useEffect(() => {
           // Subscribe to events like a real component would
           const handleHover = (payload: any) => {
-            eventTracker.push({ event: 'attend:hover', annotationId: payload?.annotationId ?? null });
+            eventTracker.push({ event: 'beckon:hover', annotationId: payload?.annotationId ?? null });
           };
 
           const handleClick = (payload: any) => {
-            eventTracker.push({ event: 'attend:click', annotationId: payload?.annotationId ?? null });
+            eventTracker.push({ event: 'browse:click', annotationId: payload?.annotationId ?? null });
           };
 
-          const subscription1 = eventBus.get('attend:hover').subscribe(handleHover);
-          const subscription2 = eventBus.get('attend:click').subscribe(handleClick);
+          const subscription1 = eventBus.get('beckon:hover').subscribe(handleHover);
+          const subscription2 = eventBus.get('browse:click').subscribe(handleClick);
 
           return () => {
             subscription1.unsubscribe();
@@ -583,12 +583,12 @@ describe('BrowseView Component', () => {
       // Verify event delegation works by simulating interactions
       fireEvent.mouseOver(browseContainer!, { target: mockRefTarget });
       await waitFor(() => {
-        expect(eventTracker.some(e => e.event === 'attend:hover' && e.annotationId === 'ref-1')).toBe(true);
+        expect(eventTracker.some(e => e.event === 'beckon:hover' && e.annotationId === 'ref-1')).toBe(true);
       });
 
       fireEvent.click(browseContainer!, { target: mockRefTarget });
       await waitFor(() => {
-        expect(eventTracker.some(e => e.event === 'attend:click' && e.annotationId === 'ref-1')).toBe(true);
+        expect(eventTracker.some(e => e.event === 'browse:click' && e.annotationId === 'ref-1')).toBe(true);
       });
 
       // Verify highlight doesn't trigger click events
@@ -597,7 +597,7 @@ describe('BrowseView Component', () => {
 
       // Should not have any click events for highlights
       await new Promise(resolve => setTimeout(resolve, 50));
-      expect(eventTracker.some(e => e.event === 'attend:click')).toBe(false);
+      expect(eventTracker.some(e => e.event === 'browse:click')).toBe(false);
 
       // The key insight: With event delegation, we can handle 100 annotations
       // with only container-level listeners, not 100+ individual listeners

@@ -2,7 +2,7 @@
  * Tool execution handlers using @semiont/api-client
  */
 
-import { SemiontApiClient, getExactText, getBodySource, type ReferenceDetectionProgress, type GenerationProgress } from '@semiont/api-client';
+import { SemiontApiClient, getExactText, getBodySource, type ReferenceDetectionProgress, type YieldProgress } from '@semiont/api-client';
 import { EventBus, resourceUri, annotationUri, entityType, type AccessToken } from '@semiont/core';
 
 export async function handleCreateResource(client: SemiontApiClient, auth: AccessToken, args: any) {
@@ -64,7 +64,7 @@ export async function handleDetectAnnotations(client: SemiontApiClient, auth: Ac
     const progressMessages: string[] = [];
 
     // Subscribe to detection events
-    eventBus.get('annotate:progress').subscribe((progress) => {
+    eventBus.get('mark:progress').subscribe((progress) => {
       // Cast to ReferenceDetectionProgress for entity-type-specific fields
       const refProgress = progress as unknown as ReferenceDetectionProgress;
       const msg = progress.status === 'scanning' && refProgress.currentEntityType
@@ -74,7 +74,7 @@ export async function handleDetectAnnotations(client: SemiontApiClient, auth: Ac
       console.error(msg); // Send to stderr for MCP progress
     });
 
-    eventBus.get('annotate:assist-finished').subscribe((result) => {
+    eventBus.get('mark:assist-finished').subscribe((result) => {
       const progress = result.progress as ReferenceDetectionProgress | undefined;
       eventBus.destroy();
       resolve({
@@ -85,7 +85,7 @@ export async function handleDetectAnnotations(client: SemiontApiClient, auth: Ac
       });
     });
 
-    eventBus.get('annotate:assist-failed').subscribe(() => {
+    eventBus.get('mark:assist-failed').subscribe(() => {
       eventBus.destroy();
       resolve({
         content: [{
@@ -208,13 +208,13 @@ export async function handleGenerateResourceFromAnnotation(client: SemiontApiCli
     const progressMessages: string[] = [];
 
     // Subscribe to generation events
-    eventBus.get('generate:progress').subscribe((progress: GenerationProgress) => {
+    eventBus.get('yield:progress').subscribe((progress: YieldProgress) => {
       const msg = `${progress.status}: ${progress.percentage}% - ${progress.message || ''}`;
       progressMessages.push(msg);
       console.error(msg); // Send to stderr for MCP progress
     });
 
-    eventBus.get('generate:finished').subscribe((progress: GenerationProgress) => {
+    eventBus.get('yield:finished').subscribe((progress: YieldProgress) => {
       eventBus.destroy();
       resolve({
         content: [{
@@ -224,7 +224,7 @@ export async function handleGenerateResourceFromAnnotation(client: SemiontApiCli
       });
     });
 
-    eventBus.get('generate:failed').subscribe(() => {
+    eventBus.get('yield:failed').subscribe(() => {
       eventBus.destroy();
       resolve({
         content: [{
@@ -236,7 +236,7 @@ export async function handleGenerateResourceFromAnnotation(client: SemiontApiCli
     });
 
     // Start generation - events auto-emit to EventBus
-    client.sse.generateResourceFromAnnotation(rUri, aUri, request, { auth, eventBus });
+    client.sse.yieldResourceFromAnnotation(rUri, aUri, request, { auth, eventBus });
   });
 }
 

@@ -6,7 +6,7 @@
  */
 
 import React, { useState } from 'react';
-import { COMMON_PANELS, type ToolbarPanelType } from '../../../hooks/usePanelNavigation';
+import { COMMON_PANELS, type ToolbarPanelType } from '../../../hooks/usePanelBrowse';
 import {
   PlusIcon,
   MagnifyingGlassIcon,

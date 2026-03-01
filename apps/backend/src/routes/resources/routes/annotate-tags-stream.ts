@@ -167,9 +167,9 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
           const resourceBus = eventBus.scope(id);
           logger.info('Subscribing to EventBus for resource');
 
-          // Subscribe to annotate:progress
+          // Subscribe to mark:progress
           subscriptions.push(
-            resourceBus.get('annotate:progress').subscribe(async (_event) => {
+            resourceBus.get('mark:progress').subscribe(async (_event) => {
               if (isStreamClosed) return;
               logger.info('Detection started');
               try {
@@ -180,7 +180,7 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
                     totalCategories: categories.length,
                     message: 'Starting detection...'
                   } as TagDetectionProgress),
-                  event: 'annotate:progress',
+                  event: 'mark:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -190,9 +190,9 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
             })
           );
 
-          // Subscribe to annotate:progress
+          // Subscribe to mark:progress
           subscriptions.push(
-            resourceBus.get('annotate:progress').subscribe(async (progress) => {
+            resourceBus.get('mark:progress').subscribe(async (progress) => {
               if (isStreamClosed) return;
               logger.info('Detection progress', { progress });
               try {
@@ -207,7 +207,7 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
                     totalCategories: progress.totalCategories,
                     message: progress.message || 'Processing...'
                   } as TagDetectionProgress),
-                  event: 'annotate:progress',
+                  event: 'mark:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -238,7 +238,7 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
                       ? `Complete! Created ${result.tagsCreated} tags`
                       : 'Tag detection complete!'
                   } as TagDetectionProgress),
-                  event: 'annotate:assist-finished',
+                  event: 'mark:assist-finished',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -261,7 +261,7 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
                     resourceId: resourceId(id),
                     message: event.payload.error || 'Tag detection failed'
                   } as TagDetectionProgress),
-                  event: 'annotate:assist-failed',
+                  event: 'mark:assist-failed',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -304,7 +304,7 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
                 resourceId: resourceId(id),
                 message: error instanceof Error ? error.message : 'Tag detection failed'
               } as TagDetectionProgress),
-              event: 'annotate:assist-failed',
+              event: 'mark:assist-failed',
               id: String(Date.now())
             });
           } catch (sseError) {

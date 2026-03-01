@@ -37,7 +37,7 @@
       "content": {
         "application/json": {
           "schema": {
-            "$ref": "../components/schemas/GenerateResourceStreamRequest.json"
+            "$ref": "../components/schemas/YieldResourceStreamRequest.json"
           }
         }
       }

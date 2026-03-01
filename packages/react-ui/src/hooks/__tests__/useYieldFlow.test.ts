@@ -1,9 +1,9 @@
 /**
- * useGenerationFlow - Generation Progress State Tests
+ * useYieldFlow - Generation Progress State Tests
  *
  * Tests the generation progress tracking behaviour that was formerly in
- * useGenerationProgress.  The state is now inlined directly into
- * useGenerationFlow.
+ * useYieldProgress.  The state is now inlined directly into
+ * useYieldFlow.
  *
  * Subscribes to generation events from the event bus and verifies that
  * isGenerating / generationProgress / clearProgress behave correctly.
@@ -12,11 +12,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import React, { type ReactNode } from 'react';
-import { useGenerationFlow } from '../useGenerationFlow';
+import { useYieldFlow } from '../useYieldFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting, type EventBus } from '../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../contexts/AuthTokenContext';
-import type { GenerationProgress } from '@semiont/core';
+import type { YieldProgress } from '@semiont/core';
 
 // Mock Toast module to prevent "useToast must be used within a ToastProvider" errors
 vi.mock('../../components/Toast', () => ({
@@ -28,7 +28,7 @@ vi.mock('../../components/Toast', () => ({
   }),
 }));
 
-// Full provider stack required by useGenerationFlow
+// Full provider stack required by useYieldFlow
 const wrapper = ({ children }: { children: ReactNode }) =>
   React.createElement(
     EventBusProvider,
@@ -50,13 +50,13 @@ function captureEventBus(): EventBus {
   return result.current;
 }
 
-// Stable no-op callbacks for useGenerationFlow params
+// Stable no-op callbacks for useYieldFlow params
 const noop = () => {};
 const mockClearNewAnnotationId = vi.fn();
 
-function renderGenerationFlow() {
+function renderYieldFlow() {
   return renderHook(
-    () => useGenerationFlow('en', 'test-resource', mockClearNewAnnotationId),
+    () => useYieldFlow('en', 'test-resource', mockClearNewAnnotationId),
     { wrapper }
   );
 }
@@ -64,8 +64,8 @@ function renderGenerationFlow() {
 // A shared reference annotation ID for test data
 const TEST_REF_ID = 'test-annotation-ref-id';
 
-// Helper to build a valid GenerationProgress
-function makeProgress(overrides: Partial<GenerationProgress> = {}): GenerationProgress {
+// Helper to build a valid YieldProgress
+function makeProgress(overrides: Partial<YieldProgress> = {}): YieldProgress {
   return {
     status: 'generating',
     referenceId: TEST_REF_ID,
@@ -75,7 +75,7 @@ function makeProgress(overrides: Partial<GenerationProgress> = {}): GenerationPr
   };
 }
 
-describe('useGenerationFlow — progress state', () => {
+describe('useYieldFlow — progress state', () => {
   beforeEach(() => {
     resetEventBusForTesting();
     vi.clearAllMocks();
@@ -86,20 +86,20 @@ describe('useGenerationFlow — progress state', () => {
   });
 
   it('should initialize with default progress state', () => {
-    const { result } = renderGenerationFlow();
+    const { result } = renderYieldFlow();
 
     expect(result.current.isGenerating).toBe(false);
     expect(result.current.generationProgress).toBeNull();
   });
 
-  it('should set isGenerating to true and update progress on generate:progress event', async () => {
-    const { result } = renderGenerationFlow();
+  it('should set isGenerating to true and update progress on yield:progress event', async () => {
+    const { result } = renderYieldFlow();
     const eventBus = captureEventBus();
 
     const mockProgress = makeProgress({ status: 'generating', percentage: 30, message: 'Generating content...' });
 
     act(() => {
-      eventBus.get('generate:progress').next(mockProgress);
+      eventBus.get('yield:progress').next(mockProgress);
     });
 
     await waitFor(() => {
@@ -108,15 +108,15 @@ describe('useGenerationFlow — progress state', () => {
     });
   });
 
-  it('should update progress on subsequent generate:progress events', async () => {
-    const { result } = renderGenerationFlow();
+  it('should update progress on subsequent yield:progress events', async () => {
+    const { result } = renderYieldFlow();
     const eventBus = captureEventBus();
 
     const firstProgress = makeProgress({ status: 'started', percentage: 0, message: 'Starting...' });
     const secondProgress = makeProgress({ status: 'generating', percentage: 50, message: 'Half way...' });
 
     act(() => {
-      eventBus.get('generate:progress').next(firstProgress);
+      eventBus.get('yield:progress').next(firstProgress);
     });
 
     await waitFor(() => {
@@ -124,7 +124,7 @@ describe('useGenerationFlow — progress state', () => {
     });
 
     act(() => {
-      eventBus.get('generate:progress').next(secondProgress);
+      eventBus.get('yield:progress').next(secondProgress);
     });
 
     await waitFor(() => {
@@ -133,13 +133,13 @@ describe('useGenerationFlow — progress state', () => {
     });
   });
 
-  it('should set isGenerating to false and update progress on generate:finished event', async () => {
-    const { result } = renderGenerationFlow();
+  it('should set isGenerating to false and update progress on yield:finished event', async () => {
+    const { result } = renderYieldFlow();
     const eventBus = captureEventBus();
 
     // First simulate some progress
     act(() => {
-      eventBus.get('generate:progress').next(makeProgress({ percentage: 75, message: 'Almost done...' }));
+      eventBus.get('yield:progress').next(makeProgress({ percentage: 75, message: 'Almost done...' }));
     });
 
     await waitFor(() => {
@@ -150,7 +150,7 @@ describe('useGenerationFlow — progress state', () => {
     const finalProgress = makeProgress({ status: 'complete', percentage: 100, message: 'Generation complete!' });
 
     act(() => {
-      eventBus.get('generate:finished').next(finalProgress);
+      eventBus.get('yield:finished').next(finalProgress);
     });
 
     await waitFor(() => {
@@ -159,13 +159,13 @@ describe('useGenerationFlow — progress state', () => {
     });
   });
 
-  it('should clear progress and set isGenerating to false on generate:failed event', async () => {
-    const { result } = renderGenerationFlow();
+  it('should clear progress and set isGenerating to false on yield:failed event', async () => {
+    const { result } = renderYieldFlow();
     const eventBus = captureEventBus();
 
     // First simulate some progress
     act(() => {
-      eventBus.get('generate:progress').next(makeProgress({ percentage: 40 }));
+      eventBus.get('yield:progress').next(makeProgress({ percentage: 40 }));
     });
 
     await waitFor(() => {
@@ -174,7 +174,7 @@ describe('useGenerationFlow — progress state', () => {
 
     // Now fail
     act(() => {
-      eventBus.get('generate:failed').next({
+      eventBus.get('yield:failed').next({
         error: new Error('Generation failed'),
       });
     });
@@ -185,14 +185,14 @@ describe('useGenerationFlow — progress state', () => {
     });
   });
 
-  it('should handle generate:finished event without prior progress', async () => {
-    const { result } = renderGenerationFlow();
+  it('should handle yield:finished event without prior progress', async () => {
+    const { result } = renderYieldFlow();
     const eventBus = captureEventBus();
 
     const finalProgress = makeProgress({ status: 'complete', percentage: 100, message: 'Done!' });
 
     act(() => {
-      eventBus.get('generate:finished').next(finalProgress);
+      eventBus.get('yield:finished').next(finalProgress);
     });
 
     await waitFor(() => {
@@ -201,12 +201,12 @@ describe('useGenerationFlow — progress state', () => {
     });
   });
 
-  it('should handle generate:failed event without prior progress gracefully', async () => {
-    const { result } = renderGenerationFlow();
+  it('should handle yield:failed event without prior progress gracefully', async () => {
+    const { result } = renderYieldFlow();
     const eventBus = captureEventBus();
 
     act(() => {
-      eventBus.get('generate:failed').next({
+      eventBus.get('yield:failed').next({
         error: new Error('Unexpected failure'),
       });
     });

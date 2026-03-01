@@ -11,7 +11,7 @@ import type { components, paths, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
 import { PanelHeader } from './PanelHeader';
 import './ReferencesPanel.css';
-import type { AnnotationProgress } from '@semiont/core';
+import type { MarkProgress } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation'];
@@ -45,7 +45,7 @@ interface Props {
   // Generic panel props
   annotations?: Annotation[];
   isAssisting: boolean;
-  progress: AnnotationProgress | null;
+  progress: MarkProgress | null;
   annotateMode?: boolean;
   Link: React.ComponentType<LinkComponentProps>;
   routes: RouteBuilder;
@@ -65,9 +65,9 @@ interface Props {
  * Panel for managing reference annotations with entity type annotation
  *
  * @emits annotate:detect-request - Start reference annotation. Payload: { motivation: 'linking', options: { entityTypes: string[], includeDescriptiveReferences: boolean } }
- * @emits annotate:create - Create new reference annotation. Payload: { motivation: 'linking', selector: Selector | Selector[], body: Body[] }
- * @emits annotate:cancel-pending - Cancel pending reference annotation. Payload: undefined
- * @subscribes attend:click - Annotation clicked. Payload: { annotationId: string }
+ * @emits mark:create - Create new reference annotation. Payload: { motivation: 'linking', selector: Selector | Selector[], body: Body[] }
+ * @emits mark:cancel-pending - Cancel pending reference annotation. Payload: undefined
+ * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function ReferencesPanel({
   annotations = [],
@@ -196,13 +196,13 @@ export function ReferencesPanel({
   }, []);
 
   useEventSubscriptions({
-    'attend:click': handleAnnotationClick,
+    'browse:click': handleAnnotationClick,
   });
 
   // Clear log when starting new annotation
   const handleAssist = () => {
     setLastDetectionLog(null);
-    eventBus.get('annotate:assist-request').next({
+    eventBus.get('mark:assist-request').next({
       motivation: 'linking',
       options: {
         entityTypes: selectedEntityTypes,
@@ -245,7 +245,7 @@ export function ReferencesPanel({
   const handleCreateReference = () => {
     if (pendingAnnotation) {
       const entityType = pendingEntityTypes.join(',') || undefined;
-      eventBus.get('annotate:create').next({
+      eventBus.get('mark:create').next({
         motivation: 'linking',
         selector: pendingAnnotation.selector,
         body: entityType ? [{ type: 'TextualBody', value: entityType, purpose: 'tagging' }] : [],
@@ -260,7 +260,7 @@ export function ReferencesPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.get('annotate:cancel-pending').next(undefined);
+        eventBus.get('mark:cancel-pending').next(undefined);
         setPendingEntityTypes([]);
       }
     };
@@ -312,7 +312,7 @@ export function ReferencesPanel({
             <div className="semiont-annotation-prompt__actions">
               <button
                 onClick={() => {
-                  eventBus.get('annotate:cancel-pending').next(undefined);
+                  eventBus.get('mark:cancel-pending').next(undefined);
                   setPendingEntityTypes([]);
                 }}
                 className="semiont-button semiont-button--secondary"

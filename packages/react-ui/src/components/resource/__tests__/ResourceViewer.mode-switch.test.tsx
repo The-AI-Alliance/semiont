@@ -25,7 +25,7 @@ import type { components } from '@semiont/core';
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 
 // Mock dependencies
-vi.mock('../../../hooks/useObservableNavigation', () => ({
+vi.mock('../../../hooks/useObservableBrowse', () => ({
   useObservableExternalNavigation: () => vi.fn(),
 }));
 

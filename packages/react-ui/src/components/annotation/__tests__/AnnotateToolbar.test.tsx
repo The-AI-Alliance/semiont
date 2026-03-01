@@ -51,10 +51,10 @@ function createEventTracker() {
       };
 
       const toolbarEvents = [
-        'annotate:mode-toggled',
-        'annotate:click-changed',
-        'annotate:selection-changed',
-        'annotate:shape-changed',
+        'mark:mode-toggled',
+        'mark:click-changed',
+        'mark:selection-changed',
+        'mark:shape-changed',
       ] as const;
 
       toolbarEvents.forEach(eventName => {
@@ -215,7 +215,7 @@ describe('AnnotateToolbar', () => {
       });
     });
 
-    it('emits annotate:mode-toggled event when Browse is clicked in Annotate mode', async () => {
+    it('emits mark:mode-toggled event when Browse is clicked in Annotate mode', async () => {
       const tracker = createEventTracker();
       renderWithIntl(
         <AnnotateToolbar
@@ -234,11 +234,11 @@ describe('AnnotateToolbar', () => {
       });
 
       await waitFor(() => {
-        expect(tracker.events.some(e => e.event === 'annotate:mode-toggled')).toBe(true);
+        expect(tracker.events.some(e => e.event === 'mark:mode-toggled')).toBe(true);
       });
     });
 
-    it('emits annotate:mode-toggled event when Annotate is clicked in Browse mode', async () => {
+    it('emits mark:mode-toggled event when Annotate is clicked in Browse mode', async () => {
       const tracker = createEventTracker();
       renderWithIntl(
         <AnnotateToolbar
@@ -257,7 +257,7 @@ describe('AnnotateToolbar', () => {
       });
 
       await waitFor(() => {
-        expect(tracker.events.some(e => e.event === 'annotate:mode-toggled')).toBe(true);
+        expect(tracker.events.some(e => e.event === 'mark:mode-toggled')).toBe(true);
       });
     });
 
@@ -283,7 +283,7 @@ describe('AnnotateToolbar', () => {
 
       // Verify the event was emitted
       await waitFor(() => {
-        expect(tracker.events.some(e => e.event === 'annotate:mode-toggled')).toBe(true);
+        expect(tracker.events.some(e => e.event === 'mark:mode-toggled')).toBe(true);
       });
 
       // Simulate mode change by rerendering with new mode
@@ -311,7 +311,7 @@ describe('AnnotateToolbar', () => {
   });
 
   describe('CLICK Group Interactions', () => {
-    it('emits annotate:click-changed event when clicking an action', async () => {
+    it('emits mark:click-changed event when clicking an action', async () => {
       const tracker = createEventTracker();
       renderWithIntl(
         <AnnotateToolbar {...defaultProps} />,
@@ -329,7 +329,7 @@ describe('AnnotateToolbar', () => {
       fireEvent.click(screen.getByText('Follow'));
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'annotate:click-changed' && e.payload?.action === 'follow'
+          e.event === 'mark:click-changed' && e.payload?.action === 'follow'
         )).toBe(true);
       });
     });
@@ -343,7 +343,7 @@ describe('AnnotateToolbar', () => {
   });
 
   describe('MOTIVATION Group Interactions', () => {
-    it('emits annotate:selection-changed event when clicking a motivation', async () => {
+    it('emits mark:selection-changed event when clicking a motivation', async () => {
       const tracker = createEventTracker();
       renderWithIntl(
         <AnnotateToolbar {...defaultProps} />,
@@ -361,7 +361,7 @@ describe('AnnotateToolbar', () => {
       fireEvent.click(screen.getByText('Reference'));
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'annotate:selection-changed' && e.payload?.motivation === 'linking'
+          e.event === 'mark:selection-changed' && e.payload?.motivation === 'linking'
         )).toBe(true);
       });
     });
@@ -389,7 +389,7 @@ describe('AnnotateToolbar', () => {
       fireEvent.click(within(dropdown).getByText('Highlight'));
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'annotate:selection-changed' && e.payload?.motivation === 'highlighting'
+          e.event === 'mark:selection-changed' && e.payload?.motivation === 'highlighting'
         )).toBe(true);
       });
 
@@ -418,14 +418,14 @@ describe('AnnotateToolbar', () => {
       fireEvent.click(within(dropdown2).getByText('Highlight'));
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'annotate:selection-changed' && e.payload?.motivation === null
+          e.event === 'mark:selection-changed' && e.payload?.motivation === null
         )).toBe(true);
       });
     });
   });
 
   describe('SHAPE Group Interactions', () => {
-    it('emits annotate:shape-changed event when clicking a shape', async () => {
+    it('emits mark:shape-changed event when clicking a shape', async () => {
       const tracker = createEventTracker();
       renderWithIntl(
         <AnnotateToolbar
@@ -447,7 +447,7 @@ describe('AnnotateToolbar', () => {
       fireEvent.click(screen.getByText('Circle'));
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'annotate:shape-changed' && e.payload?.shape === 'circle'
+          e.event === 'mark:shape-changed' && e.payload?.shape === 'circle'
         )).toBe(true);
       });
     });

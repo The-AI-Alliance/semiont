@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { GenerationWorker } from '../../jobs/generation-worker';
-import { JobQueue, type GenerationJob, type RunningJob, type GenerationParams, type GenerationProgress } from '@semiont/jobs';
+import { JobQueue, type GenerationJob, type RunningJob, type GenerationParams, type YieldProgress } from '@semiont/jobs';
 import { resourceId, userId, annotationId, type EnvironmentConfig, type JobCompletedEvent, type StoredEvent, EventBus, type Logger } from '@semiont/core';
 import { jobId } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
@@ -171,7 +171,7 @@ describe('GenerationWorker - Event Emission', () => {
     // Mock AI response
     mockInferenceClient.client.setResponses(['Generated content about Test Topic']);
 
-    const job: RunningJob<GenerationParams, GenerationProgress> = {
+    const job: RunningJob<GenerationParams, YieldProgress> = {
       status: 'running',
       metadata: {
         id: jobId('job-gen-1'),
@@ -201,7 +201,7 @@ describe('GenerationWorker - Event Emission', () => {
     };
 
     const result = await (worker as unknown as { executeJob: (job: GenerationJob) => Promise<any> }).executeJob(job);
-    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<GenerationParams, GenerationProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
+    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<GenerationParams, YieldProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
     const events = await getResourceEvents(testResourceId);
     const startedEvents = events.filter(e => e.event.type === 'job.started');
@@ -228,7 +228,7 @@ describe('GenerationWorker - Event Emission', () => {
     // Mock AI response
     mockInferenceClient.client.setResponses(['Generated content for progress tracking']);
 
-    const job: RunningJob<GenerationParams, GenerationProgress> = {
+    const job: RunningJob<GenerationParams, YieldProgress> = {
       status: 'running',
       metadata: {
         id: jobId('job-gen-2'),
@@ -258,7 +258,7 @@ describe('GenerationWorker - Event Emission', () => {
     };
 
     const result = await (worker as unknown as { executeJob: (job: GenerationJob) => Promise<any> }).executeJob(job);
-    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<GenerationParams, GenerationProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
+    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<GenerationParams, YieldProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
     const events = await getResourceEvents(testResourceId);
     const progressEvents = events.filter(e => e.event.type === 'job.progress');
@@ -277,7 +277,7 @@ describe('GenerationWorker - Event Emission', () => {
     // Mock AI response
     mockInferenceClient.client.setResponses(['Generated content for completion test']);
 
-    const job: RunningJob<GenerationParams, GenerationProgress> = {
+    const job: RunningJob<GenerationParams, YieldProgress> = {
       status: 'running',
       metadata: {
         id: jobId('job-gen-3'),
@@ -307,7 +307,7 @@ describe('GenerationWorker - Event Emission', () => {
     };
 
     const result = await (worker as unknown as { executeJob: (job: GenerationJob) => Promise<any> }).executeJob(job);
-    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<GenerationParams, GenerationProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
+    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<GenerationParams, YieldProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
     const events = await getResourceEvents(testResourceId);
     const completedEvents = events.filter(e => e.event.type === 'job.completed');
@@ -332,7 +332,7 @@ describe('GenerationWorker - Event Emission', () => {
     // Mock AI response
     mockInferenceClient.client.setResponses(['This is the content of a newly generated resource']);
 
-    const job: RunningJob<GenerationParams, GenerationProgress> = {
+    const job: RunningJob<GenerationParams, YieldProgress> = {
       status: 'running',
       metadata: {
         id: jobId('job-gen-4'),
@@ -362,7 +362,7 @@ describe('GenerationWorker - Event Emission', () => {
     };
 
     const result = await (worker as unknown as { executeJob: (job: GenerationJob) => Promise<any> }).executeJob(job);
-    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<GenerationParams, GenerationProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
+    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<GenerationParams, YieldProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
     // Get the job.completed event to find the generated resource ID
     const sourceEvents = await testEventStore.log.getEvents(resourceId(testResourceId));

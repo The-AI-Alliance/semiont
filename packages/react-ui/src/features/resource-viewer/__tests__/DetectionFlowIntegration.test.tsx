@@ -4,8 +4,8 @@
  * Tests the COMPLETE detection flow with real component composition:
  * - EventBusProvider (REAL)
  * - ApiClientProvider (REAL, with MOCKED client)
- * - useAnnotationFlow (REAL)
- * - useResolutionFlow (REAL)
+ * - useMarkFlow (REAL)
+ * - useBindFlow (REAL)
  * - useEventSubscriptions (REAL)
  *
  * This test focuses on ARCHITECTURE and EVENT WIRING:
@@ -25,7 +25,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { act } from 'react';
-import { useAnnotationFlow } from '../../../hooks/useAnnotationFlow';
+import { useMarkFlow } from '../../../hooks/useMarkFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
@@ -91,7 +91,7 @@ describe('Detection Flow - Feature Integration', () => {
     });
 
     // CRITICAL ASSERTION: API called exactly once (not twice!)
-    // This would FAIL if useResolutionFlow was called in multiple places
+    // This would FAIL if useBindFlow was called in multiple places
     await waitFor(() => {
       expect(annotateReferencesSpy).toHaveBeenCalledTimes(1);
     });
@@ -107,7 +107,7 @@ describe('Detection Flow - Feature Integration', () => {
     );
   });
 
-  it('should propagate SSE progress events to useAnnotationFlow state', async () => {
+  it('should propagate SSE progress events to useMarkFlow state', async () => {
     const testUri = resourceUri('http://localhost:4000/resources/test-resource');
 
     // Render with state observer
@@ -127,7 +127,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Simulate SSE progress event being emitted to EventBus (how SSE actually works now)
     act(() => {
-      getEventBus().get('annotate:progress').next({
+      getEventBus().get('mark:progress').next({
         status: 'scanning',
         message: 'Scanning for Person...',
         currentEntityType: 'Person',
@@ -161,7 +161,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // First progress update via EventBus
     act(() => {
-      getEventBus().get('annotate:progress').next({
+      getEventBus().get('mark:progress').next({
         status: 'started',
         message: 'Starting analysis...',
         percentage: 0,
@@ -174,7 +174,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Second progress update via EventBus
     act(() => {
-      getEventBus().get('annotate:progress').next({
+      getEventBus().get('mark:progress').next({
         status: 'analyzing',
         message: 'Analyzing text...',
         percentage: 50,
@@ -187,7 +187,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Final progress update via EventBus
     act(() => {
-      getEventBus().get('annotate:progress').next({
+      getEventBus().get('mark:progress').next({
         status: 'complete',
         message: 'Created 14 highlights',
         percentage: 100,
@@ -214,7 +214,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Send final progress via EventBus
     act(() => {
-      getEventBus().get('annotate:progress').next({
+      getEventBus().get('mark:progress').next({
         status: 'complete',
         message: 'Created 14 highlights',
       });
@@ -226,7 +226,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Emit completion event
     act(() => {
-      getEventBus().get('annotate:assist-finished').next({ motivation: 'highlighting' });
+      getEventBus().get('mark:assist-finished').next({ motivation: 'highlighting' });
     });
 
     // Verify: detecting flag cleared BUT progress still visible
@@ -247,7 +247,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Add some progress via EventBus
     act(() => {
-      getEventBus().get('annotate:progress').next({
+      getEventBus().get('mark:progress').next({
         status: 'scanning',
         message: 'Scanning...',
       });
@@ -259,7 +259,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Emit failure
     act(() => {
-      getEventBus().get('annotate:assist-failed').next({
+      getEventBus().get('mark:assist-failed').next({
         type: 'job.failed' as const,
         resourceId: 'test-resource' as any,
         userId: 'user' as any,
@@ -322,13 +322,13 @@ describe('Detection Flow - Feature Integration', () => {
   it('should only call API once even with multiple event listeners', async () => {
     const testUri = resourceUri('http://localhost:4000/resources/test-resource');
 
-    // This test specifically catches the duplicate useResolutionFlow bug
-    // If multiple components call useResolutionFlow, we'll see multiple API calls
+    // This test specifically catches the duplicate useBindFlow bug
+    // If multiple components call useBindFlow, we'll see multiple API calls
     const { emitDetectionStart, getEventBus } = renderDetectionFlow(testUri);
 
     // Add an additional event listener (simulating multiple subscribers)
     const additionalListener = vi.fn();
-    const subscription = getEventBus().get('annotate:assist-request').subscribe(additionalListener);
+    const subscription = getEventBus().get('mark:assist-request').subscribe(additionalListener);
 
     // Trigger detection
     act(() => {
@@ -351,7 +351,7 @@ describe('Detection Flow - Feature Integration', () => {
 });
 
 /**
- * Helper: Render useAnnotationFlow hook with real component composition
+ * Helper: Render useMarkFlow hook with real component composition
  * Returns methods to interact with the rendered component
  */
 function renderDetectionFlow(testUri: string) {
@@ -365,7 +365,7 @@ function renderDetectionFlow(testUri: string) {
 
   // Test harness component that uses the hook
   function DetectionFlowTestHarness() {
-    const { progress, assistingMotivation } = useAnnotationFlow(testUri as any);
+    const { progress, assistingMotivation } = useMarkFlow(testUri as any);
     return (
       <div>
         <div data-testid="detecting">{assistingMotivation || 'none'}</div>
@@ -389,7 +389,7 @@ function renderDetectionFlow(testUri: string) {
 
   return {
     emitDetectionStart: (motivation: Motivation, options: any) => {
-      eventBusInstance.get('annotate:assist-request').next({ motivation, options });
+      eventBusInstance.get('mark:assist-request').next({ motivation, options });
     },
     getEventBus: () => eventBusInstance,
   };
