@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
-import type { components, Selector, AnnotationProgress } from '@semiont/core';
+import type { components, Selector, MarkProgress } from '@semiont/core';
 import type { RouteBuilder, LinkComponentProps } from '../../../contexts/RoutingContext';
 import type { Annotator } from '../../../lib/annotation-registry';
 import { StatisticsPanel } from './StatisticsPanel';
@@ -47,7 +47,7 @@ interface UnifiedAnnotationsPanelProps {
 
   // Annotation assistance state (per motivation)
   assistingMotivation?: Motivation | null;
-  progress?: AnnotationProgress | null;
+  progress?: MarkProgress | null;
 
   // Unified pending annotation (for creating new annotations)
   pendingAnnotation: PendingAnnotation | null;

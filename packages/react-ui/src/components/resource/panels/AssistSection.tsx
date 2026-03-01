@@ -28,8 +28,8 @@ interface AssistSectionProps {
  * - Assist button with sparkle animation
  * - Progress display during annotation assist
  *
- * @emits annotate:assist-request - Start assist for annotation type. Payload: { motivation: Motivation, options: { instructions?: string, tone?: string, density?: number } }
- * @emits annotate:progress-dismiss - Dismiss the annotation progress display
+ * @emits mark:assist-request - Start assist for annotation type. Payload: { motivation: Motivation, options: { instructions?: string, tone?: string, density?: number } }
+ * @emits mark:progress-dismiss - Dismiss the annotation progress display
  */
 export function AssistSection({
   annotationType,
@@ -70,8 +70,8 @@ export function AssistSection({
       annotationType === 'assessment' ? 'assessing' :
       'commenting';
 
-    // Emit annotate:assist-request event with options
-    eventBus.get('annotate:assist-request').next({
+    // Emit mark:assist-request event with options
+    eventBus.get('mark:assist-request').next({
       motivation,
       options: {
         instructions: instructions.trim() || undefined,
@@ -86,7 +86,7 @@ export function AssistSection({
   }, [annotationType, instructions, tone, useDensity, density]); // eventBus is stable singleton - never in deps
 
   const handleDismissProgress = useCallback(() => {
-    eventBus.get('annotate:progress-dismiss').next(undefined);
+    eventBus.get('mark:progress-dismiss').next(undefined);
   }, []); // eventBus is stable singleton - never in deps
 
   return (

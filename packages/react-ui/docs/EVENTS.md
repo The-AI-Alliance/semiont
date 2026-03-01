@@ -80,8 +80,8 @@ These events are emitted by the backend when domain changes occur:
 
 **Annotation Events**:
 
-- `annotate:created` - New annotation created
-- `annotate:deleted` - Annotation deleted
+- `mark:created` - New annotation created
+- `mark:deleted` - Annotation deleted
 - `bind:body-updated` - Annotation body updated (resolution flow)
 - `beckon:sparkle` - Annotation highlighted (UI animation)
 
@@ -126,7 +126,7 @@ function MyComponent({ rUri }) {
         motivation: selection.motivation
       });
     },
-    'annotate:created': () => {
+    'mark:created': () => {
       setPendingAnnotation(null);
     },
   });
@@ -230,11 +230,11 @@ function MyComponent({ rUri }) {
   const queryClient = useQueryClient();
 
   useEventSubscriptions({
-    'annotate:created': () => {
+    'mark:created': () => {
       // Backend created annotation → invalidate cache
       queryClient.invalidateQueries(['annotations', rUri]);
     },
-    'annotate:deleted': () => {
+    'mark:deleted': () => {
       queryClient.invalidateQueries(['annotations', rUri]);
     },
   });
@@ -307,7 +307,7 @@ function ResourceViewerPage({ rUri }) {
 
 ```tsx
 useEventSubscriptions({
-  'annotate:created': (annotation) => {
+  'mark:created': (annotation) => {
     // Handle event
   },
 });
@@ -319,8 +319,8 @@ useEventSubscriptions({
 // WRONG - compliance violation
 useEffect(() => {
   const handler = (event) => { /* ... */ };
-  eventBus.on('annotate:created', handler);
-  return () => eventBus.off('annotate:created', handler);
+  eventBus.on('mark:created', handler);
+  return () => eventBus.off('mark:created', handler);
 }, [eventBus]);
 ```
 
@@ -371,7 +371,7 @@ function Component() {
 
 ```tsx
 // ✅ GOOD: Custom hook encapsulates event logic
-export function useAnnotationFlow(rUri: ResourceUri) {
+export function useMarkFlow(rUri: ResourceUri) {
   const [pending, setPending] = useState(null);
 
   useEventSubscriptions({
@@ -381,7 +381,7 @@ export function useAnnotationFlow(rUri: ResourceUri) {
         motivation: selection.motivation
       });
     },
-    'annotate:created': () => setPending(null),
+    'mark:created': () => setPending(null),
     'annotation:failed': () => setPending(null),
   });
 
@@ -390,7 +390,7 @@ export function useAnnotationFlow(rUri: ResourceUri) {
 
 // Component uses hook
 function MyComponent({ rUri }) {
-  const { pendingAnnotation } = useAnnotationFlow(rUri);
+  const { pendingAnnotation } = useMarkFlow(rUri);
   return <div>{/* Use pendingAnnotation */}</div>;
 }
 ```
@@ -408,7 +408,7 @@ namespace:event-name
 **Examples**:
 
 - ✅ `detection:start` (correct)
-- ✅ `annotate:created` (correct)
+- ✅ `mark:created` (correct)
 - ✅ `resource:archive` (correct)
 - ❌ `detection-start` (legacy - don't use hyphens for namespaces)
 
@@ -441,7 +441,7 @@ npm run audit:compliance
 import { render } from '@testing-library/react';
 import { EventBusProvider, createEventBus } from '@semiont/react-ui';
 
-it('should handle annotate:created event', async () => {
+it('should handle mark:created event', async () => {
   const eventBus = createEventBus();
 
   render(
@@ -452,7 +452,7 @@ it('should handle annotate:created event', async () => {
 
   // Emit event
   act(() => {
-    eventBus.emit('annotate:created', { annotation: mockAnnotation });
+    eventBus.emit('mark:created', { annotation: mockAnnotation });
   });
 
   // Assert state updated
@@ -501,7 +501,7 @@ it('should handle annotate:created event', async () => {
 ```tsx
 // ✅ CORRECT: Automatic cleanup
 useEventSubscriptions({
-  'annotate:created': (annotation) => { /* ... */ },
+  'mark:created': (annotation) => { /* ... */ },
 });
 ```
 

@@ -29,12 +29,12 @@ Built on the W3C Web Annotation standard — portable, interoperable, and sovere
 
 Humans and AI agents work as peers through six composable workflows:
 
-- **[Annotate](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/ANNOTATE.md)** — Create highlights, assessments, comments, tags, and entity references — manually or via AI-assisted detection
-- **[Resolve](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/RESOLVE.md)** — Link reference annotations to existing resources or create new ones
-- **[Correlate](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/CORRELATE.md)** — Extract semantic context from annotations and the knowledge graph for downstream use
-- **[Generate](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/GENERATE.md)** — Synthesize new resources from reference annotations using correlated context
-- **[Attend](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/ATTEND.md)** — Focus on a resource or annotation; hover, click, and sparkle signals coordinate all panels and views
-- **[Navigate](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/NAVIGATE.md)** — Route user actions to the correct view, panel, or resource; decouple navigation intent from framework-specific routing
+- **[Yield](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/YIELD.md)** — Synthesize new resources from reference annotations using correlated context
+- **[Mark](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/MARK.md)** — Create highlights, assessments, comments, tags, and entity references — manually or via AI-assisted detection
+- **[Bind](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/BIND.md)** — Link reference annotations to existing resources or create new ones
+- **[Gather](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/GATHER.md)** — Extract semantic context from annotations and the knowledge graph for downstream use
+- **[Browse](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/BROWSE.md)** — Route user actions to the correct view, panel, or resource; decouple navigation intent from framework-specific routing
+- **[Beckon](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/BECKON.md)** — Focus on a resource or annotation; hover, click, and sparkle signals coordinate all panels and views
 
 ## Use Cases
 

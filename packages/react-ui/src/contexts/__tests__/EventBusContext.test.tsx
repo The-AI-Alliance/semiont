@@ -64,8 +64,8 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
-        result.current.get('annotate:selection-changed').subscribe(handler);
-        result.current.get('annotate:selection-changed').next({ motivation: 'highlighting' });
+        result.current.get('mark:selection-changed').subscribe(handler);
+        result.current.get('mark:selection-changed').next({ motivation: 'highlighting' });
       });
 
       expect(handler).toHaveBeenCalledWith({ motivation: 'highlighting' });
@@ -100,8 +100,8 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
-        result.current.get('annotate:create').subscribe(handler);
-        result.current.get('annotate:create').next({
+        result.current.get('mark:create').subscribe(handler);
+        result.current.get('mark:create').next({
           motivation: 'highlighting',
           selector: { type: 'TextQuoteSelector', exact: 'test' },
           body: [{ type: 'TextualBody', value: 'highlight' }]
@@ -116,8 +116,8 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
-        result.current.get('annotate:detect-request').subscribe(handler);
-        result.current.get('annotate:detect-request').next({
+        result.current.get('mark:assist-request').subscribe(handler);
+        result.current.get('mark:assist-request').next({
           motivation: 'highlighting',
           options: { instructions: 'Find important parts' }
         });
@@ -240,19 +240,19 @@ describe('EventBusContext', () => {
 
       act(() => {
         // Subscribe to annotation events
-        result.current.get('annotate:create').subscribe(createHandler);
-        result.current.get('annotate:created').subscribe(createdHandler);
+        result.current.get('mark:create').subscribe(createHandler);
+        result.current.get('mark:created').subscribe(createdHandler);
         result.current.get('beckon:hover').subscribe(hoverHandler);
 
         // Simulate annotation creation flow
-        result.current.get('annotate:create').next({
+        result.current.get('mark:create').next({
           motivation: 'commenting',
           selector: { type: 'TextQuoteSelector', exact: 'important text' },
           body: [{ type: 'TextualBody', value: 'my comment' }]
         });
 
         // Simulate successful creation (would normally come from API)
-        result.current.get('annotate:created').next({
+        result.current.get('mark:created').next({
           annotation: {
             '@context': 'http://www.w3.org/ns/anno.jsonld',
             type: 'Annotation',
@@ -280,24 +280,24 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
-        result.current.get('annotate:detect-request').subscribe(startHandler);
-        result.current.get('annotate:detect-progress').subscribe(progressHandler);
-        result.current.get('annotate:detect-finished').subscribe(completeHandler);
+        result.current.get('mark:assist-request').subscribe(startHandler);
+        result.current.get('mark:progress').subscribe(progressHandler);
+        result.current.get('mark:assist-finished').subscribe(completeHandler);
 
         // Start detection
-        result.current.get('annotate:detect-request').next({
+        result.current.get('mark:assist-request').next({
           motivation: 'tagging',
           options: { schemaId: 'legal', categories: ['Issue', 'Rule'] }
         });
 
         // Progress update
-        result.current.get('annotate:detect-progress').next({
+        result.current.get('mark:progress').next({
           type: 'job.progress',
           payload: { current: 5, total: 10 }
         } as any);
 
         // Complete
-        result.current.get('annotate:detect-finished').next({ motivation: 'tagging' });
+        result.current.get('mark:assist-finished').next({ motivation: 'tagging' });
       });
 
       expect(startHandler).toHaveBeenCalled();

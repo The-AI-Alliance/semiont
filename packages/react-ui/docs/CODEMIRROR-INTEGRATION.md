@@ -137,7 +137,7 @@ AnnotateView provides:
 
 - **Text segmentation**: `segmentTextWithAnnotations()` uses fuzzy anchoring (`findTextWithContext` from `@semiont/api-client`) with pre-computed `ContentCache` for batch efficiency
 - **Position calculation**: `CodeMirror.posAtDOM()` converts DOM selection to source positions
-- **Annotation creation**: Emits `annotate:requested` with dual selectors (`TextPositionSelector` + `TextQuoteSelector` with prefix/suffix context)
+- **Annotation creation**: Emits `mark:requested` with dual selectors (`TextPositionSelector` + `TextQuoteSelector` with prefix/suffix context)
 - **MIME routing**: Routes to `CodeMirrorRenderer` (text), `PdfAnnotationCanvas` (PDF), or `SvgDrawingCanvas` (image)
 
 ## Performance Optimizations

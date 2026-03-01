@@ -1,5 +1,5 @@
 /**
- * useAnnotationFlow - Annotation state management hook
+ * useMarkFlow - Annotation state management hook
  *
  * Manages all annotation workflows (manual and AI-driven):
  * - Pending annotation state (user selected text, waiting for confirmation)
@@ -29,10 +29,10 @@ import type { EventMap } from '@semiont/core';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
 import { useApiClient } from '../contexts/ApiClientContext';
 import { useAuthToken } from '../contexts/AuthTokenContext';
-import type { AnnotationProgress } from '@semiont/core';
+import type { MarkProgress } from '@semiont/core';
 import { useToast } from '../components/Toast';
 
-type SelectionData = EventMap['annotate:select-comment'];
+type SelectionData = EventMap['mark:select-comment'];
 
 /** Helper to convert string | null to AccessToken | undefined */
 function toAccessToken(token: string | null) {
@@ -45,12 +45,12 @@ interface PendingAnnotation {
   motivation: Motivation;
 }
 
-export interface AnnotationFlowState {
+export interface MarkFlowState {
   // Manual annotation state
   pendingAnnotation: PendingAnnotation | null;
   // AI-assisted annotation state
   assistingMotivation: Motivation | null;
-  progress: AnnotationProgress | null;
+  progress: MarkProgress | null;
   assistStreamRef: React.MutableRefObject<AbortController | null>;
 }
 
@@ -59,31 +59,31 @@ export interface AnnotationFlowState {
  *
  * @param rUri - Resource URI being annotated
  * @emits browse:panel-open - Open the annotations panel when annotation is requested
- * @emits annotate:created - Annotation successfully created
- * @emits annotate:create-failed - Annotation creation failed
- * @emits annotate:deleted - Annotation successfully deleted
- * @emits annotate:delete-failed - Annotation deletion failed
- * @emits annotate:progress - Progress update from SSE stream
- * @emits annotate:assist-finished - SSE assist completed
- * @emits annotate:assist-failed - SSE assist failed
- * @emits annotate:assist-cancelled - SSE assist cancelled
- * @subscribes annotate:requested - User requested a new annotation
- * @subscribes annotate:create - Create annotation via API
- * @subscribes annotate:delete - Delete annotation via API
- * @subscribes annotate:select-comment - User selected text for a comment
- * @subscribes annotate:select-tag - User selected text for a tag
- * @subscribes annotate:select-assessment - User selected text for an assessment
- * @subscribes annotate:select-reference - User selected text for a reference
- * @subscribes annotate:cancel-pending - Cancel pending annotation creation
- * @subscribes annotate:assist-request - Trigger AI-assisted annotation SSE stream
+ * @emits mark:created - Annotation successfully created
+ * @emits mark:create-failed - Annotation creation failed
+ * @emits mark:deleted - Annotation successfully deleted
+ * @emits mark:delete-failed - Annotation deletion failed
+ * @emits mark:progress - Progress update from SSE stream
+ * @emits mark:assist-finished - SSE assist completed
+ * @emits mark:assist-failed - SSE assist failed
+ * @emits mark:assist-cancelled - SSE assist cancelled
+ * @subscribes mark:requested - User requested a new annotation
+ * @subscribes mark:create - Create annotation via API
+ * @subscribes mark:delete - Delete annotation via API
+ * @subscribes mark:select-comment - User selected text for a comment
+ * @subscribes mark:select-tag - User selected text for a tag
+ * @subscribes mark:select-assessment - User selected text for an assessment
+ * @subscribes mark:select-reference - User selected text for a reference
+ * @subscribes mark:cancel-pending - Cancel pending annotation creation
+ * @subscribes mark:assist-request - Trigger AI-assisted annotation SSE stream
  * @subscribes job:cancel-requested - Cancels in-flight assist stream (assist half only)
- * @subscribes annotate:progress - Progress update during assist
- * @subscribes annotate:assist-finished - Assist completed successfully
- * @subscribes annotate:assist-failed - Error during assist
- * @subscribes annotate:progress-dismiss - Manually dismiss progress display
+ * @subscribes mark:progress - Progress update during assist
+ * @subscribes mark:assist-finished - Assist completed successfully
+ * @subscribes mark:assist-failed - Error during assist
+ * @subscribes mark:progress-dismiss - Manually dismiss progress display
  * @returns Annotation flow state
  */
-export function useAnnotationFlow(rUri: ResourceUri): AnnotationFlowState {
+export function useMarkFlow(rUri: ResourceUri): MarkFlowState {
   const eventBus = useEventBus();
   const client = useApiClient();
   const token = useAuthToken();
@@ -194,17 +194,17 @@ export function useAnnotationFlow(rUri: ResourceUri): AnnotationFlowState {
   // ============================================================
 
   const [assistingMotivation, setAssistingMotivation] = useState<Motivation | null>(null);
-  const [progress, setProgress] = useState<AnnotationProgress | null>(null);
+  const [progress, setProgress] = useState<MarkProgress | null>(null);
   const assistStreamRef = useRef<AbortController | null>(null);
 
   // Auto-dismiss timeout ref
   const progressDismissTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleAnnotationProgress = useCallback((chunk: AnnotationProgress) => {
+  const handleMarkProgress = useCallback((chunk: MarkProgress) => {
     setProgress(chunk);
   }, []);
 
-  const handleAnnotationComplete = useCallback((event: EventMap['annotate:assist-finished']) => {
+  const handleAnnotationComplete = useCallback((event: EventMap['mark:assist-finished']) => {
     // Only clear if the completion event's motivation matches the current one
     setAssistingMotivation(prev => {
       if (!event.motivation || event.motivation !== prev) return prev;
@@ -277,11 +277,11 @@ export function useAnnotationFlow(rUri: ResourceUri): AnnotationFlowState {
 
         if (result.annotation) {
           setPendingAnnotation(null);
-          eventBus.get('annotate:created').next({ annotation: result.annotation });
+          eventBus.get('mark:created').next({ annotation: result.annotation });
         }
       } catch (error) {
         console.error('Failed to create annotation:', error);
-        eventBus.get('annotate:create-failed').next({ error: error as Error });
+        eventBus.get('mark:create-failed').next({ error: error as Error });
       }
     };
 
@@ -298,10 +298,10 @@ export function useAnnotationFlow(rUri: ResourceUri): AnnotationFlowState {
 
         await currentClient.deleteAnnotation(annotationUri, { auth: toAccessToken(tokenRef.current) });
 
-        eventBus.get('annotate:deleted').next({ annotationId: event.annotationId });
+        eventBus.get('mark:deleted').next({ annotationId: event.annotationId });
       } catch (error) {
         console.error('Failed to delete annotation:', error);
-        eventBus.get('annotate:delete-failed').next({ error: error as Error });
+        eventBus.get('mark:delete-failed').next({ error: error as Error });
       }
     };
 
@@ -346,7 +346,7 @@ export function useAnnotationFlow(rUri: ResourceUri): AnnotationFlowState {
             throw new Error('Tag assist requires schemaId and categories');
           }
           currentClient.sse.annotateTags(currentRUri, { schemaId, categories }, sseOptions);
-          // Events auto-emit to EventBus: annotate:progress, annotate:assist-finished, annotate:assist-failed
+          // Events auto-emit to EventBus: mark:progress, mark:assist-finished, mark:assist-failed
         } else if (event.motivation === 'linking') {
           const { entityTypes, includeDescriptiveReferences } = event.options;
           if (!entityTypes || entityTypes.length === 0) {
@@ -356,31 +356,31 @@ export function useAnnotationFlow(rUri: ResourceUri): AnnotationFlowState {
             entityTypes: entityTypes.map(et => entityType(et)),
             includeDescriptiveReferences: includeDescriptiveReferences || false,
           }, sseOptions);
-          // Events auto-emit to EventBus: annotate:progress, annotate:assist-finished, annotate:assist-failed
+          // Events auto-emit to EventBus: mark:progress, mark:assist-finished, mark:assist-failed
         } else if (event.motivation === 'highlighting') {
           currentClient.sse.annotateHighlights(currentRUri, {
             instructions: event.options.instructions,
             density: event.options.density,
           }, sseOptions);
-          // Events auto-emit to EventBus: annotate:progress, annotate:assist-finished, annotate:assist-failed
+          // Events auto-emit to EventBus: mark:progress, mark:assist-finished, mark:assist-failed
         } else if (event.motivation === 'assessing') {
           currentClient.sse.annotateAssessments(currentRUri, {
             instructions: event.options.instructions,
             tone: event.options.tone as 'analytical' | 'critical' | 'balanced' | 'constructive' | undefined,
             density: event.options.density,
           }, sseOptions);
-          // Events auto-emit to EventBus: annotate:progress, annotate:assist-finished, annotate:assist-failed
+          // Events auto-emit to EventBus: mark:progress, mark:assist-finished, mark:assist-failed
         } else if (event.motivation === 'commenting') {
           currentClient.sse.annotateComments(currentRUri, {
             instructions: event.options.instructions,
             tone: event.options.tone as 'scholarly' | 'explanatory' | 'conversational' | 'technical' | undefined,
             density: event.options.density,
           }, sseOptions);
-          // Events auto-emit to EventBus: annotate:progress, annotate:assist-finished, annotate:assist-failed
+          // Events auto-emit to EventBus: mark:progress, mark:assist-finished, mark:assist-failed
         }
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') {
-          eventBus.get('annotate:assist-cancelled').next(undefined);
+          eventBus.get('mark:assist-cancelled').next(undefined);
         } else {
           console.error('Annotation assist failed:', error);
           setAssistingMotivation(null);
@@ -400,9 +400,9 @@ export function useAnnotationFlow(rUri: ResourceUri): AnnotationFlowState {
       }
     };
 
-    const subscription1 = eventBus.get('annotate:create').subscribe(handleAnnotationCreate);
-    const subscription2 = eventBus.get('annotate:delete').subscribe(handleAnnotationDelete);
-    const subscription3 = eventBus.get('annotate:assist-request').subscribe(handleAssistStart);
+    const subscription1 = eventBus.get('mark:create').subscribe(handleAnnotationCreate);
+    const subscription2 = eventBus.get('mark:delete').subscribe(handleAnnotationDelete);
+    const subscription3 = eventBus.get('mark:assist-request').subscribe(handleAssistStart);
     const subscription4 = eventBus.get('job:cancel-requested').subscribe(handleJobCancelRequested);
 
     return () => {
@@ -420,21 +420,21 @@ export function useAnnotationFlow(rUri: ResourceUri): AnnotationFlowState {
 
   useEventSubscriptions({
     // Manual annotation
-    'annotate:requested': handleAnnotationRequested,
-    'annotate:select-comment': handleCommentRequested,
-    'annotate:select-tag': handleTagRequested,
-    'annotate:select-assessment': handleAssessmentRequested,
-    'annotate:select-reference': handleReferenceRequested,
-    'annotate:cancel-pending': handleAnnotationCancelPending,
+    'mark:requested': handleAnnotationRequested,
+    'mark:select-comment': handleCommentRequested,
+    'mark:select-tag': handleTagRequested,
+    'mark:select-assessment': handleAssessmentRequested,
+    'mark:select-reference': handleReferenceRequested,
+    'mark:cancel-pending': handleAnnotationCancelPending,
     // AI-assisted annotation state updates
-    'annotate:progress': handleAnnotationProgress,
-    'annotate:assist-finished': handleAnnotationComplete,
-    'annotate:assist-failed': handleAnnotationFailed,
-    'annotate:progress-dismiss': handleProgressDismiss,
-    'annotate:assist-cancelled': () => showInfo('Annotation cancelled'),
+    'mark:progress': handleMarkProgress,
+    'mark:assist-finished': handleAnnotationComplete,
+    'mark:assist-failed': handleAnnotationFailed,
+    'mark:progress-dismiss': handleProgressDismiss,
+    'mark:assist-cancelled': () => showInfo('Annotation cancelled'),
     // CRUD error notifications
-    'annotate:create-failed': ({ error }) => showError(`Failed to create annotation: ${error.message}`),
-    'annotate:delete-failed': ({ error }) => showError(`Failed to delete annotation: ${error.message}`),
+    'mark:create-failed': ({ error }) => showError(`Failed to create annotation: ${error.message}`),
+    'mark:delete-failed': ({ error }) => showError(`Failed to delete annotation: ${error.message}`),
   });
 
   // Cleanup timeout on unmount

@@ -2,18 +2,18 @@
 
 import { useTranslations } from '../contexts/TranslationContext';
 import { useEventBus } from '../contexts/EventBusContext';
-import type { AnnotationProgress } from '@semiont/core';
+import type { MarkProgress } from '@semiont/core';
 import type { components } from '@semiont/core';
 
 type Motivation = components['schemas']['Motivation'];
 
-// Extended AnnotationProgress with optional request parameters
-interface EnrichedAnnotationProgress extends AnnotationProgress {
+// Extended MarkProgress with optional request parameters
+interface EnrichedMarkProgress extends MarkProgress {
   requestParams?: Array<{ label: string; value: string }>;
 }
 
 interface AnnotateReferencesProgressWidgetProps {
-  progress: AnnotationProgress | null;
+  progress: MarkProgress | null;
   annotationType?: Motivation | 'reference';
 }
 
@@ -58,7 +58,7 @@ export function AnnotateReferencesProgressWidget({ progress, annotationType = 'r
 
       {/* Request Parameters */}
       {(() => {
-        const enrichedProgress = progress as EnrichedAnnotationProgress;
+        const enrichedProgress = progress as EnrichedMarkProgress;
         return enrichedProgress.requestParams && enrichedProgress.requestParams.length > 0 && (
           <div className="semiont-annotation-progress__params">
             <div className="semiont-annotation-progress__params-title">Request Parameters:</div>

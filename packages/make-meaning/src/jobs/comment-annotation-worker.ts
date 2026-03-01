@@ -124,7 +124,7 @@ export class CommentAnnotationWorker extends JobWorker {
           progress: cdJob.progress,
         },
       });
-      resourceBus.get('annotate:progress').next({
+      resourceBus.get('mark:progress').next({
         status: cdJob.progress.stage,
         message: cdJob.progress.message,
         percentage: cdJob.progress.percentage

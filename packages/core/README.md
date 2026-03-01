@@ -279,7 +279,7 @@ Semiont follows a **spec-first architecture**:
 - HTTP client & convenience re-exports → `@semiont/api-client`
 - Backend internal implementation → imports from `@semiont/core`
 
-**Type Generation Flow**: OpenAPI spec → `@semiont/core/src/types.ts` (via `openapi-typescript`) → re-exported by `@semiont/api-client` for convenience. This ensures no circular dependencies and clear build order.
+**Type Yield Flow**: OpenAPI spec → `@semiont/core/src/types.ts` (via `openapi-typescript`) → re-exported by `@semiont/api-client` for convenience. This ensures no circular dependencies and clear build order.
 
 ## Development
 

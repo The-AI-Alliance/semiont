@@ -2,18 +2,18 @@
  * FAILING TEST: Reproduces the bug where detection events fire but state doesn't update
  *
  * Based on console logs from production:
- * ✅ annotate:assist-request emitted
+ * ✅ mark:assist-request emitted
  * ✅ annotate:assist-progress emitted
  * ❌ assistingMotivation remains null
  * ❌ progress remains null
  *
- * UPDATED: Now tests useAnnotationFlow hook instead of DetectionFlowContainer
+ * UPDATED: Now tests useMarkFlow hook instead of DetectionFlowContainer
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { act } from 'react';
-import { useAnnotationFlow } from '../../../hooks/useAnnotationFlow';
+import { useMarkFlow } from '../../../hooks/useMarkFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
@@ -45,17 +45,17 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
     vi.restoreAllMocks();
   });
 
-  it('SHOULD update state when annotate:assist-request event is emitted', async () => {
+  it('SHOULD update state when mark:assist-request event is emitted', async () => {
     let eventBusInstance: any;
     let currentState: any;
 
     // Component to capture EventBus and hook state
     function TestComponent() {
       eventBusInstance = useEventBus();
-      const state = useAnnotationFlow('http://localhost:8080/resources/test' as any);
+      const state = useMarkFlow('http://localhost:8080/resources/test' as any);
       currentState = state;
 
-      console.log('[TEST] useAnnotationFlow state:', {
+      console.log('[TEST] useMarkFlow state:', {
         assistingMotivation: state.assistingMotivation,
         progress: state.progress,
       });
@@ -82,17 +82,17 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
     expect(screen.getByTestId('detecting')).toHaveTextContent('null');
     expect(screen.getByTestId('progress')).toHaveTextContent('null');
 
-    console.log('[TEST] Emitting annotate:assist-request event...');
+    console.log('[TEST] Emitting mark:assist-request event...');
 
-    // Emit annotate:assist-request event (exactly like production)
+    // Emit mark:assist-request event (exactly like production)
     act(() => {
-      eventBusInstance.get('annotate:assist-request').next({
+      eventBusInstance.get('mark:assist-request').next({
         motivation: 'linking',
         options: { entityTypes: ['Location'] }
       });
     });
 
-    console.log('[TEST] After annotate:assist-request, checking state...');
+    console.log('[TEST] After mark:assist-request, checking state...');
 
     // THIS SHOULD PASS but currently FAILS
     await waitFor(() => {
@@ -109,7 +109,7 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
 
     function TestComponent() {
       eventBusInstance = useEventBus();
-      const state = useAnnotationFlow('http://localhost:8080/resources/test' as any);
+      const state = useMarkFlow('http://localhost:8080/resources/test' as any);
       currentState = state;
 
       return (
@@ -134,7 +134,7 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
 
     // Emit annotate:assist-progress event (exactly like production)
     act(() => {
-      eventBusInstance.get('annotate:progress').next({
+      eventBusInstance.get('mark:progress').next({
         status: 'started',
         resourceId: 'test',
         totalEntityTypes: 1,
@@ -162,7 +162,7 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
 
     function TestComponent() {
       eventBusInstance = useEventBus();
-      const state = useAnnotationFlow('http://localhost:8080/resources/f45fd44f9cb0b0fe1b7980d3d034bc61' as any);
+      const state = useMarkFlow('http://localhost:8080/resources/f45fd44f9cb0b0fe1b7980d3d034bc61' as any);
 
       stateSnapshots.push({
         assistingMotivation: state.assistingMotivation,
@@ -192,18 +192,18 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
 
     // Exactly like production logs
     act(() => {
-      console.log('[EventBus] emit: annotate:assist-request {motivation: "linking", options: {...}}');
-      eventBusInstance.get('annotate:assist-request').next({
+      console.log('[EventBus] emit: mark:assist-request {motivation: "linking", options: {...}}');
+      eventBusInstance.get('mark:assist-request').next({
         motivation: 'linking',
         options: { entityTypes: ['Location'] }
       });
     });
 
-    console.log('After annotate:assist-request:', stateSnapshots[stateSnapshots.length - 1]);
+    console.log('After mark:assist-request:', stateSnapshots[stateSnapshots.length - 1]);
 
     act(() => {
       console.log('[EventBus] emit: annotate:assist-progress {status: "started", ...}');
-      eventBusInstance.get('annotate:progress').next({
+      eventBusInstance.get('mark:progress').next({
         status: 'started',
         resourceId: 'f45fd44f9cb0b0fe1b7980d3d034bc61',
         totalEntityTypes: 1,
@@ -216,7 +216,7 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
 
     act(() => {
       console.log('[EventBus] emit: annotate:assist-progress {status: "scanning", ...}');
-      eventBusInstance.get('annotate:progress').next({
+      eventBusInstance.get('mark:progress').next({
         status: 'scanning',
         resourceId: 'f45fd44f9cb0b0fe1b7980d3d034bc61',
         currentEntityType: 'Location',

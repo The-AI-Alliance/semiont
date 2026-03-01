@@ -4,7 +4,7 @@
  * This test verifies the fix for the issue identified in commit 9690806abc910bad490e684d6ef71d874a90579c.
  *
  * SOLUTION IMPLEMENTED:
- * - Pattern B: Both useAnnotationFlow and useYieldFlow call useToast internally
+ * - Pattern B: Both useMarkFlow and useYieldFlow call useToast internally
  * - Toast notifications are shown from within the hooks (self-contained)
  *
  * EXPECTED BEHAVIOR (after fix):
@@ -20,7 +20,7 @@ import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../..
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { resourceUri } from '@semiont/core';
-import { useAnnotationFlow } from '../../../hooks/useAnnotationFlow';
+import { useMarkFlow } from '../../../hooks/useMarkFlow';
 import { useYieldFlow } from '../../../hooks/useYieldFlow';
 
 // Mock the toast hook to track calls
@@ -51,7 +51,7 @@ describe('Toast Notifications - Verifies Toast Integration', () => {
    */
   function TestComponentWithDetection() {
     eventBusInstance = useEventBus();
-    useAnnotationFlow(rUri);
+    useMarkFlow(rUri);
     return <div data-testid="test">Test</div>;
   }
 
@@ -86,7 +86,7 @@ describe('Toast Notifications - Verifies Toast Integration', () => {
   }
 
   describe('Detection Events Trigger Toasts', () => {
-    it('annotate:assist-finished shows success toast', async () => {
+    it('mark:assist-finished shows success toast', async () => {
       renderDetectionTest();
 
       // Clear any potential mount-related calls
@@ -95,7 +95,7 @@ describe('Toast Notifications - Verifies Toast Integration', () => {
 
       // Emit detection finished event (what SSE would emit)
       act(() => {
-        eventBusInstance.get('annotate:assist-finished').next({
+        eventBusInstance.get('mark:assist-finished').next({
           motivation: 'linking' as any
         });
       });
@@ -106,7 +106,7 @@ describe('Toast Notifications - Verifies Toast Integration', () => {
       });
     });
 
-    it('annotate:assist-failed shows error toast', async () => {
+    it('mark:assist-failed shows error toast', async () => {
       renderDetectionTest();
 
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -114,7 +114,7 @@ describe('Toast Notifications - Verifies Toast Integration', () => {
 
       // Emit detection failed event
       act(() => {
-        eventBusInstance.get('annotate:assist-failed').next({
+        eventBusInstance.get('mark:assist-failed').next({
           type: 'job.failed' as const,
           resourceId: 'test' as any,
           userId: 'user' as any,

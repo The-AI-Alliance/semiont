@@ -277,7 +277,7 @@ describe('AssistSection', () => {
         { returnEventBus: true }
       );
 
-      const subscription = eventBus!.get('annotate:assist-request').subscribe(detectionHandler);
+      const subscription = eventBus!.get('mark:assist-request').subscribe(detectionHandler);
 
       const annotateButton = screen.getByRole('button', { name: /✨ Annotate/ });
       await user.click(annotateButton);
@@ -303,7 +303,7 @@ describe('AssistSection', () => {
         { returnEventBus: true }
       );
 
-      const subscription = eventBus!.get('annotate:assist-request').subscribe(detectionHandler);
+      const subscription = eventBus!.get('mark:assist-request').subscribe(detectionHandler);
 
       const annotateButton = screen.getByRole('button', { name: /✨ Annotate/ });
       await user.click(annotateButton);
@@ -329,7 +329,7 @@ describe('AssistSection', () => {
         { returnEventBus: true }
       );
 
-      const subscription = eventBus!.get('annotate:assist-request').subscribe(detectionHandler);
+      const subscription = eventBus!.get('mark:assist-request').subscribe(detectionHandler);
 
       const annotateButton = screen.getByRole('button', { name: /✨ Annotate/ });
       await user.click(annotateButton);
@@ -355,7 +355,7 @@ describe('AssistSection', () => {
         { returnEventBus: true }
       );
 
-      const subscription = eventBus!.get('annotate:assist-request').subscribe(detectionHandler);
+      const subscription = eventBus!.get('mark:assist-request').subscribe(detectionHandler);
 
       const textarea = screen.getByPlaceholderText('Enter custom instructions...');
       await user.type(textarea, 'Find key concepts');

@@ -4,7 +4,7 @@
  * Tests the complete data flow from UI → EventBus → useBindFlow → SSE (mocked)
  *
  * This test uses COMPOSITION instead of mocking:
- * - Real React components composed together (useAnnotationFlow + HighlightPanel + AssistSection)
+ * - Real React components composed together (useMarkFlow + HighlightPanel + AssistSection)
  * - Real EventBus (mitt) passed via context
  * - Real useBindFlow hook with mock API client passed as prop
  * - Mock SSE stream (simulated API responses) provided via composition
@@ -19,7 +19,7 @@
  * - That test verifies SYSTEM ARCHITECTURE (event wiring, API call count)
  * - This test verifies USER EXPERIENCE (button clicks, UI feedback)
  *
- * UPDATED: Now tests useAnnotationFlow hook instead of DetectionFlowContainer
+ * UPDATED: Now tests useMarkFlow hook instead of DetectionFlowContainer
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -27,7 +27,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { act } from 'react';
 import { HighlightPanel } from '../../../components/resource/panels/HighlightPanel';
-import { useAnnotationFlow } from '../../../hooks/useAnnotationFlow';
+import { useMarkFlow } from '../../../hooks/useMarkFlow';
 import { EventBusProvider, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
@@ -79,18 +79,18 @@ class MockSSEStream {
 
   // Test helper methods that emit to EventBus
   emitProgress(chunk: any) {
-    this.eventBus.get('annotate:progress').next(chunk);
+    this.eventBus.get('mark:progress').next(chunk);
   }
 
   emitComplete(finalChunk?: any, motivation: string = 'highlighting') {
     if (finalChunk) {
-      this.eventBus.get('annotate:progress').next(finalChunk);
+      this.eventBus.get('mark:progress').next(finalChunk);
     }
-    this.eventBus.get('annotate:assist-finished').next({ motivation });
+    this.eventBus.get('mark:assist-finished').next({ motivation });
   }
 
   emitError(error: Error) {
-    this.eventBus.get('annotate:assist-failed').next({
+    this.eventBus.get('mark:assist-failed').next({
       type: 'job.failed' as const,
       resourceId: 'test' as any,
       userId: 'user' as any,
@@ -114,7 +114,7 @@ function DetectionFlowTestHarness({
   rUri: string;
   annotations: Annotation[];
 }) {
-  const { assistingMotivation, progress } = useAnnotationFlow(rUri as any);
+  const { assistingMotivation, progress } = useMarkFlow(rUri as any);
 
   return (
     <HighlightPanel
@@ -305,7 +305,7 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
     });
   });
 
-  it('should clear progress on annotate:assist-failed', async () => {
+  it('should clear progress on mark:assist-failed', async () => {
     const user = userEvent.setup();
 
     renderDetectionFlow();

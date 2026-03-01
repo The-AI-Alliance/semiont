@@ -38,7 +38,7 @@ import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsContext';
 import { useApiClient } from '../../../contexts/ApiClientContext';
 import { useBindFlow } from '../../../hooks/useBindFlow';
-import { useAnnotationFlow } from '../../../hooks/useAnnotationFlow';
+import { useMarkFlow } from '../../../hooks/useMarkFlow';
 import { useBeckonFlow } from '../../../hooks/useBeckonFlow';
 import { usePanelBrowse } from '../../../hooks/usePanelBrowse';
 import { useYieldFlow } from '../../../hooks/useYieldFlow';
@@ -98,11 +98,11 @@ export interface ResourceViewerPageProps {
  * @subscribes resource:unarchive - Unarchive the current resource
  * @subscribes yield:clone - Clone the current resource
  * @subscribes beckon:sparkle - Trigger sparkle animation
- * @subscribes annotate:added - Annotation was created
- * @subscribes annotate:removed - Annotation was deleted
- * @subscribes annotate:create-failed - Annotation creation failed
- * @subscribes annotate:delete-failed - Annotation deletion failed
- * @subscribes annotate:body-updated - Annotation body was updated
+ * @subscribes mark:added - Annotation was created
+ * @subscribes mark:removed - Annotation was deleted
+ * @subscribes mark:create-failed - Annotation creation failed
+ * @subscribes mark:delete-failed - Annotation deletion failed
+ * @subscribes mark:body-updated - Annotation body was updated
  * @subscribes annotate:body-update-failed - Annotation body update failed
  * @subscribes settings:theme-changed - UI theme changed
  * @subscribes settings:line-numbers-toggled - Line numbers display toggled
@@ -158,7 +158,7 @@ export function ResourceViewerPage({
 
   // Flow state hooks (NO CONTAINERS)
   const { hoveredAnnotationId } = useBeckonFlow();
-  const { assistingMotivation, progress, pendingAnnotation } = useAnnotationFlow(rUri);
+  const { assistingMotivation, progress, pendingAnnotation } = useMarkFlow(rUri);
   const { activePanel, scrollToAnnotationId, panelInitialTab, onScrollCompleted } = usePanelBrowse();
   const { searchModalOpen, pendingReferenceId, onCloseSearchModal } = useBindFlow(rUri);
   const {
@@ -331,12 +331,12 @@ export function ResourceViewerPage({
   const handleSettingsThemeChanged = useCallback(({ theme }: { theme: any }) => setTheme(theme), [setTheme]);
 
   const handleDetectionComplete = useCallback(() => {
-    // Toast notification is handled by useAnnotationFlow
+    // Toast notification is handled by useMarkFlow
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.annotations(rUri) });
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
   }, [queryClient, rUri]);
   const handleDetectionFailed = useCallback(() => {
-    // Error notification is handled by useAnnotationFlow
+    // Error notification is handled by useMarkFlow
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.annotations(rUri) });
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
   }, [queryClient, rUri]);
@@ -367,16 +367,16 @@ export function ResourceViewerPage({
     'resource:unarchive': handleResourceUnarchive,
     'yield:clone': handleResourceClone,
     'beckon:sparkle': handleAnnotationSparkle,
-    'annotate:added': handleAnnotationAdded,
-    'annotate:removed': debouncedInvalidateAnnotations,
-    'annotate:create-failed': handleAnnotationCreateFailed,
-    'annotate:delete-failed': handleAnnotationDeleteFailed,
-    'annotate:body-updated': handleAnnotateBodyUpdated,
+    'mark:added': handleAnnotationAdded,
+    'mark:removed': debouncedInvalidateAnnotations,
+    'mark:create-failed': handleAnnotationCreateFailed,
+    'mark:delete-failed': handleAnnotationDeleteFailed,
+    'mark:body-updated': handleAnnotateBodyUpdated,
     'bind:body-update-failed': handleAnnotateBodyUpdateFailed,
     'settings:theme-changed': handleSettingsThemeChanged,
     'settings:line-numbers-toggled': toggleLineNumbers,
-    'annotate:assist-finished': handleDetectionComplete,
-    'annotate:assist-failed': handleDetectionFailed,
+    'mark:assist-finished': handleDetectionComplete,
+    'mark:assist-failed': handleDetectionFailed,
     'yield:finished': handleGenerationComplete,
     'yield:failed': handleGenerationFailed,
     'browse:reference-navigate': handleReferenceNavigate,
@@ -624,7 +624,7 @@ export function ResourceViewerPage({
                 }],
               });
               showSuccess('Reference linked successfully');
-              // Cache invalidation now handled by annotate:body-updated event
+              // Cache invalidation now handled by mark:body-updated event
               onCloseSearchModal();
             } catch (error) {
               console.error('Failed to link reference:', error);

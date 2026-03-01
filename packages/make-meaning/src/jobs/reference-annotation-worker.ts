@@ -422,12 +422,12 @@ export class ReferenceAnnotationWorker extends JobWorker {
         },
       });
 
-      // ALSO emit initial annotate:progress for immediate frontend feedback
-      this.logger?.debug('[EventBus] Emitting initial annotate:progress', {
+      // ALSO emit initial mark:progress for immediate frontend feedback
+      this.logger?.debug('[EventBus] Emitting initial mark:progress', {
         resourceId: detJob.params.resourceId,
         currentEntityType: detJob.progress.currentEntityType
       });
-      resourceBus.get('annotate:progress').next({
+      resourceBus.get('mark:progress').next({
         status: 'started',
         message: detJob.progress.currentEntityType
           ? `Starting ${detJob.progress.currentEntityType}...`
@@ -436,14 +436,14 @@ export class ReferenceAnnotationWorker extends JobWorker {
         percentage: 0,
       });
     } else if (isBeforeProcessing) {
-      // Before processing an entity type - only emit ephemeral annotate:progress (no domain event)
+      // Before processing an entity type - only emit ephemeral mark:progress (no domain event)
       // This provides immediate UX feedback that we're starting work on this entity type
       const percentage = 0; // Starting this entity type
-      this.logger?.debug('[EventBus] Emitting annotate:progress (before processing)', {
+      this.logger?.debug('[EventBus] Emitting mark:progress (before processing)', {
         resourceId: detJob.params.resourceId,
         currentEntityType: detJob.progress.currentEntityType
       });
-      resourceBus.get('annotate:progress').next({
+      resourceBus.get('mark:progress').next({
         status: 'scanning',
         message: `Starting ${detJob.progress.currentEntityType}...`,
         currentEntityType: detJob.progress.currentEntityType,
@@ -466,13 +466,13 @@ export class ReferenceAnnotationWorker extends JobWorker {
         },
       });
 
-      // PROGRESS EVENT: Emit annotate:progress directly to EventBus (ephemeral)
-      this.logger?.debug('[EventBus] Emitting annotate:progress', {
+      // PROGRESS EVENT: Emit mark:progress directly to EventBus (ephemeral)
+      this.logger?.debug('[EventBus] Emitting mark:progress', {
         resourceId: detJob.params.resourceId,
         currentEntityType: detJob.progress.currentEntityType,
         percentage
       });
-      resourceBus.get('annotate:progress').next({
+      resourceBus.get('mark:progress').next({
         status: 'scanning',
         message: `Processing ${detJob.progress.currentEntityType}`,
         currentEntityType: detJob.progress.currentEntityType,

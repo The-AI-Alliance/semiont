@@ -4,7 +4,7 @@
  * Tests the COMPLETE annotation deletion flow with real component composition:
  * - EventBusProvider (REAL)
  * - ApiClientProvider (REAL, with MOCKED client)
- * - useAnnotationFlow (REAL) — single registration point for useBindFlow
+ * - useMarkFlow (REAL) — single registration point for useBindFlow
  * - useEventSubscriptions (REAL)
  *
  * This test focuses on ARCHITECTURE and EVENT WIRING:
@@ -18,15 +18,15 @@
  * - useBindFlow called in more than one hook (causes duplicate subscriptions)
  * - Auth token missing from API calls (401 errors)
  *
- * ARCHITECTURE: useBindFlow is called ONLY in useAnnotationFlow.
- * useAnnotationFlow handles all detection state (manual annotation selection
+ * ARCHITECTURE: useBindFlow is called ONLY in useMarkFlow.
+ * useMarkFlow handles all detection state (manual annotation selection
  * and AI-driven SSE detection) plus all API operations via useBindFlow.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import { act } from 'react';
-import { useAnnotationFlow } from '../../../hooks/useAnnotationFlow';
+import { useMarkFlow } from '../../../hooks/useMarkFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 
 // Mock Toast module to prevent "useToast must be used within a ToastProvider" errors
@@ -70,9 +70,9 @@ describe('Annotation Deletion - Feature Integration', () => {
 
     function TestComponent() {
       eventBusInstance = useEventBus();
-      // useAnnotationFlow is the single registration point for useBindFlow
-      // (handles annotate:delete annotate:create annotate:detect-request, etc.)
-      useAnnotationFlow(testUri);
+      // useMarkFlow is the single registration point for useBindFlow
+      // (handles mark:delete mark:create annotate:detect-request, etc.)
+      useMarkFlow(testUri);
       return null;
     }
 
@@ -89,14 +89,14 @@ describe('Annotation Deletion - Feature Integration', () => {
     return {
       emitDelete: (annotationId: string) => {
         act(() => {
-          eventBusInstance!.get('annotate:delete').next({ annotationId });
+          eventBusInstance!.get('mark:delete').next({ annotationId });
         });
       },
       eventBus: eventBusInstance!,
     };
   }
 
-  it('should call deleteAnnotation API exactly ONCE when annotate:deleteevent is emitted', async () => {
+  it('should call deleteAnnotation API exactly ONCE when mark:deleteevent is emitted', async () => {
     const { emitDelete } = renderAnnotationFlow();
     const annotationId = 'annotation-123';
 
@@ -133,12 +133,12 @@ describe('Annotation Deletion - Feature Integration', () => {
     expect(callArgs[1].auth).toBe(accessToken(testToken));
   });
 
-  it('should emit annotate:deleted event on successful deletion', async () => {
+  it('should emit mark:deleted event on successful deletion', async () => {
     const { emitDelete, eventBus } = renderAnnotationFlow();
     const deletedListener = vi.fn();
 
     // Subscribe to success event
-    eventBus.get('annotate:deleted').subscribe(deletedListener);
+    eventBus.get('mark:deleted').subscribe(deletedListener);
 
     emitDelete('annotation-789');
 
@@ -155,7 +155,7 @@ describe('Annotation Deletion - Feature Integration', () => {
     });
   });
 
-  it('should emit annotate:delete-failed event on API error', async () => {
+  it('should emit mark:delete-failed event on API error', async () => {
     // Make API call fail
     deleteAnnotationSpy.mockRejectedValue(new Error('Network error'));
 
@@ -163,7 +163,7 @@ describe('Annotation Deletion - Feature Integration', () => {
     const failedListener = vi.fn();
 
     // Subscribe to failure event
-    eventBus.get('annotate:delete-failed').subscribe(failedListener);
+    eventBus.get('mark:delete-failed').subscribe(failedListener);
 
     emitDelete('annotation-error');
 
@@ -202,10 +202,10 @@ describe('Annotation Deletion - Feature Integration', () => {
     expect(deleteAnnotationSpy.mock.calls[1][0]).toContain('annotation-2');
   });
 
-  it('ARCHITECTURE: useBindFlow is called in useAnnotationFlow (single registration point)', async () => {
+  it('ARCHITECTURE: useBindFlow is called in useMarkFlow (single registration point)', async () => {
     /**
      * This test validates that there's only ONE event-driven deletion path:
-     * - useAnnotationFlow calls useBindFlow (the single registration point)
+     * - useMarkFlow calls useBindFlow (the single registration point)
      * - useBindFlow subscribes to annotation:delete
      *
      * If this test fails with 2 API calls, it means useBindFlow was added
@@ -229,7 +229,7 @@ describe('Annotation Deletion - Feature Integration', () => {
      * that bypassed the event bus.
      *
      * The correct pattern is event-driven only:
-     * - UI emits annotate:deleteevent
+     * - UI emits mark:deleteevent
      * - useBindFlow handles it
      * - No direct function calls
      */

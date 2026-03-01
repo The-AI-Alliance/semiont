@@ -4,7 +4,7 @@
 
 **Related Documentation**:
 - [Generate Flow](./YIELD.md) - Primary consumer of correlated context
-- [Annotate Flow](./ANNOTATE.md) - How annotations (the correlation sources) are created
+- [Annotate Flow](./MARK.md) - How annotations (the correlation sources) are created
 - [@semiont/make-meaning Architecture](../../packages/make-meaning/docs/architecture.md) - Context assembly layer
 - [Make-Meaning API Reference](../../packages/make-meaning/docs/api-reference.md) - `getAnnotationLLMContext` endpoint
 

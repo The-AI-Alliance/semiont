@@ -199,9 +199,9 @@ export class SSEClient {
         body: JSON.stringify(request)
       },
       {
-        progressEvents: ['annotate:progress'],
-        completeEvent: 'annotate:assist-finished',
-        errorEvent: 'annotate:assist-failed',
+        progressEvents: ['mark:progress'],
+        completeEvent: 'mark:assist-finished',
+        errorEvent: 'mark:assist-failed',
         eventBus: options.eventBus,
         eventPrefix: undefined
       },
@@ -325,9 +325,9 @@ export class SSEClient {
         body: JSON.stringify(request)
       },
       {
-        progressEvents: ['annotate:progress'],
-        completeEvent: 'annotate:assist-finished',
-        errorEvent: 'annotate:assist-failed',
+        progressEvents: ['mark:progress'],
+        completeEvent: 'mark:assist-finished',
+        errorEvent: 'mark:assist-failed',
         eventBus: options.eventBus,
         eventPrefix: undefined
       },
@@ -386,9 +386,9 @@ export class SSEClient {
         body: JSON.stringify(request)
       },
       {
-        progressEvents: ['annotate:progress'],
-        completeEvent: 'annotate:assist-finished',
-        errorEvent: 'annotate:assist-failed',
+        progressEvents: ['mark:progress'],
+        completeEvent: 'mark:assist-finished',
+        errorEvent: 'mark:assist-failed',
         eventBus: options.eventBus,
         eventPrefix: undefined
       },
@@ -451,9 +451,9 @@ export class SSEClient {
         body: JSON.stringify(request)
       },
       {
-        progressEvents: ['annotate:progress'],
-        completeEvent: 'annotate:assist-finished',
-        errorEvent: 'annotate:assist-failed',
+        progressEvents: ['mark:progress'],
+        completeEvent: 'mark:assist-finished',
+        errorEvent: 'mark:assist-failed',
         eventBus: options.eventBus,
         eventPrefix: undefined
       },
@@ -517,9 +517,9 @@ export class SSEClient {
         body: JSON.stringify(request)
       },
       {
-        progressEvents: ['annotate:progress'],
-        completeEvent: 'annotate:assist-finished',
-        errorEvent: 'annotate:assist-failed',
+        progressEvents: ['mark:progress'],
+        completeEvent: 'mark:assist-finished',
+        errorEvent: 'mark:assist-failed',
         eventBus: options.eventBus,
         eventPrefix: undefined
       },

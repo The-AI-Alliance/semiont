@@ -55,7 +55,7 @@ ResourceViewer
 
 - Routes to appropriate viewer based on MIME type category (`text`, `image`, `unsupported`)
 - Manages text selection for annotation creation using CodeMirror's `posAtDOM()` API
-- Emits `annotate:requested` events with dual selectors (`TextPositionSelector` + `TextQuoteSelector`)
+- Emits `mark:requested` events with dual selectors (`TextPositionSelector` + `TextQuoteSelector`)
 - Subscribes to toolbar events and hover events via `useEventSubscriptions`
 - Pre-computes text segments with fuzzy anchoring via `segmentTextWithAnnotations()`
 
@@ -131,7 +131,7 @@ User selects text in AnnotateView
 → mouseup handler
 → CodeMirror posAtDOM() for accurate source positions
 → extractContext() for prefix/suffix
-→ eventBus.get('annotate:requested').next({
+→ eventBus.get('mark:requested').next({
     selector: [TextPositionSelector, TextQuoteSelector],
     motivation
   })

@@ -5,7 +5,7 @@
 **Related Documentation**:
 - [W3C Web Annotation Data Model](../../specs/docs/W3C-WEB-ANNOTATION.md) - Reference annotation and SpecificResource body structure
 - [Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - Event Store and annotation body updates
-- [Annotate Flow](./ANNOTATE.md) - How reference annotations are created
+- [Annotate Flow](./MARK.md) - How reference annotations are created
 - [Generate Flow](./GENERATE.md) - AI-powered resource generation (alternative to manual resolution)
 
 ## Overview

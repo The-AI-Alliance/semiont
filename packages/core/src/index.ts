@@ -141,7 +141,7 @@ export type {
   EventMap,
   EventName,
   SelectionData,
-  AnnotationProgress,
+  MarkProgress,
   YieldProgress,
   Selector,
   YieldContext,

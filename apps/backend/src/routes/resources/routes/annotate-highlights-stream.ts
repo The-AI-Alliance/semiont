@@ -150,9 +150,9 @@ export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jo
           const resourceBus = eventBus.scope(id);
           logger.info('Subscribing to EventBus for resource');
 
-          // Subscribe to annotate:progress
+          // Subscribe to mark:progress
           subscriptions.push(
-            resourceBus.get('annotate:progress').subscribe(async (_event) => {
+            resourceBus.get('mark:progress').subscribe(async (_event) => {
               if (isStreamClosed) return;
               logger.info('Detection started');
               try {
@@ -162,7 +162,7 @@ export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jo
                     resourceId: resourceId(id),
                     message: 'Starting detection...'
                   } as HighlightDetectionProgress),
-                  event: 'annotate:progress',
+                  event: 'mark:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -172,9 +172,9 @@ export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jo
             })
           );
 
-          // Subscribe to annotate:progress
+          // Subscribe to mark:progress
           subscriptions.push(
-            resourceBus.get('annotate:progress').subscribe(async (progress) => {
+            resourceBus.get('mark:progress').subscribe(async (progress) => {
               if (isStreamClosed) return;
               logger.info('Detection progress', { progress });
               try {
@@ -186,7 +186,7 @@ export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jo
                     percentage: progress.percentage,
                     message: progress.message || 'Processing...'
                   } as HighlightDetectionProgress),
-                  event: 'annotate:progress',
+                  event: 'mark:progress',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -216,7 +216,7 @@ export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jo
                       ? `Complete! Created ${result.highlightsCreated} highlights`
                       : 'Highlight detection complete!'
                   } as HighlightDetectionProgress),
-                  event: 'annotate:assist-finished',
+                  event: 'mark:assist-finished',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -239,7 +239,7 @@ export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jo
                     resourceId: resourceId(id),
                     message: event.payload.error || 'Highlight detection failed'
                   } as HighlightDetectionProgress),
-                  event: 'annotate:assist-failed',
+                  event: 'mark:assist-failed',
                   id: String(Date.now())
                 });
               } catch (error) {
@@ -282,7 +282,7 @@ export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jo
                 resourceId: resourceId(id),
                 message: error instanceof Error ? error.message : 'Highlight detection failed'
               } as HighlightDetectionProgress),
-              event: 'annotate:assist-failed',
+              event: 'mark:assist-failed',
               id: String(Date.now())
             });
           } catch (sseError) {

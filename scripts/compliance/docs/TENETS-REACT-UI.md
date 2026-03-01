@@ -152,7 +152,7 @@ function MyComponent({ toggleCollapsed }: Props) {
 
   // Subscribe to sidebar toggle events
   useEventSubscriptions({
-    'navigation:sidebar-toggle': handleSidebarToggle,
+    'browse:sidebar-toggle': handleSidebarToggle,
   });
 }
 ```
@@ -162,7 +162,7 @@ function MyComponent({ toggleCollapsed }: Props) {
 function MyComponent({ toggleCollapsed }: Props) {
   // Subscribe to sidebar toggle events
   useEventSubscriptions({
-    'navigation:sidebar-toggle': () => { // ❌ Inline handler
+    'browse:sidebar-toggle': () => { // ❌ Inline handler
       toggleCollapsed();
     }
   });

@@ -60,8 +60,8 @@ interface TaggingPanelProps {
  * Panel for managing tag annotations with schema-based annotation
  *
  * @emits annotate:detect-request - Start tag annotation. Payload: { motivation: 'tagging', options: { schemaId: string, categories: string[] } }
- * @emits annotate:cancel-pending - Cancel pending tag annotation. Payload: undefined
- * @emits annotate:create - Create new tag annotation. Payload: { motivation: 'tagging', selector: Selector | Selector[], body: Body[] }
+ * @emits mark:cancel-pending - Cancel pending tag annotation. Payload: undefined
+ * @emits mark:create - Create new tag annotation. Payload: { motivation: 'tagging', selector: Selector | Selector[], body: Body[] }
  * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function TaggingPanel({
@@ -195,7 +195,7 @@ export function TaggingPanel({
 
   const handleAssist = () => {
     if (selectedCategories.size > 0) {
-      eventBus.get('annotate:assist-request').next({
+      eventBus.get('mark:assist-request').next({
         motivation: 'tagging',
         options: {
           schemaId: selectedSchemaId,
@@ -212,7 +212,7 @@ export function TaggingPanel({
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        eventBus.get('annotate:cancel-pending').next(undefined);
+        eventBus.get('mark:cancel-pending').next(undefined);
       }
     };
 
@@ -274,7 +274,7 @@ export function TaggingPanel({
                   className="semiont-select"
                   onChange={(e) => {
                     if (e.target.value && pendingAnnotation) {
-                      eventBus.get('annotate:create').next({
+                      eventBus.get('mark:create').next({
                         motivation: 'tagging',
                         selector: pendingAnnotation.selector,
                         body: [
@@ -305,7 +305,7 @@ export function TaggingPanel({
             {/* Cancel button */}
             <div className="semiont-annotation-prompt__footer">
               <button
-                onClick={() => eventBus.get('annotate:cancel-pending').next(undefined)}
+                onClick={() => eventBus.get('mark:cancel-pending').next(undefined)}
                 className="semiont-button semiont-button--secondary"
                 data-type="tag"
               >

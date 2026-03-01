@@ -2098,7 +2098,7 @@
         }
       }
     },
-    "/resources/{resourceId}/annotations/{annotationId}/generate-resource-stream": {
+    "/resources/{resourceId}/annotations/{annotationId}/yield-resource-stream": {
       "post": {
         "summary": "Generate Resource (SSE Stream)",
         "description": "Stream real-time resource generation progress via Server-Sent Events",
@@ -2137,7 +2137,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/GenerateResourceStreamRequest"
+                "$ref": "#/components/schemas/YieldResourceStreamRequest"
               }
             }
           }
@@ -2832,7 +2832,7 @@
             ]
           },
           "context": {
-            "$ref": "#/components/schemas/GenerationContext",
+            "$ref": "#/components/schemas/YieldContext",
             "description": "Generation context for this annotation"
           },
           "sourceContext": {
@@ -3761,7 +3761,7 @@
           "data"
         ]
       },
-      "GenerateResourceFromAnnotationRequest": {
+      "YieldResourceFromAnnotationRequest": {
         "type": "object",
         "properties": {
           "name": {
@@ -3785,7 +3785,7 @@
           }
         }
       },
-      "GenerateResourceFromAnnotationResponse": {
+      "YieldResourceFromAnnotationResponse": {
         "type": "object",
         "properties": {
           "resource": {
@@ -3804,7 +3804,7 @@
           "generated"
         ]
       },
-      "GenerateResourceRequest": {
+      "YieldResourceRequest": {
         "type": "object",
         "properties": {
           "resourceId": {
@@ -3828,7 +3828,7 @@
           "resourceId"
         ]
       },
-      "GenerateResourceStreamRequest": {
+      "YieldResourceStreamRequest": {
         "type": "object",
         "properties": {
           "title": {
@@ -3844,7 +3844,7 @@
             "description": "Language locale for generated content (e.g., \"es\", \"fr\", \"ja\")"
           },
           "context": {
-            "$ref": "#/components/schemas/GenerationContext",
+            "$ref": "#/components/schemas/YieldContext",
             "description": "Generation context including source document excerpts and metadata"
           },
           "temperature": {
@@ -4698,7 +4698,7 @@
           }
         }
       },
-      "ResolveAnnotationRequest": {
+      "BindAnnotationRequest": {
         "type": "object",
         "properties": {
           "resourceId": {
@@ -4710,7 +4710,7 @@
           "resourceId"
         ]
       },
-      "ResolveAnnotationResponse": {
+      "BindAnnotationResponse": {
         "type": "object",
         "properties": {
           "annotation": {
@@ -5508,7 +5508,7 @@
           "value"
         ]
       },
-      "GenerationContext": {
+      "YieldContext": {
         "type": "object",
         "description": "Context information used for AI generation. Includes source document excerpts and metadata.",
         "properties": {

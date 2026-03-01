@@ -6,7 +6,7 @@
 - [W3C Web Annotation Data Model](../../specs/docs/W3C-WEB-ANNOTATION.md) - Reference annotation structure
 - [Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - Event Store architecture
 - [Real-Time Event Architecture](../../apps/backend/docs/REAL-TIME.md) - SSE streaming and event flow
-- [Annotate Flow](./ANNOTATE.md) - Annotation detection and creation
+- [Annotate Flow](./MARK.md) - Annotation detection and creation
 - [@semiont/make-meaning](../../packages/make-meaning/README.md) - Generation worker and detection API
 - [Make-Meaning Job Workers](../../packages/make-meaning/docs/job-workers.md) - GenerationWorker implementation
 
@@ -469,4 +469,4 @@ See [REAL-TIME.md](../../apps/backend/docs/REAL-TIME.md) for complete SSE archit
 - [W3C Web Annotation Data Model](../../specs/docs/W3C-WEB-ANNOTATION.md) - Annotation structure
 - [Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - Event Store flow
 - [Real-Time Event Architecture](../../apps/backend/docs/REAL-TIME.md) - SSE streaming details
-- [Annotate Flow](./ANNOTATE.md) - Reference detection
+- [Annotate Flow](./MARK.md) - Reference detection

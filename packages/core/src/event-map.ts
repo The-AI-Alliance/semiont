@@ -49,13 +49,13 @@ export interface SelectionData {
 }
 
 /**
- * Progress state for annotation workflows (manual and assisted)
+ * Progress state for mark workflows (manual and assisted)
  *
  * Unified progress interface supporting different annotation strategies:
  * - Reference annotation: entity-type steps
  * - Other motivations: percentage-based progress
  */
-export interface AnnotationProgress {
+export interface MarkProgress {
   status: string;
   message?: string;
   /** Reference annotation: currently scanning entity type */
@@ -77,7 +77,7 @@ export interface AnnotationProgress {
  *
  * Organized by workflow ("flows"):
  * 1. Yield Flow - Resource generation from references
- * 2. Annotation Flow - Manual + AI-assisted annotation (all motivations)
+ * 2. Mark Flow - Manual + AI-assisted annotation (all motivations)
  * 3. Bind Flow - Reference linking/resolution (search modal)
  * 4. Gather Flow - LLM context fetching from annotations
  * 5. Browse Flow - Panel, sidebar, and application routing
@@ -131,37 +131,37 @@ export type EventMap = {
   'yield:clone': void;
 
   // ========================================================================
-  // ANNOTATION FLOW
+  // MARK FLOW
   // ========================================================================
   // Manual annotation (user selections) + AI-assisted annotation
 
   // Selection requests (user highlighting text)
-  'annotate:select-comment': SelectionData;
-  'annotate:select-tag': SelectionData;
-  'annotate:select-assessment': SelectionData;
-  'annotate:select-reference': SelectionData;
+  'mark:select-comment': SelectionData;
+  'mark:select-tag': SelectionData;
+  'mark:select-assessment': SelectionData;
+  'mark:select-reference': SelectionData;
 
   // Unified annotation request (all motivations)
-  'annotate:requested': {
+  'mark:requested': {
     selector: Selector | Selector[];
     motivation: Motivation;
   };
-  'annotate:cancel-pending': void;
+  'mark:cancel-pending': void;
 
   // Annotation CRUD operations
-  'annotate:create': {
+  'mark:create': {
     motivation: Motivation;
     selector: Selector | Selector[];
     body: components['schemas']['AnnotationBody'][];
   };
-  'annotate:created': { annotation: Annotation };
-  'annotate:create-failed': { error: Error };
-  'annotate:delete': { annotationId: string };
-  'annotate:deleted': { annotationId: string };
-  'annotate:delete-failed': { error: Error };
+  'mark:created': { annotation: Annotation };
+  'mark:create-failed': { error: Error };
+  'mark:delete': { annotationId: string };
+  'mark:deleted': { annotationId: string };
+  'mark:delete-failed': { error: Error };
 
   // AI-Assisted Annotation
-  'annotate:assist-request': {
+  'mark:assist-request': {
     motivation: Motivation;
     options: {
       instructions?: string;
@@ -173,24 +173,24 @@ export type EventMap = {
       categories?: string[];
     };
   };
-  'annotate:progress': AnnotationProgress;
-  'annotate:assist-finished': { motivation?: Motivation; resourceUri?: ResourceUri; progress?: AnnotationProgress };
-  'annotate:assist-failed': Extract<ResourceEvent, { type: 'job.failed' }>;
-  'annotate:assist-cancelled': void;
-  'annotate:progress-dismiss': void;
+  'mark:progress': MarkProgress;
+  'mark:assist-finished': { motivation?: Motivation; resourceUri?: ResourceUri; progress?: MarkProgress };
+  'mark:assist-failed': Extract<ResourceEvent, { type: 'job.failed' }>;
+  'mark:assist-cancelled': void;
+  'mark:progress-dismiss': void;
 
   // Toolbar state (annotation UI controls)
-  'annotate:mode-toggled': void;
-  'annotate:selection-changed': { motivation: string | null };
-  'annotate:click-changed': { action: string };
-  'annotate:shape-changed': { shape: string };
+  'mark:mode-toggled': void;
+  'mark:selection-changed': { motivation: string | null };
+  'mark:click-changed': { action: string };
+  'mark:shape-changed': { shape: string };
 
   // Domain Events (from backend event store)
-  'annotate:added': Extract<ResourceEvent, { type: 'annotation.added' }>;
-  'annotate:removed': Extract<ResourceEvent, { type: 'annotation.removed' }>;
-  'annotate:body-updated': Extract<ResourceEvent, { type: 'annotation.body.updated' }>;
-  'annotate:entity-tag-added': Extract<ResourceEvent, { type: 'entitytag.added' }>;
-  'annotate:entity-tag-removed': Extract<ResourceEvent, { type: 'entitytag.removed' }>;
+  'mark:added': Extract<ResourceEvent, { type: 'annotation.added' }>;
+  'mark:removed': Extract<ResourceEvent, { type: 'annotation.removed' }>;
+  'mark:body-updated': Extract<ResourceEvent, { type: 'annotation.body.updated' }>;
+  'mark:entity-tag-added': Extract<ResourceEvent, { type: 'entitytag.added' }>;
+  'mark:entity-tag-removed': Extract<ResourceEvent, { type: 'entitytag.removed' }>;
 
   // ========================================================================
   // BIND FLOW
