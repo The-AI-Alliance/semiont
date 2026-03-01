@@ -8,8 +8,8 @@ import { getAnnotationExactText, isBodyResolved, getBodySource, getFragmentSelec
 import { getEntityTypes } from '@semiont/ontology';
 import { getResourceIcon } from '../../../lib/resource-utils';
 import { useEventBus } from '../../../contexts/EventBusContext';
-import { useObservableExternalNavigation } from '../../../hooks/useObservableNavigation';
-import { useHoverEmitter } from '../../../hooks/useAttentionFlow';
+import { useObservableExternalNavigation } from '../../../hooks/useObservableBrowse';
+import { useHoverEmitter } from '../../../hooks/useBeckonFlow';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -66,14 +66,14 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
     if (resolvedResourceUri) {
       const resourceId = resolvedResourceUri.split('/resources/')[1];
       if (resourceId) {
-        // Use observable navigation - emits 'navigation:external-navigate' event
+        // Use observable navigation - emits 'browse:external-navigate' event
         navigate(routes.resourceDetail(resourceId), { resourceId });
       }
     }
   };
 
   const handleComposeDocument = () => {
-    eventBus.get('resolve:create-manual').next({
+    eventBus.get('bind:create-manual').next({
       annotationUri: reference.id,
       title: selectedText,
       entityTypes,
@@ -86,7 +86,7 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
       ? reference.target.source
       : '';
     if (sourceUri) {
-      eventBus.get('resolve:update-body').next({
+      eventBus.get('bind:update-body').next({
         annotationUri: reference.id,
         resourceId: sourceUri.split('/resources/')[1] || '',
         operations: [{ op: 'remove' }], // Remove all body items
@@ -100,7 +100,7 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
       : '';
 
     // Emit request to open generation modal
-    eventBus.get('generate:modal-open').next({
+    eventBus.get('yield:modal-open').next({
       annotationUri: reference.id,
       resourceUri,
       defaultTitle: selectedText,
@@ -108,7 +108,7 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
   };
 
   const handleSearch = () => {
-    eventBus.get('resolve:link').next({
+    eventBus.get('bind:link').next({
       annotationUri: reference.id,
       searchTerm: selectedText,
     });
@@ -121,7 +121,7 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
       data-type="reference"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        eventBus.get('navigation:click').next({ annotationId: reference.id, motivation: reference.motivation });
+        eventBus.get('browse:click').next({ annotationId: reference.id, motivation: reference.motivation });
       }}
       {...hoverProps}
     >

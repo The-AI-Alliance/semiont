@@ -1,5 +1,5 @@
 /**
- * useAttentionFlow — Annotation attention / pointer coordination hook
+ * useBeckonFlow — Annotation attention / pointer coordination hook
  *
  * Manages which annotation currently has the user's attention:
  * - Hover state (hoveredAnnotationId)
@@ -9,14 +9,14 @@
  * Follows react-rxjs-guide.md Layer 2 pattern: Hook bridge that
  * subscribes to events and pushes values into React state.
  *
- * Note: attend:sparkle visual effect (triggerSparkleAnimation) is owned by
- * ResourceViewerPage, which subscribes to attend:sparkle and delegates to
+ * Note: beckon:sparkle visual effect (triggerSparkleAnimation) is owned by
+ * ResourceViewerPage, which subscribes to beckon:sparkle and delegates to
  * ResourceAnnotationsContext. This hook emits the signal; it does not render the effect.
  *
- * @subscribes attend:hover - Sets hoveredAnnotationId; emits attend:sparkle
- * @subscribes navigation:click - Emits attend:focus (attention relay only)
- * @emits      attend:sparkle
- * @emits      attend:focus
+ * @subscribes beckon:hover - Sets hoveredAnnotationId; emits beckon:sparkle
+ * @subscribes browse:click - Emits beckon:focus (attention relay only)
+ * @emits      beckon:sparkle
+ * @emits      beckon:focus
  */
 
 /**
@@ -28,7 +28,7 @@
  *    moves within the same annotation element (prevents event bus noise).
  *
  * 2. Debounce delay (HOVER_DELAY_MS) — a short timer before emitting
- *    attend:hover, so that transient pass-through movements (user dragging
+ *    beckon:hover, so that transient pass-through movements (user dragging
  *    the mouse across the panel to reach a button elsewhere) do not trigger
  *    sparkle animations or cross-highlight effects.
  *    The delay is cancelled immediately on mouseLeave, so leaving is always instant.
@@ -49,31 +49,31 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { useEventBus } from '../contexts/EventBusContext';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
 
-// ─── useAttentionFlow ─────────────────────────────────────────────────────────
+// ─── useBeckonFlow ─────────────────────────────────────────────────────────
 
-export interface AttentionFlowState {
+export interface BeckonFlowState {
   hoveredAnnotationId: string | null;
 }
 
-export function useAttentionFlow(): AttentionFlowState {
+export function useBeckonFlow(): BeckonFlowState {
   const eventBus = useEventBus();
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(null);
 
   const handleAnnotationHover = useCallback(({ annotationId }: { annotationId: string | null }) => {
     setHoveredAnnotationId(annotationId);
     if (annotationId) {
-      eventBus.get('attend:sparkle').next({ annotationId });
+      eventBus.get('beckon:sparkle').next({ annotationId });
     }
   }, []); // eventBus is stable singleton - never in deps
 
   const handleAnnotationClick = useCallback(({ annotationId }: { annotationId: string }) => {
-    eventBus.get('attend:focus').next({ annotationId });
-    // Scroll to annotation handled by BrowseView via attend:focus subscription
+    eventBus.get('beckon:focus').next({ annotationId });
+    // Scroll to annotation handled by BrowseView via beckon:focus subscription
   }, []); // eventBus is stable singleton - never in deps
 
   useEventSubscriptions({
-    'attend:hover': handleAnnotationHover,
-    'navigation:click': handleAnnotationClick,
+    'beckon:hover': handleAnnotationHover,
+    'browse:click': handleAnnotationClick,
   });
 
   return { hoveredAnnotationId };
@@ -81,7 +81,7 @@ export function useAttentionFlow(): AttentionFlowState {
 
 // ─── createHoverHandlers (use inside useEffect / imperative setup) ────────────
 
-/** Default milliseconds the mouse must dwell before attend:hover is emitted. */
+/** Default milliseconds the mouse must dwell before beckon:hover is emitted. */
 export const HOVER_DELAY_MS = 150;
 
 type EmitHover = (annotationId: string | null) => void;
@@ -159,7 +159,7 @@ export function useHoverEmitter(annotationId: string, hoverDelayMs: number = HOV
     timerRef.current = setTimeout(() => {
       timerRef.current = null;
       currentHoverRef.current = annotationId;
-      eventBus.get('attend:hover').next({ annotationId });
+      eventBus.get('beckon:hover').next({ annotationId });
     }, hoverDelayMs);
   }, [annotationId, hoverDelayMs]); // eventBus is stable singleton - never in deps
 
@@ -170,7 +170,7 @@ export function useHoverEmitter(annotationId: string, hoverDelayMs: number = HOV
     }
     if (currentHoverRef.current !== null) {
       currentHoverRef.current = null;
-      eventBus.get('attend:hover').next({ annotationId: null });
+      eventBus.get('beckon:hover').next({ annotationId: null });
     }
   }, []); // eventBus is stable singleton - never in deps
 

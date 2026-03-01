@@ -1,5 +1,5 @@
 /**
- * usePanelNavigation - Panel navigation and scroll coordination hook
+ * usePanelBrowse - Panel navigation and scroll coordination hook
  *
  * Manages sidebar panel state:
  * - Active panel tracking (which panel is open)
@@ -25,7 +25,7 @@ export const RESOURCE_PANELS: readonly ToolbarPanelType[] = ['history', 'info', 
 // Generation counter for panel initial tab - ensures re-render on repeated opens
 let tabGenerationCounter = 0;
 
-export interface PanelNavigationState {
+export interface PanelBrowseState {
   activePanel: ToolbarPanelType | null;
   scrollToAnnotationId: string | null;
   panelInitialTab: { tab: string; generation: number } | null;
@@ -35,12 +35,12 @@ export interface PanelNavigationState {
 /**
  * Hook for panel navigation state management
  *
- * @subscribes navigation:panel-toggle - Toggle a panel open/closed
- * @subscribes navigation:panel-open - Open a panel, optionally scrolling to an annotation
- * @subscribes navigation:panel-close - Close the active panel
+ * @subscribes browse:panel-toggle - Toggle a panel open/closed
+ * @subscribes browse:panel-open - Open a panel, optionally scrolling to an annotation
+ * @subscribes browse:panel-close - Close the active panel
  * @returns Panel navigation state
  */
-export function usePanelNavigation(): PanelNavigationState {
+export function usePanelBrowse(): PanelBrowseState {
   // Panel state - load from localStorage, default closed
   const [activePanel, setActivePanel] = useState<ToolbarPanelType | null>(() => {
     if (typeof window !== 'undefined') {
@@ -102,9 +102,9 @@ export function usePanelNavigation(): PanelNavigationState {
 
   // Subscribe to panel navigation events
   useEventSubscriptions({
-    'navigation:panel-toggle': handlePanelToggle,
-    'navigation:panel-open': handlePanelOpen,
-    'navigation:panel-close': handlePanelClose,
+    'browse:panel-toggle': handlePanelToggle,
+    'browse:panel-open': handlePanelOpen,
+    'browse:panel-close': handlePanelClose,
   });
 
   return {

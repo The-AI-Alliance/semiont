@@ -114,8 +114,8 @@
     "/resources/{resourceId}/annotations/{annotationId}/body": {
       "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_body.json"
     },
-    "/resources/{resourceId}/annotations/{annotationId}/generate-resource-stream": {
-      "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_generate-resource-stream.json"
+    "/resources/{resourceId}/annotations/{annotationId}/yield-resource-stream": {
+      "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_yield-resource-stream.json"
     },
     "/resources/{resourceId}/annotations/{annotationId}/history": {
       "$ref": "paths/resources_{resourceId}_annotations_{annotationId}_history.json"
@@ -262,17 +262,17 @@
       "EventStreamResponse": {
         "$ref": "components/schemas/EventStreamResponse.json"
       },
-      "GenerateResourceFromAnnotationRequest": {
-        "$ref": "components/schemas/GenerateResourceFromAnnotationRequest.json"
+      "YieldResourceFromAnnotationRequest": {
+        "$ref": "components/schemas/YieldResourceFromAnnotationRequest.json"
       },
-      "GenerateResourceFromAnnotationResponse": {
-        "$ref": "components/schemas/GenerateResourceFromAnnotationResponse.json"
+      "YieldResourceFromAnnotationResponse": {
+        "$ref": "components/schemas/YieldResourceFromAnnotationResponse.json"
       },
-      "GenerateResourceRequest": {
-        "$ref": "components/schemas/GenerateResourceRequest.json"
+      "YieldResourceRequest": {
+        "$ref": "components/schemas/YieldResourceRequest.json"
       },
-      "GenerateResourceStreamRequest": {
-        "$ref": "components/schemas/GenerateResourceStreamRequest.json"
+      "YieldResourceStreamRequest": {
+        "$ref": "components/schemas/YieldResourceStreamRequest.json"
       },
       "GetAnnotationHistoryResponse": {
         "$ref": "components/schemas/GetAnnotationHistoryResponse.json"
@@ -328,11 +328,11 @@
       "Representation": {
         "$ref": "components/schemas/Representation.json"
       },
-      "ResolveAnnotationRequest": {
-        "$ref": "components/schemas/ResolveAnnotationRequest.json"
+      "BindAnnotationRequest": {
+        "$ref": "components/schemas/BindAnnotationRequest.json"
       },
-      "ResolveAnnotationResponse": {
-        "$ref": "components/schemas/ResolveAnnotationResponse.json"
+      "BindAnnotationResponse": {
+        "$ref": "components/schemas/BindAnnotationResponse.json"
       },
       "ResourceDescriptor": {
         "$ref": "components/schemas/ResourceDescriptor.json"

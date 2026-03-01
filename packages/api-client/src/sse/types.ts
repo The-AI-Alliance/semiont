@@ -41,17 +41,17 @@ export interface ReferenceDetectionProgress {
 /**
  * Progress event for resource generation stream
  *
- * Sent by POST /resources/:resourceId/annotations/:annotationId/generate-resource-stream
+ * Sent by POST /resources/:resourceId/annotations/:annotationId/yield-resource-stream
  *
  * @example
  * ```typescript
- * stream.onProgress((progress: GenerationProgress) => {
+ * stream.onProgress((progress: YieldProgress) => {
  *   console.log(`${progress.status}: ${progress.percentage}%`);
  *   console.log(progress.message);
  * });
  * ```
  */
-export interface GenerationProgress {
+export interface YieldProgress {
   /** Current stage of generation operation */
   status: 'started' | 'fetching' | 'generating' | 'creating' | 'complete' | 'error';
   /** Annotation ID being used as source */

@@ -29,7 +29,7 @@ export interface SimpleNavigationProps {
  * Simple navigation component for Admin and Moderation modes.
  * Renders a section header with optional dropdown and static navigation tabs.
  *
- * @emits navigation:sidebar-toggle - Toggle sidebar collapsed/expanded state. Payload: undefined
+ * @emits browse:sidebar-toggle - Toggle sidebar collapsed/expanded state. Payload: undefined
  */
 export function SimpleNavigation({
   title,
@@ -86,7 +86,7 @@ export function SimpleNavigation({
             !isCollapsed && <span className="semiont-nav-section__header-text">{title}</span>
           )}
           <button
-            onClick={() => eventBus.get('navigation:sidebar-toggle').next(undefined)}
+            onClick={() => eventBus.get('browse:sidebar-toggle').next(undefined)}
             className="semiont-nav-section__header-icon"
             title={isCollapsed ? expandSidebarLabel : collapseSidebarLabel}
             aria-label={isCollapsed ? expandSidebarLabel : collapseSidebarLabel}

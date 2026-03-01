@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
-import { createHoverHandlers } from '../../hooks/useAttentionFlow';
+import { createHoverHandlers } from '../../hooks/useBeckonFlow';
 import type { components, ResourceUri } from '@semiont/core';
 import { getTargetSelector } from '@semiont/api-client';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
@@ -61,9 +61,9 @@ interface PdfAnnotationCanvasProps {
 /**
  * PDF annotation canvas with page navigation and rectangle drawing
  *
- * @emits navigation:click - Annotation clicked on PDF. Payload: { annotationId: string, motivation: Motivation }
+ * @emits browse:click - Annotation clicked on PDF. Payload: { annotationId: string, motivation: Motivation }
  * @emits annotate:requested - New annotation drawn on PDF. Payload: { selector: FragmentSelector, motivation: SelectionMotivation }
- * @emits attend:hover - Annotation hovered or unhovered. Payload: { annotationId: string | null }
+ * @emits beckon:hover - Annotation hovered or unhovered. Payload: { annotationId: string | null }
  */
 export function PdfAnnotationCanvas({
   resourceUri,
@@ -287,7 +287,7 @@ export function PdfAnnotationCanvas({
         });
 
         if (clickedAnnotation) {
-          eventBus?.get('navigation:click').next({ annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
+          eventBus?.get('browse:click').next({ annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
           setIsDrawing(false);
           setSelection(null);
           return;
@@ -364,7 +364,7 @@ export function PdfAnnotationCanvas({
 
   // Hover handlers with currentHover guard and dwell delay
   const { handleMouseEnter, handleMouseLeave } = useMemo(
-    () => createHoverHandlers((annotationId) => eventBus?.get('attend:hover').next({ annotationId }), hoverDelayMs),
+    () => createHoverHandlers((annotationId) => eventBus?.get('beckon:hover').next({ annotationId }), hoverDelayMs),
     [eventBus, hoverDelayMs]
   );
 
@@ -464,7 +464,7 @@ export function PdfAnnotationCanvas({
                         cursor: 'pointer',
                         opacity: isSelected ? 1 : isHovered ? 0.9 : 0.7
                       }}
-                      onClick={() => eventBus?.get('navigation:click').next({ annotationId: ann.id, motivation: ann.motivation })}
+                      onClick={() => eventBus?.get('browse:click').next({ annotationId: ann.id, motivation: ann.motivation })}
                       onMouseEnter={() => handleMouseEnter(ann.id)}
                       onMouseLeave={handleMouseLeave}
                     />

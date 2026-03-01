@@ -16,15 +16,15 @@ export type Selector =
   | components['schemas']['SvgSelector']
   | components['schemas']['FragmentSelector'];
 
-export type GenerationContext = components['schemas']['GenerationContext'];
+export type YieldContext = components['schemas']['YieldContext'];
 
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation'];
 
 /**
- * Progress state for resource generation workflow
+ * Progress state for resource yield workflow
  */
-export interface GenerationProgress {
+export interface YieldProgress {
   status: 'started' | 'fetching' | 'generating' | 'creating' | 'complete' | 'error';
   referenceId: string;
   resourceName?: string;
@@ -76,12 +76,12 @@ export interface AnnotationProgress {
  * Unified event map for all application events
  *
  * Organized by workflow ("flows"):
- * 1. Annotation Flow - Manual + AI-assisted annotation (all motivations)
- * 2. Resolution Flow - Reference linking/resolution (search modal)
- * 3. Context Correlation Flow - LLM context fetching from annotations
- * 4. Generation Flow - Resource generation from references
- * 5. Attention Flow - Annotation hover/focus/sparkle coordination
- * 6. Navigation Flow - Panel, sidebar, and application routing
+ * 1. Yield Flow - Resource generation from references
+ * 2. Annotation Flow - Manual + AI-assisted annotation (all motivations)
+ * 3. Bind Flow - Reference linking/resolution (search modal)
+ * 4. Gather Flow - LLM context fetching from annotations
+ * 5. Browse Flow - Panel, sidebar, and application routing
+ * 6. Beckon Flow - Annotation hover/focus/sparkle coordination
  *
  * Plus infrastructure events (domain events, SSE, resource operations, settings)
  */
@@ -98,16 +98,16 @@ export type EventMap = {
   'make-meaning:event': ResourceEvent;
 
   // ========================================================================
-  // GENERATION FLOW
+  // YIELD FLOW
   // ========================================================================
   // Resource generation from reference annotations
 
-  'generate:modal-open': {
+  'yield:modal-open': {
     annotationUri: string;
     resourceUri: string;
     defaultTitle: string;
   };
-  'generate:request': {
+  'yield:request': {
     annotationUri: string;
     resourceUri: string;
     options: {
@@ -116,19 +116,19 @@ export type EventMap = {
       language?: string;
       temperature?: number;
       maxTokens?: number;
-      context: GenerationContext;
+      context: YieldContext;
     };
   };
-  'generate:progress': GenerationProgress;
-  'generate:finished': GenerationProgress;
-  'generate:failed': { error: Error };
+  'yield:progress': YieldProgress;
+  'yield:finished': YieldProgress;
+  'yield:failed': { error: Error };
 
   // Domain Events (from backend event store)
-  'generate:representation-added': Extract<ResourceEvent, { type: 'representation.added' }>;
-  'generate:representation-removed': Extract<ResourceEvent, { type: 'representation.removed' }>;
+  'yield:representation-added': Extract<ResourceEvent, { type: 'representation.added' }>;
+  'yield:representation-removed': Extract<ResourceEvent, { type: 'representation.removed' }>;
 
   // Resource operations
-  'generate:clone': void;
+  'yield:clone': void;
 
   // ========================================================================
   // ANNOTATION FLOW
@@ -193,24 +193,24 @@ export type EventMap = {
   'annotate:entity-tag-removed': Extract<ResourceEvent, { type: 'entitytag.removed' }>;
 
   // ========================================================================
-  // RESOLUTION FLOW
+  // BIND FLOW
   // ========================================================================
   // Reference linking and resolution (search modal)
 
-  'resolve:create-manual': {
+  'bind:create-manual': {
     annotationUri: string;
     title: string;
     entityTypes: string[];
   };
-  'resolve:link': {
+  'bind:link': {
     annotationUri: string;
     searchTerm: string;
   };
-  'resolve:search-requested': {
+  'bind:search-requested': {
     referenceId: string;
     searchTerm: string;
   };
-  'resolve:update-body': {
+  'bind:update-body': {
     annotationUri: string;
     resourceId: string;
     operations: Array<{
@@ -220,57 +220,58 @@ export type EventMap = {
       newItem?: components['schemas']['AnnotationBody'];
     }>;
   };
-  'resolve:body-updated': { annotationUri: string };
-  'resolve:body-update-failed': { error: Error };
+  'bind:body-updated': { annotationUri: string };
+  'bind:body-update-failed': { error: Error };
 
   // ========================================================================
-  // CONTEXT CORRELATION FLOW
+  // GATHER FLOW
   // ========================================================================
-  // LLM context correlation from annotations for generation
+  // LLM context gathering from annotations for generation
 
-  'correlate:requested': {
+  'gather:requested': {
     annotationUri: string;
     resourceUri: string;
   };
-  'correlate:complete': {
+  'gather:complete': {
     annotationUri: string;
-    context: GenerationContext;
+    context: YieldContext;
   };
-  'correlate:failed': {
+  'gather:failed': {
     annotationUri: string;
     error: Error;
   };
 
   // ========================================================================
-  // Navigation
+  // BROWSE FLOW
   // ========================================================================
+  // Panel, sidebar, and application routing
 
   // annotation click
-  'navigation:click': { annotationId: string; motivation: Motivation };
+  'browse:click': { annotationId: string; motivation: Motivation };
 
   // right toolbar panels
-  'navigation:panel-toggle': { panel: string };
-  'navigation:panel-open': { panel: string; scrollToAnnotationId?: string; motivation?: string };
-  'navigation:panel-close': void;
+  'browse:panel-toggle': { panel: string };
+  'browse:panel-open': { panel: string; scrollToAnnotationId?: string; motivation?: string };
+  'browse:panel-close': void;
 
   // left sidebar navigation
-  'navigation:sidebar-toggle': void;
-  'navigation:resource-close': { resourceId: string };
-  'navigation:resource-reorder': { oldIndex: number; newIndex: number };
-  'navigation:link-clicked': { href: string; label?: string };
-  'navigation:router-push': { path: string; reason?: string };
-  'navigation:external-navigate': { url: string; resourceId?: string; cancelFallback: () => void };
-  'navigation:reference-navigate': { documentId: string };
-  'navigation:entity-type-clicked': { entityType: string };
+  'browse:sidebar-toggle': void;
+  'browse:resource-close': { resourceId: string };
+  'browse:resource-reorder': { oldIndex: number; newIndex: number };
+  'browse:link-clicked': { href: string; label?: string };
+  'browse:router-push': { path: string; reason?: string };
+  'browse:external-navigate': { url: string; resourceId?: string; cancelFallback: () => void };
+  'browse:reference-navigate': { documentId: string };
+  'browse:entity-type-clicked': { entityType: string };
 
   // ========================================================================
-  // ATTENTION FLOW
+  // BECKON FLOW
   // ========================================================================
   // Manages which annotation has user's attention (hover/click/focus)
 
-  'attend:hover': { annotationId: string | null };
-  'attend:focus': { annotationId: string | null };
-  'attend:sparkle': { annotationId: string };
+  'beckon:hover': { annotationId: string | null };
+  'beckon:focus': { annotationId: string | null };
+  'beckon:sparkle': { annotationId: string };
 
   // ========================================================================
   // Resource management

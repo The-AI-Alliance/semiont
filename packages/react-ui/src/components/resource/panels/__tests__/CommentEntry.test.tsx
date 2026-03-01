@@ -241,7 +241,7 @@ describe('CommentEntry Component', () => {
   });
 
   describe('Click Interactions', () => {
-    it('should emit navigation:click event when comment is clicked', async () => {
+    it('should emit browse:click event when comment is clicked', async () => {
       const clickHandler = vi.fn();
 
       const { container, eventBus } = renderWithProviders(
@@ -250,7 +250,7 @@ describe('CommentEntry Component', () => {
       );
 
       // Subscribe to actual event on real event bus
-      const subscription = eventBus!.get('navigation:click').subscribe(clickHandler);
+      const subscription = eventBus!.get('browse:click').subscribe(clickHandler);
 
       const commentDiv = container.firstChild as HTMLElement;
       await userEvent.click(commentDiv);
@@ -273,7 +273,7 @@ describe('CommentEntry Component', () => {
   });
 
   describe('Hover Interactions', () => {
-    it('should emit attend:hover event with annotation id after dwell delay', () => {
+    it('should emit beckon:hover event with annotation id after dwell delay', () => {
       vi.useFakeTimers();
       const hoverHandler = vi.fn();
 
@@ -283,7 +283,7 @@ describe('CommentEntry Component', () => {
       );
 
       // Subscribe to actual event
-      const subscription = eventBus!.get('attend:hover').subscribe(hoverHandler);
+      const subscription = eventBus!.get('beckon:hover').subscribe(hoverHandler);
 
       const commentDiv = container.firstChild as HTMLElement;
       fireEvent.mouseEnter(commentDiv);
@@ -301,7 +301,7 @@ describe('CommentEntry Component', () => {
       vi.useRealTimers();
     });
 
-    it('should NOT emit attend:hover when mouse leaves before dwell delay', () => {
+    it('should NOT emit beckon:hover when mouse leaves before dwell delay', () => {
       vi.useFakeTimers();
       const hoverHandler = vi.fn();
 
@@ -311,7 +311,7 @@ describe('CommentEntry Component', () => {
       );
 
       // Subscribe to actual event
-      const subscription = eventBus!.get('attend:hover').subscribe(hoverHandler);
+      const subscription = eventBus!.get('beckon:hover').subscribe(hoverHandler);
 
       const commentDiv = container.firstChild as HTMLElement;
       fireEvent.mouseEnter(commentDiv);
@@ -327,7 +327,7 @@ describe('CommentEntry Component', () => {
       vi.useRealTimers();
     });
 
-    it('should emit attend:hover null after dwell then leave', () => {
+    it('should emit beckon:hover null after dwell then leave', () => {
       vi.useFakeTimers();
       const hoverHandler = vi.fn();
 
@@ -336,7 +336,7 @@ describe('CommentEntry Component', () => {
         { returnEventBus: true }
       );
 
-      const subscription = eventBus!.get('attend:hover').subscribe(hoverHandler);
+      const subscription = eventBus!.get('beckon:hover').subscribe(hoverHandler);
 
       const commentDiv = container.firstChild as HTMLElement;
       fireEvent.mouseEnter(commentDiv);

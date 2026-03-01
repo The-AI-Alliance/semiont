@@ -10,7 +10,7 @@ import { scrollAnnotationIntoView } from '../lib/scroll-utils';
 import { isHighlight, isReference, isResolvedReference, isComment, isAssessment, isTag, getBodySource } from '@semiont/api-client';
 import type { components } from '@semiont/core';
 import type { EventBus } from "@semiont/core";
-import { createHoverHandlers } from '../hooks/useAttentionFlow';
+import { createHoverHandlers } from '../hooks/useBeckonFlow';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -348,7 +348,7 @@ export function CodeMirrorRenderer({
               const segment = segmentsByIdRef.current.get(annotationId);
               if (segment?.annotation) {
                 event.preventDefault();
-                eventBusRef.current.get('navigation:click').next({
+                eventBusRef.current.get('browse:click').next({
                   annotationId,
                   motivation: segment.annotation.motivation
                 });
@@ -416,7 +416,7 @@ export function CodeMirrorRenderer({
     const container = view.dom;
 
     const { handleMouseEnter, handleMouseLeave, cleanup: cleanupHover } = createHoverHandlers(
-      (annotationId) => eventBusRef.current?.get('attend:hover').next({ annotationId }),
+      (annotationId) => eventBusRef.current?.get('beckon:hover').next({ annotationId }),
       hoverDelayMs
     );
 
@@ -449,10 +449,10 @@ export function CodeMirrorRenderer({
       if (!annotationId || !eventBusRef.current) return;
 
       if (isResolved && bodySource) {
-        eventBusRef.current.get('navigation:reference-navigate').next({ documentId: bodySource });
+        eventBusRef.current.get('browse:reference-navigate').next({ documentId: bodySource });
       } else {
         const motivation = (widget.dataset.widgetMotivation || 'linking') as Annotation['motivation'];
-        eventBusRef.current.get('navigation:click').next({ annotationId, motivation });
+        eventBusRef.current.get('browse:click').next({ annotationId, motivation });
       }
     };
 

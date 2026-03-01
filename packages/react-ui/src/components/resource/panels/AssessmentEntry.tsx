@@ -4,7 +4,7 @@ import { forwardRef } from 'react';
 import type { components } from '@semiont/core';
 import { getAnnotationExactText } from '@semiont/api-client';
 import { useEventBus } from '../../../contexts/EventBusContext';
-import { useHoverEmitter } from '../../../hooks/useAttentionFlow';
+import { useHoverEmitter } from '../../../hooks/useBeckonFlow';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -89,7 +89,7 @@ export const AssessmentEntry = forwardRef<HTMLDivElement, AssessmentEntryProps>(
       data-type="assessment"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        eventBus.get('navigation:click').next({ annotationId: assessment.id, motivation: assessment.motivation });
+        eventBus.get('browse:click').next({ annotationId: assessment.id, motivation: assessment.motivation });
       }}
       {...hoverProps}
     >

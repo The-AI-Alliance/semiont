@@ -22,5 +22,5 @@ const uriRouter = createAnnotationRouter();
 registerGetAnnotationUri(uriRouter);
 annotationsRouter.route('/', uriRouter);
 
-// Register annotation operations (generate-resource, generate-resource-stream, etc.)
+// Register annotation operations (yield-resource-stream, etc.)
 annotationsRouter.route('/', operationsRouter);

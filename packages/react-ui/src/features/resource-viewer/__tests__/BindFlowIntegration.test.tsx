@@ -1,16 +1,16 @@
 /**
  * Layer 3: Feature Integration Test - Resolution Flow (search modal & body update)
  *
- * Tests the UNCOVERED half of useResolutionFlow:
- * - resolve:link → emits resolve:search-requested
- * - resolve:search-requested → opens search modal with pendingReferenceId
+ * Tests the UNCOVERED half of useBindFlow:
+ * - bind:link → emits bind:search-requested
+ * - bind:search-requested → opens search modal with pendingReferenceId
  * - onCloseSearchModal → closes modal
- * - resolve:update-body → calls updateAnnotationBody API
- * - resolve:update-body → emits resolve:body-updated on success
- * - resolve:update-body → emits resolve:body-update-failed on error
+ * - bind:update-body → calls updateAnnotationBody API
+ * - bind:update-body → emits bind:body-updated on success
+ * - bind:update-body → emits bind:body-update-failed on error
  * - auth token passed to updateAnnotationBody
  *
- * The deletion half of useResolutionFlow is covered by AnnotationDeletionIntegration.test.tsx.
+ * The deletion half of useBindFlow is covered by AnnotationDeletionIntegration.test.tsx.
  *
  * Uses real providers (EventBus, ApiClient, AuthToken) with mocked API boundary.
  */
@@ -18,7 +18,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import { act } from 'react';
-import { useResolutionFlow } from '../../../hooks/useResolutionFlow';
+import { useBindFlow } from '../../../hooks/useBindFlow';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
@@ -55,13 +55,13 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
 
   // ─── Render helper ──────────────────────────────────────────────────────────
 
-  function renderResolutionFlow() {
+  function renderBindFlow() {
     let eventBusInstance: ReturnType<typeof useEventBus> | null = null;
-    let lastState: ReturnType<typeof useResolutionFlow> | null = null;
+    let lastState: ReturnType<typeof useBindFlow> | null = null;
 
     function TestComponent() {
       eventBusInstance = useEventBus();
-      lastState = useResolutionFlow(testUri);
+      lastState = useBindFlow(testUri);
       return null;
     }
 
@@ -84,19 +84,19 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
   // ─── Initial state ──────────────────────────────────────────────────────────
 
   it('starts with search modal closed and no pending reference', () => {
-    const { getState } = renderResolutionFlow();
+    const { getState } = renderBindFlow();
     expect(getState().searchModalOpen).toBe(false);
     expect(getState().pendingReferenceId).toBeNull();
   });
 
-  // ─── resolve:link ─────────────────────────────────────────────────────────
+  // ─── bind:link ─────────────────────────────────────────────────────────
 
-  it('resolve:link emits resolve:search-requested with referenceId and searchTerm', () => {
-    const { getEventBus } = renderResolutionFlow();
+  it('bind:link emits bind:search-requested with referenceId and searchTerm', () => {
+    const { getEventBus } = renderBindFlow();
     const searchRequestedSpy = vi.fn();
 
-    const subscription = getEventBus().get('resolve:search-requested').subscribe(searchRequestedSpy);
-    act(() => { getEventBus().get('resolve:link').next({ annotationUri: 'ann-uri-123', searchTerm: 'climate change' }); });
+    const subscription = getEventBus().get('bind:search-requested').subscribe(searchRequestedSpy);
+    act(() => { getEventBus().get('bind:link').next({ annotationUri: 'ann-uri-123', searchTerm: 'climate change' }); });
     subscription.unsubscribe();
 
     expect(searchRequestedSpy).toHaveBeenCalledTimes(1);
@@ -106,35 +106,35 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
     });
   });
 
-  // ─── resolve:search-requested ────────────────────────────────────────────
+  // ─── bind:search-requested ────────────────────────────────────────────
 
-  it('resolve:search-requested opens the search modal', async () => {
-    const { getState, getEventBus } = renderResolutionFlow();
+  it('bind:search-requested opens the search modal', async () => {
+    const { getState, getEventBus } = renderBindFlow();
 
     expect(getState().searchModalOpen).toBe(false);
 
-    act(() => { getEventBus().get('resolve:search-requested').next({ referenceId: 'ref-abc', searchTerm: 'oceans' }); });
+    act(() => { getEventBus().get('bind:search-requested').next({ referenceId: 'ref-abc', searchTerm: 'oceans' }); });
 
     await waitFor(() => {
       expect(getState().searchModalOpen).toBe(true);
     });
   });
 
-  it('resolve:search-requested sets pendingReferenceId', async () => {
-    const { getState, getEventBus } = renderResolutionFlow();
+  it('bind:search-requested sets pendingReferenceId', async () => {
+    const { getState, getEventBus } = renderBindFlow();
 
-    act(() => { getEventBus().get('resolve:search-requested').next({ referenceId: 'ref-xyz', searchTerm: 'forests' }); });
+    act(() => { getEventBus().get('bind:search-requested').next({ referenceId: 'ref-xyz', searchTerm: 'forests' }); });
 
     await waitFor(() => {
       expect(getState().pendingReferenceId).toBe('ref-xyz');
     });
   });
 
-  it('resolve:link → resolve:search-requested chain opens modal end-to-end', async () => {
-    const { getState, getEventBus } = renderResolutionFlow();
+  it('bind:link → bind:search-requested chain opens modal end-to-end', async () => {
+    const { getState, getEventBus } = renderBindFlow();
 
     // Simulate the full user journey: user clicks "Link Document" on a reference entry
-    act(() => { getEventBus().get('resolve:link').next({ annotationUri: 'ann-full-chain', searchTerm: 'biodiversity' }); });
+    act(() => { getEventBus().get('bind:link').next({ annotationUri: 'ann-full-chain', searchTerm: 'biodiversity' }); });
 
     await waitFor(() => {
       expect(getState().searchModalOpen).toBe(true);
@@ -145,9 +145,9 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
   // ─── onCloseSearchModal ──────────────────────────────────────────────────────
 
   it('onCloseSearchModal closes the search modal', async () => {
-    const { getState, getEventBus } = renderResolutionFlow();
+    const { getState, getEventBus } = renderBindFlow();
 
-    act(() => { getEventBus().get('resolve:search-requested').next({ referenceId: 'ref-close', searchTerm: 'test' }); });
+    act(() => { getEventBus().get('bind:search-requested').next({ referenceId: 'ref-close', searchTerm: 'test' }); });
 
     await waitFor(() => expect(getState().searchModalOpen).toBe(true));
 
@@ -159,9 +159,9 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
   });
 
   it('onCloseSearchModal does not clear pendingReferenceId (preserves for re-open)', async () => {
-    const { getState, getEventBus } = renderResolutionFlow();
+    const { getState, getEventBus } = renderBindFlow();
 
-    act(() => { getEventBus().get('resolve:search-requested').next({ referenceId: 'ref-persist', searchTerm: 'test' }); });
+    act(() => { getEventBus().get('bind:search-requested').next({ referenceId: 'ref-persist', searchTerm: 'test' }); });
     await waitFor(() => expect(getState().searchModalOpen).toBe(true));
 
     act(() => { getState().onCloseSearchModal(); });
@@ -171,12 +171,12 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
     expect(getState().pendingReferenceId).toBe('ref-persist');
   });
 
-  // ─── resolve:update-body ──────────────────────────────────────────────────
+  // ─── bind:update-body ──────────────────────────────────────────────────
 
-  it('resolve:update-body calls updateAnnotationBody API', async () => {
-    const { getEventBus } = renderResolutionFlow();
+  it('bind:update-body calls updateAnnotationBody API', async () => {
+    const { getEventBus } = renderBindFlow();
 
-    act(() => { getEventBus().get('resolve:update-body').next({
+    act(() => { getEventBus().get('bind:update-body').next({
       annotationUri: 'http://localhost:4000/resources/test-resource/annotations/ann-body-1',
       resourceId: 'linked-resource-id',
       operations: [{ op: 'add', item: { id: 'linked-resource-id' } }],
@@ -187,10 +187,10 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
     });
   });
 
-  it('resolve:update-body passes auth token to API call', async () => {
-    const { getEventBus } = renderResolutionFlow();
+  it('bind:update-body passes auth token to API call', async () => {
+    const { getEventBus } = renderBindFlow();
 
-    act(() => { getEventBus().get('resolve:update-body').next({
+    act(() => { getEventBus().get('bind:update-body').next({
       annotationUri: 'http://localhost:4000/resources/test-resource/annotations/ann-auth',
       resourceId: 'resource-id',
       operations: [{ op: 'replace', newItem: { id: 'resource-id' } }],
@@ -205,13 +205,13 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
     expect(callArgs[2].auth).toBe(accessToken(testToken));
   });
 
-  it('resolve:update-body emits resolve:body-updated on success', async () => {
-    const { getEventBus } = renderResolutionFlow();
+  it('bind:update-body emits bind:body-updated on success', async () => {
+    const { getEventBus } = renderBindFlow();
     const bodyUpdatedSpy = vi.fn();
 
-    const subscription = getEventBus().get('resolve:body-updated').subscribe(bodyUpdatedSpy);
+    const subscription = getEventBus().get('bind:body-updated').subscribe(bodyUpdatedSpy);
 
-    act(() => { getEventBus().get('resolve:update-body').next({
+    act(() => { getEventBus().get('bind:update-body').next({
       annotationUri: 'http://localhost:4000/resources/test-resource/annotations/ann-success',
       resourceId: 'resource-id',
       operations: [{ op: 'add', item: { id: 'resource-id' } }],
@@ -228,15 +228,15 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
     });
   });
 
-  it('resolve:update-body emits resolve:body-update-failed on API error', async () => {
+  it('bind:update-body emits bind:body-update-failed on API error', async () => {
     updateAnnotationBodySpy.mockRejectedValue(new Error('Update failed'));
 
-    const { getEventBus } = renderResolutionFlow();
+    const { getEventBus } = renderBindFlow();
     const bodyUpdateFailedSpy = vi.fn();
 
-    const subscription = getEventBus().get('resolve:body-update-failed').subscribe(bodyUpdateFailedSpy);
+    const subscription = getEventBus().get('bind:body-update-failed').subscribe(bodyUpdateFailedSpy);
 
-    act(() => { getEventBus().get('resolve:update-body').next({
+    act(() => { getEventBus().get('bind:update-body').next({
       annotationUri: 'http://localhost:4000/resources/test-resource/annotations/ann-fail',
       resourceId: 'resource-id',
       operations: [{ op: 'remove', item: { id: 'old-id' } }],
@@ -253,10 +253,10 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
     });
   });
 
-  it('resolve:update-body called ONCE — no duplicate subscriptions', async () => {
-    const { getEventBus } = renderResolutionFlow();
+  it('bind:update-body called ONCE — no duplicate subscriptions', async () => {
+    const { getEventBus } = renderBindFlow();
 
-    act(() => { getEventBus().get('resolve:update-body').next({
+    act(() => { getEventBus().get('bind:update-body').next({
       annotationUri: 'http://localhost:4000/resources/test-resource/annotations/ann-dedup',
       resourceId: 'resource-id',
       operations: [{ op: 'add', item: { id: 'resource-id' } }],

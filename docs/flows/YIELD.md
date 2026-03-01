@@ -49,9 +49,9 @@ client.sse.generateResourceFromAnnotation(
 );
 
 // Progress and completion events auto-emit to the event bus:
-//   generate:progress  — { status, percentage, message }
-//   generate:finished  — { resourceId, resourceName }
-//   generate:failed    — { error }
+//   yield:progress  — { status, percentage, message }
+//   yield:finished  — { resourceId, resourceName }
+//   yield:failed    — { error }
 ```
 
 ## Reference Annotation Structure
@@ -118,7 +118,7 @@ client.sse.generateResourceFromAnnotation(
 }
 ```
 
-## Generation Flow
+## Yield Flow
 
 ```
 User clicks "Generate" on reference annotation ❓
@@ -336,7 +336,7 @@ const stream = client.sse.generateResourceFromAnnotation(
 
 // Handle progress
 stream.onProgress((progress) => {
-  setGenerationProgress({
+  setYieldProgress({
     status: progress.status,
     percentage: progress.percentage,
     message: progress.message
@@ -459,7 +459,7 @@ See [REAL-TIME.md](../../apps/backend/docs/REAL-TIME.md) for complete SSE archit
 ### Frontend
 
 - [apps/frontend/src/components/resource/panels/ReferencesPanel.tsx](../../apps/frontend/src/components/resource/panels/ReferencesPanel.tsx) - Generation UI
-- [packages/react-ui/src/hooks/useGenerationFlow.ts](../../packages/react-ui/src/hooks/useGenerationFlow.ts) - Generation flow hook (manages SSE, modal state, and progress state)
+- [packages/react-ui/src/hooks/useYieldFlow.ts](../../packages/react-ui/src/hooks/useYieldFlow.ts) - Generation flow hook (manages SSE, modal state, and progress state)
 - [packages/react-ui/src/hooks/useResourceEvents.ts](../../packages/react-ui/src/hooks/useResourceEvents.ts) - Resource events hook
 - [packages/api-client/src/sse/index.ts](../../packages/api-client/src/sse/index.ts) - SSE client
 

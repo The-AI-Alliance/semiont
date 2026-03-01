@@ -27,7 +27,7 @@ export interface ObservableLinkProps extends React.AnchorHTMLAttributes<HTMLAnch
  * - State coordination before navigation
  * - Logging navigation flows
  *
- * The component emits 'navigation:link-clicked' event before allowing
+ * The component emits 'browse:link-clicked' event before allowing
  * the browser to follow the link.
  *
  * @example
@@ -51,7 +51,7 @@ export interface ObservableLinkProps extends React.AnchorHTMLAttributes<HTMLAnch
  * </Link>
  * ```
  *
- * @emits navigation:link-clicked - Link clicked by user. Payload: { href: string, label?: string }
+ * @emits browse:link-clicked - Link clicked by user. Payload: { href: string, label?: string }
  */
 export function ObservableLink({
   href,
@@ -70,7 +70,7 @@ export function ObservableLink({
 
   const handleClick = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
     // Emit event for observability
-    eventBus.get('navigation:link-clicked').next({
+    eventBus.get('browse:link-clicked').next({
       href,
       label
     });

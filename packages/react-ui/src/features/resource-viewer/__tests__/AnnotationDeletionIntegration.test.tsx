@@ -4,7 +4,7 @@
  * Tests the COMPLETE annotation deletion flow with real component composition:
  * - EventBusProvider (REAL)
  * - ApiClientProvider (REAL, with MOCKED client)
- * - useAnnotationFlow (REAL) — single registration point for useResolutionFlow
+ * - useAnnotationFlow (REAL) — single registration point for useBindFlow
  * - useEventSubscriptions (REAL)
  *
  * This test focuses on ARCHITECTURE and EVENT WIRING:
@@ -15,12 +15,12 @@
  *
  * CRITICAL: This test prevents regressions where:
  * - Multiple deletion paths exist (event-driven vs direct)
- * - useResolutionFlow called in more than one hook (causes duplicate subscriptions)
+ * - useBindFlow called in more than one hook (causes duplicate subscriptions)
  * - Auth token missing from API calls (401 errors)
  *
- * ARCHITECTURE: useResolutionFlow is called ONLY in useAnnotationFlow.
+ * ARCHITECTURE: useBindFlow is called ONLY in useAnnotationFlow.
  * useAnnotationFlow handles all detection state (manual annotation selection
- * and AI-driven SSE detection) plus all API operations via useResolutionFlow.
+ * and AI-driven SSE detection) plus all API operations via useBindFlow.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -70,7 +70,7 @@ describe('Annotation Deletion - Feature Integration', () => {
 
     function TestComponent() {
       eventBusInstance = useEventBus();
-      // useAnnotationFlow is the single registration point for useResolutionFlow
+      // useAnnotationFlow is the single registration point for useBindFlow
       // (handles annotate:delete annotate:create annotate:detect-request, etc.)
       useAnnotationFlow(testUri);
       return null;
@@ -202,13 +202,13 @@ describe('Annotation Deletion - Feature Integration', () => {
     expect(deleteAnnotationSpy.mock.calls[1][0]).toContain('annotation-2');
   });
 
-  it('ARCHITECTURE: useResolutionFlow is called in useAnnotationFlow (single registration point)', async () => {
+  it('ARCHITECTURE: useBindFlow is called in useAnnotationFlow (single registration point)', async () => {
     /**
      * This test validates that there's only ONE event-driven deletion path:
-     * - useAnnotationFlow calls useResolutionFlow (the single registration point)
-     * - useResolutionFlow subscribes to annotation:delete
+     * - useAnnotationFlow calls useBindFlow (the single registration point)
+     * - useBindFlow subscribes to annotation:delete
      *
-     * If this test fails with 2 API calls, it means useResolutionFlow was added
+     * If this test fails with 2 API calls, it means useBindFlow was added
      * to a second hook, causing duplicate subscriptions (ARCHITECTURE VIOLATION).
      */
 
@@ -230,7 +230,7 @@ describe('Annotation Deletion - Feature Integration', () => {
      *
      * The correct pattern is event-driven only:
      * - UI emits annotate:deleteevent
-     * - useResolutionFlow handles it
+     * - useBindFlow handles it
      * - No direct function calls
      */
 

@@ -58,12 +58,12 @@ await client.updateAnnotationBody(annotationUri, {
 
 | Event | Payload | Description |
 |-------|---------|-------------|
-| `resolve:link` | `{ annotationUri, searchTerm }` | User clicked "Link Document" on a reference |
-| `resolve:search-requested` | `{ referenceId, searchTerm }` | Open the resource search modal |
-| `resolve:update-body` | `{ annotationUri, resourceId, operations }` | Update annotation body (add/remove link) |
-| `resolve:body-updated` | `{ annotationUri }` | Annotation body successfully updated |
-| `resolve:body-update-failed` | `{ error }` | Annotation body update failed |
-| `resolve:create-manual` | `{ annotationUri, title, entityTypes }` | Navigate to compose page for manual resource creation |
+| `bind:link` | `{ annotationUri, searchTerm }` | User clicked "Link Document" on a reference |
+| `bind:search-requested` | `{ referenceId, searchTerm }` | Open the resource search modal |
+| `bind:update-body` | `{ annotationUri, resourceId, operations }` | Update annotation body (add/remove link) |
+| `bind:body-updated` | `{ annotationUri }` | Annotation body successfully updated |
+| `bind:body-update-failed` | `{ error }` | Annotation body update failed |
+| `bind:create-manual` | `{ annotationUri, title, entityTypes }` | Navigate to compose page for manual resource creation |
 
 ## Resolution Workflow
 
@@ -72,15 +72,15 @@ await client.updateAnnotationBody(annotationUri, {
 ```
 User clicks "Link Document" on unresolved reference
     |
-resolve:link → resolve:search-requested
+bind:link → bind:search-requested
     |
 Search modal opens with pre-filled search term
     |
 User selects a resource from search results
     |
-resolve:update-body → API call (PATCH annotation body)
+bind:update-body → API call (PATCH annotation body)
     |
-resolve:body-updated → UI updates: unresolved → linked
+bind:body-updated → UI updates: unresolved → linked
 ```
 
 ### Create New Resource (Manual)
@@ -88,7 +88,7 @@ resolve:body-updated → UI updates: unresolved → linked
 ```
 User clicks "Create Document" on unresolved reference
     |
-resolve:create-manual
+bind:create-manual
     |
 Navigate to /know/compose?annotationUri=...&name=...&entityTypes=...
     |
@@ -99,7 +99,7 @@ annotation.body.updated event links the reference
 
 ### Unlinking
 
-Resolution is reversible. A user can remove a link via `resolve:update-body` with an `op: 'remove'` operation, returning the reference to its unresolved state.
+Resolution is reversible. A user can remove a link via `bind:update-body` with an `op: 'remove'` operation, returning the reference to its unresolved state.
 
 ## Annotation Body Structure
 
@@ -124,6 +124,6 @@ Resolution is reversible. A user can remove a link via `resolve:update-body` wit
 
 ## Implementation
 
-- **Hook**: [packages/react-ui/src/hooks/useResolutionFlow.ts](../../packages/react-ui/src/hooks/useResolutionFlow.ts)
+- **Hook**: [packages/react-ui/src/hooks/useBindFlow.ts](../../packages/react-ui/src/hooks/useBindFlow.ts)
 - **Event definitions**: [packages/core/src/event-map.ts](../../packages/core/src/event-map.ts) — `RESOLUTION FLOW` section
 - **API**: `updateAnnotationBody` in [@semiont/api-client](../../packages/api-client/README.md)

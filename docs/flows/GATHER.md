@@ -1,9 +1,9 @@
 # Correlate Flow
 
-**Purpose**: Extract semantic context from an annotation and its surrounding document text for downstream use. Correlation assembles a `GenerationContext` — the selected text, surrounding passage, and metadata — that serves as grounding material for the [Generate flow](./GENERATE.md) or any other consumer that needs rich context from an annotation.
+**Purpose**: Extract semantic context from an annotation and its surrounding document text for downstream use. Correlation assembles a `GenerationContext` — the selected text, surrounding passage, and metadata — that serves as grounding material for the [Generate flow](./YIELD.md) or any other consumer that needs rich context from an annotation.
 
 **Related Documentation**:
-- [Generate Flow](./GENERATE.md) - Primary consumer of correlated context
+- [Generate Flow](./YIELD.md) - Primary consumer of correlated context
 - [Annotate Flow](./ANNOTATE.md) - How annotations (the correlation sources) are created
 - [@semiont/make-meaning Architecture](../../packages/make-meaning/docs/architecture.md) - Context assembly layer
 - [Make-Meaning API Reference](../../packages/make-meaning/docs/api-reference.md) - `getAnnotationLLMContext` endpoint
@@ -40,9 +40,9 @@ console.log(context.afterText);     // Surrounding passage after the selection
 
 | Event | Payload | Description |
 |-------|---------|-------------|
-| `correlate:requested` | `{ annotationUri, resourceUri }` | Fetch context for this annotation |
-| `correlate:complete` | `{ annotationUri, context: GenerationContext }` | Context successfully assembled |
-| `correlate:failed` | `{ annotationUri, error }` | Context fetch failed |
+| `gather:requested` | `{ annotationUri, resourceUri }` | Fetch context for this annotation |
+| `gather:complete` | `{ annotationUri, context: GenerationContext }` | Context successfully assembled |
+| `gather:failed` | `{ annotationUri, error }` | Context fetch failed |
 
 ## Context Assembly
 
@@ -64,28 +64,28 @@ The result is a `GenerationContext` containing:
 ```
 User clicks "Generate" on a reference annotation
     |
-generate:modal-open fires
+yield:modal-open fires
     |
-useGenerationFlow emits correlate:requested (parallel with modal render)
+useYieldFlow emits gather:requested (parallel with modal render)
     |
-useContextCorrelationFlow calls getAnnotationLLMContext API
+useContextGatherFlow calls getAnnotationLLMContext API
     |
 Backend assembles GenerationContext from View Storage + RepresentationStore
     |
-correlate:complete fires with assembled context
+gather:complete fires with assembled context
     |
 Context available in generation modal for user review and submission
 ```
 
 ## Relationship to Generate
 
-Correlation and generation are separate flows because correlation is independently useful. Any consumer that needs rich annotation context — a search index, an export pipeline, an agent reasoning step — can subscribe to `correlate:complete` without triggering generation.
+Correlation and generation are separate flows because correlation is independently useful. Any consumer that needs rich annotation context — a search index, an export pipeline, an agent reasoning step — can subscribe to `gather:complete` without triggering generation.
 
-In the current UI, the primary consumer is the Generate flow. When `generate:modal-open` fires, `useGenerationFlow` emits `correlate:requested` in parallel. The correlated context is then passed as input when the user submits the generation form.
+In the current UI, the primary consumer is the Generate flow. When `yield:modal-open` fires, `useYieldFlow` emits `gather:requested` in parallel. The correlated context is then passed as input when the user submits the generation form.
 
 ## Implementation
 
-- **Hook**: [packages/react-ui/src/hooks/useContextCorrelationFlow.ts](../../packages/react-ui/src/hooks/useContextCorrelationFlow.ts)
+- **Hook**: [packages/react-ui/src/hooks/useContextGatherFlow.ts](../../packages/react-ui/src/hooks/useContextGatherFlow.ts)
 - **Event definitions**: [packages/core/src/event-map.ts](../../packages/core/src/event-map.ts) — `CONTEXT CORRELATION FLOW` section
 - **API**: `getAnnotationLLMContext` in [@semiont/api-client](../../packages/api-client/README.md)
 - **Backend**: Context assembly in [@semiont/make-meaning](../../packages/make-meaning/docs/api-reference.md)

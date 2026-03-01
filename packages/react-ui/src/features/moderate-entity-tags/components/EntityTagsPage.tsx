@@ -11,7 +11,7 @@ import {
   PlusIcon,
   ExclamationCircleIcon
 } from '@heroicons/react/24/outline';
-import { COMMON_PANELS, type ToolbarPanelType } from '../../../hooks/usePanelNavigation';
+import { COMMON_PANELS, type ToolbarPanelType } from '../../../hooks/usePanelBrowse';
 
 export interface EntityTagsPageProps {
   // Data props

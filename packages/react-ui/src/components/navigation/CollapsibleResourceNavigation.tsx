@@ -28,9 +28,9 @@ import './CollapsibleResourceNavigation.css';
  * Supports drag and drop for resource reordering when expanded.
  * Platform-agnostic design for use across different React environments.
  *
- * @emits navigation:resource-reorder - Resource tab reordered. Payload: { oldIndex: number, newIndex: number }
- * @emits navigation:resource-close - Resource tab closed. Payload: { resourceId: string }
- * @emits navigation:sidebar-toggle - Toggle sidebar collapsed/expanded state. Payload: undefined
+ * @emits browse:resource-reorder - Resource tab reordered. Payload: { oldIndex: number, newIndex: number }
+ * @emits browse:resource-close - Resource tab closed. Payload: { resourceId: string }
+ * @emits browse:sidebar-toggle - Toggle sidebar collapsed/expanded state. Payload: undefined
  */
 export function CollapsibleResourceNavigation({
   fixedItems,
@@ -110,7 +110,7 @@ export function CollapsibleResourceNavigation({
     }
 
     // Emit event
-    eventBus.get('navigation:resource-reorder').next({ oldIndex: currentIndex, newIndex });
+    eventBus.get('browse:resource-reorder').next({ oldIndex: currentIndex, newIndex });
 
     // Announce the change
     const resource = resources[currentIndex];
@@ -123,7 +123,7 @@ export function CollapsibleResourceNavigation({
     e.stopPropagation();
 
     // Emit event
-    eventBus.get('navigation:resource-close').next({ resourceId });
+    eventBus.get('browse:resource-close').next({ resourceId });
 
     // If we're closing the currently viewed resource, navigate to first fixed item or trigger callback
     const resourceHref = getResourceHref(resourceId);
@@ -151,7 +151,7 @@ export function CollapsibleResourceNavigation({
       const newIndex = resources.findIndex((resource) => resource.id === over.id);
       if (oldIndex !== -1 && newIndex !== -1) {
         // Emit event
-        eventBus.get('navigation:resource-reorder').next({ oldIndex, newIndex });
+        eventBus.get('browse:resource-reorder').next({ oldIndex, newIndex });
         const resource = resources[oldIndex];
         announceDrop(resource.name, newIndex + 1, resources.length);
       }
@@ -189,7 +189,7 @@ export function CollapsibleResourceNavigation({
               <span className="semiont-nav-section__header-text">{mergedTranslations.title}</span>
             )}
             <button
-              onClick={() => eventBus.get('navigation:sidebar-toggle').next(undefined)}
+              onClick={() => eventBus.get('browse:sidebar-toggle').next(undefined)}
               className="semiont-nav-section__header-icon"
               title={isCollapsed ? mergedTranslations.expandSidebar : mergedTranslations.collapseSidebar}
               aria-label={isCollapsed ? mergedTranslations.expandSidebar : mergedTranslations.collapseSidebar}

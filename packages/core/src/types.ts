@@ -2000,7 +2000,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/resources/{resourceId}/annotations/{annotationId}/generate-resource-stream": {
+    "/resources/{resourceId}/annotations/{annotationId}/yield-resource-stream": {
         parameters: {
             query?: never;
             header?: never;
@@ -2027,7 +2027,7 @@ export interface paths {
             };
             requestBody?: {
                 content: {
-                    "application/json": components["schemas"]["GenerateResourceStreamRequest"];
+                    "application/json": components["schemas"]["YieldResourceStreamRequest"];
                 };
             };
             responses: {
@@ -2409,7 +2409,7 @@ export interface components {
             sourceResource: components["schemas"]["ResourceDescriptor"];
             targetResource?: components["schemas"]["ResourceDescriptor"] | null;
             /** @description Generation context for this annotation */
-            context?: components["schemas"]["GenerationContext"];
+            context?: components["schemas"]["YieldContext"];
             /** @description DEPRECATED: Use 'context' instead. Legacy source context format. */
             sourceContext?: {
                 before: string;
@@ -2662,7 +2662,7 @@ export interface components {
             data: string;
             id?: string;
         };
-        GenerateResourceFromAnnotationRequest: {
+        YieldResourceFromAnnotationRequest: {
             /** @description Optional name for the generated resource */
             name?: string;
             /** @description Entity types for the generated resource */
@@ -2672,12 +2672,12 @@ export interface components {
             /** @description Language code (e.g., 'en', 'es') */
             language?: string;
         };
-        GenerateResourceFromAnnotationResponse: {
+        YieldResourceFromAnnotationResponse: {
             resource: components["schemas"]["ResourceDescriptor"];
             annotation: components["schemas"]["Annotation"];
             generated: boolean;
         };
-        GenerateResourceRequest: {
+        YieldResourceRequest: {
             /** @description Resource ID containing the annotation */
             resourceId: string;
             /** @description Custom title for generated resource */
@@ -2687,7 +2687,7 @@ export interface components {
             /** @description Language locale (e.g., "es", "fr", "ja") */
             language?: string;
         };
-        GenerateResourceStreamRequest: {
+        YieldResourceStreamRequest: {
             /** @description Custom title for generated resource */
             title?: string;
             /** @description Custom prompt for content generation */
@@ -2695,7 +2695,7 @@ export interface components {
             /** @description Language locale for generated content (e.g., "es", "fr", "ja") */
             language?: string;
             /** @description Generation context including source document excerpts and metadata */
-            context: components["schemas"]["GenerationContext"];
+            context: components["schemas"]["YieldContext"];
             /** @description Inference temperature (0.0 = focused, 1.0 = creative) */
             temperature?: number;
             /** @description Maximum tokens to generate */
@@ -2925,11 +2925,11 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
-        ResolveAnnotationRequest: {
+        BindAnnotationRequest: {
             /** @description Target resource ID to resolve reference to */
             resourceId: string;
         };
-        ResolveAnnotationResponse: {
+        BindAnnotationResponse: {
             annotation: components["schemas"]["Annotation"];
             targetResource?: components["schemas"]["ResourceDescriptor"] | null;
         };
@@ -3157,7 +3157,7 @@ export interface components {
             conformsTo?: string;
         };
         /** @description Context information used for AI generation. Includes source document excerpts and metadata. */
-        GenerationContext: {
+        YieldContext: {
             /** @description Text context from the source document */
             sourceContext: {
                 /** @description Text appearing before the selected passage */

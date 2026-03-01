@@ -685,5 +685,5 @@ The layer separation principles remain the same. See [RXJS-SERVICE-HOOK-COMPONEN
 - `useDetectionFlow()` - Detection state management (SSE, progress, annotation operations)
 - `useResolutionFlow()` - Annotation body update and reference linking
 - `useGenerationFlow()` - Generation state management (SSE, modal, progress)
-- `useContextCorrelationFlow()` - Context correlation for generation
+- `useContextGatherFlow()` - Context correlation for generation
 - `usePanelNavigation()` - Panel state management

@@ -32,7 +32,7 @@ export function AdminNavigation({ isCollapsed, toggleCollapsed, navigationMenu }
 
   // Subscribe to sidebar toggle events
   useEventSubscriptions({
-    'navigation:sidebar-toggle': handleSidebarToggle,
+    'browse:sidebar-toggle': handleSidebarToggle,
   });
 
   const navigation: SimpleNavigationItem[] = [

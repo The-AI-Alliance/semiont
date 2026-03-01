@@ -82,8 +82,8 @@ These events are emitted by the backend when domain changes occur:
 
 - `annotate:created` - New annotation created
 - `annotate:deleted` - Annotation deleted
-- `resolve:body-updated` - Annotation body updated (resolution flow)
-- `attend:sparkle` - Annotation highlighted (UI animation)
+- `bind:body-updated` - Annotation body updated (resolution flow)
+- `beckon:sparkle` - Annotation highlighted (UI animation)
 
 **Resource Events**:
 
@@ -92,7 +92,7 @@ These events are emitted by the backend when domain changes occur:
 
 **Generation Events**:
 
-- `generate:clone` - Resource should be cloned
+- `yield:clone` - Resource should be cloned
 
 ### UI Events (Local User Interactions)
 

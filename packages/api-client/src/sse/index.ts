@@ -30,7 +30,7 @@ export interface AnnotateReferencesStreamRequest {
  * Request body for generation stream
  * Uses generated type from OpenAPI schema
  */
-export type GenerateResourceStreamRequest = components['schemas']['GenerateResourceStreamRequest'];
+export type YieldResourceStreamRequest = components['schemas']['YieldResourceStreamRequest'];
 
 /**
  * Request body for highlight annotation stream
@@ -222,7 +222,7 @@ export class SSEClient {
    *
    * @example
    * ```typescript
-   * const stream = sseClient.generateResourceFromAnnotation(
+   * const stream = sseClient.yieldResourceFromAnnotation(
    *   'http://localhost:4000/resources/doc-123',
    *   'http://localhost:4000/annotations/ann-456',
    *   { language: 'es', title: 'Spanish Summary' },
@@ -235,26 +235,26 @@ export class SSEClient {
    * });
    *
    * stream.onComplete((result) => {
-   *   console.log(`Generated resource: ${result.resourceId}`);
+   *   console.log(`Yielded resource: ${result.resourceId}`);
    * });
    *
    * stream.onError((error) => {
-   *   console.error('Generation failed:', error.message);
+   *   console.error('Yield failed:', error.message);
    * });
    *
    * // Cleanup when done
    * stream.close();
    * ```
    */
-  generateResourceFromAnnotation(
+  yieldResourceFromAnnotation(
     resourceId: ResourceUri,
     annotationId: AnnotationUri,
-    request: GenerateResourceStreamRequest,
+    request: YieldResourceStreamRequest,
     options: SSERequestOptions
   ): SSEStream {
     const resId = this.extractId(resourceId);
     const annId = this.extractId(annotationId);
-    const url = `${this.baseUrl}/resources/${resId}/annotations/${annId}/generate-resource-stream`;
+    const url = `${this.baseUrl}/resources/${resId}/annotations/${annId}/yield-resource-stream`;
 
     return createSSEStream(
       url,
@@ -264,9 +264,9 @@ export class SSEClient {
         body: JSON.stringify(request)
       },
       {
-        progressEvents: ['generate:progress'],
-        completeEvent: 'generate:finished',
-        errorEvent: 'generate:failed',
+        progressEvents: ['yield:progress'],
+        completeEvent: 'yield:finished',
+        errorEvent: 'yield:failed',
         eventBus: options.eventBus,
         eventPrefix: undefined
       },

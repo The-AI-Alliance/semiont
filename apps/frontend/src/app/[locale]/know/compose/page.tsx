@@ -15,7 +15,7 @@ import { useSession } from 'next-auth/react';
 import { useResources, useAnnotations, useEntityTypes, useApiClient, useAuthToken } from '@semiont/react-ui';
 import { useToast } from '@semiont/react-ui';
 import { useTheme } from '@semiont/react-ui';
-import { usePanelNavigation } from '@semiont/react-ui';
+import { usePanelBrowse } from '@semiont/react-ui';
 import { useLineNumbers } from '@semiont/react-ui';
 import { useHoverDelay } from '@semiont/react-ui';
 import { useEventSubscriptions } from '@semiont/react-ui';
@@ -58,7 +58,7 @@ function ComposeResourceContent() {
   const [referenceData, setReferenceData] = useState<any>(null);
 
   // Toolbar and settings state
-  const { activePanel } = usePanelNavigation();
+  const { activePanel } = usePanelBrowse();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
   const { hoverDelayMs } = useHoverDelay();

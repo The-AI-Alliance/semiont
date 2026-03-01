@@ -12,7 +12,7 @@ import { getExactText, getTargetSelector, isHighlight, isAssessment, isReference
 import { useEventBus } from '../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../contexts/useEventSubscription';
 import { useCacheManager } from '../../contexts/CacheContext';
-import { useObservableExternalNavigation } from '../../hooks/useObservableNavigation';
+import { useObservableExternalNavigation } from '../../hooks/useObservableBrowse';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import type { AnnotationsCollection } from '../../types/annotation-props';
 import { getSelectorType, getSelectedShapeForSelectorType, saveSelectedShapeForSelectorType } from '../../lib/media-shapes';
@@ -49,7 +49,7 @@ interface Props {
 
 /**
  * @emits annotate:delete - User requested to delete annotation. Payload: { annotationId: string }
- * @emits navigation:panel-open - Request to open panel with annotation. Payload: { panel: string, scrollToAnnotationId?: string, motivation?: Motivation }
+ * @emits browse:panel-open - Request to open panel with annotation. Payload: { panel: string, scrollToAnnotationId?: string, motivation?: Motivation }
  *
  * @subscribes annotate:mode-toggled - Toggles between browse and annotate mode. Payload: { mode: 'browse' | 'annotate' }
  * @subscribes annotate:added - New annotation was added. Payload: { annotation: Annotation }
@@ -58,7 +58,7 @@ interface Props {
  * @subscribes annotate:selection-changed - Text selection tool changed. Payload: { selection: boolean }
  * @subscribes annotate:click-changed - Click annotation tool changed. Payload: { click: 'detail' | 'scroll' | null }
  * @subscribes annotate:shape-changed - Drawing shape changed. Payload: { shape: string }
- * @subscribes navigation:click - User clicked on annotation. Payload: { annotationId: string }
+ * @subscribes browse:click - User clicked on annotation. Payload: { annotationId: string }
  */
 export function ResourceViewer({
   resource,
@@ -279,7 +279,7 @@ export function ResourceViewer({
     if (selectedClick === 'follow' && isReference(annotation)) {
       const bodySource = getBodySource(annotation.body);
       if (bodySource) {
-        // Navigate to the linked resource - emits 'navigation:external-navigate' event
+        // Navigate to the linked resource - emits 'browse:external-navigate' event
         const resourceId = bodySource.split('/resources/')[1];
         if (resourceId) {
           navigate(`/know/resource/${resourceId}`, { resourceId });
@@ -340,7 +340,7 @@ export function ResourceViewer({
 
     // All annotations open the unified annotations panel
     // The panel internally switches tabs based on the motivation → tab mapping in UnifiedAnnotationsPanel
-    eventBus.get('navigation:panel-open').next({ panel: 'annotations', scrollToAnnotationId: annotationId, motivation });
+    eventBus.get('browse:panel-open').next({ panel: 'annotations', scrollToAnnotationId: annotationId, motivation });
   }, [highlights, references, assessments, comments, tags, handleAnnotationClick, selectedClick]);
 
   // Event subscriptions - Combined into single useEventSubscriptions call to prevent hook ordering issues
@@ -360,7 +360,7 @@ export function ResourceViewer({
     'annotate:shape-changed': handleToolbarShapeChanged,
 
     // Annotation clicks
-    'navigation:click': handleAnnotationClickEvent,
+    'browse:click': handleAnnotationClickEvent,
   });
 
   // Prepare props for child components (memoized to prevent unnecessary re-renders of BrowseView/AnnotateView)

@@ -4,7 +4,7 @@
  * This test verifies the fix for the issue identified in commit 9690806abc910bad490e684d6ef71d874a90579c.
  *
  * SOLUTION IMPLEMENTED:
- * - Pattern B: Both useAnnotationFlow and useGenerationFlow call useToast internally
+ * - Pattern B: Both useAnnotationFlow and useYieldFlow call useToast internally
  * - Toast notifications are shown from within the hooks (self-contained)
  *
  * EXPECTED BEHAVIOR (after fix):
@@ -21,7 +21,7 @@ import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { resourceUri } from '@semiont/core';
 import { useAnnotationFlow } from '../../../hooks/useAnnotationFlow';
-import { useGenerationFlow } from '../../../hooks/useGenerationFlow';
+import { useYieldFlow } from '../../../hooks/useYieldFlow';
 
 // Mock the toast hook to track calls
 const mockShowSuccess = vi.fn();
@@ -57,7 +57,7 @@ describe('Toast Notifications - Verifies Toast Integration', () => {
 
   function TestComponentWithGeneration() {
     eventBusInstance = useEventBus();
-    useGenerationFlow('en', 'test-resource', vi.fn());
+    useYieldFlow('en', 'test-resource', vi.fn());
     return <div data-testid="test">Test</div>;
   }
 
@@ -137,7 +137,7 @@ describe('Toast Notifications - Verifies Toast Integration', () => {
   });
 
   describe('Generation Events Trigger Toasts', () => {
-    it('generate:finished shows success toast', async () => {
+    it('yield:finished shows success toast', async () => {
       renderGenerationTest();
 
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -145,7 +145,7 @@ describe('Toast Notifications - Verifies Toast Integration', () => {
 
       // Emit generation finished event
       act(() => {
-        eventBusInstance.get('generate:finished').next({
+        eventBusInstance.get('yield:finished').next({
           status: 'complete',
           message: 'Document generated successfully',
           percentage: 100,
@@ -159,7 +159,7 @@ describe('Toast Notifications - Verifies Toast Integration', () => {
       });
     });
 
-    it('generate:failed shows error toast', async () => {
+    it('yield:failed shows error toast', async () => {
       renderGenerationTest();
 
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -167,7 +167,7 @@ describe('Toast Notifications - Verifies Toast Integration', () => {
 
       // Emit generation failed event
       act(() => {
-        eventBusInstance.get('generate:failed').next({
+        eventBusInstance.get('yield:failed').next({
           error: new Error('Failed to generate document'),
         });
       });

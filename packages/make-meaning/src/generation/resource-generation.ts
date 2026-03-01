@@ -10,7 +10,7 @@
  */
 
 import { getLocaleEnglishName } from '@semiont/api-client';
-import type { GenerationContext, Logger } from '@semiont/core';
+import type { YieldContext, Logger } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 
 
@@ -27,7 +27,7 @@ export async function generateResourceFromTopic(
   client: InferenceClient,
   userPrompt?: string,
   locale?: string,
-  context?: GenerationContext,
+  context?: YieldContext,
   temperature?: number,
   maxTokens?: number,
   logger?: Logger

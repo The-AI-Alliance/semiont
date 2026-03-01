@@ -37,12 +37,12 @@ import { useEventBus } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { useResourceAnnotations } from '../../../contexts/ResourceAnnotationsContext';
 import { useApiClient } from '../../../contexts/ApiClientContext';
-import { useResolutionFlow } from '../../../hooks/useResolutionFlow';
+import { useBindFlow } from '../../../hooks/useBindFlow';
 import { useAnnotationFlow } from '../../../hooks/useAnnotationFlow';
-import { useAttentionFlow } from '../../../hooks/useAttentionFlow';
-import { usePanelNavigation } from '../../../hooks/usePanelNavigation';
-import { useGenerationFlow } from '../../../hooks/useGenerationFlow';
-import { useContextCorrelationFlow } from '../../../hooks/useContextCorrelationFlow';
+import { useBeckonFlow } from '../../../hooks/useBeckonFlow';
+import { usePanelBrowse } from '../../../hooks/usePanelBrowse';
+import { useYieldFlow } from '../../../hooks/useYieldFlow';
+import { useContextGatherFlow } from '../../../hooks/useContextGatherFlow';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
@@ -91,13 +91,13 @@ export interface ResourceViewerPageProps {
  *
  * Uses hooks directly (NO containers, NO render props, NO ResourceViewerPageContent wrapper)
  *
- * @emits navigation:router-push - Navigate to a resource or filtered view
- * @emits attend:sparkle - Trigger sparkle animation on an annotation
- * @emits resolve:update-body - Update annotation body content
+ * @emits browse:router-push - Navigate to a resource or filtered view
+ * @emits beckon:sparkle - Trigger sparkle animation on an annotation
+ * @emits bind:update-body - Update annotation body content
  * @subscribes resource:archive - Archive the current resource
  * @subscribes resource:unarchive - Unarchive the current resource
- * @subscribes generate:clone - Clone the current resource
- * @subscribes attend:sparkle - Trigger sparkle animation
+ * @subscribes yield:clone - Clone the current resource
+ * @subscribes beckon:sparkle - Trigger sparkle animation
  * @subscribes annotate:added - Annotation was created
  * @subscribes annotate:removed - Annotation was deleted
  * @subscribes annotate:create-failed - Annotation creation failed
@@ -110,8 +110,8 @@ export interface ResourceViewerPageProps {
  * @subscribes detection:failed - Detection failed
  * @subscribes generation:complete - Generation completed
  * @subscribes generation:failed - Generation failed
- * @subscribes navigation:reference-navigate - Navigate to a referenced document
- * @subscribes navigation:entity-type-clicked - Navigate filtered by entity type
+ * @subscribes browse:reference-navigate - Navigate to a referenced document
+ * @subscribes browse:entity-type-clicked - Navigate filtered by entity type
  */
 export function ResourceViewerPage({
   resource,
@@ -157,10 +157,10 @@ export function ResourceViewerPage({
   const allEntityTypes = (entityTypesData as { entityTypes: string[] } | undefined)?.entityTypes || [];
 
   // Flow state hooks (NO CONTAINERS)
-  const { hoveredAnnotationId } = useAttentionFlow();
+  const { hoveredAnnotationId } = useBeckonFlow();
   const { assistingMotivation, progress, pendingAnnotation } = useAnnotationFlow(rUri);
-  const { activePanel, scrollToAnnotationId, panelInitialTab, onScrollCompleted } = usePanelNavigation();
-  const { searchModalOpen, pendingReferenceId, onCloseSearchModal } = useResolutionFlow(rUri);
+  const { activePanel, scrollToAnnotationId, panelInitialTab, onScrollCompleted } = usePanelBrowse();
+  const { searchModalOpen, pendingReferenceId, onCloseSearchModal } = useBindFlow(rUri);
   const {
     generationProgress,
     generationModalOpen,
@@ -168,8 +168,8 @@ export function ResourceViewerPage({
     generationDefaultTitle,
     onGenerateDocument,
     onCloseGenerationModal,
-  } = useGenerationFlow(locale, rUri.split('/').pop() || '', clearNewAnnotationId);
-  const { correlationContext, correlationLoading, correlationError } = useContextCorrelationFlow(eventBus, { client, resourceUri: rUri });
+  } = useYieldFlow(locale, rUri.split('/').pop() || '', clearNewAnnotationId);
+  const { gatherContext, gatherLoading, gatherError } = useContextGatherFlow(eventBus, { client, resourceUri: rUri });
 
   // Debounced invalidation for real-time events
   const debouncedInvalidateAnnotations = useDebouncedCallback(
@@ -305,7 +305,7 @@ export function ResourceViewerPage({
     try {
       const result = await generateCloneTokenMutation.mutateAsync(rUri);
       const token = result.token;
-      eventBus.get('navigation:router-push').next({ path: `/know/compose?mode=clone&token=${token}`, reason: 'clone' });
+      eventBus.get('browse:router-push').next({ path: `/know/compose?mode=clone&token=${token}`, reason: 'clone' });
     } catch (err) {
       console.error('Failed to generate clone token:', err);
       showError('Failed to generate clone link');
@@ -341,23 +341,23 @@ export function ResourceViewerPage({
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(rUri) });
   }, [queryClient, rUri]);
   const handleGenerationComplete = useCallback(() => {
-    // Toast notification is handled by useGenerationFlow
+    // Toast notification is handled by useYieldFlow
   }, []);
   const handleGenerationFailed = useCallback(() => {
-    // Error notification is handled by useGenerationFlow
+    // Error notification is handled by useYieldFlow
   }, []);
 
   const handleReferenceNavigate = useCallback(({ documentId }: { documentId: string }) => {
     if (routes.resource) {
       const path = routes.resource.replace('[resourceId]', encodeURIComponent(documentId));
-      eventBus.get('navigation:router-push').next({ path, reason: 'reference-link' });
+      eventBus.get('browse:router-push').next({ path, reason: 'reference-link' });
     }
   }, [routes.resource]); // eventBus is stable singleton - never in deps
 
   const handleEntityTypeClicked = useCallback(({ entityType }: { entityType: string }) => {
     if (routes.know) {
       const path = `${routes.know}?entityType=${encodeURIComponent(entityType)}`;
-      eventBus.get('navigation:router-push').next({ path, reason: 'entity-type-filter' });
+      eventBus.get('browse:router-push').next({ path, reason: 'entity-type-filter' });
     }
   }, [routes.know]); // eventBus is stable singleton - never in deps
 
@@ -365,22 +365,22 @@ export function ResourceViewerPage({
   useEventSubscriptions({
     'resource:archive': handleResourceArchive,
     'resource:unarchive': handleResourceUnarchive,
-    'generate:clone': handleResourceClone,
-    'attend:sparkle': handleAnnotationSparkle,
+    'yield:clone': handleResourceClone,
+    'beckon:sparkle': handleAnnotationSparkle,
     'annotate:added': handleAnnotationAdded,
     'annotate:removed': debouncedInvalidateAnnotations,
     'annotate:create-failed': handleAnnotationCreateFailed,
     'annotate:delete-failed': handleAnnotationDeleteFailed,
     'annotate:body-updated': handleAnnotateBodyUpdated,
-    'resolve:body-update-failed': handleAnnotateBodyUpdateFailed,
+    'bind:body-update-failed': handleAnnotateBodyUpdateFailed,
     'settings:theme-changed': handleSettingsThemeChanged,
     'settings:line-numbers-toggled': toggleLineNumbers,
     'annotate:assist-finished': handleDetectionComplete,
     'annotate:assist-failed': handleDetectionFailed,
-    'generate:finished': handleGenerationComplete,
-    'generate:failed': handleGenerationFailed,
-    'navigation:reference-navigate': handleReferenceNavigate,
-    'navigation:entity-type-clicked': handleEntityTypeClicked,
+    'yield:finished': handleGenerationComplete,
+    'yield:failed': handleGenerationFailed,
+    'browse:reference-navigate': handleReferenceNavigate,
+    'browse:entity-type-clicked': handleEntityTypeClicked,
   });
 
   // Resource loading announcements
@@ -443,7 +443,7 @@ export function ResourceViewerPage({
   // Handlers for AnnotationHistory (legacy event-based interaction)
   const handleEventHover = useCallback((annotationId: string | null) => {
     if (annotationId) {
-      eventBus.get('attend:sparkle').next({ annotationId });
+      eventBus.get('beckon:sparkle').next({ annotationId });
     }
   }, []); // eventBus is stable singleton - never in deps
 
@@ -611,7 +611,7 @@ export function ResourceViewerPage({
               const resourceIdSegment = rUri.split('/').pop() || '';
               const nestedUri = `${window.location.origin}/resources/${resourceIdSegment}/annotations/${annotationIdShort}`;
 
-              eventBus.get('resolve:update-body').next({
+              eventBus.get('bind:update-body').next({
                 annotationUri: resourceAnnotationUri(nestedUri),
                 resourceId: resourceIdSegment,
                 operations: [{
@@ -644,9 +644,9 @@ export function ResourceViewerPage({
           }
         }}
         defaultTitle={generationDefaultTitle}
-        context={correlationContext}
-        contextLoading={correlationLoading}
-        contextError={correlationError}
+        context={gatherContext}
+        contextLoading={gatherLoading}
+        contextError={gatherError}
       />
     </div>
   );

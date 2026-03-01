@@ -71,7 +71,7 @@ ResourceViewer
 - Applies annotations as DOM overlays after paint using `annotation-overlay.ts`
 - Builds source→rendered position map, text node index, resolves annotation ranges, and applies highlights
 - Handles hover via delegated `createHoverHandlers` with configurable delay
-- Emits `navigation:click` and `attend:hover` events
+- Emits `browse:click` and `beckon:hover` events
 
 **See**: [ANNOTATION-OVERLAY.md](../../../ANNOTATION-OVERLAY.md) for detailed implementation.
 
@@ -141,11 +141,11 @@ User selects text in AnnotateView
 
 ```text
 History → Document:
-  attend:hover event → hoveredAnnotationId prop
+  beckon:hover event → hoveredAnnotationId prop
   → CodeMirrorRenderer scrolls to annotation + pulse animation
 
 Document → History:
-  mouseover delegation → attend:hover event
+  mouseover delegation → beckon:hover event
   → History panel scrolls to corresponding event
 ```
 
