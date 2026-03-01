@@ -29,12 +29,12 @@ Built on the W3C Web Annotation standard — portable, interoperable, and sovere
 
 Humans and AI agents work as peers through six composable workflows:
 
-- **[Yield](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/YIELD.md)** — Synthesize new resources from reference annotations using correlated context
-- **[Mark](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/MARK.md)** — Create highlights, assessments, comments, tags, and entity references — manually or via AI-assisted detection
-- **[Bind](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/BIND.md)** — Link reference annotations to existing resources or create new ones
-- **[Gather](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/GATHER.md)** — Extract semantic context from annotations and the knowledge graph for downstream use
-- **[Browse](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/BROWSE.md)** — Route user actions to the correct view, panel, or resource; decouple navigation intent from framework-specific routing
-- **[Beckon](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/BECKON.md)** — Focus on a resource or annotation; hover, click, and sparkle signals coordinate all panels and views
+- **[Yield](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/YIELD.md)** — Introduce new resources into the system — upload documents, load pages, or generate new content from annotated references
+- **[Mark](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/MARK.md)** — Add structured metadata to resources — highlights, assessments, comments, tags, and entity references — manually or via AI-assisted detection
+- **[Bind](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/BIND.md)** — Resolve ambiguous references to specific resources, linking entity mentions to their correct targets in the knowledge base
+- **[Gather](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/GATHER.md)** — Assemble related context around a focal annotation for downstream generation or analysis
+- **[Browse](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/BROWSE.md)** — Navigate through resources, panels, and views — structured paths for reviewing and examining content
+- **[Beckon](https://github.com/The-AI-Alliance/semiont/blob/main/docs/flows/BECKON.md)** — Direct user focus to specific annotations or regions of interest through visual cues and coordination signals
 
 ## Use Cases
 

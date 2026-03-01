@@ -31,12 +31,12 @@ Built on the W3C Web Annotation standard, Semiont transforms unstructured conten
 
 **Six Collaborative Flows** — humans and AI agents work as peers through six composable workflows:
 
-- **[Yield](docs/flows/YIELD.md)** — Synthesize new resources from reference annotations using correlated context
-- **[Mark](docs/flows/MARK.md)** — Create highlights, assessments, comments, tags, and entity references — manually or via AI-assisted detection
-- **[Bind](docs/flows/BIND.md)** — Link reference annotations to existing resources or create new ones
-- **[Gather](docs/flows/GATHER.md)** — Extract semantic context from annotations and the knowledge graph for downstream use
-- **[Browse](docs/flows/BROWSE.md)** — Route user actions to the correct view, panel, or resource; decouple navigation intent from framework-specific routing
-- **[Beckon](docs/flows/BECKON.md)** — Focus on a resource or annotation; hover, click, and sparkle signals coordinate all panels and views
+- **[Yield](docs/flows/YIELD.md)** — Introduce new resources into the system — upload documents, load pages, or generate new content from annotated references
+- **[Mark](docs/flows/MARK.md)** — Add structured metadata to resources — highlights, assessments, comments, tags, and entity references — manually or via AI-assisted detection
+- **[Bind](docs/flows/BIND.md)** — Resolve ambiguous references to specific resources, linking entity mentions to their correct targets in the knowledge base
+- **[Gather](docs/flows/GATHER.md)** — Assemble related context around a focal annotation for downstream generation or analysis
+- **[Browse](docs/flows/BROWSE.md)** — Navigate through resources, panels, and views — structured paths for reviewing and examining content
+- **[Beckon](docs/flows/BECKON.md)** — Direct user focus to specific annotations or regions of interest through visual cues and coordination signals
 
 ## 🚀 Getting Started
 
