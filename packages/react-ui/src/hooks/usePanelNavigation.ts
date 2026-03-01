@@ -35,9 +35,9 @@ export interface PanelNavigationState {
 /**
  * Hook for panel navigation state management
  *
- * @subscribes attend:panel-toggle - Toggle a panel open/closed
- * @subscribes attend:panel-open - Open a panel, optionally scrolling to an annotation
- * @subscribes attend:panel-close - Close the active panel
+ * @subscribes navigation:panel-toggle - Toggle a panel open/closed
+ * @subscribes navigation:panel-open - Open a panel, optionally scrolling to an annotation
+ * @subscribes navigation:panel-close - Close the active panel
  * @returns Panel navigation state
  */
 export function usePanelNavigation(): PanelNavigationState {
@@ -102,9 +102,9 @@ export function usePanelNavigation(): PanelNavigationState {
 
   // Subscribe to panel navigation events
   useEventSubscriptions({
-    'attend:panel-toggle': handlePanelToggle,
-    'attend:panel-open': handlePanelOpen,
-    'attend:panel-close': handlePanelClose,
+    'navigation:panel-toggle': handlePanelToggle,
+    'navigation:panel-open': handlePanelOpen,
+    'navigation:panel-close': handlePanelClose,
   });
 
   return {

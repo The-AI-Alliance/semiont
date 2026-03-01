@@ -49,7 +49,7 @@ interface Props {
 
 /**
  * @emits annotate:delete - User requested to delete annotation. Payload: { annotationId: string }
- * @emits attend:panel-open - Request to open panel with annotation. Payload: { panel: string, scrollToAnnotationId?: string, motivation?: Motivation }
+ * @emits navigation:panel-open - Request to open panel with annotation. Payload: { panel: string, scrollToAnnotationId?: string, motivation?: Motivation }
  *
  * @subscribes annotate:mode-toggled - Toggles between browse and annotate mode. Payload: { mode: 'browse' | 'annotate' }
  * @subscribes annotate:added - New annotation was added. Payload: { annotation: Annotation }
@@ -58,7 +58,7 @@ interface Props {
  * @subscribes annotate:selection-changed - Text selection tool changed. Payload: { selection: boolean }
  * @subscribes annotate:click-changed - Click annotation tool changed. Payload: { click: 'detail' | 'scroll' | null }
  * @subscribes annotate:shape-changed - Drawing shape changed. Payload: { shape: string }
- * @subscribes attend:click - User clicked on annotation. Payload: { annotationId: string }
+ * @subscribes navigation:click - User clicked on annotation. Payload: { annotationId: string }
  */
 export function ResourceViewer({
   resource,
@@ -340,7 +340,7 @@ export function ResourceViewer({
 
     // All annotations open the unified annotations panel
     // The panel internally switches tabs based on the motivation → tab mapping in UnifiedAnnotationsPanel
-    eventBus.get('attend:panel-open').next({ panel: 'annotations', scrollToAnnotationId: annotationId, motivation });
+    eventBus.get('navigation:panel-open').next({ panel: 'annotations', scrollToAnnotationId: annotationId, motivation });
   }, [highlights, references, assessments, comments, tags, handleAnnotationClick, selectedClick]);
 
   // Event subscriptions - Combined into single useEventSubscriptions call to prevent hook ordering issues
@@ -360,7 +360,7 @@ export function ResourceViewer({
     'annotate:shape-changed': handleToolbarShapeChanged,
 
     // Annotation clicks
-    'attend:click': handleAnnotationClickEvent,
+    'navigation:click': handleAnnotationClickEvent,
   });
 
   // Prepare props for child components (memoized to prevent unnecessary re-renders of BrowseView/AnnotateView)

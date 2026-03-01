@@ -37,7 +37,7 @@ export const TagEntry = forwardRef<HTMLDivElement, TagEntryProps>(
     <div
       ref={ref}
       onClick={() => {
-        eventBus.get('attend:click').next({ annotationId: tag.id, motivation: tag.motivation });
+        eventBus.get('navigation:click').next({ annotationId: tag.id, motivation: tag.motivation });
       }}
       {...hoverProps}
       className={`semiont-annotation-entry${isHovered ? ' semiont-annotation-pulse' : ''}`}

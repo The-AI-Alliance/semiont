@@ -35,12 +35,12 @@ eventBus.get('attend:focus').next({ annotationId: annotations[0].id });
 | Event | Payload | Description |
 |-------|---------|-------------|
 | `attend:hover` | `{ annotationId: string \| null }` | Mouse entered/left an annotation element |
-| `attend:click` | `{ annotationId: string; motivation: Motivation }` | User clicked an annotation |
+| `navigation:click` | `{ annotationId: string; motivation: Motivation }` | User clicked an annotation |
 | `attend:focus` | `{ annotationId: string \| null }` | Scroll-to-annotation signal (relayed from click) |
 | `attend:sparkle` | `{ annotationId: string }` | Trigger sparkle animation on an annotation |
-| `attend:panel-toggle` | `{ panel: string }` | Toggle a panel open/closed |
-| `attend:panel-open` | `{ panel: string; scrollToAnnotationId?: string }` | Open a specific panel (optionally scroll to annotation) |
-| `attend:panel-close` | `void` | Close the active panel |
+| `navigation:panel-toggle` | `{ panel: string }` | Toggle a panel open/closed |
+| `navigation:panel-open` | `{ panel: string; scrollToAnnotationId?: string }` | Open a specific panel (optionally scroll to annotation) |
+| `navigation:panel-close` | `void` | Close the active panel |
 
 ## Hover Coordination
 
@@ -63,7 +63,7 @@ Two forms are provided for emitting hover events:
 Click events relay through `attend:focus` to scroll the document view:
 
 1. User clicks an annotation entry in the panel
-2. `attend:click` fires with `annotationId` and `motivation`
+2. `navigation:click` fires with `annotationId` and `motivation`
 3. `useAttentionFlow` relays as `attend:focus`
 4. BrowseView subscribes to `attend:focus` and scrolls the document to the annotation's position
 

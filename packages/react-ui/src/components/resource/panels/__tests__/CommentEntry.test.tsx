@@ -241,7 +241,7 @@ describe('CommentEntry Component', () => {
   });
 
   describe('Click Interactions', () => {
-    it('should emit attend:click event when comment is clicked', async () => {
+    it('should emit navigation:click event when comment is clicked', async () => {
       const clickHandler = vi.fn();
 
       const { container, eventBus } = renderWithProviders(
@@ -250,7 +250,7 @@ describe('CommentEntry Component', () => {
       );
 
       // Subscribe to actual event on real event bus
-      const subscription = eventBus!.get('attend:click').subscribe(clickHandler);
+      const subscription = eventBus!.get('navigation:click').subscribe(clickHandler);
 
       const commentDiv = container.firstChild as HTMLElement;
       await userEvent.click(commentDiv);

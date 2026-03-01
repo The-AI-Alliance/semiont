@@ -348,7 +348,7 @@ export function CodeMirrorRenderer({
               const segment = segmentsByIdRef.current.get(annotationId);
               if (segment?.annotation) {
                 event.preventDefault();
-                eventBusRef.current.get('attend:click').next({
+                eventBusRef.current.get('navigation:click').next({
                   annotationId,
                   motivation: segment.annotation.motivation
                 });
@@ -452,7 +452,7 @@ export function CodeMirrorRenderer({
         eventBusRef.current.get('navigation:reference-navigate').next({ documentId: bodySource });
       } else {
         const motivation = (widget.dataset.widgetMotivation || 'linking') as Annotation['motivation'];
-        eventBusRef.current.get('attend:click').next({ annotationId, motivation });
+        eventBusRef.current.get('navigation:click').next({ annotationId, motivation });
       }
     };
 

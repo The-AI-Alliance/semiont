@@ -4,7 +4,7 @@
  * Tests the annotation attention / pointer coordination hook:
  * - attend:hover → sets hoveredAnnotationId + emits attend:sparkle
  * - attend:hover (null) → clears hoveredAnnotationId, no sparkle
- * - attend:click → emits attend:focus
+ * - navigation:click → emits attend:focus
  * - Subscriptions cleaned up on unmount (no stale listeners)
  * - Only one attend:sparkle emitted per hover (not doubled)
  *
@@ -118,13 +118,13 @@ describe('useAttentionFlow', () => {
     });
   });
 
-  describe('attend:click', () => {
+  describe('navigation:click', () => {
     it('emits attend:focus when an annotation is clicked', () => {
       const { getEventBus } = renderAttentionFlow();
       const focusSpy = vi.fn();
 
       const unsubscribe = getEventBus().get('attend:focus').subscribe(focusSpy);
-      act(() => { getEventBus().get('attend:click').next({ annotationId: 'ann-click', motivation: 'highlighting' }); });
+      act(() => { getEventBus().get('navigation:click').next({ annotationId: 'ann-click', motivation: 'highlighting' }); });
       unsubscribe.unsubscribe();
 
       expect(focusSpy).toHaveBeenCalledTimes(1);
@@ -136,7 +136,7 @@ describe('useAttentionFlow', () => {
       const focusSpy = vi.fn();
 
       const unsubscribe = getEventBus().get('attend:focus').subscribe(focusSpy);
-      act(() => { getEventBus().get('attend:click').next({ annotationId: 'ann-dedup', motivation: 'commenting' }); });
+      act(() => { getEventBus().get('navigation:click').next({ annotationId: 'ann-dedup', motivation: 'commenting' }); });
       unsubscribe.unsubscribe();
 
       expect(focusSpy).toHaveBeenCalledTimes(1);
@@ -150,7 +150,7 @@ describe('useAttentionFlow', () => {
       expect(getState().hoveredAnnotationId).toBe('ann-hovered');
 
       // Click a different annotation — hover state should be unaffected
-      act(() => { getEventBus().get('attend:click').next({ annotationId: 'ann-clicked', motivation: 'highlighting' }); });
+      act(() => { getEventBus().get('navigation:click').next({ annotationId: 'ann-clicked', motivation: 'highlighting' }); });
       expect(getState().hoveredAnnotationId).toBe('ann-hovered');
     });
   });

@@ -92,7 +92,7 @@ All events are defined in `EventBusContext.tsx` with TypeScript type safety:
 ```typescript
 interface EventMap {
   // User clicks annotation on resource overlay
-  'attend:click': {
+  'navigation:click': {
     annotationId: string;
     motivation: Motivation;
   };
@@ -153,8 +153,8 @@ sequenceDiagram
     participant Entry as ReferenceEntry
 
     User->>Overlay: Click annotation shape
-    Overlay->>Bus: emit('attend:click', {<br/>  annotationId: 'anno-123',<br/>  motivation: 'linking'<br/>})
-    Bus->>Coord: attend:click event
+    Overlay->>Bus: emit('navigation:click', {<br/>  annotationId: 'anno-123',<br/>  motivation: 'linking'<br/>})
+    Bus->>Coord: navigation:click event
 
     Note over Coord: Maps motivation → panel type<br/>'linking' → 'references'
 
@@ -415,7 +415,7 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
         data-focused={isFocused ? 'true' : 'false'}
         onClick={() => {
           // Click → Open panel
-          eventBus.emit('attend:click', {
+          eventBus.emit('navigation:click', {
             annotationId: reference.id,
             motivation: reference.motivation
           });

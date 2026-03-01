@@ -63,11 +63,11 @@ describe('usePanelNavigation', () => {
     expect(getState().activePanel).toBe('annotations');
   });
 
-  it('opens panel on attend:panel-open event', async () => {
+  it('opens panel on navigation:panel-open event', async () => {
     const { getState, getEventBus } = renderPanelNavigation();
 
     act(() => {
-      getEventBus().get('attend:panel-open').next({
+      getEventBus().get('navigation:panel-open').next({
         panel: 'annotations',
       });
     });
@@ -77,12 +77,12 @@ describe('usePanelNavigation', () => {
     });
   });
 
-  it('closes panel on attend:panel-close event', async () => {
+  it('closes panel on navigation:panel-close event', async () => {
     const { getState, getEventBus } = renderPanelNavigation();
 
     // First open a panel
     act(() => {
-      getEventBus().get('attend:panel-open').next({
+      getEventBus().get('navigation:panel-open').next({
         panel: 'annotations',
       });
     });
@@ -93,7 +93,7 @@ describe('usePanelNavigation', () => {
 
     // Then close it
     act(() => {
-      getEventBus().get('attend:panel-close').next();
+      getEventBus().get('navigation:panel-close').next();
     });
 
     await waitFor(() => {
@@ -101,12 +101,12 @@ describe('usePanelNavigation', () => {
     });
   });
 
-  it('toggles panel on attend:panel-toggle event', async () => {
+  it('toggles panel on navigation:panel-toggle event', async () => {
     const { getState, getEventBus } = renderPanelNavigation();
 
     // Toggle to open
     act(() => {
-      getEventBus().get('attend:panel-toggle').next({
+      getEventBus().get('navigation:panel-toggle').next({
         panel: 'settings',
       });
     });
@@ -117,7 +117,7 @@ describe('usePanelNavigation', () => {
 
     // Toggle to close
     act(() => {
-      getEventBus().get('attend:panel-toggle').next({
+      getEventBus().get('navigation:panel-toggle').next({
         panel: 'settings',
       });
     });
@@ -132,7 +132,7 @@ describe('usePanelNavigation', () => {
 
     // Open annotations panel
     act(() => {
-      getEventBus().get('attend:panel-toggle').next({
+      getEventBus().get('navigation:panel-toggle').next({
         panel: 'annotations',
       });
     });
@@ -143,7 +143,7 @@ describe('usePanelNavigation', () => {
 
     // Toggle settings panel (should switch, not close)
     act(() => {
-      getEventBus().get('attend:panel-toggle').next({
+      getEventBus().get('navigation:panel-toggle').next({
         panel: 'settings',
       });
     });
@@ -157,7 +157,7 @@ describe('usePanelNavigation', () => {
     const { getEventBus } = renderPanelNavigation();
 
     act(() => {
-      getEventBus().get('attend:panel-open').next({
+      getEventBus().get('navigation:panel-open').next({
         panel: 'info',
       });
     });
@@ -172,7 +172,7 @@ describe('usePanelNavigation', () => {
 
     // Open panel
     act(() => {
-      getEventBus().get('attend:panel-open').next({
+      getEventBus().get('navigation:panel-open').next({
         panel: 'history',
       });
     });
@@ -183,7 +183,7 @@ describe('usePanelNavigation', () => {
 
     // Close panel
     act(() => {
-      getEventBus().get('attend:panel-close').next();
+      getEventBus().get('navigation:panel-close').next();
     });
 
     await waitFor(() => {
@@ -195,7 +195,7 @@ describe('usePanelNavigation', () => {
     const { getState, getEventBus } = renderPanelNavigation();
 
     act(() => {
-      getEventBus().get('attend:panel-open').next({
+      getEventBus().get('navigation:panel-open').next({
         panel: 'annotations',
         scrollToAnnotationId: 'anno-123',
       });
@@ -211,7 +211,7 @@ describe('usePanelNavigation', () => {
 
     // Open with scroll target
     act(() => {
-      getEventBus().get('attend:panel-open').next({
+      getEventBus().get('navigation:panel-open').next({
         panel: 'annotations',
         scrollToAnnotationId: 'anno-456',
       });
@@ -235,7 +235,7 @@ describe('usePanelNavigation', () => {
     const { getState, getEventBus } = renderPanelNavigation();
 
     act(() => {
-      getEventBus().get('attend:panel-open').next({
+      getEventBus().get('navigation:panel-open').next({
         panel: 'annotations',
         motivation: 'linking',
       });
@@ -262,7 +262,7 @@ describe('usePanelNavigation', () => {
 
     for (const { motivation, expectedTab } of motivationToTab) {
       act(() => {
-        getEventBus().get('attend:panel-open').next({
+        getEventBus().get('navigation:panel-open').next({
           panel: 'annotations',
           motivation,
         });
@@ -278,7 +278,7 @@ describe('usePanelNavigation', () => {
     const { getState, getEventBus } = renderPanelNavigation();
 
     act(() => {
-      getEventBus().get('attend:panel-open').next({
+      getEventBus().get('navigation:panel-open').next({
         panel: 'annotations',
         motivation: 'highlighting',
       });
@@ -291,7 +291,7 @@ describe('usePanelNavigation', () => {
     const firstGeneration = getState().panelInitialTab!.generation;
 
     act(() => {
-      getEventBus().get('attend:panel-open').next({
+      getEventBus().get('navigation:panel-open').next({
         panel: 'annotations',
         motivation: 'commenting',
       });
@@ -307,7 +307,7 @@ describe('usePanelNavigation', () => {
     const { getState, getEventBus } = renderPanelNavigation();
 
     act(() => {
-      getEventBus().get('attend:panel-open').next({
+      getEventBus().get('navigation:panel-open').next({
         panel: 'annotations',
         motivation: 'unknown-motivation',
       });

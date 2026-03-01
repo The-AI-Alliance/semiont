@@ -63,7 +63,7 @@ const MemoizedMarkdown = memo(function MemoizedMarkdown({
  * - Layer 1: Markdown renders once (MemoizedMarkdown, cached by content)
  * - Layer 2: Annotation overlay applied via DOM Range API after paint
  *
- * @emits attend:click - User clicked on annotation. Payload: { annotationId: string, motivation: Motivation }
+ * @emits navigation:click - User clicked on annotation. Payload: { annotationId: string, motivation: Motivation }
  * @emits attend:hover - User hovered over annotation. Payload: { annotationId: string | null }
  *
  * @subscribes attend:hover - Highlight annotation on hover. Payload: { annotationId: string | null }
@@ -135,7 +135,7 @@ export const BrowseView = memo(function BrowseView({
       if (annotationId && annotationType === 'reference') {
         const annotation = allAnnotations.find(a => a.id === annotationId);
         if (annotation) {
-          eventBus.get('attend:click').next({ annotationId, motivation: annotation.motivation });
+          eventBus.get('navigation:click').next({ annotationId, motivation: annotation.motivation });
         }
       }
     };

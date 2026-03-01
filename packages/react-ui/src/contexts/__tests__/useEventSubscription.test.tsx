@@ -141,7 +141,7 @@ describe('useEventSubscription', () => {
 
           useEventSubscriptions({
             'attend:hover': handler1,
-            'attend:click': handler2,
+            'navigation:click': handler2,
           });
 
           return eventBus;
@@ -151,7 +151,7 @@ describe('useEventSubscription', () => {
 
       act(() => {
         result.current.get('attend:hover').next({ annotationId: 'ann-1' });
-        result.current.get('attend:click').next({ annotationId: 'ann-2' });
+        result.current.get('navigation:click').next({ annotationId: 'ann-2' });
       });
 
       expect(handler1).toHaveBeenCalledWith({ annotationId: 'ann-1' });
@@ -168,7 +168,7 @@ describe('useEventSubscription', () => {
 
           useEventSubscriptions({
             'attend:hover': () => calls.push(`hover:${message}`),
-            'attend:click': () => calls.push(`click:${message}`),
+            'navigation:click': () => calls.push(`click:${message}`),
           });
 
           return eventBus;
@@ -186,7 +186,7 @@ describe('useEventSubscription', () => {
       rerender();
 
       act(() => {
-        result.current.get('attend:click').next({ annotationId: 'ann-2' });
+        result.current.get('navigation:click').next({ annotationId: 'ann-2' });
       });
       expect(calls).toEqual(['hover:initial', 'click:updated']);
     });
@@ -201,7 +201,7 @@ describe('useEventSubscription', () => {
 
           useEventSubscriptions({
             'attend:hover': handler1,
-            'attend:click': handler2,
+            'navigation:click': handler2,
           });
 
           return eventBus;
@@ -213,7 +213,7 @@ describe('useEventSubscription', () => {
 
       act(() => {
         result.current.get('attend:hover').next({ annotationId: 'ann-1' });
-        result.current.get('attend:click').next({ annotationId: 'ann-2' });
+        result.current.get('navigation:click').next({ annotationId: 'ann-2' });
       });
 
       expect(handler1).not.toHaveBeenCalled();
@@ -229,7 +229,7 @@ describe('useEventSubscription', () => {
 
           useEventSubscriptions({
             'attend:hover': handler1,
-            'attend:click': undefined, // Optional
+            'navigation:click': undefined, // Optional
           });
 
           return eventBus;
@@ -239,7 +239,7 @@ describe('useEventSubscription', () => {
 
       act(() => {
         result.current.get('attend:hover').next({ annotationId: 'ann-1' });
-        result.current.get('attend:click').next({ annotationId: 'ann-2' });
+        result.current.get('navigation:click').next({ annotationId: 'ann-2' });
       });
 
       expect(handler1).toHaveBeenCalledTimes(1);

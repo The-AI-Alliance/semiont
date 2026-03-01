@@ -71,7 +71,7 @@ ResourceViewer
 - Applies annotations as DOM overlays after paint using `annotation-overlay.ts`
 - Builds source→rendered position map, text node index, resolves annotation ranges, and applies highlights
 - Handles hover via delegated `createHoverHandlers` with configurable delay
-- Emits `attend:click` and `attend:hover` events
+- Emits `navigation:click` and `attend:hover` events
 
 **See**: [ANNOTATION-OVERLAY.md](../../../ANNOTATION-OVERLAY.md) for detailed implementation.
 

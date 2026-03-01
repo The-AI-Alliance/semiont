@@ -14,7 +14,7 @@
  * ResourceAnnotationsContext. This hook emits the signal; it does not render the effect.
  *
  * @subscribes attend:hover - Sets hoveredAnnotationId; emits attend:sparkle
- * @subscribes attend:click - Emits attend:focus (attention relay only)
+ * @subscribes navigation:click - Emits attend:focus (attention relay only)
  * @emits      attend:sparkle
  * @emits      attend:focus
  */
@@ -73,7 +73,7 @@ export function useAttentionFlow(): AttentionFlowState {
 
   useEventSubscriptions({
     'attend:hover': handleAnnotationHover,
-    'attend:click': handleAnnotationClick,
+    'navigation:click': handleAnnotationClick,
   });
 
   return { hoveredAnnotationId };

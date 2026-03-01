@@ -17,7 +17,7 @@ interface Props<T extends string = string> {
 /**
  * Toolbar component for panel navigation
  *
- * @emits attend:panel-toggle - Toggle panel visibility. Payload: { panel: string }
+ * @emits navigation:panel-toggle - Toggle panel visibility. Payload: { panel: string }
  */
 export function Toolbar<T extends string = string>({
   context,
@@ -28,7 +28,7 @@ export function Toolbar<T extends string = string>({
   const eventBus = useEventBus();
 
   const handlePanelToggle = (panel: string) => {
-    eventBus.get('attend:panel-toggle').next({ panel });
+    eventBus.get('navigation:panel-toggle').next({ panel });
   };
 
   return (

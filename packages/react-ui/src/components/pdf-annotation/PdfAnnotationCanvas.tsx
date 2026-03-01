@@ -61,7 +61,7 @@ interface PdfAnnotationCanvasProps {
 /**
  * PDF annotation canvas with page navigation and rectangle drawing
  *
- * @emits attend:click - Annotation clicked on PDF. Payload: { annotationId: string, motivation: Motivation }
+ * @emits navigation:click - Annotation clicked on PDF. Payload: { annotationId: string, motivation: Motivation }
  * @emits annotate:requested - New annotation drawn on PDF. Payload: { selector: FragmentSelector, motivation: SelectionMotivation }
  * @emits attend:hover - Annotation hovered or unhovered. Payload: { annotationId: string | null }
  */
@@ -287,7 +287,7 @@ export function PdfAnnotationCanvas({
         });
 
         if (clickedAnnotation) {
-          eventBus?.get('attend:click').next({ annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
+          eventBus?.get('navigation:click').next({ annotationId: clickedAnnotation.id, motivation: clickedAnnotation.motivation });
           setIsDrawing(false);
           setSelection(null);
           return;
@@ -464,7 +464,7 @@ export function PdfAnnotationCanvas({
                         cursor: 'pointer',
                         opacity: isSelected ? 1 : isHovered ? 0.9 : 0.7
                       }}
-                      onClick={() => eventBus?.get('attend:click').next({ annotationId: ann.id, motivation: ann.motivation })}
+                      onClick={() => eventBus?.get('navigation:click').next({ annotationId: ann.id, motivation: ann.motivation })}
                       onMouseEnter={() => handleMouseEnter(ann.id)}
                       onMouseLeave={handleMouseLeave}
                     />

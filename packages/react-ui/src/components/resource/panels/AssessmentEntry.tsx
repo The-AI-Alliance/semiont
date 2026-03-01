@@ -89,7 +89,7 @@ export const AssessmentEntry = forwardRef<HTMLDivElement, AssessmentEntryProps>(
       data-type="assessment"
       data-focused={isFocused ? 'true' : 'false'}
       onClick={() => {
-        eventBus.get('attend:click').next({ annotationId: assessment.id, motivation: assessment.motivation });
+        eventBus.get('navigation:click').next({ annotationId: assessment.id, motivation: assessment.motivation });
       }}
       {...hoverProps}
     >

@@ -111,7 +111,7 @@ function createEventTracker() {
 
       const annotationEvents = [
         'attend:hover',
-        'attend:click',
+        'navigation:click',
         'attend:focus',
       ] as const;
 
@@ -422,7 +422,7 @@ describe('BrowseView Component', () => {
       });
     });
 
-    it('should emit attend:click only for reference annotations', async () => {
+    it('should emit navigation:click only for reference annotations', async () => {
       const tracker = createEventTracker();
       const annotations = {
         ...defaultProps.annotations,
@@ -455,7 +455,7 @@ describe('BrowseView Component', () => {
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'attend:click' &&
+          e.event === 'navigation:click' &&
           e.payload?.annotationId === 'ref-1' &&
           e.payload?.motivation === 'linking'
         )).toBe(true);
@@ -467,7 +467,7 @@ describe('BrowseView Component', () => {
       fireEvent.click(browseContainer!, { target: mockHighlightTarget });
 
       await new Promise(resolve => setTimeout(resolve, 50));
-      expect(tracker.events.filter(e => e.event === 'attend:click').length).toBe(0);
+      expect(tracker.events.filter(e => e.event === 'navigation:click').length).toBe(0);
     });
   });
 
@@ -529,11 +529,11 @@ describe('BrowseView Component', () => {
           };
 
           const handleClick = (payload: any) => {
-            eventTracker.push({ event: 'attend:click', annotationId: payload?.annotationId ?? null });
+            eventTracker.push({ event: 'navigation:click', annotationId: payload?.annotationId ?? null });
           };
 
           const subscription1 = eventBus.get('attend:hover').subscribe(handleHover);
-          const subscription2 = eventBus.get('attend:click').subscribe(handleClick);
+          const subscription2 = eventBus.get('navigation:click').subscribe(handleClick);
 
           return () => {
             subscription1.unsubscribe();
@@ -588,7 +588,7 @@ describe('BrowseView Component', () => {
 
       fireEvent.click(browseContainer!, { target: mockRefTarget });
       await waitFor(() => {
-        expect(eventTracker.some(e => e.event === 'attend:click' && e.annotationId === 'ref-1')).toBe(true);
+        expect(eventTracker.some(e => e.event === 'navigation:click' && e.annotationId === 'ref-1')).toBe(true);
       });
 
       // Verify highlight doesn't trigger click events
@@ -597,7 +597,7 @@ describe('BrowseView Component', () => {
 
       // Should not have any click events for highlights
       await new Promise(resolve => setTimeout(resolve, 50));
-      expect(eventTracker.some(e => e.event === 'attend:click')).toBe(false);
+      expect(eventTracker.some(e => e.event === 'navigation:click')).toBe(false);
 
       // The key insight: With event delegation, we can handle 100 annotations
       // with only container-level listeners, not 100+ individual listeners

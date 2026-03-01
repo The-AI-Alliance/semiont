@@ -113,7 +113,7 @@ function convertSegmentPositions(segments: TextSegment[], content: string): Text
 
 All event handling uses container-level delegation — no per-annotation or per-widget listeners:
 
-**Annotation clicks**: `click` handler on CodeMirror's DOM finds `[data-annotation-id]` via `closest()`, looks up the segment from `segmentsByIdRef` (O(1) Map), and emits `attend:click`.
+**Annotation clicks**: `click` handler on CodeMirror's DOM finds `[data-annotation-id]` via `closest()`, looks up the segment from `segmentsByIdRef` (O(1) Map), and emits `navigation:click`.
 
 **Annotation hovers**: `mouseover`/`mouseout` handlers use `createHoverHandlers` with configurable delay, emitting `attend:hover`.
 

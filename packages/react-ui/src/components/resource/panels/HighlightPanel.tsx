@@ -39,7 +39,7 @@ interface HighlightPanelProps {
  * Panel for managing highlight annotations with auto-creation
  *
  * @emits annotate:create - Create new highlight annotation (auto-triggered). Payload: { motivation: 'highlighting', selector: Selector | Selector[], body: Body[] }
- * @subscribes attend:click - Annotation clicked. Payload: { annotationId: string }
+ * @subscribes navigation:click - Annotation clicked. Payload: { annotationId: string }
  */
 export function HighlightPanel({
   annotations,
@@ -125,7 +125,7 @@ export function HighlightPanel({
   }, []);
 
   useEventSubscriptions({
-    'attend:click': handleAnnotationClick,
+    'navigation:click': handleAnnotationClick,
   });
 
   // Highlights auto-create: when pendingAnnotation arrives with highlighting motivation,

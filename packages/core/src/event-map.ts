@@ -100,12 +100,8 @@ export type EventMap = {
   // Manages which annotation has user's attention (hover/click/focus)
 
   'attend:hover': { annotationId: string | null };
-  'attend:click': { annotationId: string; motivation: Motivation };
   'attend:focus': { annotationId: string | null };
   'attend:sparkle': { annotationId: string };
-  'attend:panel-toggle': { panel: string };
-  'attend:panel-open': { panel: string; scrollToAnnotationId?: string; motivation?: string };
-  'attend:panel-close': void;
 
   // ========================================================================
   // ANNOTATION FLOW
@@ -279,9 +275,18 @@ export type EventMap = {
   'job:cancel-requested': { jobType: 'annotation' | 'generation' };
 
   // ========================================================================
-  // Left Sidebar Navigation
+  // Navigation
   // ========================================================================
 
+  // annotation click
+  'navigation:click': { annotationId: string; motivation: Motivation };
+
+  // right toolbar panels
+  'navigation:panel-toggle': { panel: string };
+  'navigation:panel-open': { panel: string; scrollToAnnotationId?: string; motivation?: string };
+  'navigation:panel-close': void;
+
+  // left sidebar navigation
   'navigation:sidebar-toggle': void;
   'navigation:resource-close': { resourceId: string };
   'navigation:resource-reorder': { oldIndex: number; newIndex: number };

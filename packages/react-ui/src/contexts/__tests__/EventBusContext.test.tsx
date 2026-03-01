@@ -52,8 +52,8 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
-        result.current.get('attend:panel-toggle').subscribe(handler);
-        result.current.get('attend:panel-toggle').next({ panel: 'comments' });
+        result.current.get('navigation:panel-toggle').subscribe(handler);
+        result.current.get('navigation:panel-toggle').next({ panel: 'comments' });
       });
 
       expect(handler).toHaveBeenCalledWith({ panel: 'comments' });
