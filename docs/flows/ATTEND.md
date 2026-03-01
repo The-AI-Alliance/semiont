@@ -12,7 +12,7 @@
 
 The Attend flow is the coordination layer for user focus. When a human hovers over an annotation in the panel, the corresponding text lights up in the document — and vice versa. When an AI agent creates a new annotation, a sparkle animation draws the user's eye to it. All of this runs through a small set of events on the frontend event bus.
 
-Attention is purely a frontend concern. It produces no backend events and no persistent state. It is the entry point of the five-flow pipeline: you attend to something before you annotate, resolve, correlate, or generate from it.
+Attention is purely a frontend concern. It produces no backend events and no persistent state. It coordinates visual focus across the UI — highlighting, sparkle animations, and scroll-to-annotation — while the [Navigate flow](./NAVIGATE.md) handles the routing of clicks and panel state changes.
 
 ## Using the API Client
 

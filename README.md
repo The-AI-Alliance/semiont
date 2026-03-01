@@ -19,7 +19,7 @@ Built on the W3C Web Annotation standard, Semiont transforms unstructured conten
 
 ## Why Semiont
 
-**Eliminate Cold Starts** — Import a set of documents and the five flows immediately begin producing value: AI agents detect entity mentions, propose annotations, and generate linked resources while humans review, correct, and extend the results. The knowledge graph grows as a byproduct of annotation — no upfront schema design, manual data entry, or batch ETL pipeline required.
+**Eliminate Cold Starts** — Import a set of documents and the six flows immediately begin producing value: AI agents detect entity mentions, propose annotations, and generate linked resources while humans review, correct, and extend the results. The knowledge graph grows as a byproduct of annotation — no upfront schema design, manual data entry, or batch ETL pipeline required.
 
 **Calibrate the Human–AI Mix** — Because humans and AI agents share identical interfaces, organizations can dial the mix to fit their constraints. A domain with abundant expert availability and a high accuracy bar can run human-primary workflows with AI suggestions; a domain rich in GPU capacity but short on specialists can run agent-primary pipelines with human spot-checks. Supervision depth, automation ratio, and quality gates are deployment decisions — not architectural rewrites.
 
@@ -29,13 +29,14 @@ Built on the W3C Web Annotation standard, Semiont transforms unstructured conten
 
 **Document-Grounded Knowledge** — Knowledge is always anchored to source documents. Annotations point into specific passages; references link documents to each other. The knowledge graph is a projection of these grounded relationships, not a replacement for the original material.
 
-**Five Collaborative Flows** — humans and AI agents work as peers through five composable workflows:
+**Six Collaborative Flows** — humans and AI agents work as peers through six composable workflows:
 
-- **[Attend](docs/flows/ATTEND.md)** — Focus on a resource or annotation; hover, click, and navigation signals coordinate all panels and views
 - **[Annotate](docs/flows/ANNOTATE.md)** — Create highlights, assessments, comments, tags, and entity references — manually or via AI-assisted detection
 - **[Resolve](docs/flows/RESOLVE.md)** — Link reference annotations to existing resources or create new ones
 - **[Correlate](docs/flows/CORRELATE.md)** — Extract semantic context from annotations and the knowledge graph for downstream use
-- **[Generate](docs/flows/GENERATE.md)** — Synthesize new resources from reference annotations using correlated context.
+- **[Generate](docs/flows/GENERATE.md)** — Synthesize new resources from reference annotations using correlated context
+- **[Attend](docs/flows/ATTEND.md)** — Focus on a resource or annotation; hover, click, and sparkle signals coordinate all panels and views
+- **[Navigate](docs/flows/NAVIGATE.md)** — Route user actions to the correct view, panel, or resource; decouple navigation intent from framework-specific routing
 
 ## 🚀 Getting Started
 

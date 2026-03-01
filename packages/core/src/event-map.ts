@@ -76,13 +76,14 @@ export interface AnnotationProgress {
  * Unified event map for all application events
  *
  * Organized by workflow ("flows"):
- * 1. Attention Flow - Annotation hover/focus/sparkle coordination
- * 2. Annotation Flow - Manual + AI-assisted annotation (all motivations)
- * 3. Context Retrieval Flow - LLM context fetching from annotations
+ * 1. Annotation Flow - Manual + AI-assisted annotation (all motivations)
+ * 2. Resolution Flow - Reference linking/resolution (search modal)
+ * 3. Context Correlation Flow - LLM context fetching from annotations
  * 4. Generation Flow - Resource generation from references
- * 5. Resolution Flow - Reference linking/resolution (search modal)
+ * 5. Attention Flow - Annotation hover/focus/sparkle coordination
+ * 6. Navigation Flow - Panel, sidebar, and application routing
  *
- * Plus infrastructure events (domain events, SSE, resource operations, navigation, settings)
+ * Plus infrastructure events (domain events, SSE, resource operations, settings)
  */
 export type EventMap = {
   // ========================================================================
