@@ -98,6 +98,39 @@ export type EventMap = {
   'make-meaning:event': ResourceEvent;
 
   // ========================================================================
+  // GENERATION FLOW
+  // ========================================================================
+  // Resource generation from reference annotations
+
+  'generate:modal-open': {
+    annotationUri: string;
+    resourceUri: string;
+    defaultTitle: string;
+  };
+  'generate:request': {
+    annotationUri: string;
+    resourceUri: string;
+    options: {
+      title: string;
+      prompt?: string;
+      language?: string;
+      temperature?: number;
+      maxTokens?: number;
+      context: GenerationContext;
+    };
+  };
+  'generate:progress': GenerationProgress;
+  'generate:finished': GenerationProgress;
+  'generate:failed': { error: Error };
+
+  // Domain Events (from backend event store)
+  'generate:representation-added': Extract<ResourceEvent, { type: 'representation.added' }>;
+  'generate:representation-removed': Extract<ResourceEvent, { type: 'representation.removed' }>;
+
+  // Resource operations
+  'generate:clone': void;
+
+  // ========================================================================
   // ANNOTATION FLOW
   // ========================================================================
   // Manual annotation (user selections) + AI-assisted annotation
@@ -207,39 +240,6 @@ export type EventMap = {
     annotationUri: string;
     error: Error;
   };
-
-  // ========================================================================
-  // GENERATION FLOW
-  // ========================================================================
-  // Resource generation from reference annotations
-
-  'generate:modal-open': {
-    annotationUri: string;
-    resourceUri: string;
-    defaultTitle: string;
-  };
-  'generate:request': {
-    annotationUri: string;
-    resourceUri: string;
-    options: {
-      title: string;
-      prompt?: string;
-      language?: string;
-      temperature?: number;
-      maxTokens?: number;
-      context: GenerationContext;
-    };
-  };
-  'generate:progress': GenerationProgress;
-  'generate:finished': GenerationProgress;
-  'generate:failed': { error: Error };
-
-  // Domain Events (from backend event store)
-  'generate:representation-added': Extract<ResourceEvent, { type: 'representation.added' }>;
-  'generate:representation-removed': Extract<ResourceEvent, { type: 'representation.removed' }>;
-
-  // Resource operations
-  'generate:clone': void;
 
   // ========================================================================
   // Navigation
