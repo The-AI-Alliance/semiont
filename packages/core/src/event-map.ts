@@ -86,23 +86,16 @@ export interface AnnotationProgress {
  * Plus infrastructure events (domain events, SSE, resource operations, settings)
  */
 export type EventMap = {
+
   // ========================================================================
-  // DOMAIN EVENTS (Backend Event Sourcing)
-  // ========================================================================
+  // DOMAIN EVENTS
+  // (Backend Event Sourcing)
   // Generic wrapper for all backend domain events (dot notation)
   // Streamed via SSE from /resources/:id/events/stream endpoint
   // Specific typed domain events are defined within their respective flow sections below
+  // ========================================================================
 
   'make-meaning:event': ResourceEvent;
-
-  // ========================================================================
-  // ATTENTION FLOW
-  // ========================================================================
-  // Manages which annotation has user's attention (hover/click/focus)
-
-  'attend:hover': { annotationId: string | null };
-  'attend:focus': { annotationId: string | null };
-  'attend:sparkle': { annotationId: string };
 
   // ========================================================================
   // ANNOTATION FLOW
@@ -249,6 +242,37 @@ export type EventMap = {
   'generate:clone': void;
 
   // ========================================================================
+  // Navigation
+  // ========================================================================
+
+  // annotation click
+  'navigation:click': { annotationId: string; motivation: Motivation };
+
+  // right toolbar panels
+  'navigation:panel-toggle': { panel: string };
+  'navigation:panel-open': { panel: string; scrollToAnnotationId?: string; motivation?: string };
+  'navigation:panel-close': void;
+
+  // left sidebar navigation
+  'navigation:sidebar-toggle': void;
+  'navigation:resource-close': { resourceId: string };
+  'navigation:resource-reorder': { oldIndex: number; newIndex: number };
+  'navigation:link-clicked': { href: string; label?: string };
+  'navigation:router-push': { path: string; reason?: string };
+  'navigation:external-navigate': { url: string; resourceId?: string; cancelFallback: () => void };
+  'navigation:reference-navigate': { documentId: string };
+  'navigation:entity-type-clicked': { entityType: string };
+
+  // ========================================================================
+  // ATTENTION FLOW
+  // ========================================================================
+  // Manages which annotation has user's attention (hover/click/focus)
+
+  'attend:hover': { annotationId: string | null };
+  'attend:focus': { annotationId: string | null };
+  'attend:sparkle': { annotationId: string };
+
+  // ========================================================================
   // Resource management
   // ========================================================================
   // Command/Event pairs: UI emits command → Backend confirms with domain event
@@ -274,28 +298,6 @@ export type EventMap = {
   // Job operations
   'job:queued': { jobId: string; jobType: string; resourceId: string };
   'job:cancel-requested': { jobType: 'annotation' | 'generation' };
-
-  // ========================================================================
-  // Navigation
-  // ========================================================================
-
-  // annotation click
-  'navigation:click': { annotationId: string; motivation: Motivation };
-
-  // right toolbar panels
-  'navigation:panel-toggle': { panel: string };
-  'navigation:panel-open': { panel: string; scrollToAnnotationId?: string; motivation?: string };
-  'navigation:panel-close': void;
-
-  // left sidebar navigation
-  'navigation:sidebar-toggle': void;
-  'navigation:resource-close': { resourceId: string };
-  'navigation:resource-reorder': { oldIndex: number; newIndex: number };
-  'navigation:link-clicked': { href: string; label?: string };
-  'navigation:router-push': { path: string; reason?: string };
-  'navigation:external-navigate': { url: string; resourceId?: string; cancelFallback: () => void };
-  'navigation:reference-navigate': { documentId: string };
-  'navigation:entity-type-clicked': { entityType: string };
 
   // ========================================================================
   // Settings
