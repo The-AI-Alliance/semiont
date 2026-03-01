@@ -361,7 +361,7 @@ Backend Events:
 - Generation: `generation:started`, `generation:progress`, `generation:resource-created`, `generation:completed`
 - Annotation: `mark:added`, `mark:removed`, `mark:body-updated`
 - Entity Tags: `entity-tag:added`, `entity-tag:removed`
-- Resource: `resource:archived`, `resource:unarchived`
+- Resource: `mark:archived`, `mark:unarchived`
 
 UI Events:
 - Selection: `ui:mark:select-comment`, `ui:mark:select-tag`, `ui:mark:select-assessment`, `ui:mark:select-reference`

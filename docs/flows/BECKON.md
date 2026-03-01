@@ -10,9 +10,11 @@
 
 ## Overview
 
-The Attend flow is the coordination layer for user focus. When a human hovers over an annotation in the panel, the corresponding text lights up in the document — and vice versa. When an AI agent creates a new annotation, a sparkle animation draws the user's eye to it. All of this runs through a small set of events on the frontend event bus.
+The Beckon flow directs user focus to specific annotations or regions of interest. The application uses visual cues — toast notifications, sparkle animations, scroll-to positioning, highlight state — to signal where attention is needed next. AI agents surface suggested follow-ups, confidence flags, and items requiring human review; human collaborators respond to these cues by prioritizing what to examine next.
 
-Attention is purely a frontend concern. It produces no backend events and no persistent state. It coordinates visual focus across the UI — highlighting, sparkle animations, and scroll-to-annotation — while the [Navigate flow](./BROWSE.md) handles the routing of clicks and panel state changes.
+The Beckon flow is the coordination layer for user focus. When a human hovers over an annotation in the panel, the corresponding text lights up in the document — and vice versa. When an AI agent creates a new annotation, a sparkle animation draws the user's eye to it. All of this runs through a small set of events on the frontend event bus.
+
+Beckoning is purely a frontend concern. It produces no backend events and no persistent state. It coordinates visual focus across the UI — highlighting, sparkle animations, and scroll-to-annotation — while the [Browse flow](./BROWSE.md) handles the routing of clicks and panel state changes.
 
 ## Using the API Client
 

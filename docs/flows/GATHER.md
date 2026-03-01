@@ -1,18 +1,20 @@
-# Correlate Flow
+# Gather Flow
 
-**Purpose**: Extract semantic context from an annotation and its surrounding document text for downstream use. Correlation assembles a `GenerationContext` — the selected text, surrounding passage, and metadata — that serves as grounding material for the [Generate flow](./YIELD.md) or any other consumer that needs rich context from an annotation.
+**Purpose**: Extract semantic context from an annotation and its surrounding document text for downstream use. Correlation assembles a `GenerationContext` — the selected text, surrounding passage, and metadata — that serves as grounding material for the [Yield flow](./YIELD.md) or any other consumer that needs rich context from an annotation.
 
 **Related Documentation**:
-- [Generate Flow](./YIELD.md) - Primary consumer of correlated context
-- [Annotate Flow](./MARK.md) - How annotations (the correlation sources) are created
+- [Yield Flow](./YIELD.md) - Primary consumer of correlated context
+- [Mark Flow](./MARK.md) - How annotations (the correlation sources) are created
 - [@semiont/make-meaning Architecture](../../packages/make-meaning/docs/architecture.md) - Context assembly layer
 - [Make-Meaning API Reference](../../packages/make-meaning/docs/api-reference.md) - `getAnnotationLLMContext` endpoint
 
 ## Overview
 
-When a user or agent wants to generate a new resource from a reference annotation, the system first needs to understand the context around that reference — what the surrounding text says, what the annotation targets, and what entity types are involved. The Correlate flow fetches this context from the backend and makes it available to downstream flows.
+The Gather flow assembles related context around a focal annotation. The application surfaces related documents, linked records, and surrounding passage text to construct a coherent input for downstream processing. AI agents perform RAG retrieval, context window assembly, and knowledge graph traversal; human collaborators pull prior materials and cross-references. The output is a `YieldContext` object that provides grounding material for resource generation or other context-dependent operations.
 
-Correlation is triggered automatically when the generation modal opens. It runs in parallel with the modal rendering, so context is typically ready by the time the user submits.
+When a user or agent wants to generate a new resource from a reference annotation, the system first needs to understand the context around that reference — what the surrounding text says, what the annotation targets, and what entity types are involved. The Gather flow fetches this context from the backend and makes it available to downstream flows.
+
+Gathering is triggered automatically when the generation modal opens. It runs in parallel with the modal rendering, so context is typically ready by the time the user submits.
 
 ## Using the API Client
 
@@ -81,7 +83,7 @@ Context available in generation modal for user review and submission
 
 Correlation and generation are separate flows because correlation is independently useful. Any consumer that needs rich annotation context — a search index, an export pipeline, an agent reasoning step — can subscribe to `gather:complete` without triggering generation.
 
-In the current UI, the primary consumer is the Generate flow. When `yield:modal-open` fires, `useYieldFlow` emits `gather:requested` in parallel. The correlated context is then passed as input when the user submits the generation form.
+In the current UI, the primary consumer is the Yield flow. When `yield:modal-open` fires, `useYieldFlow` emits `gather:requested` in parallel. The correlated context is then passed as input when the user submits the generation form.
 
 ## Implementation
 

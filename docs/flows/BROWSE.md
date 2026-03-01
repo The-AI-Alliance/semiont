@@ -1,19 +1,21 @@
-# Navigate Flow
+# Browse Flow
 
 **Purpose**: Route user actions to the correct view, panel, or resource. Navigation events decouple the components that *decide* where to go (toolbar buttons, annotation clicks, resolved-reference links) from the components that *perform* the navigation (Next.js router, sidebar state, panel container). This separation lets react-ui remain framework-agnostic — the library emits intent; the host application fulfills it.
 
 **Related Documentation**:
 - [Beckon Flow](./BECKON.md) - Hover/focus/sparkle coordination (attention precedes navigation)
-- [Resolve Flow](./RESOLVE.md) - Reference resolution triggers navigation to linked resources
+- [Bind Flow](./BIND.md) - Reference resolution triggers navigation to linked resources
 - [Frontend Annotations](../../apps/frontend/docs/ANNOTATIONS.md) - Annotation click and panel interaction
 - [React UI Events](../../packages/react-ui/docs/EVENTS.md) - Event bus architecture
 
 ## Overview
 
-The Navigate flow handles three categories of routing:
+The Browse flow provides structured navigation through the knowledge base. The application exposes paths through resources via click-through, drill-down, expand/collapse, filtering, and sorting. AI agents traverse these paths through agentic tool use and multi-hop reasoning; human collaborators review and examine content — scanning, comparing, and selectively reading in depth. Browse events decouple navigation intent from framework-specific routing so that react-ui components remain router-agnostic.
+
+The Browse flow handles three categories of routing:
 
 1. **Panel navigation** — Opening, closing, and toggling the right-side toolbar panels (annotations, info, history, settings, etc.)
-2. **Annotation click routing** — When a user clicks an annotation in any view (document, PDF, image, panel entry), the event is broadcast so that panels can highlight the clicked entry and the Attend flow can scroll to it.
+2. **Annotation click routing** — When a user clicks an annotation in any view (document, PDF, image, panel entry), the event is broadcast so that panels can highlight the clicked entry and the Beckon flow can scroll to it.
 3. **Application routing** — Sidebar state, resource tab management, and in-app or external URL navigation.
 
 Navigation is purely a frontend concern. It produces no backend events and no persistent state (except `localStorage` for panel and sidebar preferences).

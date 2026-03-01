@@ -1,4 +1,4 @@
-# Annotate Flow
+# Mark Flow
 
 **Purpose**: Create W3C Web Annotations on resources — manually by selecting text, or via AI-assisted detection that identifies highlights, assessments, comments, tags, and entity references. Both human and AI agents participate as peers in annotation creation.
 
@@ -13,6 +13,8 @@
 - [Make-Meaning API Reference](../../packages/make-meaning/docs/api-reference.md) - AnnotationDetection methods
 
 ## Overview
+
+The Mark flow adds structured metadata to resources. The application labels, tags, categorizes, and enriches content through auto-tagging, key term highlighting, priority flagging, and status indicators. AI agents perform named entity recognition, topic classification, and semantic enrichment; human collaborators perform triage and classification — determining what each passage means, its urgency, and where it belongs. The resulting annotations serve as anchors for downstream linking, context assembly, and navigation.
 
 Semiont creates W3C-compliant annotations through two complementary paths: **manual annotation** (a human selects text and chooses a motivation) and **AI-assisted detection** (an AI agent scans the document and proposes annotations). Both paths produce identical W3C Web Annotations and flow through the same event-sourced pipeline. This system combines:
 

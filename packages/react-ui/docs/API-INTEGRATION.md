@@ -815,8 +815,8 @@ These events are emitted by the backend via SSE and automatically invalidate rel
 - `entity-tag:removed` → Invalidate annotations cache
 
 **Resource Events:**
-- `resource:archived` → Invalidate resource cache
-- `resource:unarchived` → Invalidate resource cache
+- `mark:archived` → Invalidate resource cache
+- `mark:unarchived` → Invalidate resource cache
 
 ### Setup Event-Based Invalidation
 
@@ -864,8 +864,8 @@ function ResourceCacheSync({ rUri }: { rUri: ResourceUri }) {
     eventBus.on('mark:removed', handleAnnotationChange);
     eventBus.on('mark:body-updated', handleAnnotationChange);
     eventBus.on('detection:completed', handleDetectionComplete);
-    eventBus.on('resource:archived', handleResourceChange);
-    eventBus.on('resource:unarchived', handleResourceChange);
+    eventBus.on('mark:archived', handleResourceChange);
+    eventBus.on('mark:unarchived', handleResourceChange);
 
     return () => {
       // Cleanup all subscriptions
@@ -873,8 +873,8 @@ function ResourceCacheSync({ rUri }: { rUri: ResourceUri }) {
       eventBus.off('mark:removed', handleAnnotationChange);
       eventBus.off('mark:body-updated', handleAnnotationChange);
       eventBus.off('detection:completed', handleDetectionComplete);
-      eventBus.off('resource:archived', handleResourceChange);
-      eventBus.off('resource:unarchived', handleResourceChange);
+      eventBus.off('mark:archived', handleResourceChange);
+      eventBus.off('mark:unarchived', handleResourceChange);
     };
   }, [eventBus, queryClient, rUri]);
 

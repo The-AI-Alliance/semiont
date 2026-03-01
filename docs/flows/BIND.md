@@ -1,20 +1,22 @@
-# Resolve Flow
+# Bind Flow
 
-**Purpose**: Link reference annotations to existing resources or create new ones. When an annotation with motivation `linking` is created (by a human or AI agent), the Resolve flow lets a collaborator search for an existing resource to link it to, or navigate to the compose page to create a new one manually.
+**Purpose**: Link reference annotations to existing resources or create new ones. When an annotation with motivation `linking` is created (by a human or AI agent), the Bind flow lets a collaborator search for an existing resource to link it to, or navigate to the compose page to create a new one manually.
 
 **Related Documentation**:
 - [W3C Web Annotation Data Model](../../specs/docs/W3C-WEB-ANNOTATION.md) - Reference annotation and SpecificResource body structure
 - [Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md) - Event Store and annotation body updates
-- [Annotate Flow](./MARK.md) - How reference annotations are created
-- [Generate Flow](./GENERATE.md) - AI-powered resource generation (alternative to manual resolution)
+- [Mark Flow](./MARK.md) - How reference annotations are created
+- [Yield Flow](./YIELD.md) - AI-powered resource generation (alternative to manual resolution)
 
 ## Overview
 
-A reference annotation (motivation: `linking`) identifies an entity mention in a document — a person, place, concept, etc. Initially unresolved, it contains only entity type tags in its body. Resolution adds a `SpecificResource` body item that links the annotation to a concrete resource.
+The Bind flow resolves ambiguous references to specific resources. A detected entity mention such as "John Smith" is linked to the correct resource in the knowledge base, converting an unresolved annotation into a concrete cross-document link. AI agents perform entity linking, coreference resolution, and grounding (hallucination — binding to a nonexistent referent — is the primary failure mode). Human collaborators verify and confirm matches by cross-checking records and disambiguating between candidate entities.
+
+A reference annotation (motivation: `linking`) identifies an entity mention in a document — a person, place, concept, etc. Initially unresolved, it contains only entity type tags in its body. Binding adds a `SpecificResource` body item that links the annotation to a concrete resource.
 
 Resolution can happen in two ways:
 1. **Link to existing resource** — Search for and select a resource already in the system
-2. **Create new resource** — Navigate to the compose page with pre-filled parameters, or use the [Generate flow](./GENERATE.md) to have an AI agent create the resource
+2. **Create new resource** — Navigate to the compose page with pre-filled parameters, or use the [Yield flow](./YIELD.md) to have an AI agent create the resource
 
 Both paths result in an `annotation.body.updated` event that adds the `SpecificResource` link.
 

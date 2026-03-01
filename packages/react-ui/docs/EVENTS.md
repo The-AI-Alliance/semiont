@@ -87,8 +87,8 @@ These events are emitted by the backend when domain changes occur:
 
 **Resource Events**:
 
-- `resource:archive` - Resource should be archived
-- `resource:unarchive` - Resource should be unarchived
+- `mark:archive` - Resource should be archived
+- `mark:unarchive` - Resource should be unarchived
 
 **Generation Events**:
 
@@ -409,7 +409,7 @@ namespace:event-name
 
 - ✅ `detection:start` (correct)
 - ✅ `mark:created` (correct)
-- ✅ `resource:archive` (correct)
+- ✅ `mark:archive` (correct)
 - ❌ `detection-start` (legacy - don't use hyphens for namespaces)
 
 **Compliance**: The automated compliance checker flags legacy hyphen-separated event names as warnings.
