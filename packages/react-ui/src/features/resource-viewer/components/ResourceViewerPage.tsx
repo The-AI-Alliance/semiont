@@ -94,8 +94,8 @@ export interface ResourceViewerPageProps {
  * @emits browse:router-push - Navigate to a resource or filtered view
  * @emits beckon:sparkle - Trigger sparkle animation on an annotation
  * @emits bind:update-body - Update annotation body content
- * @subscribes resource:archive - Archive the current resource
- * @subscribes resource:unarchive - Unarchive the current resource
+ * @subscribes mark:archive - Archive the current resource
+ * @subscribes mark:unarchive - Unarchive the current resource
  * @subscribes yield:clone - Clone the current resource
  * @subscribes beckon:sparkle - Trigger sparkle animation
  * @subscribes mark:added - Annotation was created
@@ -363,8 +363,8 @@ export function ResourceViewerPage({
 
   // Event bus subscriptions (combined into single useEventSubscriptions call to prevent hook ordering issues)
   useEventSubscriptions({
-    'resource:archive': handleResourceArchive,
-    'resource:unarchive': handleResourceUnarchive,
+    'mark:archive': handleResourceArchive,
+    'mark:unarchive': handleResourceUnarchive,
     'yield:clone': handleResourceClone,
     'beckon:sparkle': handleAnnotationSparkle,
     'mark:added': handleAnnotationAdded,

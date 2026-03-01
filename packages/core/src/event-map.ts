@@ -192,6 +192,17 @@ export type EventMap = {
   'mark:entity-tag-added': Extract<ResourceEvent, { type: 'entitytag.added' }>;
   'mark:entity-tag-removed': Extract<ResourceEvent, { type: 'entitytag.removed' }>;
 
+  // Resource management
+  // Command/Event pairs: UI emits command → Backend confirms with domain event
+
+  // Archive command (UI) → archived event (backend confirmation via SSE)
+  'mark:archive': void;
+  'mark:archived': Extract<ResourceEvent, { type: 'resource.archived' }>;
+
+  // Unarchive command (UI) → unarchived event (backend confirmation via SSE)
+  'mark:unarchive': void;
+  'mark:unarchived': Extract<ResourceEvent, { type: 'resource.unarchived' }>;
+
   // ========================================================================
   // BIND FLOW
   // ========================================================================
@@ -272,19 +283,6 @@ export type EventMap = {
   'beckon:hover': { annotationId: string | null };
   'beckon:focus': { annotationId: string | null };
   'beckon:sparkle': { annotationId: string };
-
-  // ========================================================================
-  // Resource management
-  // ========================================================================
-  // Command/Event pairs: UI emits command → Backend confirms with domain event
-
-  // Archive command (UI) → archived event (backend confirmation via SSE)
-  'resource:archive': void;
-  'resource:archived': Extract<ResourceEvent, { type: 'resource.archived' }>;
-
-  // Unarchive command (UI) → unarchived event (backend confirmation via SSE)
-  'resource:unarchive': void;
-  'resource:unarchived': Extract<ResourceEvent, { type: 'resource.unarchived' }>;
 
   // ========================================================================
   // Job control
