@@ -16,7 +16,7 @@ import { resourceUri } from '@semiont/core';
 import { Link, routes } from '@/lib/routing';
 
 // Feature components
-import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage, TranslationProvider } from '@semiont/react-ui';
+import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { SearchResourcesModal } from '@/components/modals/SearchResourcesModal';
 import { GenerationConfigModal } from '@/components/modals/GenerationConfigModal';
@@ -85,18 +85,16 @@ export default function KnowledgeResourcePage() {
 
   // Render with minimal props - all data loading/events handled inside ResourceViewerPage
   return (
-    <TranslationProvider>
-      <ResourceViewerPage
-        resource={resource}
-        rUri={canonicalUri}
-        locale={locale}
-        Link={Link}
-        routes={routes}
-        ToolbarPanels={ToolbarPanels}
-        SearchResourcesModal={SearchResourcesModal}
-        GenerationConfigModal={GenerationConfigModal}
-        refetchDocument={refetchDocument}
-      />
-    </TranslationProvider>
+    <ResourceViewerPage
+      resource={resource}
+      rUri={canonicalUri}
+      locale={locale}
+      Link={Link}
+      routes={routes}
+      ToolbarPanels={ToolbarPanels}
+      SearchResourcesModal={SearchResourcesModal}
+      GenerationConfigModal={GenerationConfigModal}
+      refetchDocument={refetchDocument}
+    />
   );
 }
