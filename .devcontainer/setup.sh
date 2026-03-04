@@ -449,11 +449,21 @@ echo "if [ -d /workspace ]; then" >> /home/node/.bashrc
 echo "    cd /workspace" >> /home/node/.bashrc
 echo "fi" >> /home/node/.bashrc
 
+WORKSPACE_CREDS="/workspace/credentials.json"
+cat > "$WORKSPACE_CREDS" << EOF
+{
+  "email": "$ADMIN_EMAIL",
+  "password": "$ADMIN_PASSWORD",
+  "created_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+}
+EOF
+
 echo ""
 echo "Setup complete. Run 'semiont start' to start all services."
 echo ""
 echo "  Email:    $ADMIN_EMAIL"
 echo "  Password: $ADMIN_PASSWORD"
+echo "  Saved to: $WORKSPACE_CREDS"
 echo ""
 if [ -n "${CODESPACE_NAME:-}" ]; then
     echo "Make port 8080 public (Ports panel > right-click 8080 > Public)"
