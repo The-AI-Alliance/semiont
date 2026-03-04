@@ -77,11 +77,17 @@ export class GraphService extends BaseService {
         allowPrivilegeEscalation: false
       },
       environment: this.getEnvironmentVariables(),
-      // Add capability annotations for handlers
       annotations: {
-        [COMMAND_CAPABILITY_ANNOTATIONS.PROVISION]: 'true',
         'service/type': SERVICE_TYPES.GRAPH,
-        'graph/type': this.typedConfig.name || 'janusgraph'
+        'graph/type': this.typedConfig.name || 'janusgraph',
+        // When on external platform, only check and watch apply
+        ...(this.platform === 'external' ? {
+          [COMMAND_CAPABILITY_ANNOTATIONS.START]: 'false',
+          [COMMAND_CAPABILITY_ANNOTATIONS.STOP]: 'false',
+          [COMMAND_CAPABILITY_ANNOTATIONS.RESTART]: 'false',
+          [COMMAND_CAPABILITY_ANNOTATIONS.PROVISION]: 'false',
+          [COMMAND_CAPABILITY_ANNOTATIONS.CONFIGURE]: 'false',
+        } : {}),
       }
     };
     

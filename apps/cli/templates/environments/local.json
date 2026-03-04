@@ -37,8 +37,10 @@
       "platform": {
         "type": "container"
       },
-      "image": "postgres:15-alpine",
+      "type": "postgres",
       "name": "semiont-local-db",
+      "host": "localhost",
+      "image": "postgres:15-alpine",
       "port": 5432,
       "environment": {
         "POSTGRES_DB": "semiont",
