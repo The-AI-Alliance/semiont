@@ -82,16 +82,21 @@ export class DatabaseService extends BaseService {
       // Pass through environment variables exactly as configured
       environment: this.config.environment || {},
       annotations: {
-        // Service type declaration
         'service/type': SERVICE_TYPES.DATABASE,
-        // Database supports backup and restore
         [COMMAND_CAPABILITY_ANNOTATIONS.BACKUP]: 'true',
         [COMMAND_CAPABILITY_ANNOTATIONS.RESTORE]: 'true',
-        // Database doesn't support publish/update (not containerized)
         [COMMAND_CAPABILITY_ANNOTATIONS.PUBLISH]: 'false',
         [COMMAND_CAPABILITY_ANNOTATIONS.UPDATE]: 'false',
         [COMMAND_CAPABILITY_ANNOTATIONS.TEST]: 'false',
-        [COMMAND_CAPABILITY_ANNOTATIONS.EXEC]: 'true'
+        [COMMAND_CAPABILITY_ANNOTATIONS.EXEC]: 'true',
+        // When on external platform, only check and watch apply
+        ...(this.platform === 'external' ? {
+          [COMMAND_CAPABILITY_ANNOTATIONS.START]: 'false',
+          [COMMAND_CAPABILITY_ANNOTATIONS.STOP]: 'false',
+          [COMMAND_CAPABILITY_ANNOTATIONS.RESTART]: 'false',
+          [COMMAND_CAPABILITY_ANNOTATIONS.PROVISION]: 'false',
+          [COMMAND_CAPABILITY_ANNOTATIONS.CONFIGURE]: 'false',
+        } : {}),
       }
     };
     

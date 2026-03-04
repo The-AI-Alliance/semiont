@@ -40,12 +40,14 @@ export class InferenceService extends BaseService {
       annotations: {
         ...baseRequirements.annotations,
         'service/type': SERVICE_TYPES.INFERENCE,
-        // External services only support check and watch
-        [COMMAND_CAPABILITY_ANNOTATIONS.START]: 'false',
-        [COMMAND_CAPABILITY_ANNOTATIONS.STOP]: 'false',
-        [COMMAND_CAPABILITY_ANNOTATIONS.RESTART]: 'false',
-        [COMMAND_CAPABILITY_ANNOTATIONS.PROVISION]: 'false',
-        [COMMAND_CAPABILITY_ANNOTATIONS.CONFIGURE]: 'false',
+        // When on external platform, only check and watch apply
+        ...(this.platform === 'external' ? {
+          [COMMAND_CAPABILITY_ANNOTATIONS.START]: 'false',
+          [COMMAND_CAPABILITY_ANNOTATIONS.STOP]: 'false',
+          [COMMAND_CAPABILITY_ANNOTATIONS.RESTART]: 'false',
+          [COMMAND_CAPABILITY_ANNOTATIONS.PROVISION]: 'false',
+          [COMMAND_CAPABILITY_ANNOTATIONS.CONFIGURE]: 'false',
+        } : {}),
       }
     };
   }
