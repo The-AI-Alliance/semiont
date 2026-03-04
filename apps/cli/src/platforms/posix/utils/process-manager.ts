@@ -6,7 +6,7 @@ import { printInfo, printWarning } from '../../../core/io/cli-logger.js';
  */
 export interface ServiceCleanupPatterns {
   /** Service type identifier */
-  serviceType: 'backend' | 'frontend';
+  serviceType: string;
   /** Process patterns to kill */
   patterns: string[];
 }
@@ -24,12 +24,18 @@ const DEFAULT_CLEANUP_PATTERNS: Record<string, ServiceCleanupPatterns> = {
     ]
   },
   frontend: {
-    serviceType: 'frontend', 
+    serviceType: 'frontend',
     patterns: [
       'next.*dev',            // Next.js dev server
       'npm.*dev.*frontend',   // npm dev processes
       'node.*next.*dev',      // Next.js child processes
       'webpack.*hot.*reload'  // Webpack HMR processes
+    ]
+  },
+  proxy: {
+    serviceType: 'proxy',
+    patterns: [
+      'envoy.*-c.*envoy\\.yaml'  // Envoy proxy processes
     ]
   }
 };
@@ -44,7 +50,7 @@ const DEFAULT_CLEANUP_PATTERNS: Record<string, ServiceCleanupPatterns> = {
  */
 export async function killProcessGroupAndRelated(
   pid: number,
-  serviceType: 'backend' | 'frontend',
+  serviceType: string,
   verbose: boolean = false
 ): Promise<boolean> {
   let killed = false;

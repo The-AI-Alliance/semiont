@@ -21,6 +21,7 @@ import { HandlerResult } from './handlers/types.js';
 import { Config, ServiceConfig } from './cli-config.js';
 import { parseEnvironment } from '@semiont/core';
 import { printError, printInfo } from './io/cli-logger.js';
+import { serviceSupportsCommand } from './service-command-capabilities.js';
 
 /**
  * Options that all commands have
@@ -214,7 +215,22 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
     );
     
     if (!handlerDescriptor) {
-      // No handler found - return error result
+      // Check if the service has opted out of this command via capability annotations
+      const annotations = service.getRequirements().annotations;
+      if (!serviceSupportsCommand(annotations, this.descriptor.name)) {
+        // Service declared it doesn't support this command — no-op
+        return this.descriptor.buildResult(
+          {
+            success: true,
+            metadata: { serviceType, skipped: true, reason: `${serviceType} does not support ${this.descriptor.name}` }
+          },
+          service,
+          platform,
+          serviceType
+        );
+      }
+
+      // Service claims to support this command but no handler is registered — real error
       return this.descriptor.buildResult(
         {
           success: false,

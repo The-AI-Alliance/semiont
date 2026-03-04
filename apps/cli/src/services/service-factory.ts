@@ -1,8 +1,8 @@
 /**
- * Service Factory - Refactored Version
- * 
- * Creates service instances using the new platform strategy pattern.
- * Uses GenericService for unknown service types.
+ * Service Factory
+ *
+ * Creates service instances using the platform strategy pattern.
+ * Fails hard on unknown service types.
  */
 
 import { Service } from '../core/service-interface.js';
@@ -17,8 +17,8 @@ import { GraphService } from './graph-service.js';
 import { MCPService } from './mcp-service.js';
 import { InferenceService } from './inference-service.js';
 import { ProxyService } from './proxy-service.js';
-import { GenericService } from '../core/generic-service.js';
-import { printInfo } from '../core/io/cli-logger.js';
+
+const SUPPORTED_SERVICES = ['backend', 'frontend', 'database', 'filesystem', 'graph', 'mcp', 'inference', 'proxy'] as const;
 
 export class ServiceFactory {
   /**
@@ -31,7 +31,6 @@ export class ServiceFactory {
     envConfig: EnvironmentConfig,
     serviceConfig: ServiceConfig
   ): Service {
-    // Extract runtime flags from config
     const runtimeFlags = {
       verbose: config.verbose,
       quiet: config.quiet,
@@ -65,10 +64,9 @@ export class ServiceFactory {
         return new ProxyService('proxy', platform, envConfig, serviceConfig, runtimeFlags);
 
       default:
-        // Use GenericService for unknown service types
-        // This allows extending the system with new services without modifying the factory
-        printInfo(`Using GenericService for unknown service type: ${name}`);
-        return new GenericService(name as any, platform, envConfig, serviceConfig, runtimeFlags);
+        throw new Error(
+          `Unknown service type: '${name}'. Supported services: ${SUPPORTED_SERVICES.join(', ')}`
+        );
     }
   }
 }

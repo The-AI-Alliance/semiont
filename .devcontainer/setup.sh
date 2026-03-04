@@ -357,6 +357,18 @@ semiont provision --service frontend >> $LOG_FILE 2>&1 || {
 }
 print_success "Frontend provisioned"
 
+# Provision proxy service (processes envoy.yaml template)
+semiont provision --service proxy >> $LOG_FILE 2>&1 || {
+    print_error "Proxy provisioning failed"
+    echo ""
+    echo "Last 50 lines of $LOG_FILE:"
+    echo "----------------------------------------"
+    tail -n 50 $LOG_FILE
+    echo "----------------------------------------"
+    exit 1
+}
+print_success "Proxy provisioned"
+
 # Publish backend (builds if devMode: false, skips if devMode: true)
 print_status "Publishing backend application..."
 cd $SEMIONT_ROOT || {
@@ -437,29 +449,25 @@ echo "if [ -d /workspace ]; then" >> /home/node/.bashrc
 echo "    cd /workspace" >> /home/node/.bashrc
 echo "fi" >> /home/node/.bashrc
 
-# Save credentials to a file that start-services.sh can read
-CREDS_FILE="/tmp/semiont-credentials.txt"
-cat > "$CREDS_FILE" << EOF
-ADMIN_EMAIL=$ADMIN_EMAIL
-ADMIN_PASSWORD=$ADMIN_PASSWORD
+WORKSPACE_CREDS="/workspace/credentials.json"
+cat > "$WORKSPACE_CREDS" << EOF
+{
+  "email": "$ADMIN_EMAIL",
+  "password": "$ADMIN_PASSWORD",
+  "created_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+}
 EOF
 
 echo ""
-echo "=========================================="
-echo "  ✅ ONE-TIME SETUP COMPLETED"
-echo "=========================================="
+echo "Setup complete. Run 'semiont start' to start all services."
 echo ""
-echo "To start the Semiont services, run:"
+echo "  Email:    $ADMIN_EMAIL"
+echo "  Password: $ADMIN_PASSWORD"
+echo "  Saved to: $WORKSPACE_CREDS"
 echo ""
-echo "  bash .devcontainer/start-services.sh"
+if [ -n "${CODESPACE_NAME:-}" ]; then
+    echo "Make port 8080 public (Ports panel > right-click 8080 > Public)"
+    echo "Then open: https://${CODESPACE_NAME}-8080.app.github.dev"
+fi
 echo ""
-echo "This will:"
-echo "  • Start the backend API server"
-echo "  • Start the frontend Next.js server"
-echo "  • Start the Envoy proxy (port 8080)"
-echo "  • Keep services running (blocks terminal)"
-echo ""
-echo "Or start services in the background:"
-echo ""
-echo "  nohup bash .devcontainer/start-services.sh > /tmp/services.log 2>&1 &"
-echo ""
+echo "Run 'semiont --help' for more info."

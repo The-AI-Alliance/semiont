@@ -357,8 +357,10 @@ export class AWSPlatform extends Platform {
       case 'stack':
         return 'stack';
       default:
-        // Pass through unknown types
-        return declaredType;
+        throw new Error(
+          `Unsupported service type for AWS platform: '${declaredType}'. ` +
+          `Supported types: frontend, backend, database, filesystem, graph, worker, inference, stack`
+        );
     }
   }
   
