@@ -357,6 +357,18 @@ semiont provision --service frontend >> $LOG_FILE 2>&1 || {
 }
 print_success "Frontend provisioned"
 
+# Provision proxy service (processes envoy.yaml template)
+semiont provision --service proxy >> $LOG_FILE 2>&1 || {
+    print_error "Proxy provisioning failed"
+    echo ""
+    echo "Last 50 lines of $LOG_FILE:"
+    echo "----------------------------------------"
+    tail -n 50 $LOG_FILE
+    echo "----------------------------------------"
+    exit 1
+}
+print_success "Proxy provisioned"
+
 # Publish backend (builds if devMode: false, skips if devMode: true)
 print_status "Publishing backend application..."
 cd $SEMIONT_ROOT || {
@@ -437,29 +449,61 @@ echo "if [ -d /workspace ]; then" >> /home/node/.bashrc
 echo "    cd /workspace" >> /home/node/.bashrc
 echo "fi" >> /home/node/.bashrc
 
-# Save credentials to a file that start-services.sh can read
-CREDS_FILE="/tmp/semiont-credentials.txt"
-cat > "$CREDS_FILE" << EOF
-ADMIN_EMAIL=$ADMIN_EMAIL
-ADMIN_PASSWORD=$ADMIN_PASSWORD
-EOF
-
 echo ""
 echo "=========================================="
-echo "  ✅ ONE-TIME SETUP COMPLETED"
+echo "  ONE-TIME SETUP COMPLETED"
 echo "=========================================="
 echo ""
-echo "To start the Semiont services, run:"
+echo "To start all Semiont services, run:"
 echo ""
-echo "  bash .devcontainer/start-services.sh"
+echo "  cd $SEMIONT_ROOT && semiont start"
 echo ""
-echo "This will:"
-echo "  • Start the backend API server"
-echo "  • Start the frontend Next.js server"
-echo "  • Start the Envoy proxy (port 8080)"
-echo "  • Keep services running (blocks terminal)"
+echo "This will start:"
+echo "  - Backend API server (port 4000)"
+echo "  - Frontend Next.js server (port 3000)"
+echo "  - Envoy proxy (port 8080)"
 echo ""
-echo "Or start services in the background:"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "  nohup bash .devcontainer/start-services.sh > /tmp/services.log 2>&1 &"
+if [ -n "${CODESPACE_NAME:-}" ]; then
+    ENVOY_URL="https://${CODESPACE_NAME}-8080.app.github.dev"
+    echo "SETUP STEPS (Codespaces):"
+    echo ""
+    echo "1. Make port 8080 public (Envoy proxy - main entry point):"
+    echo "   Open the 'Ports' panel (View > Ports)"
+    echo "   Right-click port 8080 > Port Visibility > Public"
+    echo ""
+    echo "2. Open the application via Envoy (recommended):"
+    echo "   $ENVOY_URL"
+    echo ""
+    echo "3. Sign in with your admin credentials:"
+    echo ""
+    echo "   Email:    $ADMIN_EMAIL"
+    echo "   Password: $ADMIN_PASSWORD"
+    echo ""
+    echo "   (These credentials are unique to this Codespace)"
+else
+    echo "Ready to start! After running 'semiont start', open:"
+    echo ""
+    echo "   http://localhost:8080 (Envoy proxy - recommended)"
+    echo "   http://localhost:3000 (Frontend direct)"
+    echo "   http://localhost:4000/api/health (Backend health check)"
+    echo ""
+    echo "   Sign in with your admin credentials:"
+    echo ""
+    echo "   Email:    $ADMIN_EMAIL"
+    echo "   Password: $ADMIN_PASSWORD"
+fi
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "Quick Commands:"
+echo "  semiont start       - Start all services"
+echo "  semiont check       - Check service status"
+echo "  semiont stop        - Stop all services"
+echo "  semiont restart     - Restart services"
+echo ""
+echo "Environment: ${SEMIONT_ENV:-unknown}"
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
