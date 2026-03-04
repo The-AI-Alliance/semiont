@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { execSync } from 'child_process';
 import * as fs from 'fs';
 import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import type { ProxyServiceConfig } from '@semiont/core';
@@ -10,15 +10,14 @@ import { getProxyPaths } from './proxy-paths.js';
 /**
  * Start handler for proxy services on POSIX systems
  *
- * Starts Envoy (or other proxy) as a detached background process.
- * Requires the proxy to be provisioned first (config file must exist).
+ * Uses a double-fork to fully daemonize envoy so it survives
+ * when the parent CLI process exits.
  */
 const startProxyService = async (context: PosixStartHandlerContext): Promise<StartHandlerResult> => {
   const { service } = context;
   const config = service.config as ProxyServiceConfig;
   const paths = getProxyPaths(context);
 
-  // Check if config file exists (must be provisioned first)
   if (!fs.existsSync(paths.configFile)) {
     return {
       success: false,
@@ -38,7 +37,6 @@ const startProxyService = async (context: PosixStartHandlerContext): Promise<Sta
         metadata: { serviceType: 'proxy', pid }
       };
     } catch {
-      // Process not running, remove stale pid file
       fs.unlinkSync(paths.pidFile);
     }
   }
@@ -54,7 +52,6 @@ const startProxyService = async (context: PosixStartHandlerContext): Promise<Sta
     };
   }
 
-  // Ensure logs directory exists
   fs.mkdirSync(paths.logsDir, { recursive: true });
 
   if (!service.quiet) {
@@ -64,50 +61,54 @@ const startProxyService = async (context: PosixStartHandlerContext): Promise<Sta
   }
 
   try {
-    // Open log file for proxy output
-    const logFd = fs.openSync(paths.appLogFile, 'a');
+    // Double-fork to daemonize envoy (reparents to PID 1).
+    // Without this, envoy gets SIGTERM when the CLI process exits.
+    const pidFile = paths.pidFile;
+    const logFile = paths.appLogFile;
+    const configFile = paths.configFile;
 
-    // Spawn envoy as a detached process
-    const proc = spawn('envoy', ['-c', paths.configFile], {
-      detached: true,
-      stdio: ['ignore', logFd, logFd]
-    });
+    execSync(`bash -c '
+      (
+        exec </dev/null
+        exec >>"${logFile}" 2>&1
+        (
+          exec envoy -c "${configFile}" &
+          echo $! > "${pidFile}"
+        ) &
+      ) &
+    '`);
 
-    if (!proc.pid) {
-      fs.closeSync(logFd);
-      throw new Error('Failed to start proxy process');
+    // Wait for envoy to start and write its PID
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    if (!fs.existsSync(pidFile)) {
+      return {
+        success: false,
+        error: `Proxy process failed to start. Check logs: ${logFile}`,
+        metadata: { serviceType: 'proxy', logFile }
+      };
     }
 
-    // Save PID
-    fs.writeFileSync(paths.pidFile, proc.pid.toString());
-
-    // Close file descriptor — child has its own reference
-    fs.closeSync(logFd);
-
-    // Detach from child process
-    proc.unref();
-
-    // Wait for process to start
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    const pid = parseInt(fs.readFileSync(pidFile, 'utf-8').trim());
 
     // Verify process is still running
     try {
-      process.kill(proc.pid, 0);
+      process.kill(pid, 0);
     } catch {
       return {
         success: false,
-        error: `Proxy process failed to start. Check logs: ${paths.appLogFile}`,
-        metadata: { serviceType: 'proxy', logFile: paths.appLogFile }
+        error: `Proxy process failed to start. Check logs: ${logFile}`,
+        metadata: { serviceType: 'proxy', logFile }
       };
     }
 
     const resources: PlatformResources = {
       platform: 'posix',
       data: {
-        pid: proc.pid,
+        pid,
         port: proxyPort,
-        command: `envoy -c ${paths.configFile}`,
-        logFile: paths.appLogFile
+        command: `envoy -c ${configFile}`,
+        logFile
       }
     };
 
@@ -117,10 +118,10 @@ const startProxyService = async (context: PosixStartHandlerContext): Promise<Sta
       printSuccess(`Proxy service ${service.name} started successfully`);
       printInfo('');
       printInfo('Proxy details:');
-      printInfo(`  PID: ${proc.pid}`);
+      printInfo(`  PID: ${pid}`);
       printInfo(`  Proxy: ${endpoint}`);
       printInfo(`  Admin: http://localhost:${adminPort}`);
-      printInfo(`  Logs: ${paths.appLogFile}`);
+      printInfo(`  Logs: ${logFile}`);
     }
 
     return {
@@ -129,7 +130,7 @@ const startProxyService = async (context: PosixStartHandlerContext): Promise<Sta
       resources,
       metadata: {
         serviceType: 'proxy',
-        pid: proc.pid,
+        pid,
         port: proxyPort,
         adminPort
       }
