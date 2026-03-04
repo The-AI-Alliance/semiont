@@ -16,6 +16,7 @@
 
 import { BaseService } from '../core/base-service.js';
 import { ServiceRequirements, RequirementPresets } from '../core/service-requirements.js';
+import { COMMAND_CAPABILITY_ANNOTATIONS } from '../core/service-command-capabilities.js';
 import { SERVICE_TYPES } from '../core/service-types.js';
 import { type InferenceServiceConfig } from '@semiont/core';
 
@@ -38,12 +39,13 @@ export class InferenceService extends BaseService {
       ...baseRequirements,
       annotations: {
         ...baseRequirements.annotations,
-        // Service type declaration
         'service/type': SERVICE_TYPES.INFERENCE,
-        // External services can only be checked, not started/stopped
-        'command/check': 'true',
-        // Inference services are external, no lifecycle management
-        'platform/external-only': 'true'
+        // External services only support check and watch
+        [COMMAND_CAPABILITY_ANNOTATIONS.START]: 'false',
+        [COMMAND_CAPABILITY_ANNOTATIONS.STOP]: 'false',
+        [COMMAND_CAPABILITY_ANNOTATIONS.RESTART]: 'false',
+        [COMMAND_CAPABILITY_ANNOTATIONS.PROVISION]: 'false',
+        [COMMAND_CAPABILITY_ANNOTATIONS.CONFIGURE]: 'false',
       }
     };
   }
