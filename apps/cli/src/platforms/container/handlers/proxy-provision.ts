@@ -110,14 +110,8 @@ const provisionProxyService = async (context: ContainerProvisionHandlerContext):
     const __dirname = path.dirname(fileURLToPath(import.meta.url));
     let templatePath: string;
 
-    // Check if we're running from source (tests) or dist (production)
-    if (__dirname.includes(path.sep + 'src' + path.sep)) {
-      // Running from source: go up to project root, then to templates
-      templatePath = path.join(__dirname, '..', '..', '..', '..', 'templates', 'envoy.yaml');
-    } else {
-      // Production: templates are in dist/templates
-      templatePath = path.join(__dirname, 'templates', 'envoy.yaml');
-    }
+    // Both src and dist have the same depth: {src,dist}/platforms/{platform}/handlers/
+    templatePath = path.join(__dirname, '..', '..', '..', '..', 'templates', 'envoy.yaml');
 
     if (!fs.existsSync(templatePath)) {
       return {
