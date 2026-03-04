@@ -1,9 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { fileURLToPath } from 'url';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { getProxyPaths } from './proxy-paths.js';
+import { getTemplatesDir } from '../../../core/io/cli-paths.js';
 import type { ProxyServiceConfig } from '@semiont/core';
 
 /**
@@ -56,12 +56,7 @@ const provisionProxyService = async (context: PosixProvisionHandlerContext): Pro
 
   // Process configuration template based on proxy type
   if (config.type === 'envoy') {
-    // Get the template path
-    const __dirname = path.dirname(fileURLToPath(import.meta.url));
-    let templatePath: string;
-
-    // Both src and dist have the same depth: {src,dist}/platforms/{platform}/handlers/
-    templatePath = path.join(__dirname, '..', '..', '..', '..', 'templates', 'envoy.yaml');
+    const templatePath = path.join(getTemplatesDir(import.meta.url), 'envoy.yaml');
 
     if (!fs.existsSync(templatePath)) {
       return {

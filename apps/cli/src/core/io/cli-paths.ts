@@ -44,8 +44,41 @@ export function getProjectRoot(importMetaUrl: string): string {
 }
 
 /**
- * Get CLI package root from any CLI file  
+ * Get CLI package root from any CLI file
  */
 export function getCliRoot(importMetaUrl: string): string {
   return getCliPaths(importMetaUrl).cliRoot;
+}
+
+/**
+ * Get the templates directory path.
+ *
+ * When bundled (esbuild → dist/cli.mjs), __dirname is the dist/ directory
+ * and build.mjs copies templates/ → dist/templates/.
+ *
+ * When running from source (src/), we traverse up from __dirname to the
+ * package root (apps/cli/) and then into templates/.
+ *
+ * @param importMetaUrl - pass `import.meta.url` from the calling module
+ */
+export function getTemplatesDir(importMetaUrl: string): string {
+  const filename = fileURLToPath(importMetaUrl);
+  const dirname = path.dirname(filename);
+
+  if (dirname.includes(path.sep + 'src' + path.sep)) {
+    // Running from source: find package root by looking for package.json
+    let dir = dirname;
+    while (dir !== path.dirname(dir)) {
+      if (path.basename(dir) === 'src') {
+        // src's parent is the package root (apps/cli)
+        return path.join(path.dirname(dir), 'templates');
+      }
+      dir = path.dirname(dir);
+    }
+    // Fallback: shouldn't happen
+    throw new Error(`Cannot locate templates directory from source path: ${dirname}`);
+  }
+
+  // Bundled: __dirname is dist/, templates are at dist/templates/
+  return path.join(dirname, 'templates');
 }
