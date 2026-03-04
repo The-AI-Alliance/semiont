@@ -10,7 +10,8 @@ Services in Semiont represent different types of application components:
 - **database** - Data storage services
 - **filesystem** - File storage services
 - **mcp** - Model Context Protocol servers
-- **custom** - Any other service type (uses GenericService)
+- **inference** - AI/ML model serving
+- **proxy** - API gateways, reverse proxies
 
 Services encapsulate business logic and requirements independent of deployment platform.
 
@@ -370,9 +371,9 @@ export class ServiceFactory {
       case 'my-service':
         return new MyService(name, platform, systemConfig, serviceConfig);
       default:
-        // GenericService handles unknown types
-        // IMPORTANT: Avoid using GenericService for known service types
-        return new GenericService(name as any, platform, systemConfig, serviceConfig);
+        throw new Error(
+          `Unknown service type: '${name}'. Add a case to ServiceFactory.create().`
+        );
     }
   }
 }
@@ -398,7 +399,7 @@ Available service types:
 - `SERVICE_TYPES.WORKER` - Background job processors
 - `SERVICE_TYPES.MCP` - Model Context Protocol services
 - `SERVICE_TYPES.INFERENCE` - AI/ML model serving
-- `SERVICE_TYPES.GENERIC` - General-purpose services
+- `SERVICE_TYPES.PROXY` - API gateways, reverse proxies
 
 ### 6. Configure Implementation Types
 
@@ -836,4 +837,5 @@ Look at existing services for examples:
 - `filesystem-service.ts` - Storage service
 - `graph-service.ts` - Graph databases (JanusGraph, Neptune, Neo4j, ArangoDB)
 - `mcp-service.ts` - Model Context Protocol server
-- `generic-service.ts` - Fallback for unknown services
+- `inference-service.ts` - AI/ML model serving
+- `proxy-service.ts` - API gateways and reverse proxies
