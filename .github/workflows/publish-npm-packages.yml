@@ -1,24 +1,8 @@
 name: Publish npm packages
 
-run-name: "NPM: ${{ github.event.inputs.stable_release == 'true' && 'stable' || 'dev' }} v${{ github.run_number }} ${{ github.event_name == 'workflow_dispatch' && '(manual)' || format('({0})', github.event.head_commit.message) }}"
+run-name: "NPM: ${{ github.event.inputs.stable_release == 'true' && 'stable' || 'dev' }} v${{ github.run_number }} (manual)"
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'packages/api-client/**'
-      - 'packages/core/**'
-      - 'packages/content/**'
-      - 'packages/ontology/**'
-      - 'packages/event-sourcing/**'
-      - 'packages/graph/**'
-      - 'packages/inference/**'
-      - 'packages/jobs/**'
-      - 'packages/make-meaning/**'
-      - 'packages/react-ui/**'
-      - 'apps/cli/**'
-      - 'specs/**'
-      - '.github/workflows/publish-npm-packages.yml'
   workflow_dispatch:
     inputs:
       dry_run:
@@ -58,16 +42,9 @@ jobs:
       - name: Build packages
         run: |
           npm run openapi:bundle
-          npm run build --workspace=@semiont/api-client
-          npm run build --workspace=@semiont/ontology
-          npm run build --workspace=@semiont/core
-          npm run build --workspace=@semiont/content
-          npm run build --workspace=@semiont/event-sourcing
-          npm run build --workspace=@semiont/graph
-          npm run build --workspace=@semiont/inference
-          npm run build --workspace=@semiont/jobs
-          npm run build --workspace=@semiont/make-meaning
-          npm run build --workspace=@semiont/react-ui
+          for pkg in api-client ontology core content event-sourcing graph inference jobs make-meaning react-ui; do
+            npm run build --workspace=@semiont/$pkg
+          done
 
       - name: Build @semiont/cli
         working-directory: ./apps/cli
@@ -92,226 +69,79 @@ jobs:
       - name: Update package versions
         run: |
           TARGET_VERSION="${{ steps.version.outputs.publish }}"
-
           echo "Updating all packages to version $TARGET_VERSION"
 
-          # Update @semiont/api-client
           node -e "
             const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('packages/api-client/package.json', 'utf-8'));
-            pkg.version = '$TARGET_VERSION';
-            fs.writeFileSync('packages/api-client/package.json', JSON.stringify(pkg, null, 2) + '\n');
-            console.log('✓ Updated @semiont/api-client to $TARGET_VERSION');
-          "
+            const version = '$TARGET_VERSION';
 
-          # Update @semiont/core
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('packages/core/package.json', 'utf-8'));
-            pkg.version = '$TARGET_VERSION';
-            fs.writeFileSync('packages/core/package.json', JSON.stringify(pkg, null, 2) + '\n');
-            console.log('✓ Updated @semiont/core to $TARGET_VERSION');
-          "
+            const packages = [
+              'packages/api-client',
+              'packages/ontology',
+              'packages/core',
+              'packages/content',
+              'packages/event-sourcing',
+              'packages/graph',
+              'packages/inference',
+              'packages/jobs',
+              'packages/make-meaning',
+              'packages/react-ui',
+            ];
 
-          # Update @semiont/ontology
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('packages/ontology/package.json', 'utf-8'));
-            pkg.version = '$TARGET_VERSION';
-            fs.writeFileSync('packages/ontology/package.json', JSON.stringify(pkg, null, 2) + '\n');
-            console.log('✓ Updated @semiont/ontology to $TARGET_VERSION');
-          "
-
-          # Update @semiont/content
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('packages/content/package.json', 'utf-8'));
-            pkg.version = '$TARGET_VERSION';
-            fs.writeFileSync('packages/content/package.json', JSON.stringify(pkg, null, 2) + '\n');
-            console.log('✓ Updated @semiont/content to $TARGET_VERSION');
-          "
-
-          # Update @semiont/event-sourcing
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('packages/event-sourcing/package.json', 'utf-8'));
-            pkg.version = '$TARGET_VERSION';
-            fs.writeFileSync('packages/event-sourcing/package.json', JSON.stringify(pkg, null, 2) + '\n');
-            console.log('✓ Updated @semiont/event-sourcing to $TARGET_VERSION');
-          "
-
-          # Update @semiont/graph
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('packages/graph/package.json', 'utf-8'));
-            pkg.version = '$TARGET_VERSION';
-            fs.writeFileSync('packages/graph/package.json', JSON.stringify(pkg, null, 2) + '\n');
-            console.log('✓ Updated @semiont/graph to $TARGET_VERSION');
-          "
-
-          # Update @semiont/inference
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('packages/inference/package.json', 'utf-8'));
-            pkg.version = '$TARGET_VERSION';
-            fs.writeFileSync('packages/inference/package.json', JSON.stringify(pkg, null, 2) + '\n');
-            console.log('✓ Updated @semiont/inference to $TARGET_VERSION');
-          "
-
-          # Update @semiont/jobs
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('packages/jobs/package.json', 'utf-8'));
-            pkg.version = '$TARGET_VERSION';
-            fs.writeFileSync('packages/jobs/package.json', JSON.stringify(pkg, null, 2) + '\n');
-            console.log('✓ Updated @semiont/jobs to $TARGET_VERSION');
-          "
-
-          # Update @semiont/make-meaning
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('packages/make-meaning/package.json', 'utf-8'));
-            pkg.version = '$TARGET_VERSION';
-            fs.writeFileSync('packages/make-meaning/package.json', JSON.stringify(pkg, null, 2) + '\n');
-            console.log('✓ Updated @semiont/make-meaning to $TARGET_VERSION');
-          "
-
-          # Update @semiont/react-ui
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('packages/react-ui/package.json', 'utf-8'));
-            pkg.version = '$TARGET_VERSION';
-            fs.writeFileSync('packages/react-ui/package.json', JSON.stringify(pkg, null, 2) + '\n');
-            console.log('✓ Updated @semiont/react-ui to $TARGET_VERSION');
-          "
-
-          # Update @semiont/cli (version + dependencies)
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('apps/cli/package.json', 'utf-8'));
-            const targetVersion = '$TARGET_VERSION';
-
-            pkg.version = targetVersion;
-
-            if (pkg.dependencies['@semiont/api-client']) {
-              pkg.dependencies['@semiont/api-client'] = targetVersion;
-            }
-            if (pkg.dependencies['@semiont/core']) {
-              pkg.dependencies['@semiont/core'] = targetVersion;
+            for (const dir of packages) {
+              const path = dir + '/package.json';
+              const pkg = JSON.parse(fs.readFileSync(path, 'utf-8'));
+              pkg.version = version;
+              fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+              console.log('Updated ' + pkg.name + ' to ' + version);
             }
 
-            fs.writeFileSync('apps/cli/package.json', JSON.stringify(pkg, null, 2) + '\n');
-            console.log('✓ Updated @semiont/cli to $TARGET_VERSION (with dependencies)');
+            // CLI: update version + @semiont/* dependencies
+            const cliPath = 'apps/cli/package.json';
+            const cli = JSON.parse(fs.readFileSync(cliPath, 'utf-8'));
+            cli.version = version;
+            for (const dep of Object.keys(cli.dependencies || {})) {
+              if (dep.startsWith('@semiont/')) {
+                cli.dependencies[dep] = version;
+              }
+            }
+            fs.writeFileSync(cliPath, JSON.stringify(cli, null, 2) + '\n');
+            console.log('Updated ' + cli.name + ' to ' + version + ' (with dependencies)');
           "
 
-      - name: Publish @semiont/api-client
+      - name: Publish packages
         if: github.event.inputs.dry_run != 'true'
-        working-directory: ./packages/api-client
         run: |
-          echo "Publishing @semiont/api-client@${{ steps.version.outputs.publish }}"
-          npm publish --tag ${{ steps.version.outputs.tag }} --access public
+          TAG="${{ steps.version.outputs.tag }}"
+          VERSION="${{ steps.version.outputs.publish }}"
 
-      - name: Publish @semiont/core
-        if: github.event.inputs.dry_run != 'true'
-        working-directory: ./packages/core
-        run: |
-          echo "Publishing @semiont/core@${{ steps.version.outputs.publish }}"
-          npm publish --tag ${{ steps.version.outputs.tag }} --access public
-
-      - name: Publish @semiont/ontology
-        if: github.event.inputs.dry_run != 'true'
-        working-directory: ./packages/ontology
-        run: |
-          echo "Publishing @semiont/ontology@${{ steps.version.outputs.publish }}"
-          npm publish --tag ${{ steps.version.outputs.tag }} --access public
-
-      - name: Publish @semiont/content
-        if: github.event.inputs.dry_run != 'true'
-        working-directory: ./packages/content
-        run: |
-          echo "Publishing @semiont/content@${{ steps.version.outputs.publish }}"
-          npm publish --tag ${{ steps.version.outputs.tag }} --access public
-
-      - name: Publish @semiont/event-sourcing
-        if: github.event.inputs.dry_run != 'true'
-        working-directory: ./packages/event-sourcing
-        run: |
-          echo "Publishing @semiont/event-sourcing@${{ steps.version.outputs.publish }}"
-          npm publish --tag ${{ steps.version.outputs.tag }} --access public
-
-      - name: Publish @semiont/graph
-        if: github.event.inputs.dry_run != 'true'
-        working-directory: ./packages/graph
-        run: |
-          echo "Publishing @semiont/graph@${{ steps.version.outputs.publish }}"
-          npm publish --tag ${{ steps.version.outputs.tag }} --access public
-
-      - name: Publish @semiont/inference
-        if: github.event.inputs.dry_run != 'true'
-        working-directory: ./packages/inference
-        run: |
-          echo "Publishing @semiont/inference@${{ steps.version.outputs.publish }}"
-          npm publish --tag ${{ steps.version.outputs.tag }} --access public
-
-      - name: Publish @semiont/jobs
-        if: github.event.inputs.dry_run != 'true'
-        working-directory: ./packages/jobs
-        run: |
-          echo "Publishing @semiont/jobs@${{ steps.version.outputs.publish }}"
-          npm publish --tag ${{ steps.version.outputs.tag }} --access public
-
-      - name: Publish @semiont/make-meaning
-        if: github.event.inputs.dry_run != 'true'
-        working-directory: ./packages/make-meaning
-        run: |
-          echo "Publishing @semiont/make-meaning@${{ steps.version.outputs.publish }}"
-          npm publish --tag ${{ steps.version.outputs.tag }} --access public
-
-      - name: Publish @semiont/react-ui
-        if: github.event.inputs.dry_run != 'true'
-        working-directory: ./packages/react-ui
-        run: |
-          echo "Publishing @semiont/react-ui@${{ steps.version.outputs.publish }}"
-          npm publish --tag ${{ steps.version.outputs.tag }} --access public
-
-      - name: Publish @semiont/cli
-        if: github.event.inputs.dry_run != 'true'
-        working-directory: ./apps/cli
-        run: |
-          echo "Publishing @semiont/cli@${{ steps.version.outputs.publish }}"
-          npm publish --tag ${{ steps.version.outputs.tag }} --access public
+          for dir in packages/api-client packages/core packages/ontology packages/content packages/event-sourcing packages/graph packages/inference packages/jobs packages/make-meaning packages/react-ui apps/cli; do
+            NAME=$(node -p "require('./$dir/package.json').name")
+            echo "Publishing $NAME@$VERSION"
+            (cd "$dir" && npm publish --tag "$TAG" --access public)
+          done
 
       - name: Summary
         run: |
+          VERSION="${{ steps.version.outputs.publish }}"
+          TAG="${{ steps.version.outputs.tag }}"
+
           echo "## Published npm packages" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Version:** ${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Dist tag:** ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** $VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "**Dist tag:** $TAG" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Packages published:" >> $GITHUB_STEP_SUMMARY
-          echo "- @semiont/api-client@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
-          echo "- @semiont/ontology@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
-          echo "- @semiont/core@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
-          echo "- @semiont/content@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
-          echo "- @semiont/event-sourcing@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
-          echo "- @semiont/graph@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
-          echo "- @semiont/inference@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
-          echo "- @semiont/jobs@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
-          echo "- @semiont/make-meaning@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
-          echo "- @semiont/react-ui@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
-          echo "- @semiont/cli@${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
+          for dir in packages/api-client packages/ontology packages/core packages/content packages/event-sourcing packages/graph packages/inference packages/jobs packages/make-meaning packages/react-ui apps/cli; do
+            NAME=$(node -p "require('./$dir/package.json').name")
+            echo "- $NAME@$VERSION" >> $GITHUB_STEP_SUMMARY
+          done
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Install with:" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "npm install @semiont/api-client@${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
-          echo "npm install @semiont/ontology@${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
-          echo "npm install @semiont/core@${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
-          echo "npm install @semiont/content@${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
-          echo "npm install @semiont/event-sourcing@${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
-          echo "npm install @semiont/graph@${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
-          echo "npm install @semiont/inference@${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
-          echo "npm install @semiont/jobs@${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
-          echo "npm install @semiont/make-meaning@${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
-          echo "npm install @semiont/react-ui@${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
-          echo "npm install -g @semiont/cli@${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          for dir in packages/api-client packages/ontology packages/core packages/content packages/event-sourcing packages/graph packages/inference packages/jobs packages/make-meaning packages/react-ui; do
+            NAME=$(node -p "require('./$dir/package.json').name")
+            echo "npm install $NAME@$TAG" >> $GITHUB_STEP_SUMMARY
+          done
+          echo "npm install -g @semiont/cli@$TAG" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
