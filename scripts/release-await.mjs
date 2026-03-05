@@ -26,6 +26,7 @@ async function getLatestWorkflowRuns() {
     'publish-npm-packages.yml',
     'publish-backend.yml',
     'publish-frontend.yml',
+    'devcontainer-prebuild.yml',
   ];
 
   const runIds = [];
@@ -109,17 +110,14 @@ async function main() {
   console.log('\n' + '='.repeat(70));
   console.log('MONITORING WORKFLOWS');
   console.log('='.repeat(70));
-  console.log('\n⏳ Watching workflows until completion...');
+  console.log('\n⏳ Watching workflows in parallel...');
   console.log('   (This may take 10-20 minutes for container builds)');
   console.log('   (You can Ctrl+C to exit - workflows will continue running)\n');
 
-  let allSucceeded = true;
-  for (const { workflow, runId } of runInfos) {
-    const succeeded = await watchWorkflow(runId, workflow);
-    if (!succeeded) {
-      allSucceeded = false;
-    }
-  }
+  const results = await Promise.all(
+    runInfos.map(({ workflow, runId }) => watchWorkflow(runId, workflow))
+  );
+  const allSucceeded = results.every(Boolean);
 
   console.log('\n' + '='.repeat(70));
 
