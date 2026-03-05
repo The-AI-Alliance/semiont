@@ -1,8 +1,12 @@
 {
   "name": "Semiont Development",
 
-  // Use pre-built image with PostgreSQL and all features
-  "image": "ghcr.io/the-ai-alliance/semiont/devcontainer:latest",
+  // TEMPORARY: Build from Dockerfile to bootstrap a clean image on ghcr.
+  // Revert to "image": "ghcr.io/the-ai-alliance/semiont/devcontainer:latest"
+  // after the first successful CI push to main.
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
 
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
