@@ -115,22 +115,17 @@ async function main() {
   console.log(`\n📦 Publishing ${currentVersion} as stable release...\n`);
 
   const workflows = [
-    'publish-npm-packages.yml',
-    'publish-backend.yml',
-    'publish-frontend.yml',
+    { file: 'publish-npm-packages.yml', name: 'npm packages (api-client, core, cli)', stable: true },
+    { file: 'publish-backend.yml', name: 'semiont-backend (container)', stable: true },
+    { file: 'publish-frontend.yml', name: 'semiont-frontend (container)', stable: true },
+    { file: 'devcontainer-prebuild.yml', name: 'devcontainer (pre-built image)', stable: false },
   ];
 
-  const workflowNames = {
-    'publish-npm-packages.yml': 'npm packages (api-client, core, cli)',
-    'publish-backend.yml': 'semiont-backend (container)',
-    'publish-frontend.yml': 'semiont-frontend (container)',
-  };
-
-  for (const workflow of workflows) {
-    const name = workflowNames[workflow];
+  for (const { file, name, stable } of workflows) {
+    const args = stable ? ' --field stable_release=true' : '';
     exec(
-      `gh workflow run ${workflow} --field stable_release=true`,
-      `Triggering stable release for ${name}`
+      `gh workflow run ${file}${args}`,
+      `Triggering ${stable ? 'stable release' : 'rebuild'} for ${name}`
     );
   }
 
@@ -145,20 +140,20 @@ async function main() {
   const runIds = [];
   if (!DRY_RUN) {
     console.log('\n📋 Fetching workflow run IDs...\n');
-    for (const workflow of workflows) {
+    for (const { file } of workflows) {
       try {
         const runsJson = execSync(
-          `gh run list --workflow=${workflow} --limit=1 --json databaseId,status`,
+          `gh run list --workflow=${file} --limit=1 --json databaseId,status`,
           { encoding: 'utf-8', stdio: 'pipe' }
         );
         const runs = JSON.parse(runsJson);
         if (runs.length > 0) {
           const runId = runs[0].databaseId;
           runIds.push(runId);
-          console.log(`  • ${workflow}: ${runId}`);
+          console.log(`  • ${file}: ${runId}`);
         }
       } catch (error) {
-        console.warn(`  ⚠️  Could not get run ID for ${workflow}`);
+        console.warn(`  ⚠️  Could not get run ID for ${file}`);
       }
     }
   }
