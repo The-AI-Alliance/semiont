@@ -2,7 +2,7 @@
 
 This directory contains the configuration for GitHub Codespaces and VS Code Dev Containers, providing a fully configured development environment for Semiont.
 
-## 🚀 Quick Start
+## Quick Start
 
 ### GitHub Codespaces (Recommended)
 
@@ -18,28 +18,21 @@ This directory contains the configuration for GitHub Codespaces and VS Code Dev 
    - `NEO4J_PASSWORD` - Neo4j password
    - `NEO4J_DATABASE` - Neo4j database name (usually `neo4j`)
 
-3. **Initial Setup**: After the Codespace starts, run the setup script to complete setup:
-
-   ```bash
-   bash .devcontainer/make-meaning.sh
-   ```
-
-   This script:
+3. **Wait for Setup**: The `postCreateCommand` runs `setup.sh` automatically. This:
    - Installs npm dependencies and builds packages
-   - Installs the Semiont CLI globally
+   - Installs Envoy proxy and the Semiont CLI globally
    - Creates Semiont project configuration
-   - Provisions backend database and frontend
-   - Creates `.env` files with defaults
+   - Provisions backend, frontend, and proxy services
+   - Pushes database schema and creates an admin user
+   - Saves credentials to `/workspace/credentials.json`
 
-4. **Make Ports Public**: In VS Code, open the Ports panel (View → Ports) and make ports **3000** and **4000** public:
-   - Right-click port 3000 → Port Visibility → Public
-   - Right-click port 4000 → Port Visibility → Public
+4. **Make Port Public**: In VS Code, open the Ports panel (View → Ports) and make port **8080** public:
+   - Right-click port 8080 → Port Visibility → Public
 
-5. **Start Services**: Use the Semiont CLI to start services:
+5. **Start Services**:
 
    ```bash
-   semiont start --service backend
-   semiont start --service frontend
+   semiont start
    ```
 
 6. **Verify Setup**: Check that all services are running:
@@ -48,12 +41,7 @@ This directory contains the configuration for GitHub Codespaces and VS Code Dev 
    semiont check
    ```
 
-   You should see:
-   - Backend: `running` on port 4000
-   - Frontend: `running` on port 3000
-
-7. **Access the Application**: Browse to the public URL for port 3000 (shown in Ports panel) and login with:
-   - Email: `dev@example.com`
+7. **Access the Application**: Browse to the public URL for port 8080 (shown in Ports panel). Login credentials are in `/workspace/credentials.json`.
 
 ### VS Code Dev Containers (Local)
 
@@ -74,16 +62,17 @@ This directory contains the configuration for GitHub Codespaces and VS Code Dev 
 3. **Open in Container**:
    - Open the repository in VS Code
    - Press `F1` and select "Dev Containers: Reopen in Container"
-   - Wait for the container to build and initialize
-   - Follow steps 3-7 from the Codespaces instructions above
+   - Wait for the container to build and `setup.sh` to complete
+   - Follow steps 5-7 from the Codespaces instructions above
 
-## 🏗️ How It Works
+## How It Works
 
 ### Architecture
 
 Semiont uses a **CLI-driven architecture** where:
+
 - **`semiont init`**: Creates project configuration (`semiont.json`, environment files)
-- **`semiont provision`**: Sets up services (database schema, environment variables)
+- **`semiont provision`**: Sets up services (database schema, environment variables, proxy config)
 - **`semiont start`**: Starts services in the background
 - **`semiont check`**: Verifies service health
 - **`semiont stop`**: Stops running services
@@ -111,6 +100,7 @@ Configuration flows from **Semiont config → environment variables** at provisi
 - **PostgreSQL 16**: Local database (connection: `postgresql://semiont:semiont@localhost:5432/semiont`)
 - **Backend API** (port 4000): Hono.js server with Prisma ORM
 - **Frontend** (port 3000): Next.js 15 with NextAuth authentication
+- **Envoy Proxy** (port 8080): Path-based routing to backend and frontend
 
 ### Authentication
 
@@ -118,7 +108,7 @@ Configuration flows from **Semiont config → environment variables** at provisi
 - **OAuth**: Google OAuth for production environments
 - **Configuration**: Controlled via `NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS`
 
-## 📦 What's Included
+## What's Included
 
 ### VS Code Extensions
 
@@ -130,31 +120,32 @@ Configuration flows from **Semiont config → environment variables** at provisi
 
 - GitHub CLI, Git, PostgreSQL Client, Docker-in-Docker
 - Node.js 22 LTS
+- Envoy Proxy
 - Semiont CLI (globally installed)
 
-## 📝 Common Commands
+## Common Commands
 
 ```bash
 # Semiont CLI
-semiont check                      # Check service status
-semiont start --service backend    # Start backend
-semiont start --service frontend   # Start frontend
-semiont stop --service frontend    # Stop frontend
+semiont start                         # Start all services
+semiont check                         # Check service status
+semiont stop                          # Stop all services
+semiont stop --service frontend       # Stop a single service
 semiont provision --service frontend  # Re-provision frontend
 
 # Database operations
 cd apps/backend
-npm run db:studio                 # Open Prisma Studio (port 5555)
-npm run db:push                   # Push schema changes
+npm run db:studio                     # Open Prisma Studio (port 5555)
+npm run db:push                       # Push schema changes
 
 # Development
-npm run test                      # Run all tests
-npm run build                     # Build all packages
+npm run test                          # Run all tests
+npm run build                         # Build all packages
 ```
 
 For demos and examples, see the [Semiont Agents Demo](https://github.com/The-AI-Alliance/semiont-agents) repository.
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Services won't start
 
@@ -173,7 +164,7 @@ semiont provision --service frontend --force
 
 ### Port visibility issues
 
-- Ensure ports 3000 and 4000 are set to **Public** in the Ports panel
+- Ensure port 8080 is set to **Public** in the Ports panel
 - If using Codespaces, check the forwarded URL in the Ports panel
 
 ### Database connection errors
@@ -188,7 +179,7 @@ semiont provision --service frontend --force
 - Check frontend can reach backend via `SERVER_API_URL` in `apps/frontend/.env.local`
 - Clear browser cookies and retry
 
-## 📚 Resources
+## Resources
 
 - [GitHub Codespaces Documentation](https://docs.github.com/en/codespaces)
 - [VS Code Dev Containers](https://code.visualstudio.com/docs/devcontainers/containers)
