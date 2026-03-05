@@ -1,50 +1,10 @@
 name: Pre-build Dev Container
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.devcontainer/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.github/workflows/devcontainer-prebuild.yml'
-  pull_request:
-    paths:
-      - '.devcontainer/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.github/workflows/devcontainer-prebuild.yml'
   workflow_dispatch:
-  schedule:
-    # Rebuild weekly on Sunday at midnight UTC
-    - cron: '0 0 * * 0'
 
 jobs:
-  # PRs: build only (verify the image builds), do not push
-  verify:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Pre-build dev container image (verify only)
-        uses: devcontainers/ci@v0.3
-        with:
-          push: never
-          runCmd: |
-            echo "Dev container pre-built successfully!"
-            echo "Node version: $(node --version)"
-            echo "npm version: $(npm --version)"
-            echo "PostgreSQL version: $(psql --version)"
-            echo "Git version: $(git --version)"
-
-  # Push to main, workflow_dispatch, schedule: build and push
   build-and-push:
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
