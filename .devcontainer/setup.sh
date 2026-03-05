@@ -154,6 +154,9 @@ fi
 cd /workspace || exit 1
 
 print_status "Installing dependencies (this takes 2-4 minutes)..."
+# Clean node_modules to ensure native binaries are compiled for this platform
+# (bind-mounted workspace may have macOS binaries from host)
+find . -name node_modules -type d -prune -exec rm -rf {} + 2>/dev/null || true
 npm install >> $LOG_FILE 2>&1 || {
     print_error "npm install failed - check $LOG_FILE for details"
     exit 1
@@ -220,16 +223,15 @@ echo "" >> /home/node/.profile
 echo "# Semiont CLI configuration" >> /home/node/.profile
 echo "export PATH=\"$NPM_GLOBAL_BIN:\$PATH\"" >> /home/node/.profile
 
-# Verify CLI is working
-if command -v semiont &> /dev/null; then
-    SEMIONT_VERSION=$(semiont --version 2>&1 | head -n 1)
-    print_success "Semiont CLI installed: $SEMIONT_VERSION"
-else
+# Verify CLI is on PATH
+if ! command -v semiont &> /dev/null; then
     print_error "Semiont CLI installation failed - not found in PATH"
     echo "  PATH: $PATH" >> $LOG_FILE
     echo "  NPM global bin: $NPM_GLOBAL_BIN" >> $LOG_FILE
     exit 1
 fi
+SEMIONT_VERSION=$(semiont --version 2>&1 | head -n 1 || true)
+print_success "Semiont CLI installed: ${SEMIONT_VERSION:-unknown version}"
 
 # Create project directory for Semiont workspace
 mkdir -p /workspace/project
