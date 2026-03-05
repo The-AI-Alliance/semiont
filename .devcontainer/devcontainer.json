@@ -1,8 +1,11 @@
 {
   "name": "Semiont Development",
 
-  // Use pre-built image with PostgreSQL and all features
-  "image": "ghcr.io/the-ai-alliance/semiont/devcontainer:latest",
+  // TEMPORARY: Build from Dockerfile until clean image is on ghcr.
+  // Then revert to: "image": "ghcr.io/the-ai-alliance/semiont/devcontainer:latest"
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
 
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
@@ -13,8 +16,7 @@
   // One-time setup after container is created (runs once)
   "postCreateCommand": "bash .devcontainer/setup.sh",
 
-  // Override stale postAttachCommand baked into the Docker image metadata
-  "postAttachCommand": "true",
+  "postAttachCommand": "echo 'Semiont container ready. Run: semiont start'",
 
   // Use 'forwardPorts' to make a list of ports inside the container available locally
   "forwardPorts": [8080, 3000, 4000, 9901],
