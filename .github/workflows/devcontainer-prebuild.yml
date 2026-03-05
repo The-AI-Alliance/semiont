@@ -45,6 +45,7 @@ jobs:
         uses: devcontainers/ci@v0.3
         with:
           imageName: ghcr.io/${{ steps.repo.outputs.name }}/devcontainer
+          cacheFrom: ghcr.io/${{ steps.repo.outputs.name }}/devcontainer
           push: filter
           eventFilterForPush: push,workflow_dispatch,schedule
           runCmd: |
