@@ -49,10 +49,8 @@
                 "type": "string"
               },
               "name": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": "string",
+                "nullable": true
               },
               "created": {
                 "type": "string"

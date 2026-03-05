@@ -130,7 +130,6 @@
       "$ref": "paths/api_jobs_{id}.json"
     }
   },
-  "webhooks": {},
   "components": {
     "schemas": {
       "AcceptTermsResponse": {

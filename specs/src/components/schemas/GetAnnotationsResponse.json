@@ -12,12 +12,10 @@
       "description": "Total number of annotations"
     },
     "motivation": {
-      "anyOf": [
+      "nullable": true,
+      "allOf": [
         {
           "$ref": "./Motivation.json"
-        },
-        {
-          "type": "null"
         }
       ],
       "description": "Motivation filter applied (if any)"
