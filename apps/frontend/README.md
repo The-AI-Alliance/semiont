@@ -94,7 +94,7 @@ docker run -d \
 - **State Management**: [TanStack Query](https://tanstack.com/query) (React Query)
 - **API Client**: Type-safe client generated from OpenAPI spec
 - **Testing**: [Vitest](https://vitest.dev/) + React Testing Library + [MSW v2](https://mswjs.io/)
-- **Performance**: Bundle analysis, Lighthouse CI
+- **Performance**: Bundle analysis
 
 **Full stack details**: [Frontend Architecture](./docs/ARCHITECTURE.md)
 
@@ -201,7 +201,7 @@ Some operations run asynchronously via background job workers:
 - **[Authorization](./docs/AUTHORIZATION.md)** - Permission system, 403 error handling
 
 ### Performance & Accessibility
-- **[Performance Optimization](./docs/PERFORMANCE.md)** - Bundle optimization, Lighthouse CI, monitoring
+- **[Performance Optimization](./docs/PERFORMANCE.md)** - Bundle optimization, monitoring
 - **[Accessibility](./docs/ACCESSIBILITY.md)** - WCAG 2.1 Level AA compliance, screen reader support, testing
 - **[Keyboard Navigation](./docs/KEYBOARD-NAV.md)** - WCAG 2.1 Level AA compliant keyboard shortcuts
 
@@ -234,7 +234,6 @@ npm run type-check       # TypeScript validation
 # Performance
 npm run perf             # Full performance analysis
 npm run analyze          # Bundle size analysis
-npm run lighthouse       # Lighthouse CI tests
 
 # Using Semiont CLI
 semiont start            # Start all services

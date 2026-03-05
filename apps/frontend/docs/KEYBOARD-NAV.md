@@ -246,7 +246,6 @@ Example implementation:
 ### Validation Tools
 - **axe DevTools**: Automated accessibility checking
 - **WAVE**: Visual accessibility evaluation
-- **Lighthouse**: Performance and accessibility audit
 
 ## Browser Compatibility
 
@@ -341,7 +340,6 @@ window.addEventListener('keydown', (e) => {
 ### Tools
 - [axe DevTools](https://www.deque.com/axe/devtools/)
 - [WAVE](https://wave.webaim.org/)
-- [Lighthouse](https://developers.google.com/web/tools/lighthouse)
 
 ## Conclusion
 

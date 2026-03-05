@@ -119,10 +119,6 @@ jobs:
       - name: Run accessibility tests
         run: npm test -- --grep "accessibility"
 
-      - name: Run Lighthouse CI
-        run: npm run lighthouse
-        env:
-          LIGHTHOUSE_ACCESSIBILITY_THRESHOLD: 90
 ```
 
 ### Manual Testing
