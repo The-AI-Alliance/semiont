@@ -3,7 +3,7 @@
   "properties": {
     "type": {
       "type": "string",
-      "const": "SpecificResource"
+      "enum": ["SpecificResource"]
     },
     "source": {
       "type": "string",

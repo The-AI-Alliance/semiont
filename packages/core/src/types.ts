@@ -2373,13 +2373,13 @@ export interface components {
             /**
              * @description W3C Web Annotation JSON-LD context
              * @default http://www.w3.org/ns/anno.jsonld
-             * @constant
+             * @enum {string}
              */
             "@context": "http://www.w3.org/ns/anno.jsonld";
             /**
              * @description W3C Annotation type
              * @default Annotation
-             * @constant
+             * @enum {string}
              */
             type: "Annotation";
             id: string;
@@ -2456,17 +2456,17 @@ export interface components {
             isNewUser: boolean;
         };
         BodyOperationAdd: {
-            /** @constant */
+            /** @enum {string} */
             op: "add";
             item: components["schemas"]["TextualBody"] | components["schemas"]["SpecificResource"];
         };
         BodyOperationRemove: {
-            /** @constant */
+            /** @enum {string} */
             op: "remove";
             item: components["schemas"]["TextualBody"] | components["schemas"]["SpecificResource"];
         };
         BodyOperationReplace: {
-            /** @constant */
+            /** @enum {string} */
             op: "replace";
             oldItem: components["schemas"]["TextualBody"] | components["schemas"]["SpecificResource"];
             newItem: components["schemas"]["TextualBody"] | components["schemas"]["SpecificResource"];
@@ -2487,15 +2487,8 @@ export interface components {
             resource: components["schemas"]["ResourceDescriptor"];
         };
         /**
-         * @description Content format as MIME type, optionally with charset parameter (e.g., 'text/plain', 'text/plain; charset=iso-8859-1')
-         * @example text/plain
+         * @description Content format as MIME type, optionally with charset parameter. Values include: text/plain, text/plain; charset=utf-8, text/plain; charset=iso-8859-1, text/markdown, text/markdown; charset=windows-1252, image/png, image/jpeg, application/pdf
          * @example text/plain; charset=utf-8
-         * @example text/plain; charset=iso-8859-1
-         * @example text/markdown
-         * @example text/markdown; charset=windows-1252
-         * @example image/png
-         * @example image/jpeg
-         * @example application/pdf
          */
         ContentFormat: string;
         ContextualSummaryResponse: {
@@ -3032,7 +3025,7 @@ export interface components {
             };
         };
         SpecificResource: {
-            /** @constant */
+            /** @enum {string} */
             type: "SpecificResource";
             /** @description IRI of the target resource */
             source: string;
@@ -3066,7 +3059,7 @@ export interface components {
             suffix?: string;
         };
         TextualBody: {
-            /** @constant */
+            /** @enum {string} */
             type: "TextualBody";
             /** @description The text content (e.g., entity type name) */
             value: string;
@@ -3147,7 +3140,6 @@ export interface components {
             /**
              * @description Media fragment identifier (e.g., 'page=1&viewrect=100,200,50,30' for PDF)
              * @example page=1&viewrect=100,200,50,30
-             * @example page=5&viewrect=250,400,100,75
              */
             value: string;
             /**

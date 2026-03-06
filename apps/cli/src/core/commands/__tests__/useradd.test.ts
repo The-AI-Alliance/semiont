@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { useradd, type UseraddOptions } from '../useradd';
 import { PrismaClient } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import * as argon2 from 'argon2';
 
 // Mock Prisma client for testing
 const prisma = new PrismaClient();
@@ -81,7 +81,7 @@ describe('useradd command', () => {
       expect(user?.domain).toBe('example.com');
     });
 
-    it('should hash password using bcrypt', async () => {
+    it('should hash password using argon2', async () => {
       const password = 'mypassword123';
       const options = createUseraddOptions({
         email: 'hashtest@example.com',
@@ -96,8 +96,8 @@ describe('useradd command', () => {
 
       expect(user?.passwordHash).not.toBe(password);
 
-      // Verify bcrypt hash is valid
-      const isValid = await bcrypt.compare(password, user!.passwordHash!);
+      // Verify argon2 hash is valid
+      const isValid = await argon2.verify(user!.passwordHash!, password);
       expect(isValid).toBe(true);
     });
   });
@@ -233,7 +233,7 @@ describe('useradd command', () => {
       expect(updatedUser?.passwordHash).not.toBe(oldHash);
 
       // Verify new password works
-      const isValid = await bcrypt.compare('newpassword', updatedUser!.passwordHash!);
+      const isValid = await argon2.verify(updatedUser!.passwordHash!, 'newpassword');
       expect(isValid).toBe(true);
     });
 

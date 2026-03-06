@@ -19,7 +19,7 @@ Complete guide to performance monitoring, bundle optimization, and best practice
 
 ```bash
 # Run comprehensive performance analysis
-npm run perf               # Full performance check (bundle + Lighthouse)
+npm run perf               # Full performance check (bundle analysis)
 npm run perf-check         # Alias for perf
 
 # Just bundle analysis
@@ -29,7 +29,6 @@ npm run bundle-analyzer    # Webpack bundle analyzer
 
 # Just performance monitoring
 npm run perf-monitor       # Custom performance monitoring
-npm run lighthouse         # Lighthouse CI (requires running server)
 ```
 
 ## Performance Best Practices
@@ -116,13 +115,11 @@ const Chart = dynamic(() => import('@/components/Chart'), {
 - **Custom scripts**: Automated analysis and recommendations
 
 ### Performance Monitoring
-- **Lighthouse CI**: Core Web Vitals and performance metrics
 - **Custom monitoring**: Bundle size tracking and thresholds
 - **Performance reports**: Historical tracking and analysis
 
 ### Configuration Files
 - `next.config.js`: Bundle optimization settings
-- `lighthouserc.json`: Lighthouse CI configuration
 - `performance.config.js`: Performance thresholds and targets
 - `scripts/performance-monitor.js`: Custom monitoring logic
 
@@ -154,12 +151,6 @@ const Chart = dynamic(() => import('@/components/Chart'), {
 - **Time to Interactive (TTI)**: < 3.8s
 - **Total Blocking Time (TBT)**: < 300ms
 
-### Lighthouse Scores
-- **Performance**: > 80%
-- **Accessibility**: > 90%
-- **Best Practices**: > 80%
-- **SEO**: > 80%
-
 ## Monitoring Commands
 
 ### Bundle Analysis
@@ -181,9 +172,6 @@ npm run perf-check
 
 # Custom performance monitoring
 npm run perf-monitor
-
-# Lighthouse analysis (requires server)
-npm start & npm run lighthouse
 ```
 
 ## Reports & Output
@@ -192,7 +180,6 @@ npm start & npm run lighthouse
 - `bundle-report.html`: Visual bundle analysis
 - `bundle-stats.json`: Detailed bundle statistics
 - `performance-reports/`: Historical performance data
-- `lighthouse-reports/`: Lighthouse CI results
 
 ### Report Contents
 1. **Bundle Size Analysis**: Total size, chunk breakdown, dependency analysis
@@ -283,10 +270,8 @@ ANALYZE=true npm run build
 ### External Resources
 - [Next.js Performance](https://nextjs.org/docs/advanced-features/measuring-performance)
 - [Web Vitals](https://web.dev/vitals/)
-- [Lighthouse CI](https://github.com/GoogleChrome/lighthouse-ci)
 - [Bundle Analyzer](https://github.com/webpack-contrib/webpack-bundle-analyzer)
 
 ---
 
-**Last Updated**: 2025-10-25
-**Performance Target**: Lighthouse Score > 80%
+**Last Updated**: 2026-03-05

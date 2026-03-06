@@ -11,17 +11,12 @@
     "value": {
       "type": "string",
       "description": "Media fragment identifier (e.g., 'page=1&viewrect=100,200,50,30' for PDF)",
-      "examples": [
-        "page=1&viewrect=100,200,50,30",
-        "page=5&viewrect=250,400,100,75"
-      ]
+      "example": "page=1&viewrect=100,200,50,30"
     },
     "conformsTo": {
       "type": "string",
       "description": "URI identifying the fragment syntax specification",
-      "examples": [
-        "http://tools.ietf.org/rfc/rfc3778"
-      ]
+      "example": "http://tools.ietf.org/rfc/rfc3778"
     }
   },
   "required": [

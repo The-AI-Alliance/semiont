@@ -23,7 +23,7 @@ import { DatabaseConnection } from '../../db';
 import { JWTService } from '../../auth/jwt';
 import { User } from '@prisma/client';
 import { faker } from '@faker-js/faker';
-import * as bcrypt from 'bcrypt';
+import * as argon2 from 'argon2';
 import type { components } from '@semiont/core';
 
 type AuthResponse = components["schemas"]["AuthResponse"];
@@ -63,7 +63,7 @@ describe('POST /api/tokens/password', () => {
     vi.clearAllMocks();
 
     // Create password hash for test user
-    passwordHash = await bcrypt.hash(testPassword, 12);
+    passwordHash = await argon2.hash(testPassword);
   });
 
   describe('successful authentication', () => {

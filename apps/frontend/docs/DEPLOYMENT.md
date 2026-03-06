@@ -327,14 +327,9 @@ aws logs filter-log-events --log-group-name /ecs/semiont-frontend --start-time 1
 
 ### Performance Monitoring
 
-**Lighthouse CI**: Automated performance testing on each deployment
-
 **Bundle Size Monitoring**: Track bundle size over time
 
 ```bash
-# Run Lighthouse CI
-npm run lighthouse
-
 # Analyze bundle size
 npm run analyze-bundle
 ```

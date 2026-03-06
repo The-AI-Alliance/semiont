@@ -14,7 +14,7 @@ import { authMiddleware } from '../middleware/auth';
 import { DatabaseConnection } from '../db';
 import { JWTService } from '../auth/jwt';
 import { OAuthService } from '../auth/oauth';
-import bcrypt from 'bcrypt';
+import * as argon2 from 'argon2';
 import type { User } from '@prisma/client';
 import type { JWTPayload as ValidatedJWTPayload } from '../types/jwt-types';
 import type { components } from '@semiont/core';
@@ -97,7 +97,7 @@ authRouter.post('/api/tokens/password',
       }
 
       // Verify password
-      const isValid = await bcrypt.compare(password, user.passwordHash);
+      const isValid = await argon2.verify(user.passwordHash, password);
       if (!isValid) {
         getRouteLogger().debug('Password auth failed: invalid password', { email });
         return c.json({

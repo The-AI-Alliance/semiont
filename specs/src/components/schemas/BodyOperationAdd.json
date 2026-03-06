@@ -3,7 +3,7 @@
   "properties": {
     "op": {
       "type": "string",
-      "const": "add"
+      "enum": ["add"]
     },
     "item": {
       "oneOf": [

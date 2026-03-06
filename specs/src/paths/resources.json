@@ -83,10 +83,8 @@
     "parameters": [
       {
         "schema": {
-          "type": [
-            "number",
-            "null"
-          ],
+          "type": "number",
+          "nullable": true,
           "default": 0
         },
         "required": false,
@@ -95,10 +93,8 @@
       },
       {
         "schema": {
-          "type": [
-            "number",
-            "null"
-          ],
+          "type": "number",
+          "nullable": true,
           "default": 50
         },
         "required": false,

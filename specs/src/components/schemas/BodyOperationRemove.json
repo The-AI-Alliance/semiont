@@ -3,7 +3,7 @@
   "properties": {
     "op": {
       "type": "string",
-      "const": "remove"
+      "enum": ["remove"]
     },
     "item": {
       "oneOf": [

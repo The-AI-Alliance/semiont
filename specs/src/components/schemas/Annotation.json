@@ -3,13 +3,13 @@
   "properties": {
     "@context": {
       "type": "string",
-      "const": "http://www.w3.org/ns/anno.jsonld",
+      "enum": ["http://www.w3.org/ns/anno.jsonld"],
       "default": "http://www.w3.org/ns/anno.jsonld",
       "description": "W3C Web Annotation JSON-LD context"
     },
     "type": {
       "type": "string",
-      "const": "Annotation",
+      "enum": ["Annotation"],
       "default": "Annotation",
       "description": "W3C Annotation type"
     },

@@ -437,7 +437,6 @@ const envSchema = z.object({
 
 ### Performance Issues
 - Use `npm run analyze` to identify large bundles
-- Check Lighthouse CI reports
 - Review React DevTools Profiler
 - Monitor Network waterfall in dev tools
 
@@ -491,7 +490,6 @@ const envSchema = z.object({
 **Solutions**:
 - Run `npm run perf` to identify bottlenecks
 - Check bundle size with `npm run analyze`
-- Review Lighthouse CI reports for optimization suggestions
 - Implement code splitting with dynamic imports
 - Optimize images with Next.js Image component
 

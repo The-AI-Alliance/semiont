@@ -27,7 +27,7 @@ Testing in the Semiont frontend is split between two packages following the comp
 1. **Type Safety First** - TypeScript provides compile-time validation
 2. **Separation of Concerns** - Business logic tested in react-ui, integration tested in frontend
 3. **API Mocking** - MSW v2 provides realistic mocking without code changes
-4. **Performance as Testing** - Lighthouse CI and bundle analysis catch regressions
+4. **Performance as Testing** - Bundle analysis catches regressions
 5. **Error Boundaries** - Runtime error handling for edge cases
 
 ## Testing Architecture
@@ -365,13 +365,11 @@ Runtime error capture and graceful degradation:
 ```bash
 # Comprehensive performance testing
 npm run perf                    # Full performance analysis
-npm run lighthouse             # User experience validation
 npm run analyze-bundle         # Bundle size regression detection
 ```
 
 **Metrics tracked**:
 - Bundle size over time
-- Lighthouse scores (performance, accessibility, SEO)
 - Page load times
 - Time to Interactive (TTI)
 

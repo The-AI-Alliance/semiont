@@ -23,7 +23,7 @@ import { DatabaseConnection } from '../../db';
 import { JWTService } from '../../auth/jwt';
 import { User } from '@prisma/client';
 import { faker } from '@faker-js/faker';
-import * as bcrypt from 'bcrypt';
+import * as argon2 from 'argon2';
 import type { components } from '@semiont/core';
 
 type AuthResponse = components["schemas"]["AuthResponse"];
@@ -182,7 +182,7 @@ describe('Authentication Integration', () => {
 
   describe('Both auth methods produce valid JWT tokens', () => {
     it('should produce valid JWT from password auth', async () => {
-      const passwordHash = await bcrypt.hash('testpass', 12);
+      const passwordHash = await argon2.hash('testpass');
 
       const mockUser: User = {
         id: faker.string.uuid(),
@@ -265,7 +265,7 @@ describe('Authentication Integration', () => {
 
   describe('Session duration same for both auth types', () => {
     it('should use same JWT expiration for password auth', async () => {
-      const passwordHash = await bcrypt.hash('testpass', 12);
+      const passwordHash = await argon2.hash('testpass');
 
       const mockUser: User = {
         id: faker.string.uuid(),
@@ -318,7 +318,7 @@ describe('Authentication Integration', () => {
     it('should allow same email with different providers', async () => {
       // This tests that the @@unique([provider, providerId]) constraint works
 
-      const passwordHash = await bcrypt.hash('testpass', 12);
+      const passwordHash = await argon2.hash('testpass');
 
       // User with email foo@example.com as password user
       const mockPasswordUser: User = {

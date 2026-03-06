@@ -1036,10 +1036,8 @@
         "parameters": [
           {
             "schema": {
-              "type": [
-                "number",
-                "null"
-              ],
+              "type": "number",
+              "nullable": true,
               "default": 0
             },
             "required": false,
@@ -1048,10 +1046,8 @@
           },
           {
             "schema": {
-              "type": [
-                "number",
-                "null"
-              ],
+              "type": "number",
+              "nullable": true,
               "default": 50
             },
             "required": false,
@@ -2364,7 +2360,6 @@
       }
     }
   },
-  "webhooks": {},
   "components": {
     "schemas": {
       "AcceptTermsResponse": {
@@ -2429,16 +2424,12 @@
                 "type": "string"
               },
               "name": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": "string",
+                "nullable": true
               },
               "image": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": "string",
+                "nullable": true
               },
               "domain": {
                 "type": "string"
@@ -2453,10 +2444,8 @@
                 "type": "boolean"
               },
               "lastLogin": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": "string",
+                "nullable": true
               },
               "created": {
                 "type": "string"
@@ -2503,16 +2492,12 @@
                   "type": "string"
                 },
                 "name": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": "string",
+                  "nullable": true
                 },
                 "image": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": "string",
+                  "nullable": true
                 },
                 "domain": {
                   "type": "string"
@@ -2527,10 +2512,8 @@
                   "type": "boolean"
                 },
                 "lastLogin": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": "string",
+                  "nullable": true
                 },
                 "created": {
                   "type": "string"
@@ -2611,10 +2594,8 @@
                       "type": "string"
                     },
                     "name": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
+                      "type": "string",
+                      "nullable": true
                     },
                     "created": {
                       "type": "string"
@@ -2694,13 +2675,17 @@
         "properties": {
           "@context": {
             "type": "string",
-            "const": "http://www.w3.org/ns/anno.jsonld",
+            "enum": [
+              "http://www.w3.org/ns/anno.jsonld"
+            ],
             "default": "http://www.w3.org/ns/anno.jsonld",
             "description": "W3C Web Annotation JSON-LD context"
           },
           "type": {
             "type": "string",
-            "const": "Annotation",
+            "enum": [
+              "Annotation"
+            ],
             "default": "Annotation",
             "description": "W3C Annotation type"
           },
@@ -2822,12 +2807,10 @@
             "$ref": "#/components/schemas/ResourceDescriptor"
           },
           "targetResource": {
-            "anyOf": [
+            "nullable": true,
+            "allOf": [
               {
                 "$ref": "#/components/schemas/ResourceDescriptor"
-              },
-              {
-                "type": "null"
               }
             ]
           },
@@ -2997,16 +2980,12 @@
                 "type": "string"
               },
               "name": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": "string",
+                "nullable": true
               },
               "image": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": "string",
+                "nullable": true
               },
               "domain": {
                 "type": "string"
@@ -3043,7 +3022,9 @@
         "properties": {
           "op": {
             "type": "string",
-            "const": "add"
+            "enum": [
+              "add"
+            ]
           },
           "item": {
             "oneOf": [
@@ -3066,7 +3047,9 @@
         "properties": {
           "op": {
             "type": "string",
-            "const": "remove"
+            "enum": [
+              "remove"
+            ]
           },
           "item": {
             "oneOf": [
@@ -3089,7 +3072,9 @@
         "properties": {
           "op": {
             "type": "string",
-            "const": "replace"
+            "enum": [
+              "replace"
+            ]
           },
           "oldItem": {
             "oneOf": [
@@ -3165,17 +3150,8 @@
       },
       "ContentFormat": {
         "type": "string",
-        "description": "Content format as MIME type, optionally with charset parameter (e.g., 'text/plain', 'text/plain; charset=iso-8859-1')",
-        "examples": [
-          "text/plain",
-          "text/plain; charset=utf-8",
-          "text/plain; charset=iso-8859-1",
-          "text/markdown",
-          "text/markdown; charset=windows-1252",
-          "image/png",
-          "image/jpeg",
-          "application/pdf"
-        ]
+        "description": "Content format as MIME type, optionally with charset parameter. Values include: text/plain, text/plain; charset=utf-8, text/plain; charset=iso-8859-1, text/markdown, text/markdown; charset=windows-1252, image/png, image/jpeg, application/pdf",
+        "example": "text/plain; charset=utf-8"
       },
       "ContextualSummaryResponse": {
         "type": "object",
@@ -4105,22 +4081,18 @@
             "$ref": "#/components/schemas/Annotation"
           },
           "resource": {
-            "anyOf": [
+            "nullable": true,
+            "allOf": [
               {
                 "$ref": "#/components/schemas/ResourceDescriptor"
-              },
-              {
-                "type": "null"
               }
             ]
           },
           "resolvedResource": {
-            "anyOf": [
+            "nullable": true,
+            "allOf": [
               {
                 "$ref": "#/components/schemas/ResourceDescriptor"
-              },
-              {
-                "type": "null"
               }
             ]
           }
@@ -4145,12 +4117,10 @@
             "description": "Total number of annotations"
           },
           "motivation": {
-            "anyOf": [
+            "nullable": true,
+            "allOf": [
               {
                 "$ref": "#/components/schemas/Motivation"
-              },
-              {
-                "type": "null"
               }
             ],
             "description": "Motivation filter applied (if any)"
@@ -4717,12 +4687,10 @@
             "$ref": "#/components/schemas/Annotation"
           },
           "targetResource": {
-            "anyOf": [
+            "nullable": true,
+            "allOf": [
               {
                 "$ref": "#/components/schemas/ResourceDescriptor"
-              },
-              {
-                "type": "null"
               }
             ]
           }
@@ -5097,7 +5065,9 @@
         "properties": {
           "type": {
             "type": "string",
-            "const": "SpecificResource"
+            "enum": [
+              "SpecificResource"
+            ]
           },
           "source": {
             "type": "string",
@@ -5208,7 +5178,9 @@
         "properties": {
           "type": {
             "type": "string",
-            "const": "TextualBody"
+            "enum": [
+              "TextualBody"
+            ]
           },
           "value": {
             "type": "string",
@@ -5342,16 +5314,12 @@
                 "type": "string"
               },
               "name": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": "string",
+                "nullable": true
               },
               "image": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": "string",
+                "nullable": true
               },
               "domain": {
                 "type": "string"
@@ -5366,10 +5334,8 @@
                 "type": "boolean"
               },
               "lastLogin": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": "string",
+                "nullable": true
               },
               "created": {
                 "type": "string"
@@ -5405,16 +5371,12 @@
             "type": "string"
           },
           "name": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string",
+            "nullable": true
           },
           "image": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string",
+            "nullable": true
           },
           "domain": {
             "type": "string"
@@ -5429,16 +5391,12 @@
             "type": "boolean"
           },
           "termsAcceptedAt": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string",
+            "nullable": true
           },
           "lastLogin": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string",
+            "nullable": true
           },
           "created": {
             "type": "string"
@@ -5490,17 +5448,12 @@
           "value": {
             "type": "string",
             "description": "Media fragment identifier (e.g., 'page=1&viewrect=100,200,50,30' for PDF)",
-            "examples": [
-              "page=1&viewrect=100,200,50,30",
-              "page=5&viewrect=250,400,100,75"
-            ]
+            "example": "page=1&viewrect=100,200,50,30"
           },
           "conformsTo": {
             "type": "string",
             "description": "URI identifying the fragment syntax specification",
-            "examples": [
-              "http://tools.ietf.org/rfc/rfc3778"
-            ]
+            "example": "http://tools.ietf.org/rfc/rfc3778"
           }
         },
         "required": [
