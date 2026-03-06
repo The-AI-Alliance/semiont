@@ -38,9 +38,7 @@ Built on the W3C Web Annotation standard, Semiont transforms unstructured conten
 - **[Browse](docs/flows/BROWSE.md)** — Navigate through resources, panels, and views — structured paths for reviewing and examining content
 - **[Beckon](docs/flows/BECKON.md)** — Direct user focus to specific annotations or regions of interest through visual cues and coordination signals
 
-## 🚀 Getting Started
-
-### For Development & Contributing
+## 🚀 Core Development & Contributing
 
 **GitHub Codespaces** (Recommended for quick setup):
 
@@ -52,7 +50,7 @@ See [.devcontainer/README.md](.devcontainer/README.md) for setup details.
 
 See [LOCAL-DEVELOPMENT.md](docs/LOCAL-DEVELOPMENT.md) for installation, configuration, and running locally.
 
-### For Demos & Examples
+## 🧪 Demos & Examples
 
 **Semiont Agents Demo** - Interactive examples showing Semiont SDK usage:
 
