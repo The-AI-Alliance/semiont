@@ -201,17 +201,14 @@ async function init(
       
       if (!options.quiet) {
         console.log(`${colors.green}✅ Created CDK infrastructure files${colors.reset}`);
-        console.log(`${colors.dim}   Run 'npm install' to install dependencies${colors.reset}`);
       }
-      
+
       if (!options.quiet) {
-        console.log(`\n${colors.bright}🚀 Project initialized successfully!${colors.reset}`);
+        console.log(`\n${colors.bright}Project initialized successfully!${colors.reset}`);
         console.log(`\nNext steps:`);
-        console.log(`  1. Review and customize semiont.json`);
-        console.log(`  2. Configure your environments in environments/`);
-        console.log(`  3. ${colors.yellow}[AWS Only]${colors.reset} Customize CDK stacks in cdk/ with your AWS settings`);
-        console.log(`  4. ${colors.yellow}[AWS Only]${colors.reset} Install CDK dependencies: npm install aws-cdk-lib constructs`);
-        console.log(`  5. Run 'semiont provision -e local' to set up local development`);
+        console.log(`  1. Review environments/local.json and set any credentials`);
+        console.log(`  2. Run '${colors.cyan}semiont provision${colors.reset}' to set up services`);
+        console.log(`  3. Run '${colors.cyan}semiont start${colors.reset}' to launch all services`);
       }
       
       results.summary.succeeded = 1;
