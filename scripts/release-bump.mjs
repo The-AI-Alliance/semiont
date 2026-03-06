@@ -126,7 +126,7 @@ async function main() {
   console.log(`   1. Bump version from ${currentVersion} to ${nextVersion} (${bumpType})`);
   console.log(`   2. Sync all package.json files`);
   console.log(`   3. Commit and push to main`);
-  console.log(`\nNext development builds will be: ${nextVersion}-build.N with 'dev' tag`);
+  console.log(`\nNext development version: ${nextVersion}`);
 
   const confirmed = await confirmAction('\nDo you want to proceed?');
   if (!confirmed) {
@@ -158,7 +158,7 @@ This commit bumps the version after releasing ${currentVersion} as stable.
 
 Version bump type: ${bumpType}
 - All package.json files updated to ${nextVersion}
-- Next builds will be ${nextVersion}-build.N with dev tag
+- Publish manually via GitHub Actions workflow dispatch
 
 🤖 Generated with release script`;
 
@@ -179,20 +179,16 @@ Version bump type: ${bumpType}
   console.log('✅ RELEASE COMPLETE');
   console.log('='.repeat(70));
 
-  console.log(`\n📋 Full release summary:`);
-  console.log(`   • Stable release published: ${currentVersion} (tagged as 'latest')`);
+  console.log(`\n📋 Summary:`);
   console.log(`   • Version bump type: ${bumpType}`);
+  console.log(`   • Previous version: ${currentVersion}`);
   console.log(`   • New development version: ${nextVersion}`);
-  console.log(`   • Next builds will be: ${nextVersion}-build.N (tagged as 'dev')`);
 
-  console.log('\n🔗 Published artifacts:');
-  console.log(`   • npm: https://www.npmjs.com/settings/semiont/packages`);
-  console.log(`   • containers: https://github.com/orgs/The-AI-Alliance/packages?repo_name=semiont`);
-
-  console.log('\n🎯 What happens next:');
-  console.log(`   • Next push to main will publish ${nextVersion}-build.1 with 'dev' tag`);
-  console.log(`   • Users can install stable release: npm install @semiont/core@latest`);
-  console.log(`   • Users can install dev builds: npm install @semiont/core@dev`);
+  console.log('\n🎯 To publish, manually trigger these GitHub Actions workflows:');
+  console.log(`   • "Publish npm packages" — publishes @semiont/* to npm`);
+  console.log(`   • "Publish Backend Container Image" — pushes backend to GHCR`);
+  console.log(`   • "Publish Frontend Container Image" — pushes frontend to GHCR`);
+  console.log(`   Use stable_release=true for 'latest' tag, or false for '${nextVersion}-build.N' with 'dev' tag`);
 }
 
 main().catch((error) => {
