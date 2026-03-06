@@ -59,12 +59,6 @@
       "password": "${NEO4J_PASSWORD}",
       "database": "${NEO4J_DATABASE}"
     },
-    "mcp": {
-      "platform": {
-        "type": "posix"
-      },
-      "dependsOn": ["backend"]
-    },
     "filesystem": {
       "platform": {
         "type": "posix"
