@@ -52,17 +52,17 @@ Semiont uses a [CLI](apps/cli/README.md) (`semiont`) to initialize projects, pro
 
 ## 🧪 Demos & Examples
 
-**Semiont Agents Demo** - Interactive examples showing Semiont SDK usage:
+**Semiont Workflows Demo** - Interactive examples showing Semiont SDK usage:
 
-[![Open Semiont Agents Demo](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new/The-AI-Alliance/semiont-agents)
+[![Open Semiont Workflows Demo](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new/The-AI-Alliance/semiont-workflows)
 
-The [Semiont Agents Demo](https://github.com/The-AI-Alliance/semiont-agents) repository provides ready-to-run examples including:
+The [Semiont Workflows Demo](https://github.com/The-AI-Alliance/semiont-workflows) repository provides ready-to-run examples including:
 - Document processing workflows (chunking, table of contents)
 - Annotation detection (legal citations, highlights, tags)
 - Interactive terminal UI for running demos
 - Various datasets (Supreme Court cases, research papers, genealogical records)
 
-[→ Visit Semiont Agents Demo Repository](https://github.com/The-AI-Alliance/semiont-agents)
+[→ Visit Semiont Workflows Demo Repository](https://github.com/The-AI-Alliance/semiont-workflows)
 
 ## 📦 Published Artifacts
 

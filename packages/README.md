@@ -89,7 +89,7 @@ graph BT
 
 3. **Layered Dependencies**: Packages can only depend on packages in lower layers (no circular dependencies)
 
-4. **Dependency Injection**: Infrastructure components are created once by `startMakeMeaning()` and passed to all consumers via constructor injection or Hono context
+4. **Single-Owner Initialization**: Infrastructure components are created once by `startMakeMeaning()` and passed to consumers as function arguments or via Hono context
 
 5. **Platform Independence**: Foundation and domain packages work in both browser and Node.js (infrastructure packages are Node-only)
 

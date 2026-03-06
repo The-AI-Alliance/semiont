@@ -143,7 +143,7 @@ npm run test                          # Run all tests
 npm run build                         # Build all packages
 ```
 
-For demos and examples, see the [Semiont Agents Demo](https://github.com/The-AI-Alliance/semiont-agents) repository.
+For demos and examples, see the [Semiont Workflows Demo](https://github.com/The-AI-Alliance/semiont-workflows) repository.
 
 ## Troubleshooting
 

@@ -46,9 +46,9 @@ Humans and AI agents work as peers through six composable workflows:
 
 ## Get Started Today
 
-The [Semiont Agents Demo](https://github.com/The-AI-Alliance/semiont-agents) provides ready-to-run examples including document processing workflows, annotation detection, and interactive demos across various datasets.
+The [Semiont Workflows Demo](https://github.com/The-AI-Alliance/semiont-workflows) provides ready-to-run examples including document processing workflows, annotation detection, and interactive demos across various datasets.
 
-[![Open Semiont Agents Demo](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new/The-AI-Alliance/semiont-agents)
+[![Open Semiont Workflows Demo](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new/The-AI-Alliance/semiont-workflows)
 
 ## Open Source & Community
 
