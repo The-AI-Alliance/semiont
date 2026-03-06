@@ -15,7 +15,7 @@
 
 **Semiont is an open-source knowledge kernel where humans and AI agents collaboratively annotate, link, and extend a shared corpus of documents.**
 
-Built on the W3C Web Annotation standard, Semiont transforms unstructured content into interconnected semantic networks — all stored as portable, interoperable annotations. Run it on your infrastructure with your data for true sovereign AI.
+Built on the W3C Web Annotation standard, Semiont transforms unstructured content into interconnected semantic networks — all stored as portable, interoperable annotations. Self-hosted, so your data stays on your infrastructure.
 
 ## Why Semiont
 
@@ -48,7 +48,7 @@ See [.devcontainer/README.md](.devcontainer/README.md) for setup details.
 
 **Local Development**:
 
-See [LOCAL-DEVELOPMENT.md](docs/LOCAL-DEVELOPMENT.md) for installation, configuration, and running locally.
+Semiont uses a [CLI](apps/cli/README.md) (`semiont`) to initialize projects, provision services, and manage environments. See [LOCAL-DEVELOPMENT.md](docs/LOCAL-DEVELOPMENT.md) for installation, configuration, and running locally.
 
 ## 🧪 Demos & Examples
 
@@ -99,13 +99,13 @@ semiont/
 ├── specs/                      # API specifications (spec-first architecture)
 │   ├── src/                    # OpenAPI source files (tracked in git)
 │   │   ├── openapi.json        # Root spec with $ref to all paths/schemas
-│   │   ├── paths/              # Individual endpoint definitions (37 files)
+│   │   ├── paths/              # Individual endpoint definitions
 │   │   └── components/
-│   │       └── schemas/        # Schema definitions (79 files)
+│   │       └── schemas/        # Schema definitions
 │   ├── openapi.json            # Generated bundle (gitignored, built by Redocly)
 │   └── docs/                   # API and W3C annotation documentation
 ├── apps/                       # Application packages
-│   ├── frontend/               # Next.js 14 frontend application
+│   ├── frontend/               # Next.js 15 frontend application
 │   ├── backend/                # Hono backend API server
 │   └── cli/                    # Semiont management CLI
 ├── packages/                   # Shared workspace packages (see packages/README.md)
