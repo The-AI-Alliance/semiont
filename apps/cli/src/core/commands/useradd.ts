@@ -8,7 +8,7 @@
  * Workflow:
  * 1. Validate email format
  * 2. Validate or generate password
- * 3. Hash password with bcrypt
+ * 3. Hash password with argon2
  * 4. Create or update user in database
  * 5. Output generated password if applicable
  *
@@ -23,7 +23,7 @@
  * - --update: Update existing user
  *
  * Security:
- * - Passwords hashed with bcrypt (cost factor 12)
+ * - Passwords hashed with argon2
  * - Minimum password length: 8 characters
  * - Generated passwords: 16+ characters
  * - Provider set to 'password' for password users
@@ -31,7 +31,7 @@
 
 import { z } from 'zod';
 import * as crypto from 'crypto';
-import * as bcrypt from 'bcrypt';
+import * as argon2 from 'argon2';
 import { PrismaClient } from '@prisma/client';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
@@ -115,14 +115,14 @@ export async function useradd(options: UseraddOptions): Promise<CommandResults> 
     if (options.generatePassword) {
       password = generatePassword();
       generatedPassword = password;
-      passwordHash = await bcrypt.hash(password, 12);
+      passwordHash = await argon2.hash(password);
       if (!options.quiet) {
         printInfo(`Generated password: ${password}`);
       }
     } else if (options.password) {
       password = options.password;
       validatePassword(password);
-      passwordHash = await bcrypt.hash(password, 12);
+      passwordHash = await argon2.hash(password);
     } else if (!existingUser) {
       // Password required for new users
       throw new Error('Password required: use --password or --generate-password');
