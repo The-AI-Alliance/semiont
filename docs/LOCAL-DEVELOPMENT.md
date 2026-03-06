@@ -6,76 +6,107 @@ This guide explains how to run Semiont locally for development.
 
 - **Node.js** v20 or higher
 - **npm** (comes with Node.js)
-- **Docker or Podman** (for PostgreSQL container)
+- **Docker or Podman** (for PostgreSQL and Envoy containers)
 - **Git**
 
-## Initial Setup
+## Setup
 
-### 1. Clone and Build Semiont Repository
+### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/The-AI-Alliance/semiont.git
 cd semiont
-export SEMIONT_REPO=$(pwd)
+```
+
+### 2. Build and Install the CLI
+
+```bash
 npm install
 npm run build
 npm run install:cli
 ```
 
-### 2. Create Your Project Directory
+### 3. Create Your Project Directory
 
 ```bash
 cd ..
 mkdir my_semiont_project
 cd my_semiont_project
-export SEMIONT_ROOT=$(pwd)
-export SEMIONT_ENV=local
+```
 
+### 4. Set Environment Variables
+
+```bash
+export SEMIONT_REPO=~/path/to/semiont          # Path to the cloned repository
+export SEMIONT_ROOT=$(pwd)                      # Path to your project directory
+export SEMIONT_ENV=local                        # Target environment
+```
+
+> **Important**: `SEMIONT_ROOT` tells the CLI where your project is located, so you can run commands from any directory. `SEMIONT_REPO` points to the cloned source repository.
+
+### 5. Initialize the Project
+
+```bash
 semiont init
 ```
 
-> **Important**: The `SEMIONT_ROOT` environment variable tells the CLI where your project is located, so you can run commands from any directory.
+This creates `semiont.json` and `environments/local.json` in your project directory.
 
-## Quick Start
-
-Start all services:
+### 6. Review the Configuration
 
 ```bash
-semiont start --all
+cat environments/local.json
 ```
 
-Or start services individually:
+This file defines all services (backend, frontend, database, proxy, etc.) and their configuration. Edit it to set Neo4j credentials, Anthropic API key, or adjust ports.
+
+### 7. Provision Services
 
 ```bash
-# 1. Start database
-semiont start --service database
+semiont provision
+```
 
-# 2. Provision and start backend with admin user
-semiont provision --service backend --seed-admin --admin-email dev@example.com
-semiont start --service backend
+This generates `.env` files for the backend and frontend, processes proxy configuration, and pushes the database schema.
 
-# 3. Provision and start frontend
-semiont provision --service frontend
-semiont start --service frontend
+### 8. Start Services
 
-# 4. Check status
+```bash
+semiont start
+```
+
+This starts the database container, backend, frontend, and Envoy proxy.
+
+### 9. Verify Everything is Running
+
+```bash
 semiont check
 ```
 
-## Access the Application
+### 10. Create an Admin User
 
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:4000
-- **API Documentation**: http://localhost:4000/api
+```bash
+semiont useradd --email you@example.com --generate-password --admin
+```
 
-For local development, sign in with the email you used during backend provisioning (e.g., `dev@example.com`). No password required.
+Note the generated password from the output.
+
+### 11. Check the Logs
+
+```bash
+tail -f apps/backend/logs/combined.log
+```
+
+### 12. Access the Application
+
+Open http://localhost:8080 in your browser and log in with the admin credentials from step 10.
 
 ## Service Ports
 
 | Service | Port | URL |
 |---------|------|-----|
-| Frontend | 3000 | http://localhost:3000 |
-| Backend | 4000 | http://localhost:4000 |
+| Envoy Proxy | 8080 | http://localhost:8080 (main entry point) |
+| Frontend | 3000 | http://localhost:3000 (direct) |
+| Backend | 4000 | http://localhost:4000 (direct) |
 | PostgreSQL | 5432 | postgresql://localhost:5432 |
 
 ## Common Tasks
@@ -84,7 +115,6 @@ For local development, sign in with the email you used during backend provisioni
 
 ```bash
 semiont start --service backend
-semiont start --service frontend
 semiont stop --service backend
 semiont check
 ```
@@ -104,18 +134,6 @@ npx prisma generate        # Generate Prisma Client
 semiont provision --service frontend  # Updates .env.local from config
 semiont provision --service backend   # Updates backend configuration
 ```
-
-## Configuration
-
-The frontend syncs configuration from Semiont environment files at provision-time. After changing environment config, re-run `semiont provision --service frontend` to update `.env.local`.
-
-Key environment variables:
-
-- `SERVER_API_URL` - Backend API URL (from `services.backend.publicURL`)
-- `NEXT_PUBLIC_SITE_NAME` - Site name (from `services.frontend.siteName`)
-- `NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS` - Allowed OAuth domains (from `site.oauthAllowedDomains`)
-
-See [CONFIGURATION.md](./CONFIGURATION.md) for complete environment variable reference.
 
 ## Additional Documentation
 
