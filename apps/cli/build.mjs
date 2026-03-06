@@ -390,8 +390,7 @@ await Promise.all(scriptFiles.map(async (name) => {
         // Native binaries that can't be bundled
         'ssh2',
         'cpu-features',
-        'bcrypt',
-        '@mapbox/node-pre-gyp',
+        'argon2',
         // Large dependencies that work better as external
         '@testcontainers/postgresql',
         '@prisma/client',
