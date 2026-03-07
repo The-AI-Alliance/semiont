@@ -17,90 +17,93 @@ The event bus is the only coupling between actors. An actor does not know who el
 ```mermaid
 graph TB
     %% ================================================================
-    %% CONTENT STREAMS (top)
+    %% INTELLIGENT ACTORS (above the bus)
     %% ================================================================
-    subgraph content_streams ["Content Streams"]
-        UPLOAD["Upload / Fetch"]
-        INGEST["API Ingestion"]
+    subgraph intelligent ["Intelligent Actors"]
+        direction LR
+
+        subgraph human_actors ["Human"]
+            READER["Reader\n&#9673; browse\n&#9673; beckon"]
+            ANALYST["Analyst\n&#9673; mark\n&#9673; browse\n&#9673; bind"]
+            AUTHOR["Author\n&#9673; yield\n&#9673; mark"]
+        end
+
+        subgraph human_ui ["via Human UI"]
+            direction TB
+            PROXY["Envoy / ALB"]
+            FE["Frontend"]
+            BE["Backend API"]
+        end
+
+        subgraph ai_actors ["AI"]
+            MARKER["Marker Agent\n&#9673; mark\n&#9673; browse\n&#9673; beckon"]
+            GENERATOR["Generator Agent\n&#9673; yield\n&#9673; gather"]
+            LINKER["Linker Agent\n&#9673; bind\n&#9673; gather"]
+        end
     end
 
     %% ================================================================
-    %% INTELLIGENT ACTORS (left and right of bus)
+    %% EVENT BUS (wide horizontal bar in the center)
     %% ================================================================
-    subgraph human_actors ["Human Actors"]
-        READER["Reader\n(browse, beckon)"]
-        ANALYST["Analyst\n(mark, browse, beckon, bind)"]
-        AUTHOR["Author\n(yield, mark)"]
-    end
-
-    subgraph ai_actors ["AI Actors"]
-        MARKER["Marker Agent\n(mark, browse, beckon)"]
-        GENERATOR["Generator Agent\n(yield, gather)"]
-        LINKER["Linker Agent\n(bind, gather)"]
-    end
+    BUS["E V E N T &ensp; B U S\nmark &ensp; browse &ensp; beckon &ensp; bind &ensp; gather &ensp; yield"]
 
     %% ================================================================
-    %% EVENT BUS (center)
+    %% PASSIVE ACTORS (below the bus)
     %% ================================================================
-    BUS(["Event Bus"])
+    subgraph passive ["Passive Actors"]
+        direction LR
 
-    %% ================================================================
-    %% HUMAN UI (above bus, but below human actors)
-    %% ================================================================
-    subgraph human_ui ["Human UI"]
-        PROXY["Envoy / ALB"]
-        FE["Frontend"]
-        BE["Backend API"]
-        DB[("Users DB")]
+        subgraph knowledge_base ["Knowledge Base (listen-only)"]
+            EVENTSTORE["Event Store\n(immutable log + views)"]
+            CONTENT["Content Store\n(representations)"]
+            GRAPH["Graph\n(relationships)"]
+        end
+
+        subgraph content_streams ["Content Sources"]
+            UPLOAD["Upload / Fetch"]
+            INGEST["API Ingestion"]
+        end
     end
 
     %% ================================================================
-    %% KNOWLEDGE BASE (below bus)
-    %% ================================================================
-    subgraph knowledge_base ["Knowledge Base"]
-        CONTENT["Content Store\n(representations)"]
-        EVENTSTORE["Event Store\n(immutable log + views)"]
-        GRAPH["Graph\n(relationships)"]
-    end
-
-    %% ================================================================
-    %% CONNECTIONS
+    %% CONNECTIONS: Intelligent actors → Bus
     %% ================================================================
 
-    %% Content streams yield into the bus
-    UPLOAD -->|yield| BUS
-    INGEST -->|yield| BUS
-
-    %% Human actors interact through the UI, which relays to the bus
-    READER -->|browse\nbeckon| PROXY
-    ANALYST -->|mark\nbrowse\nbind| PROXY
-    AUTHOR -->|yield\nmark| PROXY
-
+    %% Humans go through the UI
+    READER --> PROXY
+    ANALYST --> PROXY
+    AUTHOR --> PROXY
     PROXY --> FE
     PROXY --> BE
     FE --> BUS
     BE --> BUS
-    BE --> DB
 
-    %% AI actors connect directly to the bus (via MCP or API)
-    MARKER -->|mark\nbrowse\nbeckon| BUS
-    GENERATOR -->|yield\ngather| BUS
-    LINKER -->|bind\ngather| BUS
+    %% AI actors connect directly
+    MARKER --> BUS
+    GENERATOR --> BUS
+    LINKER --> BUS
 
-    %% Knowledge base listens to everything, writes nothing back
+    %% ================================================================
+    %% CONNECTIONS: Bus → Passive actors
+    %% ================================================================
+
     BUS -->|events| EVENTSTORE
     EVENTSTORE -->|materialize| CONTENT
     EVENTSTORE -->|project| GRAPH
 
-    %% Knowledge base serves reads (back through the bus or direct)
-    CONTENT -.->|content| BE
-    EVENTSTORE -.->|views| BE
-    GRAPH -.->|queries| BE
+    %% Content sources feed into the bus
+    UPLOAD -->|yield| BUS
+    INGEST -->|yield| BUS
+
+    %% Knowledge base serves reads back up
+    CONTENT -.->|reads| BE
+    EVENTSTORE -.->|reads| BE
+    GRAPH -.->|reads| BE
 
     %% ================================================================
     %% STYLING
     %% ================================================================
-    classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
+    classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold,font-size:14px
     classDef human fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
     classDef ai fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
     classDef ui fill:#d4a827,stroke:#8b6914,stroke-width:2px,color:#000
@@ -110,7 +113,7 @@ graph TB
     class BUS bus
     class READER,ANALYST,AUTHOR human
     class MARKER,GENERATOR,LINKER ai
-    class PROXY,FE,BE,DB ui
+    class PROXY,FE,BE ui
     class CONTENT,EVENTSTORE,GRAPH kb
     class UPLOAD,INGEST stream
 ```
