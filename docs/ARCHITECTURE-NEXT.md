@@ -19,28 +19,14 @@ graph TB
     %% ================================================================
     %% INTELLIGENT ACTORS (above the bus)
     %% ================================================================
-    subgraph intelligent ["Intelligent Actors"]
-        direction LR
 
-        subgraph human_actors ["Human"]
-            READER["Reader\n&#9673; browse\n&#9673; beckon"]
-            ANALYST["Analyst\n&#9673; mark\n&#9673; browse\n&#9673; bind"]
-            AUTHOR["Author\n&#9673; yield\n&#9673; mark"]
-        end
-
-        subgraph human_ui ["via Human UI"]
-            direction TB
-            PROXY["Envoy / ALB"]
-            FE["Frontend"]
-            BE["Backend API"]
-        end
-
-        subgraph ai_actors ["AI"]
-            MARKER["Marker Agent\n&#9673; mark\n&#9673; browse\n&#9673; beckon"]
-            GENERATOR["Generator Agent\n&#9673; yield\n&#9673; gather"]
-            LINKER["Linker Agent\n&#9673; bind\n&#9673; gather"]
-        end
-    end
+    READER["Reader\n&#9673; browse\n&#9673; beckon"]
+    ANALYST["Analyst\n&#9673; mark\n&#9673; browse\n&#9673; bind"]
+    AUTHOR["Author\n&#9673; yield\n&#9673; mark"]
+    UI["Human UI\n(proxy + frontend + backend)"]
+    MARKER["Marker Agent\n&#9673; mark\n&#9673; browse\n&#9673; beckon"]
+    GENERATOR["Generator Agent\n&#9673; yield\n&#9673; gather"]
+    LINKER["Linker Agent\n&#9673; bind\n&#9673; gather"]
 
     %% ================================================================
     %% EVENT BUS (wide horizontal bar in the center)
@@ -50,55 +36,30 @@ graph TB
     %% ================================================================
     %% PASSIVE ACTORS (below the bus)
     %% ================================================================
-    subgraph passive ["Passive Actors"]
-        direction LR
 
-        subgraph knowledge_base ["Knowledge Base (listen-only)"]
-            EVENTSTORE["Event Store\n(immutable log + views)"]
-            CONTENT["Content Store\n(representations)"]
-            GRAPH["Graph\n(relationships)"]
-        end
-
-        subgraph content_streams ["Content Sources"]
-            UPLOAD["Upload / Fetch"]
-            INGEST["API Ingestion"]
-        end
-    end
+    KB["Knowledge Base\n(event store + content store + graph)"]
+    SOURCES["Content Sources\n(upload, fetch, API ingestion)"]
 
     %% ================================================================
     %% CONNECTIONS: Intelligent actors → Bus
     %% ================================================================
 
-    %% Humans go through the UI
-    READER --> PROXY
-    ANALYST --> PROXY
-    AUTHOR --> PROXY
-    PROXY --> FE
-    PROXY --> BE
-    FE --> BUS
-    BE --> BUS
+    READER --> UI
+    ANALYST --> UI
+    AUTHOR --> UI
+    UI --> BUS
 
-    %% AI actors connect directly
     MARKER --> BUS
     GENERATOR --> BUS
     LINKER --> BUS
 
     %% ================================================================
-    %% CONNECTIONS: Bus → Passive actors
+    %% CONNECTIONS: Bus ↔ Passive actors
     %% ================================================================
 
-    BUS -->|events| EVENTSTORE
-    EVENTSTORE -->|materialize| CONTENT
-    EVENTSTORE -->|project| GRAPH
-
-    %% Content sources feed into the bus
-    UPLOAD -->|yield| BUS
-    INGEST -->|yield| BUS
-
-    %% Knowledge base serves reads back up
-    CONTENT -.->|reads| BE
-    EVENTSTORE -.->|reads| BE
-    GRAPH -.->|reads| BE
+    BUS -->|events| KB
+    KB -.->|reads| UI
+    SOURCES -->|yield| BUS
 
     %% ================================================================
     %% STYLING
@@ -113,9 +74,9 @@ graph TB
     class BUS bus
     class READER,ANALYST,AUTHOR human
     class MARKER,GENERATOR,LINKER ai
-    class PROXY,FE,BE ui
-    class CONTENT,EVENTSTORE,GRAPH kb
-    class UPLOAD,INGEST stream
+    class UI ui
+    class KB kb
+    class SOURCES stream
 ```
 
 ## Actors
@@ -130,6 +91,34 @@ graph TB
 
 All human actors interact through the **Human UI** — the browser, Envoy proxy, Next.js frontend, and Hono backend. The UI translates DOM interactions (clicks, selections, form submissions) into events on the bus.
 
+```mermaid
+graph TB
+    HUMAN["Human Actor\n(Reader, Analyst, Author)"] -->|browser| PROXY
+
+    subgraph ui ["Human UI"]
+        PROXY["Envoy / ALB\n(route by path)"]
+        FE["Frontend\n(Next.js + React)"]
+        BE["Backend API\n(Hono + JWT)"]
+        DB[("Users DB\n(PostgreSQL)")]
+
+        PROXY -->|"auth, pages"| FE
+        PROXY -->|"API calls"| BE
+        FE -->|"session tokens"| BE
+        BE --> DB
+    end
+
+    BE -->|events| BUS["Event Bus"]
+    FE -->|events| BUS
+
+    classDef actor fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
+    classDef ui fill:#d4a827,stroke:#8b6914,stroke-width:2px,color:#000
+    classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
+
+    class HUMAN actor
+    class PROXY,FE,BE,DB ui
+    class BUS bus
+```
+
 ### AI Actors
 
 | Actor | Flows | What they do |
@@ -142,15 +131,43 @@ AI actors connect via the backend API (REST + JWT) or MCP protocol. They emit th
 
 ### Knowledge Base (Passive)
 
-The knowledge base is not an intelligent actor. It has no goals, preferences, or decisions. It listens to events on the bus and materializes three projections:
+The knowledge base is not an intelligent actor. It has no goals, preferences, or decisions. It listens to events on the bus and materializes durable state. It never initiates an event. Events flow *into* it. Reads flow *out of* it (via the backend API). This asymmetry is deliberate — it means the knowledge base can be rebuilt from the event log at any time.
+
+```mermaid
+graph TB
+    BUS["Event Bus"] -->|events| EVENTLOG
+
+    subgraph kb ["Knowledge Base"]
+        EVENTLOG["Event Log\n(immutable append-only)"]
+        VIEWS["Materialized Views\n(fast single-doc queries)"]
+        CONTENT["Content Store\n(SHA-256 addressed, deduplicated)"]
+        GRAPH["Graph\n(relationships, backlinks)"]
+
+        EVENTLOG -->|materialize| VIEWS
+        EVENTLOG -->|project| GRAPH
+        EVENTLOG -->|store representations| CONTENT
+    end
+
+    VIEWS -.->|query| BE
+    CONTENT -.->|read by checksum| BE
+    GRAPH -.->|traverse| BE
+    BE["Backend API"]
+
+    classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
+    classDef store fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
+    classDef api fill:#d4a827,stroke:#8b6914,stroke-width:2px,color:#000
+
+    class BUS bus
+    class EVENTLOG,VIEWS,CONTENT,GRAPH store
+    class BE api
+```
 
 | Store | Purpose | Access Pattern |
 |-------|---------|---------------|
-| **Content Store** | Content-addressed binary storage (documents, images, PDFs) | Write-once, read by checksum |
-| **Event Store** | Immutable append-only log of all domain events, plus materialized views | Append events, query views |
+| **Event Log** | Immutable append-only log of all domain events | Append only, subscribe for real-time |
+| **Materialized Views** | Denormalized projections for fast reads | Query by resource URI |
+| **Content Store** | Content-addressed binary storage (documents, images, PDFs) | Write-once, read by SHA-256 checksum |
 | **Graph** | Relationship projection for traversal queries (backlinks, entity networks) | Read-only projection from events |
-
-The knowledge base never initiates an event. Events flow *into* it. Reads flow *out of* it (via the backend API). This asymmetry is deliberate — it means the knowledge base can be rebuilt from the event log at any time.
 
 ### Content Streams
 
