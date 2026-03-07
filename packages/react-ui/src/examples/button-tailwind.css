@@ -1,0 +1,51 @@
+/**
+ * Example: Button styling with Tailwind CSS
+ *
+ * This shows how to style the Button component using Tailwind utilities
+ * by targeting the data attributes.
+ */
+
+/* Primary button with Tailwind */
+.semiont-button[data-variant="primary"] {
+  @apply bg-blue-500 text-white hover:bg-blue-600 active:bg-blue-700;
+  @apply transition-colors duration-200;
+}
+
+/* Size variants with Tailwind */
+.semiont-button[data-size="sm"] {
+  @apply px-3 py-1.5 text-sm rounded;
+}
+
+.semiont-button[data-size="md"] {
+  @apply px-4 py-2 text-base rounded-md;
+}
+
+.semiont-button[data-size="lg"] {
+  @apply px-6 py-3 text-lg rounded-md;
+}
+
+/* Loading state */
+.semiont-button[data-loading="true"] {
+  @apply pointer-events-none opacity-75;
+}
+
+/* Full width */
+.semiont-button[data-full-width="true"] {
+  @apply w-full;
+}
+
+/* Icon-only button */
+.semiont-button[data-icon-only="true"] {
+  @apply p-2 aspect-square;
+}
+
+/* Focus styles */
+.semiont-button {
+  @apply focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
+}
+
+/* Disabled state */
+.semiont-button:disabled,
+.semiont-button[data-disabled="true"] {
+  @apply opacity-50 cursor-not-allowed;
+}

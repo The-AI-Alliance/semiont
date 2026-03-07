@@ -3,7 +3,7 @@ import { CloudFormationClient, DescribeStacksCommand } from '@aws-sdk/client-clo
 import { StackOutput, AWSError } from './types.js';
 import { validateAwsResourceName, assertValid } from '../../core/validators.js';
 import { logger } from '../../core/io/logger.js';
-import { loadEnvironmentConfig, type EnvironmentConfig } from '../../core/environment-loader.js';
+import { type EnvironmentConfig } from '@semiont/core';
 
 export interface SemiontConfig {
   region: string;
@@ -23,16 +23,21 @@ export class SemiontStackConfig {
   private environmentConfig: EnvironmentConfig;
   private environment: string;
 
-  constructor(environment: string) {
-    this.environment = environment;
-    this.environmentConfig = loadEnvironmentConfig(environment);
-    
-    // AWS is required for stack configuration
-    if (!this.environmentConfig.aws) {
-      throw new Error(`Environment ${environment} does not have AWS configuration`);
+  constructor(environmentConfig: EnvironmentConfig) {
+    this.environmentConfig = environmentConfig;
+    const environment = environmentConfig._metadata?.environment;
+    if (!environment) {
+      throw new Error('Environment is required in environmentConfig._metadata');
     }
-    
-    this.cfnClient = new CloudFormationClient({ region: this.environmentConfig.aws.region });
+    this.environment = environment;
+
+    // AWS is required for stack configuration
+    const aws = (this.environmentConfig as any).aws;
+    if (!aws) {
+      throw new Error(`Environment ${this.environment} does not have AWS configuration`);
+    }
+
+    this.cfnClient = new CloudFormationClient({ region: aws.region });
   }
 
   async getConfig(): Promise<SemiontConfig> {
@@ -40,9 +45,10 @@ export class SemiontStackConfig {
       return this.config;
     }
 
+    const aws = (this.environmentConfig as any).aws;
     // Get stack names from new schema
-    const dataStackName = this.environmentConfig.aws?.stacks?.data || 'SemiontDataStack';
-    const appStackName = this.environmentConfig.aws?.stacks?.app || 'SemiontAppStack';
+    const dataStackName = aws?.stacks?.data || 'SemiontDataStack';
+    const appStackName = aws?.stacks?.app || 'SemiontAppStack';
 
     const validatedDataStackName = assertValid(
       validateAwsResourceName(dataStackName),
@@ -82,7 +88,7 @@ export class SemiontStackConfig {
       const appOutputs = this.parseOutputs((appResponse.Stacks[0].Outputs || []).filter(o => o.OutputKey && o.OutputValue) as StackOutput[]);
 
       this.config = {
-        region: this.environmentConfig.aws!.region,
+        region: aws.region,
         dataStack: {
           name: validatedDataStackName,
           outputs: dataOutputs,

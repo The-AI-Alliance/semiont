@@ -1,0 +1,18 @@
+{
+  "version": "0.2.36",
+  "packages": {
+    "@semiont/api-client": "0.2.36",
+    "@semiont/core": "0.2.36",
+    "@semiont/ontology": "0.2.36",
+    "@semiont/content": "0.2.36",
+    "@semiont/event-sourcing": "0.2.36",
+    "@semiont/graph": "0.2.36",
+    "@semiont/inference": "0.2.36",
+    "@semiont/jobs": "0.2.36",
+    "@semiont/make-meaning": "0.2.36",
+    "@semiont/react-ui": "0.2.36",
+    "@semiont/cli": "0.2.36",
+    "semiont-backend": "0.2.36",
+    "semiont-frontend": "0.2.36"
+  }
+}

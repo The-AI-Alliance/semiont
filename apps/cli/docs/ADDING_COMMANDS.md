@@ -201,12 +201,13 @@ const myCommandHandler = async (context: MyCommandHandlerContext): Promise<MyCom
   }
 };
 
-// Register the handler
+// Register the handler (preflight is mandatory)
 export const myCommandDescriptor: HandlerDescriptor<MyCommandHandlerContext, MyCommandHandlerResult> = {
   command: 'my-command',
   platform: 'posix',
   serviceType: 'web',  // or 'database', 'worker', etc.
-  handler: myCommandHandler
+  handler: myCommandHandler,
+  preflight: preflightMyCommand,
 };
 ```
 
@@ -458,6 +459,91 @@ const schema = z.object({
 type Options = z.infer<typeof schema>;
 ```
 
+## Preflight Checks
+
+Every `HandlerDescriptor` must include a `preflight` function. Preflight checks validate preconditions before a handler runs (e.g., required commands are installed, ports are free, environment variables are set).
+
+### Writing a Preflight Function
+
+Preflight functions receive the same context as the handler and return a `PreflightResult`:
+
+```typescript
+import { PreflightResult } from '../../../core/handlers/types.js';
+import {
+  checkCommandAvailable,
+  checkFileExists,
+  checkPortFree,
+  checkEnvVarResolved,
+  passingPreflight,
+  preflightFromChecks,
+} from '../../../core/handlers/preflight-utils.js';
+
+// Simple: no preconditions
+preflight: async () => passingPreflight(),
+
+// Check that required tools are installed
+preflight: async () => preflightFromChecks([
+  checkCommandAvailable('npm'),
+  checkCommandAvailable('npx'),
+]),
+
+// Check with async utilities (e.g., port availability)
+preflight: async (context) => {
+  const port = context.service.getRequirements().network?.ports?.[0];
+  return preflightFromChecks([
+    checkCommandAvailable('node'),
+    ...(port ? [await checkPortFree(port)] : []),
+  ]);
+},
+```
+
+Available check utilities in `preflight-utils.ts`:
+- `checkCommandAvailable(cmd)` — verifies a command is in PATH
+- `checkContainerRuntime(runtime)` — verifies docker/podman is available
+- `checkPortFree(port)` — verifies a TCP port is not in use (async)
+- `checkEnvVarResolved(value, description)` — checks a config value is set and any `${VAR}` templates are resolved
+- `checkEnvVarsInConfig(config)` — scans a config object for unresolved `${VAR}` references
+- `checkFileExists(path, description)` — verifies a file exists
+- `checkDirectoryWritable(path)` — verifies a directory is writable
+- `checkAwsCredentials()` — checks AWS credentials are configured
+- `passingPreflight()` — returns a passing result with no checks
+- `preflightFromChecks(checks)` — aggregates checks into a `PreflightResult`
+
+### The `--preflight` Flag
+
+All service commands (provision, start, check, publish, update, stop) support `--preflight`. This flag is defined in `BaseOptionsSchema` and available to all commands automatically.
+
+When `--preflight` is passed:
+1. `MultiServiceExecutor.execute()` takes an early-return path
+2. For each service, it builds the handler context identically to normal execution
+3. It calls the handler's `preflight()` function instead of `handler()`
+4. Failed preflights produce `success: false` results
+5. The `summary.failed` count triggers `process.exit(1)` in `command-executor.ts`
+6. `executionContext.dryRun` is set to `true`
+
+No changes are needed in individual commands to support `--preflight` — it is handled entirely by `MultiServiceExecutor`.
+
+### Command Chain Preflights (`nextCommand`)
+
+Commands can declare a `nextCommand` in their `CommandDescriptor`:
+
+```typescript
+const startDescriptor: CommandDescriptor<StartOptions> = {
+  name: 'start',
+  nextCommand: 'check',  // After starting, run check's preflights
+  // ...
+};
+```
+
+After normal execution completes, `MultiServiceExecutor` automatically runs the next command's preflight checks. These are **advisory only**:
+- Passing checks are shown only in `--verbose` mode
+- Failing checks are shown as warnings
+- They do **not** affect the exit code or the `summary.failed` count
+
+This gives operators early visibility into whether the next step will succeed (e.g., after `start`, check whether `check` preflights pass).
+
+The current command chain is: `init → provision → start → check`
+
 ## Common Patterns
 
 ### Pre-execution Hooks for Synthetic Services
@@ -537,6 +623,9 @@ const state = await StateManager.load(
 - [ ] Service selection (all vs specific) works
 - [ ] Error messages are informative
 - [ ] State is properly managed
+- [ ] Every handler descriptor has a `preflight` function
+- [ ] Preflight checks match what the handler actually does
+- [ ] `--preflight` flag runs preflights without executing handlers
 
 ## Getting Help
 

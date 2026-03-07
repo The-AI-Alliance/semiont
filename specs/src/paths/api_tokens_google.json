@@ -1,0 +1,40 @@
+{
+  "post": {
+    "summary": "Google OAuth Authentication",
+    "description": "Authenticate with Google OAuth access token",
+    "tags": [
+      "Authentication"
+    ],
+    "requestBody": {
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "../components/schemas/GoogleAuthRequest.json"
+          }
+        }
+      }
+    },
+    "responses": {
+      "200": {
+        "description": "Successful authentication",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/AuthResponse.json"
+            }
+          }
+        }
+      },
+      "400": {
+        "description": "Invalid request or authentication failed",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,31 @@
+import * as path from 'path';
+import type { BaseHandlerContext } from '../../../core/handlers/types.js';
+
+/**
+ * Proxy service paths on POSIX platform
+ */
+export interface ProxyPaths {
+  runtimeDir: string;     // Base directory for proxy runtime files
+  pidFile: string;        // Process ID file
+  configFile: string;     // Envoy configuration file
+  logsDir: string;        // Directory for log files
+  appLogFile: string;     // Main proxy log file
+  accessLogFile: string;  // Access log file
+}
+
+/**
+ * Get all proxy paths for POSIX platform
+ */
+export function getProxyPaths<T>(context: BaseHandlerContext<T>): ProxyPaths {
+  const projectRoot = context.service.projectRoot;
+  const runtimeDir = path.join(projectRoot, 'proxy');
+
+  return {
+    runtimeDir,
+    pidFile: path.join(runtimeDir, 'proxy.pid'),
+    configFile: path.join(runtimeDir, 'envoy.yaml'),
+    logsDir: path.join(runtimeDir, 'logs'),
+    appLogFile: path.join(runtimeDir, 'logs', 'proxy.log'),
+    accessLogFile: path.join(runtimeDir, 'logs', 'access.log'),
+  };
+}

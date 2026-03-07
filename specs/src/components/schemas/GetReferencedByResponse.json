@@ -1,0 +1,54 @@
+{
+  "type": "object",
+  "properties": {
+    "referencedBy": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Reference annotation ID"
+          },
+          "resourceName": {
+            "type": "string",
+            "description": "Name of resource containing the reference"
+          },
+          "target": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string",
+                "description": "ID of resource containing the reference"
+              },
+              "selector": {
+                "type": "object",
+                "properties": {
+                  "exact": {
+                    "type": "string",
+                    "description": "The selected text that references this resource"
+                  }
+                },
+                "required": [
+                  "exact"
+                ]
+              }
+            },
+            "required": [
+              "source",
+              "selector"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "resourceName",
+          "target"
+        ]
+      }
+    }
+  },
+  "required": [
+    "referencedBy"
+  ]
+}

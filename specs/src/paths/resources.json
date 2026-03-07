@@ -1,0 +1,167 @@
+{
+  "post": {
+    "summary": "Create Resource",
+    "description": "Create a new resource",
+    "tags": [
+      "Resources"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "requestBody": {
+      "required": true,
+      "content": {
+        "multipart/form-data": {
+          "schema": {
+            "type": "object",
+            "required": ["name", "file", "format"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Resource name"
+              },
+              "file": {
+                "type": "string",
+                "format": "binary",
+                "description": "Binary content of the resource"
+              },
+              "format": {
+                "type": "string",
+                "description": "MIME type (e.g., text/markdown, image/png)"
+              },
+              "entityTypes": {
+                "type": "string",
+                "description": "JSON-encoded array of entity types"
+              },
+              "language": {
+                "type": "string",
+                "description": "ISO 639-1 language code"
+              },
+              "creationMethod": {
+                "type": "string",
+                "description": "How the resource was created"
+              },
+              "sourceAnnotationId": {
+                "type": "string",
+                "description": "Source annotation ID (for generated resources)"
+              },
+              "sourceResourceId": {
+                "type": "string",
+                "description": "Source resource ID (for cloned resources)"
+              }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "201": {
+        "description": "Resource created successfully",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/CreateResourceResponse.json"
+            }
+          }
+        }
+      }
+    }
+  },
+  "get": {
+    "summary": "List Resources",
+    "description": "List all resources with optional filters",
+    "tags": [
+      "Resources"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "schema": {
+          "type": "number",
+          "nullable": true,
+          "default": 0
+        },
+        "required": false,
+        "name": "offset",
+        "in": "query"
+      },
+      {
+        "schema": {
+          "type": "number",
+          "nullable": true,
+          "default": 50
+        },
+        "required": false,
+        "name": "limit",
+        "in": "query"
+      },
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": false,
+        "name": "entityType",
+        "in": "query"
+      },
+      {
+        "schema": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "false"
+              ]
+            },
+            {
+              "type": "boolean"
+            }
+          ]
+        },
+        "required": false,
+        "name": "archived",
+        "in": "query"
+      },
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": false,
+        "name": "search",
+        "in": "query"
+      },
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": false,
+        "name": "q",
+        "in": "query",
+        "description": "Search query"
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Resources listed successfully",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ListResourcesResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

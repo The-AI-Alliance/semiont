@@ -5,8 +5,16 @@
  * These are not service-specific but apply to the entire CLI operation.
  */
 
-import type { Environment } from './environment-validator.js';
-import type { PlatformType } from './platform-types.js';
+import type { Environment } from '@semiont/core';
+import type {
+  BackendServiceConfig,
+  FrontendServiceConfig,
+  DatabaseServiceConfig,
+  GraphServiceConfig,
+  FilesystemServiceConfig,
+  InferenceServiceConfig,
+  McpServiceConfig
+} from '@semiont/core';
 
 /**
  * Global CLI configuration passed to all commands and services
@@ -21,17 +29,13 @@ export interface Config {
 }
 
 /**
- * Service-specific configuration
+ * Service configuration - uses schema-generated types
  */
-export interface ServiceConfig {
-  platform: PlatformType;
-  port?: number;
-  command?: string;
-  image?: string;
-  host?: string;
-  path?: string;
-  name?: string;
-  user?: string;
-  password?: string;
-  [key: string]: any;
-}
+export type ServiceConfig =
+  | BackendServiceConfig
+  | FrontendServiceConfig
+  | DatabaseServiceConfig
+  | GraphServiceConfig
+  | FilesystemServiceConfig
+  | InferenceServiceConfig
+  | McpServiceConfig;

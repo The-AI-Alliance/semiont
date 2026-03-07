@@ -1,0 +1,36 @@
+{
+  "post": {
+    "summary": "Generate MCP Token",
+    "description": "Generate a short-lived token for MCP server",
+    "tags": [
+      "Authentication"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "MCP token generated",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/MCPGenerateResponse.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "description": "Unauthorized",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

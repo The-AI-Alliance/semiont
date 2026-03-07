@@ -2,38 +2,10 @@
  * Backend-specific annotation utility functions
  */
 
-import type { components } from '@semiont/api-client';
+import type { components } from './types';
 import type { BodyItem } from './events';
 
 type Annotation = components['schemas']['Annotation'];
-
-/**
- * Check if two body items match (for remove/replace operations)
- * Matches by type, value/source, and purpose fields
- */
-export function bodyItemsMatch(item1: BodyItem, item2: BodyItem): boolean {
-  // Type must match
-  if (item1.type !== item2.type) {
-    return false;
-  }
-
-  // Purpose must match
-  if (item1.purpose !== item2.purpose) {
-    return false;
-  }
-
-  // For TextualBody, match by value
-  if (item1.type === 'TextualBody' && item2.type === 'TextualBody') {
-    return item1.value === item2.value;
-  }
-
-  // For SpecificResource, match by source
-  if (item1.type === 'SpecificResource' && item2.type === 'SpecificResource') {
-    return item1.source === item2.source;
-  }
-
-  return false;
-}
 
 /**
  * Find a body item in an array

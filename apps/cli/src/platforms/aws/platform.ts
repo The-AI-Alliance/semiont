@@ -66,16 +66,16 @@ export class AWSPlatform extends Platform {
     dataStack?: string;
     appStack?: string;
   } {
-    // Load the environment configuration to get AWS settings
-    const { loadEnvironmentConfig } = require('../../core/environment-loader.js');
-    const envConfig = loadEnvironmentConfig(service.environment);
-    
+    // Get environment configuration from service
+    const envConfig = service.environmentConfig;
+    const aws = (envConfig as any).aws;
+
     // Get AWS config from environment file, fallback to env vars
     return {
-      region: envConfig.aws?.region || process.env.AWS_REGION || 'us-east-1',
-      accountId: envConfig.aws?.accountId || process.env.AWS_ACCOUNT_ID || '',
-      dataStack: envConfig.aws?.stacks?.data,
-      appStack: envConfig.aws?.stacks?.app
+      region: aws?.region || process.env.AWS_REGION || 'us-east-1',
+      accountId: aws?.accountId || process.env.AWS_ACCOUNT_ID || '',
+      dataStack: aws?.stacks?.data,
+      appStack: aws?.stacks?.app
     };
   }
   
@@ -357,8 +357,10 @@ export class AWSPlatform extends Platform {
       case 'stack':
         return 'stack';
       default:
-        // Pass through unknown types
-        return declaredType;
+        throw new Error(
+          `Unsupported service type for AWS platform: '${declaredType}'. ` +
+          `Supported types: frontend, backend, database, filesystem, graph, worker, inference, stack`
+        );
     }
   }
   

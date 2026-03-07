@@ -1,22 +1,24 @@
 # Semiont Backend
 
-A type-safe Node.js backend API following the Backend for Frontend (BFF) pattern, providing comprehensive document management, text selection capabilities, and graph-based knowledge organization. Built with Hono framework, featuring automatic OpenAPI documentation, JWT authentication, and integration with graph databases for managing document relationships and entity references.
+A type-safe Node.js backend API providing comprehensive document management, W3C Web Annotation support, and graph-based knowledge organization. Built with Hono framework, featuring spec-first OpenAPI validation, JWT authentication, and integration with graph databases for managing document relationships and entity references.
 
 ## Quick Links
 
 ### 📚 Documentation
+- **[Architecture](./docs/ARCHITECTURE.md)** - Infrastructure management patterns, design principles
 - **[Development Guide](./docs/DEVELOPMENT.md)** - Local development, CLI usage, manual setup
 - **[API Reference](../../specs/docs/API.md)** - API endpoints, request/response formats
 - **[Authentication](./docs/AUTHENTICATION.md)** - JWT tokens, OAuth, MCP authentication
+- **[Real-Time Events](./docs/REAL-TIME.md)** - SSE streaming, Event Store broadcasting, connection management
+- **[Logging](./docs/LOGGING.md)** - Winston logging, log levels, debugging 401s
 - **[Testing Guide](./docs/TESTING.md)** - Running tests, writing tests, coverage
 - **[Deployment Guide](./docs/DEPLOYMENT.md)** - Production deployment, rollbacks, monitoring
-- **[Contributing Guide](./docs/CONTRIBUTING.md)** - Code style, development patterns, PR requirements
 
 ### 🔗 Related Resources
-- **[W3C Web Annotation Implementation](../../specs/docs/W3C-WEB-ANNOTATION.md)** - How annotations flow through all backend layers (event store, projections, graph database)
+- **[W3C Web Annotation Implementation](../../specs/docs/W3C-WEB-ANNOTATION.md)** - How annotations flow through all backend layers (event store, materialized views, graph database)
 - **[API Client Package](../../packages/api-client/)** - Type-safe TypeScript client for consuming the backend API
 - **[Core Package](../../packages/core/)** - Shared types, utilities, and business logic
-- **[OpenAPI Specification](./public/openapi.json)** - Generated OpenAPI 3.0 schema
+- **[OpenAPI Specification](../../specs/README.md)** - Hand-written OpenAPI 3.0 schema (spec-first, source in [../../specs/src/](../../specs/src/))
 
 ## Quick Start
 
@@ -53,17 +55,47 @@ npx prisma db push
 npm run dev
 ```
 
+## 🐳 Container Image
+
+[![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/The-AI-Alliance/semiont/pkgs/container/semiont-backend)
+
+Pull and run the published backend container image:
+
+```bash
+# Pull latest development build
+docker pull ghcr.io/the-ai-alliance/semiont-backend:dev
+
+# Run with configuration
+docker run -d \
+  -p 4000:4000 \
+  -v $(pwd):/app/config \
+  -e SEMIONT_ROOT=/app/config \
+  -e SEMIONT_ENV=production \
+  --name semiont-backend \
+  ghcr.io/the-ai-alliance/semiont-backend:dev
+```
+
+**Configuration Requirements:**
+- `SEMIONT_ROOT` - Path to directory containing `semiont.json` and `environments/` subdirectory
+- `SEMIONT_ENV` - Environment name (e.g., `production`, `staging`, `development`)
+
+All other configuration (database, secrets, AI keys) comes from JSON files in `SEMIONT_ROOT/environments/{SEMIONT_ENV}.json`.
+
+**Multi-platform Support:** linux/amd64, linux/arm64
+
+See [Container Documentation](./docs/CONTAINER.md) for advanced usage, Docker Compose, and Kubernetes deployment.
+
 ## Technology Stack
 
-- **Architecture**: Backend for Frontend (BFF) pattern
+- **Architecture**: Public REST API (browser-accessible)
 - **Runtime**: Node.js with TypeScript
-- **Web Framework**: [OpenAPIHono](https://hono.dev/) - Hono with integrated OpenAPI documentation
+- **Web Framework**: [Hono](https://hono.dev/) - Fast, lightweight web framework
 - **Database**: PostgreSQL with [Prisma ORM](https://prisma.io/)
 - **Graph Database**: Neptune (AWS production) / In-memory (local development)
 - **Authentication**: JWT with OAuth 2.0 (Google)
-- **Validation**: [Zod](https://zod.dev/) for runtime type validation
-- **API Documentation**: Automatic OpenAPI/Swagger generation
-- **Document Processing**: Markdown parsing with wiki-link and entity detection
+- **Validation**: [Ajv](https://ajv.js.org/) for OpenAPI schema validation
+- **API Documentation**: Hand-written OpenAPI 3.0 specification (spec-first approach)
+- **Document Processing**: Multi-format support (text, markdown, images, PDFs) with wiki-link and annotation detection for text formats
 - **MCP Integration**: Model Context Protocol server for AI assistant access
 
 ## Architecture Highlights
@@ -73,9 +105,9 @@ npm run dev
 Semiont implements the [W3C Web Annotation Data Model](https://www.w3.org/TR/annotation-model/) for full interoperability:
 
 - **W3C-compliant annotation CRUD** with multi-body arrays
-- **Event-sourced architecture** with immutable audit trail (Layer 2: Event Store)
-- **Fast query projections** for current state (Layer 3: Projection Store)
-- **Graph database integration** for relationship traversal (Layer 4: Graph Database)
+- **Event-sourced architecture** with immutable audit trail (Event Store)
+- **Fast query views** for current state (Materialized View Storage)
+- **Graph database integration** for relationship traversal (Graph Database)
 
 **Key Features**:
 - Multi-body annotations combining entity type tags (`TextualBody`) and document links (`SpecificResource`)
@@ -85,19 +117,19 @@ Semiont implements the [W3C Web Annotation Data Model](https://www.w3.org/TR/ann
 
 For complete details, see [W3C Web Annotation Implementation](../../docs/W3C-WEB-ANNOTATION.md).
 
-### 4-Layer Data Architecture
+### Data Architecture
 
 ```
-Layer 4: Graph Database (relationships, backlinks, graph traversal)
+Graph Database (relationships, backlinks, graph traversal)
    ↑
-Layer 3: Projections (materialized views, fast queries)
+Materialized Views (fast queries, current state)
    ↑
-Layer 2: Event Store (immutable event log, source of truth)
+Event Store (immutable event log, source of truth)
    ↑
-Layer 1: Content Storage (binary/text documents, sharded)
+Content Storage (binary/text documents, sharded)
 ```
 
-**Job Worker Integration**: Background workers process long-running AI operations (entity detection, document generation) and emit events to Layer 2, which flow through to Layers 3 and 4 via the event-driven architecture.
+**Job Worker Integration**: Background workers process long-running AI operations (annotation detection, document generation) and emit events to the Event Store, which materializes views and updates the graph database via the event-driven architecture.
 
 See [Architecture Overview](../../docs/ARCHITECTURE.md) for complete details.
 
@@ -108,14 +140,14 @@ Asynchronous job processing for long-running AI operations that can't block HTTP
 **Current Status**: Prototype implementation embedded in backend process (not yet a standalone CLI-managed service)
 
 **Job Types**:
-- **Entity Detection**: Find entities in documents using AI inference, emit `annotation.added` events
+- **Annotation Detection**: Detect annotations in documents using AI inference (highlights, assessments, comments, tags, entity references), emit `annotation.added` events
 - **Document Generation**: Create new documents from annotations using AI, emit `document.created` events
 
 **Architecture**:
 - Filesystem-based job queue with atomic operations
 - FIFO job processing with automatic retry logic
 - Progress tracking with Server-Sent Events (SSE) streaming
-- Workers emit events to Layer 2 (Event Store)
+- Workers emit events to Event Store
 - Jobs continue even if client disconnects
 
 **Key Benefits**:
@@ -126,7 +158,7 @@ Asynchronous job processing for long-running AI operations that can't block HTTP
 
 **Future State**: Will become a standalone service with CLI integration, platform abstraction, and support for Redis/SQS queue backends.
 
-See [Job Worker Documentation](../../docs/services/JOB-WORKER.md) for implementation details.
+See [Jobs Package](../../packages/jobs/) for implementation details.
 
 ### Secure-by-Default Authentication
 
@@ -164,49 +196,88 @@ apps/backend/
 │   ├── middleware/           # HTTP middleware
 │   ├── types/                # Type definitions
 │   ├── validation/           # Zod validation schemas
-│   ├── events/               # Event sourcing (Layer 2)
+│   ├── events/               # Event sourcing
 │   │   ├── event-store.ts   # Immutable event log
-│   │   ├── event-projector.ts # Layer 2 → Layer 3 projection
+│   │   ├── view-manager.ts  # View management
+│   │   ├── views/           # View materialization
 │   │   └── consumers/       # Event subscription (e.g., graph sync)
 │   ├── jobs/                 # Background job workers (prototype)
 │   │   ├── job-queue.ts     # Filesystem-based job queue
 │   │   ├── types.ts         # Job type definitions
 │   │   └── workers/         # Detection & generation workers
 │   ├── services/             # Business logic services
-│   ├── storage/              # Storage layers (1, 2, 3)
-│   │   ├── content/         # Layer 1: Content store
-│   │   └── projection/      # Layer 3: Projections
+│   ├── storage/              # Storage layers
+│   │   ├── filesystem.ts    # Content store
+│   │   └── view-storage.ts  # Materialized views
 │   └── index.ts              # Main application
 ├── prisma/
 │   └── schema.prisma         # Database schema
-├── public/
-│   └── openapi.json          # Generated OpenAPI spec
 └── README.md                 # This file
+
+Note: OpenAPI specification source is maintained at `../../specs/src/` (project root)
 ```
 
 ## Core Design Principles
 
-### 1. Type Safety First
+### 1. Centralized Infrastructure Management
+
+**All infrastructure components are created once and managed by MakeMeaningService:**
+
+```typescript
+// ✅ CORRECT: Access infrastructure via context
+const { eventStore, graphDb, repStore, inferenceClient } = c.get('makeMeaning');
+
+// ❌ WRONG: Never create infrastructure in routes or services
+const graphDb = await getGraphDatabase(config);  // NEVER DO THIS
+const repStore = new FilesystemRepresentationStore(...);  // NEVER DO THIS
+```
+
+**Architecture:**
+- **MakeMeaningService** (`@semiont/make-meaning`) owns ALL infrastructure:
+  - `eventStore: EventStore` - Immutable event log and materialized views
+  - `graphDb: GraphDatabase` - Graph database for relationships and traversal
+  - `repStore: RepresentationStore` - Content-addressed document storage
+  - `inferenceClient: InferenceClient` - LLM inference for AI operations
+  - `jobQueue: JobQueue` - Background job processing
+  - `workers: { ... }` - All background workers (6 types)
+  - `graphConsumer: GraphDBConsumer` - Event-to-graph synchronization
+
+**Implementation Pattern:**
+- Infrastructure created ONCE in [index.ts:56](src/index.ts#L56) via `startMakeMeaning(config)`
+- Routes access via `c.get('makeMeaning')` from Hono context
+- Services receive infrastructure as parameters (dependency injection)
+- NO route or service creates its own infrastructure instances
+
+**Why This Matters:**
+- Prevents duplicate connections and resource leaks
+- Ensures consistent configuration across the application
+- Simplifies testing with single mock injection point
+- Clear ownership and lifecycle management
+- Centralized shutdown via `makeMeaning.stop()`
+
+See [Make-Meaning Package](../../packages/make-meaning/) for implementation details.
+
+### 2. Type Safety First
 - TypeScript throughout with strict mode
 - Compile-time validation
 - Type-safe API client generation
 
-### 2. Runtime Validation
+### 3. Runtime Validation
 - All inputs validated with Zod schemas
 - Fail-fast on invalid data
 - Detailed error messages
 
-### 3. Functional Programming
+### 4. Functional Programming
 - Pure functions preferred
 - Immutable data structures
 - No side effects in business logic
 
-### 4. Event Sourcing
+### 5. Event Sourcing
 - Immutable event log as source of truth
 - Projections for fast queries
 - Complete audit trail
 
-### 5. Security by Default
+### 6. Security by Default
 - All routes protected unless explicitly public
 - Multi-layer JWT validation
 - Environment variable validation at startup
@@ -224,10 +295,11 @@ Features:
 - 📊 Schema visualization
 
 ### OpenAPI Specification
-- **Endpoint**: `/doc` - Raw OpenAPI 3.0 spec
-- **File**: [public/openapi.json](./public/openapi.json)
-- **Auto-generated** from Hono route definitions with Zod schemas
-- **Type-safe** with full TypeScript definitions
+- **Endpoint**: `/api/openapi.json` - Raw OpenAPI 3.0 spec (generated bundle)
+- **Source**: [../../specs/src/](../../specs/src/) - Hand-written specification files
+- **Spec-first approach** - Hand-written specification, backend validates against it
+- **Type generation** - Frontend types generated from spec via `openapi-typescript`
+- **Validation** - Backend uses Ajv to validate requests against schemas
 
 ## Common Tasks
 
@@ -282,11 +354,12 @@ See [Deployment Guide](./docs/DEPLOYMENT.md) for complete procedures.
 
 We welcome contributions! Please read:
 
-1. [Contributing Guide](./docs/CONTRIBUTING.md) - Code style, patterns, PR requirements
+1. [Architecture](./docs/ARCHITECTURE.md) - **Critical design patterns and constraints**
 2. [Development Guide](./docs/DEVELOPMENT.md) - Setting up local environment
 3. [Testing Guide](./docs/TESTING.md) - Writing and running tests
 
 **Key Requirements**:
+- **Follow infrastructure management pattern** - NEVER create EventStore, GraphDatabase, RepresentationStore, or InferenceClient instances (see [Architecture](./docs/ARCHITECTURE.md))
 - Functional programming (pure functions, no mutations)
 - All tests must pass
 - TypeScript must compile without errors (strict mode)
@@ -317,20 +390,24 @@ For detailed troubleshooting, see [Development Guide](./docs/DEVELOPMENT.md#trou
 ## Further Reading
 
 ### Backend Documentation
+- [Architecture](./docs/ARCHITECTURE.md) - **Infrastructure management patterns (REQUIRED READING)**
 - [Development Guide](./docs/DEVELOPMENT.md) - Complete local development setup
 - [API Reference](./docs/API.md) - All API endpoints and examples
 - [Authentication](./docs/AUTHENTICATION.md) - JWT, OAuth, MCP implementation
+- [Real-Time Events](./docs/REAL-TIME.md) - SSE streaming, Event Store broadcasting, connection management
+- [Database](./docs/DATABASE.md) - PostgreSQL setup for user authentication
+- [Filesystem](./docs/FILESYSTEM.md) - Storage patterns and providers
+- [Data Flow](./docs/DATA-FLOW.md) - Data flow across all storage layers
+- [Logging](./docs/LOGGING.md) - Winston logging, log levels, debugging
 - [Testing](./docs/TESTING.md) - Testing philosophy and patterns
 - [Deployment](./docs/DEPLOYMENT.md) - Production deployment guide
-- [Contributing](./docs/CONTRIBUTING.md) - How to contribute
 
 ### System Documentation
 - [System Architecture](../../docs/ARCHITECTURE.md) - Overall platform architecture
-- [W3C Web Annotation](../../docs/W3C-WEB-ANNOTATION.md) - Annotation data flow
-- [Event Store](../../docs/services/EVENT-STORE.md) - Layer 2 event sourcing
-- [Projection Storage](../../docs/services/PROJECTION.md) - Layer 3 materialized views
-- [Graph Database](../../docs/services/GRAPH.md) - Layer 4 relationships
-- [Job Worker](../../docs/services/JOB-WORKER.md) - Background job processing (prototype)
+- [W3C Web Annotation](../../specs/docs/W3C-WEB-ANNOTATION.md) - Annotation data flow
+- [Event Sourcing Package](../../packages/event-sourcing/) - Event log and materialized views
+- [Graph Package](../../packages/graph/) - Relationship traversal
+- [Jobs Package](../../packages/jobs/) - Background job processing (prototype)
 
 ### External Resources
 - [Hono Documentation](https://hono.dev/)

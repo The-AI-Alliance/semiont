@@ -1,3 +1,5 @@
+import { userId } from '@semiont/core';
+import { email } from '@semiont/core';
 /**
  * Comprehensive tests for JWT service
  * 
@@ -9,26 +11,37 @@
  */
 
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import * as jwt from 'jsonwebtoken';
 import { JWTService } from '../../auth/jwt';
 import { User } from '@prisma/client';
+import type { JWTPayload } from '../../types/jwt-types';
 
-// Mock jsonwebtoken
-vi.mock('jsonwebtoken', () => ({
-  sign: vi.fn(),
-  verify: vi.fn(),
-  JsonWebTokenError: class JsonWebTokenError extends Error {},
-  TokenExpiredError: class TokenExpiredError extends Error {
-    constructor(message: string, public expiredAt: Date) {
-      super(message);
-    }
-  },
-  NotBeforeError: class NotBeforeError extends Error {
-    constructor(message: string, public date: Date) {
-      super(message);
-    }
-  },
-}));
+// Mock jsonwebtoken - must be defined inline in the factory due to hoisting
+vi.mock('jsonwebtoken', () => {
+  const mockSign = vi.fn();
+  const mockVerify = vi.fn();
+  const mockJwt = {
+    sign: mockSign,
+    verify: mockVerify,
+    JsonWebTokenError: class JsonWebTokenError extends Error {},
+    TokenExpiredError: class TokenExpiredError extends Error {
+      constructor(message: string, public expiredAt: Date) {
+        super(message);
+      }
+    },
+    NotBeforeError: class NotBeforeError extends Error {
+      constructor(message: string, public date: Date) {
+        super(message);
+      }
+    },
+  };
+  return {
+    default: mockJwt,
+    ...mockJwt,
+  };
+});
+
+// Import the mocked module to access the mock functions
+import jwt from 'jsonwebtoken';
 
 // Mock validation schemas - not needed anymore since JWT uses direct imports
 vi.mock('../../validation/schemas', () => ({
@@ -52,6 +65,7 @@ describe('JWT Service', () => {
     domain: 'example.com',
     provider: 'google',
     providerId: 'google-123',
+    passwordHash: null,
     isAdmin: false,
     isActive: true,
     isModerator: false,
@@ -78,11 +92,11 @@ describe('JWT Service', () => {
   describe('generateToken', () => {
     it('should generate JWT token with correct payload', () => {
       const expectedToken = 'generated.jwt.token';
-      vi.mocked(vi.mocked(jwt.sign)).mockReturnValue(expectedToken as any);
+      vi.mocked(jwt.sign).mockReturnValue(expectedToken as any);
 
       const result = JWTService.generateToken({
-        userId: mockUser.id,
-        email: mockUser.email,
+        userId: userId(mockUser.id),
+        email: email(mockUser.email),
         name: mockUser.name || undefined,
         domain: mockUser.domain,
         provider: mockUser.provider,
@@ -109,11 +123,11 @@ describe('JWT Service', () => {
 
     it('should generate token for admin user', () => {
       const expectedToken = 'admin.jwt.token';
-      vi.mocked(vi.mocked(jwt.sign)).mockReturnValue(expectedToken as any);
+      vi.mocked(jwt.sign).mockReturnValue(expectedToken as any);
 
       const result = JWTService.generateToken({
-        userId: mockUser.id,
-        email: mockUser.email,
+        userId: userId(mockUser.id),
+        email: email(mockUser.email),
         name: mockUser.name || undefined,
         domain: mockUser.domain,
         provider: mockUser.provider,
@@ -135,8 +149,8 @@ describe('JWT Service', () => {
       vi.mocked(vi.mocked(jwt.sign)).mockReturnValue(expectedToken as any);
 
       const result = JWTService.generateToken({
-        userId: mockUser.id,
-        email: mockUser.email,
+        userId: userId(mockUser.id),
+        email: email(mockUser.email),
         domain: mockUser.domain,
         provider: mockUser.provider,
         isAdmin: mockUser.isAdmin,
@@ -162,8 +176,8 @@ describe('JWT Service', () => {
       });
 
       expect(() => JWTService.generateToken({
-        userId: mockUser.id,
-        email: mockUser.email,
+        userId: userId(mockUser.id),
+        email: email(mockUser.email),
         name: mockUser.name || undefined,
         domain: mockUser.domain,
         provider: mockUser.provider,
@@ -175,8 +189,8 @@ describe('JWT Service', () => {
       vi.mocked(jwt.sign).mockReturnValue('test.token' as any);
 
       JWTService.generateToken({
-        userId: mockUser.id,
-        email: mockUser.email,
+        userId: userId(mockUser.id),
+        email: email(mockUser.email),
         name: mockUser.name || undefined,
         domain: mockUser.domain,
         provider: mockUser.provider,
@@ -280,19 +294,19 @@ describe('JWT Service', () => {
   describe('isAllowedDomain', () => {
     it('should allow configured domains', () => {
       // The mock has oauthAllowedDomains: ['example.com', 'test.org']
-      expect(JWTService.isAllowedDomain('user@example.com')).toBe(true);
-      expect(JWTService.isAllowedDomain('admin@test.org')).toBe(true);
+      expect(JWTService.isAllowedDomain(email('user@example.com'))).toBe(true);
+      expect(JWTService.isAllowedDomain(email('admin@test.org'))).toBe(true);
     });
 
     it('should reject non-configured domains', () => {
-      expect(JWTService.isAllowedDomain('user@evil.com')).toBe(false);
-      expect(JWTService.isAllowedDomain('admin@hacker.org')).toBe(false);
+      expect(JWTService.isAllowedDomain(email('user@evil.com'))).toBe(false);
+      expect(JWTService.isAllowedDomain(email('admin@hacker.org'))).toBe(false);
     });
 
     it('should handle invalid email formats', () => {
-      expect(JWTService.isAllowedDomain('invalid-email')).toBe(false);
-      expect(JWTService.isAllowedDomain('')).toBe(false);
-      expect(JWTService.isAllowedDomain('@example.com')).toBe(false);
+      expect(JWTService.isAllowedDomain(email('invalid-email'))).toBe(false);
+      expect(JWTService.isAllowedDomain(email(''))).toBe(false);
+      expect(JWTService.isAllowedDomain(email('@example.com'))).toBe(false);
     });
   });
 
@@ -304,8 +318,8 @@ describe('JWT Service', () => {
 
       try {
         JWTService.generateToken({
-          userId: mockUser.id,
-          email: mockUser.email,
+          userId: userId(mockUser.id),
+          email: email(mockUser.email),
           name: mockUser.name || undefined,
           domain: mockUser.domain,
           provider: mockUser.provider,
@@ -320,9 +334,9 @@ describe('JWT Service', () => {
 
     it('should handle concurrent token operations safely', () => {
       const users = [
-        { userId: 'user-1', email: 'user1@example.com', name: 'User 1', domain: 'example.com', provider: 'google', isAdmin: false },
-        { userId: 'user-2', email: 'user2@example.com', name: 'User 2', domain: 'example.com', provider: 'google', isAdmin: false },
-        { userId: 'user-3', email: 'user3@example.com', name: 'User 3', domain: 'example.com', provider: 'google', isAdmin: true },
+        { userId: userId('user-1'), email: email('user1@example.com'), name: 'User 1', domain: 'example.com', provider: 'google', isAdmin: false },
+        { userId: userId('user-2'), email: email('user2@example.com'), name: 'User 2', domain: 'example.com', provider: 'google', isAdmin: false },
+        { userId: userId('user-3'), email: email('user3@example.com'), name: 'User 3', domain: 'example.com', provider: 'google', isAdmin: true },
       ];
 
       vi.mocked(jwt.sign)
@@ -340,8 +354,8 @@ describe('JWT Service', () => {
       vi.mocked(jwt.sign).mockReturnValue('test.token' as any);
 
       JWTService.generateToken({
-        userId: mockUser.id,
-        email: mockUser.email,
+        userId: userId(mockUser.id),
+        email: email(mockUser.email),
         name: mockUser.name || undefined,
         domain: mockUser.domain,
         provider: mockUser.provider,
@@ -361,8 +375,8 @@ describe('JWT Service', () => {
       vi.mocked(jwt.sign).mockReturnValue('regular.token' as any);
 
       JWTService.generateToken({
-        userId: mockUser.id,
-        email: mockUser.email,
+        userId: userId(mockUser.id),
+        email: email(mockUser.email),
         name: mockUser.name || undefined,
         domain: mockUser.domain,
         provider: mockUser.provider,
@@ -379,7 +393,7 @@ describe('JWT Service', () => {
 
       const callArgs = vi.mocked(jwt.sign).mock.calls[0];
       const [payload] = callArgs || [];
-      expect((payload as any)?.isAdmin).toBe(false);
+      expect((payload as JWTPayload)?.isAdmin).toBe(false);
     });
   });
 });

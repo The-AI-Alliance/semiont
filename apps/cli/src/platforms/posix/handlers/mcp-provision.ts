@@ -1,11 +1,10 @@
 import * as http from 'http';
 import { spawn } from 'child_process';
-import * as path from 'path';
 import * as fs from 'fs';
-import * as os from 'os';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
-import { loadEnvironmentConfig } from '../../../core/environment-loader.js';
+import { getMCPPaths } from './mcp-paths.js';
+import { checkPortFree, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 
 /**
  * Provision handler for MCP (Model Context Protocol) services on POSIX systems
@@ -27,17 +26,28 @@ const provisionMCPService = async (context: PosixProvisionHandlerContext): Promi
       }
     };
   }
-  
-  const envConfig = loadEnvironmentConfig(service.environment);
-  const domain = envConfig.site?.domain || 'localhost:3000';
+
+  // Get environment configuration from service
+  const envConfig = service.environmentConfig;
+  if (!envConfig.site?.domain) {
+    return {
+      success: false,
+      error: 'Site domain must be configured in environment config',
+      metadata: {
+        serviceType: 'mcp'
+      }
+    };
+  }
+  const domain = envConfig.site.domain;
   const protocol = domain.includes('localhost') ? 'http' : 'https';
   const port = 8585; // Default MCP OAuth callback port
   
+  // Get MCP paths
+  const paths = getMCPPaths(context);
+  const { configDir, authFile: authPath } = paths;
+
   // Create config directory
-  const configDir = path.join(os.homedir(), '.config', 'semiont');
   await fs.promises.mkdir(configDir, { recursive: true });
-  
-  const authPath = path.join(configDir, `mcp-auth-${service.environment}.json`);
   
   if (!service.quiet) {
     printInfo('🔐 Setting up MCP authentication...');
@@ -45,7 +55,7 @@ const provisionMCPService = async (context: PosixProvisionHandlerContext): Promi
   
   return new Promise((resolve, _reject) => {
     let timeoutId: NodeJS.Timeout;
-    const connections = new Set<any>();
+    const connections = new Set<import('net').Socket>();
     
     // Start local HTTP server to receive OAuth callback
     const server = http.createServer((req, res) => {
@@ -175,6 +185,12 @@ const provisionMCPService = async (context: PosixProvisionHandlerContext): Promi
   });
 };
 
+const preflightMCPProvision = async () => {
+  return preflightFromChecks([
+    await checkPortFree(8585),
+  ]);
+};
+
 /**
  * Descriptor for MCP service provision handler
  */
@@ -182,5 +198,6 @@ export const mcpProvisionDescriptor: HandlerDescriptor<PosixProvisionHandlerCont
   command: 'provision',
   platform: 'posix',
   serviceType: 'mcp',
-  handler: provisionMCPService
+  handler: provisionMCPService,
+  preflight: preflightMCPProvision
 };

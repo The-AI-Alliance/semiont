@@ -48,7 +48,7 @@ describe('CLI Environment Validation Logic', () => {
       // Remove environments directory entirely
       fs.rmSync(configDir, { recursive: true, force: true });
       
-      const { getAvailableEnvironments } = await import('../core/environment-loader');
+      const { getAvailableEnvironments } = await import('../core/config-loader.js');
       const environments = getAvailableEnvironments();
       
       expect(environments).toEqual([]);
@@ -71,7 +71,7 @@ describe('CLI Environment Validation Logic', () => {
         );
       }
       
-      const { getAvailableEnvironments, isValidEnvironment } = await import('../core/environment-loader');
+      const { getAvailableEnvironments, isValidEnvironment } = await import('../core/config-loader.js');
       
       const environments = getAvailableEnvironments();
       const isValid = isValidEnvironment('nonexistent');
@@ -101,7 +101,7 @@ describe('CLI Environment Validation Logic', () => {
         );
       }
       
-      const { getAvailableEnvironments } = await import('../core/environment-loader');
+      const { getAvailableEnvironments } = await import('../core/config-loader.js');
       const environments = getAvailableEnvironments();
       
       // This simulates the help text generation
@@ -113,7 +113,7 @@ describe('CLI Environment Validation Logic', () => {
     it('should show "none found" when no environments exist', async () => {
       fs.rmSync(configDir, { recursive: true, force: true });
       
-      const { getAvailableEnvironments } = await import('../core/environment-loader');
+      const { getAvailableEnvironments } = await import('../core/config-loader.js');
       const environments = getAvailableEnvironments();
       
       const helpText = `Environment (${environments.join(', ') || 'none found'})`;
@@ -154,15 +154,15 @@ describe('CLI Environment Validation Logic', () => {
         JSON.stringify(customConfig, null, 2)
       );
       
-      const { loadEnvironmentConfig, isValidEnvironment } = await import('../core/environment-loader');
-      
+      const { loadEnvironmentConfig, isValidEnvironment } = await import('../core/config-loader.js');
+
       expect(isValidEnvironment('demo')).toBe(true);
-      
-      const config = loadEnvironmentConfig('demo');
+
+      const config = loadEnvironmentConfig(testDir, 'demo');
       expect(config.services).toHaveProperty('api');
       expect(config.services).toHaveProperty('web');
       expect(config.services).toHaveProperty('cache');
-      expect(config.services?.api?.port).toBe(8080);
+      expect((config.services as any).api?.port).toBe(8080);
       expect(config.site?.domain).toBe('demo.example.com');
     });
   });
@@ -190,11 +190,15 @@ describe('CLI Environment Validation Logic', () => {
           backend: {
             platform: { type: 'posix' },
             port: 4001,
+            publicURL: 'http://test.local:4001',
+            corsOrigin: 'http://test.local:4000',
             command: 'npm start'
           },
           frontend: {
             platform: { type: 'posix' },
             port: 4000,
+            publicURL: 'http://test.local:4000',
+            siteName: 'Test Site',
             command: 'npm start'
           }
         }
@@ -205,11 +209,11 @@ describe('CLI Environment Validation Logic', () => {
         JSON.stringify(validConfig, null, 2)
       );
       
-      const { loadEnvironmentConfig, isValidEnvironment } = await import('../core/environment-loader');
-      
+      const { loadEnvironmentConfig, isValidEnvironment } = await import('../core/config-loader.js');
+
       expect(isValidEnvironment('test')).toBe(true);
-      
-      const loaded = loadEnvironmentConfig('test');
+
+      const loaded = loadEnvironmentConfig(testDir, 'test');
       
       // Verify all sections are present
       expect(loaded.platform).toBeDefined();

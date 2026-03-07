@@ -1,9 +1,11 @@
 import * as fs from 'fs';
-import * as path from 'path';
 import { execSync } from 'child_process';
 import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { PlatformResources } from '../../platform-resources.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
+import { getFilesystemPaths } from './filesystem-paths.js';
+import { checkFileExists, checkDirectoryWritable, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Start handler for filesystem services on POSIX systems
@@ -13,10 +15,10 @@ import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logg
  */
 const startFilesystemService = async (context: PosixStartHandlerContext): Promise<StartHandlerResult> => {
   const { service } = context;
-  
-  // Get the configured path
-  const basePath = service.config.path || path.join(process.cwd(), 'data', service.name);
-  const absolutePath = path.isAbsolute(basePath) ? basePath : path.join(service.projectRoot, basePath);
+
+  // Get filesystem paths
+  const paths = getFilesystemPaths(context);
+  const { baseDir: absolutePath, uploadsDir, tempDir, cacheDir, logsDir } = paths;
   
   if (!service.quiet) {
     printInfo(`Starting filesystem service ${service.name}...`);
@@ -57,19 +59,23 @@ const startFilesystemService = async (context: PosixStartHandlerContext): Promis
   }
   
   // Ensure standard subdirectories exist
-  const standardDirs = ['uploads', 'temp', 'cache', 'logs'];
+  const standardDirs = [
+    { path: uploadsDir, name: 'uploads' },
+    { path: tempDir, name: 'temp' },
+    { path: cacheDir, name: 'cache' },
+    { path: logsDir, name: 'logs' }
+  ];
   for (const dir of standardDirs) {
-    const dirPath = path.join(absolutePath, dir);
-    if (!fs.existsSync(dirPath)) {
-      fs.mkdirSync(dirPath, { recursive: true });
+    if (!fs.existsSync(dir.path)) {
+      fs.mkdirSync(dir.path, { recursive: true });
       if (!service.quiet) {
-        printInfo(`Created subdirectory: ${dir}/`);
+        printInfo(`Created subdirectory: ${dir.name}/`);
       }
     }
   }
   
   // Check disk space
-  let diskInfo: any = {};
+  let diskInfo: Record<string, unknown> = {};
   try {
     const dfOutput = execSync(`df -h "${absolutePath}"`, { encoding: 'utf-8' });
     const lines = dfOutput.split('\n');
@@ -129,9 +135,17 @@ const startFilesystemService = async (context: PosixStartHandlerContext): Promis
       path: absolutePath,
       accessible: true,
       diskInfo,
-      directories: standardDirs.map(dir => path.join(absolutePath, dir))
+      directories: [uploadsDir, tempDir, cacheDir, logsDir]
     }
   };
+};
+
+const preflightFilesystemStart = async (context: PosixStartHandlerContext): Promise<PreflightResult> => {
+  const paths = getFilesystemPaths(context);
+  return preflightFromChecks([
+    checkFileExists(paths.baseDir, 'filesystem data directory'),
+    checkDirectoryWritable(paths.baseDir),
+  ]);
 };
 
 /**
@@ -141,5 +155,6 @@ export const filesystemStartDescriptor: HandlerDescriptor<PosixStartHandlerConte
   command: 'start',
   platform: 'posix',
   serviceType: 'filesystem',
-  handler: startFilesystemService
+  handler: startFilesystemService,
+  preflight: preflightFilesystemStart
 };

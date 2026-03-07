@@ -1,0 +1,14 @@
+{
+  "type": "object",
+  "properties": {
+    "entityTypes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "entityTypes"
+  ]
+}

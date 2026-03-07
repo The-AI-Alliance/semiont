@@ -1,0 +1,26 @@
+{
+  "type": "object",
+  "properties": {
+    "resources": {
+      "type": "array",
+      "items": {
+        "$ref": "./ResourceDescriptor.json"
+      }
+    },
+    "total": {
+      "type": "number"
+    },
+    "offset": {
+      "type": "number"
+    },
+    "limit": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "resources",
+    "total",
+    "offset",
+    "limit"
+  ]
+}

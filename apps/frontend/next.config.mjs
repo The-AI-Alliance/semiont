@@ -21,8 +21,8 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: https: blob:",
-      // Allow localhost:4000 only in development
-      `connect-src 'self' ${process.env.NODE_ENV === 'development' ? 'http://localhost:4000' : ''} https://accounts.google.com https://www.googleapis.com`,
+      // Allow connections to self (routing layer routes to backend), Google OAuth
+      "connect-src 'self' https://accounts.google.com https://www.googleapis.com",
       "frame-src 'self' https://accounts.google.com",
       "form-action 'self'",
       "base-uri 'self'",
@@ -76,7 +76,7 @@ const securityHeaders = [
 ];
 
 const baseConfig = {
-  // Enable standalone output for Docker optimization
+  // Enable standalone output for container deployment
   output: 'standalone',
 
   // Security headers
@@ -118,21 +118,29 @@ const baseConfig = {
   reactStrictMode: true,
 
   // Performance optimizations
-  swcMinify: true,
   compress: true,
   poweredByHeader: false,
-
-  // Optimize fonts
-  optimizeFonts: true,
-
-  // Externalize packages to prevent webpack bundling issues
-  // This is critical for packages using Zod v4 which has known bundling issues
-  serverExternalPackages: ['zod', '@semiont/core'],
 
   experimental: {
     // Enable if needed for future features
     // optimizeCss: true, // Disabled due to critters dependency issue
-    optimizePackageImports: ['@tanstack/react-query', 'next-auth'],
+    optimizePackageImports: [
+      '@tanstack/react-query',
+      '@semiont/react-ui',
+      '@semiont/api-client',
+      'next-auth',
+      '@heroicons/react',
+      '@headlessui/react',
+      '@codemirror/lang-json',
+      '@codemirror/lang-markdown',
+      '@codemirror/view',
+      'react-markdown',
+    ],
+    serverActions: {
+      // Allow Server Actions from forwarded hosts (proxy, load balancer, etc.)
+      // NEXT_PUBLIC_ALLOWED_ORIGINS: comma-separated list of allowed origin patterns
+      allowedOrigins: process.env.NEXT_PUBLIC_ALLOWED_ORIGINS?.split(',').map(s => s.trim()) || [],
+    },
   },
 
   // Bundle optimization

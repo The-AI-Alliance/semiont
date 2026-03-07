@@ -5,7 +5,7 @@ import { useRouter } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
 
 export default function KnowledgePage() {
-  const t = useTranslations('Knowledge');
+  const t = useTranslations('Sidebar');
   const router = useRouter();
   const [checking, setChecking] = useState(true);
 
@@ -15,7 +15,7 @@ export default function KnowledgePage() {
     
     if (lastDocumentId) {
       // If there's a last viewed document, go to it
-      router.replace(`/know/document/${lastDocumentId}`);
+      router.replace(`/know/resource/${lastDocumentId}`);
     } else {
       // Otherwise, go to Discover
       router.replace('/know/discover');

@@ -14,12 +14,19 @@ import { authMiddleware } from '../middleware/auth';
 import { DatabaseConnection } from '../db';
 import { JWTService } from '../auth/jwt';
 import { OAuthService } from '../auth/oauth';
+import * as argon2 from 'argon2';
 import type { User } from '@prisma/client';
 import type { JWTPayload as ValidatedJWTPayload } from '../types/jwt-types';
-import type { components } from '@semiont/api-client';
+import type { components } from '@semiont/core';
+import { userId as makeUserId, googleCredential, email as makeEmail } from '@semiont/core';
+import { getLogger } from '../logger';
+import { createSafeLogContext } from '../utils/log-sanitizer';
+
+// Lazy initialization to avoid calling getLogger() at module load time
+const getRouteLogger = () => getLogger().child({ component: 'auth' });
 
 // Types from OpenAPI spec (generated)
-type LocalAuthRequest = components['schemas']['LocalAuthRequest'];
+type PasswordAuthRequest = components['schemas']['PasswordAuthRequest'];
 type GoogleAuthRequest = components['schemas']['GoogleAuthRequest'];
 type TokenRefreshRequest = components['schemas']['TokenRefreshRequest'];
 type AuthResponse = components['schemas']['AuthResponse'];
@@ -32,27 +39,22 @@ type MCPGenerateResponse = components['schemas']['MCPGenerateResponse'];
 export const authRouter = new Hono<{ Variables: { user: User; validatedBody: unknown } }>();
 
 /**
- * POST /api/tokens/local
+ * POST /api/tokens/password
  *
- * Local development authentication - validates request against OpenAPI schema
+ * Password Authentication
+ * Authenticate with email and password
  *
- * Request validation: Uses validateRequestBody middleware with 'LocalAuthRequest' schema
+ * Request validation: Uses validateRequestBody middleware with 'PasswordAuthRequest' schema
  * Response type: AuthResponse from OpenAPI spec
  */
-authRouter.post('/api/tokens/local',
-  validateRequestBody('LocalAuthRequest'),  // ← Validate against OpenAPI schema
+authRouter.post('/api/tokens/password',
+  validateRequestBody('PasswordAuthRequest'),
   async (c) => {
-    // Only allow in development mode
-    if (process.env.NODE_ENV !== 'development' && process.env.ENABLE_LOCAL_AUTH !== 'true') {
-      return c.json({
-        error: 'Local authentication is not enabled'
-      }, 403);
-    }
-
     try {
-      // Get validated body from context (already validated by middleware)
-      const body = c.get('validatedBody') as LocalAuthRequest;
-      const { email } = body;
+      const body = c.get('validatedBody') as PasswordAuthRequest;
+      const { email, password } = body;
+
+      getRouteLogger().debug('Password auth attempt', { email });
 
       // Get user from database by email
       const prisma = DatabaseConnection.getClient();
@@ -60,22 +62,63 @@ authRouter.post('/api/tokens/local',
         where: { email }
       });
 
+      // Return same error for user not found and wrong password (security)
       if (!user) {
+        getRouteLogger().debug('Password auth failed: user not found', { email });
         return c.json({
-          error: 'User not found. Please ensure the user has been seeded during backend provisioning.'
+          error: 'Invalid credentials'
+        }, 401);
+      }
+
+      getRouteLogger().debug('User found', createSafeLogContext({
+        email,
+        provider: user.provider,
+        isActive: user.isActive,
+        hasPasswordHash: !!user.passwordHash
+      }));
+
+      // Verify user is password provider
+      if (user.provider !== 'password') {
+        getRouteLogger().debug('Password auth failed: wrong provider', {
+          email,
+          provider: user.provider
+        });
+        return c.json({
+          error: 'This account uses OAuth. Please sign in with Google.'
         }, 400);
       }
 
+      // Verify password hash exists
+      if (!user.passwordHash) {
+        getRouteLogger().debug('Password auth failed: no password hash', { email });
+        return c.json({
+          error: 'Password not set for this account'
+        }, 400);
+      }
+
+      // Verify password
+      const isValid = await argon2.verify(user.passwordHash, password);
+      if (!isValid) {
+        getRouteLogger().debug('Password auth failed: invalid password', { email });
+        return c.json({
+          error: 'Invalid credentials'
+        }, 401);
+      }
+
+      // Check if user is active
       if (!user.isActive) {
+        getRouteLogger().debug('Password auth failed: inactive account', { email });
         return c.json({
-          error: 'User is not active'
-        }, 400);
+          error: 'Account is not active'
+        }, 403);
       }
 
-      // Generate JWT token for the user
+      getRouteLogger().debug('Password auth successful', { email });
+
+      // Generate JWT token
       const jwtPayload: Omit<ValidatedJWTPayload, 'iat' | 'exp'> = {
-        userId: user.id,
-        email: user.email,
+        userId: makeUserId(user.id),
+        email: makeEmail(user.email),
         ...(user.name && { name: user.name }),
         domain: user.domain,
         provider: user.provider,
@@ -106,7 +149,10 @@ authRouter.post('/api/tokens/local',
 
       return c.json(response, 200);
     } catch (error) {
-      console.error('[LocalAuth] Error:', error);
+      getRouteLogger().error('Password auth error', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
       return c.json({
         error: 'Authentication failed'
       }, 400);
@@ -137,7 +183,7 @@ authRouter.post('/api/tokens/google',
       }
 
       // Verify Google token and get user info
-      const googleUser = await OAuthService.verifyGoogleToken(access_token);
+      const googleUser = await OAuthService.verifyGoogleToken(googleCredential(access_token));
 
       // Create or update user
       const { user, token, isNewUser } = await OAuthService.createOrUpdateUser(googleUser);
@@ -158,7 +204,10 @@ authRouter.post('/api/tokens/google',
 
       return c.json(response, 200);
     } catch (error) {
-      console.error('OAuth error:', error);
+      getRouteLogger().error('OAuth authentication error', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
       const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
       return c.json({ error: errorMessage }, 400);
     }
@@ -177,24 +226,24 @@ authRouter.post('/api/tokens/google',
 authRouter.post('/api/tokens/refresh',
   validateRequestBody('TokenRefreshRequest'),
   async (c) => {
-    console.log('Refresh endpoint hit');
+    getRouteLogger().debug('Refresh endpoint hit');
     const body = c.get('validatedBody') as TokenRefreshRequest;
     const { refreshToken } = body;
 
     if (!refreshToken) {
-      console.log('Refresh endpoint: No refresh token provided');
+      getRouteLogger().debug('Refresh endpoint: No refresh token provided');
       return c.json({ error: 'Refresh token required' }, 401);
     }
 
-    console.log('Refresh endpoint: Attempting to verify token');
+    getRouteLogger().debug('Refresh endpoint: Attempting to verify token');
 
     try {
       // Verify refresh token
       const payload = JWTService.verifyToken(refreshToken);
-      console.log('Refresh endpoint: Token verified, userId:', payload.userId);
+      getRouteLogger().debug('Refresh endpoint: Token verified', { userId: payload.userId });
 
       if (!payload.userId) {
-        console.log('Refresh endpoint: No userId in token payload');
+        getRouteLogger().debug('Refresh endpoint: No userId in token payload');
         return c.json({ error: 'Invalid token payload' }, 401);
       }
 
@@ -210,8 +259,8 @@ authRouter.post('/api/tokens/refresh',
 
       // Generate new short-lived access token (1 hour)
       const accessTokenPayload: Omit<ValidatedJWTPayload, 'iat' | 'exp'> = {
-        userId: user.id,
-        email: user.email,
+        userId: makeUserId(user.id),
+        email: makeEmail(user.email),
         domain: user.domain,
         provider: user.provider,
         isAdmin: user.isAdmin,
@@ -226,10 +275,10 @@ authRouter.post('/api/tokens/refresh',
       return c.json(response, 200);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('Token refresh error:', errorMessage);
-      if (error instanceof Error) {
-        console.error('Error stack:', error.stack);
-      }
+      getRouteLogger().error('Token refresh error', {
+        error: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined
+      });
 
       // Provide specific error messages for different failure modes
       if (errorMessage.includes('expired')) {
@@ -284,8 +333,8 @@ authRouter.post('/api/tokens/mcp-generate', authMiddleware, async (c) => {
   try {
     // Generate long-lived refresh token (30 days) for MCP
     const tokenPayload: Omit<ValidatedJWTPayload, 'iat' | 'exp'> = {
-      userId: user.id,
-      email: user.email,
+      userId: makeUserId(user.id),
+      email: makeEmail(user.email),
       domain: user.domain,
       provider: user.provider,
       isAdmin: user.isAdmin,
@@ -299,7 +348,10 @@ authRouter.post('/api/tokens/mcp-generate', authMiddleware, async (c) => {
 
     return c.json(response, 200);
   } catch (error) {
-    console.error('MCP token generation error:', error);
+    getRouteLogger().error('MCP token generation error', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
     return c.json({ error: 'Failed to generate refresh token' }, 401);
   }
 });
@@ -315,7 +367,7 @@ authRouter.post('/api/users/accept-terms', authMiddleware, async (c) => {
   const user = c.get('user');
 
   // Update the user's terms acceptance
-  await OAuthService.acceptTerms(user.id);
+  await OAuthService.acceptTerms(makeUserId(user.id));
 
   const response: AcceptTermsResponse = {
     success: true,

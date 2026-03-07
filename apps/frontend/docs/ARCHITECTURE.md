@@ -38,10 +38,71 @@ The Semiont frontend is a Next.js 14 application using the App Router with React
 - **NextAuth.js** - Authentication session management
 
 ### UI & Styling
-- **Tailwind CSS** - Utility-first CSS framework
+
+#### Hybrid CSS Architecture
+The frontend uses a hybrid CSS approach that combines:
+- **@semiont/react-ui** - Semantic CSS with BEM methodology for all UI components, organized into:
+  - `core/` - Fundamental UI elements (buttons, toggles, sliders, badges, tags, indicators)
+  - `components/` - Complex composed components (forms, modals, cards)
+  - `panels/` - Panel layouts and containers (12 different panel styles)
+  - `motivations/` - W3C Web Annotation standard styles (5 motivation types)
+  - `features/` - Feature-specific styling
+- **Tailwind CSS** - Utility-first CSS for app-specific layouts and custom components
+
+This architecture ensures:
+- Framework-agnostic component library (@semiont/react-ui uses semantic CSS)
+- Modular organization with clear separation (core elements vs. components vs. panels)
+- Centralized design tokens for consistency (panel tokens, color palettes)
+- W3C Web Annotation compliance with dedicated motivation styles
+- Flexibility for app-specific styling (frontend uses Tailwind)
+- Clear separation of concerns (component styles vs. layout utilities)
+
+#### UI Libraries
 - **CodeMirror 6** - Code editor for document content
-- **Headless UI** - Accessible UI components
+- **Headless UI** - Accessible UI components with Tailwind integration
 - **Radix UI** - Low-level UI primitives
+
+### Component Library Architecture
+
+The frontend leverages **@semiont/react-ui**, a comprehensive framework-agnostic component library that provides:
+
+#### Core Components
+- **UI Components**: Button, Card, Toolbar, Toast, StatusDisplay
+- **Resource Components**: ResourceViewer, AnnotateView, BrowseView
+- **Annotation Components**: Complete annotation system with popups and overlays
+- **Panel Components**: Comments, References, Tags, Statistics, JSON-LD panels
+- **Navigation**: Footer, NavigationMenu, SkipLinks
+- **Layout**: UnifiedHeader, LeftSidebar, PageLayout
+- **Session**: SessionTimer, SessionExpiryBanner
+
+#### Hooks & Utilities
+- **API Hooks**: React Query wrappers for all Semiont API operations
+- **UI Hooks**: useTheme, useKeyboardShortcuts, useToast, useDebounce
+- **Resource Hooks**: useResourceEvents, useDetectionFlow, useGenerationFlow
+- **Form Hooks**: useFormValidation with built-in validation rules
+
+#### Provider Pattern
+@semiont/react-ui uses a provider pattern for framework independence:
+
+```typescript
+// Frontend provides Next.js-specific implementations
+<SessionProvider sessionManager={nextAuthSessionManager}>
+  <TranslationProvider translationManager={nextIntlManager}>
+    <ApiClientProvider apiClientManager={apiClientManager}>
+      {/* App components can now use react-ui hooks */}
+    </ApiClientProvider>
+  </TranslationProvider>
+</SessionProvider>
+```
+
+This architecture enables:
+- **Framework Independence**: Components work with any React framework
+- **Consistent Design**: Shared components across all Semiont applications
+- **Type Safety**: Shared TypeScript types and interfaces
+- **Comprehensive Testing**: 1250+ tests in the component library
+- **Clear Boundaries**: Separation between framework code and UI components
+
+See [Component Library Integration Guide](./COMPONENT-LIBRARY.md) for detailed usage.
 
 ### API Communication
 - **Fetch API** - HTTP client (wrapped with authentication)
@@ -50,56 +111,60 @@ The Semiont frontend is a Next.js 14 application using the App Router with React
 
 ### Request Routing
 
-The frontend handles three types of requests with path-based routing:
+The application handles three types of requests with path-based routing:
 
 ```mermaid
 sequenceDiagram
     participant Browser
     participant CDN
     participant LoadBalancer
-    participant Frontend
+    participant FrontendServer as Frontend Server<br/>(NextAuth Only)
     participant Backend
 
     Browser->>CDN: HTTPS Request
     CDN->>LoadBalancer: Forward Request
 
     alt OAuth Flow (/auth/*)
-        LoadBalancer->>Frontend: Route to NextAuth
-        Frontend->>Browser: Handle OAuth
-    else API Call (/api/*)
+        LoadBalancer->>FrontendServer: Route to NextAuth
+        FrontendServer->>Backend: Exchange OAuth Token
+        Backend-->>FrontendServer: JWT
+        FrontendServer->>Browser: Session Cookie with JWT
+    else API Call (/api/* from browser)
         LoadBalancer->>Backend: Route to Backend API
         Backend-->>LoadBalancer: JSON Response
         LoadBalancer-->>CDN: Response
+        CDN-->>Browser: Response
     else UI Request (/*)
-        LoadBalancer->>Frontend: Route to Next.js
-        Frontend->>Backend: API Request (if needed)
-        Backend-->>Frontend: JSON Data
-        Frontend-->>LoadBalancer: HTML/React
+        LoadBalancer->>FrontendServer: Route to Next.js
+        FrontendServer-->>LoadBalancer: HTML/React
         LoadBalancer-->>CDN: Response
+        CDN-->>Browser: HTML/React (browser then calls /api/*)
     end
-
-    CDN-->>Browser: Cached Response
 ```
 
 **Path-Based Routing:**
 
-- **`/auth/*`** → Frontend (NextAuth.js OAuth flows)
+- **`/auth/*`** → Frontend Server (NextAuth.js OAuth flows, server-side only)
   - OAuth login/callback handling
-  - Session management
-  - No backend API calls during auth
+  - Token exchange with backend
+  - Session cookie management
 
-- **`/api/*`** → Backend API (proxied through load balancer)
+- **`/api/*`** → Backend API (called directly from browser)
   - All REST API endpoints
   - WebSocket connections
   - SSE streams
+  - Browser includes JWT from session cookie
 
-- **`/*`** → Frontend (Default - Next.js App Router)
+- **`/*`** → Frontend Server (Next.js SSR/SSG)
   - Server-side rendering
   - Static pages
-  - Client-side navigation
-  - Makes `/api/*` calls to backend as needed
+  - Delivers React app to browser
+  - Browser then makes `/api/*` calls directly to backend
 
-This separation ensures clean boundaries between authentication, API, and UI concerns.
+**Key Architecture Points:**
+- Frontend server handles OAuth callback ONLY
+- Browser calls backend API directly (not proxied by frontend)
+- JWT stored in session cookie, included in browser API requests
 
 ## Authentication Architecture
 
@@ -171,24 +236,25 @@ await updateMutation.mutateAsync({ id, title, content });
 
 ### UI State (React Context)
 
-UI-only state that doesn't come from the server:
+UI-only state and framework-agnostic providers:
 
-**DocumentAnnotationsContext:**
-- `newAnnotationIds` - Track recently created annotations for animations
-- Mutation actions that return IDs for query invalidation
-- NO data storage - data comes from React Query
+**Framework-Agnostic Providers** (from `@semiont/react-ui`):
+- `AnnotationProvider` - Injects `AnnotationManager` for annotation mutations
+- `CacheProvider` - Injects `CacheManager` for cache invalidation
+- `AnnotationUIProvider` - UI-only state for sparkle animations (`newAnnotationIds`)
+- `TranslationProvider` - Injects `TranslationManager` for i18n
+- `ApiClientProvider` - Injects `ApiClientManager` for API access
+- `SessionProvider` - Injects `SessionManager` for session state
+- `OpenResourcesProvider` - Injects `OpenResourcesManager` for routing
 
-**KeyboardShortcutsContext:**
-- Keyboard shortcut registration and handling
-- Global keyboard event coordination
+These providers are framework-independent and can work with Next.js, Vite, or any React framework. The app provides framework-specific manager implementations.
 
-**ToastProvider:**
-- Toast notification queue
-- Success/error/info messages
+**Next.js-Specific Contexts:**
+- `KeyboardShortcutsProvider` - Keyboard shortcut registration and handling
+- `ToastProvider` - Toast notification queue
+- `LiveRegionProvider` - ARIA live region for screen reader announcements
 
-**LiveRegionProvider:**
-- ARIA live region for screen reader announcements
-- Accessibility notifications
+See [`@semiont/react-ui/docs/PROVIDERS.md`](../../../packages/react-ui/docs/PROVIDERS.md) for complete Provider Pattern documentation.
 
 ## API Integration
 
@@ -357,7 +423,7 @@ User action (e.g., click save)
 
 ```
 Component mounts
-    └── useDocumentEvents hook connects to SSE
+    └── useResourceEvents hook connects to SSE
         └── EventSource with Bearer token auth
             └── Backend sends events
                 └── Event handler refetches queries
@@ -369,29 +435,30 @@ Component mounts
 The app is wrapped in multiple providers in this order (outer to inner):
 
 ```tsx
-<SessionProvider>                    // NextAuth session
-  <AuthErrorBoundary>               // Catch auth errors
-    <CustomSessionProvider>         // isFullyAuthenticated helper
-      <QueryClientProvider>         // React Query state
-        <ToastProvider>             // Toast notifications
-          <LiveRegionProvider>      // Screen reader announcements
-            <KeyboardShortcutsProvider>  // Keyboard shortcuts
-              {children}            // App content
-            </KeyboardShortcutsProvider>
-          </LiveRegionProvider>
-        </ToastProvider>
-      </QueryClientProvider>
-    </CustomSessionProvider>
-  </AuthErrorBoundary>
-</SessionProvider>
+<NextAuthSessionProvider>              // NextAuth.js session
+  <AuthErrorBoundary>                 // Catch auth errors
+    <QueryClientProvider>             // React Query state
+      <SessionProvider>               // @semiont/react-ui - Session management
+        <ApiClientProvider>           // @semiont/react-ui - API client injection
+          <TranslationProvider>       // @semiont/react-ui - i18n
+            <CacheProvider>           // @semiont/react-ui - Cache invalidation
+              <AnnotationProvider>    // @semiont/react-ui - Annotation mutations
+                <AnnotationUIProvider>  // @semiont/react-ui - UI state (sparkles)
+                  <OpenResourcesProvider>  // @semiont/react-ui - Routing
+                    <ToastProvider>   // App-specific - Toast notifications
+                      <LiveRegionProvider>  // App-specific - Screen reader
+                        <KeyboardShortcutsProvider>  // App-specific - Keyboard
+                          {children}  // App content
 ```
 
 **Why This Order:**
-1. SessionProvider must be outermost (provides auth to all)
+1. NextAuthSessionProvider must be outermost (provides auth to all)
 2. AuthErrorBoundary catches auth failures
-3. CustomSessionProvider depends on SessionProvider
-4. QueryClientProvider needed for all data fetching
-5. ToastProvider, LiveRegionProvider, KeyboardShortcuts are independent utilities
+3. QueryClientProvider needed for all data fetching
+4. Provider Pattern providers (Session, ApiClient, Translation, Cache, Annotation, etc.) from `@semiont/react-ui`
+5. App-specific utilities (Toast, LiveRegion, KeyboardShortcuts)
+
+See [`@semiont/react-ui/docs/PROVIDERS.md`](../../../packages/react-ui/docs/PROVIDERS.md) for details on the Provider Pattern architecture.
 
 ## Directory Structure
 
@@ -405,35 +472,130 @@ apps/frontend/src/
 │   │   └── compose/       # Document composition
 │   ├── api/               # API route handlers (NextAuth, etc.)
 │   ├── layout.tsx         # Root layout
-│   └── providers.tsx      # Provider setup
-├── components/            # Reusable UI components
-│   ├── document/          # Document-specific components
-│   │   ├── AnnotateView.tsx      # Curation mode (uses CodeMirrorRenderer)
-│   │   ├── BrowseView.tsx        # Browse mode (uses ReactMarkdown)
-│   │   ├── DocumentViewer.tsx    # Main document component
-│   │   └── AnnotationHistory.tsx # Event log panel
-│   ├── CodeMirrorRenderer.tsx    # Editor-based renderer (for AnnotateView)
+│   └── providers.tsx      # Provider setup (wraps @semiont/react-ui providers)
+├── components/            # App-specific UI components
 │   ├── modals/            # Modal dialogs
-│   ├── annotation-popups/ # Annotation interaction UI
-│   └── ...                # Other shared components
-├── contexts/              # React Context providers
-│   ├── SessionContext.tsx
-│   ├── DocumentAnnotationsContext.tsx
-│   └── KeyboardShortcutsContext.tsx
-├── hooks/                 # Custom React hooks
-│   ├── useAuthenticatedAPI.ts
-│   ├── useDocumentEvents.ts
+│   └── ...                # Other app-specific components
+├── contexts/              # App-specific React Context providers
+│   ├── KeyboardShortcutsContext.tsx
 │   └── ...
-├── lib/                   # Utility libraries
-│   ├── api-client.ts      # API client with React Query
+├── hooks/                 # App-specific custom hooks
+│   ├── useAuthenticatedAPI.ts
+│   ├── useResourceEvents.ts
+│   └── ...
+├── lib/                   # App-specific utility libraries
+│   ├── api-client.ts      # API client setup with React Query
 │   ├── query-helpers.ts   # React Query utilities
 │   ├── auth-events.ts     # Auth error event bus
+│   └── cacheManager.ts    # CacheManager implementation for @semiont/react-ui
 └── types/                 # TypeScript type definitions
+
+packages/react-ui/src/      # Reusable React components library
+├── features/              # Feature-based components
+│   ├── auth/              # Authentication components
+│   │   ├── components/
+│   │   │   ├── SignInForm.tsx         # Framework-agnostic sign-in
+│   │   │   ├── SignUpForm.tsx         # Framework-agnostic sign-up
+│   │   │   ├── AuthErrorDisplay.tsx   # Error display
+│   │   │   └── WelcomePage.tsx        # Welcome page
+│   │   └── __tests__/     # Component tests
+│   ├── resource-viewer/   # Resource viewing components
+│   ├── resource-discovery/ # Discovery components
+│   └── ...                # Other feature modules
+├── components/            # Shared UI components
+│   ├── resource/          # Resource viewer components
+│   │   ├── AnnotateView.tsx      # Curation mode
+│   │   ├── BrowseView.tsx        # Browse mode
+│   │   └── ResourceViewer.tsx    # Main resource component
+│   ├── CodeMirrorRenderer.tsx    # Editor-based renderer
+│   ├── annotation-popups/ # Annotation interaction UI
+│   └── ...                # Other reusable components
+├── contexts/              # Provider Pattern contexts
+│   ├── AnnotationContext.tsx
+│   ├── CacheContext.tsx
+│   ├── ApiClientContext.tsx
+│   ├── TranslationContext.tsx
+│   └── SessionContext.tsx
+├── hooks/                 # Reusable React hooks
+│   ├── useResourceAnnotations.ts
+│   └── ...
+├── lib/                   # Reusable utilities
+│   ├── annotation-registry.ts  # Annotation type metadata
+│   ├── api-hooks.ts       # API client utilities
+│   └── ...
+└── types/                 # Shared TypeScript interfaces
+    ├── AnnotationManager.ts
+    ├── CacheManager.ts
+    └── ...
 ```
+
+**Key Separation:**
+- `apps/frontend/src` - Next.js-specific pages and implementations
+- `packages/react-ui/src` - Framework-agnostic components and interfaces
+
+**Note**: Authentication components (SignInForm, SignUpForm, AuthErrorDisplay, WelcomePage) are framework-agnostic and live in `packages/react-ui/src/features/auth/`. The frontend provides Next.js-specific wrappers that handle routing, translations, and authentication callbacks.
+
+See [`@semiont/react-ui/docs/`](../../../packages/react-ui/docs/) for documentation on the reusable component library.
 
 ## Key Design Patterns
 
-### 1. No Default Values
+### 1. Provider Pattern (Framework Independence)
+
+**Philosophy:** Avoid framework lock-in by inverting dependencies.
+
+The `@semiont/react-ui` library uses the **Provider Pattern** to remain framework-agnostic:
+
+```typescript
+// @semiont/react-ui defines INTERFACES
+interface AnnotationManager {
+  createAnnotation: (params: CreateAnnotationParams) => Promise<Annotation | undefined>;
+  deleteAnnotation: (params: DeleteAnnotationParams) => Promise<void>;
+}
+
+interface CacheManager {
+  invalidateAnnotations: (rUri: ResourceUri) => void | Promise<void>;
+  invalidateEvents: (rUri: ResourceUri) => void | Promise<void>;
+}
+
+// Apps provide IMPLEMENTATIONS
+const annotationManager: AnnotationManager = {
+  createAnnotation: async (params) => {
+    const annotation = await client.createAnnotation(params);
+    queryClient.invalidateQueries(['annotations', params.rUri]);
+    return annotation;
+  },
+  deleteAnnotation: async (params) => {
+    await client.deleteAnnotation(params);
+    queryClient.invalidateQueries(['annotations', params.rUri]);
+  }
+};
+
+const cacheManager: CacheManager = {
+  invalidateAnnotations: (rUri) => {
+    queryClient.invalidateQueries({ queryKey: ['annotations', rUri] });
+  },
+  invalidateEvents: (rUri) => {
+    queryClient.invalidateQueries({ queryKey: ['documents', 'events', rUri] });
+  }
+};
+
+// Inject implementations via providers
+<AnnotationProvider annotationManager={annotationManager}>
+  <CacheProvider cacheManager={cacheManager}>
+    <App />
+  </CacheProvider>
+</AnnotationProvider>
+```
+
+**Benefits:**
+- ✅ React UI library has **zero React Query dependency**
+- ✅ Apps can use React Query, SWR, Apollo, or any data fetching library
+- ✅ Easy to test with mock implementations
+- ✅ Clear separation of concerns
+
+See [`@semiont/react-ui/docs/PROVIDERS.md`](../../../packages/react-ui/docs/PROVIDERS.md) for complete documentation.
+
+### 2. No Default Values
 
 **Philosophy:** Defaults hide configuration errors and create silent failures.
 
@@ -535,15 +697,47 @@ The document and history panels synchronize via hover interactions:
 - CodeMirrorRenderer handles mousemove events and scroll/pulse animations
 - AnnotationHistory tracks event refs and scrolls on hover changes
 
+### Bi-directional Annotation ↔ Panel Hover Sync
+
+Annotation overlays and panel entries synchronize via hover events for all media types (text/markdown, PDF, images):
+
+**Overlay → Panel**:
+- Hovering over an annotation in the content emits `annotation:hover` event
+- Panel entry scrolls into view and pulses
+
+**Panel → Overlay**:
+- Hovering over a panel entry emits `annotation-entry:hover` event
+- BrowseView scrolls overlay into view and pulses
+
+**Implementation (Consistent Across Media Types)**:
+- **Text annotations** (CodeMirrorRenderer): Emit `annotation:hover` on mouseover/mouseout
+- **PDF annotations** (PdfAnnotationCanvas): Emit `annotation:hover` on mouseenter/mouseleave
+- **Image annotations** (AnnotationOverlay): Emit `annotation:hover` on mouseenter/mouseleave
+- **Panel entries**: Emit `annotation-entry:hover` on mouseenter/mouseleave
+- **useAnnotationPanel hook**: Subscribes to `annotation:hover` and `annotation-entry:hover`, triggers scroll-to-view and pulse effects for panel entries
+- **BrowseView**: Subscribes to `annotation:hover` and `annotation-entry:hover`, handles scrolling and pulse for overlays in browse mode
+- **AnnotateView**: Subscribes to `annotation-entry:hover`, updates `hoveredAnnotationId` prop to trigger CodeMirrorRenderer scrolling and pulse
+
+**Events**:
+- `annotation:hover` - Emitted by all overlay types with `{ annotationId: string | null }`
+- `annotation-entry:hover` - Emitted by panel entries with `{ annotationId: string | null }`
+- `annotation:ref-update` - Emitted to register DOM refs for scroll targeting
+
 ## Related Documentation
 
+### React UI Library
+- [`@semiont/react-ui/docs/PROVIDERS.md`](../../../packages/react-ui/docs/PROVIDERS.md) - Provider Pattern architecture
+- [`@semiont/react-ui/docs/ANNOTATIONS.md`](../../../packages/react-ui/docs/ANNOTATIONS.md) - Annotation system documentation
+- [`@semiont/react-ui/docs/`](../../../packages/react-ui/docs/) - Complete library documentation
+
+### Frontend Documentation
 - [AUTHENTICATION.md](./AUTHENTICATION.md) - Authentication and authorization
 - [AUTHORIZATION.md](./AUTHORIZATION.md) - Permission model
-- [RENDERING-ARCHITECTURE.md](./RENDERING-ARCHITECTURE.md) - Rendering pipeline and component hierarchy
-- [REACT-MARKDOWN.md](./REACT-MARKDOWN.md) - BrowseView rendering with ReactMarkdown
-- [CODEMIRROR-INTEGRATION.md](./CODEMIRROR-INTEGRATION.md) - AnnotateView rendering with CodeMirror
+- [RENDERING-ARCHITECTURE.md](../../../packages/react-ui/docs/RENDERING-ARCHITECTURE.md) - Rendering pipeline and component hierarchy
+- [ANNOTATION-OVERLAY.md](../../../ANNOTATION-OVERLAY.md) - BrowseView rendering with ReactMarkdown
+- [CODEMIRROR-INTEGRATION.md](../../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md) - AnnotateView rendering with CodeMirror
 - [ANNOTATIONS.md](./ANNOTATIONS.md) - Annotation UI/UX and workflows
-- [ANNOTATION-RENDERING-PRINCIPLES.md](./ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms and correctness properties
+- [ANNOTATION-RENDERING-PRINCIPLES.md](../../../packages/react-ui/docs/ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms and correctness properties
 - [KEYBOARD-NAV.md](./KEYBOARD-NAV.md) - Keyboard shortcuts
 - [PERFORMANCE.md](./PERFORMANCE.md) - Performance optimization
 

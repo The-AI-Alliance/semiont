@@ -1,6 +1,6 @@
 # Authentication Architecture
 
-Semiont implements a **secure-by-default** authentication model using OAuth 2.0 and JWT tokens with special support for MCP (Model Context Protocol) clients.
+Semiont implements a **router-level authentication** model using OAuth 2.0 and JWT tokens with special support for MCP (Model Context Protocol) clients.
 
 **Related Documentation:**
 - [Architecture Overview](./ARCHITECTURE.md) - Overall application architecture
@@ -12,52 +12,55 @@ Semiont implements a **secure-by-default** authentication model using OAuth 2.0 
 The authentication system has three main components:
 
 1. **Frontend Authentication**: NextAuth.js with Google OAuth 2.0
-2. **Backend Authentication**: JWT token validation with secure-by-default API protection
+2. **Backend Authentication**: JWT token validation with router-level API protection
 3. **MCP Client Support**: Browser-based OAuth flow with long-lived refresh tokens
 
 ## Authentication Flow Diagram
 
 ```mermaid
-graph TD
+graph TB
     subgraph "Browser"
-        User[User Login]
-        Session[Session Cookie]
+        User[User]
+        Session[Session Cookie<br/>with JWT]
     end
 
-    subgraph "Frontend - Next.js"
-        NextAuth[NextAuth.js]
-        Pages[Protected Pages]
+    subgraph "Frontend Server"
+        NextAuth[NextAuth.js<br/>OAuth Handler]
     end
 
     subgraph "OAuth Provider"
         Google[Google OAuth 2.0]
     end
 
-    subgraph "Backend - Hono"
+    subgraph "Backend API"
+        TokenGen[Token Generator]
         JWT[JWT Validator]
         API[Protected APIs]
-        TokenGen[Token Generator]
     end
 
     subgraph "Database"
         Users[(Users Table)]
     end
 
-    User -->|1. Login| NextAuth
-    NextAuth -->|2. OAuth Flow| Google
-    Google -->|3. User Info| NextAuth
-    NextAuth -->|4. Create Session| Session
-    NextAuth -->|5. Store User| Users
+    %% OAuth flow (server-side only)
+    User -.->|1. Login| NextAuth
+    NextAuth -.->|2. OAuth Flow| Google
+    Google -.->|3. OAuth Token| NextAuth
+    NextAuth -.->|4. Exchange Token| TokenGen
+    TokenGen -.->|5. JWT| NextAuth
+    TokenGen -.->|6. Create/Update User| Users
+    NextAuth -.->|7. Store JWT| Session
 
-    Pages -->|6. API Request + JWT| JWT
-    JWT -->|7. Validate| API
-    API -->|8. Response| Pages
+    %% API calls (client-side from browser)
+    User -->|8. API Request + JWT| JWT
+    JWT -->|9. Validate| API
+    API -->|10. Response| User
 
     subgraph "MCP Client Flow"
         MCP[MCP Client]
-        MCP -->|Browser Auth| NextAuth
-        NextAuth -->|Get Token| TokenGen
-        TokenGen -->|Refresh Token| MCP
+        MCP -.->|Browser Auth| NextAuth
+        NextAuth -.->|Generate Refresh Token| TokenGen
+        TokenGen -.->|30-day Refresh Token| MCP
     end
 ```
 
@@ -65,27 +68,33 @@ graph TD
 
 ### Core Principles
 
-- **Default Protection**: All API routes require authentication automatically
-- **Explicit Exceptions**: Public endpoints must be explicitly listed
+- **Router-Level Protection**: Each router applies authentication middleware to its protected routes
+- **Explicit Protection**: Routes must explicitly use `authMiddleware` for authentication
 - **JWT Bearer Tokens**: Stateless authentication for API requests
 - **OAuth Integration**: Google OAuth 2.0 for user authentication
 - **Domain Restrictions**: Email domain-based access control
 
 ### Authentication Flow
 
+**OAuth Login** (server-side, happens once):
 ```
-1. User Login (Frontend)
-   ↓
-2. Google OAuth 2.0
-   ↓
-3. Backend validates OAuth token
-   ↓
-4. Backend issues JWT token
-   ↓
-5. Frontend includes JWT in API requests
-   ↓
-6. Backend validates JWT on each request
+1. Browser → Frontend Server (NextAuth.js) → Google OAuth
+2. Google returns OAuth token → Frontend Server
+3. Frontend Server → Backend (exchange OAuth token)
+4. Backend validates with Google, generates JWT
+5. Frontend Server stores JWT in session cookie
 ```
+
+**API Calls** (client-side, every request):
+```
+Browser → Backend (with JWT from session) → Validate & Respond
+```
+
+**Key Architecture Points**:
+- **Frontend Server** only handles OAuth callback (not a proxy for API calls)
+- **Browser** calls Backend API directly using `SERVER_API_URL`
+- **JWT token** stored in NextAuth session cookie, included in API requests
+- **Backend** is public-facing (accessible from browser)
 
 ## Endpoint Protection
 
@@ -95,11 +104,13 @@ Only these endpoints are accessible without authentication:
 
 - `GET /api/health` - Health check for monitoring
 - `GET /api` - API documentation
-- `POST /api/auth/google` - OAuth login initiation
+- `POST /api/tokens/google` - Google OAuth authentication
+- `POST /api/tokens/password` - Password authentication
+- `POST /api/tokens/refresh` - Refresh token exchange
 
 ### Protected Endpoints
 
-All other API routes automatically require:
+Protected API routes (those using `authMiddleware`) require:
 
 - Valid JWT token in Authorization header
 - Token signature verification
@@ -226,15 +237,18 @@ const response = await fetch('https://api.semiont.com/api/documents', {
 - **Long-lived Refresh Tokens**: 30-day expiration for MCP clients only
 - **Secure Secret Management**: JWT secret stored in secure secret storage
 - **Domain Restrictions**: Email domain-based access control
-- **Automatic Middleware**: Global authentication applied to all API routes
+- **Router-Level Middleware**: Authentication middleware applied at router level
 
 ### Token Structure
 
 **Access Token Payload**:
 ```json
 {
-  "sub": "user-123",
+  "userId": "user-123",
   "email": "user@example.com",
+  "name": "User Name",
+  "domain": "example.com",
+  "provider": "google",
   "isAdmin": false,
   "iat": 1698765432,
   "exp": 1699370232
@@ -244,7 +258,11 @@ const response = await fetch('https://api.semiont.com/api/documents', {
 **Refresh Token Payload**:
 ```json
 {
-  "sub": "user-123",
+  "userId": "user-123",
+  "email": "user@example.com",
+  "domain": "example.com",
+  "provider": "google",
+  "isAdmin": false,
   "type": "refresh",
   "iat": 1698765432,
   "exp": 1701357432
@@ -283,25 +301,51 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
 **JWT Validation** (`apps/backend/src/middleware/auth.ts`):
 ```typescript
-import { verify } from 'jsonwebtoken';
+import { Context, Next } from 'hono';
+import { OAuthService } from '../auth/oauth';
+import { accessToken } from '@semiont/api-client';
 
-export const authMiddleware = async (c, next) => {
+export const authMiddleware = async (c: Context, next: Next): Promise<Response | void> => {
+  const logger = c.get('logger');
   const authHeader = c.req.header('Authorization');
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    logger.warn('Authentication failed: Missing Authorization header', {
+      type: 'auth_failed',
+      reason: 'missing_header',
+      path: c.req.path,
+      method: c.req.method
+    });
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
-  const token = authHeader.substring(7);
+  const tokenStr = authHeader.substring(7).trim();
+
+  if (!tokenStr) {
+    logger.warn('Authentication failed: Empty token', {
+      type: 'auth_failed',
+      reason: 'empty_token'
+    });
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
 
   try {
-    const payload = verify(token, process.env.JWT_SECRET);
+    const user = await OAuthService.getUserFromToken(accessToken(tokenStr));
+    c.set('user', user);
 
-    // Attach user to context
-    c.set('user', payload);
+    logger.debug('Authentication successful', {
+      type: 'auth_success',
+      userId: user.id,
+      email: user.email
+    });
 
     await next();
   } catch (error) {
+    logger.warn('Authentication failed: Invalid token', {
+      type: 'auth_failed',
+      reason: 'invalid_token',
+      error: error instanceof Error ? error.message : String(error)
+    });
     return c.json({ error: 'Invalid token' }, 401);
   }
 };
@@ -309,28 +353,57 @@ export const authMiddleware = async (c, next) => {
 
 ### Route Protection
 
-**Applying Middleware** (`apps/backend/src/routes/documents.ts`):
+**Router-Level Middleware** (`apps/backend/src/routes/resources/shared.ts`):
+```typescript
+import { authMiddleware } from '../../middleware/auth';
+import { Hono } from 'hono';
+
+export function initResourcesRouter(router: Hono) {
+  // Apply authentication to all resource routes
+  router.use('/api/resources/*', authMiddleware);
+  router.use('/resources/*', authMiddleware); // W3C URI endpoints also require auth
+}
+```
+
+**Route-Specific Protection** (`apps/backend/src/routes/auth.ts`):
 ```typescript
 import { authMiddleware } from '../middleware/auth';
+import { Hono } from 'hono';
+import type { User } from '@prisma/client';
 
-// Protected route
-app.get('/api/documents', authMiddleware, async (c) => {
+export const authRouter = new Hono<{ Variables: { user: User } }>();
+
+// Public route - no middleware
+authRouter.post('/api/tokens/password', async (c) => {
+  // Handle password authentication
+  return c.json({ token: '...' });
+});
+
+// Protected route - requires authentication
+authRouter.get('/api/users/me', authMiddleware, async (c) => {
   const user = c.get('user');
-  // user.sub, user.email, user.isAdmin available
+  // user.id, user.email, user.isAdmin available
 
-  const documents = await getDocumentsForUser(user.sub);
-  return c.json(documents);
+  return c.json({
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    domain: user.domain,
+    provider: user.provider,
+    isAdmin: user.isAdmin
+  });
 });
 
 // Admin-only route
-app.delete('/api/documents/:id', authMiddleware, async (c) => {
+authRouter.patch('/api/admin/users/:id', authMiddleware, async (c) => {
   const user = c.get('user');
 
   if (!user.isAdmin) {
     return c.json({ error: 'Forbidden' }, 403);
   }
 
-  await deleteDocument(c.req.param('id'));
+  const userId = c.req.param('id');
+  // Update user logic here
   return c.json({ success: true });
 });
 ```
@@ -382,7 +455,7 @@ See [Configuration Guide](./CONFIGURATION.md) for detailed secret management.
 
 ### API Security
 
-1. **Default deny**: All routes protected unless explicitly public
+1. **Explicit protection**: Routes must explicitly apply authentication middleware
 2. **Rate limiting**: Implement rate limiting per IP/user (see [AWS.md](./platforms/AWS.md) for WAF configuration)
 3. **Input validation**: Validate all inputs with Zod schemas
 4. **Audit logging**: Log all authentication events

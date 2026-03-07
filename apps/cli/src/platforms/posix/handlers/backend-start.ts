@@ -2,50 +2,42 @@ import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
+import type { BackendServiceConfig } from '@semiont/core';
 import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
-import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
+import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
+import { getBackendPaths } from './backend-paths.js';
+import { checkPortFree, checkCommandAvailable, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Start handler for backend services on POSIX systems
- * 
+ *
  * Starts the backend Node.js process using the configuration from
- * SEMIONT_ROOT/backend/.env.local and logs to SEMIONT_ROOT/backend/logs/
+ * the backend source directory's .env and logs
  */
 const startBackendService = async (context: PosixStartHandlerContext): Promise<StartHandlerResult> => {
-  const { service, options } = context;
-  
-  // Get semiont repo path
-  const semiontRepo = options.semiontRepo || process.env.SEMIONT_REPO;
-  if (!semiontRepo) {
-    return {
-      success: false,
-      error: 'Semiont repository path is required. Use --semiont-repo or set SEMIONT_REPO environment variable',
-      metadata: { serviceType: 'backend' }
-    };
-  }
-  
-  const backendSourceDir = path.join(semiontRepo, 'apps', 'backend');
+  const { service } = context;
+  const config = service.config as BackendServiceConfig;
+
+  // Get backend paths
+  const paths = getBackendPaths(context);
+  const { sourceDir: backendSourceDir, envFile, pidFile, logsDir, tmpDir } = paths;
+
   if (!fs.existsSync(backendSourceDir)) {
     return {
       success: false,
       error: `Backend source not found at ${backendSourceDir}`,
-      metadata: { serviceType: 'backend', semiontRepo }
+      metadata: { serviceType: 'backend' }
     };
   }
   
-  // Setup backend runtime directory
-  const backendDir = path.join(service.projectRoot, 'backend');
-  const envFile = path.join(backendDir, '.env.local');
-  const pidFile = path.join(backendDir, '.pid');
-  const logsDir = path.join(backendDir, 'logs');
-  
-  // Check if backend directory exists
-  if (!fs.existsSync(backendDir)) {
+  // Check if backend is provisioned (by checking for .env)
+  if (!fs.existsSync(envFile)) {
     return {
       success: false,
-      error: `Backend not provisioned. Run: semiont provision --service backend --environment ${service.environment} --semiont-repo ${semiontRepo}`,
-      metadata: { serviceType: 'backend', backendDir }
+      error: `Backend not provisioned. Run: semiont provision --service backend --environment ${service.environment}`,
+      metadata: { serviceType: 'backend', backendSourceDir }
     };
   }
   
@@ -66,8 +58,11 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     }
   }
   
-  // Check port availability
-  const port = service.config.port || 4000;
+  const port = service.config.port;
+  if (!port) {
+    throw new Error('Backend port not configured');
+  }
+
   if (await isPortInUse(port)) {
     return {
       success: false,
@@ -75,36 +70,33 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
       metadata: { serviceType: 'backend', port }
     };
   }
-  
-  // Load environment variables from .env.local
+
+  const envContent = fs.readFileSync(envFile, 'utf-8');
   const envVars: Record<string, string> = {};
-  if (fs.existsSync(envFile)) {
-    const envContent = fs.readFileSync(envFile, 'utf-8');
-    envContent.split('\n').forEach(line => {
-      if (!line.startsWith('#') && line.includes('=')) {
-        const [key, ...valueParts] = line.split('=');
-        envVars[key.trim()] = valueParts.join('=').trim();
-      }
-    });
-  } else {
-    printWarning(`.env.local not found, using defaults`);
+  envContent.split('\n').forEach(line => {
+    if (!line.startsWith('#') && line.includes('=')) {
+      const [key, ...valueParts] = line.split('=');
+      envVars[key.trim()] = valueParts.join('=').trim();
+    }
+  });
+
+  if (!envVars.NODE_ENV) {
+    throw new Error('NODE_ENV not found in .env');
   }
-  
-  // Merge environment variables - ensure all values are strings
+
   const processEnvStrings: Record<string, string> = {};
   for (const [key, value] of Object.entries(process.env)) {
     if (value !== undefined) {
       processEnvStrings[key] = value;
     }
   }
-  
+
   const env: Record<string, string> = {
     ...processEnvStrings,
     ...envVars,
-    NODE_ENV: envVars.NODE_ENV || 'development',
     PORT: port.toString(),
     LOG_DIR: logsDir,
-    TMP_DIR: path.join(backendDir, 'tmp')
+    TMP_DIR: tmpDir
   };
   
   // Ensure logs directory exists
@@ -126,20 +118,21 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
   if (!service.quiet) {
     printInfo(`Starting backend service ${service.name}...`);
     printInfo(`Source: ${backendSourceDir}`);
-    printInfo(`Runtime: ${backendDir}`);
     printInfo(`Port: ${port}`);
+    printInfo(`Mode: ${config.devMode ? 'development' : 'production'}`);
   }
-  
-  // Run node directly instead of through npm to ensure environment variables are passed
-  const distPath = path.join(backendSourceDir, 'dist', 'index.js');
-  
+
+  // Determine command based on devMode
+  const command = config.devMode ? 'npm' : 'npm';
+  const args = config.devMode ? ['run', 'dev'] : ['start'];
+
   try {
     // Open log files for writing (process will write directly)
     const appLogFd = fs.openSync(appLogPath, 'a');
     const errorLogFd = fs.openSync(errorLogPath, 'a');
-    
-    // Spawn the backend process directly with node
-    const proc = spawn('node', [distPath], {
+
+    // Spawn the backend process
+    const proc = spawn(command, args, {
       cwd: backendSourceDir,  // Run from source directory
       env,
       detached: true,
@@ -185,14 +178,15 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     }
     
     // Build resources
+    const commandStr = config.devMode ? 'npm run dev' : 'npm start';
     const resources: PlatformResources = {
       platform: 'posix',
       data: {
         pid: proc.pid,
         port,
-        command: `node ${distPath}`,
+        command: commandStr,
         workingDirectory: backendSourceDir,
-        path: backendDir,
+        path: backendSourceDir,
         logFile: appLogPath
       }
     };
@@ -223,9 +217,9 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
         serviceType: 'backend',
         pid: proc.pid,
         port,
-        backendDir,
+        backendSourceDir,
         logsDir,
-        command: `node dist/index.js`
+        command: commandStr
       }
     };
     
@@ -246,6 +240,18 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
   }
 };
 
+const preflightBackendStart = async (context: PosixStartHandlerContext): Promise<PreflightResult> => {
+  const config = context.service.config as BackendServiceConfig;
+  const port = config.port;
+  const checks = [
+    checkCommandAvailable('npm'),
+  ];
+  if (port) {
+    checks.push(await checkPortFree(port));
+  }
+  return preflightFromChecks(checks);
+};
+
 /**
  * Descriptor for backend POSIX start handler
  */
@@ -253,5 +259,6 @@ export const backendStartDescriptor: HandlerDescriptor<PosixStartHandlerContext,
   command: 'start',
   platform: 'posix',
   serviceType: 'backend',
-  handler: startBackendService
+  handler: startBackendService,
+  preflight: preflightBackendStart
 };

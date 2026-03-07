@@ -1,0 +1,387 @@
+/**
+ * Resource Discovery Styles
+ *
+ * Styles for resource discovery cards, search, and filtering
+ */
+
+/* Card Component */
+.semiont-card {
+  background: var(--semiont-bg-primary);
+  border: 1px solid var(--semiont-color-gray-200);
+  border-radius: var(--semiont-radius-lg);
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="dark"] .semiont-card {
+  background: var(--semiont-bg-secondary);
+  border-color: var(--semiont-color-gray-700);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Resource Discovery Specific */
+.semiont-card__search-form {
+  margin-bottom: 2rem;
+}
+
+.semiont-card__search-wrapper {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.semiont-card__search-input {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--semiont-color-gray-300);
+  border-radius: var(--semiont-radius-md);
+  font-size: 1rem;
+  background: var(--semiont-bg-primary);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-card__search-input {
+  background: var(--semiont-color-gray-900);
+  color: var(--semiont-color-gray-100);
+  border-color: var(--semiont-color-gray-600);
+}
+
+.semiont-card__search-input:focus {
+  outline: none;
+  border-color: var(--semiont-color-primary-500);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.semiont-card__search-button {
+  padding: 0.5rem 1.5rem;
+  background: var(--semiont-gradient-primary);
+  color: var(--semiont-color-primary-700);
+  border: 1px solid var(--semiont-color-primary-300);
+  border-radius: 0.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 300ms;
+  backdrop-filter: blur(4px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.semiont-card__search-button:hover {
+  background: var(--semiont-gradient-primary-hover);
+  color: var(--semiont-color-neutral-0);
+  border-color: var(--semiont-color-primary-600);
+}
+
+[data-theme="dark"] .semiont-card__search-button {
+  background: var(--semiont-gradient-primary-dark);
+  color: var(--semiont-color-primary-400);
+  border-color: var(--semiont-color-primary-500);
+}
+
+[data-theme="dark"] .semiont-card__search-button:hover {
+  background: var(--semiont-gradient-primary-hover-dark);
+  color: var(--semiont-color-neutral-0);
+  border-color: var(--semiont-color-primary-400);
+}
+
+/* Focus styles for search button */
+.semiont-card__search-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-card__search-button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-card__search-button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.semiont-card__search-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.semiont-card__filters {
+  margin-bottom: 1.5rem;
+}
+
+.semiont-card__filters-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--semiont-color-gray-700);
+  margin-bottom: 0.5rem;
+}
+
+[data-theme="dark"] .semiont-card__filters-label {
+  color: var(--semiont-color-gray-300);
+}
+
+.semiont-card__filter-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.semiont-card__filter-button {
+  padding: 0.5rem 1rem;
+  background: rgba(0, 0, 0, 0.1);
+  color: var(--semiont-color-gray-900);
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 300ms;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-theme="dark"] .semiont-card__filter-button {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--semiont-color-neutral-0);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.semiont-card__filter-button:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="dark"] .semiont-card__filter-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Focus styles for filter buttons */
+.semiont-card__filter-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-card__filter-button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-card__filter-button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+@media (prefers-contrast: more) {
+  .semiont-card__filter-button:focus-visible {
+    outline-width: 3px;
+  }
+}
+
+.semiont-card__filter-button[data-active="true"] {
+  background: var(--semiont-gradient-primary);
+  color: var(--semiont-color-primary-700);
+  border-color: var(--semiont-color-primary-300);
+}
+
+[data-theme="dark"] .semiont-card__filter-button[data-active="true"] {
+  background: var(--semiont-gradient-primary-dark);
+  color: var(--semiont-color-primary-400);
+  border-color: var(--semiont-color-primary-500);
+}
+
+.semiont-card__documents {
+  margin-bottom: 1.5rem;
+}
+
+.semiont-card__documents-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--semiont-color-gray-700);
+  margin-bottom: 0.5rem;
+}
+
+[data-theme="dark"] .semiont-card__documents-label {
+  color: var(--semiont-color-gray-300);
+}
+
+.semiont-card__warning {
+  padding: 1rem;
+  background: var(--semiont-color-yellow-50);
+  border: 1px solid var(--semiont-color-yellow-200);
+  border-radius: var(--semiont-radius-md);
+  margin-bottom: 1.5rem;
+}
+
+[data-theme="dark"] .semiont-card__warning {
+  background: rgba(251, 191, 36, 0.1);
+  border-color: var(--semiont-color-yellow-700);
+}
+
+.semiont-card__warning-text {
+  color: var(--semiont-color-yellow-800);
+  font-size: 0.875rem;
+}
+
+[data-theme="dark"] .semiont-card__warning-text {
+  color: var(--semiont-color-yellow-400);
+}
+
+.semiont-card__empty {
+  text-align: center;
+  padding: 3rem 1rem;
+}
+
+.semiont-card__empty-text {
+  color: var(--semiont-color-gray-500);
+  font-size: 1rem;
+  margin-bottom: 1rem;
+}
+
+[data-theme="dark"] .semiont-card__empty-text {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-card__empty-button {
+  padding: 0.5rem 1.5rem;
+  background: var(--semiont-gradient-primary);
+  color: var(--semiont-color-primary-700);
+  border: 1px solid var(--semiont-color-primary-300);
+  border-radius: 0.5rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 300ms;
+  backdrop-filter: blur(4px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+[data-theme="dark"] .semiont-card__empty-button {
+  background: var(--semiont-gradient-primary-dark);
+  color: var(--semiont-color-primary-400);
+  border-color: var(--semiont-color-primary-500);
+}
+
+.semiont-card__empty-button:hover {
+  background: var(--semiont-gradient-primary-hover);
+  color: var(--semiont-color-neutral-0);
+  border-color: var(--semiont-color-primary-600);
+}
+
+[data-theme="dark"] .semiont-card__empty-button:hover {
+  background: var(--semiont-gradient-primary-hover-dark);
+  color: var(--semiont-color-neutral-0);
+  border-color: var(--semiont-color-primary-400);
+}
+
+/* Focus styles for empty button */
+.semiont-card__empty-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-card__empty-button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-card__empty-button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+@media (prefers-contrast: more) {
+  .semiont-card__empty-button:focus-visible {
+    outline-width: 3px;
+  }
+}
+
+/* Resource Card Component */
+.semiont-resource-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--semiont-bg-primary);
+  border: 1px solid var(--semiont-color-gray-200);
+  border-radius: var(--semiont-radius-lg);
+  padding: 1.25rem;
+  transition: all var(--semiont-duration-base);
+  cursor: pointer;
+  height: 100%;
+}
+
+[data-theme="dark"] .semiont-resource-card {
+  background: var(--semiont-color-gray-800);
+  border-color: var(--semiont-color-gray-700);
+}
+
+.semiont-resource-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+[data-theme="dark"] .semiont-resource-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.semiont-resource-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.semiont-resource-card__title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--semiont-text-primary);
+  line-height: 1.4;
+  flex: 1;
+  margin-right: 0.75rem;
+}
+
+[data-theme="dark"] .semiont-resource-card__title {
+  color: var(--semiont-color-gray-100);
+}
+
+.semiont-resource-card__badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--semiont-radius-full);
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.semiont-resource-card__badge[data-type="document"] {
+  background: var(--semiont-color-blue-100);
+  color: var(--semiont-color-blue-700);
+}
+
+[data-theme="dark"] .semiont-resource-card__badge[data-type="document"] {
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--semiont-color-blue-300);
+}
+
+.semiont-resource-card__badge[data-type="image"] {
+  background: var(--semiont-color-green-100);
+  color: var(--semiont-color-green-700);
+}
+
+[data-theme="dark"] .semiont-resource-card__badge[data-type="image"] {
+  background: rgba(74, 222, 128, 0.15);
+  color: var(--semiont-color-green-300);
+}
+
+.semiont-resource-card__metadata {
+  font-size: 0.875rem;
+  color: var(--semiont-color-gray-600);
+  margin-bottom: 0.75rem;
+}
+
+[data-theme="dark"] .semiont-resource-card__metadata {
+  color: var(--semiont-color-gray-400);
+}
+
+.semiont-resource-card__date {
+  margin-bottom: 0.25rem;
+}
+
+/* Tags now use centralized styles from components/tags.css
+   Resource cards use: .semiont-tag.semiont-tag--secondary.semiont-tag--compact.semiont-tag--rounded-sm */

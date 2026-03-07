@@ -112,6 +112,5 @@ if (fs.existsSync(statsPath)) {
 console.log('\n🚀 Next Steps:');
 console.log('==============');
 console.log('1. Open bundle-report.html in your browser');
-console.log('2. Run Lighthouse analysis: npm run lighthouse');
-console.log('3. Check for unused dependencies: npx depcheck');
-console.log('4. Analyze duplicates: npx duplicate-package-checker-webpack');
+console.log('2. Check for unused dependencies: npx depcheck');
+console.log('3. Analyze duplicates: npx duplicate-package-checker-webpack');

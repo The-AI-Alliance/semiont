@@ -536,11 +536,11 @@ Start simple, add features incrementally.
 
 ### Backend Documentation
 - [Backend README](../../backend/README.md) - REST API implementation
-- [Job Worker](../../../docs/services/JOB-WORKER.md) - Async operations (for AI features)
+- [Jobs Package](../../../packages/jobs/) - Async operations (for AI features)
 
 ### API Documentation
 - [API Client](../../../packages/api-client/README.md) - Type-safe TypeScript client
-- [OpenAPI Spec](../../../specs/openapi.json) - API specification for client generation
+- [OpenAPI Spec](../../../specs/README.md) - API specification for client generation (source in [../../../specs/src/](../../../specs/src/))
 
 ### System Documentation
 - [System Architecture](../../../docs/ARCHITECTURE.md) - Overall platform design

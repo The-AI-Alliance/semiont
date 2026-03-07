@@ -77,6 +77,8 @@ describe('Filesystem Authority for Environment Validation', () => {
             "type": "container"
           },
           "port": 8080,
+          "publicURL": "http://foo.example.com:8080",
+          "corsOrigin": "http://foo.example.com:3000",
           "image": "my-backend:foo",
           "command": "npm start"
         },
@@ -85,6 +87,8 @@ describe('Filesystem Authority for Environment Validation', () => {
             "type": "container"
           },
           "port": 3000,
+          "publicURL": "http://foo.example.com:3000",
+          "siteName": "Foo Environment",
           "image": "my-frontend:foo",
           "command": "npm run start"
         },
@@ -94,6 +98,7 @@ describe('Filesystem Authority for Environment Validation', () => {
           },
           "host": "localhost",
           "port": 5432,
+          "type": "postgresql",
           "name": "semiont_foo",
           "user": "postgres"
         },
@@ -114,7 +119,7 @@ describe('Filesystem Authority for Environment Validation', () => {
     
     // Import the CLI validation functions
     const { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } = 
-      await import('../core/environment-loader');
+      await import('../core/config-loader.js');
     
     // Test 1: Environment discovery should find 'foo'
     const availableEnvironments = getAvailableEnvironments();
@@ -124,7 +129,7 @@ describe('Filesystem Authority for Environment Validation', () => {
     expect(isValidEnvironment('foo')).toBe(true);
     
     // Test 3: Configuration loading should parse foo.json correctly
-    const loadedConfig = loadEnvironmentConfig('foo');
+    const loadedConfig = loadEnvironmentConfig(testDir, 'foo');
     
     expect(loadedConfig).toBeDefined();
     expect(loadedConfig.site?.domain).toBe('foo.example.com');
@@ -175,7 +180,7 @@ describe('Filesystem Authority for Environment Validation', () => {
     }
     
     const { getAvailableEnvironments, isValidEnvironment } = 
-      await import('../core/environment-loader');
+      await import('../core/config-loader.js');
     
     const available = getAvailableEnvironments();
     
@@ -223,7 +228,7 @@ describe('Filesystem Authority for Environment Validation', () => {
     }
     
     const { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } = 
-      await import('../core/environment-loader');
+      await import('../core/config-loader.js');
     
     const available = getAvailableEnvironments();
     
@@ -232,7 +237,7 @@ describe('Filesystem Authority for Environment Validation', () => {
       expect(available).toContain(envName);
       expect(isValidEnvironment(envName)).toBe(true);
       
-      const config = loadEnvironmentConfig(envName);
+      const config = loadEnvironmentConfig(testDir, envName);
       expect(config.site?.domain).toBe(`${envName}.test.local`);
     }
   });
@@ -242,7 +247,7 @@ describe('Filesystem Authority for Environment Validation', () => {
     expect(fs.readdirSync(configDir)).toEqual([]);
     
     const { getAvailableEnvironments, isValidEnvironment } = 
-      await import('../core/environment-loader');
+      await import('../core/config-loader.js');
     
     // Nothing should be valid initially
     expect(getAvailableEnvironments()).toEqual([]);

@@ -1,0 +1,69 @@
+{
+  "get": {
+    "summary": "Get Entity Types",
+    "description": "Get list of available entity types for references",
+    "tags": [
+      "Selections"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Entity types retrieved successfully",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/GetEntityTypesResponse.json"
+            }
+          }
+        }
+      }
+    }
+  },
+  "post": {
+    "summary": "Add Entity Type",
+    "description": "Add a new entity type to the collection (append-only, requires moderator/admin)",
+    "tags": [
+      "Selections"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "requestBody": {
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "../components/schemas/AddEntityTypeRequest.json"
+          }
+        }
+      }
+    },
+    "responses": {
+      "200": {
+        "description": "Entity type added successfully",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/AddEntityTypeResponse.json"
+            }
+          }
+        }
+      },
+      "403": {
+        "description": "Forbidden - Moderator or Admin access required",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

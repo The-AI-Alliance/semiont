@@ -1,81 +1,116 @@
-# Backend Dockerfile for Semiont (Monorepo)
-# This Dockerfile expects TypeScript to be built locally before the Docker build.
-# The build process copies pre-built artifacts instead of compiling in Docker.
-FROM node:22-alpine AS base
+# Build stage
+FROM node:22-alpine AS builder
 
-# Install dependencies only when needed
-FROM base AS deps
-RUN apk add --no-cache libc6-compat
+# Build args to bust cache when version changes
+ARG BUILD_VERSION
+ARG BUILD_SHA
+# Version of @semiont packages to install from npm
+ARG SEMIONT_VERSION=latest
+
 WORKDIR /app
 
-# Copy root package files for workspace resolution
-COPY package.json package-lock.json* ./
+# Copy only root package.json and backend package.json
+COPY package.json package-lock.json ./
 COPY apps/backend/package.json ./apps/backend/
-COPY packages/api-types/package.json ./packages/api-types/
 
-# Install all dependencies at root level (this handles workspaces)
-RUN npm ci --workspace=apps/backend --include-workspace-root
+# Install semiont packages from npm at specified version first
+# This replaces workspace dependencies with published packages
+RUN npm install \
+  @semiont/api-client@${SEMIONT_VERSION} \
+  @semiont/content@${SEMIONT_VERSION} \
+  @semiont/core@${SEMIONT_VERSION} \
+  @semiont/event-sourcing@${SEMIONT_VERSION} \
+  @semiont/graph@${SEMIONT_VERSION} \
+  @semiont/inference@${SEMIONT_VERSION} \
+  @semiont/jobs@${SEMIONT_VERSION} \
+  @semiont/make-meaning@${SEMIONT_VERSION} \
+  @semiont/ontology@${SEMIONT_VERSION} \
+  --workspace=apps/backend
 
-# Prepare pre-built artifacts
-FROM base AS builder
+# Then install all other dependencies
+# Use npm install (not npm ci) because package-lock.json is now out of sync
+# Install root devDependencies (like @redocly/cli) and workspace dependencies
+RUN npm install --include=dev
+
+# Copy backend source only
+COPY apps/backend ./apps/backend
+COPY tsconfig.json ./
+
+# Copy and build OpenAPI spec (required for validation)
+COPY specs ./specs
+RUN npm run openapi:bundle
+
+# Build backend application
+WORKDIR /app/apps/backend
+RUN npm run build
+
+# Production stage
+FROM node:22-alpine
+
+# Version of @semiont packages to install from npm
+ARG SEMIONT_VERSION=latest
+
 WORKDIR /app
 
-# Copy workspace structure for dependencies
-COPY package.json package-lock.json* ./
+# Copy package files
+COPY package.json package-lock.json ./
 COPY apps/backend/package.json ./apps/backend/
-COPY packages/api-types/package.json ./packages/api-types/
 
-# Install production dependencies only
-RUN npm ci --production --legacy-peer-deps
+# Install semiont packages from npm at specified version first
+RUN npm install \
+  @semiont/api-client@${SEMIONT_VERSION} \
+  @semiont/content@${SEMIONT_VERSION} \
+  @semiont/core@${SEMIONT_VERSION} \
+  @semiont/event-sourcing@${SEMIONT_VERSION} \
+  @semiont/graph@${SEMIONT_VERSION} \
+  @semiont/inference@${SEMIONT_VERSION} \
+  @semiont/jobs@${SEMIONT_VERSION} \
+  @semiont/make-meaning@${SEMIONT_VERSION} \
+  @semiont/ontology@${SEMIONT_VERSION} \
+  --workspace=apps/backend
 
-# Copy pre-built artifacts
-COPY packages/api-types/dist ./packages/api-types/dist
-COPY apps/backend/dist ./apps/backend/dist
-COPY apps/backend/prisma ./apps/backend/prisma
-COPY apps/backend/scripts ./apps/backend/scripts
+# Then install all other production dependencies
+# Use npm install (not npm ci) because package-lock.json is now out of sync
+RUN npm install --omit=dev --workspace=apps/backend
 
-# Generate Prisma client (needs to be done after copying schema)
+# Copy built artifacts from builder
+COPY --from=builder /app/apps/backend/dist ./apps/backend/dist
+
+# Copy generated OpenAPI spec from builder
+COPY --from=builder /app/specs/openapi.json ./specs/openapi.json
+
+# Copy Prisma schema and generate client
+COPY --from=builder /app/apps/backend/prisma ./apps/backend/prisma
 WORKDIR /app/apps/backend
 RUN npx prisma generate
 
-# Validate startup script syntax
-RUN sh -n ./scripts/start.sh || (echo "❌ SYNTAX ERROR in start.sh" && exit 1)
+# Copy startup scripts if they exist
+COPY --from=builder /app/apps/backend/scripts ./scripts
 
-# Production image, copy all the files and run the app  
-FROM base AS runner
-WORKDIR /app
-
-ENV NODE_ENV=production
-
-# Install OpenSSL for Prisma, PostgreSQL client for database access, and curl for health checks
+# Install runtime dependencies
 RUN apk add --no-cache openssl postgresql-client curl
 
-# Create a non-root user to own the files and run our server
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 semiont
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 semiont
 
-# Copy the app with dependencies from builder
-COPY --from=builder --chown=semiont:nodejs /app ./
-
-# Set working directory for the backend
-WORKDIR /app/apps/backend
-
-# Ensure scripts are executable
-RUN chmod +x scripts/start.sh || true
-
-# Create uploads directory for EFS mount
+# Create uploads directory
 RUN mkdir -p /app/uploads && chown semiont:nodejs /app/uploads
+
+# Set ownership
+RUN chown -R semiont:nodejs /app
 
 USER semiont
 
+# Expose port
 EXPOSE 4000
 
-ENV PORT=4000
 ENV NODE_ENV=production
+ENV PORT=4000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD curl -f http://localhost:4000/api/health || exit 1
 
-# Use the start script if it exists, otherwise run directly
-CMD [ -f "./scripts/start.sh" ] && sh ./scripts/start.sh || node dist/index.js
+# Run the application
+CMD ["node", "dist/index.js"]

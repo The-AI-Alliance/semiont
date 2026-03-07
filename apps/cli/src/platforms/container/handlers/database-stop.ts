@@ -1,6 +1,8 @@
 import { execSync } from 'child_process';
 import { ContainerStopHandlerContext, StopHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
+import { checkContainerRuntime, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Stop handler for database services in containers
@@ -160,9 +162,16 @@ const stopDatabaseContainer = async (context: ContainerStopHandlerContext): Prom
 /**
  * Descriptor for database container stop handler
  */
+const preflightDatabaseStop = async (context: ContainerStopHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([
+    checkContainerRuntime(context.runtime),
+  ]);
+};
+
 export const databaseStopDescriptor: HandlerDescriptor<ContainerStopHandlerContext, StopHandlerResult> = {
   command: 'stop',
   platform: 'container',
   serviceType: 'database',
-  handler: stopDatabaseContainer
+  handler: stopDatabaseContainer,
+  preflight: preflightDatabaseStop
 };

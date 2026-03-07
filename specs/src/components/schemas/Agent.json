@@ -1,0 +1,45 @@
+{
+  "type": "object",
+  "description": "Minimal Person/Organization for attribution (W3C PROV compatible)",
+  "additionalProperties": true,
+  "properties": {
+    "@id": {
+      "type": "string",
+      "format": "uri",
+      "description": "Unique identifier for the agent"
+    },
+    "@type": {
+      "description": "Type(s) of agent (Person, Organization, Software)",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        }
+      ]
+    },
+    "name": {
+      "type": "string"
+    },
+    "nickname": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string"
+    },
+    "email_sha1": {
+      "type": "string"
+    },
+    "homepage": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "name"
+  ]
+}

@@ -3,6 +3,9 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import { ContainerStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
+import type { GraphServiceConfig } from '@semiont/core';
+import { checkContainerRuntime, checkPortFree, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Start handler for graph database services using Docker
@@ -10,9 +13,12 @@ import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logg
  */
 const startGraphService = async (context: ContainerStartHandlerContext): Promise<StartHandlerResult> => {
   const { service } = context;
-  
+
+  // Type narrowing for graph service config
+  const serviceConfig = service.config as GraphServiceConfig;
+
   // Determine which graph database to start from service config
-  const graphType = service.config.type;
+  const graphType = serviceConfig.type;
   
   if (!service.quiet) {
     printInfo(`🐳 Starting ${graphType} graph database container...`);
@@ -208,9 +214,20 @@ async function fileExists(path: string): Promise<boolean> {
 /**
  * Handler descriptor for graph database start
  */
+const preflightGraphStart = async (context: ContainerStartHandlerContext): Promise<PreflightResult> => {
+  const { runtime, service } = context;
+  const serviceConfig = service.config as GraphServiceConfig;
+  const port = serviceConfig.port || 8182;
+  return preflightFromChecks([
+    checkContainerRuntime(runtime),
+    await checkPortFree(port),
+  ]);
+};
+
 export const graphStartDescriptor: HandlerDescriptor<ContainerStartHandlerContext, StartHandlerResult> = {
   command: 'start',
   platform: 'container',
   serviceType: 'graph',
-  handler: startGraphService
+  handler: startGraphService,
+  preflight: preflightGraphStart
 };

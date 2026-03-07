@@ -1,0 +1,281 @@
+'use client';
+
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useTranslations } from '../../../contexts/TranslationContext';
+import { useEventBus } from '../../../contexts/EventBusContext';
+import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
+import type { components, Selector } from '@semiont/core';
+import { getTextPositionSelector, getTargetSelector } from '@semiont/api-client';
+import { CommentEntry } from './CommentEntry';
+import { AssistSection } from './AssistSection';
+import { PanelHeader } from './PanelHeader';
+import './CommentsPanel.css';
+
+type Annotation = components['schemas']['Annotation'];
+type Motivation = components['schemas']['Motivation'];
+
+// Unified pending annotation type
+interface PendingAnnotation {
+  selector: Selector | Selector[];
+  motivation: Motivation;
+}
+
+// Helper to extract display text from selector
+function getSelectorDisplayText(selector: Selector | Selector[]): string | null {
+  if (Array.isArray(selector)) {
+    // Text selectors: array of [TextPositionSelector, TextQuoteSelector]
+    const quoteSelector = selector.find(s => s.type === 'TextQuoteSelector');
+    if (quoteSelector && 'exact' in quoteSelector) {
+      return quoteSelector.exact;
+    }
+  } else {
+    // Single selector
+    if (selector.type === 'TextQuoteSelector' && 'exact' in selector) {
+      return selector.exact;
+    }
+  }
+  return null;
+}
+
+interface CommentsPanelProps {
+  annotations: Annotation[];
+  pendingAnnotation: PendingAnnotation | null;
+  annotateMode?: boolean;
+  isAssisting?: boolean;
+  progress?: {
+    status: string;
+    percentage?: number;
+    message?: string;
+  } | null;
+  scrollToAnnotationId?: string | null;
+  onScrollCompleted?: () => void;
+  hoveredAnnotationId?: string | null;
+}
+
+/**
+ * Panel for managing comment annotations with text input
+ *
+ * @emits mark:create - Create new comment annotation. Payload: { motivation: 'commenting', selector: Selector | Selector[], body: Body[] }
+ * @emits mark:cancel-pending - Cancel pending comment annotation. Payload: undefined
+ * @subscribes browse:click - Annotation clicked. Payload: { annotationId: string }
+ */
+export function CommentsPanel({
+  annotations,
+  pendingAnnotation,
+  annotateMode = true,
+  isAssisting = false,
+  progress,
+  scrollToAnnotationId,
+  onScrollCompleted,
+  hoveredAnnotationId,
+}: CommentsPanelProps) {
+  const t = useTranslations('CommentsPanel');
+  const eventBus = useEventBus();
+  const [newCommentText, setNewCommentText] = useState('');
+  const [focusedAnnotationId, setFocusedAnnotationId] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Direct ref management - replace useAnnotationPanel hook
+  const entryRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // Sort annotations by their position in the resource
+  const sortedAnnotations = useMemo(() => {
+    return [...annotations].sort((a, b) => {
+      const aSelector = getTextPositionSelector(getTargetSelector(a.target));
+      const bSelector = getTextPositionSelector(getTargetSelector(b.target));
+      if (!aSelector || !bSelector) return 0;
+      return aSelector.start - bSelector.start;
+    });
+  }, [annotations]);
+
+  // Ref callback for entry components
+  const setEntryRef = useCallback((id: string, element: HTMLDivElement | null) => {
+    if (element) {
+      entryRefs.current.set(id, element);
+    } else {
+      entryRefs.current.delete(id);
+    }
+  }, []);
+
+  // Handle scrollToAnnotationId (click scroll)
+  useEffect(() => {
+    if (!scrollToAnnotationId) return;
+
+    const element = entryRefs.current.get(scrollToAnnotationId);
+
+    if (element && containerRef.current) {
+      // Calculate scroll position to center element in container
+      const elementTop = element.offsetTop;
+      const containerHeight = containerRef.current.clientHeight;
+      const elementHeight = element.offsetHeight;
+      const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
+
+      // Scroll to center
+      containerRef.current.scrollTo({ top: scrollTo, behavior: 'smooth' });
+
+      // Add pulse effect
+      element.classList.remove('semiont-annotation-pulse');
+      void element.offsetWidth; // Force reflow
+      element.classList.add('semiont-annotation-pulse');
+
+      // Notify completion
+      if (onScrollCompleted) {
+        onScrollCompleted();
+      }
+    }
+  }, [scrollToAnnotationId]);
+
+  // Handle hoveredAnnotationId (hover scroll only - pulse is handled by isHovered prop)
+  useEffect(() => {
+    if (!hoveredAnnotationId) return;
+
+    const element = entryRefs.current.get(hoveredAnnotationId);
+
+    if (!element || !containerRef.current) return;
+
+    const container = containerRef.current;
+    const elementRect = element.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+
+    // Only scroll if element is not fully visible
+    const isVisible =
+      elementRect.top >= containerRect.top &&
+      elementRect.bottom <= containerRect.bottom;
+
+    if (!isVisible) {
+      const elementTop = element.offsetTop;
+      const containerHeight = container.clientHeight;
+      const elementHeight = element.offsetHeight;
+      const scrollTo = elementTop - (containerHeight / 2) + (elementHeight / 2);
+
+      container.scrollTo({ top: scrollTo, behavior: 'smooth' });
+    }
+
+    // Pulse effect is handled by isHovered prop on CommentEntry
+  }, [hoveredAnnotationId]);
+
+  // Subscribe to click events - update focused state
+  // Event handler for annotation clicks (extracted to avoid inline arrow function)
+  const handleAnnotationClick = useCallback(({ annotationId }: { annotationId: string }) => {
+    setFocusedAnnotationId(annotationId);
+    setTimeout(() => setFocusedAnnotationId(null), 3000);
+  }, []);
+
+  useEventSubscriptions({
+    'browse:click': handleAnnotationClick,
+  });
+
+  const handleSaveNewComment = () => {
+    if (newCommentText.trim() && pendingAnnotation) {
+      eventBus.get('mark:create').next({
+        motivation: 'commenting',
+        selector: pendingAnnotation.selector,
+        body: [{ type: 'TextualBody', value: newCommentText, purpose: 'commenting' }],
+      });
+      setNewCommentText('');
+    }
+  };
+
+  // Escape key handler for cancelling pending annotation
+  useEffect(() => {
+    if (!pendingAnnotation) return;
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        eventBus.get('mark:cancel-pending').next(undefined);
+        setNewCommentText('');
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [pendingAnnotation]);
+
+  return (
+    <div className="semiont-panel">
+      <PanelHeader annotationType="comment" count={annotations.length} title={t('title')} />
+
+      {/* New comment input - shown when there's a pending annotation with commenting motivation */}
+      {pendingAnnotation && pendingAnnotation.motivation === 'commenting' && (
+        <div className="semiont-annotation-prompt" data-type="comment">
+          <div className="semiont-annotation-prompt__quote">
+            {(() => {
+              const displayText = getSelectorDisplayText(pendingAnnotation.selector);
+              if (displayText) {
+                return `"${displayText.substring(0, 100)}${displayText.length > 100 ? '...' : ''}"`;
+              }
+              // Generic labels for PDF/image annotations without text
+              return t('fragmentSelected');
+            })()}
+          </div>
+          <textarea
+            value={newCommentText}
+            onChange={(e) => setNewCommentText(e.target.value)}
+            className="semiont-textarea"
+            rows={3}
+            placeholder={t('commentPlaceholder')}
+            autoFocus
+            maxLength={2000}
+          />
+          <div className="semiont-annotation-prompt__footer">
+            <span className="semiont-annotation-prompt__char-count">
+              {newCommentText.length}/2000
+            </span>
+            <div className="semiont-annotation-prompt__actions">
+              <button
+                onClick={() => {
+                  eventBus.get('mark:cancel-pending').next(undefined);
+                  setNewCommentText('');
+                }}
+                className="semiont-button semiont-button--secondary"
+                data-type="comment"
+              >
+                {t('cancel')}
+              </button>
+              <button
+                onClick={handleSaveNewComment}
+                disabled={!newCommentText.trim()}
+                className="semiont-button semiont-button--primary"
+                data-type="comment"
+              >
+                {t('save')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Scrollable content area */}
+      <div ref={containerRef} className="semiont-panel__content">
+        {/* Assist Section - only in Annotate mode and for text resources */}
+        {annotateMode && (
+          <AssistSection
+            annotationType="comment"
+            isAssisting={isAssisting}
+            progress={progress}
+          />
+        )}
+
+        {/* Comments list */}
+        <div className="semiont-panel__list">
+          {sortedAnnotations.length === 0 ? (
+            <p className="semiont-panel__empty">
+              {t('noComments')}
+            </p>
+          ) : (
+            sortedAnnotations.map((comment) => (
+              <CommentEntry
+                key={comment.id}
+                comment={comment}
+                isFocused={comment.id === focusedAnnotationId}
+                isHovered={comment.id === hoveredAnnotationId}
+                annotateMode={annotateMode}
+                ref={(el) => setEntryRef(comment.id, el)}
+              />
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

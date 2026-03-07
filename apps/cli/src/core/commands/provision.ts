@@ -28,9 +28,6 @@ const ProvisionOptionsSchema = BaseOptionsSchema.extend({
   skipValidation: z.boolean().default(false),
   skipDependencies: z.boolean().default(false),
   destroy: z.boolean().default(false),
-  // Backend-specific options
-  seedAdmin: z.boolean().default(false),
-  adminEmail: z.string().optional(),
   semiontRepo: z.string().optional(),
 });
 
@@ -76,6 +73,8 @@ const provisionDescriptor: CommandDescriptor<ProvisionOptions> = createCommandDe
   extractHandlerOptions: (options) => ({
     // Pass through all options (including those from after --)
     ...options,
+    // Fallback to SEMIONT_REPO environment variable if --semiont-repo not provided
+    semiontRepo: options.semiontRepo || process.env.SEMIONT_REPO,
   }),
   
   buildResult: (handlerResult: HandlerResult, service: Service, platform: Platform, serviceType: string): CommandResult => {
@@ -110,6 +109,7 @@ const provisionDescriptor: CommandDescriptor<ProvisionOptions> = createCommandDe
   
   continueOnError: true,  // Continue provisioning all services even if one fails
   supportsAll: true,
+  nextCommand: 'start',
 });
 
 // =====================================================================
@@ -127,9 +127,11 @@ const provisionExecutor = new MultiServiceExecutor(provisionDescriptor);
  */
 export async function provision(
   serviceDeployments: ServicePlatformInfo[],
-  options: ProvisionOptions
+  options: ProvisionOptions,
+  envConfig: import('@semiont/core').EnvironmentConfig
+  
 ) {
-  return provisionExecutor.execute(serviceDeployments, options);
+  return provisionExecutor.execute(serviceDeployments, options, envConfig);
 }
 
 // ProvisionResult type alias removed - use CommandResult directly
@@ -177,15 +179,6 @@ export const provisionCommand = new CommandBuilder()
         type: 'boolean',
         description: 'Skip provisioning service dependencies',
         default: false,
-      },
-      '--seed-admin': {
-        type: 'boolean',
-        description: 'Create initial admin user (backend only)',
-        default: false,
-      },
-      '--admin-email': {
-        type: 'string',
-        description: 'Email address for initial admin user',
       },
       '--semiont-repo': {
         type: 'string',

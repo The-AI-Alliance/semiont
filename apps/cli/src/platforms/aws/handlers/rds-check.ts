@@ -1,6 +1,8 @@
 import { DescribeDBInstancesCommand } from '@aws-sdk/client-rds';
 import { AWSCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import { createPlatformResources } from '../../platform-resources.js';
+import { checkAwsCredentials, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * RDS database instance check handler implementation
@@ -93,10 +95,15 @@ const rdsCheckHandler = async (context: AWSCheckHandlerContext): Promise<CheckHa
  * RDS check handler descriptor
  * Explicitly declares this handler is for 'check' command on 'rds' service type
  */
+const preflightRdsCheck = async (_context: AWSCheckHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([checkAwsCredentials()]);
+};
+
 export const rdsCheckDescriptor: HandlerDescriptor<AWSCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'aws',
   serviceType: 'rds',
   handler: rdsCheckHandler,
+  preflight: preflightRdsCheck,
   requiresDiscovery: true
 };

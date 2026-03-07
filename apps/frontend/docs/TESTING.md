@@ -1,12 +1,13 @@
 # Frontend Testing Guide
 
-**Last Updated**: 2025-10-25
+**Last Updated**: 2026-01-12
 
-Comprehensive guide to testing the Semiont frontend, including test philosophy, structure, and examples.
+Comprehensive guide to testing the Semiont frontend and how it integrates with the @semiont/react-ui component library testing.
 
 ## Table of Contents
 
 - [Overview](#overview)
+- [Testing Architecture](#testing-architecture)
 - [Running Tests](#running-tests)
 - [Test Stack](#test-stack)
 - [Test Structure](#test-structure)
@@ -17,14 +18,60 @@ Comprehensive guide to testing the Semiont frontend, including test philosophy, 
 
 ## Overview
 
-The frontend uses **Vitest** with React Testing Library for testing React components and custom hooks, along with **MSW v2** (Mock Service Worker) for API mocking.
+Testing in the Semiont frontend is split between two packages following the component library factorization:
+
+- **@semiont/react-ui**: Tests framework-agnostic components and business logic
+- **apps/frontend**: Tests Next.js specific integrations and page wrappers
 
 **Key Principles**:
 1. **Type Safety First** - TypeScript provides compile-time validation
-2. **Unit & Integration Tests** - Critical business logic thoroughly tested
+2. **Separation of Concerns** - Business logic tested in react-ui, integration tested in frontend
 3. **API Mocking** - MSW v2 provides realistic mocking without code changes
-4. **Performance as Testing** - Lighthouse CI and bundle analysis catch regressions
+4. **Performance as Testing** - Bundle analysis catches regressions
 5. **Error Boundaries** - Runtime error handling for edge cases
+
+## Testing Architecture
+
+```
+┌─────────────────────────────────────┐
+│         apps/frontend               │
+│         Test Coverage:              │
+│                                     │
+│  • Next.js page wrappers            │
+│  • API routes                       │
+│  • NextAuth integration             │
+│  • App-specific components          │
+│  • Integration flows                │
+└─────────────┬───────────────────────┘
+              │ uses
+              ▼
+┌─────────────────────────────────────┐
+│    packages/react-ui                │
+│         Test Coverage:              │
+│                                     │
+│  • Core UI components (1250+ tests) │
+│  • Business logic                   │
+│  • Custom hooks                     │
+│  • Utilities and helpers            │
+│  • Provider implementations         │
+└─────────────────────────────────────┘
+```
+
+### What Gets Tested Where
+
+**In @semiont/react-ui** (framework-agnostic):
+- Pure components with business logic
+- Custom hooks (useResources, useAnnotations, etc.)
+- Utility functions
+- Provider logic
+- UI components (Button, Card, ResourceViewer, etc.)
+
+**In apps/frontend** (Next.js specific):
+- Page wrappers that use Next.js hooks
+- API route handlers
+- NextAuth configuration
+- Integration flows across pages
+- App-specific components
 
 ## Running Tests
 
@@ -318,13 +365,11 @@ Runtime error capture and graceful degradation:
 ```bash
 # Comprehensive performance testing
 npm run perf                    # Full performance analysis
-npm run lighthouse             # User experience validation
 npm run analyze-bundle         # Bundle size regression detection
 ```
 
 **Metrics tracked**:
 - Bundle size over time
-- Lighthouse scores (performance, accessibility, SEO)
 - Page load times
 - Time to Interactive (TTI)
 
@@ -392,7 +437,7 @@ The project uses native ES modules throughout, ensuring compatibility with moder
 
 ## Current Test Coverage
 
-- **100% test success rate** with all tests passing
+- **42 test files** with **903 tests** - 100% passing
 - Comprehensive coverage of cookie consent system, authentication, and UI components
 - Key areas with excellent coverage:
   - Cookie management (`cookies.ts`) - 87.57% coverage
@@ -412,6 +457,203 @@ curl http://localhost:3000/api/auth/csrf
 # Performance testing
 npm run perf
 ```
+
+## Pure Component Testing Pattern
+
+### Overview
+
+The codebase follows the **Humble Object Pattern** for React components, with business logic components now living in @semiont/react-ui and thin wrappers in the frontend.
+
+### Component Architecture with @semiont/react-ui
+
+**Pure Component** (in `@semiont/react-ui`):
+- Contains business logic and UI structure
+- All data passed as props or via providers
+- No framework-specific hooks (Next.js)
+- Thoroughly tested in the react-ui package
+
+**Page Wrapper** (in `apps/frontend/app/`):
+- Implements provider interfaces for Next.js
+- Calls Next.js hooks (`useRouter`, `useSearchParams`, etc.)
+- Wraps components from @semiont/react-ui
+- So thin it rarely needs testing
+
+### Example Structure
+
+```typescript
+// ✅ Pure Component (@semiont/react-ui/src/components/ResourceViewer.tsx)
+export interface ResourceViewerProps {
+  resourceId: string;
+  onEdit?: (resource: Resource) => void;
+  className?: string;
+}
+
+export function ResourceViewer(props: ResourceViewerProps) {
+  // Uses injected providers for data
+  const resources = useResources(); // From ApiClientProvider
+  const { t } = useTranslations(); // From TranslationProvider
+
+  const { data, isLoading } = resources.get.useQuery(props.resourceId);
+
+  // Pure component logic - all framework-agnostic
+  return (
+    <div className={props.className}>
+      <h1>{t('resource.title')}</h1>
+      {/* ... rest of UI */}
+    </div>
+  );
+}
+
+// ✅ Page Wrapper (apps/frontend/app/[locale]/resources/[id]/page.tsx)
+import { ResourceViewer } from '@semiont/react-ui';
+
+export default function ResourcePage({ params }: { params: { id: string } }) {
+  // Thin wrapper - just passes params
+  return <ResourceViewer resourceId={params.id} />;
+}
+```
+
+### Testing with Factored Components
+
+**Test in @semiont/react-ui** (business logic):
+
+```typescript
+// packages/react-ui/src/components/__tests__/ResourceViewer.test.tsx
+import { render, screen } from '@testing-library/react';
+import { ResourceViewer } from '../ResourceViewer';
+import { TestProviders } from '../../test-utils';
+
+it('renders resource title', async () => {
+  const mockResource = {
+    id: '123',
+    title: 'Test Resource',
+    content: 'Test content'
+  };
+
+  render(
+    <TestProviders
+      apiClient={{ resources: { get: { useQuery: () => ({ data: mockResource }) } } }}
+      translations={{ 'resource.title': 'Resource Title' }}
+    >
+      <ResourceViewer resourceId="123" />
+    </TestProviders>
+  );
+
+  expect(await screen.findByText('Resource Title')).toBeInTheDocument();
+  expect(screen.getByText('Test Resource')).toBeInTheDocument();
+});
+```
+
+**Frontend wrapper tests** (minimal, if needed):
+
+```typescript
+// apps/frontend/app/[locale]/resources/[id]/__tests__/page.test.tsx
+// Usually not needed - wrapper is too thin
+// If testing is required, mock @semiont/react-ui components
+
+vi.mock('@semiont/react-ui', () => ({
+  ResourceViewer: ({ resourceId }: { resourceId: string }) => (
+    <div>ResourceViewer: {resourceId}</div>
+  )
+}));
+```
+
+### Testing Pattern
+
+**Test the pure component** (contains all business logic):
+
+```typescript
+// ✅ Good: Test pure component
+import { render, screen } from '@testing-library/react';
+import { AdminSecurityPage } from '../components/AdminSecurityPage';
+
+it('renders page title', () => {
+  const props = {
+    providers: [],
+    allowedDomains: [],
+    isLoading: false,
+    theme: 'light' as const,
+    onThemeChange: vi.fn(),
+    translations: {
+      title: 'Security Settings',
+      subtitle: 'Configure authentication',
+      // ... rest of translations
+    },
+    Toolbar: () => <div>Toolbar</div>,
+    ToolbarPanels: () => <div>Panels</div>,
+  };
+
+  render(<AdminSecurityPage {...props} />);
+
+  expect(screen.getByText('Security Settings')).toBeInTheDocument();
+});
+```
+
+**Skip the page wrapper** (too thin to test):
+
+```typescript
+// ❌ Bad: Testing page wrapper requires mocking everything
+import Page from '../page'; // The wrapper
+
+it('renders page', () => {
+  // Need to mock: useQuery, useTheme, useTranslations, etc.
+  vi.mock('...'); // Many mocks needed!
+  renderWithProviders(<Page />); // Complex test setup
+});
+```
+
+### Benefits
+
+1. **No mocking needed** - Pure components test in isolation
+2. **Faster tests** - No framework overhead
+3. **More reliable** - Tests actual component logic, not mocks
+4. **Better design** - Forces separation of concerns
+5. **Easier refactoring** - Change hooks without breaking tests
+
+### Current Status
+
+**Component testing is now split across packages:**
+
+**@semiont/react-ui (1250+ tests):**
+- Core UI components: `Button`, `Card`, `Toast`, `StatusDisplay`
+- Resource components: `ResourceViewer`, `AnnotateView`, `BrowseView`
+- Auth components: `SignUpForm`, `AuthErrorDisplay`, `WelcomePage`
+- Annotation components: All annotation UI and popups
+- Hooks: `useResources`, `useAnnotations`, `useToast`, etc.
+- Utilities: Validation, query keys, annotation registry
+
+**apps/frontend:**
+- Page wrappers: Thin Next.js page components
+- Integration tests: Multi-step user flows
+- API routes: NextAuth, cookie consent, data export
+- App-specific components: Home, About, Privacy pages
+
+### Reference Examples
+
+**Testing @semiont/react-ui components:**
+```bash
+# Run react-ui tests
+cd packages/react-ui
+npm test
+
+# Example test locations
+packages/react-ui/src/components/__tests__/Button.test.tsx
+packages/react-ui/src/hooks/__tests__/useResources.test.tsx
+packages/react-ui/src/features/auth/__tests__/SignUpForm.test.tsx
+```
+
+**Testing frontend integration:**
+```bash
+# Run frontend tests
+cd apps/frontend
+npm test
+
+# Example test locations
+src/app/[locale]/auth/__tests__/signup-flow.integration.test.tsx
+src/app/api/auth/[...nextauth]/__tests__/route.test.ts
+```
+
+**Key Testing Pattern**: Business logic lives in @semiont/react-ui and is thoroughly tested there. The frontend only tests Next.js-specific integration and thin wrapper components.
 
 ## Future Testing Enhancements
 
@@ -444,4 +686,4 @@ Planned improvements for higher test coverage:
 
 **Test Runner**: Vitest
 **Coverage Tool**: V8
-**Last Updated**: 2025-10-25
+**Last Updated**: 2026-01-05

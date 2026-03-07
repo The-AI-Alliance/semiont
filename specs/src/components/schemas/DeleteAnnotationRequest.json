@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "properties": {
+    "resourceId": {
+      "type": "string",
+      "format": "uri",
+      "description": "Resource URI containing the annotation (required for O(1) Layer 3 lookup)"
+    }
+  },
+  "required": [
+    "resourceId"
+  ]
+}

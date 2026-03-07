@@ -23,6 +23,7 @@ const StopOptionsSchema = BaseOptionsSchema.extend({
   service: z.string().optional(),
   force: z.boolean().default(false).describe('Force stop without graceful shutdown'),
   timeout: z.number().default(30).describe('Timeout for graceful shutdown in seconds'),
+  semiontRepo: z.string().optional(),
 });
 
 export type StopOptions = z.output<typeof StopOptionsSchema>;
@@ -46,6 +47,7 @@ const stopDescriptor: CommandDescriptor<StopOptions> = createCommandDescriptor({
     verbose: options.verbose,
     quiet: options.quiet,
     dryRun: options.dryRun,
+    semiontRepo: options.semiontRepo || process.env.SEMIONT_REPO,
   }),
   
   buildResult: (handlerResult: HandlerResult, service: Service, platform: Platform, serviceType: string): CommandResult => {
@@ -90,9 +92,11 @@ const stopExecutor = new MultiServiceExecutor(stopDescriptor);
  */
 export async function stop(
   serviceDeployments: ServicePlatformInfo[],
-  options: StopOptions
+  options: StopOptions,
+  envConfig: import('@semiont/core').EnvironmentConfig
+  
 ) {
-  return stopExecutor.execute(serviceDeployments, options);
+  return stopExecutor.execute(serviceDeployments, options, envConfig);
 }
 
 // =====================================================================

@@ -1,59 +1,63 @@
 /**
- * Document Event Types
+ * Resource Event Types
  *
- * Event-sourced architecture for document state management
+ * Event-sourced architecture for resource state management
  * Events are stored in an append-only log (JSONL format)
  *
  * Federation-ready design:
- * - documentId uses content hashes (doc-sha256:...)
+ * - resourceId uses content hashes (doc-sha256:...)
  * - userId uses DID format (did:web:org.com:users:alice)
  * - prevEventHash creates tamper-evident chains
  * - Optional signatures for cross-org verification
  */
 
 import type { CreationMethod } from './creation-methods';
-import type { components } from '@semiont/api-client';
+import type { components } from './types';
+import type { AnnotationUri, JobId } from './branded-types';
+import type { ResourceId, AnnotationId, UserId } from './identifiers';
 
 // Import OpenAPI types
 type Annotation = components['schemas']['Annotation'];
 type ContentFormat = components['schemas']['ContentFormat'];
+type Motivation = components['schemas']['Motivation'];
 
 export interface BaseEvent {
   id: string;                    // Unique event ID (UUID)
   timestamp: string;              // ISO 8601 timestamp (for humans, NOT for ordering)
-  documentId?: string;            // Optional - present for document-scoped events, absent for system events
-                                  // ⚠️ BRITTLE: Event routing depends on presence/absence of this field
-                                  // TODO: Add explicit projection target field for cleaner routing
-  userId: string;                 // DID format: did:web:org.com:users:alice (federation-ready)
+  resourceId?: ResourceId;        // Optional - present for resource-scoped events, absent for system events
+                                  // Use isSystemEvent() / isResourceScopedEvent() type guards for routing
+  userId: UserId;                 // DID format: did:web:org.com:users:alice (federation-ready)
   version: number;                // Event schema version
 }
 
-// Document lifecycle events
-export interface DocumentCreatedEvent extends BaseEvent {
-  type: 'document.created';
+// Resource lifecycle events
+export interface ResourceCreatedEvent extends BaseEvent {
+  type: 'resource.created';
   payload: {
     name: string;
     format: ContentFormat;       // MIME type (validated enum)
-    contentChecksum: string;     // SHA-256 of content (should match documentId)
-    creationMethod: CreationMethod;  // How the document was created
+    contentChecksum: string;     // SHA-256 of content (should match resourceId)
+    contentByteSize?: number;    // Size of content in bytes
+    creationMethod: CreationMethod;  // How the resource was created
     entityTypes?: string[];
 
     // First-class fields (promoted from metadata)
     language?: string;             // Language/locale code (e.g., 'en', 'es', 'fr')
-    isDraft?: boolean;           // Draft status for generated documents
+    isDraft?: boolean;           // Draft status for generated resources
     generatedFrom?: string;      // Annotation/Reference ID that triggered generation
-    generationPrompt?: string;   // Prompt used for AI generation (events-only, not on Document)
+    generationPrompt?: string;   // Prompt used for AI generation (events-only, not on Resource)
   };
 }
 
-export interface DocumentClonedEvent extends BaseEvent {
-  type: 'document.cloned';
+export interface ResourceClonedEvent extends BaseEvent {
+  type: 'resource.cloned';
   payload: {
     name: string;
     format: ContentFormat;       // MIME type (validated enum)
     contentChecksum: string;     // SHA-256 of new content
-    parentDocumentId: string;   // Content hash of parent document
-    creationMethod: CreationMethod;  // How the document was created
+    contentByteSize?: number;    // Size of content in bytes
+    parentResourceId: string;   // Content hash of parent resource
+    creationMethod: CreationMethod;  // How the resource was created
     entityTypes?: string[];
 
     // First-class fields (promoted from metadata)
@@ -61,16 +65,46 @@ export interface DocumentClonedEvent extends BaseEvent {
   };
 }
 
-export interface DocumentArchivedEvent extends BaseEvent {
-  type: 'document.archived';
+export interface ResourceArchivedEvent extends BaseEvent {
+  type: 'resource.archived';
   payload: {
     reason?: string;
   };
 }
 
-export interface DocumentUnarchivedEvent extends BaseEvent {
-  type: 'document.unarchived';
+export interface ResourceUnarchivedEvent extends BaseEvent {
+  type: 'resource.unarchived';
   payload: Record<string, never>;  // Empty payload
+}
+
+// Representation events (multi-format support)
+export interface RepresentationAddedEvent extends BaseEvent {
+  type: 'representation.added';
+  resourceId: ResourceId;  // Required - resource-scoped event
+  payload: {
+    representation: {
+      '@id': string;           // Unique ID (content hash)
+      mediaType: string;       // MIME type (e.g., 'text/markdown', 'application/pdf')
+      byteSize: number;        // Size in bytes
+      checksum: string;        // Content hash (SHA-256)
+      created: string;         // ISO 8601 timestamp
+      rel?: 'original' | 'thumbnail' | 'preview' | 'optimized' | 'derived' | 'other';
+      storageUri?: string;     // Where bytes are stored (optional)
+      filename?: string;       // Original filename (optional)
+      language?: string;       // IETF BCP 47 language tag (optional, for translations)
+      width?: number;          // Pixels (images/video)
+      height?: number;         // Pixels (images/video)
+      duration?: number;       // Seconds (audio/video)
+    };
+  };
+}
+
+export interface RepresentationRemovedEvent extends BaseEvent {
+  type: 'representation.removed';
+  resourceId: ResourceId;  // Required - resource-scoped event
+  payload: {
+    checksum: string;  // Which representation to remove
+  };
 }
 
 // Unified annotation events
@@ -85,14 +119,14 @@ export interface AnnotationAddedEvent extends BaseEvent {
 export interface AnnotationRemovedEvent extends BaseEvent {
   type: 'annotation.removed';
   payload: {
-    annotationId: string;           // Unified ID field
+    annotationId: AnnotationId;     // Branded type for compile-time safety
   };
 }
 
 // Body operation types for fine-grained annotation body modifications
 export type BodyItem =
-  | { type: 'TextualBody'; value: string; purpose: 'tagging' | 'commenting' | 'describing'; format?: string; language?: string }
-  | { type: 'SpecificResource'; source: string; purpose: 'linking' };
+  | { type: 'TextualBody'; value: string; purpose?: Motivation; format?: string; language?: string }
+  | { type: 'SpecificResource'; source: string; purpose?: Motivation };
 
 export type BodyOperation =
   | { op: 'add'; item: BodyItem }
@@ -102,15 +136,69 @@ export type BodyOperation =
 export interface AnnotationBodyUpdatedEvent extends BaseEvent {
   type: 'annotation.body.updated';
   payload: {
-    annotationId: string;
+    annotationId: AnnotationId;      // Branded type for compile-time safety
     operations: BodyOperation[];
   };
 }
 
-// Entity tag events (document-level)
+// Job progress events (resource-level)
+// Emitted by background workers for real-time progress updates
+export interface JobStartedEvent extends BaseEvent {
+  type: 'job.started';
+  resourceId: ResourceId;  // Required - job is scoped to a resource
+  payload: {
+    jobId: JobId;
+    jobType: 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
+    totalSteps?: number;  // Optional - total number of steps if known
+  };
+}
+
+export interface JobProgressEvent extends BaseEvent {
+  type: 'job.progress';
+  resourceId: ResourceId;  // Required - job is scoped to a resource
+  payload: {
+    jobId: JobId;
+    jobType: 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
+    percentage: number;  // 0-100
+    currentStep?: string;  // Human-readable current step (e.g., "Scanning for Person")
+    processedSteps?: number;  // Number of steps completed
+    totalSteps?: number;  // Total number of steps
+    foundCount?: number;  // For detection: number of entities found so far
+    message?: string;  // Optional status message
+    progress?: any;  // For new job types: full progress object
+  };
+}
+
+export interface JobCompletedEvent extends BaseEvent {
+  type: 'job.completed';
+  resourceId: ResourceId;  // Required - job is scoped to a resource
+  payload: {
+    jobId: JobId;
+    jobType: 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
+    totalSteps?: number;  // Total steps completed
+    foundCount?: number;  // For detection: total entities found
+    resultResourceId?: ResourceId;  // For generation: ID of generated resource (branded type)
+    annotationUri?: AnnotationUri;  // For generation: URI of annotation that triggered generation
+    message?: string;  // Optional completion message
+    result?: any;  // For new job types: full result object
+  };
+}
+
+export interface JobFailedEvent extends BaseEvent {
+  type: 'job.failed';
+  resourceId: ResourceId;  // Required - job is scoped to a resource
+  payload: {
+    jobId: JobId;
+    jobType: 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
+    error: string;  // Error message
+    details?: string;  // Optional detailed error information
+  };
+}
+
+// Entity tag events (resource-level)
 export interface EntityTagAddedEvent extends BaseEvent {
   type: 'entitytag.added';
-  documentId: string;  // Required - document-scoped event
+  resourceId: ResourceId;  // Required - resource-scoped event
   payload: {
     entityType: string;
   };
@@ -118,7 +206,7 @@ export interface EntityTagAddedEvent extends BaseEvent {
 
 export interface EntityTagRemovedEvent extends BaseEvent {
   type: 'entitytag.removed';
-  documentId: string;  // Required - document-scoped event
+  resourceId: ResourceId;  // Required - resource-scoped event
   payload: {
     entityType: string;
   };
@@ -127,40 +215,68 @@ export interface EntityTagRemovedEvent extends BaseEvent {
 // Entity type events (global collection)
 export interface EntityTypeAddedEvent extends BaseEvent {
   type: 'entitytype.added';
-  documentId?: undefined;  // System-level event - no document scope
+  resourceId?: undefined;  // System-level event - no resource scope
   payload: {
     entityType: string;  // The entity type being added to global collection
   };
 }
 
 // Union type of all events
-export type DocumentEvent =
-  | DocumentCreatedEvent
-  | DocumentClonedEvent
-  | DocumentArchivedEvent
-  | DocumentUnarchivedEvent
+export type ResourceEvent =
+  | ResourceCreatedEvent
+  | ResourceClonedEvent
+  | ResourceArchivedEvent
+  | ResourceUnarchivedEvent
+  | RepresentationAddedEvent      // Multi-format support
+  | RepresentationRemovedEvent    // Multi-format support
   | AnnotationAddedEvent
   | AnnotationRemovedEvent
   | AnnotationBodyUpdatedEvent
-  | EntityTagAddedEvent      // Document-level
-  | EntityTagRemovedEvent    // Document-level
+  | JobStartedEvent          // Job progress
+  | JobProgressEvent         // Job progress
+  | JobCompletedEvent        // Job progress
+  | JobFailedEvent           // Job progress
+  | EntityTagAddedEvent      // Resource-level
+  | EntityTagRemovedEvent    // Resource-level
   | EntityTypeAddedEvent;    // Global collection
 
 // Extract just the event type strings from the union
-export type DocumentEventType = DocumentEvent['type'];
+export type ResourceEventType = ResourceEvent['type'];
+
+// System-level events (no resource scope)
+export type SystemEvent = EntityTypeAddedEvent;
+
+// Resource-scoped events (require resourceId)
+export type ResourceScopedEvent = Exclude<ResourceEvent, SystemEvent>;
 
 // Type guards
-export function isDocumentEvent(event: any): event is DocumentEvent {
+export function isResourceEvent(event: any): event is ResourceEvent {
   return event &&
     typeof event.id === 'string' &&
     typeof event.timestamp === 'string' &&
-    (event.documentId === undefined || typeof event.documentId === 'string') &&  // documentId now optional
+    (event.resourceId === undefined || typeof event.resourceId === 'string') &&  // resourceId now optional
     typeof event.type === 'string' &&
     event.type.includes('.');
 }
 
-export function getEventType<T extends DocumentEvent>(
-  event: DocumentEvent
+/**
+ * Type guard: Check if event is system-level (no resourceId)
+ * System events affect global state, not individual resources
+ */
+export function isSystemEvent(event: ResourceEvent): event is SystemEvent {
+  return event.type === 'entitytype.added';
+}
+
+/**
+ * Type guard: Check if event is resource-scoped (has resourceId)
+ * Resource events affect a specific resource's state
+ */
+export function isResourceScopedEvent(event: ResourceEvent): event is ResourceScopedEvent {
+  return !isSystemEvent(event);
+}
+
+export function getEventType<T extends ResourceEvent>(
+  event: ResourceEvent
 ): T['type'] {
   return event.type as T['type'];
 }
@@ -183,7 +299,7 @@ export interface EventSignature {
 }
 
 // Event with metadata (as stored)
-export interface StoredEvent<T extends DocumentEvent = DocumentEvent> {
+export interface StoredEvent<T extends ResourceEvent = ResourceEvent> {
   event: T;
   metadata: EventMetadata;
   signature?: EventSignature;  // Optional, for federation (unused in MVP)
@@ -191,20 +307,20 @@ export interface StoredEvent<T extends DocumentEvent = DocumentEvent> {
 
 // Query filters for event retrieval
 export interface EventQuery {
-  documentId?: string;
+  resourceId?: ResourceId;
   userId?: string;
-  eventTypes?: DocumentEvent['type'][];
+  eventTypes?: ResourceEvent['type'][];
   fromTimestamp?: string;
   toTimestamp?: string;
   fromSequence?: number;
   limit?: number;
 }
 
-// Annotation collections for a document (Layer 3 projection)
-// Annotations are NOT part of the document - they reference the document
-export interface DocumentAnnotations {
-  documentId: string;           // Which document these annotations belong to
+// Annotation collections for a resource (view storage projection)
+// Annotations are NOT part of the resource - they reference the resource
+export interface ResourceAnnotations {
+  resourceId: ResourceId;       // Which resource these annotations belong to (branded type)
   annotations: Annotation[];    // All annotations (highlights, references, assessments, etc.)
-  version: number;              // Event count for this document's annotation stream
+  version: number;              // Event count for this resource's annotation stream
   updatedAt: string;           // Last annotation event timestamp
 }

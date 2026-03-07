@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": ["SpecificResource"]
+    },
+    "source": {
+      "type": "string",
+      "description": "IRI of the target resource"
+    },
+    "purpose": {
+      "$ref": "./Motivation.json",
+      "description": "Why this body is included"
+    }
+  },
+  "required": [
+    "type",
+    "source"
+  ]
+}

@@ -1,0 +1,58 @@
+/* ============================================
+   Settings Panel Component
+   ============================================ */
+
+.semiont-settings-panel {
+  padding: var(--semiont-panel-padding);
+  background: var(--semiont-bg-primary);
+  border-radius: var(--semiont-panel-border-radius);
+}
+
+.semiont-settings-panel__title {
+  margin: 0 0 var(--semiont-panel-header-margin-bottom);
+  font-size: var(--semiont-panel-title-size);
+  font-weight: var(--semiont-panel-title-weight);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-settings-panel__title {
+  color: var(--semiont-text-primary);
+}
+
+.semiont-settings-panel__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--semiont-panel-section-gap);
+}
+
+/* Field Container */
+.semiont-settings-panel__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--semiont-panel-field-gap);
+}
+
+/* Button Group - layout only, buttons use .semiont-panel-button from core/buttons.css */
+.semiont-settings-panel__button-group {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Loading State */
+.semiont-settings-panel__loading {
+  margin: 0;
+  padding: 0.5rem;
+  background: var(--semiont-bg-secondary);
+  border-left: 3px solid var(--semiont-color-primary-500);
+  border-radius: var(--semiont-radius-sm);
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-settings-panel__loading {
+  background: var(--semiont-bg-secondary);
+  border-left-color: var(--semiont-color-primary-400);
+}
+
+/* Removed responsive adjustments to maintain consistency across all panels */

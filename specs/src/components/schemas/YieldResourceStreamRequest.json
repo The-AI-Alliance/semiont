@@ -1,0 +1,34 @@
+{
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Custom title for generated resource"
+    },
+    "prompt": {
+      "type": "string",
+      "description": "Custom prompt for content generation"
+    },
+    "language": {
+      "type": "string",
+      "description": "Language locale for generated content (e.g., \"es\", \"fr\", \"ja\")"
+    },
+    "context": {
+      "$ref": "./YieldContext.json",
+      "description": "Generation context including source document excerpts and metadata"
+    },
+    "temperature": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Inference temperature (0.0 = focused, 1.0 = creative)"
+    },
+    "maxTokens": {
+      "type": "number",
+      "minimum": 100,
+      "maximum": 4000,
+      "description": "Maximum tokens to generate"
+    }
+  },
+  "required": ["context"]
+}

@@ -1,0 +1,234 @@
+{
+  "type": "object",
+  "properties": {
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "resourceId": {
+            "type": "string"
+          },
+          "payload": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "format": {
+                    "$ref": "./ContentFormat.json"
+                  },
+                  "contentChecksum": {
+                    "type": "string"
+                  },
+                  "creationMethod": {
+                    "type": "string",
+                    "enum": [
+                      "api",
+                      "upload",
+                      "ui",
+                      "reference",
+                      "clone",
+                      "generated"
+                    ]
+                  },
+                  "entityTypes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "name",
+                  "format",
+                  "contentChecksum",
+                  "creationMethod"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "format": {
+                    "$ref": "./ContentFormat.json"
+                  },
+                  "contentChecksum": {
+                    "type": "string"
+                  },
+                  "parentResourceId": {
+                    "type": "string"
+                  },
+                  "creationMethod": {
+                    "type": "string",
+                    "enum": [
+                      "api",
+                      "upload",
+                      "ui",
+                      "reference",
+                      "clone",
+                      "generated"
+                    ]
+                  },
+                  "entityTypes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "name",
+                  "format",
+                  "contentChecksum",
+                  "parentResourceId",
+                  "creationMethod"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "properties": {}
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "annotation": {
+                    "$ref": "./Annotation.json",
+                    "description": "W3C Annotation (creator/created fields are optional in events - they're derived from event userId/timestamp)"
+                  }
+                },
+                "required": [
+                  "annotation"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "annotationId": {
+                    "type": "string",
+                    "description": "Unified annotation ID"
+                  }
+                },
+                "required": [
+                  "annotationId"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "annotationId": {
+                    "type": "string",
+                    "description": "Unified annotation ID"
+                  },
+                  "targetResourceId": {
+                    "type": "string",
+                    "description": "For linking motivation"
+                  }
+                },
+                "required": [
+                  "annotationId",
+                  "targetResourceId"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "entityType": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "entityType"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "entityType": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "entityType"
+                ]
+              }
+            ]
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "sequenceNumber": {
+                "type": "number"
+              },
+              "prevEventHash": {
+                "type": "string"
+              },
+              "checksum": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "sequenceNumber"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "timestamp",
+          "userId",
+          "resourceId",
+          "payload",
+          "metadata"
+        ]
+      }
+    },
+    "total": {
+      "type": "number"
+    },
+    "annotationId": {
+      "type": "string"
+    },
+    "resourceId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "events",
+    "total",
+    "annotationId",
+    "resourceId"
+  ]
+}

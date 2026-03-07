@@ -2,82 +2,112 @@
 /**
  * CLI Tool: Rebuild Annotation Projections from Events
  *
- * Rebuilds Layer 3 annotation projections from Layer 2 event streams.
+ * Rebuilds materialized views from Event Store event streams.
  * Proves that events are the source of truth.
  *
  * Usage:
  *   npm run rebuild-projections              # Rebuild all projections
- *   npm run rebuild-projections <documentId> # Rebuild specific document
+ *   npm run rebuild-projections <resourceId> # Rebuild specific resource
  */
 
-import { createEventStore, createEventQuery, createEventValidator } from '../services/event-store-service';
-import { getFilesystemConfig } from '../config/environment-loader';
+import { startMakeMeaning } from '@semiont/make-meaning';
+import { EventQuery, EventValidator } from '@semiont/event-sourcing';
+import { resourceId as makeResourceId, EventBus } from '@semiont/core';
+import { loadEnvironmentConfig } from '../utils/config';
+import { initializeLogger, getLogger } from '../logger';
 
-async function rebuildProjections(documentId?: string) {
-  console.log('🔄 Rebuilding annotation projections from events...\n');
+async function rebuildProjections(rId?: string) {
+  // Load config - uses SEMIONT_ROOT and SEMIONT_ENV from environment
+  const projectRoot = process.env.SEMIONT_ROOT;
+  if (!projectRoot) {
+    throw new Error('SEMIONT_ROOT environment variable is not set');
+  }
+  const environment = process.env.SEMIONT_ENV || 'development';
 
-  const config = getFilesystemConfig();
-  const eventStore = await createEventStore(config.path);
-  const query = createEventQuery(eventStore);
-  const validator = createEventValidator();
+  const config = loadEnvironmentConfig(projectRoot, environment);
 
-  if (documentId) {
-    // Rebuild single document
-    console.log(`📄 Rebuilding projection for document: ${documentId}`);
+  // Initialize logger
+  initializeLogger(config.logLevel);
+  const logger = getLogger();
 
-    const events = await query.getDocumentEvents(documentId);
+  logger.info('Rebuilding annotation projections from events');
+
+  // Create EventBus
+  const eventBus = new EventBus();
+
+  // Start make-meaning to get eventStore
+  const makeMeaning = await startMakeMeaning(config, eventBus, logger);
+  const { eventStore } = makeMeaning;
+  const query = new EventQuery(eventStore.log.storage);
+  const validator = new EventValidator();
+
+  if (rId) {
+    // Rebuild single resource
+    logger.info('Rebuilding projection for resource', { resourceId: rId });
+
+    const events = await query.getResourceEvents(makeResourceId(rId));
     if (events.length === 0) {
-      console.error(`❌ No events found for document: ${documentId}`);
+      logger.error('No events found for resource', { resourceId: rId });
       process.exit(1);
     }
 
-    console.log(`   Found ${events.length} events`);
+    logger.info('Found events for resource', { resourceId: rId, eventCount: events.length });
 
     // Validate event chain
     const validation = validator.validateEventChain(events);
     if (!validation.valid) {
-      console.error(`❌ Event chain validation failed:`);
-      validation.errors.forEach(err => console.error(`   - ${err}`));
+      logger.error('Event chain validation failed', { resourceId: rId, errors: validation.errors });
+      validation.errors.forEach(err => logger.error('Validation error', { error: err }));
       process.exit(1);
     }
-    console.log(`   ✅ Event chain valid`);
+    logger.info('Event chain valid', { resourceId: rId });
 
     // Rebuild projection
-    const stored = await eventStore.projector.projectDocument(events, documentId);
+    const stored = await eventStore.views.materializer.materialize(events, makeResourceId(rId));
     if (!stored) {
-      console.error(`❌ Failed to build projection`);
+      logger.error('Failed to build projection', { resourceId: rId });
       process.exit(1);
     }
 
-    console.log(`   ✅ Projection rebuilt:`);
-    console.log(`      - Name: ${stored.document.name}`);
-    console.log(`      - Annotations: ${stored.annotations.annotations.length}`);
-    console.log(`      - Entity Types: ${stored.document.entityTypes.join(', ') || 'none'}`);
-    console.log(`      - Version: ${stored.annotations.version}`);
-    console.log(`      - Archived: ${stored.document.archived}`);
+    logger.info('Projection rebuilt successfully', {
+      resourceId: rId,
+      name: stored.resource.name,
+      annotationCount: stored.annotations.annotations.length,
+      entityTypes: stored.resource.entityTypes?.join(', ') || 'none',
+      version: stored.annotations.version,
+      archived: stored.resource.archived
+    });
 
   } else {
     // Rebuild all projections
-    console.log(`📚 Rebuilding all projections...`);
-    console.log(`   (Note: This scans all event shards - may take time for large datasets)\n`);
+    logger.info('Rebuilding all projections');
+    logger.info('Note: This scans all event shards - may take time for large datasets');
 
     // TODO: Implement full directory scan across all shards
     // For now, show usage message
-    console.log(`   To rebuild all projections, you need to:`);
-    console.log(`   1. Scan all event shards in ${config.path}/events/shards/`);
-    console.log(`   2. For each document found, call eventStore.projector.projectDocument(documentId)`);
-    console.log(`   3. Projections are automatically saved to Layer 3\n`);
-    console.log(`   For now, rebuild individual documents by ID.`);
+    logger.info('To rebuild all projections, you need to:');
+    logger.info(`1. Scan all event shards in ${config.services.filesystem!.path}/events/shards/`);
+    logger.info('2. For each resource found, call eventStore.materializer.materialize(resourceId)');
+    logger.info('3. Views are automatically saved to ViewStorage');
+    logger.info('For now, rebuild individual resources by ID');
   }
 
-  console.log(`\n✅ Done!`);
+  // Shutdown make-meaning
+  await makeMeaning.stop();
+  eventBus.destroy();
+
+  logger.info('Rebuild projections completed');
 }
 
 // Parse command line arguments
-const documentId = process.argv[2];
+const rId = process.argv[2];
 
-rebuildProjections(documentId)
+rebuildProjections(rId)
   .catch(err => {
-    console.error(`\n❌ Error:`, err.message);
+    const logger = getLogger();
+    logger.error('Rebuild projections failed', {
+      error: err.message,
+      stack: err.stack
+    });
     process.exit(1);
   });

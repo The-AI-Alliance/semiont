@@ -1,0 +1,46 @@
+{
+  "get": {
+    "summary": "Get Referenced By",
+    "description": "Get resources that reference this resource",
+    "tags": [
+      "Resources",
+      "Graph"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "id",
+        "in": "path"
+      },
+      {
+        "schema": {
+          "$ref": "../components/schemas/Motivation.json"
+        },
+        "required": false,
+        "name": "motivation",
+        "in": "query",
+        "description": "Filter incoming references by W3C motivation type (e.g., 'linking', 'commenting', 'highlighting')"
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Resources that reference this resource",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/GetReferencedByResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

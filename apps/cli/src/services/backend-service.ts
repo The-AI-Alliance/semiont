@@ -31,7 +31,7 @@
 import { BaseService } from '../core/base-service.js';
 import { CommandExtensions } from '../core/command-result.js';
 import { execSync } from 'child_process';
-import { loadEnvironmentConfig, getNodeEnvForEnvironment } from '../core/environment-loader.js';
+import { getNodeEnvForEnvironment, type BackendServiceConfig } from '@semiont/core';
 import * as path from 'path';
 import * as fs from 'fs';
 import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../core/service-requirements.js';
@@ -39,7 +39,12 @@ import { COMMAND_CAPABILITY_ANNOTATIONS } from '../core/service-command-capabili
 import { SERVICE_TYPES } from '../core/service-types.js';
 
 export class BackendService extends BaseService {
-  
+
+  // Type-narrowed config accessor
+  private get typedConfig(): BackendServiceConfig {
+    return this.config as BackendServiceConfig;
+  }
+
   // =====================================================================
   // Service Requirements
   // =====================================================================
@@ -50,9 +55,9 @@ export class BackendService extends BaseService {
     delete baseRequirements.network; // Remove network from preset to avoid port conflicts
     
     // Add dockerfile path if semiontRepo is provided
-    const buildConfig = this.config.semiontRepo ? {
-      dockerfile: `${this.config.semiontRepo}/apps/backend/Dockerfile`,
-      buildContext: this.config.semiontRepo,
+    const buildConfig = this.typedConfig.semiontRepo ? {
+      dockerfile: `${this.typedConfig.semiontRepo}/apps/backend/Dockerfile`,
+      buildContext: this.typedConfig.semiontRepo,
       prebuilt: false
     } : baseRequirements.build;
     
@@ -71,24 +76,24 @@ export class BackendService extends BaseService {
         external: [
           {
             name: 'Redis',
-            url: this.config.redisUrl,
+            url: this.typedConfig.redisUrl,
             required: false
           }
         ]
       },
       build: buildConfig || {
         dockerfile: 'Dockerfile.backend',
-        buildContext: path.join(this.systemConfig.projectRoot, 'apps/backend'),
+        buildContext: path.join(this.projectRoot, 'apps/backend'),
         buildArgs: {
-          NODE_ENV: this.systemConfig.environment,
+          NODE_ENV: this.environment,
           VERSION: process.env.VERSION || 'latest'
         },
         prebuilt: false
       },
       resources: {
-        memory: this.config.memory || '512Mi',
-        cpu: this.config.cpu || '0.25',
-        replicas: this.systemConfig.environment === 'prod' ? 2 : 1
+        memory: this.typedConfig.memory || '512Mi',
+        cpu: this.typedConfig.cpu || '0.25',
+        replicas: this.environment === 'prod' ? 2 : 1
       },
       security: {
         secrets: ['JWT_SECRET', 'DATABASE_URL', 'API_KEY'],
@@ -117,16 +122,14 @@ export class BackendService extends BaseService {
   }
   
   private buildEnvironment(): Record<string, string> {
-    const envConfig = loadEnvironmentConfig(this.systemConfig.environment);
-    
     return {
       PORT: this.getPort().toString(),
-      NODE_ENV: getNodeEnvForEnvironment(this.systemConfig.environment),
-      SEMIONT_ENV: this.systemConfig.environment,
-      SEMIONT_ENVIRONMENT: this.systemConfig.environment,
-      ...(envConfig.site?.domain && { SITE_DOMAIN: envConfig.site.domain }),
-      ...(envConfig.site?.oauthAllowedDomains && { 
-        OAUTH_ALLOWED_DOMAINS: JSON.stringify(envConfig.site.oauthAllowedDomains) 
+      NODE_ENV: getNodeEnvForEnvironment(this.envConfig),
+      SEMIONT_ENV: this.environment,
+      SEMIONT_ENVIRONMENT: this.environment,
+      ...(this.envConfig.site?.domain && { SITE_DOMAIN: this.envConfig.site.domain }),
+      ...(this.envConfig.site?.oauthAllowedDomains && {
+        OAUTH_ALLOWED_DOMAINS: JSON.stringify(this.envConfig.site.oauthAllowedDomains)
       })
     };
   }
@@ -136,7 +139,7 @@ export class BackendService extends BaseService {
   // =====================================================================
   
   override getPort(): number {
-    return this.config.port || 3001;
+    return this.typedConfig.port || 3001;
   }
   
   override getHealthEndpoint(): string {
@@ -145,23 +148,9 @@ export class BackendService extends BaseService {
   
   
   override getImage(): string {
-    return this.config.image || 'semiont/backend:latest';
+    return this.typedConfig.image || 'semiont/backend:latest';
   }
-  
-  override getEnvironmentVariables(): Record<string, string> {
-    const baseEnv = super.getEnvironmentVariables();
-    const requirements = this.getRequirements();
-    
-    return {
-      ...baseEnv,
-      ...(requirements.environment || {}),
-      // Add dynamic values and secrets
-      DATABASE_URL: this.getDatabaseUrl(),
-      JWT_SECRET: process.env.JWT_SECRET || 'local-dev-secret',
-      API_KEY: process.env.API_KEY || 'local-api-key'
-    };
-  }
-  
+
   // =====================================================================
   // Service-specific hooks
   // =====================================================================
@@ -222,7 +211,7 @@ export class BackendService extends BaseService {
   }
   
   private async collectProcessLogs(): Promise<CommandExtensions['logs']> {
-    const logPath = path.join(this.config.projectRoot, 'apps/backend/logs/app.log');
+    const logPath = path.join(this.typedConfig.projectRoot || this.projectRoot, 'apps/backend/logs/app.log');
     const recent: string[] = [];
     const errorLogs: string[] = [];
     
@@ -248,7 +237,7 @@ export class BackendService extends BaseService {
   }
   
   private async collectContainerLogs(): Promise<CommandExtensions['logs']> {
-    const containerName = `semiont-backend-${this.config.environment}`;
+    const containerName = `semiont-backend-${this.environment}`;
     const runtime = fs.existsSync('/var/run/docker.sock') ? 'docker' : 'podman';
     
     try {
@@ -268,7 +257,7 @@ export class BackendService extends BaseService {
   
   private async collectAWSLogs(): Promise<CommandExtensions['logs']> {
     try {
-      const logGroup = `/ecs/semiont-${this.config.environment}-backend`;
+      const logGroup = `/ecs/semiont-${this.environment}-backend`;
       const logsJson = execSync(
         `aws logs tail ${logGroup} --max-items 100 --format json 2>/dev/null`,
         { encoding: 'utf-8' }
@@ -283,65 +272,6 @@ export class BackendService extends BaseService {
       };
     } catch {
       return undefined;
-    }
-  }
-  
-  // =====================================================================
-  // Helper methods
-  // =====================================================================
-  
-  private getDatabaseUrl(): string {
-    // Service-specific logic for determining database URL
-    if (this.config.databaseUrl) {
-      return this.config.databaseUrl;
-    }
-    
-    // Check if DATABASE_URL is already set in environment
-    if (process.env.DATABASE_URL) {
-      return process.env.DATABASE_URL;
-    }
-    
-    // Try to get database configuration from environment config
-    const envConfig = loadEnvironmentConfig(this.systemConfig.environment);
-    const dbConfig = envConfig.services?.database;
-    
-    if (dbConfig && dbConfig.platform?.type === 'external') {
-      // Load secrets for database password
-      const secretsPath = path.join(this.systemConfig.projectRoot, '.secrets.json');
-      let password = dbConfig.password || 'password';
-      
-      try {
-        if (fs.existsSync(secretsPath)) {
-          const secrets = JSON.parse(fs.readFileSync(secretsPath, 'utf-8'));
-          password = secrets.DATABASE_PASSWORD || password;
-        }
-      } catch (e) {
-        // Ignore errors reading secrets
-      }
-      
-      const dbUrl = `postgresql://${dbConfig.user}:${password}@${dbConfig.host}:${dbConfig.port}/${dbConfig.name}`;
-      
-      // Debug logging for CI
-      if (this.systemConfig.environment === 'ci') {
-        console.log(`[DEBUG] Backend DATABASE_URL construction:`);
-        console.log(`  - dbConfig: ${JSON.stringify(dbConfig)}`);
-        console.log(`  - secretsPath: ${secretsPath}`);
-        console.log(`  - DATABASE_URL: ${dbUrl}`);
-      }
-      
-      return dbUrl;
-    }
-    
-    // Fallback to platform-specific defaults
-    switch (this.platform) {
-      case 'posix':
-        return 'postgresql://postgres:localpassword@localhost:5432/semiont';
-      case 'container':
-        return 'postgresql://postgres:localpassword@semiont-postgres:5432/semiont';
-      case 'aws':
-        return '';  // AWS should have DATABASE_URL set
-      default:
-        return '';
     }
   }
 }

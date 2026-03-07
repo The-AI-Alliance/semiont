@@ -1,0 +1,256 @@
+/**
+ * Test utilities for @semiont/react-ui
+ *
+ * Provides a renderWithProviders helper that wraps components with all necessary providers
+ * for testing, with customizable mock implementations.
+ */
+
+import React, { ReactElement } from 'react';
+import { render, RenderOptions, RenderResult } from '@testing-library/react';
+import { vi } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { TranslationProvider } from './contexts/TranslationContext';
+import { ApiClientProvider } from './contexts/ApiClientContext';
+import { SessionProvider } from './contexts/SessionContext';
+import { OpenResourcesProvider } from './contexts/OpenResourcesContext';
+import { EventBusProvider, useEventBus, resetEventBusForTesting } from './contexts/EventBusContext';
+import type { EventBus } from '@semiont/core';
+import { ToastProvider } from './components/Toast';
+import type { TranslationManager } from './types/TranslationManager';
+import type { SessionManager } from './types/SessionManager';
+import type { OpenResourcesManager } from './types/OpenResourcesManager';
+
+/**
+ * Default mock implementations
+ */
+export const defaultMocks = {
+  translationManager: {
+    t: (namespace: string, key: string, params?: Record<string, any>) => {
+      let result = `${namespace}.${key}`;
+      if (params) {
+        // Simple parameter replacement for testing
+        Object.entries(params).forEach(([k, v]) => {
+          result = result.replace(`{${k}}`, String(v));
+        });
+      }
+      return result;
+    },
+  } as TranslationManager,
+
+  sessionManager: {
+    isAuthenticated: false,
+    expiresAt: null,
+    timeUntilExpiry: null,
+    isExpiringSoon: false,
+  } as SessionManager,
+
+  openResourcesManager: {
+    openResources: [],
+    addResource: vi.fn(),
+    removeResource: vi.fn(),
+    updateResourceName: vi.fn(),
+    reorderResources: vi.fn(),
+  } as OpenResourcesManager,
+};
+
+/**
+ * Options for renderWithProviders
+ */
+export interface TestProvidersOptions {
+  translationManager?: TranslationManager;
+  apiBaseUrl?: string;
+  sessionManager?: SessionManager;
+  openResourcesManager?: OpenResourcesManager;
+  queryClient?: QueryClient;
+}
+
+/**
+ * Render component with all providers
+ *
+ * @example
+ * ```tsx
+ * import { renderWithProviders } from '@semiont/react-ui/test-utils';
+ *
+ * it('should render component', () => {
+ *   renderWithProviders(<MyComponent />);
+ *   expect(screen.getByText('Hello')).toBeInTheDocument();
+ * });
+ *
+ * it('should work with custom API base URL', () => {
+ *   renderWithProviders(<MyComponent />, {
+ *     apiBaseUrl: 'http://test.example.com',
+ *   });
+ * });
+ * ```
+ */
+export interface RenderWithProvidersOptions extends TestProvidersOptions, Omit<RenderOptions, 'wrapper'> {
+  /** If true, returns the event bus instance along with render result */
+  returnEventBus?: boolean;
+}
+
+export interface RenderWithProvidersResult extends RenderResult {
+  eventBus?: EventBus;
+}
+
+/**
+ * Wrapper component that captures the event bus instance
+ */
+function EventBusCapture({
+  children,
+  onEventBus
+}: {
+  children: React.ReactNode;
+  onEventBus?: (bus: EventBus) => void
+}) {
+  const eventBus = useEventBus();
+  React.useEffect(() => {
+    onEventBus?.(eventBus);
+  }, [eventBus, onEventBus]);
+  return <>{children}</>;
+}
+
+export function renderWithProviders(
+  ui: ReactElement,
+  options?: RenderWithProvidersOptions
+): RenderWithProvidersResult {
+  const {
+    translationManager = defaultMocks.translationManager,
+    apiBaseUrl = 'http://localhost:4000',
+    sessionManager = defaultMocks.sessionManager,
+    openResourcesManager = defaultMocks.openResourcesManager,
+    returnEventBus = false,
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    }),
+    ...renderOptions
+  } = options || {};
+
+  let capturedEventBus: EventBus | undefined;
+
+  function Wrapper({ children }: { children: React.ReactNode }) {
+    return (
+      <TranslationProvider translationManager={translationManager}>
+        <ApiClientProvider baseUrl={apiBaseUrl}>
+          <SessionProvider sessionManager={sessionManager}>
+            <OpenResourcesProvider openResourcesManager={openResourcesManager}>
+              <EventBusProvider>
+                <QueryClientProvider client={queryClient}>
+                  <ToastProvider>
+                    {returnEventBus ? (
+                      <EventBusCapture onEventBus={(bus) => { capturedEventBus = bus; }}>
+                        {children}
+                      </EventBusCapture>
+                    ) : (
+                      children
+                    )}
+                  </ToastProvider>
+                </QueryClientProvider>
+              </EventBusProvider>
+            </OpenResourcesProvider>
+          </SessionProvider>
+        </ApiClientProvider>
+      </TranslationProvider>
+    );
+  }
+
+  const result = render(ui, { wrapper: Wrapper, ...renderOptions });
+
+  if (returnEventBus) {
+    return { ...result, eventBus: capturedEventBus };
+  }
+
+  return result;
+}
+
+/**
+ * Re-export resetEventBusForTesting for test isolation
+ *
+ * Call this in beforeEach to ensure each test gets a fresh event bus
+ * with no lingering subscriptions from previous tests.
+ */
+export { resetEventBusForTesting };
+
+/**
+ * Create a mock translation manager with custom translations
+ *
+ * @example
+ * ```tsx
+ * const translations = createMockTranslationManager({
+ *   Toolbar: { save: 'Save', cancel: 'Cancel' },
+ *   Footer: { copyright: '© 2024' },
+ * });
+ *
+ * renderWithProviders(<MyComponent />, {
+ *   translationManager: translations,
+ * });
+ * ```
+ */
+export function createMockTranslationManager(
+  translations: Record<string, Record<string, string>>
+): TranslationManager {
+  return {
+    t: (namespace: string, key: string) => {
+      return translations[namespace]?.[key] || key;
+    },
+  };
+}
+
+/**
+ * Create a mock session manager with custom session state
+ *
+ * @example
+ * ```tsx
+ * const session = createMockSessionManager({
+ *   isAuthenticated: true,
+ *   expiresAt: new Date(Date.now() + 3600000),
+ * });
+ *
+ * renderWithProviders(<MyComponent />, {
+ *   sessionManager: session,
+ * });
+ * ```
+ */
+export function createMockSessionManager(
+  state: Partial<SessionManager>
+): SessionManager {
+  return {
+    isAuthenticated: false,
+    expiresAt: null,
+    timeUntilExpiry: null,
+    isExpiringSoon: false,
+    ...state,
+  };
+}
+
+/**
+ * Create a mock open resources manager with custom resources
+ *
+ * @example
+ * ```tsx
+ * const resources = createMockOpenResourcesManager([
+ *   { id: 'doc-1', name: 'Document 1', openedAt: Date.now() },
+ * ]);
+ *
+ * renderWithProviders(<MyComponent />, {
+ *   openResourcesManager: resources,
+ * });
+ * ```
+ */
+export function createMockOpenResourcesManager(
+  resources: OpenResourcesManager['openResources'] = []
+): OpenResourcesManager {
+  return {
+    openResources: resources,
+    addResource: vi.fn(),
+    removeResource: vi.fn(),
+    updateResourceName: vi.fn(),
+    reorderResources: vi.fn(),
+  };
+}
+
+// Re-export testing library utilities
+export * from '@testing-library/react';
+export { vi } from 'vitest';

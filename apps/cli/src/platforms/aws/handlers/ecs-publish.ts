@@ -3,7 +3,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { AWSPublishHandlerContext, PublishHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
-import { loadEnvironmentConfig } from '../../../core/environment-loader.js';
+import { checkAwsCredentials, checkCommandAvailable, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Publish handler for ECS Fargate services
@@ -21,12 +22,9 @@ const publishECSService = async (context: AWSPublishHandlerContext): Promise<Pub
   const { service, awsConfig, resourceName, cfnDiscoveredResources } = context as any;
   const { region, accountId } = awsConfig;
   const requirements = service.getRequirements();
-  
-  // Load environment configuration from the PROJECT ROOT (current working directory)
-  // NOT from the semiont source code repository
-  // The project's semiont.json is ALWAYS in the user's project directory
-  const projectConfigPath = path.join(process.cwd(), 'semiont.json');
-  const envConfig = loadEnvironmentConfig(service.environment, projectConfigPath);
+
+  // Get environment configuration from service
+  const envConfig = service.environmentConfig;
   
   // Determine image tag based on configuration
   let version: string;
@@ -103,15 +101,14 @@ const publishECSService = async (context: AWSPublishHandlerContext): Promise<Pub
   // For frontend, set build-time environment variables
   if (service.name === 'frontend') {
     // Use domain from environment config or fall back to defaults
-    const domain = envConfig.site?.domain || 
-                  service.config?.domain || 
+    const domain = envConfig.site.domain ||
+                  service.config?.domain ||
                   (service.environment === 'production' ? 'semiont.com' : `${service.environment}.semiont.com`);
-    const apiUrl = `https://${domain}`;
-    
+
     // Set all NEXT_PUBLIC_ variables that frontend needs
-    buildEnv.NEXT_PUBLIC_API_URL = apiUrl;
-    buildEnv.NEXT_PUBLIC_APP_NAME = envConfig.site?.siteName || 'Semiont';
-    buildEnv.NEXT_PUBLIC_SITE_NAME = envConfig.site?.siteName || 'Semiont';
+    // Note: NEXT_PUBLIC_API_URL removed - ALB handles routing at runtime
+    buildEnv.NEXT_PUBLIC_APP_NAME = envConfig.site.siteName || 'Semiont';
+    buildEnv.NEXT_PUBLIC_SITE_NAME = envConfig.site.siteName || 'Semiont';
     buildEnv.NEXT_PUBLIC_DOMAIN = domain;
     buildEnv.NEXT_PUBLIC_APP_VERSION = '1.0.0';
     
@@ -127,10 +124,10 @@ const publishECSService = async (context: AWSPublishHandlerContext): Promise<Pub
     
     if (!service.quiet && service.verbose) {
       printInfo(`Frontend build configuration:`);
-      printInfo(`  API URL: ${apiUrl}`);
       printInfo(`  Domain: ${domain}`);
       printInfo(`  Site Name: ${buildEnv.NEXT_PUBLIC_SITE_NAME}`);
-      printInfo(`  OAuth Domains: ${envConfig.site?.oauthAllowedDomains?.join(', ') || '(none)'} (set at runtime)`);
+      printInfo(`  API Routing: ALB routes /resources/*, /annotations/*, etc. to backend (runtime)`);
+      printInfo(`  OAuth Domains: ${envConfig.site.oauthAllowedDomains?.join(', ') || '(none)'} (set at runtime)`);
     }
   }
   
@@ -333,11 +330,16 @@ async function createNewTaskDefinition(
 /**
  * Descriptor for ECS publish handler
  */
+const preflightEcsPublish = async (_context: AWSPublishHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([checkAwsCredentials(), checkCommandAvailable('docker')]);
+};
+
 export const ecsPublishDescriptor: HandlerDescriptor<AWSPublishHandlerContext, PublishHandlerResult> = {
   command: 'publish',
   platform: 'aws',
   serviceType: 'ecs',
   handler: publishECSService,
+  preflight: preflightEcsPublish,
   requiresDiscovery: true
 };
 
@@ -347,5 +349,6 @@ export const ecsFargatePublishDescriptor: HandlerDescriptor<AWSPublishHandlerCon
   platform: 'aws',
   serviceType: 'ecs-fargate',
   handler: publishECSService,
+  preflight: preflightEcsPublish,
   requiresDiscovery: true
 };

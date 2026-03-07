@@ -1,30 +1,48 @@
 {
   "name": "test",
+  "site": {
+    "domain": "localhost",
+    "oauthAllowedDomains": ["example.com", "test.example.com"]
+  },
   "platform": {
     "default": "container"
   },
   "env": {
     "NODE_ENV": "test"
   },
+  "logLevel": "error",
   "services": {
     "backend": {
       "platform": {
         "type": "container"
       },
       "image": "semiont-backend:test",
-      "port": 4000
+      "port": 4000,
+      "publicURL": "http://localhost:4000",
+      "corsOrigin": "http://localhost:3000"
     },
     "frontend": {
       "platform": {
         "type": "container"
       },
       "image": "semiont-frontend:test",
-      "port": 3000
+      "port": 3000,
+      "publicURL": "http://localhost:3000",
+      "siteName": "Test Site"
+    },
+    "filesystem": {
+      "platform": {
+        "type": "posix"
+      },
+      "path": "data",
+      "description": "Test filesystem storage"
     },
     "database": {
       "platform": {
         "type": "container"
       },
+      "type": "postgres",
+      "host": "localhost",
       "image": "postgres:15-alpine",
       "name": "semiont-test-db",
       "port": 5432,
@@ -33,6 +51,12 @@
         "POSTGRES_USER": "semiont",
         "POSTGRES_PASSWORD": "testpass"
       }
+    },
+    "graph": {
+      "platform": {
+        "type": "posix"
+      },
+      "type": "memory"
     },
     "mcp": {
       "platform": {

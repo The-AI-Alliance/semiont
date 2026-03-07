@@ -3,7 +3,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { AWSProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printError, printSuccess, printInfo, printWarning } from '../../../core/io/cli-logger.js';
-import { loadEnvironmentConfig } from '../../../core/environment-loader.js';
+import { checkAwsCredentials, checkCommandAvailable, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Provision handler for AWS CDK stacks
@@ -18,22 +19,22 @@ import { loadEnvironmentConfig } from '../../../core/environment-loader.js';
  */
 const provisionStackService = async (context: AWSProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
   const { service, awsConfig } = context;
-  
+
+  // Cast to any to access AWS stack-specific config properties
+  const config = service.config as any;
+
   // Extract stack configuration from service
-  const stackType = service.config?.stackType || 'all'; // 'data' | 'app' | 'all'
-  const destroy = service.config?.destroy || false;
-  const force = service.config?.force || false;
-  
-  // Always use the actual project root (user's project), not semiont-repo
-  // When --semiont-repo is used, service.projectRoot incorrectly points to the semiont repo
-  // We need to use the actual user's project directory where semiont.json lives
-  const projectRoot = process.env.SEMIONT_ROOT || process.cwd();
+  const stackType = config?.stackType || 'all'; // 'data' | 'app' | 'all'
+  const destroy = config?.destroy || false;
+  const force = config?.force || false;
+
+  // Get environment configuration from service
+  const envConfig = service.environmentConfig;
   const environment = service.environment;
+  const projectRoot = service.projectRoot;
   
-  // Load environment config to get AWS settings
-  const envConfig = loadEnvironmentConfig(environment);
-  
-  if (!envConfig.aws) {
+  const aws = (envConfig as any).aws;
+  if (!aws) {
     return {
       success: false,
       error: `Environment ${environment} does not have AWS configuration`,
@@ -42,12 +43,12 @@ const provisionStackService = async (context: AWSProvisionHandlerContext): Promi
       }
     };
   }
-  
+
   // Determine which stacks to deploy
   const stacksToProvision: string[] = [];
   const stackMapping: Record<string, string> = {
-    'data': envConfig.aws.stacks?.data || 'SemiontDataStack',
-    'app': envConfig.aws.stacks?.app || 'SemiontAppStack'
+    'data': aws.stacks?.data || 'SemiontDataStack',
+    'app': aws.stacks?.app || 'SemiontAppStack'
   };
   
   if (stackType === 'all') {
@@ -217,10 +218,15 @@ const provisionStackService = async (context: AWSProvisionHandlerContext): Promi
 /**
  * Descriptor for AWS stack provision handler
  */
+const preflightStackProvision = async (_context: AWSProvisionHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([checkAwsCredentials(), checkCommandAvailable('cdk')]);
+};
+
 export const stackProvisionDescriptor: HandlerDescriptor<AWSProvisionHandlerContext, ProvisionHandlerResult> = {
   command: 'provision',
   platform: 'aws',
   serviceType: 'stack',
   handler: provisionStackService,
+  preflight: preflightStackProvision,
   requiresDiscovery: false
 };

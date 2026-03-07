@@ -1,0 +1,26 @@
+{
+  "type": "object",
+  "description": "W3C Web Annotation FragmentSelector for media fragment identifiers (RFC 3778 for PDFs)",
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": [
+        "FragmentSelector"
+      ]
+    },
+    "value": {
+      "type": "string",
+      "description": "Media fragment identifier (e.g., 'page=1&viewrect=100,200,50,30' for PDF)",
+      "example": "page=1&viewrect=100,200,50,30"
+    },
+    "conformsTo": {
+      "type": "string",
+      "description": "URI identifying the fragment syntax specification",
+      "example": "http://tools.ietf.org/rfc/rfc3778"
+    }
+  },
+  "required": [
+    "type",
+    "value"
+  ]
+}

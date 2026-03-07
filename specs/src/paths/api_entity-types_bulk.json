@@ -1,0 +1,45 @@
+{
+  "post": {
+    "summary": "Bulk Add Entity Types",
+    "description": "Add multiple entity types to the collection (append-only, requires moderator/admin)",
+    "tags": [
+      "Selections"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "requestBody": {
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "../components/schemas/BulkAddEntityTypesRequest.json"
+          }
+        }
+      }
+    },
+    "responses": {
+      "200": {
+        "description": "Entity types added successfully",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/AddEntityTypeResponse.json"
+            }
+          }
+        }
+      },
+      "403": {
+        "description": "Forbidden - Moderator or Admin access required",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "post": {
+    "summary": "Refresh Access Token",
+    "description": "Exchange a refresh token for a new access token",
+    "tags": [
+      "Authentication"
+    ],
+    "requestBody": {
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "../components/schemas/TokenRefreshRequest.json"
+          }
+        }
+      }
+    },
+    "responses": {
+      "200": {
+        "description": "New access token generated",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/GoogleAuthRequest.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "description": "Invalid or expired refresh token",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "post": {
+    "summary": "Create Resource from Clone Token",
+    "description": "Create a new resource using a clone token",
+    "tags": [
+      "Resources"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "requestBody": {
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "../components/schemas/CreateResourceFromTokenRequest.json"
+          }
+        }
+      }
+    },
+    "responses": {
+      "201": {
+        "description": "Resource created successfully",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/CreateResourceResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

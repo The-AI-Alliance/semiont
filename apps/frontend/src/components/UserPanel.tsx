@@ -4,10 +4,8 @@ import React, { useState } from 'react';
 import { signOut } from 'next-auth/react';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
-import { sanitizeImageURL } from '@/lib/validation';
+import { sanitizeImageURL, useSessionExpiry, formatTime } from '@semiont/react-ui';
 import { useAuth } from '@/hooks/useAuth';
-import { useSessionExpiry } from '@/hooks/useSessionExpiry';
-import { useFormattedTime } from '@/hooks/useFormattedTime';
 
 // Fallback avatar when image fails to load or is invalid
 const FALLBACK_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTYiIGZpbGw9IiM2QjcyODAiLz4KPHBhdGggZD0iTTE2IDE2QzE4LjIwOTEgMTYgMjAgMTQuMjA5MSAyMCAxMkMyMCA5Ljc5MDg2IDE4LjIwOTEgOCAxNiA4QzEzLjc5MDkgOCAxMiA5Ljc5MDg2IDEyIDEyQzEyIDE0LjIwOTEgMTMuNzkwOSAxNiAxNiAxNloiIGZpbGw9IiNFNUU3RUIiLz4KPHBhdGggZD0iTTI0IDI1QzI0IDIxLjY4NjMgMjAuNDE4MyAxOSAxNiAxOUMxMS41ODE3IDE5IDggMjEuNjg2MyA4IDI1IiBzdHJva2U9IiNFNUU3RUIiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+Cjwvc3ZnPg==';
@@ -17,7 +15,7 @@ export function UserPanel() {
   const { displayName, avatarUrl, userDomain, isAdmin, isModerator } = useAuth();
   const [imageError, setImageError] = useState(false);
   const { timeRemaining } = useSessionExpiry();
-  const sessionTimeFormatted = useFormattedTime(timeRemaining) ?? 'Unknown';
+  const sessionTimeFormatted = formatTime(timeRemaining) ?? 'Unknown';
 
   // Sanitize and validate the profile image URL
   const profileImageUrl = (() => {
@@ -39,8 +37,8 @@ export function UserPanel() {
   };
 
   return (
-    <div>
-      <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
+    <div className="semiont-user-panel">
+      <h3 className="semiont-user-panel__title">
         {t('account')}
       </h3>
 
@@ -59,11 +57,11 @@ export function UserPanel() {
             quality={85}
           />
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
+            <div className="semiont-panel-text">
               {displayName || t('user')}
             </div>
             {userDomain && (
-              <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+              <div className="semiont-panel-text-secondary">
                 @{userDomain}
               </div>
             )}
@@ -72,11 +70,11 @@ export function UserPanel() {
 
         {/* Session Info */}
         <div>
-          <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-2">
+          <label className="semiont-panel-label">
             {t('session')}
           </label>
-          <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800 rounded-lg">
-            <div className="text-xs text-gray-500 dark:text-gray-400">
+          <div className="semiont-session-box">
+            <div className="semiont-panel-hint">
               {t('expiresIn', { time: sessionTimeFormatted })}
             </div>
           </div>
@@ -85,20 +83,20 @@ export function UserPanel() {
         {/* Privileges */}
         {(isAdmin || isModerator) && (
           <div>
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-2">
+            <label className="semiont-panel-label">
               {t('privileges')}
             </label>
             <div className="space-y-1">
               {isAdmin && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                  <span className="text-sm font-medium text-purple-700 dark:text-purple-300">
+                <div className="semiont-privilege-badge semiont-privilege-badge--admin">
+                  <span className="semiont-privilege-text">
                     {t('administrator')}
                   </span>
                 </div>
               )}
               {isModerator && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                  <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                <div className="semiont-privilege-badge semiont-privilege-badge--moderator">
+                  <span className="semiont-privilege-text">
                     {t('moderator')}
                   </span>
                 </div>
@@ -108,10 +106,10 @@ export function UserPanel() {
         )}
 
         {/* Sign Out Button */}
-        <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+        <div className="semiont-panel-divider">
           <button
             onClick={handleSignOut}
-            className="w-full px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            className="semiont-signout-button"
           >
             {t('signOut')}
           </button>

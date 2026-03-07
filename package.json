@@ -1,6 +1,6 @@
 {
   "name": "semiont",
-  "version": "0.1.0",
+  "version": "0.2.36",
   "private": true,
   "description": "Semiont - Semantic Knowledge Platform",
   "workspaces": [
@@ -13,14 +13,30 @@
     "dev": "npm run dev --workspaces",
     "build": "npm run build:packages && npm run build:apps",
     "build:packages": "node scripts/build-packages.js",
-    "build:apps": "npm run build -w semiont-backend && npm run build -w semiont-frontend && npm run build -w semiont-cli",
+    "build:apps": "npm run build -w semiont-backend && npm run build -w semiont-frontend && npm run build -w @semiont/cli",
     "build:all": "npm run build --workspaces",
     "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint:css": "stylelint '**/*.css' --ignore-path .gitignore",
+    "lint:css:fix": "stylelint '**/*.css' --ignore-path .gitignore --fix",
+    "lint:no-utility-classes": "node scripts/check-no-utility-classes-in-react-ui.js",
+    "build:css": "node scripts/build-css-with-sourcemaps.js",
+    "build:css:watch": "node scripts/build-css-with-sourcemaps.js --watch",
+    "build:css:prod": "node scripts/build-css-with-sourcemaps.js --production",
     "test": "npm run test --workspaces --if-present",
     "frontend:dev": "npm run dev -w semiont-frontend",
     "backend:dev": "npm run dev -w semiont-backend",
     "types:build": "npm run build -w @semiont/core -w @semiont/frontend-api -w @semiont/backend-api",
     "types:watch": "npm run watch -w @semiont/core -w @semiont/frontend-api -w @semiont/backend-api",
+    "openapi:bundle": "redocly bundle specs/src/openapi.json -o specs/openapi.json",
+    "openapi:lint": "redocly lint specs/src/openapi.json",
+    "openapi:validate": "redocly lint specs/openapi.json",
+    "version:show": "node scripts/version.mjs show",
+    "version:sync": "node scripts/version.mjs sync",
+    "version:bump": "node scripts/version.mjs bump",
+    "version:set": "node scripts/version.mjs set",
+    "release:publish": "node scripts/release-publish.mjs",
+    "release:await": "node scripts/release-await.mjs",
+    "release:bump": "node scripts/release-bump.mjs",
     "install:deps": "npm install",
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules",
     "container:build": "node scripts/build-images.js",
@@ -50,8 +66,16 @@
     "@types/react": "^18.3.0"
   },
   "devDependencies": {
+    "@redocly/cli": "^2.11.0",
     "@types/node": "^22.17.0",
+    "baseline-browser-mapping": "^2.9.6",
+    "stylelint": "^17.0.0",
+    "stylelint-config-standard": "^40.0.0",
+    "stylelint-order": "^7.0.1",
     "typescript": "^5.6.3"
   },
-  "license": "Apache-2.0"
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@semiont/cli": "^0.2.30"
+  }
 }

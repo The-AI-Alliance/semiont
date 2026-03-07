@@ -7,32 +7,40 @@
     "imageTagStrategy": "mutable"
   },
   "site": {
-    "domain": "localhost:3000"
+    "domain": "localhost:3000",
+    "oauthAllowedDomains": ["example.com", "localhost:3000"]
   },
   "env": {
     "NODE_ENV": "development"
   },
+  "logLevel": "debug",
   "services": {
     "backend": {
       "platform": {
         "type": "posix"
       },
       "command": "npm run dev",
-      "port": 4000
+      "port": 4000,
+      "publicURL": "http://localhost:4000",
+      "corsOrigin": "http://localhost:3000"
     },
     "frontend": {
       "platform": {
         "type": "posix"
       },
       "command": "npm run dev",
-      "port": 3000
+      "port": 3000,
+      "publicURL": "http://localhost:3000",
+      "siteName": "Semiont"
     },
     "database": {
       "platform": {
         "type": "container"
       },
-      "image": "postgres:15-alpine",
+      "type": "postgres",
       "name": "semiont-local-db",
+      "host": "localhost",
+      "image": "postgres:15-alpine",
       "port": 5432,
       "environment": {
         "POSTGRES_DB": "semiont",
@@ -51,12 +59,6 @@
       "password": "${NEO4J_PASSWORD}",
       "database": "${NEO4J_DATABASE}"
     },
-    "mcp": {
-      "platform": {
-        "type": "posix"
-      },
-      "dependsOn": ["backend"]
-    },
     "filesystem": {
       "platform": {
         "type": "posix"
@@ -69,10 +71,21 @@
         "type": "external"
       },
       "type": "anthropic",
-      "model": "claude-sonnet-4-20250514",
+      "model": "claude-sonnet-4-5-20250929",
       "maxTokens": 8192,
       "endpoint": "https://api.anthropic.com",
       "apiKey": "${ANTHROPIC_API_KEY}"
+    },
+    "proxy": {
+      "platform": {
+        "type": "container"
+      },
+      "type": "envoy",
+      "port": 8080,
+      "adminPort": 9901,
+      "backendPort": 4000,
+      "frontendPort": 3000,
+      "image": "envoyproxy/envoy:v1.28-latest"
     }
   }
 }

@@ -1,36 +1,37 @@
 'use client';
 
-import React from 'react';
-import { SettingsPanel } from '@/components/SettingsPanel';
-import { UserPanel } from '@/components/UserPanel';
-import type { ToolbarPanelType } from '@/hooks/useToolbar';
+import React, { useTransition, useEffect, useCallback } from 'react';
+import { SettingsPanel, ResizeHandle, usePanelWidth, EventBusProvider, useEventSubscriptions } from '@semiont/react-ui';
+import { UserPanel } from '../UserPanel';
+import { useLocale } from 'next-intl';
+import { usePathname, useRouter } from '@/i18n/routing';
+import { COMMON_PANELS } from '@semiont/react-ui';
+import type { ToolbarPanelType } from '@semiont/react-ui';
 
 interface ToolbarPanelsProps {
   activePanel: ToolbarPanelType | null;
   /** Theme setting */
   theme: 'light' | 'dark' | 'system';
-  onThemeChange: (theme: 'light' | 'dark' | 'system') => void;
   /** Line numbers setting */
   showLineNumbers: boolean;
-  onLineNumbersToggle: () => void;
+  /** Hover delay setting */
+  hoverDelayMs: number;
   /** Custom panel content for context-specific panels */
   children?: React.ReactNode;
-  /** Panel width (default: w-80) */
-  width?: string;
 }
 
 /**
  * Renders the toolbar panel container with common panels (user, settings)
  * and any context-specific panels passed as children.
  *
+ * Settings changes are handled via GlobalSettingsEventBus - no callbacks needed.
+ *
  * @example
  * // Simple context (compose, discover, moderate, admin pages)
  * <ToolbarPanels
  *   activePanel={activePanel}
  *   theme={theme}
- *   onThemeChange={setTheme}
  *   showLineNumbers={showLineNumbers}
- *   onLineNumbersToggle={handleLineNumbersToggle}
  * />
  *
  * @example
@@ -38,35 +39,69 @@ interface ToolbarPanelsProps {
  * <ToolbarPanels
  *   activePanel={activePanel}
  *   theme={theme}
- *   onThemeChange={setTheme}
  *   showLineNumbers={showLineNumbers}
- *   onLineNumbersToggle={handleLineNumbersToggle}
  * >
- *   {activePanel === 'document' && <DocumentPanel ... />}
- *   {activePanel === 'detect' && <DetectPanel ... />}
+ *   {activePanel === 'annotations' && <UnifiedAnnotationsPanel ... />}
  *   {activePanel === 'history' && <AnnotationHistory ... />}
- *   {activePanel === 'info' && <DocumentInfoPanel ... />}
+ *   {activePanel === 'info' && <ResourceInfoPanel ... />}
  *   {activePanel === 'collaboration' && <CollaborationPanel ... />}
+ *   {activePanel === 'jsonld' && <JsonLdPanel ... />}
  * </ToolbarPanels>
  */
 export function ToolbarPanels({
   activePanel,
   theme,
-  onThemeChange,
   showLineNumbers,
-  onLineNumbersToggle,
-  children,
-  width = 'w-80'
+  hoverDelayMs,
+  children
 }: ToolbarPanelsProps) {
+  const locale = useLocale();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [isPending, startTransition] = useTransition();
+
+  // Panel width management with localStorage persistence
+  const { width, setWidth, minWidth, maxWidth } = usePanelWidth();
+
+  // Handle locale change events
+  const handleLocaleChanged = useCallback(({ locale: newLocale }: { locale: string }) => {
+    if (!pathname) return;
+
+    startTransition(() => {
+      // The router from @/i18n/routing is locale-aware and will handle the locale prefix
+      router.replace(pathname, { locale: newLocale });
+    });
+  }, [pathname, router, startTransition]);
+
+  // Subscribe to locale change events
+  useEventSubscriptions({
+    'settings:locale-changed': handleLocaleChanged,
+  });
+
   // Don't render container if no panel is active
   if (!activePanel) {
     return null;
   }
 
+  // In simple context (no children), only user and settings panels are valid.
+  // If a resource-specific panel is still active from a previous route, hide the container.
+  if (!children && !COMMON_PANELS.includes(activePanel)) {
+    return null;
+  }
+
   return (
-    <div className={`${width} bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 p-4 overflow-hidden flex flex-col h-full`}>
+    <div className="semiont-toolbar-panels" style={{ width: `${width}px`, position: 'relative' }}>
+      {/* Resize handle on left edge */}
+      <ResizeHandle
+        onResize={setWidth}
+        minWidth={minWidth}
+        maxWidth={maxWidth}
+        position="left"
+        ariaLabel="Resize right panel"
+      />
+
       {/* Custom context-specific panels */}
-      <div className="flex-1 overflow-y-auto min-h-0">
+      <div className="semiont-toolbar-panels__content">
         {children}
 
         {/* User Panel - common to all contexts */}
@@ -78,9 +113,10 @@ export function ToolbarPanels({
         {activePanel === 'settings' && (
           <SettingsPanel
             showLineNumbers={showLineNumbers}
-            onLineNumbersToggle={onLineNumbersToggle}
             theme={theme}
-            onThemeChange={onThemeChange}
+            hoverDelayMs={hoverDelayMs}
+            locale={locale}
+            isPendingLocaleChange={isPending}
           />
         )}
       </div>

@@ -1,0 +1,225 @@
+/* ============================================
+   Status Indicators - Core UI Element
+
+   This is the authoritative source for all status indicator styles.
+   Usage: Apply .semiont-indicator with appropriate modifier.
+
+   Available modifiers:
+   - .semiont-indicator--online (green)
+   - .semiont-indicator--offline (gray)
+   - .semiont-indicator--busy (orange)
+   - .semiont-indicator--error (red)
+   - .semiont-indicator--pulse (animated)
+   ============================================ */
+
+/* Base Status Indicator (dot) */
+.semiont-indicator {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background-color: var(--semiont-color-gray-400);
+  position: relative;
+}
+
+[data-theme="dark"] .semiont-indicator {
+  background-color: var(--semiont-color-gray-600);
+}
+
+/* Status Variants */
+.semiont-indicator--online {
+  background-color: var(--semiont-color-green-500);
+  box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.2);
+}
+
+[data-theme="dark"] .semiont-indicator--online {
+  background-color: var(--semiont-color-green-400);
+  box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.2);
+}
+
+.semiont-indicator--offline {
+  background-color: var(--semiont-color-gray-400);
+  box-shadow: 0 0 0 1px rgba(156, 163, 175, 0.2);
+}
+
+[data-theme="dark"] .semiont-indicator--offline {
+  background-color: var(--semiont-color-gray-600);
+  box-shadow: 0 0 0 1px rgba(75, 85, 99, 0.2);
+}
+
+.semiont-indicator--busy {
+  background-color: var(--semiont-color-amber-500);
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.2);
+}
+
+[data-theme="dark"] .semiont-indicator--busy {
+  background-color: var(--semiont-color-amber-400);
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.2);
+}
+
+.semiont-indicator--error {
+  background-color: var(--semiont-color-red-500);
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.2);
+}
+
+[data-theme="dark"] .semiont-indicator--error {
+  background-color: var(--semiont-color-red-400);
+  box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.2);
+}
+
+/* Pulse Animation */
+.semiont-indicator--pulse {
+  animation: pulse 2s infinite;
+}
+
+.semiont-indicator--pulse::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background-color: inherit;
+  animation: pulse-ring 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+/* Size Variants */
+.semiont-indicator--small {
+  width: 0.375rem;
+  height: 0.375rem;
+}
+
+.semiont-indicator--large {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+/* Indicator with Label */
+.semiont-indicator-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.semiont-indicator__label {
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-secondary);
+}
+
+[data-theme="dark"] .semiont-indicator__label {
+  color: var(--semiont-text-secondary);
+}
+
+/* Indicator Badge (dot with count) */
+.semiont-indicator-badge {
+  position: relative;
+  display: inline-block;
+}
+
+.semiont-indicator-badge__count {
+  position: absolute;
+  top: -0.25rem;
+  right: -0.25rem;
+  min-width: 1rem;
+  height: 1rem;
+  padding: 0 0.25rem;
+  background-color: var(--semiont-color-red-500);
+  color: var(--semiont-color-white);
+  border-radius: var(--semiont-radius-full);
+  font-size: var(--semiont-text-2xs);
+  font-weight: var(--semiont-font-bold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--semiont-bg-primary);
+}
+
+[data-theme="dark"] .semiont-indicator-badge__count {
+  background-color: var(--semiont-color-red-400);
+  border-color: var(--semiont-bg-primary);
+}
+
+/* Connection Status Bar */
+.semiont-connection-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  background-color: var(--semiont-bg-secondary);
+  border-radius: var(--semiont-radius-full);
+  font-size: var(--semiont-text-xs);
+}
+
+[data-theme="dark"] .semiont-connection-status {
+  background-color: var(--semiont-bg-tertiary);
+}
+
+.semiont-connection-status--online {
+  background-color: rgba(34, 197, 94, 0.1);
+  color: var(--semiont-color-green-700);
+}
+
+[data-theme="dark"] .semiont-connection-status--online {
+  background-color: rgba(74, 222, 128, 0.1);
+  color: var(--semiont-color-green-300);
+}
+
+.semiont-connection-status--offline {
+  background-color: rgba(156, 163, 175, 0.1);
+  color: var(--semiont-color-gray-700);
+}
+
+[data-theme="dark"] .semiont-connection-status--offline {
+  background-color: rgba(75, 85, 99, 0.1);
+  color: var(--semiont-color-gray-300);
+}
+
+/* Accessibility - Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .semiont-indicator--pulse,
+  .semiont-indicator--pulse::before {
+    animation: none;
+  }
+
+  .semiont-indicator--pulse {
+    opacity: 1;
+  }
+}
+
+/* Accessibility - Screen Reader Text */
+.semiont-indicator__sr-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

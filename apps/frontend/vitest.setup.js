@@ -8,6 +8,21 @@ import { vi, beforeAll, afterEach, afterAll } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import { server } from './src/mocks/server';
 
+// Mock DOMMatrix for PDF.js in test environment
+if (typeof globalThis !== 'undefined' && !globalThis.DOMMatrix) {
+  globalThis.DOMMatrix = class DOMMatrix {
+    constructor() {
+      // Minimal implementation for PDF.js compatibility
+      this.a = 1;
+      this.b = 0;
+      this.c = 0;
+      this.d = 1;
+      this.e = 0;
+      this.f = 0;
+    }
+  };
+}
+
 // Start MSW server
 beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }));
 afterEach(() => {
@@ -118,7 +133,7 @@ vi.mock('next-intl/navigation', async () => {
     usePathname: () => '/',
     redirect: vi.fn(),
     Link: MockLink,
-    createNavigation: vi.fn((config) => {
+    createNavigation: vi.fn(() => {
       // Dynamically require next/navigation to get the mocked hooks
       // This way tests that re-mock next/navigation will work
       const { usePathname, useRouter } = require('next/navigation');
@@ -137,7 +152,7 @@ vi.mock('next-intl/navigation', async () => {
 
 // Set test environment variables
 process.env.NEXT_PUBLIC_SITE_NAME = 'Test Semiont';
-process.env.NEXT_PUBLIC_API_URL = 'http://localhost:3001';
+process.env.SERVER_API_URL = 'http://localhost:3001';
 process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS = 'example.com,test.com';
 
 // Polyfill fetch to handle relative URLs

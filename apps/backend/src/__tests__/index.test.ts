@@ -8,12 +8,16 @@
  * is tested in integration tests with proper mock setup.
  */
 
-import { describe, it, expect, beforeAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
+import type { EnvironmentConfig } from '@semiont/core';
+import { setupTestEnvironment, type TestEnvironmentConfig } from './_test-setup';
 
 type Variables = {
   user: User;
+  config: EnvironmentConfig;
+  makeMeaning: any;
 };
 
 interface HealthResponse {
@@ -23,6 +27,19 @@ interface HealthResponse {
   environment?: string;
   timestamp?: string;
 }
+
+// Mock make-meaning service to avoid graph initialization at import time
+vi.mock('@semiont/make-meaning', async (importOriginal) => {
+  const actual = await importOriginal() as any;
+  return {
+    ...actual,
+    startMakeMeaning: vi.fn().mockResolvedValue({
+      jobQueue: {},
+      workers: [],
+      graphConsumer: {}
+    })
+  };
+});
 
 // Mock the database before any imports to avoid connection attempts
 vi.mock('../db', () => ({
@@ -40,17 +57,20 @@ vi.mock('../db', () => ({
 
 describe('Main Application (index.ts)', () => {
   let app: Hono<{ Variables: Variables }>;
+  let testEnv: TestEnvironmentConfig;
 
   beforeAll(async () => {
-    // Set required environment variables before importing app
-    process.env.BACKEND_URL = 'http://localhost:4000';
-    process.env.CORS_ORIGIN = 'http://localhost:3000';
-    process.env.FRONTEND_URL = 'http://localhost:3000';
-    process.env.NODE_ENV = 'test';
+    // Set up test environment with proper config files
+    testEnv = await setupTestEnvironment();
 
-    // Import the app
+    // Import the app after environment is set up
     const { app: importedApp } = await import('../index');
     app = importedApp;
+  });
+
+  afterAll(async () => {
+    // Clean up test environment
+    await testEnv.cleanup();
   });
 
   describe('Application Setup', () => {
@@ -87,7 +107,7 @@ describe('Main Application (index.ts)', () => {
     });
   });
 
-  describe('API Documentation', () => {
+  describe('API Resourceation', () => {
     it('should redirect API root to docs for browser requests', async () => {
       const response = await app.request('http://localhost/api', {
         headers: { 
@@ -96,7 +116,7 @@ describe('Main Application (index.ts)', () => {
         },
       });
 
-      // API documentation is now public and redirects to /api/docs
+      // API resourceation is now public and redirects to /api/docs
       expect(response.status).toBe(302);
       expect(response.headers.get('location')).toBe('/api/docs');
     });
@@ -106,7 +126,7 @@ describe('Main Application (index.ts)', () => {
         headers: { 'Accept': 'application/json' },
       });
 
-      // API documentation is public and redirects to OpenAPI spec
+      // API resourceation is public and redirects to OpenAPI spec
       expect(response.status).toBe(302);
       expect(response.headers.get('location')).toBe('/api/openapi.json');
     });
@@ -177,7 +197,7 @@ describe('Main Application (index.ts)', () => {
     });
 
     it('should have public endpoints defined', () => {
-      // This is more of a documentation test to ensure we know what endpoints
+      // This is more of a resourceation test to ensure we know what endpoints
       // are supposed to be public
       const publicEndpoints = [
         '/api/health',

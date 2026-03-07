@@ -1,5 +1,9 @@
 # Semiont CLI
 
+[![npm version](https://img.shields.io/npm/v/@semiont/cli.svg)](https://www.npmjs.com/package/@semiont/cli)
+[![npm downloads](https://img.shields.io/npm/dm/@semiont/cli.svg)](https://www.npmjs.com/package/@semiont/cli)
+[![License](https://img.shields.io/npm/l/@semiont/cli.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
+
 The unified command-line interface for managing Semiont environments and services with platform-aware operations.
 
 ## Overview
@@ -33,14 +37,26 @@ The Semiont CLI provides a consistent interface for managing services across dif
 
 ## Installation
 
+Install globally from npm:
+
+```bash
+# Latest stable release
+npm install -g @semiont/cli
+
+# Or latest development build
+npm install -g @semiont/cli@dev
+
+# After installation, the 'semiont' command is available globally
+semiont --help
+```
+
+Or install from source:
+
 ```bash
 # From the CLI directory
 cd apps/cli
 npm run build               # Build the CLI
 npm link                    # Install globally
-
-# After installation, the 'semiont' command is available globally
-semiont --help
 ```
 
 ## Common Options

@@ -1,0 +1,38 @@
+{
+  "get": {
+    "summary": "Subscribe to Resource Events (SSE)",
+    "description": "Open a Server-Sent Events stream to receive real-time resource events",
+    "tags": [
+      "Resources",
+      "Events",
+      "Real-time"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "id",
+        "in": "path"
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "SSE stream opened successfully",
+        "content": {
+          "text/event-stream": {
+            "schema": {
+              "$ref": "../components/schemas/EventStreamResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

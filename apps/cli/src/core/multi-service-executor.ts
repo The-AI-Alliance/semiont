@@ -7,7 +7,7 @@
  */
 
 import { ServicePlatformInfo } from './service-resolver.js';
-import { PlatformType } from './platform-types.js';
+import { PlatformType, EnvironmentConfig } from '@semiont/core';
 import { Service } from './service-interface.js';
 import { ServiceName } from './service-discovery.js';
 import { ServiceFactory } from '../services/service-factory.js';
@@ -17,13 +17,11 @@ import { CommandResult, createCommandResult } from './command-result.js';
 import { CommandResults } from './command-types.js';
 import { HandlerRegistry } from './handlers/registry.js';
 import { HandlerContextBuilder } from './handlers/context.js';
-import { HandlerResult } from './handlers/types.js';
-import { Config } from './cli-config.js';
-import { parseEnvironment } from './environment-validator.js';
-import { printError, printInfo } from './io/cli-logger.js';
-
-// Get project root (user's project directory, NOT the Semiont source repo)
-const PROJECT_ROOT = process.env.SEMIONT_ROOT || process.cwd();
+import { HandlerResult, PreflightResult } from './handlers/types.js';
+import { Config, ServiceConfig } from './cli-config.js';
+import { parseEnvironment } from '@semiont/core';
+import { printError, printInfo, printWarning, printSuccess } from './io/cli-logger.js';
+import { serviceSupportsCommand } from './service-command-capabilities.js';
 
 /**
  * Options that all commands have
@@ -36,6 +34,7 @@ interface BaseOptions {
   dryRun?: boolean;
   output?: string;
   forceDiscovery?: boolean;
+  preflight?: boolean;
 }
 
 /**
@@ -48,24 +47,32 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
   
   /**
    * Execute the command for all service deployments
+   *
+   * @param serviceDeployments - Service deployments to execute command on
+   * @param options - Command options
+   * @param envConfig - Environment configuration (passed from entry point, includes projectRoot in _metadata)
    */
   async execute(
     serviceDeployments: ServicePlatformInfo[],
-    options: TOptions
+    options: TOptions,
+    envConfig: EnvironmentConfig
   ): Promise<CommandResults<CommandResult>> {
     const startTime = Date.now();
-    
-    // Resolve environment: --environment flag takes precedence over SEMIONT_ENV
-    const environment = options.environment || process.env.SEMIONT_ENV;
+
+    // Environment and projectRoot are guaranteed to be in envConfig._metadata
+    const environment = envConfig._metadata?.environment;
     if (!environment) {
-      throw new Error(
-        'Environment is required. Specify --environment flag or set SEMIONT_ENV environment variable'
-      );
+      throw new Error('Environment is required in envConfig._metadata');
     }
-    
+
+    const projectRoot = envConfig._metadata?.projectRoot;
+    if (!projectRoot) {
+      throw new Error('Project root is required in config metadata');
+    }
+
     // Apply defaults and validate
-    const finalOptions = { 
-      ...this.descriptor.defaultOptions, 
+    const finalOptions = {
+      ...this.descriptor.defaultOptions,
       ...options,
       environment  // Ensure environment is always set
     } as TOptions;
@@ -78,21 +85,49 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
       : serviceDeployments;
     
     // Determine output mode
-    const isStructuredOutput = finalOptions.output && 
+    const isStructuredOutput = finalOptions.output &&
       ['json', 'yaml', 'table'].includes(finalOptions.output);
-    
+
+    // Preflight-only mode: run this command's own preflights and return
+    if (finalOptions.preflight) {
+      if (!isStructuredOutput && !finalOptions.quiet) {
+        printInfo(`Running preflight checks for '${this.descriptor.name}' in ${finalOptions.environment} environment`);
+      }
+
+      const results = await this.runOwnPreflights(services, finalOptions, envConfig);
+
+      return {
+        command: this.descriptor.name,
+        environment: finalOptions.environment!,
+        timestamp: new Date(),
+        duration: Date.now() - startTime,
+        results,
+        summary: {
+          total: results.length,
+          succeeded: results.filter(r => r.success).length,
+          failed: results.filter(r => !r.success).length,
+          warnings: 0
+        },
+        executionContext: {
+          user: process.env.USER || 'unknown',
+          workingDirectory: process.cwd(),
+          dryRun: true
+        }
+      };
+    }
+
     if (!isStructuredOutput && !finalOptions.quiet) {
       printInfo(`Executing ${this.descriptor.name} command in ${finalOptions.environment} environment`);
     }
-    
+
     // Execute all services
     const results: CommandResult[] = [];
-    
+
     for (const serviceInfo of services) {
       try {
-        const result = await this.executeService(serviceInfo, finalOptions);
+        const result = await this.executeService(serviceInfo, finalOptions, envConfig);
         results.push(result);
-        
+
         if (!isStructuredOutput && !finalOptions.quiet && !result.success) {
           printError(`Failed to ${this.descriptor.name} ${serviceInfo.name}: ${result.error}`);
         }
@@ -107,25 +142,35 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
           platform: serviceInfo.platform as PlatformType,
           success: false,
           error: (error as Error).message,
-          metadata: { 
+          metadata: {
             errorType: 'execution_failure',
             errorStack: (error as Error).stack
           }
         });
-        
+
         results.push(errorResult);
-        
+
         if (!this.descriptor.continueOnError) {
           break;  // Stop executing if continueOnError is false
         }
       }
     }
-    
+
     // Post-execution hook
     if (this.descriptor.postExecute) {
       await this.descriptor.postExecute(results, finalOptions);
     }
-    
+
+    // Run preflight checks for the next command in the chain
+    if (this.descriptor.nextCommand) {
+      await this.runPreflightsForCommand(
+        this.descriptor.nextCommand,
+        services,
+        finalOptions,
+        envConfig
+      );
+    }
+
     // Create command results
     return {
       command: this.descriptor.name,
@@ -152,34 +197,49 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
    */
   private async executeService(
     serviceInfo: ServicePlatformInfo,
-    options: TOptions
+    options: TOptions,
+    envConfig: EnvironmentConfig
   ): Promise<CommandResult> {
     // 1. Get platform strategy
     const { PlatformFactory } = await import('../platforms/index.js');
     const platform = PlatformFactory.getPlatform(serviceInfo.platform);
-    
-    // 2. Create config object (environment is guaranteed to exist from execute())
+
+    // 2. Create config object (environment and projectRoot from envConfig._metadata)
+    const environment = envConfig._metadata?.environment;
+    if (!environment) {
+      throw new Error('Environment is required in envConfig._metadata');
+    }
+    const projectRoot = envConfig._metadata?.projectRoot;
+    if (!projectRoot) {
+      throw new Error('Project root is required in envConfig._metadata');
+    }
+
+    // Get available environments for validation
+    const { getAvailableEnvironments } = await import('../core/config-loader.js');
+    const availableEnvironments = getAvailableEnvironments();
+
     const config: Config = {
-      projectRoot: PROJECT_ROOT,
-      environment: parseEnvironment(options.environment!),
+      projectRoot,
+      environment: parseEnvironment(environment, availableEnvironments),
       verbose: options.verbose || false,
       quiet: options.quiet || false,
       dryRun: options.dryRun || false
     };
-    
+
     // 3. Build service-specific configuration
     const serviceConfig = this.descriptor.buildServiceConfig(options, serviceInfo);
-    
+
     // 4. Create service instance
     const service = ServiceFactory.create(
       serviceInfo.name as ServiceName,
       serviceInfo.platform,
       config,
-      { 
-        ...serviceInfo.config, 
+      envConfig,
+      {
+        ...serviceInfo.config,
         ...serviceConfig,
-        platform: serviceInfo.platform 
-      }
+        platform: { type: serviceInfo.platform }
+      } as ServiceConfig
     );
     
     // 5. Determine service type
@@ -194,7 +254,22 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
     );
     
     if (!handlerDescriptor) {
-      // No handler found - return error result
+      // Check if the service has opted out of this command via capability annotations
+      const annotations = service.getRequirements().annotations;
+      if (!serviceSupportsCommand(annotations, this.descriptor.name)) {
+        // Service declared it doesn't support this command — no-op
+        return this.descriptor.buildResult(
+          {
+            success: true,
+            metadata: { serviceType, skipped: true, reason: `${serviceType} does not support ${this.descriptor.name}` }
+          },
+          service,
+          platform,
+          serviceType
+        );
+      }
+
+      // Service claims to support this command but no handler is registered — real error
       return this.descriptor.buildResult(
         {
           success: false,
@@ -233,6 +308,224 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
     );
   }
   
+  /**
+   * Run this command's own preflight checks across all services.
+   * Used when --preflight flag is passed. Returns CommandResult[] where
+   * failed preflights produce success: false results.
+   */
+  private async runOwnPreflights(
+    serviceDeployments: ServicePlatformInfo[],
+    options: TOptions,
+    envConfig: EnvironmentConfig
+  ): Promise<CommandResult[]> {
+    const environment = envConfig._metadata?.environment;
+    const projectRoot = envConfig._metadata?.projectRoot;
+    if (!environment || !projectRoot) return [];
+
+    const { PlatformFactory } = await import('../platforms/index.js');
+    const { getAvailableEnvironments } = await import('../core/config-loader.js');
+    const availableEnvironments = getAvailableEnvironments();
+    const registry = HandlerRegistry.getInstance();
+
+    const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
+    const results: CommandResult[] = [];
+
+    for (const serviceInfo of serviceDeployments) {
+      try {
+        const platform = PlatformFactory.getPlatform(serviceInfo.platform);
+        const config: Config = {
+          projectRoot,
+          environment: parseEnvironment(environment, availableEnvironments),
+          verbose: options.verbose || false,
+          quiet: options.quiet || false,
+          dryRun: true,
+        };
+
+        const serviceConfig = this.descriptor.buildServiceConfig(options, serviceInfo);
+        const service = ServiceFactory.create(
+          serviceInfo.name as ServiceName,
+          serviceInfo.platform,
+          config,
+          envConfig,
+          {
+            ...serviceInfo.config,
+            ...serviceConfig,
+            platform: { type: serviceInfo.platform },
+          } as ServiceConfig
+        );
+
+        const serviceType = platform.determineServiceType(service);
+
+        // Check if service supports this command
+        const annotations = service.getRequirements().annotations;
+        if (!serviceSupportsCommand(annotations, this.descriptor.name)) {
+          results.push(createCommandResult({
+            entity: serviceInfo.name as ServiceName,
+            platform: serviceInfo.platform as PlatformType,
+            success: true,
+            metadata: { serviceType, skipped: true, reason: `${serviceType} does not support ${this.descriptor.name}` }
+          }));
+          continue;
+        }
+
+        const descriptor = registry.getHandlerForCommand(
+          this.descriptor.name,
+          platform.getPlatformName(),
+          serviceType
+        );
+        if (!descriptor) {
+          results.push(createCommandResult({
+            entity: serviceInfo.name as ServiceName,
+            platform: serviceInfo.platform as PlatformType,
+            success: false,
+            error: `No ${this.descriptor.name} handler for ${serviceType} on ${platform.getPlatformName()}`,
+            metadata: { serviceType }
+          }));
+          continue;
+        }
+
+        const handlerOptions = this.descriptor.extractHandlerOptions(options);
+        const contextExtensions = await platform.buildHandlerContextExtensions(
+          service,
+          descriptor.requiresDiscovery || false
+        );
+        const baseContext = HandlerContextBuilder.buildBaseContext(service, platform, handlerOptions);
+        const context = HandlerContextBuilder.extend(baseContext, contextExtensions);
+
+        const preflight = await descriptor.preflight(context);
+
+        // Print check results
+        if (!isStructuredOutput && !options.quiet) {
+          for (const check of preflight.checks) {
+            if (check.pass) {
+              printSuccess(`  ${serviceInfo.name}: ${check.message}`);
+            } else {
+              printWarning(`  ${serviceInfo.name}: ${check.message}`);
+            }
+          }
+        }
+
+        results.push(createCommandResult({
+          entity: serviceInfo.name as ServiceName,
+          platform: serviceInfo.platform as PlatformType,
+          success: preflight.pass,
+          error: preflight.pass ? undefined : preflight.checks.filter(c => !c.pass).map(c => c.message).join('; '),
+          metadata: { serviceType, preflight: true, checks: preflight.checks }
+        }));
+      } catch (error) {
+        results.push(createCommandResult({
+          entity: serviceInfo.name as ServiceName,
+          platform: serviceInfo.platform as PlatformType,
+          success: false,
+          error: `Preflight resolution failed: ${(error as Error).message}`,
+          metadata: { preflight: true }
+        }));
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Run preflight checks for a different command's handlers across all services.
+   * Called after the current command completes to validate preconditions for the next command.
+   */
+  async runPreflightsForCommand(
+    nextCommand: string,
+    serviceDeployments: ServicePlatformInfo[],
+    options: TOptions,
+    envConfig: EnvironmentConfig
+  ): Promise<void> {
+    const environment = envConfig._metadata?.environment;
+    const projectRoot = envConfig._metadata?.projectRoot;
+    if (!environment || !projectRoot) return;
+
+    const quiet = options.quiet || false;
+    const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
+    if (isStructuredOutput) return;
+
+    const { PlatformFactory } = await import('../platforms/index.js');
+    const { getAvailableEnvironments } = await import('../core/config-loader.js');
+    const availableEnvironments = getAvailableEnvironments();
+    const registry = HandlerRegistry.getInstance();
+
+    const allChecks: { service: string; result: PreflightResult }[] = [];
+
+    for (const serviceInfo of serviceDeployments) {
+      try {
+        const platform = PlatformFactory.getPlatform(serviceInfo.platform);
+        const config: Config = {
+          projectRoot,
+          environment: parseEnvironment(environment, availableEnvironments),
+          verbose: options.verbose || false,
+          quiet: true,  // Suppress output during preflight resolution
+          dryRun: options.dryRun || false,
+        };
+
+        const service = ServiceFactory.create(
+          serviceInfo.name as ServiceName,
+          serviceInfo.platform,
+          config,
+          envConfig,
+          {
+            ...serviceInfo.config,
+            platform: { type: serviceInfo.platform },
+          } as ServiceConfig
+        );
+
+        const serviceType = platform.determineServiceType(service);
+
+        // Check if service supports the next command
+        const annotations = service.getRequirements().annotations;
+        if (!serviceSupportsCommand(annotations, nextCommand)) continue;
+
+        const descriptor = registry.getHandlerForCommand(
+          nextCommand,
+          platform.getPlatformName(),
+          serviceType
+        );
+        if (!descriptor) continue;
+
+        const contextExtensions = await platform.buildHandlerContextExtensions(
+          service,
+          descriptor.requiresDiscovery || false
+        );
+        const baseContext = HandlerContextBuilder.buildBaseContext(
+          service,
+          platform,
+          options as Record<string, unknown>,
+        );
+        const context = HandlerContextBuilder.extend(baseContext, contextExtensions);
+
+        const result = await descriptor.preflight(context);
+        allChecks.push({ service: serviceInfo.name, result });
+      } catch {
+        // Preflight resolution failed — skip this service silently
+      }
+    }
+
+    if (allChecks.length === 0) return;
+
+    const failedChecks = allChecks.filter(c => !c.result.pass);
+    if (failedChecks.length === 0 && !options.verbose) return;
+
+    if (!quiet) {
+      printInfo(`\nPreflight checks for '${nextCommand}':`);
+      for (const { service, result } of allChecks) {
+        if (result.checks.length === 0) continue;
+        for (const check of result.checks) {
+          if (check.pass) {
+            if (options.verbose) {
+              printSuccess(`  ${service}: ${check.message}`);
+            }
+          } else {
+            printWarning(`  ${service}: ${check.message}`);
+          }
+        }
+      }
+    }
+  }
+
   /**
    * Create a simple executor for commands without special requirements
    */

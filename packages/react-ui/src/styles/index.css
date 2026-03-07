@@ -1,0 +1,95 @@
+/**
+ * Semiont React UI - Main Stylesheet
+ *
+ * This is the entry point for all styles.
+ * CLEANED UP: Only imports files that actually exist with real content.
+ *
+ * Total CSS: ~8,700 lines properly modularized (down from 25,000+ lines of cruft)
+ */
+
+/* Design Tokens */
+@import './variables.css';
+
+/* Base */
+@import './base/reset.css';
+@import './base/utilities.css';
+
+/* Utilities */
+@import './utilities/focus.css';
+@import './utilities/focus-extended.css';
+@import './utilities/motion.css';
+@import './utilities/motion-overrides.css';
+@import './utilities/contrast.css';
+@import './utilities/semantic-indicators.css';
+
+/* Layout */
+@import './layout/layout.css';
+
+/* Core UI Elements */
+@import './core/index.css';
+
+/* Motivation-Specific Styles (W3C Web Annotation) */
+@import './motivations/motivation-reference.css';
+@import './motivations/motivation-highlight.css';
+@import './motivations/motivation-assessment.css';
+@import './motivations/motivation-comment.css';
+@import './motivations/motivation-tag.css';
+
+/* Keep remaining panel styles if any */
+@import './panels/history-panel.css';
+@import './panels/user-panel.css';
+
+/* Features */
+@import './features/admin.css';
+@import './features/compose.css';
+@import './features/devops.css';
+@import './features/entity-tags.css';
+@import './features/recent-docs.css';
+@import './features/resource.css';
+@import './features/resource-discovery.css';
+@import './features/resource-viewer.css';
+@import './features/schemas.css';
+@import './features/static-pages.css';
+@import './features/welcome.css';
+
+/* Patterns - Reusable Design System Patterns */
+@import './patterns/panels-base.css';
+@import './patterns/panel-sections.css';
+@import './patterns/panel-helpers.css';
+@import './patterns/cards.css';
+@import './patterns/tables.css';
+
+/* Component-Level CSS */
+@import '../components/pdf-annotation/PdfAnnotationCanvas.css';
+@import '../components/resource/panels/AssessmentPanel.css';
+@import '../components/resource/panels/CollaborationPanel.css';
+@import '../components/resource/panels/CommentsPanel.css';
+@import '../components/resource/panels/HighlightPanel.css';
+@import '../components/resource/panels/JsonLdPanel.css';
+@import '../components/resource/panels/ReferencesPanel.css';
+@import '../components/resource/panels/ResourceInfoPanel.css';
+@import '../components/resource/panels/StatisticsPanel.css';
+@import '../components/resource/panels/TaggingPanel.css';
+@import '../components/resource/panels/UnifiedAnnotationsPanel.css';
+@import '../components/resource/panels/AssistSection.css';
+@import '../components/settings/SettingsPanel.css';
+@import '../components/navigation/CollapsibleResourceNavigation.css';
+@import '../components/navigation/NavigationMenu.css';
+@import '../components/navigation/NavigationTabs.css';
+@import '../components/modals/modals.css';
+@import '../components/modals/SearchModal.css';
+@import '../components/layout/LeftSidebar.css';
+@import '../components/layout/Header.css';
+@import '../components/layout/Footer.css';
+@import '../components/layout/ResizeHandle.css';
+@import '../components/layout/SkipLinks.css';
+@import '../components/branding/Branding.css';
+@import '../components/toolbar/Toolbar.css';
+@import '../components/annotation/annotations.css';
+@import '../components/annotation/annotation-entries.css';
+@import '../components/annotation/references.css';
+@import '../components/Toast.css';
+@import '../components/StatusDisplay.css';
+@import '../components/loading-states/loading.css';
+@import '../components/error-states/errors.css';
+@import '../features/auth/auth.css';

@@ -1,0 +1,56 @@
+{
+  "get": {
+    "summary": "Get Annotation by URI (W3C Content Negotiation)",
+    "description": "W3C-compliant globally resolvable annotation URI with content negotiation. Returns JSON-LD for API clients (Accept: application/ld+json or application/json). Redirects to frontend for browsers (Accept: text/html or browser User-Agent). Requires authentication and resourceId query parameter.",
+    "tags": [
+      "W3C URIs"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "description": "Annotation ID"
+      },
+      {
+        "name": "resourceId",
+        "in": "query",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uri"
+        },
+        "description": "Resource ID or URI containing the annotation"
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Annotation representation (JSON-LD)",
+        "content": {
+          "application/ld+json": {
+            "schema": {
+              "$ref": "../components/schemas/GetAnnotationResponse.json"
+            }
+          }
+        }
+      },
+      "302": {
+        "description": "Redirect to frontend (for browsers)"
+      },
+      "400": {
+        "description": "Missing resourceId parameter"
+      },
+      "404": {
+        "description": "Annotation not found"
+      }
+    }
+  }
+}

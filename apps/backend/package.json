@@ -1,13 +1,14 @@
 {
   "name": "semiont-backend",
-  "version": "0.1.1",
+  "version": "0.2.36",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "tsc --watch --preserveWatchOutput & node --watch dist/index.js",
+    "dev": "tsup && node --watch --conditions=development dist/index.js",
     "build": "npm run build:app",
-    "build:app": "prisma generate && npm run typecheck && tsc",
-    "build:clean": "npm run clean && prisma generate && npm run typecheck && tsc",
-    "build:fast": "prisma generate && tsc --noEmit false",
+    "build:app": "prisma generate && npm run typecheck && tsup",
+    "build:clean": "npm run clean && prisma generate && npm run typecheck && tsup",
+    "build:fast": "prisma generate && npm run typecheck && tsup",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist *.tsbuildinfo",
     "start": "node dist/index.js",
@@ -21,6 +22,7 @@
     "test:security": "SEMIONT_ENV=unit vitest run --reporter=verbose --testNamePattern=security",
     "type-check": "tsc --noEmit",
     "rebuild-projections": "tsx src/cli/rebuild-projections.ts",
+    "rebuild-graph": "tsx src/cli/rebuild-graph.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"
@@ -33,8 +35,14 @@
     "@hono/swagger-ui": "^0.5.2",
     "@prisma/client": "^6.13.0",
     "@semiont/core": "*",
+    "@semiont/event-sourcing": "*",
+    "@semiont/graph": "*",
+    "@semiont/inference": "*",
+    "@semiont/jobs": "*",
+    "@semiont/make-meaning": "*",
     "ajv": "^8.17.1",
     "ajv-formats": "^2.1.1",
+    "argon2": "^0.43.0",
     "dotenv": "^16.3.1",
     "google-auth-library": "^9.10.0",
     "gremlin": "^3.7.4",
@@ -42,6 +50,7 @@
     "jsonwebtoken": "^9.0.2",
     "neo4j-driver": "^5.28.2",
     "uuid": "^9.0.1",
+    "winston": "^3.19.0",
     "zod": "^4.0.0"
   },
   "devDependencies": {
@@ -58,6 +67,7 @@
     "prisma": "^6.14.0",
     "supertest": "^7.1.4",
     "testcontainers": "^11.5.0",
+    "tsup": "^8.5.1",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3",
     "vitest": "^3.2.4"

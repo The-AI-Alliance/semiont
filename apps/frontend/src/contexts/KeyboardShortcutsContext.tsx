@@ -2,9 +2,8 @@
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { useRouter } from '@/i18n/routing';
-import { useKeyboardShortcuts, useDoubleKeyPress } from '@/hooks/useKeyboardShortcuts';
-import { GlobalSearchModal } from '@/components/modals/GlobalSearchModal';
-import { KeyboardShortcutsHelpModal } from '@/components/modals/KeyboardShortcutsHelpModal';
+import { useKeyboardShortcuts, useDoubleKeyPress, KeyboardShortcutsHelpModal } from '@semiont/react-ui';
+import { GlobalSearchModal } from '../components/modals/GlobalSearchModal';
 
 interface KeyboardShortcutsContextType {
   openGlobalSearch: () => void;
@@ -60,16 +59,7 @@ export function KeyboardShortcutsProvider({ children }: KeyboardShortcutsProvide
     {
       key: 'k',
       ctrlOrCmd: true,
-      handler: (e) => {
-        // Don't trigger if user is in an input field
-        const target = e.target as HTMLElement;
-        if (
-          target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.contentEditable === 'true'
-        ) {
-          return;
-        }
+      handler: () => {
         openGlobalSearch();
       },
       description: 'Open global search'
@@ -77,33 +67,15 @@ export function KeyboardShortcutsProvider({ children }: KeyboardShortcutsProvide
     {
       key: 'n',
       ctrlOrCmd: true,
-      handler: (e) => {
-        // Don't trigger if user is in an input field
-        const target = e.target as HTMLElement;
-        if (
-          target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.contentEditable === 'true'
-        ) {
-          return;
-        }
-        // Navigate to new document page
-        router.push('/know/documents/new');
+      handler: () => {
+        // Navigate to compose page to create new resource
+        router.push('/know/compose');
       },
-      description: 'Create new document'
+      description: 'Create new resource'
     },
     {
       key: '/',
-      handler: (e) => {
-        // Don't trigger if user is in an input field
-        const target = e.target as HTMLElement;
-        if (
-          target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.contentEditable === 'true'
-        ) {
-          return;
-        }
+      handler: () => {
         // Alternative search trigger (like GitHub)
         openGlobalSearch();
       },
@@ -112,16 +84,7 @@ export function KeyboardShortcutsProvider({ children }: KeyboardShortcutsProvide
     {
       key: '?',
       shift: true,
-      handler: (e) => {
-        // Don't trigger if user is in an input field
-        const target = e.target as HTMLElement;
-        if (
-          target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.contentEditable === 'true'
-        ) {
-          return;
-        }
+      handler: () => {
         // Open keyboard shortcuts help
         openKeyboardHelp();
       },
@@ -141,14 +104,18 @@ export function KeyboardShortcutsProvider({ children }: KeyboardShortcutsProvide
   return (
     <KeyboardShortcutsContext.Provider value={contextValue}>
       {children}
-      <GlobalSearchModal
-        isOpen={isSearchOpen}
-        onClose={() => setIsSearchOpen(false)}
-      />
-      <KeyboardShortcutsHelpModal
-        isOpen={isHelpOpen}
-        onClose={() => setIsHelpOpen(false)}
-      />
+      {isSearchOpen && (
+        <GlobalSearchModal
+          isOpen={isSearchOpen}
+          onClose={() => setIsSearchOpen(false)}
+        />
+      )}
+      {isHelpOpen && (
+        <KeyboardShortcutsHelpModal
+          isOpen={isHelpOpen}
+          onClose={() => setIsHelpOpen(false)}
+        />
+      )}
     </KeyboardShortcutsContext.Provider>
   );
 }

@@ -1,0 +1,86 @@
+/* ============================================
+   Toggle Switch Component
+   Global reusable toggle switches
+   ============================================ */
+
+/* Toggle Label Container */
+.semiont-toggle-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+.semiont-toggle-label__text {
+  font-size: var(--semiont-text-sm);
+  font-weight: 500;
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-toggle-label__text {
+  color: var(--semiont-text-primary);
+}
+
+/* Toggle Switch */
+.semiont-toggle {
+  position: relative;
+  width: 2.75rem;
+  height: 1.5rem;
+  background: var(--semiont-color-gray-300);
+  border: none;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: background-color var(--semiont-duration-base);
+}
+
+[data-theme="dark"] .semiont-toggle {
+  background: var(--semiont-color-gray-700);
+}
+
+.semiont-toggle--active {
+  background: var(--semiont-color-primary-600);
+}
+
+[data-theme="dark"] .semiont-toggle--active {
+  background: var(--semiont-color-primary-500);
+}
+
+.semiont-toggle:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-toggle:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+/* Toggle Slider */
+.semiont-toggle__slider {
+  position: absolute;
+  top: 0.125rem;
+  left: 0.125rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  background: var(--semiont-color-white);
+  border-radius: 9999px;
+  transition: transform var(--semiont-duration-base);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="dark"] .semiont-toggle__slider {
+  background: var(--semiont-color-white);
+}
+
+.semiont-toggle__slider--active {
+  transform: translateX(1.25rem);
+}
+
+/* Disabled state */
+.semiont-toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.semiont-toggle:disabled .semiont-toggle__slider {
+  box-shadow: none;
+}

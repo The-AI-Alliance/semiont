@@ -127,9 +127,11 @@ const updateExecutor = new MultiServiceExecutor(updateDescriptor);
  */
 export async function update(
   serviceDeployments: ServicePlatformInfo[],
-  options: UpdateOptions
+  options: UpdateOptions,
+  envConfig: import('@semiont/core').EnvironmentConfig
+  
 ) {
-  return updateExecutor.execute(serviceDeployments, options);
+  return updateExecutor.execute(serviceDeployments, options, envConfig);
 }
 
 // UpdateResult type alias removed - use CommandResult directly

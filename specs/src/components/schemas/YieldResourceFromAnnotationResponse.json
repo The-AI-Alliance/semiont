@@ -1,0 +1,19 @@
+{
+  "type": "object",
+  "properties": {
+    "resource": {
+      "$ref": "./ResourceDescriptor.json"
+    },
+    "annotation": {
+      "$ref": "./Annotation.json"
+    },
+    "generated": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "resource",
+    "annotation",
+    "generated"
+  ]
+}

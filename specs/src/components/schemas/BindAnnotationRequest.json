@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "properties": {
+    "resourceId": {
+      "type": "string",
+      "description": "Target resource ID to resolve reference to"
+    }
+  },
+  "required": [
+    "resourceId"
+  ]
+}

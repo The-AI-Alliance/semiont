@@ -1,0 +1,109 @@
+{
+  "type": "object",
+  "properties": {
+    "mainResource": {
+      "$ref": "./ResourceDescriptor.json"
+    },
+    "relatedResources": {
+      "type": "array",
+      "items": {
+        "$ref": "./ResourceDescriptor.json"
+      }
+    },
+    "annotations": {
+      "type": "array",
+      "items": {
+        "$ref": "./Annotation.json"
+      }
+    },
+    "graph": {
+      "type": "object",
+      "properties": {
+        "nodes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "metadata": {
+                "type": "object",
+                "additionalProperties": {}
+              }
+            },
+            "required": [
+              "id",
+              "type",
+              "label",
+              "metadata"
+            ]
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string"
+              },
+              "target": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "metadata": {
+                "type": "object",
+                "additionalProperties": {}
+              }
+            },
+            "required": [
+              "source",
+              "target",
+              "type",
+              "metadata"
+            ]
+          }
+        }
+      },
+      "required": [
+        "nodes",
+        "edges"
+      ]
+    },
+    "summary": {
+      "type": "string"
+    },
+    "suggestedReferences": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "mainResourceContent": {
+      "type": "string",
+      "description": "The content of the main resource (included if includeContent=true)"
+    },
+    "relatedResourcesContent": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Map of resource IDs to their content (included if includeContent=true)"
+    }
+  },
+  "required": [
+    "mainResource",
+    "relatedResources",
+    "annotations",
+    "graph"
+  ]
+}

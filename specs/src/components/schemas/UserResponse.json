@@ -1,0 +1,55 @@
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string",
+      "nullable": true
+    },
+    "image": {
+      "type": "string",
+      "nullable": true
+    },
+    "domain": {
+      "type": "string"
+    },
+    "provider": {
+      "type": "string"
+    },
+    "isAdmin": {
+      "type": "boolean"
+    },
+    "isActive": {
+      "type": "boolean"
+    },
+    "termsAcceptedAt": {
+      "type": "string",
+      "nullable": true
+    },
+    "lastLogin": {
+      "type": "string",
+      "nullable": true
+    },
+    "created": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "email",
+    "name",
+    "image",
+    "domain",
+    "provider",
+    "isAdmin",
+    "isActive",
+    "termsAcceptedAt",
+    "lastLogin",
+    "created"
+  ]
+}

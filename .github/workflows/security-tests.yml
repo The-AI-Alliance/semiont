@@ -56,9 +56,9 @@ jobs:
       - name: Build application
         run: npm run build
         env:
-          NEXT_PUBLIC_API_URL: http://localhost:3001
+          SERVER_API_URL: http://localhost:4000
           NEXT_PUBLIC_SITE_NAME: Semiont Test
-          NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: example.com
+          NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: example.com,test.com
           NEXTAUTH_URL: http://localhost:3000
           NEXTAUTH_SECRET: test-secret-for-ci-only
           GOOGLE_CLIENT_ID: dummy-client-id-for-ci
@@ -73,8 +73,9 @@ jobs:
           timeout 60 bash -c 'until curl -f http://localhost:3000/ 2>/dev/null | grep -q "</html>"; do sleep 2; done' || echo "Frontend not ready yet, continuing..."
           sleep 5
         env:
-          NEXT_PUBLIC_API_URL: http://localhost:3001
+          SERVER_API_URL: http://localhost:4000
           NEXT_PUBLIC_SITE_NAME: Semiont Test
+          NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS: example.com,test.com
           NEXTAUTH_URL: http://localhost:3000
           NEXTAUTH_SECRET: test-secret-for-ci-only
           GOOGLE_CLIENT_ID: dummy-client-id-for-ci
@@ -196,36 +197,6 @@ jobs:
           # Initialize project configuration
           cd ../..
           semiont init --name "test-project" --environments "ci" --force
-          # Add backend service to ci environment
-          cat > environments/ci.json << 'EOF'
-          {
-            "_comment": "ci environment",
-            "platform": {
-              "default": "process"
-            },
-            "env": {
-              "NODE_ENV": "development"
-            },
-            "services": {
-              "backend": {
-                "platform": {
-                  "type": "process"
-                },
-                "command": "npm start",
-                "port": 3001
-              },
-              "database": {
-                "platform": {
-                  "type": "external"
-                },
-                "host": "localhost",
-                "port": 5432,
-                "user": "testuser",
-                "name": "testdb"
-              }
-            }
-          }
-          EOF
           # Set secrets for test
           echo '{"DATABASE_PASSWORD":"testpassword","JWT_SECRET":"test-secret-for-ci","GOOGLE_CLIENT_ID":"test-client-id","GOOGLE_CLIENT_SECRET":"test-client-secret"}' > .secrets.json
           cd apps/backend
@@ -265,46 +236,42 @@ jobs:
 
       - name: Start backend for API security verification
         run: |
-          # TODO: Fix semiont start to properly detach processes in CI
-          # Currently semiont start spawns the process but it dies when semiont exits
-          # This is a workaround - starting the backend directly
-          
-          # Set required environment variables
-          export PORT=3001
+          # Start backend using the ci environment configuration
+          cd ../..
+          export SEMIONT_ROOT=$(pwd)
+          export SEMIONT_ENV=ci
+          export NODE_ENV=test
           export DATABASE_URL=postgresql://testuser:testpassword@localhost:5432/testdb
           export JWT_SECRET=test-secret-for-ci
-          export NODE_ENV=ci
-          export SEMIONT_ENV=ci
-          export BACKEND_URL=http://localhost:3001
-          export CORS_ORIGIN=http://localhost:3000
-          export FRONTEND_URL=http://localhost:3000
-          
-          # Start backend directly - workaround for semiont process spawning issue
-          echo "Starting backend on port 3001..."
+          export GOOGLE_CLIENT_ID=test-client-id
+          export GOOGLE_CLIENT_SECRET=test-client-secret
+
+          echo "Starting backend with SEMIONT_ENV=ci..."
+          cd apps/backend
           nohup npm start > backend.log 2>&1 &
           APP_PID=$!
           echo "BACKEND_PID=$APP_PID" >> $GITHUB_ENV
-          
+
           # Give it a moment to start
           sleep 5
-          
+
           # Check if process is still running
           if ! kill -0 $APP_PID 2>/dev/null; then
             echo "Backend process died immediately. Logs:"
             cat backend.log
             exit 1
           fi
-          
-          # Try to curl the health endpoint with verbose output
+
+          # Try to curl the health endpoint (ci.json uses port 4000)
           echo "Attempting to connect to backend health endpoint..."
           for i in {1..30}; do
-            if curl -f -v http://localhost:3001/api/health 2>&1; then
+            if curl -f -v http://localhost:4000/api/health 2>&1; then
               echo "Backend is healthy!"
               break
             fi
             echo "Attempt $i failed, waiting..."
             sleep 2
-            
+
             # Check if process is still alive
             if ! kill -0 $APP_PID 2>/dev/null; then
               echo "Backend process died. Logs:"
@@ -312,9 +279,9 @@ jobs:
               exit 1
             fi
           done
-          
+
           # Final check
-          if ! curl -f http://localhost:3001/api/health 2>/dev/null; then
+          if ! curl -f http://localhost:4000/api/health 2>/dev/null; then
             echo "Backend never became healthy. Process status:"
             ps aux | grep -E "node|npm" || true
             echo "Backend logs:"
@@ -325,46 +292,118 @@ jobs:
       - name: Verify API security
         run: |
           echo "Testing backend API security..."
-          
+
           # Test 1: Verify admin endpoints require authentication
           endpoints=("/api/admin/users" "/api/admin/users/stats")
-          
+
           for endpoint in "${endpoints[@]}"; do
             echo "Testing $endpoint..."
-            
+
             # Test without Authorization header
-            status_code=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:3001$endpoint")
+            status_code=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:4000$endpoint")
             if [ "$status_code" != "401" ]; then
               echo "❌ SECURITY FAILURE: $endpoint returned $status_code instead of 401 for missing auth"
               exit 1
             fi
             echo "✅ $endpoint properly returns 401 for missing authentication"
-            
+
             # Test with invalid token
-            status_code=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer invalid-token" "http://localhost:3001$endpoint")
+            status_code=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer invalid-token" "http://localhost:4000$endpoint")
             if [ "$status_code" != "401" ]; then
               echo "❌ SECURITY FAILURE: $endpoint returned $status_code instead of 401 for invalid token"
               exit 1
             fi
             echo "✅ $endpoint properly returns 401 for invalid token"
           done
-          
+
           # Test 2: Verify error responses don't leak sensitive data
-          response=$(curl -s http://localhost:3001/api/admin/users)
+          response=$(curl -s http://localhost:4000/api/admin/users)
           if echo "$response" | grep -qE "postgresql://|secret|jwt.*key|password|database.*connection|stack.*trace|\.js:[0-9]+"; then
             echo "❌ SECURITY FAILURE: Sensitive data leaked in API error response!"
             echo "Response: $response"
             exit 1
           fi
           echo "✅ No sensitive data leaked in API error responses"
-          
+
           # Test 3: Verify proper JSON error format
           if ! echo "$response" | grep -q '"error".*"Unauthorized"'; then
             echo "❌ SECURITY FAILURE: API doesn't return proper JSON error format"
             exit 1
           fi
           echo "✅ Proper JSON error format returned"
-          
+
+          # Test 4: Password authentication endpoint security
+          echo "Testing password authentication endpoint security..."
+
+          # Test 4a: Missing email field
+          response=$(curl -s -w "\n%{http_code}" -X POST http://localhost:4000/api/tokens/password \
+            -H "Content-Type: application/json" \
+            -d '{"password":"test"}')
+          status_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n-1)
+
+          if [ "$status_code" != "400" ]; then
+            echo "❌ SECURITY FAILURE: Password endpoint returned $status_code instead of 400 for missing email"
+            exit 1
+          fi
+          echo "✅ Password endpoint returns 400 for missing email"
+
+          # Test 4b: Missing password field
+          response=$(curl -s -w "\n%{http_code}" -X POST http://localhost:4000/api/tokens/password \
+            -H "Content-Type: application/json" \
+            -d '{"email":"test@example.com"}')
+          status_code=$(echo "$response" | tail -n1)
+
+          if [ "$status_code" != "400" ]; then
+            echo "❌ SECURITY FAILURE: Password endpoint returned $status_code instead of 400 for missing password"
+            exit 1
+          fi
+          echo "✅ Password endpoint returns 400 for missing password"
+
+          # Test 4c: Invalid credentials (should return 401)
+          response=$(curl -s -w "\n%{http_code}" -X POST http://localhost:4000/api/tokens/password \
+            -H "Content-Type: application/json" \
+            -d '{"email":"nonexistent@example.com","password":"wrongpassword"}')
+          status_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | head -n-1)
+
+          if [ "$status_code" != "401" ]; then
+            echo "❌ SECURITY FAILURE: Password endpoint returned $status_code instead of 401 for invalid credentials"
+            exit 1
+          fi
+
+          # Verify error message doesn't reveal whether user exists (email enumeration prevention)
+          if echo "$body" | grep -qi "user.*not.*found\|email.*not.*exist\|no.*user\|unknown.*email"; then
+            echo "❌ SECURITY FAILURE: Password endpoint reveals user existence (email enumeration vulnerability)!"
+            echo "Response: $body"
+            exit 1
+          fi
+
+          if ! echo "$body" | grep -qi "invalid.*credentials\|authentication.*failed"; then
+            echo "⚠️ WARNING: Password endpoint should use generic error message like 'Invalid credentials'"
+          fi
+          echo "✅ Password endpoint returns generic error (prevents email enumeration)"
+
+          # Test 4d: No sensitive data in error responses
+          if echo "$body" | grep -qE "bcrypt|hash|salt|postgresql://|jwt.*key|\.js:[0-9]+|stack.*trace"; then
+            echo "❌ SECURITY FAILURE: Password endpoint leaks sensitive data in error response!"
+            echo "Response: $body"
+            exit 1
+          fi
+          echo "✅ No sensitive data leaked in password authentication errors"
+
+          # Test 4e: Verify SQL injection protection (basic test)
+          response=$(curl -s -w "\n%{http_code}" -X POST http://localhost:4000/api/tokens/password \
+            -H "Content-Type: application/json" \
+            -d '{"email":"admin@example.com'\'' OR '\''1'\''='\''1","password":"test"}')
+          status_code=$(echo "$response" | tail -n1)
+
+          if [ "$status_code" != "400" ] && [ "$status_code" != "401" ]; then
+            echo "❌ SECURITY FAILURE: Password endpoint may be vulnerable to SQL injection (status: $status_code)"
+            exit 1
+          fi
+          echo "✅ Password endpoint appears protected against SQL injection"
+
           echo "🎉 All backend API security checks passed!"
 
       - name: Stop backend
@@ -413,6 +452,8 @@ jobs:
             echo "✅ **Backend Security Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
             echo "- API authentication enforced" >> $GITHUB_STEP_SUMMARY
             echo "- Admin endpoints properly protected" >> $GITHUB_STEP_SUMMARY
+            echo "- Password authentication secure (no email enumeration)" >> $GITHUB_STEP_SUMMARY
+            echo "- SQL injection protection verified" >> $GITHUB_STEP_SUMMARY
             echo "- No sensitive data leakage" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ **Backend Security Tests**: FAILED" >> $GITHUB_STEP_SUMMARY

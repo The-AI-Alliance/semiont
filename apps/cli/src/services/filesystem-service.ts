@@ -35,8 +35,14 @@ import { COMMAND_CAPABILITY_ANNOTATIONS } from '../core/service-command-capabili
 import { SERVICE_TYPES } from '../core/service-types.js';
 import { CommandExtensions } from '../core/command-result.js';
 import * as path from 'path';
+import { type FilesystemServiceConfig } from '@semiont/core';
 
 export class FilesystemService extends BaseService {
+
+  // Type-narrowed config accessor
+  private get typedConfig(): FilesystemServiceConfig {
+    return this.config as FilesystemServiceConfig;
+  }
   
   // =====================================================================
   // Service Requirements
@@ -127,6 +133,6 @@ export class FilesystemService extends BaseService {
   // =====================================================================
   
   private getDataPath(): string {
-    return this.config.path || path.join(this.config.projectRoot, 'data');
+    return this.typedConfig.path || path.join(this.projectRoot, 'data');
   }
 }

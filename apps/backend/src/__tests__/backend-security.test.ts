@@ -2,14 +2,14 @@
  * Backend API Security Tests
  * 
  * These tests verify that the backend API security measures are in place
- * and document the security requirements to prevent regression.
+ * and resource the security requirements to prevent regression.
  */
 
 import { describe, it, expect } from 'vitest';
 
 describe('Backend API Security', () => {
-  describe('Security Requirements Documentation', () => {
-    it('should document admin endpoint protection requirements', () => {
+  describe('Security Requirements Resourceation', () => {
+    it('should resource admin endpoint protection requirements', () => {
       const securityRequirements = {
         authentication: 'JWT token required in Authorization header',
         authorization: 'isAdmin=true required from database lookup',
@@ -19,7 +19,7 @@ describe('Backend API Security', () => {
         adminCheck: 'Database verification of user.isAdmin property'
       };
 
-      // Verify all requirements are documented
+      // Verify all requirements are resourceed
       Object.values(securityRequirements).forEach(requirement => {
         expect(typeof requirement).toBe('string');
         expect(requirement.length).toBeGreaterThan(10);
@@ -77,7 +77,7 @@ describe('Backend API Security', () => {
       });
     });
 
-    it('should document protected admin endpoints', () => {
+    it('should resource protected admin endpoints', () => {
       const adminEndpoints = [
         { method: 'GET', path: '/api/admin/users', description: 'List all users' },
         { method: 'GET', path: '/api/admin/users/stats', description: 'Get user statistics' },
@@ -124,7 +124,7 @@ describe('Backend API Security', () => {
       ];
 
       forbiddenInErrorResponses.forEach(sensitiveData => {
-        // Document what should never be exposed
+        // Resource what should never be exposed
         expect(sensitiveData).toBeTruthy();
       });
     });
@@ -162,7 +162,7 @@ describe('Backend API Security', () => {
   });
 
   describe('Regression Prevention', () => {
-    it('should document what was fixed', () => {
+    it('should resource what was fixed', () => {
       const securityFix = {
         previousIssue: 'Frontend had 307 redirects with admin content leakage',
         backendStatus: 'Backend was already secure with proper middleware',
@@ -194,7 +194,7 @@ describe('Backend API Security', () => {
       });
     });
 
-    it('should document ongoing security requirements', () => {
+    it('should resource ongoing security requirements', () => {
       const ongoingRequirements = [
         'Run security tests before any auth changes',
         'Verify all new admin endpoints use adminMiddleware',

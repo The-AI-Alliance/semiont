@@ -1,6 +1,8 @@
 import { execSync } from 'child_process';
 import { AWSUpdateHandlerContext, UpdateHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
+import { checkAwsCredentials, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Update handler for ECS Fargate services
@@ -694,11 +696,16 @@ async function waitForECSDeployment(
 /**
  * Descriptor for ECS update handler
  */
+const preflightEcsUpdate = async (_context: AWSUpdateHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([checkAwsCredentials()]);
+};
+
 export const ecsUpdateDescriptor: HandlerDescriptor<AWSUpdateHandlerContext, UpdateHandlerResult> = {
   command: 'update',
   platform: 'aws',
   serviceType: 'ecs',
   handler: updateECSService,
+  preflight: preflightEcsUpdate,
   requiresDiscovery: true
 };
 
@@ -708,5 +715,6 @@ export const ecsFargateUpdateDescriptor: HandlerDescriptor<AWSUpdateHandlerConte
   platform: 'aws',
   serviceType: 'ecs-fargate',
   handler: updateECSService,
+  preflight: preflightEcsUpdate,
   requiresDiscovery: true
 };

@@ -1,26 +1,30 @@
 // Environment configuration for Semiont Frontend
-// Direct access to Next.js environment variables - no validation
+// No validation at module load time - values are validated when actually used
 
 // API Configuration
-export const NEXT_PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-export const NEXT_PUBLIC_FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || '';
+// SERVER_API_URL: Server-side API URL (runtime, used by Next.js server for auth, etc.)
+// In Codespaces/Docker: Set to internal service name (e.g., http://backend:4000)
+// Client-side API calls use relative URLs - routing layer handles path-based routing
+export const SERVER_API_URL = process.env.SERVER_API_URL || '';
 
 // Site Configuration
-export const NEXT_PUBLIC_SITE_NAME = process.env.NEXT_PUBLIC_SITE_NAME || '';
-export const NEXT_PUBLIC_DOMAIN = process.env.NEXT_PUBLIC_DOMAIN || '';
+export const NEXT_PUBLIC_SITE_NAME = process.env.NEXT_PUBLIC_SITE_NAME || 'Semiont';
+export const NEXT_PUBLIC_BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 
 // OAuth Configuration
-export const NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS = process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS || '';
 export const NEXT_PUBLIC_GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+
+// OAuth allowed domains (comma-separated list)
+export const NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS = process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS || '';
 
 // Environment helpers
 export const isDevelopment = process.env.NODE_ENV === 'development';
 export const isProduction = process.env.NODE_ENV === 'production';
 
-// Helper function to parse allowed domains
-export const getAllowedDomains = (): string[] => {
+// Helper to parse allowed domains from comma-separated string
+export function getAllowedDomains(): string[] {
   return NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS
     .split(',')
-    .map((domain: string) => domain.trim())
-    .filter((domain: string) => domain.length > 0);
-};
+    .map(d => d.trim())
+    .filter(d => d.length > 0);
+}

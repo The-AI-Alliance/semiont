@@ -25,12 +25,6 @@ module.exports = {
     firstContentfulPaint: 1800,    // 1.8s
     timeToInteractive: 3800,       // 3.8s
     totalBlockingTime: 300,        // 300ms
-    
-    // Lighthouse scores (0-1)
-    performance: 0.8,
-    accessibility: 0.9,
-    bestPractices: 0.8,
-    seo: 0.8,
   },
 
   // Dependencies to monitor

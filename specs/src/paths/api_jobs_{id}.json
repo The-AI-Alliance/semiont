@@ -1,0 +1,39 @@
+{
+  "get": {
+    "summary": "Get Job Status",
+    "description": "Get the current status and progress of an async job",
+    "tags": [
+      "Jobs"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "id",
+        "in": "path"
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Job status retrieved successfully",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/JobStatusResponse.json"
+            }
+          }
+        }
+      },
+      "404": {
+        "description": "Job not found"
+      }
+    }
+  }
+}

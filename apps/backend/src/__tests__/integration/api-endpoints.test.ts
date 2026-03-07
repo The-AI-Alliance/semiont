@@ -1,3 +1,5 @@
+import { userId } from '@semiont/core';
+import { email, accessToken } from '@semiont/core';
 /**
  * Integration tests for API endpoints
  * These tests make actual HTTP requests to test API functionality
@@ -6,10 +8,14 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
+import type { EnvironmentConfig } from '@semiont/core';
+import { loadEnvironmentConfig } from '../../utils/config';
 import { JWTService } from '../../auth/jwt';
 
 type Variables = {
   user: User;
+  config: EnvironmentConfig;
+  makeMeaning: any;
 };
 
 // Delay app import until after test setup to avoid Prisma validation errors
@@ -18,6 +24,19 @@ let app: Hono<{ Variables: Variables }>;
 interface HealthResponse {
   status: string;
   message: string;
+  version: string;
+  timestamp: string;
+  database: string;
+  environment: string;
+}
+
+interface OpenAPISpec {
+  info: {
+    title: string;
+    version: string;
+  };
+  paths: Record<string, unknown>;
+  components: Record<string, unknown>;
   version: string;
   timestamp: string;
   database: 'connected' | 'disconnected' | 'unknown';
@@ -142,6 +161,7 @@ const testUser = {
   domain: 'example.com',
   provider: 'google',
   providerId: 'google-test-user-id',
+    passwordHash: null,
   isAdmin: false,
   isModerator: false,
   isActive: true,
@@ -172,19 +192,24 @@ vi.mock('../../config', () => ({
 describe('API Endpoints Integration Tests', () => {
   beforeAll(async () => {
     // Set required environment variables before importing app
-    process.env.BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
-    process.env.CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:3000';
-    process.env.FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
-    process.env.NODE_ENV = process.env.NODE_ENV || 'test';
+    process.env.NODE_ENV = 'test';
+
+    // Load config and initialize JWT Service
+    const projectRoot = process.env.SEMIONT_ROOT;
+    if (!projectRoot) throw new Error("SEMIONT_ROOT not set");
+    const environment = process.env.SEMIONT_ENV || 'integration';
+
+    const config = loadEnvironmentConfig(projectRoot, environment);
+    JWTService.initialize(config);
 
     // Import app after test setup has set DATABASE_URL to avoid Prisma validation errors
     const serverModule = await import('../../index');
     app = serverModule.app;
-    
+
     // Generate a test token
     testToken = JWTService.generateToken({
-      userId: testUser.id,
-      email: testUser.email,
+      userId: userId(testUser.id),
+      email: email(testUser.email),
       name: testUser.name,
       domain: testUser.domain,
       provider: testUser.provider,
@@ -194,13 +219,13 @@ describe('API Endpoints Integration Tests', () => {
     // Mock the database to return our test user when queried
     const { DatabaseConnection } = await import('../../db');
     const prisma = DatabaseConnection.getClient();
-    vi.mocked(prisma.user.findUnique).mockResolvedValue(testUser as any);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(testUser as User);
     
     // Mock OAuthService to return test user for the test token
     const { OAuthService } = await import('../../auth/oauth');
     vi.mocked(OAuthService.getUserFromToken).mockImplementation(async (token) => {
       if (token === testToken || token === 'valid-jwt-token') {
-        return testUser as any;
+        return testUser as User;
       }
       throw new Error('Invalid token');
     });
@@ -294,7 +319,7 @@ describe('API Endpoints Integration Tests', () => {
       const res = await app.request('/api/openapi.json');
       expect(res.status).toBe(200);
 
-      const data = await res.json() as any;
+      const data = await res.json() as OpenAPISpec;
       expect(data.info).toBeDefined();
       expect(data.info.title).toBe('Semiont API');
       expect(data.info.version).toBe('0.1.0');
@@ -302,7 +327,7 @@ describe('API Endpoints Integration Tests', () => {
       expect(data.components).toBeDefined();
     });
 
-    it('GET /api/docs should return HTML documentation', async () => {
+    it('GET /api/docs should return HTML resourceation', async () => {
       const res = await app.request('/api/docs');
       expect(res.status).toBe(200);
 
@@ -323,13 +348,13 @@ describe('API Endpoints Integration Tests', () => {
       // Mock successful OAuth flow
       vi.mocked(OAuthService.verifyGoogleToken).mockResolvedValue({
         id: 'google-123',
-        email: 'test@example.com',
+        email: email('test@example.com'),
         verified_email: true,
         name: 'Test User',
         picture: 'https://example.com/avatar.jpg',
         // locale: 'en', // Not part of GoogleUserInfo type
       });
-      
+
       vi.mocked(OAuthService.createOrUpdateUser).mockResolvedValue({
         user: {
           id: 'user-123',
@@ -339,6 +364,7 @@ describe('API Endpoints Integration Tests', () => {
           domain: 'example.com',
           provider: 'google',
           providerId: 'google-123',
+    passwordHash: null,
           isAdmin: false,
           isModerator: false,
           isActive: true,
@@ -347,7 +373,7 @@ describe('API Endpoints Integration Tests', () => {
           createdAt: new Date(),
           updatedAt: new Date(),
         },
-        token: 'mock-jwt-token',
+        token: accessToken('mock-jwt-token'),
         isNewUser: false,
       });
 
@@ -432,6 +458,7 @@ describe('API Endpoints Integration Tests', () => {
       domain: 'example.com',
       provider: 'google',
       providerId: 'google-123',
+    passwordHash: null,
       isAdmin: false,
       isModerator: false,
       isActive: true,
@@ -446,7 +473,7 @@ describe('API Endpoints Integration Tests', () => {
       const { OAuthService } = await import('../../auth/oauth');
       vi.mocked(OAuthService.getUserFromToken).mockImplementation(async (token) => {
         if (token === 'valid-jwt-token') {
-          return mockUser as any;
+          return mockUser as User;
         }
         throw new Error('Invalid token');
       });
@@ -508,7 +535,7 @@ describe('API Endpoints Integration Tests', () => {
     it('POST /api/users/accept-terms should update terms acceptance', async () => {
       const { OAuthService } = await import('../../auth/oauth');
       const updatedUser = { ...mockUser, termsAcceptedAt: new Date() };
-      vi.mocked(OAuthService.acceptTerms).mockResolvedValue(updatedUser as any);
+      vi.mocked(OAuthService.acceptTerms).mockResolvedValue(updatedUser as User);
 
       const res = await app.request('/api/users/accept-terms', {
         method: 'POST',
@@ -533,6 +560,7 @@ describe('API Endpoints Integration Tests', () => {
       domain: 'example.com',
       provider: 'google',
       providerId: 'google-admin-123',
+    passwordHash: null,
       isAdmin: true,
       isModerator: true,
       isActive: true,
@@ -550,6 +578,7 @@ describe('API Endpoints Integration Tests', () => {
       domain: 'example.com',
       provider: 'google',
       providerId: 'google-user-123',
+    passwordHash: null,
       isAdmin: false,
       isModerator: false,
       isActive: true,
@@ -566,9 +595,9 @@ describe('API Endpoints Integration Tests', () => {
       const { OAuthService } = await import('../../auth/oauth');
       vi.mocked(OAuthService.getUserFromToken).mockImplementation(async (token) => {
         if (token === 'admin-jwt-token') {
-          return mockAdminUser as any;
+          return mockAdminUser as User;
         } else if (token === 'regular-jwt-token') {
-          return mockRegularUser as any;
+          return mockRegularUser as User;
         }
         throw new Error('Invalid token');
       });

@@ -1,0 +1,133 @@
+/* ============================================
+   UnifiedAnnotationsPanel Component
+   Unified annotations panel with tabs
+   ============================================ */
+
+.semiont-unified-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.semiont-unified-panel__title {
+  margin: 0 0 var(--semiont-panel-header-margin-bottom);
+  padding: var(--semiont-panel-padding);
+  padding-bottom: 0;
+  font-size: var(--semiont-panel-title-size);
+  font-weight: var(--semiont-panel-title-weight);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-unified-panel__title {
+  color: var(--semiont-text-primary);
+}
+
+.semiont-unified-panel__tabs {
+  display: flex;
+  gap: 0;
+  padding: 0;
+  background: var(--semiont-bg-secondary);
+  border-bottom: 1px solid var(--semiont-color-gray-300);
+}
+
+[data-theme="dark"] .semiont-unified-panel__tabs {
+  background: var(--semiont-bg-tertiary);
+  border-bottom-color: var(--semiont-color-gray-700);
+}
+
+.semiont-unified-panel__tab-button {
+  flex: 1;
+  padding: var(--semiont-panel-padding-sm);
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--semiont-color-gray-300);
+  font-size: var(--semiont-text-sm);
+  font-weight: var(--semiont-font-medium);
+  color: var(--semiont-text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--semiont-panel-padding-xs) * 1.5);
+  position: relative;
+}
+
+.semiont-unified-panel__tab-button:last-child {
+  border-right: none;
+}
+
+.semiont-unified-panel__tab-button:last-child:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+[data-theme="dark"] .semiont-unified-panel__tab-button:last-child:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+[data-theme="dark"] .semiont-unified-panel__tab-button {
+  color: var(--semiont-text-secondary);
+  border-right-color: var(--semiont-color-gray-700);
+}
+
+.semiont-unified-panel__tab-button:hover {
+  background: var(--semiont-bg-tertiary);
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-unified-panel__tab-button:hover {
+  background: var(--semiont-color-gray-700);
+  color: var(--semiont-text-primary);
+}
+
+.semiont-unified-panel__tab-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+[data-theme="dark"] .semiont-unified-panel__tab-button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-unified-panel__tab-button--active {
+  background: var(--semiont-bg-primary);
+  color: var(--semiont-text-primary);
+  font-weight: var(--semiont-font-semibold);
+  border-bottom: 2px solid var(--semiont-color-primary-500);
+}
+
+[data-theme="dark"] .semiont-unified-panel__tab-button--active {
+  background: var(--semiont-bg-primary);
+  color: var(--semiont-text-primary);
+  border-bottom-color: var(--semiont-color-primary-400);
+}
+
+.semiont-unified-panel__tab-button--active:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-unified-panel__tab-button--active:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-unified-panel__tab-icon {
+  font-size: var(--semiont-panel-icon-size);
+}
+
+.semiont-unified-panel__content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ensure child panels fill and scroll properly */
+.semiont-unified-panel__content > .semiont-panel {
+  height: 100%;
+}
+
+/* Motivation-specific detection styles moved to /styles/motivations/*.css */

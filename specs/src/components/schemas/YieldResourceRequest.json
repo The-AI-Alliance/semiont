@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "properties": {
+    "resourceId": {
+      "type": "string",
+      "description": "Resource ID containing the annotation"
+    },
+    "title": {
+      "type": "string",
+      "description": "Custom title for generated resource"
+    },
+    "prompt": {
+      "type": "string",
+      "description": "Custom prompt for content generation"
+    },
+    "language": {
+      "type": "string",
+      "description": "Language locale (e.g., \"es\", \"fr\", \"ja\")"
+    }
+  },
+  "required": [
+    "resourceId"
+  ]
+}

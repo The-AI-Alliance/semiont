@@ -1,0 +1,109 @@
+{
+  "get": {
+    "summary": "Get Resource LLM Context",
+    "description": "Get resource with full context for LLM processing",
+    "tags": [
+      "Resources",
+      "AI"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "id",
+        "in": "path"
+      },
+      {
+        "schema": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 3,
+          "default": 2
+        },
+        "required": false,
+        "name": "depth",
+        "in": "query"
+      },
+      {
+        "schema": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 20,
+          "default": 10
+        },
+        "required": false,
+        "name": "maxResources",
+        "in": "query"
+      },
+      {
+        "schema": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "false"
+              ]
+            },
+            {
+              "type": "boolean"
+            }
+          ],
+          "default": true
+        },
+        "required": false,
+        "name": "includeContent",
+        "in": "query"
+      },
+      {
+        "schema": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            },
+            {
+              "type": "string",
+              "enum": [
+                "false"
+              ]
+            },
+            {
+              "type": "boolean"
+            }
+          ],
+          "default": false
+        },
+        "required": false,
+        "name": "includeSummary",
+        "in": "query"
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "LLM context",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ResourceLLMContextResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

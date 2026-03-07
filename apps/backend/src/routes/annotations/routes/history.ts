@@ -1,3 +1,5 @@
+import { EventQuery } from '@semiont/event-sourcing';
+
 /**
  * Annotation History Route - Spec-First Version
  *
@@ -10,42 +12,41 @@
 
 import { HTTPException } from 'hono/http-exception';
 import type { AnnotationsRouterType } from '../shared';
-import { createEventStore, createEventQuery } from '../../../services/event-store-service';
-import { AnnotationQueryService } from '../../../services/annotation-queries';
-import { getTargetSource } from '../../../lib/annotation-utils';
-import type { components } from '@semiont/api-client';
-import { getFilesystemConfig } from '../../../config/environment-loader';
+import { AnnotationContext } from '@semiont/make-meaning';
+import { getTargetSource } from '@semiont/api-client';
+import type { components } from '@semiont/core';
+import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
 
 type GetAnnotationHistoryResponse = components['schemas']['GetAnnotationHistoryResponse'];
 
 export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
   /**
-   * GET /api/documents/:documentId/annotations/:annotationId/history
+   * GET /resources/:resourceId/annotations/:annotationId/history
    *
    * Get full event history for a specific annotation (highlight or reference)
    * Requires authentication
    * Returns annotation events sorted by sequence number
    */
-  router.get('/api/documents/:documentId/annotations/:annotationId/history', async (c) => {
-    const { documentId, annotationId } = c.req.param();
+  router.get('/resources/:resourceId/annotations/:annotationId/history', async (c) => {
+    const { resourceId, annotationId } = c.req.param();
+    const config = c.get('config');
 
-    // Verify annotation exists using Layer 3 (not GraphDB)
-    const annotation = await AnnotationQueryService.getAnnotation(annotationId, documentId);
+    // Verify annotation exists using view storage (not GraphDB)
+    const annotation = await AnnotationContext.getAnnotation(makeAnnotationId(annotationId), makeResourceId(resourceId), config);
     if (!annotation) {
       throw new HTTPException(404, { message: 'Annotation not found' });
     }
 
-    if (getTargetSource(annotation.target) !== documentId) {
-      throw new HTTPException(404, { message: 'Annotation does not belong to this document' });
+    if (getTargetSource(annotation.target) !== resourceId) {
+      throw new HTTPException(404, { message: 'Annotation does not belong to this resource' });
     }
 
-    const basePath = getFilesystemConfig().path;
-    const eventStore = await createEventStore(basePath);
-    const query = createEventQuery(eventStore);
+    const { eventStore } = c.get('makeMeaning');
+    const query = new EventQuery(eventStore.log.storage);
 
-    // Get all events for this document
+    // Get all events for this resource
     const allEvents = await query.queryEvents({
-      documentId,
+      resourceId: makeResourceId(resourceId),
     });
 
     // Filter events related to this annotation
@@ -63,11 +64,11 @@ export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
     // Format events for API response
     const events: GetAnnotationHistoryResponse['events'] = annotationEvents.map(stored => ({
       id: stored.event.id,
-      type: stored.event.type,
+      type: stored.event.type as any, // Job events are filtered out above but TS doesn't know
       timestamp: stored.event.timestamp,
       userId: stored.event.userId,
-      documentId: stored.event.documentId!, // Annotation events always have documentId
-      payload: stored.event.payload,
+      resourceId: stored.event.resourceId!, // Map internal resourceId to API resourceId
+      payload: stored.event.payload as any,
       metadata: {
         sequenceNumber: stored.metadata.sequenceNumber,
         prevEventHash: stored.metadata.prevEventHash,
@@ -82,7 +83,7 @@ export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
       events,
       total: events.length,
       annotationId,
-      documentId,
+      resourceId: resourceId, // Map internal resourceId to API resourceId
     };
 
     return c.json(response);

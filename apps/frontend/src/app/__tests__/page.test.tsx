@@ -3,37 +3,22 @@ import { render, screen } from '@testing-library/react';
 import React from 'react';
 import Home from '@/app/[locale]/page';
 
-// Mock all child components to isolate the Home page structure
-vi.mock('@/components/shared/UnifiedHeader', () => ({
-  UnifiedHeader: () => <header data-testid="unified-header">Unified Header</header>
-}));
+// Mock react-ui components that have been migrated
+vi.mock('@semiont/react-ui', async () => {
+  const actual = await vi.importActual('@semiont/react-ui');
+  return {
+    ...actual,
+    SemiontBranding: ({ size, animated, className }: any) => (
+      <div data-testid="semiont-branding" className={className}>
+        <h2>Semiont</h2>
+      </div>
+    ),
+    Footer: () => <div data-testid="footer">Footer</div>,
+  };
+});
 
 vi.mock('@/components/UserMenu', () => ({
   UserMenu: () => <div data-testid="user-menu">User Menu</div>
-}));
-
-// Removed unused components: FeatureCards, AuthenticatedHome
-
-vi.mock('@/components/SemiontBranding', () => ({
-  SemiontBranding: ({ size, animated, className }: any) => (
-    <div data-testid="semiont-branding" className={className}>
-      <h2>Semiont</h2>
-    </div>
-  )
-}));
-
-vi.mock('@/components/StatusDisplay', () => ({
-  StatusDisplay: () => <div data-testid="status-display">StatusDisplay</div>
-}));
-
-vi.mock('@/components/ErrorBoundary', () => ({
-  AsyncErrorBoundary: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="error-boundary">{children}</div>
-  )
-}));
-
-vi.mock('@/components/Footer', () => ({
-  Footer: () => <div data-testid="footer">Footer</div>
 }));
 
 describe('Home Page', () => {

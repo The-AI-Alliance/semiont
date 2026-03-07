@@ -18,7 +18,6 @@ class PerformanceMonitor {
   constructor() {
     this.results = {
       bundleAnalysis: null,
-      lighthouseReport: null,
       recommendations: [],
       warnings: [],
       errors: []
@@ -30,7 +29,6 @@ class PerformanceMonitor {
     
     try {
       await this.analyzeBundleSize();
-      await this.runLighthouseAnalysis();
       await this.generateRecommendations();
       await this.generateReport();
       
@@ -119,28 +117,6 @@ class PerformanceMonitor {
     }
     
     return analysis;
-  }
-
-  async runLighthouseAnalysis() {
-    console.log('💡 Running Lighthouse analysis...');
-    
-    try {
-      // Check if Lighthouse CI is configured
-      const lhciPath = path.join(__dirname, '../lighthouserc.json');
-      if (!fs.existsSync(lhciPath)) {
-        this.results.warnings.push('Lighthouse CI not configured');
-        return;
-      }
-      
-      // Note: In a real scenario, you'd start the server and run lighthouse
-      console.log('ℹ️  Lighthouse analysis would run here (requires running server)');
-      this.results.lighthouseReport = { 
-        note: 'Run `npm run lighthouse` with server running for full analysis' 
-      };
-      
-    } catch (error) {
-      this.results.errors.push(`Lighthouse analysis failed: ${error.message}`);
-    }
   }
 
   generateRecommendations() {
@@ -271,8 +247,7 @@ class PerformanceMonitor {
     console.log('\n🚀 Next Steps:');
     console.log('   1. Review detailed recommendations in the report');
     console.log('   2. Run bundle analyzer: npm run analyze');
-    console.log('   3. Run Lighthouse: npm run lighthouse');
-    console.log('   4. Monitor performance regularly in CI/CD');
+    console.log('   3. Monitor performance regularly in CI/CD');
   }
 }
 

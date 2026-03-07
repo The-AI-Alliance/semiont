@@ -89,6 +89,12 @@ export interface CommandDescriptor<TOptions> {
     serviceInfo: ServicePlatformInfo,
     options: TOptions
   ) => CommandResult;
+
+  /**
+   * If set, run preflight checks for this command after execution completes.
+   * E.g., provision sets nextCommand='start' to validate start preconditions.
+   */
+  nextCommand?: string;
 }
 
 /**

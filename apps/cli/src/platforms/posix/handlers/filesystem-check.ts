@@ -1,7 +1,9 @@
 import * as fs from 'fs';
-import * as path from 'path';
 import { execSync } from 'child_process';
 import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
+import { getFilesystemPaths } from './filesystem-paths.js';
+import { checkFileExists, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Check handler for POSIX filesystem services
@@ -10,15 +12,13 @@ import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from 
  * not whether a process is running (since it's passive storage).
  */
 const checkFilesystemService = async (context: PosixCheckHandlerContext): Promise<CheckHandlerResult> => {
-  const { service } = context;
-  
-  // Get the configured path
-  const basePath = service.config.path || path.join(process.cwd(), 'data', service.name);
-  const absolutePath = path.isAbsolute(basePath) ? basePath : path.join(service.projectRoot, basePath);
-  
+  // Get filesystem paths
+  const paths = getFilesystemPaths(context);
+  const { baseDir: absolutePath, uploadsDir, tempDir, cacheDir, logsDir } = paths;
+
   let status: 'running' | 'stopped' | 'unknown' | 'unhealthy' = 'unknown';
   let healthy = false;
-  let details: any = {
+  let details: Record<string, unknown> = {
     path: absolutePath
   };
   
@@ -46,10 +46,15 @@ const checkFilesystemService = async (context: PosixCheckHandlerContext): Promis
         details.entries = entries.length;
         
         // Check standard subdirectories
-        const standardDirs = ['uploads', 'temp', 'cache', 'logs'];
-        const existingDirs = standardDirs.filter(dir => 
-          fs.existsSync(path.join(absolutePath, dir))
-        );
+        const standardDirs = [
+          { dir: uploadsDir, name: 'uploads' },
+          { dir: tempDir, name: 'temp' },
+          { dir: cacheDir, name: 'cache' },
+          { dir: logsDir, name: 'logs' }
+        ];
+        const existingDirs = standardDirs
+          .filter(item => fs.existsSync(item.dir))
+          .map(item => item.name);
         details.subdirectories = existingDirs;
       } catch {
         // Can't read directory contents
@@ -121,6 +126,13 @@ const checkFilesystemService = async (context: PosixCheckHandlerContext): Promis
   };
 };
 
+const preflightFilesystemCheck = async (context: PosixCheckHandlerContext): Promise<PreflightResult> => {
+  const paths = getFilesystemPaths(context);
+  return preflightFromChecks([
+    checkFileExists(paths.baseDir, 'filesystem data directory'),
+  ]);
+};
+
 /**
  * Descriptor for POSIX filesystem check handler
  */
@@ -128,5 +140,6 @@ export const filesystemCheckDescriptor: HandlerDescriptor<PosixCheckHandlerConte
   command: 'check',
   platform: 'posix',
   serviceType: 'filesystem',
-  handler: checkFilesystemService
+  handler: checkFilesystemService,
+  preflight: preflightFilesystemCheck
 };

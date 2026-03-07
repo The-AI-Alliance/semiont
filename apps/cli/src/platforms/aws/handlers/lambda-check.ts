@@ -1,6 +1,8 @@
 import { FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import { AWSCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import { createPlatformResources } from '../../platform-resources.js';
+import { checkAwsCredentials, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 const lambdaCheckHandler = async (context: AWSCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { service, region, resourceName } = context;
@@ -119,9 +121,14 @@ const lambdaCheckHandler = async (context: AWSCheckHandlerContext): Promise<Chec
   }
 };
 
+const preflightLambdaCheck = async (_context: AWSCheckHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([checkAwsCredentials()]);
+};
+
 export const lambdaCheckDescriptor: HandlerDescriptor<AWSCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'aws',
   serviceType: 'lambda',
-  handler: lambdaCheckHandler
+  handler: lambdaCheckHandler,
+  preflight: preflightLambdaCheck
 };

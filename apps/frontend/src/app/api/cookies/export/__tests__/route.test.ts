@@ -4,7 +4,7 @@ import { GET } from '../route';
 import type { CookieExportData } from '../route';
 
 // Use environment variables for URLs
-const getBackendUrl = () => process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const getBackendUrl = () => process.env.SERVER_API_URL || 'http://localhost:3001';
 const getFrontendUrl = () => 'http://localhost:3000';
 
 

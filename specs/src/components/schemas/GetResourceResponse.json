@@ -1,0 +1,27 @@
+{
+  "type": "object",
+  "properties": {
+    "resource": {
+      "$ref": "./ResourceDescriptor.json"
+    },
+    "annotations": {
+      "type": "array",
+      "items": {
+        "$ref": "./Annotation.json"
+      },
+      "description": "All annotations for the resource (highlights, references, assessments, etc.)"
+    },
+    "entityReferences": {
+      "type": "array",
+      "items": {
+        "$ref": "./Annotation.json"
+      },
+      "description": "Annotations that reference this resource from other resources"
+    }
+  },
+  "required": [
+    "resource",
+    "annotations",
+    "entityReferences"
+  ]
+}

@@ -1,5 +1,7 @@
+// Environment variables are loaded via Node's --env-file flag (see package.json)
 // Construct DATABASE_URL from components if not already set
 // MUST be done before any Prisma imports!
+let databaseUrlConstructed = false;
 if (!process.env.DATABASE_URL && process.env.DB_HOST && process.env.DB_USER && process.env.DB_PASSWORD) {
   const dbPort = process.env.DB_PORT;
   const dbName = process.env.DB_NAME;
@@ -20,61 +22,93 @@ if (!process.env.DATABASE_URL && process.env.DB_HOST && process.env.DB_USER && p
   url.searchParams.set('sslmode', 'require');
 
   process.env.DATABASE_URL = url.toString();
-  console.log('✅ DATABASE_URL constructed from components');
+  databaseUrlConstructed = true;
 }
 
 import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { swaggerUI } from '@hono/swagger-ui';
+import { type EnvironmentConfig, EventBus } from '@semiont/core';
+import { startMakeMeaning } from '@semiont/make-meaning';
+import { loadEnvironmentConfig } from './utils/config';
 
 import { User } from '@prisma/client';
 
-// Configuration is loaded in JWT service when needed
-// For the server itself, we use environment variables
-const CORS_ORIGIN = process.env.CORS_ORIGIN;
-const FRONTEND_URL = process.env.FRONTEND_URL;
-const NODE_ENV = process.env.NODE_ENV;
-const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 4000;
-
-if (!CORS_ORIGIN) {
-  throw new Error('CORS_ORIGIN environment variable is required');
-}
-if (!FRONTEND_URL) {
-  throw new Error('FRONTEND_URL environment variable is required');
-}
-if (!NODE_ENV) {
-  throw new Error('NODE_ENV environment variable is required');
+// Load configuration from semiont.json + environments/{SEMIONT_ENV}.json
+// SEMIONT_ROOT and SEMIONT_ENV are read from environment
+const env = process.env.SEMIONT_ENV || 'local';
+const projectRoot = process.env.SEMIONT_ROOT;
+if (!projectRoot) {
+  throw new Error('SEMIONT_ROOT environment variable is not set');
 }
 
-const CONFIG = {
-  CORS_ORIGIN,
-  FRONTEND_URL,
-  NODE_ENV,
-  PORT,
-};
+const config = loadEnvironmentConfig(projectRoot, env);
+
+if (!config.services?.backend) {
+  throw new Error('services.backend is required in environment config');
+}
+if (!config.services.backend.corsOrigin) {
+  throw new Error('services.backend.corsOrigin is required in environment config');
+}
+
+const backendService = config.services.backend;
+
+// Import logging utilities
+import { initializeLogger, getLogger } from './logger';
+
+// Initialize Winston logger with log level from environment config
+initializeLogger(config.logLevel);
+const logger = getLogger();
+
+// Log database configuration after logger is initialized
+if (databaseUrlConstructed) {
+  logger.info('DATABASE_URL constructed from environment components', {
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT,
+    database: process.env.DB_NAME,
+    ssl: 'required'
+  });
+}
+
+// Create global EventBus for real-time events
+const eventBus = new EventBus();
+
+// Initialize make-meaning service (job queue, workers, graph consumer)
+const makeMeaning = await startMakeMeaning(config, eventBus, logger);
 
 // Import route definitions
 import { healthRouter } from './routes/health';
 import { authRouter } from './routes/auth';
 import { statusRouter } from './routes/status';
 import { adminRouter } from './routes/admin';
-import { documentsRouter } from './routes/documents/index';
+import { createResourcesRouter } from './routes/resources/index';
 import { annotationsRouter } from './routes/annotations/index';
 import { entityTypesRouter } from './routes/entity-types';
-import { jobsRouter } from './routes/jobs/index';
+import { createJobsRouter } from './routes/jobs/index';
+import { authMiddleware } from './middleware/auth';
 
-// Import static OpenAPI spec
+// Import for static OpenAPI spec
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 
-// Import graph database for initialization
-import { getGraphDatabase } from './graph/factory';
-// Import inference client for initialization
-import { getInferenceClient } from './inference/factory';
+// ESM equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Graph database and inference client are accessed via makeMeaning service
+// Import security headers middleware
+import { securityHeaders } from './middleware/security-headers';
+// Import logging middleware
+import { requestIdMiddleware } from './middleware/request-id';
+import { requestLoggerMiddleware } from './middleware/request-logger';
+import { errorLoggerMiddleware } from './middleware/error-logger';
 
 type Variables = {
   user: User;
+  config: EnvironmentConfig;
+  makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>>;
 };
 
 // Create Hono app with proper typing
@@ -82,33 +116,23 @@ const app = new Hono<{ Variables: Variables }>();
 
 // Add CORS middleware
 app.use('*', cors({
-  origin: CONFIG.CORS_ORIGIN,
+  origin: backendService.corsOrigin,
   credentials: true,
 }));
 
-// Add request/response logging middleware
+// Add security headers middleware (after CORS, before other middleware)
+app.use('*', securityHeaders());
+
+// Add logging middleware (order matters!)
+app.use('*', requestIdMiddleware);       // Generate request ID first
+app.use('*', errorLoggerMiddleware);     // Catch errors second
+app.use('*', requestLoggerMiddleware);   // Log requests third
+
+// Inject config and makeMeaning into context for all routes
 app.use('*', async (c, next) => {
-  const start = Date.now();
-  const method = c.req.method;
-  const url = c.req.url;
-  
-  console.log(`[${new Date().toISOString()}] --> ${method} ${url}`);
-  
-  // Log request body for POST/PUT requests
-  if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
-    try {
-      const body = await c.req.raw.clone().json();
-      console.log(`    Request body:`, JSON.stringify(body, null, 2));
-    } catch (e) {
-      // Body might not be JSON or might be empty
-    }
-  }
-  
+  c.set('config', config);
+  c.set('makeMeaning', makeMeaning);
   await next();
-  
-  const duration = Date.now() - start;
-  const status = c.res.status;
-  console.log(`[${new Date().toISOString()}] <-- ${method} ${url} ${status} (${duration}ms)`);
 });
 
 // Mount route routers
@@ -116,54 +140,14 @@ app.route('/', healthRouter);
 app.route('/', authRouter);
 app.route('/', statusRouter);
 app.route('/', adminRouter);
-app.route('/', documentsRouter);
+const resourcesRouter = createResourcesRouter(makeMeaning.jobQueue);
+app.route('/', resourcesRouter);
 app.route('/', annotationsRouter);
 app.route('/', entityTypesRouter);
+const jobsRouter = createJobsRouter(makeMeaning.jobQueue, authMiddleware);
 app.route('/', jobsRouter);
 
-// Test inference route
-app.get('/api/test-inference', async (c) => {
-  const { getInferenceClient, getInferenceModel } = await import('./inference/factory');
-  const client = await getInferenceClient();
-
-  if (!client) {
-    return c.json({
-      status: 'error',
-      message: 'Inference not configured',
-      env: {
-        SEMIONT_ENV: process.env.SEMIONT_ENV,
-        SEMIONT_ROOT: process.env.SEMIONT_ROOT,
-        hasApiKey: !!process.env.ANTHROPIC_API_KEY
-      }
-    }, 500);
-  }
-
-  try {
-    const response = await client.messages.create({
-      model: getInferenceModel(),
-      max_tokens: 10,
-      messages: [{
-        role: 'user',
-        content: 'Say "hello"'
-      }]
-    });
-
-    return c.json({
-      status: 'success',
-      response: response.content[0],
-      model: getInferenceModel()
-    });
-  } catch (error: any) {
-    return c.json({
-      status: 'error',
-      message: error.message
-    }, 500);
-  }
-});
-
-
-
-// API Documentation root - redirect to appropriate format
+// API Resourceation root - redirect to appropriate format
 app.get('/api', (c) => {
   const acceptHeader = c.req.header('Accept') || '';
   const userAgent = c.req.header('User-Agent') || '';
@@ -189,7 +173,8 @@ app.get('/api/openapi.json', (c) => {
   const openApiSpec = JSON.parse(openApiContent);
 
   // Update server URL dynamically
-  const apiUrl = process.env.BACKEND_URL;
+  const port = backendService.port || 4000;
+  const apiUrl = backendService.publicURL || `http://localhost:${port}`;
   if (apiUrl) {
     openApiSpec.servers = [
       {
@@ -202,7 +187,7 @@ app.get('/api/openapi.json', (c) => {
   return c.json(openApiSpec);
 });
 
-// Serve Swagger UI documentation - now public
+// Serve Swagger UI resourceation - now public
 app.get('/api/docs', async (c) => {
   // Token is optional for authenticated access
   const token = c.req.query('token');
@@ -211,7 +196,7 @@ app.get('/api/docs', async (c) => {
     const swaggerHandler = swaggerUI({ 
       url: token ? `/api/openapi.json?token=${token}` : '/api/openapi.json',
       persistAuthorization: true,
-      title: 'Semiont API Documentation'
+      title: 'Semiont API Resourceation'
     });
     
     // TypeScript workarounds: swaggerUI has type mismatches
@@ -219,8 +204,11 @@ app.get('/api/docs', async (c) => {
     // - Context type incompatibility requires 'as any' cast
     return await swaggerHandler(c as any, async () => {});
   } catch (error) {
-    console.error('Error in /api/docs handler:', error);
-    return c.json({ error: 'Failed to load documentation', details: String(error) }, 500);
+    logger.error('Error in /api/docs handler', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    return c.json({ error: 'Failed to load resourceation', details: String(error) }, 500);
   }
 });
 
@@ -237,111 +225,43 @@ app.all('/api/*', (c) => {
 });
 
 // Start server
-const port = CONFIG.PORT;
-
-console.log(`🚀 Starting Semiont Backend...`);
-console.log(`Environment: ${CONFIG.NODE_ENV}`);
-console.log(`Port: ${port}`);
-
-// Start server
-if (CONFIG.NODE_ENV !== 'test') {
-  console.log('🚀 Starting HTTP server...');
-}
+const port = backendService.port || 4000;
+const nodeEnv = config.env?.NODE_ENV || 'development';
 
 // Only start server if not in test environment
-if (CONFIG.NODE_ENV !== 'test') {
+if (nodeEnv !== 'test') {
   serve({
     fetch: app.fetch,
     port: port,
     hostname: '0.0.0.0'
   }, async (info) => {
-    console.log(`🚀 Server ready at http://localhost:${info.port}`);
-    console.log(`📡 API ready at http://localhost:${info.port}/api`);
+    logger.info('Semiont Backend ready', {
+      url: `http://localhost:${info.port}/api`,
+      environment: nodeEnv
+    });
 
-    // Bootstrap entity types projection if it doesn't exist
+    // Initialize JWT Service with configuration
     try {
-      console.log('🌱 Bootstrapping entity types...');
-      const { bootstrapEntityTypes } = await import('./bootstrap/entity-types-bootstrap');
-      await bootstrapEntityTypes();
-      console.log('✅ Entity types bootstrap complete');
+      const { JWTService } = await import('./auth/jwt');
+      JWTService.initialize(config);
     } catch (error) {
-      console.error('⚠️ Failed to bootstrap entity types:', error);
-      // Continue running even if bootstrap fails
-    }
-
-    // Initialize graph database and seed tag collections
-    try {
-      console.log('🔧 Initializing graph database...');
-      const graphDb = await getGraphDatabase();
-
-      // Pre-populate tag collections by calling getters
-      // This ensures defaults are loaded on startup
-      const entityTypes = await graphDb.getEntityTypes();
-
-      console.log(`✅ Graph database initialized with ${entityTypes.length} entity types`);
-    } catch (error) {
-      console.error('⚠️ Failed to initialize graph database:', error);
-      // Continue running even if graph initialization fails
-    }
-
-    // Initialize inference client
-    try {
-      console.log('🤖 Initializing inference client...');
-      await getInferenceClient();
-      console.log('✅ Inference client initialized');
-    } catch (error) {
-      console.error('⚠️ Failed to initialize inference client:', error);
-      // Continue running even if inference initialization fails
-    }
-
-    // Initialize GraphDB consumer (event-driven Layer 4)
-    try {
-      console.log('📊 Starting GraphDB consumer...');
-      const { startGraphConsumer } = await import('./events/consumers/graph-consumer');
-      await startGraphConsumer();
-      console.log('✅ GraphDB consumer started');
-    } catch (error) {
-      console.error('⚠️ Failed to start GraphDB consumer:', error);
-      // Continue running even if consumer fails to start
-    }
-
-    // Initialize Job Queue
-    try {
-      console.log('💼 Initializing job queue...');
-      const { initializeJobQueue } = await import('./jobs/job-queue');
-      const dataDir = process.env.DATA_DIR;
-      if (!dataDir) {
-        throw new Error('DATA_DIR environment variable is required for job queue initialization');
-      }
-      await initializeJobQueue({ dataDir });
-      console.log('✅ Job queue initialized');
-    } catch (error) {
-      console.error('⚠️ Failed to initialize job queue:', error);
-    }
-
-    // Start Job Workers
-    try {
-      console.log('👷 Starting job workers...');
-      const { DetectionWorker } = await import('./jobs/workers/detection-worker');
-      const { GenerationWorker } = await import('./jobs/workers/generation-worker');
-
-      const detectionWorker = new DetectionWorker();
-      const generationWorker = new GenerationWorker();
-
-      // Start workers in background (non-blocking)
-      detectionWorker.start().catch((error) => {
-        console.error('⚠️ Detection worker stopped with error:', error);
+      logger.error('Failed to initialize JWT Service', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
       });
+    }
 
-      generationWorker.start().catch((error) => {
-        console.error('⚠️ Generation worker stopped with error:', error);
+    // Pre-load entity types from graph database for performance
+    try {
+      const entityTypes = await makeMeaning.graphDb.getEntityTypes();
+      logger.info('Loaded entity types from graph database', {
+        count: entityTypes.length
       });
-
-      console.log('✅ Detection worker started');
-      console.log('✅ Generation worker started');
-
     } catch (error) {
-      console.error('⚠️ Failed to start job workers:', error);
+      logger.error('Failed to pre-load entity types', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
     }
   });
 }

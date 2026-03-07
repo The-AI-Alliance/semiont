@@ -6,5 +6,10 @@
  */
 
 export * from './annotations';
-export * from './events';
+export * from './fuzzy-anchor';
 export * from './locales';
+export * from './resources';
+export * from './svg-utils';
+export * from './text-context';
+export * from './text-encoding';
+export * from './validation';

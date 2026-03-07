@@ -1,10 +1,12 @@
-import * as jwt from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
 import { JWTPayloadSchema } from '../types/jwt-types';
 import type { JWTPayload as ValidatedJWTPayload } from '../types/jwt-types';
+import type { EnvironmentConfig, UserId, Email } from '@semiont/core';
+import { userId as makeUserId, email as makeEmail } from '@semiont/core';
 
 export interface JWTPayload {
-  userId: string;
-  email: string;
+  userId: UserId;
+  email: Email;
   name?: string;
   domain: string;
   provider: string;
@@ -20,44 +22,36 @@ interface SiteConfig {
 
 export class JWTService {
   private static siteConfig: SiteConfig | null = null;
-  
+
   /**
-   * Get site configuration from environment variables
-   * FAILS HARD if not properly configured (except in test mode)
+   * Initialize JWTService with application configuration
+   * Must be called once at application startup before using any other methods
+   */
+  static initialize(config: EnvironmentConfig): void {
+    if (!config.site?.domain) {
+      throw new Error('site.domain is required in environment config');
+    }
+
+    if (!config.site?.oauthAllowedDomains || !Array.isArray(config.site.oauthAllowedDomains)) {
+      throw new Error('site.oauthAllowedDomains is required in environment config');
+    }
+
+    this.siteConfig = {
+      domain: config.site.domain,
+      oauthAllowedDomains: config.site.oauthAllowedDomains
+    };
+  }
+
+  /**
+   * Get site configuration (must call initialize() first)
    */
   private static getSiteConfig(): SiteConfig {
     if (!this.siteConfig) {
-      const environment = process.env.SEMIONT_ENV;
-      
-      // Test environments use test defaults
-      if (environment === 'unit' || environment === 'test') {
-        this.siteConfig = {
-          domain: 'localhost',
-          oauthAllowedDomains: ['example.com', 'test.example.com']
-        };
-        return this.siteConfig;
-      }
-      
-      // Production/staging must have proper configuration
-      const domain = process.env.SITE_DOMAIN;
-      const allowedDomains = process.env.OAUTH_ALLOWED_DOMAINS;
-      
-      if (!domain) {
-        throw new Error('SITE_DOMAIN environment variable is required for JWT issuer');
-      }
-      
-      if (!allowedDomains) {
-        throw new Error('OAUTH_ALLOWED_DOMAINS environment variable is required for authentication');
-      }
-      
-      this.siteConfig = {
-        domain,
-        oauthAllowedDomains: allowedDomains.split(',').map(d => d.trim())
-      };
+      throw new Error('JWTService not initialized. Call JWTService.initialize(config) at application startup.');
     }
     return this.siteConfig;
   }
-  
+
   /**
    * Override configuration for testing purposes
    * @param config The configuration to use
@@ -65,7 +59,7 @@ export class JWTService {
   static setTestConfig(domain: string, oauthAllowedDomains: string[]): void {
     this.siteConfig = { domain, oauthAllowedDomains };
   }
-  
+
   /**
    * Reset configuration cache (useful for testing)
    */
@@ -102,7 +96,7 @@ export class JWTService {
     try {
       // First, verify JWT signature and basic structure
       const decoded = jwt.verify(token, this.getSecret());
-      
+
       // Then validate the payload structure and content
       const result = JWTPayloadSchema.safeParse(decoded);
 
@@ -110,7 +104,12 @@ export class JWTService {
         throw new Error(`Invalid token payload: ${result.error.message}`);
       }
 
-      return result.data;
+      // Brand the string types for type safety
+      return {
+        ...result.data,
+        userId: makeUserId(result.data.userId),
+        email: makeEmail(result.data.email),
+      };
     } catch (error) {
       if (error instanceof jwt.JsonWebTokenError) {
         throw new Error('Invalid token signature');
@@ -121,13 +120,13 @@ export class JWTService {
       if (error instanceof jwt.NotBeforeError) {
         throw new Error('Token not active yet');
       }
-      
+
       // Re-throw validation errors or other errors
       throw error;
     }
   }
 
-  static isAllowedDomain(email: string): boolean {
+  static isAllowedDomain(email: Email): boolean {
     const parts = email.split('@');
     if (parts.length !== 2 || !parts[0] || !parts[1]) {
       return false;

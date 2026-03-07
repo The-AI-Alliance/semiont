@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { createServiceDeployments, resetMockState } from './_mock-setup';
+import { createServiceDeployments, resetMockState, createMockEnvConfig } from './_mock-setup';
 import type { ProvisionOptions } from '../provision.js';
 
 // Import mocks (side effects)
@@ -21,14 +21,13 @@ function createProvisionOptions(partial: Partial<ProvisionOptions> = {}): Provis
     quiet: false,
     output: 'json',
     forceDiscovery: false,
+    preflight: false,
     all: false,
     force: false,
     skipValidation: false,
     skipDependencies: false,
     destroy: false,
     stack: undefined,
-    seedAdmin: false,
-    adminEmail: undefined,
     service: undefined,
     semiontRepo: undefined,
     ...partial
@@ -57,7 +56,7 @@ describe('Provision Command', () => {
         output: 'json'
       });
 
-      const result = await provision(serviceDeployments, options);
+      const result = await provision(serviceDeployments, options, createMockEnvConfig());
 
       expect(result).toMatchObject({
         command: 'provision',

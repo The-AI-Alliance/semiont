@@ -45,17 +45,38 @@ describe('Dynamic Environment Discovery', () => {
       'demo.json': {
         platform: { default: 'posix' },
         site: { domain: 'demo.local' },
-        services: { backend: { platform: { type: 'posix' } } }
+        services: {
+          backend: {
+            platform: { type: 'posix' },
+            port: 4000,
+            publicURL: 'http://demo.local:4000',
+            corsOrigin: 'http://demo.local:3000'
+          }
+        }
       },
       'feature-branch.json': {
         platform: { default: 'container' },
         site: { domain: 'feature.local' },
-        services: { api: { platform: { type: 'container' } } }
+        services: {
+          api: {
+            platform: { type: 'container' },
+            port: 8080,
+            publicURL: 'http://feature.local:8080',
+            corsOrigin: 'http://feature.local:3000'
+          }
+        }
       },
       'user-test.json': {
         platform: { default: 'aws' },
         site: { domain: 'usertest.com' },
-        services: { web: { platform: { type: 'aws' } } }
+        services: {
+          web: {
+            platform: { type: 'aws' },
+            port: 80,
+            publicURL: 'https://usertest.com',
+            corsOrigin: 'https://usertest.com'
+          }
+        }
       }
     };
     
@@ -69,7 +90,7 @@ describe('Dynamic Environment Discovery', () => {
     
     // Import the modules after setting up the filesystem
     const { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } = 
-      await import('../core/environment-loader');
+      await import('../core/config-loader.js');
     
     const discovered = getAvailableEnvironments();
     
@@ -86,11 +107,11 @@ describe('Dynamic Environment Discovery', () => {
     expect(isValidEnvironment('staging')).toBe(false);
     
     // Should load configurations correctly
-    const demoConfig = loadEnvironmentConfig('demo');
+    const demoConfig = loadEnvironmentConfig(testDir, 'demo');
     expect(demoConfig.site?.domain).toBe('demo.local');
     expect(demoConfig.services?.backend).toBeDefined();
-    
-    const featureConfig = loadEnvironmentConfig('feature-branch');
+
+    const featureConfig = loadEnvironmentConfig(testDir, 'feature-branch');
     expect(featureConfig.site?.domain).toBe('feature.local');
     expect(featureConfig.services?.api).toBeDefined();
   });
@@ -122,7 +143,7 @@ describe('Dynamic Environment Discovery', () => {
     }
     
     const { getAvailableEnvironments, isValidEnvironment } = 
-      await import('../core/environment-loader');
+      await import('../core/config-loader.js');
     
     const discovered = getAvailableEnvironments();
     
@@ -143,7 +164,7 @@ describe('Dynamic Environment Discovery', () => {
     // Remove config directory entirely
     fs.rmSync(configDir, { recursive: true, force: true });
     
-    const { getAvailableEnvironments } = await import('../core/environment-loader');
+    const { getAvailableEnvironments } = await import('../core/config-loader.js');
     
     const environments = getAvailableEnvironments();
     expect(environments).toEqual([]);
@@ -155,7 +176,7 @@ describe('Dynamic Environment Discovery', () => {
     fs.writeFileSync(path.join(configDir, 'backup.json.bak'), 'old config');
     fs.writeFileSync(path.join(configDir, 'script.js'), 'console.log("hello")');
     
-    const { getAvailableEnvironments } = await import('../core/environment-loader');
+    const { getAvailableEnvironments } = await import('../core/config-loader.js');
     
     const environments = getAvailableEnvironments();
     expect(environments).toEqual(['valid']);
@@ -169,17 +190,37 @@ describe('Dynamic Environment Discovery', () => {
       'sandbox.json': {
         platform: { default: 'container' },
         site: { domain: 'sandbox.example.com' },
-        services: { 
-          api: { platform: { type: 'container' }, port: 8080 },
-          web: { platform: { type: 'container' }, port: 3000 }
+        services: {
+          api: {
+            platform: { type: 'container' },
+            port: 8080,
+            publicURL: 'http://sandbox.example.com:8080',
+            corsOrigin: 'http://sandbox.example.com:3000'
+          },
+          web: {
+            platform: { type: 'container' },
+            port: 3000,
+            publicURL: 'http://sandbox.example.com:3000',
+            siteName: 'Sandbox'
+          }
         }
       },
       'integration-testing.json': {
         platform: { default: 'aws' },
         site: { domain: 'integration.example.com' },
         services: {
-          backend: { platform: { type: 'aws' } },
-          database: { platform: { type: 'aws' } }
+          backend: {
+            platform: { type: 'aws' },
+            port: 443,
+            publicURL: 'https://integration.example.com',
+            corsOrigin: 'https://integration.example.com'
+          },
+          database: {
+            platform: { type: 'aws' },
+            port: 5432,
+            host: 'db.integration.example.com',
+            type: 'postgresql'
+          }
         }
       }
     };
@@ -192,7 +233,7 @@ describe('Dynamic Environment Discovery', () => {
     }
     
     const { getAvailableEnvironments, isValidEnvironment, loadEnvironmentConfig } = 
-      await import('../core/environment-loader');
+      await import('../core/config-loader.js');
     
     // These would have been rejected by hardcoded validation
     expect(isValidEnvironment('sandbox')).toBe(true);
@@ -204,11 +245,11 @@ describe('Dynamic Environment Discovery', () => {
     expect(environments).toContain('integration-testing');
     
     // Should load correctly
-    const sandboxConfig = loadEnvironmentConfig('sandbox');
-    expect(sandboxConfig.services?.api?.port).toBe(8080);
-    expect(sandboxConfig.services?.web?.port).toBe(3000);
-    
-    const integrationConfig = loadEnvironmentConfig('integration-testing');
+    const sandboxConfig = loadEnvironmentConfig(testDir, 'sandbox');
+    expect((sandboxConfig.services as any)?.api?.port).toBe(8080);
+    expect((sandboxConfig.services as any)?.web?.port).toBe(3000);
+
+    const integrationConfig = loadEnvironmentConfig(testDir, 'integration-testing');
     expect(integrationConfig.platform?.default).toBe('aws');
     expect(integrationConfig.site?.domain).toBe('integration.example.com');
   });

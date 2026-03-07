@@ -1,0 +1,29 @@
+{
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": ["TextualBody"]
+    },
+    "value": {
+      "type": "string",
+      "description": "The text content (e.g., entity type name)"
+    },
+    "purpose": {
+      "$ref": "./Motivation.json",
+      "description": "Why this body is included"
+    },
+    "format": {
+      "type": "string",
+      "description": "MIME type (defaults to text/plain)"
+    },
+    "language": {
+      "type": "string",
+      "description": "BCP 47 language tag"
+    }
+  },
+  "required": [
+    "type",
+    "value"
+  ]
+}

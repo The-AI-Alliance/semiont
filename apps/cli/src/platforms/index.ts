@@ -14,7 +14,7 @@ export { MockPlatform } from './mock/platform.js';
 
 
 import { Platform } from '../core/platform.js';
-import { PlatformType } from '../core/platform-types.js';
+import { PlatformType } from '@semiont/core';
 import { PosixPlatform } from './posix/platform.js';
 import { ContainerPlatform } from './container/platform.js';
 import { AWSPlatform } from './aws/platform.js';
@@ -51,7 +51,7 @@ export class PlatformFactory {
         return new AWSPlatform();
       case 'external':
         return new ExternalPlatform();
-      case 'mock':
+      case 'mock' as any:  // Mock platform for tests, not in official PlatformType enum
         return new MockPlatform();
       default:
         throw new Error(`Unknown platform type: ${type}`);

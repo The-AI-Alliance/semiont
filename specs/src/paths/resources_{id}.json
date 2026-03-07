@@ -1,0 +1,112 @@
+{
+  "get": {
+    "summary": "Get Resource by URI (W3C Content Negotiation)",
+    "description": "W3C-compliant globally resolvable resource URI with content negotiation. Returns JSON-LD metadata (Accept: application/ld+json), raw representation (Accept: text/plain, text/markdown, etc.), or redirects to frontend (?view=semiont). Requires authentication.",
+    "tags": [
+      "W3C URIs"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "description": "Resource ID"
+      },
+      {
+        "name": "view",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "semiont"
+          ]
+        },
+        "description": "Optional view parameter. If set to 'semiont', redirects to frontend viewer."
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Resource metadata (JSON-LD) or raw representation",
+        "content": {
+          "application/ld+json": {
+            "schema": {
+              "$ref": "../components/schemas/GetResourceResponse.json"
+            }
+          },
+          "text/plain": {
+            "schema": {
+              "type": "string"
+            }
+          },
+          "text/markdown": {
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "302": {
+        "description": "Redirect to frontend viewer (when ?view=semiont)"
+      },
+      "404": {
+        "description": "Resource not found"
+      }
+    }
+  },
+  "patch": {
+    "summary": "Update Resource",
+    "description": "Update resource metadata (append-only operations - name and content are immutable)",
+    "tags": [
+      "W3C URIs"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "description": "Resource ID"
+      }
+    ],
+    "requestBody": {
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "../components/schemas/UpdateResourceRequest.json"
+          }
+        }
+      }
+    },
+    "responses": {
+      "200": {
+        "description": "Resource updated successfully",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/GetResourceResponse.json"
+            }
+          }
+        }
+      },
+      "404": {
+        "description": "Resource not found"
+      }
+    }
+  }
+}

@@ -1,7 +1,10 @@
-import { redirect } from 'next/navigation';
+import { redirect } from '@/i18n/routing';
+import { getLocale } from 'next-intl/server';
 
-export default function AdminPage() {
+export default async function AdminPage() {
   // Middleware has already verified admin access
-  // Just redirect to the default admin page
-  redirect('/admin/users');
+  const locale = await getLocale();
+
+  // Redirect to the default admin page
+  redirect({ href: '/admin/users', locale });
 }

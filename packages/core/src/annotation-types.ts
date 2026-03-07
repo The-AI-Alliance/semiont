@@ -2,7 +2,7 @@
  * Annotation types
  */
 
-import type { components } from '@semiont/api-client';
+import type { components } from './types';
 
 type Annotation = components['schemas']['Annotation'];
 

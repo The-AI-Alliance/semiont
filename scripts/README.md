@@ -49,7 +49,7 @@ npm run podman:clean
 
 ```bash
 # Works with all runtime variants
-NEXT_PUBLIC_API_URL=https://api.example.com npm run container:build:frontend
+SERVER_API_URL=http://backend:4000 npm run container:build:frontend
 ```
 
 ## Environment Variables
@@ -63,7 +63,7 @@ NEXT_PUBLIC_API_URL=https://api.example.com npm run container:build:frontend
 
 ### Frontend Build Variables
 
-- `NEXT_PUBLIC_API_URL` - API endpoint URL (default: http://localhost:4000)
+- `SERVER_API_URL` - API endpoint URL (default: http://localhost:4000)
 - `NEXT_PUBLIC_APP_NAME` - Application name (default: Semiont)
 - `NEXT_PUBLIC_APP_VERSION` - Application version (default: 1.0.0)
 

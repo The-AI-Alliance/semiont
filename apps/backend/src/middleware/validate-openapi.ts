@@ -8,6 +8,10 @@
 import { type Context, type Next, type MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { validateSchema } from '../utils/openapi-validator';
+import { getLogger } from '../logger';
+
+// Lazy initialization to avoid calling getLogger() at module load time
+const getMiddlewareLogger = () => getLogger().child({ component: 'validate-openapi' });
 
 /**
  * Validate request body against an OpenAPI schema
@@ -39,7 +43,11 @@ export function validateRequestBody(schemaName: string): MiddlewareHandler {
     const { valid, errors, errorMessage } = validateSchema(schemaName, body);
 
     if (!valid) {
-      console.warn(`[Validation] Request body failed validation for ${schemaName}:`, errorMessage);
+      getMiddlewareLogger().warn('Request body validation failed', {
+        schemaName,
+        errorMessage,
+        errors
+      });
       throw new HTTPException(400, {
         message: errorMessage || 'Request validation failed',
         cause: errors,
@@ -66,7 +74,11 @@ export function validateQuery(schemaName: string): MiddlewareHandler {
     const { valid, errors, errorMessage } = validateSchema(schemaName, query);
 
     if (!valid) {
-      console.warn(`[Validation] Query params failed validation for ${schemaName}:`, errorMessage);
+      getMiddlewareLogger().warn('Query params validation failed', {
+        schemaName,
+        errorMessage,
+        errors
+      });
       throw new HTTPException(400, {
         message: errorMessage || 'Query validation failed',
         cause: errors,
@@ -92,7 +104,11 @@ export function validateParams(schemaName: string): MiddlewareHandler {
     const { valid, errors, errorMessage } = validateSchema(schemaName, params);
 
     if (!valid) {
-      console.warn(`[Validation] Path params failed validation for ${schemaName}:`, errorMessage);
+      getMiddlewareLogger().warn('Path params validation failed', {
+        schemaName,
+        errorMessage,
+        errors
+      });
       throw new HTTPException(400, {
         message: errorMessage || 'Path parameter validation failed',
         cause: errors,

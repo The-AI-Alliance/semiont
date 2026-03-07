@@ -36,8 +36,14 @@ import * as path from 'path';
 import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../core/service-requirements.js';
 import { COMMAND_CAPABILITY_ANNOTATIONS } from '../core/service-command-capabilities.js';
 import { SERVICE_TYPES } from '../core/service-types.js';
+import { type DatabaseServiceConfig } from '@semiont/core';
 
 export class DatabaseService extends BaseService {
+
+  // Type-narrowed config accessor
+  private get typedConfig(): DatabaseServiceConfig {
+    return this.config as DatabaseServiceConfig;
+  }
   
   // =====================================================================
   // Service Requirements
@@ -51,8 +57,8 @@ export class DatabaseService extends BaseService {
     const dbRequirements: ServiceRequirements = {
       storage: [{
         persistent: true,
-        volumeName: `postgres-data-${this.systemConfig.environment}`,
-        size: this.config.storageSize,  // Must be configured if needed
+        volumeName: `postgres-data-${this.environment}`,
+        size: this.typedConfig.storageSize,  // Must be configured if needed
         mountPath: '/var/lib/postgresql/data',
         type: 'volume',
         backupEnabled: true
@@ -63,8 +69,8 @@ export class DatabaseService extends BaseService {
         healthCheckPort: this.getPort()
       },
       resources: {
-        memory: this.config.memory,
-        cpu: this.config.cpu,
+        memory: this.typedConfig.resources?.memory,
+        cpu: this.typedConfig.resources?.cpu,
         replicas: 1  // Databases are typically single instance
       },
       security: {
@@ -76,16 +82,21 @@ export class DatabaseService extends BaseService {
       // Pass through environment variables exactly as configured
       environment: this.config.environment || {},
       annotations: {
-        // Service type declaration
         'service/type': SERVICE_TYPES.DATABASE,
-        // Database supports backup and restore
         [COMMAND_CAPABILITY_ANNOTATIONS.BACKUP]: 'true',
         [COMMAND_CAPABILITY_ANNOTATIONS.RESTORE]: 'true',
-        // Database doesn't support publish/update (not containerized)
         [COMMAND_CAPABILITY_ANNOTATIONS.PUBLISH]: 'false',
         [COMMAND_CAPABILITY_ANNOTATIONS.UPDATE]: 'false',
         [COMMAND_CAPABILITY_ANNOTATIONS.TEST]: 'false',
-        [COMMAND_CAPABILITY_ANNOTATIONS.EXEC]: 'true'
+        [COMMAND_CAPABILITY_ANNOTATIONS.EXEC]: 'true',
+        // When on external platform, only check and watch apply
+        ...(this.platform === 'external' ? {
+          [COMMAND_CAPABILITY_ANNOTATIONS.START]: 'false',
+          [COMMAND_CAPABILITY_ANNOTATIONS.STOP]: 'false',
+          [COMMAND_CAPABILITY_ANNOTATIONS.RESTART]: 'false',
+          [COMMAND_CAPABILITY_ANNOTATIONS.PROVISION]: 'false',
+          [COMMAND_CAPABILITY_ANNOTATIONS.CONFIGURE]: 'false',
+        } : {}),
       }
     };
     
@@ -132,8 +143,8 @@ export class DatabaseService extends BaseService {
   
   protected override async checkHealth(): Promise<CommandExtensions['health']> {
     const port = this.getPort();
-    const dbName = this.config.name || 'semiont';
-    const user = this.config.user || 'postgres';
+    const dbName = this.typedConfig.name || 'semiont';
+    const user = this.typedConfig.user || 'postgres';
     
     try {
       // First check if accepting connections
@@ -144,13 +155,13 @@ export class DatabaseService extends BaseService {
       let activeQueries = 0;
       try {
         const stats = execSync(
-          `PGPASSWORD=${this.config.password || 'localpassword'} psql -h localhost -p ${port} -U ${user} -d ${dbName} -t -c "SELECT COUNT(*) FROM pg_stat_activity WHERE datname='${dbName}'"`,
+          `PGPASSWORD=${this.typedConfig.password || 'localpassword'} psql -h localhost -p ${port} -U ${user} -d ${dbName} -t -c "SELECT COUNT(*) FROM pg_stat_activity WHERE datname='${dbName}'"`,
           { encoding: 'utf-8', stdio: 'pipe' }
         ).toString().trim();
         connectionCount = parseInt(stats) || 0;
-        
+
         const queries = execSync(
-          `PGPASSWORD=${this.config.password || 'localpassword'} psql -h localhost -p ${port} -U ${user} -d ${dbName} -t -c "SELECT COUNT(*) FROM pg_stat_activity WHERE state='active' AND datname='${dbName}'"`,
+          `PGPASSWORD=${this.typedConfig.password || 'localpassword'} psql -h localhost -p ${port} -U ${user} -d ${dbName} -t -c "SELECT COUNT(*) FROM pg_stat_activity WHERE state='active' AND datname='${dbName}'"`,
           { encoding: 'utf-8', stdio: 'pipe' }
         ).toString().trim();
         activeQueries = parseInt(queries) || 0;
@@ -195,7 +206,7 @@ export class DatabaseService extends BaseService {
     const possibleLogPaths = [
       '/var/log/postgresql/',
       '/usr/local/var/log/',
-      path.join(this.config.projectRoot, 'data/logs')
+      path.join(this.projectRoot, 'data/logs')
     ];
     
     for (const logPath of possibleLogPaths) {
@@ -219,7 +230,7 @@ export class DatabaseService extends BaseService {
   }
   
   private async collectContainerLogs(): Promise<CommandExtensions['logs']> {
-    const containerName = `semiont-postgres-${this.config.environment}`;
+    const containerName = `semiont-postgres-${this.environment}`;
     const runtime = fs.existsSync('/var/run/docker.sock') ? 'docker' : 'podman';
     
     try {

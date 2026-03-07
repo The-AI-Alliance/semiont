@@ -1,6 +1,6 @@
 # Semiont Frontend
 
-A type-safe React frontend built with Next.js 14, featuring W3C Web Annotation support, real-time document collaboration, and AI-powered entity detection and generation.
+A type-safe React frontend built with Next.js 14, featuring W3C Web Annotation support, real-time document collaboration, and AI-powered annotation detection and generation.
 
 ## Overview
 
@@ -8,8 +8,10 @@ The Semiont frontend provides a rich annotation experience for building semantic
 
 **Key Features**:
 - W3C Web Annotation compliance
-- Markdown documents with wiki-style linking
-- AI-powered entity detection (asynchronous)
+- Multi-format document support (text, markdown, images, PDFs)
+- Text-based annotations for text/markdown documents
+- Spatial annotations for images and PDFs
+- AI-powered annotation detection for text (asynchronous)
 - AI-powered document generation (asynchronous)
 - Type-safe API integration with `@semiont/api-client`
 - Real-time progress tracking via Server-Sent Events (SSE)
@@ -46,18 +48,85 @@ npm run dev:mock
 
 **See**: [Development Guide](./docs/DEVELOPMENT.md) for complete setup and workflows.
 
+## 🐳 Container Image
+
+[![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/The-AI-Alliance/semiont/pkgs/container/semiont-frontend)
+[![Accessibility Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/accessibility-tests.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/accessibility-tests.yml)
+[![WCAG 2.1 AA](https://img.shields.io/badge/WCAG-2.1%20AA-blue.svg)](https://www.w3.org/WAI/WCAG2AA-Conformance)
+
+Pull and run the published frontend container image:
+
+```bash
+# Pull latest development build
+docker pull ghcr.io/the-ai-alliance/semiont-frontend:dev
+
+# Run frontend container
+docker run -d \
+  -p 3000:3000 \
+  -e SERVER_API_URL=http://localhost:4000 \
+  -e NEXTAUTH_URL=http://localhost:3000 \
+  -e NEXTAUTH_SECRET=your-secret-min-32-chars \
+  --name semiont-frontend \
+  ghcr.io/the-ai-alliance/semiont-frontend:dev
+```
+
+**Required Environment Variables:**
+- `SERVER_API_URL` - Backend API URL (e.g., `http://localhost:4000`)
+- `NEXTAUTH_URL` - Frontend URL for NextAuth callbacks (e.g., `http://localhost:3000`)
+- `NEXTAUTH_SECRET` - Secret for NextAuth session encryption (min 32 characters)
+- `NEXT_PUBLIC_SITE_NAME` - Site name displayed in UI (default: "Semiont")
+
+**Optional Environment Variables:**
+- `NEXT_PUBLIC_GOOGLE_CLIENT_ID` - Google OAuth client ID for authentication
+- `NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS` - Comma-separated list of allowed email domains
+- `NEXT_PUBLIC_ENABLE_LOCAL_AUTH` - Enable email/password credentials authentication (default: false)
+
+**Multi-platform Support:** linux/amd64, linux/arm64
+
+**Docker Compose Example:** See [docs/IMAGES.md](../../docs/IMAGES.md#docker-compose-example) for complete setup with backend and database.
+
 ## Technology Stack
 
 - **Framework**: [Next.js 14](https://nextjs.org/) with App Router
 - **UI**: React 18 with TypeScript
 - **Styling**: [Tailwind CSS](https://tailwindcss.com/)
-- **Authentication**: [NextAuth.js](https://next-auth.js.org/) with Google OAuth
+- **Authentication**: [NextAuth.js](https://next-auth.js.org/) with Google OAuth (server-side only, browser calls backend directly)
 - **State Management**: [TanStack Query](https://tanstack.com/query) (React Query)
 - **API Client**: Type-safe client generated from OpenAPI spec
 - **Testing**: [Vitest](https://vitest.dev/) + React Testing Library + [MSW v2](https://mswjs.io/)
-- **Performance**: Bundle analysis, Lighthouse CI
+- **Performance**: Bundle analysis
 
 **Full stack details**: [Frontend Architecture](./docs/ARCHITECTURE.md)
+
+### Component Library
+
+The frontend uses **[@semiont/react-ui](../../packages/react-ui)** - a framework-agnostic React component library providing:
+
+- **Authentication Components**: SignInForm, SignUpForm, AuthErrorDisplay, WelcomePage
+- **Layout Components**: PageLayout, UnifiedHeader, LeftSidebar, Footer
+- **Resource Components**: ResourceViewer, BrowseView, AnnotateView
+- **Format-Specific Viewers**: PdfViewer, PdfAnnotationCanvas for PDF documents
+- **Annotation Components**: Annotation panels, toolbars, and widgets
+- **React Query Hooks**: Type-safe API integration hooks
+- **Built-in Translations**: English and Spanish included with dynamic loading
+
+The library is framework-independent, accepting framework-specific implementations (like Link components) as props. This allows the same components to work with Next.js, Vite, or any React framework.
+
+### Internationalization
+
+The frontend supports multiple languages through a hybrid approach:
+
+- **Frontend-specific translations**: Managed via `next-intl` in `messages/*.json`
+- **Component translations**: Provided by `@semiont/react-ui` with English and Spanish built-in
+- **Dynamic loading**: Non-English locales are loaded on-demand for optimal bundle size
+- **Unified translation manager**: Bridges next-intl with react-ui translations
+
+Current supported languages:
+- English (en)
+- Spanish (es)
+- 27+ additional languages (partial coverage)
+
+**See**: [@semiont/react-ui documentation](../../packages/react-ui/README.md)
 
 ## Project Structure
 
@@ -98,8 +167,8 @@ src/
 
 Some operations run asynchronously via background job workers:
 
-**Entity Detection** - Find entities in documents using AI:
-- Select entity types to detect (Person, Organization, etc.)
+**Annotation Detection** - Detect annotations in documents using AI:
+- Multiple detection types: highlights, assessments, comments, tags, entity references
 - Real-time progress via SSE
 - Automatic annotation creation
 
@@ -119,7 +188,7 @@ Some operations run asynchronously via background job workers:
 
 ### Architecture & Design
 - **[Frontend Architecture](./docs/ARCHITECTURE.md)** - High-level system design, state management, routing
-- **[Rendering Architecture](./docs/RENDERING-ARCHITECTURE.md)** - Document rendering pipeline
+- **[Rendering Architecture](../../packages/react-ui/docs/RENDERING-ARCHITECTURE.md)** - Document rendering pipeline
 - **[API Integration](./docs/API-INTEGRATION.md)** - API client usage, async operations, W3C annotations
 
 ### Features & UI
@@ -132,13 +201,14 @@ Some operations run asynchronously via background job workers:
 - **[Authorization](./docs/AUTHORIZATION.md)** - Permission system, 403 error handling
 
 ### Performance & Accessibility
-- **[Performance Optimization](./docs/PERFORMANCE.md)** - Bundle optimization, Lighthouse CI, monitoring
+- **[Performance Optimization](./docs/PERFORMANCE.md)** - Bundle optimization, monitoring
+- **[Accessibility](./docs/ACCESSIBILITY.md)** - WCAG 2.1 Level AA compliance, screen reader support, testing
 - **[Keyboard Navigation](./docs/KEYBOARD-NAV.md)** - WCAG 2.1 Level AA compliant keyboard shortcuts
 
 ### Specialized Topics
-- **[CodeMirror Integration](./docs/CODEMIRROR-INTEGRATION.md)** - Editor implementation details
-- **[CodeMirror Widgets](./docs/CODEMIRROR-WIDGETS.md)** - Custom editor widgets
-- **[React Markdown](./docs/REACT-MARKDOWN.md)** - Markdown rendering details
+- **[CodeMirror Integration](../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md)** - Editor implementation details
+- **[CodeMirror Widgets](../../packages/react-ui/docs/CODEMIRROR-WIDGETS.md)** - Custom editor widgets
+- **[Annotation Overlay](../../ANNOTATION-OVERLAY.md)** - BrowseView annotation rendering (DOM Range overlay)
 - **[Annotation Rendering](./docs/ANNOTATION-RENDERING-PRINCIPLES.md)** - Annotation rendering principles
 - **[Adding Languages](./docs/ADDING-LANGUAGE.md)** - Internationalization
 - **[Archive & Clone](./docs/ARCHIVE-CLONE.md)** - Document archiving and cloning
@@ -164,7 +234,6 @@ npm run type-check       # TypeScript validation
 # Performance
 npm run perf             # Full performance analysis
 npm run analyze          # Bundle size analysis
-npm run lighthouse       # Lighthouse CI tests
 
 # Using Semiont CLI
 semiont start            # Start all services
@@ -211,7 +280,7 @@ We welcome contributions! Please read:
 ### System Documentation
 - [System Architecture](../../docs/ARCHITECTURE.md) - Overall platform architecture
 - [W3C Web Annotation](../../specs/docs/W3C-WEB-ANNOTATION.md) - Annotation data flow across all layers
-- [Job Worker](../../docs/services/JOB-WORKER.md) - Background job processing (async operations)
+- [Jobs Package](../../packages/jobs/) - Background job processing (async operations)
 
 ### Other Services
 - [Backend README](../backend/README.md) - Backend API server

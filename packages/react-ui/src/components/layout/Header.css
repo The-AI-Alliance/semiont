@@ -1,0 +1,109 @@
+/* ============================================
+   UnifiedHeader Component
+   ============================================ */
+
+.semiont-unified-header {
+  background: var(--semiont-bg-primary);
+  border-bottom: 1px solid var(--semiont-border-primary);
+}
+
+.semiont-unified-header--floating {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  box-shadow: var(--semiont-shadow-md);
+}
+
+[data-theme="dark"] .semiont-unified-header--floating {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+}
+
+.semiont-unified-header--standalone {
+  border-bottom: 1px solid var(--semiont-color-gray-200);
+}
+
+[data-theme="dark"] .semiont-unified-header--standalone {
+  border-bottom-color: var(--semiont-color-gray-800);
+}
+
+.semiont-unified-header__container {
+  max-width: 80rem;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+@media (min-width: 640px) {
+  .semiont-unified-header__container {
+    padding: 0 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .semiont-unified-header__container {
+    padding: 0 2rem;
+  }
+}
+
+.semiont-unified-header__content {
+  display: flex;
+  height: 4rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.semiont-unified-header__branding-wrapper {
+  display: flex;
+  align-items: center;
+}
+
+.semiont-unified-header__branding-button {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--semiont-radius-lg);
+  transition: background var(--semiont-duration-base);
+  text-decoration: none;
+  color: inherit;
+}
+
+.semiont-unified-header__branding-button:hover {
+  background: var(--semiont-bg-tertiary);
+}
+
+[data-theme="dark"] .semiont-unified-header__branding-button {
+  color: var(--semiont-text-primary);
+}
+
+[data-theme="dark"] .semiont-unified-header__branding-button:hover {
+  background: var(--semiont-bg-tertiary);
+}
+
+.semiont-unified-header__branding-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-unified-header__branding-button:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+.semiont-unified-header__branding-button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.semiont-unified-header__branding {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.semiont-unified-header__dropdown {
+  margin-left: 2rem;
+}
+
+.semiont-unified-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}

@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mockPlatformInstance, createServiceDeployments, resetMockState } from './_mock-setup';
+import { mockPlatformInstance, createServiceDeployments, resetMockState, createMockEnvConfig } from './_mock-setup';
 import type { CheckOptions } from '../check.js';
 
 // Import mocks (side effects)
@@ -21,6 +21,7 @@ function createCheckOptions(partial: Partial<CheckOptions> = {}): CheckOptions {
     quiet: false,
     output: 'json',
     forceDiscovery: false,
+    preflight: false,
     all: false,
     deep: true,
     wait: false,
@@ -54,10 +55,10 @@ describe('Check Command', () => {
         running: true,  // Set to running so check succeeds
         startTime: new Date()
       });
-      
+
       const serviceDeployments = createServiceDeployments([
-        { name: 'backend', type: 'mock' },
-        { name: 'database', type: 'mock' }
+        { name: 'backend', type: 'mock', config: { port: 3001 } },
+        { name: 'database', type: 'mock', config: { port: 5432, image: 'postgres:15' } }
       ]);
 
       const options = createCheckOptions({
@@ -65,7 +66,7 @@ describe('Check Command', () => {
         timeout: 5000
       });
 
-      const result = await check(serviceDeployments, options);
+      const result = await check(serviceDeployments, options, createMockEnvConfig());
 
       expect(result).toBeDefined();
       expect(result.command).toBe('check');
@@ -115,7 +116,7 @@ describe('Check Command', () => {
         timeout: 5000
       });
 
-      const result = await check(serviceDeployments, options);
+      const result = await check(serviceDeployments, options, createMockEnvConfig());
 
       // The mock returns success:true even for stopped services (check succeeded, service is stopped)
       expect(result.results[0]!).toMatchObject({
@@ -158,7 +159,7 @@ describe('Check Command', () => {
         timeout: 500
       });
 
-      const result = await check(serviceDeployments, options);
+      const result = await check(serviceDeployments, options, createMockEnvConfig());
 
       // Should eventually report as running if wait logic works
       expect(result.results).toHaveLength(1);
@@ -184,7 +185,7 @@ describe('Check Command', () => {
           timeout: 5000
         });
 
-        const result = await check(serviceDeployments, options);
+        const result = await check(serviceDeployments, options, createMockEnvConfig());
 
         expect(result).toMatchObject({
           command: 'check',
@@ -214,11 +215,11 @@ describe('Check Command', () => {
         running: false,
         startTime: new Date()
       });
-      
+
       const serviceDeployments = createServiceDeployments([
-        { name: 'frontend', type: 'mock' },
-        { name: 'backend', type: 'mock' },
-        { name: 'database', type: 'mock' }
+        { name: 'frontend', type: 'mock', config: { port: 3000 } },
+        { name: 'backend', type: 'mock', config: { port: 3001 } },
+        { name: 'database', type: 'mock', config: { port: 5432, image: 'postgres:15' } }
       ]);
 
       const options = createCheckOptions({
@@ -227,7 +228,7 @@ describe('Check Command', () => {
         service: 'all'
       });
 
-      const result = await check(serviceDeployments, options);
+      const result = await check(serviceDeployments, options, createMockEnvConfig());
 
       expect(result.results).toHaveLength(3);
       expect(result.results.map(r => r.entity)).toEqual(
@@ -255,7 +256,7 @@ describe('Check Command', () => {
         service: 'backend'
       });
 
-      const result = await check(serviceDeployments, options);
+      const result = await check(serviceDeployments, options, createMockEnvConfig());
 
       expect(result.results).toHaveLength(1);
       expect(result.results[0]!.entity).toBe('backend');
@@ -281,11 +282,11 @@ describe('Check Command', () => {
       });
       
       // Database has no state (never started)
-      
+
       const serviceDeployments = createServiceDeployments([
-        { name: 'frontend', type: 'mock' },
-        { name: 'backend', type: 'mock' },
-        { name: 'database', type: 'mock' }
+        { name: 'frontend', type: 'mock', config: { port: 3000 } },
+        { name: 'backend', type: 'mock', config: { port: 3001 } },
+        { name: 'database', type: 'mock', config: { port: 5432, image: 'postgres:15' } }
       ]);
 
       const options = createCheckOptions({
@@ -293,7 +294,7 @@ describe('Check Command', () => {
         timeout: 5000
       });
 
-      const result = await check(serviceDeployments, options);
+      const result = await check(serviceDeployments, options, createMockEnvConfig());
 
       const frontendResult = result.results.find(r => r.entity === 'frontend');
       const backendResult = result.results.find(r => r.entity === 'backend');

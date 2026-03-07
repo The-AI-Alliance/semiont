@@ -1,0 +1,36 @@
+{
+  "get": {
+    "summary": "Get Service Status",
+    "description": "Get service status and feature availability",
+    "tags": [
+      "General"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "Service status information",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/StatusResponse.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "description": "Unauthorized",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

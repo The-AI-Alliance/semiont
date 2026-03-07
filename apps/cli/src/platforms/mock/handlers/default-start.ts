@@ -1,4 +1,5 @@
 import { MockStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
+import { passingPreflight } from '../../../core/handlers/preflight-utils.js';
 import { PlatformResources } from '../../platform-resources.js';
 import { printInfo } from '../../../core/io/cli-logger.js';
 
@@ -124,5 +125,6 @@ export const defaultStartDescriptor: HandlerDescriptor<MockStartHandlerContext, 
   command: 'start',
   platform: 'mock',
   serviceType: 'default',
-  handler: startMockService
+  handler: startMockService,
+  preflight: async () => passingPreflight(),
 };

@@ -1,12 +1,15 @@
 import { execSync } from 'child_process';
 import { ContainerCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
+import type { DatabaseServiceConfig } from '@semiont/core';
+import { checkContainerRuntime, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Check handler for containerized database services
  */
 const checkDatabaseContainer = async (context: ContainerCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { platform, service, runtime, containerName } = context;
-  const requirements = service.getRequirements();
+  const config = service.config as DatabaseServiceConfig;
   
   try {
     // Check container status
@@ -47,19 +50,9 @@ const checkDatabaseContainer = async (context: ContainerCheckHandlerContext): Pr
     
     // Database-specific health check
     let health = { healthy: true, details: {} };
-    
-    // Determine database port based on service name or requirements
-    const dbPorts: Record<string, number> = {
-      postgres: 5432,
-      postgresql: 5432,
-      mysql: 3306,
-      mongodb: 27017,
-      redis: 6379
-    };
-    
-    const serviceName = service.name.toLowerCase();
-    const defaultPort = dbPorts[serviceName] || 5432;
-    const port = requirements.network?.ports?.[0] || defaultPort;
+
+    // Get port from config
+    const port = config.port;
     
     // Try to check if database is accepting connections
     try {
@@ -93,10 +86,10 @@ const checkDatabaseContainer = async (context: ContainerCheckHandlerContext): Pr
     }
     
     // Build port mapping for resources
-    const ports = requirements.network?.ports ? {
-      [requirements.network.ports[0]]: String(requirements.network.ports[0])
+    const ports = config.port ? {
+      [config.port]: String(config.port)
     } : undefined;
-    
+
     return {
       success: true,
       status: 'running',
@@ -131,9 +124,16 @@ const checkDatabaseContainer = async (context: ContainerCheckHandlerContext): Pr
 /**
  * Descriptor for database container check handler
  */
+const preflightDatabaseCheck = async (context: ContainerCheckHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([
+    checkContainerRuntime(context.runtime),
+  ]);
+};
+
 export const databaseCheckDescriptor: HandlerDescriptor<ContainerCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'container',
   serviceType: 'database',
-  handler: checkDatabaseContainer
+  handler: checkDatabaseContainer,
+  preflight: preflightDatabaseCheck
 };

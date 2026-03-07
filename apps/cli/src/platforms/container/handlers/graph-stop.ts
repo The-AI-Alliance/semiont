@@ -3,6 +3,9 @@ import { execSync } from 'child_process';
 import { ContainerStopHandlerContext, StopHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
 import * as fs from 'fs/promises';
+import type { GraphServiceConfig } from '@semiont/core';
+import { checkContainerRuntime, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Stop handler for graph database services using Docker
@@ -10,9 +13,12 @@ import * as fs from 'fs/promises';
  */
 const stopGraphService = async (context: ContainerStopHandlerContext): Promise<StopHandlerResult> => {
   const { service } = context;
-  
+
+  // Type narrowing for graph service config
+  const serviceConfig = service.config as GraphServiceConfig;
+
   // Determine which graph database to stop from service config
-  const graphType = service.config.type;
+  const graphType = serviceConfig.type;
   
   if (!service.quiet) {
     printInfo(`🛑 Stopping ${graphType} graph database container...`);
@@ -113,10 +119,10 @@ async function stopJanusGraph(context: ContainerStopHandlerContext): Promise<Sto
     } else {
       // Graceful stop with timeout
       if (!service.quiet) {
-        printInfo(`Stopping JanusGraph Docker stack gracefully (timeout: ${options.timeout || 30}s)...`);
+        printInfo(`Stopping JanusGraph Docker stack gracefully (timeout: ${options.timeout}s)...`);
       }
-      
-      execSync(`docker-compose -f ${composePath} stop -t ${options.timeout || 30}`, {
+
+      execSync(`docker-compose -f ${composePath} stop -t ${options.timeout}`, {
         stdio: service.quiet ? 'ignore' : 'inherit'
       });
       
@@ -161,9 +167,16 @@ async function fileExists(path: string): Promise<boolean> {
 /**
  * Handler descriptor for graph database stop
  */
+const preflightGraphStop = async (context: ContainerStopHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([
+    checkContainerRuntime(context.runtime),
+  ]);
+};
+
 export const graphStopDescriptor: HandlerDescriptor<ContainerStopHandlerContext, StopHandlerResult> = {
   command: 'stop',
   platform: 'container',
   serviceType: 'graph',
-  handler: stopGraphService
+  handler: stopGraphService,
+  preflight: preflightGraphStop
 };

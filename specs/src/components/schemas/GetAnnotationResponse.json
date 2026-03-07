@@ -1,0 +1,29 @@
+{
+  "type": "object",
+  "properties": {
+    "annotation": {
+      "$ref": "./Annotation.json"
+    },
+    "resource": {
+      "nullable": true,
+      "allOf": [
+        {
+          "$ref": "./ResourceDescriptor.json"
+        }
+      ]
+    },
+    "resolvedResource": {
+      "nullable": true,
+      "allOf": [
+        {
+          "$ref": "./ResourceDescriptor.json"
+        }
+      ]
+    }
+  },
+  "required": [
+    "annotation",
+    "resource",
+    "resolvedResource"
+  ]
+}

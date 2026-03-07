@@ -2,6 +2,8 @@ import { execSync } from 'child_process';
 import { AWSStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { createPlatformResources } from '../../platform-resources.js';
 import { printInfo } from '../../../core/io/cli-logger.js';
+import { checkAwsCredentials, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Start handler for RDS database instances
@@ -68,10 +70,15 @@ const startRDSInstance = async (context: AWSStartHandlerContext): Promise<StartH
 /**
  * Descriptor for RDS start handler
  */
+const preflightRdsStart = async (_context: AWSStartHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([checkAwsCredentials()]);
+};
+
 export const rdsStartDescriptor: HandlerDescriptor<AWSStartHandlerContext, StartHandlerResult> = {
   command: 'start',
   platform: 'aws',
   serviceType: 'rds',
   handler: startRDSInstance,
+  preflight: preflightRdsStart,
   requiresDiscovery: false
 };

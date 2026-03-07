@@ -9,23 +9,27 @@
  * Target can be simple string IRI or object with source and optional selector
  */
 
-import type { components } from '../types';
+import type { components } from '@semiont/core';
+import type { ResourceUri } from '@semiont/core';
+import { resourceUri } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 type HighlightAnnotation = Annotation;
 type ReferenceAnnotation = Annotation;
 type TextPositionSelector = components['schemas']['TextPositionSelector'];
 type TextQuoteSelector = components['schemas']['TextQuoteSelector'];
-type Selector = TextPositionSelector | TextQuoteSelector;
+type SvgSelector = components['schemas']['SvgSelector'];
+type FragmentSelector = components['schemas']['FragmentSelector'];
+type Selector = TextPositionSelector | TextQuoteSelector | SvgSelector | FragmentSelector;
 
 // Re-export selector types for convenience
-export type { TextPositionSelector, TextQuoteSelector, Selector };
+export type { TextPositionSelector, TextQuoteSelector, SvgSelector, FragmentSelector, Selector };
 
 /**
  * Get the source from an annotation body (null if stub)
  * Search for SpecificResource in body array
  */
-export function getBodySource(body: Annotation['body']): string | null {
+export function getBodySource(body: Annotation['body']): ResourceUri | null {
   if (Array.isArray(body)) {
     // Search for SpecificResource with source
     for (const item of body) {
@@ -39,7 +43,7 @@ export function getBodySource(body: Annotation['body']): string | null {
         const itemSource = (item as { source: unknown }).source;
 
         if (itemType === 'SpecificResource' && typeof itemSource === 'string') {
-          return itemSource;
+          return resourceUri(itemSource);
         }
       }
     }
@@ -57,7 +61,7 @@ export function getBodySource(body: Annotation['body']): string | null {
     const bodySource = (body as { source: unknown }).source;
 
     if (bodyType === 'SpecificResource' && typeof bodySource === 'string') {
-      return bodySource;
+      return resourceUri(bodySource);
     }
   }
 
@@ -104,11 +108,11 @@ export function isBodyResolved(body: Annotation['body']): boolean {
 /**
  * Get the source IRI from target (handles both string and object forms)
  */
-export function getTargetSource(target: Annotation['target']): string {
+export function getTargetSource(target: Annotation['target']): ResourceUri {
   if (typeof target === 'string') {
-    return target;
+    return resourceUri(target);
   }
-  return target.source;
+  return resourceUri(target.source);
 }
 
 /**
@@ -129,43 +133,6 @@ export function hasTargetSelector(target: Annotation['target']): boolean {
 }
 
 /**
- * Extract entity types from annotation bodies
- * Entity types are stored as TextualBody with purpose: "tagging"
- * Accepts any object with a body property matching Annotation['body']
- */
-export function getEntityTypes(annotation: { body: Annotation['body'] }): string[] {
-  // Extract from TextualBody bodies with purpose: "tagging"
-  if (Array.isArray(annotation.body)) {
-    const entityTags: string[] = [];
-
-    for (const item of annotation.body) {
-      // Runtime check for TextualBody with tagging purpose
-      // TypeScript incorrectly narrows the union type here, so we use runtime checks only
-      if (
-        typeof item === 'object' &&
-        item !== null &&
-        'type' in item &&
-        'value' in item &&
-        'purpose' in item
-      ) {
-        // Access properties as unknown first to avoid TypeScript narrowing issues
-        const itemType = (item as { type: unknown }).type;
-        const itemValue = (item as { value: unknown }).value;
-        const itemPurpose = (item as { purpose: unknown }).purpose;
-
-        if (itemType === 'TextualBody' && itemPurpose === 'tagging' && typeof itemValue === 'string' && itemValue.length > 0) {
-          entityTags.push(itemValue);
-        }
-      }
-    }
-
-    return entityTags;
-  }
-
-  return [];
-}
-
-/**
  * Type guard to check if an annotation is a highlight
  */
 export function isHighlight(annotation: Annotation): annotation is HighlightAnnotation {
@@ -177,6 +144,41 @@ export function isHighlight(annotation: Annotation): annotation is HighlightAnno
  */
 export function isReference(annotation: Annotation): annotation is ReferenceAnnotation {
   return annotation.motivation === 'linking';
+}
+
+/**
+ * Type guard to check if an annotation is an assessment
+ */
+export function isAssessment(annotation: Annotation): annotation is Annotation {
+  return annotation.motivation === 'assessing';
+}
+
+/**
+ * Type guard to check if an annotation is a comment
+ */
+export function isComment(annotation: Annotation): annotation is Annotation {
+  return annotation.motivation === 'commenting';
+}
+
+/**
+ * Type guard to check if an annotation is a tag
+ */
+export function isTag(annotation: Annotation): annotation is Annotation {
+  return annotation.motivation === 'tagging';
+}
+
+/**
+ * Extract comment text from a comment annotation's body
+ * @param annotation - The annotation to extract comment text from
+ * @returns The comment text, or undefined if not a comment or no text found
+ */
+export function getCommentText(annotation: Annotation): string | undefined {
+  if (!isComment(annotation)) return undefined;
+  const body = Array.isArray(annotation.body) ? annotation.body[0] : annotation.body;
+  if (body && 'value' in body) {
+    return body.value;
+  }
+  return undefined;
 }
 
 /**
@@ -193,37 +195,6 @@ export function isStubReference(annotation: Annotation): boolean {
  */
 export function isResolvedReference(annotation: Annotation): annotation is ReferenceAnnotation {
   return isReference(annotation) && isBodyResolved(annotation.body);
-}
-
-/**
- * Extract annotation ID from a full URI or just the ID
- * @param fullUriOrId - Full URI like "urn:uuid:abc-123", "http://host/annotations/abc-123", or just "abc-123"
- * @returns The ID portion (e.g., "abc-123")
- */
-export function extractAnnotationId(fullUriOrId: string): string {
-  // Handle URN format: urn:uuid:abc-123
-  if (fullUriOrId.startsWith('urn:uuid:')) {
-    return fullUriOrId.replace('urn:uuid:', '');
-  }
-
-  // Handle HTTP/HTTPS URLs: http://host/annotations/abc-123
-  if (fullUriOrId.startsWith('http://') || fullUriOrId.startsWith('https://')) {
-    const parts = fullUriOrId.split('/');
-    const lastPart = parts[parts.length - 1];
-    return lastPart || fullUriOrId; // Fallback to full URI if split fails
-  }
-
-  // Already just an ID
-  return fullUriOrId;
-}
-
-/**
- * Compare two annotation IDs, handling both URN format and plain IDs
- */
-export function compareAnnotationIds(id1: string, id2: string): boolean {
-  const extracted1 = extractAnnotationId(id1);
-  const extracted2 = extractAnnotationId(id2);
-  return extracted1 === extracted2;
 }
 
 // =============================================================================
@@ -306,4 +277,105 @@ export function getTextQuoteSelector(selector: Selector | Selector[]): TextQuote
   const found = selectors.find(s => s.type === 'TextQuoteSelector');
   if (!found) return null;
   return found.type === 'TextQuoteSelector' ? found : null;
+}
+
+/**
+ * Get SvgSelector from a selector (single or array)
+ *
+ * Returns the first SvgSelector found, or null if none exists.
+ */
+export function getSvgSelector(selector: Selector | Selector[] | undefined): SvgSelector | null {
+  if (!selector) return null;
+  const selectors = Array.isArray(selector) ? selector : [selector];
+  const found = selectors.find(s => s.type === 'SvgSelector');
+  if (!found) return null;
+  return found.type === 'SvgSelector' ? found : null;
+}
+
+/**
+ * Get FragmentSelector from a selector (single or array)
+ *
+ * Returns the first FragmentSelector found, or null if none exists.
+ */
+export function getFragmentSelector(selector: Selector | Selector[] | undefined): FragmentSelector | null {
+  if (!selector) return null;
+  const selectors = Array.isArray(selector) ? selector : [selector];
+  const found = selectors.find(s => s.type === 'FragmentSelector');
+  if (!found) return null;
+  return found.type === 'FragmentSelector' ? found : null;
+}
+
+/**
+ * Validate SVG markup for W3C compliance
+ *
+ * Checks that:
+ * - SVG contains xmlns attribute
+ * - SVG is well-formed XML
+ * - SVG contains at least one shape element
+ *
+ * @returns null if valid, error message if invalid
+ */
+export function validateSvgMarkup(svg: string): string | null {
+  // Check for xmlns attribute (required by W3C spec)
+  if (!svg.includes('xmlns="http://www.w3.org/2000/svg"')) {
+    return 'SVG must include xmlns="http://www.w3.org/2000/svg" attribute';
+  }
+
+  // Check for basic SVG tag structure
+  if (!svg.includes('<svg') || !svg.includes('</svg>')) {
+    return 'SVG must have opening and closing tags';
+  }
+
+  // Check for at least one shape element
+  const shapeElements = ['rect', 'circle', 'ellipse', 'polygon', 'polyline', 'path', 'line'];
+  const hasShape = shapeElements.some(shape =>
+    svg.includes(`<${shape}`) || svg.includes(`<${shape} `)
+  );
+
+  if (!hasShape) {
+    return 'SVG must contain at least one shape element (rect, circle, ellipse, polygon, polyline, path, or line)';
+  }
+
+  return null; // Valid
+}
+
+/**
+ * Extract bounding box from SVG markup
+ *
+ * Attempts to extract x, y, width, height from the SVG viewBox or root element.
+ * Returns null if bounding box cannot be determined.
+ */
+export function extractBoundingBox(svg: string): { x: number; y: number; width: number; height: number } | null {
+  // Try to extract viewBox attribute from SVG element
+  const viewBoxMatch = svg.match(/<svg[^>]*viewBox="([^"]+)"/);
+  if (viewBoxMatch) {
+    const values = viewBoxMatch[1].split(/\s+/).map(parseFloat);
+    if (values.length === 4 && values.every(v => !isNaN(v))) {
+      return {
+        x: values[0],
+        y: values[1],
+        width: values[2],
+        height: values[3]
+      };
+    }
+  }
+
+  // Try to extract width/height attributes from SVG element (assume x=0, y=0)
+  const svgTagMatch = svg.match(/<svg[^>]*>/);
+  if (svgTagMatch) {
+    const svgTag = svgTagMatch[0];
+    const widthMatch = svgTag.match(/width="([^"]+)"/);
+    const heightMatch = svgTag.match(/height="([^"]+)"/);
+
+    if (widthMatch && heightMatch) {
+      const width = parseFloat(widthMatch[1]);
+      const height = parseFloat(heightMatch[1]);
+
+      if (!isNaN(width) && !isNaN(height)) {
+        return { x: 0, y: 0, width, height };
+      }
+    }
+  }
+
+  return null;
 }

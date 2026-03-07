@@ -3,7 +3,7 @@
 High-level guide to the Semiont semantic knowledge platform API.
 
 **For Endpoint Details:**
-- **[OpenAPI Specification](../openapi.json)** - Complete endpoint reference (source of truth)
+- **[OpenAPI Specification](../README.md)** - Complete endpoint reference (source in [../src/](../src/))
 - **Interactive Explorer**: http://localhost:3001/api (local) - Test endpoints interactively
 - **[API Client Package](../../packages/api-client/)** - TypeScript SDK for consuming this API
 
@@ -15,51 +15,52 @@ High-level guide to the Semiont semantic knowledge platform API.
 
 ### OpenAPI Specification (Source of Truth)
 
-All endpoint details, schemas, and request/response formats are defined in [../openapi.json](../openapi.json):
+All endpoint details, schemas, and request/response formats are defined in the [OpenAPI specification](../src/openapi.json):
 
 - **Spec-First Architecture**: Types generated from this specification
 - **Interactive Testing**: Import into Postman, Insomnia, or use the built-in explorer
 - **Client Generation**: Generate SDKs in any language
 - **Type-Safe**: Full TypeScript definitions in [@semiont/api-client](../../packages/api-client/)
-- **Live Endpoint**: `/api/openapi.json` serves the spec with dynamic server URL
+- **Live Endpoint**: `/api/openapi.json` serves the bundled spec with dynamic server URL
+- **Source Files**: Edit files in [../src/](../src/), then run `npm run openapi:bundle`
 
 **Don't restate the spec** - refer to it for all endpoint-level details.
 
 ## Core Capabilities
 
-### Document Management
+### Resource Management
 
-Create, read, update, and delete markdown documents. Features include:
+Create, read, update, and delete markdown resources. Features include:
 
 - **CRUD Operations**: Standard create, read, update, delete
 - **Content Types**: text/plain, text/markdown
-- **Search**: Find documents by name or content
-- **Pagination**: Efficient browsing of large document sets
+- **Search**: Find resources by name or content
+- **Pagination**: Efficient browsing of large resource sets
 - **Event Sourcing**: All changes tracked in immutable event log
-- **Content Streaming**: Efficient handling of large documents
+- **Content Streaming**: Efficient handling of large resources
 
-**Related Endpoints**: `/api/documents`, `/api/documents/{id}`, `/api/documents/search`
+**Related Endpoints**: `/api/resources`, `/api/resources/{id}`, `/api/resources/search`
 
-See [openapi.json](../openapi.json) for complete endpoint details.
+See the [OpenAPI specification](../src/) for complete endpoint details.
 
 ### Annotation Management (W3C Web Annotation Model)
 
-Full W3C Web Annotation Data Model compliance for marking up documents with:
+Full W3C Web Annotation Data Model compliance for marking up resources with:
 
 - **Entity Tags**: Mark text spans with entity types (Person, Concept, Organization, etc.)
-- **Document Links**: Create references between documents
+- **Resource Links**: Create references between resources
 - **Highlights**: Mark important passages
 - **Multiple Selectors**: TextPositionSelector, TextQuoteSelector support
-- **Multi-body Arrays**: Combine entity tags and document links
+- **Multi-body Arrays**: Combine entity tags and resource links
 - **Motivations**: W3C vocabulary (linking, highlighting, tagging, commenting, etc.)
 
 **Workflows:**
 - **Stub References**: Entity tags without resolved links (provisional annotations)
-- **Resolved References**: Entity tags + links to specific documents
+- **Resolved References**: Entity tags + links to specific resources
 - **Highlights**: Important passages with optional entity classification
-- **AI Generation**: Generate document content from annotated text
+- **AI Generation**: Generate resource content from annotated text
 
-**Related Endpoints**: `/api/annotations`, `/api/annotations/{id}`, `/api/documents/{id}/annotations`
+**Related Endpoints**: `/api/annotations`, `/api/annotations/{id}`, `/api/resources/{id}/annotations`
 
 For W3C JSON-LD structure and examples, see [W3C Web Annotation](./W3C-WEB-ANNOTATION.md).
 For backend implementation flow, see [Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md).
@@ -79,17 +80,17 @@ Define and manage custom entity types for semantic classification:
 
 Extract semantic context from the knowledge graph for LLM consumption:
 
-- **Document Context**: Get related documents, annotations, and entity information
+- **Resource Context**: Get related resources, annotations, and entity information
 - **Text Discovery**: Find relevant graph context from arbitrary text
-- **Event Streaming**: Real-time updates to document state
+- **Event Streaming**: Real-time updates to resource state
 - **Reference Context**: Build LLM context from annotation references
 
 **Workflows:**
-- **AI Generation**: Generate documents from annotated text with graph context
-- **Context Discovery**: Find related documents and entities
+- **AI Generation**: Generate resources from annotated text with graph context
+- **Context Discovery**: Find related resources and entities
 - **Streaming Detection**: Real-time entity and annotation detection
 
-**Related Endpoints**: `/api/documents/{id}/llm-context`, `/api/documents/{id}/discover-context`, `/api/documents/{id}/detect-entities`
+**Related Endpoints**: `/api/resources/{id}/llm-context`, `/api/resources/{id}/discover-context`, `/api/resources/{id}/detect-annotations-stream`
 
 ## Authentication & Security
 
@@ -113,15 +114,15 @@ For complete authentication details, see [Backend Authentication](../../apps/bac
 
 The API builds and maintains a knowledge graph with these core entities:
 
-- **Documents**: Markdown/text content with metadata
-- **Annotations**: W3C-compliant markup linking text spans to entities and documents
+- **Resources**: Markdown/text content with metadata
+- **Annotations**: W3C-compliant markup linking text spans to entities and resources
 - **Entity Types**: Semantic classifications (Person, Organization, Concept, Location, etc.)
-- **References**: Graph edges between documents created via annotations
+- **References**: Graph edges between resources created via annotations
 - **Events**: Immutable change log (event sourcing)
 
 **Graph Capabilities:**
-- **Backlinks**: Discover which documents reference a given document
-- **Entity Networks**: Find all documents mentioning an entity type
+- **Backlinks**: Discover which resources reference a given resource
+- **Entity Networks**: Find all resources mentioning an entity type
 - **Context Extraction**: Build semantic context for LLM consumption
 - **Path Finding**: Trace connections between concepts
 
@@ -129,12 +130,14 @@ The API builds and maintains a knowledge graph with these core entities:
 
 The API is backed by a 4-layer data architecture:
 
-1. **Content Store**: Raw document binary/text (filesystem)
+1. **RepresentationStore**: W3C-compliant content-addressed storage (filesystem, SHA-256)
 2. **Event Store**: Immutable event log (filesystem JSONL)
-3. **Projection Store**: Materialized views (filesystem JSONL)
+3. **Projection Store**: Materialized resource state views (filesystem JSON)
 4. **Graph Database**: Relationship traversal (Neptune/In-Memory)
 
 **Benefits:**
+- **W3C Compliance**: Resources and representations follow W3C standards
+- **Content Addressing**: Automatic deduplication via SHA-256 checksums
 - **Event Sourcing**: Complete audit trail, time-travel queries
 - **Rebuildable**: Projections and graph can be rebuilt from events
 - **Scalable**: Each layer optimized for its access pattern
@@ -150,7 +153,7 @@ For architecture details, see [Backend W3C Implementation](../../apps/backend/do
 ## Quick Reference
 
 **For detailed endpoint specs:**
-- [OpenAPI Specification](../openapi.json) - Complete endpoint reference (source of truth)
+- [OpenAPI Specification](../README.md) - Complete endpoint reference (source in [../src/](../src/))
 - Interactive Explorer: http://localhost:3001/api (local development)
 
 **For implementation details:**
@@ -165,4 +168,4 @@ For architecture details, see [Backend W3C Implementation](../../apps/backend/do
 
 ---
 
-**Last Updated**: 2025-10-25
+**Last Updated**: 2025-10-29

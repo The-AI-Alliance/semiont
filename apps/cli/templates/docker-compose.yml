@@ -1,0 +1,53 @@
+# Docker Compose configuration with Envoy proxy for local development
+version: '3.8'
+
+services:
+  envoy:
+    image: envoyproxy/envoy:v1.28-latest
+    ports:
+      - "80:80"
+      - "9901:9901"  # Admin interface
+    volumes:
+      - ./apps/cli/templates/envoy.yaml:/etc/envoy/envoy.yaml:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - semiont
+
+  frontend:
+    image: ghcr.io/the-ai-alliance/semiont-frontend:dev
+    environment:
+      - SERVER_API_URL=http://backend:4000
+      - NEXTAUTH_URL=http://localhost
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+    networks:
+      - semiont
+
+  backend:
+    image: ghcr.io/the-ai-alliance/semiont-backend:dev
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+    networks:
+      - semiont
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=semiont
+      - POSTGRES_USER=semiont
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - semiont
+
+networks:
+  semiont:
+    driver: bridge
+
+volumes:
+  postgres_data:

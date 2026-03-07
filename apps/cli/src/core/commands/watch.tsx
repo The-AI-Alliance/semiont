@@ -31,7 +31,7 @@
 import { z } from 'zod';
 import { printInfo, printError, setSuppressOutput } from '../io/cli-logger.js';
 import { type ServicePlatformInfo } from '../service-resolver.js';
-import { type PlatformType } from '../platform-types.js';
+import { type PlatformType } from '@semiont/core';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
@@ -39,8 +39,6 @@ import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
 // Import new service architecture
 import { ServiceName } from '../service-discovery.js';
 import { PlatformResources } from '../../platforms/platform-resources.js';
-import { Config } from '../cli-config.js';
-import { parseEnvironment } from '../environment-validator.js';
 import { Platform } from '../platform.js';
 import { AWSPlatform } from '../../platforms/aws/platform.js';
 import { ContainerPlatform } from '../../platforms/container/platform.js';
@@ -117,10 +115,10 @@ export type WatchOptions = z.output<typeof WatchOptionsSchema>;
 // =====================================================================
 
 async function launchDashboard(
-  environment: string, 
-  target: string, 
+  environment: string,
+  target: string,
   serviceDeployments: ServicePlatformInfo[],
-  config: Config,
+  envConfig: import('@semiont/core').EnvironmentConfig,
   interval: number,
   terminalMode: boolean = false,
   port: number = 3333
@@ -143,9 +141,9 @@ async function launchDashboard(
       if (terminalMode) {
         // Terminal dashboard mode
         const { DashboardApp: DashboardComponent } = await import('../dashboard/dashboard-layouts.js');
-        
+
         // Create data source using the new architecture
-        const dataSource = new DashboardDataSource(environment, serviceDeployments, config);
+        const dataSource = new DashboardDataSource(environment, serviceDeployments, envConfig);
         
         // Determine dashboard mode
         let mode: 'unified' | 'logs' | 'metrics' = 'unified';
@@ -177,7 +175,7 @@ async function launchDashboard(
           constructor(environment: string, port: number, interval: number) {
             super(environment, port, interval);
             // Override the parent's dataSource with our enhanced version
-            this.dataSource = new DashboardDataSource(environment, serviceDeployments, config);
+            this.dataSource = new DashboardDataSource(environment, serviceDeployments, envConfig);
           }
           
           async getDashboardData() {
@@ -224,21 +222,21 @@ async function launchDashboard(
 
 export async function watch(
   serviceDeployments: ServicePlatformInfo[],
-  options: WatchOptions
+  options: WatchOptions,
+  envConfig: import('@semiont/core').EnvironmentConfig
+  
 ): Promise<CommandResults> {
   const startTime = Date.now();
   const isStructuredOutput = options.output && ['json', 'yaml', 'table'].includes(options.output);
-  const environment = options.environment!;
-  
-  // Create config for the services
-  const config: Config = {
-    projectRoot: process.cwd(),
-    environment: parseEnvironment(environment),
-    verbose: options.verbose,
-    quiet: isStructuredOutput,
-    dryRun: options.dryRun
-  };
-  
+  const environment = envConfig._metadata?.environment;
+  if (!environment) {
+    throw new Error('Environment is required in envConfig._metadata');
+  }
+  const projectRoot = envConfig._metadata?.projectRoot;
+  if (!projectRoot) {
+    throw new Error('Project root is required in envConfig._metadata');
+  }
+
   // Suppress output for structured formats
   const previousSuppressOutput = setSuppressOutput(isStructuredOutput);
   
@@ -369,7 +367,7 @@ export async function watch(
         environment,
         options.target,
         serviceDeployments,
-        config,
+        envConfig,
         options.interval,
         options.terminal,
         options.port

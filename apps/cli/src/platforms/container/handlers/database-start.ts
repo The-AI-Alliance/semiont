@@ -2,13 +2,16 @@ import { execSync } from 'child_process';
 import { ContainerStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { createPlatformResources } from '../../platform-resources.js';
 import { printInfo, printWarning } from '../../../core/io/cli-logger.js';
+import type { DatabaseServiceConfig } from '@semiont/core';
+import { checkContainerRuntime, checkPortFree, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Start handler for database services in containers
  */
 const startDatabaseContainer = async (context: ContainerStartHandlerContext): Promise<StartHandlerResult> => {
   const { service, runtime, containerName } = context;
-  const requirements = service.getRequirements();
+  const config = service.config as DatabaseServiceConfig;
   const image = service.getImage();
   
   // Remove existing container if it exists
@@ -35,26 +38,12 @@ const startDatabaseContainer = async (context: ContainerStartHandlerContext): Pr
   ];
   
   // Add port mappings for database
-  if (requirements.network?.ports) {
-    for (const port of requirements.network.ports) {
-      runArgs.push('-p', `${port}:${port}`);
-    }
-  } else {
-    // Default database ports
-    const defaultPort = image.includes('postgres') ? 5432 : 
-                       image.includes('mysql') ? 3306 : 
-                       image.includes('mongo') ? 27017 : null;
-    if (defaultPort) {
-      runArgs.push('-p', `${defaultPort}:${defaultPort}`);
-    }
-  }
+  const port = config.port;
+  runArgs.push('-p', `${port}:${port}`);
   
   // Add environment variables (including database credentials)
   // These MUST be configured in the environment JSON - no defaults!
-  const envVars = {
-    ...service.getEnvironmentVariables(),
-    ...(requirements.environment || {})
-  };
+  const envVars = service.getEnvironmentVariables();
   
   if (context.options.verbose) {
     printInfo(`Database environment variables configured: ${Object.keys(envVars).join(', ')}`);
@@ -79,28 +68,20 @@ const startDatabaseContainer = async (context: ContainerStartHandlerContext): Pr
                    '/data';
   runArgs.push('-v', `${volumeName}:${mountPath}`);
   
-  // Add resource limits (databases need more resources)
-  if (requirements.resources) {
-    if (requirements.resources.memory) {
-      runArgs.push('--memory', requirements.resources.memory);
-    } else {
-      runArgs.push('--memory', '1g'); // Default 1GB for databases
-    }
-    if (requirements.resources.cpu) {
-      runArgs.push('--cpus', requirements.resources.cpu);
-    }
-  } else {
-    runArgs.push('--memory', '1g');
+  // Add resource limits if specified in config
+  if (config.resources?.memory) {
+    runArgs.push('--memory', config.resources.memory);
   }
-  
-  // Add security settings
-  if (requirements.security) {
-    if (requirements.security.runAsUser) {
-      runArgs.push('--user', requirements.security.runAsUser.toString());
-    }
-    if (!requirements.security.allowPrivilegeEscalation) {
-      runArgs.push('--security-opt', 'no-new-privileges');
-    }
+  if (config.resources?.cpu) {
+    runArgs.push('--cpus', config.resources.cpu);
+  }
+
+  // Add security settings if specified in config
+  if (config.security?.runAsUser) {
+    runArgs.push('--user', config.security.runAsUser.toString());
+  }
+  if (config.security?.allowPrivilegeEscalation === false) {
+    runArgs.push('--security-opt', 'no-new-privileges');
   }
   
   // Add restart policy (databases should always restart)
@@ -125,18 +106,10 @@ const startDatabaseContainer = async (context: ContainerStartHandlerContext): Pr
     
     // Wait for database to be ready (databases take longer)
     const dbUser = envVars.POSTGRES_USER || envVars.MYSQL_USER || envVars.MONGO_INITDB_ROOT_USERNAME;
-    await waitForDatabase(runtime, containerName, image, service.quiet || false, dbUser, context.options.verbose);
-    
+    await waitForDatabase(runtime, containerName, image, service.quiet, dbUser, context.options.verbose);
+
     // Build endpoint for database
-    let endpoint: string | undefined;
-    const port = requirements.network?.ports?.[0] || 
-                (image.includes('postgres') ? 5432 : 
-                 image.includes('mysql') ? 3306 : 
-                 image.includes('mongo') ? 27017 : null);
-    
-    if (port) {
-      endpoint = `localhost:${port}`;
-    }
+    const endpoint = `localhost:${port}`;
     
     return {
       success: true,
@@ -289,9 +262,20 @@ async function waitForDatabase(runtime: string, containerName: string, image: st
 /**
  * Descriptor for database container start handler
  */
+const preflightDatabaseStart = async (context: ContainerStartHandlerContext): Promise<PreflightResult> => {
+  const { runtime, service } = context;
+  const config = service.config as DatabaseServiceConfig;
+  const port = config.port;
+  return preflightFromChecks([
+    checkContainerRuntime(runtime),
+    await checkPortFree(port),
+  ]);
+};
+
 export const databaseStartDescriptor: HandlerDescriptor<ContainerStartHandlerContext, StartHandlerResult> = {
   command: 'start',
   platform: 'container',
   serviceType: 'database',
-  handler: startDatabaseContainer
+  handler: startDatabaseContainer,
+  preflight: preflightDatabaseStart
 };

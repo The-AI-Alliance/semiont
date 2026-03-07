@@ -2,17 +2,17 @@
  * Graph types - Models for graph connections and relationships
  */
 
-import type { components } from '@semiont/api-client';
+import type { components } from './types';
 
 // Import OpenAPI types
-type Document = components['schemas']['Document'];
+type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
 
 /**
- * Represents a connection between documents through annotations
+ * Represents a connection between resources through annotations
  */
 export interface GraphConnection {
-  targetDocument: Document;
+  targetResource: ResourceDescriptor;
   annotations: Annotation[];
   relationshipType?: string;
   bidirectional: boolean;
@@ -22,7 +22,7 @@ export interface GraphConnection {
  * Represents a path through the graph
  */
 export interface GraphPath {
-  documents: Document[];
+  resources: ResourceDescriptor[];
   annotations: Annotation[];
 }
 

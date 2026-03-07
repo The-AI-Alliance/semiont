@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, beforeAll, afterAll, vi } from 'vites
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { ErrorBoundary, AsyncErrorBoundary } from '../ErrorBoundary';
+import { ErrorBoundary, AsyncErrorBoundary } from '@semiont/react-ui';
 
 // Mock component that throws an error
 const ThrowError = ({ shouldThrow = false, message = 'Test error' }: { shouldThrow?: boolean; message?: string }) => {
@@ -346,7 +346,7 @@ describe('AsyncErrorBoundary', () => {
     // Check for SVG warning icon by class and viewBox
     const svgIcon = container.querySelector('svg[viewBox="0 0 20 20"]');
     expect(svgIcon).toBeTruthy();
-    expect(svgIcon).toHaveClass('h-5', 'w-5', 'text-yellow-400');
+    expect(svgIcon).toHaveClass('semiont-icon-warning');
   });
 });
 

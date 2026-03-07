@@ -1,537 +1,133 @@
 # @semiont/api-client
 
-**Primary TypeScript SDK for Semiont**
+[![Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml?query=branch%3Amain+is%3Asuccess+job%3A%22Test+api-client%22)
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=api-client)](https://codecov.io/gh/The-AI-Alliance/semiont?flag=api-client)
+[![npm version](https://img.shields.io/npm/v/@semiont/api-client.svg)](https://www.npmjs.com/package/@semiont/api-client)
+[![npm downloads](https://img.shields.io/npm/dm/@semiont/api-client.svg)](https://www.npmjs.com/package/@semiont/api-client)
+[![License](https://img.shields.io/npm/l/@semiont/api-client.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-> 🎯 **Use this package for all external integrations, demos, MCP servers, and frontend applications.**
->
-> This package provides a type-safe, spec-first SDK that includes:
-> - **API Client**: HTTP client for all backend endpoints
-> - **TypeScript Types**: Generated from OpenAPI specification ([specs/openapi.json](../../specs/openapi.json))
-> - **W3C Utilities**: Helpers for annotations, selectors, entity types, and locales
-> - **Event Utilities**: Formatting and display helpers for event streams
+TypeScript SDK for [Semiont](https://github.com/The-AI-Alliance/semiont) - a knowledge management system for semantic annotations, AI-powered annotation detection, and collaborative document analysis.
+
+This package provides the HTTP client, SSE streams, and utilities for working with the Semiont API. OpenAPI types are re-exported from [`@semiont/core`](../core/README.md) (the source of truth).
+
+## What is Semiont?
+
+Semiont lets you:
+
+- **Store and manage documents** (text, markdown, images, PDFs)
+- **Create semantic annotations** using W3C Web Annotation standard
+- **Link and reference** between documents
+- **Track provenance** with event sourcing
+- **Collaborate in real-time** via SSE streams
+- **Detect annotations** using AI for text formats (highlights, assessments, comments, tags, entity references)
+- **Retrieve context** for LLMs via graph traversal
+- **Generate new documents** from annotations with AI
 
 ## Installation
+
+Install the latest stable release from npm:
 
 ```bash
 npm install @semiont/api-client
 ```
 
-## Basic Usage
+Or install the latest development build:
+
+```bash
+npm install @semiont/api-client@dev
+```
+
+**Prerequisites**: Semiont backend running. See [Running the Backend](../../apps/backend/README.md#quick-start) for setup.
+
+## Quick Start
 
 ```typescript
-import { SemiontApiClient } from '@semiont/api-client';
+import { SemiontApiClient, baseUrl, email, resourceUri } from '@semiont/api-client';
 
-// Create client instance
 const client = new SemiontApiClient({
-  baseUrl: 'http://localhost:4000',
-  accessToken: 'your-access-token', // Optional - can authenticate later
+  baseUrl: baseUrl('http://localhost:4000'),
 });
 
-// Authenticate (if needed)
-await client.authenticateLocal('user@example.com', '123456');
-// OR
-client.setAccessToken('your-token');
+// Authenticate (local development mode)
+await client.authenticateLocal(email('user@example.com'));
 
-// Use the client
-const doc = await client.createDocument({
+// Create a text document
+const { resource } = await client.createResource({
   name: 'My Document',
-  content: 'Hello World',
+  file: Buffer.from('The quick brown fox jumps over the lazy dog.'),
   format: 'text/plain',
   entityTypes: ['example']
 });
 
-console.log('Created:', doc.document.id);
-```
+console.log('Created resource:', resource['@id']);
 
-## Features
-
-- ✅ **Spec-First**: Types generated from [OpenAPI specification](../../specs/openapi.json)
-- ✅ **Type-Safe**: Full TypeScript types for all API operations
-- ✅ **Framework-Agnostic**: Works in Node.js, browser, or any JavaScript environment
-- ✅ **Built-in Authentication**: Multiple auth methods (local, Google OAuth, refresh tokens)
-- ✅ **W3C Utilities**: Selector helpers, entity type extraction, locale formatting
-- ✅ **Event Utilities**: Event formatting, display names, relative time
-- ✅ **Automatic Retry**: Configurable retry logic with exponential backoff
-- ✅ **Error Handling**: Structured error responses with `APIError` class
-- ✅ **HTTP Client**: Uses `ky` for reliable HTTP requests
-
-## Who Uses This
-
-- ✅ **MCP Server** (`packages/mcp-server`) - Model Context Protocol integration
-- ✅ **Demo Scripts** (`demo/`) - Example scripts and automation
-- ✅ **Frontend** (`apps/frontend`) - Web application (can wrap with React hooks)
-- ✅ **External Applications** - Third-party integrations and tools
-- ✅ **CLI Tools** - Command-line utilities consuming the API
-
-## Who Should NOT Use This
-
-- ❌ **Backend Internal Code** - Use [`@semiont/core`](../core/) for backend domain logic (events, crypto, DID utilities)
-
-**Note**: If you need backend-specific utilities (event sourcing, crypto, type guards), use [`@semiont/core`](../core/). For API consumption and W3C annotation utilities, use this package.
-
-## API Reference
-
-### Constructor
-
-```typescript
-new SemiontApiClient(config: SemiontApiClientConfig)
-```
-
-**Config Options:**
-- `baseUrl` (required): Backend API URL (e.g., `http://localhost:4000`)
-- `accessToken` (optional): JWT access token for authenticated requests
-- `timeout` (optional): Request timeout in milliseconds (default: 30000)
-- `retry` (optional): Number of retry attempts (default: 2)
-
-### Authentication Methods
-
-#### `authenticateLocal(email: string, code: string)`
-Authenticate using local development auth (email + verification code).
-
-```typescript
-const response = await client.authenticateLocal('user@example.com', '123456');
-// Token is automatically set in the client
-```
-
-#### `authenticateGoogle(credential: string)`
-Authenticate using Google OAuth credential.
-
-```typescript
-const response = await client.authenticateGoogle('google-oauth-credential');
-```
-
-#### `refreshToken(refreshToken: string)`
-Exchange refresh token for new access token.
-
-```typescript
-const response = await client.refreshToken('refresh-token-here');
-```
-
-#### `generateMCPToken()`
-Generate a 30-day refresh token for MCP clients.
-
-```typescript
-const response = await client.generateMCPToken();
-console.log('Refresh token:', response.refreshToken);
-```
-
-#### `setAccessToken(token: string)`
-Manually set the access token.
-
-```typescript
-client.setAccessToken('your-jwt-token');
-```
-
-#### `clearAccessToken()`
-Clear the current access token.
-
-```typescript
-client.clearAccessToken();
-```
-
-### Document Methods
-
-#### `createDocument(data)`
-Create a new document.
-
-```typescript
-const result = await client.createDocument({
-  name: 'My Document',
-  content: 'Document content here',
-  format: 'text/plain', // or 'text/markdown'
-  entityTypes: ['article', 'research']
+// Detect annotations with AI (text/markdown formats only)
+const stream = client.sse.detectAnnotations(resourceUri(resource['@id']), {
+  entityTypes: ['Animal', 'Color']
 });
 
-console.log('Document ID:', result.document.id);
+stream.onProgress((p) => console.log(`Scanning: ${p.currentEntityType}`));
+stream.onComplete((result) => console.log(`Found ${result.foundCount} annotations`));
+
+// Get annotations
+const annotations = await client.getResourceAnnotations(resourceUri(resource['@id']));
+console.log('Annotations:', annotations.annotations.length);
 ```
 
-#### `getDocument(id: string)`
-Retrieve a document by ID.
+## Logging
+
+Enable logging to debug requests and monitor API usage:
 
 ```typescript
-const result = await client.getDocument('doc-sha256:abc123...');
-console.log('Document:', result.document);
-```
+import { SemiontApiClient, Logger, baseUrl } from '@semiont/api-client';
+import winston from 'winston';
 
-#### `listDocuments(params?)`
-List documents with optional filters.
-
-```typescript
-const result = await client.listDocuments({
-  limit: 20,
-  archived: false
+const logger = winston.createLogger({
+  level: 'debug',
+  format: winston.format.json(),
+  transports: [new winston.transports.Console()]
 });
 
-console.log(`Found ${result.total} documents`);
-```
-
-#### `updateDocument(id: string, data)`
-Update document content or metadata.
-
-```typescript
-const result = await client.updateDocument('doc-sha256:abc123...', {
-  name: 'Updated Name',
-  content: 'Updated content'
-});
-```
-
-#### `deleteDocument(id: string)`
-Delete a document.
-
-```typescript
-await client.deleteDocument('doc-sha256:abc123...');
-```
-
-#### `searchDocuments(query: string, limit?: number)`
-Search documents by name or content.
-
-```typescript
-const result = await client.searchDocuments('prometheus', 10);
-console.log(`Found ${result.documents.length} matching documents`);
-```
-
-#### `getDocumentEvents(id: string)`
-Get event history for a document.
-
-```typescript
-const result = await client.getDocumentEvents('doc-sha256:abc123...');
-console.log(`Total events: ${result.events.length}`);
-```
-
-#### `getDocumentHighlights(id: string)`
-Get highlights for a document.
-
-```typescript
-const result = await client.getDocumentHighlights('doc-sha256:abc123...');
-console.log(`Found ${result.highlights.length} highlights`);
-```
-
-#### `getDocumentReferences(id: string)`
-Get references for a document.
-
-```typescript
-const result = await client.getDocumentReferences('doc-sha256:abc123...');
-console.log(`Found ${result.references.length} references`);
-```
-
-### Annotation Methods
-
-#### `createAnnotation(data)`
-Create a new annotation (highlight or reference). Uses W3C Web Annotation Model with dual selectors.
-
-```typescript
-const result = await client.createAnnotation({
-  target: {
-    source: 'doc-sha256:abc123...',
-    selector: [
-      {
-        type: 'TextPositionSelector',
-        start: 0,
-        end: 11
-      },
-      {
-        type: 'TextQuoteSelector',
-        exact: 'Hello World'
-      }
-    ]
-  },
-  body: [],
-  motivation: 'highlighting'
-});
-
-console.log('Annotation ID:', result.annotation.id);
-```
-
-#### `getAnnotation(id: string)`
-Retrieve an annotation by ID.
-
-```typescript
-const result = await client.getAnnotation('annotation-id');
-```
-
-#### `listAnnotations(params?)`
-List annotations with optional filters.
-
-```typescript
-const result = await client.listAnnotations({
-  documentId: 'doc-sha256:abc123...',
-  motivation: 'highlighting'
-});
-```
-
-#### `deleteAnnotation(id: string, documentId: string)`
-Delete an annotation.
-
-```typescript
-await client.deleteAnnotation('annotation-id', 'doc-sha256:abc123...');
-```
-
-#### `updateAnnotationBody(id: string, data: UpdateAnnotationBodyRequest)`
-Update an annotation's body with fine-grained operations (add, remove, replace body items).
-
-```typescript
-const result = await client.updateAnnotationBody('annotation-id', {
-  documentId: 'doc-sha256:abc123...',
-  operations: [{
-    op: 'add',
-    item: {
-      type: 'SpecificResource',
-      source: 'doc-sha256:target...',
-      purpose: 'linking'
-    }
-  }]
-});
-
-console.log('Updated annotation:', result.annotation.id);
-```
-
-#### `generateDocumentFromAnnotation(id: string, data)`
-Generate a new document from an annotation using AI.
-
-```typescript
-const result = await client.generateDocumentFromAnnotation('annotation-id', {
-  name: 'Generated Document',
-  prompt: 'Explain this concept in detail',
-  entityTypes: ['explanation']
-});
-
-console.log('Generated document:', result.document.id);
-```
-
-### Entity Type Methods
-
-#### `addEntityType(type: string)`
-Add a new entity type.
-
-```typescript
-const result = await client.addEntityType('custom-type');
-```
-
-#### `listEntityTypes()`
-List all available entity types.
-
-```typescript
-const result = await client.listEntityTypes();
-console.log('Entity types:', result.entityTypes);
-```
-
-### Admin Methods
-
-#### `listUsers()`
-List all users (admin only).
-
-```typescript
-const result = await client.listUsers();
-console.log(`Total users: ${result.total}`);
-```
-
-#### `getUserStats()`
-Get user statistics (admin only).
-
-```typescript
-const result = await client.getUserStats();
-console.log('Stats:', result.stats);
-```
-
-#### `updateUser(id: string, data)`
-Update user information (admin only).
-
-```typescript
-const result = await client.updateUser('user-id', {
-  isAdmin: true
-});
-```
-
-### Health Methods
-
-#### `healthCheck()`
-Check backend health status.
-
-```typescript
-const result = await client.healthCheck();
-console.log('Status:', result.status);
-```
-
-## Utilities
-
-The SDK includes pure TypeScript utilities for working with Semiont data structures. These have no React dependencies and work in any JavaScript environment.
-
-### Annotation Utilities
-
-```typescript
-import {
-  isReference,
-  isHighlight,
-  getBodySource,
-  getTargetSource,
-  getEntityTypes
-} from '@semiont/api-client';
-
-// Check annotation type
-if (isReference(annotation)) {
-  const source = getBodySource(annotation.body);
-  console.log('References:', source);
-}
-
-if (isHighlight(annotation)) {
-  console.log('This is a highlight');
-}
-
-// Extract entity types from annotation
-const types = getEntityTypes(annotation);
-console.log('Entity types:', types);
-
-// Get target document ID
-const docId = getTargetSource(annotation.target);
-```
-
-### Selector Utilities
-
-```typescript
-import {
-  getExactText,
-  getTextPositionSelector,
-  getTextQuoteSelector
-} from '@semiont/api-client';
-
-// Extract text from W3C selectors
-const text = getExactText(annotation.target.selector);
-console.log('Selected text:', text);
-
-// Get specific selector types
-const position = getTextPositionSelector(annotation.target.selector);
-if (position) {
-  console.log(`Range: ${position.start} - ${position.end}`);
-}
-
-const quote = getTextQuoteSelector(annotation.target.selector);
-if (quote) {
-  console.log('Exact text:', quote.exact);
-}
-```
-
-### Event Utilities
-
-```typescript
-import {
-  formatEventType,
-  getEventEmoji,
-  formatRelativeTime,
-  isDocumentEvent,
-  getAnnotationIdFromEvent
-} from '@semiont/api-client';
-
-// Format events for display
-events.forEach(event => {
-  const emoji = getEventEmoji(event.type);
-  const type = formatEventType(event.type);
-  const time = formatRelativeTime(event.timestamp);
-
-  console.log(`${emoji} ${type} - ${time}`);
-
-  if (isDocumentEvent(event.event)) {
-    const annId = getAnnotationIdFromEvent(event.event);
-    console.log('  Annotation:', annId);
-  }
-});
-```
-
-### Locale Utilities
-
-```typescript
-import { LOCALES, formatLocaleDisplay } from '@semiont/api-client';
-
-// List all supported locales
-console.log('Available locales:', LOCALES.length);
-
-// Format locale for display
-const display = formatLocaleDisplay('en');
-console.log(display); // "English"
-```
-
-## Error Handling
-
-The client throws `APIError` for failed requests:
-
-```typescript
-import { SemiontApiClient, APIError } from '@semiont/api-client';
-
-try {
-  const doc = await client.createDocument({ ... });
-} catch (error) {
-  if (error instanceof APIError) {
-    console.error('API Error:', error.message);
-    console.error('Status:', error.status);
-    console.error('Details:', error.details);
-  } else {
-    console.error('Unexpected error:', error);
-  }
-}
-```
-
-## Advanced Configuration
-
-### Custom Timeout and Retry
-
-```typescript
 const client = new SemiontApiClient({
-  baseUrl: 'http://localhost:4000',
-  timeout: 60000,  // 60 seconds
-  retry: 3         // Retry failed requests 3 times
+  baseUrl: baseUrl('http://localhost:4000'),
+  logger
 });
+
+// Now all HTTP requests and SSE streams will be logged
 ```
 
-### Using with Different Environments
+**What gets logged**: HTTP requests/responses, SSE stream lifecycle, individual events, and errors
 
-```typescript
-const client = new SemiontApiClient({
-  baseUrl: process.env.SEMIONT_API_URL || 'http://localhost:4000',
-  accessToken: process.env.SEMIONT_ACCESS_TOKEN
-});
-```
+**Security**: Authorization headers are never logged to prevent token leaks
 
-## Type Definitions
+📘 **[Complete Logging Guide](./docs/LOGGING.md)** - Logger setup, integration examples, structured metadata, troubleshooting
 
-The package exports TypeScript types from the OpenAPI specification:
+## Documentation
 
-```typescript
-import type { paths } from '@semiont/api-client';
+📚 **[Usage Guide](./docs/Usage.md)** - Authentication, resources, annotations, SSE streaming
 
-// Access specific endpoint types
-type CreateDocumentRequest = paths['/api/documents']['post']['requestBody']['content']['application/json'];
-type CreateDocumentResponse = paths['/api/documents']['post']['responses']['200']['content']['application/json'];
-```
+📖 **[API Reference](./docs/API-Reference.md)** - Complete method documentation
 
-## Development
+🛠️ **[Utilities Guide](./docs/Utilities.md)** - Text encoding, fuzzy anchoring, SVG utilities
 
-### Regenerate from OpenAPI
+## Key Features
 
-```bash
-# After updating backend routes
-npm run generate
-```
+- **Type-safe** - Re-exports OpenAPI types from `@semiont/core` with branded types
+- **W3C compliant** - Web Annotation standard with fuzzy text matching
+- **Real-time** - SSE streaming for long operations
+- **Framework-agnostic** - Pure TypeScript utilities work everywhere
+- **Character encoding** - Proper UTF-8, ISO-8859-1, Windows-1252 support
 
-### Build
+**Note**: OpenAPI types are generated in `@semiont/core` (source of truth) and re-exported here for convenience.
 
-```bash
-npm run build
-```
+## Use Cases
 
-## Architecture
+- ✅ MCP servers and AI integrations
+- ✅ Frontend applications (wrap with React hooks)
+- ✅ CLI tools and automation scripts
+- ✅ Third-party integrations
 
-This package enforces the API boundary between:
-- **Internal** (backend, CLI) - Direct system access
-- **External** (frontend, MCP, demos) - Uses `@semiont/api-client`
-
-See [ARCHITECTURE-API-BOUNDARY.md](../../ARCHITECTURE-API-BOUNDARY.md) for details.
-
-## Examples
-
-See the [demo scripts](../../demo/) for complete usage examples, including:
-- Authentication flows
-- Document creation and management
-- Annotation creation and resolution
-- Event history retrieval
+❌ **Not for backend internal code** - Use [`@semiont/core`](../core/) instead
 
 ## License
 

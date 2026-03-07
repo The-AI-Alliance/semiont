@@ -16,9 +16,16 @@
 
 import { BaseService } from '../core/base-service.js';
 import { ServiceRequirements, RequirementPresets } from '../core/service-requirements.js';
+import { COMMAND_CAPABILITY_ANNOTATIONS } from '../core/service-command-capabilities.js';
 import { SERVICE_TYPES } from '../core/service-types.js';
+import { type InferenceServiceConfig } from '@semiont/core';
 
 export class InferenceService extends BaseService {
+
+  // Type-narrowed config accessor
+  private get typedConfig(): InferenceServiceConfig {
+    return this.config as InferenceServiceConfig;
+  }
   
   // =====================================================================
   // Service Requirements
@@ -32,12 +39,15 @@ export class InferenceService extends BaseService {
       ...baseRequirements,
       annotations: {
         ...baseRequirements.annotations,
-        // Service type declaration
         'service/type': SERVICE_TYPES.INFERENCE,
-        // External services can only be checked, not started/stopped
-        'command/check': 'true',
-        // Inference services are external, no lifecycle management
-        'platform/external-only': 'true'
+        // When on external platform, only check and watch apply
+        ...(this.platform === 'external' ? {
+          [COMMAND_CAPABILITY_ANNOTATIONS.START]: 'false',
+          [COMMAND_CAPABILITY_ANNOTATIONS.STOP]: 'false',
+          [COMMAND_CAPABILITY_ANNOTATIONS.RESTART]: 'false',
+          [COMMAND_CAPABILITY_ANNOTATIONS.PROVISION]: 'false',
+          [COMMAND_CAPABILITY_ANNOTATIONS.CONFIGURE]: 'false',
+        } : {}),
       }
     };
   }
@@ -64,13 +74,13 @@ export class InferenceService extends BaseService {
   
   override getEnvironmentVariables(): Record<string, string> {
     const baseEnv = super.getEnvironmentVariables();
-    const inferenceType = this.config.type;
-    
+    const inferenceType = this.typedConfig.type;
+
     return {
       ...baseEnv,
       INFERENCE_TYPE: inferenceType || '',
-      INFERENCE_ENDPOINT: this.config.endpoint || '',
-      INFERENCE_MODEL: this.config.model || ''
+      INFERENCE_ENDPOINT: this.typedConfig.endpoint || '',
+      INFERENCE_MODEL: this.typedConfig.model || ''
     };
   }
   
@@ -78,15 +88,15 @@ export class InferenceService extends BaseService {
    * Get inference provider type from config
    */
   getInferenceType(): string {
-    return this.config.type || 'unknown';
+    return this.typedConfig.type || 'unknown';
   }
   
   /**
    * Validate inference service configuration
    */
   validateConfig(): void {
-    const inferenceType = this.config.type;
-    
+    const inferenceType = this.typedConfig.type;
+
     if (!inferenceType || !['anthropic', 'openai'].includes(inferenceType)) {
       throw new Error(
         `Invalid or missing inference type. Must be "anthropic" or "openai", got: ${inferenceType}`
@@ -94,17 +104,17 @@ export class InferenceService extends BaseService {
     }
 
     // Check for API key
-    if (!this.config.apiKey) {
+    if (!this.typedConfig.apiKey) {
       throw new Error(`API key is required for ${inferenceType} inference service`);
     }
 
     // Check for endpoint
-    if (!this.config.endpoint) {
+    if (!this.typedConfig.endpoint) {
       throw new Error(`Endpoint URL is required for ${inferenceType} inference service`);
     }
 
     // Provider-specific validation
-    if (inferenceType === 'openai' && !this.config.organization) {
+    if (inferenceType === 'openai' && !this.typedConfig.organization) {
       console.warn('OpenAI organization ID may be required for some API keys');
     }
   }

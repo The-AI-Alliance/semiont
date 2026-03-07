@@ -32,11 +32,12 @@
 import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
-import { fileURLToPath } from 'url';
 import { colors } from '../io/cli-colors.js';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
+import { getTemplatesDir as getTemplatesDirFromPaths } from '../io/cli-paths.js';
+import { checkEnvVarsInConfig, preflightFromChecks } from '../handlers/preflight-utils.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -59,24 +60,11 @@ export type InitOptions = z.output<typeof InitOptionsSchema>;
 // TEMPLATE CONFIGURATIONS
 // =====================================================================
 
-// Get the templates directory path
 function getTemplatesDir(): string {
-  // Allow tests to override the template directory
   if (process.env.SEMIONT_TEMPLATES_DIR) {
     return process.env.SEMIONT_TEMPLATES_DIR;
   }
-  
-  // Check if we're running from source (tests) or dist (production)
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  
-  // If we're in src/core/commands, go up to find templates
-  if (__dirname.includes(path.sep + 'src' + path.sep)) {
-    // Running from source: go up 3 levels to project root, then to templates
-    return path.join(__dirname, '..', '..', '..', 'templates');
-  } else {
-    // Production path: templates are at ../templates relative to the command
-    return path.join(__dirname, '..', 'templates');
-  }
+  return getTemplatesDirFromPaths(import.meta.url);
 }
 
 // Copy template file or directory
@@ -189,33 +177,20 @@ async function init(
       fs.mkdirSync(envDir, { recursive: true });
       
       for (const envName of environments) {
-        // Use the appropriate template for each environment type
-        let templateName = 'production.json';
-        if (envName === 'local') {
-          templateName = 'local.json';
-        } else if (envName === 'test') {
-          templateName = 'test.json';
-        } else if (envName === 'staging') {
-          templateName = 'staging.json';
-        }
-        
-        // Check if template exists, fallback to production template
+        // Copy the environment template if it exists, otherwise skip
         const templatesDir = getTemplatesDir();
-        const templatePath = path.join(templatesDir, 'environments', templateName);
-        if (!fs.existsSync(templatePath)) {
-          templateName = 'production.json';
-        }
-        
-        copyTemplate(`environments/${templateName}`, path.join(envDir, `${envName}.json`), {
-          'production': envName,
-          'staging': envName,
-          'YOUR_AWS_ACCOUNT_ID': '123456789012',  // Placeholder
-          'YOUR_HOSTED_ZONE_ID': 'Z1234567890ABC',  // Placeholder
-          'YOUR_CERT_ID': 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'  // Placeholder
-        });
-        
-        if (!options.quiet) {
-          console.log(`${colors.green}✅ Created environments/${envName}.json${colors.reset}`);
+        const templatePath = path.join(templatesDir, 'environments', `${envName}.json`);
+
+        if (fs.existsSync(templatePath)) {
+          copyTemplate(`environments/${envName}.json`, path.join(envDir, `${envName}.json`));
+
+          if (!options.quiet) {
+            console.log(`${colors.green}✅ Created environments/${envName}.json${colors.reset}`);
+          }
+        } else {
+          if (!options.quiet) {
+            console.log(`${colors.yellow}⚠️  No template for environment '${envName}', skipped${colors.reset}`);
+          }
         }
       }
       
@@ -227,17 +202,42 @@ async function init(
       
       if (!options.quiet) {
         console.log(`${colors.green}✅ Created CDK infrastructure files${colors.reset}`);
-        console.log(`${colors.dim}   Run 'npm install' to install dependencies${colors.reset}`);
       }
-      
+
+      // Run provision preflight: scan created env files for unresolved ${VAR} references
+      for (const envName of environments) {
+        const envFilePath = path.join(envDir, `${envName}.json`);
+        if (fs.existsSync(envFilePath)) {
+          try {
+            const envContent = JSON.parse(fs.readFileSync(envFilePath, 'utf8'));
+            const preflight = preflightFromChecks(checkEnvVarsInConfig(envContent));
+            if (!preflight.pass && !options.quiet) {
+              console.log(`\n${colors.yellow}Preflight for '${envName}' environment:${colors.reset}`);
+              for (const check of preflight.checks) {
+                if (check.pass) {
+                  if (options.verbose) {
+                    console.log(`  ${colors.green}${check.message}${colors.reset}`);
+                  }
+                } else {
+                  console.log(`  ${colors.yellow}${check.message}${colors.reset}`);
+                  results.summary.warnings++;
+                }
+              }
+            } else if (options.verbose && preflight.checks.length > 0 && !options.quiet) {
+              console.log(`\n${colors.green}Preflight for '${envName}' environment: all variables set${colors.reset}`);
+            }
+          } catch {
+            // JSON parse error — skip preflight for this file
+          }
+        }
+      }
+
       if (!options.quiet) {
-        console.log(`\n${colors.bright}🚀 Project initialized successfully!${colors.reset}`);
+        console.log(`\n${colors.bright}Project initialized successfully!${colors.reset}`);
         console.log(`\nNext steps:`);
-        console.log(`  1. Review and customize semiont.json`);
-        console.log(`  2. Configure your environments in environments/`);
-        console.log(`  3. ${colors.yellow}[AWS Only]${colors.reset} Customize CDK stacks in cdk/ with your AWS settings`);
-        console.log(`  4. ${colors.yellow}[AWS Only]${colors.reset} Install CDK dependencies: npm install aws-cdk-lib constructs`);
-        console.log(`  5. Run 'semiont provision -e local' to set up local development`);
+        console.log(`  1. Review environments/local.json and set any credentials`);
+        console.log(`  2. Run '${colors.cyan}semiont provision${colors.reset}' to set up services`);
+        console.log(`  3. Run '${colors.cyan}semiont start${colors.reset}' to launch all services`);
       }
       
       results.summary.succeeded = 1;

@@ -1,33 +1,74 @@
-import React from 'react';
-import { LeftSidebar } from '@/components/shared/LeftSidebar';
-import { ModerationNavigation } from '@/components/moderation/ModerationNavigation';
-import { ModerationAuthWrapper } from '@/components/moderation/ModerationAuthWrapper';
-import { Footer } from '@/components/Footer';
+'use client';
 
-// Note: Metadata removed from layout to prevent leaking moderation information
-// when pages return 404 for security. Metadata should be set in individual
-// page components after authentication check.
+import React, { useContext } from 'react';
+import { useTranslations } from 'next-intl';
+import { useSession } from 'next-auth/react';
+import { LeftSidebar, Footer, ApiClientProvider, AuthTokenProvider } from '@semiont/react-ui';
+import { ModerationNavigation } from '@/components/moderation/ModerationNavigation';
+import { CookiePreferences } from '@/components/CookiePreferences';
+import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
+import { Link, routes } from '@/lib/routing';
+import { useAuth } from '@/hooks/useAuth';
+
+// Note: Authentication is handled by middleware.ts for all moderate routes
+// This ensures centralized security and returns 404 for unauthorized users
 
 export default function ModerateLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const t = useTranslations('Footer');
+  const tNav = useTranslations('Navigation');
+  const tHome = useTranslations('Home');
+  const keyboardContext = useContext(KeyboardShortcutsContext);
+  const { isAuthenticated, isAdmin, isModerator } = useAuth();
+  const { data: session } = useSession();
+
+  // Extract auth token from session
+  const authToken = session?.backendToken || null;
+
+  // Middleware has already verified moderator/admin access
   return (
-    <ModerationAuthWrapper>
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
-        <div className="flex flex-1">
-          <LeftSidebar brandingLink="/">
-            <ModerationNavigation />
-          </LeftSidebar>
-          <main className="flex-1 p-6 flex flex-col">
-            <div className="max-w-7xl mx-auto flex-1 flex flex-col w-full">
-              {children}
+    <AuthTokenProvider token={authToken}>
+      <ApiClientProvider baseUrl="">
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
+            <div className="flex flex-1">
+              <LeftSidebar
+                Link={Link}
+                routes={routes}
+                t={tNav}
+                tHome={tHome}
+                brandingLink="/"
+                collapsible={true}
+                storageKey="moderation-sidebar-collapsed"
+                isAuthenticated={isAuthenticated}
+                isAdmin={isAdmin}
+                isModerator={isModerator}
+              >
+                {(isCollapsed, toggleCollapsed, navigationMenu) => (
+                  <ModerationNavigation
+                    isCollapsed={isCollapsed}
+                    toggleCollapsed={toggleCollapsed}
+                    navigationMenu={navigationMenu}
+                  />
+                )}
+              </LeftSidebar>
+              <main className="flex-1 p-6 flex flex-col">
+                <div className="max-w-7xl mx-auto flex-1 flex flex-col w-full">
+                  {children}
+                </div>
+              </main>
             </div>
-          </main>
-        </div>
-        <Footer />
-      </div>
-    </ModerationAuthWrapper>
+            <Footer
+              Link={Link}
+              routes={routes}
+              t={t}
+              CookiePreferences={CookiePreferences}
+              {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
+            />
+          </div>
+      </ApiClientProvider>
+    </AuthTokenProvider>
   );
 }

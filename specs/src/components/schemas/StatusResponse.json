@@ -1,0 +1,42 @@
+{
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "features": {
+      "type": "object",
+      "properties": {
+        "semanticContent": {
+          "type": "string"
+        },
+        "collaboration": {
+          "type": "string"
+        },
+        "rbac": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "semanticContent",
+        "collaboration",
+        "rbac"
+      ]
+    },
+    "message": {
+      "type": "string"
+    },
+    "authenticatedAs": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "status",
+    "version",
+    "features",
+    "message"
+  ]
+}

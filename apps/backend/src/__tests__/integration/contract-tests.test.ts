@@ -381,7 +381,7 @@ describe('API Contract Tests', () => {
     });
   });
 
-  describe('API Documentation Contract', () => {
+  describe('API Resourceation Contract', () => {
     it('should validate API info structure', () => {
       const apiInfo = {
         name: 'Semiont API',

@@ -7,6 +7,48 @@ import '@testing-library/jest-dom';
 import { beforeAll, afterEach, afterAll, vi } from 'vitest';
 import { FrontendTestEnvironment } from './src/__tests__/test-environment';
 
+// Ensure we use Node's native AbortController for ky compatibility
+if (typeof global.AbortController === 'undefined') {
+  global.AbortController = AbortController;
+  global.AbortSignal = AbortSignal;
+}
+
+// Mock DOMMatrix for PDF.js in test environment
+if (typeof globalThis !== 'undefined' && !(globalThis as any).DOMMatrix) {
+  (globalThis as any).DOMMatrix = class DOMMatrix {
+    constructor() {
+      // Minimal implementation for PDF.js compatibility
+      this.a = 1;
+      this.b = 0;
+      this.c = 0;
+      this.d = 1;
+      this.e = 0;
+      this.f = 0;
+    }
+    a: number;
+    b: number;
+    c: number;
+    d: number;
+    e: number;
+    f: number;
+  };
+}
+
+// Mock window.matchMedia for theme detection
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: vi.fn().mockImplementation(query => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+});
+
 // Mock next-intl globally
 vi.mock('next-intl');
 

@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "properties": {
+    "token": {
+      "type": "string",
+      "description": "Generated clone token"
+    },
+    "expiresAt": {
+      "type": "string",
+      "description": "ISO 8601 timestamp when token expires"
+    },
+    "resource": {
+      "$ref": "./ResourceDescriptor.json"
+    }
+  },
+  "required": [
+    "token",
+    "expiresAt",
+    "resource"
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "post": {
+    "summary": "Annotate Highlights with Progress (SSE)",
+    "description": "Stream real-time highlight annotation progress via Server-Sent Events",
+    "tags": [
+      "Resources",
+      "Annotations",
+      "Real-time"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "parameters": [
+      {
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "name": "id",
+        "in": "path"
+      }
+    ],
+    "requestBody": {
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "../components/schemas/AnnotateHighlightsStreamRequest.json"
+          }
+        }
+      }
+    },
+    "responses": {
+      "200": {
+        "description": "SSE stream opened successfully",
+        "content": {
+          "text/event-stream": {
+            "schema": {
+              "$ref": "../components/schemas/EventStreamResponse.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "description": "Authentication required"
+      },
+      "404": {
+        "description": "Resource not found"
+      }
+    }
+  }
+}

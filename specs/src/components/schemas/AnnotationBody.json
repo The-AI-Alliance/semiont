@@ -1,0 +1,11 @@
+{
+  "oneOf": [
+    {
+      "$ref": "./TextualBody.json"
+    },
+    {
+      "$ref": "./SpecificResource.json"
+    }
+  ],
+  "description": "Phase 2: Body can be TextualBody (for entity tags, descriptions) or SpecificResource (for links)"
+}

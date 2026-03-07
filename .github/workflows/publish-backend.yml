@@ -1,0 +1,124 @@
+name: Publish Backend Container Image
+
+run-name: "Backend: ${{ github.event.inputs.stable_release == 'true' && 'stable' || 'dev' }} v${{ github.run_number }} (manual)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (build but do not push)'
+        required: false
+        type: boolean
+        default: false
+      stable_release:
+        description: 'Stable release (publish without -build.N suffix)'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine version
+        id: version
+        run: |
+          BASE_VERSION=$(node -p "require('./apps/backend/package.json').version")
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          if [ "${{ github.event.inputs.stable_release }}" = "true" ]; then
+            PUBLISH_VERSION="$BASE_VERSION"
+            DIST_TAG="latest"
+          else
+            PUBLISH_VERSION="${BASE_VERSION}-build.${{ github.run_number }}"
+            DIST_TAG="dev"
+          fi
+          echo "base=$BASE_VERSION" >> $GITHUB_OUTPUT
+          echo "publish=$PUBLISH_VERSION" >> $GITHUB_OUTPUT
+          echo "sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+          echo "tag=$DIST_TAG" >> $GITHUB_OUTPUT
+          echo "Publishing version: $PUBLISH_VERSION (base: $BASE_VERSION, tag: $DIST_TAG)"
+
+      - name: Verify image version
+        run: |
+          EXPECTED_VERSION="${{ steps.version.outputs.base }}"
+          SEMIONT_VERSION="${{ steps.version.outputs.publish }}"
+          echo "Expected backend version: $EXPECTED_VERSION"
+          echo "Semiont packages version: $SEMIONT_VERSION"
+
+          # Build image locally to verify (with SEMIONT_VERSION)
+          docker build \
+            -t semiont-backend-verify \
+            -f ./apps/backend/Dockerfile \
+            --build-arg SEMIONT_VERSION=$SEMIONT_VERSION \
+            .
+
+          # Extract version from built image
+          ACTUAL_VERSION=$(docker run --rm semiont-backend-verify node -e "console.log(require('/app/apps/backend/package.json').version)")
+
+          echo "Actual version in image: $ACTUAL_VERSION"
+
+          if [ "$ACTUAL_VERSION" != "$EXPECTED_VERSION" ]; then
+            echo "❌ ERROR: Version mismatch!"
+            echo "   Expected: $EXPECTED_VERSION"
+            echo "   Actual:   $ACTUAL_VERSION"
+            echo ""
+            echo "This indicates the Docker image contains code from a different version."
+            echo "Possible causes:"
+            echo "  - Stale checkout"
+            echo "  - Docker layer caching issue"
+            echo "  - Version files not in sync"
+            exit 1
+          fi
+
+          echo "✅ Version verified: $ACTUAL_VERSION"
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./apps/backend/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event.inputs.dry_run != 'true' }}
+          tags: |
+            ghcr.io/the-ai-alliance/semiont-backend:${{ steps.version.outputs.tag }}
+            ghcr.io/the-ai-alliance/semiont-backend:${{ steps.version.outputs.publish }}
+            ghcr.io/the-ai-alliance/semiont-backend:sha-${{ steps.version.outputs.sha }}
+          build-args: |
+            BUILD_VERSION=${{ steps.version.outputs.publish }}
+            BUILD_SHA=${{ steps.version.outputs.sha }}
+            SEMIONT_VERSION=${{ steps.version.outputs.publish }}
+          # SEMIONT_VERSION installs all @semiont packages from npm
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Summary
+        run: |
+          echo "## Published Backend Container Image" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Base version:** ${{ steps.version.outputs.base }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Published version:** ${{ steps.version.outputs.publish }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit SHA:** ${{ steps.version.outputs.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Pull with:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ghcr.io/the-ai-alliance/semiont-backend:${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

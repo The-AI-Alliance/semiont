@@ -3,6 +3,8 @@ import { ContainerProvisionHandlerContext, ProvisionHandlerResult, HandlerDescri
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
 import * as fs from 'fs';
 import * as path from 'path';
+import { checkContainerRuntime, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Provision handler for database services in containers
@@ -66,8 +68,8 @@ const provisionDatabaseContainer = async (context: ContainerProvisionHandlerCont
   
   // Get database configuration from environment variables
   const envVars = service.getEnvironmentVariables();
-  const dbName = envVars.POSTGRES_DB || envVars.MYSQL_DATABASE || 'semiont';
-  const dbUser = envVars.POSTGRES_USER || envVars.MYSQL_USER || 'semiont';
+  const dbName = envVars.POSTGRES_DB || envVars.MYSQL_DATABASE;
+  const dbUser = envVars.POSTGRES_USER || envVars.MYSQL_USER;
   
   // Check if container is already running
   let containerRunning = false;
@@ -235,9 +237,16 @@ const provisionDatabaseContainer = async (context: ContainerProvisionHandlerCont
 /**
  * Descriptor for database container provision handler
  */
+const preflightDatabaseProvision = async (context: ContainerProvisionHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([
+    checkContainerRuntime(context.runtime),
+  ]);
+};
+
 export const databaseProvisionDescriptor: HandlerDescriptor<ContainerProvisionHandlerContext, ProvisionHandlerResult> = {
   command: 'provision',
   platform: 'container',
   serviceType: 'database',
-  handler: provisionDatabaseContainer
+  handler: provisionDatabaseContainer,
+  preflight: preflightDatabaseProvision
 };

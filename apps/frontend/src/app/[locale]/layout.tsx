@@ -7,12 +7,10 @@ import { notFound } from 'next/navigation';
 import "../globals.css";
 import "@/styles/animations.css";
 import { Providers } from "../providers";
-import { NEXT_PUBLIC_SITE_NAME } from "@/lib/env";
+import { NEXT_PUBLIC_SITE_NAME, NEXT_PUBLIC_BASE_URL } from "@/lib/env";
 import { CookieBanner } from "@/components/CookieBanner";
-import { SessionExpiryBanner } from "@/components/SessionExpiryBanner";
-import { SessionExpiredModal } from "@/components/modals/SessionExpiredModal";
-import { PermissionDeniedModal } from "@/components/modals/PermissionDeniedModal";
-import { SkipLinks } from "@/components/SkipLinks";
+import { SkipLinks } from "@semiont/react-ui";
+import { ClientModals } from "@/components/ClientModals";
 import { routing } from "@/i18n/routing";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -22,8 +20,31 @@ const orbitron = Orbitron({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(NEXT_PUBLIC_BASE_URL),
   title: `${NEXT_PUBLIC_SITE_NAME} - AI-Powered Research Environment`,
   description: "A modern AI-powered research environment for collaborative knowledge work and analysis",
+  icons: {
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' }
+    ],
+    apple: '/apple-touch-icon.png',
+    other: [
+      { rel: 'mask-icon', url: '/favicon.svg', color: '#00FFFF' }
+    ]
+  },
+  manifest: '/site.webmanifest',
+  openGraph: {
+    type: 'website',
+    siteName: NEXT_PUBLIC_SITE_NAME,
+    images: ['/android-chrome-512x512.png']
+  },
+  twitter: {
+    card: 'summary',
+    images: ['/android-chrome-512x512.png']
+  }
 };
 
 export function generateStaticParams() {
@@ -32,11 +53,14 @@ export function generateStaticParams() {
 
 export default async function LocaleLayout({
   children,
-  params: { locale }
+  params
 }: Readonly<{
   children: React.ReactNode;
-  params: { locale: string };
+  params: Promise<{ locale: string }>;
 }>) {
+  // Await params before accessing properties
+  const { locale } = await params;
+
   // Validate locale
   if (!routing.locales.includes(locale as any)) {
     notFound();
@@ -51,9 +75,7 @@ export default async function LocaleLayout({
         <NextIntlClientProvider messages={messages}>
           <Providers>
             <SkipLinks />
-            <SessionExpiryBanner />
-            <SessionExpiredModal />
-            <PermissionDeniedModal />
+            <ClientModals />
             {children}
             <CookieBanner />
           </Providers>

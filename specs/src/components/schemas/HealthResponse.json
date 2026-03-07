@@ -1,0 +1,36 @@
+{
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string"
+    },
+    "message": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "timestamp": {
+      "type": "string"
+    },
+    "database": {
+      "type": "string",
+      "enum": [
+        "connected",
+        "disconnected",
+        "unknown"
+      ]
+    },
+    "environment": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "status",
+    "message",
+    "version",
+    "timestamp",
+    "database",
+    "environment"
+  ]
+}

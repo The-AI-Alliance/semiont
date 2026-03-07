@@ -21,6 +21,7 @@ import { HandlerResult } from '../handlers/types.js';
 
 const StartOptionsSchema = BaseOptionsSchema.extend({
   service: z.string().optional(),
+  semiontRepo: z.string().optional(),
 });
 
 export type StartOptions = z.output<typeof StartOptionsSchema>;
@@ -42,6 +43,7 @@ const startDescriptor: CommandDescriptor<StartOptions> = createCommandDescriptor
     verbose: options.verbose,
     quiet: options.quiet,
     dryRun: options.dryRun,
+    semiontRepo: options.semiontRepo || process.env.SEMIONT_REPO,
   }),
   
   buildResult: (handlerResult: HandlerResult, service: Service, platform: Platform, serviceType: string): CommandResult => {
@@ -68,6 +70,7 @@ const startDescriptor: CommandDescriptor<StartOptions> = createCommandDescriptor
   
   continueOnError: true,  // Continue starting all services even if one fails
   supportsAll: true,
+  nextCommand: 'check',
 });
 
 // =====================================================================
@@ -85,9 +88,11 @@ const startExecutor = new MultiServiceExecutor(startDescriptor);
  */
 export async function start(
   serviceDeployments: ServicePlatformInfo[],
-  options: StartOptions
+  options: StartOptions,
+  envConfig: import('@semiont/core').EnvironmentConfig
+  
 ) {
-  return startExecutor.execute(serviceDeployments, options);
+  return startExecutor.execute(serviceDeployments, options, envConfig);
 }
 
 // StartResult type alias removed - use CommandResult directly

@@ -1,36 +1,56 @@
 {
   "name": "@semiont/api-client",
-  "version": "0.1.0",
+  "version": "0.2.36",
   "description": "Semiont API SDK - types, client, and utilities",
+  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "require": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./utils": {
-      "import": "./dist/utils/index.js",
-      "require": "./dist/utils/index.js",
-      "types": "./dist/utils/index.d.ts"
+      "types": "./dist/utils/index.d.ts",
+      "import": "./dist/utils/index.js"
     }
   },
+  "engines": {
+    "node": ">=20.18.1"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/The-AI-Alliance/semiont.git",
+    "directory": "packages/api-client"
+  },
   "scripts": {
-    "copy-spec": "cp ../../specs/openapi.json openapi.json",
-    "generate": "npm run copy-spec && openapi-typescript openapi.json -o src/types.ts",
-    "build": "tsc",
-    "prebuild": "npm run generate",
-    "watch": "tsc --watch",
-    "clean": "rm -rf dist src/types.ts openapi.json"
+    "pretypecheck": "npm run build --workspace=@semiont/core --if-present",
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && tsup",
+    "watch": "tsup --watch",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@semiont/core": "*",
     "ky": "^1.2.0"
   },
   "devDependencies": {
-    "openapi-typescript": "^7.10.1",
-    "orval": "^6.31.0",
-    "typescript": "^5.6.3"
+    "@vitest/coverage-v8": "^3.0.0",
+    "orval": "^8.5.2",
+    "tsup": "^8.5.1",
+    "typescript": "^5.6.3",
+    "vitest": "^3.2.4"
   },
   "keywords": [
     "semiont",

@@ -71,3 +71,21 @@ temp/
 packages/api-client/openapi.json
 packages/api-client/src/types.ts
 packages/api-client/src/client/
+
+# Generated OpenAPI bundle (source is specs/src/)
+specs/openapi.json
+
+# Compiled scripts (should use tsx, not tsc)
+packages/*/scripts/*.js
+packages/*/scripts/*.js.map
+packages/*/scripts/*.d.ts
+packages/*/scripts/*.d.ts.map
+# Note: apps/*/scripts/*.js removed - these are actual source JS files, not compiled output
+apps/*/scripts/*.js.map
+apps/*/scripts/*.d.ts
+apps/*/scripts/*.d.ts.map
+
+# Compliance audit generated files
+**/scripts/symbols.json
+REACT-UI-COMPLIANCE.md
+FRONTEND-COMPLIANCE.md
