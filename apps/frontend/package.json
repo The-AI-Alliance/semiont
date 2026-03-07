@@ -1,6 +1,6 @@
 {
   "name": "semiont-frontend",
-  "version": "0.2.36",
+  "version": "0.2.37",
   "private": true,
   "scripts": {
     "audit:compliance": "./scripts/generate-compliance-report.sh",
