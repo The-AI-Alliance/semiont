@@ -1,20 +1,19 @@
 'use client';
 
 import { useRef, useEffect, useCallback, lazy, Suspense } from 'react';
-import type { components } from '@semiont/core';
 import { resourceUri as toResourceUri } from '@semiont/core';
-import { getTextPositionSelector, getTextQuoteSelector, getTargetSelector, getMimeCategory, isPdfMimeType, extractContext, findTextWithContext, buildContentCache } from '@semiont/api-client';
+import { getMimeCategory, isPdfMimeType } from '@semiont/api-client';
 import { ANNOTATORS } from '../../lib/annotation-registry';
+import { segmentTextWithAnnotations } from '../../lib/text-segmentation';
+import { buildTextSelectors, fallbackTextPosition } from '../../lib/text-selection-handler';
 import { SvgDrawingCanvas } from '../image-annotation/SvgDrawingCanvas';
+
 import { useResourceAnnotations } from '../../contexts/ResourceAnnotationsContext';
 
 // Lazy load PDF component to avoid SSR issues with browser PDF.js loading
 const PdfAnnotationCanvas = lazy(() => import('../pdf-annotation/PdfAnnotationCanvas.client').then(mod => ({ default: mod.PdfAnnotationCanvas })));
 
-type Annotation = components['schemas']['Annotation'];
-
 import { CodeMirrorRenderer } from '../CodeMirrorRenderer';
-import type { TextSegment } from '../CodeMirrorRenderer';
 import type { EditorView } from '@codemirror/view';
 import { useEventBus } from '../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../contexts/useEventSubscription';
@@ -43,90 +42,6 @@ interface Props {
   showLineNumbers?: boolean;
   hoverDelayMs?: number;
   annotateMode: boolean;
-}
-
-// Segment text with annotations - uses fuzzy anchoring when available!
-function segmentTextWithAnnotations(content: string, annotations: Annotation[]): TextSegment[] {
-  if (!content) {
-    return [{ exact: '', start: 0, end: 0 }];
-  }
-
-  // Pre-compute normalized/lowered content once for all annotations
-  const cache = buildContentCache(content);
-
-  const normalizedAnnotations = annotations
-    .map(ann => {
-      const targetSelector = getTargetSelector(ann.target);
-      const posSelector = getTextPositionSelector(targetSelector);
-      const quoteSelector = targetSelector ? getTextQuoteSelector(targetSelector) : null;
-
-      // Try fuzzy anchoring if TextQuoteSelector is available
-      // Pass TextPositionSelector as position hint for better fuzzy search
-      let position;
-      if (quoteSelector) {
-        position = findTextWithContext(
-          content,
-          quoteSelector.exact,
-          quoteSelector.prefix,
-          quoteSelector.suffix,
-          posSelector?.start,
-          cache
-        );
-      }
-
-      // Fallback to TextPositionSelector or fuzzy position
-      const start = position?.start ?? posSelector?.start ?? 0;
-      const end = position?.end ?? posSelector?.end ?? 0;
-
-      return {
-        annotation: ann,
-        start,
-        end
-      };
-    })
-    .filter(a => a.start >= 0 && a.end <= content.length && a.start < a.end)
-    .sort((a, b) => a.start - b.start);
-
-  if (normalizedAnnotations.length === 0) {
-    return [{ exact: content, start: 0, end: content.length }];
-  }
-
-  const segments: TextSegment[] = [];
-  let position = 0;
-
-  for (const { annotation, start, end } of normalizedAnnotations) {
-    if (start < position) continue; // Skip overlapping annotations
-
-    // Add text before annotation
-    if (start > position) {
-      segments.push({
-        exact: content.slice(position, start),
-        start: position,
-        end: start
-      });
-    }
-
-    // Add annotated segment
-    segments.push({
-      exact: content.slice(start, end),
-      annotation,
-      start,
-      end
-    });
-
-    position = end;
-  }
-
-  // Add remaining text
-  if (position < content.length) {
-    segments.push({
-      exact: content.slice(position),
-      start: position,
-      end: content.length
-    });
-  }
-
-  return segments;
 }
 
 /**
@@ -241,74 +156,33 @@ export function AnnotateView({
       // Get the CodeMirror EditorView instance stored on the CodeMirror container
       const cmContainer = container.querySelector('.codemirror-renderer');
       const view = (cmContainer as EnrichedHTMLElement | null)?.__cmView;
+
+      let start: number;
+      let end: number;
+
       if (!view || !view.posAtDOM) {
         // Fallback: try to find text in source (won't work for duplicates)
-        const start = content.indexOf(text);
-        if (start === -1) {
-          return;
-        }
-        const end = start + text.length;
-
-        // Extract context for TextQuoteSelector
-        const context = extractContext(content, start, end);
-
-        // Unified flow: all text annotations use BOTH TextPositionSelector and TextQuoteSelector
-        if (selectedMotivation) {
-          eventBus.get('mark:requested').next({
-            selector: [
-              {
-                type: 'TextPositionSelector',
-                start,
-                end
-              },
-              {
-                type: 'TextQuoteSelector',
-                exact: text,
-                ...(context.prefix && { prefix: context.prefix }),
-                ...(context.suffix && { suffix: context.suffix })
-              }
-            ],
-            motivation: selectedMotivation
-          });
-
-          // Clear selection after creating annotation
-          selection.removeAllRanges();
-          return;
-        }
-        return;
+        const pos = fallbackTextPosition(content, text);
+        if (!pos) return;
+        start = pos.start;
+        end = pos.end;
+      } else {
+        // CodeMirror's posAtDOM gives us the position in the document from a DOM node/offset
+        start = view.posAtDOM(range.startContainer, range.startOffset);
+        end = start + text.length;
       }
 
-      // CodeMirror's posAtDOM gives us the position in the document from a DOM node/offset
-      const start = view.posAtDOM(range.startContainer, range.startOffset);
-      const end = start + text.length;
+      if (start >= 0 && selectedMotivation) {
+        const selectors = buildTextSelectors(content, text, start, end);
+        if (!selectors) return;
 
-      if (start >= 0) {
-        // Extract context for TextQuoteSelector
-        const context = extractContext(content, start, end);
+        eventBus.get('mark:requested').next({
+          selector: selectors,
+          motivation: selectedMotivation
+        });
 
-        // Unified flow: all text annotations use BOTH TextPositionSelector and TextQuoteSelector
-        if (selectedMotivation) {
-          eventBus.get('mark:requested').next({
-            selector: [
-              {
-                type: 'TextPositionSelector',
-                start,
-                end
-              },
-              {
-                type: 'TextQuoteSelector',
-                exact: text,
-                ...(context.prefix && { prefix: context.prefix }),
-                ...(context.suffix && { suffix: context.suffix })
-              }
-            ],
-            motivation: selectedMotivation
-          });
-
-          // Clear selection after creating annotation
-          selection.removeAllRanges();
-          return;
-        }
+        // Clear selection after creating annotation
+        selection.removeAllRanges();
       }
     };
 

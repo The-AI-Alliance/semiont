@@ -4,27 +4,31 @@ import { useEffect, useRef } from 'react';
 import { EditorView, Decoration, DecorationSet, lineNumbers } from '@codemirror/view';
 import { EditorState, RangeSetBuilder, StateField, StateEffect, Compartment } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
-import { ANNOTATORS } from '../lib/annotation-registry';
 import { ReferenceResolutionWidget, showWidgetPreview, hideWidgetPreview } from '../lib/codemirror-widgets';
 import { scrollAnnotationIntoView } from '../lib/scroll-utils';
-import { isHighlight, isReference, isResolvedReference, isComment, isAssessment, isTag, getBodySource } from '@semiont/api-client';
-import type { components } from '@semiont/core';
+import { isReference } from '@semiont/api-client';
 import type { EventBus } from "@semiont/core";
 import { createHoverHandlers } from '../hooks/useBeckonFlow';
+import {
+  convertSegmentPositions,
+  computeAnnotationDecorations,
+  computeWidgetDecorations,
+} from '../lib/codemirror-logic';
+import type { TextSegment } from '../lib/codemirror-logic';
+import {
+  handleAnnotationClick,
+  handleWidgetClick as processWidgetClick,
+  dispatchWidgetClick,
+  handleWidgetMouseEnter as processWidgetMouseEnter,
+  handleWidgetMouseLeave as processWidgetMouseLeave,
+} from '../lib/codemirror-handlers';
 
-type Annotation = components['schemas']['Annotation'];
+// Re-export TextSegment for consumers
+export type { TextSegment } from '../lib/codemirror-logic';
 
 // Type augmentation for custom DOM properties used to store CodeMirror state
 interface EnrichedHTMLElement extends HTMLElement {
-  __lastHoveredAnnotation?: string | null;
   __cmView?: EditorView;
-}
-
-export interface TextSegment {
-  exact: string;
-  annotation?: Annotation;
-  start: number;
-  end: number;
 }
 
 interface Props {
@@ -63,118 +67,24 @@ interface WidgetUpdate {
 
 const updateWidgetsEffect = StateEffect.define<WidgetUpdate>();
 
-/**
- * Convert positions from CRLF character space to LF character space.
- * CodeMirror normalizes all line endings to LF internally, but annotation positions
- * are calculated in the original content's character space (which may have CRLF).
- *
- * @param segments - Segments with positions in CRLF space
- * @param content - Original content (may have CRLF line endings)
- * @returns Segments with positions adjusted for LF space
- */
-function convertSegmentPositions(segments: TextSegment[], content: string): TextSegment[] {
-  // If content has no CRLF, no conversion needed
-  if (!content.includes('\r\n')) {
-    return segments;
-  }
-
-  // Build a map of CRLF positions for efficient lookup
-  const crlfPositions: number[] = [];
-  for (let i = 0; i < content.length - 1; i++) {
-    if (content[i] === '\r' && content[i + 1] === '\n') {
-      crlfPositions.push(i);
-    }
-  }
-
-  // Binary search: count CRLFs before a position in O(log n)
-  const convertPosition = (pos: number): number => {
-    let lo = 0;
-    let hi = crlfPositions.length;
-    while (lo < hi) {
-      const mid = (lo + hi) >>> 1;
-      if (crlfPositions[mid]! < pos) lo = mid + 1;
-      else hi = mid;
-    }
-    return pos - lo;
-  };
-
-  return segments.map(seg => ({
-    ...seg,
-    start: convertPosition(seg.start),
-    end: convertPosition(seg.end)
-  }));
-}
-
-/**
- * Get tooltip text for annotation based on type/motivation
- */
-function getAnnotationTooltip(annotation: Annotation): string {
-  const isCommentAnn = isComment(annotation);
-  const isHighlightAnn = isHighlight(annotation);
-  const isAssessmentAnn = isAssessment(annotation);
-  const isTagAnn = isTag(annotation);
-  const isReferenceAnn = isReference(annotation);
-  const isResolvedRef = isResolvedReference(annotation);
-
-  if (isCommentAnn) {
-    return 'Comment';
-  } else if (isHighlightAnn) {
-    return 'Highlight';
-  } else if (isAssessmentAnn) {
-    return 'Assessment';
-  } else if (isTagAnn) {
-    return 'Tag';
-  } else if (isResolvedRef) {
-    return 'Resolved Reference';
-  } else if (isReferenceAnn) {
-    return 'Unresolved Reference';
-  }
-  return 'Annotation';
-}
-
-// Build decorations from segments
+// Build CodeMirror decorations from pure metadata
 function buildAnnotationDecorations(
   segments: TextSegment[],
   newAnnotationIds?: Set<string>
 ): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
+  const entries = computeAnnotationDecorations(segments, newAnnotationIds);
 
-  const annotatedSegments = segments
-    .filter(s => s.annotation)
-    .sort((a, b) => a.start - b.start);
-
-  for (const segment of annotatedSegments) {
-    if (!segment.annotation) continue;
-
-    const isNew = newAnnotationIds?.has(segment.annotation.id) || false;
-    const baseClassName = Object.values(ANNOTATORS).find(a => a.matchesAnnotation(segment.annotation!))?.className || 'annotation-highlight';
-    const className = isNew ? `${baseClassName} annotation-sparkle` : baseClassName;
-
-    // Use W3C helpers to determine annotation type
-    const isHighlightAnn = isHighlight(segment.annotation);
-    const isReferenceAnn = isReference(segment.annotation);
-    const isCommentAnn = isComment(segment.annotation);
-    const isAssessmentAnn = isAssessment(segment.annotation);
-    const isTagAnn = isTag(segment.annotation);
-
-    // Determine annotation type for data attribute - use motivation directly
-    let annotationType = 'highlight'; // default
-    if (isCommentAnn) annotationType = 'comment';
-    else if (isReferenceAnn) annotationType = 'reference';
-    else if (isAssessmentAnn) annotationType = 'assessment';
-    else if (isTagAnn) annotationType = 'tag';
-    else if (isHighlightAnn) annotationType = 'highlight';
-
+  for (const { start, end, meta } of entries) {
     const decoration = Decoration.mark({
-      class: className,
+      class: meta.className,
       attributes: {
-        'data-annotation-id': segment.annotation.id,
-        'data-annotation-type': annotationType,
-        title: getAnnotationTooltip(segment.annotation)
-      }
+        'data-annotation-id': meta.annotationId,
+        'data-annotation-type': meta.annotationType,
+        title: meta.tooltip,
+      },
     });
-
-    builder.add(segment.start, segment.end, decoration);
+    builder.add(start, end, decoration);
   }
 
   return builder.finish();
@@ -201,7 +111,7 @@ function createAnnotationDecorationsField() {
   });
 }
 
-// Build widget decorations
+// Build widget decorations using pure metadata
 function buildWidgetDecorations(
   _content: string,
   segments: TextSegment[],
@@ -209,39 +119,26 @@ function buildWidgetDecorations(
   getTargetDocumentName?: (documentId: string) => string | undefined
 ): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
+  const widgetMetas = computeWidgetDecorations(segments, generatingReferenceId, getTargetDocumentName);
 
-  // Process all annotations (references and highlights) in sorted order
-  // This ensures decorations are added in the correct order for CodeMirror
-  const allAnnotatedSegments = segments
-    .filter(s => s.annotation)
-    .sort((a, b) => a.end - b.end); // Sort by end position
-
-  for (const segment of allAnnotatedSegments) {
-    if (!segment.annotation) continue;
-
-    const annotation = segment.annotation;
-
-    // For references: add resolution widget (🔗, ✨ pulsing, or ❓)
-    if (isReference(annotation)) {
-      const bodySource = getBodySource(annotation.body);
-      const targetName = bodySource
-        ? getTargetDocumentName?.(bodySource)
-        : undefined;
-      const isGenerating = generatingReferenceId
-        ? annotation.id === generatingReferenceId
-        : false;
-      const widget = new ReferenceResolutionWidget(
-        annotation,
-        targetName,
-        isGenerating
-      );
-      builder.add(
-        segment.end,
-        segment.end,
-        Decoration.widget({ widget, side: 1 })
-      );
+  // We still need the full annotation objects for ReferenceResolutionWidget
+  const annotationsByEnd = new Map<number, TextSegment>();
+  for (const s of segments) {
+    if (s.annotation && isReference(s.annotation)) {
+      annotationsByEnd.set(s.end, s);
     }
+  }
 
+  for (const meta of widgetMetas) {
+    const segment = annotationsByEnd.get(meta.position);
+    if (!segment?.annotation) continue;
+
+    const widget = new ReferenceResolutionWidget(
+      segment.annotation,
+      meta.targetName,
+      meta.isGenerating
+    );
+    builder.add(meta.position, meta.position, Decoration.widget({ widget, side: 1 }));
   }
 
   return builder.finish();
@@ -337,28 +234,18 @@ export function CodeMirrorRenderer({
             onChange(newContent);
           }
         }),
-        // Handle clicks on annotations
+        // Handle clicks on annotations — delegates to extracted handler
         EditorView.domEventHandlers({
           click: (event, _view) => {
             const target = event.target as HTMLElement;
-            const annotationElement = target.closest('[data-annotation-id]');
-            const annotationId = annotationElement?.getAttribute('data-annotation-id');
-
-            if (annotationId && eventBusRef.current) {
-              const segment = segmentsByIdRef.current.get(annotationId);
-              if (segment?.annotation) {
-                event.preventDefault();
-                eventBusRef.current.get('browse:click').next({
-                  annotationId,
-                  motivation: segment.annotation.motivation
-                });
-                return true; // Stop propagation
-              }
+            if (eventBusRef.current && handleAnnotationClick(target, segmentsByIdRef.current, eventBusRef.current)) {
+              event.preventDefault();
+              return true;
             }
             return false;
           }
         }),
-        // Style the editor - use CSS string to inject !important rules
+        // Style the editor
         EditorView.baseTheme({
           '&.cm-editor': {
             height: '100%',
@@ -368,7 +255,7 @@ export function CodeMirrorRenderer({
             outline: 'none'
           },
           '.cm-scroller': {
-            overflow: 'visible !important', // Let parent container handle scrolling
+            overflow: 'visible !important',
             height: 'auto !important'
           },
           '.cm-content, .cm-gutters': {
@@ -433,67 +320,48 @@ export function CodeMirrorRenderer({
       if (annotationElement) handleMouseLeave();
     };
 
-    // Delegated widget event handlers (replaces per-widget listeners)
-    const handleWidgetClick = (e: MouseEvent) => {
+    // Delegated widget event handlers — delegates to extracted handlers
+    const onWidgetClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      const widget = target.closest('.reference-preview-widget') as HTMLElement | null;
-      if (!widget || widget.dataset.widgetGenerating === 'true') return;
+      const result = processWidgetClick(target);
+      if (!result.handled) return;
 
       e.preventDefault();
       e.stopPropagation();
 
-      const annotationId = widget.dataset.widgetAnnotationId;
-      const bodySource = widget.dataset.widgetBodySource;
-      const isResolved = widget.dataset.widgetResolved === 'true';
-
-      if (!annotationId || !eventBusRef.current) return;
-
-      if (isResolved && bodySource) {
-        eventBusRef.current.get('browse:reference-navigate').next({ documentId: bodySource });
-      } else {
-        const motivation = (widget.dataset.widgetMotivation || 'linking') as Annotation['motivation'];
-        eventBusRef.current.get('browse:click').next({ annotationId, motivation });
+      if (eventBusRef.current) {
+        dispatchWidgetClick(result, eventBusRef.current);
       }
     };
 
-    const handleWidgetMouseEnter = (e: MouseEvent) => {
+    const onWidgetMouseEnter = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      const widget = target.closest('.reference-preview-widget') as HTMLElement | null;
-      if (!widget || widget.dataset.widgetGenerating === 'true') return;
-
-      const indicator = widget.querySelector('.reference-indicator') as HTMLElement | null;
-      if (indicator) indicator.style.opacity = '1';
-
-      if (widget.dataset.widgetResolved === 'true' && widget.dataset.widgetTargetName) {
-        showWidgetPreview(widget, widget.dataset.widgetTargetName);
+      const result = processWidgetMouseEnter(target);
+      if (result.showPreview && result.targetName && result.widget) {
+        showWidgetPreview(result.widget, result.targetName);
       }
     };
 
-    const handleWidgetMouseLeave = (e: MouseEvent) => {
+    const onWidgetMouseLeave = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      const widget = target.closest('.reference-preview-widget') as HTMLElement | null;
-      if (!widget) return;
-
-      const indicator = widget.querySelector('.reference-indicator') as HTMLElement | null;
-      if (indicator) indicator.style.opacity = '0.6';
-
-      if (widget.dataset.widgetResolved === 'true') {
-        hideWidgetPreview(widget);
+      const result = processWidgetMouseLeave(target);
+      if (result.hidePreview && result.widget) {
+        hideWidgetPreview(result.widget);
       }
     };
 
     container.addEventListener('mouseover', handleMouseOver);
     container.addEventListener('mouseout', handleMouseOut);
-    container.addEventListener('click', handleWidgetClick);
-    container.addEventListener('mouseenter', handleWidgetMouseEnter, true);
-    container.addEventListener('mouseleave', handleWidgetMouseLeave, true);
+    container.addEventListener('click', onWidgetClick);
+    container.addEventListener('mouseenter', onWidgetMouseEnter, true);
+    container.addEventListener('mouseleave', onWidgetMouseLeave, true);
 
     return () => {
       container.removeEventListener('mouseover', handleMouseOver);
       container.removeEventListener('mouseout', handleMouseOut);
-      container.removeEventListener('click', handleWidgetClick);
-      container.removeEventListener('mouseenter', handleWidgetMouseEnter, true);
-      container.removeEventListener('mouseleave', handleWidgetMouseLeave, true);
+      container.removeEventListener('click', onWidgetClick);
+      container.removeEventListener('mouseenter', onWidgetMouseEnter, true);
+      container.removeEventListener('mouseleave', onWidgetMouseLeave, true);
       cleanupHover();
       view.destroy();
       viewRef.current = null;
