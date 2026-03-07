@@ -4,6 +4,8 @@ import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor
 import { printInfo, printSuccess, printError } from '../../../core/io/cli-logger.js';
 import { getGraphPaths } from './graph-paths.js';
 import type { GraphServiceConfig } from '@semiont/core';
+import { checkCommandAvailable, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Provision handler for graph database services on POSIX systems
@@ -202,6 +204,14 @@ async function fileExists(path: string): Promise<boolean> {
   }
 }
 
+const preflightGraphProvision = async (_context: PosixProvisionHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([
+    checkCommandAvailable('java'),
+    checkCommandAvailable('curl'),
+    checkCommandAvailable('unzip'),
+  ]);
+};
+
 /**
  * Handler descriptor for graph database provisioning
  */
@@ -209,5 +219,6 @@ export const graphProvisionDescriptor: HandlerDescriptor<PosixProvisionHandlerCo
   command: 'provision',
   platform: 'posix',
   serviceType: 'graph',
-  handler: provisionGraphService
+  handler: provisionGraphService,
+  preflight: preflightGraphProvision
 };

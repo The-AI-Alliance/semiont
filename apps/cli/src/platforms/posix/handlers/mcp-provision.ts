@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
 import { getMCPPaths } from './mcp-paths.js';
+import { checkPortFree, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 
 /**
  * Provision handler for MCP (Model Context Protocol) services on POSIX systems
@@ -184,6 +185,12 @@ const provisionMCPService = async (context: PosixProvisionHandlerContext): Promi
   });
 };
 
+const preflightMCPProvision = async () => {
+  return preflightFromChecks([
+    await checkPortFree(8585),
+  ]);
+};
+
 /**
  * Descriptor for MCP service provision handler
  */
@@ -191,5 +198,6 @@ export const mcpProvisionDescriptor: HandlerDescriptor<PosixProvisionHandlerCont
   command: 'provision',
   platform: 'posix',
   serviceType: 'mcp',
-  handler: provisionMCPService
+  handler: provisionMCPService,
+  preflight: preflightMCPProvision
 };

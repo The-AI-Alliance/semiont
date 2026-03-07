@@ -2,6 +2,8 @@ import * as fs from 'fs';
 import { execSync } from 'child_process';
 import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import { getFilesystemPaths } from './filesystem-paths.js';
+import { checkFileExists, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Check handler for POSIX filesystem services
@@ -124,6 +126,13 @@ const checkFilesystemService = async (context: PosixCheckHandlerContext): Promis
   };
 };
 
+const preflightFilesystemCheck = async (context: PosixCheckHandlerContext): Promise<PreflightResult> => {
+  const paths = getFilesystemPaths(context);
+  return preflightFromChecks([
+    checkFileExists(paths.baseDir, 'filesystem data directory'),
+  ]);
+};
+
 /**
  * Descriptor for POSIX filesystem check handler
  */
@@ -131,5 +140,6 @@ export const filesystemCheckDescriptor: HandlerDescriptor<PosixCheckHandlerConte
   command: 'check',
   platform: 'posix',
   serviceType: 'filesystem',
-  handler: checkFilesystemService
+  handler: checkFilesystemService,
+  preflight: preflightFilesystemCheck
 };

@@ -21,6 +21,7 @@ function createUpdateOptions(partial: Partial<UpdateOptions> = {}): UpdateOption
     quiet: false,
     output: 'json',
     forceDiscovery: false,
+    preflight: false,
     force: false,
     wait: false,
     skipTests: false,

@@ -3,6 +3,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { AWSProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printError, printSuccess, printInfo, printWarning } from '../../../core/io/cli-logger.js';
+import { checkAwsCredentials, checkCommandAvailable, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Provision handler for AWS CDK stacks
@@ -216,10 +218,15 @@ const provisionStackService = async (context: AWSProvisionHandlerContext): Promi
 /**
  * Descriptor for AWS stack provision handler
  */
+const preflightStackProvision = async (_context: AWSProvisionHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([checkAwsCredentials(), checkCommandAvailable('cdk')]);
+};
+
 export const stackProvisionDescriptor: HandlerDescriptor<AWSProvisionHandlerContext, ProvisionHandlerResult> = {
   command: 'provision',
   platform: 'aws',
   serviceType: 'stack',
   handler: provisionStackService,
+  preflight: preflightStackProvision,
   requiresDiscovery: false
 };

@@ -21,6 +21,7 @@ function createWatchOptions(partial: Partial<WatchOptions> = {}): WatchOptions {
     quiet: false,
     output: 'json',
     forceDiscovery: false,
+    preflight: false,
     target: 'all',
     noFollow: false,
     interval: 30,

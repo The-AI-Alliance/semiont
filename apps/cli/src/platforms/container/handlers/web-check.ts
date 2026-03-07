@@ -3,6 +3,8 @@ import { ContainerCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } f
 import type { FrontendServiceConfig, BackendServiceConfig } from '@semiont/core';
 import { baseUrl } from '@semiont/core';
 import { SemiontApiClient } from '@semiont/api-client';
+import { checkContainerRuntime, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Check handler for containerized web services
@@ -185,9 +187,16 @@ const checkWebContainer = async (context: ContainerCheckHandlerContext): Promise
 /**
  * Descriptor for web container check handler
  */
+const preflightWebCheck = async (context: ContainerCheckHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([
+    checkContainerRuntime(context.runtime),
+  ]);
+};
+
 export const webCheckDescriptor: HandlerDescriptor<ContainerCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'container',
   serviceType: 'web',
-  handler: checkWebContainer
+  handler: checkWebContainer,
+  preflight: preflightWebCheck
 };

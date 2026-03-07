@@ -6,6 +6,8 @@ import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
 import { getFrontendPaths } from './frontend-paths.js';
 import type { FrontendServiceConfig } from '@semiont/core';
+import { checkCommandAvailable, checkFileExists, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Provision handler for frontend services on POSIX systems
@@ -379,6 +381,14 @@ ${frontendSourceDir}
   };
 };
 
+const preflightFrontendProvision = async (context: PosixProvisionHandlerContext): Promise<PreflightResult> => {
+  const paths = getFrontendPaths(context);
+  return preflightFromChecks([
+    checkCommandAvailable('npm'),
+    checkFileExists(path.join(paths.sourceDir, 'package.json'), 'frontend package.json'),
+  ]);
+};
+
 /**
  * Descriptor for frontend POSIX provision handler
  */
@@ -386,5 +396,6 @@ export const frontendProvisionDescriptor: HandlerDescriptor<PosixProvisionHandle
   command: 'provision',
   platform: 'posix',
   serviceType: 'frontend',
-  handler: provisionFrontendService
+  handler: provisionFrontendService,
+  preflight: preflightFrontendProvision
 };

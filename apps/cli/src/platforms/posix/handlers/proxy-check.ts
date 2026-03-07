@@ -4,6 +4,8 @@ import { isPortInUse } from '../../../core/io/network-utils.js';
 import { StateManager } from '../../../core/state-manager.js';
 import { getProxyPaths } from './proxy-paths.js';
 import type { ProxyServiceConfig } from '@semiont/core';
+import { checkCommandAvailable, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Check handler for proxy services on POSIX systems
@@ -99,9 +101,16 @@ const checkProxyService = async (context: PosixCheckHandlerContext): Promise<Che
   };
 };
 
+const preflightProxyCheck = async (_context: PosixCheckHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([
+    checkCommandAvailable('envoy'),
+  ]);
+};
+
 export const proxyCheckDescriptor: HandlerDescriptor<PosixCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'posix',
   serviceType: 'proxy',
-  handler: checkProxyService
+  handler: checkProxyService,
+  preflight: preflightProxyCheck
 };

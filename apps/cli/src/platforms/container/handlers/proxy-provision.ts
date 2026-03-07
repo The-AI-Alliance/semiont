@@ -6,6 +6,8 @@ import { printInfo, printSuccess, printWarning, printError } from '../../../core
 import { getProxyPaths } from './proxy-paths.js';
 import { getTemplatesDir } from '../../../core/io/cli-paths.js';
 import type { ProxyServiceConfig } from '@semiont/core';
+import { checkContainerRuntime, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Detect the appropriate host address for Docker to reach host services
@@ -213,9 +215,16 @@ const provisionProxyService = async (context: ContainerProvisionHandlerContext):
 /**
  * Descriptor for proxy container provision handler
  */
+const preflightProxyProvision = async (context: ContainerProvisionHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([
+    checkContainerRuntime(context.runtime),
+  ]);
+};
+
 export const proxyProvisionDescriptor: HandlerDescriptor<ContainerProvisionHandlerContext, ProvisionHandlerResult> = {
   command: 'provision',
   platform: 'container',
   serviceType: 'proxy',
-  handler: provisionProxyService
+  handler: provisionProxyService,
+  preflight: preflightProxyProvision
 };

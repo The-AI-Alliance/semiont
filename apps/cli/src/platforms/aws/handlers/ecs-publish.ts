@@ -3,6 +3,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { AWSPublishHandlerContext, PublishHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
+import { checkAwsCredentials, checkCommandAvailable, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Publish handler for ECS Fargate services
@@ -328,11 +330,16 @@ async function createNewTaskDefinition(
 /**
  * Descriptor for ECS publish handler
  */
+const preflightEcsPublish = async (_context: AWSPublishHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([checkAwsCredentials(), checkCommandAvailable('docker')]);
+};
+
 export const ecsPublishDescriptor: HandlerDescriptor<AWSPublishHandlerContext, PublishHandlerResult> = {
   command: 'publish',
   platform: 'aws',
   serviceType: 'ecs',
   handler: publishECSService,
+  preflight: preflightEcsPublish,
   requiresDiscovery: true
 };
 
@@ -342,5 +349,6 @@ export const ecsFargatePublishDescriptor: HandlerDescriptor<AWSPublishHandlerCon
   platform: 'aws',
   serviceType: 'ecs-fargate',
   handler: publishECSService,
+  preflight: preflightEcsPublish,
   requiresDiscovery: true
 };

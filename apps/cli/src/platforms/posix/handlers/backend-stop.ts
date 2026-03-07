@@ -3,6 +3,7 @@ import * as path from 'path';
 import { PosixStopHandlerContext, StopHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { killProcessGroupAndRelated } from '../utils/process-manager.js';
+import { passingPreflight } from '../../../core/handlers/preflight-utils.js';
 
 /**
  * Stop handler for backend services on POSIX systems
@@ -201,5 +202,6 @@ export const backendStopDescriptor: HandlerDescriptor<PosixStopHandlerContext, S
   command: 'stop',
   platform: 'posix',
   serviceType: 'backend',
-  handler: stopBackendService
+  handler: stopBackendService,
+  preflight: async () => passingPreflight()
 };

@@ -4,6 +4,8 @@ import { DescribeTargetHealthCommand } from '@aws-sdk/client-elastic-load-balanc
 import { FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import { AWSCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import { createPlatformResources } from '../../platform-resources.js';
+import { checkAwsCredentials, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Check ALB target health for ECS service
@@ -241,10 +243,15 @@ const ecsCheckHandler = async (context: AWSCheckHandlerContext): Promise<CheckHa
  * ECS check handler descriptor
  * Explicitly declares this handler is for 'check' command on 'ecs-fargate' service type
  */
+const preflightAwsCheck = async (_context: AWSCheckHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([checkAwsCredentials()]);
+};
+
 export const ecsCheckDescriptor: HandlerDescriptor<AWSCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'aws',
   serviceType: 'ecs-fargate',
   handler: ecsCheckHandler,
+  preflight: preflightAwsCheck,
   requiresDiscovery: true
 };

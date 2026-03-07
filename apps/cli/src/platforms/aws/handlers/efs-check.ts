@@ -1,6 +1,8 @@
 import { DescribeFileSystemsCommand } from '@aws-sdk/client-efs';
 import { AWSCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import { createPlatformResources } from '../../platform-resources.js';
+import { checkAwsCredentials, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * EFS file system check handler implementation
@@ -86,10 +88,15 @@ const efsCheckHandler = async (context: AWSCheckHandlerContext): Promise<CheckHa
  * EFS check handler descriptor
  * Explicitly declares this handler is for 'check' command on 'efs' service type
  */
+const preflightEfsCheck = async (_context: AWSCheckHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([checkAwsCredentials()]);
+};
+
 export const efsCheckDescriptor: HandlerDescriptor<AWSCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'aws',
   serviceType: 'efs',
   handler: efsCheckHandler,
+  preflight: preflightEfsCheck,
   requiresDiscovery: true
 };

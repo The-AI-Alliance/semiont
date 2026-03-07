@@ -4,6 +4,7 @@ import { execSync } from 'child_process';
 import { PosixStopHandlerContext, StopHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
 import { getFilesystemPaths } from './filesystem-paths.js';
+import { passingPreflight } from '../../../core/handlers/preflight-utils.js';
 
 /**
  * Stop handler for filesystem services on POSIX systems
@@ -187,5 +188,6 @@ export const filesystemStopDescriptor: HandlerDescriptor<PosixStopHandlerContext
   command: 'stop',
   platform: 'posix',
   serviceType: 'filesystem',
-  handler: stopFilesystemService
+  handler: stopFilesystemService,
+  preflight: async () => passingPreflight()
 };

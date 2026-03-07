@@ -3,6 +3,7 @@ import { PosixStopHandlerContext, StopHandlerResult, HandlerDescriptor } from '.
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { killProcessGroupAndRelated, isProcessRunning } from '../utils/process-manager.js';
 import { getFrontendPaths } from './frontend-paths.js';
+import { passingPreflight } from '../../../core/handlers/preflight-utils.js';
 
 /**
  * Stop handler for frontend services on POSIX systems
@@ -190,5 +191,6 @@ export const frontendStopDescriptor: HandlerDescriptor<PosixStopHandlerContext, 
   command: 'stop',
   platform: 'posix',
   serviceType: 'frontend',
-  handler: stopFrontendService
+  handler: stopFrontendService,
+  preflight: async () => passingPreflight()
 };

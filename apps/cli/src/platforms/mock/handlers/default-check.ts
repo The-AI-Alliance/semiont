@@ -1,4 +1,5 @@
 import { MockCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
+import { passingPreflight } from '../../../core/handlers/preflight-utils.js';
 
 /**
  * Check handler for mock services (used for testing)
@@ -53,5 +54,6 @@ export const defaultCheckDescriptor: HandlerDescriptor<MockCheckHandlerContext, 
   command: 'check',
   platform: 'mock',
   serviceType: 'default',
-  handler: checkMockService
+  handler: checkMockService,
+  preflight: async () => passingPreflight(),
 };

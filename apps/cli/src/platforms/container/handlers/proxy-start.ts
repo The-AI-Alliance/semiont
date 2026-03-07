@@ -4,6 +4,8 @@ import { ContainerStartHandlerContext, StartHandlerResult, HandlerDescriptor } f
 import { printInfo, printSuccess, printError } from '../../../core/io/cli-logger.js';
 import { getProxyPaths } from './proxy-paths.js';
 import type { ProxyServiceConfig } from '@semiont/core';
+import { checkContainerRuntime, checkPortFree, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Get the Docker image for the proxy type
@@ -221,9 +223,22 @@ const startProxyService = async (context: ContainerStartHandlerContext): Promise
 /**
  * Descriptor for proxy container start handler
  */
+const preflightProxyStart = async (context: ContainerStartHandlerContext): Promise<PreflightResult> => {
+  const { runtime, service } = context;
+  const config = service.config as ProxyServiceConfig;
+  const proxyPort = config.port || 8080;
+  const adminPort = config.adminPort || 9901;
+  return preflightFromChecks([
+    checkContainerRuntime(runtime),
+    await checkPortFree(proxyPort),
+    await checkPortFree(adminPort),
+  ]);
+};
+
 export const proxyStartDescriptor: HandlerDescriptor<ContainerStartHandlerContext, StartHandlerResult> = {
   command: 'start',
   platform: 'container',
   serviceType: 'proxy',
-  handler: startProxyService
+  handler: startProxyService,
+  preflight: preflightProxyStart
 };

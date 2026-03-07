@@ -5,6 +5,8 @@ import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { getProxyPaths } from './proxy-paths.js';
 import { getTemplatesDir } from '../../../core/io/cli-paths.js';
 import type { ProxyServiceConfig } from '@semiont/core';
+import { checkCommandAvailable, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Copy and process the proxy configuration template
@@ -121,9 +123,16 @@ const provisionProxyService = async (context: PosixProvisionHandlerContext): Pro
   };
 };
 
+const preflightProxyProvision = async (_context: PosixProvisionHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([
+    checkCommandAvailable('envoy'),
+  ]);
+};
+
 export const proxyProvisionDescriptor: HandlerDescriptor<PosixProvisionHandlerContext, ProvisionHandlerResult> = {
   command: 'provision',
   platform: 'posix',
   serviceType: 'proxy',
-  handler: provisionProxyService
+  handler: provisionProxyService,
+  preflight: preflightProxyProvision
 };

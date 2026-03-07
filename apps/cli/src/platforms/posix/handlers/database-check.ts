@@ -3,6 +3,7 @@ import { isPortInUse } from '../../../core/io/network-utils.js';
 import { execSync } from 'child_process';
 import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import type { DatabaseServiceConfig } from '@semiont/core';
+import { passingPreflight } from '../../../core/handlers/preflight-utils.js';
 
 /**
  * Check handler for POSIX database services
@@ -95,6 +96,8 @@ const checkDatabaseProcess = async (context: PosixCheckHandlerContext): Promise<
   };
 };
 
+const preflightDatabaseCheck = async () => passingPreflight();
+
 /**
  * Descriptor for POSIX database check handler
  */
@@ -102,5 +105,6 @@ export const databaseCheckDescriptor: HandlerDescriptor<PosixCheckHandlerContext
   command: 'check',
   platform: 'posix',
   serviceType: 'database',
-  handler: checkDatabaseProcess
+  handler: checkDatabaseProcess,
+  preflight: preflightDatabaseCheck
 };

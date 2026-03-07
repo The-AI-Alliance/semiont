@@ -5,6 +5,8 @@ import { ContainerProvisionHandlerContext, ProvisionHandlerResult, HandlerDescri
 import { printInfo, printSuccess, printError, printWarning } from '../../../core/io/cli-logger.js';
 import * as yaml from 'js-yaml';
 import type { GraphServiceConfig } from '@semiont/core';
+import { checkContainerRuntime, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Provision handler for graph database services using Docker
@@ -241,9 +243,16 @@ const provisionGraphService = async (context: ContainerProvisionHandlerContext):
 /**
  * Handler descriptor for graph database provisioning
  */
+const preflightGraphProvision = async (context: ContainerProvisionHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([
+    checkContainerRuntime(context.runtime),
+  ]);
+};
+
 export const graphProvisionDescriptor: HandlerDescriptor<ContainerProvisionHandlerContext, ProvisionHandlerResult> = {
   command: 'provision',
   platform: 'container',
   serviceType: 'graph',
-  handler: provisionGraphService
+  handler: provisionGraphService,
+  preflight: preflightGraphProvision
 };

@@ -1,5 +1,6 @@
 import { ExternalCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import type { GraphServiceConfig } from '@semiont/core';
+import { checkEnvVarResolved, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import neo4j from 'neo4j-driver';
 
 /**
@@ -147,9 +148,20 @@ const checkExternalGraph = async (context: ExternalCheckHandlerContext): Promise
 /**
  * Descriptor for External graph check handler
  */
+const preflightGraphCheck = async (context: ExternalCheckHandlerContext) => {
+  const serviceConfig = context.service.config as GraphServiceConfig;
+  return preflightFromChecks([
+    checkEnvVarResolved(serviceConfig.uri, 'Neo4j URI'),
+    checkEnvVarResolved(serviceConfig.username, 'Neo4j username'),
+    checkEnvVarResolved(serviceConfig.password, 'Neo4j password'),
+    checkEnvVarResolved(serviceConfig.database, 'Neo4j database'),
+  ]);
+};
+
 export const graphCheckDescriptor: HandlerDescriptor<ExternalCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'external',
   serviceType: 'graph',
-  handler: checkExternalGraph
+  handler: checkExternalGraph,
+  preflight: preflightGraphCheck,
 };

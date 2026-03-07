@@ -5,6 +5,8 @@ import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from 
 import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import type { DatabaseServiceConfig } from '@semiont/core';
+import { checkCommandAvailable, checkPortFree, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Start handler for database services on POSIX systems
@@ -165,6 +167,16 @@ const startDatabaseService = async (context: PosixStartHandlerContext): Promise<
   }
 };
 
+const preflightDatabaseStart = async (context: PosixStartHandlerContext): Promise<PreflightResult> => {
+  const config = context.service.config as DatabaseServiceConfig;
+  const command = context.service.getCommand();
+  const runtime = command.split(' ')[0];
+  return preflightFromChecks([
+    checkCommandAvailable(runtime),
+    await checkPortFree(config.port),
+  ]);
+};
+
 /**
  * Descriptor for database service start handler
  */
@@ -172,5 +184,6 @@ export const databaseStartDescriptor: HandlerDescriptor<PosixStartHandlerContext
   command: 'start',
   platform: 'posix',
   serviceType: 'database',
-  handler: startDatabaseService
+  handler: startDatabaseService,
+  preflight: preflightDatabaseStart
 };

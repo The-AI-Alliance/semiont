@@ -19,6 +19,7 @@ function createInitOptions(partial: Partial<InitOptions> = {}): InitOptions {
     quiet: false,
     output: 'summary',
     forceDiscovery: false,
+    preflight: false,
     force: false,
     environments: ['local', 'test', 'staging', 'production'],
     name: undefined,

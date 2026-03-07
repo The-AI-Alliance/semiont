@@ -61,7 +61,8 @@ export class DashboardDataSource {
             quiet: true,
             dryRun: false,
             output: 'json',
-            forceDiscovery: false
+            forceDiscovery: false,
+            preflight: false
           },
           this.envConfig
         );

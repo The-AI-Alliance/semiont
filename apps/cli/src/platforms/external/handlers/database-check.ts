@@ -1,5 +1,6 @@
 import { ExternalCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import type { DatabaseServiceConfig } from '@semiont/core';
+import { checkEnvVarsInConfig, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import net from 'net';
 
 /**
@@ -233,9 +234,22 @@ const checkExternalDatabase = async (context: ExternalCheckHandlerContext): Prom
 /**
  * Descriptor for External database check handler
  */
+const preflightDatabaseCheck = async (context: ExternalCheckHandlerContext) => {
+  const serviceConfig = context.service.config as DatabaseServiceConfig;
+  const checks = checkEnvVarsInConfig({
+    host: serviceConfig.host,
+    port: serviceConfig.port,
+    database: serviceConfig.database,
+    username: serviceConfig.username,
+    password: serviceConfig.password,
+  });
+  return preflightFromChecks(checks);
+};
+
 export const databaseCheckDescriptor: HandlerDescriptor<ExternalCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'external',
   serviceType: 'database',
-  handler: checkExternalDatabase
+  handler: checkExternalDatabase,
+  preflight: preflightDatabaseCheck,
 };

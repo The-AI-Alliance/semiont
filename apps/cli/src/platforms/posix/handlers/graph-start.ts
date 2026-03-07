@@ -4,6 +4,8 @@ import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from 
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
 import { getGraphPaths } from './graph-paths.js';
 import type { GraphServiceConfig } from '@semiont/core';
+import { checkCommandAvailable, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Start handler for graph database services on POSIX systems
@@ -170,6 +172,12 @@ async function fileExists(path: string): Promise<boolean> {
   }
 }
 
+const preflightGraphStart = async (_context: PosixStartHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([
+    checkCommandAvailable('java'),
+  ]);
+};
+
 /**
  * Handler descriptor for graph database start
  */
@@ -177,5 +185,6 @@ export const graphStartDescriptor: HandlerDescriptor<PosixStartHandlerContext, S
   command: 'start',
   platform: 'posix',
   serviceType: 'graph',
-  handler: startGraphService
+  handler: startGraphService,
+  preflight: preflightGraphStart
 };

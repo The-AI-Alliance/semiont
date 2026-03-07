@@ -4,6 +4,8 @@ import { ContainerCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } f
 import { printInfo, printSuccess, printError, printWarning } from '../../../core/io/cli-logger.js';
 import { getProxyPaths } from './proxy-paths.js';
 import type { ProxyServiceConfig } from '@semiont/core';
+import { checkContainerRuntime, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Health check result interface
@@ -278,9 +280,16 @@ const checkProxyService = async (context: ContainerCheckHandlerContext): Promise
 /**
  * Descriptor for proxy container check handler
  */
+const preflightProxyCheck = async (context: ContainerCheckHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([
+    checkContainerRuntime(context.runtime),
+  ]);
+};
+
 export const proxyCheckDescriptor: HandlerDescriptor<ContainerCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'container',
   serviceType: 'proxy',
-  handler: checkProxyService
+  handler: checkProxyService,
+  preflight: preflightProxyCheck
 };

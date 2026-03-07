@@ -70,6 +70,7 @@ const startDescriptor: CommandDescriptor<StartOptions> = createCommandDescriptor
   
   continueOnError: true,  // Continue starting all services even if one fails
   supportsAll: true,
+  nextCommand: 'check',
 });
 
 // =====================================================================

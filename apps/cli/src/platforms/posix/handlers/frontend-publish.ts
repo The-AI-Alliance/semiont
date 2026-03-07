@@ -4,6 +4,7 @@ import { PosixPublishHandlerContext, PublishHandlerResult, HandlerDescriptor } f
 import type { FrontendServiceConfig } from '@semiont/core';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { getFrontendPaths } from './frontend-paths.js';
+import { checkCommandAvailable, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 
 /**
  * Publish handler for frontend services on POSIX systems
@@ -83,5 +84,6 @@ export const frontendPublishDescriptor: HandlerDescriptor<PosixPublishHandlerCon
   command: 'publish',
   platform: 'posix',
   serviceType: 'frontend',
-  handler: publishFrontendService
+  handler: publishFrontendService,
+  preflight: async () => preflightFromChecks([checkCommandAvailable('npm')])
 };

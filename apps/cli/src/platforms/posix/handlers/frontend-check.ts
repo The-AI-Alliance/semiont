@@ -4,6 +4,7 @@ import { isPortInUse } from '../../../core/io/network-utils.js';
 import { StateManager } from '../../../core/state-manager.js';
 import { getFrontendPaths } from './frontend-paths.js';
 import type { FrontendServiceConfig } from '@semiont/core';
+import { passingPreflight } from '../../../core/handlers/preflight-utils.js';
 
 /**
  * Check handler for frontend services on POSIX systems
@@ -210,6 +211,8 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
   };
 };
 
+const preflightFrontendCheck = async () => passingPreflight();
+
 /**
  * Descriptor for frontend POSIX check handler
  */
@@ -217,5 +220,6 @@ export const frontendCheckDescriptor: HandlerDescriptor<PosixCheckHandlerContext
   command: 'check',
   platform: 'posix',
   serviceType: 'frontend',
-  handler: checkFrontendService
+  handler: checkFrontendService,
+  preflight: preflightFrontendCheck
 };
