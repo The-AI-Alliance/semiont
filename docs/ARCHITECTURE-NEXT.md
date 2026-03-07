@@ -20,38 +20,38 @@ graph TB
     %% INTELLIGENT ACTORS (above the bus)
     %% ================================================================
 
-    READER["Reader\n&#9673; browse\n&#9673; beckon"]
-    ANALYST["Analyst\n&#9673; mark\n&#9673; browse\n&#9673; bind"]
-    AUTHOR["Author\n&#9673; yield\n&#9673; mark"]
-    UI["Human UI\n(proxy + frontend + backend)"]
-    MARKER["Marker Agent\n&#9673; mark\n&#9673; browse\n&#9673; beckon"]
-    GENERATOR["Generator Agent\n&#9673; yield\n&#9673; gather"]
-    LINKER["Linker Agent\n&#9673; bind\n&#9673; gather"]
+    READER["Reader"]
+    ANALYST["Analyst"]
+    AUTHOR["Author"]
+    UI["Human UI"]
+    MARKER["Marker Agent"]
+    GENERATOR["Generator Agent"]
+    LINKER["Linker Agent"]
 
     %% ================================================================
     %% EVENT BUS (wide horizontal bar in the center)
     %% ================================================================
-    BUS["E V E N T &ensp; B U S\nmark &ensp; browse &ensp; beckon &ensp; bind &ensp; gather &ensp; yield"]
+    BUS["E V E N T &ensp; B U S"]
 
     %% ================================================================
     %% PASSIVE ACTORS (below the bus)
     %% ================================================================
 
-    KB["Knowledge Base\n(event store + content store + graph)"]
-    SOURCES["Content Sources\n(upload, fetch, API ingestion)"]
+    KB["Knowledge Base"]
+    SOURCES["Content Sources"]
 
     %% ================================================================
     %% CONNECTIONS: Intelligent actors → Bus
     %% ================================================================
 
-    READER --> UI
-    ANALYST --> UI
-    AUTHOR --> UI
+    READER -->|"browse, beckon"| UI
+    ANALYST -->|"mark, browse, bind"| UI
+    AUTHOR -->|"yield, mark"| UI
     UI --> BUS
 
-    MARKER --> BUS
-    GENERATOR --> BUS
-    LINKER --> BUS
+    MARKER -->|"mark, browse, beckon"| BUS
+    GENERATOR -->|"yield, gather"| BUS
+    LINKER -->|"bind, gather"| BUS
 
     %% ================================================================
     %% CONNECTIONS: Bus ↔ Passive actors
@@ -93,13 +93,13 @@ All human actors interact through the **Human UI** — the browser, Envoy proxy,
 
 ```mermaid
 graph TB
-    HUMAN["Human Actor\n(Reader, Analyst, Author)"] -->|browser| PROXY
+    HUMAN["Human Actor<br/>(Reader, Analyst, Author)"] -->|browser| PROXY
 
     subgraph ui ["Human UI"]
-        PROXY["Envoy / ALB\n(route by path)"]
-        FE["Frontend\n(Next.js + React)"]
-        BE["Backend API\n(Hono + JWT)"]
-        DB[("Users DB\n(PostgreSQL)")]
+        PROXY["Envoy / ALB<br/>(route by path)"]
+        FE["Frontend<br/>(Next.js + React)"]
+        BE["Backend API<br/>(Hono + JWT)"]
+        DB[("Users DB<br/>(PostgreSQL)")]
 
         PROXY -->|"auth, pages"| FE
         PROXY -->|"API calls"| BE
@@ -138,10 +138,10 @@ graph TB
     BUS["Event Bus"] -->|events| EVENTLOG
 
     subgraph kb ["Knowledge Base"]
-        EVENTLOG["Event Log\n(immutable append-only)"]
-        VIEWS["Materialized Views\n(fast single-doc queries)"]
-        CONTENT["Content Store\n(SHA-256 addressed, deduplicated)"]
-        GRAPH["Graph\n(relationships, backlinks)"]
+        EVENTLOG["Event Log<br/>(immutable append-only)"]
+        VIEWS["Materialized Views<br/>(fast single-doc queries)"]
+        CONTENT["Content Store<br/>(SHA-256 addressed, deduplicated)"]
+        GRAPH["Graph<br/>(relationships, backlinks)"]
 
         EVENTLOG -->|materialize| VIEWS
         EVENTLOG -->|project| GRAPH
