@@ -15,73 +15,30 @@ The event bus is the only coupling between actors. An actor does not know who el
 ## Actor Topology
 
 ```mermaid
-graph TB
-    %% ================================================================
-    %% INTELLIGENT ACTORS (above the bus)
-    %% ================================================================
+graph TD
+    READER["Human Reader"] -->|"browse, beckon"| BUS
+    ANALYST["Human Analyst"] -->|"mark, browse, bind"| BUS
+    AUTHOR["Human Author"] -->|"yield, mark"| BUS
+    MARKER["AI Marker"] -->|"mark, browse, beckon"| BUS
+    GENERATOR["AI Generator"] -->|"yield, gather"| BUS
+    LINKER["AI Linker"] -->|"bind, gather"| BUS
+    SOURCES["Content Sources"] -->|"yield"| BUS
 
-    READER["Human Reader"]
-    ANALYST["Human Analyst"]
-    AUTHOR["Human Author"]
-    MARKER["AI Marker"]
-    GENERATOR["AI Generator"]
-    LINKER["AI Linker"]
+    BUS["E V E N T &ensp; B U S"]
 
-    %% ================================================================
-    %% EVENT BUS with Human UI adjacent
-    %% ================================================================
-    subgraph bus_row [" "]
-        direction LR
-        UI["Human UI"]
-        BUS["E V E N T &ensp; B U S"]
-    end
+    BUS -->|"events"| KB["Knowledge Base"]
 
-    %% ================================================================
-    %% PASSIVE ACTORS (below the bus)
-    %% ================================================================
-
-    KB["Knowledge Base"]
-    SOURCES["Content Sources"]
-
-    %% ================================================================
-    %% CONNECTIONS: Intelligent actors → Bus
-    %% ================================================================
-
-    READER -->|"browse, beckon"| UI
-    ANALYST -->|"mark, browse, bind"| UI
-    AUTHOR -->|"yield, mark"| UI
-    UI --> BUS
-
-    MARKER -->|"mark, browse, beckon"| BUS
-    GENERATOR -->|"yield, gather"| BUS
-    LINKER -->|"bind, gather"| BUS
-
-    %% ================================================================
-    %% CONNECTIONS: Bus ↔ Passive actors
-    %% ================================================================
-
-    BUS -->|events| KB
-    KB -.->|reads| UI
-    SOURCES -->|yield| BUS
-
-    %% ================================================================
-    %% STYLING
-    %% ================================================================
     classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold,font-size:14px
     classDef human fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
     classDef ai fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
-    classDef ui fill:#d4a827,stroke:#8b6914,stroke-width:2px,color:#000
     classDef kb fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
     classDef stream fill:#c97d5d,stroke:#8b4513,stroke-width:2px,color:#fff
-    classDef invisible fill:none,stroke:none
 
-    class BUS bus
     class READER,ANALYST,AUTHOR human
     class MARKER,GENERATOR,LINKER ai
-    class UI ui
+    class BUS bus
     class KB kb
     class SOURCES stream
-    class bus_row invisible
 ```
 
 ## Actors
