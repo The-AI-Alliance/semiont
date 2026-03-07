@@ -20,18 +20,21 @@ graph TB
     %% INTELLIGENT ACTORS (above the bus)
     %% ================================================================
 
-    READER["Reader"]
-    ANALYST["Analyst"]
-    AUTHOR["Author"]
-    UI["Human UI"]
-    MARKER["Marker Agent"]
-    GENERATOR["Generator Agent"]
-    LINKER["Linker Agent"]
+    READER["Human Reader"]
+    ANALYST["Human Analyst"]
+    AUTHOR["Human Author"]
+    MARKER["AI Marker"]
+    GENERATOR["AI Generator"]
+    LINKER["AI Linker"]
 
     %% ================================================================
-    %% EVENT BUS (wide horizontal bar in the center)
+    %% EVENT BUS with Human UI adjacent
     %% ================================================================
-    BUS["E V E N T &ensp; B U S"]
+    subgraph bus_row [" "]
+        direction LR
+        UI["Human UI"]
+        BUS["E V E N T &ensp; B U S"]
+    end
 
     %% ================================================================
     %% PASSIVE ACTORS (below the bus)
@@ -70,6 +73,7 @@ graph TB
     classDef ui fill:#d4a827,stroke:#8b6914,stroke-width:2px,color:#000
     classDef kb fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
     classDef stream fill:#c97d5d,stroke:#8b4513,stroke-width:2px,color:#fff
+    classDef invisible fill:none,stroke:none
 
     class BUS bus
     class READER,ANALYST,AUTHOR human
@@ -77,6 +81,7 @@ graph TB
     class UI ui
     class KB kb
     class SOURCES stream
+    class bus_row invisible
 ```
 
 ## Actors
