@@ -3,6 +3,8 @@ import * as path from 'path';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
 import { getFilesystemPaths } from './filesystem-paths.js';
+import { checkDirectoryWritable, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Provision handler for filesystem services on POSIX systems
@@ -149,6 +151,14 @@ Files placed here will persist across service restarts.
   }
 };
 
+const preflightFilesystemProvision = async (context: PosixProvisionHandlerContext): Promise<PreflightResult> => {
+  const paths = getFilesystemPaths(context);
+  const parentDir = path.dirname(paths.baseDir);
+  return preflightFromChecks([
+    checkDirectoryWritable(parentDir),
+  ]);
+};
+
 /**
  * Descriptor for filesystem POSIX provision handler
  */
@@ -156,5 +166,6 @@ export const filesystemProvisionDescriptor: HandlerDescriptor<PosixProvisionHand
   command: 'provision',
   platform: 'posix',
   serviceType: 'filesystem',
-  handler: provisionFilesystemService
+  handler: provisionFilesystemService,
+  preflight: preflightFilesystemProvision
 };

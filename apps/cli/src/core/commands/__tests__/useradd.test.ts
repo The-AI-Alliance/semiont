@@ -27,6 +27,7 @@ function createUseraddOptions(partial: Partial<UseraddOptions> = {}): UseraddOpt
     quiet: true,
     output: 'summary',
     forceDiscovery: false,
+    preflight: false,
     environment: 'local',
     ...partial
   };

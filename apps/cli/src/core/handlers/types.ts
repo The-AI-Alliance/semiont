@@ -185,6 +185,23 @@ export type StopHandler<TPlatform, TContext extends StopHandlerContext<TPlatform
   Handler<TPlatform, TContext, StopHandlerResult>;
 
 /**
+ * A single preflight check result
+ */
+export interface PreflightCheck {
+  name: string;
+  pass: boolean;
+  message: string;
+}
+
+/**
+ * Aggregated preflight result for a handler
+ */
+export interface PreflightResult {
+  pass: boolean;
+  checks: PreflightCheck[];
+}
+
+/**
  * Handler descriptor that explicitly declares what command and service type it handles
  * TPlatform is the platform strategy type
  */
@@ -193,6 +210,7 @@ export interface HandlerDescriptor<TPlatform, TContext extends BaseHandlerContex
   platform: string; // 'aws', 'container', etc. - handler declares its platform
   serviceType: string;  // 'lambda', 'ecs-fargate', etc.
   handler: Handler<TPlatform, TContext, TResult>;
+  preflight: (context: TContext) => Promise<PreflightResult>;
   requiresDiscovery?: boolean;  // Whether this handler needs resource discovery
   expectedOptions?: string[];  // Options that this handler expects in context
 }

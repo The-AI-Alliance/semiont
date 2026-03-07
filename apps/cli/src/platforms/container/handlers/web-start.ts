@@ -3,6 +3,8 @@ import { ContainerStartHandlerContext, StartHandlerResult, HandlerDescriptor } f
 import { createPlatformResources } from '../../platform-resources.js';
 import { printInfo } from '../../../core/io/cli-logger.js';
 import type { FrontendServiceConfig, BackendServiceConfig } from '@semiont/core';
+import { checkContainerRuntime, checkPortFree, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Start handler for web services in containers
@@ -143,9 +145,20 @@ async function waitForContainer(runtime: string, containerName: string): Promise
 /**
  * Descriptor for web container start handler
  */
+const preflightWebStart = async (context: ContainerStartHandlerContext): Promise<PreflightResult> => {
+  const { runtime, service } = context;
+  const config = service.config as FrontendServiceConfig | BackendServiceConfig;
+  const port = config.port;
+  return preflightFromChecks([
+    checkContainerRuntime(runtime),
+    await checkPortFree(port),
+  ]);
+};
+
 export const webStartDescriptor: HandlerDescriptor<ContainerStartHandlerContext, StartHandlerResult> = {
   command: 'start',
   platform: 'container',
   serviceType: 'web',
-  handler: startWebContainer
+  handler: startWebContainer,
+  preflight: preflightWebStart
 };

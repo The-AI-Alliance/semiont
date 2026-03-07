@@ -1,6 +1,8 @@
 import { execSync } from 'child_process';
 import { ContainerCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import type { GraphServiceConfig } from '@semiont/core';
+import { checkContainerRuntime, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Check handler for Container graph database services
@@ -263,9 +265,16 @@ function getGraphEndpoint(graphType: string, port: number): string {
 /**
  * Descriptor for Container graph check handler
  */
+const preflightGraphCheck = async (context: ContainerCheckHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([
+    checkContainerRuntime(context.runtime),
+  ]);
+};
+
 export const graphCheckDescriptor: HandlerDescriptor<ContainerCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'container',
   serviceType: 'graph',
-  handler: checkGraphContainer
+  handler: checkGraphContainer,
+  preflight: preflightGraphCheck
 };

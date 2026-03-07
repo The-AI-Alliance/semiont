@@ -21,6 +21,7 @@ function createCheckOptions(partial: Partial<CheckOptions> = {}): CheckOptions {
     quiet: false,
     output: 'json',
     forceDiscovery: false,
+    preflight: false,
     all: false,
     deep: true,
     wait: false,

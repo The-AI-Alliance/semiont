@@ -4,6 +4,8 @@ import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from 
 import { PlatformResources } from '../../platform-resources.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
 import { getFilesystemPaths } from './filesystem-paths.js';
+import { checkFileExists, checkDirectoryWritable, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Start handler for filesystem services on POSIX systems
@@ -138,6 +140,14 @@ const startFilesystemService = async (context: PosixStartHandlerContext): Promis
   };
 };
 
+const preflightFilesystemStart = async (context: PosixStartHandlerContext): Promise<PreflightResult> => {
+  const paths = getFilesystemPaths(context);
+  return preflightFromChecks([
+    checkFileExists(paths.baseDir, 'filesystem data directory'),
+    checkDirectoryWritable(paths.baseDir),
+  ]);
+};
+
 /**
  * Descriptor for filesystem POSIX start handler
  */
@@ -145,5 +155,6 @@ export const filesystemStartDescriptor: HandlerDescriptor<PosixStartHandlerConte
   command: 'start',
   platform: 'posix',
   serviceType: 'filesystem',
-  handler: startFilesystemService
+  handler: startFilesystemService,
+  preflight: preflightFilesystemStart
 };

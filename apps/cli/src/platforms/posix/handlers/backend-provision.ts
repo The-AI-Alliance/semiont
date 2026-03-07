@@ -7,6 +7,8 @@ import type { BackendServiceConfig } from '@semiont/core';
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
 import { getBackendPaths } from './backend-paths.js';
 import { getNodeEnvForEnvironment } from '@semiont/core';
+import { checkCommandAvailable, checkFileExists, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Provision handler for backend services on POSIX systems
@@ -409,6 +411,19 @@ ${backendSourceDir}
   };
 };
 
+const preflightBackendProvision = async (context: PosixProvisionHandlerContext): Promise<PreflightResult> => {
+  const paths = getBackendPaths(context);
+  const checks = [
+    checkCommandAvailable('npm'),
+    checkCommandAvailable('npx'),
+    checkFileExists(path.join(paths.sourceDir, 'package.json'), 'backend package.json'),
+  ];
+  if (!context.options?.semiontRepo) {
+    checks.push({ name: 'semiontRepo', pass: false, message: 'semiontRepo is required (use --semiont-repo or set SEMIONT_REPO)' });
+  }
+  return preflightFromChecks(checks);
+};
+
 /**
  * Descriptor for backend POSIX provision handler
  */
@@ -416,5 +431,6 @@ export const backendProvisionDescriptor: HandlerDescriptor<PosixProvisionHandler
   command: 'provision',
   platform: 'posix',
   serviceType: 'backend',
-  handler: provisionBackendService
+  handler: provisionBackendService,
+  preflight: preflightBackendProvision
 };

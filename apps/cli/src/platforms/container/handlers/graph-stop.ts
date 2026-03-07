@@ -4,6 +4,8 @@ import { ContainerStopHandlerContext, StopHandlerResult, HandlerDescriptor } fro
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
 import * as fs from 'fs/promises';
 import type { GraphServiceConfig } from '@semiont/core';
+import { checkContainerRuntime, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Stop handler for graph database services using Docker
@@ -165,9 +167,16 @@ async function fileExists(path: string): Promise<boolean> {
 /**
  * Handler descriptor for graph database stop
  */
+const preflightGraphStop = async (context: ContainerStopHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([
+    checkContainerRuntime(context.runtime),
+  ]);
+};
+
 export const graphStopDescriptor: HandlerDescriptor<ContainerStopHandlerContext, StopHandlerResult> = {
   command: 'stop',
   platform: 'container',
   serviceType: 'graph',
-  handler: stopGraphService
+  handler: stopGraphService,
+  preflight: preflightGraphStop
 };

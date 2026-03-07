@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
 import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { PlatformResources } from '../../platform-resources.js';
+import { checkCommandAvailable, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 
 /**
  * Start handler for MCP (Model Context Protocol) services on POSIX systems
@@ -90,5 +91,10 @@ export const mcpStartDescriptor: HandlerDescriptor<PosixStartHandlerContext, Sta
   command: 'start',
   platform: 'posix',
   serviceType: 'mcp',
-  handler: startMCPService
+  handler: startMCPService,
+  preflight: async (context) => {
+    const command = context.service.getCommand();
+    const [cmd] = command.split(' ');
+    return preflightFromChecks([checkCommandAvailable(cmd)]);
+  }
 };

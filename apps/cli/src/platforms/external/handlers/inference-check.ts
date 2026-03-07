@@ -1,5 +1,6 @@
 import { ExternalCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import type { InferenceServiceConfig } from '@semiont/core';
+import { checkEnvVarResolved, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 
@@ -272,9 +273,19 @@ const checkExternalInference = async (context: ExternalCheckHandlerContext): Pro
 /**
  * Descriptor for external inference check handler
  */
+const preflightInferenceCheck = async (context: ExternalCheckHandlerContext) => {
+  const serviceConfig = context.service.config as InferenceServiceConfig;
+  return preflightFromChecks([
+    checkEnvVarResolved(serviceConfig.apiKey, 'API key'),
+    checkEnvVarResolved(serviceConfig.endpoint, 'endpoint'),
+    checkEnvVarResolved(serviceConfig.model, 'model'),
+  ]);
+};
+
 export const inferenceCheckDescriptor: HandlerDescriptor<ExternalCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'external',
   serviceType: 'inference',
-  handler: checkExternalInference
+  handler: checkExternalInference,
+  preflight: preflightInferenceCheck,
 };

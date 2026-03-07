@@ -1,6 +1,8 @@
 import { execSync } from 'child_process';
 import { AWSStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { createPlatformResources } from '../../platform-resources.js';
+import { checkAwsCredentials, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Start handler for ECS services (Fargate and EC2)
@@ -74,11 +76,16 @@ const startECSService = async (context: AWSStartHandlerContext): Promise<StartHa
 /**
  * Descriptor for ECS Fargate start handler
  */
+const preflightEcsStart = async (_context: AWSStartHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([checkAwsCredentials()]);
+};
+
 export const ecsFargateStartDescriptor: HandlerDescriptor<AWSStartHandlerContext, StartHandlerResult> = {
   command: 'start',
   platform: 'aws',
   serviceType: 'ecs-fargate',
   handler: startECSService,
+  preflight: preflightEcsStart,
   requiresDiscovery: true
 };
 
@@ -88,5 +95,6 @@ export const ecsStartDescriptor: HandlerDescriptor<AWSStartHandlerContext, Start
   platform: 'aws',
   serviceType: 'ecs',
   handler: startECSService,
+  preflight: preflightEcsStart,
   requiresDiscovery: true
 };

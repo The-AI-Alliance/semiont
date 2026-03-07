@@ -21,6 +21,7 @@ function createStartOptions(partial: Partial<StartOptions> = {}): StartOptions {
     quiet: false,
     output: 'json',
     forceDiscovery: false,
+    preflight: false,
     service: undefined,
     ...partial
   };

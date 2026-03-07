@@ -1,6 +1,8 @@
 import { execSync } from 'child_process';
 import { AWSCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import { createPlatformResources } from '../../platform-resources.js';
+import { checkAwsCredentials, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Get CloudFront distribution ID for a given S3 bucket
@@ -111,9 +113,14 @@ const s3CloudFrontCheckHandler = async (context: AWSCheckHandlerContext): Promis
  * S3-CloudFront check handler descriptor
  * Explicitly declares this handler is for 'check' command on 's3-cloudfront' service type
  */
+const preflightS3CloudFrontCheck = async (_context: AWSCheckHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([checkAwsCredentials()]);
+};
+
 export const s3CloudFrontCheckDescriptor: HandlerDescriptor<AWSCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'aws',
   serviceType: 's3-cloudfront',
-  handler: s3CloudFrontCheckHandler
+  handler: s3CloudFrontCheckHandler,
+  preflight: preflightS3CloudFrontCheck
 };

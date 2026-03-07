@@ -7,6 +7,8 @@ import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { getFrontendPaths } from './frontend-paths.js';
+import { checkPortFree, checkCommandAvailable, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Start handler for frontend services on POSIX systems
@@ -238,6 +240,18 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
   }
 };
 
+const preflightFrontendStart = async (context: PosixStartHandlerContext): Promise<PreflightResult> => {
+  const config = context.service.config as FrontendServiceConfig;
+  const port = config.port;
+  const checks = [
+    checkCommandAvailable('npm'),
+  ];
+  if (port) {
+    checks.push(await checkPortFree(port));
+  }
+  return preflightFromChecks(checks);
+};
+
 /**
  * Descriptor for frontend POSIX start handler
  */
@@ -245,5 +259,6 @@ export const frontendStartDescriptor: HandlerDescriptor<PosixStartHandlerContext
   command: 'start',
   platform: 'posix',
   serviceType: 'frontend',
-  handler: startFrontendService
+  handler: startFrontendService,
+  preflight: preflightFrontendStart
 };

@@ -109,6 +109,7 @@ const provisionDescriptor: CommandDescriptor<ProvisionOptions> = createCommandDe
   
   continueOnError: true,  // Continue provisioning all services even if one fails
   supportsAll: true,
+  nextCommand: 'start',
 });
 
 // =====================================================================

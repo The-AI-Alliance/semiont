@@ -3,6 +3,7 @@ import { PosixStopHandlerContext, StopHandlerResult, HandlerDescriptor } from '.
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
 import { getGraphPaths } from './graph-paths.js';
 import type { GraphServiceConfig } from '@semiont/core';
+import { passingPreflight } from '../../../core/handlers/preflight-utils.js';
 
 /**
  * Stop handler for graph database services on POSIX systems
@@ -197,5 +198,6 @@ export const graphStopDescriptor: HandlerDescriptor<PosixStopHandlerContext, Sto
   command: 'stop',
   platform: 'posix',
   serviceType: 'graph',
-  handler: stopGraphService
+  handler: stopGraphService,
+  preflight: async () => passingPreflight()
 };

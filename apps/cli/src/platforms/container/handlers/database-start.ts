@@ -3,6 +3,8 @@ import { ContainerStartHandlerContext, StartHandlerResult, HandlerDescriptor } f
 import { createPlatformResources } from '../../platform-resources.js';
 import { printInfo, printWarning } from '../../../core/io/cli-logger.js';
 import type { DatabaseServiceConfig } from '@semiont/core';
+import { checkContainerRuntime, checkPortFree, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Start handler for database services in containers
@@ -260,9 +262,20 @@ async function waitForDatabase(runtime: string, containerName: string, image: st
 /**
  * Descriptor for database container start handler
  */
+const preflightDatabaseStart = async (context: ContainerStartHandlerContext): Promise<PreflightResult> => {
+  const { runtime, service } = context;
+  const config = service.config as DatabaseServiceConfig;
+  const port = config.port;
+  return preflightFromChecks([
+    checkContainerRuntime(runtime),
+    await checkPortFree(port),
+  ]);
+};
+
 export const databaseStartDescriptor: HandlerDescriptor<ContainerStartHandlerContext, StartHandlerResult> = {
   command: 'start',
   platform: 'container',
   serviceType: 'database',
-  handler: startDatabaseContainer
+  handler: startDatabaseContainer,
+  preflight: preflightDatabaseStart
 };

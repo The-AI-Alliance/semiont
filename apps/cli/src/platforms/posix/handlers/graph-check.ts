@@ -3,6 +3,7 @@ import { isPortInUse } from '../../../core/io/network-utils.js';
 import { execSync } from 'child_process';
 import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import type { GraphServiceConfig } from '@semiont/core';
+import { passingPreflight } from '../../../core/handlers/preflight-utils.js';
 
 /**
  * Check handler for POSIX graph database services
@@ -133,6 +134,8 @@ function getDefaultPort(graphType: string): number {
   return ports[graphType];
 }
 
+const preflightGraphCheck = async () => passingPreflight();
+
 /**
  * Descriptor for POSIX graph check handler
  */
@@ -140,5 +143,6 @@ export const graphCheckDescriptor: HandlerDescriptor<PosixCheckHandlerContext, C
   command: 'check',
   platform: 'posix',
   serviceType: 'graph',
-  handler: checkGraphProcess
+  handler: checkGraphProcess,
+  preflight: preflightGraphCheck
 };

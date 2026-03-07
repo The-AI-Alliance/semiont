@@ -21,6 +21,7 @@ function createProvisionOptions(partial: Partial<ProvisionOptions> = {}): Provis
     quiet: false,
     output: 'json',
     forceDiscovery: false,
+    preflight: false,
     all: false,
     force: false,
     skipValidation: false,

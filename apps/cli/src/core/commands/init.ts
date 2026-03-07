@@ -37,6 +37,7 @@ import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
 import { BaseOptionsSchema, withBaseArgs } from '../base-options-schema.js';
 import { getTemplatesDir as getTemplatesDirFromPaths } from '../io/cli-paths.js';
+import { checkEnvVarsInConfig, preflightFromChecks } from '../handlers/preflight-utils.js';
 
 // =====================================================================
 // SCHEMA DEFINITIONS
@@ -201,6 +202,34 @@ async function init(
       
       if (!options.quiet) {
         console.log(`${colors.green}✅ Created CDK infrastructure files${colors.reset}`);
+      }
+
+      // Run provision preflight: scan created env files for unresolved ${VAR} references
+      for (const envName of environments) {
+        const envFilePath = path.join(envDir, `${envName}.json`);
+        if (fs.existsSync(envFilePath)) {
+          try {
+            const envContent = JSON.parse(fs.readFileSync(envFilePath, 'utf8'));
+            const preflight = preflightFromChecks(checkEnvVarsInConfig(envContent));
+            if (!preflight.pass && !options.quiet) {
+              console.log(`\n${colors.yellow}Preflight for '${envName}' environment:${colors.reset}`);
+              for (const check of preflight.checks) {
+                if (check.pass) {
+                  if (options.verbose) {
+                    console.log(`  ${colors.green}${check.message}${colors.reset}`);
+                  }
+                } else {
+                  console.log(`  ${colors.yellow}${check.message}${colors.reset}`);
+                  results.summary.warnings++;
+                }
+              }
+            } else if (options.verbose && preflight.checks.length > 0 && !options.quiet) {
+              console.log(`\n${colors.green}Preflight for '${envName}' environment: all variables set${colors.reset}`);
+            }
+          } catch {
+            // JSON parse error — skip preflight for this file
+          }
+        }
       }
 
       if (!options.quiet) {

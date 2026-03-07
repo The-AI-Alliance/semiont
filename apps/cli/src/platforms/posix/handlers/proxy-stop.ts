@@ -3,6 +3,7 @@ import { PosixStopHandlerContext, StopHandlerResult, HandlerDescriptor } from '.
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { killProcessGroupAndRelated } from '../utils/process-manager.js';
 import { getProxyPaths } from './proxy-paths.js';
+import { passingPreflight } from '../../../core/handlers/preflight-utils.js';
 
 /**
  * Stop handler for proxy services on POSIX systems
@@ -111,5 +112,6 @@ export const proxyStopDescriptor: HandlerDescriptor<PosixStopHandlerContext, Sto
   command: 'stop',
   platform: 'posix',
   serviceType: 'proxy',
-  handler: stopProxyService
+  handler: stopProxyService,
+  preflight: async () => passingPreflight()
 };

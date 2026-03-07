@@ -6,6 +6,8 @@ import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { getProxyPaths } from './proxy-paths.js';
+import { checkCommandAvailable, checkPortFree, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Start handler for proxy services on POSIX systems
@@ -147,9 +149,21 @@ const startProxyService = async (context: PosixStartHandlerContext): Promise<Sta
   }
 };
 
+const preflightProxyStart = async (context: PosixStartHandlerContext): Promise<PreflightResult> => {
+  const config = context.service.config as ProxyServiceConfig;
+  const proxyPort = config.port || 8080;
+  const adminPort = config.adminPort || 9901;
+  return preflightFromChecks([
+    checkCommandAvailable('envoy'),
+    await checkPortFree(proxyPort),
+    await checkPortFree(adminPort),
+  ]);
+};
+
 export const proxyStartDescriptor: HandlerDescriptor<PosixStartHandlerContext, StartHandlerResult> = {
   command: 'start',
   platform: 'posix',
   serviceType: 'proxy',
-  handler: startProxyService
+  handler: startProxyService,
+  preflight: preflightProxyStart
 };

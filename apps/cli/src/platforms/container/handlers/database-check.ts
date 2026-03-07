@@ -1,6 +1,8 @@
 import { execSync } from 'child_process';
 import { ContainerCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import type { DatabaseServiceConfig } from '@semiont/core';
+import { checkContainerRuntime, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Check handler for containerized database services
@@ -122,9 +124,16 @@ const checkDatabaseContainer = async (context: ContainerCheckHandlerContext): Pr
 /**
  * Descriptor for database container check handler
  */
+const preflightDatabaseCheck = async (context: ContainerCheckHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([
+    checkContainerRuntime(context.runtime),
+  ]);
+};
+
 export const databaseCheckDescriptor: HandlerDescriptor<ContainerCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'container',
   serviceType: 'database',
-  handler: checkDatabaseContainer
+  handler: checkDatabaseContainer,
+  preflight: preflightDatabaseCheck
 };

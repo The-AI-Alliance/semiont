@@ -21,6 +21,7 @@ function createPublishOptions(partial: Partial<PublishOptions> = {}): PublishOpt
     quiet: false,
     output: 'json',
     forceDiscovery: false,
+    preflight: false,
     all: false,
     noCache: false,
     service: undefined,

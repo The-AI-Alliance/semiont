@@ -5,6 +5,8 @@ import {
 } from '@aws-sdk/client-neptune';
 import { AWSCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import type { GraphServiceConfig } from '@semiont/core';
+import { checkAwsCredentials, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Check handler for AWS Neptune graph database
@@ -178,9 +180,14 @@ const checkNeptune = async (context: AWSCheckHandlerContext): Promise<CheckHandl
 /**
  * Descriptor for AWS Neptune check handler
  */
+const preflightNeptuneCheck = async (_context: AWSCheckHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([checkAwsCredentials()]);
+};
+
 export const neptuneCheckDescriptor: HandlerDescriptor<AWSCheckHandlerContext, CheckHandlerResult> = {
   command: 'check',
   platform: 'aws',
   serviceType: 'neptune',
-  handler: checkNeptune
+  handler: checkNeptune,
+  preflight: preflightNeptuneCheck
 };

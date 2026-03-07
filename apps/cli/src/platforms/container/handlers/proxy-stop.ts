@@ -2,6 +2,8 @@ import { execSync } from 'child_process';
 import { ContainerStopHandlerContext, StopHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printError, printWarning } from '../../../core/io/cli-logger.js';
 import type { ProxyServiceConfig } from '@semiont/core';
+import { checkContainerRuntime, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
  * Stop handler for proxy services in containers
@@ -99,9 +101,16 @@ const stopProxyService = async (context: ContainerStopHandlerContext): Promise<S
 /**
  * Descriptor for proxy container stop handler
  */
+const preflightProxyStop = async (context: ContainerStopHandlerContext): Promise<PreflightResult> => {
+  return preflightFromChecks([
+    checkContainerRuntime(context.runtime),
+  ]);
+};
+
 export const proxyStopDescriptor: HandlerDescriptor<ContainerStopHandlerContext, StopHandlerResult> = {
   command: 'stop',
   platform: 'container',
   serviceType: 'proxy',
-  handler: stopProxyService
+  handler: stopProxyService,
+  preflight: preflightProxyStop
 };
