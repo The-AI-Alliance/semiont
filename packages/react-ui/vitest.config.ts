@@ -17,6 +17,7 @@ export default defineConfig({
         'vitest.setup.ts',
         'src/index.ts', // Export file
         'src/types/**', // Type definitions
+        'src/examples/**', // Example files, not production code
       ],
       // Include all source files
       include: ['src/**/*.{ts,tsx}'],
