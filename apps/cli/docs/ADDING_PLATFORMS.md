@@ -203,12 +203,20 @@ const startWebService = async (context: StartHandlerContext): Promise<StartHandl
 
 /**
  * Descriptor for web service start handler
+ * Note: preflight is mandatory on every handler descriptor
  */
 export const webStartDescriptor: HandlerDescriptor<StartHandlerContext, StartHandlerResult> = {
   command: 'start',
   platform: 'my-platform',
   serviceType: 'web',
-  handler: startWebService
+  handler: startWebService,
+  preflight: async (context) => {
+    const port = context.service.getRequirements().network?.ports?.[0];
+    return preflightFromChecks([
+      checkCommandAvailable('node'),
+      ...(port ? [await checkPortFree(port)] : []),
+    ]);
+  },
 };
 ```
 
@@ -224,7 +232,8 @@ export const webCheckDescriptor: HandlerDescriptor<CheckHandlerContext, CheckHan
   serviceType: 'web',
   handler: async (context) => {
     // Health check logic
-  }
+  },
+  preflight: async () => passingPreflight(),  // Check handlers typically have no preconditions
 };
 
 // src/platforms/my-platform/handlers/web-update.ts
@@ -235,7 +244,8 @@ export const webUpdateDescriptor: HandlerDescriptor<UpdateHandlerContext, Update
   handler: async (context) => {
     // Update logic - deploys previously published artifacts
     // Should check for newer versions and deploy them
-  }
+  },
+  preflight: async () => preflightFromChecks([checkCommandAvailable('npm')]),
 };
 
 // src/platforms/my-platform/handlers/web-publish.ts
@@ -247,7 +257,8 @@ export const webPublishDescriptor: HandlerDescriptor<PublishHandlerContext, Publ
     // Publish logic - builds and pushes artifacts
     // Does NOT deploy to running services
     // Creates new versions/revisions for update command to deploy
-  }
+  },
+  preflight: async () => preflightFromChecks([checkCommandAvailable('npm')]),
 };
 
 // Continue for other commands: provision, etc.
@@ -433,12 +444,13 @@ const handler = async (context) => {
 Handlers self-register when their descriptors are exported:
 
 ```typescript
-// ✅ Good - Handler with descriptor
+// ✅ Good - Handler with descriptor and preflight
 export const myHandlerDescriptor: HandlerDescriptor = {
   command: 'start',
   platform: 'my-platform',
   serviceType: 'web',
-  handler: myHandler
+  handler: myHandler,
+  preflight: myHandlerPreflight,
 };
 
 // ❌ Bad - Handler without registration
@@ -578,6 +590,8 @@ When creating a new platform:
 - [ ] Handler types defined
 - [ ] Handlers created for all supported commands
 - [ ] Handlers created for all service types
+- [ ] Every handler descriptor includes a `preflight` function
+- [ ] Preflight checks match what each handler actually does
 - [ ] Platform resources type defined
 - [ ] Platform type added to union
 - [ ] Handlers exported for registration

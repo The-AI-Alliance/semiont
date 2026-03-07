@@ -53,6 +53,8 @@ The command execution is orchestrated by the MultiServiceExecutor pattern:
 - Executes pre-execution hooks from CommandDescriptor
 - For each service: resolves platform → determines serviceType → finds handler → executes
 - Aggregates results with consistent error handling
+- Supports `--preflight` mode: runs handler preflight checks instead of executing handlers (failed preflights → non-zero exit)
+- Supports `nextCommand` chain: after execution, runs the next command's preflights as advisory warnings (see [ADDING_COMMANDS.md](./ADDING_COMMANDS.md#preflight-checks))
 
 **Command Descriptor** (`src/core/command-descriptor.ts`) → Command configuration
 - Defines how commands are executed within MultiServiceExecutor
