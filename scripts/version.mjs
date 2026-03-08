@@ -128,22 +128,15 @@ function syncVersions() {
       console.log(`  ${pkg}: already at ${version}`);
     }
 
-    // Sync workspace dependencies for CLI (always check, even if version unchanged)
-    if (pkg === '@semiont/cli' && pkgJson.dependencies) {
-      const apiClientDep = pkgJson.dependencies['@semiont/api-client'];
-      const coreDep = pkgJson.dependencies['@semiont/core'];
-      const expectedApiClient = `^${version}`;
-      const expectedCore = `^${version}`;
-
-      if (apiClientDep && apiClientDep !== expectedApiClient) {
-        console.log(`    └─ Syncing dependency @semiont/api-client: ${apiClientDep} → ${expectedApiClient}`);
-        pkgJson.dependencies['@semiont/api-client'] = expectedApiClient;
-        updated = true;
-      }
-      if (coreDep && coreDep !== expectedCore) {
-        console.log(`    └─ Syncing dependency @semiont/core: ${coreDep} → ${expectedCore}`);
-        pkgJson.dependencies['@semiont/core'] = expectedCore;
-        updated = true;
+    // Sync @semiont/* workspace dependencies for CLI, backend, and frontend
+    if ((pkg === '@semiont/cli' || pkg === 'semiont-backend' || pkg === 'semiont-frontend') && pkgJson.dependencies) {
+      const expected = `^${version}`;
+      for (const [dep, depVersion] of Object.entries(pkgJson.dependencies)) {
+        if (dep.startsWith('@semiont/') && depVersion !== expected) {
+          console.log(`    └─ Syncing dependency ${dep}: ${depVersion} → ${expected}`);
+          pkgJson.dependencies[dep] = expected;
+          updated = true;
+        }
       }
     }
 

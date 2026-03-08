@@ -1,0 +1,24 @@
+{
+  "name": "@semiont/frontend",
+  "version": "0.2.36",
+  "description": "Semiont frontend server - pre-built Next.js standalone output",
+  "bin": {
+    "semiont-frontend": "standalone/apps/frontend/server.js"
+  },
+  "files": [
+    "standalone"
+  ],
+  "scripts": {
+    "start": "node standalone/apps/frontend/server.js"
+  },
+  "dependencies": {},
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/The-AI-Alliance/semiont.git",
+    "directory": "apps/frontend"
+  },
+  "license": "Apache-2.0"
+}

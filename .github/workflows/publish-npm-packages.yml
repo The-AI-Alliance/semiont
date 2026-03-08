@@ -50,6 +50,14 @@ jobs:
         working-directory: ./apps/cli
         run: npm run build
 
+      - name: Build backend app
+        working-directory: ./apps/backend
+        run: npm run build
+
+      - name: Build frontend app
+        working-directory: ./apps/frontend
+        run: npm run build
+
       - name: Determine version
         id: version
         run: |
@@ -74,6 +82,15 @@ jobs:
           node -e "
             const fs = require('fs');
             const version = '$TARGET_VERSION';
+
+            // Update version.json so staging script picks up the correct version
+            const versionJson = JSON.parse(fs.readFileSync('version.json', 'utf-8'));
+            versionJson.version = version;
+            for (const pkg of Object.keys(versionJson.packages)) {
+              versionJson.packages[pkg] = version;
+            }
+            fs.writeFileSync('version.json', JSON.stringify(versionJson, null, 2) + '\n');
+            console.log('Updated version.json to ' + version);
 
             const packages = [
               'packages/api-client',
@@ -109,13 +126,24 @@ jobs:
             console.log('Updated ' + cli.name + ' to ' + version + ' (with dependencies)');
           "
 
+      - name: Stage app packages
+        run: node scripts/publish-npm-apps.mjs
+
       - name: Publish packages
         if: github.event.inputs.dry_run != 'true'
         run: |
           TAG="${{ steps.version.outputs.tag }}"
           VERSION="${{ steps.version.outputs.publish }}"
 
+          # Publish library packages and CLI
           for dir in packages/api-client packages/core packages/ontology packages/content packages/event-sourcing packages/graph packages/inference packages/jobs packages/make-meaning packages/react-ui apps/cli; do
+            NAME=$(node -p "require('./$dir/package.json').name")
+            echo "Publishing $NAME@$VERSION"
+            (cd "$dir" && npm publish --tag "$TAG" --access public)
+          done
+
+          # Publish app packages from staging directories
+          for dir in .npm-stage/backend .npm-stage/frontend; do
             NAME=$(node -p "require('./$dir/package.json').name")
             echo "Publishing $NAME@$VERSION"
             (cd "$dir" && npm publish --tag "$TAG" --access public)
@@ -131,8 +159,14 @@ jobs:
           echo "**Version:** $VERSION" >> $GITHUB_STEP_SUMMARY
           echo "**Dist tag:** $TAG" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Packages published:" >> $GITHUB_STEP_SUMMARY
+          echo "### Library packages:" >> $GITHUB_STEP_SUMMARY
           for dir in packages/api-client packages/ontology packages/core packages/content packages/event-sourcing packages/graph packages/inference packages/jobs packages/make-meaning packages/react-ui apps/cli; do
+            NAME=$(node -p "require('./$dir/package.json').name")
+            echo "- $NAME@$VERSION" >> $GITHUB_STEP_SUMMARY
+          done
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### App packages:" >> $GITHUB_STEP_SUMMARY
+          for dir in .npm-stage/backend .npm-stage/frontend; do
             NAME=$(node -p "require('./$dir/package.json').name")
             echo "- $NAME@$VERSION" >> $GITHUB_STEP_SUMMARY
           done
@@ -144,4 +178,6 @@ jobs:
             echo "npm install $NAME@$TAG" >> $GITHUB_STEP_SUMMARY
           done
           echo "npm install -g @semiont/cli@$TAG" >> $GITHUB_STEP_SUMMARY
+          echo "npm install @semiont/backend@$TAG" >> $GITHUB_STEP_SUMMARY
+          echo "npm install @semiont/frontend@$TAG" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
