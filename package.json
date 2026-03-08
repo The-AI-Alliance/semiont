@@ -34,6 +34,7 @@
     "version:sync": "node scripts/version.mjs sync",
     "version:bump": "node scripts/version.mjs bump",
     "version:set": "node scripts/version.mjs set",
+    "publish:stage-apps": "node scripts/publish-npm-apps.mjs",
     "release:publish": "node scripts/release-publish.mjs",
     "release:await": "node scripts/release-await.mjs",
     "release:bump": "node scripts/release-bump.mjs",

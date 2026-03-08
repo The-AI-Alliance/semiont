@@ -11,4 +11,5 @@ export default defineConfig({
   target: 'node20',
   platform: 'node',
   noExternal: [],
+  banner: { js: '#!/usr/bin/env node' },
 });
