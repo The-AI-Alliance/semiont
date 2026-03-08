@@ -56,39 +56,20 @@ jobs:
           echo "tag=$DIST_TAG" >> $GITHUB_OUTPUT
           echo "Publishing version: $PUBLISH_VERSION (base: $BASE_VERSION, tag: $DIST_TAG)"
 
-      - name: Verify image version
+      - name: Wait for @semiont/backend npm package
         run: |
-          EXPECTED_VERSION="${{ steps.version.outputs.base }}"
-          SEMIONT_VERSION="${{ steps.version.outputs.publish }}"
-          echo "Expected backend version: $EXPECTED_VERSION"
-          echo "Semiont packages version: $SEMIONT_VERSION"
-
-          # Build image locally to verify (with SEMIONT_VERSION)
-          docker build \
-            -t semiont-backend-verify \
-            -f ./apps/backend/Dockerfile \
-            --build-arg SEMIONT_VERSION=$SEMIONT_VERSION \
-            .
-
-          # Extract version from built image
-          ACTUAL_VERSION=$(docker run --rm semiont-backend-verify node -e "console.log(require('/app/apps/backend/package.json').version)")
-
-          echo "Actual version in image: $ACTUAL_VERSION"
-
-          if [ "$ACTUAL_VERSION" != "$EXPECTED_VERSION" ]; then
-            echo "❌ ERROR: Version mismatch!"
-            echo "   Expected: $EXPECTED_VERSION"
-            echo "   Actual:   $ACTUAL_VERSION"
-            echo ""
-            echo "This indicates the Docker image contains code from a different version."
-            echo "Possible causes:"
-            echo "  - Stale checkout"
-            echo "  - Docker layer caching issue"
-            echo "  - Version files not in sync"
-            exit 1
-          fi
-
-          echo "✅ Version verified: $ACTUAL_VERSION"
+          VERSION="${{ steps.version.outputs.publish }}"
+          echo "Waiting for @semiont/backend@$VERSION to be available on npm..."
+          for i in $(seq 1 30); do
+            if npm view "@semiont/backend@$VERSION" version 2>/dev/null; then
+              echo "✅ @semiont/backend@$VERSION is available"
+              exit 0
+            fi
+            echo "  Attempt $i/30 - not yet available, waiting 30s..."
+            sleep 30
+          done
+          echo "❌ Timed out waiting for @semiont/backend@$VERSION"
+          exit 1
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5

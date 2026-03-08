@@ -33,7 +33,11 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
 
   if (!service.quiet) {
     printInfo(`Provisioning frontend service ${service.name}...`);
-    printInfo(`Using source directory: ${frontendSourceDir}`);
+    if (paths.fromNpmPackage) {
+      printInfo(`Using installed npm package: ${frontendSourceDir}`);
+    } else {
+      printInfo(`Using source directory: ${frontendSourceDir}`);
+    }
   }
 
   // Create directories
@@ -203,109 +207,118 @@ NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=${oauthAllowedDomains.join(',')}
     }
   }
   
-  // Install npm dependencies
-  if (!service.quiet) {
-    printInfo('Installing npm dependencies...');
-  }
-  
-  try {
-    // For monorepo, install from the root
-    const monorepoRoot = path.dirname(path.dirname(frontendSourceDir));
-    const rootPackageJsonPath = path.join(monorepoRoot, 'package.json');
-    
-    if (fs.existsSync(rootPackageJsonPath)) {
-      // Check if this is a monorepo with workspaces
-      const rootPackageJson = JSON.parse(fs.readFileSync(rootPackageJsonPath, 'utf-8'));
-      if (rootPackageJson.workspaces) {
-        // Install from monorepo root
-        execSync('npm install', {
-          cwd: monorepoRoot,
-          stdio: service.verbose ? 'inherit' : 'pipe'
-        });
+  if (paths.fromNpmPackage) {
+    // npm package: pre-built, skip install/build steps
+    if (!service.quiet) {
+      printInfo('Using pre-built npm package — skipping install, build, and workspace steps');
+    }
+  } else {
+    // Monorepo: install deps, build workspace deps, build app
+
+    // Install npm dependencies
+    if (!service.quiet) {
+      printInfo('Installing npm dependencies...');
+    }
+
+    try {
+      // For monorepo, install from the root
+      const monorepoRoot = path.dirname(path.dirname(frontendSourceDir));
+      const rootPackageJsonPath = path.join(monorepoRoot, 'package.json');
+
+      if (fs.existsSync(rootPackageJsonPath)) {
+        // Check if this is a monorepo with workspaces
+        const rootPackageJson = JSON.parse(fs.readFileSync(rootPackageJsonPath, 'utf-8'));
+        if (rootPackageJson.workspaces) {
+          // Install from monorepo root
+          execSync('npm install', {
+            cwd: monorepoRoot,
+            stdio: service.verbose ? 'inherit' : 'pipe'
+          });
+        } else {
+          execSync('npm install', {
+            cwd: frontendSourceDir,
+            stdio: service.verbose ? 'inherit' : 'pipe'
+          });
+        }
       } else {
         execSync('npm install', {
           cwd: frontendSourceDir,
           stdio: service.verbose ? 'inherit' : 'pipe'
         });
       }
-    } else {
-      execSync('npm install', {
-        cwd: frontendSourceDir,
-        stdio: service.verbose ? 'inherit' : 'pipe'
-      });
+
+      if (!service.quiet) {
+        printSuccess('Dependencies installed successfully');
+      }
+    } catch (error) {
+      printError(`Failed to install dependencies: ${error}`);
+      return {
+        success: false,
+        error: `Failed to install dependencies: ${error}`,
+        metadata: { serviceType: 'frontend', frontendSourceDir }
+      };
     }
-    
+
+    // Build workspace packages that frontend depends on
     if (!service.quiet) {
-      printSuccess('Dependencies installed successfully');
+      printInfo('Building workspace dependencies...');
     }
-  } catch (error) {
-    printError(`Failed to install dependencies: ${error}`);
-    return {
-      success: false,
-      error: `Failed to install dependencies: ${error}`,
-      metadata: { serviceType: 'frontend', frontendSourceDir }
-    };
-  }
 
-  // Build workspace packages that frontend depends on
-  if (!service.quiet) {
-    printInfo('Building workspace dependencies...');
-  }
+    try {
+      const monorepoRoot = path.dirname(path.dirname(frontendSourceDir));
+      const rootPackageJsonPath = path.join(monorepoRoot, 'package.json');
 
-  try {
-    const monorepoRoot = path.dirname(path.dirname(frontendSourceDir));
-    const rootPackageJsonPath = path.join(monorepoRoot, 'package.json');
+      if (fs.existsSync(rootPackageJsonPath)) {
+        const rootPackageJson = JSON.parse(fs.readFileSync(rootPackageJsonPath, 'utf-8'));
+        if (rootPackageJson.workspaces) {
+          // Build @semiont/react-ui package which frontend depends on
+          execSync('npm run build --workspace=@semiont/react-ui --if-present', {
+            cwd: monorepoRoot,
+            stdio: service.verbose ? 'inherit' : 'pipe'
+          });
 
-    if (fs.existsSync(rootPackageJsonPath)) {
-      const rootPackageJson = JSON.parse(fs.readFileSync(rootPackageJsonPath, 'utf-8'));
-      if (rootPackageJson.workspaces) {
-        // Build @semiont/react-ui package which frontend depends on
-        execSync('npm run build --workspace=@semiont/react-ui --if-present', {
-          cwd: monorepoRoot,
+          if (!service.quiet) {
+            printSuccess('Workspace dependencies built successfully');
+          }
+        }
+      }
+    } catch (error) {
+      printWarning(`Failed to build workspace dependencies: ${error}`);
+      printInfo('You may need to build manually: npm run build --workspace=@semiont/react-ui');
+    }
+
+    // Build frontend if in production mode
+    if (service.environment === 'prod') {
+      if (!service.quiet) {
+        printInfo('Building frontend for production...');
+      }
+
+      try {
+        // Load env vars for build
+        const envVars: Record<string, string> = {};
+        if (fs.existsSync(envFile)) {
+          const envContent = fs.readFileSync(envFile, 'utf-8');
+          envContent.split('\n').forEach(line => {
+            if (!line.startsWith('#') && line.includes('=')) {
+              const [key, ...valueParts] = line.split('=');
+              envVars[key.trim()] = valueParts.join('=').trim();
+            }
+          });
+        }
+
+        execSync('npm run build', {
+          cwd: frontendSourceDir,
+          env: { ...process.env, ...envVars },
           stdio: service.verbose ? 'inherit' : 'pipe'
         });
 
         if (!service.quiet) {
-          printSuccess('Workspace dependencies built successfully');
+          printSuccess('Frontend built successfully');
         }
+      } catch (error) {
+        printWarning(`Failed to build frontend: ${error}`);
+        printInfo('You may need to build manually: npm run build');
       }
-    }
-  } catch (error) {
-    printWarning(`Failed to build workspace dependencies: ${error}`);
-    printInfo('You may need to build manually: npm run build --workspace=@semiont/react-ui');
-  }
-
-  // Build frontend if in production mode
-  if (service.environment === 'prod') {
-    if (!service.quiet) {
-      printInfo('Building frontend for production...');
-    }
-    
-    try {
-      // Load env vars for build
-      const envVars: Record<string, string> = {};
-      if (fs.existsSync(envFile)) {
-        const envContent = fs.readFileSync(envFile, 'utf-8');
-        envContent.split('\n').forEach(line => {
-          if (!line.startsWith('#') && line.includes('=')) {
-            const [key, ...valueParts] = line.split('=');
-            envVars[key.trim()] = valueParts.join('=').trim();
-          }
-        });
-      }
-      
-      execSync('npm run build', {
-        cwd: frontendSourceDir,
-        env: { ...process.env, ...envVars },
-        stdio: service.verbose ? 'inherit' : 'pipe'
-      });
-      
-      if (!service.quiet) {
-        printSuccess('Frontend built successfully');
-      }
-    } catch (error) {
-      printWarning(`Failed to build frontend: ${error}`);
-      printInfo('You may need to build manually: npm run build');
     }
   }
   
@@ -383,10 +396,15 @@ ${frontendSourceDir}
 
 const preflightFrontendProvision = async (context: PosixProvisionHandlerContext): Promise<PreflightResult> => {
   const paths = getFrontendPaths(context);
-  return preflightFromChecks([
-    checkCommandAvailable('npm'),
-    checkFileExists(path.join(paths.sourceDir, 'package.json'), 'frontend package.json'),
-  ]);
+  const checks = paths.fromNpmPackage
+    ? [
+        checkFileExists(path.join(paths.sourceDir, 'standalone', 'apps', 'frontend', 'server.js'), 'frontend standalone server.js'),
+      ]
+    : [
+        checkCommandAvailable('npm'),
+        checkFileExists(path.join(paths.sourceDir, 'package.json'), 'frontend package.json'),
+      ];
+  return preflightFromChecks(checks);
 };
 
 /**

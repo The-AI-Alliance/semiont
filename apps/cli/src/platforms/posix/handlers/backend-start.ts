@@ -122,9 +122,21 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     printInfo(`Mode: ${config.devMode ? 'development' : 'production'}`);
   }
 
-  // Determine command based on devMode
-  const command = config.devMode ? 'npm' : 'npm';
-  const args = config.devMode ? ['run', 'dev'] : ['start'];
+  // Determine command based on source type and devMode
+  let command: string;
+  let args: string[];
+
+  if (paths.fromNpmPackage) {
+    // npm package: run dist/index.js directly
+    command = 'node';
+    args = [path.join(backendSourceDir, 'dist', 'index.js')];
+  } else if (config.devMode) {
+    command = 'npm';
+    args = ['run', 'dev'];
+  } else {
+    command = 'npm';
+    args = ['start'];
+  }
 
   try {
     // Open log files for writing (process will write directly)
@@ -178,7 +190,9 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     }
     
     // Build resources
-    const commandStr = config.devMode ? 'npm run dev' : 'npm start';
+    const commandStr = paths.fromNpmPackage
+      ? `node dist/index.js`
+      : config.devMode ? 'npm run dev' : 'npm start';
     const resources: PlatformResources = {
       platform: 'posix',
       data: {
@@ -242,10 +256,11 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
 
 const preflightBackendStart = async (context: PosixStartHandlerContext): Promise<PreflightResult> => {
   const config = context.service.config as BackendServiceConfig;
+  const paths = getBackendPaths(context);
   const port = config.port;
-  const checks = [
-    checkCommandAvailable('npm'),
-  ];
+  const checks = paths.fromNpmPackage
+    ? [checkCommandAvailable('node')]
+    : [checkCommandAvailable('npm')];
   if (port) {
     checks.push(await checkPortFree(port));
   }

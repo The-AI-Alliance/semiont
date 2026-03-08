@@ -122,9 +122,21 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     printInfo(`Mode: ${config.devMode ? 'development' : 'production'}`);
   }
 
-  // Determine command based on devMode
-  const command = config.devMode ? 'npm' : 'npm';
-  const args = config.devMode ? ['run', 'dev'] : ['start'];
+  // Determine command based on source type and devMode
+  let command: string;
+  let args: string[];
+
+  if (paths.fromNpmPackage) {
+    // npm package: run standalone server directly
+    command = 'node';
+    args = [path.join(frontendSourceDir, 'standalone', 'apps', 'frontend', 'server.js')];
+  } else if (config.devMode) {
+    command = 'npm';
+    args = ['run', 'dev'];
+  } else {
+    command = 'npm';
+    args = ['start'];
+  }
 
   try {
     // Open log files for writing (process will write directly)
@@ -178,7 +190,9 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
     }
     
     // Build resources
-    const commandStr = config.devMode ? 'npm run dev' : 'npm start';
+    const commandStr = paths.fromNpmPackage
+      ? `node standalone/apps/frontend/server.js`
+      : config.devMode ? 'npm run dev' : 'npm start';
     const resources: PlatformResources = {
       platform: 'posix',
       data: {
@@ -242,10 +256,11 @@ const startFrontendService = async (context: PosixStartHandlerContext): Promise<
 
 const preflightFrontendStart = async (context: PosixStartHandlerContext): Promise<PreflightResult> => {
   const config = context.service.config as FrontendServiceConfig;
+  const paths = getFrontendPaths(context);
   const port = config.port;
-  const checks = [
-    checkCommandAvailable('npm'),
-  ];
+  const checks = paths.fromNpmPackage
+    ? [checkCommandAvailable('node')]
+    : [checkCommandAvailable('npm')];
   if (port) {
     checks.push(await checkPortFree(port));
   }
