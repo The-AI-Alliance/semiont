@@ -18,10 +18,28 @@ const ajv = new Ajv({
   allErrors: true,      // Return all errors, not just the first one
   coerceTypes: true,    // Coerce types (e.g., "123" -> 123)
   removeAdditional: false, // Don't remove additional properties
+  keywords: ['example'], // Allow OpenAPI's "example" keyword (annotation-only, no validation)
 });
 
 // Add format validators (email, uri, date-time, etc.)
 addFormats(ajv);
+
+/**
+ * Convert OpenAPI 3.0 `nullable: true` to JSON Schema `type: [original, "null"]`.
+ * OpenAPI 3.0 uses `nullable` but Ajv expects JSON Schema draft-07 style.
+ * Mutates the object in place (operates on a deep clone).
+ */
+function convertNullable(obj: unknown): void {
+  if (obj === null || obj === undefined || typeof obj !== 'object') return;
+  const record = obj as Record<string, unknown>;
+  if (record.nullable === true && typeof record.type === 'string') {
+    record.type = [record.type, 'null'];
+    delete record.nullable;
+  }
+  for (const v of Object.values(record)) {
+    if (typeof v === 'object') convertNullable(v);
+  }
+}
 
 // Lazy initialization flag to ensure schemas are loaded only once
 let schemasLoaded = false;
@@ -35,7 +53,9 @@ function loadSchemas(): void {
 
   for (const [name, schema] of Object.entries(openapiSpec.components.schemas)) {
     try {
-      ajv.addSchema(schema, `#/components/schemas/${name}`);
+      const converted = structuredClone(schema);
+      convertNullable(converted);
+      ajv.addSchema(converted, `#/components/schemas/${name}`);
     } catch (error) {
       getValidatorLogger().error('Failed to load schema', {
         schemaName: name,
