@@ -74,8 +74,11 @@ function stageBackend(version) {
 
   writeFileSync(resolve(stageDir, 'package.json'), JSON.stringify(publishPkg, null, 2) + '\n');
 
+  // Copy README for npm listing
+  cpSync(resolve(backendDir, 'README.npm.md'), resolve(stageDir, 'README.md'));
+
   log(`  Staged @semiont/backend@${version} to ${stageDir}`);
-  log(`  Files: dist/, prisma/, package.json`);
+  log(`  Files: dist/, prisma/, package.json, README.md`);
 
   return stageDir;
 }
@@ -133,8 +136,11 @@ function stageFrontend(version) {
 
   writeFileSync(resolve(stageDir, 'package.json'), JSON.stringify(publishPkg, null, 2) + '\n');
 
+  // Copy README for npm listing
+  cpSync(resolve(frontendDir, 'README.npm.md'), resolve(stageDir, 'README.md'));
+
   log(`  Staged @semiont/frontend@${version} to ${stageDir}`);
-  log(`  Files: standalone/, package.json`);
+  log(`  Files: standalone/, package.json, README.md`);
 
   return stageDir;
 }

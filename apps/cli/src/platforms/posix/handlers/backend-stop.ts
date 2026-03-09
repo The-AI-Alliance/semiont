@@ -1,9 +1,9 @@
 import * as fs from 'fs';
-import * as path from 'path';
 import { PosixStopHandlerContext, StopHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { killProcessGroupAndRelated } from '../utils/process-manager.js';
 import { passingPreflight } from '../../../core/handlers/preflight-utils.js';
+import { getBackendPaths } from './backend-paths.js';
 
 /**
  * Stop handler for backend services on POSIX systems
@@ -13,24 +13,15 @@ import { passingPreflight } from '../../../core/handlers/preflight-utils.js';
  */
 const stopBackendService = async (context: PosixStopHandlerContext): Promise<StopHandlerResult> => {
   const { service } = context;
-  
-  // Get semiont repo path
-  const semiontRepo = context.options?.semiontRepo;
-  if (!semiontRepo) {
-    return {
-      success: false,
-      error: 'Semiont repository path is required',
-      metadata: { serviceType: 'backend' }
-    };
+
+  const paths = getBackendPaths(context);
+  const { sourceDir: backendSourceDir, pidFile, appLogFile: appLogPath, errorLogFile: errorLogPath } = paths;
+
+  if (service.verbose) {
+    printInfo(`Source: ${backendSourceDir}`);
+    printInfo(`Mode: ${paths.fromNpmPackage ? 'npm package' : 'SEMIONT_REPO'}`);
   }
 
-  // Setup paths - all in source directory now
-  const backendSourceDir = path.join(semiontRepo, 'apps', 'backend');
-  const pidFile = path.join(backendSourceDir, '.pid');
-  const logsDir = path.join(backendSourceDir, 'logs');
-  const appLogPath = path.join(logsDir, 'app.log');
-  const errorLogPath = path.join(logsDir, 'error.log');
-  
   // Check if backend source directory exists
   if (!fs.existsSync(backendSourceDir)) {
     return {

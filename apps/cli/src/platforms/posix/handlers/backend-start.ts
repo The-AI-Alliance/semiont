@@ -24,6 +24,11 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
   const paths = getBackendPaths(context);
   const { sourceDir: backendSourceDir, envFile, pidFile, logsDir, tmpDir } = paths;
 
+  if (service.verbose) {
+    printInfo(`Source: ${backendSourceDir}`);
+    printInfo(`Mode: ${paths.fromNpmPackage ? 'npm package' : 'SEMIONT_REPO'}`);
+  }
+
   if (!fs.existsSync(backendSourceDir)) {
     return {
       success: false,
