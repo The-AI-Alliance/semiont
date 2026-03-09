@@ -393,7 +393,6 @@ await Promise.all(scriptFiles.map(async (name) => {
         'argon2',
         // Large dependencies that work better as external
         '@testcontainers/postgresql',
-        '@prisma/client',
         // Express and Socket.IO need to be external due to CommonJS/ESM issues
         'express',
         'socket.io',
