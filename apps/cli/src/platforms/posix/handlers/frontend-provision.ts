@@ -4,7 +4,7 @@ import * as crypto from 'crypto';
 import { execSync } from 'child_process';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
-import { getFrontendPaths } from './frontend-paths.js';
+import { getFrontendPaths, resolveFrontendNpmPackage } from './frontend-paths.js';
 import type { FrontendServiceConfig } from '@semiont/core';
 import { checkCommandAvailable, checkFileExists, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
@@ -18,18 +18,30 @@ import type { PreflightResult } from '../../../core/handlers/types.js';
 const provisionFrontendService = async (context: PosixProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
   const { service } = context;
 
+  // Install @semiont/frontend npm package if not already available and no SEMIONT_REPO
+  if (!context.options?.semiontRepo && !resolveFrontendNpmPackage()) {
+    if (!service.quiet) {
+      printInfo('Installing @semiont/frontend...');
+    }
+    try {
+      execSync('npm install -g @semiont/frontend', {
+        stdio: service.verbose ? 'inherit' : 'pipe'
+      });
+      if (!service.quiet) {
+        printSuccess('Installed @semiont/frontend');
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to install @semiont/frontend: ${error}`,
+        metadata: { serviceType: 'frontend' }
+      };
+    }
+  }
+
   // Get frontend paths
   const paths = getFrontendPaths(context);
   const { sourceDir: frontendSourceDir, logsDir, tmpDir, envLocalFile: envFile } = paths;
-
-  // Verify frontend source directory exists
-  if (!fs.existsSync(frontendSourceDir)) {
-    return {
-      success: false,
-      error: `Frontend source not found at ${frontendSourceDir}`,
-      metadata: { serviceType: 'frontend' }
-    };
-  }
 
   if (!service.quiet) {
     printInfo(`Provisioning frontend service ${service.name}...`);

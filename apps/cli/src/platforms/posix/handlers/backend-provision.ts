@@ -5,7 +5,7 @@ import { execSync } from 'child_process';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import type { BackendServiceConfig } from '@semiont/core';
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
-import { getBackendPaths } from './backend-paths.js';
+import { getBackendPaths, resolveBackendNpmPackage } from './backend-paths.js';
 import { getNodeEnvForEnvironment } from '@semiont/core';
 import { checkCommandAvailable, checkFileExists, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
@@ -22,18 +22,30 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   // Type narrowing for backend service config
   const config = service.config as BackendServiceConfig;
 
+  // Install @semiont/backend npm package if not already available and no SEMIONT_REPO
+  if (!context.options?.semiontRepo && !resolveBackendNpmPackage()) {
+    if (!service.quiet) {
+      printInfo('Installing @semiont/backend...');
+    }
+    try {
+      execSync('npm install -g @semiont/backend', {
+        stdio: service.verbose ? 'inherit' : 'pipe'
+      });
+      if (!service.quiet) {
+        printSuccess('Installed @semiont/backend');
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to install @semiont/backend: ${error}`,
+        metadata: { serviceType: 'backend' }
+      };
+    }
+  }
+
   // Get backend paths (throws if source cannot be found)
   const paths = getBackendPaths(context);
   const { sourceDir: backendSourceDir, envFile, logsDir, tmpDir } = paths;
-
-  // Verify backend source exists
-  if (!fs.existsSync(backendSourceDir)) {
-    return {
-      success: false,
-      error: `Backend source not found at ${backendSourceDir}`,
-      metadata: { serviceType: 'backend' }
-    };
-  }
 
   if (!service.quiet) {
     printInfo(`Provisioning backend service ${service.name}...`);
