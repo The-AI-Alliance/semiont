@@ -18,6 +18,7 @@ const ajv = new Ajv({
   allErrors: true,      // Return all errors, not just the first one
   coerceTypes: true,    // Coerce types (e.g., "123" -> 123)
   removeAdditional: false, // Don't remove additional properties
+  keywords: ['example'], // Allow OpenAPI's "example" keyword in schemas
 });
 
 // Add format validators (email, uri, date-time, etc.)
