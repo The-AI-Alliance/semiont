@@ -304,7 +304,7 @@ For detailed instructions on adding new commands, see the [Adding Commands Guide
 - `watch` - Monitor services with live dashboard
 
 **Infrastructure & Configuration**
-- `provision` - Provision infrastructure resources
+- `provision` - Provision infrastructure resources (auto-installs `@semiont/backend` and `@semiont/frontend` from npm when `SEMIONT_REPO` is not set)
 - `configure` - Manage configuration and secrets
 - `backup` - Create service backups
 - `restore` - Restore from backups

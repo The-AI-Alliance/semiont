@@ -20,6 +20,13 @@ A type-safe Node.js backend API providing comprehensive document management, W3C
 - **[Core Package](../../packages/core/)** - Shared types, utilities, and business logic
 - **[OpenAPI Specification](../../specs/README.md)** - Hand-written OpenAPI 3.0 schema (spec-first, source in [../../specs/src/](../../specs/src/))
 
+## npm Package
+
+[![npm version](https://img.shields.io/npm/v/@semiont/backend.svg)](https://www.npmjs.com/package/@semiont/backend)
+[![npm downloads](https://img.shields.io/npm/dm/@semiont/backend.svg)](https://www.npmjs.com/package/@semiont/backend)
+
+The backend is published as `@semiont/backend` on npm with pre-built dist and Prisma schema. When using the Semiont CLI, `semiont provision` automatically installs this package unless `SEMIONT_REPO` is set (which directs the CLI to use a local source checkout instead).
+
 ## Quick Start
 
 ### 🚀 Instant Setup with Semiont CLI (Recommended)

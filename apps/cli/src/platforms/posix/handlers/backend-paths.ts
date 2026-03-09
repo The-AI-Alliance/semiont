@@ -4,17 +4,20 @@ import type { BaseHandlerContext } from '../../../core/handlers/types.js';
 
 /**
  * Backend service paths on POSIX platform
- * All runtime files are stored in the source directory
+ *
+ * sourceDir: read-only code (npm package or SEMIONT_REPO checkout)
+ * runtimeDir: read-write state under $SEMIONT_ROOT/backend/
  */
 export interface BackendPaths {
-  sourceDir: string;      // Base directory for backend source
-  pidFile: string;        // Process ID file
-  envFile: string;        // Environment configuration file (.env)
-  logsDir: string;        // Directory for log files
-  appLogFile: string;     // Application log file
-  errorLogFile: string;   // Error log file
-  tmpDir: string;         // Temporary files directory
-  distDir: string;        // Compiled distribution directory
+  sourceDir: string;      // Base directory for backend source (read-only)
+  runtimeDir: string;     // Base directory for runtime state (read-write)
+  pidFile: string;        // Process ID file (in runtimeDir)
+  envFile: string;        // Environment configuration file (in runtimeDir)
+  logsDir: string;        // Directory for log files (in runtimeDir)
+  appLogFile: string;     // Application log file (in runtimeDir)
+  errorLogFile: string;   // Error log file (in runtimeDir)
+  tmpDir: string;         // Temporary files directory (in runtimeDir)
+  distDir: string;        // Compiled distribution directory (in sourceDir)
   fromNpmPackage: boolean; // Whether source is an installed npm package
 }
 
@@ -35,24 +38,28 @@ export function resolveBackendNpmPackage(): string | null {
 /**
  * Get all backend paths for POSIX platform.
  *
- * Resolution order:
+ * Source resolution order:
  *   1. SEMIONT_REPO (if set) — developer mode, working on semiont source
  *   2. Installed @semiont/backend npm package
  *   3. Fail with clear error
+ *
+ * Runtime files always go to $SEMIONT_ROOT/backend/ (following proxy-paths.ts pattern).
  */
 export function getBackendPaths<T>(context: BaseHandlerContext<T>): BackendPaths {
+  const projectRoot = context.service.projectRoot;
+  const runtimeDir = path.join(projectRoot, 'backend');
   const semiontRepo = context.options?.semiontRepo;
 
   // 1. Explicit repo path (developer mode)
   if (semiontRepo) {
     const sourceDir = path.join(semiontRepo, 'apps', 'backend');
-    return buildPaths(sourceDir, false);
+    return buildPaths(sourceDir, runtimeDir, false);
   }
 
   // 2. Installed npm package
   const npmDir = resolveBackendNpmPackage();
   if (npmDir) {
-    return buildPaths(npmDir, true);
+    return buildPaths(npmDir, runtimeDir, true);
   }
 
   // 3. Fail loudly
@@ -63,15 +70,16 @@ export function getBackendPaths<T>(context: BaseHandlerContext<T>): BackendPaths
   );
 }
 
-function buildPaths(sourceDir: string, fromNpmPackage: boolean): BackendPaths {
+function buildPaths(sourceDir: string, runtimeDir: string, fromNpmPackage: boolean): BackendPaths {
   return {
     sourceDir,
-    pidFile: path.join(sourceDir, '.pid'),
-    envFile: path.join(sourceDir, '.env'),
-    logsDir: path.join(sourceDir, 'logs'),
-    appLogFile: path.join(sourceDir, 'logs', 'app.log'),
-    errorLogFile: path.join(sourceDir, 'logs', 'error.log'),
-    tmpDir: path.join(sourceDir, 'tmp'),
+    runtimeDir,
+    pidFile: path.join(runtimeDir, '.pid'),
+    envFile: path.join(runtimeDir, '.env'),
+    logsDir: path.join(runtimeDir, 'logs'),
+    appLogFile: path.join(runtimeDir, 'logs', 'app.log'),
+    errorLogFile: path.join(runtimeDir, 'logs', 'error.log'),
+    tmpDir: path.join(runtimeDir, 'tmp'),
     distDir: path.join(sourceDir, 'dist'),
     fromNpmPackage,
   };
