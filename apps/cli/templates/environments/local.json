@@ -7,8 +7,8 @@
     "imageTagStrategy": "mutable"
   },
   "site": {
-    "domain": "localhost:3000",
-    "oauthAllowedDomains": ["example.com", "localhost:3000"]
+    "domain": "localhost:8080",
+    "oauthAllowedDomains": ["example.com", "localhost:8080"]
   },
   "env": {
     "NODE_ENV": "development"
@@ -21,8 +21,8 @@
       },
       "command": "npm run dev",
       "port": 4000,
-      "publicURL": "http://localhost:4000",
-      "corsOrigin": "http://localhost:3000"
+      "publicURL": "http://localhost:8080",
+      "corsOrigin": "http://localhost:8080"
     },
     "frontend": {
       "platform": {
@@ -30,7 +30,7 @@
       },
       "command": "npm run dev",
       "port": 3000,
-      "publicURL": "http://localhost:3000",
+      "publicURL": "http://localhost:8080",
       "siteName": "Semiont"
     },
     "database": {
