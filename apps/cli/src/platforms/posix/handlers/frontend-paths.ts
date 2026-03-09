@@ -22,7 +22,7 @@ export interface FrontendPaths {
  * Resolve the frontend source directory from an installed @semiont/frontend npm package.
  * Returns the package directory or null if not installed.
  */
-function resolveNpmPackage(): string | null {
+export function resolveFrontendNpmPackage(): string | null {
   try {
     const require = createRequire(import.meta.url);
     const pkgPath = require.resolve('@semiont/frontend/package.json');
@@ -50,7 +50,7 @@ export function getFrontendPaths<T>(context: BaseHandlerContext<T>): FrontendPat
   }
 
   // 2. Installed npm package
-  const npmDir = resolveNpmPackage();
+  const npmDir = resolveFrontendNpmPackage();
   if (npmDir) {
     return buildPaths(npmDir, true);
   }
