@@ -188,6 +188,21 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   
   const prismaSchemaPath = path.join(backendSourceDir, 'prisma', 'schema.prisma');
 
+  // Clean up stale .env in sourceDir (SEMIONT_REPO mode only).
+  // The backend start handler passes env vars via spawn's env parameter,
+  // but dotenv or --env-file could pick up a leftover .env in sourceDir.
+  if (!paths.fromNpmPackage) {
+    const staleEnv = path.join(backendSourceDir, '.env');
+    if (fs.existsSync(staleEnv)) {
+      const backupPath = `${staleEnv}.backup.${Date.now()}`;
+      fs.renameSync(staleEnv, backupPath);
+      if (!service.quiet) {
+        printWarning(`Moved stale ${staleEnv} to ${path.basename(backupPath)}`);
+        printInfo(`Runtime .env is now at: ${envFile}`);
+      }
+    }
+  }
+
   if (paths.fromNpmPackage) {
     // npm package: pre-built, skip install/build steps
     if (!service.quiet) {

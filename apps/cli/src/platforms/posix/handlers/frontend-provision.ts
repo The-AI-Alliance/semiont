@@ -221,6 +221,21 @@ NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=${oauthAllowedDomains.join(',')}
     }
   }
   
+  // Clean up stale .env.local in sourceDir (SEMIONT_REPO mode only).
+  // Next.js dev server auto-loads .env.local from cwd, so a leftover file
+  // in sourceDir would shadow the env vars the CLI passes via spawn.
+  if (!paths.fromNpmPackage) {
+    const staleEnvLocal = path.join(frontendSourceDir, '.env.local');
+    if (fs.existsSync(staleEnvLocal)) {
+      const backupPath = `${staleEnvLocal}.backup.${Date.now()}`;
+      fs.renameSync(staleEnvLocal, backupPath);
+      if (!service.quiet) {
+        printWarning(`Moved stale ${staleEnvLocal} to ${path.basename(backupPath)}`);
+        printInfo(`Runtime .env.local is now at: ${envFile}`);
+      }
+    }
+  }
+
   if (paths.fromNpmPackage) {
     // npm package: pre-built, skip install/build steps
     if (!service.quiet) {
