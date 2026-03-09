@@ -45,7 +45,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
 
   // Get backend paths (throws if source cannot be found)
   const paths = getBackendPaths(context);
-  const { sourceDir: backendSourceDir, envFile, logsDir, tmpDir } = paths;
+  const { sourceDir: backendSourceDir, runtimeDir, envFile, logsDir, tmpDir } = paths;
 
   if (!service.quiet) {
     printInfo(`Provisioning backend service ${service.name}...`);
@@ -54,14 +54,16 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     } else {
       printInfo(`Using semiont repo: ${options.semiontRepo}`);
     }
+    printInfo(`Runtime directory: ${runtimeDir}`);
   }
 
-  // Create directories
+  // Create runtime directories under project root
+  fs.mkdirSync(runtimeDir, { recursive: true });
   fs.mkdirSync(logsDir, { recursive: true });
   fs.mkdirSync(tmpDir, { recursive: true });
 
   if (!service.quiet) {
-    printInfo(`Created runtime directories in: ${backendSourceDir}`);
+    printInfo(`Created runtime directories in: ${runtimeDir}`);
   }
 
   // Get environment configuration from service
@@ -353,8 +355,8 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     }
   }
   
-  // Create README in backend source directory
-  const readmePath = path.join(backendSourceDir, 'RUNTIME.md');
+  // Create README in runtime directory
+  const readmePath = path.join(runtimeDir, 'RUNTIME.md');
   if (!fs.existsSync(readmePath)) {
     const readmeContent = `# Backend Runtime Directory
 
@@ -362,31 +364,21 @@ This directory contains runtime files for the backend service.
 
 ## Structure
 
-- \`.env\` - Environment configuration (git-ignored)
+- \`.env\` - Environment configuration
 - \`logs/\` - Application logs
 - \`tmp/\` - Temporary files
 - \`.pid\` - Process ID when running
 
-## Configuration
-
-Edit \`.env\` to configure:
-- Database connection (DATABASE_URL)
-- Backend URL (BACKEND_URL)
-- JWT secret (JWT_SECRET)
-- Port (PORT)
-- Other environment-specific settings
-
 ## Source Code
 
-The backend source code is located at:
-${backendSourceDir}
+${paths.fromNpmPackage ? `Installed npm package: ${backendSourceDir}` : `Semiont repo: ${backendSourceDir}`}
 
 ## Commands
 
 - Start: \`semiont start --service backend --environment ${service.environment}\`
 - Check: \`semiont check --service backend --environment ${service.environment}\`
 - Stop: \`semiont stop --service backend --environment ${service.environment}\`
-- Logs: \`tail -f logs/app.log\`
+- Logs: \`tail -f ${logsDir}/app.log\`
 `;
     fs.writeFileSync(readmePath, readmeContent);
   }
@@ -394,17 +386,19 @@ ${backendSourceDir}
   const metadata = {
     serviceType: 'backend',
     backendSourceDir,
+    runtimeDir,
     envFile,
     logsDir,
     tmpDir,
     configured: true
   };
-  
+
   if (!service.quiet) {
     printSuccess(`✅ Backend service ${service.name} provisioned successfully`);
     printInfo('');
     printInfo('Backend details:');
     printInfo(`  Source directory: ${backendSourceDir}`);
+    printInfo(`  Runtime directory: ${runtimeDir}`);
     printInfo(`  Environment file: ${envFile}`);
     printInfo(`  Logs directory: ${logsDir}`);
     printInfo('');
@@ -413,7 +407,7 @@ ${backendSourceDir}
     printInfo(`  2. Ensure database is running`);
     printInfo(`  3. Start backend: semiont start --service backend --environment ${service.environment}`);
   }
-  
+
   return {
     success: true,
     metadata,

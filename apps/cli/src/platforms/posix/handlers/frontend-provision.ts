@@ -41,7 +41,7 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
 
   // Get frontend paths
   const paths = getFrontendPaths(context);
-  const { sourceDir: frontendSourceDir, logsDir, tmpDir, envLocalFile: envFile } = paths;
+  const { sourceDir: frontendSourceDir, runtimeDir, logsDir, tmpDir, envLocalFile: envFile } = paths;
 
   if (!service.quiet) {
     printInfo(`Provisioning frontend service ${service.name}...`);
@@ -50,14 +50,16 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     } else {
       printInfo(`Using source directory: ${frontendSourceDir}`);
     }
+    printInfo(`Runtime directory: ${runtimeDir}`);
   }
 
-  // Create directories
+  // Create runtime directories under project root
+  fs.mkdirSync(runtimeDir, { recursive: true });
   fs.mkdirSync(logsDir, { recursive: true });
   fs.mkdirSync(tmpDir, { recursive: true });
-  
+
   if (!service.quiet) {
-    printInfo(`Created runtime directories in: ${frontendSourceDir}`);
+    printInfo(`Created runtime directories in: ${runtimeDir}`);
   }
   
   // Setup .env.local file
@@ -334,8 +336,8 @@ NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=${oauthAllowedDomains.join(',')}
     }
   }
   
-  // Create README in frontend source directory
-  const readmePath = path.join(frontendSourceDir, 'RUNTIME.md');
+  // Create README in runtime directory
+  const readmePath = path.join(runtimeDir, 'RUNTIME.md');
   if (!fs.existsSync(readmePath)) {
     const readmeContent = `# Frontend Runtime Directory
 
@@ -343,29 +345,21 @@ This directory contains runtime files for the frontend service.
 
 ## Structure
 
-- \`.env.local\` - Environment configuration (git-ignored)
+- \`.env.local\` - Environment configuration
 - \`logs/\` - Application logs
 - \`tmp/\` - Temporary files
 - \`.pid\` - Process ID when running
 
-## Configuration
-
-Edit \`.env.local\` to configure:
-- Server API URL (SERVER_API_URL) - set to localhost for POSIX platform
-- Port (PORT)
-- Other environment-specific settings
-
 ## Source Code
 
-The frontend source code is located at:
-${frontendSourceDir}
+${paths.fromNpmPackage ? `Installed npm package: ${frontendSourceDir}` : `Semiont repo: ${frontendSourceDir}`}
 
 ## Commands
 
 - Start: \`semiont start --service frontend --environment ${service.environment}\`
 - Check: \`semiont check --service frontend --environment ${service.environment}\`
 - Stop: \`semiont stop --service frontend --environment ${service.environment}\`
-- Logs: \`tail -f logs/app.log\`
+- Logs: \`tail -f ${logsDir}/app.log\`
 `;
     fs.writeFileSync(readmePath, readmeContent);
   }
@@ -373,17 +367,19 @@ ${frontendSourceDir}
   const metadata = {
     serviceType: 'frontend',
     frontendSourceDir,
+    runtimeDir,
     envFile,
     logsDir,
     tmpDir,
     configured: true
   };
-  
+
   if (!service.quiet) {
     printSuccess(`✅ Frontend service ${service.name} provisioned successfully`);
     printInfo('');
     printInfo('Frontend details:');
     printInfo(`  Source directory: ${frontendSourceDir}`);
+    printInfo(`  Runtime directory: ${runtimeDir}`);
     printInfo(`  Environment file: ${envFile}`);
     printInfo(`  Logs directory: ${logsDir}`);
     printInfo('');

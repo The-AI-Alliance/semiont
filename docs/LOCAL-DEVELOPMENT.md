@@ -11,14 +11,54 @@ This guide explains how to run Semiont locally for development.
 
 ## Setup
 
-### 1. Clone the Repository
+There are two paths for local development:
+
+### Path A: Using Published npm Packages (Recommended)
+
+The simplest way to get started. The CLI automatically installs `@semiont/backend` and `@semiont/frontend` from npm during `semiont provision`.
+
+#### 1. Install the CLI
+
+```bash
+npm install -g @semiont/cli
+```
+
+#### 2. Create Your Project Directory
+
+```bash
+mkdir my_semiont_project
+cd my_semiont_project
+```
+
+#### 3. Set Environment Variables
+
+```bash
+export SEMIONT_ROOT=$(pwd)                      # Path to your project directory
+export SEMIONT_ENV=local                        # Target environment
+```
+
+> **Important**: `SEMIONT_ROOT` tells the CLI where your project is located, so you can run commands from any directory.
+
+#### 4. Initialize the Project
+
+```bash
+semiont init --verbose
+```
+
+Continue from [Step 6: Review the Configuration](#6-review-the-configuration) below.
+
+### Path B: Building from Source
+
+Use this when developing the CLI, backend, or frontend themselves, or when you need unreleased changes.
+
+#### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/The-AI-Alliance/semiont.git
 cd semiont
 ```
 
-### 2. Build and Install the CLI
+#### 2. Build and Install the CLI
 
 ```bash
 npm install
@@ -26,7 +66,7 @@ npm run build
 npm run install:cli
 ```
 
-### 3. Create Your Project Directory
+#### 3. Create Your Project Directory
 
 ```bash
 cd ..
@@ -34,7 +74,7 @@ mkdir my_semiont_project
 cd my_semiont_project
 ```
 
-### 4. Set Environment Variables
+#### 4. Set Environment Variables
 
 ```bash
 export SEMIONT_REPO=~/path/to/semiont          # Path to the cloned repository
@@ -42,7 +82,7 @@ export SEMIONT_ROOT=$(pwd)                      # Path to your project directory
 export SEMIONT_ENV=local                        # Target environment
 ```
 
-> **Important**: `SEMIONT_ROOT` tells the CLI where your project is located, so you can run commands from any directory. `SEMIONT_REPO` points to the cloned source repository.
+> **Important**: When `SEMIONT_REPO` is set, the CLI uses the source repository for backend and frontend instead of npm packages. This is useful for active development on those apps.
 
 ### 5. Initialize the Project
 
@@ -66,7 +106,7 @@ This file defines all services (backend, frontend, database, proxy, etc.) and th
 semiont provision --verbose
 ```
 
-This generates `.env` files for the backend and frontend, processes proxy configuration, and pushes the database schema.
+This generates `.env` files for the backend and frontend, processes proxy configuration, and pushes the database schema. If `SEMIONT_REPO` is not set, it automatically installs `@semiont/backend` and `@semiont/frontend` from npm.
 
 ### 8. Start Services
 

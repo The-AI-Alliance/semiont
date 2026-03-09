@@ -77,6 +77,8 @@ Semiont uses a **CLI-driven architecture** where:
 - **`semiont check`**: Verifies service health
 - **`semiont stop`**: Stops running services
 
+> **Note**: The devcontainer sets `SEMIONT_REPO` to use the cloned source repository directly. Outside of the devcontainer, `SEMIONT_REPO` is optional — when not set, `semiont provision` automatically installs `@semiont/backend` and `@semiont/frontend` from npm.
+
 ### Configuration System
 
 Configuration flows from **Semiont config → environment variables** at provision-time:

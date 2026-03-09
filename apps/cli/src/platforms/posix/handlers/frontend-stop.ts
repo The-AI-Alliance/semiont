@@ -17,7 +17,12 @@ const stopFrontendService = async (context: PosixStopHandlerContext): Promise<St
   // Get frontend paths
   const paths = getFrontendPaths(context);
   const { sourceDir: frontendSourceDir, pidFile, appLogFile: appLogPath, errorLogFile: errorLogPath } = paths;
-  
+
+  if (service.verbose) {
+    printInfo(`Source: ${frontendSourceDir}`);
+    printInfo(`Mode: ${paths.fromNpmPackage ? 'npm package' : 'SEMIONT_REPO'}`);
+  }
+
   // Check if frontend source directory exists
   if (!fs.existsSync(frontendSourceDir)) {
     return {

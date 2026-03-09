@@ -49,7 +49,7 @@ This script:
 - Triggers CI/CD to build and publish packages
 
 **What gets published:**
-- npm packages to `@semiont/*` with `latest` tag
+- npm packages to `@semiont/*` with `latest` tag (including `@semiont/backend` and `@semiont/frontend`)
 - Docker containers to GitHub Container Registry
 
 ### Step 2: Wait for Release Completion
@@ -124,12 +124,16 @@ npm run release:bump patch  # Bumps to 0.2.31
 ```bash
 npm install @semiont/core@latest
 npm install @semiont/cli@latest
+npm install @semiont/backend@latest
+npm install @semiont/frontend@latest
 ```
 
 **Development builds:**
 ```bash
 npm install @semiont/core@dev
 npm install @semiont/cli@dev
+npm install @semiont/backend@dev
+npm install @semiont/frontend@dev
 ```
 
 **View all versions:**
@@ -235,9 +239,9 @@ Before releasing:
 - [ ] On main branch with latest changes
 
 After releasing:
-- [ ] Verify npm packages published
+- [ ] Verify npm packages published (including `@semiont/backend` and `@semiont/frontend`)
 - [ ] Verify Docker containers published
-- [ ] Test installation: `npm install @semiont/cli@latest`
+- [ ] Test installation: `npm install -g @semiont/cli@latest && semiont init && semiont provision`
 - [ ] Announce release (if major/minor version)
 
 ## Questions?
