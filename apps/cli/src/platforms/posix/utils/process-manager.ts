@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { printInfo, printWarning } from '../../../core/io/cli-logger.js';
 
 /**
@@ -106,7 +106,11 @@ export async function killProcessGroupAndRelated(
   if (cleanupPatterns) {
     try {
       for (const pattern of cleanupPatterns.patterns) {
-        execSync(`pkill -f "${pattern}" || true`, { stdio: 'ignore' });
+        try {
+          execFileSync('pkill', ['-f', pattern], { stdio: 'ignore' });
+        } catch {
+          // pkill exits non-zero when no processes matched — not an error
+        }
       }
       
       if (verbose) {

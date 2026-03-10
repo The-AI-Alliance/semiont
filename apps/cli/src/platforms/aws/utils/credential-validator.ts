@@ -5,7 +5,7 @@
  * Provides helpful error messages for common credential issues.
  */
 
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 
 export interface CredentialCheckResult {
   valid: boolean;
@@ -23,8 +23,8 @@ export async function validateAWSCredentials(_environment: string): Promise<Cred
   try {
     // Just try to get caller identity using whatever credentials are available
     // Don't specify a profile - let AWS SDK use its standard credential chain
-    const output = execSync(`aws sts get-caller-identity --output json 2>&1`, {
-      stdio: 'pipe',
+    const output = execFileSync('aws', ['sts', 'get-caller-identity', '--output', 'json'], {
+      stdio: ['pipe', 'pipe', 'pipe'],
       encoding: 'utf8',
       env: {
         ...process.env,
@@ -80,7 +80,7 @@ export async function validateAWSCredentials(_environment: string): Promise<Cred
  */
 export function isAWSCliInstalled(): boolean {
   try {
-    execSync('aws --version', { stdio: 'ignore' });
+    execFileSync('aws', ['--version'], { stdio: 'ignore' });
     return true;
   } catch {
     return false;
@@ -92,11 +92,11 @@ export function isAWSCliInstalled(): boolean {
  */
 export function getAWSProfiles(): string[] {
   try {
-    const output = execSync('aws configure list-profiles', {
+    const output = execFileSync('aws', ['configure', 'list-profiles'], {
       stdio: 'pipe',
       encoding: 'utf8'
     });
-    return output.split('\n').filter(line => line.trim());
+    return output.split('\n').filter((line: string) => line.trim());
   } catch {
     return [];
   }

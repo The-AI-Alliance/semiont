@@ -25,9 +25,9 @@ export interface FrontendPaths {
  * Resolve the frontend source directory from an installed @semiont/frontend npm package.
  * Returns the package directory or null if not installed.
  */
-export function resolveFrontendNpmPackage(): string | null {
+export function resolveFrontendNpmPackage(projectRoot: string): string | null {
   try {
-    const require = createRequire(import.meta.url);
+    const require = createRequire(path.join(projectRoot, 'node_modules', '.package.json'));
     const pkgPath = require.resolve('@semiont/frontend/package.json');
     return path.dirname(pkgPath);
   } catch {
@@ -57,7 +57,7 @@ export function getFrontendPaths<T>(context: BaseHandlerContext<T>): FrontendPat
   }
 
   // 2. Installed npm package
-  const npmDir = resolveFrontendNpmPackage();
+  const npmDir = resolveFrontendNpmPackage(projectRoot);
   if (npmDir) {
     return buildPaths(npmDir, runtimeDir, true);
   }
@@ -74,7 +74,7 @@ function buildPaths(sourceDir: string, runtimeDir: string, fromNpmPackage: boole
   return {
     sourceDir,
     runtimeDir,
-    pidFile: path.join(runtimeDir, '.pid'),
+    pidFile: path.join(runtimeDir, 'frontend.pid'),
     envLocalFile: path.join(runtimeDir, '.env.local'),
     logsDir: path.join(runtimeDir, 'logs'),
     appLogFile: path.join(runtimeDir, 'logs', 'app.log'),

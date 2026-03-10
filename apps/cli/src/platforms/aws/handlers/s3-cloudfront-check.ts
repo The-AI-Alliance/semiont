@@ -1,7 +1,7 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { AWSCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import { createPlatformResources } from '../../platform-resources.js';
-import { checkAwsCredentials, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { checkAwsCredentials, checkCommandAvailable, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -9,10 +9,11 @@ import type { PreflightResult } from '../../../core/handlers/types.js';
  */
 async function getCloudFrontDistribution(bucketName: string, region: string): Promise<string | undefined> {
   try {
-    const distributionId = execSync(
-      `aws cloudfront list-distributions --query "DistributionList.Items[?Origins.Items[?DomainName=='${bucketName}.s3.amazonaws.com']].Id | [0]" --output text --region ${region}`,
-      { encoding: 'utf-8' }
-    ).trim();
+    const distributionId = execFileSync('aws', [
+      'cloudfront', 'list-distributions',
+      '--query', `DistributionList.Items[?Origins.Items[?DomainName=='${bucketName}.s3.amazonaws.com']].Id | [0]`,
+      '--output', 'text', '--region', region
+    ], { encoding: 'utf-8' }).trim();
     return distributionId !== 'None' ? distributionId : undefined;
   } catch {
     return undefined;
@@ -24,10 +25,10 @@ async function getCloudFrontDistribution(bucketName: string, region: string): Pr
  */
 async function getCloudFrontStatus(distributionId: string, region: string): Promise<string> {
   try {
-    const status = execSync(
-      `aws cloudfront get-distribution --id ${distributionId} --query 'Distribution.Status' --output text --region ${region}`,
-      { encoding: 'utf-8' }
-    ).trim();
+    const status = execFileSync('aws', [
+      'cloudfront', 'get-distribution', '--id', distributionId,
+      '--query', 'Distribution.Status', '--output', 'text', '--region', region
+    ], { encoding: 'utf-8' }).trim();
     return status;
   } catch {
     return 'Unknown';
@@ -44,7 +45,9 @@ const s3CloudFrontCheckHandler = async (context: AWSCheckHandlerContext): Promis
   
   try {
     // Check if bucket exists
-    execSync(`aws s3api head-bucket --bucket ${bucketName} --region ${region} 2>/dev/null`);
+    execFileSync('aws', ['s3api', 'head-bucket', '--bucket', bucketName, '--region', region], {
+      stdio: ['pipe', 'pipe', 'ignore']
+    });
     const status = 'running';
     
     let health;
@@ -114,7 +117,7 @@ const s3CloudFrontCheckHandler = async (context: AWSCheckHandlerContext): Promis
  * Explicitly declares this handler is for 'check' command on 's3-cloudfront' service type
  */
 const preflightS3CloudFrontCheck = async (_context: AWSCheckHandlerContext): Promise<PreflightResult> => {
-  return preflightFromChecks([checkAwsCredentials()]);
+  return preflightFromChecks([checkCommandAvailable('aws'), checkAwsCredentials()]);
 };
 
 export const s3CloudFrontCheckDescriptor: HandlerDescriptor<AWSCheckHandlerContext, CheckHandlerResult> = {

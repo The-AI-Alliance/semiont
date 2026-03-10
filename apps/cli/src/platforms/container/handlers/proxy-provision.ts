@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { ContainerProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
 import { getProxyPaths } from './proxy-paths.js';
@@ -12,7 +12,7 @@ import type { PreflightResult } from '../../../core/handlers/types.js';
 /**
  * Detect the appropriate host address for Docker to reach host services
  */
-function getHostAddress(): string {
+function getHostAddress(runtime: string): string {
   const platform = process.platform;
 
   if (platform === 'darwin' || platform === 'win32') {
@@ -22,7 +22,7 @@ function getHostAddress(): string {
     // Linux - try host-gateway first, fallback to bridge IP
     try {
       // Docker 20.10+ supports host-gateway
-      execSync('docker run --rm alpine getent hosts host-gateway', { stdio: 'pipe' });
+      execFileSync(runtime, ['run', '--rm', 'alpine', 'getent', 'hosts', 'host-gateway'], { stdio: 'pipe' });
       return 'host-gateway';
     } catch {
       // Fallback to default bridge gateway
@@ -76,7 +76,7 @@ function processProxyConfig(
  * Provision handler for proxy services in containers
  */
 const provisionProxyService = async (context: ContainerProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
-  const { service } = context;
+  const { service, runtime } = context;
   const config = service.config as ProxyServiceConfig;
 
   if (!service.quiet) {
@@ -95,7 +95,7 @@ const provisionProxyService = async (context: ContainerProvisionHandlerContext):
   }
 
   // Detect host address for Docker
-  const hostAddress = getHostAddress();
+  const hostAddress = getHostAddress(runtime);
   if (!service.quiet) {
     printInfo(`Using host address: ${hostAddress} for Docker container`);
   }
@@ -141,21 +141,21 @@ const provisionProxyService = async (context: ContainerProvisionHandlerContext):
   const imageName = getProxyImage(config.type, config.image);
 
   if (!service.quiet) {
-    printInfo(`Pulling Docker image: ${imageName}...`);
+    printInfo(`Pulling image: ${imageName}...`);
   }
 
   try {
-    execSync(`docker pull ${imageName}`, {
+    execFileSync(runtime, ['pull', imageName], {
       stdio: service.verbose ? 'inherit' : 'pipe'
     });
     if (!service.quiet) {
-      printSuccess(`Docker image ${imageName} ready`);
+      printSuccess(`Image ${imageName} ready`);
     }
   } catch (error) {
-    printError(`Failed to pull Docker image: ${error}`);
+    printError(`Failed to pull image: ${error}`);
     return {
       success: false,
-      error: `Failed to pull Docker image: ${error}`,
+      error: `Failed to pull image: ${error}`,
       metadata: { serviceType: 'proxy', proxyType: config.type, imageName }
     };
   }
@@ -189,7 +189,7 @@ const provisionProxyService = async (context: ContainerProvisionHandlerContext):
   };
 
   if (!service.quiet) {
-    printSuccess(`✅ Proxy service ${service.name} provisioned successfully`);
+    printSuccess(`Proxy service ${service.name} provisioned successfully`);
     printInfo('');
     printInfo('Proxy details:');
     printInfo(`  Type: ${config.type}`);

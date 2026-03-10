@@ -46,6 +46,10 @@ export class ExternalPlatform extends Platform {
     return 'external';
   }
 
+  override managesLifecycle(): boolean {
+    return false;
+  }
+
   
   /**
    * Build endpoint URL from configuration and requirements

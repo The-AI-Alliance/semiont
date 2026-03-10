@@ -17,6 +17,10 @@
 
 Built on the W3C Web Annotation standard, Semiont transforms unstructured content into interconnected semantic networks — all stored as portable, interoperable annotations. Self-hosted, so your data stays on your infrastructure.
 
+## Get Started
+
+**[Run Semiont locally](docs/LOCAL-SEMIONT.md)** using published npm packages — no need to clone this repository. Install the CLI, initialize a project, provision services, and start annotating.
+
 ## Why Semiont
 
 **Eliminate Cold Starts** — Import a set of documents and the six flows immediately begin producing value: AI agents detect entity mentions, propose annotations, and generate linked resources while humans review, correct, and extend the results. The knowledge graph grows as a byproduct of annotation — no upfront schema design, manual data entry, or batch ETL pipeline required.
@@ -38,7 +42,7 @@ Built on the W3C Web Annotation standard, Semiont transforms unstructured conten
 - **[Browse](docs/flows/BROWSE.md)** — Navigate through resources, panels, and views — structured paths for reviewing and examining content
 - **[Beckon](docs/flows/BECKON.md)** — Direct user focus to specific annotations or regions of interest through visual cues and coordination signals
 
-## 🚀 Core Development & Contributing
+## Core Development & Contributing
 
 **GitHub Codespaces** (Recommended for quick setup):
 

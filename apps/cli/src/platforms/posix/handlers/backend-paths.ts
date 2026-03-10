@@ -25,9 +25,9 @@ export interface BackendPaths {
  * Resolve the backend source directory from an installed @semiont/backend npm package.
  * Returns the package directory or null if not installed.
  */
-export function resolveBackendNpmPackage(): string | null {
+export function resolveBackendNpmPackage(projectRoot: string): string | null {
   try {
-    const require = createRequire(import.meta.url);
+    const require = createRequire(path.join(projectRoot, 'node_modules', '.package.json'));
     const pkgPath = require.resolve('@semiont/backend/package.json');
     return path.dirname(pkgPath);
   } catch {
@@ -57,7 +57,7 @@ export function getBackendPaths<T>(context: BaseHandlerContext<T>): BackendPaths
   }
 
   // 2. Installed npm package
-  const npmDir = resolveBackendNpmPackage();
+  const npmDir = resolveBackendNpmPackage(projectRoot);
   if (npmDir) {
     return buildPaths(npmDir, runtimeDir, true);
   }
@@ -74,7 +74,7 @@ function buildPaths(sourceDir: string, runtimeDir: string, fromNpmPackage: boole
   return {
     sourceDir,
     runtimeDir,
-    pidFile: path.join(runtimeDir, '.pid'),
+    pidFile: path.join(runtimeDir, 'backend.pid'),
     envFile: path.join(runtimeDir, '.env'),
     logsDir: path.join(runtimeDir, 'logs'),
     appLogFile: path.join(runtimeDir, 'logs', 'app.log'),

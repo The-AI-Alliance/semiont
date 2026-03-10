@@ -254,10 +254,22 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
     );
     
     if (!handlerDescriptor) {
-      // Check if the service has opted out of this command via capability annotations
+      // Platform doesn't manage lifecycle → skip silently
+      if (!platform.managesLifecycle()) {
+        return this.descriptor.buildResult(
+          {
+            success: true,
+            metadata: { serviceType, skipped: true, reason: `${platform.getPlatformName()} does not manage lifecycle` }
+          },
+          service,
+          platform,
+          serviceType
+        );
+      }
+
+      // Service opted out of this command via capability annotations → skip
       const annotations = service.getRequirements().annotations;
       if (!serviceSupportsCommand(annotations, this.descriptor.name)) {
-        // Service declared it doesn't support this command — no-op
         return this.descriptor.buildResult(
           {
             success: true,
@@ -269,7 +281,7 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
         );
       }
 
-      // Service claims to support this command but no handler is registered — real error
+      // Handler genuinely missing — error
       return this.descriptor.buildResult(
         {
           success: false,
@@ -356,24 +368,36 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
 
         const serviceType = platform.determineServiceType(service);
 
-        // Check if service supports this command
-        const annotations = service.getRequirements().annotations;
-        if (!serviceSupportsCommand(annotations, this.descriptor.name)) {
-          results.push(createCommandResult({
-            entity: serviceInfo.name as ServiceName,
-            platform: serviceInfo.platform as PlatformType,
-            success: true,
-            metadata: { serviceType, skipped: true, reason: `${serviceType} does not support ${this.descriptor.name}` }
-          }));
-          continue;
-        }
-
         const descriptor = registry.getHandlerForCommand(
           this.descriptor.name,
           platform.getPlatformName(),
           serviceType
         );
         if (!descriptor) {
+          // Platform doesn't manage lifecycle → skip
+          if (!platform.managesLifecycle()) {
+            results.push(createCommandResult({
+              entity: serviceInfo.name as ServiceName,
+              platform: serviceInfo.platform as PlatformType,
+              success: true,
+              metadata: { serviceType, skipped: true, reason: `${platform.getPlatformName()} does not manage lifecycle` }
+            }));
+            continue;
+          }
+
+          // Service opted out via annotations → skip
+          const annotations = service.getRequirements().annotations;
+          if (!serviceSupportsCommand(annotations, this.descriptor.name)) {
+            results.push(createCommandResult({
+              entity: serviceInfo.name as ServiceName,
+              platform: serviceInfo.platform as PlatformType,
+              success: true,
+              metadata: { serviceType, skipped: true, reason: `${serviceType} does not support ${this.descriptor.name}` }
+            }));
+            continue;
+          }
+
+          // Handler genuinely missing — error
           results.push(createCommandResult({
             entity: serviceInfo.name as ServiceName,
             platform: serviceInfo.platform as PlatformType,
@@ -475,7 +499,8 @@ export class MultiServiceExecutor<TOptions extends BaseOptions> {
 
         const serviceType = platform.determineServiceType(service);
 
-        // Check if service supports the next command
+        // Skip if platform doesn't manage lifecycle or service doesn't support this command
+        if (!platform.managesLifecycle()) continue;
         const annotations = service.getRequirements().annotations;
         if (!serviceSupportsCommand(annotations, nextCommand)) continue;
 

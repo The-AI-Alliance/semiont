@@ -31,7 +31,7 @@
 import { BaseService } from '../core/base-service.js';
 import { CommandExtensions } from '../core/command-result.js';
 import type { FrontendServiceConfig } from '@semiont/core';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import { ServiceRequirements, RequirementPresets } from '../core/service-requirements.js';
 import { COMMAND_CAPABILITY_ANNOTATIONS } from '../core/service-command-capabilities.js';
@@ -157,14 +157,14 @@ export class FrontendService extends BaseService {
     const runtime = fs.existsSync('/var/run/docker.sock') ? 'docker' : 'podman';
     
     try {
-      const logs = execSync(
-        `${runtime} logs --tail 50 ${containerName} 2>&1`,
-        { encoding: 'utf-8' }
-      ).split('\n').filter(line => line.trim());
-      
+      const logs = execFileSync(runtime, ['logs', '--tail', '50', containerName], {
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'pipe']
+      }).split('\n').filter((line: string) => line.trim());
+
       return {
         recent: logs.slice(-10),
-        errors: logs.filter(l => l.match(/\berror\b/i)).slice(-10)
+        errors: logs.filter((l: string) => l.match(/\berror\b/i)).slice(-10)
       };
     } catch {
       return undefined;
@@ -175,10 +175,9 @@ export class FrontendService extends BaseService {
     // CloudWatch logs for frontend (if using ECS/Fargate)
     try {
       const logGroup = `/ecs/semiont-${this.environment}-frontend`;
-      const logsJson = execSync(
-        `aws logs tail ${logGroup} --max-items 50 --format json 2>/dev/null`,
-        { encoding: 'utf-8' }
-      );
+      const logsJson = execFileSync('aws', [
+        'logs', 'tail', logGroup, '--max-items', '50', '--format', 'json'
+      ], { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'] });
       
       const events = JSON.parse(logsJson);
       const logs = events.map((e: any) => e.message);

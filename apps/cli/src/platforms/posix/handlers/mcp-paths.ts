@@ -8,6 +8,7 @@ import type { BaseHandlerContext } from '../../../core/handlers/types.js';
  */
 export interface MCPPaths {
   configDir: string;      // ~/.config/semiont directory
+  pidFile: string;        // Process ID file (in configDir)
   authFile: string;       // MCP auth JSON file per environment
 }
 
@@ -30,6 +31,7 @@ export function getMCPPaths<T>(context: BaseHandlerContext<T>): MCPPaths {
 
   return {
     configDir,
+    pidFile: path.join(configDir, 'mcp.pid'),
     authFile
   };
 }

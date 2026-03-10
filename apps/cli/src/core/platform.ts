@@ -103,6 +103,15 @@ export abstract class Platform {
   }
   
   /**
+   * Whether this platform manages service lifecycle (provision/start/stop).
+   * Returns true for platforms that run services (posix, container, aws).
+   * Returns false for platforms that only observe (external).
+   */
+  managesLifecycle(): boolean {
+    return true;
+  }
+
+  /**
    * Quick check if a service is running without full context
    * Default implementation returns false
    */

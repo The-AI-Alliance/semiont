@@ -98,29 +98,34 @@ The knowledge base is not an intelligent actor. It has no goals, preferences, or
 ```mermaid
 graph TB
     BUS["Event Bus"] -->|events| EVENTLOG
+    BUS -->|content| CONTENT
 
     subgraph kb ["Knowledge Base"]
         EVENTLOG["Event Log<br/>(immutable append-only)"]
-        VIEWS["Materialized Views<br/>(fast single-doc queries)"]
         CONTENT["Content Store<br/>(SHA-256 addressed, deduplicated)"]
-        GRAPH["Graph<br/>(relationships, backlinks)"]
+        VIEWS["Materialized Views<br/>(fast single-doc queries)"]
+        GRAPH["Graph<br/>(eventually consistent)"]
+        VECTORS["Vectors<br/>(planned)"]
 
         EVENTLOG -->|materialize| VIEWS
         EVENTLOG -->|project| GRAPH
-        EVENTLOG -->|store representations| CONTENT
+        CONTENT -->|embed| VECTORS
     end
 
     VIEWS -.->|query| BE
     CONTENT -.->|read by checksum| BE
     GRAPH -.->|traverse| BE
+    VECTORS -.->|search| BE
     BE["Backend API"]
 
     classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
     classDef store fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
     classDef api fill:#d4a827,stroke:#8b6914,stroke-width:2px,color:#000
+    classDef planned fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff,stroke-dasharray: 5 5
 
     class BUS bus
     class EVENTLOG,VIEWS,CONTENT,GRAPH store
+    class VECTORS planned
     class BE api
 ```
 
@@ -129,7 +134,8 @@ graph TB
 | **Event Log** | Immutable append-only log of all domain events | Append only, subscribe for real-time |
 | **Materialized Views** | Denormalized projections for fast reads | Query by resource URI |
 | **Content Store** | Content-addressed binary storage (documents, images, PDFs) | Write-once, read by SHA-256 checksum |
-| **Graph** | Relationship projection for traversal queries (backlinks, entity networks) | Read-only projection from events |
+| **Graph** | Eventually consistent relationship projection for traversal queries (backlinks, entity networks) | Read-only projection from events |
+| **Vectors** *(planned)* | Embedding vectors derived from content for semantic search | Read-only projection from content store |
 
 ### Content Streams
 

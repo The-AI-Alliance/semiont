@@ -11,22 +11,35 @@ import type { PreflightResult } from '../../../core/handlers/types.js';
 const checkMCPProcess = async (context: PosixCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { platform, service, savedState } = context;
   
+  const paths = getMCPPaths(context);
+  const { authFile: authPath } = paths;
+
   let status: 'running' | 'stopped' = 'stopped';
   let pid: number | undefined;
   let authStatus: 'configured' | 'not-configured' = 'not-configured';
-  
-  // Check if saved process is running
-  if (savedState?.resources?.platform === 'posix' && 
-      savedState.resources.data.pid && 
+
+  // 1. Check PID file
+  if (fs.existsSync(paths.pidFile)) {
+    try {
+      pid = parseInt(fs.readFileSync(paths.pidFile, 'utf-8'));
+      process.kill(pid, 0);
+      status = 'running';
+    } catch {
+      // Stale PID file — process not running
+      fs.unlinkSync(paths.pidFile);
+      pid = undefined;
+    }
+  }
+
+  // 2. Fall back to saved state
+  if (!pid && savedState?.resources?.platform === 'posix' &&
+      savedState.resources.data.pid &&
       StateManager.isProcessRunning(savedState.resources.data.pid)) {
     pid = savedState.resources.data.pid;
     status = 'running';
   }
   
   // Check MCP authentication status
-  const paths = getMCPPaths(context);
-  const { authFile: authPath } = paths;
-  
   try {
     if (fs.existsSync(authPath)) {
       const authData = JSON.parse(fs.readFileSync(authPath, 'utf-8'));

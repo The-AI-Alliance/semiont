@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { PlatformResources } from '../../platform-resources.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
@@ -77,7 +77,7 @@ const startFilesystemService = async (context: PosixStartHandlerContext): Promis
   // Check disk space
   let diskInfo: Record<string, unknown> = {};
   try {
-    const dfOutput = execSync(`df -h "${absolutePath}"`, { encoding: 'utf-8' });
+    const dfOutput = execFileSync('df', ['-h', absolutePath], { encoding: 'utf-8' });
     const lines = dfOutput.split('\n');
     if (lines.length > 1) {
       const stats = lines[1].split(/\s+/);

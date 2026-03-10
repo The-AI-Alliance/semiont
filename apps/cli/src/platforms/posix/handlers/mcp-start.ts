@@ -1,7 +1,9 @@
 import { spawn } from 'child_process';
+import * as fs from 'fs';
 import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { PlatformResources } from '../../platform-resources.js';
 import { checkCommandAvailable, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { getMCPPaths } from './mcp-paths.js';
 
 /**
  * Start handler for MCP (Model Context Protocol) services on POSIX systems
@@ -49,6 +51,11 @@ const startMCPService = async (context: PosixStartHandlerContext): Promise<Start
     };
   }
 
+  // Write PID file
+  const paths = getMCPPaths(context);
+  fs.mkdirSync(paths.configDir, { recursive: true });
+  fs.writeFileSync(paths.pidFile, proc.pid.toString());
+
   // Monitor process events (for debugging if needed)
   proc.on('error', (err) => {
     console.error('[MCP Start Handler] Process error:', err);
@@ -56,6 +63,7 @@ const startMCPService = async (context: PosixStartHandlerContext): Promise<Start
 
   proc.on('exit', (code, signal) => {
     console.error('[MCP Start Handler] Process exited with code:', code, 'signal:', signal);
+    try { fs.unlinkSync(paths.pidFile); } catch { /* already removed */ }
   });
 
   // Don't detach or unref - MCP needs to keep running as a blocking process

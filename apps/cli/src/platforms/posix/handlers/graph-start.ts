@@ -102,8 +102,8 @@ async function startJanusGraph(context: PosixStartHandlerContext): Promise<Start
     
     // Try to connect to Gremlin server
     try {
-      const { execSync } = await import('child_process');
-      execSync(`${gremlinShellScript} -e "g.V().count()"`, {
+      const { execFileSync } = await import('child_process');
+      execFileSync(gremlinShellScript, ['-e', 'g.V().count()'], {
         stdio: 'ignore',
         timeout: 5000
       });

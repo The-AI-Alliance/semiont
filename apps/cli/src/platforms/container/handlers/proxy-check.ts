@@ -1,10 +1,10 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import { ContainerCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printError, printWarning } from '../../../core/io/cli-logger.js';
 import { getProxyPaths } from './proxy-paths.js';
 import type { ProxyServiceConfig } from '@semiont/core';
-import { checkContainerRuntime, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { checkCommandAvailable, checkContainerRuntime, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -25,7 +25,7 @@ interface ProxyHealthCheck {
  */
 async function checkUrl(url: string, timeout: number = 5000): Promise<boolean> {
   try {
-    execSync(`curl -s -f -m ${Math.floor(timeout / 1000)} ${url} > /dev/null 2>&1`, { stdio: 'pipe' });
+    execFileSync('curl', ['-s', '-f', '-m', Math.floor(timeout / 1000).toString(), '-o', '/dev/null', url], { stdio: 'pipe' });
     return true;
   } catch {
     return false;
@@ -35,10 +35,10 @@ async function checkUrl(url: string, timeout: number = 5000): Promise<boolean> {
 /**
  * Get container uptime
  */
-function getContainerUptime(containerName: string): string | undefined {
+function getContainerUptime(runtime: string, containerName: string): string | undefined {
   try {
-    const uptime = execSync(
-      `docker ps --format "table {{.Status}}" --filter name=${containerName} | tail -n +2`,
+    const uptime = execFileSync(
+      runtime, ['ps', '--format', '{{.Status}}', '--filter', `name=${containerName}`],
       { encoding: 'utf-8' }
     ).trim();
     return uptime;
@@ -50,9 +50,9 @@ function getContainerUptime(containerName: string): string | undefined {
 /**
  * Get recent container logs
  */
-function getRecentLogs(containerName: string, lines: number = 20): string | undefined {
+function getRecentLogs(runtime: string, containerName: string, lines: number = 20): string | undefined {
   try {
-    const logs = execSync(`docker logs --tail ${lines} ${containerName} 2>&1`, { encoding: 'utf-8' });
+    const logs = execFileSync(runtime, ['logs', '--tail', lines.toString(), containerName], { encoding: 'utf-8' });
     return logs;
   } catch {
     return undefined;
@@ -63,7 +63,7 @@ function getRecentLogs(containerName: string, lines: number = 20): string | unde
  * Check handler for proxy services in containers
  */
 const checkProxyService = async (context: ContainerCheckHandlerContext): Promise<CheckHandlerResult> => {
-  const { service } = context;
+  const { service, runtime, containerName } = context;
   const config = service.config as ProxyServiceConfig;
 
   if (!service.quiet) {
@@ -72,9 +72,6 @@ const checkProxyService = async (context: ContainerCheckHandlerContext): Promise
 
   // Get proxy paths
   const paths = getProxyPaths(context);
-
-  // Container name
-  const containerName = `semiont-proxy-${service.environment}`;
 
   // Initialize health check result
   const healthCheck: ProxyHealthCheck = {
@@ -86,12 +83,12 @@ const checkProxyService = async (context: ContainerCheckHandlerContext): Promise
 
   // Check if container exists and is running
   try {
-    const containerId = execSync(`docker ps -q -f name=${containerName}`, { encoding: 'utf-8' }).trim();
+    const containerId = execFileSync(runtime, ['ps', '-q', '-f', `name=${containerName}`], { encoding: 'utf-8' }).trim();
 
     if (containerId) {
       healthCheck.containerRunning = true;
       healthCheck.containerId = containerId.substring(0, 12);
-      healthCheck.uptime = getContainerUptime(containerName);
+      healthCheck.uptime = getContainerUptime(runtime, containerName);
 
       if (!service.quiet) {
         printSuccess(`Container ${containerName} is running (${healthCheck.containerId})`);
@@ -101,7 +98,7 @@ const checkProxyService = async (context: ContainerCheckHandlerContext): Promise
       }
     } else {
       // Check if container exists but is stopped
-      const stoppedContainer = execSync(`docker ps -aq -f name=${containerName}`, { encoding: 'utf-8' }).trim();
+      const stoppedContainer = execFileSync(runtime, ['ps', '-aq', '-f', `name=${containerName}`], { encoding: 'utf-8' }).trim();
 
       if (stoppedContainer) {
         if (!service.quiet) {
@@ -217,7 +214,7 @@ const checkProxyService = async (context: ContainerCheckHandlerContext): Promise
 
   // Get recent logs if there are issues
   if (!healthCheck.frontendRouting || !healthCheck.backendRouting) {
-    healthCheck.logs = getRecentLogs(containerName, 10);
+    healthCheck.logs = getRecentLogs(runtime, containerName, 10);
     if (healthCheck.logs && !service.quiet && service.verbose) {
       printInfo('\nRecent container logs:');
       console.log(healthCheck.logs);
@@ -242,16 +239,16 @@ const checkProxyService = async (context: ContainerCheckHandlerContext): Promise
 
   if (isHealthy) {
     if (!service.quiet) {
-      printSuccess(`\n✅ Proxy service ${service.name} is healthy`);
+      printSuccess(`\nProxy service ${service.name} is healthy`);
 
       // Show routing summary
       printInfo('\nRouting status:');
-      printInfo(`  Proxy: http://localhost:${proxyPort} [${healthCheck.containerRunning ? '✓' : '✗'}]`);
+      printInfo(`  Proxy: http://localhost:${proxyPort} [${healthCheck.containerRunning ? 'ok' : 'fail'}]`);
       if (config.type === 'envoy') {
-        printInfo(`  Admin: http://localhost:${adminPort} [${healthCheck.adminHealthy ? '✓' : '✗'}]`);
+        printInfo(`  Admin: http://localhost:${adminPort} [${healthCheck.adminHealthy ? 'ok' : 'fail'}]`);
       }
-      printInfo(`  Frontend routing: [${healthCheck.frontendRouting ? '✓' : '✗'}]`);
-      printInfo(`  Backend routing: [${healthCheck.backendRouting ? '✓' : '✗'}]`);
+      printInfo(`  Frontend routing: [${healthCheck.frontendRouting ? 'ok' : 'fail'}]`);
+      printInfo(`  Backend routing: [${healthCheck.backendRouting ? 'ok' : 'fail'}]`);
 
       if (!healthCheck.frontendRouting || !healthCheck.backendRouting) {
         printInfo('\nNote: Some routes are not accessible. Ensure frontend and backend services are running.');
@@ -283,6 +280,7 @@ const checkProxyService = async (context: ContainerCheckHandlerContext): Promise
 const preflightProxyCheck = async (context: ContainerCheckHandlerContext): Promise<PreflightResult> => {
   return preflightFromChecks([
     checkContainerRuntime(context.runtime),
+    checkCommandAvailable('curl'),
   ]);
 };
 

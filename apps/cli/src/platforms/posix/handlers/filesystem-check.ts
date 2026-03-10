@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import { getFilesystemPaths } from './filesystem-paths.js';
 import { checkFileExists, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
@@ -62,7 +62,7 @@ const checkFilesystemService = async (context: PosixCheckHandlerContext): Promis
       
       // Check disk usage
       try {
-        const dfOutput = execSync(`df -h "${absolutePath}"`, { encoding: 'utf-8' });
+        const dfOutput = execFileSync('df', ['-h', absolutePath], { encoding: 'utf-8' });
         const lines = dfOutput.split('\n');
         if (lines.length > 1) {
           const stats = lines[1].split(/\s+/);

@@ -24,7 +24,7 @@ import { Service } from '../../core/service-interface.js';
 import { StateManager } from '../../core/state-manager.js';
 import { HandlerRegistry } from '../../core/handlers/registry.js';
 import { handlers } from './handlers/index.js';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -137,12 +137,12 @@ export class PosixPlatform extends Platform {
       if (process.platform === 'darwin') {
         // macOS: Try to get process logs from system log
         try {
-          const output = execSync(
-            `log show --process ${pid} --last ${tail}m --style json`,
+          const output = execFileSync(
+            'log', ['show', '--process', String(pid), '--last', `${tail}m`, '--style', 'json'],
             { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }
           );
           
-          const lines = output.split('\n').filter(line => line.trim());
+          const lines = output.split('\n').filter((line: string) => line.trim());
           for (const line of lines) {
             try {
               const entry = JSON.parse(line);
@@ -162,12 +162,12 @@ export class PosixPlatform extends Platform {
       } else {
         // Linux: Try journalctl
         try {
-          const output = execSync(
-            `journalctl _PID=${pid} -n ${tail} --no-pager --output=json`,
+          const output = execFileSync(
+            'journalctl', [`_PID=${pid}`, '-n', String(tail), '--no-pager', '--output=json'],
             { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }
           );
           
-          const lines = output.split('\n').filter(line => line.trim());
+          const lines = output.split('\n').filter((line: string) => line.trim());
           for (const line of lines) {
             try {
               const entry = JSON.parse(line);
@@ -310,14 +310,14 @@ export class PosixPlatform extends Platform {
     try {
       if (process.platform === 'win32') {
         // Windows: Use PowerShell
-        return execSync(
-          `powershell -Command "Get-Content '${filePath}' -Tail ${lines}"`,
+        return execFileSync(
+          'powershell', ['-Command', `Get-Content '${filePath}' -Tail ${lines}`],
           { encoding: 'utf-8' }
         );
       } else {
         // Unix-like: Use tail command
-        return execSync(
-          `tail -n ${lines} "${filePath}"`,
+        return execFileSync(
+          'tail', ['-n', String(lines), filePath],
           { encoding: 'utf-8' }
         );
       }

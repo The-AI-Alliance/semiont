@@ -1,7 +1,7 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { AWSUpdateHandlerContext, UpdateHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
-import { checkAwsCredentials, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { checkAwsCredentials, checkCommandAvailable, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -43,46 +43,40 @@ const updateECSService = async (context: AWSUpdateHandlerContext): Promise<Updat
       console.log(`[DEBUG] Latest revision: ${latestRevision}`);
     }
     
-    let updateCommand: string;
+    let updateArgs: string[];
     let updateMode: string;
-    
+
     if (latestRevision && latestRevision !== currentRevision) {
       // There's a newer task definition - update to it
       const taskFamily = await getTaskDefinitionFamily(clusterName, serviceName, region);
-      updateCommand = `aws ecs update-service --cluster ${clusterName} --service ${serviceName} --task-definition ${taskFamily}:${latestRevision} --region ${region} --output json`;
+      updateArgs = ['ecs', 'update-service', '--cluster', clusterName, '--service', serviceName, '--task-definition', `${taskFamily}:${latestRevision}`, '--region', region, '--output', 'json'];
       updateMode = `new task definition (revision ${currentRevision} → ${latestRevision})`;
-      
+
       if (!service.quiet) {
         printInfo(`Updating service to use newer task definition revision ${latestRevision} (current: ${currentRevision})`);
       }
     } else {
       // No newer task definition - force redeployment of current one
       // This is useful for mutable tags like 'latest' where the image may have changed
-      updateCommand = `aws ecs update-service --cluster ${clusterName} --service ${serviceName} --force-new-deployment --region ${region} --output json`;
+      updateArgs = ['ecs', 'update-service', '--cluster', clusterName, '--service', serviceName, '--force-new-deployment', '--region', region, '--output', 'json'];
       updateMode = `forced redeployment of revision ${currentRevision}`;
-      
+
       if (!service.quiet) {
         printInfo(`No newer task definition found. Forcing redeployment of current revision ${currentRevision}`);
       }
     }
-    
-    const updateResult = execSync(updateCommand, { encoding: 'utf-8' });
+
+    const updateResult = execFileSync('aws', updateArgs, { encoding: 'utf-8' });
     
     if (service.verbose) {
       // Get current task definition to show what image is being used
       try {
         // First get the service to find its current task definition
-        const serviceData = execSync(
-          `aws ecs describe-services --cluster ${clusterName} --services ${serviceName} --region ${region} --output json`,
-          { encoding: 'utf-8' }
-        );
-        
+        const serviceData = execFileSync('aws', ['ecs', 'describe-services', '--cluster', clusterName, '--services', serviceName, '--region', region, '--output', 'json'], { encoding: 'utf-8' });
+
         const ecsService = JSON.parse(serviceData).services?.[0];
         if (ecsService?.taskDefinition) {
-          const currentTaskDef = execSync(
-            `aws ecs describe-task-definition --task-definition ${ecsService.taskDefinition} --region ${region} --output json`,
-            { encoding: 'utf-8' }
-          );
+          const currentTaskDef = execFileSync('aws', ['ecs', 'describe-task-definition', '--task-definition', ecsService.taskDefinition, '--region', region, '--output', 'json'], { encoding: 'utf-8' });
           
           const taskDef = JSON.parse(currentTaskDef).taskDefinition;
           const images = taskDef.containerDefinitions?.map((c: any) => c.image).filter(Boolean);
@@ -148,10 +142,7 @@ const updateECSService = async (context: AWSUpdateHandlerContext): Promise<Updat
  */
 async function getCurrentTaskDefinition(cluster: string, service: string, region: string): Promise<string> {
   try {
-    const taskDef = execSync(
-      `aws ecs describe-services --cluster ${cluster} --services ${service} --query 'services[0].taskDefinition' --output text --region ${region}`,
-      { encoding: 'utf-8' }
-    ).trim();
+    const taskDef = execFileSync('aws', ['ecs', 'describe-services', '--cluster', cluster, '--services', service, '--query', 'services[0].taskDefinition', '--output', 'text', '--region', region], { encoding: 'utf-8' }).trim();
     return taskDef.split(':').pop() || '';
   } catch {
     return '';
@@ -163,10 +154,7 @@ async function getCurrentTaskDefinition(cluster: string, service: string, region
  */
 async function getTaskDefinitionFamily(cluster: string, service: string, region: string): Promise<string> {
   try {
-    const taskDefArn = execSync(
-      `aws ecs describe-services --cluster ${cluster} --services ${service} --query 'services[0].taskDefinition' --output text --region ${region}`,
-      { encoding: 'utf-8' }
-    ).trim();
+    const taskDefArn = execFileSync('aws', ['ecs', 'describe-services', '--cluster', cluster, '--services', service, '--query', 'services[0].taskDefinition', '--output', 'text', '--region', region], { encoding: 'utf-8' }).trim();
     // Extract family from ARN: arn:aws:ecs:region:account:task-definition/family:revision
     const parts = taskDefArn.split('/');
     if (parts.length > 1) {
@@ -188,10 +176,10 @@ async function getLatestTaskDefinitionRevision(cluster: string, service: string,
     
     // List task definitions for this family and get the latest
     // Use query to get just the first ARN instead of --max-items to avoid pagination token
-    const taskDefArn = execSync(
-      `aws ecs list-task-definitions --family-prefix ${family} --sort DESC --region ${region} --query 'taskDefinitionArns[0]' --output text`,
-      { encoding: 'utf-8' }
-    ).trim();
+    const taskDefArn = execFileSync('aws', [
+      'ecs', 'list-task-definitions', '--family-prefix', family, '--sort', 'DESC',
+      '--region', region, '--query', 'taskDefinitionArns[0]', '--output', 'text'
+    ], { encoding: 'utf-8' }).trim();
     
     if (taskDefArn && taskDefArn !== 'None' && taskDefArn.includes(':')) {
       // Extract just the revision number from the ARN
@@ -218,10 +206,10 @@ async function fetchTaskLogs(
     const taskId = taskArn.split('/').pop();
     
     // Get task details to find the log stream
-    const taskDetails = execSync(
-      `aws ecs describe-tasks --cluster ${clusterName} --tasks ${taskArn} --region ${region} --output json`,
-      { encoding: 'utf-8' }
-    );
+    const taskDetails = execFileSync('aws', [
+      'ecs', 'describe-tasks', '--cluster', clusterName, '--tasks', taskArn,
+      '--region', region, '--output', 'json'
+    ], { encoding: 'utf-8' });
     const task = JSON.parse(taskDetails).tasks?.[0];
     
     if (!task) {
@@ -229,10 +217,10 @@ async function fetchTaskLogs(
     }
     
     // Get log configuration from task definition
-    const taskDefDetails = execSync(
-      `aws ecs describe-task-definition --task-definition ${task.taskDefinitionArn} --region ${region} --output json`,
-      { encoding: 'utf-8' }
-    );
+    const taskDefDetails = execFileSync('aws', [
+      'ecs', 'describe-task-definition', '--task-definition', task.taskDefinitionArn,
+      '--region', region, '--output', 'json'
+    ], { encoding: 'utf-8' });
     const taskDef = JSON.parse(taskDefDetails).taskDefinition;
     
     // Find the main container's log configuration
@@ -255,10 +243,10 @@ async function fetchTaskLogs(
     const logStream = `${streamPrefix}/${containerName}/${taskId}`;
     
     // Fetch recent log events
-    const logsJson = execSync(
-      `aws logs filter-log-events --log-group-name ${logGroup} --log-stream-names ${logStream} --limit 20 --region ${region} --output json`,
-      { encoding: 'utf-8' }
-    );
+    const logsJson = execFileSync('aws', [
+      'logs', 'filter-log-events', '--log-group-name', logGroup, '--log-stream-names', logStream,
+      '--limit', '20', '--region', region, '--output', 'json'
+    ], { encoding: 'utf-8' });
     
     const logEvents = JSON.parse(logsJson).events || [];
     
@@ -301,10 +289,10 @@ async function waitForECSDeployment(
   while ((Date.now() - startTime) < (effectiveTimeout * 1000)) {
     try {
       // Get service details with events
-      const serviceData = execSync(
-        `aws ecs describe-services --cluster ${clusterName} --services ${serviceName} --region ${region} --output json`,
-        { encoding: 'utf-8' }
-      );
+      const serviceData = execFileSync('aws', [
+        'ecs', 'describe-services', '--cluster', clusterName, '--services', serviceName,
+        '--region', region, '--output', 'json'
+      ], { encoding: 'utf-8' });
       
       const service = JSON.parse(serviceData).services?.[0];
       if (!service) {
@@ -359,18 +347,18 @@ async function waitForECSDeployment(
       
       // Check for recently stopped tasks (failures)
       try {
-        const stoppedTasksData = execSync(
-          `aws ecs list-tasks --cluster ${clusterName} --service-name ${serviceName} --desired-status STOPPED --region ${region} --output json`,
-          { encoding: 'utf-8' }
-        );
+        const stoppedTasksData = execFileSync('aws', [
+          'ecs', 'list-tasks', '--cluster', clusterName, '--service-name', serviceName,
+          '--desired-status', 'STOPPED', '--region', region, '--output', 'json'
+        ], { encoding: 'utf-8' });
         const stoppedTaskArns = JSON.parse(stoppedTasksData).taskArns || [];
         
         // Get details for stopped tasks from the new deployment
         if (stoppedTaskArns.length > 0) {
-          const stoppedTasksJson = execSync(
-            `aws ecs describe-tasks --cluster ${clusterName} --tasks ${stoppedTaskArns.slice(0, 10).join(' ')} --region ${region} --output json`,
-            { encoding: 'utf-8' }
-          );
+          const stoppedTasksJson = execFileSync('aws', [
+            'ecs', 'describe-tasks', '--cluster', clusterName, '--tasks', ...stoppedTaskArns.slice(0, 10),
+            '--region', region, '--output', 'json'
+          ], { encoding: 'utf-8' });
           const stoppedTasks = JSON.parse(stoppedTasksJson).tasks || [];
           
           for (const task of stoppedTasks) {
@@ -463,17 +451,17 @@ async function waitForECSDeployment(
       }
       
       try {
-        const tasksData = execSync(
-          `aws ecs list-tasks --cluster ${clusterName} --service-name ${serviceName} --desired-status RUNNING --region ${region} --output json`,
-          { encoding: 'utf-8' }
-        );
+        const tasksData = execFileSync('aws', [
+          'ecs', 'list-tasks', '--cluster', clusterName, '--service-name', serviceName,
+          '--desired-status', 'RUNNING', '--region', region, '--output', 'json'
+        ], { encoding: 'utf-8' });
         const taskArns = JSON.parse(tasksData).taskArns || [];
         
         if (taskArns.length > 0) {
-          const taskDetailsJson = execSync(
-            `aws ecs describe-tasks --cluster ${clusterName} --tasks ${taskArns.join(' ')} --region ${region} --output json`,
-            { encoding: 'utf-8' }
-          );
+          const taskDetailsJson = execFileSync('aws', [
+            'ecs', 'describe-tasks', '--cluster', clusterName, '--tasks', ...taskArns,
+            '--region', region, '--output', 'json'
+          ], { encoding: 'utf-8' });
           const allTasks = JSON.parse(taskDetailsJson).tasks || [];
           
           // Group tasks by deployment (new vs old)
@@ -697,7 +685,7 @@ async function waitForECSDeployment(
  * Descriptor for ECS update handler
  */
 const preflightEcsUpdate = async (_context: AWSUpdateHandlerContext): Promise<PreflightResult> => {
-  return preflightFromChecks([checkAwsCredentials()]);
+  return preflightFromChecks([checkCommandAvailable('aws'), checkAwsCredentials()]);
 };
 
 export const ecsUpdateDescriptor: HandlerDescriptor<AWSUpdateHandlerContext, UpdateHandlerResult> = {

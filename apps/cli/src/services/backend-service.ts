@@ -30,7 +30,7 @@
 
 import { BaseService } from '../core/base-service.js';
 import { CommandExtensions } from '../core/command-result.js';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { getNodeEnvForEnvironment, type BackendServiceConfig } from '@semiont/core';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -217,12 +217,12 @@ export class BackendService extends BaseService {
     
     try {
       if (fs.existsSync(logPath)) {
-        const logs = execSync(`tail -100 ${logPath}`, { encoding: 'utf-8' })
+        const logs = execFileSync('tail', ['-100', logPath], { encoding: 'utf-8' })
           .split('\n')
-          .filter(line => line.trim());
+          .filter((line: string) => line.trim());
         
         recent.push(...logs.slice(-10));
-        logs.forEach(line => {
+        logs.forEach((line: string) => {
           if (line.match(/\berror\b/i)) errorLogs.push(line);
         });
       }
@@ -241,14 +241,14 @@ export class BackendService extends BaseService {
     const runtime = fs.existsSync('/var/run/docker.sock') ? 'docker' : 'podman';
     
     try {
-      const logs = execSync(
-        `${runtime} logs --tail 100 ${containerName} 2>&1`,
-        { encoding: 'utf-8' }
-      ).split('\n').filter(line => line.trim());
-      
+      const logs = execFileSync(runtime, ['logs', '--tail', '100', containerName], {
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'pipe']
+      }).split('\n').filter((line: string) => line.trim());
+
       return {
         recent: logs.slice(-10),
-        errors: logs.filter(l => l.match(/\berror\b/i)).slice(-10)
+        errors: logs.filter((l: string) => l.match(/\berror\b/i)).slice(-10)
       };
     } catch {
       return undefined;
@@ -258,10 +258,9 @@ export class BackendService extends BaseService {
   private async collectAWSLogs(): Promise<CommandExtensions['logs']> {
     try {
       const logGroup = `/ecs/semiont-${this.environment}-backend`;
-      const logsJson = execSync(
-        `aws logs tail ${logGroup} --max-items 100 --format json 2>/dev/null`,
-        { encoding: 'utf-8' }
-      );
+      const logsJson = execFileSync('aws', [
+        'logs', 'tail', logGroup, '--max-items', '100', '--format', 'json'
+      ], { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'] });
       
       const events = JSON.parse(logsJson);
       const logs = events.map((e: any) => e.message);

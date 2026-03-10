@@ -55,7 +55,7 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
       // Get process info
       try {
         const psOutput = require('child_process')
-          .execSync(`ps -p ${pid} -o comm=,rss=,pcpu=`, { encoding: 'utf-8' })
+          .execFileSync('ps', ['-p', String(pid), '-o', 'comm=,rss=,pcpu='], { encoding: 'utf-8' })
           .trim();
         
         if (psOutput) {
@@ -149,17 +149,17 @@ const checkFrontendService = async (context: PosixCheckHandlerContext): Promise<
   let logs: { recent: string[]; errors: string[] } | undefined;
   if (fs.existsSync(appLogPath)) {
     try {
-      const { execSync } = require('child_process');
-      
+      const { execFileSync } = require('child_process');
+
       // Get last 10 lines of app log
-      const recentLogs = execSync(`tail -10 "${appLogPath}"`, { encoding: 'utf-8' })
+      const recentLogs = execFileSync('tail', ['-10', appLogPath], { encoding: 'utf-8' })
         .split('\n')
         .filter((line: string) => line.trim());
-      
+
       // Get last 5 error lines
       let errorLogs: string[] = [];
       if (fs.existsSync(errorLogPath)) {
-        errorLogs = execSync(`tail -5 "${errorLogPath}"`, { encoding: 'utf-8' })
+        errorLogs = execFileSync('tail', ['-5', errorLogPath], { encoding: 'utf-8' })
           .split('\n')
           .filter((line: string) => line.trim());
       }

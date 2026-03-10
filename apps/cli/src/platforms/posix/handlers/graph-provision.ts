@@ -1,5 +1,5 @@
 import * as fs from 'fs/promises';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printError } from '../../../core/io/cli-logger.js';
 import { getGraphPaths } from './graph-paths.js';
@@ -51,7 +51,7 @@ const provisionGraphService = async (context: PosixProvisionHandlerContext): Pro
       
     // Check if Java is installed (required for JanusGraph)
     try {
-      execSync('java -version', { stdio: 'ignore' });
+      execFileSync('java', ['-version'], { stdio: 'ignore' });
     } catch {
       return {
         success: false,
@@ -71,11 +71,11 @@ const provisionGraphService = async (context: PosixProvisionHandlerContext): Pro
         console.log(`Downloading JanusGraph ${janusgraphVersion}...`);
         
         // Download the zip file
-        execSync(`curl -L -o "${zipPath}" "${downloadUrl}"`, { stdio: 'inherit' });
-        
+        execFileSync('curl', ['-L', '-o', zipPath, downloadUrl], { stdio: 'inherit' });
+
         // Extract the zip file
         console.log('Extracting JanusGraph...');
-        execSync(`unzip -q "${zipPath}" -d "${dataDir}"`, { stdio: 'inherit' });
+        execFileSync('unzip', ['-q', zipPath, '-d', dataDir], { stdio: 'inherit' });
         
         // Clean up zip file
         await fs.unlink(zipPath);

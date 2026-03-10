@@ -1,10 +1,10 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { DescribeServicesCommand } from '@aws-sdk/client-ecs';
 import { DescribeTargetHealthCommand } from '@aws-sdk/client-elastic-load-balancing-v2';
 import { FilterLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import { AWSCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import { createPlatformResources } from '../../platform-resources.js';
-import { checkAwsCredentials, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { checkAwsCredentials, checkCommandAvailable, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -68,10 +68,10 @@ const ecsCheckHandler = async (context: AWSCheckHandlerContext): Promise<CheckHa
       let imageTag = 'unknown';
       if (activeDeployment?.taskDefinition) {
         try {
-          const taskDefJson = execSync(
-            `aws ecs describe-task-definition --task-definition ${activeDeployment.taskDefinition} --region ${region} --output json`,
-            { encoding: 'utf-8' }
-          );
+          const taskDefJson = execFileSync('aws', [
+            'ecs', 'describe-task-definition', '--task-definition', activeDeployment.taskDefinition,
+            '--region', region, '--output', 'json'
+          ], { encoding: 'utf-8' });
           const taskDef = JSON.parse(taskDefJson).taskDefinition;
           const containerDef = taskDef.containerDefinitions?.[0];
           if (containerDef?.image) {
@@ -244,7 +244,7 @@ const ecsCheckHandler = async (context: AWSCheckHandlerContext): Promise<CheckHa
  * Explicitly declares this handler is for 'check' command on 'ecs-fargate' service type
  */
 const preflightAwsCheck = async (_context: AWSCheckHandlerContext): Promise<PreflightResult> => {
-  return preflightFromChecks([checkAwsCredentials()]);
+  return preflightFromChecks([checkCommandAvailable('aws'), checkAwsCredentials()]);
 };
 
 export const ecsCheckDescriptor: HandlerDescriptor<AWSCheckHandlerContext, CheckHandlerResult> = {

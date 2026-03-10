@@ -1,11 +1,11 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as net from 'net';
 import type { PreflightCheck, PreflightResult } from './types.js';
 
 export function checkContainerRuntime(runtime: string): PreflightCheck {
   try {
-    execSync(`${runtime} --version`, { stdio: 'ignore', timeout: 5000 });
+    execFileSync(runtime, ['--version'], { stdio: 'ignore', timeout: 5000 });
     return { name: 'container-runtime', pass: true, message: `${runtime} is available` };
   } catch {
     return { name: 'container-runtime', pass: false, message: `${runtime} is not installed or not in PATH` };
@@ -77,7 +77,7 @@ export function checkEnvVarsInConfig(config: Record<string, unknown>): Preflight
 
 export function checkCommandAvailable(command: string): PreflightCheck {
   try {
-    execSync(`which ${command}`, { stdio: 'ignore', timeout: 5000 });
+    execFileSync('which', [command], { stdio: 'ignore', timeout: 5000 });
     return { name: `command-${command}`, pass: true, message: `${command} is available` };
   } catch {
     return { name: `command-${command}`, pass: false, message: `${command} is not installed or not in PATH` };
@@ -109,6 +109,11 @@ export function checkAwsCredentials(): PreflightCheck {
     return { name: 'aws-credentials', pass: true, message: 'AWS credentials are configured' };
   }
   return { name: 'aws-credentials', pass: false, message: 'No AWS credentials found (set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, AWS_PROFILE, or ~/.aws/credentials)' };
+}
+
+export function checkPortLookupCommand(): PreflightCheck {
+  const command = process.platform === 'darwin' ? 'lsof' : 'fuser';
+  return checkCommandAvailable(command);
 }
 
 export function passingPreflight(): PreflightResult {

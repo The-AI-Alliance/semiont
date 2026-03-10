@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import type { ProxyServiceConfig } from '@semiont/core';
@@ -65,20 +65,29 @@ const startProxyService = async (context: PosixStartHandlerContext): Promise<Sta
   try {
     // Double-fork to daemonize envoy (reparents to PID 1).
     // Without this, envoy gets SIGTERM when the CLI process exits.
+    // Paths are passed via environment variables to avoid shell escaping issues
+    // (e.g. SEMIONT_ROOT containing spaces).
     const pidFile = paths.pidFile;
     const logFile = paths.appLogFile;
     const configFile = paths.configFile;
 
-    execSync(`bash -c '
+    spawnSync('bash', ['-c', `
       (
         exec </dev/null
-        exec >>"${logFile}" 2>&1
+        exec >>"$_ENVOY_LOG" 2>&1
         (
-          exec envoy -c "${configFile}" &
-          echo $! > "${pidFile}"
+          exec envoy -c "$_ENVOY_CONFIG" &
+          echo $! > "$_ENVOY_PID"
         ) &
       ) &
-    '`);
+    `], {
+      env: {
+        ...process.env,
+        _ENVOY_LOG: logFile,
+        _ENVOY_CONFIG: configFile,
+        _ENVOY_PID: pidFile,
+      },
+    });
 
     // Wait for envoy to start and write its PID
     await new Promise(resolve => setTimeout(resolve, 2000));

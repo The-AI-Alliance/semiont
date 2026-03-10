@@ -55,8 +55,8 @@ const provisionFilesystemService = async (context: PosixProvisionHandlerContext)
     
     // Check available disk space
     try {
-      const { execSync } = require('child_process');
-      const dfOutput = execSync(`df -h "${absolutePath}"`, { encoding: 'utf-8' });
+      const { execFileSync } = require('child_process');
+      const dfOutput = execFileSync('df', ['-h', absolutePath], { encoding: 'utf-8' });
       const lines = dfOutput.split('\n');
       if (lines.length > 1) {
         const stats = lines[1].split(/\s+/);

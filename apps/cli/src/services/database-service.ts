@@ -30,7 +30,7 @@
 
 import { BaseService } from '../core/base-service.js';
 import { CommandExtensions } from '../core/command-result.js';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { ServiceRequirements, RequirementPresets, mergeRequirements } from '../core/service-requirements.js';
@@ -148,22 +148,23 @@ export class DatabaseService extends BaseService {
     
     try {
       // First check if accepting connections
-      execSync(`pg_isready -h localhost -p ${port} -q`, { stdio: 'ignore' });
-      
+      execFileSync('pg_isready', ['-h', 'localhost', '-p', String(port), '-q'], { stdio: 'ignore' });
+
       // Try to get connection stats if possible
       let connectionCount = 0;
       let activeQueries = 0;
+      const pgEnv = { ...process.env, PGPASSWORD: this.typedConfig.password || 'localpassword' };
       try {
-        const stats = execSync(
-          `PGPASSWORD=${this.typedConfig.password || 'localpassword'} psql -h localhost -p ${port} -U ${user} -d ${dbName} -t -c "SELECT COUNT(*) FROM pg_stat_activity WHERE datname='${dbName}'"`,
-          { encoding: 'utf-8', stdio: 'pipe' }
-        ).toString().trim();
+        const stats = execFileSync('psql', [
+          '-h', 'localhost', '-p', String(port), '-U', user, '-d', dbName, '-t',
+          '-c', `SELECT COUNT(*) FROM pg_stat_activity WHERE datname='${dbName}'`
+        ], { encoding: 'utf-8', stdio: 'pipe', env: pgEnv }).toString().trim();
         connectionCount = parseInt(stats) || 0;
 
-        const queries = execSync(
-          `PGPASSWORD=${this.typedConfig.password || 'localpassword'} psql -h localhost -p ${port} -U ${user} -d ${dbName} -t -c "SELECT COUNT(*) FROM pg_stat_activity WHERE state='active' AND datname='${dbName}'"`,
-          { encoding: 'utf-8', stdio: 'pipe' }
-        ).toString().trim();
+        const queries = execFileSync('psql', [
+          '-h', 'localhost', '-p', String(port), '-U', user, '-d', dbName, '-t',
+          '-c', `SELECT COUNT(*) FROM pg_stat_activity WHERE state='active' AND datname='${dbName}'`
+        ], { encoding: 'utf-8', stdio: 'pipe', env: pgEnv }).toString().trim();
         activeQueries = parseInt(queries) || 0;
       } catch {
         // Can't get detailed stats, but database is up
@@ -212,13 +213,16 @@ export class DatabaseService extends BaseService {
     for (const logPath of possibleLogPaths) {
       if (fs.existsSync(logPath)) {
         try {
-          const logs = execSync(`tail -50 ${logPath}/*.log 2>/dev/null`, { encoding: 'utf-8' })
+          const logFiles = fs.readdirSync(logPath).filter((f: string) => f.endsWith('.log'));
+          if (logFiles.length === 0) continue;
+          const latestLogFile = path.join(logPath, logFiles[logFiles.length - 1]);
+          const logs = execFileSync('tail', ['-50', latestLogFile], { encoding: 'utf-8' })
             .split('\n')
-            .filter(line => line.trim());
-          
+            .filter((line: string) => line.trim());
+
           return {
             recent: logs.slice(-10),
-            errors: logs.filter(l => l.match(/\bERROR\b/)).slice(-10)
+            errors: logs.filter((l: string) => l.match(/\bERROR\b/)).slice(-10)
           };
         } catch {
           continue;
@@ -234,14 +238,14 @@ export class DatabaseService extends BaseService {
     const runtime = fs.existsSync('/var/run/docker.sock') ? 'docker' : 'podman';
     
     try {
-      const logs = execSync(
-        `${runtime} logs --tail 50 ${containerName} 2>&1`,
-        { encoding: 'utf-8' }
-      ).split('\n').filter(line => line.trim());
-      
+      const logs = execFileSync(runtime, ['logs', '--tail', '50', containerName], {
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'pipe']
+      }).split('\n').filter((line: string) => line.trim());
+
       return {
         recent: logs.slice(-10),
-        errors: logs.filter(l => l.match(/\bERROR\b/)).slice(-10)
+        errors: logs.filter((l: string) => l.match(/\bERROR\b/)).slice(-10)
       };
     } catch {
       return undefined;
