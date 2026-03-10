@@ -6,7 +6,7 @@ import { getBackendPaths } from './backend-paths.js';
 import type { BackendServiceConfig } from '@semiont/core';
 import { baseUrl } from '@semiont/core';
 import { SemiontApiClient } from '@semiont/api-client';
-import { passingPreflight } from '../../../core/handlers/preflight-utils.js';
+import { checkConfigPort, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 
 /**
  * Check handler for backend services on POSIX systems
@@ -197,7 +197,10 @@ const checkBackendService = async (context: PosixCheckHandlerContext): Promise<C
   };
 };
 
-const preflightBackendCheck = async () => passingPreflight();
+const preflightBackendCheck = async (context: PosixCheckHandlerContext) => {
+  const config = context.service.config as BackendServiceConfig;
+  return preflightFromChecks([checkConfigPort(config.port, 'backend.port')]);
+};
 
 /**
  * Descriptor for backend POSIX check handler

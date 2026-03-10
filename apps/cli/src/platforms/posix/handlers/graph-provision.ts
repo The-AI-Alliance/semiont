@@ -4,7 +4,7 @@ import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor
 import { printInfo, printSuccess, printError } from '../../../core/io/cli-logger.js';
 import { getGraphPaths } from './graph-paths.js';
 import type { GraphServiceConfig } from '@semiont/core';
-import { checkCommandAvailable, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { checkCommandAvailable, checkConfigField, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -204,11 +204,14 @@ async function fileExists(path: string): Promise<boolean> {
   }
 }
 
-const preflightGraphProvision = async (_context: PosixProvisionHandlerContext): Promise<PreflightResult> => {
+const preflightGraphProvision = async (context: PosixProvisionHandlerContext): Promise<PreflightResult> => {
+  const config = context.service.config as GraphServiceConfig;
   return preflightFromChecks([
     checkCommandAvailable('java'),
     checkCommandAvailable('curl'),
     checkCommandAvailable('unzip'),
+    checkConfigField(config.type, 'graph.type'),
+    checkConfigField(config.janusgraphVersion, 'graph.janusgraphVersion'),
   ]);
 };
 
