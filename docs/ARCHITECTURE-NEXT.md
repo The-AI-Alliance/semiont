@@ -103,8 +103,9 @@ The knowledge base is not an intelligent actor. It has no goals, preferences, or
 
 ```mermaid
 graph TB
-    BUS["Event Bus"] -->|events| EVENTLOG
-    BUS -->|content| CONTENT
+    BUS["Event Bus"] -->|"mark, ..."| EVENTLOG
+    BUS -->|"yield"| CONTENT
+    CONTENT -->|"browse"| BUS
     BUS -->|"gather"| GATHERER["Gatherer"]
     BUS -->|"bind"| BINDER["Binder"]
 
