@@ -382,7 +382,7 @@ This directory contains runtime files for the backend service.
 - \`.env\` - Environment configuration
 - \`logs/\` - Application logs
 - \`tmp/\` - Temporary files
-- \`.pid\` - Process ID when running
+- \`backend.pid\` - Process ID when running
 
 ## Source Code
 

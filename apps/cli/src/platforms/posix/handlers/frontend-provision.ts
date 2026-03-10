@@ -363,7 +363,7 @@ This directory contains runtime files for the frontend service.
 - \`.env.local\` - Environment configuration
 - \`logs/\` - Application logs
 - \`tmp/\` - Temporary files
-- \`.pid\` - Process ID when running
+- \`frontend.pid\` - Process ID when running
 
 ## Source Code
 

@@ -62,8 +62,8 @@ Service-specific handlers (not generic):
 Process IDs stored per service ([backend-start.ts:40](../../apps/cli/src/platforms/posix/handlers/backend-start.ts#L40)):
 
 ```
-{projectRoot}/backend/.pid
-{projectRoot}/frontend/.pid
+{projectRoot}/backend/backend.pid
+{projectRoot}/frontend/frontend.pid
 ```
 
 **Not** in `.semiont/pids/` directory.
