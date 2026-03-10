@@ -1,12 +1,12 @@
 import { spawn } from 'child_process';
 import * as fs from 'fs';
-import * as path from 'path';
 import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import type { DatabaseServiceConfig } from '@semiont/core';
 import { checkCommandAvailable, checkPortFree, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
+import { getDatabasePaths } from './database-paths.js';
 
 /**
  * Start handler for database services on POSIX systems
@@ -29,8 +29,9 @@ const startDatabaseService = async (context: PosixStartHandlerContext): Promise<
     };
   }
 
-  // Ensure data directory exists for database
-  const dataDir = path.join(process.cwd(), 'data', service.name);
+  // Get database paths
+  const paths = getDatabasePaths(context);
+  const { dataDir, pidFile } = paths;
   fs.mkdirSync(dataDir, { recursive: true });
 
   // Build environment from config
@@ -82,7 +83,11 @@ const startDatabaseService = async (context: PosixStartHandlerContext): Promise<
     if (!proc.pid) {
       throw new Error('Failed to start database process');
     }
-    
+
+    // Write PID file
+    fs.mkdirSync(paths.runtimeDir, { recursive: true });
+    fs.writeFileSync(pidFile, proc.pid.toString());
+
     // Always log database errors
     if (Array.isArray(stdio) && stdio[2] === 'pipe' && proc.stderr) {
       proc.stderr.on('data', (data) => {
@@ -156,6 +161,9 @@ const startDatabaseService = async (context: PosixStartHandlerContext): Promise<
       }
     };
   } catch (error) {
+    if (fs.existsSync(pidFile)) {
+      fs.unlinkSync(pidFile);
+    }
     return {
       success: false,
       error: `Failed to start database service: ${error}`,

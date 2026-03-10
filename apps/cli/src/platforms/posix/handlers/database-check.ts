@@ -1,9 +1,11 @@
+import * as fs from 'fs';
 import { StateManager } from '../../../core/state-manager.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { execFileSync } from 'child_process';
 import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import type { DatabaseServiceConfig } from '@semiont/core';
 import { checkPortLookupCommand, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { getDatabasePaths } from './database-paths.js';
 
 /**
  * Check handler for POSIX database services
@@ -12,28 +14,45 @@ const checkDatabaseProcess = async (context: PosixCheckHandlerContext): Promise<
   const { platform, service } = context;
   const config = service.config as DatabaseServiceConfig;
 
-  // Load saved state
-  const savedState = await StateManager.load(
-    service.projectRoot,
-    service.environment,
-    service.name
-  );
+  const paths = getDatabasePaths(context);
 
   let status: 'running' | 'stopped' | 'unhealthy' = 'stopped';
   let pid: number | undefined;
 
-  // Check if saved process is running
-  if (savedState?.resources?.platform === 'posix' &&
-      savedState.resources.data.pid &&
-      StateManager.isProcessRunning(savedState.resources.data.pid)) {
-    pid = savedState.resources.data.pid;
-    status = 'running';
-  } else {
-    // Get port from config
-    const port = config.port;
+  // 1. Check PID file
+  if (fs.existsSync(paths.pidFile)) {
+    try {
+      pid = parseInt(fs.readFileSync(paths.pidFile, 'utf-8'));
+      process.kill(pid, 0);
+      status = 'running';
+    } catch {
+      // Stale PID file — process not running
+      fs.unlinkSync(paths.pidFile);
+      pid = undefined;
+    }
+  }
 
+  // 2. Fall back to saved state
+  if (!pid) {
+    // Load saved state
+    const savedState = await StateManager.load(
+      service.projectRoot,
+      service.environment,
+      service.name
+    );
+
+    if (savedState?.resources?.platform === 'posix' &&
+        savedState.resources.data.pid &&
+        StateManager.isProcessRunning(savedState.resources.data.pid)) {
+      pid = savedState.resources.data.pid;
+      status = 'running';
+    }
+  }
+
+  // 3. Fall back to port scan
+  if (!pid) {
+    const port = config.port;
     if (await isPortInUse(port)) {
-      // Try to find the PID using the port
       try {
         let output: string;
         if (process.platform === 'darwin') {
@@ -41,18 +60,16 @@ const checkDatabaseProcess = async (context: PosixCheckHandlerContext): Promise<
         } else {
           output = execFileSync('fuser', [port + '/tcp'], { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'] });
         }
-        
+
         const foundPid = parseInt(output.trim());
         if (!isNaN(foundPid)) {
           pid = foundPid;
           status = 'running';
         } else {
           status = 'running';
-          // Database is running but we couldn't determine the PID
         }
       } catch {
         status = 'running';
-        // Database is running but we couldn't determine the PID
       }
     }
   }

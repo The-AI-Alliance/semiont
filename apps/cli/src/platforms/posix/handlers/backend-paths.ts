@@ -74,7 +74,7 @@ function buildPaths(sourceDir: string, runtimeDir: string, fromNpmPackage: boole
   return {
     sourceDir,
     runtimeDir,
-    pidFile: path.join(runtimeDir, '.pid'),
+    pidFile: path.join(runtimeDir, 'backend.pid'),
     envFile: path.join(runtimeDir, '.env'),
     logsDir: path.join(runtimeDir, 'logs'),
     appLogFile: path.join(runtimeDir, 'logs', 'app.log'),

@@ -41,7 +41,7 @@ export function getGraphPaths<T>(context: BaseHandlerContext<T>): GraphPaths {
 
   return {
     dataDir,
-    pidFile: path.join(dataDir, 'janusgraph.pid'),
+    pidFile: path.join(dataDir, 'graph.pid'),
     janusgraphDir,
     janusgraphZipPath: path.join(dataDir, `janusgraph-${janusgraphVersion}.zip`),
     configPath: path.join(janusgraphDir, 'conf', 'gremlin-server', 'custom-server.yaml'),
