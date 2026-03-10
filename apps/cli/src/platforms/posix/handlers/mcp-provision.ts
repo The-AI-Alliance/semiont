@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
 import { getMCPPaths } from './mcp-paths.js';
-import { checkPortFree, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { checkPortFree, checkConfigField, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 
 /**
  * Provision handler for MCP (Model Context Protocol) services on POSIX systems
@@ -28,17 +28,9 @@ const provisionMCPService = async (context: PosixProvisionHandlerContext): Promi
   }
 
   // Get environment configuration from service
+  // site.domain validated by preflight
   const envConfig = service.environmentConfig;
-  if (!envConfig.site?.domain) {
-    return {
-      success: false,
-      error: 'Site domain must be configured in environment config',
-      metadata: {
-        serviceType: 'mcp'
-      }
-    };
-  }
-  const domain = envConfig.site.domain;
+  const domain = envConfig.site!.domain!;
   const protocol = domain.includes('localhost') ? 'http' : 'https';
   const port = 8585; // Default MCP OAuth callback port
   
@@ -185,8 +177,10 @@ const provisionMCPService = async (context: PosixProvisionHandlerContext): Promi
   });
 };
 
-const preflightMCPProvision = async () => {
+const preflightMCPProvision = async (context: PosixProvisionHandlerContext) => {
+  const envConfig = context.service.environmentConfig;
   return preflightFromChecks([
+    checkConfigField(envConfig.site?.domain, 'site.domain'),
     await checkPortFree(8585),
   ]);
 };

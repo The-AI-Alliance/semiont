@@ -6,7 +6,7 @@ import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
 import { getFrontendPaths, resolveFrontendNpmPackage } from './frontend-paths.js';
 import type { FrontendServiceConfig } from '@semiont/core';
-import { checkCommandAvailable, checkFileExists, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { checkCommandAvailable, checkFileExists, checkConfigPort, checkConfigField, checkConfigUrl, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -87,58 +87,18 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
   const port = config.port;
   const siteName = config.siteName;
 
-  // Get backend service from environment config
-  const backendService = service.environmentConfig.services['backend'];
-  if (!backendService) {
-    return {
-      success: false,
-      error: 'Backend service not found in environment configuration',
-      metadata: { serviceType: 'frontend' }
-    };
-  }
-
+  // All fields validated by preflight — safe to use ! assertions
+  const backendService = service.environmentConfig.services['backend']!;
   // For POSIX platform, use 127.0.0.1 URL for server-side API calls
   // (publicURL may be Codespaces public URL which requires external auth)
   // Use 127.0.0.1 instead of localhost to avoid ECONNREFUSED in Node.js
-  // This matches the approach in backend-check.ts:101
-  if (!backendService.port) {
-    return {
-      success: false,
-      error: 'Backend port not configured',
-      metadata: { serviceType: 'frontend' }
-    };
-  }
-  const backendUrl = `http://127.0.0.1:${backendService.port}`;
-  if (!siteName) {
-    return {
-      success: false,
-      error: 'Frontend siteName not configured',
-      metadata: { serviceType: 'frontend' }
-    };
-  }
+  const backendUrl = `http://127.0.0.1:${backendService.port!}`;
 
   // Get OAuth allowed domains from environment config
   const oauthAllowedDomains = service.environmentConfig.site?.oauthAllowedDomains || [];
 
-  // Get frontend service config to access publicURL and allowedOrigins
-  const frontendService = service.environmentConfig.services['frontend'];
-  if (!frontendService) {
-    return {
-      success: false,
-      error: 'Frontend service not found in environment configuration',
-      metadata: { serviceType: 'frontend' }
-    };
-  }
-
-  // Require publicURL for NEXTAUTH_URL
-  if (!frontendService.publicURL) {
-    return {
-      success: false,
-      error: 'Frontend publicURL not configured - required for NextAuth',
-      metadata: { serviceType: 'frontend' }
-    };
-  }
-  const frontendUrl = frontendService.publicURL;
+  const frontendService = service.environmentConfig.services['frontend']!;
+  const frontendUrl = frontendService.publicURL!;
 
   // Build allowed origins for Server Actions (when behind proxy/load balancer)
   const allowedOrigins: string[] = [];
@@ -149,7 +109,7 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
   }
 
   // Add public URL host (e.g., Codespaces URL)
-  const publicUrl = new URL(frontendService.publicURL);
+  const publicUrl = new URL(frontendUrl);
   allowedOrigins.push(publicUrl.host);
 
   // Always create/overwrite .env.local with minimal configuration
@@ -421,6 +381,8 @@ ${paths.fromNpmPackage ? `Installed npm package: ${frontendSourceDir}` : `Semion
 };
 
 const preflightFrontendProvision = async (context: PosixProvisionHandlerContext): Promise<PreflightResult> => {
+  const config = context.service.config as FrontendServiceConfig;
+  const envConfig = context.service.environmentConfig;
   const paths = getFrontendPaths(context);
   const checks = paths.fromNpmPackage
     ? [
@@ -430,6 +392,12 @@ const preflightFrontendProvision = async (context: PosixProvisionHandlerContext)
         checkCommandAvailable('npm'),
         checkFileExists(path.join(paths.sourceDir, 'package.json'), 'frontend package.json'),
       ];
+  checks.push(
+    checkConfigPort(config.port, 'frontend.port'),
+    checkConfigField(config.siteName, 'frontend.siteName'),
+    checkConfigPort(envConfig.services?.backend?.port, 'backend.port'),
+    checkConfigUrl(envConfig.services?.frontend?.publicURL, 'frontend.publicURL'),
+  );
   return preflightFromChecks(checks);
 };
 

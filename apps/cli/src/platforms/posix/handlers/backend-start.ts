@@ -7,7 +7,7 @@ import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { getBackendPaths } from './backend-paths.js';
-import { checkPortFree, checkCommandAvailable, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { checkPortFree, checkCommandAvailable, checkConfigPort, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -63,10 +63,7 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
     }
   }
   
-  const port = service.config.port;
-  if (!port) {
-    throw new Error('Backend port not configured');
-  }
+  const port = config.port!;
 
   if (await isPortInUse(port)) {
     return {
@@ -262,12 +259,12 @@ const startBackendService = async (context: PosixStartHandlerContext): Promise<S
 const preflightBackendStart = async (context: PosixStartHandlerContext): Promise<PreflightResult> => {
   const config = context.service.config as BackendServiceConfig;
   const paths = getBackendPaths(context);
-  const port = config.port;
   const checks = paths.fromNpmPackage
     ? [checkCommandAvailable('node')]
     : [checkCommandAvailable('npm')];
-  if (port) {
-    checks.push(await checkPortFree(port));
+  checks.push(checkConfigPort(config.port, 'backend.port'));
+  if (config.port) {
+    checks.push(await checkPortFree(config.port));
   }
   return preflightFromChecks(checks);
 };

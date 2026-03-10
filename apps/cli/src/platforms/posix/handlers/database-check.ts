@@ -4,7 +4,7 @@ import { isPortInUse } from '../../../core/io/network-utils.js';
 import { execFileSync } from 'child_process';
 import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import type { DatabaseServiceConfig } from '@semiont/core';
-import { checkPortLookupCommand, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { checkPortLookupCommand, checkConfigPort, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import { getDatabasePaths } from './database-paths.js';
 
 /**
@@ -116,7 +116,13 @@ const checkDatabaseProcess = async (context: PosixCheckHandlerContext): Promise<
   };
 };
 
-const preflightDatabaseCheck = async () => preflightFromChecks([checkPortLookupCommand()]);
+const preflightDatabaseCheck = async (context: PosixCheckHandlerContext) => {
+  const config = context.service.config as DatabaseServiceConfig;
+  return preflightFromChecks([
+    checkConfigPort(config.port, 'database.port'),
+    checkPortLookupCommand(),
+  ]);
+};
 
 /**
  * Descriptor for POSIX database check handler

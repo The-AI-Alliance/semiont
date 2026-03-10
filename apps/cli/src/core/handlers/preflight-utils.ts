@@ -116,6 +116,39 @@ export function checkPortLookupCommand(): PreflightCheck {
   return checkCommandAvailable(command);
 }
 
+export function checkConfigField(value: unknown, fieldPath: string): PreflightCheck {
+  if (value === undefined || value === null || value === '') {
+    return { name: `config-${fieldPath}`, pass: false, message: `${fieldPath} is not configured` };
+  }
+  return { name: `config-${fieldPath}`, pass: true, message: `${fieldPath} is configured` };
+}
+
+export function checkConfigPort(port: unknown, fieldPath: string): PreflightCheck {
+  if (typeof port !== 'number' || !Number.isInteger(port) || port < 1 || port > 65535) {
+    return { name: `config-${fieldPath}`, pass: false, message: `${fieldPath} must be a port number (1–65535), got ${port}` };
+  }
+  return { name: `config-${fieldPath}`, pass: true, message: `${fieldPath} = ${port}` };
+}
+
+export function checkConfigUrl(url: unknown, fieldPath: string): PreflightCheck {
+  if (typeof url !== 'string' || !url) {
+    return { name: `config-${fieldPath}`, pass: false, message: `${fieldPath} is not configured` };
+  }
+  try {
+    new URL(url);
+    return { name: `config-${fieldPath}`, pass: true, message: `${fieldPath} = ${url}` };
+  } catch {
+    return { name: `config-${fieldPath}`, pass: false, message: `${fieldPath} is not a valid URL: ${url}` };
+  }
+}
+
+export function checkConfigNonEmptyArray(arr: unknown, fieldPath: string): PreflightCheck {
+  if (!Array.isArray(arr) || arr.length === 0) {
+    return { name: `config-${fieldPath}`, pass: false, message: `${fieldPath} must be a non-empty array` };
+  }
+  return { name: `config-${fieldPath}`, pass: true, message: `${fieldPath} has ${arr.length} entries` };
+}
+
 export function passingPreflight(): PreflightResult {
   return { pass: true, checks: [] };
 }
