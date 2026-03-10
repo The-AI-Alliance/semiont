@@ -63,7 +63,7 @@ function getRecentLogs(runtime: string, containerName: string, lines: number = 2
  * Check handler for proxy services in containers
  */
 const checkProxyService = async (context: ContainerCheckHandlerContext): Promise<CheckHandlerResult> => {
-  const { service, runtime } = context;
+  const { service, runtime, containerName } = context;
   const config = service.config as ProxyServiceConfig;
 
   if (!service.quiet) {
@@ -72,9 +72,6 @@ const checkProxyService = async (context: ContainerCheckHandlerContext): Promise
 
   // Get proxy paths
   const paths = getProxyPaths(context);
-
-  // Container name
-  const containerName = `semiont-proxy-${service.environment}`;
 
   // Initialize health check result
   const healthCheck: ProxyHealthCheck = {

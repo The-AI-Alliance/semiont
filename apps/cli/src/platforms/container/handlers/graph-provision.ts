@@ -13,7 +13,7 @@ import type { PreflightResult } from '../../../core/handlers/types.js';
  * Currently supports JanusGraph
  */
 const provisionGraphService = async (context: ContainerProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
-  const { service, runtime } = context;
+  const { service, runtime, containerName } = context;
   const serviceConfig = service.config as GraphServiceConfig;
   const graphType = serviceConfig.type;
 
@@ -88,7 +88,6 @@ const provisionGraphService = async (context: ContainerProvisionHandlerContext):
     }
 
     // Generate docker-compose configuration
-    const containerName = `semiont-${service.name}-${service.environment}`;
     const services: any = {
       janusgraph: {
         image: 'janusgraph/janusgraph:1.0.0',

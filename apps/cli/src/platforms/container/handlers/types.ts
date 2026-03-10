@@ -42,6 +42,7 @@ export interface ContainerStartHandlerContext extends CoreStartHandlerContext<Co
  */
 export interface ContainerProvisionHandlerContext extends CoreProvisionHandlerContext<ContainerPlatform> {
   runtime: 'docker' | 'podman';
+  containerName: string;
 }
 
 /**

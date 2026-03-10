@@ -9,15 +9,12 @@ import type { PreflightResult } from '../../../core/handlers/types.js';
  * Stop handler for proxy services in containers
  */
 const stopProxyService = async (context: ContainerStopHandlerContext): Promise<StopHandlerResult> => {
-  const { service, runtime } = context;
+  const { service, runtime, containerName } = context;
   const config = service.config as ProxyServiceConfig;
 
   if (!service.quiet) {
     printInfo(`Stopping proxy service ${service.name} (type: ${config.type})...`);
   }
-
-  // Container name
-  const containerName = `semiont-proxy-${service.environment}`;
 
   try {
     // Check if container exists

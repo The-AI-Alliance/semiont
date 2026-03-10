@@ -47,7 +47,7 @@ function getProxyCommand(type: string): string[] {
  * Start handler for proxy services in containers
  */
 const startProxyService = async (context: ContainerStartHandlerContext): Promise<StartHandlerResult> => {
-  const { service, runtime } = context;
+  const { service, runtime, containerName } = context;
   const config = service.config as ProxyServiceConfig;
 
   if (!service.quiet) {
@@ -65,9 +65,6 @@ const startProxyService = async (context: ContainerStartHandlerContext): Promise
       metadata: { serviceType: 'proxy', proxyType: config.type }
     };
   }
-
-  // Container name
-  const containerName = `semiont-proxy-${service.environment}`;
 
   // Check if container already exists
   try {

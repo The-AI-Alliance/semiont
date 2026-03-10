@@ -17,8 +17,7 @@ import type { PreflightResult } from '../../../core/handlers/types.js';
  * - Loading seed data
  */
 const provisionDatabaseContainer = async (context: ContainerProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
-  const { service, runtime } = context;
-  const containerName = `semiont-${service.name}-${service.environment}`;
+  const { service, runtime, containerName } = context;
 
   if (!service.quiet) {
     printInfo(`Provisioning database ${service.name}...`);
