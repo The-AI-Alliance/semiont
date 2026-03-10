@@ -5,13 +5,10 @@ import { inferenceCheckDescriptor } from './inference-check.js';
 /**
  * All External platform handler descriptors
  */
-// Export handlers for registry
 export const handlers = [
-  // Check handlers
   databaseCheckDescriptor,
   graphCheckDescriptor,
   inferenceCheckDescriptor,
-  // Start handlers
 ];
 
 export * from './types.js';
