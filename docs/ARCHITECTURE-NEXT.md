@@ -101,8 +101,10 @@ graph TB
     BUS -->|content| CONTENT
 
     subgraph kb ["Knowledge Base"]
-        EVENTLOG["Event Log<br/>(immutable append-only)"]
-        CONTENT["Content Store<br/>(SHA-256 addressed, deduplicated)"]
+        subgraph sor ["System of Record"]
+            EVENTLOG["Event Log<br/>(immutable append-only)"]
+            CONTENT["Content Store<br/>(SHA-256 addressed, deduplicated)"]
+        end
         VIEWS["Materialized Views<br/>(fast single-doc queries)"]
         GRAPH["Graph<br/>(eventually consistent)"]
         VECTORS["Vectors<br/>(planned)"]
@@ -112,11 +114,11 @@ graph TB
         CONTENT -->|embed| VECTORS
     end
 
+    BE["Backend API"] -->|"write (events, content)"| BUS
     VIEWS -.->|query| BE
     CONTENT -.->|read by checksum| BE
     GRAPH -.->|traverse| BE
     VECTORS -.->|search| BE
-    BE["Backend API"]
 
     classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
     classDef store fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
