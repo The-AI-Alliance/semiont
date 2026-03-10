@@ -18,13 +18,16 @@ import type { PreflightResult } from '../../../core/handlers/types.js';
 const provisionFrontendService = async (context: PosixProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
   const { service } = context;
 
+  const projectRoot = service.projectRoot;
+
   // Install @semiont/frontend npm package if not already available and no SEMIONT_REPO
-  if (!context.options?.semiontRepo && !resolveFrontendNpmPackage()) {
+  if (!context.options?.semiontRepo && !resolveFrontendNpmPackage(projectRoot)) {
     if (!service.quiet) {
       printInfo('Installing @semiont/frontend...');
     }
     try {
-      execFileSync('npm', ['install', '-g', '@semiont/frontend'], {
+      execFileSync('npm', ['install', '@semiont/frontend'], {
+        cwd: projectRoot,
         stdio: service.verbose ? 'inherit' : 'pipe'
       });
       if (!service.quiet) {

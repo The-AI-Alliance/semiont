@@ -22,13 +22,16 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   // Type narrowing for backend service config
   const config = service.config as BackendServiceConfig;
 
+  const projectRoot = service.projectRoot;
+
   // Install @semiont/backend npm package if not already available and no SEMIONT_REPO
-  if (!context.options?.semiontRepo && !resolveBackendNpmPackage()) {
+  if (!context.options?.semiontRepo && !resolveBackendNpmPackage(projectRoot)) {
     if (!service.quiet) {
       printInfo('Installing @semiont/backend...');
     }
     try {
-      execFileSync('npm', ['install', '-g', '@semiont/backend'], {
+      execFileSync('npm', ['install', '@semiont/backend'], {
+        cwd: projectRoot,
         stdio: service.verbose ? 'inherit' : 'pipe'
       });
       if (!service.quiet) {
