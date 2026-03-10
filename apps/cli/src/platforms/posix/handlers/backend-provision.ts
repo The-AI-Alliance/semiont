@@ -7,7 +7,7 @@ import type { BackendServiceConfig } from '@semiont/core';
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
 import { getBackendPaths, resolveBackendNpmPackage } from './backend-paths.js';
 import { getNodeEnvForEnvironment } from '@semiont/core';
-import { checkCommandAvailable, checkFileExists, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { checkCommandAvailable, checkFileExists, checkConfigPort, checkConfigUrl, checkConfigField, checkConfigNonEmptyArray, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -70,32 +70,14 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   }
 
   // Get environment configuration from service
+  // All fields validated by preflight — safe to use ! assertions
   const envConfig = service.environmentConfig;
-  const dbConfig = envConfig.services?.database;
+  const dbConfig = envConfig.services!.database!;
 
-  if (!dbConfig?.environment) {
-    throw new Error('Database configuration not found in environment file');
-  }
-
-  const dbUser = dbConfig.environment.POSTGRES_USER;
-  if (!dbUser) {
-    throw new Error('POSTGRES_USER not configured');
-  }
-
-  const dbPassword = dbConfig.environment.POSTGRES_PASSWORD;
-  if (!dbPassword) {
-    throw new Error('POSTGRES_PASSWORD not configured');
-  }
-
-  const dbName = dbConfig.environment.POSTGRES_DB;
-  if (!dbName) {
-    throw new Error('POSTGRES_DB not configured');
-  }
-
-  const dbPort = dbConfig.port;
-  if (!dbPort) {
-    throw new Error('Database port not configured');
-  }
+  const dbUser = dbConfig.environment!.POSTGRES_USER!;
+  const dbPassword = dbConfig.environment!.POSTGRES_PASSWORD!;
+  const dbName = dbConfig.environment!.POSTGRES_DB!;
+  const dbPort = dbConfig.port!;
 
   // Use database host from config if available, fallback to localhost
   const dbHost = dbConfig.host || 'localhost';
@@ -118,37 +100,12 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   }
   
   // Get URLs from environment config
-  const frontendService = service.environmentConfig.services?.frontend;
-  if (!frontendService?.publicURL) {
-    throw new Error('Frontend publicURL not configured in environment');
-  }
-  const frontendUrl = frontendService.publicURL;
-
-  const backendUrl = config.publicURL;
-  if (!backendUrl) {
-    throw new Error('Backend publicURL not configured');
-  }
-
-  const port = config.port;
-  if (!port) {
-    throw new Error('Backend port not configured');
-  }
-
-  if (!service.environmentConfig.site) {
-    throw new Error('Site configuration not found in environment file');
-  }
-
-  const siteDomain = service.environmentConfig.site.domain;
-  if (!siteDomain) {
-    throw new Error('Site domain not configured');
-  }
-
-  // Read OAuth allowed domains from site config
-  const oauthAllowedDomains = service.environmentConfig.site.oauthAllowedDomains;
-  if (!oauthAllowedDomains || oauthAllowedDomains.length === 0) {
-    throw new Error('OAuth allowed domains not configured in site config');
-  }
-
+  // All fields validated by preflight — safe to use ! assertions
+  const frontendUrl = service.environmentConfig.services!.frontend!.publicURL!;
+  const backendUrl = config.publicURL!;
+  const port = config.port!;
+  const siteDomain = service.environmentConfig.site!.domain!;
+  const oauthAllowedDomains = service.environmentConfig.site!.oauthAllowedDomains!;
   const allowedDomains = oauthAllowedDomains.join(',');
 
   // Get NODE_ENV from environment config
@@ -440,6 +397,9 @@ ${paths.fromNpmPackage ? `Installed npm package: ${backendSourceDir}` : `Semiont
 };
 
 const preflightBackendProvision = async (context: PosixProvisionHandlerContext): Promise<PreflightResult> => {
+  const config = context.service.config as BackendServiceConfig;
+  const envConfig = context.service.environmentConfig;
+  const db = envConfig.services?.database;
   const paths = getBackendPaths(context);
   const checks = paths.fromNpmPackage
     ? [
@@ -450,6 +410,17 @@ const preflightBackendProvision = async (context: PosixProvisionHandlerContext):
         checkCommandAvailable('npx'),
         checkFileExists(path.join(paths.sourceDir, 'package.json'), 'backend package.json'),
       ];
+  checks.push(
+    checkConfigPort(config.port, 'backend.port'),
+    checkConfigUrl(config.publicURL, 'backend.publicURL'),
+    checkConfigField(db?.environment?.POSTGRES_USER, 'database.environment.POSTGRES_USER'),
+    checkConfigField(db?.environment?.POSTGRES_PASSWORD, 'database.environment.POSTGRES_PASSWORD'),
+    checkConfigField(db?.environment?.POSTGRES_DB, 'database.environment.POSTGRES_DB'),
+    checkConfigPort(db?.port, 'database.port'),
+    checkConfigUrl(envConfig.services?.frontend?.publicURL, 'frontend.publicURL'),
+    checkConfigField(envConfig.site?.domain, 'site.domain'),
+    checkConfigNonEmptyArray(envConfig.site?.oauthAllowedDomains, 'site.oauthAllowedDomains'),
+  );
   return preflightFromChecks(checks);
 };
 

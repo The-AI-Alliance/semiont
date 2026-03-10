@@ -4,7 +4,7 @@ import { PosixStartHandlerContext, StartHandlerResult, HandlerDescriptor } from 
 import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import type { DatabaseServiceConfig } from '@semiont/core';
-import { checkCommandAvailable, checkPortFree, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { checkCommandAvailable, checkPortFree, checkConfigPort, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 import { getDatabasePaths } from './database-paths.js';
 
@@ -181,6 +181,7 @@ const preflightDatabaseStart = async (context: PosixStartHandlerContext): Promis
   const runtime = command.split(' ')[0];
   return preflightFromChecks([
     checkCommandAvailable(runtime),
+    checkConfigPort(config.port, 'database.port'),
     await checkPortFree(config.port),
   ]);
 };
