@@ -27,18 +27,24 @@ graph TD
     BUS["E V E N T &ensp; B U S"]
 
     BUS -->|"events"| KB["Knowledge Base"]
+    BUS -->|"gather"| GATHERER["Gatherer"]
+    BUS -->|"bind"| BINDER["Binder"]
+    GATHERER -->|"query"| KB
+    BINDER -->|"query"| KB
 
     classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold,font-size:14px
     classDef human fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
     classDef ai fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
     classDef kb fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
     classDef stream fill:#c97d5d,stroke:#8b4513,stroke-width:2px,color:#fff
+    classDef worker fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
 
     class READER,ANALYST,AUTHOR human
     class MARKER,GENERATOR,LINKER ai
     class BUS bus
     class KB kb
     class SOURCES stream
+    class GATHERER,BINDER worker
 ```
 
 ## Actors
@@ -91,14 +97,16 @@ graph TB
 
 AI actors connect via the backend API (REST + JWT) or MCP protocol. They emit the same events as human actors. The knowledge base cannot distinguish a human-created annotation from an AI-created one — both are W3C annotations with a `creator` field that identifies the agent.
 
-### Knowledge Base (Passive)
+### Knowledge Base
 
-The knowledge base is not an intelligent actor. It has no goals, preferences, or decisions. It listens to events on the bus and materializes durable state. It never initiates an event. Events flow *into* it. Reads flow *out of* it (via the backend API). This asymmetry is deliberate — it means the knowledge base can be rebuilt from the event log at any time.
+The knowledge base is not an intelligent actor. It has no goals, preferences, or decisions. It listens to events on the bus and materializes durable state. It never initiates an event. Events flow *into* it. Reads flow *out of* it — via the **Gatherer** and **Binder**, which query KB stores in response to gather and bind events respectively. This asymmetry is deliberate — it means the knowledge base can be rebuilt from the event log at any time.
 
 ```mermaid
 graph TB
     BUS["Event Bus"] -->|events| EVENTLOG
     BUS -->|content| CONTENT
+    BUS -->|"gather"| GATHERER["Gatherer"]
+    BUS -->|"bind"| BINDER["Binder"]
 
     subgraph kb ["Knowledge Base"]
         subgraph sor ["System of Record"]
@@ -114,21 +122,24 @@ graph TB
         CONTENT -->|embed| VECTORS
     end
 
-    BE["Backend API"] -->|"write (events, content)"| BUS
-    VIEWS -.->|query| BE
-    CONTENT -.->|read by checksum| BE
-    GRAPH -.->|traverse| BE
-    VECTORS -.->|search| BE
+    GATHERER -->|query| VIEWS
+    GATHERER -->|read| CONTENT
+    GATHERER -->|traverse| GRAPH
+    GATHERER -->|search| VECTORS
+
+    BINDER -->|query| VIEWS
+    BINDER -->|traverse| GRAPH
+    BINDER -->|search| VECTORS
 
     classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
     classDef store fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
-    classDef api fill:#d4a827,stroke:#8b6914,stroke-width:2px,color:#000
     classDef planned fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff,stroke-dasharray: 5 5
+    classDef worker fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
 
     class BUS bus
     class EVENTLOG,VIEWS,CONTENT,GRAPH store
     class VECTORS planned
-    class BE api
+    class GATHERER,BINDER worker
 ```
 
 | Store | Purpose | Access Pattern |
@@ -138,6 +149,16 @@ graph TB
 | **Content Store** | Content-addressed binary storage (documents, images, PDFs) | Write-once, read by SHA-256 checksum |
 | **Graph** | Eventually consistent relationship projection for traversal queries (backlinks, entity networks) | Read-only projection from events |
 | **Vectors** *(planned)* | Embedding vectors derived from content for semantic search | Read-only projection from content store |
+
+### Gatherer
+
+The Gatherer is the bridge between the event bus and the knowledge base for context assembly. When a Generator Agent or Linker Agent emits a **gather** event, the Gatherer receives it from the bus, queries the relevant KB stores (materialized views, content store, graph, vectors), and assembles the context needed for downstream work.
+
+### Binder
+
+The Binder is the bridge between the event bus and the knowledge base for entity resolution. When an Analyst or Linker Agent emits a **bind** event, the Binder receives it from the bus, searches the KB stores (materialized views, graph, vectors) for matching resources, and resolves references — linking a mention to its referent. The Binder does not need the content store directly; it works with metadata, relationships, and embeddings to find the right target.
+
+The Gatherer and Binder are the only actors that read from KB stores directly. All other actors interact with the knowledge base exclusively through the event bus.
 
 ### Content Streams
 
@@ -158,8 +179,8 @@ The six flows are verbs that actors perform. Each flow is a conversation between
 | **[Mark](flows/MARK.md)** | Annotate | Analyst, Author, Marker Agent | Create W3C annotations on resources |
 | **[Browse](flows/BROWSE.md)** | Navigate | Reader, Analyst, Marker Agent | Route attention to panels, annotations, resources |
 | **[Beckon](flows/BECKON.md)** | Focus | Reader, Analyst, Marker Agent | Coordinate which annotation has visual attention |
-| **[Bind](flows/BIND.md)** | Link | Analyst, Linker Agent | Resolve references to concrete resources |
-| **[Gather](flows/GATHER.md)** | Contextualize | Generator Agent, Linker Agent | Assemble surrounding context for downstream use |
+| **[Bind](flows/BIND.md)** | Link | Analyst, Linker Agent, Binder | Resolve references to concrete resources |
+| **[Gather](flows/GATHER.md)** | Contextualize | Generator Agent, Linker Agent, Gatherer | Assemble surrounding context for downstream use |
 | **[Yield](flows/YIELD.md)** | Create | Author, Generator Agent, Content Streams | Produce new resources in the knowledge base |
 
 ## Why This Matters
