@@ -1,10 +1,10 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import { ContainerStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printError } from '../../../core/io/cli-logger.js';
 import { getProxyPaths } from './proxy-paths.js';
 import type { ProxyServiceConfig } from '@semiont/core';
-import { checkContainerRuntime, checkPortFree, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { checkCommandAvailable, checkContainerRuntime, checkPortFree, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -47,7 +47,7 @@ function getProxyCommand(type: string): string[] {
  * Start handler for proxy services in containers
  */
 const startProxyService = async (context: ContainerStartHandlerContext): Promise<StartHandlerResult> => {
-  const { service } = context;
+  const { service, runtime } = context;
   const config = service.config as ProxyServiceConfig;
 
   if (!service.quiet) {
@@ -71,11 +71,11 @@ const startProxyService = async (context: ContainerStartHandlerContext): Promise
 
   // Check if container already exists
   try {
-    const existingContainer = execSync(`docker ps -aq -f name=${containerName}`, { encoding: 'utf-8' }).trim();
+    const existingContainer = execFileSync(runtime, ['ps', '-aq', '-f', `name=${containerName}`], { encoding: 'utf-8' }).trim();
 
     if (existingContainer) {
       // Check if it's running
-      const isRunning = execSync(`docker ps -q -f name=${containerName}`, { encoding: 'utf-8' }).trim();
+      const isRunning = execFileSync(runtime, ['ps', '-q', '-f', `name=${containerName}`], { encoding: 'utf-8' }).trim();
 
       if (isRunning) {
         if (!service.quiet) {
@@ -95,7 +95,7 @@ const startProxyService = async (context: ContainerStartHandlerContext): Promise
         if (!service.quiet) {
           printInfo(`Removing stopped container ${containerName}`);
         }
-        execSync(`docker rm ${containerName}`, { stdio: 'pipe' });
+        execFileSync(runtime, ['rm', containerName], { stdio: 'pipe' });
       }
     }
   } catch (error) {
@@ -108,8 +108,8 @@ const startProxyService = async (context: ContainerStartHandlerContext): Promise
   const adminPort = config.adminPort || 9901;
 
   // Build Docker run command
-  const dockerCmd = [
-    'docker', 'run', '-d',
+  const runArgs = [
+    'run', '-d',
     '--name', containerName,
     '-p', `${proxyPort}:8080`,
     '-p', `${adminPort}:9901`,
@@ -123,18 +123,18 @@ const startProxyService = async (context: ContainerStartHandlerContext): Promise
   ];
 
   if (!service.quiet) {
-    printInfo(`Starting Docker container: ${containerName}`);
+    printInfo(`Starting container: ${containerName}`);
     if (service.verbose) {
-      printInfo(`Command: ${dockerCmd.join(' ')}`);
+      printInfo(`Command: ${runtime} ${runArgs.join(' ')}`);
     }
   }
 
   try {
     // Start the container
-    const containerId = execSync(dockerCmd.join(' '), { encoding: 'utf-8' }).trim();
+    const containerId = execFileSync(runtime, runArgs, { encoding: 'utf-8' }).trim();
 
     if (!service.quiet) {
-      printSuccess(`Docker container started with ID: ${containerId.substring(0, 12)}`);
+      printSuccess(`Container started with ID: ${containerId.substring(0, 12)}`);
     }
 
     // Wait for container to be healthy (give it a moment to start)
@@ -146,11 +146,11 @@ const startProxyService = async (context: ContainerStartHandlerContext): Promise
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     // Check if container is still running
-    const isRunning = execSync(`docker ps -q -f id=${containerId}`, { encoding: 'utf-8' }).trim();
+    const isRunning = execFileSync(runtime, ['ps', '-q', '-f', `id=${containerId}`], { encoding: 'utf-8' }).trim();
 
     if (!isRunning) {
       // Get logs to understand why it failed
-      const logs = execSync(`docker logs ${containerId} 2>&1`, { encoding: 'utf-8' });
+      const logs = execFileSync(runtime, ['logs', containerId], { encoding: 'utf-8' });
       return {
         success: false,
         error: `Container exited unexpectedly. Logs:\n${logs}`,
@@ -161,7 +161,7 @@ const startProxyService = async (context: ContainerStartHandlerContext): Promise
     // For Envoy, check admin interface
     if (config.type === 'envoy') {
       try {
-        execSync(`curl -s http://localhost:${adminPort}/clusters > /dev/null 2>&1`, { stdio: 'pipe' });
+        execFileSync('curl', ['-s', '-o', '/dev/null', `http://localhost:${adminPort}/clusters`], { stdio: 'pipe' });
         if (!service.quiet) {
           printSuccess('Proxy admin interface is accessible');
         }
@@ -185,7 +185,7 @@ const startProxyService = async (context: ContainerStartHandlerContext): Promise
     };
 
     if (!service.quiet) {
-      printSuccess(`✅ Proxy service ${service.name} started successfully`);
+      printSuccess(`Proxy service ${service.name} started successfully`);
       printInfo('');
       printInfo('Proxy is running:');
       printInfo(`  Container: ${containerName}`);
@@ -230,6 +230,7 @@ const preflightProxyStart = async (context: ContainerStartHandlerContext): Promi
   const adminPort = config.adminPort || 9901;
   return preflightFromChecks([
     checkContainerRuntime(runtime),
+    checkCommandAvailable('curl'),
     await checkPortFree(proxyPort),
     await checkPortFree(adminPort),
   ]);

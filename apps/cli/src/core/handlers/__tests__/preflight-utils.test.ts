@@ -8,9 +8,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as child_process from 'child_process';
 import * as fs from 'fs';
 
-// Mock child_process.execSync
+// Mock child_process.execFileSync
 vi.mock('child_process', () => ({
-  execSync: vi.fn(),
+  execFileSync: vi.fn(),
 }));
 
 // Mock fs
@@ -40,13 +40,13 @@ describe('preflight-utils', () => {
 
   describe('checkCommandAvailable', () => {
     it('should pass when command exists', () => {
-      vi.mocked(child_process.execSync).mockReturnValue(Buffer.from('/usr/bin/node'));
+      vi.mocked(child_process.execFileSync).mockReturnValue(Buffer.from('/usr/bin/node'));
       const result = checkCommandAvailable('node');
       expect(result).toEqual({ name: 'command-node', pass: true, message: 'node is available' });
     });
 
     it('should fail when command does not exist', () => {
-      vi.mocked(child_process.execSync).mockImplementation(() => { throw new Error('not found'); });
+      vi.mocked(child_process.execFileSync).mockImplementation(() => { throw new Error('not found'); });
       const result = checkCommandAvailable('nonexistent');
       expect(result).toEqual({ name: 'command-nonexistent', pass: false, message: 'nonexistent is not installed or not in PATH' });
     });
@@ -54,13 +54,13 @@ describe('preflight-utils', () => {
 
   describe('checkContainerRuntime', () => {
     it('should pass when runtime is available', () => {
-      vi.mocked(child_process.execSync).mockReturnValue(Buffer.from('Docker version 24.0'));
+      vi.mocked(child_process.execFileSync).mockReturnValue(Buffer.from('Docker version 24.0'));
       const result = checkContainerRuntime('docker');
       expect(result).toEqual({ name: 'container-runtime', pass: true, message: 'docker is available' });
     });
 
     it('should fail when runtime is not available', () => {
-      vi.mocked(child_process.execSync).mockImplementation(() => { throw new Error('not found'); });
+      vi.mocked(child_process.execFileSync).mockImplementation(() => { throw new Error('not found'); });
       const result = checkContainerRuntime('podman');
       expect(result).toEqual({ name: 'container-runtime', pass: false, message: 'podman is not installed or not in PATH' });
     });

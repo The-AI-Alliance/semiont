@@ -219,7 +219,7 @@ const provisionStackService = async (context: AWSProvisionHandlerContext): Promi
  * Descriptor for AWS stack provision handler
  */
 const preflightStackProvision = async (_context: AWSProvisionHandlerContext): Promise<PreflightResult> => {
-  return preflightFromChecks([checkAwsCredentials(), checkCommandAvailable('cdk')]);
+  return preflightFromChecks([checkCommandAvailable('aws'), checkAwsCredentials(), checkCommandAvailable('cdk')]);
 };
 
 export const stackProvisionDescriptor: HandlerDescriptor<AWSProvisionHandlerContext, ProvisionHandlerResult> = {

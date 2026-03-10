@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { ContainerCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import type { FrontendServiceConfig, BackendServiceConfig } from '@semiont/core';
 import { baseUrl } from '@semiont/core';
@@ -12,14 +12,14 @@ import type { PreflightResult } from '../../../core/handlers/types.js';
 const checkWebContainer = async (context: ContainerCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { platform, service, runtime, containerName } = context;
   const config = service.config as FrontendServiceConfig | BackendServiceConfig;
-  
+
   try {
     // Check container status
-    const containerStatus = execSync(
-      `${runtime} inspect ${containerName} --format '{{.State.Status}}'`,
+    const containerStatus = execFileSync(
+      runtime, ['inspect', containerName, '--format', '{{.State.Status}}'],
       { encoding: 'utf-8' }
     ).trim();
-    
+
     if (containerStatus !== 'running') {
       return {
         success: true,
@@ -31,24 +31,24 @@ const checkWebContainer = async (context: ContainerCheckHandlerContext): Promise
         metadata: { containerStatus }
       };
     }
-    
+
     // Get container ID
-    const containerId = execSync(
-      `${runtime} inspect ${containerName} --format '{{.Id}}'`,
+    const containerId = execFileSync(
+      runtime, ['inspect', containerName, '--format', '{{.Id}}'],
       { encoding: 'utf-8' }
     ).trim().substring(0, 12);
-    
+
     // Check Docker native health status if available
     let dockerHealthStatus: string | undefined;
     try {
-      dockerHealthStatus = execSync(
-        `${runtime} inspect ${containerName} --format '{{.State.Health.Status}}'`,
+      dockerHealthStatus = execFileSync(
+        runtime, ['inspect', containerName, '--format', '{{.State.Health.Status}}'],
         { encoding: 'utf-8' }
       ).trim();
     } catch {
       // No health check configured in container
     }
-    
+
     // Collect logs if platform provides collectLogs
     let logs: { recent: string[]; errors: string[] } | undefined = undefined;
     if (platform && typeof platform.collectLogs === 'function') {
@@ -60,7 +60,7 @@ const checkWebContainer = async (context: ContainerCheckHandlerContext): Promise
         };
       }
     }
-    
+
     // Perform health check
     let health = { healthy: true, details: {} };
 
@@ -153,7 +153,7 @@ const checkWebContainer = async (context: ContainerCheckHandlerContext): Promise
     const ports = config.port ? {
       [config.port]: String(config.port)
     } : undefined;
-    
+
     return {
       success: true,
       status: 'running',
@@ -169,7 +169,7 @@ const checkWebContainer = async (context: ContainerCheckHandlerContext): Promise
         stateVerified: true
       }
     };
-    
+
   } catch (error) {
     // Container doesn't exist
     return {

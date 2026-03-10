@@ -1,7 +1,7 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { ContainerCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import type { GraphServiceConfig } from '@semiont/core';
-import { checkContainerRuntime, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { checkCommandAvailable, checkContainerRuntime, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -10,18 +10,16 @@ import type { PreflightResult } from '../../../core/handlers/types.js';
  */
 const checkGraphContainer = async (context: ContainerCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { service, runtime, containerName } = context;
-
-  // Type narrowing for graph service config
   const config = service.config as GraphServiceConfig;
   const graphType = config.type;
-  
+
   try {
     // Check container status
-    const containerStatus = execSync(
-      `${runtime} inspect ${containerName} --format '{{.State.Status}}'`,
+    const containerStatus = execFileSync(
+      runtime, ['inspect', containerName, '--format', '{{.State.Status}}'],
       { encoding: 'utf-8' }
     ).trim();
-    
+
     if (containerStatus !== 'running') {
       return {
         success: true,
@@ -30,26 +28,26 @@ const checkGraphContainer = async (context: ContainerCheckHandlerContext): Promi
           healthy: false,
           details: { containerStatus, graphType }
         },
-        metadata: { 
+        metadata: {
           containerStatus,
           serviceType: 'graph',
           graphType
         }
       };
     }
-    
+
     // Get container ID
-    const containerId = execSync(
-      `${runtime} inspect ${containerName} --format '{{.Id}}'`,
+    const containerId = execFileSync(
+      runtime, ['inspect', containerName, '--format', '{{.Id}}'],
       { encoding: 'utf-8' }
     ).trim();
-    
+
     // Get port mappings
-    const portsOutput = execSync(
-      `${runtime} port ${containerName}`,
+    const portsOutput = execFileSync(
+      runtime, ['port', containerName],
       { encoding: 'utf-8' }
     ).trim();
-    
+
     // Parse ports into a Record<string, string>
     const ports: Record<string, string> = {};
     if (portsOutput) {
@@ -60,7 +58,7 @@ const checkGraphContainer = async (context: ContainerCheckHandlerContext): Promi
         }
       });
     }
-    
+
     // Check if the graph service is responding
     const port = config.port;
     let isHealthy = false;
@@ -69,43 +67,37 @@ const checkGraphContainer = async (context: ContainerCheckHandlerContext): Promi
       graphType,
       endpoint: port ? getGraphEndpoint(graphType, port) : undefined
     };
-    
+
     // Try to verify the service is actually responding
     try {
       switch (graphType) {
         case 'janusgraph':
         case 'neptune':
           // Check if Gremlin server port is accessible
-          // JanusGraph doesn't have a simple HTTP endpoint, so we just check if the port is open
           try {
-            // Check if port is listening using a simple TCP connection test
-            execSync(`${runtime} exec ${containerName} sh -c "echo 'test' | nc -w 1 localhost ${port}"`, {
-              encoding: 'utf-8',
-              timeout: 5000,
-              stdio: 'pipe'
-            });
+            execFileSync(
+              runtime, ['exec', containerName, 'sh', '-c', `echo 'test' | nc -w 1 localhost ${port}`],
+              { encoding: 'utf-8', timeout: 5000, stdio: 'pipe' }
+            );
             isHealthy = true;
 
-            // Additional JanusGraph-specific checks for better diagnostics
             if (graphType === 'janusgraph') {
-              // Check if dependent services are healthy
               try {
-                const cassandraRunning = execSync(`${runtime} ps --filter "name=semiont-cassandra" --format "{{.Names}}"`, {
-                  encoding: 'utf-8',
-                  stdio: 'pipe'
-                }).trim().includes('semiont-cassandra');
+                const cassandraRunning = execFileSync(
+                  runtime, ['ps', '--filter', 'name=semiont-cassandra', '--format', '{{.Names}}'],
+                  { encoding: 'utf-8', stdio: 'pipe' }
+                ).trim().includes('semiont-cassandra');
 
-                const elasticsearchRunning = execSync(`${runtime} ps --filter "name=semiont-elasticsearch" --format "{{.Names}}"`, {
-                  encoding: 'utf-8',
-                  stdio: 'pipe'
-                }).trim().includes('semiont-elasticsearch');
+                const elasticsearchRunning = execFileSync(
+                  runtime, ['ps', '--filter', 'name=semiont-elasticsearch', '--format', '{{.Names}}'],
+                  { encoding: 'utf-8', stdio: 'pipe' }
+                ).trim().includes('semiont-elasticsearch');
 
                 healthDetails.dependencies = {
                   cassandra: cassandraRunning ? 'running' : 'stopped',
                   elasticsearch: elasticsearchRunning ? 'running' : 'stopped'
                 };
 
-                // Check for known WebSocket compatibility issues
                 healthDetails.clientCompatibility = {
                   gremlinJs: 'known_issue',
                   issue: 'gremlin JavaScript client has WebSocket API incompatibility with Node.js',
@@ -113,7 +105,6 @@ const checkGraphContainer = async (context: ContainerCheckHandlerContext): Promi
                   workaround: 'Use HTTP-based JanusGraph client or alternative Gremlin client'
                 };
 
-                // Check startup ordering
                 healthDetails.startupOrder = {
                   status: 'fixed',
                   note: 'Container dependencies use health checks for proper startup ordering'
@@ -125,11 +116,10 @@ const checkGraphContainer = async (context: ContainerCheckHandlerContext): Promi
             }
           } catch {
             // If nc fails, try checking if the java process is running
-            const processes = execSync(`${runtime} exec ${containerName} ps aux`, {
-              encoding: 'utf-8',
-              stdio: 'pipe'
-            });
-            // If JanusGraph java process is running, consider it healthy
+            const processes = execFileSync(
+              runtime, ['exec', containerName, 'ps', 'aux'],
+              { encoding: 'utf-8', stdio: 'pipe' }
+            );
             isHealthy = processes.includes('java') && processes.includes('janusgraph');
 
             if (!isHealthy) {
@@ -138,43 +128,41 @@ const checkGraphContainer = async (context: ContainerCheckHandlerContext): Promi
           }
           break;
         case 'neo4j':
-          // Neo4j bolt protocol check would require specific client
-          // For now, just check if port is listening
-          execSync(`nc -z localhost ${port}`, { timeout: 5000 });
+          // Neo4j bolt protocol check
+          execFileSync('nc', ['-z', 'localhost', String(port)], { timeout: 5000 });
           isHealthy = true;
           break;
-        case 'arangodb' as any:  // ArangoDB support
+        case 'arangodb' as any:
           // Check ArangoDB HTTP API
-          const httpCode = execSync(
-            `curl -s -o /dev/null -w "%{http_code}" http://localhost:${port}/_api/version`,
+          const httpCode = execFileSync(
+            'curl', ['-s', '-o', '/dev/null', '-w', '%{http_code}', `http://localhost:${port!}/_api/version`],
             { encoding: 'utf-8', timeout: 5000 }
           ).trim();
           isHealthy = httpCode === '200';
           break;
         default:
           // Generic port check
-          execSync(`nc -z localhost ${port}`, { timeout: 5000 });
+          execFileSync('nc', ['-z', 'localhost', String(port)], { timeout: 5000 });
           isHealthy = true;
       }
     } catch (healthCheckError) {
-      // Service not responding
       isHealthy = false;
       healthDetails.error = 'Service not responding on expected port';
     }
-    
+
     // Get recent logs
     let logs: { recent: string[]; errors: string[] } | undefined;
     try {
-      const logOutput = execSync(
-        `${runtime} logs ${containerName} --tail 20`,
+      const logOutput = execFileSync(
+        runtime, ['logs', containerName, '--tail', '20'],
         { encoding: 'utf-8', maxBuffer: 1024 * 1024 }
       );
-      
+
       const logLines = logOutput.split('\n').filter(Boolean);
       logs = {
         recent: logLines.slice(-10),
-        errors: logLines.filter((line: string) => 
-          line.toLowerCase().includes('error') || 
+        errors: logLines.filter((line: string) =>
+          line.toLowerCase().includes('error') ||
           line.toLowerCase().includes('exception') ||
           line.toLowerCase().includes('failed')
         ).slice(-5)
@@ -182,13 +170,13 @@ const checkGraphContainer = async (context: ContainerCheckHandlerContext): Promi
     } catch (logError) {
       // Log collection is best-effort
     }
-    
+
     // Get container image info
-    const image = execSync(
-      `${runtime} inspect ${containerName} --format '{{.Config.Image}}'`,
+    const image = execFileSync(
+      runtime, ['inspect', containerName, '--format', '{{.Config.Image}}'],
       { encoding: 'utf-8' }
     ).trim();
-    
+
     return {
       success: true,
       status: isHealthy ? 'running' : 'unhealthy',
@@ -214,7 +202,6 @@ const checkGraphContainer = async (context: ContainerCheckHandlerContext): Promi
       }
     };
   } catch (error: any) {
-    // Container doesn't exist or other Docker/Podman error
     if (error.message?.includes('No such container') || error.message?.includes('no such container')) {
       return {
         success: true,
@@ -230,7 +217,7 @@ const checkGraphContainer = async (context: ContainerCheckHandlerContext): Promi
         }
       };
     }
-    
+
     return {
       success: false,
       error: `Failed to check graph container: ${error.message}`,
@@ -262,12 +249,10 @@ function getGraphEndpoint(graphType: string, port: number): string {
   }
 }
 
-/**
- * Descriptor for Container graph check handler
- */
 const preflightGraphCheck = async (context: ContainerCheckHandlerContext): Promise<PreflightResult> => {
   return preflightFromChecks([
     checkContainerRuntime(context.runtime),
+    checkCommandAvailable('curl'),
   ]);
 };
 

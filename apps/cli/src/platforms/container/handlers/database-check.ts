@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { ContainerCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import type { DatabaseServiceConfig } from '@semiont/core';
 import { checkContainerRuntime, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
@@ -10,14 +10,14 @@ import type { PreflightResult } from '../../../core/handlers/types.js';
 const checkDatabaseContainer = async (context: ContainerCheckHandlerContext): Promise<CheckHandlerResult> => {
   const { platform, service, runtime, containerName } = context;
   const config = service.config as DatabaseServiceConfig;
-  
+
   try {
     // Check container status
-    const containerStatus = execSync(
-      `${runtime} inspect ${containerName} --format '{{.State.Status}}'`,
+    const containerStatus = execFileSync(
+      runtime, ['inspect', containerName, '--format', '{{.State.Status}}'],
       { encoding: 'utf-8' }
     ).trim();
-    
+
     if (containerStatus !== 'running') {
       return {
         success: true,
@@ -29,13 +29,13 @@ const checkDatabaseContainer = async (context: ContainerCheckHandlerContext): Pr
         metadata: { containerStatus }
       };
     }
-    
+
     // Get container ID
-    const containerId = execSync(
-      `${runtime} inspect ${containerName} --format '{{.Id}}'`,
+    const containerId = execFileSync(
+      runtime, ['inspect', containerName, '--format', '{{.Id}}'],
       { encoding: 'utf-8' }
     ).trim().substring(0, 12);
-    
+
     // Collect logs if platform provides collectLogs
     let logs: { recent: string[]; errors: string[] } | undefined = undefined;
     if (platform && typeof platform.collectLogs === 'function') {
@@ -47,44 +47,43 @@ const checkDatabaseContainer = async (context: ContainerCheckHandlerContext): Pr
         };
       }
     }
-    
+
     // Database-specific health check
     let health = { healthy: true, details: {} };
 
     // Get port from config
     const port = config.port;
-    
+
     // Try to check if database is accepting connections
     try {
-      // Check if port is listening inside container using netstat or nc
+      // First try with netstat (most reliable)
       try {
-        // First try with netstat (most reliable)
-        execSync(
-          `${runtime} exec ${containerName} sh -c 'netstat -ln | grep :${port}'`,
+        execFileSync(
+          runtime, ['exec', containerName, 'sh', '-c', `netstat -ln | grep :${port}`],
           { encoding: 'utf-8' }
         );
       } catch {
         // Fallback to nc (netcat) if netstat is not available
-        execSync(
-          `${runtime} exec ${containerName} sh -c 'nc -z localhost ${port}'`,
+        execFileSync(
+          runtime, ['exec', containerName, 'sh', '-c', `nc -z localhost ${port}`],
           { encoding: 'utf-8' }
         );
       }
       health.healthy = true;
-      health.details = { 
+      health.details = {
         database: 'accepting connections',
         port,
         containerHealth: 'running'
       };
     } catch {
       health.healthy = false;
-      health.details = { 
+      health.details = {
         database: 'not accepting connections',
         port,
         containerHealth: 'running'
       };
     }
-    
+
     // Build port mapping for resources
     const ports = config.port ? {
       [config.port]: String(config.port)
@@ -106,7 +105,7 @@ const checkDatabaseContainer = async (context: ContainerCheckHandlerContext): Pr
         stateVerified: true
       }
     };
-    
+
   } catch (error) {
     // Container doesn't exist
     return {

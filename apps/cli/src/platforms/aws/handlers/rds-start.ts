@@ -1,8 +1,8 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { AWSStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { createPlatformResources } from '../../platform-resources.js';
 import { printInfo } from '../../../core/io/cli-logger.js';
-import { checkAwsCredentials, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { checkAwsCredentials, checkCommandAvailable, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -14,10 +14,9 @@ const startRDSInstance = async (context: AWSStartHandlerContext): Promise<StartH
   const instanceId = `${resourceName}-db`;
   
   try {
-    execSync(
-      `aws rds start-db-instance --db-instance-identifier ${instanceId} --region ${region}`,
-      { encoding: 'utf-8' }
-    );
+    execFileSync('aws', ['rds', 'start-db-instance', '--db-instance-identifier', instanceId, '--region', region], {
+      encoding: 'utf-8'
+    });
     
     if (!service.quiet) {
       printInfo('RDS instance starting... this may take several minutes');
@@ -26,10 +25,10 @@ const startRDSInstance = async (context: AWSStartHandlerContext): Promise<StartH
     // Try to get endpoint
     let endpoint: string | undefined;
     try {
-      endpoint = execSync(
-        `aws rds describe-db-instances --db-instance-identifier ${instanceId} --query 'DBInstances[0].Endpoint.Address' --output text --region ${region}`,
-        { encoding: 'utf-8' }
-      ).trim();
+      endpoint = execFileSync('aws', [
+        'rds', 'describe-db-instances', '--db-instance-identifier', instanceId,
+        '--query', 'DBInstances[0].Endpoint.Address', '--output', 'text', '--region', region
+      ], { encoding: 'utf-8' }).trim();
       
       if (endpoint === 'None') {
         endpoint = undefined;
@@ -71,7 +70,7 @@ const startRDSInstance = async (context: AWSStartHandlerContext): Promise<StartH
  * Descriptor for RDS start handler
  */
 const preflightRdsStart = async (_context: AWSStartHandlerContext): Promise<PreflightResult> => {
-  return preflightFromChecks([checkAwsCredentials()]);
+  return preflightFromChecks([checkCommandAvailable('aws'), checkAwsCredentials()]);
 };
 
 export const rdsStartDescriptor: HandlerDescriptor<AWSStartHandlerContext, StartHandlerResult> = {

@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
 import { getFrontendPaths, resolveFrontendNpmPackage } from './frontend-paths.js';
@@ -24,7 +24,7 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
       printInfo('Installing @semiont/frontend...');
     }
     try {
-      execSync('npm install -g @semiont/frontend', {
+      execFileSync('npm', ['install', '-g', '@semiont/frontend'], {
         stdio: service.verbose ? 'inherit' : 'pipe'
       });
       if (!service.quiet) {
@@ -259,18 +259,18 @@ NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=${oauthAllowedDomains.join(',')}
         const rootPackageJson = JSON.parse(fs.readFileSync(rootPackageJsonPath, 'utf-8'));
         if (rootPackageJson.workspaces) {
           // Install from monorepo root
-          execSync('npm install', {
+          execFileSync('npm', ['install'], {
             cwd: monorepoRoot,
             stdio: service.verbose ? 'inherit' : 'pipe'
           });
         } else {
-          execSync('npm install', {
+          execFileSync('npm', ['install'], {
             cwd: frontendSourceDir,
             stdio: service.verbose ? 'inherit' : 'pipe'
           });
         }
       } else {
-        execSync('npm install', {
+        execFileSync('npm', ['install'], {
           cwd: frontendSourceDir,
           stdio: service.verbose ? 'inherit' : 'pipe'
         });
@@ -301,7 +301,7 @@ NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=${oauthAllowedDomains.join(',')}
         const rootPackageJson = JSON.parse(fs.readFileSync(rootPackageJsonPath, 'utf-8'));
         if (rootPackageJson.workspaces) {
           // Build @semiont/react-ui package which frontend depends on
-          execSync('npm run build --workspace=@semiont/react-ui --if-present', {
+          execFileSync('npm', ['run', 'build', '--workspace=@semiont/react-ui', '--if-present'], {
             cwd: monorepoRoot,
             stdio: service.verbose ? 'inherit' : 'pipe'
           });
@@ -335,7 +335,7 @@ NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=${oauthAllowedDomains.join(',')}
           });
         }
 
-        execSync('npm run build', {
+        execFileSync('npm', ['run', 'build'], {
           cwd: frontendSourceDir,
           env: { ...process.env, ...envVars },
           stdio: service.verbose ? 'inherit' : 'pipe'

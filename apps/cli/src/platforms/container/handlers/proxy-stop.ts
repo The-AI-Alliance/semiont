@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { ContainerStopHandlerContext, StopHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printError, printWarning } from '../../../core/io/cli-logger.js';
 import type { ProxyServiceConfig } from '@semiont/core';
@@ -9,7 +9,7 @@ import type { PreflightResult } from '../../../core/handlers/types.js';
  * Stop handler for proxy services in containers
  */
 const stopProxyService = async (context: ContainerStopHandlerContext): Promise<StopHandlerResult> => {
-  const { service } = context;
+  const { service, runtime } = context;
   const config = service.config as ProxyServiceConfig;
 
   if (!service.quiet) {
@@ -21,7 +21,7 @@ const stopProxyService = async (context: ContainerStopHandlerContext): Promise<S
 
   try {
     // Check if container exists
-    const existingContainer = execSync(`docker ps -aq -f name=${containerName}`, { encoding: 'utf-8' }).trim();
+    const existingContainer = execFileSync(runtime, ['ps', '-aq', '-f', `name=${containerName}`], { encoding: 'utf-8' }).trim();
 
     if (!existingContainer) {
       if (!service.quiet) {
@@ -38,7 +38,7 @@ const stopProxyService = async (context: ContainerStopHandlerContext): Promise<S
     }
 
     // Check if it's running
-    const isRunning = execSync(`docker ps -q -f name=${containerName}`, { encoding: 'utf-8' }).trim();
+    const isRunning = execFileSync(runtime, ['ps', '-q', '-f', `name=${containerName}`], { encoding: 'utf-8' }).trim();
 
     if (isRunning) {
       if (!service.quiet) {
@@ -46,7 +46,7 @@ const stopProxyService = async (context: ContainerStopHandlerContext): Promise<S
       }
 
       // Stop the container gracefully
-      execSync(`docker stop ${containerName}`, {
+      execFileSync(runtime, ['stop', containerName], {
         stdio: service.verbose ? 'inherit' : 'pipe'
       });
 
@@ -64,7 +64,7 @@ const stopProxyService = async (context: ContainerStopHandlerContext): Promise<S
       printInfo(`Removing container ${containerName}...`);
     }
 
-    execSync(`docker rm ${containerName}`, {
+    execFileSync(runtime, ['rm', containerName], {
       stdio: service.verbose ? 'inherit' : 'pipe'
     });
 
@@ -81,7 +81,7 @@ const stopProxyService = async (context: ContainerStopHandlerContext): Promise<S
     };
 
     if (!service.quiet) {
-      printSuccess(`✅ Proxy service ${service.name} stopped successfully`);
+      printSuccess(`Proxy service ${service.name} stopped successfully`);
     }
 
     return {

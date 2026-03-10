@@ -20,7 +20,7 @@
  * - Build: Can build images from Dockerfile when specified
  */
 
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { Platform, LogOptions, LogEntry } from '../../core/platform.js';
 import { Service } from '../../core/service-interface.js';
 import { HandlerRegistry } from '../../core/handlers/registry.js';
@@ -52,11 +52,11 @@ export class ContainerPlatform extends Platform {
    */
   private detectContainerRuntime(): 'docker' | 'podman' {
     try {
-      execSync('docker version', { stdio: 'ignore' });
+      execFileSync('docker', ['version'], { stdio: 'ignore' });
       return 'docker';
     } catch {
       try {
-        execSync('podman version', { stdio: 'ignore' });
+        execFileSync('podman', ['version'], { stdio: 'ignore' });
         return 'podman';
       } catch {
         throw new Error('No container runtime (Docker or Podman) found');
@@ -87,11 +87,11 @@ export class ContainerPlatform extends Platform {
     }
     
     try {
-      const status = execSync(
-        `${this.runtime} inspect ${containerId} --format '{{.State.Status}}'`,
+      const status = execFileSync(
+        this.runtime, ['inspect', containerId, '--format', '{{.State.Status}}'],
         { encoding: 'utf-8', stdio: 'pipe' }
       ).trim();
-      
+
       return status === 'running';
     } catch {
       // Container doesn't exist or error checking
@@ -171,30 +171,23 @@ export class ContainerPlatform extends Platform {
     const logs: LogEntry[] = [];
     
     try {
-      // Build docker/podman logs command
-      let cmd = `${this.runtime} logs ${containerIdOrName}`;
-      
-      // Add tail option
-      cmd += ` --tail ${tail}`;
-      
-      // Add timestamps for parsing
-      cmd += ' --timestamps';
-      
+      // Build docker/podman logs command args
+      const args = ['logs', containerIdOrName, '--tail', String(tail), '--timestamps'];
+
       // Add since option if provided
       if (since) {
-        const sinceStr = since.toISOString();
-        cmd += ` --since "${sinceStr}"`;
+        args.push('--since', since.toISOString());
       }
-      
+
       // Execute command
-      const output = execSync(cmd, { 
+      const output = execFileSync(this.runtime, args, {
         encoding: 'utf-8',
         stdio: ['ignore', 'pipe', 'pipe'] // Capture both stdout and stderr
       });
       
       // Parse container log output
-      const lines = output.split('\n').filter(line => line.trim());
-      
+      const lines = output.split('\n').filter((line: string) => line.trim());
+
       for (const line of lines) {
         const entry = this.parseContainerLogLine(line, serviceType);
         

@@ -1,9 +1,9 @@
 import { StateManager } from '../../../core/state-manager.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { PosixCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } from './types.js';
 import type { GraphServiceConfig } from '@semiont/core';
-import { passingPreflight } from '../../../core/handlers/preflight-utils.js';
+import { checkPortLookupCommand, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 
 /**
  * Check handler for POSIX graph database services
@@ -39,9 +39,12 @@ const checkGraphProcess = async (context: PosixCheckHandlerContext): Promise<Che
     if (port && await isPortInUse(port)) {
       // Try to find the PID using the port
       try {
-        const output = process.platform === 'darwin'
-          ? execSync(`lsof -ti:${port}`, { encoding: 'utf-8' })
-          : execSync(`fuser ${port}/tcp 2>/dev/null | awk '{print $2}'`, { encoding: 'utf-8' });
+        let output: string;
+        if (process.platform === 'darwin') {
+          output = execFileSync('lsof', ['-ti:' + port], { encoding: 'utf-8' });
+        } else {
+          output = execFileSync('fuser', [port + '/tcp'], { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'] });
+        }
         
         const foundPid = parseInt(output.trim());
         if (!isNaN(foundPid)) {
@@ -134,7 +137,7 @@ function getDefaultPort(graphType: string): number {
   return ports[graphType];
 }
 
-const preflightGraphCheck = async () => passingPreflight();
+const preflightGraphCheck = async () => preflightFromChecks([checkPortLookupCommand()]);
 
 /**
  * Descriptor for POSIX graph check handler

@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { PosixPublishHandlerContext, PublishHandlerResult, HandlerDescriptor } from './types.js';
 import type { BackendServiceConfig } from '@semiont/core';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
@@ -48,7 +48,7 @@ const publishBackendService = async (context: PosixPublishHandlerContext): Promi
 
   try {
     // Run production build
-    execSync('npm run build', {
+    execFileSync('npm', ['run', 'build'], {
       cwd: sourceDir,
       stdio: service.quiet ? 'pipe' : 'inherit',
       env: {

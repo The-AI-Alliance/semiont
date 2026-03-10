@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execFileSync, spawnSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import { AWSPublishHandlerContext, PublishHandlerResult, HandlerDescriptor } from './types.js';
@@ -39,9 +39,9 @@ const publishECSService = async (context: AWSPublishHandlerContext): Promise<Pub
     if (deploymentStrategy === 'immutable' || deploymentStrategy === 'git-hash') {
       // Use git commit hash for immutable deployments
       try {
-        const gitHash = execSync('git rev-parse --short HEAD', { 
+        const gitHash = execFileSync('git', ['rev-parse', '--short', 'HEAD'], {
           encoding: 'utf-8',
-          cwd: service.config?.semiontRepo || service.projectRoot 
+          cwd: service.config?.semiontRepo || service.projectRoot
         }).trim();
         version = gitHash;
       } catch {
@@ -68,7 +68,7 @@ const publishECSService = async (context: AWSPublishHandlerContext): Promise<Pub
   
   // Create ECR repository if needed
   try {
-    execSync(`aws ecr create-repository --repository-name ${ecrRepo} --region ${region}`);
+    execFileSync('aws', ['ecr', 'create-repository', '--repository-name', ecrRepo, '--region', region]);
   } catch {
     // Repository might already exist
   }
@@ -136,7 +136,7 @@ const publishECSService = async (context: AWSPublishHandlerContext): Promise<Pub
     // Build api-types first if it exists
     const apiTypesPath = path.join(buildContext, 'packages', 'api-types');
     if (fs.existsSync(apiTypesPath)) {
-      execSync('npm run build', {
+      execFileSync('npm', ['run', 'build'], {
         cwd: apiTypesPath,
         env: buildEnv,
         stdio: service.verbose ? 'inherit' : 'pipe'
@@ -146,7 +146,7 @@ const publishECSService = async (context: AWSPublishHandlerContext): Promise<Pub
     // Build the app
     const appPath = path.join(buildContext, 'apps', service.name);
     if (fs.existsSync(appPath)) {
-      execSync('npm run build', {
+      execFileSync('npm', ['run', 'build'], {
         cwd: appPath,
         env: buildEnv,
         stdio: service.verbose ? 'inherit' : 'pipe'
@@ -164,25 +164,35 @@ const publishECSService = async (context: AWSPublishHandlerContext): Promise<Pub
   
   try {
     // Login to ECR
-    execSync(
-      `aws ecr get-login-password --region ${region} | docker login --username AWS --password-stdin ${accountId}.dkr.ecr.${region}.amazonaws.com`,
-      { stdio: service.verbose ? 'inherit' : 'pipe' }
-    );
-    
-    // Build Docker image with pre-built artifacts
-    const noCacheFlag = service.config?.noCache ? '--no-cache ' : '';
-    const platformFlag = '--platform linux/amd64'; // ECS runs on x86_64
-    
-    const buildCommand = `docker build ${noCacheFlag} ${platformFlag} -t ${imageUri} -f ${requirements.build.dockerfile} ${buildContext}`;
-    
-    if (service.verbose) {
-      console.log(`[DEBUG] Docker build command: ${buildCommand}`);
+    const ecrPassword = execFileSync('aws', [
+      'ecr', 'get-login-password', '--region', region
+    ], { encoding: 'utf-8' });
+    const ecrEndpoint = `${accountId}.dkr.ecr.${region}.amazonaws.com`;
+    const loginResult = spawnSync('docker', [
+      'login', '--username', 'AWS', '--password-stdin', ecrEndpoint
+    ], {
+      input: ecrPassword,
+      stdio: ['pipe', service.verbose ? 'inherit' : 'pipe', service.verbose ? 'inherit' : 'pipe']
+    });
+    if (loginResult.status !== 0) {
+      throw new Error(`Docker login to ECR failed: ${loginResult.stderr?.toString()}`);
     }
     
-    execSync(buildCommand, { stdio: service.verbose ? 'inherit' : 'pipe' });
-    
+    // Build Docker image with pre-built artifacts
+    const dockerBuildArgs = ['build', '--platform', 'linux/amd64'];
+    if (service.config?.noCache) {
+      dockerBuildArgs.push('--no-cache');
+    }
+    dockerBuildArgs.push('-t', imageUri, '-f', requirements.build.dockerfile, buildContext);
+
+    if (service.verbose) {
+      console.log(`[DEBUG] Docker build args: ${dockerBuildArgs.join(' ')}`);
+    }
+
+    execFileSync('docker', dockerBuildArgs, { stdio: service.verbose ? 'inherit' : 'pipe' });
+
     // Push to ECR
-    execSync(`docker push ${imageUri}`, { stdio: service.verbose ? 'inherit' : 'pipe' });
+    execFileSync('docker', ['push', imageUri], { stdio: service.verbose ? 'inherit' : 'pipe' });
     
     artifacts.imageTag = version;
     artifacts.imageUrl = imageUri;
@@ -260,10 +270,10 @@ async function createNewTaskDefinition(
     }
     
     // Get the current service to find its task definition
-    const serviceJson = execSync(
-      `aws ecs describe-services --cluster ${clusterName} --services ${serviceName} --region ${region} --output json`,
-      { encoding: 'utf-8' }
-    );
+    const serviceJson = execFileSync('aws', [
+      'ecs', 'describe-services', '--cluster', clusterName, '--services', serviceName,
+      '--region', region, '--output', 'json'
+    ], { encoding: 'utf-8' });
     const serviceData = JSON.parse(serviceJson);
     const currentTaskDefArn = serviceData.services?.[0]?.taskDefinition;
     
@@ -273,10 +283,10 @@ async function createNewTaskDefinition(
     }
     
     // Get the current task definition
-    const taskDefJson = execSync(
-      `aws ecs describe-task-definition --task-definition ${currentTaskDefArn} --region ${region} --output json`,
-      { encoding: 'utf-8' }
-    );
+    const taskDefJson = execFileSync('aws', [
+      'ecs', 'describe-task-definition', '--task-definition', currentTaskDefArn,
+      '--region', region, '--output', 'json'
+    ], { encoding: 'utf-8' });
     const taskDef = JSON.parse(taskDefJson).taskDefinition;
     
     // Update the container image
@@ -305,10 +315,10 @@ async function createNewTaskDefinition(
     };
     
     // Register the new task definition
-    const registerOutput = execSync(
-      `aws ecs register-task-definition --cli-input-json '${JSON.stringify(newTaskDef)}' --region ${region} --output json`,
-      { encoding: 'utf-8' }
-    );
+    const registerOutput = execFileSync('aws', [
+      'ecs', 'register-task-definition', '--cli-input-json', JSON.stringify(newTaskDef),
+      '--region', region, '--output', 'json'
+    ], { encoding: 'utf-8' });
     const newTaskDefData = JSON.parse(registerOutput);
     const newTaskDefArn = newTaskDefData.taskDefinition.taskDefinitionArn;
     
@@ -331,7 +341,7 @@ async function createNewTaskDefinition(
  * Descriptor for ECS publish handler
  */
 const preflightEcsPublish = async (_context: AWSPublishHandlerContext): Promise<PreflightResult> => {
-  return preflightFromChecks([checkAwsCredentials(), checkCommandAvailable('docker')]);
+  return preflightFromChecks([checkCommandAvailable('aws'), checkAwsCredentials(), checkCommandAvailable('docker'), checkCommandAvailable('git')]);
 };
 
 export const ecsPublishDescriptor: HandlerDescriptor<AWSPublishHandlerContext, PublishHandlerResult> = {

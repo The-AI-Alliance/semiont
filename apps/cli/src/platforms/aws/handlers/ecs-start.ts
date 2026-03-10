@@ -1,7 +1,7 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { AWSStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { createPlatformResources } from '../../platform-resources.js';
-import { checkAwsCredentials, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { checkAwsCredentials, checkCommandAvailable, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -18,19 +18,19 @@ const startECSService = async (context: AWSStartHandlerContext): Promise<StartHa
   const desiredCount = requirements.resources?.replicas || 1;
   
   try {
-    execSync(
-      `aws ecs update-service --cluster ${clusterName} --service ${serviceName} --desired-count ${desiredCount} --region ${region}`,
-      { encoding: 'utf-8' }
-    );
+    execFileSync('aws', [
+      'ecs', 'update-service', '--cluster', clusterName, '--service', serviceName,
+      '--desired-count', String(desiredCount), '--region', region
+    ], { encoding: 'utf-8' });
     
     // Get service endpoint from load balancer
     let endpoint: string | undefined;
     if (requirements.network?.needsLoadBalancer) {
       try {
-        const albDns = execSync(
-          `aws elbv2 describe-load-balancers --names ${serviceName}-alb --query 'LoadBalancers[0].DNSName' --output text --region ${region}`,
-          { encoding: 'utf-8' }
-        ).trim();
+        const albDns = execFileSync('aws', [
+          'elbv2', 'describe-load-balancers', '--names', `${serviceName}-alb`,
+          '--query', 'LoadBalancers[0].DNSName', '--output', 'text', '--region', region
+        ], { encoding: 'utf-8' }).trim();
         
         if (albDns && albDns !== 'None') {
           endpoint = `https://${albDns}`;
@@ -77,7 +77,7 @@ const startECSService = async (context: AWSStartHandlerContext): Promise<StartHa
  * Descriptor for ECS Fargate start handler
  */
 const preflightEcsStart = async (_context: AWSStartHandlerContext): Promise<PreflightResult> => {
-  return preflightFromChecks([checkAwsCredentials()]);
+  return preflightFromChecks([checkCommandAvailable('aws'), checkAwsCredentials()]);
 };
 
 export const ecsFargateStartDescriptor: HandlerDescriptor<AWSStartHandlerContext, StartHandlerResult> = {

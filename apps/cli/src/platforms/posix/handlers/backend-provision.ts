@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor } from './types.js';
 import type { BackendServiceConfig } from '@semiont/core';
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
@@ -28,7 +28,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
       printInfo('Installing @semiont/backend...');
     }
     try {
-      execSync('npm install -g @semiont/backend', {
+      execFileSync('npm', ['install', '-g', '@semiont/backend'], {
         stdio: service.verbose ? 'inherit' : 'pipe'
       });
       if (!service.quiet) {
@@ -228,18 +228,18 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
       if (fs.existsSync(rootPackageJsonPath)) {
         const rootPackageJson = JSON.parse(fs.readFileSync(rootPackageJsonPath, 'utf-8'));
         if (rootPackageJson.workspaces) {
-          execSync('npm install', {
+          execFileSync('npm', ['install'], {
             cwd: monorepoRoot,
             stdio: service.verbose ? 'inherit' : 'pipe'
           });
         } else {
-          execSync('npm install', {
+          execFileSync('npm', ['install'], {
             cwd: backendSourceDir,
             stdio: service.verbose ? 'inherit' : 'pipe'
           });
         }
       } else {
-        execSync('npm install', {
+        execFileSync('npm', ['install'], {
           cwd: backendSourceDir,
           stdio: service.verbose ? 'inherit' : 'pipe'
         });
@@ -264,7 +264,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
       }
 
       try {
-        execSync('npx prisma generate', {
+        execFileSync('npx', ['prisma', 'generate'], {
           cwd: backendSourceDir,
           stdio: service.verbose ? 'inherit' : 'pipe'
         });
@@ -289,15 +289,15 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
       if (fs.existsSync(rootPackageJsonPath)) {
         const rootPackageJson = JSON.parse(fs.readFileSync(rootPackageJsonPath, 'utf-8'));
         if (rootPackageJson.workspaces) {
-          execSync('npm run build --workspace=@semiont/core --if-present', {
+          execFileSync('npm', ['run', 'build', '--workspace=@semiont/core', '--if-present'], {
             cwd: monorepoRoot,
             stdio: service.verbose ? 'inherit' : 'pipe'
           });
-          execSync('npm run build --workspace=@semiont/event-sourcing --if-present', {
+          execFileSync('npm', ['run', 'build', '--workspace=@semiont/event-sourcing', '--if-present'], {
             cwd: monorepoRoot,
             stdio: service.verbose ? 'inherit' : 'pipe'
           });
-          execSync('npm run build --workspace=@semiont/api-client --if-present', {
+          execFileSync('npm', ['run', 'build', '--workspace=@semiont/api-client', '--if-present'], {
             cwd: monorepoRoot,
             stdio: service.verbose ? 'inherit' : 'pipe'
           });
@@ -318,7 +318,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     }
 
     try {
-      execSync('npm run build', {
+      execFileSync('npm', ['run', 'build'], {
         cwd: backendSourceDir,
         stdio: service.verbose ? 'inherit' : 'pipe'
       });
@@ -355,7 +355,7 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
         });
       }
       
-      execSync('npx prisma migrate deploy', {
+      execFileSync('npx', ['prisma', 'migrate', 'deploy'], {
         cwd: backendSourceDir,
         env: { ...process.env, ...envVars },
         stdio: service.verbose ? 'inherit' : 'pipe'

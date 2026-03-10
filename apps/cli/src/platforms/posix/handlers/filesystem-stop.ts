@@ -1,10 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { PosixStopHandlerContext, StopHandlerResult, HandlerDescriptor } from './types.js';
 import { printInfo, printSuccess, printWarning } from '../../../core/io/cli-logger.js';
 import { getFilesystemPaths } from './filesystem-paths.js';
-import { passingPreflight } from '../../../core/handlers/preflight-utils.js';
+import { checkCommandAvailable, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 
 /**
  * Stop handler for filesystem services on POSIX systems
@@ -54,7 +54,7 @@ const stopFilesystemService = async (context: PosixStopHandlerContext): Promise<
     }
     
     try {
-      execSync('sync', { stdio: 'ignore' });
+      execFileSync('sync', [], { stdio: 'ignore' });
     } catch {
       // sync might not be available on all systems
     }
@@ -63,26 +63,26 @@ const stopFilesystemService = async (context: PosixStopHandlerContext): Promise<
     let processesUsingFs: string[] = [];
     try {
       // Use lsof to find processes using the filesystem path
-      const lsofOutput = execSync(`lsof +D "${absolutePath}" 2>/dev/null || true`, { 
+      const lsofOutput = execFileSync('lsof', ['+D', absolutePath], {
         encoding: 'utf-8',
-        stdio: 'pipe' 
+        stdio: ['pipe', 'pipe', 'ignore']
       });
-      
+
       if (lsofOutput) {
-        const lines = lsofOutput.split('\n').filter(line => line.trim());
+        const lines = lsofOutput.split('\n').filter((line: string) => line.trim());
         if (lines.length > 1) { // First line is header
-          processesUsingFs = lines.slice(1).map(line => {
+          processesUsingFs = lines.slice(1).map((line: string) => {
             const parts = line.split(/\s+/);
             return parts[0]; // Process name
-          }).filter((v, i, a) => a.indexOf(v) === i); // Unique values
-          
+          }).filter((v: string, i: number, a: string[]) => a.indexOf(v) === i); // Unique values
+
           if (!service.quiet && processesUsingFs.length > 0) {
             printWarning(`Processes still using filesystem: ${processesUsingFs.join(', ')}`);
           }
         }
       }
     } catch {
-      // lsof might not be available or fail
+      // lsof might not be available, fails when no matches, etc.
     }
     
     metadata.processesUsingFs = processesUsingFs;
@@ -136,7 +136,7 @@ const stopFilesystemService = async (context: PosixStopHandlerContext): Promise<
     
     // Get final disk usage statistics
     try {
-      const dfOutput = execSync(`df -h "${absolutePath}"`, { encoding: 'utf-8' });
+      const dfOutput = execFileSync('df', ['-h', absolutePath], { encoding: 'utf-8' });
       const lines = dfOutput.split('\n');
       if (lines.length > 1) {
         const stats = lines[1].split(/\s+/);
@@ -189,5 +189,5 @@ export const filesystemStopDescriptor: HandlerDescriptor<PosixStopHandlerContext
   platform: 'posix',
   serviceType: 'filesystem',
   handler: stopFilesystemService,
-  preflight: async () => passingPreflight()
+  preflight: async () => preflightFromChecks([checkCommandAvailable('lsof')])
 };

@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { ContainerStartHandlerContext, StartHandlerResult, HandlerDescriptor } from './types.js';
 import { createPlatformResources } from '../../platform-resources.js';
 import { printInfo } from '../../../core/io/cli-logger.js';
@@ -13,22 +13,22 @@ const startWebContainer = async (context: ContainerStartHandlerContext): Promise
   const { service, runtime, containerName } = context;
   const config = service.config as FrontendServiceConfig | BackendServiceConfig;
   const image = service.getImage();
-  
+
   // Remove existing container if it exists
   try {
-    execSync(`${runtime} rm -f ${containerName}`, { stdio: 'ignore' });
+    execFileSync(runtime, ['rm', '-f', containerName], { stdio: 'ignore' });
   } catch {
     // Container might not exist
   }
-  
+
   // Create network if it doesn't exist
   const networkName = `semiont-${service.environment}`;
   try {
-    execSync(`${runtime} network create ${networkName}`, { stdio: 'ignore' });
+    execFileSync(runtime, ['network', 'create', networkName], { stdio: 'ignore' });
   } catch {
     // Network might already exist
   }
-  
+
   // Build run command
   const runArgs: string[] = [
     'run',
@@ -36,14 +36,14 @@ const startWebContainer = async (context: ContainerStartHandlerContext): Promise
     '--name', containerName,
     '--network', networkName
   ];
-  
+
   // Add port mappings for web service
   const port = config.port;
   runArgs.push('-p', `${port}:${port}`);
-  
+
   // Add environment variables
   const envVars = service.getEnvironmentVariables();
-  
+
   for (const [key, value] of Object.entries(envVars)) {
     runArgs.push('-e', `${key}=${value}`);
   }
@@ -58,25 +58,22 @@ const startWebContainer = async (context: ContainerStartHandlerContext): Promise
 
   // Add restart policy
   runArgs.push('--restart', 'unless-stopped');
-  
+
   // Add the image
   runArgs.push(image);
-  
+
   // Add command if specified
   const command = service.getCommand();
   if (command && command !== 'npm start') {
     runArgs.push(...command.split(' '));
   }
-  
-  // Run container
-  const runCommand = `${runtime} ${runArgs.join(' ')}`;
-  
+
   if (!service.quiet) {
     printInfo(`Starting web container: ${containerName}`);
   }
-  
+
   try {
-    const containerId = execSync(runCommand, { encoding: 'utf-8' }).trim();
+    const containerId = execFileSync(runtime, runArgs, { encoding: 'utf-8' }).trim();
 
     // Wait for container to be ready
     await waitForContainer(runtime, containerName);
@@ -122,23 +119,22 @@ async function waitForContainer(runtime: string, containerName: string): Promise
 
   while (attempts < maxAttempts) {
     try {
-      const status = execSync(
-        `${runtime} inspect ${containerName} --format '{{.State.Status}}'`,
+      const status = execFileSync(
+        runtime, ['inspect', containerName, '--format', '{{.State.Status}}'],
         { encoding: 'utf-8' }
       ).trim();
 
       if (status === 'running') {
-        // Container is running
         return;
       }
     } catch {
       // Container might not exist yet
     }
-    
+
     await new Promise(resolve => setTimeout(resolve, 1000));
     attempts++;
   }
-  
+
   throw new Error(`Container ${containerName} failed to start within ${maxAttempts} seconds`);
 }
 
