@@ -1,290 +1,100 @@
 # Job Workers
 
-This package exports job workers that process asynchronous AI tasks. Workers were moved from `apps/backend` to `@semiont/make-meaning` to separate detection logic from orchestration concerns.
-
-**See also**: [@semiont/jobs Type System Guide](../../jobs/docs/TYPES.md) for job state architecture and discriminated union patterns.
+Annotation workers live in **[@semiont/jobs](../../jobs/README.md)**, not in this package. This document describes how they integrate with the make-meaning actor model.
 
 ## Overview
 
-Workers extend the `JobWorker` base class from `@semiont/jobs` and implement domain-specific detection logic. Each worker:
+Workers poll the `JobQueue` for pending jobs and emit commands on the EventBus when they produce annotations or resources. The **Stower** actor handles all persistence — workers never call `eventStore.appendEvent()` directly.
 
-- Accepts `JobQueue`, `EnvironmentConfig`, and `EventStore` as constructor parameters
-- Processes jobs by calling `AnnotationDetection` methods
-- Emits progress events to the Event Store
-- Creates W3C-compliant annotations via events
+Workers are **not** actors. They use a polling loop (from `JobWorker` base class in @semiont/jobs), not RxJS subscriptions. However, they emit the same EventBus commands as any other caller.
 
 ## Available Workers
 
-### ReferenceDetectionWorker
+| Worker | Job Type | What it does |
+|--------|----------|-------------|
+| `ReferenceAnnotationWorker` | `reference-annotation` | Detects entity references using AI inference |
+| `GenerationWorker` | `generation` | Generates new resources from annotations |
+| `HighlightAnnotationWorker` | `highlight-annotation` | Identifies key passages for highlighting |
+| `AssessmentAnnotationWorker` | `assessment-annotation` | Generates evaluative assessments |
+| `CommentAnnotationWorker` | `comment-annotation` | Generates explanatory comments |
+| `TagAnnotationWorker` | `tag-annotation` | Detects structural role tags (IRAC, IMRAD, etc.) |
 
-**Purpose**: Detects entity references in resources using AI inference.
+## Constructor Signature
 
-**Job Type**: `'detection'`
-
-**Implementation**: [src/jobs/reference-detection-worker.ts](../src/jobs/reference-detection-worker.ts)
-
-**Key Features**:
-- Processes multiple entity types per job
-- Validates and corrects AI-generated offsets
-- Emits `annotation.added` events for each detected entity
-- Supports descriptive references (anaphoric/cataphoric)
-
-**Usage**:
-```typescript
-import { ReferenceDetectionWorker } from '@semiont/make-meaning';
-import { JobQueue } from '@semiont/jobs';
-import { createEventStore } from '@semiont/event-sourcing';
-
-const jobQueue = new JobQueue({ dataDir: '/path/to/jobs' });
-const eventStore = await createEventStore(config);
-const worker = new ReferenceDetectionWorker(jobQueue, config, eventStore);
-
-await worker.start();
-```
-
-**Progress Events**:
-- `job.started` - First progress update (0% processed)
-- `job.progress` - Intermediate updates with entity counts
-- `job.completed` - Final update with total entities found
-- `job.failed` - If detection permanently fails
-
-### GenerationWorker
-
-**Purpose**: Generates new resources from annotation references using AI.
-
-**Job Type**: `'generation'`
-
-**Implementation**: [src/jobs/generation-worker.ts](../src/jobs/generation-worker.ts)
-
-**Key Features**:
-- Fetches annotation and source context
-- Generates content using `generateResourceFromTopic()`
-- Stores content in RepresentationStore
-- Links generated resource to source annotation via `annotation.body.updated` event
-
-**Progress Stages**:
-- `fetching` (20%) - Loading source resource
-- `generating` (40-70%) - AI content generation
-- `creating` (85%) - Saving resource
-- `linking` (95-100%) - Connecting annotation
-
-**Result**:
-```typescript
-{
-  resourceId: ResourceId;
-  resourceName: string;
-}
-```
-
-### HighlightDetectionWorker
-
-**Purpose**: Detects passages that should be highlighted.
-
-**Job Type**: `'highlight-detection'`
-
-**Implementation**: [src/jobs/highlight-detection-worker.ts](../src/jobs/highlight-detection-worker.ts)
-
-**Detection Logic**: Calls `AnnotationDetection.detectHighlights()`
-
-**Annotation Structure**:
-- Motivation: `'highlighting'`
-- Target: TextPositionSelector + TextQuoteSelector
-- Body: Empty (highlights have no body)
-
-### CommentDetectionWorker
-
-**Purpose**: Detects passages that merit commentary and generates comments.
-
-**Job Type**: `'comment-detection'`
-
-**Implementation**: [src/jobs/comment-detection-worker.ts](../src/jobs/comment-detection-worker.ts)
-
-**Detection Logic**: Calls `AnnotationDetection.detectComments()`
-
-**Annotation Structure**:
-- Motivation: `'commenting'`
-- Target: TextPositionSelector + TextQuoteSelector
-- Body: TextualBody with AI-generated comment
-
-### AssessmentDetectionWorker
-
-**Purpose**: Detects passages that merit assessment/evaluation.
-
-**Job Type**: `'assessment-detection'`
-
-**Implementation**: [src/jobs/assessment-detection-worker.ts](../src/jobs/assessment-detection-worker.ts)
-
-**Detection Logic**: Calls `AnnotationDetection.detectAssessments()`
-
-**Annotation Structure**:
-- Motivation: `'assessing'`
-- Target: TextPositionSelector + TextQuoteSelector
-- Body: TextualBody with AI-generated assessment
-
-### TagDetectionWorker
-
-**Purpose**: Detects and tags passages with structured semantic categories.
-
-**Job Type**: `'tag-detection'`
-
-**Implementation**: [src/jobs/tag-detection-worker.ts](../src/jobs/tag-detection-worker.ts)
-
-**Detection Logic**: Calls `AnnotationDetection.detectTags()` for each category
-
-**Annotation Structure**:
-- Motivation: `'tagging'`
-- Target: TextPositionSelector + TextQuoteSelector
-- Body: Dual-body structure
-  - TextualBody with category (purpose: `'tagging'`)
-  - TextualBody with schema ID (purpose: `'classifying'`)
-
-**Example Categories** (from IRAC schema):
-- `'issue'` - Legal issues being addressed
-- `'rule'` - Applicable legal rules
-- `'application'` - Application of rules to facts
-- `'conclusion'` - Legal conclusions
-
-## Architecture
-
-### Dependency Injection
-
-All workers follow the explicit parameter passing pattern:
+All annotation workers follow the same pattern:
 
 ```typescript
 constructor(
-  jobQueue: JobQueue,        // Job queue instance
-  private config: EnvironmentConfig,  // Environment configuration
-  private eventStore: EventStore      // Event store instance
+  jobQueue: JobQueue,
+  config: EnvironmentConfig,
+  inferenceClient: InferenceClient,
+  eventBus: EventBus,
+  contentFetcher: ContentFetcher,  // (not on GenerationWorker)
+  logger: Logger,
 )
 ```
 
-This eliminates singleton patterns and makes dependencies explicit.
+`GenerationWorker` does not take a `ContentFetcher` — it fetches content differently.
 
-### Event Emission
+## EventBus Integration
 
-Workers emit domain events through the Event Store:
+Workers emit commands on the EventBus. The Stower subscribes and handles persistence.
 
-**Job Lifecycle Events**:
-- `job.started` - Job processing begins
-- `job.progress` - Progress updates during processing
-- `job.completed` - Job successfully completes
-- `job.failed` - Job permanently fails
+### Annotation Creation
 
-**Annotation Events**:
-- `annotation.added` - New annotation created
-- `annotation.body.updated` - Annotation body modified
-
-**Resource Events** (GenerationWorker only):
-- `resource.created` - New resource generated
-
-### Error Handling
-
-Workers inherit retry logic from `JobWorker` base class:
-
-1. **Transient failures**: Job moves back to `'pending'` for retry
-2. **Permanent failures**: Job moves to `'failed'` after max retries
-3. **Progress tracking**: Best-effort updates (failures are logged but don't crash worker)
-
-Workers override `handleJobFailure()` to emit `job.failed` events.
-
-## Integration with Backend
-
-The backend creates workers and passes dependencies:
-
-**File**: [apps/backend/src/index.ts](../../apps/backend/src/index.ts)
+Workers build a full W3C `Annotation` with `creator` and `created`, then emit `mark:create`:
 
 ```typescript
-// Create shared dependencies
-const jobQueue = new JobQueue({ dataDir });
-await jobQueue.initialize();
-const eventStore = await createEventStore(config);
-
-// Create workers with explicit dependencies
-const referenceDetectionWorker = new ReferenceDetectionWorker(
-  jobQueue,
-  config,
-  eventStore
-);
-const generationWorker = new GenerationWorker(
-  jobQueue,
-  config,
-  eventStore
-);
-const highlightDetectionWorker = new HighlightDetectionWorker(
-  jobQueue,
-  config,
-  eventStore
-);
-const assessmentDetectionWorker = new AssessmentDetectionWorker(
-  jobQueue,
-  config,
-  eventStore
-);
-const commentDetectionWorker = new CommentDetectionWorker(
-  jobQueue,
-  config,
-  eventStore
-);
-const tagDetectionWorker = new TagDetectionWorker(
-  jobQueue,
-  config,
-  eventStore
-);
-
-// Start all workers
-await Promise.all([
-  referenceDetectionWorker.start(),
-  generationWorker.start(),
-  highlightDetectionWorker.start(),
-  assessmentDetectionWorker.start(),
-  commentDetectionWorker.start(),
-  tagDetectionWorker.start(),
-]);
+eventBus.get('mark:create').next({
+  motivation: 'highlighting',
+  selector: [...],
+  body: [...],
+  userId: job.metadata.userId,
+  resourceId: job.params.resourceId,
+  annotation,  // Full Annotation with creator/created
+});
 ```
 
-## Testing
+The `creator` is built from `JobMetadata` fields (`userName`, `userEmail`, `userDomain`) using `userToAgent()`.
 
-Workers can be tested by:
+### Job Lifecycle
 
-1. Creating a test JobQueue and EventStore
-2. Enqueuing test jobs
-3. Verifying emitted events
-4. Checking annotation creation
+Workers emit job lifecycle events via the EventBus:
 
-**Example**:
 ```typescript
-import { ReferenceDetectionWorker } from '@semiont/make-meaning';
-import { JobQueue } from '@semiont/jobs';
-import { createEventStore } from '@semiont/event-sourcing';
+// Job started
+eventBus.get('job:start').next({ jobId, resourceId, userId, jobType });
 
-describe('ReferenceDetectionWorker', () => {
-  it('detects entities and emits events', async () => {
-    const jobQueue = new JobQueue({ dataDir: testDir });
-    const eventStore = await createEventStore(testConfig);
-    const worker = new ReferenceDetectionWorker(jobQueue, testConfig, eventStore);
+// Progress update
+eventBus.get('job:report-progress').next({ jobId, resourceId, userId, jobType, progress });
 
-    // Enqueue test job
-    const job: DetectionJob = {
-      id: jobId('test-job'),
-      type: 'detection',
-      resourceId: resourceId('test-resource'),
-      userId: userId('test-user'),
-      entityTypes: ['Person', 'Location'],
-      status: 'pending',
-      // ...
-    };
-    await jobQueue.enqueueJob(job);
+// Job completed
+eventBus.get('job:complete').next({ jobId, resourceId, userId, jobType, result });
 
-    // Process job
-    await worker.start();
-    // ... verify events and annotations
-  });
-});
+// Job failed
+eventBus.get('job:fail').next({ jobId, resourceId, userId, jobType, error });
+```
+
+The Stower translates these into domain events (`job.started`, `job.progress`, `job.completed`, `job.failed`) on the EventStore.
+
+## Instantiation
+
+Workers are created by `startMakeMeaning()` in [service.ts](../src/service.ts). The `ContentFetcher` is backed by the KB's ViewStorage and RepresentationStore:
+
+```typescript
+const contentFetcher: ContentFetcher = async (resourceId) => {
+  const view = await kb.views.get(resourceId);
+  if (!view) return null;
+  const primaryRep = getPrimaryRepresentation(view.resource);
+  if (!primaryRep?.checksum || !primaryRep?.mediaType) return null;
+  const buffer = await kb.content.retrieve(primaryRep.checksum, primaryRep.mediaType);
+  if (!buffer) return null;
+  return Readable.from([buffer]);
+};
 ```
 
 ## See Also
 
-- [AnnotationDetection API](./annotation-detection.md) - Detection methods called by workers
-- [@semiont/jobs](../../jobs/README.md) - Job queue and worker base class
-- [@semiont/event-sourcing](../../event-sourcing/README.md) - Event store
-- [Architecture](./architecture.md) - Overall system design
+- [@semiont/jobs README](../../jobs/README.md) — Job queue, worker base class, job types
+- [@semiont/jobs Workers Guide](../../jobs/docs/Workers.md) — Building custom workers
+- [Architecture](./architecture.md) — Actor model and data flow

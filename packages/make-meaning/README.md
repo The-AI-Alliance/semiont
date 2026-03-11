@@ -6,14 +6,15 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/make-meaning.svg)](https://www.npmjs.com/package/@semiont/make-meaning)
 [![License](https://img.shields.io/npm/l/@semiont/make-meaning.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-**Making meaning from resources through context assembly, pattern detection, and relationship reasoning.**
+**Making meaning from resources through actors, context assembly, and relationship reasoning.**
 
-This package transforms raw resources into meaningful, interconnected knowledge through:
+This package implements the actor model from [ARCHITECTURE-NEXT.md](../../docs/ARCHITECTURE-NEXT.md). It owns the **Knowledge Base** and the three actors that interface with it:
 
-- **Context Assembly**: Gathering resource metadata, content, and annotations from distributed storage
-- **Pattern Detection**: AI-powered discovery of semantic patterns (comments, highlights, assessments, tags)
-- **Relationship Reasoning**: Navigating connections between resources through graph traversal
-- **Job Workers**: Asynchronous processing of detection tasks with progress tracking
+- **Stower** (write) — the single write gateway to the Knowledge Base
+- **Gatherer** (read context) — assembles context from KB stores for AI processing
+- **Binder** (read search) — searches KB stores for entity resolution
+
+All three actors subscribe to the EventBus via RxJS pipelines. They expose only `initialize()` and `stop()` — no public business methods. Callers communicate with actors by putting events on the bus.
 
 ## Quick Start
 
@@ -23,319 +24,188 @@ npm install @semiont/make-meaning
 
 ### Start Make-Meaning Service
 
-The simplest way to use make-meaning infrastructure is through the service module:
-
 ```typescript
 import { startMakeMeaning } from '@semiont/make-meaning';
-import type { EnvironmentConfig } from '@semiont/core';
+import { EventBus } from '@semiont/core';
+import type { EnvironmentConfig, Logger } from '@semiont/core';
 
-// Start all infrastructure (job queue, workers, graph consumer)
-const makeMeaning = await startMakeMeaning(config);
+// EventBus is created outside make-meaning — it is not encapsulated by this package
+const eventBus = new EventBus();
 
-// Access job queue for route handlers
-const jobQueue = makeMeaning.jobQueue;
+// Start all infrastructure
+const makeMeaning = await startMakeMeaning(config, eventBus, logger);
+
+// Access components
+const { kb, jobQueue, stower, gatherer, binder } = makeMeaning;
 
 // Graceful shutdown
 await makeMeaning.stop();
 ```
 
 This single call initializes:
-- Job queue
-- All 6 detection/generation workers
-- Graph consumer (event-to-graph synchronization)
-- Shared event store connection
+- **KnowledgeBase** — groups EventStore, ViewStorage, RepresentationStore, GraphDatabase
+- **Stower** — subscribes to write commands on EventBus
+- **Gatherer** — subscribes to gather events on EventBus
+- **Binder** — subscribes to bind events on EventBus
+- **GraphDBConsumer** — event-to-graph synchronization (RxJS burst-buffered pipeline)
+- **JobQueue** — background job processing queue
+- **6 annotation workers** — poll job queue for async AI tasks
 
-### Assemble Resource Context
+### Create a Resource (via EventBus)
 
 ```typescript
-import { ResourceContext } from '@semiont/make-meaning';
+import { ResourceOperations } from '@semiont/make-meaning';
+import { userId } from '@semiont/core';
 
-const resource = await ResourceContext.getResourceMetadata(resourceId, config);
-const resources = await ResourceContext.listResources({ createdAfter: '2024-01-01' }, config);
-const withContent = await ResourceContext.addContentPreviews(resources, config);
+const result = await ResourceOperations.createResource(
+  {
+    name: 'My Document',
+    content: Buffer.from('Document content here'),
+    format: 'text/plain',
+    language: 'en',
+  },
+  userId('user-123'),
+  eventBus,
+  config.services.backend.publicURL,
+);
 ```
 
-### Work with Annotations
+`ResourceOperations.createResource` emits `yield:create` on the EventBus. The Stower subscribes to this event, persists the resource to the EventStore and ContentStore, and emits `yield:created` back on the bus.
+
+### Gather Context (via EventBus)
 
 ```typescript
-import { AnnotationContext } from '@semiont/make-meaning';
+import { firstValueFrom, race, filter, timeout } from 'rxjs';
 
-// Get all annotations for a resource
-const annotations = await AnnotationContext.getResourceAnnotations(resourceId, config);
-
-// Build LLM context for an annotation (includes surrounding text)
-const context = await AnnotationContext.buildLLMContext(
+// Emit gather request
+eventBus.get('gather:requested').next({
   annotationUri,
   resourceId,
-  config,
-  { contextLines: 5 }
+  options: { contextLines: 5 },
+});
+
+// Await result
+const result = await firstValueFrom(
+  race(
+    eventBus.get('gather:complete').pipe(filter(e => e.annotationUri === annotationUri)),
+    eventBus.get('gather:failed').pipe(filter(e => e.annotationUri === annotationUri)),
+  ).pipe(timeout(30_000)),
 );
 ```
-
-### Detect Semantic Patterns
-
-```typescript
-import { AnnotationDetection } from '@semiont/make-meaning';
-
-// AI-powered detection of passages that merit commentary
-const comments = await AnnotationDetection.detectComments(
-  resourceId,
-  config,
-  'Focus on technical explanations',
-  'educational',
-  0.7
-);
-
-// Detect passages that should be highlighted
-const highlights = await AnnotationDetection.detectHighlights(
-  resourceId,
-  config,
-  'Find key definitions and important concepts',
-  0.5
-);
-
-// Detect and extract structured tags from text using ontology schemas
-const tags = await AnnotationDetection.detectTags(
-  resourceId,
-  config,
-  'irac',  // Schema ID from @semiont/ontology
-  'issue'  // Category within the schema
-);
-```
-
-### Navigate Resource Relationships
-
-```typescript
-import { GraphContext } from '@semiont/make-meaning';
-
-// Find resources that link to this resource (backlinks)
-const backlinks = await GraphContext.getBacklinks(resourceId, config);
-
-// Find shortest path between two resources
-const paths = await GraphContext.findPath(fromResourceId, toResourceId, config, 3);
-
-// Full-text search across all resources
-const results = await GraphContext.searchResources('neural networks', config, 10);
-```
-
-### Use Individual Workers (Advanced)
-
-For fine-grained control, workers can be instantiated directly:
-
-```typescript
-import {
-  ReferenceDetectionWorker,
-  HighlightDetectionWorker,
-  GenerationWorker,
-} from '@semiont/make-meaning';
-import { JobQueue } from '@semiont/jobs';
-import { createEventStore } from '@semiont/event-sourcing';
-
-// Create shared dependencies
-const jobQueue = new JobQueue({ dataDir: './data' });
-await jobQueue.initialize();
-const eventStore = createEventStore('./data', 'http://localhost:3000');
-
-// Create workers with explicit dependencies
-const referenceWorker = new ReferenceDetectionWorker(jobQueue, config, eventStore);
-const highlightWorker = new HighlightDetectionWorker(jobQueue, config, eventStore);
-const generationWorker = new GenerationWorker(jobQueue, config, eventStore);
-
-// Start workers
-await Promise.all([
-  referenceWorker.start(),
-  highlightWorker.start(),
-  generationWorker.start(),
-]);
-```
-
-**Note**: In most cases, use `startMakeMeaning()` instead, which handles all initialization automatically.
-
-## Documentation
-
-- **[API Reference](./docs/api-reference.md)** - Complete API documentation for all classes and methods
-- **[Job Workers](./docs/job-workers.md)** - Asynchronous task processing with progress tracking
-- **[Architecture](./docs/architecture.md)** - System design and data flow
-- **[Examples](./docs/examples.md)** - Common use cases and patterns
-
-## Philosophy
-
-Resources don't exist in isolation. A document becomes meaningful when we understand its annotations, its relationships to other resources, and the patterns within its content. `@semiont/make-meaning` provides the infrastructure to:
-
-1. **Assemble context** from event-sourced storage
-2. **Detect patterns** using AI inference
-3. **Reason about relationships** through graph traversal
-
-This is the "applied meaning-making" layer - it sits between low-level AI primitives ([@semiont/inference](../inference/)) and high-level application orchestration ([apps/backend](../../apps/backend/)).
-
-## Infrastructure Ownership
-
-**MakeMeaningService is the single source of truth for all infrastructure:**
-
-```typescript
-import { startMakeMeaning } from '@semiont/make-meaning';
-
-// Create ALL infrastructure once at startup
-const makeMeaning = await startMakeMeaning(config);
-
-// Access infrastructure components
-const { eventStore, graphDb, repStore, inferenceClient, jobQueue } = makeMeaning;
-```
-
-**What MakeMeaningService Owns:**
-
-1. **EventStore** - Event log and materialized views (single source of truth)
-2. **GraphDatabase** - Graph database connection for relationships and traversal
-3. **RepresentationStore** - Content-addressed document storage
-4. **InferenceClient** - LLM client for AI operations
-5. **JobQueue** - Background job processing queue
-6. **Workers** - All 6 detection/generation workers
-7. **GraphDBConsumer** - Event-to-graph synchronization
-
-**Critical Design Rule:**
-
-```typescript
-// ✅ CORRECT: Access infrastructure from MakeMeaningService
-const { graphDb } = makeMeaning;
-
-// ❌ WRONG: NEVER create infrastructure outside of startMakeMeaning()
-const graphDb = await getGraphDatabase(config);  // NEVER DO THIS
-const repStore = new FilesystemRepresentationStore(...);  // NEVER DO THIS
-const eventStore = createEventStore(...);  // NEVER DO THIS
-```
-
-**Why This Matters:**
-
-- **Single initialization** - All infrastructure created once, shared everywhere
-- **No resource leaks** - Single connection per resource type (database, storage, etc.)
-- **Consistent configuration** - Same config across all components
-- **Testability** - Single injection point for mocking
-- **Lifecycle management** - Centralized shutdown via `makeMeaning.stop()`
-
-**Implementation Pattern:**
-
-- Backend creates MakeMeaningService in [apps/backend/src/index.ts:56](../../apps/backend/src/index.ts#L56)
-- Routes access via Hono context: `c.get('makeMeaning')`
-- Services receive infrastructure as parameters (dependency injection)
-- Workers receive EventStore and InferenceClient via constructor
-
-This architectural pattern prevents duplicate connections, ensures consistent state, and provides clear ownership boundaries across the entire system.
 
 ## Architecture
 
-Three-layer design separating concerns:
+### Actor Model
+
+All meaningful actions flow through the EventBus. The three KB actors are reactive — they subscribe via RxJS pipelines in `initialize()` and communicate results by emitting on the bus.
 
 ```mermaid
 graph TB
-    Backend["<b>apps/backend</b><br/>Job orchestration, HTTP APIs, streaming"]
-    MakeMeaning["<b>@semiont/make-meaning</b><br/>Context assembly, detection/generation,<br/>prompt engineering, response parsing,<br/>job workers"]
-    Inference["<b>@semiont/inference</b><br/>AI primitives only:<br/>generateText, client management"]
+    Routes["Backend Routes"] -->|commands| BUS["Event Bus"]
+    Workers["Job Workers"] -->|commands| BUS
 
-    Backend --> MakeMeaning
-    MakeMeaning --> Inference
+    BUS -->|"yield:create, mark:create,<br/>mark:delete, job:*"| STOWER["Stower<br/>(write)"]
+    BUS -->|"gather:requested"| GATHERER["Gatherer<br/>(read context)"]
+    BUS -->|"bind:search-requested"| BINDER["Binder<br/>(read search)"]
 
-    style Backend fill:#e1f5ff
-    style MakeMeaning fill:#fff4e6
-    style Inference fill:#f3e5f5
+    STOWER -->|persist| KB["Knowledge Base"]
+    GATHERER -->|query| KB
+    BINDER -->|query| KB
+
+    STOWER -->|"yield:created, mark:created"| BUS
+    GATHERER -->|"gather:complete"| BUS
+    BINDER -->|"bind:search-results"| BUS
+
+    classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
+    classDef actor fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
+    classDef kb fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
+    classDef caller fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
+
+    class BUS bus
+    class STOWER,GATHERER,BINDER actor
+    class KB kb
+    class Routes,Workers caller
 ```
 
-**Key principles:**
+### Knowledge Base
 
-- **Centralized infrastructure**: All infrastructure owned by MakeMeaningService (single initialization point)
-- **Event-sourced context**: Resources and annotations assembled from event streams
-- **Content-addressed storage**: Content retrieved using checksums (deduplication, caching)
-- **Graph-backed relationships**: @semiont/graph provides traversal for backlinks, paths, connections
-- **Explicit dependencies**: Workers receive infrastructure via constructor (dependency injection, no singletons)
-- **No ad-hoc creation**: Routes and services NEVER create their own infrastructure instances
+The Knowledge Base is an inert store — it has no intelligence, no goals, no decisions. It groups four subsystems:
 
-See [Architecture](./docs/architecture.md) for complete details.
+| Store | Implementation | Purpose |
+|-------|---------------|---------|
+| **Event Log** | `EventStore` | Immutable append-only log of all domain events |
+| **Materialized Views** | `ViewStorage` | Denormalized projections for fast reads |
+| **Content Store** | `RepresentationStore` | Content-addressed binary storage (SHA-256) |
+| **Graph** | `GraphDatabase` | Eventually consistent relationship projection |
+
+```typescript
+import { createKnowledgeBase } from '@semiont/make-meaning';
+
+const kb = createKnowledgeBase(eventStore, basePath, projectRoot, graphDb, logger);
+// kb.eventStore, kb.views, kb.content, kb.graph
+```
+
+### EventBus Ownership
+
+The EventBus is created by the backend (or script) and passed into `startMakeMeaning()` as a dependency. Make-meaning does not own or encapsulate the EventBus — it is shared across the entire system.
+
+## Documentation
+
+- **[Architecture](./docs/architecture.md)** — Actor model, data flow, storage architecture
+- **[API Reference](./docs/api-reference.md)** — Context modules and operations
+- **[Examples](./docs/examples.md)** — Common use cases and patterns
+- **[Job Workers](./docs/job-workers.md)** — Async annotation workers (in @semiont/jobs)
+- **[Scripting](./docs/SCRIPTING.md)** — Direct scripting without HTTP backend
 
 ## Exports
 
-### Service Module (Primary)
+### Service (Primary)
 
-- `startMakeMeaning(config)` - Initialize all make-meaning infrastructure
-- `MakeMeaningService` - Type for service return value
-- `GraphDBConsumer` - Graph consumer class (for advanced use)
+- `startMakeMeaning(config, eventBus, logger)` — Initialize all infrastructure
+- `MakeMeaningService` — Type for service return value
+
+### Knowledge Base
+
+- `createKnowledgeBase(...)` — Factory function
+- `KnowledgeBase` — Interface grouping the four KB stores
+
+### Actors
+
+- `Stower` — Write gateway actor
+- `Gatherer` — Context assembly actor
+- `Binder` — Entity resolution actor
+
+### Operations
+
+- `ResourceOperations` — Resource CRUD (emits commands to EventBus)
+- `AnnotationOperations` — Annotation CRUD (emits commands to EventBus)
 
 ### Context Assembly
 
-- `ResourceContext` - Resource metadata and content
-- `AnnotationContext` - Annotation queries and context building
-- `GraphContext` - Graph traversal and search
+- `ResourceContext` — Resource metadata queries from ViewStorage
+- `AnnotationContext` — Annotation queries and LLM context building
+- `GraphContext` — Graph traversal and search
+- `LLMContext` — Resource-level LLM context assembly
 
-### Detection & Generation
+### Generation
 
-- `AnnotationDetection` - AI-powered semantic pattern detection (orchestrates detection pipeline)
-- `MotivationPrompts` - Prompt builders for comment/highlight/assessment/tag detection
-- `MotivationParsers` - Response parsers with offset validation
-- `extractEntities` - Entity extraction with context-based disambiguation
-- `generateResourceFromTopic` - Markdown resource generation with language support
-- `generateResourceSummary` - Resource summarization
-- `generateReferenceSuggestions` - Smart suggestion generation
+- `generateResourceSummary` — Resource summarization
+- `generateReferenceSuggestions` — Smart suggestion generation
 
-### Job Workers (Advanced)
+### Graph
 
-- `ReferenceDetectionWorker` - Entity reference detection
-- `GenerationWorker` - AI content generation
-- `HighlightDetectionWorker` - Highlight detection
-- `CommentDetectionWorker` - Comment detection
-- `AssessmentDetectionWorker` - Assessment detection
-- `TagDetectionWorker` - Structured tag detection
-
-**Note**: Workers are typically managed by `startMakeMeaning()`, not instantiated directly.
-
-See [Job Workers](./docs/job-workers.md) for implementation details.
-
-### Types
-
-```typescript
-export type {
-  CommentMatch,
-  HighlightMatch,
-  AssessmentMatch,
-  TagMatch,
-} from './detection/motivation-parsers';
-
-export type { ExtractedEntity } from './detection/entity-extractor';
-```
-
-## Configuration
-
-All methods require an `EnvironmentConfig` object:
-
-```typescript
-import type { EnvironmentConfig } from '@semiont/core';
-
-const config: EnvironmentConfig = {
-  services: {
-    backend: {
-      publicURL: 'http://localhost:3000',
-    },
-    openai: {
-      apiKey: process.env.OPENAI_API_KEY!,
-      model: 'gpt-4o-mini',
-      temperature: 0.7,
-    },
-  },
-  storage: {
-    base: '/path/to/storage',
-  },
-};
-```
+- `GraphDBConsumer` — Event-to-graph synchronization
 
 ## Dependencies
 
-`@semiont/make-meaning` builds on several core packages:
-
-- **[@semiont/core](../core/)**: Core types and utilities
-- **[@semiont/api-client](../api-client/)**: OpenAPI-generated types
-- **[@semiont/event-sourcing](../event-sourcing/)**: Event store and view storage
-- **[@semiont/content](../content/)**: Content-addressed storage
-- **[@semiont/graph](../graph/)**: Neo4j graph database client
-- **[@semiont/ontology](../ontology/)**: Schema definitions for tags
-- **[@semiont/inference](../inference/)**: AI primitives (prompts, parsers, generateText)
-- **[@semiont/jobs](../jobs/)**: Job queue and worker base class
+- **[@semiont/core](../core/)** — Core types, EventBus, utilities
+- **[@semiont/api-client](../api-client/)** — OpenAPI-generated types
+- **[@semiont/event-sourcing](../event-sourcing/)** — Event store and view storage
+- **[@semiont/content](../content/)** — Content-addressed storage
+- **[@semiont/graph](../graph/)** — Graph database abstraction
+- **[@semiont/ontology](../ontology/)** — Schema definitions for tags
+- **[@semiont/inference](../inference/)** — AI primitives (generateText)
+- **[@semiont/jobs](../jobs/)** — Job queue and annotation workers
 
 ## Testing
 

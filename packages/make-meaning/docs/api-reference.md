@@ -1,450 +1,307 @@
 # API Reference
 
-Complete API reference for `@semiont/make-meaning`.
+## Actors
 
-## ResourceContext
+### Stower
 
-Provides resource metadata and content assembly from event-sourced storage.
+The single write gateway to the Knowledge Base. Subscribes to command events on the EventBus and translates them into domain events on the EventStore and content writes to the RepresentationStore.
 
-### getResourceMetadata()
+**Implementation**: [src/stower.ts](../src/stower.ts)
 
-Get resource metadata from view storage.
+```typescript
+import { Stower } from '@semiont/make-meaning';
 
-**Implementation**: [src/resource-context.ts:15-28](../src/resource-context.ts)
+const stower = new Stower(kb, publicURL, eventBus, logger);
+await stower.initialize();  // Subscribes to EventBus
+await stower.stop();         // Unsubscribes
+```
+
+No public business methods. All interaction is via EventBus commands. See [Architecture](./architecture.md) for the full subscription table.
+
+### Gatherer
+
+Context assembly actor. Subscribes to gather events and queries KB stores.
+
+**Implementation**: [src/gatherer.ts](../src/gatherer.ts)
+
+```typescript
+import { Gatherer } from '@semiont/make-meaning';
+
+const gatherer = new Gatherer(publicURL, kb, eventBus, inferenceClient, logger);
+await gatherer.initialize();
+await gatherer.stop();
+```
+
+Responds to:
+- `gather:requested` → emits `gather:complete` or `gather:failed`
+- `gather:resource-requested` → emits `gather:resource-complete` or `gather:resource-failed`
+
+### Binder
+
+Entity resolution actor. Subscribes to bind events and searches KB stores.
+
+**Implementation**: [src/binder.ts](../src/binder.ts)
+
+```typescript
+import { Binder } from '@semiont/make-meaning';
+
+const binder = new Binder(kb, eventBus, logger);
+await binder.initialize();
+await binder.stop();
+```
+
+Responds to:
+- `bind:search-requested` → emits `bind:search-results` or `bind:search-failed`
+
+---
+
+## Operations
+
+### ResourceOperations
+
+Business logic for resource CRUD. Emits commands on the EventBus — does not access KB stores directly.
+
+**Implementation**: [src/resource-operations.ts](../src/resource-operations.ts)
+
+#### createResource()
+
+```typescript
+static async createResource(
+  input: CreateResourceInput,
+  userId: UserId,
+  eventBus: EventBus,
+  publicURL: string,
+): Promise<CreateResourceResult>
+```
+
+Emits `yield:create` on EventBus, awaits `yield:created` from Stower.
+
+#### updateResource()
+
+```typescript
+static async updateResource(
+  resourceId: ResourceId,
+  input: UpdateResourceInput,
+  userId: UserId,
+  eventBus: EventBus,
+): Promise<void>
+```
+
+Emits `mark:update-entity-types`, `mark:archive`, or `mark:unarchive` on EventBus depending on input.
+
+### AnnotationOperations
+
+Business logic for annotation CRUD. Emits commands on the EventBus.
+
+**Implementation**: [src/annotation-operations.ts](../src/annotation-operations.ts)
+
+#### createAnnotation()
+
+```typescript
+static async createAnnotation(
+  request: CreateAnnotationRequest,
+  userId: UserId,
+  creator: Agent,
+  eventBus: EventBus,
+  publicURL: string,
+): Promise<CreateAnnotationResult>
+```
+
+Builds a full W3C Annotation (with `creator` and `created`), emits `mark:create` on EventBus, awaits `mark:created` from Stower.
+
+#### updateAnnotationBody()
+
+```typescript
+static async updateAnnotationBody(
+  annotationId: AnnotationId,
+  resourceId: ResourceId,
+  operations: AnnotationBodyOperation[],
+  userId: UserId,
+  eventBus: EventBus,
+): Promise<UpdateAnnotationBodyResult>
+```
+
+Emits `mark:update-body` on EventBus.
+
+#### deleteAnnotation()
+
+```typescript
+static async deleteAnnotation(
+  annotationId: AnnotationId,
+  resourceId: ResourceId,
+  userId: UserId,
+  eventBus: EventBus,
+): Promise<void>
+```
+
+Emits `mark:delete` on EventBus, awaits `mark:deleted` from Stower.
+
+---
+
+## Context Modules
+
+Context modules read from the Knowledge Base. They are used internally by the Gatherer actor and can be called directly for simple queries.
+
+### ResourceContext
+
+Resource metadata and content assembly from ViewStorage.
+
+**Implementation**: [src/resource-context.ts](../src/resource-context.ts)
+
+#### getResourceMetadata()
 
 ```typescript
 static async getResourceMetadata(
   resourceId: ResourceId,
-  config: EnvironmentConfig
+  kb: KnowledgeBase,
 ): Promise<ResourceDescriptor | null>
 ```
 
-**Returns**: Resource descriptor with metadata and representations, or `null` if not found.
-
-### listResources()
-
-List resources with optional filtering.
-
-**Implementation**: [src/resource-context.ts:30-48](../src/resource-context.ts)
+#### listResources()
 
 ```typescript
 static async listResources(
   filters: ListResourcesFilters | undefined,
-  config: EnvironmentConfig
+  kb: KnowledgeBase,
 ): Promise<ResourceDescriptor[]>
 ```
 
-**Filters**:
-```typescript
-interface ListResourcesFilters {
-  createdAfter?: string;
-  createdBefore?: string;
-  mimeType?: string;
-  limit?: number;
-}
-```
-
-### addContentPreviews()
-
-Add content previews to resource descriptors.
-
-**Implementation**: [src/resource-context.ts:50-77](../src/resource-context.ts)
+#### addContentPreviews()
 
 ```typescript
 static async addContentPreviews(
   resources: ResourceDescriptor[],
-  config: EnvironmentConfig
+  kb: KnowledgeBase,
 ): Promise<Array<ResourceDescriptor & { content: string }>>
 ```
 
-Loads content from RepresentationStore and adds it to each resource descriptor.
+### AnnotationContext
 
----
+Annotation queries and LLM context building.
 
-## AnnotationContext
+**Implementation**: [src/annotation-context.ts](../src/annotation-context.ts)
 
-Consolidated annotation operations including queries, context building, and AI summarization.
-
-### buildLLMContext()
-
-Build LLM context for an annotation (includes surrounding text).
-
-**Implementation**: [src/annotation-context.ts:35-120](../src/annotation-context.ts)
+#### buildLLMContext()
 
 ```typescript
 static async buildLLMContext(
   annotationUri: AnnotationUri,
   resourceId: ResourceId,
-  config: EnvironmentConfig,
-  options: BuildContextOptions
+  kb: KnowledgeBase,
+  options: BuildContextOptions,
 ): Promise<AnnotationLLMContextResponse>
 ```
 
-**Options**:
-```typescript
-interface BuildContextOptions {
-  contextLines?: number;        // Lines of surrounding text (default: 5)
-  includeMetadata?: boolean;    // Include resource metadata (default: true)
-}
-```
+Builds rich context for AI processing including the annotation, surrounding text, and resource metadata.
 
-**Returns**: Full context for AI processing including annotation, surrounding text, and metadata.
-
-### getResourceAnnotations()
-
-Get all annotations for a resource, organized by motivation.
-
-**Implementation**: [src/annotation-context.ts:122-172](../src/annotation-context.ts)
+#### getResourceAnnotations()
 
 ```typescript
 static async getResourceAnnotations(
   resourceId: ResourceId,
-  config: EnvironmentConfig
+  kb: KnowledgeBase,
 ): Promise<ResourceAnnotations>
 ```
 
-**Returns**: Annotations grouped by motivation (highlighting, commenting, etc.)
+Returns annotations grouped by motivation.
 
-### getAllAnnotations()
-
-Get all annotations for a resource (flat list).
-
-**Implementation**: [src/annotation-context.ts:174-187](../src/annotation-context.ts)
+#### getAllAnnotations()
 
 ```typescript
 static async getAllAnnotations(
   resourceId: ResourceId,
-  config: EnvironmentConfig
+  kb: KnowledgeBase,
 ): Promise<Annotation[]>
 ```
 
-### getAnnotation()
-
-Get a specific annotation by ID.
-
-**Implementation**: [src/annotation-context.ts:189-202](../src/annotation-context.ts)
+#### getAnnotation()
 
 ```typescript
 static async getAnnotation(
   annotationId: AnnotationId,
   resourceId: ResourceId,
-  config: EnvironmentConfig
+  kb: KnowledgeBase,
 ): Promise<Annotation | null>
 ```
 
-### listAnnotations()
+### GraphContext
 
-List annotations with optional filtering.
+Graph database operations for traversing resource relationships.
 
-**Implementation**: [src/annotation-context.ts:204-225](../src/annotation-context.ts)
+**Implementation**: [src/graph-context.ts](../src/graph-context.ts)
 
-```typescript
-static async listAnnotations(
-  filters: { resourceId?: ResourceId; type?: AnnotationCategory } | undefined,
-  config: EnvironmentConfig
-): Promise<Annotation[]>
-```
-
-### resourceExists()
-
-Check if a resource exists in view storage.
-
-**Implementation**: [src/annotation-context.ts:227-236](../src/annotation-context.ts)
-
-```typescript
-static async resourceExists(
-  resourceId: ResourceId,
-  config: EnvironmentConfig
-): Promise<boolean>
-```
-
-### getResourceStats()
-
-Get resource statistics (version, last updated).
-
-**Implementation**: [src/annotation-context.ts:238-254](../src/annotation-context.ts)
-
-```typescript
-static async getResourceStats(
-  resourceId: ResourceId,
-  config: EnvironmentConfig
-): Promise<{
-  resourceId: ResourceId;
-  version: number;
-  updatedAt: string;
-}>
-```
-
-### getAnnotationContext()
-
-Get annotation context (surrounding text).
-
-**Implementation**: [src/annotation-context.ts:256-314](../src/annotation-context.ts)
-
-```typescript
-static async getAnnotationContext(
-  annotationId: AnnotationId,
-  resourceId: ResourceId,
-  contextBefore: number,
-  contextAfter: number,
-  config: EnvironmentConfig
-): Promise<AnnotationContextResponse>
-```
-
-### generateAnnotationSummary()
-
-Generate AI summary of an annotation.
-
-**Implementation**: [src/annotation-context.ts:316-381](../src/annotation-context.ts)
-
-```typescript
-static async generateAnnotationSummary(
-  annotationId: AnnotationId,
-  resourceId: ResourceId,
-  config: EnvironmentConfig
-): Promise<ContextualSummaryResponse>
-```
-
-Uses AI to generate a contextual summary of the annotation including surrounding text.
-
----
-
-## GraphContext
-
-Provides graph database operations for traversing resource relationships. All operations are delegated to @semiont/graph.
-
-### getBacklinks()
-
-Get all resources referencing this resource (backlinks).
-
-**Implementation**: [src/graph-context.ts:26-30](../src/graph-context.ts)
+#### getBacklinks()
 
 ```typescript
 static async getBacklinks(
   resourceId: ResourceId,
-  config: EnvironmentConfig
+  kb: KnowledgeBase,
 ): Promise<Annotation[]>
 ```
 
-Requires graph traversal - uses @semiont/graph.
+#### searchResources()
 
-### findPath()
+```typescript
+static async searchResources(
+  query: string,
+  kb: KnowledgeBase,
+  limit?: number,
+): Promise<ResourceDescriptor[]>
+```
 
-Find shortest path between two resources.
-
-**Implementation**: [src/graph-context.ts:36-44](../src/graph-context.ts)
+#### findPath()
 
 ```typescript
 static async findPath(
   fromResourceId: ResourceId,
   toResourceId: ResourceId,
-  config: EnvironmentConfig,
-  maxDepth?: number
+  kb: KnowledgeBase,
+  maxDepth?: number,
 ): Promise<GraphPath[]>
 ```
 
-Requires graph traversal - uses @semiont/graph.
+### LLMContext
 
-### getResourceConnections()
+Resource-level LLM context assembly.
 
-Get resource connections (graph edges).
+**Implementation**: [src/llm-context.ts](../src/llm-context.ts)
 
-**Implementation**: [src/graph-context.ts:50-53](../src/graph-context.ts)
+#### getResourceContext()
 
 ```typescript
-static async getResourceConnections(
+static async getResourceContext(
   resourceId: ResourceId,
-  config: EnvironmentConfig
-): Promise<GraphConnection[]>
+  options: LLMContextOptions,
+  kb: KnowledgeBase,
+  inferenceClient: InferenceClient,
+): Promise<ResourceLLMContextResponse>
 ```
-
-Requires graph traversal - uses @semiont/graph.
-
-### searchResources()
-
-Search resources by name (cross-resource query).
-
-**Implementation**: [src/graph-context.ts:59-62](../src/graph-context.ts)
-
-```typescript
-static async searchResources(
-  query: string,
-  config: EnvironmentConfig,
-  limit?: number
-): Promise<ResourceDescriptor[]>
-```
-
-Requires full-text search - uses @semiont/graph.
 
 ---
 
-## AnnotationDetection
+## Knowledge Base
 
-AI-powered semantic pattern detection. Orchestrates the full pipeline: resource content → AI prompts → response parsing → validated matches.
-
-### detectComments()
-
-Detect passages that merit commentary.
-
-**Implementation**: [src/annotation-detection.ts:27-65](../src/annotation-detection.ts)
+**Implementation**: [src/knowledge-base.ts](../src/knowledge-base.ts)
 
 ```typescript
-static async detectComments(
-  resourceId: ResourceId,
-  config: EnvironmentConfig,
-  instructions?: string,
-  tone?: string,
-  density?: number
-): Promise<CommentMatch[]>
-```
-
-**Uses**: `MotivationPrompts.buildCommentPrompt`, `MotivationParsers.parseComments`
-
-**Parameters**:
-- `instructions`: Custom guidance for AI (e.g., "Focus on technical concepts")
-- `tone`: Tone for comments (e.g., "educational", "analytical")
-- `density`: Target density 0.0-1.0 (0.5 = ~50% of passages)
-
-**Returns**:
-```typescript
-interface CommentMatch {
-  exact: string;      // The exact text passage
-  start: number;      // Character offset start
-  end: number;        // Character offset end
-  prefix?: string;    // Context before (for fuzzy anchoring)
-  suffix?: string;    // Context after (for fuzzy anchoring)
-  comment: string;    // The AI-generated comment
+export interface KnowledgeBase {
+  eventStore: EventStore;
+  views: ViewStorage;
+  content: RepresentationStore;
+  graph: GraphDatabase;
 }
+
+export function createKnowledgeBase(
+  eventStore: EventStore,
+  basePath: string,
+  projectRoot: string | undefined,
+  graphDb: GraphDatabase,
+  logger: Logger,
+): KnowledgeBase
 ```
 
-### detectHighlights()
+## See Also
 
-Detect passages that should be highlighted.
-
-**Implementation**: [src/annotation-detection.ts:67-101](../src/annotation-detection.ts)
-
-```typescript
-static async detectHighlights(
-  resourceId: ResourceId,
-  config: EnvironmentConfig,
-  instructions?: string,
-  density?: number
-): Promise<HighlightMatch[]>
-```
-
-**Uses**: `MotivationPrompts.buildHighlightPrompt`, `MotivationParsers.parseHighlights`
-
-**Returns**:
-```typescript
-interface HighlightMatch {
-  exact: string;
-  start: number;
-  end: number;
-  prefix?: string;
-  suffix?: string;
-}
-```
-
-### detectAssessments()
-
-Detect passages that merit assessment/evaluation.
-
-**Implementation**: [src/annotation-detection.ts:103-141](../src/annotation-detection.ts)
-
-```typescript
-static async detectAssessments(
-  resourceId: ResourceId,
-  config: EnvironmentConfig,
-  instructions?: string,
-  tone?: string,
-  density?: number
-): Promise<AssessmentMatch[]>
-```
-
-**Uses**: `MotivationPrompts.buildAssessmentPrompt`, `MotivationParsers.parseAssessments`
-
-**Returns**:
-```typescript
-interface AssessmentMatch {
-  exact: string;
-  start: number;
-  end: number;
-  prefix?: string;
-  suffix?: string;
-  assessment: string;  // The AI-generated assessment
-}
-```
-
-### detectTags()
-
-Detect and extract structured tags from text.
-
-**Implementation**: [src/annotation-detection.ts:143-197](../src/annotation-detection.ts)
-
-```typescript
-static async detectTags(
-  resourceId: ResourceId,
-  config: EnvironmentConfig,
-  schemaId: string,
-  category: string
-): Promise<TagMatch[]>
-```
-
-**Uses**: `MotivationPrompts.buildTagPrompt`, `MotivationParsers.parseTags`
-
-**Parameters**:
-- `schemaId`: Tag schema ID from @semiont/ontology (e.g., 'irac', 'imrad')
-- `category`: Category within the schema (e.g., 'issue', 'rule')
-
-**Returns**:
-```typescript
-interface TagMatch {
-  exact: string;
-  start: number;
-  end: number;
-  prefix?: string;
-  suffix?: string;
-  category: string;    // The tag category
-}
-```
-
-**Example**:
-```typescript
-// Detect "issue" statements in a legal brief using IRAC schema
-const tags = await AnnotationDetection.detectTags(
-  resourceId,
-  config,
-  'irac',   // Schema from @semiont/ontology
-  'issue'   // Category
-);
-```
-
-See [@semiont/ontology](../../ontology/README.md) for available schemas.
-
----
-
-## Type Exports
-
-Re-exported from [@semiont/inference](../../inference/README.md) for convenience:
-
-```typescript
-export type {
-  CommentMatch,
-  HighlightMatch,
-  AssessmentMatch,
-  TagMatch,
-} from '@semiont/inference';
-```
-
-Re-exported job workers:
-
-```typescript
-export { CommentDetectionWorker } from './jobs/comment-detection-worker';
-export { HighlightDetectionWorker } from './jobs/highlight-detection-worker';
-export { AssessmentDetectionWorker } from './jobs/assessment-detection-worker';
-export { TagDetectionWorker } from './jobs/tag-detection-worker';
-export { ReferenceDetectionWorker } from './jobs/reference-detection-worker';
-export { GenerationWorker } from './jobs/generation-worker';
-```
-
-See [Job Workers](./job-workers.md) for worker documentation.
+- [Architecture](./architecture.md) — Actor model and data flow
+- [Examples](./examples.md) — Common use cases
+- [@semiont/jobs](../../jobs/README.md) — Job queue and annotation workers
