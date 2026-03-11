@@ -108,6 +108,7 @@ import { errorLoggerMiddleware } from './middleware/error-logger';
 type Variables = {
   user: User;
   config: EnvironmentConfig;
+  eventBus: EventBus;
   makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>>;
 };
 
@@ -131,6 +132,7 @@ app.use('*', requestLoggerMiddleware);   // Log requests third
 // Inject config and makeMeaning into context for all routes
 app.use('*', async (c, next) => {
   c.set('config', config);
+  c.set('eventBus', eventBus);
   c.set('makeMeaning', makeMeaning);
   await next();
 });

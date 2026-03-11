@@ -77,7 +77,8 @@ export function registerYieldResourceStream(router: ResourcesRouterType, jobQueu
         throw new HTTPException(401, { message: 'Authentication required' });
       }
 
-      const { kb, eventBus } = c.get('makeMeaning');
+      const eventBus = c.get('eventBus');
+      const { kb } = c.get('makeMeaning');
 
       logger.info('Starting resource generation', { language: body.language });
 

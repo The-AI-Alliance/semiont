@@ -15,6 +15,7 @@ import { JWTService } from '../../auth/jwt';
 type Variables = {
   user: User;
   config: EnvironmentConfig;
+  eventBus: any;
   makeMeaning: any;
 };
 

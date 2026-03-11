@@ -93,7 +93,8 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
         throw new HTTPException(404, { message: 'Token expired' });
       }
 
-      const { eventBus, kb } = c.get('makeMeaning');
+      const eventBus = c.get('eventBus');
+      const { kb } = c.get('makeMeaning');
 
       // Get source resource from materialized views (source of truth)
       const sourceDoc = await ResourceContext.getResourceMetadata(tokenData.resourceId, kb);

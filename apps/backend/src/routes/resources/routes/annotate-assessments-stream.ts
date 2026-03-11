@@ -77,7 +77,8 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
         throw new HTTPException(401, { message: 'Authentication required' });
       }
 
-      const { kb, eventBus } = c.get('makeMeaning');
+      const eventBus = c.get('eventBus');
+      const { kb } = c.get('makeMeaning');
 
       // Validate resource exists using view storage
       const resource = await ResourceContext.getResourceMetadata(resourceId(id), kb);

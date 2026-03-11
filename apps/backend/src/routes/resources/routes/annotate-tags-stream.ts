@@ -94,7 +94,8 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
         throw new HTTPException(400, { message: 'At least one category must be selected' });
       }
 
-      const { kb, eventBus } = c.get('makeMeaning');
+      const eventBus = c.get('eventBus');
+      const { kb } = c.get('makeMeaning');
 
       // Validate resource exists using view storage
       const resource = await ResourceContext.getResourceMetadata(resourceId(id), kb);

@@ -26,6 +26,7 @@ type GetResourceResponse = components['schemas']['GetResourceResponse'];
 type Variables = {
   user: User;
   config: EnvironmentConfig;
+  eventBus: any;
   makeMeaning: any;
 };
 

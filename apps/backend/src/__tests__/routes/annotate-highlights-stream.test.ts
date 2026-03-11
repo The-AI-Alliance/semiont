@@ -16,6 +16,7 @@ import type { EnvironmentConfig } from '@semiont/core';
 type Variables = {
   user: User;
   config: EnvironmentConfig;
+  eventBus: any;
   makeMeaning: any;
 };
 

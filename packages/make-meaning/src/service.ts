@@ -39,7 +39,6 @@ export interface MakeMeaningService {
   kb: KnowledgeBase;
   jobQueue: JobQueue;
   eventStore: EventStore;
-  eventBus: EventBus;
   inferenceClient: InferenceClient;
   graphDb: GraphDatabase;
   workers: {
@@ -176,7 +175,6 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus: Even
     kb,
     jobQueue,
     eventStore,
-    eventBus,
     inferenceClient,
     graphDb,
     workers,

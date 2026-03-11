@@ -26,6 +26,7 @@ type GetAnnotationsResponse = components['schemas']['GetAnnotationsResponse'];
 type Variables = {
   user: User;
   config: EnvironmentConfig;
+  eventBus: any;
   makeMeaning: any;
 };
 

@@ -27,7 +27,8 @@ export function registerDeleteAnnotation(router: ResourcesRouterType) {
     const { resourceId: resourceIdParam, annotationId: annotationIdParam } = c.req.param();
     const user = c.get('user');
     const config = c.get('config');
-    const { kb, eventBus } = c.get('makeMeaning');
+    const eventBus = c.get('eventBus');
+    const { kb } = c.get('makeMeaning');
 
     // Get projection to verify annotation exists
     const projection = await AnnotationContext.getResourceAnnotations(

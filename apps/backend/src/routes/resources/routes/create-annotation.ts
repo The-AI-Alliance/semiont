@@ -87,7 +87,7 @@ export function registerCreateAnnotation(router: ResourcesRouterType) {
       };
 
       // Create annotation via EventBus
-      const { eventBus } = c.get('makeMeaning');
+      const eventBus = c.get('eventBus');
       try {
         const target = annotation.target;
         const selector = typeof target === 'string' ? undefined : target.selector;

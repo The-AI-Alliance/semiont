@@ -42,7 +42,7 @@ crudRouter.post('/api/annotations',
   async (c) => {
     const request = c.get('validatedBody') as CreateAnnotationRequest;
     const user = c.get('user');
-    const { eventBus } = c.get('makeMeaning');
+    const eventBus = c.get('eventBus');
     const config = c.get('config');
 
     // Delegate to make-meaning for annotation creation
@@ -78,7 +78,8 @@ crudRouter.put('/api/annotations/:id/body',
     const { id } = c.req.param();
     const request = c.get('validatedBody') as UpdateAnnotationBodyRequest;
     const user = c.get('user');
-    const { kb, eventBus } = c.get('makeMeaning');
+    const eventBus = c.get('eventBus');
+    const { kb } = c.get('makeMeaning');
 
     getRouteLogger().debug('Body update handler called', {
       annotationId: id,
@@ -147,7 +148,8 @@ crudRouter.delete('/api/annotations/:id',
     const { id } = c.req.param();
     const request = c.get('validatedBody') as DeleteAnnotationRequest;
     const user = c.get('user');
-    const { kb, eventBus } = c.get('makeMeaning');
+    const eventBus = c.get('eventBus');
+    const { kb } = c.get('makeMeaning');
 
     // Delegate to make-meaning for annotation deletion
     try {

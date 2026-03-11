@@ -335,9 +335,9 @@ describe('Make-Meaning Service', () => {
         service.workers.tag,
       ].map(w => (w as any).eventBus);
 
-      // All should be the same instance
+      // All should be the same instance (compare to the eventBus passed into startMakeMeaning)
       eventBusRefs.forEach(ref => {
-        expect(ref).toBe(service!.eventBus);
+        expect(ref).toBe(eventBus);
       });
 
       // All workers should share the same inference client

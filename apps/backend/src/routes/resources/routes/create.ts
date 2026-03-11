@@ -61,7 +61,7 @@ export function registerCreateResource(router: ResourcesRouterType) {
     const contentBuffer = Buffer.from(arrayBuffer);
 
     // Delegate to make-meaning for resource creation (via EventBus)
-    const { eventBus } = c.get('makeMeaning');
+    const eventBus = c.get('eventBus');
     const response = await ResourceOperations.createResource(
       {
         name,

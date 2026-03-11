@@ -13,7 +13,7 @@ import type { User } from '@prisma/client';
 import { authMiddleware } from '../middleware/auth';
 import { validateRequestBody } from '../middleware/validate-openapi';
 import type { components } from '@semiont/core';
-import { userId, type EnvironmentConfig } from '@semiont/core';
+import { userId, type EnvironmentConfig, type EventBus } from '@semiont/core';
 import type { startMakeMeaning } from '@semiont/make-meaning';
 import { readEntityTypesProjection } from '@semiont/make-meaning';
 import { getLogger } from '../logger';
@@ -27,7 +27,7 @@ type BulkAddEntityTypesRequest = components['schemas']['BulkAddEntityTypesReques
 type GetEntityTypesResponse = components['schemas']['GetEntityTypesResponse'];
 
 // Create router with auth middleware
-export const entityTypesRouter = new Hono<{ Variables: { user: User; config: EnvironmentConfig; makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>> } }>();
+export const entityTypesRouter = new Hono<{ Variables: { user: User; config: EnvironmentConfig; eventBus: EventBus; makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>> } }>();
 entityTypesRouter.use('/api/entity-types/*', authMiddleware);
 
 /**
@@ -68,7 +68,7 @@ entityTypesRouter.post('/api/entity-types',
     const body = c.get('validatedBody') as AddEntityTypeRequest;
 
     // Add entity type via EventBus
-    const { eventBus } = c.get('makeMeaning');
+    const eventBus = c.get('eventBus');
     try {
       eventBus.get('mark:add-entity-type').next({ tag: body.tag, userId: userId(user.id) });
     } catch (error) {
@@ -99,7 +99,7 @@ entityTypesRouter.post('/api/entity-types/bulk',
     }
 
     const body = c.get('validatedBody') as BulkAddEntityTypesRequest;
-    const { eventBus } = c.get('makeMeaning');
+    const eventBus = c.get('eventBus');
 
     // Add each entity type via EventBus
     for (const tag of body.tags) {

@@ -31,7 +31,8 @@ export function registerUpdateAnnotationBody(router: ResourcesRouterType) {
       const { resourceId: resourceIdParam, annotationId: annotationIdParam } = c.req.param();
       const request = c.get('validatedBody') as UpdateAnnotationBodyRequest;
       const user = c.get('user');
-      const { kb, eventBus } = c.get('makeMeaning');
+      const eventBus = c.get('eventBus');
+      const { kb } = c.get('makeMeaning');
 
       getRouteLogger().debug('Body update handler called', {
         annotationId: annotationIdParam,
