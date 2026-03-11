@@ -13,15 +13,15 @@
  *   npm run release:bump        # Interactive prompt
  */
 
-import { execSync } from 'child_process';
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+import { execFileSync } from 'child_process';
+import { readFileSync, readdirSync } from 'fs';
+import { resolve, join } from 'path';
 import * as readline from 'readline';
 
-function exec(command, description) {
+function exec(cmd, args, description) {
   console.log(`\n→ ${description}`);
   try {
-    const output = execSync(command, { encoding: 'utf-8', stdio: 'pipe' });
+    const output = execFileSync(cmd, args, { encoding: 'utf-8', stdio: 'pipe' });
     return output;
   } catch (error) {
     console.error(`✗ Failed: ${error.message}`);
@@ -31,10 +31,10 @@ function exec(command, description) {
   }
 }
 
-function execInteractive(command, description) {
+function execInteractive(cmd, args, description) {
   console.log(`\n→ ${description}`);
   try {
-    execSync(command, { encoding: 'utf-8', stdio: 'inherit' });
+    execFileSync(cmd, args, { encoding: 'utf-8', stdio: 'inherit' });
   } catch (error) {
     console.error(`✗ Failed: ${error.message}`);
     throw error;
@@ -141,16 +141,16 @@ async function main() {
 
   console.log(`\n🔼 Bumping version from ${currentVersion} to ${nextVersion} (${bumpType})...\n`);
 
-  execInteractive(`npm run version:bump ${bumpType}`, `Bumping to ${nextVersion}`);
-  execInteractive('npm run version:sync', 'Syncing all package.json files');
-  execInteractive('npm run version:show', 'Verifying version sync');
+  execInteractive('npm', ['run', 'version:bump', bumpType], `Bumping to ${nextVersion}`);
+  execInteractive('npm', ['run', 'version:sync'], 'Syncing all package.json files');
+  execInteractive('npm', ['run', 'version:show'], 'Verifying version sync');
 
   // Phase 2: Commit and push
   console.log('\n' + '='.repeat(70));
   console.log('PHASE 2: COMMIT AND PUSH');
   console.log('='.repeat(70));
 
-  exec('git status', 'Checking git status');
+  exec('git', ['status'], 'Checking git status');
 
   const commitMessage = `bump version to ${nextVersion}
 
@@ -162,17 +162,27 @@ Version bump type: ${bumpType}
 
 🤖 Generated with release script`;
 
-  exec(
-    `git add package.json version.json packages/*/package.json apps/*/package.json`,
-    'Staging version files'
-  );
+  // Expand globs for git add (execFileSync doesn't use shell)
+  const versionFiles = [
+    'package.json',
+    'version.json',
+    ...readdirSync('packages', { withFileTypes: true })
+      .filter(d => d.isDirectory())
+      .map(d => join('packages', d.name, 'package.json')),
+    ...readdirSync('apps', { withFileTypes: true })
+      .filter(d => d.isDirectory())
+      .map(d => join('apps', d.name, 'package.json')),
+  ];
+
+  exec('git', ['add', ...versionFiles], 'Staging version files');
 
   exec(
-    `git commit -m "${commitMessage}"`,
+    'git',
+    ['commit', '--signoff', '--gpg-sign', '-m', commitMessage],
     `Committing version bump to ${nextVersion}`
   );
 
-  exec('git push', 'Pushing to main branch');
+  exec('git', ['push'], 'Pushing to main branch');
 
   // Summary
   console.log('\n' + '='.repeat(70));
