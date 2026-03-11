@@ -25,13 +25,14 @@ graph TD
 
     BUS["E V E N T &ensp; B U S"]
 
-    SOURCES["Content Sources"] -->|"yield"| BUS
     BUS -->|"events"| KB["Knowledge Base"]
     BUS -->|"gather"| GATHERER["Gatherer"]
     BUS -->|"bind"| BINDER["Binder"]
-    SOURCES ~~~ GATHERER
     GATHERER -->|"query"| KB
     BINDER -->|"query"| KB
+
+    SOURCES["Content Sources"] -->|"yield"| BUS
+    KB ~~~ SOURCES
 
     classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold,font-size:14px
     classDef human fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
