@@ -164,9 +164,29 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   }
 
   if (paths.fromNpmPackage) {
-    // npm package: pre-built, skip install/build steps
+    // npm package: pre-built, skip install/build but still generate Prisma client
+    // (the generated client is platform-specific and not shipped in the npm package)
     if (!service.quiet) {
-      printInfo('Using pre-built npm package — skipping install, build, and prisma generate');
+      printInfo('Using pre-built npm package — skipping install and build');
+    }
+
+    if (fs.existsSync(prismaSchemaPath)) {
+      if (!service.quiet) {
+        printInfo('Generating Prisma client...');
+      }
+
+      try {
+        execFileSync('npx', ['prisma', 'generate'], {
+          cwd: backendSourceDir,
+          stdio: service.verbose ? 'inherit' : 'pipe'
+        });
+
+        if (!service.quiet) {
+          printSuccess('Prisma client generated');
+        }
+      } catch (error) {
+        printWarning(`Failed to generate Prisma client: ${error}`);
+      }
     }
   } else {
     // Monorepo: install deps, generate prisma, build workspace deps, build app
