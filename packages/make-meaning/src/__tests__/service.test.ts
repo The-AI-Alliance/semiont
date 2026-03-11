@@ -322,22 +322,22 @@ describe('Make-Meaning Service', () => {
       service = null;
     });
 
-    it('should share event store and inference client across workers', async () => {
+    it('should share event bus and inference client across workers', async () => {
       service = await startMakeMeaning(config, eventBus, mockLogger);
 
-      // All workers should share the same eventStore instance
-      const eventStoreRefs = [
+      // All workers should share the same eventBus instance
+      const eventBusRefs = [
         service.workers.detection,
         service.workers.generation,
         service.workers.highlight,
         service.workers.assessment,
         service.workers.comment,
         service.workers.tag,
-      ].map(w => (w as any).eventStore);
+      ].map(w => (w as any).eventBus);
 
       // All should be the same instance
-      eventStoreRefs.forEach(ref => {
-        expect(ref).toBe(service!.eventStore);
+      eventBusRefs.forEach(ref => {
+        expect(ref).toBe(service!.eventBus);
       });
 
       // All workers should share the same inference client

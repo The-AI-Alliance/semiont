@@ -2,15 +2,15 @@
  * Generation Worker
  *
  * Processes generation jobs: runs AI inference to generate new resources
- * and emits resource.created and annotation.body.updated events.
+ * and emits events on the EventBus for all writes.
  *
- * This worker is INDEPENDENT of HTTP clients - it just processes jobs and emits events.
+ * This worker is INDEPENDENT of HTTP clients - it just processes jobs and
+ * emits events on the EventBus for all writes.
  */
 
 import { JobWorker } from '../job-worker';
 import type { AnyJob, RunningJob, GenerationParams, YieldProgress, GenerationResult, GenerationJob } from '../types';
 import type { JobQueue } from '../job-queue';
-import { FilesystemRepresentationStore } from '@semiont/content';
 import { generateResourceFromTopic } from './generation/resource-generation';
 import { resourceUri, annotationUri, EventBus, type Logger } from '@semiont/core';
 import { getTargetSelector, getExactText } from '@semiont/api-client';
@@ -18,19 +18,19 @@ import { getEntityTypes } from '@semiont/ontology';
 import {
   CREATION_METHODS,
   type BodyOperation,
-  resourceId,
   annotationId,
-  generateUuid,
+  userId,
+  jobId,
 } from '@semiont/core';
-import { EventStore } from '@semiont/event-sourcing';
 import type { EnvironmentConfig } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
+import { firstValueFrom, race, timer } from 'rxjs';
+import { map, take } from 'rxjs/operators';
 
 export class GenerationWorker extends JobWorker {
   constructor(
     jobQueue: JobQueue,
     private config: EnvironmentConfig,
-    private eventStore: EventStore,
     private inferenceClient: InferenceClient,
     private eventBus: EventBus,
     logger: Logger
@@ -64,10 +64,6 @@ export class GenerationWorker extends JobWorker {
       referenceId: job.params.referenceId,
       jobId: job.metadata.id
     });
-
-    const basePath = this.config.services.filesystem!.path;
-    const projectRoot = this.config._metadata?.projectRoot;
-    const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
 
     // Update progress: fetching
     let updatedJob: RunningJob<GenerationParams, YieldProgress> = {
@@ -140,9 +136,6 @@ export class GenerationWorker extends JobWorker {
     };
     await this.updateJobProgress(updatedJob);
 
-    // Generate resource ID
-    const rId = resourceId(generateUuid());
-
     // Update progress: creating
     updatedJob = {
       ...updatedJob,
@@ -155,32 +148,29 @@ export class GenerationWorker extends JobWorker {
     this.logger?.debug('Generation progress', { stage: updatedJob.progress.stage, message: updatedJob.progress.message });
     await this.updateJobProgress(updatedJob);
 
-    // Save content to RepresentationStore
-    const storedRep = await repStore.store(Buffer.from(generatedContent.content), {
-      mediaType: 'text/markdown',
-      rel: 'original',
-    });
-    this.logger?.info('Saved resource representation', { resourceId: rId });
+    // Create resource via EventBus
+    const createParams = {
+      name: resourceName,
+      content: Buffer.from(generatedContent.content),
+      format: 'text/markdown' as const,
+      userId: userId(job.metadata.userId),
+      entityTypes: job.params.entityTypes || annotationEntityTypes,
+      language: job.params.language,
+      creationMethod: CREATION_METHODS.GENERATED,
+      isDraft: true,
+      generatedFrom: job.params.referenceId,
+    };
 
-    // Emit resource.created event
-    await this.eventStore.appendEvent({
-      type: 'resource.created',
-      resourceId: rId,
-      userId: job.metadata.userId,
-      version: 1,
-      payload: {
-        name: resourceName,
-        format: 'text/markdown',
-        contentChecksum: storedRep.checksum,
-        creationMethod: CREATION_METHODS.GENERATED,
-        entityTypes: job.params.entityTypes || annotationEntityTypes,
-        language: job.params.language,
-        isDraft: true,
-        generatedFrom: job.params.referenceId,
-        generationPrompt: undefined,
-      },
-    });
-    this.logger?.info('Emitted resource.created event', { resourceId: rId });
+    const result$ = race(
+      this.eventBus.get('yield:created').pipe(take(1), map(r => ({ ok: true as const, result: r }))),
+      this.eventBus.get('yield:create-failed').pipe(take(1), map(f => ({ ok: false as const, error: f.error }))),
+      timer(30_000).pipe(map(() => ({ ok: false as const, error: new Error('Resource creation timed out') }))),
+    );
+    this.eventBus.get('yield:create').next(createParams);
+    const outcome = await firstValueFrom(result$);
+    if (!outcome.ok) throw outcome.error;
+    const rId = outcome.result.resourceId;
+    this.logger?.info('Resource created via EventBus', { resourceId: rId });
 
     // Update progress: linking
     updatedJob = {
@@ -194,7 +184,7 @@ export class GenerationWorker extends JobWorker {
     this.logger?.debug('Generation progress', { stage: updatedJob.progress.stage, message: updatedJob.progress.message });
     await this.updateJobProgress(updatedJob);
 
-    // Emit annotation.body.updated event to link the annotation to the new resource
+    // Update annotation body to link the annotation to the new resource
     const newResourceUri = resourceUri(`${this.config.services.backend!.publicURL}/resources/${rId}`);
 
     const operations: BodyOperation[] = [{
@@ -209,17 +199,13 @@ export class GenerationWorker extends JobWorker {
     // Extract annotation ID from full URI (format: http://host/annotations/{id})
     const annotationIdSegment = job.params.referenceId.split('/').pop()!;
 
-    await this.eventStore.appendEvent({
-      type: 'annotation.body.updated',
+    this.eventBus.get('mark:update-body').next({
+      annotationId: annotationId(annotationIdSegment),
+      userId: userId(job.metadata.userId),
       resourceId: job.params.sourceResourceId,
-      userId: job.metadata.userId,
-      version: 1,
-      payload: {
-        annotationId: annotationId(annotationIdSegment),
-        operations,
-      },
+      operations,
     });
-    this.logger?.info('Emitted annotation.body.updated event', {
+    this.logger?.info('Updated annotation body via EventBus', {
       referenceId: job.params.referenceId,
       targetResourceId: rId
     });
@@ -246,71 +232,45 @@ export class GenerationWorker extends JobWorker {
 
   /**
    * Emit completion event with result data
-   * Override base class to emit job.completed event with resultResourceId
+   * Override base class to emit on EventBus
    */
   protected override async emitCompletionEvent(
     job: RunningJob<GenerationParams, YieldProgress>,
     result: GenerationResult
   ): Promise<void> {
-    // DOMAIN EVENT: Write to EventStore (auto-publishes to global EventBus)
-    const storedEvent = await this.eventStore.appendEvent({
-      type: 'job.completed',
+    this.eventBus.get('job:complete').next({
       resourceId: job.params.sourceResourceId,
-      userId: job.metadata.userId,
-      version: 1,
-      payload: {
-        jobId: job.metadata.id,
-        jobType: 'generation',
+      userId: userId(job.metadata.userId),
+      jobId: jobId(job.metadata.id),
+      jobType: 'generation',
+      result: {
         resultResourceId: result.resourceId,
         annotationUri: annotationUri(`${this.config.services.backend!.publicURL}/annotations/${job.params.referenceId}`),
       },
     });
-
-    // ALSO emit to resource-scoped EventBus for SSE streams
-    const resourceBus = this.eventBus.scope(job.params.sourceResourceId);
-    this.logger?.debug('[EventBus] Emitting job:completed to resource-scoped bus', {
-      resourceId: job.params.sourceResourceId,
-      jobId: job.metadata.id
-    });
-    resourceBus.get('job:completed').next(storedEvent.event as Extract<typeof storedEvent.event, { type: 'job.completed' }>);
   }
 
   protected override async handleJobFailure(job: AnyJob, error: any): Promise<void> {
     // Call parent to handle the failure logic
     await super.handleJobFailure(job, error);
 
-    // If job permanently failed, emit job.failed event
+    // If job permanently failed, record via EventBus
     if (job.status === 'failed' && job.metadata.type === 'generation') {
       const genJob = job as GenerationJob;
 
-      const errorMessage = 'Resource generation failed. Please try again later.';
-
-      // DOMAIN EVENT: Write to EventStore (auto-publishes to EventBus)
-      const storedEvent = await this.eventStore.appendEvent({
-        type: 'job.failed',
+      this.eventBus.get('job:fail').next({
         resourceId: genJob.params.sourceResourceId,
-        userId: genJob.metadata.userId,
-        version: 1,
-        payload: {
-          jobId: genJob.metadata.id,
-          jobType: genJob.metadata.type,
-          error: errorMessage,
-        },
+        userId: userId(genJob.metadata.userId),
+        jobId: jobId(genJob.metadata.id),
+        jobType: genJob.metadata.type,
+        error: 'Resource generation failed. Please try again later.',
       });
-
-      // ALSO emit to resource-scoped EventBus for SSE streams
-      const resourceBus = this.eventBus.scope(genJob.params.sourceResourceId);
-      this.logger?.debug('[EventBus] Emitting job:failed to resource-scoped bus', {
-        resourceId: genJob.params.sourceResourceId,
-        jobId: genJob.metadata.id
-      });
-      resourceBus.get('job:failed').next(storedEvent.event as Extract<typeof storedEvent.event, { type: 'job.failed' }>);
     }
   }
 
   /**
-   * Update job progress and emit events to Event Store
-   * Overrides base class to also emit job progress events
+   * Update job progress and emit ephemeral events via EventBus
+   * Overrides base class to emit job lifecycle events and yield:progress events
    */
   protected override async updateJobProgress(job: AnyJob): Promise<void> {
     // Call parent to update job queue
@@ -328,36 +288,27 @@ export class GenerationWorker extends JobWorker {
 
     const genJob = job as RunningJob<GenerationParams, YieldProgress>;
 
-    const baseEvent = {
-      resourceId: genJob.params.sourceResourceId,
-      userId: genJob.metadata.userId,
-      version: 1,
-    };
-
     const resourceBus = this.eventBus.scope(genJob.params.sourceResourceId);
 
     // Emit appropriate event based on progress stage
     if (genJob.progress.stage === 'fetching' && genJob.progress.percentage === 20) {
-      // First progress update - emit job.started
-      await this.eventStore.appendEvent({
-        type: 'job.started',
-        ...baseEvent,
-        payload: {
-          jobId: genJob.metadata.id,
-          jobType: genJob.metadata.type,
-          totalSteps: 5, // fetching, generating, creating, linking, complete
-        },
+      // First progress update - record job started via EventBus
+      this.eventBus.get('job:start').next({
+        resourceId: genJob.params.sourceResourceId,
+        userId: userId(genJob.metadata.userId),
+        jobId: jobId(genJob.metadata.id),
+        jobType: genJob.metadata.type,
       });
     } else {
-      // Intermediate progress - emit job.progress
-      await this.eventStore.appendEvent({
-        type: 'job.progress',
-        ...baseEvent,
-        payload: {
-          jobId: genJob.metadata.id,
-          jobType: genJob.metadata.type,
+      // Intermediate progress - record via EventBus
+      this.eventBus.get('job:report-progress').next({
+        resourceId: genJob.params.sourceResourceId,
+        userId: userId(genJob.metadata.userId),
+        jobId: jobId(genJob.metadata.id),
+        jobType: genJob.metadata.type,
+        percentage: genJob.progress.percentage,
+        progress: {
           currentStep: genJob.progress.stage,
-          percentage: genJob.progress.percentage,
           message: genJob.progress.message,
         },
       });

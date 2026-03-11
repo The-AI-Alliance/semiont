@@ -35,7 +35,7 @@ export function registerUpdateResource(router: ResourcesRouterType) {
       const { id } = c.req.param();
       const body = c.get('validatedBody') as UpdateResourceRequest;
       const user = c.get('user');
-      const { kb, eventStore } = c.get('makeMeaning');
+      const { kb, eventBus } = c.get('makeMeaning');
 
       // Check resource exists using view storage
       const doc = await ResourceContext.getResourceMetadata(resourceId(id), kb);
@@ -43,7 +43,7 @@ export function registerUpdateResource(router: ResourcesRouterType) {
         throw new HTTPException(404, { message: 'Resource not found' });
       }
 
-      // Delegate to make-meaning service for business logic
+      // Delegate to make-meaning service for business logic (via Stower)
       await ResourceOperations.updateResource(
         {
           resourceId: resourceId(id),
@@ -53,7 +53,7 @@ export function registerUpdateResource(router: ResourcesRouterType) {
           currentEntityTypes: doc.entityTypes,
           updatedEntityTypes: body.entityTypes,
         },
-        eventStore
+        eventBus,
       );
 
       // Read annotations from view storage

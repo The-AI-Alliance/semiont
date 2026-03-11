@@ -2,16 +2,20 @@
  * Resource Operations Tests
  *
  * Tests critical business logic for resource CRUD operations including:
- * - Resource creation (ID generation, content storage, event emission)
+ * - Resource creation (via Stower)
  * - Resource updates (archive/unarchive, entity type tagging)
  * - Event emission for all state changes
+ *
+ * Uses a real EventBus + Stower + EventStore pipeline.
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { ResourceOperations } from '../resource-operations';
-import { resourceId, userId, type EnvironmentConfig, CREATION_METHODS, type Logger } from '@semiont/core';
+import { resourceId, userId, EventBus, CREATION_METHODS, type EnvironmentConfig, type Logger } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
-import { FilesystemRepresentationStore, type RepresentationStore } from '@semiont/content';
+import { Stower } from '../stower';
+import { createKnowledgeBase } from '../knowledge-base';
+import { getGraphDatabase } from '@semiont/graph';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -27,58 +31,26 @@ const mockLogger: Logger = {
 describe('ResourceOperations', () => {
   let testDir: string;
   let testEventStore: EventStore;
-  let testRepStore: RepresentationStore;
-  let config: EnvironmentConfig;
+  let eventBus: EventBus;
+  let stower: Stower;
+  const publicURL = 'http://localhost:4000';
 
   beforeAll(async () => {
-    // Create temporary test directory
     testDir = join(tmpdir(), `semiont-test-resource-ops-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    // Create test configuration
-    config = {
-      services: {
-        filesystem: {
-          platform: { type: 'posix' },
-          path: testDir
-        },
-        backend: {
-          platform: { type: 'posix' },
-          port: 4000,
-          publicURL: 'http://localhost:4000',
-          corsOrigin: 'http://localhost:3000'
-        },
-        inference: {
-          platform: { type: 'external' },
-          type: 'anthropic',
-          model: 'claude-sonnet-4-20250514',
-          maxTokens: 8192,
-          endpoint: 'https://api.anthropic.com',
-          apiKey: 'test-api-key'
-        },
-        graph: {
-          platform: { type: 'posix' },
-          type: 'memory'
-        }
-      },
-      site: {
-        siteName: 'Test Site',
-        domain: 'localhost:3000',
-        adminEmail: 'admin@test.local',
-        oauthAllowedDomains: ['test.local']
-      },
-      _metadata: {
-        environment: 'test',
-        projectRoot: testDir
-      },
-    } as EnvironmentConfig;
+    eventBus = new EventBus();
+    testEventStore = createEventStore(testDir, publicURL, undefined, eventBus, mockLogger);
+    const graphDb = await getGraphDatabase({ services: { graph: { type: 'memory' } } } as EnvironmentConfig);
+    const kb = createKnowledgeBase(testEventStore, testDir, testDir, graphDb, mockLogger);
 
-    // Initialize event store and representation store
-    testEventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
-    testRepStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
+    stower = new Stower(kb, publicURL, eventBus, mockLogger);
+    await stower.initialize();
   });
 
   afterAll(async () => {
+    await stower.stop();
+    eventBus.destroy();
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
@@ -92,9 +64,7 @@ describe('ResourceOperations', () => {
           format: 'text/plain',
         },
         userId('user-1'),
-        testEventStore,
-        testRepStore,
-        config
+        eventBus,
       );
 
       expect(response).toBeDefined();
@@ -116,9 +86,7 @@ describe('ResourceOperations', () => {
           format: 'text/plain',
         },
         userId('user-1'),
-        testEventStore,
-        testRepStore,
-        config
+        eventBus,
       );
 
       expect(response.resource['@id']).toBeDefined();
@@ -134,9 +102,7 @@ describe('ResourceOperations', () => {
           format: 'text/plain',
         },
         userId('user-1'),
-        testEventStore,
-        testRepStore,
-        config
+        eventBus,
       );
 
       const reps1 = Array.isArray(response.resource.representations) ? response.resource.representations : [response.resource.representations];
@@ -157,17 +123,13 @@ describe('ResourceOperations', () => {
           entityTypes: ['Person', 'Location'],
         },
         userId('user-1'),
-        testEventStore,
-        testRepStore,
-        config
+        eventBus,
       );
 
-      // Extract resource ID from response
       const idMatch = response.resource['@id'].match(/\/resources\/(.+)$/);
       expect(idMatch).toBeDefined();
       const resId = resourceId(idMatch![1]);
 
-      // Check event was emitted
       const events = await testEventStore.log.getEvents(resId);
       const createdEvents = events.filter(e => e.event.type === 'resource.created');
       expect(createdEvents).toHaveLength(1);
@@ -196,9 +158,7 @@ describe('ResourceOperations', () => {
           format: 'text/markdown',
         },
         userId('user-1'),
-        testEventStore,
-        testRepStore,
-        config
+        eventBus,
       );
 
       const reps0 = Array.isArray(response.resource.representations) ? response.resource.representations : [response.resource.representations];
@@ -214,9 +174,7 @@ describe('ResourceOperations', () => {
           format: 'text/html',
         },
         userId('user-1'),
-        testEventStore,
-        testRepStore,
-        config
+        eventBus,
       );
 
       const reps0 = Array.isArray(response.resource.representations) ? response.resource.representations : [response.resource.representations];
@@ -233,9 +191,7 @@ describe('ResourceOperations', () => {
           language: 'fr',
         },
         userId('user-1'),
-        testEventStore,
-        testRepStore,
-        config
+        eventBus,
       );
 
       const reps3 = Array.isArray(response.resource.representations) ? response.resource.representations : [response.resource.representations];
@@ -252,9 +208,7 @@ describe('ResourceOperations', () => {
           entityTypes: ['Person', 'Organization', 'Location'],
         },
         userId('user-1'),
-        testEventStore,
-        testRepStore,
-        config
+        eventBus,
       );
 
       expect(response.resource.entityTypes).toEqual(['Person', 'Organization', 'Location']);
@@ -270,9 +224,7 @@ describe('ResourceOperations', () => {
           entityTypes: [],
         },
         userId('user-1'),
-        testEventStore,
-        testRepStore,
-        config
+        eventBus,
       );
 
       expect(response.resource.entityTypes).toEqual([]);
@@ -287,9 +239,7 @@ describe('ResourceOperations', () => {
           format: 'text/plain',
         },
         userId('user-1'),
-        testEventStore,
-        testRepStore,
-        config
+        eventBus,
       );
 
       expect(response.resource.creationMethod).toBe(CREATION_METHODS.API);
@@ -305,9 +255,7 @@ describe('ResourceOperations', () => {
           creationMethod: CREATION_METHODS.GENERATED,
         },
         userId('user-1'),
-        testEventStore,
-        testRepStore,
-        config
+        eventBus,
       );
 
       expect(response.resource.creationMethod).toBe(CREATION_METHODS.GENERATED);
@@ -322,9 +270,7 @@ describe('ResourceOperations', () => {
           format: 'text/plain',
         },
         userId('user-1'),
-        testEventStore,
-        testRepStore,
-        config
+        eventBus,
       );
 
       expect(response.resource.dateCreated).toBeDefined();
@@ -336,7 +282,6 @@ describe('ResourceOperations', () => {
 
   describe('updateResource', () => {
     it('should update archived status to true', async () => {
-      // Create a resource first
       const content = Buffer.from('To be archived', 'utf-8');
       const createResponse = await ResourceOperations.createResource(
         {
@@ -345,15 +290,12 @@ describe('ResourceOperations', () => {
           format: 'text/plain',
         },
         userId('user-1'),
-        testEventStore,
-        testRepStore,
-        config
+        eventBus,
       );
 
       const idMatch = createResponse.resource['@id'].match(/\/resources\/(.+)$/);
       const resId = resourceId(idMatch![1]);
 
-      // Update to archived
       await ResourceOperations.updateResource(
         {
           resourceId: resId,
@@ -361,10 +303,9 @@ describe('ResourceOperations', () => {
           currentArchived: false,
           updatedArchived: true,
         },
-        testEventStore
+        eventBus,
       );
 
-      // Check event was emitted
       const events = await testEventStore.log.getEvents(resId);
       const archivedEvents = events.filter(e => e.event.type === 'resource.archived');
       expect(archivedEvents).toHaveLength(1);
@@ -377,7 +318,6 @@ describe('ResourceOperations', () => {
     });
 
     it('should update archived status to false (unarchive)', async () => {
-      // Create and archive a resource
       const content = Buffer.from('To be unarchived', 'utf-8');
       const createResponse = await ResourceOperations.createResource(
         {
@@ -386,15 +326,12 @@ describe('ResourceOperations', () => {
           format: 'text/plain',
         },
         userId('user-1'),
-        testEventStore,
-        testRepStore,
-        config
+        eventBus,
       );
 
       const idMatch = createResponse.resource['@id'].match(/\/resources\/(.+)$/);
       const resId = resourceId(idMatch![1]);
 
-      // First archive it
       await ResourceOperations.updateResource(
         {
           resourceId: resId,
@@ -402,10 +339,9 @@ describe('ResourceOperations', () => {
           currentArchived: false,
           updatedArchived: true,
         },
-        testEventStore
+        eventBus,
       );
 
-      // Then unarchive it
       await ResourceOperations.updateResource(
         {
           resourceId: resId,
@@ -413,10 +349,9 @@ describe('ResourceOperations', () => {
           currentArchived: true,
           updatedArchived: false,
         },
-        testEventStore
+        eventBus,
       );
 
-      // Check unarchive event was emitted
       const events = await testEventStore.log.getEvents(resId);
       const unarchivedEvents = events.filter(e => e.event.type === 'resource.unarchived');
       expect(unarchivedEvents).toHaveLength(1);
@@ -437,9 +372,7 @@ describe('ResourceOperations', () => {
           format: 'text/plain',
         },
         userId('user-1'),
-        testEventStore,
-        testRepStore,
-        config
+        eventBus,
       );
 
       const idMatch = createResponse.resource['@id'].match(/\/resources\/(.+)$/);
@@ -448,7 +381,6 @@ describe('ResourceOperations', () => {
       const eventsBefore = await testEventStore.log.getEvents(resId);
       const countBefore = eventsBefore.length;
 
-      // Update with same archived status
       await ResourceOperations.updateResource(
         {
           resourceId: resId,
@@ -456,11 +388,11 @@ describe('ResourceOperations', () => {
           currentArchived: false,
           updatedArchived: false,
         },
-        testEventStore
+        eventBus,
       );
 
       const eventsAfter = await testEventStore.log.getEvents(resId);
-      expect(eventsAfter.length).toBe(countBefore); // No new events
+      expect(eventsAfter.length).toBe(countBefore);
     });
 
     it('should add entity types', async () => {
@@ -473,15 +405,12 @@ describe('ResourceOperations', () => {
           entityTypes: ['Person'],
         },
         userId('user-1'),
-        testEventStore,
-        testRepStore,
-        config
+        eventBus,
       );
 
       const idMatch = createResponse.resource['@id'].match(/\/resources\/(.+)$/);
       const resId = resourceId(idMatch![1]);
 
-      // Add entity types
       await ResourceOperations.updateResource(
         {
           resourceId: resId,
@@ -489,13 +418,15 @@ describe('ResourceOperations', () => {
           currentEntityTypes: ['Person'],
           updatedEntityTypes: ['Person', 'Location', 'Organization'],
         },
-        testEventStore
+        eventBus,
       );
 
-      // Check entitytag.added events were emitted
+      // Wait for Stower to process the async entity type updates via EventBus
+      await new Promise(r => setTimeout(r, 100));
+
       const events = await testEventStore.log.getEvents(resId);
       const addedEvents = events.filter(e => e.event.type === 'entitytag.added');
-      expect(addedEvents.length).toBeGreaterThanOrEqual(2); // Location and Organization
+      expect(addedEvents.length).toBeGreaterThanOrEqual(2);
 
       const addedTypes = addedEvents
         .map(e => e.event.type === 'entitytag.added' ? e.event.payload.entityType : null)
@@ -514,15 +445,12 @@ describe('ResourceOperations', () => {
           entityTypes: ['Person', 'Location', 'Organization'],
         },
         userId('user-1'),
-        testEventStore,
-        testRepStore,
-        config
+        eventBus,
       );
 
       const idMatch = createResponse.resource['@id'].match(/\/resources\/(.+)$/);
       const resId = resourceId(idMatch![1]);
 
-      // Remove entity types
       await ResourceOperations.updateResource(
         {
           resourceId: resId,
@@ -530,13 +458,15 @@ describe('ResourceOperations', () => {
           currentEntityTypes: ['Person', 'Location', 'Organization'],
           updatedEntityTypes: ['Person'],
         },
-        testEventStore
+        eventBus,
       );
 
-      // Check entitytag.removed events were emitted
+      // Wait for Stower to process the async entity type updates via EventBus
+      await new Promise(r => setTimeout(r, 100));
+
       const events = await testEventStore.log.getEvents(resId);
       const removedEvents = events.filter(e => e.event.type === 'entitytag.removed');
-      expect(removedEvents.length).toBeGreaterThanOrEqual(2); // Location and Organization
+      expect(removedEvents.length).toBeGreaterThanOrEqual(2);
 
       const removedTypes = removedEvents
         .map(e => e.event.type === 'entitytag.removed' ? e.event.payload.entityType : null)
@@ -555,15 +485,12 @@ describe('ResourceOperations', () => {
           entityTypes: ['Person', 'Location'],
         },
         userId('user-1'),
-        testEventStore,
-        testRepStore,
-        config
+        eventBus,
       );
 
       const idMatch = createResponse.resource['@id'].match(/\/resources\/(.+)$/);
       const resId = resourceId(idMatch![1]);
 
-      // Remove 'Location', add 'Organization'
       await ResourceOperations.updateResource(
         {
           resourceId: resId,
@@ -571,8 +498,11 @@ describe('ResourceOperations', () => {
           currentEntityTypes: ['Person', 'Location'],
           updatedEntityTypes: ['Person', 'Organization'],
         },
-        testEventStore
+        eventBus,
       );
+
+      // Wait for Stower to process the async entity type updates via EventBus
+      await new Promise(r => setTimeout(r, 100));
 
       const events = await testEventStore.log.getEvents(resId);
       const addedEvents = events.filter(e => e.event.type === 'entitytag.added');
@@ -592,9 +522,7 @@ describe('ResourceOperations', () => {
           entityTypes: ['Person', 'Location'],
         },
         userId('user-1'),
-        testEventStore,
-        testRepStore,
-        config
+        eventBus,
       );
 
       const idMatch = createResponse.resource['@id'].match(/\/resources\/(.+)$/);
@@ -603,7 +531,6 @@ describe('ResourceOperations', () => {
       const eventsBefore = await testEventStore.log.getEvents(resId);
       const countBefore = eventsBefore.length;
 
-      // Update with same entity types
       await ResourceOperations.updateResource(
         {
           resourceId: resId,
@@ -611,11 +538,11 @@ describe('ResourceOperations', () => {
           currentEntityTypes: ['Person', 'Location'],
           updatedEntityTypes: ['Person', 'Location'],
         },
-        testEventStore
+        eventBus,
       );
 
       const eventsAfter = await testEventStore.log.getEvents(resId);
-      expect(eventsAfter.length).toBe(countBefore); // No new events
+      expect(eventsAfter.length).toBe(countBefore);
     });
 
     it('should handle multiple simultaneous updates', async () => {
@@ -628,15 +555,12 @@ describe('ResourceOperations', () => {
           entityTypes: ['Person'],
         },
         userId('user-1'),
-        testEventStore,
-        testRepStore,
-        config
+        eventBus,
       );
 
       const idMatch = createResponse.resource['@id'].match(/\/resources\/(.+)$/);
       const resId = resourceId(idMatch![1]);
 
-      // Update both archived status and entity types
       await ResourceOperations.updateResource(
         {
           resourceId: resId,
@@ -646,7 +570,7 @@ describe('ResourceOperations', () => {
           currentEntityTypes: ['Person'],
           updatedEntityTypes: ['Person', 'Location'],
         },
-        testEventStore
+        eventBus,
       );
 
       const events = await testEventStore.log.getEvents(resId);

@@ -67,17 +67,13 @@ entityTypesRouter.post('/api/entity-types',
 
     const body = c.get('validatedBody') as AddEntityTypeRequest;
 
-    // Emit event (no resourceId for system-level events)
-    const { eventStore } = c.get('makeMeaning');
-    await eventStore.appendEvent({
-      type: 'entitytype.added',
-      // resourceId: undefined - system-level event
-      userId: userId(user.id),
-      version: 1,
-      payload: {
-        entityType: body.tag,
-      },
-    });
+    // Add entity type via EventBus
+    const { eventBus } = c.get('makeMeaning');
+    try {
+      eventBus.get('mark:add-entity-type').next({ tag: body.tag, userId: userId(user.id) });
+    } catch (error) {
+      return c.json({ error: 'Failed to add entity type' }, 500);
+    }
 
     // Read from view storage
     const entityTypes = await readEntityTypesProjection(config);
@@ -103,19 +99,15 @@ entityTypesRouter.post('/api/entity-types/bulk',
     }
 
     const body = c.get('validatedBody') as BulkAddEntityTypesRequest;
-    const { eventStore } = c.get('makeMeaning');
+    const { eventBus } = c.get('makeMeaning');
 
-    // Emit one event per entity type (no resourceId)
+    // Add each entity type via EventBus
     for (const tag of body.tags) {
-      await eventStore.appendEvent({
-        type: 'entitytype.added',
-        // resourceId: undefined - system-level event
-        userId: userId(user.id),
-        version: 1,
-        payload: {
-          entityType: tag,
-        },
-      });
+      try {
+        eventBus.get('mark:add-entity-type').next({ tag, userId: userId(user.id) });
+      } catch (error) {
+        return c.json({ error: `Failed to add entity type: ${tag}` }, 500);
+      }
     }
 
     // Read from view storage

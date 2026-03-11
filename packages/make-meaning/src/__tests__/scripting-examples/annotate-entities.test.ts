@@ -133,9 +133,7 @@ describe('Scripting Example: Entity Detection with Progress', () => {
         language: 'en'
       },
       userId('test-script'),
-      makeMeaning.eventStore,
-      makeMeaning.kb.content,
-      config
+      eventBus,
     );
 
     const rId = getResourceId(result.resource);
@@ -189,6 +187,9 @@ describe('Scripting Example: Entity Detection with Progress', () => {
         id: `job-${Date.now()}` as any,
         type: 'reference-annotation',
         userId: userId('test-script'),
+        userName: 'Test User',
+        userEmail: 'test@test.local',
+        userDomain: 'test.local',
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 1
@@ -217,33 +218,29 @@ describe('Scripting Example: Entity Detection with Progress', () => {
   });
 
   it('demonstrates parallel detection for multiple resources', async () => {
-    // Create multiple resources
-    const resources = await Promise.all([
-      ResourceOperations.createResource(
-        {
-          name: 'Doc 1',
-          content: Buffer.from('Alice works at Google.'),
-          format: 'text/plain',
-          language: 'en'
-        },
-        userId('test-script'),
-        makeMeaning.eventStore,
-        makeMeaning.kb.content,
-        config
-      ),
-      ResourceOperations.createResource(
-        {
-          name: 'Doc 2',
-          content: Buffer.from('Bob works at Microsoft.'),
-          format: 'text/plain',
-          language: 'en'
-        },
-        userId('test-script'),
-        makeMeaning.eventStore,
-        makeMeaning.kb.content,
-        config
-      ),
-    ]);
+    // Create resources sequentially (createResource uses a global yield:created
+    // subject, so parallel calls would race on the same response)
+    const resource1 = await ResourceOperations.createResource(
+      {
+        name: 'Doc 1',
+        content: Buffer.from('Alice works at Google.'),
+        format: 'text/plain',
+        language: 'en'
+      },
+      userId('test-script'),
+      eventBus,
+    );
+    const resource2 = await ResourceOperations.createResource(
+      {
+        name: 'Doc 2',
+        content: Buffer.from('Bob works at Microsoft.'),
+        format: 'text/plain',
+        language: 'en'
+      },
+      userId('test-script'),
+      eventBus,
+    );
+    const resources = [resource1, resource2];
 
     // Track completion for each resource
     const completions = new Map<string, boolean>();
@@ -273,6 +270,9 @@ describe('Scripting Example: Entity Detection with Progress', () => {
             id: `job-${Date.now()}-${index}` as any,
             type: 'reference-annotation',
             userId: userId('test-script'),
+            userName: 'Test Script',
+            userEmail: 'test@test.local',
+            userDomain: 'test.local',
             created: new Date().toISOString(),
             retryCount: 0,
             maxRetries: 1
@@ -317,9 +317,7 @@ describe('Scripting Example: Entity Detection with Progress', () => {
         language: 'en'
       },
       userId('test-script'),
-      makeMeaning.eventStore,
-      makeMeaning.kb.content,
-      config
+      eventBus,
     );
 
     const rId = getResourceId(result.resource);
@@ -352,6 +350,9 @@ describe('Scripting Example: Entity Detection with Progress', () => {
         id: `job-${Date.now()}` as any,
         type: 'reference-annotation',
         userId: userId('test-script'),
+        userName: 'Test User',
+        userEmail: 'test@test.local',
+        userDomain: 'test.local',
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 1

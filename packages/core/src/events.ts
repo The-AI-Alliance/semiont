@@ -112,7 +112,7 @@ export interface RepresentationRemovedEvent extends BaseEvent {
 export interface AnnotationAddedEvent extends BaseEvent {
   type: 'annotation.added';
   payload: {
-    annotation: Omit<Annotation, 'creator' | 'created'>;  // W3C Annotation (creator/created come from event metadata)
+    annotation: Annotation;
   };
 }
 

@@ -27,7 +27,6 @@ export function registerCreateResource(router: ResourcesRouterType) {
    */
   router.post('/resources', async (c) => {
     const user = c.get('user');
-    const config = c.get('config');
 
     if (!user) {
       throw new HTTPException(401, { message: 'Authentication required' });
@@ -61,8 +60,8 @@ export function registerCreateResource(router: ResourcesRouterType) {
     const arrayBuffer = await file.arrayBuffer();
     const contentBuffer = Buffer.from(arrayBuffer);
 
-    // Delegate to make-meaning for resource creation
-    const { eventStore, kb } = c.get('makeMeaning');
+    // Delegate to make-meaning for resource creation (via EventBus)
+    const { eventBus } = c.get('makeMeaning');
     const response = await ResourceOperations.createResource(
       {
         name,
@@ -73,9 +72,7 @@ export function registerCreateResource(router: ResourcesRouterType) {
         creationMethod: (creationMethod || undefined) as CreationMethod | undefined,
       },
       userId(user.id),
-      eventStore,
-      kb.content,
-      config
+      eventBus,
     );
 
     // Set Location header to the resource URI

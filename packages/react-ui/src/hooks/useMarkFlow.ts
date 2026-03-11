@@ -289,7 +289,7 @@ export function useMarkFlow(rUri: ResourceUri): MarkFlowState {
      * Handle annotation deletion
      * Emitted by: delete buttons in annotation entries
      */
-    const handleAnnotationDelete = async (event: { annotationId: string }) => {
+    const handleAnnotationDelete = async (event: EventMap['mark:delete']) => {
       const currentClient = clientRef.current;
       const currentRUri = rUriRef.current;
       try {

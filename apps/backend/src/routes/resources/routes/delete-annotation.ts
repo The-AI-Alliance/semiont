@@ -27,7 +27,7 @@ export function registerDeleteAnnotation(router: ResourcesRouterType) {
     const { resourceId: resourceIdParam, annotationId: annotationIdParam } = c.req.param();
     const user = c.get('user');
     const config = c.get('config');
-    const { kb } = c.get('makeMeaning');
+    const { kb, eventBus } = c.get('makeMeaning');
 
     // Get projection to verify annotation exists
     const projection = await AnnotationContext.getResourceAnnotations(
@@ -46,24 +46,20 @@ export function registerDeleteAnnotation(router: ResourcesRouterType) {
       throw new HTTPException(404, { message: 'Annotation not found in resource' });
     }
 
-    // Emit unified annotation.removed event
-    const { eventStore } = c.get('makeMeaning');
-    getRouteLogger().debug('Emitting annotation.removed event', {
+    // Delete annotation via EventBus
+    getRouteLogger().debug('Deleting annotation via EventBus', {
       annotationId: annotationIdParam,
       resourceId: resourceIdParam
     });
-    const storedEvent = await eventStore.appendEvent({
-      type: 'annotation.removed',
-      resourceId: resourceId(resourceIdParam),
-      userId: userId(user.id),
-      version: 1,
-      payload: {
-        annotationId: annotationId(annotationIdParam),
-      },
-    });
-    getRouteLogger().debug('Event emitted', {
+
+    try {
+      eventBus.get('mark:delete').next({ annotationId: annotationId(annotationIdParam), userId: userId(user.id), resourceId: resourceId(resourceIdParam) });
+    } catch (error) {
+      throw new HTTPException(500, { message: 'Failed to delete annotation' });
+    }
+
+    getRouteLogger().debug('Annotation deleted via EventBus', {
       annotationId: annotationIdParam,
-      sequenceNumber: storedEvent.metadata.sequenceNumber
     });
 
     return c.body(null, 204);

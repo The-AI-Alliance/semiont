@@ -15,7 +15,7 @@ import { ReferenceAnnotationWorker, type DetectedAnnotation } from '../../../wor
 import { JobQueue, type ContentFetcher } from '@semiont/jobs';
 import type { Logger } from '@semiont/core';
 import { EventBus } from '@semiont/core';
-import { createEventStore } from '@semiont/event-sourcing';
+
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -122,8 +122,7 @@ describe('Entity Detection - Charset Handling', () => {
 
     const jobQueue = new JobQueue({ dataDir: config.services.filesystem!.path }, mockLogger, new EventBus());
     await jobQueue.initialize();
-    const eventStore = createEventStore(config.services.filesystem!.path, config.services.backend!.publicURL, undefined, undefined, mockLogger);
-    worker = new ReferenceAnnotationWorker(jobQueue, config, eventStore, mockInferenceClient.client, new EventBus(), mockContentFetcher, mockLogger);
+    worker = new ReferenceAnnotationWorker(jobQueue, config, mockInferenceClient.client, new EventBus(), mockContentFetcher, mockLogger);
   });
 
   afterAll(async () => {

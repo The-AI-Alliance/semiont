@@ -9,7 +9,6 @@ import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/core';
 import { getTextPositionSelector, getSvgSelector, getFragmentSelector, validateSvgMarkup } from '@semiont/api-client';
-import type { AnnotationAddedEvent } from '@semiont/core';
 import { resourceId, userId, userToAgent } from '@semiont/core';
 import { generateAnnotationId } from '@semiont/event-sourcing';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
@@ -73,38 +72,43 @@ export function registerCreateAnnotation(router: ResourcesRouterType) {
         throw new HTTPException(400, { message: 'motivation is required' });
       }
 
-      // Build annotation object (includes W3C required @context and type)
-      const annotation: Omit<Annotation, 'creator' | 'created'> = {
+      // Build complete annotation (includes W3C required @context, type, creator, created)
+      const now = new Date().toISOString();
+      const annotation: Annotation = {
         '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
         'type': 'Annotation' as const,
         id: newAnnotationId,
         motivation: request.motivation,
         target: request.target,
         body: request.body as Annotation['body'],
-        modified: new Date().toISOString(),
+        creator: userToAgent(user),
+        created: now,
+        modified: now,
       };
 
-      // Emit unified annotation.added event
-      const { eventStore } = c.get('makeMeaning');
-      const eventPayload: Omit<AnnotationAddedEvent, 'id' | 'timestamp'> = {
-        type: 'annotation.added',
-        resourceId: resourceId(id),
-        userId: userId(user.id),
-        version: 1,
-        payload: {
+      // Create annotation via EventBus
+      const { eventBus } = c.get('makeMeaning');
+      try {
+        const target = annotation.target;
+        const selector = typeof target === 'string' ? undefined : target.selector;
+        if (!selector) {
+          throw new Error('Selector is required');
+        }
+        const bodyArray = Array.isArray(annotation.body) ? annotation.body : annotation.body ? [annotation.body] : [];
+        eventBus.get('mark:create').next({
+          motivation: annotation.motivation,
+          selector,
+          body: bodyArray,
+          userId: userId(user.id),
+          resourceId: resourceId(id),
           annotation,
-        },
-      };
-      await eventStore.appendEvent(eventPayload);
+        });
+      } catch (error) {
+        throw new HTTPException(500, { message: 'Failed to create annotation' });
+      }
 
       // Return optimistic response
-      const response: CreateAnnotationResponse = {
-        annotation: {
-          ...annotation,
-          creator: userToAgent(user),
-          created: new Date().toISOString(),
-        },
-      };
+      const response: CreateAnnotationResponse = { annotation };
 
       return c.json(response, 201);
     }

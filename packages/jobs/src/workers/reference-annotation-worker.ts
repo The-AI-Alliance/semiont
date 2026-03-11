@@ -2,17 +2,19 @@
  * Reference Detection Worker
  *
  * Processes detection jobs: runs AI inference to find entities in resources
- * and emits reference.created events for each detected entity.
+ * and creates annotations for each detected entity via the EventBus.
  *
- * This worker is INDEPENDENT of HTTP clients - it just processes jobs and emits events.
+ * This worker is INDEPENDENT of HTTP clients - it just processes jobs and
+ * emits events on the EventBus for all writes.
  */
 
 import { JobWorker } from '../job-worker';
 import type { AnyJob, DetectionJob, RunningJob, DetectionParams, DetectionProgress, DetectionResult, ContentFetcher } from '../types';
 import type { JobQueue } from '../job-queue';
 import { AnnotationDetection } from './annotation-detection';
-import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
-import { resourceIdToURI, EventBus } from '@semiont/core';
+import { generateAnnotationId } from '@semiont/event-sourcing';
+import { resourceIdToURI, EventBus, userToAgent } from '@semiont/core';
+import { userId, jobId } from '@semiont/core';
 import type { EnvironmentConfig, Logger } from '@semiont/core';
 import { validateAndCorrectOffsets } from '@semiont/api-client';
 import { extractEntities } from './detection/entity-extractor';
@@ -35,7 +37,6 @@ export class ReferenceAnnotationWorker extends JobWorker {
   constructor(
     jobQueue: JobQueue,
     private config: EnvironmentConfig,
-    private eventStore: EventStore,
     private inferenceClient: InferenceClient,
     private eventBus: EventBus,
     private contentFetcher: ContentFetcher,
@@ -171,7 +172,7 @@ export class ReferenceAnnotationWorker extends JobWorker {
       totalFound += detectedAnnotations.length;
       this.logger?.info('Found entities', { entityType, count: detectedAnnotations.length });
 
-      // Emit events for each detected entity
+      // Create annotations for each detected entity via EventBus
       for (let idx = 0; idx < detectedAnnotations.length; idx++) {
         const detected = detectedAnnotations[idx];
 
@@ -193,56 +194,66 @@ export class ReferenceAnnotationWorker extends JobWorker {
         }
 
         try {
-          await this.eventStore.appendEvent({
-            type: 'annotation.added',
-            resourceId: job.params.resourceId,
-            userId: job.metadata.userId,
-            version: 1,
-            payload: {
-              annotation: {
-                '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-                'type': 'Annotation' as const,
-                id: referenceId,
-                motivation: 'linking' as const,
-                target: {
-                  source: resourceIdToURI(job.params.resourceId, this.config.services.backend!.publicURL), // Convert to full URI
-                  selector: [
-                    {
-                      type: 'TextPositionSelector',
-                      start: detected.annotation.selector.start,
-                      end: detected.annotation.selector.end,
-                    },
-                    {
-                      type: 'TextQuoteSelector',
-                      exact: detected.annotation.selector.exact,
-                      ...(detected.annotation.selector.prefix && { prefix: detected.annotation.selector.prefix }),
-                      ...(detected.annotation.selector.suffix && { suffix: detected.annotation.selector.suffix }),
-                    },
-                  ],
+          const creator = userToAgent({
+            id: job.metadata.userId,
+            name: job.metadata.userName,
+            email: job.metadata.userEmail,
+            domain: job.metadata.userDomain,
+          });
+
+          const annotation = {
+            '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+            'type': 'Annotation' as const,
+            id: referenceId,
+            motivation: 'linking' as const,
+            creator,
+            created: new Date().toISOString(),
+            target: {
+              source: resourceIdToURI(job.params.resourceId, this.config.services.backend!.publicURL), // Convert to full URI
+              selector: [
+                {
+                  type: 'TextPositionSelector' as const,
+                  start: detected.annotation.selector.start,
+                  end: detected.annotation.selector.end,
                 },
-                body: (detected.annotation.entityTypes || []).map(et => ({
-                  type: 'TextualBody' as const,
-                  value: et,
-                  purpose: 'tagging' as const,
-                })),
-                modified: new Date().toISOString(),
-              },
+                {
+                  type: 'TextQuoteSelector' as const,
+                  exact: detected.annotation.selector.exact,
+                  ...(detected.annotation.selector.prefix && { prefix: detected.annotation.selector.prefix }),
+                  ...(detected.annotation.selector.suffix && { suffix: detected.annotation.selector.suffix }),
+                },
+              ],
             },
+            body: (detected.annotation.entityTypes || []).map(et => ({
+              type: 'TextualBody' as const,
+              value: et,
+              purpose: 'tagging' as const,
+            })),
+            modified: new Date().toISOString(),
+          };
+
+          this.eventBus.get('mark:create').next({
+            motivation: annotation.motivation,
+            selector: annotation.target.selector,
+            body: annotation.body,
+            userId: userId(job.metadata.userId),
+            resourceId: job.params.resourceId,
+            annotation,
           });
 
           totalEmitted++;
 
           if ((idx + 1) % 10 === 0 || idx === detectedAnnotations.length - 1) {
-            this.logger?.debug('Emitted events for entity type', {
+            this.logger?.debug('Created annotations for entity type', {
               entityType,
-              emitted: idx + 1,
+              created: idx + 1,
               total: detectedAnnotations.length
             });
           }
 
         } catch (error) {
           totalErrors++;
-          this.logger?.error('Failed to emit event', { referenceId, error });
+          this.logger?.error('Failed to create annotation', { referenceId, error });
           // Continue processing other entities even if one fails
         }
       }
@@ -279,71 +290,42 @@ export class ReferenceAnnotationWorker extends JobWorker {
 
   /**
    * Emit completion event with result data
-   * Override base class to emit job.completed event (domain + progress)
+   * Override base class to emit on EventBus
    */
   protected override async emitCompletionEvent(
     job: RunningJob<DetectionParams, DetectionProgress>,
     result: DetectionResult
   ): Promise<void> {
-    // DOMAIN EVENT: Write to EventStore (auto-publishes to EventBus)
-    const storedEvent = await this.eventStore.appendEvent({
-      type: 'job.completed',
+    this.eventBus.get('job:complete').next({
       resourceId: job.params.resourceId,
-      userId: job.metadata.userId,
-      version: 1,
-      payload: {
-        jobId: job.metadata.id,
-        jobType: 'reference-annotation',
-        result,
-      },
+      userId: userId(job.metadata.userId),
+      jobId: jobId(job.metadata.id),
+      jobType: 'reference-annotation',
+      result: { result },
     });
-
-    // ALSO emit to resource-scoped EventBus for SSE streams
-    const resourceBus = this.eventBus.scope(job.params.resourceId);
-    this.logger?.debug('[EventBus] Emitting job:completed to resource-scoped bus', {
-      resourceId: job.params.resourceId,
-      jobId: job.metadata.id
-    });
-    resourceBus.get('job:completed').next(storedEvent.event as Extract<typeof storedEvent.event, { type: 'job.completed' }>);
   }
 
   protected override async handleJobFailure(job: AnyJob, error: any): Promise<void> {
     // Call parent to handle the failure logic
     await super.handleJobFailure(job, error);
 
-    // If job permanently failed, emit job.failed event
+    // If job permanently failed, record via EventBus
     if (job.status === 'failed' && job.metadata.type === 'reference-annotation') {
-      // Type narrowing: job is FailedJob<DetectionParams>
       const detJob = job as DetectionJob;
 
-      const errorMessage = 'Entity detection failed. Please try again later.';
-
-      // DOMAIN EVENT: Write to EventStore (auto-publishes to EventBus)
-      const storedEvent = await this.eventStore.appendEvent({
-        type: 'job.failed',
+      this.eventBus.get('job:fail').next({
         resourceId: detJob.params.resourceId,
-        userId: detJob.metadata.userId,
-        version: 1,
-        payload: {
-          jobId: detJob.metadata.id,
-          jobType: detJob.metadata.type,
-          error: errorMessage,
-        },
+        userId: userId(detJob.metadata.userId),
+        jobId: jobId(detJob.metadata.id),
+        jobType: detJob.metadata.type,
+        error: 'Entity detection failed. Please try again later.',
       });
-
-      // ALSO emit to resource-scoped EventBus for SSE streams
-      const resourceBus = this.eventBus.scope(detJob.params.resourceId);
-      this.logger?.debug('[EventBus] Emitting job:failed to resource-scoped bus', {
-        resourceId: detJob.params.resourceId,
-        jobId: detJob.metadata.id
-      });
-      resourceBus.get('job:failed').next(storedEvent.event as Extract<typeof storedEvent.event, { type: 'job.failed' }>);
     }
   }
 
   /**
-   * Update job progress and emit events to Event Store and EventBus
-   * Overrides base class to emit both domain events and progress events
+   * Update job progress and emit ephemeral events via EventBus
+   * Overrides base class to emit job lifecycle events and mark:progress events
    */
   protected override async updateJobProgress(job: AnyJob): Promise<void> {
     // Call parent to update job queue
@@ -361,12 +343,6 @@ export class ReferenceAnnotationWorker extends JobWorker {
 
     const detJob = job as RunningJob<DetectionParams, DetectionProgress>;
 
-    const baseEvent = {
-      resourceId: detJob.params.resourceId,
-      userId: detJob.metadata.userId,
-      version: 1,
-    };
-
     // Determine update type based on progress state
     const isFirstUpdate = detJob.progress.processedEntityTypes === 0 && !detJob.progress.currentEntityType;
 
@@ -380,15 +356,12 @@ export class ReferenceAnnotationWorker extends JobWorker {
     this.logger?.debug('[EventBus] Scoping to resourceId', { resourceId: detJob.params.resourceId });
 
     if (isFirstUpdate) {
-      // First progress update - emit job.started (domain event)
-      await this.eventStore.appendEvent({
-        type: 'job.started',
-        ...baseEvent,
-        payload: {
-          jobId: detJob.metadata.id,
-          jobType: detJob.metadata.type,
-          totalSteps: detJob.params.entityTypes.length,
-        },
+      // First progress update - record job started via EventBus
+      this.eventBus.get('job:start').next({
+        resourceId: detJob.params.resourceId,
+        userId: userId(detJob.metadata.userId),
+        jobId: jobId(detJob.metadata.id),
+        jobType: detJob.metadata.type,
       });
 
       // ALSO emit initial mark:progress for immediate frontend feedback
@@ -417,15 +390,15 @@ export class ReferenceAnnotationWorker extends JobWorker {
         percentage,
       });
     } else {
-      // After processing an entity type - emit job.progress (domain event)
+      // After processing an entity type - record progress via EventBus
       const percentage = Math.round((detJob.progress.processedEntityTypes / detJob.progress.totalEntityTypes) * 100);
-      await this.eventStore.appendEvent({
-        type: 'job.progress',
-        ...baseEvent,
-        payload: {
-          jobId: detJob.metadata.id,
-          jobType: detJob.metadata.type,
-          percentage,
+      this.eventBus.get('job:report-progress').next({
+        resourceId: detJob.params.resourceId,
+        userId: userId(detJob.metadata.userId),
+        jobId: jobId(detJob.metadata.id),
+        jobType: detJob.metadata.type,
+        percentage,
+        progress: {
           currentStep: detJob.progress.currentEntityType,
           processedSteps: detJob.progress.processedEntityTypes,
           totalSteps: detJob.progress.totalEntityTypes,

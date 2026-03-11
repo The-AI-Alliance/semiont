@@ -109,6 +109,9 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
           id: jobId(`job-${nanoid()}`),
           type: 'tag-annotation',
           userId: userId(user.id),
+          userName: user.name || user.email,
+          userEmail: user.email,
+          userDomain: user.domain,
           created: new Date().toISOString(),
           retryCount: 0,
           maxRetries: 1

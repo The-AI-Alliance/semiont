@@ -1,29 +1,30 @@
 /**
  * Annotation Operations
  *
- * Business logic for annotation CRUD operations:
- * - Create annotations (ID generation, validation, event emission)
- * - Update annotation body (operations: add/remove/replace)
- * - Delete annotations (validation, event emission)
+ * Business logic for annotation CRUD operations. All writes go through the
+ * EventBus — the Stower actor subscribes and handles persistence.
  *
+ * - Create: emits mark:create with full annotation + userId + resourceId
+ * - Update body: emits mark:update-body
+ * - Delete: emits mark:delete with annotationId + userId + resourceId
  */
 
-import type { EventStore } from '@semiont/event-sourcing';
 import { generateAnnotationId } from '@semiont/event-sourcing';
 import type { components } from '@semiont/core';
 import { getTextPositionSelector, getTargetSource } from '@semiont/api-client';
 import type {
-  AnnotationAddedEvent,
   BodyOperation,
   ResourceId,
   UserId,
   Logger,
 } from '@semiont/core';
-import { annotationId, uriToResourceId, uriToAnnotationId } from '@semiont/core';
+import { EventBus, annotationId, uriToResourceId, uriToAnnotationId } from '@semiont/core';
 import { AnnotationContext } from './annotation-context';
 import type { KnowledgeBase } from './knowledge-base';
 
+type Agent = components['schemas']['Agent'];
 type Annotation = components['schemas']['Annotation'];
+type AnnotationBody = components['schemas']['AnnotationBody'];
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
 type UpdateAnnotationBodyRequest = components['schemas']['UpdateAnnotationBodyRequest'];
 
@@ -37,18 +38,17 @@ export interface UpdateAnnotationBodyResult {
 
 export class AnnotationOperations {
   /**
-   * Create a new annotation
+   * Create a new annotation via EventBus → Stower
    */
   static async createAnnotation(
     request: CreateAnnotationRequest,
     userId: UserId,
-    eventStore: EventStore,
+    creator: Agent,
+    eventBus: EventBus,
     publicURL: string
   ): Promise<CreateAnnotationResult> {
-    // Generate annotation ID
     const newAnnotationId = generateAnnotationId(publicURL);
 
-    // Validate required fields
     const posSelector = getTextPositionSelector(request.target.selector);
     if (!posSelector) {
       throw new Error('TextPositionSelector required for creating annotations');
@@ -58,7 +58,7 @@ export class AnnotationOperations {
       throw new Error('motivation is required');
     }
 
-    // Build annotation object
+    const now = new Date().toISOString();
     const annotation: Annotation = {
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
       'type': 'Annotation' as const,
@@ -66,44 +66,36 @@ export class AnnotationOperations {
       motivation: request.motivation,
       target: request.target,
       body: request.body as Annotation['body'],
-      created: new Date().toISOString(),
-      modified: new Date().toISOString(),
+      creator,
+      created: now,
+      modified: now,
     };
 
-    // Emit annotation.added event
-    const eventPayload: Omit<AnnotationAddedEvent, 'id' | 'timestamp'> = {
-      type: 'annotation.added',
-      resourceId: uriToResourceId(request.target.source),
+    const resourceId = uriToResourceId(request.target.source);
+
+    // Emit mark:create — Stower subscribes and appends to event store
+    eventBus.get('mark:create').next({
+      motivation: request.motivation,
+      selector: request.target.selector,
+      body: (Array.isArray(request.body) ? request.body : [request.body]) as AnnotationBody[],
       userId,
-      version: 1,
-      payload: {
-        annotation: {
-          '@context': annotation['@context'],
-          'type': annotation.type,
-          id: annotation.id,
-          motivation: annotation.motivation,
-          target: annotation.target,
-          body: annotation.body,
-          modified: annotation.modified,
-        },
-      },
-    };
-    await eventStore.appendEvent(eventPayload);
+      resourceId,
+      annotation,
+    });
 
     return { annotation };
   }
 
   /**
-   * Update annotation body with operations (add/remove/replace)
+   * Update annotation body via EventBus → Stower
    */
   static async updateAnnotationBody(
     id: string,
     request: UpdateAnnotationBodyRequest,
     userId: UserId,
-    eventStore: EventStore,
+    eventBus: EventBus,
     kb: KnowledgeBase
   ): Promise<UpdateAnnotationBodyResult> {
-    // Get annotation from view storage
     const annotation = await AnnotationContext.getAnnotation(
       annotationId(id),
       uriToResourceId(request.resourceId) as ResourceId,
@@ -114,19 +106,16 @@ export class AnnotationOperations {
       throw new Error('Annotation not found');
     }
 
-    // Emit annotation.body.updated event
-    await eventStore.appendEvent({
-      type: 'annotation.body.updated',
-      resourceId: uriToResourceId(getTargetSource(annotation.target)),
+    const resourceId = uriToResourceId(getTargetSource(annotation.target));
+
+    // Emit mark:update-body — Stower subscribes and appends to event store
+    eventBus.get('mark:update-body').next({
+      annotationId: annotationId(id),
       userId,
-      version: 1,
-      payload: {
-        annotationId: annotationId(id),
-        operations: request.operations as BodyOperation[],
-      },
+      resourceId,
+      operations: request.operations as BodyOperation[],
     });
 
-    // Apply operations optimistically for response
     const updatedBody = this.applyBodyOperations(annotation.body, request.operations);
 
     return {
@@ -138,38 +127,35 @@ export class AnnotationOperations {
   }
 
   /**
-   * Delete an annotation
+   * Delete an annotation via EventBus → Stower
    */
   static async deleteAnnotation(
     id: string,
     resourceIdUri: string,
     userId: UserId,
-    eventStore: EventStore,
+    eventBus: EventBus,
     kb: KnowledgeBase,
     logger?: Logger
   ): Promise<void> {
-    const resourceId = uriToResourceId(resourceIdUri);
+    const resId = uriToResourceId(resourceIdUri);
 
-    // Verify annotation exists
-    const projection = await AnnotationContext.getResourceAnnotations(resourceId, kb);
+    const projection = await AnnotationContext.getResourceAnnotations(resId, kb);
     const annotation = projection.annotations.find((a: Annotation) => a.id === id);
 
     if (!annotation) {
       throw new Error('Annotation not found in resource');
     }
 
-    // Emit annotation.removed event
-    logger?.debug('Emitting annotation.removed event', { annotationId: id });
-    const storedEvent = await eventStore.appendEvent({
-      type: 'annotation.removed',
-      resourceId,
+    logger?.debug('Removing annotation via EventBus', { annotationId: id });
+
+    // Emit mark:delete — Stower subscribes and appends to event store
+    eventBus.get('mark:delete').next({
+      annotationId: uriToAnnotationId(id),
       userId,
-      version: 1,
-      payload: {
-        annotationId: uriToAnnotationId(id),
-      },
+      resourceId: resId,
     });
-    logger?.debug('Event emitted', { sequenceNumber: storedEvent.metadata.sequenceNumber });
+
+    logger?.debug('Annotation delete event emitted');
   }
 
   /**
@@ -183,7 +169,6 @@ export class AnnotationOperations {
 
     for (const op of operations) {
       if (op.op === 'add') {
-        // Add item (idempotent - don't add if already exists)
         const exists = bodyArray.some(item =>
           JSON.stringify(item) === JSON.stringify(op.item)
         );
@@ -191,7 +176,6 @@ export class AnnotationOperations {
           bodyArray.push(op.item);
         }
       } else if (op.op === 'remove') {
-        // Remove item
         const index = bodyArray.findIndex(item =>
           JSON.stringify(item) === JSON.stringify(op.item)
         );
@@ -199,7 +183,6 @@ export class AnnotationOperations {
           bodyArray.splice(index, 1);
         }
       } else if (op.op === 'replace') {
-        // Replace item
         const index = bodyArray.findIndex(item =>
           JSON.stringify(item) === JSON.stringify(op.oldItem)
         );

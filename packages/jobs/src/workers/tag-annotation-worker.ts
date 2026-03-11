@@ -10,11 +10,11 @@ import { JobWorker } from '../job-worker';
 import type { AnyJob, TagDetectionJob, RunningJob, TagDetectionParams, TagDetectionProgress, TagDetectionResult, ContentFetcher } from '../types';
 import type { JobQueue } from '../job-queue';
 import { AnnotationDetection } from './annotation-detection';
-import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
-import { resourceIdToURI, EventBus, type Logger } from '@semiont/core';
+import { generateAnnotationId } from '@semiont/event-sourcing';
+import { resourceIdToURI, EventBus, userToAgent, type Logger } from '@semiont/core';
 import { getTagSchema } from '@semiont/ontology';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
-import { userId } from '@semiont/core';
+import { userId, jobId } from '@semiont/core';
 import type { TagMatch } from './detection/motivation-parsers';
 import type { InferenceClient } from '@semiont/inference';
 
@@ -24,7 +24,6 @@ export class TagAnnotationWorker extends JobWorker {
   constructor(
     jobQueue: JobQueue,
     private config: EnvironmentConfig,
-    private eventStore: EventStore,
     private inferenceClient: InferenceClient,
     private eventBus: EventBus,
     private contentFetcher: ContentFetcher,
@@ -58,31 +57,23 @@ export class TagAnnotationWorker extends JobWorker {
 
   /**
    * Emit completion event with result data
-   * Override base class to emit job.completed event
+   * Override base class to emit on EventBus
    */
   protected override async emitCompletionEvent(
     job: RunningJob<TagDetectionParams, TagDetectionProgress>,
     result: TagDetectionResult
   ): Promise<void> {
-    await this.eventStore.appendEvent({
-      type: 'job.completed',
+    this.eventBus.get('job:complete').next({
       resourceId: job.params.resourceId,
-      userId: job.metadata.userId,
-      version: 1,
-      payload: {
-        jobId: job.metadata.id,
-        jobType: 'tag-annotation',
-        result,
-      },
+      userId: userId(job.metadata.userId),
+      jobId: jobId(job.metadata.id),
+      jobType: 'tag-annotation',
+      result: { result },
     });
-
-    // Emit to EventBus for real-time subscribers
-    // Domain event (job.completed) is automatically published to EventBus by EventStore
-    // Backend SSE endpoint will subscribe to job.completed and transform to annotate:detect-finished
   }
 
   /**
-   * Override updateJobProgress to emit events to Event Store
+   * Override updateJobProgress to emit events via EventBus
    */
   protected override async updateJobProgress(job: AnyJob): Promise<void> {
     // Call parent to update filesystem
@@ -97,37 +88,27 @@ export class TagAnnotationWorker extends JobWorker {
 
     const tdJob = job as RunningJob<TagDetectionParams, TagDetectionProgress>;
 
-    const baseEvent = {
-      resourceId: tdJob.params.resourceId,
-      userId: tdJob.metadata.userId,
-      version: 1,
-    };
-
-    const resourceBus = this.eventBus.scope(tdJob.params.resourceId);
-
     if (this.isFirstProgress) {
-      // First progress update - emit job.started
+      // First progress update - record job started
       this.isFirstProgress = false;
-      await this.eventStore.appendEvent({
-        type: 'job.started',
-        ...baseEvent,
-        payload: {
-          jobId: tdJob.metadata.id,
-          jobType: tdJob.metadata.type,
-        },
+      this.eventBus.get('job:start').next({
+        resourceId: tdJob.params.resourceId,
+        userId: userId(tdJob.metadata.userId),
+        jobId: jobId(tdJob.metadata.id),
+        jobType: tdJob.metadata.type,
       });
     } else {
-      // Intermediate progress - emit job.progress
-      // Note: job.completed is now handled by emitCompletionEvent()
-      await this.eventStore.appendEvent({
-        type: 'job.progress',
-        ...baseEvent,
-        payload: {
-          jobId: tdJob.metadata.id,
-          jobType: tdJob.metadata.type,
-          progress: tdJob.progress,
-        },
+      // Intermediate progress - record job progress
+      this.eventBus.get('job:report-progress').next({
+        resourceId: tdJob.params.resourceId,
+        userId: userId(tdJob.metadata.userId),
+        jobId: jobId(tdJob.metadata.id),
+        jobType: tdJob.metadata.type,
+        percentage: tdJob.progress.percentage,
+        progress: { progress: tdJob.progress },
       });
+      // Ephemeral progress for real-time UI updates
+      const resourceBus = this.eventBus.scope(tdJob.params.resourceId);
       resourceBus.get('mark:progress').next({
         status: tdJob.progress.stage,
         message: tdJob.progress.message,
@@ -143,20 +124,16 @@ export class TagAnnotationWorker extends JobWorker {
     // Call parent to handle the failure logic
     await super.handleJobFailure(job, error);
 
-    // If job permanently failed, emit job.failed event
+    // If job permanently failed, record via EventBus
     if (job.status === 'failed' && job.metadata.type === 'tag-annotation') {
       const tdJob = job as TagDetectionJob;
 
-      await this.eventStore.appendEvent({
-        type: 'job.failed',
+      this.eventBus.get('job:fail').next({
         resourceId: tdJob.params.resourceId,
-        userId: tdJob.metadata.userId,
-        version: 1,
-        payload: {
-          jobId: tdJob.metadata.id,
-          jobType: tdJob.metadata.type,
-          error: 'Tag detection failed. Please try again later.',
-        },
+        userId: userId(tdJob.metadata.userId),
+        jobId: jobId(tdJob.metadata.id),
+        jobType: tdJob.metadata.type,
+        error: 'Tag detection failed. Please try again later.',
       });
     }
   }
@@ -245,7 +222,7 @@ export class TagAnnotationWorker extends JobWorker {
     let created = 0;
     for (const tag of allTags) {
       try {
-        await this.createTagAnnotation(job.params.resourceId, job.metadata.userId, job.params.schemaId, tag);
+        await this.createTagAnnotation(job.params.resourceId, job.metadata, job.params.schemaId, tag);
         created++;
       } catch (error) {
         this.logger?.error('Failed to create tag', { error });
@@ -280,7 +257,7 @@ export class TagAnnotationWorker extends JobWorker {
 
   private async createTagAnnotation(
     resourceId: ResourceId,
-    userId_: string,
+    metadata: import('../types').JobMetadata,
     schemaId: string,
     tag: TagMatch
   ): Promise<void> {
@@ -291,7 +268,14 @@ export class TagAnnotationWorker extends JobWorker {
     }
 
     const resourceUri = resourceIdToURI(resourceId, backendUrl);
-    const annotationId = generateAnnotationId(backendUrl);
+    const annotationIdVal = generateAnnotationId(backendUrl);
+
+    const creator = userToAgent({
+      id: metadata.userId,
+      name: metadata.userName,
+      email: metadata.userEmail,
+      domain: metadata.userDomain,
+    });
 
     // Create W3C-compliant annotation with dual-body structure:
     // 1. purpose: "tagging" with category value
@@ -299,8 +283,10 @@ export class TagAnnotationWorker extends JobWorker {
     const annotation = {
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
       type: 'Annotation' as const,
-      id: annotationId,
+      id: annotationIdVal,
       motivation: 'tagging' as const,
+      creator,
+      created: new Date().toISOString(),
       target: {
         type: 'SpecificResource' as const,
         source: resourceUri,
@@ -335,19 +321,17 @@ export class TagAnnotationWorker extends JobWorker {
       ]
     };
 
-    // Append annotation.added event to Event Store
-    await this.eventStore.appendEvent({
-      type: 'annotation.added',
+    this.eventBus.get('mark:create').next({
+      motivation: annotation.motivation,
+      selector: annotation.target.selector,
+      body: annotation.body,
+      userId: userId(metadata.userId),
       resourceId,
-      userId: userId(userId_),
-      version: 1,
-      payload: {
-        annotation
-      }
+      annotation,
     });
 
     this.logger?.debug('Created tag annotation', {
-      annotationId,
+      annotationId: annotationIdVal,
       category: tag.category,
       exactPreview: tag.exact.substring(0, 50)
     });

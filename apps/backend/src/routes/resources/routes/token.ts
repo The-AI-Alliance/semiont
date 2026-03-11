@@ -93,8 +93,7 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
         throw new HTTPException(404, { message: 'Token expired' });
       }
 
-      const config = c.get('config');
-      const { eventStore, kb } = c.get('makeMeaning');
+      const { eventBus, kb } = c.get('makeMeaning');
 
       // Get source resource from materialized views (source of truth)
       const sourceDoc = await ResourceContext.getResourceMetadata(tokenData.resourceId, kb);
@@ -112,7 +111,7 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
         ? (mediaType as 'text/plain' | 'text/markdown')
         : 'text/plain';
 
-      // Create cloned resource via event sourcing (emits resource.created with creationMethod: CLONE)
+      // Create cloned resource via Stower
       const result = await ResourceOperations.createResource(
         {
           name: body.name,
@@ -122,9 +121,7 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
           creationMethod: CREATION_METHODS.CLONE,
         },
         userId(user.id),
-        eventStore,
-        kb.content,
-        config
+        eventBus,
       );
 
       // Archive original if requested
@@ -136,7 +133,7 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
             currentArchived: sourceDoc.archived,
             updatedArchived: true,
           },
-          eventStore
+          eventBus,
         );
       }
 

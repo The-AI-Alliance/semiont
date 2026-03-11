@@ -41,7 +41,7 @@ vi.mock('../../../components/Toast', () => ({
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { SemiontApiClient } from '@semiont/api-client';
-import { resourceUri, accessToken } from '@semiont/core';
+import { resourceUri, accessToken, annotationId as toAnnotationId } from '@semiont/core';
 
 describe('Annotation Deletion - Feature Integration', () => {
   let deleteAnnotationSpy: ReturnType<typeof vi.fn>;
@@ -89,7 +89,7 @@ describe('Annotation Deletion - Feature Integration', () => {
     return {
       emitDelete: (annotationId: string) => {
         act(() => {
-          eventBusInstance!.get('mark:delete').next({ annotationId });
+          eventBusInstance!.get('mark:delete').next({ annotationId: toAnnotationId(annotationId) });
         });
       },
       eventBus: eventBusInstance!,

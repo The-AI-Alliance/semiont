@@ -120,6 +120,9 @@ export function registerYieldResourceStream(router: ResourcesRouterType, jobQueu
           id: jobId(`job-${nanoid()}`),
           type: 'generation',
           userId: userId(user.id),
+          userName: user.name || user.email,
+          userEmail: user.email,
+          userDomain: user.domain,
           created: new Date().toISOString(),
           retryCount: 0,
           maxRetries: 3

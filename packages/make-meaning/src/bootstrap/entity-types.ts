@@ -2,15 +2,16 @@
  * Entity Types Bootstrap Service
  *
  * On startup, checks if the entity types projection exists.
- * If not, emits entitytype.added events for each DEFAULT_ENTITY_TYPES entry.
+ * If not, emits mark:add-entity-type for each DEFAULT_ENTITY_TYPES entry.
  * This ensures the system has entity types available immediately after first deployment.
  */
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import type { EventStore } from '@semiont/event-sourcing';
 import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
-import { userId, type EnvironmentConfig, type Logger } from '@semiont/core';
+import { EventBus, userId, type EnvironmentConfig, type Logger } from '@semiont/core';
+import { firstValueFrom, race, timer } from 'rxjs';
+import { map, take } from 'rxjs/operators';
 
 // Singleton flag to ensure bootstrap only runs once per process
 let bootstrapCompleted = false;
@@ -19,7 +20,7 @@ let bootstrapCompleted = false;
  * Bootstrap entity types projection if it doesn't exist.
  * Uses a system user ID (00000000-0000-0000-0000-000000000000) for bootstrap events.
  */
-export async function bootstrapEntityTypes(eventStore: EventStore, config: EnvironmentConfig, logger?: Logger): Promise<void> {
+export async function bootstrapEntityTypes(eventBus: EventBus, config: EnvironmentConfig, logger?: Logger): Promise<void> {
   if (bootstrapCompleted) {
     logger?.debug('Entity types bootstrap already completed, skipping');
     return;
@@ -50,29 +51,32 @@ export async function bootstrapEntityTypes(eventStore: EventStore, config: Envir
     logger?.info('Entity types projection already exists, skipping bootstrap');
     bootstrapCompleted = true;
     return;
-  } catch (error: any) {
-    if (error.code !== 'ENOENT') {
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw error;
     }
     // File doesn't exist - proceed with bootstrap
     logger?.info('Entity types projection does not exist, bootstrapping with DEFAULT_ENTITY_TYPES');
   }
 
-  // System user ID for bootstrap events
   const SYSTEM_USER_ID = userId('00000000-0000-0000-0000-000000000000');
 
-  // Emit one entitytype.added event for each default entity type
+  // Emit mark:add-entity-type for each default entity type, awaiting confirmation
   for (const entityType of DEFAULT_ENTITY_TYPES) {
-    logger?.debug('Emitting entitytype.added event', { entityType });
-    await eventStore.appendEvent({
-      type: 'entitytype.added',
-      // resourceId: undefined - system-level event
-      userId: SYSTEM_USER_ID,
-      version: 1,
-      payload: {
-        entityType,
-      },
-    });
+    logger?.debug('Adding entity type via EventBus', { entityType });
+
+    const result$ = race(
+      eventBus.get('mark:entity-type-added').pipe(take(1), map(() => ({ ok: true as const }))),
+      eventBus.get('mark:entity-type-add-failed').pipe(take(1), map((f) => ({ ok: false as const, error: f.error }))),
+      timer(10_000).pipe(map(() => ({ ok: false as const, error: new Error(`Timeout adding entity type: ${entityType}`) }))),
+    );
+
+    eventBus.get('mark:add-entity-type').next({ tag: entityType, userId: SYSTEM_USER_ID });
+
+    const outcome = await firstValueFrom(result$);
+    if (!outcome.ok) {
+      throw outcome.error;
+    }
   }
 
   logger?.info('Entity types bootstrap completed', { count: DEFAULT_ENTITY_TYPES.length });

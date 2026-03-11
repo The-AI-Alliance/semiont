@@ -9,10 +9,10 @@ import { JobWorker } from '../job-worker';
 import type { AnyJob, CommentDetectionJob, RunningJob, CommentDetectionParams, CommentDetectionProgress, CommentDetectionResult, ContentFetcher } from '../types';
 import type { JobQueue } from '../job-queue';
 import { AnnotationDetection } from './annotation-detection';
-import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
-import { resourceIdToURI, EventBus, type Logger } from '@semiont/core';
+import { generateAnnotationId } from '@semiont/event-sourcing';
+import { resourceIdToURI, EventBus, userToAgent, type Logger } from '@semiont/core';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
-import { userId } from '@semiont/core';
+import { userId, jobId } from '@semiont/core';
 import type { CommentMatch } from './detection/motivation-parsers';
 import type { InferenceClient } from '@semiont/inference';
 
@@ -22,7 +22,6 @@ export class CommentAnnotationWorker extends JobWorker {
   constructor(
     jobQueue: JobQueue,
     private config: EnvironmentConfig,
-    private eventStore: EventStore,
     private inferenceClient: InferenceClient,
     private eventBus: EventBus,
     private contentFetcher: ContentFetcher,
@@ -56,31 +55,23 @@ export class CommentAnnotationWorker extends JobWorker {
 
   /**
    * Emit completion event with result data
-   * Override base class to emit job.completed event
+   * Override base class to emit on EventBus
    */
   protected override async emitCompletionEvent(
     job: RunningJob<CommentDetectionParams, CommentDetectionProgress>,
     result: CommentDetectionResult
   ): Promise<void> {
-    await this.eventStore.appendEvent({
-      type: 'job.completed',
+    this.eventBus.get('job:complete').next({
       resourceId: job.params.resourceId,
-      userId: job.metadata.userId,
-      version: 1,
-      payload: {
-        jobId: job.metadata.id,
-        jobType: 'comment-annotation',
-        result,
-      },
+      userId: userId(job.metadata.userId),
+      jobId: jobId(job.metadata.id),
+      jobType: 'comment-annotation',
+      result: { result },
     });
-
-    // Emit to EventBus for real-time subscribers
-    // Domain event (job.completed) is automatically published to EventBus by EventStore
-    // Backend SSE endpoint will subscribe to job.completed and transform to annotate:detect-finished
   }
 
   /**
-   * Override updateJobProgress to emit events to Event Store
+   * Override updateJobProgress to emit events via EventBus
    */
   protected override async updateJobProgress(job: AnyJob): Promise<void> {
     // Call parent to update filesystem
@@ -95,37 +86,27 @@ export class CommentAnnotationWorker extends JobWorker {
 
     const cdJob = job as RunningJob<CommentDetectionParams, CommentDetectionProgress>;
 
-    const baseEvent = {
-      resourceId: cdJob.params.resourceId,
-      userId: cdJob.metadata.userId,
-      version: 1,
-    };
-
-    const resourceBus = this.eventBus.scope(cdJob.params.resourceId);
-
     if (this.isFirstProgress) {
-      // First progress update - emit job.started
+      // First progress update - record job started
       this.isFirstProgress = false;
-      await this.eventStore.appendEvent({
-        type: 'job.started',
-        ...baseEvent,
-        payload: {
-          jobId: cdJob.metadata.id,
-          jobType: cdJob.metadata.type,
-        },
+      this.eventBus.get('job:start').next({
+        resourceId: cdJob.params.resourceId,
+        userId: userId(cdJob.metadata.userId),
+        jobId: jobId(cdJob.metadata.id),
+        jobType: cdJob.metadata.type,
       });
     } else {
-      // Intermediate progress - emit job.progress
-      // Note: job.completed is now handled by emitCompletionEvent()
-      await this.eventStore.appendEvent({
-        type: 'job.progress',
-        ...baseEvent,
-        payload: {
-          jobId: cdJob.metadata.id,
-          jobType: cdJob.metadata.type,
-          progress: cdJob.progress,
-        },
+      // Intermediate progress - record job progress
+      this.eventBus.get('job:report-progress').next({
+        resourceId: cdJob.params.resourceId,
+        userId: userId(cdJob.metadata.userId),
+        jobId: jobId(cdJob.metadata.id),
+        jobType: cdJob.metadata.type,
+        percentage: cdJob.progress.percentage,
+        progress: { progress: cdJob.progress },
       });
+      // Ephemeral progress for real-time UI updates
+      const resourceBus = this.eventBus.scope(cdJob.params.resourceId);
       resourceBus.get('mark:progress').next({
         status: cdJob.progress.stage,
         message: cdJob.progress.message,
@@ -138,22 +119,16 @@ export class CommentAnnotationWorker extends JobWorker {
     // Call parent to handle the failure logic
     await super.handleJobFailure(job, error);
 
-    // If job permanently failed, emit job.failed event
+    // If job permanently failed, record via EventBus
     if (job.status === 'failed' && job.metadata.type === 'comment-annotation') {
       const cdJob = job as CommentDetectionJob;
 
-      // Log the full error details to backend logs (already logged by parent)
-      // Send generic error message to frontend
-      await this.eventStore.appendEvent({
-        type: 'job.failed',
+      this.eventBus.get('job:fail').next({
         resourceId: cdJob.params.resourceId,
-        userId: cdJob.metadata.userId,
-        version: 1,
-        payload: {
-          jobId: cdJob.metadata.id,
-          jobType: cdJob.metadata.type,
-          error: 'Comment detection failed. Please try again later.',
-        },
+        userId: userId(cdJob.metadata.userId),
+        jobId: jobId(cdJob.metadata.id),
+        jobType: cdJob.metadata.type,
+        error: 'Comment detection failed. Please try again later.',
       });
     }
   }
@@ -215,7 +190,7 @@ export class CommentAnnotationWorker extends JobWorker {
     let created = 0;
     for (const comment of comments) {
       try {
-        await this.createCommentAnnotation(job.params.resourceId, job.metadata.userId, comment);
+        await this.createCommentAnnotation(job.params.resourceId, job.metadata, comment);
         created++;
       } catch (error) {
         this.logger?.error('Failed to create comment', { error });
@@ -243,7 +218,7 @@ export class CommentAnnotationWorker extends JobWorker {
 
   private async createCommentAnnotation(
     resourceId: ResourceId,
-    userId_: string,
+    metadata: import('../types').JobMetadata,
     comment: CommentMatch
   ): Promise<void> {
     const backendUrl = this.config.services.backend?.publicURL;
@@ -253,14 +228,23 @@ export class CommentAnnotationWorker extends JobWorker {
     }
 
     const resourceUri = resourceIdToURI(resourceId, backendUrl);
-    const annotationId = generateAnnotationId(backendUrl);
+    const annotationIdVal = generateAnnotationId(backendUrl);
+
+    const creator = userToAgent({
+      id: metadata.userId,
+      name: metadata.userName,
+      email: metadata.userEmail,
+      domain: metadata.userDomain,
+    });
 
     // Create W3C-compliant annotation with motivation: "commenting"
     const annotation = {
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
       type: 'Annotation' as const,
-      id: annotationId,
+      id: annotationIdVal,
       motivation: 'commenting' as const,
+      creator,
+      created: new Date().toISOString(),
       target: {
         type: 'SpecificResource' as const,
         source: resourceUri,
@@ -289,19 +273,17 @@ export class CommentAnnotationWorker extends JobWorker {
       ]
     };
 
-    // Append annotation.added event to Event Store
-    await this.eventStore.appendEvent({
-      type: 'annotation.added',
+    this.eventBus.get('mark:create').next({
+      motivation: annotation.motivation,
+      selector: annotation.target.selector,
+      body: annotation.body,
+      userId: userId(metadata.userId),
       resourceId,
-      userId: userId(userId_),
-      version: 1,
-      payload: {
-        annotation
-      }
+      annotation,
     });
 
     this.logger?.debug('Created comment annotation', {
-      annotationId,
+      annotationId: annotationIdVal,
       exactPreview: comment.exact.substring(0, 50)
     });
   }

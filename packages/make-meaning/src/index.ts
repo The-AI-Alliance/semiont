@@ -18,6 +18,8 @@ export type { KnowledgeBase } from './knowledge-base';
 // Actors
 export { Gatherer } from './gatherer';
 export { Binder } from './binder';
+export { Stower } from './stower';
+export type { CreateResourceResult } from './stower';
 
 // Graph Consumer
 export { GraphDBConsumer } from './graph/consumer';

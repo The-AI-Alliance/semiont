@@ -1,41 +1,29 @@
 /**
  * Reference Detection Worker Event Emission Tests
  *
- * Tests that ReferenceAnnotationWorker emits proper job progress events to Event Store
+ * Tests that ReferenceAnnotationWorker emits proper events on EventBus
  * during entity detection processing.
- *
- * MOVED FROM: apps/backend/src/__tests__/jobs/detection-worker-events.test.ts
- * This test belongs in make-meaning because it tests ReferenceAnnotationWorker directly.
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
 import { ReferenceAnnotationWorker } from '../../../workers/reference-annotation-worker';
-import { JobQueue, type DetectionJob, type RunningJob, type DetectionParams, type DetectionProgress, type ContentFetcher } from '@semiont/jobs';
+import { JobQueue, type RunningJob, type DetectionParams, type DetectionProgress, type ContentFetcher } from '@semiont/jobs';
 import { resourceId, userId, type EnvironmentConfig, EventBus, type Logger } from '@semiont/core';
 import { jobId, entityType } from '@semiont/core';
-import { createEventStore, type EventStore } from '@semiont/event-sourcing';
-import { FilesystemRepresentationStore } from '@semiont/content';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
 // Mock @semiont/inference
-const mockInferenceClient = vi.hoisted(() => ({ client: null as any }));
+let mockInferenceClient: any;
 
 vi.mock('@semiont/inference', async () => {
   const { MockInferenceClient } = await import('@semiont/inference');
-  mockInferenceClient.client = new MockInferenceClient(['[]']); // Empty JSON array response
-
   return {
-    getInferenceClient: vi.fn().mockResolvedValue(mockInferenceClient.client),
+    getInferenceClient: vi.fn().mockResolvedValue(new MockInferenceClient(['[]'])),
     MockInferenceClient,
     extractEntities: vi.fn().mockResolvedValue([
-      {
-        exact: 'Test',
-        entityType: 'Person',
-        startOffset: 0,
-        endOffset: 4
-      }
+      { exact: 'Test', entityType: 'Person', startOffset: 0, endOffset: 4 }
     ])
   };
 });
@@ -56,380 +44,210 @@ const mockContentFetcher: ContentFetcher = async () => {
 describe('ReferenceAnnotationWorker - Event Emission', () => {
   let worker: ReferenceAnnotationWorker;
   let testDir: string;
-  let testEventStore: EventStore;
   let config: EnvironmentConfig;
+  let eventBus: EventBus;
 
   beforeAll(async () => {
-    // Create temporary test directory
+    const { MockInferenceClient } = await import('@semiont/inference');
+    mockInferenceClient = new MockInferenceClient(['[]']);
+
     testDir = join(tmpdir(), `semiont-test-worker-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    // Create test configuration
     config = {
       services: {
-        filesystem: {
-          platform: { type: 'posix' },
-          path: testDir
-        },
-        backend: {
-          platform: { type: 'posix' },
-          port: 4000,
-          publicURL: 'http://localhost:4000',
-          corsOrigin: 'http://localhost:3000'
-        },
-        inference: {
-          platform: { type: 'external' },
-          type: 'anthropic',
-          model: 'claude-sonnet-4-20250514',
-          maxTokens: 8192,
-          endpoint: 'https://api.anthropic.com',
-          apiKey: 'test-api-key'
-        },
-        graph: {
-          platform: { type: 'posix' },
-          type: 'memory'
-        }
+        filesystem: { platform: { type: 'posix' }, path: testDir },
+        backend: { platform: { type: 'posix' }, port: 4000, publicURL: 'http://localhost:4000', corsOrigin: 'http://localhost:3000' },
+        inference: { platform: { type: 'external' }, type: 'anthropic', model: 'claude-sonnet-4-20250514', maxTokens: 8192, endpoint: 'https://api.anthropic.com', apiKey: 'test-api-key' },
+        graph: { platform: { type: 'posix' }, type: 'memory' }
       },
-      site: {
-        siteName: 'Test Site',
-        domain: 'localhost:3000',
-        adminEmail: 'admin@test.local',
-        oauthAllowedDomains: ['test.local']
-      },
-      _metadata: {
-        environment: 'test',
-        projectRoot: testDir
-      },
+      site: { siteName: 'Test Site', domain: 'localhost:3000', adminEmail: 'admin@test.local', oauthAllowedDomains: ['test.local'] },
+      _metadata: { environment: 'test', projectRoot: testDir },
     } as EnvironmentConfig;
+  });
 
-    // Initialize job queue and event store
+  beforeEach(async () => {
+    eventBus = new EventBus();
     const jobQueue = new JobQueue({ dataDir: testDir }, mockLogger, new EventBus());
     await jobQueue.initialize();
-    testEventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
-    worker = new ReferenceAnnotationWorker(jobQueue, config, testEventStore, mockInferenceClient.client, new EventBus(), mockContentFetcher, mockLogger);
+    worker = new ReferenceAnnotationWorker(jobQueue, config, mockInferenceClient, eventBus, mockContentFetcher, mockLogger);
+    mockInferenceClient.setResponses(['[]']);
   });
 
   afterAll(async () => {
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
-  // Helper to create a test resource with content
-  async function createTestResource(id: string): Promise<void> {
-    // Store content in representation store
-    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
-
-    const testContent = Buffer.from('Test content for detection', 'utf-8');
-    const { checksum } = await repStore.store(testContent, { mediaType: 'text/plain' });
-
-    // Create resource event with actual checksum
-    await testEventStore.appendEvent({
-      type: 'resource.created',
-      resourceId: resourceId(id),
-      userId: userId('user-1'),
-      version: 1,
-      payload: {
-        name: `Test Resource ${id}`,
-        format: 'text/plain',
-        contentChecksum: checksum,
-        creationMethod: 'api'
-      }
-    });
-  }
-
-  // Helper to get events for a resource
-  async function getResourceEvents(resId: string) {
-    const allEvents = await testEventStore.log.getEvents(resourceId(resId));
-    return allEvents;
-  }
-
-  it('should emit job.started event when detection begins', async () => {
-    const testResourceId = `resource-started-${Date.now()}`;
-    await createTestResource(testResourceId);
-
-    const job: RunningJob<DetectionParams, DetectionProgress> = {
+  function makeJob(id: string, resId: string, entityTypes: string[]): RunningJob<DetectionParams, DetectionProgress> {
+    return {
       status: 'running',
       metadata: {
-        id: jobId('job-test-1'),
+        id: jobId(id),
         type: 'reference-annotation',
         userId: userId('user-1'),
+        userName: 'Test User',
+        userEmail: 'test@test.local',
+        userDomain: 'test.local',
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 3
       },
       params: {
-        resourceId: resourceId(testResourceId),
-        entityTypes: [entityType('Person')]
+        resourceId: resourceId(resId),
+        entityTypes: entityTypes.map(entityType)
       },
       startedAt: new Date().toISOString(),
       progress: {
-        totalEntityTypes: 1,
+        totalEntityTypes: entityTypes.length,
         processedEntityTypes: 0,
         entitiesFound: 0,
         entitiesEmitted: 0
       }
     };
+  }
 
-    const result = await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<any> }).executeJob(job);
-    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<DetectionParams, DetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
+  it('should emit job:start event when detection begins', async () => {
+    const startEvents: any[] = [];
+    const sub = eventBus.get('job:start').subscribe(e => startEvents.push(e));
 
-    const events = await getResourceEvents(testResourceId);
-    const startedEvents = events.filter(e => e.event.type === 'job.started');
-    expect(startedEvents.length).toBeGreaterThanOrEqual(1);
+    const job = makeJob('job-test-1', 'res-test-1', ['Person']);
+    await (worker as unknown as { executeJob: (job: any) => Promise<any> }).executeJob(job);
 
-    const startedEvent = startedEvents[0];
-    expect(startedEvent).toBeDefined();
-    expect(startedEvent!.event).toMatchObject({
-      type: 'job.started',
-      resourceId: resourceId(testResourceId),
+    sub.unsubscribe();
+
+    expect(startEvents.length).toBeGreaterThanOrEqual(1);
+    expect(startEvents[0]).toMatchObject({
+      resourceId: resourceId('res-test-1'),
       userId: userId('user-1'),
-      payload: {
-        jobId: 'job-test-1',
-        jobType: 'reference-annotation',
-        totalSteps: 1
-      }
+      jobId: jobId('job-test-1'),
+      jobType: 'reference-annotation'
     });
   });
 
-  it('should emit job.progress events during entity type scanning', async () => {
-    const testResourceId = `resource-progress-${Date.now()}`;
-    await createTestResource(testResourceId);
+  it('should emit job:report-progress events during entity type scanning', async () => {
+    const progressEvents: any[] = [];
+    const sub = eventBus.get('job:report-progress').subscribe(e => progressEvents.push(e));
 
-    const job: RunningJob<DetectionParams, DetectionProgress> = {
-      status: 'running',
-      metadata: {
-        id: jobId('job-test-2'),
-        type: 'reference-annotation',
-        userId: userId('user-1'),
-        created: new Date().toISOString(),
-        retryCount: 0,
-        maxRetries: 3
-      },
-      params: {
-        resourceId: resourceId(testResourceId),
-        entityTypes: [entityType('Person'), entityType('Organization'), entityType('Location')]
-      },
-      startedAt: new Date().toISOString(),
-      progress: {
-        totalEntityTypes: 3,
-        processedEntityTypes: 0,
-        entitiesFound: 0,
-        entitiesEmitted: 0
-      }
-    };
+    const job = makeJob('job-test-2', 'res-test-2', ['Person', 'Organization', 'Location']);
+    await (worker as unknown as { executeJob: (job: any) => Promise<any> }).executeJob(job);
 
-    const result = await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<any> }).executeJob(job);
-    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<DetectionParams, DetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
+    sub.unsubscribe();
 
-    const events = await getResourceEvents(testResourceId);
-    const progressEvents = events.filter(e => e.event.type === 'job.progress');
     expect(progressEvents.length).toBeGreaterThanOrEqual(2);
 
     // Check first progress event
-    expect(progressEvents[0]).toBeDefined();
-    expect(progressEvents[0]!.event).toMatchObject({
-      type: 'job.progress',
-      resourceId: resourceId(testResourceId),
-      payload: {
-        jobId: 'job-test-2',
-        jobType: 'reference-annotation',
-        percentage: expect.any(Number),
+    expect(progressEvents[0]).toMatchObject({
+      resourceId: resourceId('res-test-2'),
+      jobId: jobId('job-test-2'),
+      jobType: 'reference-annotation',
+      percentage: expect.any(Number),
+      progress: expect.objectContaining({
         currentStep: 'Person',
         processedSteps: 1,
         totalSteps: 3,
         foundCount: expect.any(Number)
-      }
+      })
     });
   });
 
-  it('should emit job.completed event when detection finishes successfully', async () => {
-    const testResourceId = `resource-completed-${Date.now()}`;
-    await createTestResource(testResourceId);
+  it('should emit job:complete event when detection finishes successfully', async () => {
+    const completeEvents: any[] = [];
+    const sub = eventBus.get('job:complete').subscribe(e => completeEvents.push(e));
 
-    const job: RunningJob<DetectionParams, DetectionProgress> = {
-      status: 'running',
-      metadata: {
-        id: jobId('job-test-3'),
-        type: 'reference-annotation',
-        userId: userId('user-1'),
-        created: new Date().toISOString(),
-        retryCount: 0,
-        maxRetries: 3
-      },
-      params: {
-        resourceId: resourceId(testResourceId),
-        entityTypes: [entityType('Person')]
-      },
-      startedAt: new Date().toISOString(),
-      progress: {
-        totalEntityTypes: 1,
-        processedEntityTypes: 0,
-        entitiesFound: 0,
-        entitiesEmitted: 0
-      }
-    };
+    const job = makeJob('job-test-3', 'res-test-3', ['Person']);
+    const result = await (worker as unknown as { executeJob: (job: any) => Promise<any> }).executeJob(job);
+    await (worker as unknown as { emitCompletionEvent: (job: any, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
-    const result = await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<any> }).executeJob(job);
-    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<DetectionParams, DetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
+    sub.unsubscribe();
 
-    const events = await getResourceEvents(testResourceId);
-    const completedEvents = events.filter(e => e.event.type === 'job.completed');
-    expect(completedEvents.length).toBeGreaterThanOrEqual(1);
-
-    expect(completedEvents[0]).toBeDefined();
-    expect(completedEvents[0]!.event).toMatchObject({
-      type: 'job.completed',
-      resourceId: resourceId(testResourceId),
-      payload: {
-        jobId: 'job-test-3',
-        jobType: 'reference-annotation',
+    expect(completeEvents.length).toBeGreaterThanOrEqual(1);
+    expect(completeEvents[0]).toMatchObject({
+      resourceId: resourceId('res-test-3'),
+      jobId: jobId('job-test-3'),
+      jobType: 'reference-annotation',
+      result: expect.objectContaining({
         result: expect.objectContaining({
           totalFound: expect.any(Number),
           totalEmitted: expect.any(Number)
         })
-      }
+      })
     });
   });
 
-  it('should emit annotation.added events for detected entities', async () => {
-    const testResourceId = `resource-annotations-${Date.now()}`;
-    await createTestResource(testResourceId);
+  it('should emit mark:create events for detected entities', async () => {
+    const markEvents: any[] = [];
+    const sub = eventBus.get('mark:create').subscribe(e => markEvents.push(e));
 
-    const job: RunningJob<DetectionParams, DetectionProgress> = {
-      status: 'running',
-      metadata: {
-        id: jobId('job-test-4'),
-        type: 'reference-annotation',
-        userId: userId('user-1'),
-        created: new Date().toISOString(),
-        retryCount: 0,
-        maxRetries: 3
-      },
-      params: {
-        resourceId: resourceId(testResourceId),
-        entityTypes: [entityType('Person')]
-      },
-      startedAt: new Date().toISOString(),
-      progress: {
-        totalEntityTypes: 1,
-        processedEntityTypes: 0,
-        entitiesFound: 0,
-        entitiesEmitted: 0
-      }
-    };
+    const job = makeJob('job-test-4', 'res-test-4', ['Person']);
+    await (worker as unknown as { executeJob: (job: any) => Promise<any> }).executeJob(job);
 
-    const result = await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<any> }).executeJob(job);
-    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<DetectionParams, DetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
+    sub.unsubscribe();
 
-    const events = await getResourceEvents(testResourceId);
-    const annotationEvents = events.filter(e => e.event.type === 'annotation.added');
-
-    // Verify that IF entities were detected, they would have the correct schema
-    if (annotationEvents.length > 0) {
-      expect(annotationEvents[0]).toBeDefined();
-      expect(annotationEvents[0]!.event).toMatchObject({
-        type: 'annotation.added',
-        resourceId: resourceId(testResourceId),
-        payload: {
-          annotation: {
-            motivation: 'linking',
-            target: expect.objectContaining({
-              source: expect.any(String),
-              selector: expect.any(Array)
-            })
-          }
-        }
+    // If entities were detected, they should have the correct motivation
+    if (markEvents.length > 0) {
+      expect(markEvents[0]).toMatchObject({
+        motivation: 'linking',
+        resourceId: resourceId('res-test-4'),
       });
     }
 
-    // Main assertion: Job completed successfully
-    const completedEvents = events.filter(e => e.event.type === 'job.completed');
-    expect(completedEvents.length).toBeGreaterThan(0);
+    // Main assertion: Job completed without errors
+    const completeEvents: any[] = [];
+    const sub2 = eventBus.get('job:complete').subscribe(e => completeEvents.push(e));
+    const result = await (worker as unknown as { executeJob: (job: any) => Promise<any> }).executeJob(
+      makeJob('job-test-4b', 'res-test-4', ['Person'])
+    );
+    await (worker as unknown as { emitCompletionEvent: (job: any, result: any) => Promise<void> }).emitCompletionEvent(
+      makeJob('job-test-4b', 'res-test-4', ['Person']),
+      result
+    );
+    sub2.unsubscribe();
+    expect(completeEvents.length).toBeGreaterThan(0);
   });
 
   it('should emit events in correct order', async () => {
-    const testResourceId = `resource-order-${Date.now()}`;
-    await createTestResource(testResourceId);
+    const allEvents: { type: string; data: any }[] = [];
 
-    const job: RunningJob<DetectionParams, DetectionProgress> = {
-      status: 'running',
-      metadata: {
-        id: jobId('job-test-5'),
-        type: 'reference-annotation',
-        userId: userId('user-1'),
-        created: new Date().toISOString(),
-        retryCount: 0,
-        maxRetries: 3
-      },
-      params: {
-        resourceId: resourceId(testResourceId),
-        entityTypes: [entityType('Person'), entityType('Organization')]
-      },
-      startedAt: new Date().toISOString(),
-      progress: {
-        totalEntityTypes: 2,
-        processedEntityTypes: 0,
-        entitiesFound: 0,
-        entitiesEmitted: 0
-      }
-    };
+    const sub1 = eventBus.get('job:start').subscribe(e => allEvents.push({ type: 'job:start', data: e }));
+    const sub2 = eventBus.get('job:report-progress').subscribe(e => allEvents.push({ type: 'job:report-progress', data: e }));
+    const sub3 = eventBus.get('job:complete').subscribe(e => allEvents.push({ type: 'job:complete', data: e }));
+    const sub4 = eventBus.get('mark:create').subscribe(e => allEvents.push({ type: 'mark:create', data: e }));
 
-    const result = await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<any> }).executeJob(job);
-    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<DetectionParams, DetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
+    const job = makeJob('job-test-5', 'res-test-5', ['Person', 'Organization']);
+    const result = await (worker as unknown as { executeJob: (job: any) => Promise<any> }).executeJob(job);
+    await (worker as unknown as { emitCompletionEvent: (job: any, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
-    const events = await getResourceEvents(testResourceId);
-    const eventTypes = events.map(e => e.event.type);
+    sub1.unsubscribe();
+    sub2.unsubscribe();
+    sub3.unsubscribe();
+    sub4.unsubscribe();
 
-    // Find job-related events (excluding resource.created from setup)
-    const jobEvents = eventTypes.filter(t => t.startsWith('job.') || t.startsWith('annotation.'));
+    const eventTypes = allEvents.map(e => e.type);
 
-    // First job event should be job.started
-    expect(jobEvents[0]).toBe('job.started');
+    // First event should be job:start
+    expect(eventTypes[0]).toBe('job:start');
 
-    // Last job event should be job.completed
-    expect(jobEvents[jobEvents.length - 1]).toBe('job.completed');
+    // Last event should be job:complete
+    expect(eventTypes[eventTypes.length - 1]).toBe('job:complete');
 
-    // Should have at least one job.progress event
-    expect(jobEvents).toContain('job.progress');
+    // Should have at least one job:report-progress event
+    expect(eventTypes).toContain('job:report-progress');
   });
 
-  it('should include percentage and foundCount in progress events', async () => {
-    const testResourceId = `resource-percentage-${Date.now()}`;
-    await createTestResource(testResourceId);
+  it('should include percentage in progress events', async () => {
+    const progressEvents: any[] = [];
+    const sub = eventBus.get('job:report-progress').subscribe(e => progressEvents.push(e));
 
-    const job: RunningJob<DetectionParams, DetectionProgress> = {
-      status: 'running',
-      metadata: {
-        id: jobId('job-test-6'),
-        type: 'reference-annotation',
-        userId: userId('user-1'),
-        created: new Date().toISOString(),
-        retryCount: 0,
-        maxRetries: 3
-      },
-      params: {
-        resourceId: resourceId(testResourceId),
-        entityTypes: [entityType('Person'), entityType('Organization')]
-      },
-      startedAt: new Date().toISOString(),
-      progress: {
-        totalEntityTypes: 2,
-        processedEntityTypes: 0,
-        entitiesFound: 0,
-        entitiesEmitted: 0
-      }
-    };
+    const job = makeJob('job-test-6', 'res-test-6', ['Person', 'Organization']);
+    await (worker as unknown as { executeJob: (job: any) => Promise<any> }).executeJob(job);
 
-    const result = await (worker as unknown as { executeJob: (job: DetectionJob) => Promise<any> }).executeJob(job);
-    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<DetectionParams, DetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
-
-    const events = await getResourceEvents(testResourceId);
-    const progressEvents = events.filter(e => e.event.type === 'job.progress');
+    sub.unsubscribe();
 
     for (const event of progressEvents) {
-      expect(event.event.payload).toHaveProperty('percentage');
-      expect(typeof (event.event.payload as any).percentage).toBe('number');
-      expect(event.event.payload).toHaveProperty('foundCount');
-      expect(typeof (event.event.payload as any).foundCount).toBe('number');
+      expect(event).toHaveProperty('percentage');
+      expect(typeof event.percentage).toBe('number');
+      expect(event.progress).toHaveProperty('foundCount');
+      expect(typeof event.progress.foundCount).toBe('number');
     }
   });
 });

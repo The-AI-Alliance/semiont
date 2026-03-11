@@ -1,29 +1,26 @@
 /**
  * Highlight Detection Worker Event Emission Tests
  *
- * Tests that HighlightAnnotationWorker emits proper job progress events to Event Store
+ * Tests that HighlightAnnotationWorker emits proper events on EventBus
  * during highlight detection processing.
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
 import { HighlightAnnotationWorker } from '../../../workers/highlight-annotation-worker';
-import { JobQueue, type HighlightDetectionJob, type RunningJob, type HighlightDetectionParams, type HighlightDetectionProgress, type ContentFetcher } from '@semiont/jobs';
+import { JobQueue, type RunningJob, type HighlightDetectionParams, type HighlightDetectionProgress, type ContentFetcher } from '@semiont/jobs';
 import { resourceId, userId, type EnvironmentConfig, EventBus, type Logger } from '@semiont/core';
 import { jobId } from '@semiont/core';
-import { createEventStore, type EventStore } from '@semiont/event-sourcing';
-import { FilesystemRepresentationStore } from '@semiont/content';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
 // Mock @semiont/inference to avoid external API calls
-const mockInferenceClient = vi.hoisted(() => { return { client: null as any }; });
+let mockInferenceClient: any;
+
 vi.mock('@semiont/inference', async () => {
   const { MockInferenceClient } = await import('@semiont/inference');
-  mockInferenceClient.client = new MockInferenceClient(['[]']);
-
   return {
-    getInferenceClient: vi.fn().mockResolvedValue(mockInferenceClient.client),
+    getInferenceClient: vi.fn().mockResolvedValue(new MockInferenceClient(['[]'])),
     MockInferenceClient
   };
 });
@@ -44,322 +41,151 @@ const mockContentFetcher: ContentFetcher = async () => {
 describe('HighlightAnnotationWorker - Event Emission', () => {
   let worker: HighlightAnnotationWorker;
   let testDir: string;
-  let testEventStore: EventStore;
   let config: EnvironmentConfig;
+  let eventBus: EventBus;
 
   beforeAll(async () => {
-    // Create temporary test directory
+    const { MockInferenceClient } = await import('@semiont/inference');
+    mockInferenceClient = new MockInferenceClient(['[]']);
+
     testDir = join(tmpdir(), `semiont-test-highlight-worker-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    // Create test configuration
     config = {
       services: {
-        filesystem: {
-          platform: { type: 'posix' },
-          path: testDir
-        },
-        backend: {
-          platform: { type: 'posix' },
-          port: 4000,
-          publicURL: 'http://localhost:4000',
-          corsOrigin: 'http://localhost:3000'
-        },
-        inference: {
-          platform: { type: 'external' },
-          type: 'anthropic',
-          model: 'claude-sonnet-4-20250514',
-          maxTokens: 8192,
-          endpoint: 'https://api.anthropic.com',
-          apiKey: 'test-api-key'
-        },
-        graph: {
-          platform: { type: 'posix' },
-          type: 'memory'
-        }
+        filesystem: { platform: { type: 'posix' }, path: testDir },
+        backend: { platform: { type: 'posix' }, port: 4000, publicURL: 'http://localhost:4000', corsOrigin: 'http://localhost:3000' },
+        inference: { platform: { type: 'external' }, type: 'anthropic', model: 'claude-sonnet-4-20250514', maxTokens: 8192, endpoint: 'https://api.anthropic.com', apiKey: 'test-api-key' },
+        graph: { platform: { type: 'posix' }, type: 'memory' }
       },
-      site: {
-        siteName: 'Test Site',
-        domain: 'localhost:3000',
-        adminEmail: 'admin@test.local',
-        oauthAllowedDomains: ['test.local']
-      },
-      _metadata: {
-        environment: 'test',
-        projectRoot: testDir
-      },
+      site: { siteName: 'Test Site', domain: 'localhost:3000', adminEmail: 'admin@test.local', oauthAllowedDomains: ['test.local'] },
+      _metadata: { environment: 'test', projectRoot: testDir },
     } as EnvironmentConfig;
+  });
 
-    // Initialize job queue and event store
+  beforeEach(async () => {
+    eventBus = new EventBus();
     const jobQueue = new JobQueue({ dataDir: testDir }, mockLogger, new EventBus());
     await jobQueue.initialize();
-    testEventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
-    worker = new HighlightAnnotationWorker(jobQueue, config, testEventStore, mockInferenceClient.client, new EventBus(), mockContentFetcher, mockLogger);
-
-    // Set default mock response
-    mockInferenceClient.client.setResponses(['[]']);
+    worker = new HighlightAnnotationWorker(jobQueue, config, mockInferenceClient, eventBus, mockContentFetcher, mockLogger);
+    mockInferenceClient.setResponses(['[]']);
   });
 
   afterAll(async () => {
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
-  // Helper to create a test resource with content
-  async function createTestResource(id: string, content: string = 'Important content for highlight detection'): Promise<void> {
-    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
-
-    const testContent = Buffer.from(content, 'utf-8');
-    const { checksum } = await repStore.store(testContent, { mediaType: 'text/plain' });
-
-    await testEventStore.appendEvent({
-      type: 'resource.created',
-      resourceId: resourceId(id),
-      userId: userId('user-1'),
-      version: 1,
-      payload: {
-        name: `Test Resource ${id}`,
-        format: 'text/plain',
-        contentChecksum: checksum,
-        creationMethod: 'api'
-      }
-    });
-  }
-
-  // Helper to get events for a resource
-  async function getResourceEvents(resId: string) {
-    const allEvents = await testEventStore.log.getEvents(resourceId(resId));
-    return allEvents;
-  }
-
-  it('should emit job.started event when highlight detection begins', async () => {
-    const testResourceId = `resource-highlight-started-${Date.now()}`;
-    await createTestResource(testResourceId);
-
-    // Mock AI response
-    mockInferenceClient.client.setResponses([JSON.stringify([])]);
-
-    const job: RunningJob<HighlightDetectionParams, HighlightDetectionProgress> = {
+  function makeJob(id: string, resId: string): RunningJob<HighlightDetectionParams, HighlightDetectionProgress> {
+    return {
       status: 'running',
       metadata: {
-        id: jobId('job-highlight-1'),
+        id: jobId(id),
         type: 'highlight-annotation',
         userId: userId('user-1'),
+        userName: 'Test User',
+        userEmail: 'test@test.local',
+        userDomain: 'test.local',
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 3
       },
-      params: {
-        resourceId: resourceId(testResourceId)
-      },
+      params: { resourceId: resourceId(resId) },
       startedAt: new Date().toISOString(),
-      progress: {
-        stage: 'analyzing',
-        percentage: 0,
-        message: 'Initializing'
-      }
+      progress: { stage: 'analyzing', percentage: 0, message: 'Initializing' }
     };
+  }
 
-    const result = await (worker as unknown as { executeJob: (job: HighlightDetectionJob) => Promise<any> }).executeJob(job);
-    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<HighlightDetectionParams, HighlightDetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
+  it('should emit job:start event when highlight detection begins', async () => {
+    mockInferenceClient.setResponses([JSON.stringify([])]);
 
-    const events = await getResourceEvents(testResourceId);
-    const startedEvents = events.filter(e => e.event.type === 'job.started');
-    expect(startedEvents.length).toBeGreaterThanOrEqual(1);
+    const startEvents: any[] = [];
+    const sub = eventBus.get('job:start').subscribe(e => startEvents.push(e));
 
-    const startedEvent = startedEvents[0];
-    expect(startedEvent).toBeDefined();
-    expect(startedEvent!.event).toMatchObject({
-      type: 'job.started',
-      resourceId: resourceId(testResourceId),
+    const job = makeJob('job-highlight-1', 'res-highlight-1');
+    await (worker as unknown as { executeJob: (job: any) => Promise<any> }).executeJob(job);
+
+    sub.unsubscribe();
+
+    expect(startEvents.length).toBeGreaterThanOrEqual(1);
+    expect(startEvents[0]).toMatchObject({
+      resourceId: resourceId('res-highlight-1'),
       userId: userId('user-1'),
-      payload: {
-        jobId: 'job-highlight-1',
-        jobType: 'highlight-annotation'
-      }
+      jobId: jobId('job-highlight-1'),
+      jobType: 'highlight-annotation'
     });
   });
 
-  it('should emit job.progress events during highlight detection', async () => {
-    const testResourceId = `resource-highlight-progress-${Date.now()}`;
-    await createTestResource(testResourceId, 'Important findings require highlighting');
-
-    // Mock AI response with highlights
-    mockInferenceClient.client.setResponses([JSON.stringify([
-      {
-        exact: 'Important findings',
-        start: 0,
-        end: 18,
-        prefix: '',
-        suffix: ' require highlighting'
-      }
+  it('should emit job:report-progress events during highlight detection', async () => {
+    mockInferenceClient.setResponses([JSON.stringify([
+      { exact: 'test content', start: 0, end: 12, prefix: '', suffix: '' }
     ])]);
 
-    const job: RunningJob<HighlightDetectionParams, HighlightDetectionProgress> = {
-      status: 'running',
-      metadata: {
-        id: jobId('job-highlight-2'),
-        type: 'highlight-annotation',
-        userId: userId('user-1'),
-        created: new Date().toISOString(),
-        retryCount: 0,
-        maxRetries: 3
-      },
-      params: {
-        resourceId: resourceId(testResourceId)
-      },
-      startedAt: new Date().toISOString(),
-      progress: {
-        stage: 'analyzing',
-        percentage: 0,
-        message: 'Initializing'
-      }
-    };
+    const progressEvents: any[] = [];
+    const sub = eventBus.get('job:report-progress').subscribe(e => progressEvents.push(e));
 
-    const result = await (worker as unknown as { executeJob: (job: HighlightDetectionJob) => Promise<any> }).executeJob(job);
-    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<HighlightDetectionParams, HighlightDetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
+    const job = makeJob('job-highlight-2', 'res-highlight-2');
+    await (worker as unknown as { executeJob: (job: any) => Promise<any> }).executeJob(job);
 
-    const events = await getResourceEvents(testResourceId);
-    const progressEvents = events.filter(e => e.event.type === 'job.progress');
+    sub.unsubscribe();
+
     expect(progressEvents.length).toBeGreaterThanOrEqual(1);
-
-    const progressEvent = progressEvents[0];
-    expect(progressEvent!.event).toMatchObject({
-      type: 'job.progress',
-      resourceId: resourceId(testResourceId),
+    expect(progressEvents[0]).toMatchObject({
+      resourceId: resourceId('res-highlight-2'),
       userId: userId('user-1'),
-      payload: {
-        jobId: 'job-highlight-2',
-        
-      }
+      jobId: jobId('job-highlight-2'),
     });
   });
 
-  it('should emit job.completed event when highlight detection finishes', async () => {
-    const testResourceId = `resource-highlight-complete-${Date.now()}`;
-    await createTestResource(testResourceId);
-
-    // Mock AI response
-    mockInferenceClient.client.setResponses([JSON.stringify([
-      {
-        exact: 'Important',
-        start: 0,
-        end: 9,
-        prefix: '',
-        suffix: ' content for'
-      }
+  it('should emit job:complete event when highlight detection finishes', async () => {
+    mockInferenceClient.setResponses([JSON.stringify([
+      { exact: 'test', start: 0, end: 4, prefix: '', suffix: ' content' }
     ])]);
 
-    const job: RunningJob<HighlightDetectionParams, HighlightDetectionProgress> = {
-      status: 'running',
-      metadata: {
-        id: jobId('job-highlight-3'),
-        type: 'highlight-annotation',
-        userId: userId('user-1'),
-        created: new Date().toISOString(),
-        retryCount: 0,
-        maxRetries: 3
-      },
-      params: {
-        resourceId: resourceId(testResourceId)
-      },
-      startedAt: new Date().toISOString(),
-      progress: {
-        stage: 'analyzing',
-        percentage: 0,
-        message: 'Initializing'
-      }
-    };
+    const completeEvents: any[] = [];
+    const sub = eventBus.get('job:complete').subscribe(e => completeEvents.push(e));
 
-    const result = await (worker as unknown as { executeJob: (job: HighlightDetectionJob) => Promise<any> }).executeJob(job);
-    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<HighlightDetectionParams, HighlightDetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
+    const job = makeJob('job-highlight-3', 'res-highlight-3');
+    const result = await (worker as unknown as { executeJob: (job: any) => Promise<any> }).executeJob(job);
+    await (worker as unknown as { emitCompletionEvent: (job: any, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
-    const events = await getResourceEvents(testResourceId);
-    const completedEvents = events.filter(e => e.event.type === 'job.completed');
-    expect(completedEvents.length).toBeGreaterThanOrEqual(1);
+    sub.unsubscribe();
 
-    const completedEvent = completedEvents[0];
-    expect(completedEvent!.event).toMatchObject({
-      type: 'job.completed',
-      resourceId: resourceId(testResourceId),
+    expect(completeEvents.length).toBeGreaterThanOrEqual(1);
+    expect(completeEvents[0]).toMatchObject({
+      resourceId: resourceId('res-highlight-3'),
       userId: userId('user-1'),
-      payload: {
-        jobId: 'job-highlight-3',
-        
-      }
+      jobId: jobId('job-highlight-3'),
+      jobType: 'highlight-annotation',
     });
   });
 
-  it('should emit annotation.created events for detected highlights', async () => {
-    const testResourceId = `resource-highlight-annotations-${Date.now()}`;
-    await createTestResource(testResourceId, 'Key findings and crucial insights need highlighting');
-
-    // Mock AI response with multiple highlights
-    mockInferenceClient.client.setResponses([JSON.stringify([
-      {
-        exact: 'Key findings',
-        start: 0,
-        end: 12,
-        prefix: '',
-        suffix: ' and crucial'
-      },
-      {
-        exact: 'crucial insights',
-        start: 17,
-        end: 33,
-        prefix: 'Key findings and ',
-        suffix: ' need highlighting'
-      }
+  it('should emit mark:create events for detected highlights', async () => {
+    mockInferenceClient.setResponses([JSON.stringify([
+      { exact: 'test', start: 0, end: 4, prefix: '', suffix: ' content' },
+      { exact: 'content', start: 5, end: 12, prefix: 'test ', suffix: '' }
     ])]);
 
-    const job: RunningJob<HighlightDetectionParams, HighlightDetectionProgress> = {
-      status: 'running',
-      metadata: {
-        id: jobId('job-highlight-4'),
-        type: 'highlight-annotation',
-        userId: userId('user-1'),
-        created: new Date().toISOString(),
-        retryCount: 0,
-        maxRetries: 3
-      },
-      params: {
-        resourceId: resourceId(testResourceId)
-      },
-      startedAt: new Date().toISOString(),
-      progress: {
-        stage: 'analyzing',
-        percentage: 0,
-        message: 'Initializing'
-      }
-    };
+    const markEvents: any[] = [];
+    const sub = eventBus.get('mark:create').subscribe(e => markEvents.push(e));
 
-    const result = await (worker as unknown as { executeJob: (job: HighlightDetectionJob) => Promise<any> }).executeJob(job);
-    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<HighlightDetectionParams, HighlightDetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
+    const job = makeJob('job-highlight-4', 'res-highlight-4');
+    await (worker as unknown as { executeJob: (job: any) => Promise<any> }).executeJob(job);
 
-    const events = await getResourceEvents(testResourceId);
-    const annotationEvents = events.filter(e => e.event.type === 'annotation.added');
-    expect(annotationEvents.length).toBe(2);
+    sub.unsubscribe();
+
+    expect(markEvents.length).toBe(2);
 
     // Both annotations should be highlighting motivation
-    expect(annotationEvents[0]!.event).toMatchObject({
-      type: 'annotation.added',
-      resourceId: resourceId(testResourceId),
+    expect(markEvents[0]).toMatchObject({
+      motivation: 'highlighting',
       userId: userId('user-1'),
-      payload: {
-        annotation: {
-          motivation: 'highlighting'
-        }
-      }
+      resourceId: resourceId('res-highlight-4'),
     });
 
-    expect(annotationEvents[1]!.event).toMatchObject({
-      type: 'annotation.added',
-      resourceId: resourceId(testResourceId),
+    expect(markEvents[1]).toMatchObject({
+      motivation: 'highlighting',
       userId: userId('user-1'),
-      payload: {
-        annotation: {
-          motivation: 'highlighting'
-        }
-      }
+      resourceId: resourceId('res-highlight-4'),
     });
   });
 });

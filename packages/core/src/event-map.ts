@@ -5,9 +5,12 @@
  * Single source of truth for all EventBus event types.
  */
 
-import type { ResourceEvent } from './events';
+import type { ResourceEvent, BodyOperation } from './events';
 import type { components } from './types';
 import type { ResourceUri } from './branded-types';
+import type { ResourceId, AnnotationId, UserId } from './identifiers';
+import type { JobId } from './branded-types';
+import type { CreationMethod } from './creation-methods';
 
 // W3C Annotation selector types
 export type Selector =
@@ -128,6 +131,23 @@ export type EventMap = {
   'yield:representation-removed': Extract<ResourceEvent, { type: 'representation.removed' }>;
 
   // Resource operations
+  'yield:create': {
+    name: string;
+    content: Buffer;
+    format: components['schemas']['ContentFormat'];
+    userId: UserId;
+    language?: string;
+    entityTypes?: string[];
+    creationMethod?: CreationMethod;
+    isDraft?: boolean;
+    generatedFrom?: string;
+    generationPrompt?: string;
+  };
+  'yield:created': {
+    resourceId: ResourceId;
+    resource: components['schemas']['ResourceDescriptor'];
+  };
+  'yield:create-failed': { error: Error };
   'yield:clone': void;
 
   // ========================================================================
@@ -149,16 +169,28 @@ export type EventMap = {
   'mark:cancel-pending': void;
 
   // Annotation CRUD operations
+  // Frontend emits { motivation, selector, body } on scoped bus
+  // Backend/workers enrich with userId, resourceId, and full annotation
   'mark:create': {
     motivation: Motivation;
     selector: Selector | Selector[];
     body: components['schemas']['AnnotationBody'][];
+    userId?: UserId;
+    resourceId?: ResourceId;
+    annotation?: Annotation;
   };
   'mark:created': { annotation: Annotation };
   'mark:create-failed': { error: Error };
-  'mark:delete': { annotationId: string };
-  'mark:deleted': { annotationId: string };
+  'mark:delete': { annotationId: AnnotationId; userId?: UserId; resourceId?: ResourceId };
+  'mark:deleted': { annotationId: AnnotationId };
   'mark:delete-failed': { error: Error };
+  'mark:update-body': {
+    annotationId: AnnotationId;
+    userId: UserId;
+    resourceId: ResourceId;
+    operations: BodyOperation[];
+  };
+  'mark:body-update-failed': { error: Error };
 
   // AI-Assisted Annotation
   'mark:assist-request': {
@@ -192,15 +224,33 @@ export type EventMap = {
   'mark:entity-tag-added': Extract<ResourceEvent, { type: 'entitytag.added' }>;
   'mark:entity-tag-removed': Extract<ResourceEvent, { type: 'entitytag.removed' }>;
 
+  // Entity type update commands (resource-scoped)
+  'mark:update-entity-types': {
+    resourceId: ResourceId;
+    userId: UserId;
+    currentEntityTypes: string[];
+    updatedEntityTypes: string[];
+  };
+
+  // Entity type addition (system-level, not resource-scoped)
+  'mark:add-entity-type': {
+    tag: string;
+    userId: UserId;
+  };
+  'mark:entity-type-added': { tag: string };
+  'mark:entity-type-add-failed': { error: Error };
+
   // Resource management
   // Command/Event pairs: UI emits command → Backend confirms with domain event
 
   // Archive command (UI) → archived event (backend confirmation via SSE)
-  'mark:archive': void;
+  // Frontend emits void (undefined); backend route enriches with userId + resourceId
+  'mark:archive': void | { userId: UserId; resourceId?: ResourceId };
   'mark:archived': Extract<ResourceEvent, { type: 'resource.archived' }>;
 
   // Unarchive command (UI) → unarchived event (backend confirmation via SSE)
-  'mark:unarchive': void;
+  // Frontend emits void (undefined); backend route enriches with userId + resourceId
+  'mark:unarchive': void | { userId: UserId; resourceId?: ResourceId };
   'mark:unarchived': Extract<ResourceEvent, { type: 'resource.unarchived' }>;
 
   // ========================================================================
@@ -224,6 +274,8 @@ export type EventMap = {
   'bind:update-body': {
     annotationUri: string;
     resourceId: string;
+    userId?: UserId;
+    annotationId?: AnnotationId;
     operations: Array<{
       op: 'add' | 'remove' | 'replace';
       item?: components['schemas']['AnnotationBody'];
@@ -233,12 +285,22 @@ export type EventMap = {
   };
   'bind:body-updated': { annotationUri: string };
   'bind:body-update-failed': { error: Error };
+  'bind:search-results': {
+    referenceId: string;
+    searchTerm: string;
+    results: components['schemas']['ResourceDescriptor'][];
+  };
+  'bind:search-failed': {
+    referenceId: string;
+    error: Error;
+  };
 
   // ========================================================================
   // GATHER FLOW
   // ========================================================================
   // LLM context gathering from annotations for generation
 
+  // Annotation-level context (for yield flow)
   'gather:requested': {
     annotationUri: string;
     resourceUri: string;
@@ -249,6 +311,25 @@ export type EventMap = {
   };
   'gather:failed': {
     annotationUri: string;
+    error: Error;
+  };
+
+  // Resource-level context (for LLM context endpoint)
+  'gather:resource-requested': {
+    resourceUri: string;
+    options: {
+      depth: number;
+      maxResources: number;
+      includeContent: boolean;
+      includeSummary: boolean;
+    };
+  };
+  'gather:resource-complete': {
+    resourceUri: string;
+    context: components['schemas']['ResourceLLMContextResponse'];
+  };
+  'gather:resource-failed': {
+    resourceUri: string;
     error: Error;
   };
 
@@ -288,6 +369,36 @@ export type EventMap = {
   // Job control
   // ========================================================================
 
+  // Commands (worker → Stower via EventBus)
+  'job:start': {
+    resourceId: ResourceId;
+    userId: UserId;
+    jobId: JobId;
+    jobType: 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
+  };
+  'job:report-progress': {
+    resourceId: ResourceId;
+    userId: UserId;
+    jobId: JobId;
+    jobType: 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
+    percentage: number;
+    progress?: any;
+  };
+  'job:complete': {
+    resourceId: ResourceId;
+    userId: UserId;
+    jobId: JobId;
+    jobType: 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
+    result?: any;
+  };
+  'job:fail': {
+    resourceId: ResourceId;
+    userId: UserId;
+    jobId: JobId;
+    jobType: 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
+    error: string;
+  };
+
   // Domain Events (from backend event store)
   'job:started': Extract<ResourceEvent, { type: 'job.started' }>;
   'job:progress': Extract<ResourceEvent, { type: 'job.progress' }>;
@@ -306,6 +417,7 @@ export type EventMap = {
   'settings:line-numbers-toggled': void;
   'settings:locale-changed': { locale: string };
   'settings:hover-delay-changed': { hoverDelayMs: number };
+
 };
 
 /**

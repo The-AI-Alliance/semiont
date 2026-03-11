@@ -33,6 +33,7 @@ import { bootstrapEntityTypes } from './bootstrap/entity-types';
 import { createKnowledgeBase, type KnowledgeBase } from './knowledge-base';
 import { Gatherer } from './gatherer';
 import { Binder } from './binder';
+import { Stower } from './stower';
 
 export interface MakeMeaningService {
   kb: KnowledgeBase;
@@ -50,6 +51,7 @@ export interface MakeMeaningService {
     tag: TagAnnotationWorker;
   };
   graphConsumer: GraphDBConsumer;
+  stower: Stower;
   gatherer: Gatherer;
   binder: Binder;
   stop: () => Promise<void>;
@@ -87,11 +89,7 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus: Even
   const eventStoreLogger = logger.child({ component: 'event-store' });
   const eventStore = createEventStoreCore(basePath, baseUrl, undefined, eventBus, eventStoreLogger);
 
-  // 4. Bootstrap entity types (if projection doesn't exist)
-  const bootstrapLogger = logger.child({ component: 'entity-types-bootstrap' });
-  await bootstrapEntityTypes(eventStore, config, bootstrapLogger);
-
-  // 5. Create inference client (shared across all workers)
+  // 4. Create inference client (shared across all workers)
   const inferenceLogger = logger.child({ component: 'inference-client' });
   const inferenceClient = await getInferenceClient(config, inferenceLogger);
 
@@ -106,7 +104,16 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus: Even
   const graphConsumer = new GraphDBConsumer(config, eventStore, graphDb, graphConsumerLogger);
   await graphConsumer.initialize();
 
-  // 9. Start Gatherer actor
+  // 9. Start Stower actor (write gateway — must start before Gatherer/Binder)
+  const stowerLogger = logger.child({ component: 'stower' });
+  const stower = new Stower(kb, baseUrl, eventBus, stowerLogger);
+  await stower.initialize();
+
+  // 9b. Bootstrap entity types (requires Stower to be running, emits via EventBus)
+  const bootstrapLogger = logger.child({ component: 'entity-types-bootstrap' });
+  await bootstrapEntityTypes(eventBus, config, bootstrapLogger);
+
+  // 10. Start Gatherer actor
   const gathererLogger = logger.child({ component: 'gatherer' });
   const gatherer = new Gatherer(baseUrl, kb, eventBus, inferenceClient, gathererLogger);
   await gatherer.initialize();
@@ -137,12 +144,12 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus: Even
 
   // 13. Instantiate workers with EventBus, ContentFetcher, and logger
   const workers = {
-    detection: new ReferenceAnnotationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, contentFetcher, detectionLogger),
-    generation: new GenerationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, generationLogger),
-    highlight: new HighlightAnnotationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, contentFetcher, highlightLogger),
-    assessment: new AssessmentAnnotationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, contentFetcher, assessmentLogger),
-    comment: new CommentAnnotationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, contentFetcher, commentLogger),
-    tag: new TagAnnotationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, contentFetcher, tagLogger),
+    detection: new ReferenceAnnotationWorker(jobQueue, config, inferenceClient, eventBus, contentFetcher, detectionLogger),
+    generation: new GenerationWorker(jobQueue, config, inferenceClient, eventBus, generationLogger),
+    highlight: new HighlightAnnotationWorker(jobQueue, config, inferenceClient, eventBus, contentFetcher, highlightLogger),
+    assessment: new AssessmentAnnotationWorker(jobQueue, config, inferenceClient, eventBus, contentFetcher, assessmentLogger),
+    comment: new CommentAnnotationWorker(jobQueue, config, inferenceClient, eventBus, contentFetcher, commentLogger),
+    tag: new TagAnnotationWorker(jobQueue, config, inferenceClient, eventBus, contentFetcher, tagLogger),
   };
 
   // 11. Start all workers (non-blocking)
@@ -174,6 +181,7 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus: Even
     graphDb,
     workers,
     graphConsumer,
+    stower,
     gatherer,
     binder,
     stop: async () => {
@@ -188,6 +196,7 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus: Even
       ]);
       await gatherer.stop();
       await binder.stop();
+      await stower.stop();
       await graphConsumer.stop();
       await graphDb.disconnect();
       logger.info('Make-Meaning service stopped');

@@ -9,10 +9,10 @@ import { JobWorker } from '../job-worker';
 import type { AnyJob, AssessmentDetectionJob, RunningJob, AssessmentDetectionParams, AssessmentDetectionProgress, AssessmentDetectionResult, ContentFetcher } from '../types';
 import type { JobQueue } from '../job-queue';
 import { AnnotationDetection } from './annotation-detection';
-import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
-import { resourceIdToURI, EventBus, type Logger } from '@semiont/core';
+import { generateAnnotationId } from '@semiont/event-sourcing';
+import { resourceIdToURI, EventBus, userToAgent, type Logger } from '@semiont/core';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
-import { userId } from '@semiont/core';
+import { userId, jobId } from '@semiont/core';
 import type { AssessmentMatch } from './detection/motivation-parsers';
 import type { InferenceClient } from '@semiont/inference';
 
@@ -22,7 +22,6 @@ export class AssessmentAnnotationWorker extends JobWorker {
   constructor(
     jobQueue: JobQueue,
     private config: EnvironmentConfig,
-    private eventStore: EventStore,
     private inferenceClient: InferenceClient,
     private eventBus: EventBus,
     private contentFetcher: ContentFetcher,
@@ -56,30 +55,23 @@ export class AssessmentAnnotationWorker extends JobWorker {
 
   /**
    * Emit completion event with result data
-   * Override base class to emit job.completed event
+   * Override base class to emit on EventBus
    */
   protected override async emitCompletionEvent(
     job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>,
     result: AssessmentDetectionResult
   ): Promise<void> {
-    await this.eventStore.appendEvent({
-      type: 'job.completed',
+    this.eventBus.get('job:complete').next({
       resourceId: job.params.resourceId,
-      userId: job.metadata.userId,
-      version: 1,
-      payload: {
-        jobId: job.metadata.id,
-        jobType: 'assessment-annotation',
-        result,
-      },
+      userId: userId(job.metadata.userId),
+      jobId: jobId(job.metadata.id),
+      jobType: 'assessment-annotation',
+      result: { result },
     });
-
-    // Domain event (job.completed) is automatically published to EventBus by EventStore
-    // Backend SSE endpoint will subscribe to job.completed and transform to annotate:detect-finished
   }
 
   /**
-   * Override updateJobProgress to emit events to Event Store
+   * Override updateJobProgress to emit events via EventBus
    */
   protected override async updateJobProgress(job: AnyJob): Promise<void> {
     // Call parent to update filesystem
@@ -94,37 +86,27 @@ export class AssessmentAnnotationWorker extends JobWorker {
 
     const assJob = job as RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>;
 
-    const baseEvent = {
-      resourceId: assJob.params.resourceId,
-      userId: assJob.metadata.userId,
-      version: 1,
-    };
-
-    const resourceBus = this.eventBus.scope(assJob.params.resourceId);
-
     if (this.isFirstProgress) {
-      // First progress update - emit job.started
+      // First progress update - record job started
       this.isFirstProgress = false;
-      await this.eventStore.appendEvent({
-        type: 'job.started',
-        ...baseEvent,
-        payload: {
-          jobId: assJob.metadata.id,
-          jobType: assJob.metadata.type,
-        },
+      this.eventBus.get('job:start').next({
+        resourceId: assJob.params.resourceId,
+        userId: userId(assJob.metadata.userId),
+        jobId: jobId(assJob.metadata.id),
+        jobType: assJob.metadata.type,
       });
     } else {
-      // Intermediate progress - emit job.progress
-      // Note: job.completed is now handled by emitCompletionEvent()
-      await this.eventStore.appendEvent({
-        type: 'job.progress',
-        ...baseEvent,
-        payload: {
-          jobId: assJob.metadata.id,
-          jobType: assJob.metadata.type,
-          progress: assJob.progress,
-        },
+      // Intermediate progress - record job progress
+      this.eventBus.get('job:report-progress').next({
+        resourceId: assJob.params.resourceId,
+        userId: userId(assJob.metadata.userId),
+        jobId: jobId(assJob.metadata.id),
+        jobType: assJob.metadata.type,
+        percentage: assJob.progress.percentage,
+        progress: { progress: assJob.progress },
       });
+      // Ephemeral progress for real-time UI updates
+      const resourceBus = this.eventBus.scope(assJob.params.resourceId);
       resourceBus.get('mark:progress').next({
         status: assJob.progress.stage,
         message: assJob.progress.message,
@@ -137,22 +119,16 @@ export class AssessmentAnnotationWorker extends JobWorker {
     // Call parent to handle the failure logic
     await super.handleJobFailure(job, error);
 
-    // If job permanently failed, emit job.failed event
+    // If job permanently failed, record via EventBus
     if (job.status === 'failed' && job.metadata.type === 'assessment-annotation') {
       const aJob = job as AssessmentDetectionJob;
 
-      // Log the full error details to backend logs (already logged by parent)
-      // Send generic error message to frontend
-      await this.eventStore.appendEvent({
-        type: 'job.failed',
+      this.eventBus.get('job:fail').next({
         resourceId: aJob.params.resourceId,
-        userId: aJob.metadata.userId,
-        version: 1,
-        payload: {
-          jobId: aJob.metadata.id,
-          jobType: aJob.metadata.type,
-          error: 'Assessment detection failed. Please try again later.',
-        },
+        userId: userId(aJob.metadata.userId),
+        jobId: jobId(aJob.metadata.id),
+        jobType: aJob.metadata.type,
+        error: 'Assessment detection failed. Please try again later.',
       });
     }
   }
@@ -214,7 +190,7 @@ export class AssessmentAnnotationWorker extends JobWorker {
     let created = 0;
     for (const assessment of assessments) {
       try {
-        await this.createAssessmentAnnotation(job.params.resourceId, job.metadata.userId, assessment);
+        await this.createAssessmentAnnotation(job.params.resourceId, job.metadata, assessment);
         created++;
       } catch (error) {
         this.logger?.error('Failed to create assessment', { error });
@@ -242,24 +218,31 @@ export class AssessmentAnnotationWorker extends JobWorker {
 
   private async createAssessmentAnnotation(
     resourceId: ResourceId,
-    creatorUserId: string,
+    metadata: import('../types').JobMetadata,
     assessment: AssessmentMatch
   ): Promise<void> {
     const backendUrl = this.config.services.backend?.publicURL;
     if (!backendUrl) throw new Error('Backend publicURL not configured');
 
-    const annotationId = generateAnnotationId(backendUrl);
+    const annotationIdVal = generateAnnotationId(backendUrl);
     const resourceUri = resourceIdToURI(resourceId, backendUrl);
+
+    const creator = userToAgent({
+      id: metadata.userId,
+      name: metadata.userName,
+      email: metadata.userEmail,
+      domain: metadata.userDomain,
+    });
 
     // Create W3C annotation with motivation: assessing
     // Use both TextPositionSelector and TextQuoteSelector (with prefix/suffix for fuzzy anchoring)
     const annotation = {
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
       'type': 'Annotation' as const,
-      'id': annotationId,
+      'id': annotationIdVal,
       'motivation': 'assessing' as const,
-      'creator': userId(creatorUserId),
-      'created': new Date().toISOString(),
+      creator,
+      created: new Date().toISOString(),
       'target': {
         type: 'SpecificResource' as const,
         source: resourceUri,
@@ -284,12 +267,13 @@ export class AssessmentAnnotationWorker extends JobWorker {
       }
     };
 
-    await this.eventStore.appendEvent({
-      type: 'annotation.added',
+    this.eventBus.get('mark:create').next({
+      motivation: annotation.motivation,
+      selector: annotation.target.selector,
+      body: [annotation.body],
+      userId: userId(metadata.userId),
       resourceId,
-      userId: userId(creatorUserId),
-      version: 1,
-      payload: { annotation }
+      annotation,
     });
   }
 }

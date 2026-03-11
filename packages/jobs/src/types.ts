@@ -38,6 +38,9 @@ export interface JobMetadata {
   id: JobId;
   type: JobType;
   userId: UserId;
+  userName: string;
+  userEmail: string;
+  userDomain: string;
   created: string;
   retryCount: number;
   maxRetries: number;

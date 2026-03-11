@@ -13,13 +13,16 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { firstValueFrom } from 'rxjs';
+import { take } from 'rxjs/operators';
 import { LLMContext } from '../llm-context';
 import { ResourceOperations } from '../resource-operations';
 import { AnnotationOperations } from '../annotation-operations';
-import { resourceId, userId, type EnvironmentConfig, type Logger } from '@semiont/core';
-import { createEventStore, FilesystemViewStorage, type EventStore } from '@semiont/event-sourcing';
+import { resourceId, userId, EventBus, type EnvironmentConfig, type Logger } from '@semiont/core';
+import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore, type RepresentationStore } from '@semiont/content';
 import type { KnowledgeBase } from '../knowledge-base';
+import { Stower } from '../stower';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -46,6 +49,8 @@ vi.mock('@semiont/inference', async () => {
 describe('LLM Context', () => {
   let testDir: string;
   let eventStore: EventStore;
+  let eventBus: EventBus;
+  let stower: Stower;
   let repStore: RepresentationStore;
   let config: EnvironmentConfig;
   let kb: KnowledgeBase;
@@ -104,15 +109,19 @@ describe('LLM Context', () => {
 
     publicURL = config.services.backend!.publicURL;
 
-    // Initialize stores
-    eventStore = createEventStore(testDir, publicURL, undefined, undefined, mockLogger);
+    // Initialize EventBus and stores
+    eventBus = new EventBus();
+    eventStore = createEventStore(testDir, publicURL, undefined, eventBus, mockLogger);
     repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
 
-    // Create KnowledgeBase
+    // Create KnowledgeBase - share event store's view storage to avoid separate instances
     const { getGraphDatabase } = await import('@semiont/graph');
     const graphDb = await getGraphDatabase(config);
-    const viewStorage = new FilesystemViewStorage(testDir, testDir);
-    kb = { eventStore, views: viewStorage, content: repStore, graph: graphDb };
+    kb = { eventStore, views: eventStore.viewStorage, content: repStore, graph: graphDb };
+
+    // Start Stower
+    stower = new Stower(kb, publicURL, eventBus, mockLogger);
+    await stower.initialize();
 
     // Create a test resource
     const content = Buffer.from('This is test content for LLM context building.', 'utf-8');
@@ -123,9 +132,7 @@ describe('LLM Context', () => {
         format: 'text/plain',
       },
       userId('user-1'),
-      eventStore,
-      repStore,
-      config
+      eventBus,
     );
 
     const idMatch = response.resource['@id'].match(/\/resources\/(.+)$/);
@@ -136,6 +143,8 @@ describe('LLM Context', () => {
   });
 
   afterAll(async () => {
+    await stower.stop();
+    eventBus.destroy();
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
@@ -178,7 +187,9 @@ describe('LLM Context', () => {
 
   describe('annotation inclusion', () => {
     it('should include annotations in context', async () => {
-      // Create an annotation on the resource
+      // Create an annotation on the resource and await Stower persistence
+      const created$ = firstValueFrom(eventBus.get('mark:created').pipe(take(1)));
+      const creator = { type: 'Person' as const, id: 'did:web:test.local:users:test-user', name: 'Test User' };
       await AnnotationOperations.createAnnotation(
         {
           motivation: 'highlighting',
@@ -197,9 +208,11 @@ describe('LLM Context', () => {
           },
         },
         userId('user-1'),
-        eventStore,
+        creator,
+        eventBus,
         publicURL
       );
+      await created$;
 
       const result = await LLMContext.getResourceContext(
         resourceId(testResourceId),

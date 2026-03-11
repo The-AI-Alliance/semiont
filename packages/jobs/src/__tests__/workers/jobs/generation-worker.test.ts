@@ -1,29 +1,26 @@
 /**
  * Generation Worker Event Emission Tests
  *
- * Tests that GenerationWorker emits proper job progress events to Event Store
+ * Tests that GenerationWorker emits proper events on EventBus
  * during resource generation processing.
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
 import { GenerationWorker } from '../../../workers/generation-worker';
-import { JobQueue, type GenerationJob, type RunningJob, type GenerationParams, type YieldProgress } from '@semiont/jobs';
-import { resourceId, userId, annotationId, type EnvironmentConfig, type JobCompletedEvent, type StoredEvent, EventBus, type Logger } from '@semiont/core';
+import { JobQueue, type RunningJob, type GenerationParams, type YieldProgress } from '@semiont/jobs';
+import { resourceId, userId, annotationId, type EnvironmentConfig, EventBus, type Logger } from '@semiont/core';
 import { jobId } from '@semiont/core';
-import { createEventStore, type EventStore } from '@semiont/event-sourcing';
-import { FilesystemRepresentationStore } from '@semiont/content';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
 // Mock @semiont/inference to avoid external API calls
-const mockInferenceClient = vi.hoisted(() => { return { client: null as any }; });
+let mockInferenceClient: any;
+
 vi.mock('@semiont/inference', async () => {
   const { MockInferenceClient } = await import('@semiont/inference');
-  mockInferenceClient.client = new MockInferenceClient(['[]']);
-
   return {
-    getInferenceClient: vi.fn().mockResolvedValue(mockInferenceClient.client),
+    getInferenceClient: vi.fn().mockResolvedValue(new MockInferenceClient(['# Test\n\nContent'])),
     MockInferenceClient
   };
 });
@@ -39,74 +36,17 @@ const mockLogger: Logger = {
 describe('GenerationWorker - Event Emission', () => {
   let worker: GenerationWorker;
   let testDir: string;
-  let testEventStore: EventStore;
   let config: EnvironmentConfig;
-
-  beforeAll(async () => {
-    // Create temporary test directory
-    testDir = join(tmpdir(), `semiont-test-generation-worker-${Date.now()}`);
-    await fs.mkdir(testDir, { recursive: true });
-
-    // Create test configuration
-    config = {
-      services: {
-        filesystem: {
-          platform: { type: 'posix' },
-          path: testDir
-        },
-        backend: {
-          platform: { type: 'posix' },
-          port: 4000,
-          publicURL: 'http://localhost:4000',
-          corsOrigin: 'http://localhost:3000'
-        },
-        inference: {
-          platform: { type: 'external' },
-          type: 'anthropic',
-          model: 'claude-sonnet-4-20250514',
-          maxTokens: 8192,
-          endpoint: 'https://api.anthropic.com',
-          apiKey: 'test-api-key'
-        },
-        graph: {
-          platform: { type: 'posix' },
-          type: 'memory'
-        }
-      },
-      site: {
-        siteName: 'Test Site',
-        domain: 'localhost:3000',
-        adminEmail: 'admin@test.local',
-        oauthAllowedDomains: ['test.local']
-      },
-      _metadata: {
-        environment: 'test',
-        projectRoot: testDir
-      },
-    } as EnvironmentConfig;
-
-    // Initialize job queue and event store
-    const jobQueue = new JobQueue({ dataDir: testDir }, mockLogger, new EventBus());
-    await jobQueue.initialize();
-    testEventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
-    worker = new GenerationWorker(jobQueue, config, testEventStore, mockInferenceClient.client, new EventBus(), mockLogger);
-
-    // Set default mock response
-    mockInferenceClient.client.setResponses(['# Test Title\n\nTest content']);
-  });
-
-  afterAll(async () => {
-    await fs.rm(testDir, { recursive: true, force: true });
-  });
+  let eventBus: EventBus;
 
   // Shared test annotation fixture
   const testAnnotation = {
     '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
     type: 'Annotation' as const,
-    id: 'http://localhost:4100/annotations/test-anno-1',
+    id: 'http://localhost:4000/annotations/test-anno-1',
     motivation: 'linking' as const,
     target: {
-      source: 'http://localhost:4100/resources/test-resource-1',
+      source: 'http://localhost:4000/resources/test-resource-1',
       selector: [
         { type: 'TextPositionSelector' as const, start: 0, end: 10 },
         { type: 'TextQuoteSelector' as const, exact: 'test text' }
@@ -115,91 +55,65 @@ describe('GenerationWorker - Event Emission', () => {
     body: [{ type: 'TextualBody' as const, value: 'Person', purpose: 'tagging' as const }]
   };
 
-  // Helper to create a test resource with content
-  async function createTestResource(id: string, content: string = 'Test source resource for generation'): Promise<void> {
-    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
+  beforeAll(async () => {
+    const { MockInferenceClient } = await import('@semiont/inference');
+    mockInferenceClient = new MockInferenceClient(['# Test Title\n\nTest content']);
 
-    const testContent = Buffer.from(content, 'utf-8');
-    const { checksum } = await repStore.store(testContent, { mediaType: 'text/plain' });
+    testDir = join(tmpdir(), `semiont-test-generation-worker-${Date.now()}`);
+    await fs.mkdir(testDir, { recursive: true });
 
-    await testEventStore.appendEvent({
-      type: 'resource.created',
-      resourceId: resourceId(id),
-      userId: userId('user-1'),
-      version: 1,
-      payload: {
-        name: `Test Resource ${id}`,
-        format: 'text/plain',
-        contentChecksum: checksum,
-        creationMethod: 'api'
-      }
+    config = {
+      services: {
+        filesystem: { platform: { type: 'posix' }, path: testDir },
+        backend: { platform: { type: 'posix' }, port: 4000, publicURL: 'http://localhost:4000', corsOrigin: 'http://localhost:3000' },
+        inference: { platform: { type: 'external' }, type: 'anthropic', model: 'claude-sonnet-4-20250514', maxTokens: 8192, endpoint: 'https://api.anthropic.com', apiKey: 'test-api-key' },
+        graph: { platform: { type: 'posix' }, type: 'memory' }
+      },
+      site: { siteName: 'Test Site', domain: 'localhost:3000', adminEmail: 'admin@test.local', oauthAllowedDomains: ['test.local'] },
+      _metadata: { environment: 'test', projectRoot: testDir },
+    } as EnvironmentConfig;
+  });
+
+  beforeEach(async () => {
+    eventBus = new EventBus();
+    const jobQueue = new JobQueue({ dataDir: testDir }, mockLogger, new EventBus());
+    await jobQueue.initialize();
+    worker = new GenerationWorker(jobQueue, config, mockInferenceClient, eventBus, mockLogger);
+    mockInferenceClient.setResponses(['# Test Title\n\nTest content']);
+
+    // Simulate yield handler: when worker emits yield:create, respond with yield:created
+    // Must be async so the response arrives after firstValueFrom subscribes to the race
+    eventBus.get('yield:create').subscribe(() => {
+      setTimeout(() => {
+        eventBus.get('yield:created').next({
+          resourceId: resourceId(`generated-${Date.now()}`),
+          resource: {} as any, // Worker only reads resourceId
+        } as any);
+      }, 0);
     });
-  }
+  });
 
-  // Helper to create a reference annotation
-  async function createReferenceAnnotation(sourceId: string, targetTopic: string): Promise<string> {
-    const refId = `ref-${Date.now()}`;
-    const fullRefUri = `http://localhost:4000/annotations/${refId}`;
+  afterAll(async () => {
+    await fs.rm(testDir, { recursive: true, force: true });
+  });
 
-    await testEventStore.appendEvent({
-      type: 'annotation.added',
-      resourceId: resourceId(sourceId),
-      userId: userId('user-1'),
-      version: 1,
-      payload: {
-        annotation: {
-          '@context': 'http://www.w3.org/ns/anno.jsonld',
-          id: fullRefUri,
-          type: 'Annotation',
-          motivation: 'linking',
-          body: {
-            type: 'SpecificResource',
-            source: targetTopic,
-            purpose: 'linking'
-          },
-          target: {
-            source: `http://localhost:4000/resources/${sourceId}`,
-            selector: {
-              type: 'TextQuoteSelector',
-              exact: 'Test',
-              prefix: '',
-              suffix: ''
-            }
-          }
-        }
-      }
-    });
-
-    return refId;
-  }
-
-  // Helper to get events for a resource
-  async function getResourceEvents(resId: string) {
-    const allEvents = await testEventStore.log.getEvents(resourceId(resId));
-    return allEvents;
-  }
-
-  it('should emit job.started event when generation begins', async () => {
-    const testResourceId = `resource-gen-started-${Date.now()}`;
-    await createTestResource(testResourceId);
-    const refId = await createReferenceAnnotation(testResourceId, 'Test Topic');
-
-    // Mock AI response
-    mockInferenceClient.client.setResponses(['Generated content about Test Topic']);
-
-    const job: RunningJob<GenerationParams, YieldProgress> = {
+  function makeJob(id: string, sourceResId: string, refId: string): RunningJob<GenerationParams, YieldProgress> {
+    return {
       status: 'running',
       metadata: {
-        id: jobId('job-gen-1'),
+        id: jobId(id),
         type: 'generation',
         userId: userId('user-1'),
+        userName: 'Test User',
+        userEmail: 'test@test.local',
+        userDomain: 'test.local',
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 3
       },
       params: {
         referenceId: annotationId(refId),
-        sourceResourceId: resourceId(testResourceId),
+        sourceResourceId: resourceId(sourceResId),
         sourceResourceName: 'Test Resource',
         annotation: testAnnotation,
         context: {
@@ -211,222 +125,88 @@ describe('GenerationWorker - Event Emission', () => {
         }
       },
       startedAt: new Date().toISOString(),
-      progress: {
-        stage: 'fetching',
-        percentage: 0,
-        message: 'Starting generation'
-      }
+      progress: { stage: 'fetching', percentage: 0, message: 'Starting generation' }
     };
+  }
 
-    const result = await (worker as unknown as { executeJob: (job: GenerationJob) => Promise<any> }).executeJob(job);
-    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<GenerationParams, YieldProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
+  it('should emit job:start event when generation begins', async () => {
+    mockInferenceClient.setResponses(['Generated content about Test Topic']);
 
-    const events = await getResourceEvents(testResourceId);
-    const startedEvents = events.filter(e => e.event.type === 'job.started');
-    expect(startedEvents.length).toBeGreaterThanOrEqual(1);
+    const startEvents: any[] = [];
+    const sub = eventBus.get('job:start').subscribe(e => startEvents.push(e));
 
-    const startedEvent = startedEvents[0];
-    expect(startedEvent).toBeDefined();
-    expect(startedEvent!.event).toMatchObject({
-      type: 'job.started',
-      resourceId: resourceId(testResourceId),
+    const job = makeJob('job-gen-1', 'res-gen-1', 'ref-gen-1');
+    await (worker as unknown as { executeJob: (job: any) => Promise<any> }).executeJob(job);
+
+    sub.unsubscribe();
+
+    expect(startEvents.length).toBeGreaterThanOrEqual(1);
+    expect(startEvents[0]).toMatchObject({
+      resourceId: resourceId('res-gen-1'),
       userId: userId('user-1'),
-      payload: {
-        jobId: 'job-gen-1',
-        jobType: 'generation'
-      }
+      jobId: jobId('job-gen-1'),
+      jobType: 'generation'
     });
   });
 
-  it('should emit job.progress events through generation stages', async () => {
-    const testResourceId = `resource-gen-progress-${Date.now()}`;
-    await createTestResource(testResourceId);
-    const refId = await createReferenceAnnotation(testResourceId, 'Progress Topic');
+  it('should emit job:report-progress events through generation stages', async () => {
+    mockInferenceClient.setResponses(['Generated content for progress tracking']);
 
-    // Mock AI response
-    mockInferenceClient.client.setResponses(['Generated content for progress tracking']);
+    const progressEvents: any[] = [];
+    const sub = eventBus.get('job:report-progress').subscribe(e => progressEvents.push(e));
 
-    const job: RunningJob<GenerationParams, YieldProgress> = {
-      status: 'running',
-      metadata: {
-        id: jobId('job-gen-2'),
-        type: 'generation',
-        userId: userId('user-1'),
-        created: new Date().toISOString(),
-        retryCount: 0,
-        maxRetries: 3
-      },
-      params: {
-        referenceId: annotationId(refId),
-        sourceResourceId: resourceId(testResourceId),
-        sourceResourceName: 'Test Resource',
-        annotation: testAnnotation,
-        context: {
-          sourceContext: {
-            before: 'Context before ',
-            selected: 'Progress Topic',
-            after: ' context after'
-          }
-        }
-      },
-      startedAt: new Date().toISOString(),
-      progress: {
-        stage: 'fetching',
-        percentage: 0,
-        message: 'Starting generation'
-      }
-    };
+    const job = makeJob('job-gen-2', 'res-gen-2', 'ref-gen-2');
+    await (worker as unknown as { executeJob: (job: any) => Promise<any> }).executeJob(job);
 
-    const result = await (worker as unknown as { executeJob: (job: GenerationJob) => Promise<any> }).executeJob(job);
-    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<GenerationParams, YieldProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
+    sub.unsubscribe();
 
-    const events = await getResourceEvents(testResourceId);
-    const progressEvents = events.filter(e => e.event.type === 'job.progress');
-    expect(progressEvents.length).toBeGreaterThanOrEqual(1);
-
-    // Verify progress events were emitted
-    // Note: The payload structure may vary, so we just verify events exist
-    expect(progressEvents.length).toBeGreaterThanOrEqual(3); // fetching, generating, linking
+    // Should have multiple progress events for the various stages
+    expect(progressEvents.length).toBeGreaterThanOrEqual(3);
   });
 
-  it('should emit job.completed event when generation finishes', async () => {
-    const testResourceId = `resource-gen-complete-${Date.now()}`;
-    await createTestResource(testResourceId);
-    const refId = await createReferenceAnnotation(testResourceId, 'Complete Topic');
+  it('should emit job:complete event when generation finishes', async () => {
+    mockInferenceClient.setResponses(['Generated content for completion test']);
 
-    // Mock AI response
-    mockInferenceClient.client.setResponses(['Generated content for completion test']);
+    const completeEvents: any[] = [];
+    const sub = eventBus.get('job:complete').subscribe(e => completeEvents.push(e));
 
-    const job: RunningJob<GenerationParams, YieldProgress> = {
-      status: 'running',
-      metadata: {
-        id: jobId('job-gen-3'),
-        type: 'generation',
-        userId: userId('user-1'),
-        created: new Date().toISOString(),
-        retryCount: 0,
-        maxRetries: 3
-      },
-      params: {
-        referenceId: annotationId(refId),
-        sourceResourceId: resourceId(testResourceId),
-        sourceResourceName: 'Test Resource',
-        annotation: testAnnotation,
-        context: {
-          sourceContext: {
-            before: 'Context before ',
-            selected: 'Complete Topic',
-            after: ' context after'
-          }
-        }
-      },
-      startedAt: new Date().toISOString(),
-      progress: {
-        stage: 'fetching',
-        percentage: 0,
-        message: 'Starting generation'
-      }
-    };
+    const job = makeJob('job-gen-3', 'res-gen-3', 'ref-gen-3');
+    const result = await (worker as unknown as { executeJob: (job: any) => Promise<any> }).executeJob(job);
+    await (worker as unknown as { emitCompletionEvent: (job: any, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
-    const result = await (worker as unknown as { executeJob: (job: GenerationJob) => Promise<any> }).executeJob(job);
-    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<GenerationParams, YieldProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
+    sub.unsubscribe();
 
-    const events = await getResourceEvents(testResourceId);
-    const completedEvents = events.filter(e => e.event.type === 'job.completed');
-    expect(completedEvents.length).toBeGreaterThanOrEqual(1);
-
-    const completedEvent = completedEvents[0];
-    expect(completedEvent!.event).toMatchObject({
-      type: 'job.completed',
-      resourceId: resourceId(testResourceId),
+    expect(completeEvents.length).toBeGreaterThanOrEqual(1);
+    expect(completeEvents[0]).toMatchObject({
+      resourceId: resourceId('res-gen-3'),
       userId: userId('user-1'),
-      payload: {
-        jobId: 'job-gen-3'
-      }
+      jobId: jobId('job-gen-3'),
+      jobType: 'generation',
     });
   });
 
-  it('should emit resource.created event for generated resource', async () => {
-    const testResourceId = `resource-gen-create-${Date.now()}`;
-    await createTestResource(testResourceId);
-    const refId = await createReferenceAnnotation(testResourceId, 'New Resource Topic');
+  it('should emit yield:create event for resource creation', async () => {
+    mockInferenceClient.setResponses(['This is the content of a newly generated resource']);
 
-    // Mock AI response
-    mockInferenceClient.client.setResponses(['This is the content of a newly generated resource']);
+    const yieldEvents: any[] = [];
+    // Subscribe BEFORE the yield handler so we capture the event
+    const sub = eventBus.get('yield:create').subscribe(e => yieldEvents.push(e));
 
-    const job: RunningJob<GenerationParams, YieldProgress> = {
-      status: 'running',
-      metadata: {
-        id: jobId('job-gen-4'),
-        type: 'generation',
-        userId: userId('user-1'),
-        created: new Date().toISOString(),
-        retryCount: 0,
-        maxRetries: 3
-      },
-      params: {
-        referenceId: annotationId(refId),
-        sourceResourceId: resourceId(testResourceId),
-        sourceResourceName: 'Test Resource',
-        annotation: testAnnotation,
-        context: {
-          sourceContext: {
-            before: 'Context before ',
-            selected: 'New Resource Topic',
-            after: ' context after'
-          }
-        }
-      },
-      startedAt: new Date().toISOString(),
-      progress: {
-        stage: 'fetching',
-        percentage: 0,
-        message: 'Starting generation'
-      }
-    };
+    const job = makeJob('job-gen-4', 'res-gen-4', 'ref-gen-4');
+    const result = await (worker as unknown as { executeJob: (job: any) => Promise<any> }).executeJob(job);
 
-    const result = await (worker as unknown as { executeJob: (job: GenerationJob) => Promise<any> }).executeJob(job);
-    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<GenerationParams, YieldProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
+    sub.unsubscribe();
 
-    // Get the job.completed event to find the generated resource ID
-    const sourceEvents = await testEventStore.log.getEvents(resourceId(testResourceId));
-    const completedEvents = sourceEvents.filter((e): e is StoredEvent<JobCompletedEvent> =>
-      e.event.type === 'job.completed'
-    );
-    expect(completedEvents.length).toBeGreaterThanOrEqual(1);
+    expect(yieldEvents.length).toBeGreaterThanOrEqual(1);
+    expect(yieldEvents[0]).toMatchObject({
+      userId: userId('user-1'),
+      format: 'text/markdown',
+      isDraft: true,
+    });
 
-    const completedEvent = completedEvents[0];
-    const generatedResourceId = completedEvent.event.payload.resultResourceId;
-    expect(generatedResourceId).toBeDefined();
-
-    // Type assertion after checking it's defined
-    if (!generatedResourceId) {
-      throw new Error('generatedResourceId should be defined');
-    }
-
-    // Check for resource.created event on the generated resource
-    const generatedEvents = await testEventStore.log.getEvents(resourceId(generatedResourceId));
-    const resourceCreatedEvents = generatedEvents.filter((e: any) =>
-      e.event.type === 'resource.created'
-    );
-
-    // If no events found, it might be because the generated resource ID is the raw hash
-    // not prefixed with the resource ID scheme. The event was emitted, so it exists somewhere.
-    // For this test, we just verify the job completed successfully with a resource ID.
-    if (resourceCreatedEvents.length === 0) {
-      // The resource was created - verify just that we got a resource ID back
-      expect(generatedResourceId).toBeTruthy();
-      expect(typeof generatedResourceId).toBe('string');
-      expect(generatedResourceId.length).toBeGreaterThan(0);
-    } else {
-      expect(resourceCreatedEvents.length).toBeGreaterThanOrEqual(1);
-
-      // Verify the generated resource was created with proper metadata
-      const generatedEvent = resourceCreatedEvents[0];
-      expect(generatedEvent.event.payload).toMatchObject({
-        creationMethod: 'generated',
-        format: 'text/markdown'
-      });
-    }
+    // Verify the result contains a resourceId
+    expect(result).toBeDefined();
+    expect(result.resourceId).toBeDefined();
+    expect(result.resourceName).toBeDefined();
   });
 });

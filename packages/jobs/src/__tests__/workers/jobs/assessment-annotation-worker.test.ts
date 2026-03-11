@@ -1,29 +1,26 @@
 /**
  * Assessment Detection Worker Event Emission Tests
  *
- * Tests that AssessmentAnnotationWorker emits proper job progress events to Event Store
+ * Tests that AssessmentAnnotationWorker emits proper events on EventBus
  * during assessment detection processing.
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
 import { AssessmentAnnotationWorker } from '../../../workers/assessment-annotation-worker';
-import { JobQueue, type AssessmentDetectionJob, type RunningJob, type AssessmentDetectionParams, type AssessmentDetectionProgress, type ContentFetcher } from '@semiont/jobs';
+import { JobQueue, type RunningJob, type AssessmentDetectionParams, type AssessmentDetectionProgress, type ContentFetcher } from '@semiont/jobs';
 import { resourceId, userId, type EnvironmentConfig, EventBus, type Logger } from '@semiont/core';
 import { jobId } from '@semiont/core';
-import { createEventStore, type EventStore } from '@semiont/event-sourcing';
-import { FilesystemRepresentationStore } from '@semiont/content';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
 // Mock @semiont/inference to avoid external API calls
-const mockInferenceClient = vi.hoisted(() => { return { client: null as any }; });
+let mockInferenceClient: any;
+
 vi.mock('@semiont/inference', async () => {
   const { MockInferenceClient } = await import('@semiont/inference');
-  mockInferenceClient.client = new MockInferenceClient(['[]']);
-
   return {
-    getInferenceClient: vi.fn().mockResolvedValue(mockInferenceClient.client),
+    getInferenceClient: vi.fn().mockResolvedValue(new MockInferenceClient(['[]'])),
     MockInferenceClient
   };
 });
@@ -44,10 +41,14 @@ const mockContentFetcher: ContentFetcher = async () => {
 describe('AssessmentAnnotationWorker - Event Emission', () => {
   let worker: AssessmentAnnotationWorker;
   let testDir: string;
-  let testEventStore: EventStore;
   let config: EnvironmentConfig;
+  let eventBus: EventBus;
 
   beforeAll(async () => {
+    // Initialize mock client
+    const { MockInferenceClient } = await import('@semiont/inference');
+    mockInferenceClient = new MockInferenceClient(['[]']);
+
     // Create temporary test directory
     testDir = join(tmpdir(), `semiont-test-assessment-worker-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
@@ -89,288 +90,176 @@ describe('AssessmentAnnotationWorker - Event Emission', () => {
         projectRoot: testDir
       },
     } as EnvironmentConfig;
+  });
 
-    // Initialize job queue and event store
+  beforeEach(async () => {
+    eventBus = new EventBus();
     const jobQueue = new JobQueue({ dataDir: testDir }, mockLogger, new EventBus());
     await jobQueue.initialize();
-    testEventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
-    worker = new AssessmentAnnotationWorker(jobQueue, config, testEventStore, mockInferenceClient.client, new EventBus(), mockContentFetcher, mockLogger);
-
-    // Set default mock response
-    mockInferenceClient.client.setResponses(['[]']);
+    worker = new AssessmentAnnotationWorker(jobQueue, config, mockInferenceClient, eventBus, mockContentFetcher, mockLogger);
+    mockInferenceClient.setResponses(['[]']);
   });
 
   afterAll(async () => {
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
-  // Helper to create a test resource with content
-  async function createTestResource(id: string, content: string = 'Claims requiring assessment'): Promise<void> {
-    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
-
-    const testContent = Buffer.from(content, 'utf-8');
-    const { checksum } = await repStore.store(testContent, { mediaType: 'text/plain' });
-
-    await testEventStore.appendEvent({
-      type: 'resource.created',
-      resourceId: resourceId(id),
-      userId: userId('user-1'),
-      version: 1,
-      payload: {
-        name: `Test Resource ${id}`,
-        format: 'text/plain',
-        contentChecksum: checksum,
-        creationMethod: 'api'
+  function makeJob(id: string, resId: string): RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress> {
+    return {
+      status: 'running',
+      metadata: {
+        id: jobId(id),
+        type: 'assessment-annotation',
+        userId: userId('user-1'),
+        userName: 'Test User',
+        userEmail: 'test@test.local',
+        userDomain: 'test.local',
+        created: new Date().toISOString(),
+        retryCount: 0,
+        maxRetries: 3
+      },
+      params: {
+        resourceId: resourceId(resId)
+      },
+      startedAt: new Date().toISOString(),
+      progress: {
+        stage: 'analyzing',
+        percentage: 0,
+        message: 'Initializing'
       }
-    });
+    };
   }
 
-  // Helper to get events for a resource
-  async function getResourceEvents(resId: string) {
-    const allEvents = await testEventStore.log.getEvents(resourceId(resId));
-    return allEvents;
-  }
-
-  it('should emit job.started event when assessment detection begins', async () => {
+  it('should emit job:start event when assessment detection begins', async () => {
     const testResourceId = `resource-assessment-started-${Date.now()}`;
-    await createTestResource(testResourceId);
+    mockInferenceClient.setResponses([JSON.stringify([])]);
 
-    // Mock AI response
-    mockInferenceClient.client.setResponses([JSON.stringify([])]);
+    const startEvents: any[] = [];
+    const sub = eventBus.get('job:start').subscribe(e => startEvents.push(e));
 
-    const job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress> = {
-      status: 'running',
-      metadata: {
-        id: jobId('job-assessment-1'),
-        type: 'assessment-annotation',
-        userId: userId('user-1'),
-        created: new Date().toISOString(),
-        retryCount: 0,
-        maxRetries: 3
-      },
-      params: {
-        resourceId: resourceId(testResourceId)
-      },
-      startedAt: new Date().toISOString(),
-      progress: {
-        stage: 'analyzing',
-        percentage: 0,
-        message: 'Initializing'
-      }
-    };
+    const job = makeJob('job-assessment-1', testResourceId);
+    await (worker as unknown as { executeJob: (job: any) => Promise<any> }).executeJob(job);
 
-    const result = await (worker as unknown as { executeJob: (job: AssessmentDetectionJob) => Promise<any> }).executeJob(job);
-    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
+    sub.unsubscribe();
 
-    const events = await getResourceEvents(testResourceId);
-    const startedEvents = events.filter(e => e.event.type === 'job.started');
-    expect(startedEvents.length).toBeGreaterThanOrEqual(1);
-
-    const startedEvent = startedEvents[0];
-    expect(startedEvent).toBeDefined();
-    expect(startedEvent!.event).toMatchObject({
-      type: 'job.started',
+    expect(startEvents.length).toBeGreaterThanOrEqual(1);
+    expect(startEvents[0]).toMatchObject({
       resourceId: resourceId(testResourceId),
       userId: userId('user-1'),
-      payload: {
-        jobId: 'job-assessment-1',
-        jobType: 'assessment-annotation'
-      }
+      jobId: jobId('job-assessment-1'),
+      jobType: 'assessment-annotation'
     });
   });
 
-  it('should emit job.progress events during assessment detection', async () => {
+  it('should emit job:report-progress events during assessment detection', async () => {
     const testResourceId = `resource-assessment-progress-${Date.now()}`;
-    await createTestResource(testResourceId, 'This claim requires critical evaluation');
-
-    // Mock AI response with assessments
-    mockInferenceClient.client.setResponses([JSON.stringify([
-          {
-            exact: 'This claim',
-            start: 0,
-            end: 10,
-            assessment: 'This claim lacks supporting evidence',
-            prefix: '',
-            suffix: ' requires critical'
-          }
-        ])]);
-
-    const job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress> = {
-      status: 'running',
-      metadata: {
-        id: jobId('job-assessment-2'),
-        type: 'assessment-annotation',
-        userId: userId('user-1'),
-        created: new Date().toISOString(),
-        retryCount: 0,
-        maxRetries: 3
-      },
-      params: {
-        resourceId: resourceId(testResourceId)
-      },
-      startedAt: new Date().toISOString(),
-      progress: {
-        stage: 'analyzing',
-        percentage: 0,
-        message: 'Initializing'
+    mockInferenceClient.setResponses([JSON.stringify([
+      {
+        exact: 'test content',
+        start: 0,
+        end: 12,
+        assessment: 'This claim lacks supporting evidence',
+        prefix: '',
+        suffix: ''
       }
-    };
+    ])]);
 
-    const result = await (worker as unknown as { executeJob: (job: AssessmentDetectionJob) => Promise<any> }).executeJob(job);
-    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
+    const progressEvents: any[] = [];
+    const sub = eventBus.get('job:report-progress').subscribe(e => progressEvents.push(e));
 
-    const events = await getResourceEvents(testResourceId);
-    const progressEvents = events.filter(e => e.event.type === 'job.progress');
+    const job = makeJob('job-assessment-2', testResourceId);
+    await (worker as unknown as { executeJob: (job: any) => Promise<any> }).executeJob(job);
+
+    sub.unsubscribe();
+
     expect(progressEvents.length).toBeGreaterThanOrEqual(1);
-
-    const progressEvent = progressEvents[0];
-    expect(progressEvent!.event).toMatchObject({
-      type: 'job.progress',
+    expect(progressEvents[0]).toMatchObject({
       resourceId: resourceId(testResourceId),
       userId: userId('user-1'),
-      payload: {
-        jobId: 'job-assessment-2',
-        
-      }
+      jobId: jobId('job-assessment-2'),
     });
   });
 
-  it('should emit job.completed event when assessment detection finishes', async () => {
+  it('should emit job:complete event when assessment detection finishes', async () => {
     const testResourceId = `resource-assessment-complete-${Date.now()}`;
-    await createTestResource(testResourceId);
-
-    // Mock AI response
-    mockInferenceClient.client.setResponses([JSON.stringify([
-          {
-            exact: 'Claims',
-            start: 0,
-            end: 6,
-            assessment: 'Needs verification',
-            prefix: '',
-            suffix: ' requiring assessment'
-          }
-        ])]);
-
-    const job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress> = {
-      status: 'running',
-      metadata: {
-        id: jobId('job-assessment-3'),
-        type: 'assessment-annotation',
-        userId: userId('user-1'),
-        created: new Date().toISOString(),
-        retryCount: 0,
-        maxRetries: 3
-      },
-      params: {
-        resourceId: resourceId(testResourceId)
-      },
-      startedAt: new Date().toISOString(),
-      progress: {
-        stage: 'analyzing',
-        percentage: 0,
-        message: 'Initializing'
+    mockInferenceClient.setResponses([JSON.stringify([
+      {
+        exact: 'test content',
+        start: 0,
+        end: 12,
+        assessment: 'Needs verification',
+        prefix: '',
+        suffix: ''
       }
-    };
+    ])]);
 
-    const result = await (worker as unknown as { executeJob: (job: AssessmentDetectionJob) => Promise<any> }).executeJob(job);
-    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
+    const completeEvents: any[] = [];
+    const sub = eventBus.get('job:complete').subscribe(e => completeEvents.push(e));
 
-    const events = await getResourceEvents(testResourceId);
-    const completedEvents = events.filter(e => e.event.type === 'job.completed');
-    expect(completedEvents.length).toBeGreaterThanOrEqual(1);
+    const job = makeJob('job-assessment-3', testResourceId);
+    const result = await (worker as unknown as { executeJob: (job: any) => Promise<any> }).executeJob(job);
+    await (worker as unknown as { emitCompletionEvent: (job: any, result: any) => Promise<void> }).emitCompletionEvent(job, result);
 
-    const completedEvent = completedEvents[0];
-    expect(completedEvent!.event).toMatchObject({
-      type: 'job.completed',
+    sub.unsubscribe();
+
+    expect(completeEvents.length).toBeGreaterThanOrEqual(1);
+    expect(completeEvents[0]).toMatchObject({
       resourceId: resourceId(testResourceId),
       userId: userId('user-1'),
-      payload: {
-        jobId: 'job-assessment-3',
-        
-      }
+      jobId: jobId('job-assessment-3'),
+      jobType: 'assessment-annotation',
     });
   });
 
-  it('should emit annotation.created events for detected assessments', async () => {
+  it('should emit mark:create events for detected assessments', async () => {
     const testResourceId = `resource-assessment-annotations-${Date.now()}`;
-    await createTestResource(testResourceId, 'First claim needs review. Second claim also questionable.');
-
-    // Mock AI response with multiple assessments
-    mockInferenceClient.client.setResponses([JSON.stringify([
-          {
-            exact: 'First claim',
-            start: 0,
-            end: 11,
-            assessment: 'This claim lacks empirical support',
-            prefix: '',
-            suffix: ' needs review'
-          },
-          {
-            exact: 'Second claim',
-            start: 26,
-            end: 38,
-            assessment: 'Requires additional verification',
-            prefix: 'needs review. ',
-            suffix: ' also questionable'
-          }
-        ])]);
-
-    const job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress> = {
-      status: 'running',
-      metadata: {
-        id: jobId('job-assessment-4'),
-        type: 'assessment-annotation',
-        userId: userId('user-1'),
-        created: new Date().toISOString(),
-        retryCount: 0,
-        maxRetries: 3
+    mockInferenceClient.setResponses([JSON.stringify([
+      {
+        exact: 'test',
+        start: 0,
+        end: 4,
+        assessment: 'This claim lacks empirical support',
+        prefix: '',
+        suffix: ' content'
       },
-      params: {
-        resourceId: resourceId(testResourceId)
-      },
-      startedAt: new Date().toISOString(),
-      progress: {
-        stage: 'analyzing',
-        percentage: 0,
-        message: 'Initializing'
+      {
+        exact: 'content',
+        start: 5,
+        end: 12,
+        assessment: 'Requires additional verification',
+        prefix: 'test ',
+        suffix: ''
       }
-    };
+    ])]);
 
-    const result = await (worker as unknown as { executeJob: (job: AssessmentDetectionJob) => Promise<any> }).executeJob(job);
-    await (worker as unknown as { emitCompletionEvent: (job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>, result: any) => Promise<void> }).emitCompletionEvent(job, result);
+    const markEvents: any[] = [];
+    const sub = eventBus.get('mark:create').subscribe(e => markEvents.push(e));
 
-    const events = await getResourceEvents(testResourceId);
-    const annotationEvents = events.filter(e => e.event.type === 'annotation.added');
-    expect(annotationEvents.length).toBe(2);
+    const job = makeJob('job-assessment-4', testResourceId);
+    await (worker as unknown as { executeJob: (job: any) => Promise<any> }).executeJob(job);
+
+    sub.unsubscribe();
+
+    expect(markEvents.length).toBe(2);
 
     // Check first assessment annotation
-    expect(annotationEvents[0]!.event).toMatchObject({
-      type: 'annotation.added',
-      resourceId: resourceId(testResourceId),
+    expect(markEvents[0]).toMatchObject({
+      motivation: 'assessing',
       userId: userId('user-1'),
-      payload: {
-        annotation: {
-          motivation: 'assessing',
-          body: expect.objectContaining({
-            value: 'This claim lacks empirical support'
-          })
-        }
-      }
+      resourceId: resourceId(testResourceId),
+    });
+    expect(markEvents[0].annotation.body).toMatchObject({
+      value: 'This claim lacks empirical support'
     });
 
     // Check second assessment annotation
-    expect(annotationEvents[1]!.event).toMatchObject({
-      type: 'annotation.added',
-      resourceId: resourceId(testResourceId),
+    expect(markEvents[1]).toMatchObject({
+      motivation: 'assessing',
       userId: userId('user-1'),
-      payload: {
-        annotation: {
-          motivation: 'assessing',
-          body: expect.objectContaining({
-            value: 'Requires additional verification'
-          })
-        }
-      }
+      resourceId: resourceId(testResourceId),
+    });
+    expect(markEvents[1].annotation.body).toMatchObject({
+      value: 'Requires additional verification'
     });
   });
 });

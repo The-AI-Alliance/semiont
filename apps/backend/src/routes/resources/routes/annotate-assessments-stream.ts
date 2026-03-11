@@ -92,6 +92,9 @@ export function registerAnnotateAssessmentsStream(router: ResourcesRouterType, j
           id: jobId(`job-${nanoid()}`),
           type: 'assessment-annotation',
           userId: userId(user.id),
+          userName: user.name || user.email,
+          userEmail: user.email,
+          userDomain: user.domain,
           created: new Date().toISOString(),
           retryCount: 0,
           maxRetries: 1

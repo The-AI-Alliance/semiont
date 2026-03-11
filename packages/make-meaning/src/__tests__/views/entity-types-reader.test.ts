@@ -15,7 +15,10 @@ import { readEntityTypesProjection } from '../../views/entity-types-reader';
 import { bootstrapEntityTypes, resetBootstrap } from '../../bootstrap/entity-types';
 import { createEventStore } from '@semiont/event-sourcing';
 import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
-import type { EnvironmentConfig, Logger } from '@semiont/core';
+import { EventBus, type EnvironmentConfig, type Logger } from '@semiont/core';
+import { createKnowledgeBase } from '../../knowledge-base';
+import { Stower } from '../../stower';
+import { getGraphDatabase } from '@semiont/graph';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -101,9 +104,16 @@ describe('Entity Types Projection Reader', () => {
     it('should return all DEFAULT_ENTITY_TYPES after bootstrap', async () => {
       resetBootstrap();
 
-      // Bootstrap creates the projection
-      const eventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
-      await bootstrapEntityTypes(eventStore, config);
+      // Bootstrap creates the projection (requires EventBus + Stower)
+      const eventBus = new EventBus();
+      const eventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, eventBus, mockLogger);
+      const graphDb = await getGraphDatabase({ services: { graph: { type: 'memory' } } } as EnvironmentConfig);
+      const kb = createKnowledgeBase(eventStore, testDir, testDir, graphDb, mockLogger);
+      const stower = new Stower(kb, config.services.backend!.publicURL, eventBus, mockLogger);
+      await stower.initialize();
+      await bootstrapEntityTypes(eventBus, config);
+      await stower.stop();
+      eventBus.destroy();
 
       // Reader should return all bootstrapped types
       const result = await readEntityTypesProjection(config);
@@ -236,14 +246,21 @@ describe('Entity Types Projection Reader', () => {
     it('should read types after bootstrap process', async () => {
       resetBootstrap();
 
-      const eventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
+      const eventBus = new EventBus();
+      const eventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, eventBus, mockLogger);
+      const graphDb = await getGraphDatabase({ services: { graph: { type: 'memory' } } } as EnvironmentConfig);
+      const kb = createKnowledgeBase(eventStore, testDir, testDir, graphDb, mockLogger);
+      const stower = new Stower(kb, config.services.backend!.publicURL, eventBus, mockLogger);
+      await stower.initialize();
 
       // Initially no projection
       const beforeBootstrap = await readEntityTypesProjection(config);
       expect(beforeBootstrap).toEqual([]);
 
       // Bootstrap creates projection
-      await bootstrapEntityTypes(eventStore, config);
+      await bootstrapEntityTypes(eventBus, config);
+      await stower.stop();
+      eventBus.destroy();
 
       // Now projection should exist and be readable
       const afterBootstrap = await readEntityTypesProjection(config);

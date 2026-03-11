@@ -113,9 +113,7 @@ describe('Scripting Example: Create Resource', () => {
         language: 'en'
       },
       userId('test-script'),
-      makeMeaning.eventStore,
-      makeMeaning.kb.content,
-      config
+      eventBus,
     );
 
     // Verify resource was created
@@ -153,9 +151,7 @@ describe('Scripting Example: Create Resource', () => {
         language: 'en'
       },
       userId('test-script'),
-      makeMeaning.eventStore,
-      makeMeaning.kb.content,
-      config
+      eventBus,
     );
 
     // Subscribe to resource-scoped EventBus for domain events
@@ -176,7 +172,7 @@ describe('Scripting Example: Create Resource', () => {
         currentArchived: false,
         updatedArchived: true,
       },
-      makeMeaning.eventStore
+      eventBus,
     );
 
     // Give events time to propagate
@@ -210,9 +206,7 @@ describe('Scripting Example: Create Resource', () => {
           language: 'en'
         },
         userId('batch-script'),
-        makeMeaning.eventStore,
-        makeMeaning.kb.content,
-        config
+        eventBus,
       );
 
       const id = getResourceId(result.resource);

@@ -124,45 +124,39 @@ describe('Scripting Example: Batch Entity Detection', () => {
   });
 
   it('processes multiple resources in parallel with completion tracking', async () => {
-    // Create multiple resources to process
-    const resources = await Promise.all([
-      ResourceOperations.createResource(
-        {
-          name: 'Document 1',
-          content: Buffer.from('Alice works at Acme Corp.'),
-          format: 'text/plain',
-          language: 'en'
-        },
-        userId('batch-script'),
-        makeMeaning.eventStore,
-        makeMeaning.kb.content,
-        config
-      ),
-      ResourceOperations.createResource(
-        {
-          name: 'Document 2',
-          content: Buffer.from('Bob works at Google Inc.'),
-          format: 'text/plain',
-          language: 'en'
-        },
-        userId('batch-script'),
-        makeMeaning.eventStore,
-        makeMeaning.kb.content,
-        config
-      ),
-      ResourceOperations.createResource(
-        {
-          name: 'Document 3',
-          content: Buffer.from('Carol works at Microsoft.'),
-          format: 'text/plain',
-          language: 'en'
-        },
-        userId('batch-script'),
-        makeMeaning.eventStore,
-        makeMeaning.kb.content,
-        config
-      ),
-    ]);
+    // Create resources sequentially (createResource uses a global yield:created
+    // subject, so parallel calls would race on the same response)
+    const resource1 = await ResourceOperations.createResource(
+      {
+        name: 'Document 1',
+        content: Buffer.from('Alice works at Acme Corp.'),
+        format: 'text/plain',
+        language: 'en'
+      },
+      userId('batch-script'),
+      eventBus,
+    );
+    const resource2 = await ResourceOperations.createResource(
+      {
+        name: 'Document 2',
+        content: Buffer.from('Bob works at Google Inc.'),
+        format: 'text/plain',
+        language: 'en'
+      },
+      userId('batch-script'),
+      eventBus,
+    );
+    const resource3 = await ResourceOperations.createResource(
+      {
+        name: 'Document 3',
+        content: Buffer.from('Carol works at Microsoft.'),
+        format: 'text/plain',
+        language: 'en'
+      },
+      userId('batch-script'),
+      eventBus,
+    );
+    const resources = [resource1, resource2, resource3];
 
     // Track completion status for each resource
     const completions = new Map<string, { success: boolean; message?: string }>();
@@ -207,6 +201,9 @@ describe('Scripting Example: Batch Entity Detection', () => {
           id: `job-${Date.now()}-${i}` as any,
           type: 'reference-annotation',
           userId: userId('batch-script'),
+          userName: 'Test User',
+          userEmail: 'test@test.local',
+          userDomain: 'test.local',
           created: new Date().toISOString(),
           retryCount: 0,
           maxRetries: 1
@@ -272,9 +269,7 @@ describe('Scripting Example: Batch Entity Detection', () => {
           language: 'en'
         },
         userId('batch-script'),
-        makeMeaning.eventStore,
-        makeMeaning.kb.content,
-        config
+        eventBus,
       ),
     ]);
 
@@ -308,6 +303,9 @@ describe('Scripting Example: Batch Entity Detection', () => {
           id: `job-${Date.now()}-${i}` as any,
           type: 'reference-annotation',
           userId: userId('batch-script'),
+          userName: 'Test User',
+          userEmail: 'test@test.local',
+          userDomain: 'test.local',
           created: new Date().toISOString(),
           retryCount: 0,
           maxRetries: 1

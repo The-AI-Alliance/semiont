@@ -92,6 +92,9 @@ export function registerAnnotateCommentsStream(router: ResourcesRouterType, jobQ
           id: jobId(`job-${nanoid()}`),
           type: 'comment-annotation',
           userId: userId(user.id),
+          userName: user.name || user.email,
+          userEmail: user.email,
+          userDomain: user.domain,
           created: new Date().toISOString(),
           retryCount: 0,
           maxRetries: 1

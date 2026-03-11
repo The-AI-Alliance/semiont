@@ -125,9 +125,7 @@ describe('Scripting Example: Query Graph Database', () => {
         language: 'en'
       },
       userId('test-script'),
-      makeMeaning.eventStore,
-      makeMeaning.kb.content,
-      config
+      eventBus,
     );
 
     const rUri = resourceUri(result.resource['@id']);
@@ -157,15 +155,14 @@ describe('Scripting Example: Query Graph Database', () => {
         language: 'en'
       },
       userId('test-script'),
-      makeMeaning.eventStore,
-      makeMeaning.kb.content,
-      config
+      eventBus,
     );
 
     const rUri = resourceUri(resourceResult.resource['@id']);
     const rId = uriToResourceId(rUri);
 
     // Create an annotation
+    const creator = { type: 'Person' as const, id: 'did:web:test.local:users:test-user', name: 'Test User' };
     await AnnotationOperations.createAnnotation(
       {
         motivation: 'commenting',
@@ -180,7 +177,8 @@ describe('Scripting Example: Query Graph Database', () => {
         }
       },
       userId('test-script'),
-      makeMeaning.eventStore,
+      creator,
+      eventBus,
       config.services.backend!.publicURL
     );
 
@@ -208,9 +206,7 @@ describe('Scripting Example: Query Graph Database', () => {
         language: 'en'
       },
       userId('test-script'),
-      makeMeaning.eventStore,
-      makeMeaning.kb.content,
-      config
+      eventBus,
     );
 
     await ResourceOperations.createResource(
@@ -221,9 +217,7 @@ describe('Scripting Example: Query Graph Database', () => {
         language: 'en'
       },
       userId('test-script'),
-      makeMeaning.eventStore,
-      makeMeaning.kb.content,
-      config
+      eventBus,
     );
 
     // EVENTUAL CONSISTENCY: GraphConsumer receives events via global subscription
@@ -257,15 +251,14 @@ describe('Scripting Example: Query Graph Database', () => {
         language: 'en'
       },
       userId('test-script'),
-      makeMeaning.eventStore,
-      makeMeaning.kb.content,
-      config
+      eventBus,
     );
 
     const rUri = resourceUri(resource.resource['@id']);
     const rId = uriToResourceId(rUri);
 
     // Create a few annotations
+    const creator = { type: 'Person' as const, id: 'did:web:test.local:users:test-user', name: 'Test User' };
     for (let i = 0; i < 3; i++) {
       await AnnotationOperations.createAnnotation(
         {
@@ -281,7 +274,8 @@ describe('Scripting Example: Query Graph Database', () => {
           }
         },
         userId('test-script'),
-        makeMeaning.eventStore,
+        creator,
+        eventBus,
         config.services.backend!.publicURL
       );
     }
@@ -315,9 +309,7 @@ describe('Scripting Example: Query Graph Database', () => {
         language: 'en'
       },
       userId('test-script'),
-      makeMeaning.eventStore,
-      makeMeaning.kb.content,
-      config
+      eventBus,
     );
 
     // EVENTUAL CONSISTENCY: GraphConsumer receives events via global subscription

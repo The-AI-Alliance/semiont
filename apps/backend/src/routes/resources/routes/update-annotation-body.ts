@@ -31,7 +31,7 @@ export function registerUpdateAnnotationBody(router: ResourcesRouterType) {
       const { resourceId: resourceIdParam, annotationId: annotationIdParam } = c.req.param();
       const request = c.get('validatedBody') as UpdateAnnotationBodyRequest;
       const user = c.get('user');
-      const { kb, eventStore } = c.get('makeMeaning');
+      const { kb, eventBus } = c.get('makeMeaning');
 
       getRouteLogger().debug('Body update handler called', {
         annotationId: annotationIdParam,
@@ -57,17 +57,17 @@ export function registerUpdateAnnotationBody(router: ResourcesRouterType) {
         throw new HTTPException(404, { message: 'Annotation not found' });
       }
 
-      // Emit annotation.body.updated event
-      await eventStore.appendEvent({
-        type: 'annotation.body.updated',
-        resourceId: resourceId(resourceIdParam),
-        userId: userId(user.id),
-        version: 1,
-        payload: {
+      // Update annotation body via EventBus
+      try {
+        eventBus.get('mark:update-body').next({
           annotationId: annotationId(annotationIdParam),
+          resourceId: resourceId(resourceIdParam),
+          userId: userId(user.id),
           operations: request.operations as BodyOperation[],
-        },
-      });
+        });
+      } catch (error) {
+        throw new HTTPException(500, { message: 'Failed to update annotation body' });
+      }
 
       // Return optimistic response - Apply operations to body array
       const bodyArray = Array.isArray(annotation.body) ? [...annotation.body] : [];

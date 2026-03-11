@@ -9,15 +9,41 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { firstValueFrom } from 'rxjs';
+import { take } from 'rxjs/operators';
 import { AnnotationOperations } from '../annotation-operations';
 import { ResourceOperations } from '../resource-operations';
-import { resourceId, userId, type EnvironmentConfig, type Logger } from '@semiont/core';
-import { createEventStore, FilesystemViewStorage, type EventStore } from '@semiont/event-sourcing';
-import { FilesystemRepresentationStore, type RepresentationStore } from '@semiont/content';
+import { resourceId, userId, EventBus, type EnvironmentConfig, type Logger } from '@semiont/core';
+import type { components } from '@semiont/core';
+import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import type { KnowledgeBase } from '../knowledge-base';
+import { Stower } from '../stower';
+import { getGraphDatabase } from '@semiont/graph';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+
+type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
+
+/**
+ * Create an annotation and await Stower persistence.
+ * Subscribes to mark:created BEFORE emitting, then filters by annotation ID.
+ */
+async function createAnnotationAndAwait(
+  request: CreateAnnotationRequest,
+  uid: ReturnType<typeof userId>,
+  eventBus: EventBus,
+  publicURL: string
+) {
+  // Subscribe first, then create
+  const created$ = firstValueFrom(eventBus.get('mark:created').pipe(take(1)));
+  const creator = { type: 'Person' as const, id: 'did:web:test.local:users:test-user', name: 'Test User' };
+  const result = await AnnotationOperations.createAnnotation(request, uid, creator, eventBus, publicURL);
+  // Wait for the Stower to persist (mark:created fires after appendEvent + view materialization)
+  await created$;
+  return result;
+}
+
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -30,8 +56,8 @@ const mockLogger: Logger = {
 describe('AnnotationOperations', () => {
   let testDir: string;
   let testEventStore: EventStore;
-  let testRepStore: RepresentationStore;
-  let config: EnvironmentConfig;
+  let eventBus: EventBus;
+  let stower: Stower;
   let kb: KnowledgeBase;
   let publicURL: string;
   let testResourceUri: string;
@@ -44,49 +70,17 @@ describe('AnnotationOperations', () => {
 
     publicURL = 'http://localhost:4000';
 
-    // Create test configuration
-    config = {
-      services: {
-        filesystem: {
-          platform: { type: 'posix' },
-          path: testDir
-        },
-        backend: {
-          platform: { type: 'posix' },
-          port: 4000,
-          publicURL,
-          corsOrigin: 'http://localhost:3000'
-        },
-        inference: {
-          platform: { type: 'external' },
-          type: 'anthropic',
-          model: 'claude-sonnet-4-20250514',
-          maxTokens: 8192,
-          endpoint: 'https://api.anthropic.com',
-          apiKey: 'test-api-key'
-        },
-        graph: {
-          platform: { type: 'posix' },
-          type: 'memory'
-        }
-      },
-      site: {
-        siteName: 'Test Site',
-        domain: 'localhost:3000',
-        adminEmail: 'admin@test.local',
-        oauthAllowedDomains: ['test.local']
-      },
-      _metadata: {
-        environment: 'test',
-        projectRoot: testDir
-      },
-    } as EnvironmentConfig;
+    // Initialize EventBus and stores
+    eventBus = new EventBus();
+    testEventStore = createEventStore(testDir, publicURL, undefined, eventBus, mockLogger);
+    const graphDb = await getGraphDatabase({ services: { graph: { type: 'memory' } } } as EnvironmentConfig);
+    // Share the event store's view storage with the KB to avoid two separate FilesystemViewStorage instances
+    const { FilesystemRepresentationStore } = await import('@semiont/content');
+    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
+    kb = { eventStore: testEventStore, views: testEventStore.viewStorage, content: repStore, graph: graphDb };
 
-    // Initialize stores
-    testEventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
-    testRepStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
-    const viewStorage = new FilesystemViewStorage(testDir, testDir);
-    kb = { eventStore: testEventStore, views: viewStorage, content: testRepStore, graph: {} as any };
+    stower = new Stower(kb, publicURL, eventBus, mockLogger);
+    await stower.initialize();
 
     // Create a test resource for annotations
     const content = Buffer.from('This is test content for annotations. It has multiple sentences. We will annotate various parts.', 'utf-8');
@@ -97,9 +91,7 @@ describe('AnnotationOperations', () => {
         format: 'text/plain',
       },
       userId('user-1'),
-      testEventStore,
-      testRepStore,
-      config
+      eventBus,
     );
 
     testResourceUri = response.resource['@id'];
@@ -108,12 +100,14 @@ describe('AnnotationOperations', () => {
   });
 
   afterAll(async () => {
+    await stower.stop();
+    eventBus.destroy();
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
   describe('createAnnotation', () => {
     it('should create annotation with motivation: highlighting', async () => {
-      const result = await AnnotationOperations.createAnnotation(
+      const result = await createAnnotationAndAwait(
         {
           motivation: 'highlighting',
           target: {
@@ -133,7 +127,7 @@ describe('AnnotationOperations', () => {
           },
         },
         userId('user-1'),
-        testEventStore,
+        eventBus,
         publicURL
       );
 
@@ -143,7 +137,7 @@ describe('AnnotationOperations', () => {
     });
 
     it('should create annotation with motivation: commenting', async () => {
-      const result = await AnnotationOperations.createAnnotation(
+      const result = await createAnnotationAndAwait(
         {
           motivation: 'commenting',
           target: {
@@ -163,7 +157,7 @@ describe('AnnotationOperations', () => {
           },
         },
         userId('user-1'),
-        testEventStore,
+        eventBus,
         publicURL
       );
 
@@ -175,7 +169,7 @@ describe('AnnotationOperations', () => {
     });
 
     it('should create annotation with motivation: assessing', async () => {
-      const result = await AnnotationOperations.createAnnotation(
+      const result = await createAnnotationAndAwait(
         {
           motivation: 'assessing',
           target: {
@@ -195,7 +189,7 @@ describe('AnnotationOperations', () => {
           },
         },
         userId('user-1'),
-        testEventStore,
+        eventBus,
         publicURL
       );
 
@@ -203,7 +197,7 @@ describe('AnnotationOperations', () => {
     });
 
     it('should create annotation with motivation: tagging', async () => {
-      const result = await AnnotationOperations.createAnnotation(
+      const result = await createAnnotationAndAwait(
         {
           motivation: 'tagging',
           target: {
@@ -230,7 +224,7 @@ describe('AnnotationOperations', () => {
           ],
         },
         userId('user-1'),
-        testEventStore,
+        eventBus,
         publicURL
       );
 
@@ -240,7 +234,7 @@ describe('AnnotationOperations', () => {
     });
 
     it('should create annotation with motivation: linking', async () => {
-      const result = await AnnotationOperations.createAnnotation(
+      const result = await createAnnotationAndAwait(
         {
           motivation: 'linking',
           target: {
@@ -259,7 +253,7 @@ describe('AnnotationOperations', () => {
           },
         },
         userId('user-1'),
-        testEventStore,
+        eventBus,
         publicURL
       );
 
@@ -267,7 +261,7 @@ describe('AnnotationOperations', () => {
     });
 
     it('should validate W3C annotation structure', async () => {
-      const result = await AnnotationOperations.createAnnotation(
+      const result = await createAnnotationAndAwait(
         {
           motivation: 'commenting',
           target: {
@@ -287,7 +281,7 @@ describe('AnnotationOperations', () => {
           },
         },
         userId('user-1'),
-        testEventStore,
+        eventBus,
         publicURL
       );
 
@@ -303,7 +297,7 @@ describe('AnnotationOperations', () => {
     });
 
     it('should emit annotation.added event', async () => {
-      const result = await AnnotationOperations.createAnnotation(
+      const result = await createAnnotationAndAwait(
         {
           motivation: 'highlighting',
           target: {
@@ -323,7 +317,7 @@ describe('AnnotationOperations', () => {
           },
         },
         userId('user-1'),
-        testEventStore,
+        eventBus,
         publicURL
       );
 
@@ -345,7 +339,7 @@ describe('AnnotationOperations', () => {
     });
 
     it('should generate annotation ID', async () => {
-      const result = await AnnotationOperations.createAnnotation(
+      const result = await createAnnotationAndAwait(
         {
           motivation: 'commenting',
           target: {
@@ -365,7 +359,7 @@ describe('AnnotationOperations', () => {
           },
         },
         userId('user-1'),
-        testEventStore,
+        eventBus,
         publicURL
       );
 
@@ -374,7 +368,7 @@ describe('AnnotationOperations', () => {
     });
 
     it('should handle text position selector', async () => {
-      const result = await AnnotationOperations.createAnnotation(
+      const result = await createAnnotationAndAwait(
         {
           motivation: 'highlighting',
           target: {
@@ -394,7 +388,7 @@ describe('AnnotationOperations', () => {
           },
         },
         userId('user-1'),
-        testEventStore,
+        eventBus,
         publicURL
       );
 
@@ -410,7 +404,7 @@ describe('AnnotationOperations', () => {
     });
 
     it('should handle text quote selector', async () => {
-      const result = await AnnotationOperations.createAnnotation(
+      const result = await createAnnotationAndAwait(
         {
           motivation: 'highlighting',
           target: {
@@ -436,7 +430,7 @@ describe('AnnotationOperations', () => {
           },
         },
         userId('user-1'),
-        testEventStore,
+        eventBus,
         publicURL
       );
 
@@ -450,6 +444,7 @@ describe('AnnotationOperations', () => {
     });
 
     it('should reject invalid motivation', async () => {
+      const creator = { type: 'Person' as const, id: 'did:web:test.local:users:test-user', name: 'Test User' };
       await expect(
         AnnotationOperations.createAnnotation(
           {
@@ -471,13 +466,15 @@ describe('AnnotationOperations', () => {
             },
           },
           userId('user-1'),
-          testEventStore,
+          creator,
+          eventBus,
           publicURL
         )
       ).rejects.toThrow('motivation is required');
     });
 
     it('should reject missing text position selector', async () => {
+      const creator = { type: 'Person' as const, id: 'did:web:test.local:users:test-user', name: 'Test User' };
       await expect(
         AnnotationOperations.createAnnotation(
           {
@@ -498,7 +495,8 @@ describe('AnnotationOperations', () => {
             },
           },
           userId('user-1'),
-          testEventStore,
+          creator,
+          eventBus,
           publicURL
         )
       ).rejects.toThrow('TextPositionSelector required');
@@ -507,8 +505,8 @@ describe('AnnotationOperations', () => {
 
   describe('updateAnnotationBody', () => {
     it('should update annotation body with add operation', async () => {
-      // First create an annotation
-      const createResult = await AnnotationOperations.createAnnotation(
+      // First create an annotation and await Stower persistence
+      const createResult = await createAnnotationAndAwait(
         {
           motivation: 'tagging',
           target: {
@@ -530,7 +528,7 @@ describe('AnnotationOperations', () => {
           ],
         },
         userId('user-1'),
-        testEventStore,
+        eventBus,
         publicURL
       );
 
@@ -553,7 +551,7 @@ describe('AnnotationOperations', () => {
           ],
         },
         userId('user-1'),
-        testEventStore,
+        eventBus,
         kb
       );
 
@@ -562,8 +560,8 @@ describe('AnnotationOperations', () => {
     });
 
     it('should update annotation body with remove operation', async () => {
-      // Create annotation with multiple tags
-      const createResult = await AnnotationOperations.createAnnotation(
+      // Create annotation with multiple tags and await Stower persistence
+      const createResult = await createAnnotationAndAwait(
         {
           motivation: 'tagging',
           target: {
@@ -590,7 +588,7 @@ describe('AnnotationOperations', () => {
           ],
         },
         userId('user-1'),
-        testEventStore,
+        eventBus,
         publicURL
       );
 
@@ -613,7 +611,7 @@ describe('AnnotationOperations', () => {
           ],
         },
         userId('user-1'),
-        testEventStore,
+        eventBus,
         kb
       );
 
@@ -622,8 +620,8 @@ describe('AnnotationOperations', () => {
     });
 
     it('should update annotation body with replace operation', async () => {
-      // Create annotation
-      const createResult = await AnnotationOperations.createAnnotation(
+      // Create annotation and await Stower persistence
+      const createResult = await createAnnotationAndAwait(
         {
           motivation: 'tagging',
           target: {
@@ -645,7 +643,7 @@ describe('AnnotationOperations', () => {
           ],
         },
         userId('user-1'),
-        testEventStore,
+        eventBus,
         publicURL
       );
 
@@ -673,7 +671,7 @@ describe('AnnotationOperations', () => {
           ],
         },
         userId('user-1'),
-        testEventStore,
+        eventBus,
         kb
       );
 
@@ -681,8 +679,8 @@ describe('AnnotationOperations', () => {
     });
 
     it('should emit annotation.body.updated event', async () => {
-      // Create annotation
-      const createResult = await AnnotationOperations.createAnnotation(
+      // Create annotation and await Stower persistence
+      const createResult = await createAnnotationAndAwait(
         {
           motivation: 'tagging',
           target: {
@@ -704,13 +702,14 @@ describe('AnnotationOperations', () => {
           ],
         },
         userId('user-1'),
-        testEventStore,
+        eventBus,
         publicURL
       );
 
       const annotationIdStr = createResult.annotation.id.split('/').pop()!;
 
-      // Update
+      // Update and await Stower persistence
+      const bodyUpdated$ = firstValueFrom(eventBus.get('mark:body-updated').pipe(take(1)));
       await AnnotationOperations.updateAnnotationBody(
         annotationIdStr,
         {
@@ -727,9 +726,10 @@ describe('AnnotationOperations', () => {
           ],
         },
         userId('user-1'),
-        testEventStore,
+        eventBus,
         kb
       );
+      await bodyUpdated$;
 
       // Check event
       const events = await testEventStore.log.getEvents(resourceId(testResourceId));
@@ -755,7 +755,7 @@ describe('AnnotationOperations', () => {
             ],
           },
           userId('user-1'),
-          testEventStore,
+          eventBus,
           kb
         )
       ).rejects.toThrow('Annotation not found');
@@ -764,8 +764,8 @@ describe('AnnotationOperations', () => {
 
   describe('deleteAnnotation', () => {
     it('should emit annotation.removed event', async () => {
-      // Create annotation to delete
-      const createResult = await AnnotationOperations.createAnnotation(
+      // Create annotation to delete and await Stower persistence
+      const createResult = await createAnnotationAndAwait(
         {
           motivation: 'commenting',
           target: {
@@ -785,20 +785,22 @@ describe('AnnotationOperations', () => {
           },
         },
         userId('user-1'),
-        testEventStore,
+        eventBus,
         publicURL
       );
 
       const annotationIdStr = createResult.annotation.id;
 
-      // Delete
+      // Delete and await Stower persistence
+      const deleted$ = firstValueFrom(eventBus.get('mark:deleted').pipe(take(1)));
       await AnnotationOperations.deleteAnnotation(
         annotationIdStr,
         testResourceUri,
         userId('user-1'),
-        testEventStore,
+        eventBus,
         kb
       );
+      await deleted$;
 
       // Check event
       const events = await testEventStore.log.getEvents(resourceId(testResourceId));
@@ -812,10 +814,10 @@ describe('AnnotationOperations', () => {
           'http://localhost:4000/annotations/non-existent',
           testResourceUri,
           userId('user-1'),
-          testEventStore,
+          eventBus,
           kb
         )
-      ).rejects.toThrow('Annotation not found');
+      ).rejects.toThrow('Annotation not found in resource');
     });
   });
 });

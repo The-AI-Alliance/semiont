@@ -17,7 +17,7 @@
 import { HTTPException } from 'hono/http-exception';
 import { createAnnotationRouter, type AnnotationsRouterType } from './shared';
 import type { components } from '@semiont/core';
-import { resourceId, userId } from '@semiont/core';
+import { resourceId, userId, userToAgent } from '@semiont/core';
 import { validateRequestBody } from '../../middleware/validate-openapi';
 import { AnnotationOperations, AnnotationContext } from '@semiont/make-meaning';
 import { getLogger } from '../../logger';
@@ -42,7 +42,7 @@ crudRouter.post('/api/annotations',
   async (c) => {
     const request = c.get('validatedBody') as CreateAnnotationRequest;
     const user = c.get('user');
-    const { eventStore } = c.get('makeMeaning');
+    const { eventBus } = c.get('makeMeaning');
     const config = c.get('config');
 
     // Delegate to make-meaning for annotation creation
@@ -50,7 +50,8 @@ crudRouter.post('/api/annotations',
       const response = await AnnotationOperations.createAnnotation(
         request,
         userId(user.id),
-        eventStore,
+        userToAgent(user),
+        eventBus,
         config.services.backend!.publicURL
       );
       return c.json(response, 201);
@@ -77,7 +78,7 @@ crudRouter.put('/api/annotations/:id/body',
     const { id } = c.req.param();
     const request = c.get('validatedBody') as UpdateAnnotationBodyRequest;
     const user = c.get('user');
-    const { kb, eventStore } = c.get('makeMeaning');
+    const { kb, eventBus } = c.get('makeMeaning');
 
     getRouteLogger().debug('Body update handler called', {
       annotationId: id,
@@ -90,7 +91,7 @@ crudRouter.put('/api/annotations/:id/body',
         id,
         request,
         userId(user.id),
-        eventStore,
+        eventBus,
         kb
       );
       getRouteLogger().debug('Successfully updated annotation', { annotationId: id });
@@ -146,7 +147,7 @@ crudRouter.delete('/api/annotations/:id',
     const { id } = c.req.param();
     const request = c.get('validatedBody') as DeleteAnnotationRequest;
     const user = c.get('user');
-    const { kb, eventStore } = c.get('makeMeaning');
+    const { kb, eventBus } = c.get('makeMeaning');
 
     // Delegate to make-meaning for annotation deletion
     try {
@@ -154,7 +155,7 @@ crudRouter.delete('/api/annotations/:id',
         id,
         request.resourceId,
         userId(user.id),
-        eventStore,
+        eventBus,
         kb
       );
       return c.body(null, 204);
