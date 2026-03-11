@@ -32,6 +32,7 @@
 import { z } from 'zod';
 import * as crypto from 'crypto';
 import * as argon2 from 'argon2';
+import * as path from 'path';
 import { createRequire } from 'module';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
@@ -42,22 +43,23 @@ import { loadEnvironmentConfig, findProjectRoot } from '../config-loader.js';
 /**
  * Load PrismaClient from @semiont/backend's generated client.
  * When installed globally, the CLI's own @prisma/client has no generated output.
- * The backend package runs `prisma generate` on postinstall, so we load from there.
+ * We resolve from the project's node_modules (same pattern as backend-paths.ts).
  */
-function loadPrismaClient(): new (opts?: any) => import('@prisma/client').PrismaClient {
-  // Try loading from @semiont/backend's node_modules first (npm package install)
+function loadPrismaClient(projectRoot: string): new (opts?: any) => import('@prisma/client').PrismaClient {
+  // Resolve from project's node_modules, not the CLI's install location
+  const req = createRequire(path.join(projectRoot, 'node_modules', '.package.json'));
+
+  // Try loading from @semiont/backend's generated client first
   try {
-    const req = createRequire(import.meta.url);
     const backendPkgPath = req.resolve('@semiont/backend/package.json');
     const backendReq = createRequire(backendPkgPath);
     const mod = backendReq('@prisma/client');
     return mod.PrismaClient;
   } catch {
-    // Fall back to direct import (monorepo workspace)
+    // Fall back to direct @prisma/client in project (monorepo workspace)
   }
 
   try {
-    const req = createRequire(import.meta.url);
     const mod = req('@prisma/client');
     return mod.PrismaClient;
   } catch {
@@ -147,7 +149,7 @@ export async function useradd(options: UseraddOptions): Promise<CommandResults> 
 
   const databaseUrl = `postgresql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}`;
 
-  const PrismaClient = loadPrismaClient();
+  const PrismaClient = loadPrismaClient(projectRoot);
   const prisma = new PrismaClient({
     datasources: { db: { url: databaseUrl } },
   });
