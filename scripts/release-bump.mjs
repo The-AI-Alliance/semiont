@@ -14,7 +14,7 @@
  */
 
 import { execFileSync } from 'child_process';
-import { readFileSync, readdirSync } from 'fs';
+import { readFileSync, readdirSync, existsSync } from 'fs';
 import { resolve, join } from 'path';
 import * as readline from 'readline';
 
@@ -167,10 +167,10 @@ Version bump type: ${bumpType}
     'package.json',
     'version.json',
     ...readdirSync('packages', { withFileTypes: true })
-      .filter(d => d.isDirectory())
+      .filter(d => d.isDirectory() && existsSync(join('packages', d.name, 'package.json')))
       .map(d => join('packages', d.name, 'package.json')),
     ...readdirSync('apps', { withFileTypes: true })
-      .filter(d => d.isDirectory())
+      .filter(d => d.isDirectory() && existsSync(join('apps', d.name, 'package.json')))
       .map(d => join('apps', d.name, 'package.json')),
   ];
 
