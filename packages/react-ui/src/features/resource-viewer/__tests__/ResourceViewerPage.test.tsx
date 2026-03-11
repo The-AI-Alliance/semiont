@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import React from 'react';
 import { ResourceViewerPage } from '../components/ResourceViewerPage';
 import type { ResourceViewerPageProps } from '../components/ResourceViewerPage';
@@ -116,6 +116,13 @@ vi.mock('../../../contexts/ResourceAnnotationsContext', () => ({
     triggerSparkleAnimation: vi.fn(),
   }),
   ResourceAnnotationsProvider: ({ children }: any) => children,
+}));
+
+// Mock useEventSubscription at the direct path used by ResourceViewerPage
+// (the barrel export mock doesn't intercept direct context imports)
+const mockUseEventSubscriptions = vi.fn();
+vi.mock('../../../contexts/useEventSubscription', () => ({
+  useEventSubscriptions: (...args: unknown[]) => mockUseEventSubscriptions(...args),
 }));
 
 vi.mock('@/components/toolbar/ToolbarPanels', () => ({
@@ -280,6 +287,38 @@ describe('ResourceViewerPage', () => {
 
       // Archived badge only shows in annotate mode, which defaults to false
       expect(screen.queryByText('📦 Archived')).not.toBeInTheDocument();
+    });
+
+    it('shows archived badge after mark:mode-toggled event fires', () => {
+      localStorage.setItem('annotateMode', 'false');
+      localStorage.setItem('activeToolbarPanel', 'annotations');
+
+      const props = createMockProps({
+        resource: {
+          ...createMockProps().resource,
+          archived: true,
+        },
+      });
+
+      renderWithProviders(<ResourceViewerPage {...props} />);
+
+      // Before toggle: annotateMode is false, so archived badge is hidden
+      expect(screen.queryByText('📦 Archived')).not.toBeInTheDocument();
+
+      // Get the handler map that ResourceViewerPage passed to useEventSubscriptions
+      const handlerMap = mockUseEventSubscriptions.mock.calls[mockUseEventSubscriptions.mock.calls.length - 1]?.[0] as Record<string, () => void>;
+      expect(handlerMap).toBeDefined();
+      expect(handlerMap['mark:mode-toggled']).toBeDefined();
+
+      // Fire the mode toggle — this is what the toolbar emits
+      act(() => {
+        handlerMap['mark:mode-toggled']();
+      });
+
+      // After toggle: annotateMode is true, so archived badge should appear
+      expect(screen.getByText('📦 Archived')).toBeInTheDocument();
+
+      localStorage.clear();
     });
   });
 
