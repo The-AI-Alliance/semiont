@@ -9,7 +9,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execFileSync, spawn } = require('child_process');
 
 // Configuration
 const PACKAGES = [
@@ -74,25 +74,22 @@ function buildCSS(pkg, watch = false) {
   log(`Building CSS for ${pkg.name}...`, 'blue');
 
   try {
-    // Build command with postcss-cli
-    let command = `npx postcss ${pkg.input} -o ${pkg.output}`;
+    const postcssArgs = [pkg.input, '-o', pkg.output];
 
-    // Add watch flag if needed
     if (watch) {
-      command += ` --watch --verbose`;
+      postcssArgs.push('--watch', '--verbose');
     }
 
-    // Add environment variable for production builds
+    // Build environment
+    const env = { ...process.env };
     if (process.env.NODE_ENV === 'production') {
-      command = `NODE_ENV=production ${command}`;
+      env.NODE_ENV = 'production';
     }
 
     // Execute build
     if (watch) {
       log(`Watching ${pkg.watch}...`, 'yellow');
-      // For watch mode, use spawn instead of execSync
-      const spawn = require('child_process').spawn;
-      const child = spawn('sh', ['-c', command], { stdio: 'inherit' });
+      const child = spawn('npx', ['postcss', ...postcssArgs], { stdio: 'inherit', env });
 
       child.on('error', (err) => {
         log(`Error: ${err.message}`, 'red');
@@ -104,7 +101,7 @@ function buildCSS(pkg, watch = false) {
         process.exit(0);
       });
     } else {
-      execSync(command, { stdio: 'inherit' });
+      execFileSync('npx', ['postcss', ...postcssArgs], { stdio: 'inherit', env });
 
       const endTime = Date.now();
       const duration = ((endTime - startTime) / 1000).toFixed(2);

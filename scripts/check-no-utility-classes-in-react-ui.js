@@ -20,7 +20,6 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
 
 // Common utility-class patterns from various frameworks
 // These patterns are shared across Tailwind, UnoCSS, Windi, Tachyons, Bootstrap, and others
@@ -144,7 +143,7 @@ function checkFileForUtilityClasses(filePath) {
 }
 
 /**
- * Find all TSX/JSX files in react-ui/src
+ * Recursively find all TSX/JSX files in a directory
  */
 function findReactUIFiles() {
   const reactUiSrc = path.join(__dirname, '../packages/react-ui/src');
@@ -154,15 +153,27 @@ function findReactUIFiles() {
     process.exit(1);
   }
 
-  try {
-    // Use find to get all tsx/jsx files, excluding tests
-    const cmd = `find "${reactUiSrc}" -type f \\( -name "*.tsx" -o -name "*.jsx" \\) ! -path "*/node_modules/*" ! -path "*/__tests__/*" ! -name "*.test.*" ! -name "*.spec.*"`;
-    const output = execSync(cmd, { encoding: 'utf8' });
-    return output.trim().split('\n').filter(f => f);
-  } catch (error) {
-    console.error('Error finding files:', error.message);
-    process.exit(1);
+  const files = [];
+
+  function walk(dir) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === 'node_modules' || entry.name === '__tests__') continue;
+        walk(fullPath);
+      } else if (entry.isFile()) {
+        if (entry.name.endsWith('.test.tsx') || entry.name.endsWith('.test.jsx') ||
+            entry.name.endsWith('.spec.tsx') || entry.name.endsWith('.spec.jsx')) continue;
+        if (entry.name.endsWith('.tsx') || entry.name.endsWith('.jsx')) {
+          files.push(fullPath);
+        }
+      }
+    }
   }
+
+  walk(reactUiSrc);
+  return files;
 }
 
 /**

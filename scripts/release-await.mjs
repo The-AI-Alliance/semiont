@@ -11,7 +11,7 @@
  *   npm run release:await  # Auto-detect run IDs
  */
 
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
@@ -34,8 +34,9 @@ async function getLatestWorkflowRuns() {
 
   for (const workflow of workflows) {
     try {
-      const runsJson = execSync(
-        `gh run list --workflow=${workflow} --limit=1 --json databaseId,status`,
+      const runsJson = execFileSync(
+        'gh',
+        ['run', 'list', `--workflow=${workflow}`, '--limit=1', '--json', 'databaseId,status'],
         { encoding: 'utf-8', stdio: 'pipe' }
       );
       const runs = JSON.parse(runsJson);
@@ -57,7 +58,7 @@ async function watchWorkflow(runId, workflowName) {
   console.log(`   URL: https://github.com/The-AI-Alliance/semiont/actions/runs/${runId}`);
 
   try {
-    execSync(`gh run watch ${runId} --exit-status`, {
+    execFileSync('gh', ['run', 'watch', String(runId), '--exit-status'], {
       encoding: 'utf-8',
       stdio: 'inherit',
       timeout: 1800000 // 30 minute timeout per workflow

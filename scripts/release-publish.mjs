@@ -13,21 +13,21 @@
  *   npm run release:publish -- --dry-run
  */
 
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import * as readline from 'readline';
 
 const DRY_RUN = process.argv.includes('--dry-run');
 
-function exec(command, description) {
+function exec(cmd, args, description) {
   console.log(`\n→ ${description}`);
   if (DRY_RUN) {
-    console.log(`  [DRY RUN] Would execute: ${command}`);
+    console.log(`  [DRY RUN] Would execute: ${cmd} ${args.join(' ')}`);
     return '';
   }
   try {
-    const output = execSync(command, { encoding: 'utf-8', stdio: 'pipe' });
+    const output = execFileSync(cmd, args, { encoding: 'utf-8', stdio: 'pipe' });
     return output;
   } catch (error) {
     console.error(`✗ Failed: ${error.message}`);
@@ -37,14 +37,14 @@ function exec(command, description) {
   }
 }
 
-function execInteractive(command, description) {
+function execInteractive(cmd, args, description) {
   console.log(`\n→ ${description}`);
   if (DRY_RUN) {
-    console.log(`  [DRY RUN] Would execute: ${command}`);
+    console.log(`  [DRY RUN] Would execute: ${cmd} ${args.join(' ')}`);
     return;
   }
   try {
-    execSync(command, { encoding: 'utf-8', stdio: 'inherit' });
+    execFileSync(cmd, args, { encoding: 'utf-8', stdio: 'inherit' });
   } catch (error) {
     console.error(`✗ Failed: ${error.message}`);
     throw error;
@@ -105,7 +105,7 @@ async function main() {
   console.log('PHASE 1: VERIFY VERSION SYNC');
   console.log('='.repeat(70));
 
-  execInteractive('npm run version:show', 'Checking version sync status');
+  execInteractive('npm', ['run', 'version:show'], 'Checking version sync status');
 
   // Phase 2: Publish stable releases
   console.log('\n' + '='.repeat(70));
@@ -122,9 +122,12 @@ async function main() {
   ];
 
   for (const { file, name, stable } of workflows) {
-    const args = stable ? ' --field stable_release=true' : '';
+    const args = ['workflow', 'run', file];
+    if (stable) {
+      args.push('--field', 'stable_release=true');
+    }
     exec(
-      `gh workflow run ${file}${args}`,
+      'gh', args,
       `Triggering ${stable ? 'stable release' : 'rebuild'} for ${name}`
     );
   }
@@ -142,8 +145,9 @@ async function main() {
     console.log('\n📋 Fetching workflow run IDs...\n');
     for (const { file } of workflows) {
       try {
-        const runsJson = execSync(
-          `gh run list --workflow=${file} --limit=1 --json databaseId,status`,
+        const runsJson = execFileSync(
+          'gh',
+          ['run', 'list', `--workflow=${file}`, '--limit=1', '--json', 'databaseId,status'],
           { encoding: 'utf-8', stdio: 'pipe' }
         );
         const runs = JSON.parse(runsJson);
