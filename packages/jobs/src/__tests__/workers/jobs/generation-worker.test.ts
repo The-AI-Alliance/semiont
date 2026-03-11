@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { GenerationWorker } from '../../jobs/generation-worker';
+import { GenerationWorker } from '../../../workers/generation-worker';
 import { JobQueue, type GenerationJob, type RunningJob, type GenerationParams, type YieldProgress } from '@semiont/jobs';
 import { resourceId, userId, annotationId, type EnvironmentConfig, type JobCompletedEvent, type StoredEvent, EventBus, type Logger } from '@semiont/core';
 import { jobId } from '@semiont/core';
@@ -99,6 +99,22 @@ describe('GenerationWorker - Event Emission', () => {
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
+  // Shared test annotation fixture
+  const testAnnotation = {
+    '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+    type: 'Annotation' as const,
+    id: 'http://localhost:4100/annotations/test-anno-1',
+    motivation: 'linking' as const,
+    target: {
+      source: 'http://localhost:4100/resources/test-resource-1',
+      selector: [
+        { type: 'TextPositionSelector' as const, start: 0, end: 10 },
+        { type: 'TextQuoteSelector' as const, exact: 'test text' }
+      ]
+    },
+    body: [{ type: 'TextualBody' as const, value: 'Person', purpose: 'tagging' as const }]
+  };
+
   // Helper to create a test resource with content
   async function createTestResource(id: string, content: string = 'Test source resource for generation'): Promise<void> {
     const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
@@ -184,6 +200,8 @@ describe('GenerationWorker - Event Emission', () => {
       params: {
         referenceId: annotationId(refId),
         sourceResourceId: resourceId(testResourceId),
+        sourceResourceName: 'Test Resource',
+        annotation: testAnnotation,
         context: {
           sourceContext: {
             before: 'Context before ',
@@ -241,6 +259,8 @@ describe('GenerationWorker - Event Emission', () => {
       params: {
         referenceId: annotationId(refId),
         sourceResourceId: resourceId(testResourceId),
+        sourceResourceName: 'Test Resource',
+        annotation: testAnnotation,
         context: {
           sourceContext: {
             before: 'Context before ',
@@ -290,6 +310,8 @@ describe('GenerationWorker - Event Emission', () => {
       params: {
         referenceId: annotationId(refId),
         sourceResourceId: resourceId(testResourceId),
+        sourceResourceName: 'Test Resource',
+        annotation: testAnnotation,
         context: {
           sourceContext: {
             before: 'Context before ',
@@ -345,6 +367,8 @@ describe('GenerationWorker - Event Emission', () => {
       params: {
         referenceId: annotationId(refId),
         sourceResourceId: resourceId(testResourceId),
+        sourceResourceName: 'Test Resource',
+        annotation: testAnnotation,
         context: {
           sourceContext: {
             before: 'Context before ',

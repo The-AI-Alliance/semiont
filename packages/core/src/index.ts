@@ -159,6 +159,9 @@ export type { AnnotationCategory, CreateAnnotationInternal } from './annotation-
 // Auth types
 export type { GoogleAuthRequest } from './auth-types';
 
+// ID generation
+export { generateUuid } from './id-generation';
+
 // Utility functions
 export * from './type-guards';
 export * from './errors';

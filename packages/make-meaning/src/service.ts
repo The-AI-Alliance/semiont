@@ -14,16 +14,22 @@ import * as path from 'path';
 import { JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore, type EventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore, type RepresentationStore } from '@semiont/content';
-import type { EnvironmentConfig, Logger } from '@semiont/core';
+import { FilesystemViewStorage } from '@semiont/event-sourcing';
+import { getPrimaryRepresentation } from '@semiont/api-client';
+import type { EnvironmentConfig, Logger, ResourceId } from '@semiont/core';
 import { EventBus } from '@semiont/core';
+import { Readable } from 'stream';
 import { getInferenceClient, type InferenceClient } from '@semiont/inference';
 import { getGraphDatabase, type GraphDatabase } from '@semiont/graph';
-import { ReferenceAnnotationWorker } from './jobs/reference-annotation-worker';
-import { GenerationWorker } from './jobs/generation-worker';
-import { HighlightAnnotationWorker } from './jobs/highlight-annotation-worker';
-import { AssessmentAnnotationWorker } from './jobs/assessment-annotation-worker';
-import { CommentAnnotationWorker } from './jobs/comment-annotation-worker';
-import { TagAnnotationWorker } from './jobs/tag-annotation-worker';
+import {
+  ReferenceAnnotationWorker,
+  GenerationWorker,
+  HighlightAnnotationWorker,
+  AssessmentAnnotationWorker,
+  CommentAnnotationWorker,
+  TagAnnotationWorker,
+  type ContentFetcher,
+} from '@semiont/jobs';
 import { GraphDBConsumer } from './graph/consumer';
 import { bootstrapEntityTypes } from './bootstrap/entity-types';
 
@@ -106,14 +112,26 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus: Even
   const graphConsumer = new GraphDBConsumer(config, eventStore, graphDb, graphConsumerLogger);
   await graphConsumer.initialize();
 
-  // 10. Instantiate workers with EventBus and logger
+  // 10. Create ContentFetcher backed by view storage + representation store
+  const viewStorage = new FilesystemViewStorage(basePath, projectRoot);
+  const contentFetcher: ContentFetcher = async (resourceId: ResourceId): Promise<Readable | null> => {
+    const view = await viewStorage.get(resourceId);
+    if (!view) return null;
+    const primaryRep = getPrimaryRepresentation(view.resource);
+    if (!primaryRep?.checksum || !primaryRep?.mediaType) return null;
+    const buffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
+    if (!buffer) return null;
+    return Readable.from([buffer]);
+  };
+
+  // 11. Instantiate workers with EventBus, ContentFetcher, and logger
   const workers = {
-    detection: new ReferenceAnnotationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, detectionLogger),
+    detection: new ReferenceAnnotationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, contentFetcher, detectionLogger),
     generation: new GenerationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, generationLogger),
-    highlight: new HighlightAnnotationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, highlightLogger),
-    assessment: new AssessmentAnnotationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, assessmentLogger),
-    comment: new CommentAnnotationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, commentLogger),
-    tag: new TagAnnotationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, tagLogger),
+    highlight: new HighlightAnnotationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, contentFetcher, highlightLogger),
+    assessment: new AssessmentAnnotationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, contentFetcher, assessmentLogger),
+    comment: new CommentAnnotationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, contentFetcher, commentLogger),
+    tag: new TagAnnotationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, contentFetcher, tagLogger),
   };
 
   // 11. Start all workers (non-blocking)

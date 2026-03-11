@@ -7,11 +7,11 @@
  * This worker is INDEPENDENT of HTTP clients - it just processes jobs and emits events.
  */
 
-import { JobWorker } from '@semiont/jobs';
-import type { AnyJob, JobQueue, RunningJob, GenerationParams, YieldProgress, GenerationResult, GenerationJob } from '@semiont/jobs';
+import { JobWorker } from '../job-worker';
+import type { AnyJob, RunningJob, GenerationParams, YieldProgress, GenerationResult, GenerationJob } from '../types';
+import type { JobQueue } from '../job-queue';
 import { FilesystemRepresentationStore } from '@semiont/content';
-import { ResourceContext } from '..';
-import { generateResourceFromTopic } from '../generation/resource-generation';
+import { generateResourceFromTopic } from './generation/resource-generation';
 import { resourceUri, annotationUri, EventBus, type Logger } from '@semiont/core';
 import { getTargetSelector, getExactText } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/ontology';
@@ -20,8 +20,8 @@ import {
   type BodyOperation,
   resourceId,
   annotationId,
+  generateUuid,
 } from '@semiont/core';
-import { generateUuid } from '../id-generation';
 import { EventStore } from '@semiont/event-sourcing';
 import type { EnvironmentConfig } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
@@ -81,30 +81,8 @@ export class GenerationWorker extends JobWorker {
     this.logger?.debug('Generation progress', { stage: updatedJob.progress.stage, message: updatedJob.progress.message });
     await this.updateJobProgress(updatedJob);
 
-    // Fetch annotation from view storage
-    // TODO: Once AnnotationContext is consolidated, use it here
-    const { FilesystemViewStorage } = await import('@semiont/event-sourcing');
-    const viewStorage = new FilesystemViewStorage(basePath, projectRoot);
-    const view = await viewStorage.get(job.params.sourceResourceId);
-    if (!view) {
-      throw new Error(`Resource ${job.params.sourceResourceId} not found`);
-    }
-    const projection = view.annotations;
-
-    // Construct full annotation URI for comparison
-    const expectedAnnotationUri = `${this.config.services.backend!.publicURL}/annotations/${job.params.referenceId}`;
-    const annotation = projection.annotations.find((a: any) =>
-      a.id === expectedAnnotationUri && a.motivation === 'linking'
-    );
-
-    if (!annotation) {
-      throw new Error(`Annotation ${job.params.referenceId} not found in resource ${job.params.sourceResourceId}`);
-    }
-
-    const sourceResource = await ResourceContext.getResourceMetadata(job.params.sourceResourceId, this.config);
-    if (!sourceResource) {
-      throw new Error(`Source resource ${job.params.sourceResourceId} not found`);
-    }
+    // Annotation is passed in job params (bus-only: no view storage reads)
+    const annotation = job.params.annotation;
 
     // Determine resource name
     const targetSelector = getTargetSelector(annotation.target);
@@ -144,9 +122,9 @@ export class GenerationWorker extends JobWorker {
       this.inferenceClient,
       prompt,
       job.params.language,
-      job.params.context,      // NEW - context from job (passed from modal)
-      job.params.temperature,  // NEW - from job
-      job.params.maxTokens     // NEW - from job
+      job.params.context,
+      job.params.temperature,
+      job.params.maxTokens
     );
 
     this.logger?.info('Content generated', { contentLength: generatedContent.content.length });
@@ -199,7 +177,7 @@ export class GenerationWorker extends JobWorker {
         language: job.params.language,
         isDraft: true,
         generatedFrom: job.params.referenceId,
-        generationPrompt: undefined,  // Could be added if we track the prompt
+        generationPrompt: undefined,
       },
     });
     this.logger?.info('Emitted resource.created event', { resourceId: rId });
@@ -217,7 +195,6 @@ export class GenerationWorker extends JobWorker {
     await this.updateJobProgress(updatedJob);
 
     // Emit annotation.body.updated event to link the annotation to the new resource
-    // Build full resource URI for the annotation body
     const newResourceUri = resourceUri(`${this.config.services.backend!.publicURL}/resources/${rId}`);
 
     const operations: BodyOperation[] = [{
@@ -304,7 +281,6 @@ export class GenerationWorker extends JobWorker {
 
     // If job permanently failed, emit job.failed event
     if (job.status === 'failed' && job.metadata.type === 'generation') {
-      // Type narrowing: job is FailedJob<GenerationParams>
       const genJob = job as GenerationJob;
 
       const errorMessage = 'Resource generation failed. Please try again later.';
@@ -374,7 +350,6 @@ export class GenerationWorker extends JobWorker {
       });
     } else {
       // Intermediate progress - emit job.progress
-      // Note: job.completed is now handled by emitCompletionEvent()
       await this.eventStore.appendEvent({
         type: 'job.progress',
         ...baseEvent,

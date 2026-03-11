@@ -13,8 +13,8 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
-import { ReferenceAnnotationWorker } from '../../jobs/reference-annotation-worker';
-import { JobQueue, type RunningJob, type DetectionParams, type DetectionProgress } from '@semiont/jobs';
+import { ReferenceAnnotationWorker } from '../../../workers/reference-annotation-worker';
+import { JobQueue, type RunningJob, type DetectionParams, type DetectionProgress, type ContentFetcher } from '@semiont/jobs';
 import { resourceId, userId, type EnvironmentConfig, EventBus, type Logger } from '@semiont/core';
 import { jobId, entityType } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
@@ -42,6 +42,11 @@ const mockLogger: Logger = {
   warn: vi.fn(),
   error: vi.fn(),
   child: vi.fn(() => mockLogger)
+};
+
+const mockContentFetcher: ContentFetcher = async () => {
+  const { Readable } = await import('stream');
+  return Readable.from([Buffer.from('test content')]);
 };
 
 describe('ReferenceAnnotationWorker - Full Lifecycle', () => {
@@ -105,7 +110,7 @@ describe('ReferenceAnnotationWorker - Full Lifecycle', () => {
     await jobQueue.initialize();
     eventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
     const eventBus = new EventBus();
-    worker = new ReferenceAnnotationWorker(jobQueue, config, eventStore, mockInferenceClient, eventBus, mockLogger);
+    worker = new ReferenceAnnotationWorker(jobQueue, config, eventStore, mockInferenceClient, eventBus, mockContentFetcher, mockLogger);
 
     // Set default mock response (empty array - no entities found)
     mockInferenceClient.setResponses(['[]']);

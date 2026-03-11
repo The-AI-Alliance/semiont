@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { MockInferenceClient } from '@semiont/inference';
-import { extractEntities } from '../../detection/entity-extractor';
+import { extractEntities } from '../../../workers/detection/entity-extractor';
 
 // Create mock client directly
 const mockInferenceClient = new MockInferenceClient(['[]']);

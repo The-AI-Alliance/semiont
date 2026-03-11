@@ -6,8 +6,8 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { AssessmentAnnotationWorker } from '../../jobs/assessment-annotation-worker';
-import { JobQueue, type AssessmentDetectionJob, type RunningJob, type AssessmentDetectionParams, type AssessmentDetectionProgress } from '@semiont/jobs';
+import { AssessmentAnnotationWorker } from '../../../workers/assessment-annotation-worker';
+import { JobQueue, type AssessmentDetectionJob, type RunningJob, type AssessmentDetectionParams, type AssessmentDetectionProgress, type ContentFetcher } from '@semiont/jobs';
 import { resourceId, userId, type EnvironmentConfig, EventBus, type Logger } from '@semiont/core';
 import { jobId } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
@@ -34,6 +34,11 @@ const mockLogger: Logger = {
   warn: vi.fn(),
   error: vi.fn(),
   child: vi.fn(() => mockLogger)
+};
+
+const mockContentFetcher: ContentFetcher = async () => {
+  const { Readable } = await import('stream');
+  return Readable.from([Buffer.from('test content')]);
 };
 
 describe('AssessmentAnnotationWorker - Event Emission', () => {
@@ -89,7 +94,7 @@ describe('AssessmentAnnotationWorker - Event Emission', () => {
     const jobQueue = new JobQueue({ dataDir: testDir }, mockLogger, new EventBus());
     await jobQueue.initialize();
     testEventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
-    worker = new AssessmentAnnotationWorker(jobQueue, config, testEventStore, mockInferenceClient.client, new EventBus(), mockLogger);
+    worker = new AssessmentAnnotationWorker(jobQueue, config, testEventStore, mockInferenceClient.client, new EventBus(), mockContentFetcher, mockLogger);
 
     // Set default mock response
     mockInferenceClient.client.setResponses(['[]']);

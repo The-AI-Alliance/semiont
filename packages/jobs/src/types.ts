@@ -11,7 +11,17 @@
  * - State machine is explicit and type-safe
  */
 
-import type { JobId, EntityType, ResourceId, UserId, AnnotationId, YieldContext } from '@semiont/core';
+import type { Readable } from 'stream';
+import type { JobId, EntityType, ResourceId, UserId, AnnotationId, YieldContext, components } from '@semiont/core';
+
+type Annotation = components['schemas']['Annotation'];
+
+/**
+ * Content fetcher - turns a ResourceId into a readable stream.
+ * Workers use this to access resource content on demand.
+ * The implementation is provided by the backend at startup.
+ */
+export type ContentFetcher = (resourceId: ResourceId) => Promise<Readable | null>;
 
 
 export type JobType = 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
@@ -48,6 +58,8 @@ export interface DetectionParams {
 export interface GenerationParams {
   referenceId: AnnotationId;
   sourceResourceId: ResourceId;
+  sourceResourceName: string;
+  annotation: Annotation;
   prompt?: string;
   title?: string;
   entityTypes?: EntityType[];

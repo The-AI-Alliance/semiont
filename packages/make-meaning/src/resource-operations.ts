@@ -19,7 +19,7 @@ import {
   type ResourceId,
   type EnvironmentConfig,
 } from '@semiont/core';
-import { generateUuid } from './id-generation';
+import { generateUuid } from '@semiont/core';
 
 type CreateResourceResponse = components['schemas']['CreateResourceResponse'];
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];

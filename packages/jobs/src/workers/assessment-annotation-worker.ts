@@ -1,21 +1,22 @@
 /**
- * Comment Detection Worker
+ * Assessment Detection Worker
  *
- * Processes comment-detection jobs: runs AI inference to identify passages
- * that would benefit from explanatory comments and creates comment annotations.
+ * Processes assessment-detection jobs: runs AI inference to assess/evaluate
+ * passages in the text and creates assessment annotations.
  */
 
-import { JobWorker } from '@semiont/jobs';
-import type { AnyJob, CommentDetectionJob, JobQueue, RunningJob, CommentDetectionParams, CommentDetectionProgress, CommentDetectionResult } from '@semiont/jobs';
-import { ResourceContext, AnnotationDetection } from '..';
+import { JobWorker } from '../job-worker';
+import type { AnyJob, AssessmentDetectionJob, RunningJob, AssessmentDetectionParams, AssessmentDetectionProgress, AssessmentDetectionResult, ContentFetcher } from '../types';
+import type { JobQueue } from '../job-queue';
+import { AnnotationDetection } from './annotation-detection';
 import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
 import { resourceIdToURI, EventBus, type Logger } from '@semiont/core';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
-import type { CommentMatch } from '../detection/motivation-parsers';
+import type { AssessmentMatch } from './detection/motivation-parsers';
 import type { InferenceClient } from '@semiont/inference';
 
-export class CommentAnnotationWorker extends JobWorker {
+export class AssessmentAnnotationWorker extends JobWorker {
   private isFirstProgress = true;
 
   constructor(
@@ -24,21 +25,22 @@ export class CommentAnnotationWorker extends JobWorker {
     private eventStore: EventStore,
     private inferenceClient: InferenceClient,
     private eventBus: EventBus,
+    private contentFetcher: ContentFetcher,
     logger: Logger
   ) {
     super(jobQueue, undefined, undefined, logger);
   }
 
   protected getWorkerName(): string {
-    return 'CommentAnnotationWorker';
+    return 'AssessmentAnnotationWorker';
   }
 
   protected canProcessJob(job: AnyJob): boolean {
-    return job.metadata.type === 'comment-annotation';
+    return job.metadata.type === 'assessment-annotation';
   }
 
-  protected async executeJob(job: AnyJob): Promise<CommentDetectionResult> {
-    if (job.metadata.type !== 'comment-annotation') {
+  protected async executeJob(job: AnyJob): Promise<AssessmentDetectionResult> {
+    if (job.metadata.type !== 'assessment-annotation') {
       throw new Error(`Invalid job type: ${job.metadata.type}`);
     }
 
@@ -49,7 +51,7 @@ export class CommentAnnotationWorker extends JobWorker {
 
     // Reset progress tracking
     this.isFirstProgress = true;
-    return await this.processCommentDetectionJob(job as RunningJob<CommentDetectionParams, CommentDetectionProgress>);
+    return await this.processAssessmentDetectionJob(job as RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>);
   }
 
   /**
@@ -57,8 +59,8 @@ export class CommentAnnotationWorker extends JobWorker {
    * Override base class to emit job.completed event
    */
   protected override async emitCompletionEvent(
-    job: RunningJob<CommentDetectionParams, CommentDetectionProgress>,
-    result: CommentDetectionResult
+    job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>,
+    result: AssessmentDetectionResult
   ): Promise<void> {
     await this.eventStore.appendEvent({
       type: 'job.completed',
@@ -67,12 +69,11 @@ export class CommentAnnotationWorker extends JobWorker {
       version: 1,
       payload: {
         jobId: job.metadata.id,
-        jobType: 'comment-annotation',
+        jobType: 'assessment-annotation',
         result,
       },
     });
 
-    // Emit to EventBus for real-time subscribers
     // Domain event (job.completed) is automatically published to EventBus by EventStore
     // Backend SSE endpoint will subscribe to job.completed and transform to annotate:detect-finished
   }
@@ -84,22 +85,22 @@ export class CommentAnnotationWorker extends JobWorker {
     // Call parent to update filesystem
     await super.updateJobProgress(job);
 
-    if (job.metadata.type !== 'comment-annotation') return;
+    if (job.metadata.type !== 'assessment-annotation') return;
 
     // Type guard: only running jobs have progress
     if (job.status !== 'running') {
       return;
     }
 
-    const cdJob = job as RunningJob<CommentDetectionParams, CommentDetectionProgress>;
+    const assJob = job as RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>;
 
     const baseEvent = {
-      resourceId: cdJob.params.resourceId,
-      userId: cdJob.metadata.userId,
+      resourceId: assJob.params.resourceId,
+      userId: assJob.metadata.userId,
       version: 1,
     };
 
-    const resourceBus = this.eventBus.scope(cdJob.params.resourceId);
+    const resourceBus = this.eventBus.scope(assJob.params.resourceId);
 
     if (this.isFirstProgress) {
       // First progress update - emit job.started
@@ -108,8 +109,8 @@ export class CommentAnnotationWorker extends JobWorker {
         type: 'job.started',
         ...baseEvent,
         payload: {
-          jobId: cdJob.metadata.id,
-          jobType: cdJob.metadata.type,
+          jobId: assJob.metadata.id,
+          jobType: assJob.metadata.type,
         },
       });
     } else {
@@ -119,15 +120,15 @@ export class CommentAnnotationWorker extends JobWorker {
         type: 'job.progress',
         ...baseEvent,
         payload: {
-          jobId: cdJob.metadata.id,
-          jobType: cdJob.metadata.type,
-          progress: cdJob.progress,
+          jobId: assJob.metadata.id,
+          jobType: assJob.metadata.type,
+          progress: assJob.progress,
         },
       });
       resourceBus.get('mark:progress').next({
-        status: cdJob.progress.stage,
-        message: cdJob.progress.message,
-        percentage: cdJob.progress.percentage
+        status: assJob.progress.stage,
+        message: assJob.progress.message,
+        percentage: assJob.progress.percentage
       });
     }
   }
@@ -137,40 +138,33 @@ export class CommentAnnotationWorker extends JobWorker {
     await super.handleJobFailure(job, error);
 
     // If job permanently failed, emit job.failed event
-    if (job.status === 'failed' && job.metadata.type === 'comment-annotation') {
-      const cdJob = job as CommentDetectionJob;
+    if (job.status === 'failed' && job.metadata.type === 'assessment-annotation') {
+      const aJob = job as AssessmentDetectionJob;
 
       // Log the full error details to backend logs (already logged by parent)
       // Send generic error message to frontend
       await this.eventStore.appendEvent({
         type: 'job.failed',
-        resourceId: cdJob.params.resourceId,
-        userId: cdJob.metadata.userId,
+        resourceId: aJob.params.resourceId,
+        userId: aJob.metadata.userId,
         version: 1,
         payload: {
-          jobId: cdJob.metadata.id,
-          jobType: cdJob.metadata.type,
-          error: 'Comment detection failed. Please try again later.',
+          jobId: aJob.metadata.id,
+          jobType: aJob.metadata.type,
+          error: 'Assessment detection failed. Please try again later.',
         },
       });
     }
   }
 
-  private async processCommentDetectionJob(job: RunningJob<CommentDetectionParams, CommentDetectionProgress>): Promise<CommentDetectionResult> {
-    this.logger?.info('Processing comment detection job', {
+  private async processAssessmentDetectionJob(job: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress>): Promise<AssessmentDetectionResult> {
+    this.logger?.info('Processing assessment detection job', {
       resourceId: job.params.resourceId,
       jobId: job.metadata.id
     });
 
-    // Fetch resource content
-    const resource = await ResourceContext.getResourceMetadata(job.params.resourceId, this.config);
-
-    if (!resource) {
-      throw new Error(`Resource ${job.params.resourceId} not found`);
-    }
-
     // Emit job.started and start analyzing
-    let updatedJob: RunningJob<CommentDetectionParams, CommentDetectionProgress> = {
+    let updatedJob: RunningJob<AssessmentDetectionParams, AssessmentDetectionProgress> = {
       ...job,
       progress: {
         stage: 'analyzing',
@@ -180,28 +174,30 @@ export class CommentAnnotationWorker extends JobWorker {
     };
     await this.updateJobProgress(updatedJob);
 
+    // Fetch content via ContentFetcher
+    const content = await AnnotationDetection.fetchContent(this.contentFetcher, job.params.resourceId);
+
     // Update progress
     updatedJob = {
       ...updatedJob,
       progress: {
         stage: 'analyzing',
         percentage: 30,
-        message: 'Analyzing text and generating comments...'
+        message: 'Analyzing text...'
       }
     };
     await this.updateJobProgress(updatedJob);
 
-    // Use AI to detect passages needing comments
-    const comments = await AnnotationDetection.detectComments(
-      job.params.resourceId,
-      this.config,
+    // Use AI to detect assessments
+    const assessments = await AnnotationDetection.detectAssessments(
+      content,
       this.inferenceClient,
       job.params.instructions,
       job.params.tone,
       job.params.density
     );
 
-    this.logger?.info('Found comments to create', { count: comments.length });
+    this.logger?.info('Found assessments to create', { count: assessments.length });
 
     // Update progress
     updatedJob = {
@@ -209,19 +205,19 @@ export class CommentAnnotationWorker extends JobWorker {
       progress: {
         stage: 'creating',
         percentage: 60,
-        message: `Creating ${comments.length} annotations...`
+        message: `Creating ${assessments.length} annotations...`
       }
     };
     await this.updateJobProgress(updatedJob);
 
-    // Create annotations for each comment
+    // Create annotations for each assessment
     let created = 0;
-    for (const comment of comments) {
+    for (const assessment of assessments) {
       try {
-        await this.createCommentAnnotation(job.params.resourceId, job.metadata.userId, comment);
+        await this.createAssessmentAnnotation(job.params.resourceId, job.metadata.userId, assessment);
         created++;
       } catch (error) {
-        this.logger?.error('Failed to create comment', { error });
+        this.logger?.error('Failed to create assessment', { error });
       }
     }
 
@@ -230,82 +226,70 @@ export class CommentAnnotationWorker extends JobWorker {
       progress: {
         stage: 'creating',
         percentage: 100,
-        message: `Complete! Created ${created} comments`
+        message: `Complete! Created ${created} assessments`
       }
     };
 
     await this.updateJobProgress(updatedJob);
-    this.logger?.info('Comment detection complete', { created, total: comments.length });
+    this.logger?.info('Assessment detection complete', { created, total: assessments.length });
 
     // Return result - base class will use this for CompleteJob and emitCompletionEvent
     return {
-      commentsFound: comments.length,
-      commentsCreated: created
+      assessmentsFound: assessments.length,
+      assessmentsCreated: created
     };
   }
 
-  private async createCommentAnnotation(
+  private async createAssessmentAnnotation(
     resourceId: ResourceId,
-    userId_: string,
-    comment: CommentMatch
+    creatorUserId: string,
+    assessment: AssessmentMatch
   ): Promise<void> {
     const backendUrl = this.config.services.backend?.publicURL;
+    if (!backendUrl) throw new Error('Backend publicURL not configured');
 
-    if (!backendUrl) {
-      throw new Error('Backend publicURL not configured');
-    }
-
-    const resourceUri = resourceIdToURI(resourceId, backendUrl);
     const annotationId = generateAnnotationId(backendUrl);
+    const resourceUri = resourceIdToURI(resourceId, backendUrl);
 
-    // Create W3C-compliant annotation with motivation: "commenting"
+    // Create W3C annotation with motivation: assessing
+    // Use both TextPositionSelector and TextQuoteSelector (with prefix/suffix for fuzzy anchoring)
     const annotation = {
       '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-      type: 'Annotation' as const,
-      id: annotationId,
-      motivation: 'commenting' as const,
-      target: {
+      'type': 'Annotation' as const,
+      'id': annotationId,
+      'motivation': 'assessing' as const,
+      'creator': userId(creatorUserId),
+      'created': new Date().toISOString(),
+      'target': {
         type: 'SpecificResource' as const,
         source: resourceUri,
         selector: [
           {
             type: 'TextPositionSelector' as const,
-            start: comment.start,
-            end: comment.end
+            start: assessment.start,
+            end: assessment.end,
           },
           {
             type: 'TextQuoteSelector' as const,
-            exact: comment.exact,
-            prefix: comment.prefix || '',
-            suffix: comment.suffix || ''
-          }
+            exact: assessment.exact,
+            ...(assessment.prefix && { prefix: assessment.prefix }),
+            ...(assessment.suffix && { suffix: assessment.suffix }),
+          },
         ]
       },
-      body: [
-        {
-          type: 'TextualBody' as const,
-          value: comment.comment,
-          purpose: 'commenting' as const,
-          format: 'text/plain',
-          language: 'en'
-        }
-      ]
+      'body': {
+        type: 'TextualBody' as const,
+        value: assessment.assessment,
+        format: 'text/plain'
+      }
     };
 
-    // Append annotation.added event to Event Store
     await this.eventStore.appendEvent({
       type: 'annotation.added',
       resourceId,
-      userId: userId(userId_),
+      userId: userId(creatorUserId),
       version: 1,
-      payload: {
-        annotation
-      }
-    });
-
-    this.logger?.debug('Created comment annotation', {
-      annotationId,
-      exactPreview: comment.exact.substring(0, 50)
+      payload: { annotation }
     });
   }
 }

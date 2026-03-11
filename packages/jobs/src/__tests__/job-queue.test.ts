@@ -123,6 +123,21 @@ function createPendingGenerationJob(id: string): PendingJob<GenerationParams> {
     params: {
       referenceId: annotationId('ann-1'),
       sourceResourceId: resourceId('res-1'),
+      sourceResourceName: 'Test Resource',
+      annotation: {
+        '@context': 'http://www.w3.org/ns/anno.jsonld',
+        type: 'Annotation',
+        id: 'http://localhost:4100/annotations/test-anno-1',
+        motivation: 'linking',
+        target: {
+          source: 'http://localhost:4100/resources/test-resource-1',
+          selector: [
+            { type: 'TextPositionSelector', start: 0, end: 10 },
+            { type: 'TextQuoteSelector', exact: 'test text' }
+          ]
+        },
+        body: [{ type: 'TextualBody', value: 'Person', purpose: 'tagging' }]
+      },
       prompt: 'Generate a summary',
     },
   };

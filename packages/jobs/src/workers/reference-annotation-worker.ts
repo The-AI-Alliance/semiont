@@ -7,18 +7,16 @@
  * This worker is INDEPENDENT of HTTP clients - it just processes jobs and emits events.
  */
 
-import { JobWorker } from '@semiont/jobs';
-import type { AnyJob, DetectionJob, JobQueue, RunningJob, DetectionParams, DetectionProgress, DetectionResult } from '@semiont/jobs';
-import { ResourceContext } from '..';
+import { JobWorker } from '../job-worker';
+import type { AnyJob, DetectionJob, RunningJob, DetectionParams, DetectionProgress, DetectionResult, ContentFetcher } from '../types';
+import type { JobQueue } from '../job-queue';
+import { AnnotationDetection } from './annotation-detection';
 import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
 import { resourceIdToURI, EventBus } from '@semiont/core';
-import type { EnvironmentConfig, Logger, components } from '@semiont/core';
-import { getPrimaryRepresentation, decodeRepresentation, validateAndCorrectOffsets } from '@semiont/api-client';
-import { extractEntities } from '../detection/entity-extractor';
-import { FilesystemRepresentationStore } from '@semiont/content';
+import type { EnvironmentConfig, Logger } from '@semiont/core';
+import { validateAndCorrectOffsets } from '@semiont/api-client';
+import { extractEntities } from './detection/entity-extractor';
 import type { InferenceClient } from '@semiont/inference';
-
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 export interface DetectedAnnotation {
   annotation: {
@@ -40,6 +38,7 @@ export class ReferenceAnnotationWorker extends JobWorker {
     private eventStore: EventStore,
     private inferenceClient: InferenceClient,
     private eventBus: EventBus,
+    private contentFetcher: ContentFetcher,
     logger: Logger
   ) {
     super(jobQueue, undefined, undefined, logger);
@@ -67,72 +66,52 @@ export class ReferenceAnnotationWorker extends JobWorker {
   }
 
   /**
-   * Detect entity references in resource using AI
-   * Self-contained implementation for reference detection
+   * Detect entity references in content using AI
    *
    * Public for testing charset handling - see entity-detection-charset.test.ts
    */
   public async detectReferences(
-    resource: ResourceDescriptor,
+    content: string,
     entityTypes: string[],
     includeDescriptiveReferences: boolean = false
   ): Promise<DetectedAnnotation[]> {
     this.logger?.debug('Detecting entities', {
-      resourceId: resource.id,
       entityTypes,
       includeDescriptiveReferences
     });
 
     const detectedAnnotations: DetectedAnnotation[] = [];
 
-    // Get primary representation
-    const primaryRep = getPrimaryRepresentation(resource);
-    if (!primaryRep) return detectedAnnotations;
+    // Use AI to extract entities (with optional anaphoric/cataphoric references)
+    const extractedEntities = await extractEntities(content, entityTypes, this.inferenceClient, includeDescriptiveReferences, this.logger);
 
-    // Only process text content (check base media type, ignoring charset parameters)
-    const mediaType = primaryRep.mediaType;
-    const baseMediaType = mediaType?.split(';')[0]?.trim() || '';
-    if (baseMediaType === 'text/plain' || baseMediaType === 'text/markdown') {
-      // Load content from representation store using content-addressed lookup
-      if (!primaryRep.checksum || !primaryRep.mediaType) return detectedAnnotations;
+    // Validate and correct AI's offsets, then extract proper context
+    // AI sometimes returns offsets that don't match the actual text position
+    for (const entity of extractedEntities) {
+      try {
+        const validated = validateAndCorrectOffsets(
+          content,
+          entity.startOffset,
+          entity.endOffset,
+          entity.exact
+        );
 
-      const basePath = this.config.services.filesystem!.path;
-      const projectRoot = this.config._metadata?.projectRoot;
-      const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
-      const contentBuffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
-      const content = decodeRepresentation(contentBuffer, primaryRep.mediaType);
-
-      // Use AI to extract entities (with optional anaphoric/cataphoric references)
-      const extractedEntities = await extractEntities(content, entityTypes, this.inferenceClient, includeDescriptiveReferences, this.logger);
-
-      // Validate and correct AI's offsets, then extract proper context
-      // AI sometimes returns offsets that don't match the actual text position
-      for (const entity of extractedEntities) {
-        try {
-          const validated = validateAndCorrectOffsets(
-            content,
-            entity.startOffset,
-            entity.endOffset,
-            entity.exact
-          );
-
-          const annotation: DetectedAnnotation = {
-            annotation: {
-              selector: {
-                start: validated.start,
-                end: validated.end,
-                exact: validated.exact,
-                prefix: validated.prefix,
-                suffix: validated.suffix,
-              },
-              entityTypes: [entity.entityType],
+        const annotation: DetectedAnnotation = {
+          annotation: {
+            selector: {
+              start: validated.start,
+              end: validated.end,
+              exact: validated.exact,
+              prefix: validated.prefix,
+              suffix: validated.suffix,
             },
-          };
-          detectedAnnotations.push(annotation);
-        } catch (error) {
-          this.logger?.warn('Skipping invalid entity', { exact: entity.exact, error });
-          // Skip this entity - AI hallucinated text that doesn't exist
-        }
+            entityTypes: [entity.entityType],
+          },
+        };
+        detectedAnnotations.push(annotation);
+      } catch (error) {
+        this.logger?.warn('Skipping invalid entity', { exact: entity.exact, error });
+        // Skip this entity - AI hallucinated text that doesn't exist
       }
     }
 
@@ -143,12 +122,8 @@ export class ReferenceAnnotationWorker extends JobWorker {
     this.logger?.info('Processing detection job', { resourceId: job.params.resourceId, jobId: job.metadata.id });
     this.logger?.debug('Entity types to detect', { entityTypes: job.params.entityTypes });
 
-    // Fetch resource content
-    const resource = await ResourceContext.getResourceMetadata(job.params.resourceId, this.config);
-
-    if (!resource) {
-      throw new Error(`Resource ${job.params.resourceId} not found`);
-    }
+    // Fetch content via ContentFetcher
+    const content = await AnnotationDetection.fetchContent(this.contentFetcher, job.params.resourceId);
 
     let totalFound = 0;
     let totalEmitted = 0;
@@ -190,15 +165,13 @@ export class ReferenceAnnotationWorker extends JobWorker {
       };
       await this.updateJobProgress(updatedJob);
 
-      // Detect entities using AI (loads content from filesystem internally)
-      // This is where the latency is - user now has feedback that work started
-      const detectedAnnotations = await this.detectReferences(resource, [entityType], job.params.includeDescriptiveReferences);
+      // Detect entities using AI
+      const detectedAnnotations = await this.detectReferences(content, [entityType], job.params.includeDescriptiveReferences);
 
       totalFound += detectedAnnotations.length;
       this.logger?.info('Found entities', { entityType, count: detectedAnnotations.length });
 
       // Emit events for each detected entity
-      // This happens INDEPENDENT of any HTTP client!
       for (let idx = 0; idx < detectedAnnotations.length; idx++) {
         const detected = detectedAnnotations[idx];
 
@@ -397,10 +370,6 @@ export class ReferenceAnnotationWorker extends JobWorker {
     // Determine update type based on progress state
     const isFirstUpdate = detJob.progress.processedEntityTypes === 0 && !detJob.progress.currentEntityType;
 
-    // "Before processing" updates are emitted when we're about to START an entity type
-    // They have processedEntityTypes < totalEntityTypes (not done yet) and currentEntityType set
-    // The key distinction: if the currentEntityType matches the NEXT entity to process (not yet in processed count),
-    // then this is a "before" update that should only emit ephemeral progress, not a domain event
     const currentIndex = detJob.progress.currentEntityType
       ? detJob.params.entityTypes.findIndex(et => et === detJob.progress.currentEntityType)
       : -1;
@@ -436,9 +405,7 @@ export class ReferenceAnnotationWorker extends JobWorker {
         percentage: 0,
       });
     } else if (isBeforeProcessing) {
-      // Before processing an entity type - only emit ephemeral mark:progress (no domain event)
-      // This provides immediate UX feedback that we're starting work on this entity type
-      const percentage = 0; // Starting this entity type
+      const percentage = 0;
       this.logger?.debug('[EventBus] Emitting mark:progress (before processing)', {
         resourceId: detJob.params.resourceId,
         currentEntityType: detJob.progress.currentEntityType

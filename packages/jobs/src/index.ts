@@ -51,9 +51,24 @@ export type {
   AssessmentDetectionResult,
   CommentDetectionResult,
   TagDetectionResult,
+  ContentFetcher,
+} from './types';
+
+export {
   isPendingJob,
   isRunningJob,
   isCompleteJob,
   isFailedJob,
   isCancelledJob,
 } from './types';
+
+// Workers
+export { ReferenceAnnotationWorker } from './workers/reference-annotation-worker';
+export { GenerationWorker } from './workers/generation-worker';
+export { HighlightAnnotationWorker } from './workers/highlight-annotation-worker';
+export { AssessmentAnnotationWorker } from './workers/assessment-annotation-worker';
+export { CommentAnnotationWorker } from './workers/comment-annotation-worker';
+export { TagAnnotationWorker } from './workers/tag-annotation-worker';
+
+// Detection utilities
+export { AnnotationDetection } from './workers/annotation-detection';

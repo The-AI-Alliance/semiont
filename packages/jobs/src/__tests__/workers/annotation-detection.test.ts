@@ -6,38 +6,12 @@
  * - Highlight detection with configurable instructions, density
  * - Assessment detection with configurable instructions, tone, density
  * - Tag detection with schema validation
- * - Resource content loading
  * - AI inference integration (mocked)
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { AnnotationDetection } from '../annotation-assistance';
-import { ResourceOperations } from '../resource-operations';
-import { resourceId, userId, type EnvironmentConfig, type Logger } from '@semiont/core';
-import { createEventStore, type EventStore } from '@semiont/event-sourcing';
-import { FilesystemRepresentationStore, type RepresentationStore } from '@semiont/content';
-import { promises as fs } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
-
-const mockLogger: Logger = {
-  debug: vi.fn(),
-  info: vi.fn(),
-  warn: vi.fn(),
-  error: vi.fn(),
-  child: vi.fn(() => mockLogger)
-};
-
-// Mock @semiont/inference to avoid external API calls
-let mockClient: any;
-vi.mock('@semiont/inference', async () => {
-  const { MockInferenceClient } = await import('@semiont/inference');
-  mockClient = new MockInferenceClient(['[]']);
-  return {
-    getInferenceClient: vi.fn().mockResolvedValue(mockClient),
-    MockInferenceClient
-  };
-});
+import { describe, it, expect, beforeAll, vi } from 'vitest';
+import { AnnotationDetection } from '../../workers/annotation-detection';
+import { MockInferenceClient } from '@semiont/inference';
 
 // Mock @semiont/ontology to provide tag schema
 vi.mock('@semiont/ontology', () => ({
@@ -71,94 +45,20 @@ vi.mock('@semiont/ontology', () => ({
   })
 }));
 
+const testContent =
+  'Climate change is one of the most pressing challenges facing humanity. ' +
+  'Rising global temperatures have led to more frequent extreme weather events. ' +
+  'Scientists agree that immediate action is necessary to mitigate these effects.';
+
 describe('AnnotationDetection', () => {
-  let testDir: string;
-  let testEventStore: EventStore;
-  let testRepStore: RepresentationStore;
-  let config: EnvironmentConfig;
-  let testResourceId: string;
+  let mockClient: MockInferenceClient;
 
   beforeAll(async () => {
-    // Initialize mock client (must be done in beforeAll, not at module level)
-    const { MockInferenceClient } = await import('@semiont/inference');
     mockClient = new MockInferenceClient(['[]']);
-
-    // Create temporary test directory
-    testDir = join(tmpdir(), `semiont-test-annotation-detection-${Date.now()}`);
-    await fs.mkdir(testDir, { recursive: true });
-
-    // Create test configuration
-    config = {
-      services: {
-        filesystem: {
-          platform: { type: 'posix' },
-          path: testDir
-        },
-        backend: {
-          platform: { type: 'posix' },
-          port: 4000,
-          publicURL: 'http://localhost:4000',
-          corsOrigin: 'http://localhost:3000'
-        },
-        inference: {
-          platform: { type: 'external' },
-          type: 'anthropic',
-          model: 'claude-sonnet-4-20250514',
-          maxTokens: 8192,
-          endpoint: 'https://api.anthropic.com',
-          apiKey: 'test-api-key'
-        },
-        graph: {
-          platform: { type: 'posix' },
-          type: 'memory'
-        }
-      },
-      site: {
-        siteName: 'Test Site',
-        domain: 'localhost:3000',
-        adminEmail: 'admin@test.local',
-        oauthAllowedDomains: ['test.local']
-      },
-      _metadata: {
-        environment: 'test',
-        projectRoot: testDir
-      },
-    } as EnvironmentConfig;
-
-    // Initialize stores
-    testEventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
-    testRepStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
-
-    // Create a test resource for detection
-    const content = Buffer.from(
-      'Climate change is one of the most pressing challenges facing humanity. ' +
-      'Rising global temperatures have led to more frequent extreme weather events. ' +
-      'Scientists agree that immediate action is necessary to mitigate these effects.',
-      'utf-8'
-    );
-    const response = await ResourceOperations.createResource(
-      {
-        name: 'Detection Test Resource',
-        content,
-        format: 'text/plain',
-      },
-      userId('user-1'),
-      testEventStore,
-      testRepStore,
-      config
-    );
-
-    const idMatch = response.resource['@id'].match(/\/resources\/(.+)$/);
-    testResourceId = idMatch![1];
-  });
-
-  afterAll(async () => {
-    await fs.rm(testDir, { recursive: true, force: true });
   });
 
   describe('detectHighlights', () => {
     it('should extract highlights from text', async () => {
-      // Mock AI response with highlights
       mockClient.setResponses([JSON.stringify([
         {
           exact: 'Climate change',
@@ -173,8 +73,7 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectHighlights(
-        resourceId(testResourceId),
-        config,
+        testContent,
         mockClient
       );
 
@@ -194,8 +93,7 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectHighlights(
-        resourceId(testResourceId),
-        config,
+        testContent,
         mockClient,
         'Focus on scientific terms'
       );
@@ -213,8 +111,7 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectHighlights(
-        resourceId(testResourceId),
-        config,
+        testContent,
         mockClient,
         undefined,
         5  // density
@@ -233,8 +130,7 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectHighlights(
-        resourceId(testResourceId),
-        config,
+        testContent,
         mockClient
       );
 
@@ -244,12 +140,10 @@ describe('AnnotationDetection', () => {
     });
 
     it('should handle empty AI response', async () => {
-      // Mock empty AI response (no highlights found)
       mockClient.setResponses([JSON.stringify([])]);
 
       const result = await AnnotationDetection.detectHighlights(
-        resourceId(testResourceId),
-        config,
+        testContent,
         mockClient
       );
 
@@ -271,8 +165,7 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectComments(
-        resourceId(testResourceId),
-        config,
+        testContent,
         mockClient
       );
 
@@ -294,8 +187,7 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectComments(
-        resourceId(testResourceId),
-        config,
+        testContent,
         mockClient
       );
 
@@ -319,8 +211,7 @@ describe('AnnotationDetection', () => {
 
       // Test with high density
       const result = await AnnotationDetection.detectComments(
-        resourceId(testResourceId),
-        config,
+        testContent,
         mockClient,
         undefined,
         undefined,
@@ -345,8 +236,7 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectAssessments(
-        resourceId(testResourceId),
-        config,
+        testContent,
         mockClient
       );
 
@@ -368,8 +258,7 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectAssessments(
-        resourceId(testResourceId),
-        config,
+        testContent,
         mockClient
       );
 
@@ -391,8 +280,7 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectTags(
-        resourceId(testResourceId),
-        config,
+        testContent,
         mockClient,
         'imrad',
         'introduction'
@@ -412,8 +300,7 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectTags(
-        resourceId(testResourceId),
-        config,
+        testContent,
         mockClient,
         'imrad',
         'methods'
@@ -435,8 +322,7 @@ describe('AnnotationDetection', () => {
       ])]);
 
       const result = await AnnotationDetection.detectTags(
-        resourceId(testResourceId),
-        config,
+        testContent,
         mockClient,
         'imrad',
         'results'
@@ -451,8 +337,7 @@ describe('AnnotationDetection', () => {
     it('should reject invalid schema', async () => {
       await expect(
         AnnotationDetection.detectTags(
-          resourceId(testResourceId),
-          config,
+          testContent,
           mockClient,
           'invalid-schema',
           'category'
@@ -463,8 +348,7 @@ describe('AnnotationDetection', () => {
     it('should reject invalid category', async () => {
       await expect(
         AnnotationDetection.detectTags(
-          resourceId(testResourceId),
-          config,
+          testContent,
           mockClient,
           'imrad',
           'invalid-category'
@@ -474,27 +358,15 @@ describe('AnnotationDetection', () => {
   });
 
   describe('error handling', () => {
-    it('should throw when resource not found', async () => {
-      await expect(
-        AnnotationDetection.detectHighlights(
-          resourceId('non-existent-resource'),
-          config,
-          mockClient
-        )
-      ).rejects.toThrow('Resource non-existent-resource not found');
-    });
-
     it('should handle AI inference errors gracefully', async () => {
       // Mock client to throw error
-      const errorClient = {
-        generateText: vi.fn().mockRejectedValue(new Error('AI service unavailable'))
-      };
+      const errorClient = new MockInferenceClient(['']);
+      errorClient.generateText = vi.fn().mockRejectedValue(new Error('AI service unavailable'));
 
       await expect(
         AnnotationDetection.detectComments(
-          resourceId(testResourceId),
-          config,
-          errorClient as any
+          testContent,
+          errorClient
         )
       ).rejects.toThrow('AI service unavailable');
     });
@@ -504,39 +376,12 @@ describe('AnnotationDetection', () => {
       mockClient.setResponses(['invalid json']);
 
       const result = await AnnotationDetection.detectHighlights(
-        resourceId(testResourceId),
-        config,
+        testContent,
         mockClient
       );
 
       // Invalid JSON should result in empty results (graceful failure)
       expect(result).toBeInstanceOf(Array);
-    });
-
-    it('should handle non-text content gracefully', async () => {
-      // Create PDF resource (binary content)
-      const pdfContent = Buffer.from('%PDF-1.4 binary content', 'utf-8');
-      const response = await ResourceOperations.createResource(
-        {
-          name: 'PDF Resource',
-          content: pdfContent,
-          format: 'application/pdf',
-        },
-        userId('user-1'),
-        testEventStore,
-        testRepStore,
-        config
-      );
-
-      const pdfResourceId = response.resource['@id'].match(/\/resources\/(.+)$/)![1];
-
-      await expect(
-        AnnotationDetection.detectHighlights(
-          resourceId(pdfResourceId),
-          config,
-          mockClient
-        )
-      ).rejects.toThrow('Could not load content');
     });
   });
 
@@ -546,8 +391,7 @@ describe('AnnotationDetection', () => {
       mockClient.setResponses([JSON.stringify([])]);
 
       const result = await AnnotationDetection.detectComments(
-        resourceId(testResourceId),
-        config,
+        testContent,
         mockClient,
         customInstructions
       );
@@ -560,8 +404,7 @@ describe('AnnotationDetection', () => {
       mockClient.setResponses([JSON.stringify([])]);
 
       const result = await AnnotationDetection.detectComments(
-        resourceId(testResourceId),
-        config,
+        testContent,
         mockClient,
         undefined,
         'academic'  // tone
@@ -575,8 +418,7 @@ describe('AnnotationDetection', () => {
       mockClient.setResponses([JSON.stringify([])]);
 
       const result = await AnnotationDetection.detectHighlights(
-        resourceId(testResourceId),
-        config,
+        testContent,
         mockClient,
         undefined,
         15  // density

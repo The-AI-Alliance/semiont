@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { MotivationParsers } from '../../detection/motivation-parsers';
+import { MotivationParsers } from '../../../workers/detection/motivation-parsers';
 
 // Mock validateAndCorrectOffsets
 vi.mock('@semiont/api-client', () => ({

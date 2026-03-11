@@ -32,39 +32,14 @@ export type { GraphNode, GraphEdge, GraphRepresentation } from './graph-context'
 export { LLMContext } from './llm-context';
 export type { LLMContextOptions } from './llm-context';
 
-// Detection exports
-export { AnnotationDetection } from './annotation-assistance';
-export { MotivationPrompts } from './detection/motivation-prompts';
-export { MotivationParsers } from './detection/motivation-parsers';
-export type {
-  CommentMatch,
-  HighlightMatch,
-  AssessmentMatch,
-  TagMatch,
-} from './detection/motivation-parsers';
-export { extractEntities } from './detection/entity-extractor';
-export type { ExtractedEntity } from './detection/entity-extractor';
-
-// Generation exports
+// Generation exports (context-building reads stay here; generateResourceFromTopic moved to @semiont/jobs)
 export {
-  generateResourceFromTopic,
   generateResourceSummary,
   generateReferenceSuggestions,
 } from './generation/resource-generation';
 
-// Job workers (exported for direct instantiation if needed)
-export { CommentAnnotationWorker } from './jobs/comment-annotation-worker';
-export { HighlightAnnotationWorker } from './jobs/highlight-annotation-worker';
-export { AssessmentAnnotationWorker } from './jobs/assessment-annotation-worker';
-export { TagAnnotationWorker } from './jobs/tag-annotation-worker';
-export { ReferenceAnnotationWorker } from './jobs/reference-annotation-worker';
-export { GenerationWorker } from './jobs/generation-worker';
-
-// Reasoning exports (future)
-// export { ResourceReasoning } from './resource-reasoning';
-
-// ID generation
-export { generateUuid } from './id-generation';
+// ID generation (re-export from core for backward compatibility during migration)
+export { generateUuid } from '@semiont/core';
 
 // Placeholder for initial build
 export const PACKAGE_NAME = '@semiont/make-meaning';

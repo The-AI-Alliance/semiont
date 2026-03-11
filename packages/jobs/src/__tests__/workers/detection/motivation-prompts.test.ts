@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { MotivationPrompts } from '../../detection/motivation-prompts';
+import { MotivationPrompts } from '../../../workers/detection/motivation-prompts';
 
 describe('MotivationPrompts', () => {
   const testContent = 'This is sample text content for testing prompt generation.';

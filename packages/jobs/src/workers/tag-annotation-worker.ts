@@ -6,15 +6,16 @@
  * creates tag annotations with dual-body structure.
  */
 
-import { JobWorker } from '@semiont/jobs';
-import type { AnyJob, TagDetectionJob, JobQueue, RunningJob, TagDetectionParams, TagDetectionProgress, TagDetectionResult } from '@semiont/jobs';
-import { ResourceContext, AnnotationDetection } from '..';
+import { JobWorker } from '../job-worker';
+import type { AnyJob, TagDetectionJob, RunningJob, TagDetectionParams, TagDetectionProgress, TagDetectionResult, ContentFetcher } from '../types';
+import type { JobQueue } from '../job-queue';
+import { AnnotationDetection } from './annotation-detection';
 import { EventStore, generateAnnotationId } from '@semiont/event-sourcing';
 import { resourceIdToURI, EventBus, type Logger } from '@semiont/core';
 import { getTagSchema } from '@semiont/ontology';
 import type { EnvironmentConfig, ResourceId } from '@semiont/core';
 import { userId } from '@semiont/core';
-import type { TagMatch } from '../detection/motivation-parsers';
+import type { TagMatch } from './detection/motivation-parsers';
 import type { InferenceClient } from '@semiont/inference';
 
 export class TagAnnotationWorker extends JobWorker {
@@ -26,6 +27,7 @@ export class TagAnnotationWorker extends JobWorker {
     private eventStore: EventStore,
     private inferenceClient: InferenceClient,
     private eventBus: EventBus,
+    private contentFetcher: ContentFetcher,
     logger: Logger
   ) {
     super(jobQueue, undefined, undefined, logger);
@@ -178,11 +180,8 @@ export class TagAnnotationWorker extends JobWorker {
       }
     }
 
-    // Fetch resource content
-    const resource = await ResourceContext.getResourceMetadata(job.params.resourceId, this.config);
-    if (!resource) {
-      throw new Error(`Resource ${job.params.resourceId} not found`);
-    }
+    // Fetch content via ContentFetcher
+    const content = await AnnotationDetection.fetchContent(this.contentFetcher, job.params.resourceId);
 
     // Emit job.started
     let updatedJob: RunningJob<TagDetectionParams, TagDetectionProgress> = {
@@ -219,8 +218,7 @@ export class TagAnnotationWorker extends JobWorker {
 
       // Detect tags for this category
       const tags = await AnnotationDetection.detectTags(
-        job.params.resourceId,
-        this.config,
+        content,
         this.inferenceClient,
         job.params.schemaId,
         category
