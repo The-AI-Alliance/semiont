@@ -25,14 +25,15 @@ graph TD
 
     BUS["E V E N T &ensp; B U S"]
 
-    BUS -->|"events"| KB["Knowledge Base"]
+    BUS -->|"write commands"| STOWER["Stower"]
     BUS -->|"gather"| GATHERER["Gatherer"]
     BUS -->|"bind"| BINDER["Binder"]
+    STOWER -->|"write"| KB["Knowledge Base"]
     GATHERER -->|"query"| KB
     BINDER -->|"query"| KB
 
-    SOURCES["Content Sources"] -->|"yield"| BUS
-    KB ~~~ SOURCES
+    SOURCES["Content Sources"] --> FEEDER["Feeder"]
+    FEEDER -->|"yield"| BUS
 
     classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold,font-size:14px
     classDef human fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
@@ -46,20 +47,23 @@ graph TD
     class BUS bus
     class KB kb
     class SOURCES stream
-    class GATHERER,BINDER worker
+    class FEEDER,STOWER,GATHERER,BINDER worker
 ```
 
 ## Actors
 
-### Human Actors
+### Example
 
-| Actor | Flows | What they do |
-|-------|-------|-------------|
-| **Reader** | browse, beckon | Navigates resources and annotations. Clicks, hovers, scrolls. Consumes the knowledge base without modifying it. |
-| **Analyst** | mark, browse, beckon, bind | Reads content, creates annotations (highlights, comments, assessments, tags), and resolves references to existing resources. The primary human intelligence in the system. |
-| **Author** | yield, mark | Composes new resources manually (via the compose page) and annotates them. Produces content that the knowledge base records. |
+| | Actor | Flows | What they do |
+|-|-------|-------|-------------|
+| 🧠 | **Reader** | browse, beckon | Navigates resources and annotations. Clicks, hovers, scrolls. Consumes the knowledge base without modifying it. |
+| 🧠 | **Analyst** | mark, browse, beckon, bind | Reads content, creates annotations (highlights, comments, assessments, tags), and resolves references to existing resources. The primary human intelligence in the system. |
+| 🧠 | **Author** | yield, mark | Composes new resources manually (via the compose page) and annotates them. Produces content that the knowledge base records. |
+| 🤖 | **Marker Agent** | mark, browse, beckon | Scans documents and proposes annotations — highlights, assessments, comments, tags, and entity references. Produces the same W3C annotations that human analysts do. |
+| 🤖 | **Generator Agent** | yield, gather | Assembles context around a reference annotation (gather), then synthesizes a new resource from it (yield). Creates content that the knowledge base records. |
+| 🤖 | **Linker Agent** | bind, gather | Resolves unresolved references by searching for matching resources and linking them. Performs entity resolution and coreference — the binding of a mention to its referent. |
 
-All human actors interact through the **Human UI** — the browser, Envoy proxy, Next.js frontend, and Hono backend. The UI translates DOM interactions (clicks, selections, form submissions) into events on the bus.
+Human actors interact through the **Human UI** — the browser, Envoy proxy, Next.js frontend, and Hono backend. The UI translates DOM interactions (clicks, selections, form submissions) into events on the bus.
 
 ```mermaid
 graph TB
@@ -89,27 +93,30 @@ graph TB
     class BUS bus
 ```
 
-### AI Actors
-
-| Actor | Flows | What they do |
-|-------|-------|-------------|
-| **Marker Agent** | mark, browse, beckon | Scans documents and proposes annotations — highlights, assessments, comments, tags, and entity references. Produces the same W3C annotations that human analysts do. |
-| **Generator Agent** | yield, gather | Assembles context around a reference annotation (gather), then synthesizes a new resource from it (yield). Creates content that the knowledge base records. |
-| **Linker Agent** | bind, gather | Resolves unresolved references by searching for matching resources and linking them. Performs entity resolution and coreference — the binding of a mention to its referent. |
-
 AI actors connect via the backend API (REST + JWT) or MCP protocol. They emit the same events as human actors. The knowledge base cannot distinguish a human-created annotation from an AI-created one — both are W3C annotations with a `creator` field that identifies the agent.
 
 ### Knowledge Base
 
-The knowledge base is not an intelligent actor. It has no goals, preferences, or decisions. It listens to events on the bus and materializes durable state. It never initiates an event. Events flow *into* it. Reads flow *out of* it — via the **Gatherer** and **Binder**, which query KB stores in response to gather and bind events respectively. This asymmetry is deliberate — it means the knowledge base can be rebuilt from the event log at any time.
+The knowledge base is not an intelligent actor. It has no goals, preferences, or decisions. It never initiates an event. It is inert storage — the durable record of what intelligent actors decide.
+
+The knowledge base has exactly three actor interfaces. No other code touches KB stores directly:
+
+- **Stower** (write) — subscribes to command events on the bus and persists them to the event log and content store
+- **Gatherer** (read context) — subscribes to gather events on the bus and assembles context from KB stores
+- **Binder** (read search) — subscribes to bind events on the bus and searches KB stores for matching resources
+
+All three are reactive actors: they subscribe to the EventBus via RxJS pipelines in `initialize()`, process events through private handlers, and communicate results back by emitting on the bus. They expose no public business methods — only `initialize()` and `stop()` for lifecycle management. Callers never call into an actor directly; they put a message on the bus and trust the actor is listening.
 
 ```mermaid
 graph TB
-    BUS["Event Bus"] -->|"mark, ..."| EVENTLOG
-    BUS -->|"yield"| CONTENT
-    CONTENT -->|"browse"| BUS
-    BUS -->|"gather"| GATHERER["Gatherer"]
-    BUS -->|"bind"| BINDER["Binder"]
+    BUS["Event Bus"]
+
+    BUS -->|"mark:create, yield:create,<br/>job:start, ..."| STOWER["Stower"]
+    BUS -->|"gather:requested, ..."| GATHERER["Gatherer"]
+    BUS -->|"bind:search-requested"| BINDER["Binder"]
+
+    STOWER -->|append| EVENTLOG
+    STOWER -->|store| CONTENT
 
     subgraph kb ["Knowledge Base"]
         subgraph sor ["System of Record"]
@@ -134,6 +141,10 @@ graph TB
     BINDER -->|traverse| GRAPH
     BINDER -->|search| VECTORS
 
+    STOWER -->|"mark:created,<br/>yield:created, ..."| BUS
+    GATHERER -->|"gather:complete"| BUS
+    BINDER -->|"bind:search-results"| BUS
+
     classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
     classDef store fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
     classDef planned fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff,stroke-dasharray: 5 5
@@ -142,36 +153,38 @@ graph TB
     class BUS bus
     class EVENTLOG,VIEWS,CONTENT,GRAPH store
     class VECTORS planned
-    class GATHERER,BINDER worker
+    class STOWER,GATHERER,BINDER worker
 ```
 
 | Store | Purpose | Access Pattern |
 |-------|---------|---------------|
-| **Event Log** | Immutable append-only log of all domain events | Append only, subscribe for real-time |
-| **Materialized Views** | Denormalized projections for fast reads | Query by resource URI |
-| **Content Store** | Content-addressed binary storage (documents, images, PDFs) | Write-once, read by SHA-256 checksum |
-| **Graph** | Eventually consistent relationship projection for traversal queries (backlinks, entity networks) | Read-only projection from events |
-| **Vectors** *(planned)* | Embedding vectors derived from content for semantic search | Read-only projection from content store |
+| **Event Log** | Immutable append-only log of all domain events | Stower appends; Gatherer/Binder read |
+| **Materialized Views** | Denormalized projections for fast reads | Gatherer/Binder query by resource URI |
+| **Content Store** | Content-addressed binary storage (documents, images, PDFs) | Stower writes; Gatherer reads by SHA-256 checksum |
+| **Graph** | Eventually consistent relationship projection for traversal queries (backlinks, entity networks) | Gatherer/Binder traverse and search |
+| **Vectors** *(planned)* | Embedding vectors derived from content for semantic search | Gatherer/Binder search |
+
+### Stower
+
+The Stower is the single write gateway to the knowledge base. It subscribes to command events on the bus (`mark:create`, `yield:create`, `mark:delete`, `mark:update-body`, `job:start`, `job:complete`, etc.) and translates them into domain events on the event log and content writes to the content store. After successful persistence, it emits result events back onto the bus (`mark:created`, `yield:created`, `mark:deleted`, etc.) so callers can confirm completion. No other code calls `eventStore.appendEvent()` or `contentStore.store()`.
 
 ### Gatherer
 
-The Gatherer is the bridge between the event bus and the knowledge base for context assembly. When a Generator Agent or Linker Agent emits a **gather** event, the Gatherer receives it from the bus, queries the relevant KB stores (materialized views, content store, graph, vectors), and assembles the context needed for downstream work.
+The Gatherer is the read actor for context assembly. When a Generator Agent or Linker Agent emits a **gather** event, the Gatherer receives it from the bus, queries the relevant KB stores (materialized views, content store, graph, vectors), and assembles the context needed for downstream work. It emits the assembled context back onto the bus.
 
 ### Binder
 
-The Binder is the bridge between the event bus and the knowledge base for entity resolution. When an Analyst or Linker Agent emits a **bind** event, the Binder receives it from the bus, searches the KB stores (materialized views, graph, vectors) for matching resources, and resolves references — linking a mention to its referent. The Binder does not need the content store directly; it works with metadata, relationships, and embeddings to find the right target.
+The Binder is the read actor for entity resolution. When an Analyst or Linker Agent emits a **bind** event, the Binder receives it from the bus, searches the KB stores (materialized views, graph, vectors) for matching resources, and resolves references — linking a mention to its referent. The Binder does not need the content store directly; it works with metadata, relationships, and embeddings to find the right target. It emits search results back onto the bus.
 
-The Gatherer and Binder are the only actors that read from KB stores directly. All other actors interact with the knowledge base exclusively through the event bus.
+### Feeder and Content Streams
 
-### Content Streams
+Content streams are external sources of new resources: file uploads, API ingestion, web fetches. The **Feeder** actor sits between content streams and the event bus. It accepts raw content from a source, emits `yield:create` on the bus, and the Stower handles persistence. The Feeder normalizes the intake — regardless of how content arrives, it enters the system as a yield event.
 
-Content streams are sources of new resources entering the system. They participate only in the **yield** flow:
+Content sources:
 
 - **Upload** — a human drags a file into the browser
 - **API Ingestion** — an external system pushes content via REST
 - **Web Fetch** — the system retrieves content from a URL
-
-Each produces a `resource.created` event. After that, the resource is available for all other actors to annotate, browse, link, and generate from.
 
 ## Flows as Verbs
 
