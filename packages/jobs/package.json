@@ -23,7 +23,8 @@
   },
   "dependencies": {
     "@semiont/api-client": "*",
-    "@semiont/core": "*"
+    "@semiont/core": "*",
+    "@semiont/inference": "*"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^3.2.4",
