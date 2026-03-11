@@ -361,8 +361,13 @@ export function ResourceViewerPage({
     }
   }, [routes.know]); // eventBus is stable singleton - never in deps
 
+  const handleModeToggled = useCallback(() => {
+    setAnnotateMode(prev => !prev);
+  }, []);
+
   // Event bus subscriptions (combined into single useEventSubscriptions call to prevent hook ordering issues)
   useEventSubscriptions({
+    'mark:mode-toggled': handleModeToggled,
     'mark:archive': handleResourceArchive,
     'mark:unarchive': handleResourceUnarchive,
     'yield:clone': handleResourceClone,
@@ -406,8 +411,8 @@ export function ResourceViewerPage({
   const primaryMediaType = primaryRep?.mediaType;
   const primaryByteSize = primaryRep?.byteSize;
 
-  // Annotate mode state - local UI state only
-  const [annotateMode, _setAnnotateMode] = useState(() => {
+  // Annotate mode state - synced via mark:mode-toggled event from AnnotateToolbar
+  const [annotateMode, setAnnotateMode] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('annotateMode') === 'true';
     }
