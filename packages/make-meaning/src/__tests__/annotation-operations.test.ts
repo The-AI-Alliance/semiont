@@ -12,8 +12,9 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { AnnotationOperations } from '../annotation-operations';
 import { ResourceOperations } from '../resource-operations';
 import { resourceId, userId, type EnvironmentConfig, type Logger } from '@semiont/core';
-import { createEventStore, type EventStore } from '@semiont/event-sourcing';
+import { createEventStore, FilesystemViewStorage, type EventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore, type RepresentationStore } from '@semiont/content';
+import type { KnowledgeBase } from '../knowledge-base';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -31,6 +32,8 @@ describe('AnnotationOperations', () => {
   let testEventStore: EventStore;
   let testRepStore: RepresentationStore;
   let config: EnvironmentConfig;
+  let kb: KnowledgeBase;
+  let publicURL: string;
   let testResourceUri: string;
   let testResourceId: string;
 
@@ -38,6 +41,8 @@ describe('AnnotationOperations', () => {
     // Create temporary test directory
     testDir = join(tmpdir(), `semiont-test-annotation-ops-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
+
+    publicURL = 'http://localhost:4000';
 
     // Create test configuration
     config = {
@@ -49,7 +54,7 @@ describe('AnnotationOperations', () => {
         backend: {
           platform: { type: 'posix' },
           port: 4000,
-          publicURL: 'http://localhost:4000',
+          publicURL,
           corsOrigin: 'http://localhost:3000'
         },
         inference: {
@@ -80,6 +85,8 @@ describe('AnnotationOperations', () => {
     // Initialize stores
     testEventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
     testRepStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
+    const viewStorage = new FilesystemViewStorage(testDir, testDir);
+    kb = { eventStore: testEventStore, views: viewStorage, content: testRepStore, graph: {} as any };
 
     // Create a test resource for annotations
     const content = Buffer.from('This is test content for annotations. It has multiple sentences. We will annotate various parts.', 'utf-8');
@@ -127,7 +134,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         testEventStore,
-        config
+        publicURL
       );
 
       expect(result.annotation).toBeDefined();
@@ -157,7 +164,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         testEventStore,
-        config
+        publicURL
       );
 
       expect(result.annotation.motivation).toBe('commenting');
@@ -189,7 +196,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         testEventStore,
-        config
+        publicURL
       );
 
       expect(result.annotation.motivation).toBe('assessing');
@@ -224,7 +231,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         testEventStore,
-        config
+        publicURL
       );
 
       expect(result.annotation.motivation).toBe('tagging');
@@ -253,7 +260,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         testEventStore,
-        config
+        publicURL
       );
 
       expect(result.annotation.motivation).toBe('linking');
@@ -281,7 +288,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         testEventStore,
-        config
+        publicURL
       );
 
       // Verify W3C annotation structure
@@ -317,7 +324,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         testEventStore,
-        config
+        publicURL
       );
 
       // Check event was emitted
@@ -359,7 +366,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         testEventStore,
-        config
+        publicURL
       );
 
       expect(result.annotation.id).toBeDefined();
@@ -388,7 +395,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         testEventStore,
-        config
+        publicURL
       );
 
       const target = result.annotation.target;
@@ -430,7 +437,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         testEventStore,
-        config
+        publicURL
       );
 
       const target = result.annotation.target;
@@ -465,7 +472,7 @@ describe('AnnotationOperations', () => {
           },
           userId('user-1'),
           testEventStore,
-          config
+          publicURL
         )
       ).rejects.toThrow('motivation is required');
     });
@@ -492,7 +499,7 @@ describe('AnnotationOperations', () => {
           },
           userId('user-1'),
           testEventStore,
-          config
+          publicURL
         )
       ).rejects.toThrow('TextPositionSelector required');
     });
@@ -524,7 +531,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         testEventStore,
-        config
+        publicURL
       );
 
       const annotationIdStr = createResult.annotation.id.split('/').pop()!;
@@ -547,7 +554,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         testEventStore,
-        config
+        kb
       );
 
       expect(Array.isArray(result.annotation.body)).toBe(true);
@@ -584,7 +591,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         testEventStore,
-        config
+        publicURL
       );
 
       const annotationIdStr = createResult.annotation.id.split('/').pop()!;
@@ -607,7 +614,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         testEventStore,
-        config
+        kb
       );
 
       expect((result.annotation.body as any[]).length).toBe(1);
@@ -639,7 +646,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         testEventStore,
-        config
+        publicURL
       );
 
       const annotationIdStr = createResult.annotation.id.split('/').pop()!;
@@ -667,7 +674,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         testEventStore,
-        config
+        kb
       );
 
       expect((result.annotation.body as any[])[0].value).toBe('new-tag');
@@ -698,7 +705,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         testEventStore,
-        config
+        publicURL
       );
 
       const annotationIdStr = createResult.annotation.id.split('/').pop()!;
@@ -721,7 +728,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         testEventStore,
-        config
+        kb
       );
 
       // Check event
@@ -749,7 +756,7 @@ describe('AnnotationOperations', () => {
           },
           userId('user-1'),
           testEventStore,
-          config
+          kb
         )
       ).rejects.toThrow('Annotation not found');
     });
@@ -779,7 +786,7 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         testEventStore,
-        config
+        publicURL
       );
 
       const annotationIdStr = createResult.annotation.id;
@@ -790,7 +797,7 @@ describe('AnnotationOperations', () => {
         testResourceUri,
         userId('user-1'),
         testEventStore,
-        config
+        kb
       );
 
       // Check event
@@ -806,7 +813,7 @@ describe('AnnotationOperations', () => {
           testResourceUri,
           userId('user-1'),
           testEventStore,
-          config
+          kb
         )
       ).rejects.toThrow('Annotation not found');
     });

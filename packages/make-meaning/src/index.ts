@@ -11,6 +11,14 @@ export { bootstrapEntityTypes, resetBootstrap } from './bootstrap/entity-types';
 // Views
 export { readEntityTypesProjection } from './views/entity-types-reader';
 
+// Knowledge Base
+export { createKnowledgeBase } from './knowledge-base';
+export type { KnowledgeBase } from './knowledge-base';
+
+// Actors
+export { Gatherer } from './gatherer';
+export { Binder } from './binder';
+
 // Graph Consumer
 export { GraphDBConsumer } from './graph/consumer';
 

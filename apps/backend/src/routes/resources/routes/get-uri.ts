@@ -38,8 +38,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
    */
   router.get('/resources/:id', async (c) => {
     const { id } = c.req.param();
-    const config = c.get('config');
-    const { repStore } = c.get('makeMeaning');
+    const { kb } = c.get('makeMeaning');
 
     // Check for explicit view=semiont query parameter
     const view = c.req.query('view');
@@ -59,7 +58,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
       // Get resource metadata from view storage
       let resource: any;
       try {
-        resource = await ResourceContext.getResourceMetadata(resourceId(id), config);
+        resource = await ResourceContext.getResourceMetadata(resourceId(id), kb);
       } catch (error: any) {
         getRouteLogger().error('Failed to get resource metadata', {
           resourceId: id,
@@ -82,7 +81,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
       }
 
       // Read representation from RepresentationStore using content-addressed lookup
-      const content = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
+      const content = await kb.content.retrieve(primaryRep.checksum, primaryRep.mediaType);
       if (!content) {
         throw new HTTPException(404, { message: 'Resource representation not found' });
       }

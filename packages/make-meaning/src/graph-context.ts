@@ -5,16 +5,15 @@
  * All methods require graph traversal - must use graph database.
  */
 
-import { getGraphDatabase } from '@semiont/graph';
 import { resourceIdToURI } from '@semiont/core';
 import type {
   ResourceId,
-  EnvironmentConfig,
   GraphConnection,
   GraphPath,
 } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { getResourceId, getResourceEntityTypes } from '@semiont/api-client';
+import type { KnowledgeBase } from './knowledge-base';
 
 type Annotation = components['schemas']['Annotation'];
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
@@ -43,10 +42,9 @@ export class GraphContext {
    * Get all resources referencing this resource (backlinks)
    * Requires graph traversal - must use graph database
    */
-  static async getBacklinks(resourceId: ResourceId, config: EnvironmentConfig): Promise<Annotation[]> {
-    const graphDb = await getGraphDatabase(config);
-    const resourceUri = resourceIdToURI(resourceId, config.services.backend!.publicURL);
-    return await graphDb.getResourceReferencedBy(resourceUri);
+  static async getBacklinks(resourceId: ResourceId, kb: KnowledgeBase, publicURL: string): Promise<Annotation[]> {
+    const resourceUri = resourceIdToURI(resourceId, publicURL);
+    return await kb.graph.getResourceReferencedBy(resourceUri);
   }
 
   /**
@@ -56,29 +54,26 @@ export class GraphContext {
   static async findPath(
     fromResourceId: ResourceId,
     toResourceId: ResourceId,
-    config: EnvironmentConfig,
+    kb: KnowledgeBase,
     maxDepth?: number
   ): Promise<GraphPath[]> {
-    const graphDb = await getGraphDatabase(config);
-    return await graphDb.findPath(fromResourceId, toResourceId, maxDepth);
+    return await kb.graph.findPath(fromResourceId, toResourceId, maxDepth);
   }
 
   /**
    * Get resource connections (graph edges)
    * Requires graph traversal - must use graph database
    */
-  static async getResourceConnections(resourceId: ResourceId, config: EnvironmentConfig): Promise<GraphConnection[]> {
-    const graphDb = await getGraphDatabase(config);
-    return await graphDb.getResourceConnections(resourceId);
+  static async getResourceConnections(resourceId: ResourceId, kb: KnowledgeBase): Promise<GraphConnection[]> {
+    return await kb.graph.getResourceConnections(resourceId);
   }
 
   /**
    * Search resources by name (cross-resource query)
    * Requires full-text search - must use graph database
    */
-  static async searchResources(query: string, config: EnvironmentConfig, limit?: number): Promise<ResourceDescriptor[]> {
-    const graphDb = await getGraphDatabase(config);
-    return await graphDb.searchResources(query, limit);
+  static async searchResources(query: string, kb: KnowledgeBase, limit?: number): Promise<ResourceDescriptor[]> {
+    return await kb.graph.searchResources(query, limit);
   }
 
   /**
@@ -88,20 +83,19 @@ export class GraphContext {
   static async buildGraphRepresentation(
     resourceId: ResourceId,
     maxRelated: number,
-    config: EnvironmentConfig
+    kb: KnowledgeBase,
+    publicURL: string
   ): Promise<GraphRepresentation> {
-    const graphDb = await getGraphDatabase(config);
-    const publicURL = config.services.backend!.publicURL;
     const resourceUri = resourceIdToURI(resourceId, publicURL);
 
     // Get main resource
-    const mainDoc = await graphDb.getResource(resourceUri);
+    const mainDoc = await kb.graph.getResource(resourceUri);
     if (!mainDoc) {
       throw new Error('Resource not found');
     }
 
     // Get connections
-    const connections = await graphDb.getResourceConnections(resourceId);
+    const connections = await kb.graph.getResourceConnections(resourceId);
     const relatedDocs = connections.map(conn => conn.targetResource).slice(0, maxRelated - 1);
 
     // Build nodes

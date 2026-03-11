@@ -35,15 +35,13 @@ export function registerUpdateResource(router: ResourcesRouterType) {
       const { id } = c.req.param();
       const body = c.get('validatedBody') as UpdateResourceRequest;
       const user = c.get('user');
-      const config = c.get('config');
+      const { kb, eventStore } = c.get('makeMeaning');
 
       // Check resource exists using view storage
-      const doc = await ResourceContext.getResourceMetadata(resourceId(id), config);
+      const doc = await ResourceContext.getResourceMetadata(resourceId(id), kb);
       if (!doc) {
         throw new HTTPException(404, { message: 'Resource not found' });
       }
-
-      const { eventStore } = c.get('makeMeaning');
 
       // Delegate to make-meaning service for business logic
       await ResourceOperations.updateResource(
@@ -59,7 +57,7 @@ export function registerUpdateResource(router: ResourcesRouterType) {
       );
 
       // Read annotations from view storage
-      const annotations = await AnnotationContext.getAllAnnotations(resourceId(id), config);
+      const annotations = await AnnotationContext.getAllAnnotations(resourceId(id), kb);
       const entityReferences = annotations.filter((a: Annotation) => {
         if (a.motivation !== 'linking') return false;
         const entityTypes = getEntityTypes({ body: a.body });

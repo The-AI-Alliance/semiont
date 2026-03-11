@@ -135,7 +135,7 @@ describe('Scripting Example: Batch Entity Detection', () => {
         },
         userId('batch-script'),
         makeMeaning.eventStore,
-        makeMeaning.repStore,
+        makeMeaning.kb.content,
         config
       ),
       ResourceOperations.createResource(
@@ -147,7 +147,7 @@ describe('Scripting Example: Batch Entity Detection', () => {
         },
         userId('batch-script'),
         makeMeaning.eventStore,
-        makeMeaning.repStore,
+        makeMeaning.kb.content,
         config
       ),
       ResourceOperations.createResource(
@@ -159,7 +159,7 @@ describe('Scripting Example: Batch Entity Detection', () => {
         },
         userId('batch-script'),
         makeMeaning.eventStore,
-        makeMeaning.repStore,
+        makeMeaning.kb.content,
         config
       ),
     ]);
@@ -273,7 +273,7 @@ describe('Scripting Example: Batch Entity Detection', () => {
         },
         userId('batch-script'),
         makeMeaning.eventStore,
-        makeMeaning.repStore,
+        makeMeaning.kb.content,
         config
       ),
     ]);

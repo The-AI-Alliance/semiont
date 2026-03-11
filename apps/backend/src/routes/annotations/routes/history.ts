@@ -29,10 +29,10 @@ export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
    */
   router.get('/resources/:resourceId/annotations/:annotationId/history', async (c) => {
     const { resourceId, annotationId } = c.req.param();
-    const config = c.get('config');
+    const { kb } = c.get('makeMeaning');
 
     // Verify annotation exists using view storage (not GraphDB)
-    const annotation = await AnnotationContext.getAnnotation(makeAnnotationId(annotationId), makeResourceId(resourceId), config);
+    const annotation = await AnnotationContext.getAnnotation(makeAnnotationId(annotationId), makeResourceId(resourceId), kb);
     if (!annotation) {
       throw new HTTPException(404, { message: 'Annotation not found' });
     }

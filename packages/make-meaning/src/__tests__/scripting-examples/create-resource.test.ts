@@ -114,7 +114,7 @@ describe('Scripting Example: Create Resource', () => {
       },
       userId('test-script'),
       makeMeaning.eventStore,
-      makeMeaning.repStore,
+      makeMeaning.kb.content,
       config
     );
 
@@ -135,7 +135,7 @@ describe('Scripting Example: Create Resource', () => {
     const checksum = representations[0]?.checksum;
     expect(checksum).toBeDefined();
 
-    const storedRep = await makeMeaning.repStore.retrieve(checksum!, 'text/plain');
+    const storedRep = await makeMeaning.kb.content.retrieve(checksum!, 'text/plain');
     expect(storedRep).toBeDefined();
     expect(storedRep.toString()).toBe('Hello, world!');
   });
@@ -154,7 +154,7 @@ describe('Scripting Example: Create Resource', () => {
       },
       userId('test-script'),
       makeMeaning.eventStore,
-      makeMeaning.repStore,
+      makeMeaning.kb.content,
       config
     );
 
@@ -211,7 +211,7 @@ describe('Scripting Example: Create Resource', () => {
         },
         userId('batch-script'),
         makeMeaning.eventStore,
-        makeMeaning.repStore,
+        makeMeaning.kb.content,
         config
       );
 

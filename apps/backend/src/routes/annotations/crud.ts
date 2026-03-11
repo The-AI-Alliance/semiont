@@ -51,13 +51,10 @@ crudRouter.post('/api/annotations',
         request,
         userId(user.id),
         eventStore,
-        config
+        config.services.backend!.publicURL
       );
       return c.json(response, 201);
     } catch (error) {
-      if (error instanceof Error && error.message === 'Backend publicURL not configured') {
-        throw new HTTPException(500, { message: 'Failed to create annotation' });
-      }
       if (error instanceof Error && error.message === 'TextPositionSelector required for creating annotations') {
         throw new HTTPException(400, { message: 'TextPositionSelector required for creating annotations' });
       }
@@ -80,8 +77,7 @@ crudRouter.put('/api/annotations/:id/body',
     const { id } = c.req.param();
     const request = c.get('validatedBody') as UpdateAnnotationBodyRequest;
     const user = c.get('user');
-    const { eventStore } = c.get('makeMeaning');
-    const config = c.get('config');
+    const { kb, eventStore } = c.get('makeMeaning');
 
     getRouteLogger().debug('Body update handler called', {
       annotationId: id,
@@ -95,7 +91,7 @@ crudRouter.put('/api/annotations/:id/body',
         request,
         userId(user.id),
         eventStore,
-        config
+        kb
       );
       getRouteLogger().debug('Successfully updated annotation', { annotationId: id });
       return c.json(response);
@@ -118,14 +114,14 @@ crudRouter.get('/api/annotations', async (c) => {
   const resourceIdParam = query.resourceId;
   const offset = Number(query.offset) || 0;
   const limit = Number(query.limit) || 50;
-  const config = c.get('config');
+  const { kb } = c.get('makeMeaning');
 
   if (!resourceIdParam) {
     throw new HTTPException(400, { message: 'resourceId query parameter is required' });
   }
 
   // O(1) lookup in view storage using resource ID
-  const projection = await AnnotationContext.getResourceAnnotations(resourceId(resourceIdParam), config);
+  const projection = await AnnotationContext.getResourceAnnotations(resourceId(resourceIdParam), kb);
 
   // Apply pagination to all annotations
   const paginatedAnnotations = projection.annotations.slice(offset, offset + limit);
@@ -150,8 +146,7 @@ crudRouter.delete('/api/annotations/:id',
     const { id } = c.req.param();
     const request = c.get('validatedBody') as DeleteAnnotationRequest;
     const user = c.get('user');
-    const { eventStore } = c.get('makeMeaning');
-    const config = c.get('config');
+    const { kb, eventStore } = c.get('makeMeaning');
 
     // Delegate to make-meaning for annotation deletion
     try {
@@ -160,7 +155,7 @@ crudRouter.delete('/api/annotations/:id',
         request.resourceId,
         userId(user.id),
         eventStore,
-        config
+        kb
       );
       return c.body(null, 204);
     } catch (error) {

@@ -31,6 +31,7 @@ export function registerGetAnnotationLLMContext(router: ResourcesRouterType) {
     const { resourceId: resourceIdParam, annotationId: annotationIdParam } = c.req.param();
     const query = c.req.query();
     const config = c.get('config');
+    const makeMeaning = c.get('makeMeaning');
 
     // Parse and validate query parameters
     const includeSourceContext = query.includeSourceContext === 'false' ? false : true;
@@ -53,11 +54,11 @@ export function registerGetAnnotationLLMContext(router: ResourcesRouterType) {
       });
 
       // Use shared service to build context
-      const response = await AnnotationContext.buildLLMContext(annotationUri(fullAnnotationUri), resourceId(resourceIdParam), config, {
+      const response = await AnnotationContext.buildLLMContext(annotationUri(fullAnnotationUri), resourceId(resourceIdParam), makeMeaning.kb, {
         includeSourceContext,
         includeTargetContext,
         contextWindow
-      }, logger);
+      }, makeMeaning.inferenceClient, logger);
 
       return c.json(response);
     } catch (error) {

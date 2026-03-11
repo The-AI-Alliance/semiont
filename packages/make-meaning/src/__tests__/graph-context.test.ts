@@ -7,47 +7,25 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { GraphContext } from '../graph-context';
-import { resourceId, type EnvironmentConfig } from '@semiont/core';
+import { resourceId } from '@semiont/core';
+import type { KnowledgeBase } from '../knowledge-base';
 
-// Mock @semiont/graph
-const mockGraphDb = vi.hoisted(() => ({
+const mockGraphDb = {
   getResourceReferencedBy: vi.fn(),
   findPath: vi.fn(),
   getResourceConnections: vi.fn(),
   searchResources: vi.fn()
-}));
-
-vi.mock('@semiont/graph', () => {
-  return {
-    getGraphDatabase: vi.fn().mockResolvedValue(mockGraphDb)
-  };
-});
+};
 
 describe('GraphContext', () => {
-  const config: EnvironmentConfig = {
-    services: {
-      backend: {
-        platform: { type: 'posix' },
-        port: 4000,
-        publicURL: 'http://localhost:4000',
-        corsOrigin: 'http://localhost:3000'
-      },
-      graph: {
-        platform: { type: 'posix' },
-        type: 'memory'
-      }
-    },
-    site: {
-      siteName: 'Test Site',
-      domain: 'localhost:3000',
-      adminEmail: 'admin@test.local',
-      oauthAllowedDomains: ['test.local']
-    },
-    _metadata: {
-      environment: 'test',
-      projectRoot: '/tmp/test'
-    }
-  } as EnvironmentConfig;
+  const mockKb: KnowledgeBase = {
+    eventStore: {} as any,
+    views: {} as any,
+    content: {} as any,
+    graph: mockGraphDb as any,
+  };
+
+  const publicURL = 'http://localhost:4000';
 
   it('should get backlinks for a resource', async () => {
     mockGraphDb.getResourceReferencedBy.mockResolvedValue([
@@ -61,7 +39,7 @@ describe('GraphContext', () => {
       }
     ]);
 
-    const result = await GraphContext.getBacklinks(resourceId('test-resource'), config);
+    const result = await GraphContext.getBacklinks(resourceId('test-resource'), mockKb, publicURL);
 
     expect(result).toHaveLength(1);
     expect(result[0]).toHaveProperty('id');
@@ -89,7 +67,7 @@ describe('GraphContext', () => {
     const result = await GraphContext.findPath(
       resourceId('res1'),
       resourceId('res2'),
-      config,
+      mockKb,
       3
     );
 
@@ -120,7 +98,7 @@ describe('GraphContext', () => {
       }
     ]);
 
-    const result = await GraphContext.getResourceConnections(resourceId('test'), config);
+    const result = await GraphContext.getResourceConnections(resourceId('test'), mockKb);
 
     expect(result).toHaveLength(2);
     expect(result[0]).toHaveProperty('source');
@@ -145,7 +123,7 @@ describe('GraphContext', () => {
       }
     ]);
 
-    const result = await GraphContext.searchResources('test query', config, 10);
+    const result = await GraphContext.searchResources('test query', mockKb, 10);
 
     expect(result).toHaveLength(2);
     expect(result[0].name).toBe('Matching Resource 1');
@@ -156,7 +134,7 @@ describe('GraphContext', () => {
   it('should handle empty backlinks', async () => {
     mockGraphDb.getResourceReferencedBy.mockResolvedValue([]);
 
-    const result = await GraphContext.getBacklinks(resourceId('no-backlinks'), config);
+    const result = await GraphContext.getBacklinks(resourceId('no-backlinks'), mockKb, publicURL);
 
     expect(result).toEqual([]);
   });
@@ -167,7 +145,7 @@ describe('GraphContext', () => {
     const result = await GraphContext.findPath(
       resourceId('isolated1'),
       resourceId('isolated2'),
-      config
+      mockKb
     );
 
     expect(result).toEqual([]);
@@ -176,7 +154,7 @@ describe('GraphContext', () => {
   it('should handle search with no results', async () => {
     mockGraphDb.searchResources.mockResolvedValue([]);
 
-    const result = await GraphContext.searchResources('nonexistent query', config);
+    const result = await GraphContext.searchResources('nonexistent query', mockKb);
 
     expect(result).toEqual([]);
   });
@@ -187,7 +165,7 @@ describe('GraphContext', () => {
     await GraphContext.findPath(
       resourceId('from'),
       resourceId('to'),
-      config
+      mockKb
     );
 
     expect(mockGraphDb.findPath).toHaveBeenCalledWith(
@@ -200,7 +178,7 @@ describe('GraphContext', () => {
   it('should call searchResources without limit when not provided', async () => {
     mockGraphDb.searchResources.mockResolvedValue([]);
 
-    await GraphContext.searchResources('query', config);
+    await GraphContext.searchResources('query', mockKb);
 
     expect(mockGraphDb.searchResources).toHaveBeenCalledWith('query', undefined);
   });

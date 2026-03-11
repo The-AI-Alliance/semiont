@@ -60,8 +60,6 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
       const { id } = c.req.param();
       const body = c.get('validatedBody') as AnnotateReferencesStreamRequest;
       const { entityTypes, includeDescriptiveReferences } = body;
-      const config = c.get('config');
-
       const logger = getLogger().child({
         component: 'annotate-references-stream',
         resourceId: id
@@ -78,14 +76,13 @@ export function registerAnnotateReferencesStream(router: ResourcesRouterType, jo
         throw new HTTPException(401, { message: 'Authentication required' });
       }
 
+      const { kb, eventBus } = c.get('makeMeaning');
+
       // Validate resource exists using view storage
-      const resource = await ResourceContext.getResourceMetadata(resourceId(id), config);
+      const resource = await ResourceContext.getResourceMetadata(resourceId(id), kb);
       if (!resource) {
         throw new HTTPException(404, { message: 'Resource not found in view storage projections - resource may need to be recreated' });
       }
-
-      // Get EventBus for real-time progress subscriptions
-      const { eventBus } = c.get('makeMeaning');
 
       // Create a detection job (this decouples event emission from HTTP client)
       const job: PendingJob<DetectionParams> = {

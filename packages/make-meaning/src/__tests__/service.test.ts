@@ -138,12 +138,13 @@ describe('Make-Meaning Service', () => {
       expect(service.eventStore.views).toBeDefined();
     });
 
-    it('should create representation store', async () => {
+    it('should create knowledge base with content store', async () => {
       service = await startMakeMeaning(config, eventBus, mockLogger);
 
-      expect(service.repStore).toBeDefined();
-      expect(typeof service.repStore.store).toBe('function');
-      expect(typeof service.repStore.retrieve).toBe('function');
+      expect(service.kb).toBeDefined();
+      expect(service.kb.content).toBeDefined();
+      expect(typeof service.kb.content.store).toBe('function');
+      expect(typeof service.kb.content.retrieve).toBe('function');
     });
 
     it('should create inference client', async () => {

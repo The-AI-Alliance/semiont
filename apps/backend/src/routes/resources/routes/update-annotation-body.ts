@@ -31,7 +31,7 @@ export function registerUpdateAnnotationBody(router: ResourcesRouterType) {
       const { resourceId: resourceIdParam, annotationId: annotationIdParam } = c.req.param();
       const request = c.get('validatedBody') as UpdateAnnotationBodyRequest;
       const user = c.get('user');
-      const config = c.get('config');
+      const { kb, eventStore } = c.get('makeMeaning');
 
       getRouteLogger().debug('Body update handler called', {
         annotationId: annotationIdParam,
@@ -42,7 +42,7 @@ export function registerUpdateAnnotationBody(router: ResourcesRouterType) {
       const annotation = await AnnotationContext.getAnnotation(
         annotationId(annotationIdParam),
         resourceId(resourceIdParam),
-        config
+        kb
       );
       getRouteLogger().debug('View storage lookup result', {
         annotationId: annotationIdParam,
@@ -58,7 +58,6 @@ export function registerUpdateAnnotationBody(router: ResourcesRouterType) {
       }
 
       // Emit annotation.body.updated event
-      const { eventStore } = c.get('makeMeaning');
       await eventStore.appendEvent({
         type: 'annotation.body.updated',
         resourceId: resourceId(resourceIdParam),

@@ -28,7 +28,7 @@ export function registerListResources(router: ResourcesRouterType) {
   router.get('/resources', async (c) => {
     // Parse query parameters with defaults and coercion
     const query = c.req.query();
-    const config = c.get('config');
+    const { kb } = c.get('makeMeaning');
     const offset = Number(query.offset) || 0;
     const limit = Number(query.limit) || 50;
     const entityType = query.entityType;
@@ -49,7 +49,7 @@ export function registerListResources(router: ResourcesRouterType) {
     let filteredDocs = await ResourceContext.listResources({
       search: q,
       archived,
-    }, config);
+    }, kb);
 
     // Additional filter by entity type (view storage already handles search and archived)
     if (entityType) {
@@ -61,7 +61,7 @@ export function registerListResources(router: ResourcesRouterType) {
 
     // Add content previews for search results (delegate to service)
     const formattedDocs = q
-      ? await ResourceContext.addContentPreviews(paginatedDocs, config)
+      ? await ResourceContext.addContentPreviews(paginatedDocs, kb)
       : paginatedDocs;
 
     const response: ListResourcesResponse = {

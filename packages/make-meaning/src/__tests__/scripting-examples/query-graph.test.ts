@@ -126,7 +126,7 @@ describe('Scripting Example: Query Graph Database', () => {
       },
       userId('test-script'),
       makeMeaning.eventStore,
-      makeMeaning.repStore,
+      makeMeaning.kb.content,
       config
     );
 
@@ -158,7 +158,7 @@ describe('Scripting Example: Query Graph Database', () => {
       },
       userId('test-script'),
       makeMeaning.eventStore,
-      makeMeaning.repStore,
+      makeMeaning.kb.content,
       config
     );
 
@@ -181,7 +181,7 @@ describe('Scripting Example: Query Graph Database', () => {
       },
       userId('test-script'),
       makeMeaning.eventStore,
-      config
+      config.services.backend!.publicURL
     );
 
     // EVENTUAL CONSISTENCY: Wait for GraphConsumer to process events and update graph
@@ -209,7 +209,7 @@ describe('Scripting Example: Query Graph Database', () => {
       },
       userId('test-script'),
       makeMeaning.eventStore,
-      makeMeaning.repStore,
+      makeMeaning.kb.content,
       config
     );
 
@@ -222,7 +222,7 @@ describe('Scripting Example: Query Graph Database', () => {
       },
       userId('test-script'),
       makeMeaning.eventStore,
-      makeMeaning.repStore,
+      makeMeaning.kb.content,
       config
     );
 
@@ -258,7 +258,7 @@ describe('Scripting Example: Query Graph Database', () => {
       },
       userId('test-script'),
       makeMeaning.eventStore,
-      makeMeaning.repStore,
+      makeMeaning.kb.content,
       config
     );
 
@@ -282,7 +282,7 @@ describe('Scripting Example: Query Graph Database', () => {
         },
         userId('test-script'),
         makeMeaning.eventStore,
-        config
+        config.services.backend!.publicURL
       );
     }
 
@@ -316,7 +316,7 @@ describe('Scripting Example: Query Graph Database', () => {
       },
       userId('test-script'),
       makeMeaning.eventStore,
-      makeMeaning.repStore,
+      makeMeaning.kb.content,
       config
     );
 

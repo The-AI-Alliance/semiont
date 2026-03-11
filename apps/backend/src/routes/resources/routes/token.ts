@@ -53,8 +53,8 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
       throw new HTTPException(404, { message: 'Token expired' });
     }
 
-    const config = c.get('config');
-    const sourceDoc = await ResourceContext.getResourceMetadata(tokenData.resourceId, config);
+    const { kb } = c.get('makeMeaning');
+    const sourceDoc = await ResourceContext.getResourceMetadata(tokenData.resourceId, kb);
     if (!sourceDoc) {
       throw new HTTPException(404, { message: 'Source resource not found' });
     }
@@ -94,10 +94,10 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
       }
 
       const config = c.get('config');
-      const { eventStore, repStore } = c.get('makeMeaning');
+      const { eventStore, kb } = c.get('makeMeaning');
 
       // Get source resource from materialized views (source of truth)
-      const sourceDoc = await ResourceContext.getResourceMetadata(tokenData.resourceId, config);
+      const sourceDoc = await ResourceContext.getResourceMetadata(tokenData.resourceId, kb);
       if (!sourceDoc) {
         throw new HTTPException(404, { message: 'Source resource not found' });
       }
@@ -123,7 +123,7 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
         },
         userId(user.id),
         eventStore,
-        repStore,
+        kb.content,
         config
       );
 
@@ -157,11 +157,10 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
    */
   router.post('/resources/:id/clone-with-token', async (c) => {
     const { id } = c.req.param();
-    const config = c.get('config');
-    const { repStore } = c.get('makeMeaning');
+    const { kb } = c.get('makeMeaning');
 
     // Look up resource from materialized views (source of truth, not graph DB)
-    const sourceDoc = await ResourceContext.getResourceMetadata(makeResourceId(id), config);
+    const sourceDoc = await ResourceContext.getResourceMetadata(makeResourceId(id), kb);
     if (!sourceDoc) {
       throw new HTTPException(404, { message: 'Resource not found' });
     }
@@ -173,7 +172,7 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
     }
 
     try {
-      await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
+      await kb.content.retrieve(primaryRep.checksum, primaryRep.mediaType);
     } catch {
       throw new HTTPException(404, { message: 'Resource content not found' });
     }

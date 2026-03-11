@@ -59,8 +59,6 @@ export function registerAnnotateCommentsStream(router: ResourcesRouterType, jobQ
       const { id } = c.req.param();
       const body = c.get('validatedBody') as AnnotateCommentsStreamRequest;
       const { instructions, tone, density } = body;
-      const config = c.get('config');
-
       // Validate density if provided
       if (density !== undefined && (typeof density !== 'number' || density < 2 || density > 12)) {
         throw new HTTPException(400, { message: 'Invalid density. Must be a number between 2 and 12.' });
@@ -79,14 +77,13 @@ export function registerAnnotateCommentsStream(router: ResourcesRouterType, jobQ
         throw new HTTPException(401, { message: 'Authentication required' });
       }
 
+      const { kb, eventBus } = c.get('makeMeaning');
+
       // Validate resource exists using view storage
-      const resource = await ResourceContext.getResourceMetadata(resourceId(id), config);
+      const resource = await ResourceContext.getResourceMetadata(resourceId(id), kb);
       if (!resource) {
         throw new HTTPException(404, { message: 'Resource not found in view storage projections - resource may need to be recreated' });
       }
-
-      // Get EventBus for real-time progress subscriptions
-      const { eventBus } = c.get('makeMeaning');
 
       // Create a comment detection job
       const job: PendingJob<CommentDetectionParams> = {

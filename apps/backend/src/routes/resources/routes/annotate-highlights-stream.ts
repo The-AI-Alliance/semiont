@@ -59,8 +59,6 @@ export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jo
       const { id } = c.req.param();
       const body = c.get('validatedBody') as AnnotateHighlightsStreamRequest;
       const { instructions, density } = body;
-      const config = c.get('config');
-
       // Validate density if provided
       if (density !== undefined && (typeof density !== 'number' || density < 1 || density > 15)) {
         throw new HTTPException(400, { message: 'Invalid density. Must be a number between 1 and 15.' });
@@ -79,14 +77,13 @@ export function registerAnnotateHighlightsStream(router: ResourcesRouterType, jo
         throw new HTTPException(401, { message: 'Authentication required' });
       }
 
+      const { kb, eventBus } = c.get('makeMeaning');
+
       // Validate resource exists using view storage
-      const resource = await ResourceContext.getResourceMetadata(resourceId(id), config);
+      const resource = await ResourceContext.getResourceMetadata(resourceId(id), kb);
       if (!resource) {
         throw new HTTPException(404, { message: 'Resource not found in view storage projections - resource may need to be recreated' });
       }
-
-      // Get EventBus for real-time progress subscriptions
-      const { eventBus } = c.get('makeMeaning');
 
       // Create a highlight detection job
       const job: PendingJob<HighlightDetectionParams> = {

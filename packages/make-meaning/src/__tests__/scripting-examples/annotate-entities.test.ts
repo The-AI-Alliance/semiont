@@ -134,7 +134,7 @@ describe('Scripting Example: Entity Detection with Progress', () => {
       },
       userId('test-script'),
       makeMeaning.eventStore,
-      makeMeaning.repStore,
+      makeMeaning.kb.content,
       config
     );
 
@@ -228,7 +228,7 @@ describe('Scripting Example: Entity Detection with Progress', () => {
         },
         userId('test-script'),
         makeMeaning.eventStore,
-        makeMeaning.repStore,
+        makeMeaning.kb.content,
         config
       ),
       ResourceOperations.createResource(
@@ -240,7 +240,7 @@ describe('Scripting Example: Entity Detection with Progress', () => {
         },
         userId('test-script'),
         makeMeaning.eventStore,
-        makeMeaning.repStore,
+        makeMeaning.kb.content,
         config
       ),
     ]);
@@ -318,7 +318,7 @@ describe('Scripting Example: Entity Detection with Progress', () => {
       },
       userId('test-script'),
       makeMeaning.eventStore,
-      makeMeaning.repStore,
+      makeMeaning.kb.content,
       config
     );
 

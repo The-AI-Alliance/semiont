@@ -22,13 +22,13 @@ export function registerGetAnnotation(router: ResourcesRouterType) {
    */
   router.get('/resources/:resourceId/annotations/:annotationId', async (c) => {
     const { resourceId: resourceIdParam, annotationId: annotationIdParam } = c.req.param();
-    const config = c.get('config');
+    const { kb } = c.get('makeMeaning');
 
     // Get annotation from view storage
     const annotation = await AnnotationContext.getAnnotation(
       annotationId(annotationIdParam),
       makeResourceId(resourceIdParam),
-      config
+      kb
     );
 
     if (!annotation) {
@@ -38,7 +38,7 @@ export function registerGetAnnotation(router: ResourcesRouterType) {
     // Get source resource metadata
     const resource = await ResourceContext.getResourceMetadata(
       makeResourceId(resourceIdParam),
-      config
+      kb
     );
 
     // Get resolved resource if annotation body contains a link
@@ -48,7 +48,7 @@ export function registerGetAnnotation(router: ResourcesRouterType) {
       const resolvedId = bodySource.split('/').pop()!;
       resolvedResource = await ResourceContext.getResourceMetadata(
         makeResourceId(resolvedId),
-        config
+        kb
       );
     }
 

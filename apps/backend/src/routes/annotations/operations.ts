@@ -29,7 +29,7 @@ export const operationsRouter: AnnotationsRouterType = createAnnotationRouter();
 operationsRouter.get('/api/annotations/:id/context', async (c) => {
   const { id } = c.req.param();
   const query = c.req.query();
-  const config = c.get('config');
+  const { kb } = c.get('makeMeaning');
 
   // Require resourceId query parameter
   const resourceId = query.resourceId;
@@ -56,7 +56,7 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
       makeResourceId(resourceId),
       contextBefore,
       contextAfter,
-      config
+      kb
     );
 
     return c.json(response);
@@ -86,7 +86,7 @@ operationsRouter.get('/api/annotations/:id/context', async (c) => {
 operationsRouter.get('/api/annotations/:id/summary', async (c) => {
   const { id } = c.req.param();
   const query = c.req.query();
-  const config = c.get('config');
+  const { kb, inferenceClient } = c.get('makeMeaning');
 
   // Require resourceId query parameter
   const resourceId = query.resourceId;
@@ -99,7 +99,8 @@ operationsRouter.get('/api/annotations/:id/summary', async (c) => {
     const response = await AnnotationContext.generateAnnotationSummary(
       annotationId(id),
       makeResourceId(resourceId),
-      config
+      kb,
+      inferenceClient
     );
 
     return c.json(response);

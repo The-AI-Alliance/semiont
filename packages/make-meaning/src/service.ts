@@ -13,8 +13,6 @@
 import * as path from 'path';
 import { JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore, type EventStore } from '@semiont/event-sourcing';
-import { FilesystemRepresentationStore, type RepresentationStore } from '@semiont/content';
-import { FilesystemViewStorage } from '@semiont/event-sourcing';
 import { getPrimaryRepresentation } from '@semiont/api-client';
 import type { EnvironmentConfig, Logger, ResourceId } from '@semiont/core';
 import { EventBus } from '@semiont/core';
@@ -32,12 +30,15 @@ import {
 } from '@semiont/jobs';
 import { GraphDBConsumer } from './graph/consumer';
 import { bootstrapEntityTypes } from './bootstrap/entity-types';
+import { createKnowledgeBase, type KnowledgeBase } from './knowledge-base';
+import { Gatherer } from './gatherer';
+import { Binder } from './binder';
 
 export interface MakeMeaningService {
+  kb: KnowledgeBase;
   jobQueue: JobQueue;
   eventStore: EventStore;
   eventBus: EventBus;
-  repStore: RepresentationStore;
   inferenceClient: InferenceClient;
   graphDb: GraphDatabase;
   workers: {
@@ -49,6 +50,8 @@ export interface MakeMeaningService {
     tag: TagAnnotationWorker;
   };
   graphConsumer: GraphDBConsumer;
+  gatherer: Gatherer;
+  binder: Binder;
   stop: () => Promise<void>;
 }
 
@@ -88,43 +91,51 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus: Even
   const bootstrapLogger = logger.child({ component: 'entity-types-bootstrap' });
   await bootstrapEntityTypes(eventStore, config, bootstrapLogger);
 
-  // 5. Create shared representation store
-  const repStoreLogger = logger.child({ component: 'representation-store' });
-  const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot, repStoreLogger);
-
-  // 6. Create inference client (shared across all workers)
+  // 5. Create inference client (shared across all workers)
   const inferenceLogger = logger.child({ component: 'inference-client' });
   const inferenceClient = await getInferenceClient(config, inferenceLogger);
 
-  // 7. Create graph database connection
+  // 6. Create graph database connection
   const graphDb = await getGraphDatabase(config);
 
-  // 8. Create child loggers for each component
+  // 7. Create Knowledge Base (groups event store, views, content store, graph)
+  const kb = createKnowledgeBase(eventStore, basePath, projectRoot, graphDb, logger);
+
+  // 8. Start graph consumer
+  const graphConsumerLogger = logger.child({ component: 'graph-consumer' });
+  const graphConsumer = new GraphDBConsumer(config, eventStore, graphDb, graphConsumerLogger);
+  await graphConsumer.initialize();
+
+  // 9. Start Gatherer actor
+  const gathererLogger = logger.child({ component: 'gatherer' });
+  const gatherer = new Gatherer(baseUrl, kb, eventBus, inferenceClient, gathererLogger);
+  await gatherer.initialize();
+
+  // 10. Start Binder actor
+  const binderLogger = logger.child({ component: 'binder' });
+  const binder = new Binder(kb, eventBus, binderLogger);
+  await binder.initialize();
+
+  // 11. Create ContentFetcher backed by KB views + content store
+  const contentFetcher: ContentFetcher = async (resourceId: ResourceId): Promise<Readable | null> => {
+    const view = await kb.views.get(resourceId);
+    if (!view) return null;
+    const primaryRep = getPrimaryRepresentation(view.resource);
+    if (!primaryRep?.checksum || !primaryRep?.mediaType) return null;
+    const buffer = await kb.content.retrieve(primaryRep.checksum, primaryRep.mediaType);
+    if (!buffer) return null;
+    return Readable.from([buffer]);
+  };
+
+  // 12. Create child loggers for workers
   const detectionLogger = logger.child({ component: 'reference-detection-worker' });
   const generationLogger = logger.child({ component: 'generation-worker' });
   const highlightLogger = logger.child({ component: 'highlight-detection-worker' });
   const assessmentLogger = logger.child({ component: 'assessment-detection-worker' });
   const commentLogger = logger.child({ component: 'comment-detection-worker' });
   const tagLogger = logger.child({ component: 'tag-detection-worker' });
-  const graphConsumerLogger = logger.child({ component: 'graph-consumer' });
 
-  // 9. Start graph consumer
-  const graphConsumer = new GraphDBConsumer(config, eventStore, graphDb, graphConsumerLogger);
-  await graphConsumer.initialize();
-
-  // 10. Create ContentFetcher backed by view storage + representation store
-  const viewStorage = new FilesystemViewStorage(basePath, projectRoot);
-  const contentFetcher: ContentFetcher = async (resourceId: ResourceId): Promise<Readable | null> => {
-    const view = await viewStorage.get(resourceId);
-    if (!view) return null;
-    const primaryRep = getPrimaryRepresentation(view.resource);
-    if (!primaryRep?.checksum || !primaryRep?.mediaType) return null;
-    const buffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
-    if (!buffer) return null;
-    return Readable.from([buffer]);
-  };
-
-  // 11. Instantiate workers with EventBus, ContentFetcher, and logger
+  // 13. Instantiate workers with EventBus, ContentFetcher, and logger
   const workers = {
     detection: new ReferenceAnnotationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, contentFetcher, detectionLogger),
     generation: new GenerationWorker(jobQueue, config, eventStore, inferenceClient, eventBus, generationLogger),
@@ -155,14 +166,16 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus: Even
   });
 
   return {
+    kb,
     jobQueue,
     eventStore,
     eventBus,
-    repStore,
     inferenceClient,
     graphDb,
     workers,
     graphConsumer,
+    gatherer,
+    binder,
     stop: async () => {
       logger.info('Stopping Make-Meaning service');
       await Promise.all([
@@ -173,6 +186,8 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus: Even
         workers.comment.stop(),
         workers.tag.stop(),
       ]);
+      await gatherer.stop();
+      await binder.stop();
       await graphConsumer.stop();
       await graphDb.disconnect();
       logger.info('Make-Meaning service stopped');

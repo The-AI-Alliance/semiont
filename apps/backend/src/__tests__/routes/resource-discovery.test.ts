@@ -76,7 +76,7 @@ const setupMocks = () => {
         getResourceConnections: vi.fn().mockResolvedValue([]),
         listAnnotations: vi.fn().mockResolvedValue([]),
       },
-      repStore: { get: vi.fn(), store: vi.fn() },
+      kb: { content: { get: vi.fn(), store: vi.fn() }, views: {}, graph: {}, eventStore: {} },
       jobQueue: { createJob: vi.fn() },
       workers: [],
       graphConsumer: {}

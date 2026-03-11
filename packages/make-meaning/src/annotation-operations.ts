@@ -15,13 +15,13 @@ import { getTextPositionSelector, getTargetSource } from '@semiont/api-client';
 import type {
   AnnotationAddedEvent,
   BodyOperation,
-  EnvironmentConfig,
   ResourceId,
   UserId,
   Logger,
 } from '@semiont/core';
 import { annotationId, uriToResourceId, uriToAnnotationId } from '@semiont/core';
 import { AnnotationContext } from './annotation-context';
+import type { KnowledgeBase } from './knowledge-base';
 
 type Annotation = components['schemas']['Annotation'];
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
@@ -43,14 +43,10 @@ export class AnnotationOperations {
     request: CreateAnnotationRequest,
     userId: UserId,
     eventStore: EventStore,
-    config: EnvironmentConfig
+    publicURL: string
   ): Promise<CreateAnnotationResult> {
     // Generate annotation ID
-    const backendUrl = config.services.backend?.publicURL;
-    if (!backendUrl) {
-      throw new Error('Backend publicURL not configured');
-    }
-    const newAnnotationId = generateAnnotationId(backendUrl);
+    const newAnnotationId = generateAnnotationId(publicURL);
 
     // Validate required fields
     const posSelector = getTextPositionSelector(request.target.selector);
@@ -105,13 +101,13 @@ export class AnnotationOperations {
     request: UpdateAnnotationBodyRequest,
     userId: UserId,
     eventStore: EventStore,
-    config: EnvironmentConfig
+    kb: KnowledgeBase
   ): Promise<UpdateAnnotationBodyResult> {
     // Get annotation from view storage
     const annotation = await AnnotationContext.getAnnotation(
       annotationId(id),
       uriToResourceId(request.resourceId) as ResourceId,
-      config
+      kb
     );
 
     if (!annotation) {
@@ -149,13 +145,13 @@ export class AnnotationOperations {
     resourceIdUri: string,
     userId: UserId,
     eventStore: EventStore,
-    config: EnvironmentConfig,
+    kb: KnowledgeBase,
     logger?: Logger
   ): Promise<void> {
     const resourceId = uriToResourceId(resourceIdUri);
 
     // Verify annotation exists
-    const projection = await AnnotationContext.getResourceAnnotations(resourceId, config);
+    const projection = await AnnotationContext.getResourceAnnotations(resourceId, kb);
     const annotation = projection.annotations.find((a: Annotation) => a.id === id);
 
     if (!annotation) {

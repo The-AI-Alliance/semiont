@@ -31,6 +31,7 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
     const query = c.req.query();
     const config = c.get('config');
     const makeMeaning = c.get('makeMeaning');
+    const publicURL = config.services.backend!.publicURL;
 
     // Parse and validate query parameters
     const depth = query.depth ? Number(query.depth) : 2;
@@ -58,7 +59,8 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
           includeContent,
           includeSummary,
         },
-        config,
+        makeMeaning.kb,
+        publicURL,
         makeMeaning.inferenceClient
       );
 

@@ -5,14 +5,14 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import type { components } from '@semiont/core';
-import type { ResourceCreatedEvent, EnvironmentConfig, Logger } from '@semiont/core';
+import type { ResourceCreatedEvent, Logger } from '@semiont/core';
 import { resourceId, userId, annotationId } from '@semiont/core';
 import { CREATION_METHODS } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 type AnnotationBody = components['schemas']['AnnotationBody'];
-import { createEventStore } from '@semiont/event-sourcing';
-import { AnnotationContext } from '@semiont/make-meaning';
+import { createEventStore, FilesystemViewStorage } from '@semiont/event-sourcing';
+import { AnnotationContext, type KnowledgeBase } from '@semiont/make-meaning';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 
 const mockLogger: Logger = {
@@ -25,13 +25,18 @@ const mockLogger: Logger = {
 
 describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => {
   let testEnv: TestEnvironmentConfig;
-  let config: EnvironmentConfig;
+  let kb: KnowledgeBase;
   const testDocId = resourceId('test-doc-integration-' + Date.now());
   const testDocId2 = resourceId('test-doc-target-' + Date.now());
 
   beforeAll(async () => {
     testEnv = await setupTestEnvironment();
-    config = testEnv.config;
+
+    // Create KnowledgeBase for AnnotationContext calls
+    const dataPath = testEnv.config.services.filesystem!.path;
+    const projectRoot = testEnv.config._metadata?.projectRoot;
+    const viewStorage = new FilesystemViewStorage(dataPath, projectRoot);
+    kb = { eventStore: {} as any, views: viewStorage, content: {} as any, graph: {} as any };
 
     // Create test resources in event store
     const eventStore = await createEventStore(
@@ -125,7 +130,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Verify annotation was created
-      const retrieved = await AnnotationContext.getAnnotation(annotationId(annotation.id), testDocId, config);
+      const retrieved = await AnnotationContext.getAnnotation(annotationId(annotation.id), testDocId, kb);
       expect(retrieved).toBeDefined();
       expect(retrieved?.id).toBe(annotation.id);
       expect(Array.isArray(retrieved?.body)).toBe(true);
@@ -186,7 +191,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Verify annotation was created with entity tags
-      const retrieved = await AnnotationContext.getAnnotation(annotationId(annotation.id), testDocId, config);
+      const retrieved = await AnnotationContext.getAnnotation(annotationId(annotation.id), testDocId, kb);
       expect(retrieved).toBeDefined();
       expect(retrieved?.id).toBe(annotation.id);
       expect(Array.isArray(retrieved?.body)).toBe(true);
@@ -285,7 +290,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Verify resolved annotation has both entity tags and SpecificResource
-      const resolved = await AnnotationContext.getAnnotation(stubId, testDocId, config);
+      const resolved = await AnnotationContext.getAnnotation(stubId, testDocId, kb);
       expect(resolved).toBeDefined();
       expect(Array.isArray(resolved?.body)).toBe(true);
 
@@ -383,7 +388,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Verify has only SpecificResource
-      const resolved = await AnnotationContext.getAnnotation(stubId, testDocId, config);
+      const resolved = await AnnotationContext.getAnnotation(stubId, testDocId, kb);
       expect(resolved).toBeDefined();
       expect(Array.isArray(resolved?.body)).toBe(true);
 
@@ -396,7 +401,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
   describe('List Annotations with Multi-Body', () => {
     it('should list all annotations with proper body structure', async () => {
-      const annotations = await AnnotationContext.getAllAnnotations(testDocId, config);
+      const annotations = await AnnotationContext.getAllAnnotations(testDocId, kb);
 
       expect(Array.isArray(annotations)).toBe(true);
       expect(annotations.length).toBeGreaterThan(0);
@@ -490,7 +495,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Verify it exists
-      const beforeDelete = await AnnotationContext.getAnnotation(deleteId, testDocId, config);
+      const beforeDelete = await AnnotationContext.getAnnotation(deleteId, testDocId, kb);
       expect(beforeDelete).toBeDefined();
 
       // Delete
@@ -507,7 +512,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Verify it's deleted
-      const afterDelete = await AnnotationContext.getAnnotation(deleteId, testDocId, config);
+      const afterDelete = await AnnotationContext.getAnnotation(deleteId, testDocId, kb);
       expect(afterDelete).toBeNull();
     });
   });
@@ -556,7 +561,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
 
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      const retrieved = await AnnotationContext.getAnnotation(annotationId(w3cId), testDocId, config);
+      const retrieved = await AnnotationContext.getAnnotation(annotationId(w3cId), testDocId, kb);
 
       // Verify W3C required fields
       expect(retrieved).toBeDefined();
