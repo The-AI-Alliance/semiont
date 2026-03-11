@@ -22,13 +22,14 @@ graph TD
     MARKER["AI Marker"] -->|"mark, browse, beckon"| BUS
     GENERATOR["AI Generator"] -->|"yield, gather"| BUS
     LINKER["AI Linker"] -->|"bind, gather"| BUS
-    SOURCES["Content Sources"] -->|"yield"| BUS
 
     BUS["E V E N T &ensp; B U S"]
 
+    SOURCES["Content Sources"] -->|"yield"| BUS
     BUS -->|"events"| KB["Knowledge Base"]
     BUS -->|"gather"| GATHERER["Gatherer"]
     BUS -->|"bind"| BINDER["Binder"]
+    SOURCES ~~~ GATHERER
     GATHERER -->|"query"| KB
     BINDER -->|"query"| KB
 
