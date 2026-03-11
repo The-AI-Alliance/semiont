@@ -17,6 +17,8 @@
 
 Built on the W3C Web Annotation standard, Semiont transforms unstructured content into interconnected semantic networks — all stored as portable, interoperable annotations. Self-hosted, so your data stays on your infrastructure.
 
+![Semiont screenshot](website/assets/images/semiont-2026-03-10.png)
+
 ## Get Started
 
 **[Run Semiont locally](docs/LOCAL-SEMIONT.md)** using published npm packages — no need to clone this repository. Install the CLI, initialize a project, provision services, and start annotating.

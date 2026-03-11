@@ -7,6 +7,8 @@ title: Semiont - Your Sovereign AI Knowledge Platform
 
 **Semiont is an open-source platform that builds a knowledge base directly from your documents — annotated, linked, and extended by humans and AI agents working together.**
 
+![Semiont screenshot](assets/images/semiont-2026-03-10.png)
+
 Most organizations sit on vast document collections that are searchable but not *understood*. Semiont closes that gap. Import your corpus — contracts, research papers, product specs, regulatory filings — and the system immediately begins identifying entities, proposing annotations, and linking related concepts across documents. Domain experts review and refine what AI proposes; AI scales what experts start. The result is a grounded knowledge graph where every node traces back to a specific passage in a specific document.
 
 That graph becomes infrastructure. Use it to power semantic search and contextual recommendations in your products. Feed it to RAG pipelines so your AI assistants answer from verified, cited sources instead of hallucinating. Automate compliance checks by querying relationships across regulatory documents. Surface hidden connections across research portfolios that would take analysts months to find manually. Every annotation your team creates — or your agents produce — compounds into an asset that makes the next query smarter, the next review faster, and the next product feature possible.
