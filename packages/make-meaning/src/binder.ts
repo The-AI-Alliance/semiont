@@ -5,7 +5,7 @@
  * Subscribes to bind search events and referenced-by queries, queries KB stores
  * (graph, views), and emits results back to the bus.
  *
- * From ARCHITECTURE-NEXT.md:
+ * From ARCHITECTURE.md:
  * "When an Analyst or Linker Agent emits a bind event, the Binder receives it
  * from the bus, searches the KB stores for matching resources, and resolves
  * references — linking a mention to its referent."

@@ -48,9 +48,9 @@ console.log(context.afterText);     // Surrounding passage after the selection
 
 ## Context Assembly
 
-The backend assembles a `GenerationContext` by:
+The Gatherer actor assembles a `GenerationContext` by:
 
-1. Loading the annotation from View Storage
+1. Loading the annotation from Materialized Views
 2. Extracting the target text via the annotation's selector
 3. Extracting surrounding text (configurable context window, default ~2000 characters)
 4. Including annotation metadata (entity types, motivation)
@@ -68,13 +68,13 @@ User clicks "Generate" on a reference annotation
     |
 yield:modal-open fires
     |
-useYieldFlow emits gather:requested (parallel with modal render)
+useYieldFlow emits gather:requested on EventBus (parallel with modal render)
     |
-useContextGatherFlow calls getAnnotationLLMContext API
+Gatherer actor receives gather:requested
     |
-Backend assembles GenerationContext from View Storage + RepresentationStore
+Gatherer assembles GenerationContext from Materialized Views + Content Store
     |
-gather:complete fires with assembled context
+Gatherer emits gather:complete on EventBus with assembled context
     |
 Context available in generation modal for user review and submission
 ```

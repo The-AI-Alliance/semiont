@@ -62,6 +62,9 @@ await client.updateAnnotationBody(annotationUri, {
 |-------|---------|-------------|
 | `bind:link` | `{ annotationUri, searchTerm }` | User clicked "Link Document" on a reference |
 | `bind:search-requested` | `{ referenceId, searchTerm }` | Open the resource search modal |
+| `bind:search-results` | `{ results }` | Search results returned from Binder |
+| `bind:referenced-by-requested` | `{ correlationId, resourceId, motivation? }` | Query which annotations reference a resource |
+| `bind:referenced-by-result` | `{ correlationId, response }` | Referenced-by results from Binder via Graph |
 | `bind:update-body` | `{ annotationUri, resourceId, operations }` | Update annotation body (add/remove link) |
 | `bind:body-updated` | `{ annotationUri }` | Annotation body successfully updated |
 | `bind:body-update-failed` | `{ error }` | Annotation body update failed |

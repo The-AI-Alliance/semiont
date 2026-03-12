@@ -8,7 +8,7 @@
 
 **Making meaning from resources through actors, context assembly, and relationship reasoning.**
 
-This package implements the actor model from [ARCHITECTURE-NEXT.md](../../docs/ARCHITECTURE-NEXT.md). It owns the **Knowledge Base** and the actors that interface with it:
+This package implements the actor model from [ARCHITECTURE.md](../../docs/ARCHITECTURE.md). It owns the **Knowledge Base** and the actors that interface with it:
 
 - **Stower** (write) — the single write gateway to the Knowledge Base
 - **Gatherer** (read) — handles all browse reads, context assembly, and entity type listing

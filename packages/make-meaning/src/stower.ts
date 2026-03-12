@@ -5,7 +5,7 @@
  * events on the EventBus and translates them into domain events on the
  * EventStore + content writes to the RepresentationStore.
  *
- * From ARCHITECTURE-NEXT.md:
+ * From ARCHITECTURE.md:
  * The Knowledge Base has exactly three actor interfaces:
  * - Stower (write) — this actor
  * - Gatherer (read context)

@@ -2,7 +2,7 @@
  * Knowledge Base
  *
  * The inert store that records what intelligent actors decide.
- * Groups the four KB subsystems from ARCHITECTURE-NEXT.md:
+ * Groups the four KB subsystems from ARCHITECTURE.md:
  *
  * - Event Log (immutable append-only) — via EventStore
  * - Materialized Views (fast single-doc queries) — via ViewStorage

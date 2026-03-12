@@ -135,7 +135,7 @@ Worker picks up job from queue
     ↓
 Worker generates content → creates resource → updates annotation
     ↓
-Worker emits annotation.body.updated → Event Store
+Worker emits mark:update-body → EventBus → Stower persists → mark:body-updated
     ↓
 Document viewer's SSE receives event → invalidates cache → refetches annotations
     ↓
@@ -164,7 +164,7 @@ UI updates: ❓ → 🔗 in real-time (<50ms latency)
 1. Validate request body and authentication
 2. Verify source resource and reference annotation exist
 3. Create generation job and submit to queue
-4. Subscribe to Event Store for job events (resourceUri stream)
+4. Subscribe to EventBus for job events
 5. Forward progress events to client via SSE (<50ms latency)
 6. Handle client disconnection (job continues running)
 
@@ -178,12 +178,12 @@ UI updates: ❓ → 🔗 in real-time (<50ms latency)
 
 The GenerationWorker is part of [@semiont/make-meaning](../../packages/make-meaning/docs/job-workers.md#generationworker) and handles AI-powered resource generation.
 
-**File**: [packages/make-meaning/src/jobs/workers/generation-worker.ts](../../packages/make-meaning/src/jobs/workers/generation-worker.ts)
+**File**: [packages/jobs/src/workers/generation-worker.ts](../../packages/jobs/src/workers/generation-worker.ts)
 
 **Processing Stages**:
 
 1. **Load Source Resource (20%)**
-   - Fetch source resource from View Storage
+   - Fetch source resource from Materialized Views
    - Load reference annotation by ID
    - Extract reference text and context
 
@@ -194,19 +194,19 @@ The GenerationWorker is part of [@semiont/make-meaning](../../packages/make-mean
    - Parse and validate generated content
 
 3. **Create Resource (85%)**
-   - Store content in RepresentationStore
-   - Emit `resource.created` event → Event Store
+   - Store content in Content Store
+   - Emit `yield:create` on EventBus → Stower persists to Event Store
    - Generate resource ID from content checksum
 
 4. **Link Reference (95%)**
    - Build SpecificResource body linking to new resource
-   - Emit `annotation.body.updated` event → Event Store
-   - Event broadcasts to SSE subscribers (document viewers)
+   - Emit `mark:update-body` on EventBus → Stower persists to Event Store
+   - Domain event broadcasts to SSE subscribers (document viewers)
 
 5. **Complete (100%)**
-   - Emit `job.completed` event with new resource ID
+   - Emit `job:complete` event on EventBus with new resource ID
    - Frontend receives completion via generation progress SSE
-   - Document viewer receives `annotation.body.updated` via resource events SSE
+   - Document viewer receives `mark:body-updated` via resource events SSE
 
 See [Job Workers Documentation](../../packages/make-meaning/docs/job-workers.md#generationworker) for complete implementation details including dependency injection and error handling.
 
@@ -250,44 +250,41 @@ Generate the content as plain text (no markdown formatting).
 
 ### Event Emission
 
-**Resource Creation**:
+The GenerationWorker emits events on the EventBus. The Stower subscribes to these and persists them to the Event Store.
+
+**Resource Creation** — worker emits `yield:create` on EventBus:
 ```typescript
-await eventStore.append({
-  type: 'resource.created',
-  resourceId: newResourceId,
-  payload: {
-    title: generatedTitle,
-    mimeType: 'text/plain',
-    language: language,
-    sourceAnnotationId: referenceId
-  }
+eventBus.get('yield:create').next({
+  name: generatedTitle,
+  content: contentBuffer,
+  format: 'text/plain',
+  language: language,
+  creationMethod: 'generated',
+  userId,
 });
 ```
 
-**Annotation Update**:
+**Annotation Update** — worker emits `mark:update-body` on EventBus:
 ```typescript
-await eventStore.append({
-  type: 'annotation.body.updated',
-  resourceId: sourceResourceId,  // Source document where reference lives
-  payload: {
-    annotationId: referenceId,
-    operations: [{
-      op: 'add',
-      item: {
-        type: 'SpecificResource',
-        source: newResourceUri,
-        purpose: 'linking'
-      }
-    }]
-  }
+eventBus.get('mark:update-body').next({
+  annotationUri: referenceId,
+  resourceId: sourceResourceId,
+  operations: [{
+    op: 'add',
+    item: {
+      type: 'SpecificResource',
+      source: newResourceUri,
+      purpose: 'linking'
+    }
+  }]
 });
 ```
 
 **Why Two Events?**
-- `resource.created`: Creates the new generated resource (broadcasts to subscribers of generated resource)
-- `annotation.body.updated`: Updates the reference in source document (broadcasts to subscribers of source document)
+- `yield:create` → Stower persists → `yield:created`: Creates the new generated resource
+- `mark:update-body` → Stower persists → `mark:body-updated`: Updates the reference in source document
 
-Both events flow through Event Store → View Storage → Graph Database, enabling:
+Both events flow through EventBus → Stower → Event Store → Materialized Views → Graph Database, enabling:
 - Source document viewer sees reference resolve in real-time
 - New resource is immediately queryable and browsable
 - Graph database tracks relationship: (Source)-[:HAS_ANNOTATION]->(Reference)-[:LINKS_TO]->(Generated)
@@ -372,17 +369,17 @@ stream.onError((error) => {
 
 2. **Resource Events Stream** (`GET /resources/{id}/events/stream`)
    - Long-lived connection per document viewer
-   - Receives `annotation.body.updated` event
+   - Receives `mark:body-updated` event
    - Triggers React Query cache invalidation
    - UI updates icon: ❓ → 🔗
 
 **Critical: No Page Refresh Required**
 
-The `annotation.body.updated` event flow ensures real-time updates:
-1. Worker emits event → Event Store (source document stream)
+The `mark:body-updated` event flow ensures real-time updates:
+1. Worker emits `mark:update-body` → EventBus → Stower persists → emits `mark:body-updated`
 2. Document viewer's SSE receives event (<50ms latency)
 3. Frontend `onAnnotationBodyUpdated` handler invalidates React Query cache
-4. Annotations refetch from View Storage
+4. Annotations refetch from Materialized Views
 5. UI re-renders with resolved reference
 
 See [REAL-TIME.md](../../apps/backend/docs/REAL-TIME.md) for complete SSE architecture details.
@@ -398,7 +395,7 @@ See [REAL-TIME.md](../../apps/backend/docs/REAL-TIME.md) for complete SSE archit
 **Client Disconnection**:
 - Generation job continues running even if progress SSE disconnects
 - Resource still created and annotation still updated
-- User sees resolved reference on page refresh (from View Storage)
+- User sees resolved reference on page refresh (from Materialized Views)
 - Resource events SSE delivers real-time update if still connected
 
 **Validation Errors**:
@@ -449,7 +446,7 @@ See [REAL-TIME.md](../../apps/backend/docs/REAL-TIME.md) for complete SSE archit
 
 ### Generation Package (@semiont/make-meaning)
 
-- [GenerationWorker](../../packages/make-meaning/src/jobs/workers/generation-worker.ts) - Worker implementation
+- [GenerationWorker](../../packages/jobs/src/workers/generation-worker.ts) - Worker implementation
 - [Job Workers Documentation](../../packages/make-meaning/docs/job-workers.md#generationworker) - Architecture and flow
 - [Make-Meaning Examples](../../packages/make-meaning/docs/examples.md) - Usage patterns
 

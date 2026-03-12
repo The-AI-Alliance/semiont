@@ -160,11 +160,11 @@ Every detected annotation follows the [W3C Web Annotation Data Model](https://ww
 ```
 
 **Implementation**:
-- Highlights: [packages/make-meaning/src/jobs/workers/highlight-detection-worker.ts](../../packages/make-meaning/src/jobs/workers/highlight-detection-worker.ts)
-- Assessments: [packages/make-meaning/src/jobs/workers/assessment-detection-worker.ts](../../packages/make-meaning/src/jobs/workers/assessment-detection-worker.ts)
-- Comments: [packages/make-meaning/src/jobs/workers/comment-detection-worker.ts](../../packages/make-meaning/src/jobs/workers/comment-detection-worker.ts)
-- References: [packages/make-meaning/src/jobs/workers/reference-detection-worker.ts](../../packages/make-meaning/src/jobs/workers/reference-detection-worker.ts)
-- Tags: [packages/make-meaning/src/jobs/workers/tag-detection-worker.ts](../../packages/make-meaning/src/jobs/workers/tag-detection-worker.ts)
+- Highlights: [packages/jobs/src/workers/highlight-annotation-worker.ts](../../packages/jobs/src/workers/highlight-annotation-worker.ts)
+- Assessments: [packages/jobs/src/workers/assessment-annotation-worker.ts](../../packages/jobs/src/workers/assessment-annotation-worker.ts)
+- Comments: [packages/jobs/src/workers/comment-annotation-worker.ts](../../packages/jobs/src/workers/comment-annotation-worker.ts)
+- References: [packages/jobs/src/workers/reference-annotation-worker.ts](../../packages/jobs/src/workers/reference-annotation-worker.ts)
+- Tags: [packages/jobs/src/workers/tag-annotation-worker.ts](../../packages/jobs/src/workers/tag-annotation-worker.ts)
 
 See [Job Workers Documentation](../../packages/make-meaning/docs/job-workers.md) for complete details on worker architecture and dependency injection.
 
@@ -212,7 +212,7 @@ Detection workers use the `AnnotationDetection` class from [@semiont/make-meanin
 
 **Highlight Detection**:
 - **Detection Method**: [AnnotationDetection.detectHighlights()](../../packages/make-meaning/docs/api-reference.md#detecthighlights)
-- **Worker**: [HighlightDetectionWorker](../../packages/make-meaning/src/jobs/workers/highlight-detection-worker.ts)
+- **Worker**: [HighlightAnnotationWorker](../../packages/jobs/src/workers/highlight-annotation-worker.ts)
 - **Task**: Identify important/noteworthy passages
 - **Input**: First 8000 characters + optional user instructions
 - **Output**: JSON array with `exact`, `start`, `end`, `prefix`, `suffix`
@@ -220,7 +220,7 @@ Detection workers use the `AnnotationDetection` class from [@semiont/make-meanin
 
 **Assessment Detection**:
 - **Detection Method**: [AnnotationDetection.detectAssessments()](../../packages/make-meaning/docs/api-reference.md#detectassessments)
-- **Worker**: [AssessmentDetectionWorker](../../packages/make-meaning/src/jobs/workers/assessment-detection-worker.ts)
+- **Worker**: [AssessmentAnnotationWorker](../../packages/jobs/src/workers/assessment-annotation-worker.ts)
 - **Task**: Assess and evaluate key passages
 - **Input**: First 8000 characters + optional user instructions
 - **Output**: JSON array with `exact`, `start`, `end`, `prefix`, `suffix`, `assessment`
@@ -228,7 +228,7 @@ Detection workers use the `AnnotationDetection` class from [@semiont/make-meanin
 
 **Comment Detection**:
 - **Detection Method**: [AnnotationDetection.detectComments()](../../packages/make-meaning/docs/api-reference.md#detectcomments)
-- **Worker**: [CommentDetectionWorker](../../packages/make-meaning/src/jobs/workers/comment-detection-worker.ts)
+- **Worker**: [CommentAnnotationWorker](../../packages/jobs/src/workers/comment-annotation-worker.ts)
 - **Task**: Identify passages needing explanatory comments
 - **Input**: First 8000 characters + optional user instructions + optional tone (scholarly/explanatory/conversational/technical)
 - **Output**: JSON array with `exact`, `start`, `end`, `prefix`, `suffix`, `comment`
@@ -237,14 +237,14 @@ Detection workers use the `AnnotationDetection` class from [@semiont/make-meanin
 
 **Tag Detection**:
 - **Detection Method**: [AnnotationDetection.detectTags()](../../packages/make-meaning/docs/api-reference.md#detecttags)
-- **Worker**: [TagDetectionWorker](../../packages/make-meaning/src/jobs/workers/tag-detection-worker.ts)
+- **Worker**: [TagAnnotationWorker](../../packages/jobs/src/workers/tag-annotation-worker.ts)
 - **Task**: Detect and extract structured tags using ontology schemas
 - **Input**: Full document content + schema ID + category
 - **Output**: JSON array with `exact`, `start`, `end`, `prefix`, `suffix`, `category`
 - **Model params**: max_tokens=2000, temperature=0.3
 
 **Reference/Entity Detection**:
-- **Worker**: [ReferenceDetectionWorker](../../packages/make-meaning/src/jobs/workers/reference-detection-worker.ts)
+- **Worker**: [ReferenceAnnotationWorker](../../packages/jobs/src/workers/reference-annotation-worker.ts)
 - **Task**: Identify entity references by type (Person, Location, Concept, etc.)
 - **Input**: Full document content + selected entity types (with optional examples)
 - **Output**: JSON array with `exact`, `entityType`, `startOffset`, `endOffset`, `prefix`, `suffix`
@@ -355,7 +355,7 @@ Controls the target number of annotations per 2000 words:
 
 All detection types use similar validation:
 
-**Implementation**: [apps/backend/src/jobs/workers/highlight-detection-worker.ts:263-278](../../apps/backend/src/jobs/workers/highlight-detection-worker.ts)
+**Implementation**: [packages/jobs/src/workers/highlight-annotation-worker.ts](../../packages/jobs/src/workers/highlight-annotation-worker.ts)
 
 ```typescript
 // Parse LLM response
@@ -382,7 +382,7 @@ return parsed.filter((h: any) =>
 - Filter malformed entries
 - Does NOT validate positions against content (relies on fuzzy anchoring)
 
-**Reference detection** additionally validates and corrects positions using prefix/suffix context ([entity-extractor.ts:106-180](../../apps/backend/src/inference/entity-extractor.ts)).
+**Reference detection** additionally validates and corrects positions using prefix/suffix context ([entity-extractor.ts](../../packages/jobs/src/workers/detection/entity-extractor.ts)).
 
 ### Position Accuracy Challenges
 
@@ -411,11 +411,11 @@ Frontend → POST /resources/{id}/detect-{highlights|assessments|comments|annota
     ↓
 Route validates request, creates job → submits to queue
     ↓
-Route subscribes to Event Store (resourceUri)
+Route subscribes to EventBus for job events (resourceUri)
     ↓
 Worker picks up job from queue
     ↓
-Worker emits events → Event Store
+Worker emits events → EventBus → Stower persists to Event Store
     ↓
 Route forwards events → SSE stream to frontend
     ↓
@@ -439,9 +439,9 @@ Frontend updates UI in real-time (<50ms latency)
    - Assessments: instructions (optional), tone (optional: analytical/critical/balanced/constructive), density (optional, 1-10)
    - Comments: instructions (optional), tone (optional: scholarly/explanatory/conversational/technical), density (optional, 2-12)
    - References: entityTypes (required array), includeDescriptiveReferences (optional boolean)
-2. Check authentication and resource existence (View Storage query)
+2. Check authentication and resource existence
 3. Create job and submit to queue
-4. Subscribe to Event Store for job events (resourceUri stream)
+4. Subscribe to EventBus for job events
 5. Forward events to client via SSE (<50ms latency)
 6. Handle client disconnection gracefully (job continues)
 
@@ -465,55 +465,56 @@ References:
 
 ### Backend Workers (Job Processing)
 
-All detection workers follow the same pattern, inheriting from `JobWorker` base class in [@semiont/jobs](../../packages/jobs/). See [Job Workers Documentation](../../packages/make-meaning/docs/job-workers.md) for complete architecture details.
+All annotation workers follow the same pattern, inheriting from `JobWorker` base class in [@semiont/jobs](../../packages/jobs/). See [Job Workers Documentation](../../packages/make-meaning/docs/job-workers.md) for complete architecture details.
 
-**Highlights Worker**: [HighlightDetectionWorker](../../packages/make-meaning/src/jobs/workers/highlight-detection-worker.ts)
+**Highlights Worker**: [HighlightAnnotationWorker](../../packages/jobs/src/workers/highlight-annotation-worker.ts)
 
 **Processing Stages**:
-1. **Load Resource (10%)**: Fetch from View Storage → load content via Representation Store → charset-aware decoding
+1. **Load Resource (10%)**: Fetch from Materialized Views → load content via Content Store → charset-aware decoding
 2. **AI Detection (30%)**: Call `AnnotationDetection.detectHighlights()` → parse validated matches
-3. **Create Annotations (60-100%)**: For each highlight → create W3C annotation → append to Event Store
+3. **Create Annotations (60-100%)**: For each highlight → create W3C annotation → emit `mark:create` on EventBus
 
-**Assessments Worker**: [AssessmentDetectionWorker](../../packages/make-meaning/src/jobs/workers/assessment-detection-worker.ts)
+**Assessments Worker**: [AssessmentAnnotationWorker](../../packages/jobs/src/workers/assessment-annotation-worker.ts)
 
 **Processing Stages**: Same as highlights, but calls `AnnotationDetection.detectAssessments()` and includes assessment text in body
 
-**Comments Worker**: [CommentDetectionWorker](../../packages/make-meaning/src/jobs/workers/comment-detection-worker.ts)
+**Comments Worker**: [CommentAnnotationWorker](../../packages/jobs/src/workers/comment-annotation-worker.ts)
 
 **Processing Stages**:
-1. **Load Resource (10%)**: Fetch from View Storage → load content via Representation Store → charset-aware decoding
+1. **Load Resource (10%)**: Fetch from Materialized Views → load content via Content Store → charset-aware decoding
 2. **AI Detection (30%)**: Call `AnnotationDetection.detectComments()` with tone parameter → parse validated matches
-3. **Create Annotations (60-100%)**: For each comment → create W3C annotation with `purpose: "commenting"` → append to Event Store
+3. **Create Annotations (60-100%)**: For each comment → create W3C annotation with `purpose: "commenting"` → emit `mark:create` on EventBus
 
-**Tags Worker**: [TagDetectionWorker](../../packages/make-meaning/src/jobs/workers/tag-detection-worker.ts)
+**Tags Worker**: [TagAnnotationWorker](../../packages/jobs/src/workers/tag-annotation-worker.ts)
 
 **Processing Stages**:
-1. **Load Resource (10%)**: Fetch from View Storage → load full content
+1. **Load Resource (10%)**: Fetch from Materialized Views → load full content
 2. **Per-Category Detection**: For each category → call `AnnotationDetection.detectTags()` → parse validated matches
-3. **Create Annotations (60-100%)**: For each tag → create W3C annotation with dual-body structure (category + schema ID) → append to Event Store
+3. **Create Annotations (60-100%)**: For each tag → create W3C annotation with dual-body structure (category + schema ID) → emit `mark:create` on EventBus
 
-**References Worker**: [ReferenceDetectionWorker](../../packages/make-meaning/src/jobs/workers/reference-detection-worker.ts)
+**References Worker**: [ReferenceAnnotationWorker](../../packages/jobs/src/workers/reference-annotation-worker.ts)
 
 **Processing Stages**:
-1. **Load Resource**: Fetch from View Storage → load full content (no truncation)
+1. **Load Resource**: Fetch from Materialized Views → load full content (no truncation)
 2. **Per-Entity-Type Detection**: For each selected entity type → perform AI inference → validate/correct positions
-3. **Create Annotations**: For each entity → create W3C annotation with entity type tags → append to Event Store
+3. **Create Annotations**: For each entity → create W3C annotation with entity type tags → emit `mark:create` on EventBus
 4. **Progress Updates**: Emit progress after each entity type completes
 
-**Event Emission**: All workers emit `job.started`, `job.progress`, `job.completed`, or `job.failed` events to Event Store. Workers receive dependencies (JobQueue, EventStore, EnvironmentConfig) via constructor parameters, not singletons.
+**Event Emission**: All workers emit `job:start`, `job:progress`, `job:complete`, or `job:failed` events to the EventBus. The Stower subscribes to these events and persists them to the Event Store. Workers receive dependencies (JobQueue, EventBus, EnvironmentConfig) via constructor parameters, not singletons.
 
 ### Real-Time Updates
 
-Detection events flow through the Event Store to subscribed clients via Server-Sent Events (SSE), enabling real-time UI updates:
+Detection events flow through the EventBus to subscribed clients via Server-Sent Events (SSE), enabling real-time UI updates:
 
-**Progress Updates**: Route subscribes to resource events, forwards job progress to client (<50ms latency)
+**Progress Updates**: Route subscribes to EventBus for job events, forwards progress to client (<50ms latency)
 
-**Annotation Creation**: When worker emits `annotation.added`:
-1. Event Store broadcasts to SSE subscribers (document viewers)
-2. View Materializer updates View Storage
+**Annotation Creation**: When worker emits `mark:create` on the EventBus:
+1. Stower persists to Event Store and emits `mark:created`
+2. View Materializer updates Materialized Views
 3. Graph Consumer updates Graph Database
-4. Frontend invalidates React Query cache → refetches annotations
-5. UI updates automatically
+4. SSE subscribers receive the domain event
+5. Frontend invalidates React Query cache → refetches annotations
+6. UI updates automatically
 
 See [Real-Time Event Architecture](../../apps/backend/docs/REAL-TIME.md) for complete SSE implementation details including Event Handler Refs Pattern, reconnection strategy, and Envoy proxy configuration.
 
@@ -522,15 +523,15 @@ See [Real-Time Event Architecture](../../apps/backend/docs/REAL-TIME.md) for com
 **Event Store → View Storage → Graph Database** ([Backend W3C Implementation](../../apps/backend/docs/W3C-WEB-ANNOTATION.md)):
 
 ```
-Worker emits annotation.added event
+Worker emits mark:create on EventBus
     ↓
-Event Store (filesystem JSONL - immutable append-only log)
+Stower persists to Event Store (filesystem JSONL - immutable append-only log)
     ↓
-Graph Consumer processes event
+Stower emits mark:created on EventBus
     ↓
-View Storage (materialized view - fast single-doc queries)
+View Materializer updates Materialized Views (fast single-doc queries)
     ↓
-Graph Database (relationship traversal - backlinks, connections)
+Graph Consumer updates Graph Database (relationship traversal - backlinks, connections)
 ```
 
 **Storage Locations**:
@@ -658,7 +659,7 @@ stream.onError((error) => {
 
 After detection completes:
 
-1. Frontend refetches annotations from backend (View Storage)
+1. Frontend refetches annotations from backend (Materialized Views)
 2. Annotations converted to TextSegments with positions
 3. CRLF → LF position conversion applied ([CODEMIRROR-INTEGRATION.md](../../packages/react-ui/docs/CODEMIRROR-INTEGRATION.md))
 4. Visual feedback (sparkle animation for new annotations)
@@ -712,11 +713,11 @@ After detection completes:
 
 - [AnnotationDetection API](../../packages/make-meaning/docs/api-reference.md#annotationdetection) - Detection methods
 - [Job Workers Documentation](../../packages/make-meaning/docs/job-workers.md) - Worker architecture and dependency injection
-- [HighlightDetectionWorker](../../packages/make-meaning/src/jobs/workers/highlight-detection-worker.ts) - Highlight worker
-- [AssessmentDetectionWorker](../../packages/make-meaning/src/jobs/workers/assessment-detection-worker.ts) - Assessment worker
-- [CommentDetectionWorker](../../packages/make-meaning/src/jobs/workers/comment-detection-worker.ts) - Comment worker
-- [TagDetectionWorker](../../packages/make-meaning/src/jobs/workers/tag-detection-worker.ts) - Tag worker
-- [ReferenceDetectionWorker](../../packages/make-meaning/src/jobs/workers/reference-detection-worker.ts) - Reference/entity detection worker
+- [HighlightAnnotationWorker](../../packages/jobs/src/workers/highlight-annotation-worker.ts) - Highlight worker
+- [AssessmentAnnotationWorker](../../packages/jobs/src/workers/assessment-annotation-worker.ts) - Assessment worker
+- [CommentAnnotationWorker](../../packages/jobs/src/workers/comment-annotation-worker.ts) - Comment worker
+- [TagAnnotationWorker](../../packages/jobs/src/workers/tag-annotation-worker.ts) - Tag worker
+- [ReferenceAnnotationWorker](../../packages/jobs/src/workers/reference-annotation-worker.ts) - Reference/entity detection worker
 - [Make-Meaning Examples](../../packages/make-meaning/docs/examples.md) - Usage examples
 
 ### Backend Routes

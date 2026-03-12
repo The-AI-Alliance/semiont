@@ -1,6 +1,6 @@
 # Architecture
 
-`@semiont/make-meaning` implements the actor model from [ARCHITECTURE-NEXT.md](../../../docs/ARCHITECTURE-NEXT.md).
+`@semiont/make-meaning` implements the actor model from [ARCHITECTURE.md](../../../docs/ARCHITECTURE.md).
 
 ## Actor Model
 
@@ -231,6 +231,6 @@ data/jobs/{pending,running,complete,failed,cancelled}/<job-id>.json
 
 ## See Also
 
-- [ARCHITECTURE-NEXT.md](../../../docs/ARCHITECTURE-NEXT.md) — System-wide actor model
+- [ARCHITECTURE.md](../../../docs/ARCHITECTURE.md) — System-wide actor model
 - [API Reference](./api-reference.md) — Context modules and operations
 - [Job Workers](./job-workers.md) — Worker implementations in @semiont/jobs

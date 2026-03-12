@@ -4,7 +4,7 @@
  * The read actor for the knowledge base. Subscribes to gather and browse events,
  * queries KB stores via context modules, and emits results back to the bus.
  *
- * From ARCHITECTURE-NEXT.md:
+ * From ARCHITECTURE.md:
  * "When a Generator Agent or Linker Agent emits a gather event, the Gatherer
  * receives it from the bus, queries the relevant KB stores, and assembles
  * the context needed for downstream work."
