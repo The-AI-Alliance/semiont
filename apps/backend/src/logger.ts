@@ -34,7 +34,7 @@ export interface LoggerConfig {
  * - LOG_FORMAT: json | simple (default: json)
  * - NODE_ENV: development | production | test
  */
-export function getLoggerConfig(logLevel?: LogLevel): LoggerConfig {
+function getLoggerConfig(logLevel?: LogLevel): LoggerConfig {
   const level = logLevel || (process.env.LOG_LEVEL as LogLevel) || 'info';
   const format = (process.env.LOG_FORMAT || 'json') as 'json' | 'simple';
   const nodeEnv = process.env.NODE_ENV || 'development';

@@ -53,9 +53,6 @@ export {
   generateReferenceSuggestions,
 } from './generation/resource-generation';
 
-// ID generation (re-export from core for backward compatibility during migration)
-export { generateUuid } from '@semiont/core';
-
 // Placeholder for initial build
 export const PACKAGE_NAME = '@semiont/make-meaning';
 export const VERSION = '0.1.0';

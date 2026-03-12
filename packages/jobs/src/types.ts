@@ -333,23 +333,6 @@ export function isCancelledJob(job: AnyJob): job is CancelledJob<any> {
 }
 
 // ============================================================================
-// Job Creation Request Types
-// ============================================================================
-
-export interface CreateDetectionJobRequest {
-  resourceId: ResourceId;
-  entityTypes: EntityType[];
-}
-
-export interface CreateGenerationJobRequest {
-  referenceId: AnnotationId;
-  sourceResourceId: ResourceId;
-  prompt?: string;
-  title?: string;
-  entityTypes?: EntityType[];
-}
-
-// ============================================================================
 // Job Query Types
 // ============================================================================
 
@@ -361,15 +344,3 @@ export interface JobQueryFilters {
   offset?: number;
 }
 
-// ============================================================================
-// Job API Response Types
-// ============================================================================
-
-export interface CreateJobResponse {
-  jobId: JobId;
-}
-
-export interface ListJobsResponse {
-  jobs: AnyJob[];
-  total: number;
-}
