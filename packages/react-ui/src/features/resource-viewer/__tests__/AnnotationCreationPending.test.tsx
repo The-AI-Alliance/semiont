@@ -1,13 +1,13 @@
 /**
- * Regression test: pendingAnnotation cleared after mark:submitsucceeds
+ * Regression test: pendingAnnotation cleared after mark:submit succeeds
  *
  * Bug: handleAnnotationCreate in useMarkFlow called the API and emitted
- * mark:submitd, but never called setPendingAnnotation(null). The pending
+ * mark:created, but never called setPendingAnnotation(null). The pending
  * creation form (e.g. "Create Reference", "Save" assessment) remained visible
  * after the user clicked the confirm button.
  *
  * Fix: setPendingAnnotation(null) added in handleAnnotationCreate on success,
- * before emitting mark:submitd.
+ * before emitting mark:created.
  *
  * This test covers all four motivations that have a pending form:
  * - linking  (ReferencesPanel: "Create Reference" button)
@@ -243,13 +243,13 @@ describe('Annotation creation clears pendingAnnotation', () => {
     });
   });
 
-  it('emits mark:submitd after successful creation', async () => {
+  it('emits mark:created after successful creation', async () => {
     const { emit, getEventBus } = renderDetectionFlow(TEST_URI);
 
     const createdListener = vi.fn();
     // Set listener after first render so eventBus is captured
     await waitFor(() => expect(getEventBus()).toBeDefined());
-    const subscription = getEventBus().get('mark:submitd').subscribe(createdListener);
+    const subscription = getEventBus().get('mark:created').subscribe(createdListener);
 
     act(() => {
       emit('mark:requested', { selector: TEXT_SELECTOR, motivation: 'linking' });
