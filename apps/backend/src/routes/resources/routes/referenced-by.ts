@@ -1,91 +1,36 @@
 /**
- * Referenced By Route - Spec-First Version
+ * Referenced By Route
  *
- * Migrated from code-first to spec-first architecture:
- * - Uses plain Hono (no @hono/zod-openapi)
- * - No request body validation needed (GET route with only path params)
- * - Types from generated OpenAPI types
- * - OpenAPI spec is the source of truth
+ * Thin HTTP wrapper: emits bind:referenced-by-requested on the EventBus,
+ * awaits the Binder's response.
  */
 
-import type { components } from '@semiont/core';
-import { resourceUri as makeResourceUri, resourceId as makeResourceId, resourceIdToURI } from '@semiont/core';
-import { getExactText, getTargetSource, getTargetSelector } from '@semiont/api-client';
+import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import { getLogger } from '../../../logger';
-
-// Lazy initialization to avoid calling getLogger() at module load time
-const getRouteLogger = () => getLogger().child({ component: 'referenced-by' });
-
-type GetReferencedByResponse = components['schemas']['GetReferencedByResponse'];
+import { resourceId } from '@semiont/core';
+import { eventBusRequest } from '../../../utils/event-bus-request';
 
 export function registerGetReferencedBy(router: ResourcesRouterType) {
-  /**
-   * GET /resources/:id/referenced-by
-   *
-   * Get resources that reference this resource
-   * Requires authentication
-   * Returns list of resources with references to this resource
-   *
-   * Optional query parameter:
-   * - motivation: Filter by W3C motivation type (e.g., 'linking', 'commenting', 'highlighting')
-   */
   router.get('/resources/:id/referenced-by', async (c) => {
     const { id } = c.req.param();
     const motivation = c.req.query('motivation');
-    const config = c.get('config');
-    const { graphDb } = c.get('makeMeaning');
+    const eventBus = c.get('eventBus');
+    const correlationId = crypto.randomUUID();
 
-    // Get all annotations that reference this resource
-    // Convert to full URI for graph database lookup
-    const resourceUri = resourceIdToURI(makeResourceId(id), config.services.backend!.publicURL);
-    getRouteLogger().debug('Looking for annotations referencing resource', {
-      resourceId: id,
-      resourceUri,
-      motivation: motivation || 'all'
-    });
-    const references = await graphDb.getResourceReferencedBy(resourceUri, motivation);
-    getRouteLogger().debug('Found annotations', { count: references.length });
-
-    // Get unique resources from the selections
-    const docIds = [...new Set(references.map(ref => getTargetSource(ref.target)))];
-    getRouteLogger().debug('Unique source resource IDs', { docIds });
-    const resources = await Promise.all(docIds.map(docId => graphDb.getResource(makeResourceUri(docId))));
-    getRouteLogger().debug('Fetched resources', {
-      total: resources.length,
-      notFound: resources.filter(r => r === null).length
-    });
-
-    // Build resource map for lookup (ResourceDescriptor uses @id, not id)
-    const docMap = new Map(resources.filter(doc => doc !== null).map(doc => [doc['@id'], doc]));
-    getRouteLogger().debug('Resource map created', { keys: Array.from(docMap.keys()) });
-
-    // Transform into ReferencedBy structure
-    const referencedBy = references.map(ref => {
-      const targetSource = getTargetSource(ref.target);
-      const targetSelector = getTargetSelector(ref.target);
-      const doc = docMap.get(targetSource);
-      getRouteLogger().debug('Reference lookup', {
-        targetSource,
-        found: !!doc,
-        name: doc?.name || 'unknown'
-      });
-      return {
-        id: ref.id,
-        resourceName: doc?.name || 'Untitled Resource',
-        target: {
-          source: targetSource,
-          selector: {
-            exact: targetSelector ? getExactText(targetSelector) : '',
-          },
-        },
-      };
-    });
-
-    const response: GetReferencedByResponse = {
-      referencedBy,
-    };
-
-    return c.json(response);
+    try {
+      const response = await eventBusRequest(
+        eventBus,
+        'bind:referenced-by-requested',
+        { correlationId, resourceId: resourceId(id), motivation },
+        'bind:referenced-by-result',
+        'bind:referenced-by-failed',
+      );
+      return c.json(response);
+    } catch (error) {
+      if (error instanceof Error && error.name === 'TimeoutError') {
+        throw new HTTPException(504, { message: 'Request timed out' });
+      }
+      throw error;
+    }
   });
 }

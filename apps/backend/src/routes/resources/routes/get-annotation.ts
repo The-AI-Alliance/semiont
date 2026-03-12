@@ -1,63 +1,40 @@
 /**
  * Get Annotation Route
- * GET /resources/{resourceId}/annotations/{annotationId}
  *
- * Gets a specific annotation from a resource using nested path format
+ * Thin HTTP wrapper: emits browse:annotation-requested on the EventBus,
+ * awaits the Gatherer's response.
  */
 
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import type { components } from '@semiont/core';
-import { getBodySource } from '@semiont/api-client';
-import { resourceId as makeResourceId, annotationId } from '@semiont/core';
-import { AnnotationContext } from '@semiont/make-meaning';
-import { ResourceContext } from '@semiont/make-meaning';
-
-type GetAnnotationResponse = components['schemas']['GetAnnotationResponse'];
+import { resourceId, annotationId } from '@semiont/core';
+import { eventBusRequest } from '../../../utils/event-bus-request';
 
 export function registerGetAnnotation(router: ResourcesRouterType) {
-  /**
-   * GET /resources/:resourceId/annotations/:annotationId
-   * Get a specific annotation from a resource
-   */
   router.get('/resources/:resourceId/annotations/:annotationId', async (c) => {
     const { resourceId: resourceIdParam, annotationId: annotationIdParam } = c.req.param();
-    const { kb } = c.get('makeMeaning');
+    const eventBus = c.get('eventBus');
+    const correlationId = crypto.randomUUID();
 
-    // Get annotation from view storage
-    const annotation = await AnnotationContext.getAnnotation(
-      annotationId(annotationIdParam),
-      makeResourceId(resourceIdParam),
-      kb
-    );
-
-    if (!annotation) {
-      throw new HTTPException(404, { message: 'Annotation not found' });
-    }
-
-    // Get source resource metadata
-    const resource = await ResourceContext.getResourceMetadata(
-      makeResourceId(resourceIdParam),
-      kb
-    );
-
-    // Get resolved resource if annotation body contains a link
-    let resolvedResource = null;
-    const bodySource = getBodySource(annotation.body);
-    if (bodySource) {
-      const resolvedId = bodySource.split('/').pop()!;
-      resolvedResource = await ResourceContext.getResourceMetadata(
-        makeResourceId(resolvedId),
-        kb
+    try {
+      const response = await eventBusRequest(
+        eventBus,
+        'browse:annotation-requested',
+        { correlationId, resourceId: resourceId(resourceIdParam), annotationId: annotationId(annotationIdParam) },
+        'browse:annotation-result',
+        'browse:annotation-failed',
       );
+      return c.json(response);
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message === 'Annotation not found') {
+          throw new HTTPException(404, { message: 'Annotation not found' });
+        }
+        if (error.name === 'TimeoutError') {
+          throw new HTTPException(504, { message: 'Request timed out' });
+        }
+      }
+      throw error;
     }
-
-    const response: GetAnnotationResponse = {
-      annotation,
-      resource,
-      resolvedResource,
-    };
-
-    return c.json(response);
   });
 }

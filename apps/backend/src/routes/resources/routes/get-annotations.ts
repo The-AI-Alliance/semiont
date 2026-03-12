@@ -1,39 +1,35 @@
 /**
- * Get Resource Annotations Route - Spec-First Version
+ * Get Resource Annotations Route
  *
- * Migrated from code-first to spec-first architecture:
- * - Uses plain Hono (no @hono/zod-openapi)
- * - No request body validation needed (GET route with only path params)
- * - Types from generated OpenAPI types
- * - OpenAPI spec is the source of truth
+ * Thin HTTP wrapper: emits browse:annotations-requested on the EventBus,
+ * awaits the Gatherer's response.
  */
 
+import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import { AnnotationContext } from '@semiont/make-meaning';
-import type { components } from '@semiont/core';
 import { resourceId } from '@semiont/core';
-
-type GetAnnotationsResponse = components['schemas']['GetAnnotationsResponse'];
+import { eventBusRequest } from '../../../utils/event-bus-request';
 
 export function registerGetResourceAnnotations(router: ResourcesRouterType) {
-  /**
-   * GET /resources/:id/annotations
-   *
-   * Get all annotations (both highlights and references) in a resource
-   * Requires authentication
-   * Uses view storage projections
-   */
   router.get('/resources/:id/annotations', async (c) => {
     const { id } = c.req.param();
-    const { kb } = c.get('makeMeaning');
+    const eventBus = c.get('eventBus');
+    const correlationId = crypto.randomUUID();
 
-    const annotations = await AnnotationContext.getAllAnnotations(resourceId(id), kb);
-
-    const response: GetAnnotationsResponse = {
-      annotations,
-      total: annotations.length
-    };
-
-    return c.json(response);
+    try {
+      const response = await eventBusRequest(
+        eventBus,
+        'browse:annotations-requested',
+        { correlationId, resourceId: resourceId(id) },
+        'browse:annotations-result',
+        'browse:annotations-failed',
+      );
+      return c.json(response);
+    } catch (error) {
+      if (error instanceof Error && error.name === 'TimeoutError') {
+        throw new HTTPException(504, { message: 'Request timed out' });
+      }
+      throw error;
+    }
   });
 }

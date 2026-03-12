@@ -1,193 +1,127 @@
 /**
- * Token Routes - Spec-First Version
+ * Token Routes
  *
- * Migrated from code-first to spec-first architecture:
- * - Uses plain Hono (no @hono/zod-openapi)
- * - Validates request bodies with validateRequestBody middleware
- * - Types from generated OpenAPI types
- * - OpenAPI spec is the source of truth
+ * Thin HTTP wrappers: emit yield:clone-* events on the EventBus,
+ * await the CloneTokenManager's response.
  */
 
 import { HTTPException } from 'hono/http-exception';
-import {
-  CREATION_METHODS,
-  resourceId as makeResourceId,
-  type ResourceId,
-  userId,
-} from '@semiont/core';
-import { ResourceContext, ResourceOperations } from '@semiont/make-meaning';
-import type { CloneToken } from '@semiont/core';
-import { cloneToken as makeCloneToken } from '@semiont/core';
+import { resourceId as makeResourceId, userId } from '@semiont/core';
 import type { ResourcesRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/core';
+import { eventBusRequest } from '../../../utils/event-bus-request';
 
-import { getPrimaryRepresentation, getResourceEntityTypes } from '@semiont/api-client';
-
-type GetResourceByTokenResponse = components['schemas']['GetResourceByTokenResponse'];
 type CreateResourceFromTokenRequest = components['schemas']['CreateResourceFromTokenRequest'];
-type CloneResourceWithTokenResponse = components['schemas']['CloneResourceWithTokenResponse'];
-
-// Simple in-memory token store (replace with Redis/DB in production)
-const cloneTokens = new Map<CloneToken, { resourceId: ResourceId; expiresAt: Date }>();
 
 export function registerTokenRoutes(router: ResourcesRouterType) {
   /**
    * GET /api/clone-tokens/:token
-   *
    * Retrieve a resource using a clone token
-   * Requires authentication
    */
   router.get('/api/clone-tokens/:token', async (c) => {
-    const { token: tokenStr } = c.req.param();
-    const token = makeCloneToken(tokenStr);
+    const { token } = c.req.param();
+    const eventBus = c.get('eventBus');
+    const correlationId = crypto.randomUUID();
 
-    const tokenData = cloneTokens.get(token);
-    if (!tokenData) {
-      throw new HTTPException(404, { message: 'Invalid or expired token' });
+    try {
+      const response = await eventBusRequest(
+        eventBus,
+        'yield:clone-resource-requested',
+        { correlationId, token },
+        'yield:clone-resource-result',
+        'yield:clone-resource-failed',
+      );
+      return c.json(response);
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message === 'Invalid or expired token' || error.message === 'Token expired') {
+          throw new HTTPException(404, { message: error.message });
+        }
+        if (error.message === 'Source resource not found') {
+          throw new HTTPException(404, { message: error.message });
+        }
+        if (error.name === 'TimeoutError') {
+          throw new HTTPException(504, { message: 'Request timed out' });
+        }
+      }
+      throw error;
     }
-
-    if (new Date() > tokenData.expiresAt) {
-      cloneTokens.delete(token);
-      throw new HTTPException(404, { message: 'Token expired' });
-    }
-
-    const { kb } = c.get('makeMeaning');
-    const sourceDoc = await ResourceContext.getResourceMetadata(tokenData.resourceId, kb);
-    if (!sourceDoc) {
-      throw new HTTPException(404, { message: 'Source resource not found' });
-    }
-
-    // NOTE: Content is NOT included - frontend should fetch via GET /resources/:id/content
-
-    const response: GetResourceByTokenResponse = {
-      sourceResource: sourceDoc,
-      expiresAt: tokenData.expiresAt.toISOString(),
-    };
-
-    return c.json(response);
   });
 
   /**
    * POST /api/clone-tokens/create-resource
-   *
    * Create a new resource using a clone token
-   * Requires authentication
-   * Validates request body against CreateResourceFromTokenRequest schema
    */
   router.post('/api/clone-tokens/create-resource',
     validateRequestBody('CreateResourceFromTokenRequest'),
     async (c) => {
       const body = c.get('validatedBody') as CreateResourceFromTokenRequest;
       const user = c.get('user');
-
-      const token = makeCloneToken(body.token);
-      const tokenData = cloneTokens.get(token);
-      if (!tokenData) {
-        throw new HTTPException(404, { message: 'Invalid or expired token' });
-      }
-
-      if (new Date() > tokenData.expiresAt) {
-        cloneTokens.delete(token);
-        throw new HTTPException(404, { message: 'Token expired' });
-      }
-
       const eventBus = c.get('eventBus');
-      const { kb } = c.get('makeMeaning');
+      const correlationId = crypto.randomUUID();
 
-      // Get source resource from materialized views (source of truth)
-      const sourceDoc = await ResourceContext.getResourceMetadata(tokenData.resourceId, kb);
-      if (!sourceDoc) {
-        throw new HTTPException(404, { message: 'Source resource not found' });
-      }
-
-      // Get source format and validate it's a supported ContentFormat
-      const primaryRep = getPrimaryRepresentation(sourceDoc);
-      const mediaType = primaryRep?.mediaType || 'text/plain';
-
-      // Validate mediaType is a supported ContentFormat (validation at periphery)
-      const validFormats = ['text/plain', 'text/markdown'] as const;
-      const format: 'text/plain' | 'text/markdown' = validFormats.includes(mediaType as any)
-        ? (mediaType as 'text/plain' | 'text/markdown')
-        : 'text/plain';
-
-      // Create cloned resource via Stower
-      const result = await ResourceOperations.createResource(
-        {
-          name: body.name,
-          content: Buffer.from(body.content),
-          format,
-          entityTypes: getResourceEntityTypes(sourceDoc),
-          creationMethod: CREATION_METHODS.CLONE,
-        },
-        userId(user.id),
-        eventBus,
-      );
-
-      // Archive original if requested
-      if (body.archiveOriginal) {
-        await ResourceOperations.updateResource(
-          {
-            resourceId: tokenData.resourceId,
-            userId: userId(user.id),
-            currentArchived: sourceDoc.archived,
-            updatedArchived: true,
-          },
+      try {
+        const response = await eventBusRequest(
           eventBus,
+          'yield:clone-create',
+          {
+            correlationId,
+            token: body.token,
+            name: body.name,
+            content: body.content,
+            userId: userId(user.id),
+            archiveOriginal: body.archiveOriginal,
+          },
+          'yield:clone-created',
+          'yield:clone-create-failed',
         );
+        return c.json({ resourceId: response.resourceId }, 202);
+      } catch (error) {
+        if (error instanceof Error) {
+          if (error.message === 'Invalid or expired token' || error.message === 'Token expired') {
+            throw new HTTPException(404, { message: error.message });
+          }
+          if (error.message === 'Source resource not found') {
+            throw new HTTPException(404, { message: error.message });
+          }
+          if (error.name === 'TimeoutError') {
+            throw new HTTPException(504, { message: 'Request timed out' });
+          }
+        }
+        throw error;
       }
-
-      // Clean up token
-      cloneTokens.delete(token);
-
-      return c.json({ resourceId: result }, 202);
     }
   );
 
   /**
    * POST /resources/:id/clone-with-token
-   *
    * Generate a temporary token for cloning a resource
-   * Requires authentication
    */
   router.post('/resources/:id/clone-with-token', async (c) => {
     const { id } = c.req.param();
-    const { kb } = c.get('makeMeaning');
-
-    // Look up resource from materialized views (source of truth, not graph DB)
-    const sourceDoc = await ResourceContext.getResourceMetadata(makeResourceId(id), kb);
-    if (!sourceDoc) {
-      throw new HTTPException(404, { message: 'Resource not found' });
-    }
-
-    // Check if content exists
-    const primaryRep = getPrimaryRepresentation(sourceDoc);
-    if (!primaryRep?.checksum || !primaryRep?.mediaType) {
-      throw new HTTPException(404, { message: 'Resource content not found' });
-    }
+    const eventBus = c.get('eventBus');
+    const correlationId = crypto.randomUUID();
 
     try {
-      await kb.content.retrieve(primaryRep.checksum, primaryRep.mediaType);
-    } catch {
-      throw new HTTPException(404, { message: 'Resource content not found' });
+      const response = await eventBusRequest(
+        eventBus,
+        'yield:clone-token-requested',
+        { correlationId, resourceId: makeResourceId(id) },
+        'yield:clone-token-generated',
+        'yield:clone-token-failed',
+      );
+      return c.json(response);
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message === 'Resource not found' || error.message === 'Resource content not found') {
+          throw new HTTPException(404, { message: error.message });
+        }
+        if (error.name === 'TimeoutError') {
+          throw new HTTPException(504, { message: 'Request timed out' });
+        }
+      }
+      throw error;
     }
-
-    // Create token
-    const tokenStr = `clone_${Math.random().toString(36).substring(2, 11)}_${Date.now()}`;
-    const token = makeCloneToken(tokenStr);
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
-
-    cloneTokens.set(token, {
-      resourceId: makeResourceId(id),
-      expiresAt,
-    });
-
-    const response: CloneResourceWithTokenResponse = {
-      token,
-      expiresAt: expiresAt.toISOString(),
-      resource: sourceDoc,
-    };
-
-    return c.json(response);
   });
 }

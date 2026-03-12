@@ -20,38 +20,65 @@ No public business methods. All interaction is via EventBus commands. See [Archi
 
 ### Gatherer
 
-Context assembly actor. Subscribes to gather events and queries KB stores.
+Read actor. Handles all browse reads, context assembly, and entity type listing.
 
 **Implementation**: [src/gatherer.ts](../src/gatherer.ts)
 
 ```typescript
 import { Gatherer } from '@semiont/make-meaning';
 
-const gatherer = new Gatherer(publicURL, kb, eventBus, inferenceClient, logger);
+const gatherer = new Gatherer(publicURL, kb, eventBus, inferenceClient, logger, config);
 await gatherer.initialize();
 await gatherer.stop();
 ```
 
 Responds to:
+- `browse:resource-requested` → emits `browse:resource-result` or `browse:resource-failed`
+- `browse:resources-requested` → emits `browse:resources-result` or `browse:resources-failed`
+- `browse:annotations-requested` → emits `browse:annotations-result` or `browse:annotations-failed`
+- `browse:annotation-requested` → emits `browse:annotation-result` or `browse:annotation-failed`
+- `browse:events-requested` → emits `browse:events-result` or `browse:events-failed`
+- `browse:annotation-history-requested` → emits `browse:annotation-history-result` or `browse:annotation-history-failed`
+- `mark:entity-types-requested` → emits `mark:entity-types-result` or `mark:entity-types-failed`
 - `gather:requested` → emits `gather:complete` or `gather:failed`
 - `gather:resource-requested` → emits `gather:resource-complete` or `gather:resource-failed`
 
 ### Binder
 
-Entity resolution actor. Subscribes to bind events and searches KB stores.
+Search/link actor. Searches KB stores for entity resolution and graph queries.
 
 **Implementation**: [src/binder.ts](../src/binder.ts)
 
 ```typescript
 import { Binder } from '@semiont/make-meaning';
 
-const binder = new Binder(kb, eventBus, logger);
+const binder = new Binder(kb, eventBus, logger, publicURL);
 await binder.initialize();
 await binder.stop();
 ```
 
 Responds to:
 - `bind:search-requested` → emits `bind:search-results` or `bind:search-failed`
+- `bind:referenced-by-requested` → emits `bind:referenced-by-result` or `bind:referenced-by-failed`
+
+### CloneTokenManager
+
+Clone token lifecycle actor. Manages temporary tokens for resource cloning.
+
+**Implementation**: [src/clone-token-manager.ts](../src/clone-token-manager.ts)
+
+```typescript
+import { CloneTokenManager } from '@semiont/make-meaning';
+
+const ctm = new CloneTokenManager(eventBus, kb, publicURL, logger);
+await ctm.initialize();
+await ctm.stop();
+```
+
+Responds to:
+- `yield:clone-token-requested` → emits `yield:clone-token-generated` or `yield:clone-token-failed`
+- `yield:clone-resource-requested` → emits `yield:clone-resource-result` or `yield:clone-resource-failed`
+- `yield:clone-create` → emits `yield:clone-created` or `yield:clone-create-failed`
 
 ---
 

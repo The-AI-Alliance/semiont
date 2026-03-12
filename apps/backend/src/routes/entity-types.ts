@@ -1,7 +1,7 @@
 /**
  * Entity Types Routes
  *
- * GET returns entity types from view storage projection.
+ * GET emits mark:entity-types-requested on the EventBus, awaits the Gatherer's response.
  * POST/bulk POST emit events and return 202 Accepted.
  * The frontend refreshes entity types via query invalidation.
  */
@@ -13,15 +13,10 @@ import { validateRequestBody } from '../middleware/validate-openapi';
 import type { components } from '@semiont/core';
 import { userId, type EnvironmentConfig, type EventBus } from '@semiont/core';
 import type { startMakeMeaning } from '@semiont/make-meaning';
-import { readEntityTypesProjection } from '@semiont/make-meaning';
-import { getLogger } from '../logger';
-
-// Lazy initialization to avoid calling getLogger() at module load time
-const getRouteLogger = () => getLogger().child({ component: 'entity-types' });
+import { eventBusRequest } from '../utils/event-bus-request';
 
 type AddEntityTypeRequest = components['schemas']['AddEntityTypeRequest'];
 type BulkAddEntityTypesRequest = components['schemas']['BulkAddEntityTypesRequest'];
-type GetEntityTypesResponse = components['schemas']['GetEntityTypesResponse'];
 
 // Create router with auth middleware
 export const entityTypesRouter = new Hono<{ Variables: { user: User; config: EnvironmentConfig; eventBus: EventBus; makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>> } }>();
@@ -29,22 +24,20 @@ entityTypesRouter.use('/api/entity-types/*', authMiddleware);
 
 /**
  * GET /api/entity-types
- * Get list of available entity types from view storage projection
+ * Get list of available entity types via EventBus → Gatherer
  */
 entityTypesRouter.get('/api/entity-types', async (c) => {
-  try {
-    const config = c.get('config');
-    const entityTypes = await readEntityTypesProjection(config);
+  const eventBus = c.get('eventBus');
+  const correlationId = crypto.randomUUID();
 
-    const response: GetEntityTypesResponse = { entityTypes };
-    return c.json(response, 200);
-  } catch (error) {
-    getRouteLogger().error('Error fetching entity types', {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined
-    });
-    return c.json({ error: 'Failed to fetch entity types', details: error instanceof Error ? error.message : String(error) }, 500);
-  }
+  const response = await eventBusRequest(
+    eventBus,
+    'mark:entity-types-requested',
+    { correlationId },
+    'mark:entity-types-result',
+    'mark:entity-types-failed',
+  );
+  return c.json(response, 200);
 });
 
 /**

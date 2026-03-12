@@ -10,10 +10,12 @@ The package owns the **Knowledge Base** and three actors that interface with it.
 graph TB
     Routes["Backend Routes"] -->|commands| BUS["Event Bus"]
     Workers["Job Workers"] -->|commands| BUS
+    EBC["EventBusClient"] -->|commands| BUS
 
     BUS -->|"yield:create, mark:create,<br/>mark:delete, mark:update-body,<br/>mark:archive, mark:unarchive,<br/>mark:add-entity-type,<br/>mark:update-entity-types,<br/>job:start, job:complete, ..."| STOWER["Stower"]
-    BUS -->|"gather:requested,<br/>gather:resource-requested"| GATHERER["Gatherer"]
-    BUS -->|"bind:search-requested"| BINDER["Binder"]
+    BUS -->|"browse:*, gather:*,<br/>mark:entity-types-*"| GATHERER["Gatherer"]
+    BUS -->|"bind:search-*,<br/>bind:referenced-by-*"| BINDER["Binder"]
+    BUS -->|"yield:clone-*"| CTM["CloneTokenManager"]
 
     STOWER -->|append| EVENTLOG
     STOWER -->|store| CONTENT
@@ -37,9 +39,13 @@ graph TB
     BINDER -->|query| VIEWS
     BINDER -->|traverse| GRAPH
 
+    CTM -->|query| VIEWS
+    CTM -->|read| CONTENT
+
     STOWER -->|"yield:created,<br/>mark:created, ..."| BUS
-    GATHERER -->|"gather:complete"| BUS
-    BINDER -->|"bind:search-results"| BUS
+    GATHERER -->|"browse:*-result,<br/>gather:complete"| BUS
+    BINDER -->|"bind:search-results,<br/>bind:referenced-by-result"| BUS
+    CTM -->|"yield:clone-token-generated,<br/>yield:clone-resource-result,<br/>yield:clone-created"| BUS
 
     classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
     classDef store fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
@@ -48,8 +54,8 @@ graph TB
 
     class BUS bus
     class EVENTLOG,VIEWS,CONTENT,GRAPH store
-    class STOWER,GATHERER,BINDER worker
-    class Routes,Workers caller
+    class STOWER,GATHERER,BINDER,CTM worker
+    class Routes,Workers,EBC caller
 ```
 
 ## Actors
@@ -77,28 +83,48 @@ The single write path to the Knowledge Base. No other code calls `eventStore.app
 | `job:complete` | `job.completed` | — |
 | `job:fail` | `job.failed` | — |
 
-### Gatherer (Context Assembly)
+### Gatherer (Read Actor)
 
 **Implementation**: [src/gatherer.ts](../src/gatherer.ts)
 
-Reads from KB stores to assemble context for AI processing.
+The read actor for the Knowledge Base. Handles all browse reads, context assembly, and entity type listing.
 
-**Pipeline**: RxJS with `groupBy(resourceUri)` for per-resource isolation and `mergeMap` for cross-resource parallelism.
+**Pipeline**: `gather:*` events use `groupBy(resourceUri)` for per-resource isolation and `concatMap` for ordering. `browse:*` events use `mergeMap` for independent request-response (no grouping needed since they use `correlationId`).
 
 | Request Event | Handler | Result Event |
 |--------------|---------|-------------|
+| `browse:resource-requested` | `ResourceContext.getResourceMetadata()` + event materialization | `browse:resource-result` / `browse:resource-failed` |
+| `browse:resources-requested` | `ResourceContext.listResources()` | `browse:resources-result` / `browse:resources-failed` |
+| `browse:annotations-requested` | `AnnotationContext.getAllAnnotations()` | `browse:annotations-result` / `browse:annotations-failed` |
+| `browse:annotation-requested` | `AnnotationContext.getAnnotation()` + `ResourceContext.getResourceMetadata()` | `browse:annotation-result` / `browse:annotation-failed` |
+| `browse:events-requested` | `EventQuery.queryEvents()` | `browse:events-result` / `browse:events-failed` |
+| `browse:annotation-history-requested` | `EventQuery` + annotation event filtering | `browse:annotation-history-result` / `browse:annotation-history-failed` |
+| `mark:entity-types-requested` | `readEntityTypesProjection()` | `mark:entity-types-result` / `mark:entity-types-failed` |
 | `gather:requested` | `AnnotationContext.buildLLMContext(kb)` | `gather:complete` / `gather:failed` |
 | `gather:resource-requested` | `LLMContext.getResourceContext(kb)` | `gather:resource-complete` / `gather:resource-failed` |
 
-### Binder (Entity Resolution)
+### Binder (Search/Link Actor)
 
 **Implementation**: [src/binder.ts](../src/binder.ts)
 
-Searches KB stores to resolve entity references.
+Searches KB stores to resolve entity references and discover relationships.
 
 | Request Event | Handler | Result Event |
 |--------------|---------|-------------|
 | `bind:search-requested` | `kb.graph.searchResources()` | `bind:search-results` / `bind:search-failed` |
+| `bind:referenced-by-requested` | `kb.graph.getResourceReferencedBy()` + resource lookups | `bind:referenced-by-result` / `bind:referenced-by-failed` |
+
+### CloneTokenManager (Clone Token Actor)
+
+**Implementation**: [src/clone-token-manager.ts](../src/clone-token-manager.ts)
+
+Manages the lifecycle of temporary clone tokens for resource cloning. In-memory token store with 15-minute expiry.
+
+| Request Event | Handler | Result Event |
+|--------------|---------|-------------|
+| `yield:clone-token-requested` | Validate resource + content, generate token | `yield:clone-token-generated` / `yield:clone-token-failed` |
+| `yield:clone-resource-requested` | Validate token, look up source resource | `yield:clone-resource-result` / `yield:clone-resource-failed` |
+| `yield:clone-create` | Validate token, create resource via `ResourceOperations` | `yield:clone-created` / `yield:clone-create-failed` |
 
 ## Knowledge Base
 
@@ -163,9 +189,11 @@ EventBus (callback, fire-and-forget)
 6. GraphDBConsumer
 7. **Stower** (must start before Gatherer/Binder — it handles writes they depend on)
 8. Entity type bootstrap (emits via EventBus, Stower persists)
-9. **Gatherer**
-10. **Binder**
-11. Workers (6 annotation/generation workers)
+9. **Gatherer** (browse reads, context assembly, entity type listing)
+10. **Binder** (search, referenced-by)
+11. **CloneTokenManager** (clone token lifecycle)
+12. Job status subscription (inline `job:status-requested` handler)
+13. Workers (6 annotation/generation workers)
 
 ## Storage Architecture
 

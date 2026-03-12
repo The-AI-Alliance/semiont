@@ -1,39 +1,22 @@
 /**
- * List Resources Route - Spec-First Version
+ * List Resources Route
  *
- * Migrated from code-first to spec-first architecture:
- * - Uses plain Hono (no @hono/zod-openapi)
- * - Manual query parameter parsing (coercion, defaults, validation)
- * - Types from generated OpenAPI types
- * - OpenAPI spec is the source of truth
+ * Thin HTTP wrapper: emits browse:resources-requested on the EventBus,
+ * awaits the Gatherer's response.
  */
 
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import type { components } from '@semiont/core';
-import { ResourceContext } from '@semiont/make-meaning';
-import { getResourceEntityTypes } from '@semiont/api-client';
-
-type ListResourcesResponse = components['schemas']['ListResourcesResponse'];
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
+import { eventBusRequest } from '../../../utils/event-bus-request';
 
 export function registerListResources(router: ResourcesRouterType) {
-  /**
-   * GET /resources
-   *
-   * List all resources with optional filters
-   * Query params: offset, limit, entityType, archived, q
-   * Requires authentication
-   */
   router.get('/resources', async (c) => {
-    // Parse query parameters with defaults and coercion
     const query = c.req.query();
-    const { kb } = c.get('makeMeaning');
+    const eventBus = c.get('eventBus');
     const offset = Number(query.offset) || 0;
     const limit = Number(query.limit) || 50;
     const entityType = query.entityType;
 
-    // Validate archived parameter (strict validation like Zod)
     let archived: boolean | undefined;
     if (query.archived === 'true') {
       archived = true;
@@ -43,34 +26,22 @@ export function registerListResources(router: ResourcesRouterType) {
       throw new HTTPException(400, { message: 'Invalid value for archived parameter. Must be "true" or "false".' });
     }
 
-    const q = query.q;
+    const correlationId = crypto.randomUUID();
 
-    // Read from view storage projection storage
-    let filteredDocs = await ResourceContext.listResources({
-      search: q,
-      archived,
-    }, kb);
-
-    // Additional filter by entity type (view storage already handles search and archived)
-    if (entityType) {
-      filteredDocs = filteredDocs.filter((doc: ResourceDescriptor) => getResourceEntityTypes(doc).includes(entityType));
+    try {
+      const response = await eventBusRequest(
+        eventBus,
+        'browse:resources-requested',
+        { correlationId, search: query.q, archived, entityType, offset, limit },
+        'browse:resources-result',
+        'browse:resources-failed',
+      );
+      return c.json(response);
+    } catch (error) {
+      if (error instanceof Error && error.name === 'TimeoutError') {
+        throw new HTTPException(504, { message: 'Request timed out' });
+      }
+      throw error;
     }
-
-    // Paginate
-    const paginatedDocs = filteredDocs.slice(offset, offset + limit);
-
-    // Add content previews for search results (delegate to service)
-    const formattedDocs = q
-      ? await ResourceContext.addContentPreviews(paginatedDocs, kb)
-      : paginatedDocs;
-
-    const response: ListResourcesResponse = {
-      resources: formattedDocs,
-      total: filteredDocs.length,
-      offset,
-      limit,
-    };
-
-    return c.json(response);
   });
 }

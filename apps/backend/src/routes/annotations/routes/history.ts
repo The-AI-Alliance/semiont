@@ -1,91 +1,43 @@
-import { EventQuery } from '@semiont/event-sourcing';
-
 /**
- * Annotation History Route - Spec-First Version
+ * Annotation History Route
  *
- * Migrated from code-first to spec-first architecture:
- * - Uses plain Hono (no @hono/zod-openapi)
- * - No request body validation needed (GET route with only path params)
- * - Types from generated OpenAPI types
- * - OpenAPI spec is the source of truth
+ * Thin HTTP wrapper: emits browse:annotation-history-requested on the EventBus,
+ * awaits the Gatherer's response.
  */
 
 import { HTTPException } from 'hono/http-exception';
 import type { AnnotationsRouterType } from '../shared';
-import { AnnotationContext } from '@semiont/make-meaning';
-import { getTargetSource } from '@semiont/api-client';
-import type { components } from '@semiont/core';
 import { resourceId as makeResourceId, annotationId as makeAnnotationId } from '@semiont/core';
-
-type GetAnnotationHistoryResponse = components['schemas']['GetAnnotationHistoryResponse'];
+import { eventBusRequest } from '../../../utils/event-bus-request';
 
 export function registerGetAnnotationHistory(router: AnnotationsRouterType) {
-  /**
-   * GET /resources/:resourceId/annotations/:annotationId/history
-   *
-   * Get full event history for a specific annotation (highlight or reference)
-   * Requires authentication
-   * Returns annotation events sorted by sequence number
-   */
   router.get('/resources/:resourceId/annotations/:annotationId/history', async (c) => {
     const { resourceId, annotationId } = c.req.param();
-    const { kb } = c.get('makeMeaning');
+    const eventBus = c.get('eventBus');
+    const correlationId = crypto.randomUUID();
 
-    // Verify annotation exists using view storage (not GraphDB)
-    const annotation = await AnnotationContext.getAnnotation(makeAnnotationId(annotationId), makeResourceId(resourceId), kb);
-    if (!annotation) {
-      throw new HTTPException(404, { message: 'Annotation not found' });
+    try {
+      const response = await eventBusRequest(
+        eventBus,
+        'browse:annotation-history-requested',
+        { correlationId, resourceId: makeResourceId(resourceId), annotationId: makeAnnotationId(annotationId) },
+        'browse:annotation-history-result',
+        'browse:annotation-history-failed',
+      );
+      return c.json(response);
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message === 'Annotation not found') {
+          throw new HTTPException(404, { message: 'Annotation not found' });
+        }
+        if (error.message === 'Annotation does not belong to this resource') {
+          throw new HTTPException(404, { message: 'Annotation does not belong to this resource' });
+        }
+        if (error.name === 'TimeoutError') {
+          throw new HTTPException(504, { message: 'Request timed out' });
+        }
+      }
+      throw error;
     }
-
-    if (getTargetSource(annotation.target) !== resourceId) {
-      throw new HTTPException(404, { message: 'Annotation does not belong to this resource' });
-    }
-
-    const { eventStore } = c.get('makeMeaning');
-    const query = new EventQuery(eventStore.log.storage);
-
-    // Get all events for this resource
-    const allEvents = await query.queryEvents({
-      resourceId: makeResourceId(resourceId),
-    });
-
-    // Filter events related to this annotation
-    const annotationEvents = allEvents.filter(stored => {
-      const event = stored.event;
-
-      // Check if event is about this annotation
-      // Highlight events have highlightId, Reference events have referenceId
-      if ('highlightId' in event.payload && event.payload.highlightId === annotationId) return true;
-      if ('referenceId' in event.payload && event.payload.referenceId === annotationId) return true;
-
-      return false;
-    });
-
-    // Format events for API response
-    const events: GetAnnotationHistoryResponse['events'] = annotationEvents.map(stored => ({
-      id: stored.event.id,
-      type: stored.event.type as any, // Job events are filtered out above but TS doesn't know
-      timestamp: stored.event.timestamp,
-      userId: stored.event.userId,
-      resourceId: stored.event.resourceId!, // Map internal resourceId to API resourceId
-      payload: stored.event.payload as any,
-      metadata: {
-        sequenceNumber: stored.metadata.sequenceNumber,
-        prevEventHash: stored.metadata.prevEventHash,
-        checksum: stored.metadata.checksum,
-      },
-    }));
-
-    // Sort by sequence number
-    events.sort((a, b) => a.metadata.sequenceNumber - b.metadata.sequenceNumber);
-
-    const response: GetAnnotationHistoryResponse = {
-      events,
-      total: events.length,
-      annotationId,
-      resourceId: resourceId, // Map internal resourceId to API resourceId
-    };
-
-    return c.json(response);
   });
 }

@@ -598,4 +598,58 @@ export class SSEClient {
 
     return stream;
   }
+
+  /**
+   * Subscribe to global system events (long-lived stream)
+   *
+   * Opens a long-lived SSE connection to receive system-level domain events
+   * (entity type additions, etc.) that are not scoped to a specific resource.
+   *
+   * @param options - Request options (auth token, eventBus)
+   * @returns SSE stream controller
+   *
+   * @example
+   * ```typescript
+   * const stream = sseClient.globalEvents({ auth: 'your-token', eventBus });
+   *
+   * // Events auto-emit to EventBus — subscribe there
+   * eventBus.get('make-meaning:event').subscribe((event) => {
+   *   if (event.type === 'entitytype.added') {
+   *     // Invalidate entity types query
+   *   }
+   * });
+   *
+   * // Close when no longer needed
+   * stream.close();
+   * ```
+   */
+  globalEvents(
+    options: SSERequestOptions & { onConnected?: () => void }
+  ): SSEStream {
+    const url = `${this.baseUrl}/api/events/stream`;
+
+    const stream = createSSEStream(
+      url,
+      {
+        method: 'GET',
+        headers: this.getHeaders(options.auth)
+      },
+      {
+        progressEvents: ['*'],
+        completeEvent: null,
+        errorEvent: null,
+        eventBus: options.eventBus
+      },
+      this.logger
+    );
+
+    if (options.onConnected) {
+      const sub = options.eventBus.get(SSE_STREAM_CONNECTED as any).subscribe(() => {
+        options.onConnected!();
+        sub.unsubscribe();
+      });
+    }
+
+    return stream;
+  }
 }

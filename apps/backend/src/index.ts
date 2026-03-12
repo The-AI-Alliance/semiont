@@ -85,6 +85,7 @@ import { adminRouter } from './routes/admin';
 import { createResourcesRouter } from './routes/resources/index';
 import { annotationsRouter } from './routes/annotations/index';
 import { entityTypesRouter } from './routes/entity-types';
+import { globalEventsRouter } from './routes/global-events-stream';
 import { createJobsRouter } from './routes/jobs/index';
 import { authMiddleware } from './middleware/auth';
 
@@ -146,6 +147,7 @@ const resourcesRouter = createResourcesRouter(makeMeaning.jobQueue);
 app.route('/', resourcesRouter);
 app.route('/', annotationsRouter);
 app.route('/', entityTypesRouter);
+app.route('/', globalEventsRouter);
 const jobsRouter = createJobsRouter(makeMeaning.jobQueue, authMiddleware);
 app.route('/', jobsRouter);
 

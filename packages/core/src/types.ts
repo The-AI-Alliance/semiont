@@ -2229,6 +2229,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/events/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Subscribe to Global Events (SSE)
+         * @description Open a Server-Sent Events stream to receive real-time system-level events (e.g., entity type changes). Events not scoped to a specific resource are delivered on this channel.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description SSE stream opened successfully */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/event-stream": components["schemas"]["EventStreamResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/jobs/{id}": {
         parameters: {
             query?: never;

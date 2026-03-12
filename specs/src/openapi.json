@@ -126,6 +126,9 @@
     "/api/entity-types/bulk": {
       "$ref": "paths/api_entity-types_bulk.json"
     },
+    "/api/events/stream": {
+      "$ref": "paths/api_events_stream.json"
+    },
     "/api/jobs/{id}": {
       "$ref": "paths/api_jobs_{id}.json"
     }

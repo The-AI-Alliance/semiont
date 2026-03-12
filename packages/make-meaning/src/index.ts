@@ -20,6 +20,7 @@ export { Gatherer } from './gatherer';
 export { Binder } from './binder';
 export { Stower } from './stower';
 export type { CreateResourceResult } from './stower';
+export { CloneTokenManager } from './clone-token-manager';
 
 // Graph Consumer
 export { GraphDBConsumer } from './graph/consumer';

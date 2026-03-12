@@ -34,12 +34,13 @@ async function main() {
 
   try {
     // Access components:
-    // makeMeaning.kb          — Knowledge Base (views, content, graph, eventStore)
-    // makeMeaning.jobQueue    — Job queue
-    // makeMeaning.stower      — Write gateway actor
-    // makeMeaning.gatherer    — Context assembly actor
-    // makeMeaning.binder      — Entity resolution actor
-    // makeMeaning.graphDb     — Graph database
+    // makeMeaning.kb                 — Knowledge Base (views, content, graph, eventStore)
+    // makeMeaning.jobQueue           — Job queue
+    // makeMeaning.stower             — Write gateway actor
+    // makeMeaning.gatherer           — Read actor (browse, gather, entity types)
+    // makeMeaning.binder             — Search/link actor
+    // makeMeaning.cloneTokenManager  — Clone token actor
+    // makeMeaning.graphDb            — Graph database
 
     console.log('Script running...');
   } finally {
@@ -168,15 +169,47 @@ for (const rId of resourceIds) {
 }
 ```
 
+## Using EventBusClient (Recommended)
+
+For most scripting use cases, `EventBusClient` is the simplest approach — it wraps the EventBus request-response protocol into familiar async methods:
+
+```typescript
+import { EventBusClient } from '@semiont/api-client';
+import { resourceId } from '@semiont/core';
+
+const client = new EventBusClient(eventBus);
+
+// Browse resources
+const resources = await client.listResources({ limit: 10, archived: false });
+const resource = await client.getResource(resourceId('doc-123'));
+const annotations = await client.getAnnotations(resourceId('doc-123'));
+const events = await client.getEvents(resourceId('doc-123'));
+
+// Graph queries
+const referencedBy = await client.getReferencedBy(resourceId('doc-123'));
+const results = await client.searchResources('quantum computing');
+
+// Entity types
+const entityTypes = await client.listEntityTypes();
+
+// LLM context
+const context = await client.getResourceLLMContext(resourceUri, {
+  depth: 2, maxResources: 10, includeContent: true, includeSummary: false,
+});
+```
+
+The `EventBusClient` covers all knowledge-domain operations. Use the context modules directly (`ResourceContext`, `AnnotationContext`, `GraphContext`) only when you need lower-level control.
+
 ## Differences from HTTP API
 
-| Aspect | HTTP API | Direct Scripting |
-|--------|----------|-----------------|
-| **Transport** | HTTP REST + SSE | Direct function calls |
-| **Authentication** | JWT tokens, sessions | Not needed |
-| **Events** | SSE stream to frontend | EventBus subscriptions |
-| **Error handling** | HTTP status codes | Exceptions |
-| **Deployment** | Backend server required | Standalone script |
+| Aspect | HTTP API | EventBusClient | Direct Context Modules |
+|--------|----------|----------------|----------------------|
+| **Transport** | HTTP REST + SSE | EventBus request-response | Direct function calls |
+| **Authentication** | JWT tokens, sessions | Not needed | Not needed |
+| **Events** | SSE stream to frontend | EventBus subscriptions | EventBus subscriptions |
+| **Error handling** | HTTP status codes | Exceptions | Exceptions |
+| **Deployment** | Backend server required | Standalone script | Standalone script |
+| **API surface** | Full (including binary, auth, admin) | Knowledge domain only | Low-level KB access |
 
 ## Troubleshooting
 

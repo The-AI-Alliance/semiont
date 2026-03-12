@@ -4,12 +4,18 @@ import React, { useContext } from 'react';
 import { useTranslations } from 'next-intl';
 import { useSession, signIn } from 'next-auth/react';
 import { KnowledgeSidebarWrapper } from '@/components/knowledge/KnowledgeSidebarWrapper';
-import { Footer, ResourceAnnotationsProvider, OpenResourcesProvider, CacheProvider, ApiClientProvider, AuthTokenProvider } from '@semiont/react-ui';
+import { Footer, ResourceAnnotationsProvider, OpenResourcesProvider, CacheProvider, ApiClientProvider, AuthTokenProvider, useGlobalEvents } from '@semiont/react-ui';
 import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link, routes } from '@/lib/routing';
 import { useOpenResourcesManager } from '@/hooks/useOpenResourcesManager';
 import { useCacheManager } from '@/hooks/useCacheManager';
+
+/** Connects to global SSE stream for system-level events (entity type changes, etc.) */
+function GlobalEventsConnector() {
+  useGlobalEvents();
+  return null;
+}
 
 /**
  * Knowledge Layout
@@ -80,6 +86,7 @@ export default function KnowledgeLayout({
         <CacheProvider cacheManager={cacheManager}>
             <OpenResourcesProvider openResourcesManager={openResourcesManager}>
               <ResourceAnnotationsProvider>
+                <GlobalEventsConnector />
                 <div className="h-screen semiont-knowledge-layout semiont-layout-with-footer flex flex-col overflow-hidden">
                   <div className="flex flex-1 overflow-hidden">
                     <KnowledgeSidebarWrapper />

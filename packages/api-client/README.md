@@ -8,7 +8,12 @@
 
 TypeScript SDK for [Semiont](https://github.com/The-AI-Alliance/semiont) - a knowledge management system for semantic annotations, AI-powered annotation detection, and collaborative document analysis.
 
-This package provides the HTTP client, SSE streams, and utilities for working with the Semiont API. OpenAPI types are re-exported from [`@semiont/core`](../core/README.md) (the source of truth).
+This package provides two clients, SSE streams, and utilities for working with Semiont:
+
+- **`SemiontApiClient`** — HTTP client for the Semiont REST API
+- **`EventBusClient`** — Direct EventBus client (no HTTP needed)
+
+OpenAPI types are re-exported from [`@semiont/core`](../core/README.md) (the source of truth).
 
 ## What is Semiont?
 
@@ -74,6 +79,34 @@ const annotations = await client.getResourceAnnotations(resourceUri(resource['@i
 console.log('Annotations:', annotations.annotations.length);
 ```
 
+## EventBus Client (No HTTP)
+
+The `EventBusClient` communicates directly via the RxJS EventBus — no HTTP server needed. It covers all knowledge-domain operations (resource reads, annotations, entity types, search, LLM context, clone tokens, job status).
+
+```typescript
+import { EventBusClient } from '@semiont/api-client';
+import { EventBus, resourceId } from '@semiont/core';
+import { startMakeMeaning } from '@semiont/make-meaning';
+
+// Start the knowledge system
+const eventBus = new EventBus();
+const makeMeaning = await startMakeMeaning(config, eventBus, logger);
+
+// Use EventBusClient instead of SemiontApiClient
+const client = new EventBusClient(eventBus);
+
+// Same operations, no HTTP
+const resources = await client.listResources({ limit: 10 });
+const resource = await client.getResource(resourceId('doc-123'));
+const annotations = await client.getAnnotations(resourceId('doc-123'));
+const entityTypes = await client.listEntityTypes();
+const results = await client.searchResources('quantum computing');
+```
+
+**What's covered**: All browse, bind, mark, gather, yield (clone), and job operations.
+
+**What's NOT covered** (HTTP-only): Auth, admin, health/status, binary content upload/download, SSE streaming.
+
 ## Logging
 
 Enable logging to debug requests and monitor API usage:
@@ -112,6 +145,7 @@ const client = new SemiontApiClient({
 
 ## Key Features
 
+- **Two clients** - HTTP (`SemiontApiClient`) and EventBus (`EventBusClient`) for the same operations
 - **Type-safe** - Re-exports OpenAPI types from `@semiont/core` with branded types
 - **W3C compliant** - Web Annotation standard with fuzzy text matching
 - **Real-time** - SSE streaming for long operations
@@ -122,12 +156,16 @@ const client = new SemiontApiClient({
 
 ## Use Cases
 
-- ✅ MCP servers and AI integrations
-- ✅ Frontend applications (wrap with React hooks)
-- ✅ CLI tools and automation scripts
-- ✅ Third-party integrations
+**SemiontApiClient (HTTP)**:
+- MCP servers and AI integrations
+- Frontend applications (wrap with React hooks)
+- CLI tools and automation scripts
+- Third-party integrations
 
-❌ **Not for backend internal code** - Use [`@semiont/core`](../core/) instead
+**EventBusClient (direct)**:
+- Scripts that run alongside make-meaning (no HTTP server)
+- Testing without HTTP overhead
+- Embedded scenarios where EventBus is available directly
 
 ## License
 

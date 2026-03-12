@@ -8,13 +8,16 @@
 
 **Making meaning from resources through actors, context assembly, and relationship reasoning.**
 
-This package implements the actor model from [ARCHITECTURE-NEXT.md](../../docs/ARCHITECTURE-NEXT.md). It owns the **Knowledge Base** and the three actors that interface with it:
+This package implements the actor model from [ARCHITECTURE-NEXT.md](../../docs/ARCHITECTURE-NEXT.md). It owns the **Knowledge Base** and the actors that interface with it:
 
 - **Stower** (write) — the single write gateway to the Knowledge Base
-- **Gatherer** (read context) — assembles context from KB stores for AI processing
-- **Binder** (read search) — searches KB stores for entity resolution
+- **Gatherer** (read) — handles all browse reads, context assembly, and entity type listing
+- **Binder** (search/link) — searches KB stores for entity resolution and graph queries
+- **CloneTokenManager** (yield) — manages clone token lifecycle for resource cloning
 
-All three actors subscribe to the EventBus via RxJS pipelines. They expose only `initialize()` and `stop()` — no public business methods. Callers communicate with actors by putting events on the bus.
+All actors subscribe to the EventBus via RxJS pipelines. They expose only `initialize()` and `stop()` — no public business methods. Callers communicate with actors by putting events on the bus.
+
+The EventBus is a **complete interface** for all knowledge-domain operations. HTTP routes in the backend are thin wrappers that delegate to EventBus actors. The system can operate entirely without HTTP — see `EventBusClient` in `@semiont/api-client`.
 
 ## Quick Start
 
@@ -36,7 +39,7 @@ const eventBus = new EventBus();
 const makeMeaning = await startMakeMeaning(config, eventBus, logger);
 
 // Access components
-const { kb, jobQueue, stower, gatherer, binder } = makeMeaning;
+const { kb, jobQueue, stower, gatherer, binder, cloneTokenManager } = makeMeaning;
 
 // Graceful shutdown
 await makeMeaning.stop();
@@ -45,10 +48,11 @@ await makeMeaning.stop();
 This single call initializes:
 - **KnowledgeBase** — groups EventStore, ViewStorage, RepresentationStore, GraphDatabase
 - **Stower** — subscribes to write commands on EventBus
-- **Gatherer** — subscribes to gather events on EventBus
-- **Binder** — subscribes to bind events on EventBus
+- **Gatherer** — subscribes to browse reads, gather context, and entity type listing on EventBus
+- **Binder** — subscribes to search and referenced-by queries on EventBus
+- **CloneTokenManager** — subscribes to clone token operations on EventBus
 - **GraphDBConsumer** — event-to-graph synchronization (RxJS burst-buffered pipeline)
-- **JobQueue** — background job processing queue
+- **JobQueue** — background job processing queue + job status subscription
 - **6 annotation workers** — poll job queue for async AI tasks
 
 ### Create a Resource (via EventBus)
@@ -103,18 +107,22 @@ All meaningful actions flow through the EventBus. The three KB actors are reacti
 graph TB
     Routes["Backend Routes"] -->|commands| BUS["Event Bus"]
     Workers["Job Workers"] -->|commands| BUS
+    EBC["EventBusClient"] -->|commands| BUS
 
     BUS -->|"yield:create, mark:create,<br/>mark:delete, job:*"| STOWER["Stower<br/>(write)"]
-    BUS -->|"gather:requested"| GATHERER["Gatherer<br/>(read context)"]
-    BUS -->|"bind:search-requested"| BINDER["Binder<br/>(read search)"]
+    BUS -->|"browse:*, gather:*,<br/>mark:entity-types-*"| GATHERER["Gatherer<br/>(read)"]
+    BUS -->|"bind:search-*,<br/>bind:referenced-by-*"| BINDER["Binder<br/>(search/link)"]
+    BUS -->|"yield:clone-*"| CTM["CloneTokenManager<br/>(clone)"]
 
     STOWER -->|persist| KB["Knowledge Base"]
     GATHERER -->|query| KB
     BINDER -->|query| KB
+    CTM -->|query| KB
 
     STOWER -->|"yield:created, mark:created"| BUS
-    GATHERER -->|"gather:complete"| BUS
-    BINDER -->|"bind:search-results"| BUS
+    GATHERER -->|"browse:*-result,<br/>gather:complete"| BUS
+    BINDER -->|"bind:search-results,<br/>bind:referenced-by-result"| BUS
+    CTM -->|"yield:clone-token-generated,<br/>yield:clone-resource-result"| BUS
 
     classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
     classDef actor fill:#5a9a6a,stroke:#3d6644,stroke-width:2px,color:#fff
@@ -122,9 +130,9 @@ graph TB
     classDef caller fill:#4a90a4,stroke:#2c5f7a,stroke-width:2px,color:#fff
 
     class BUS bus
-    class STOWER,GATHERER,BINDER actor
+    class STOWER,GATHERER,BINDER,CTM actor
     class KB kb
-    class Routes,Workers caller
+    class Routes,Workers,EBC caller
 ```
 
 ### Knowledge Base
@@ -172,8 +180,9 @@ The EventBus is created by the backend (or script) and passed into `startMakeMea
 ### Actors
 
 - `Stower` — Write gateway actor
-- `Gatherer` — Context assembly actor
-- `Binder` — Entity resolution actor
+- `Gatherer` — Read actor (browse reads, context assembly, entity type listing)
+- `Binder` — Search/link actor (entity resolution, referenced-by queries)
+- `CloneTokenManager` — Clone token lifecycle actor (yield domain)
 
 ### Operations
 

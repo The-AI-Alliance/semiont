@@ -1,0 +1,27 @@
+{
+  "get": {
+    "summary": "Subscribe to Global Events (SSE)",
+    "description": "Open a Server-Sent Events stream to receive real-time system-level events (e.g., entity type changes). Events not scoped to a specific resource are delivered on this channel.",
+    "tags": [
+      "Events",
+      "Real-time"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "SSE stream opened successfully",
+        "content": {
+          "text/event-stream": {
+            "schema": {
+              "$ref": "../components/schemas/EventStreamResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

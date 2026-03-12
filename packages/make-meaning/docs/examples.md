@@ -129,25 +129,65 @@ console.log(`Before: "${context.before}"`);
 console.log(`After: "${context.after}"`);
 ```
 
-## Gathering Context via EventBus
+## Using EventBusClient (Recommended)
 
-For routes and actors that communicate through the EventBus:
+The simplest way to query the Knowledge Base without HTTP:
 
 ```typescript
-// Request context for an annotation
+import { EventBusClient } from '@semiont/api-client';
+import { resourceId, annotationId } from '@semiont/core';
+
+const client = new EventBusClient(eventBus);
+
+// Browse reads
+const resources = await client.listResources({ limit: 10, archived: false });
+const resource = await client.getResource(resourceId('doc-123'));
+const annotations = await client.getAnnotations(resourceId('doc-123'));
+const events = await client.getEvents(resourceId('doc-123'));
+
+// Graph queries
+const referencedBy = await client.getReferencedBy(resourceId('doc-123'));
+const searchResults = await client.searchResources('quantum computing');
+
+// Entity types
+const entityTypes = await client.listEntityTypes();
+
+// LLM context
+const llmContext = await client.getResourceLLMContext(resourceUri, {
+  depth: 2, maxResources: 10, includeContent: true, includeSummary: false,
+});
+```
+
+## Gathering Context via EventBus (Low-Level)
+
+For callers that need direct EventBus control, use `correlationId` for matching:
+
+```typescript
+import { firstValueFrom, merge } from 'rxjs';
+import { filter, map, take, timeout } from 'rxjs/operators';
+
+const correlationId = crypto.randomUUID();
+
+const result$ = merge(
+  eventBus.get('gather:complete').pipe(
+    filter(e => e.correlationId === correlationId),
+    map(e => ({ ok: true as const, response: e.response })),
+  ),
+  eventBus.get('gather:failed').pipe(
+    filter(e => e.correlationId === correlationId),
+    map(e => ({ ok: false as const, error: e.error })),
+  ),
+).pipe(take(1), timeout(30_000));
+
 eventBus.get('gather:requested').next({
+  correlationId,
   annotationUri,
-  resourceId,
-  options: { contextLines: 5 },
+  resourceUri,
+  options: { contextWindow: 1000 },
 });
 
-// Await the Gatherer's response
-const result = await firstValueFrom(
-  race(
-    eventBus.get('gather:complete').pipe(filter(e => e.annotationUri === annotationUri)),
-    eventBus.get('gather:failed').pipe(filter(e => e.annotationUri === annotationUri)),
-  ).pipe(timeout(30_000)),
-);
+const result = await firstValueFrom(result$);
+if (!result.ok) throw result.error;
 ```
 
 ## Graph Traversal

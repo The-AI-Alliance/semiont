@@ -882,6 +882,193 @@ try {
 }
 ```
 
+## EventBusClient
+
+The `EventBusClient` communicates directly via the RxJS EventBus without HTTP. It covers all knowledge-domain operations.
+
+### Constructor
+
+```typescript
+new EventBusClient(eventBus: EventBus, timeoutMs?: number)
+```
+
+**Parameters:**
+- `eventBus` (required): `EventBus` instance from `@semiont/core`
+- `timeoutMs` (optional): Request timeout in milliseconds (default: 30000)
+
+### Browse Methods
+
+#### `getResource(resourceId: ResourceId)`
+
+Get resource metadata (JSON-LD).
+
+```typescript
+const resource = await client.getResource(resourceId('doc-123'));
+```
+
+#### `listResources(options?)`
+
+List resources with optional filters.
+
+```typescript
+const result = await client.listResources({
+  search: 'quantum',
+  archived: false,
+  entityType: 'article',
+  offset: 0,
+  limit: 20,
+});
+```
+
+#### `getAnnotations(resourceId: ResourceId)`
+
+Get all annotations for a resource.
+
+```typescript
+const result = await client.getAnnotations(resourceId('doc-123'));
+```
+
+#### `getAnnotation(resourceId: ResourceId, annotationId: AnnotationId)`
+
+Get a specific annotation.
+
+```typescript
+const result = await client.getAnnotation(resourceId('doc-123'), annotationId('ann-456'));
+```
+
+#### `getEvents(resourceId: ResourceId, options?)`
+
+Get resource event history.
+
+```typescript
+const result = await client.getEvents(resourceId('doc-123'), {
+  type: 'annotation.added',
+  limit: 50,
+});
+```
+
+#### `getAnnotationHistory(resourceId: ResourceId, annotationId: AnnotationId)`
+
+Get annotation edit history.
+
+```typescript
+const result = await client.getAnnotationHistory(resourceId('doc-123'), annotationId('ann-456'));
+```
+
+### Bind Methods
+
+#### `getReferencedBy(resourceId: ResourceId, motivation?: string)`
+
+Find resources that reference this resource.
+
+```typescript
+const result = await client.getReferencedBy(resourceId('doc-123'));
+```
+
+#### `searchResources(searchTerm: string)`
+
+Search resources by text query.
+
+```typescript
+const results = await client.searchResources('quantum computing');
+```
+
+### Mark Methods
+
+#### `listEntityTypes()`
+
+List all available entity types.
+
+```typescript
+const result = await client.listEntityTypes();
+```
+
+#### `addEntityType(tag: string, userId: UserId)`
+
+Add a new entity type (fire-and-forget, no response).
+
+```typescript
+client.addEntityType('custom-type', userId('user-123'));
+```
+
+### Gather Methods
+
+#### `getAnnotationLLMContext(annotationUri, resourceUri, options?)`
+
+Get annotation context for LLM processing.
+
+```typescript
+const context = await client.getAnnotationLLMContext(
+  'http://localhost:4000/annotations/ann-456',
+  'http://localhost:4000/resources/doc-123',
+  { contextWindow: 2000 },
+);
+```
+
+#### `getResourceLLMContext(resourceUri, options)`
+
+Get resource context with graph traversal for LLM processing.
+
+```typescript
+const context = await client.getResourceLLMContext(
+  'http://localhost:4000/resources/doc-123',
+  { depth: 2, maxResources: 10, includeContent: true, includeSummary: false },
+);
+```
+
+### Yield Methods (Clone Tokens)
+
+#### `generateCloneToken(resourceId: ResourceId)`
+
+Generate a temporary token for cloning a resource.
+
+```typescript
+const result = await client.generateCloneToken(resourceId('doc-123'));
+console.log('Token:', result.token, 'Expires:', result.expiresAt);
+```
+
+#### `getResourceByToken(token: string)`
+
+Get resource metadata using a clone token.
+
+```typescript
+const result = await client.getResourceByToken('clone-token-here');
+```
+
+#### `createResourceFromToken(options)`
+
+Create a new resource from a clone token.
+
+```typescript
+const result = await client.createResourceFromToken({
+  token: 'clone-token-here',
+  name: 'Cloned Resource',
+  content: 'Modified content',
+  userId: userId('user-123'),
+});
+console.log('New resource:', result.resourceId);
+```
+
+### Job Methods
+
+#### `getJobStatus(jobId: JobId)`
+
+Get job status.
+
+```typescript
+const status = await client.getJobStatus(jobId('job-123'));
+```
+
+### What's NOT Available on EventBusClient
+
+These operations require HTTP and are only available on `SemiontApiClient`:
+
+- Authentication (password, Google, refresh, MCP, terms, logout)
+- Admin (users CRUD, stats, OAuth config)
+- Health/Status
+- Binary content upload/download (`createResource`, `getResourceRepresentation`)
+- SSE streaming (`client.sse.*`)
+
 ## Type Definitions
 
 The package exports TypeScript types from the OpenAPI specification:

@@ -150,6 +150,50 @@ export type EventMap = {
   'yield:create-failed': { error: Error };
   'yield:clone': void;
 
+  // Clone token operations (CloneTokenManager handles these)
+  'yield:clone-token-requested': {
+    correlationId: string;
+    resourceId: ResourceId;
+  };
+  'yield:clone-token-generated': {
+    correlationId: string;
+    response: components['schemas']['CloneResourceWithTokenResponse'];
+  };
+  'yield:clone-token-failed': {
+    correlationId: string;
+    error: Error;
+  };
+
+  'yield:clone-resource-requested': {
+    correlationId: string;
+    token: string;
+  };
+  'yield:clone-resource-result': {
+    correlationId: string;
+    response: components['schemas']['GetResourceByTokenResponse'];
+  };
+  'yield:clone-resource-failed': {
+    correlationId: string;
+    error: Error;
+  };
+
+  'yield:clone-create': {
+    correlationId: string;
+    token: string;
+    name: string;
+    content: string;
+    userId: UserId;
+    archiveOriginal?: boolean;
+  };
+  'yield:clone-created': {
+    correlationId: string;
+    resourceId: ResourceId;
+  };
+  'yield:clone-create-failed': {
+    correlationId: string;
+    error: Error;
+  };
+
   // ========================================================================
   // MARK FLOW
   // ========================================================================
@@ -240,6 +284,19 @@ export type EventMap = {
   'mark:entity-type-added': { tag: string };
   'mark:entity-type-add-failed': { error: Error };
 
+  // Entity type listing (Gatherer handles this read)
+  'mark:entity-types-requested': {
+    correlationId: string;
+  };
+  'mark:entity-types-result': {
+    correlationId: string;
+    response: components['schemas']['GetEntityTypesResponse'];
+  };
+  'mark:entity-types-failed': {
+    correlationId: string;
+    error: Error;
+  };
+
   // Resource management
   // Command/Event pairs: UI emits command → Backend confirms with domain event
 
@@ -268,6 +325,7 @@ export type EventMap = {
     searchTerm: string;
   };
   'bind:search-requested': {
+    correlationId?: string;
     referenceId: string;
     searchTerm: string;
   };
@@ -289,9 +347,26 @@ export type EventMap = {
     referenceId: string;
     searchTerm: string;
     results: components['schemas']['ResourceDescriptor'][];
+    correlationId?: string;
   };
   'bind:search-failed': {
     referenceId: string;
+    error: Error;
+    correlationId?: string;
+  };
+
+  // Knowledge base graph reads (Binder handles these)
+  'bind:referenced-by-requested': {
+    correlationId: string;
+    resourceId: ResourceId;
+    motivation?: string;
+  };
+  'bind:referenced-by-result': {
+    correlationId: string;
+    response: components['schemas']['GetReferencedByResponse'];
+  };
+  'bind:referenced-by-failed': {
+    correlationId: string;
     error: Error;
   };
 
@@ -302,6 +377,7 @@ export type EventMap = {
 
   // Annotation-level context (for yield flow and LLM context endpoint)
   'gather:requested': {
+    correlationId?: string;
     annotationUri: string;
     resourceUri: string;
     options?: {
@@ -311,16 +387,19 @@ export type EventMap = {
     };
   };
   'gather:complete': {
+    correlationId?: string;
     annotationUri: string;
     response: components['schemas']['AnnotationLLMContextResponse'];
   };
   'gather:failed': {
+    correlationId?: string;
     annotationUri: string;
     error: Error;
   };
 
   // Resource-level context (for LLM context endpoint)
   'gather:resource-requested': {
+    correlationId?: string;
     resourceUri: string;
     options: {
       depth: number;
@@ -330,10 +409,12 @@ export type EventMap = {
     };
   };
   'gather:resource-complete': {
+    correlationId?: string;
     resourceUri: string;
     context: components['schemas']['ResourceLLMContextResponse'];
   };
   'gather:resource-failed': {
+    correlationId?: string;
     resourceUri: string;
     error: Error;
   };
@@ -360,6 +441,94 @@ export type EventMap = {
   'browse:external-navigate': { url: string; resourceId?: string; cancelFallback: () => void };
   'browse:reference-navigate': { documentId: string };
   'browse:entity-type-clicked': { entityType: string };
+
+  // Knowledge base reads (Gatherer handles these)
+  'browse:resource-requested': {
+    correlationId: string;
+    resourceId: ResourceId;
+  };
+  'browse:resource-result': {
+    correlationId: string;
+    response: components['schemas']['GetResourceResponse'];
+  };
+  'browse:resource-failed': {
+    correlationId: string;
+    error: Error;
+  };
+
+  'browse:resources-requested': {
+    correlationId: string;
+    search?: string;
+    archived?: boolean;
+    entityType?: string;
+    offset?: number;
+    limit?: number;
+  };
+  'browse:resources-result': {
+    correlationId: string;
+    response: components['schemas']['ListResourcesResponse'];
+  };
+  'browse:resources-failed': {
+    correlationId: string;
+    error: Error;
+  };
+
+  'browse:annotations-requested': {
+    correlationId: string;
+    resourceId: ResourceId;
+  };
+  'browse:annotations-result': {
+    correlationId: string;
+    response: components['schemas']['GetAnnotationsResponse'];
+  };
+  'browse:annotations-failed': {
+    correlationId: string;
+    error: Error;
+  };
+
+  'browse:annotation-requested': {
+    correlationId: string;
+    resourceId: ResourceId;
+    annotationId: AnnotationId;
+  };
+  'browse:annotation-result': {
+    correlationId: string;
+    response: components['schemas']['GetAnnotationResponse'];
+  };
+  'browse:annotation-failed': {
+    correlationId: string;
+    error: Error;
+  };
+
+  'browse:events-requested': {
+    correlationId: string;
+    resourceId: ResourceId;
+    type?: string;
+    userId?: string;
+    limit?: number;
+  };
+  'browse:events-result': {
+    correlationId: string;
+    response: components['schemas']['GetEventsResponse'];
+  };
+  'browse:events-failed': {
+    correlationId: string;
+    error: Error;
+  };
+
+  'browse:annotation-history-requested': {
+    correlationId: string;
+    resourceId: ResourceId;
+    annotationId: AnnotationId;
+  };
+  'browse:annotation-history-result': {
+    correlationId: string;
+    response: components['schemas']['GetAnnotationHistoryResponse'];
+  };
+  'browse:annotation-history-failed': {
+    correlationId: string;
+    error: Error;
+  };
 
   // ========================================================================
   // BECKON FLOW
@@ -413,6 +582,20 @@ export type EventMap = {
   // Job operations
   'job:queued': { jobId: string; jobType: string; resourceId: string };
   'job:cancel-requested': { jobType: 'annotation' | 'generation' };
+
+  // Job status reads
+  'job:status-requested': {
+    correlationId: string;
+    jobId: JobId;
+  };
+  'job:status-result': {
+    correlationId: string;
+    response: components['schemas']['JobStatusResponse'];
+  };
+  'job:status-failed': {
+    correlationId: string;
+    error: Error;
+  };
 
   // ========================================================================
   // Settings

@@ -1,68 +1,58 @@
 /**
- * Jobs Routes - Spec-First Version
+ * Jobs Routes
  *
- * Migrated from code-first to spec-first architecture:
- * - Uses plain Hono (no @hono/zod-openapi)
- * - Types from generated OpenAPI types
- * - OpenAPI spec is the source of truth
+ * Thin HTTP wrapper: emits job:status-requested on the EventBus,
+ * awaits the response. User ownership check stays in the route
+ * since auth is HTTP-only.
  */
 
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { User } from '@prisma/client';
 import type { Context, Next } from 'hono';
-import type { JobQueue } from '@semiont/jobs';
-import type { components } from '@semiont/core';
 import { jobId } from '@semiont/core';
+import { eventBusRequest } from '../../utils/event-bus-request';
+import type { EventBus } from '@semiont/core';
 
-// Type for auth middleware - backend will provide this
 type AuthMiddleware = (c: Context, next: Next) => Promise<Response | void>;
 
-type JobStatusResponse = components['schemas']['JobStatusResponse'];
-
-export function createJobsRouter(jobQueue: JobQueue, authMiddleware: AuthMiddleware) {
-  // Create jobs router
-  const jobsRouter = new Hono<{ Variables: { user: User } }>();
-
-  // Apply auth middleware to all jobs routes
+export function createJobsRouter(_jobQueue: any, authMiddleware: AuthMiddleware) {
+  const jobsRouter = new Hono<{ Variables: { user: User; eventBus: EventBus } }>();
   jobsRouter.use('/api/jobs/*', authMiddleware);
 
-  /**
-   * GET /api/jobs/:id
-   *
-   * Get job status and progress
-   * Requires authentication
-   */
   jobsRouter.get('/api/jobs/:id', async (c) => {
     const { id } = c.req.param();
     const user = c.get('user');
+    const eventBus = c.get('eventBus');
+    const correlationId = crypto.randomUUID();
 
-    const job = await jobQueue.getJob(jobId(id));
+    try {
+      const response = await eventBusRequest(
+        eventBus,
+        'job:status-requested',
+        { correlationId, jobId: jobId(id) },
+        'job:status-result',
+        'job:status-failed',
+      );
 
-    if (!job) {
-      throw new HTTPException(404, { message: 'Job not found' });
+      // Verify user owns this job (auth stays in the route)
+      if (response.userId !== user.id) {
+        throw new HTTPException(404, { message: 'Job not found' });
+      }
+
+      return c.json(response);
+    } catch (error) {
+      if (error instanceof HTTPException) throw error;
+      if (error instanceof Error) {
+        if (error.message === 'Job not found') {
+          throw new HTTPException(404, { message: 'Job not found' });
+        }
+        if (error.name === 'TimeoutError') {
+          throw new HTTPException(504, { message: 'Request timed out' });
+        }
+      }
+      throw error;
     }
-
-    // Verify user owns this job
-    if (job.metadata.userId !== user.id) {
-      throw new HTTPException(404, { message: 'Job not found' });
-    }
-
-    // Use discriminated union to safely access state-specific fields
-    const response: JobStatusResponse = {
-      jobId: job.metadata.id,
-      type: job.metadata.type,
-      status: job.status,
-      userId: job.metadata.userId,
-      created: job.metadata.created,
-      startedAt: job.status === 'running' || job.status === 'complete' ? job.startedAt : undefined,
-      completedAt: job.status === 'complete' || job.status === 'failed' || job.status === 'cancelled' ? job.completedAt : undefined,
-      error: job.status === 'failed' ? job.error : undefined,
-      progress: job.status === 'running' ? job.progress : undefined,
-      result: job.status === 'complete' ? job.result : undefined,
-    };
-
-    return c.json(response);
   });
 
   return jobsRouter;

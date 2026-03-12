@@ -17,6 +17,8 @@ import { getPrimaryRepresentation } from '@semiont/api-client';
 import type { EnvironmentConfig, Logger, ResourceId } from '@semiont/core';
 import { EventBus } from '@semiont/core';
 import { Readable } from 'stream';
+import { from } from 'rxjs';
+import { mergeMap } from 'rxjs/operators';
 import { getInferenceClient, type InferenceClient } from '@semiont/inference';
 import { getGraphDatabase, type GraphDatabase } from '@semiont/graph';
 import {
@@ -34,6 +36,7 @@ import { createKnowledgeBase, type KnowledgeBase } from './knowledge-base';
 import { Gatherer } from './gatherer';
 import { Binder } from './binder';
 import { Stower } from './stower';
+import { CloneTokenManager } from './clone-token-manager';
 
 export interface MakeMeaningService {
   kb: KnowledgeBase;
@@ -53,6 +56,7 @@ export interface MakeMeaningService {
   stower: Stower;
   gatherer: Gatherer;
   binder: Binder;
+  cloneTokenManager: CloneTokenManager;
   stop: () => Promise<void>;
 }
 
@@ -84,6 +88,44 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus: Even
   const jobQueue = new JobQueue({ dataDir: basePath }, jobQueueLogger, eventBus);
   await jobQueue.initialize();
 
+  // 2b. Subscribe to job status queries
+  const jobStatusSubscription = eventBus.get('job:status-requested').pipe(
+    mergeMap((event) => from((async () => {
+      try {
+        const job = await jobQueue.getJob(event.jobId);
+        if (!job) {
+          eventBus.get('job:status-failed').next({
+            correlationId: event.correlationId,
+            error: new Error('Job not found'),
+          });
+          return;
+        }
+        eventBus.get('job:status-result').next({
+          correlationId: event.correlationId,
+          response: {
+            jobId: job.metadata.id,
+            type: job.metadata.type,
+            status: job.status,
+            userId: job.metadata.userId,
+            created: job.metadata.created,
+            startedAt: job.status === 'running' || job.status === 'complete' ? job.startedAt : undefined,
+            completedAt: job.status === 'complete' || job.status === 'failed' || job.status === 'cancelled' ? job.completedAt : undefined,
+            error: job.status === 'failed' ? job.error : undefined,
+            progress: job.status === 'running' ? job.progress : undefined,
+            result: job.status === 'complete' ? job.result : undefined,
+          },
+        });
+      } catch (error) {
+        eventBus.get('job:status-failed').next({
+          correlationId: event.correlationId,
+          error: error instanceof Error ? error : new Error(String(error)),
+        });
+      }
+    })())),
+  ).subscribe({
+    error: (err) => jobQueueLogger.error('Job status pipeline error', { error: err }),
+  });
+
   // 3. Create shared event store with EventBus integration
   const eventStoreLogger = logger.child({ component: 'event-store' });
   const eventStore = createEventStoreCore(basePath, baseUrl, undefined, eventBus, eventStoreLogger);
@@ -114,13 +156,18 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus: Even
 
   // 10. Start Gatherer actor
   const gathererLogger = logger.child({ component: 'gatherer' });
-  const gatherer = new Gatherer(baseUrl, kb, eventBus, inferenceClient, gathererLogger);
+  const gatherer = new Gatherer(baseUrl, kb, eventBus, inferenceClient, gathererLogger, config);
   await gatherer.initialize();
 
   // 10. Start Binder actor
   const binderLogger = logger.child({ component: 'binder' });
-  const binder = new Binder(kb, eventBus, binderLogger);
+  const binder = new Binder(kb, eventBus, binderLogger, baseUrl);
   await binder.initialize();
+
+  // 10b. Start CloneTokenManager actor
+  const cloneTokenLogger = logger.child({ component: 'clone-token-manager' });
+  const cloneTokenManager = new CloneTokenManager(kb, eventBus, cloneTokenLogger);
+  await cloneTokenManager.initialize();
 
   // 11. Create ContentFetcher backed by KB views + content store
   const contentFetcher: ContentFetcher = async (resourceId: ResourceId): Promise<Readable | null> => {
@@ -182,6 +229,7 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus: Even
     stower,
     gatherer,
     binder,
+    cloneTokenManager,
     stop: async () => {
       logger.info('Stopping Make-Meaning service');
       await Promise.all([
@@ -194,6 +242,8 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus: Even
       ]);
       await gatherer.stop();
       await binder.stop();
+      jobStatusSubscription.unsubscribe();
+      await cloneTokenManager.stop();
       await stower.stop();
       await graphConsumer.stop();
       await graphDb.disconnect();
