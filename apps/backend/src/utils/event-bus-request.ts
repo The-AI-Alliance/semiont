@@ -39,7 +39,7 @@ export async function eventBusRequest<
 ): Promise<(EventMap[TSuccess] & { response: any })['response']> {
   const correlationId = (payload as any).correlationId as string;
 
-  // Set up listeners before emitting
+  // Subscribe before emitting so synchronous responses are captured
   const result$ = merge(
     eventBus.get(successEvent).pipe(
       filter((e: any) => e.correlationId === correlationId),
@@ -51,10 +51,13 @@ export async function eventBusRequest<
     ),
   ).pipe(take(1), timeout(timeoutMs));
 
-  // Emit the request
+  // firstValueFrom subscribes eagerly — must be called before .next()
+  const resultPromise = firstValueFrom(result$);
+
+  // Emit the request (handler may respond synchronously)
   (eventBus.get(requestEvent) as any).next(payload);
 
-  const result = await firstValueFrom(result$);
+  const result = await resultPromise;
   if (!result.ok) {
     throw result.error;
   }
