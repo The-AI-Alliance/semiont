@@ -9,9 +9,8 @@
  * - Delete: emits mark:delete with annotationId + userId + resourceId
  */
 
-import { generateAnnotationId } from '@semiont/event-sourcing';
 import type { components } from '@semiont/core';
-import { getTextPositionSelector, getTargetSource } from '@semiont/api-client';
+import { getTargetSource } from '@semiont/api-client';
 import type {
   BodyOperation,
   ResourceId,
@@ -21,10 +20,10 @@ import type {
 import { EventBus, annotationId, uriToResourceId, uriToAnnotationId } from '@semiont/core';
 import { AnnotationContext } from './annotation-context';
 import type { KnowledgeBase } from './knowledge-base';
+import { assembleAnnotation, applyBodyOperations } from './annotation-assembly';
 
 type Agent = components['schemas']['Agent'];
 type Annotation = components['schemas']['Annotation'];
-type AnnotationBody = components['schemas']['AnnotationBody'];
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
 type UpdateAnnotationBodyRequest = components['schemas']['UpdateAnnotationBodyRequest'];
 
@@ -47,37 +46,14 @@ export class AnnotationOperations {
     eventBus: EventBus,
     publicURL: string
   ): Promise<CreateAnnotationResult> {
-    const newAnnotationId = generateAnnotationId(publicURL);
-
-    const posSelector = getTextPositionSelector(request.target.selector);
-    if (!posSelector) {
-      throw new Error('TextPositionSelector required for creating annotations');
-    }
-
-    if (!request.motivation) {
-      throw new Error('motivation is required');
-    }
-
-    const now = new Date().toISOString();
-    const annotation: Annotation = {
-      '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-      'type': 'Annotation' as const,
-      id: newAnnotationId,
-      motivation: request.motivation,
-      target: request.target,
-      body: request.body as Annotation['body'],
-      creator,
-      created: now,
-      modified: now,
-    };
-
+    const { annotation, bodyArray } = assembleAnnotation(request, creator, publicURL);
     const resourceId = uriToResourceId(request.target.source);
 
     // Emit mark:create — Stower subscribes and appends to event store
     eventBus.get('mark:create').next({
       motivation: request.motivation,
       selector: request.target.selector,
-      body: (Array.isArray(request.body) ? request.body : [request.body]) as AnnotationBody[],
+      body: bodyArray,
       userId,
       resourceId,
       annotation,
@@ -116,7 +92,7 @@ export class AnnotationOperations {
       operations: request.operations as BodyOperation[],
     });
 
-    const updatedBody = this.applyBodyOperations(annotation.body, request.operations);
+    const updatedBody = applyBodyOperations(annotation.body, request.operations);
 
     return {
       annotation: {
@@ -156,42 +132,5 @@ export class AnnotationOperations {
     });
 
     logger?.debug('Annotation delete event emitted');
-  }
-
-  /**
-   * Apply body operations (add/remove/replace) to annotation body
-   */
-  private static applyBodyOperations(
-    body: Annotation['body'],
-    operations: UpdateAnnotationBodyRequest['operations']
-  ): Annotation['body'] {
-    const bodyArray = Array.isArray(body) ? [...body] : [];
-
-    for (const op of operations) {
-      if (op.op === 'add') {
-        const exists = bodyArray.some(item =>
-          JSON.stringify(item) === JSON.stringify(op.item)
-        );
-        if (!exists) {
-          bodyArray.push(op.item);
-        }
-      } else if (op.op === 'remove') {
-        const index = bodyArray.findIndex(item =>
-          JSON.stringify(item) === JSON.stringify(op.item)
-        );
-        if (index !== -1) {
-          bodyArray.splice(index, 1);
-        }
-      } else if (op.op === 'replace') {
-        const index = bodyArray.findIndex(item =>
-          JSON.stringify(item) === JSON.stringify(op.oldItem)
-        );
-        if (index !== -1) {
-          bodyArray[index] = op.newItem;
-        }
-      }
-    }
-
-    return bodyArray;
   }
 }

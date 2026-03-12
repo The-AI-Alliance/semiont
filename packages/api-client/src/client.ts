@@ -532,7 +532,7 @@ export class SemiontApiClient {
     resourceUri: ResourceUri,
     data: RequestContent<paths['/resources/{id}/annotations']['post']>,
     options?: RequestOptions
-  ): Promise<ResponseContent<paths['/resources/{id}/annotations']['post']>> {
+  ): Promise<{ annotationId: string }> {
     // resourceUri is already a full URI, use it directly
     return this.http.post(`${resourceUri}/annotations`, {
       json: data,
@@ -585,13 +585,13 @@ export class SemiontApiClient {
     annotationUri: ResourceAnnotationUri,
     data: RequestContent<paths['/resources/{resourceId}/annotations/{annotationId}/body']['put']>,
     options?: RequestOptions
-  ): Promise<ResponseContent<paths['/resources/{resourceId}/annotations/{annotationId}/body']['put']>> {
+  ): Promise<void> {
     // annotationUri is already a full URI, use it directly
-    return this.http.put(`${annotationUri}/body`, {
+    await this.http.put(`${annotationUri}/body`, {
       json: data,
       ...options,
       auth: options?.auth
-    } as any).json();
+    } as any);
   }
 
   async getAnnotationHistory(
@@ -609,20 +609,20 @@ export class SemiontApiClient {
   // ENTITY TYPES
   // ============================================================================
 
-  async addEntityType(type: EntityType, options?: RequestOptions): Promise<ResponseContent<paths['/api/entity-types']['post']>> {
-    return this.http.post(`${this.baseUrl}/api/entity-types`, {
-      json: { type },
+  async addEntityType(type: EntityType, options?: RequestOptions): Promise<void> {
+    await this.http.post(`${this.baseUrl}/api/entity-types`, {
+      json: { tag: type },
       ...options,
       auth: options?.auth
-    } as any).json();
+    } as any);
   }
 
-  async addEntityTypesBulk(types: EntityType[], options?: RequestOptions): Promise<ResponseContent<paths['/api/entity-types/bulk']['post']>> {
-    return this.http.post(`${this.baseUrl}/api/entity-types/bulk`, {
+  async addEntityTypesBulk(types: EntityType[], options?: RequestOptions): Promise<void> {
+    await this.http.post(`${this.baseUrl}/api/entity-types/bulk`, {
       json: { tags: types },
       ...options,
       auth: options?.auth
-    } as any).json();
+    } as any);
   }
 
   async listEntityTypes(options?: RequestOptions): Promise<ResponseContent<paths['/api/entity-types']['get']>> {

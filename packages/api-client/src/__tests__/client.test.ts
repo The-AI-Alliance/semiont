@@ -440,19 +440,12 @@ describe('SemiontApiClient - Archive Operations', () => {
 
   describe('Entity Types Bulk Operations', () => {
     test('should add multiple entity types at once', async () => {
-      const mockResponse = {
-        success: true,
-        entityTypes: ['concept', 'person', 'organization'],
-      };
-
       vi.mocked(mockKy.post).mockReturnValue({
-        json: vi.fn().mockResolvedValue(mockResponse),
+        text: vi.fn().mockResolvedValue(''),
       } as any);
 
-      const result = await client.addEntityTypesBulk([entityType('concept'), entityType('person'), entityType('organization')]);
+      await client.addEntityTypesBulk([entityType('concept'), entityType('person'), entityType('organization')]);
 
-      expect(result.success).toBe(true);
-      expect(result.entityTypes).toHaveLength(3);
       expect(mockKy.post).toHaveBeenCalledWith(
         `${testBaseUrl}/api/entity-types/bulk`,
         expect.objectContaining({

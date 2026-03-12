@@ -110,7 +110,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     resetEventBusForTesting();
     createAnnotationSpy = vi
       .spyOn(SemiontApiClient.prototype, 'createAnnotation')
-      .mockResolvedValue({ annotation: MOCK_ANNOTATION } as any);
+      .mockResolvedValue({ annotationId: MOCK_ANNOTATION.id } as any);
   });
 
   afterEach(() => {
@@ -265,7 +265,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
 
     await waitFor(() => {
       expect(createdListener).toHaveBeenCalledTimes(1);
-      expect(createdListener).toHaveBeenCalledWith({ annotation: MOCK_ANNOTATION });
+      expect(createdListener).toHaveBeenCalledWith({ annotationId: 'new-1' });
     });
 
     subscription.unsubscribe();

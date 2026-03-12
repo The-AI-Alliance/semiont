@@ -1,66 +1,60 @@
 /**
- * Annotation LLM Context Route - Spec-First Version
+ * Annotation LLM Context Route
+ * GET /resources/{resourceId}/annotations/{annotationId}/llm-context
  *
- * Migrated from code-first to spec-first architecture:
- * - Uses plain Hono (no @hono/zod-openapi)
- * - Manual query parameter parsing and validation
- * - Types from generated OpenAPI types
- * - OpenAPI spec is the source of truth
+ * Emits gather:requested on the EventBus and awaits the Gatherer's response.
  */
 
 import { HTTPException } from 'hono/http-exception';
+import { firstValueFrom, merge } from 'rxjs';
+import { filter, map, take, timeout } from 'rxjs/operators';
 import type { ResourcesRouterType } from '../shared';
-import { AnnotationContext } from '@semiont/make-meaning';
-import { resourceId } from '@semiont/core';
-import { annotationUri } from '@semiont/core';
-import { getLogger } from '../../../logger';
 
 export function registerGetAnnotationLLMContext(router: ResourcesRouterType) {
-  /**
-   * GET /resources/:resourceId/annotations/:annotationId/llm-context
-   *
-   * Get annotation with full context for LLM processing
-   * Includes source context (text around annotation), target context (referenced resource if applicable), and metadata
-   *
-   * Query parameters:
-   * - includeSourceContext: true/false (default: true)
-   * - includeTargetContext: true/false (default: true)
-   * - contextWindow: 100-5000 (default: 1000) - characters before/after selection
-   */
   router.get('/resources/:resourceId/annotations/:annotationId/llm-context', async (c) => {
     const { resourceId: resourceIdParam, annotationId: annotationIdParam } = c.req.param();
     const query = c.req.query();
     const config = c.get('config');
-    const makeMeaning = c.get('makeMeaning');
+    const eventBus = c.get('eventBus');
 
     // Parse and validate query parameters
     const includeSourceContext = query.includeSourceContext === 'false' ? false : true;
     const includeTargetContext = query.includeTargetContext === 'false' ? false : true;
     const contextWindow = query.contextWindow ? Number(query.contextWindow) : 1000;
 
-    // Validate contextWindow range
     if (contextWindow < 100 || contextWindow > 5000) {
       throw new HTTPException(400, { message: 'Query parameter "contextWindow" must be between 100 and 5000' });
     }
 
+    const fullAnnotationUri = `${config.services.backend!.publicURL}/annotations/${annotationIdParam}`;
+    const resourceUri = `${config.services.backend!.publicURL}/resources/${resourceIdParam}`;
+
+    // Emit gather:requested — Gatherer subscribes and calls AnnotationContext.buildLLMContext
+    eventBus.get('gather:requested').next({
+      annotationUri: fullAnnotationUri,
+      resourceUri,
+      options: { includeSourceContext, includeTargetContext, contextWindow },
+    });
+
     try {
-      // Construct full annotation URI (annotations in views use full URIs as their id)
-      const fullAnnotationUri = `${config.services.backend!.publicURL}/annotations/${annotationIdParam}`;
+      const result = await firstValueFrom(
+        merge(
+          eventBus.get('gather:complete').pipe(
+            filter(e => e.annotationUri === fullAnnotationUri),
+            map(e => ({ ok: true as const, response: e.response })),
+          ),
+          eventBus.get('gather:failed').pipe(
+            filter(e => e.annotationUri === fullAnnotationUri),
+            map(e => ({ ok: false as const, error: e.error })),
+          ),
+        ).pipe(take(1), timeout(30_000)),
+      );
 
-      const logger = getLogger().child({
-        route: 'annotation-llm-context',
-        resourceId: resourceIdParam,
-        annotationId: annotationIdParam
-      });
+      if (!result.ok) {
+        throw result.error;
+      }
 
-      // Use shared service to build context
-      const response = await AnnotationContext.buildLLMContext(annotationUri(fullAnnotationUri), resourceId(resourceIdParam), makeMeaning.kb, {
-        includeSourceContext,
-        includeTargetContext,
-        contextWindow
-      }, makeMeaning.inferenceClient, logger);
-
-      return c.json(response);
+      return c.json(result.response);
     } catch (error) {
       if (error instanceof Error) {
         if (error.message === 'Annotation not found') {
@@ -71,6 +65,9 @@ export function registerGetAnnotationLLMContext(router: ResourcesRouterType) {
         }
         if (error.message === 'Source content not found') {
           throw new HTTPException(404, { message: 'Source content not found' });
+        }
+        if (error.name === 'TimeoutError') {
+          throw new HTTPException(504, { message: 'Context gathering timed out' });
         }
       }
       throw error;

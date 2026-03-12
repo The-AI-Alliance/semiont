@@ -127,7 +127,7 @@ describe('useContextGatherFlow', () => {
     await waitFor(() => {
       expect(completeSpy).toHaveBeenCalledWith({
         annotationUri: testAnnotationUri,
-        context: mockContext,
+        response: { context: mockContext },
       });
     });
   });
@@ -379,7 +379,10 @@ describe('useContextGatherFlow', () => {
       expect(result.current.gatherLoading).toBe(false);
     });
 
-    // Should NOT emit gather:complete when context is null
-    expect(completeSpy).not.toHaveBeenCalled();
+    // Should still emit gather:complete with the full response (context is null inside)
+    expect(completeSpy).toHaveBeenCalledWith({
+      annotationUri: testAnnotationUri,
+      response: { context: null },
+    });
   });
 });

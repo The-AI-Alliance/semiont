@@ -22,7 +22,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { Motivation, ResourceUri, Selector, components, ResourceEvent } from '@semiont/core';
-import { resourceAnnotationUri, accessToken, entityType } from '@semiont/core';
+import { resourceAnnotationUri, accessToken, entityType, annotationId } from '@semiont/core';
 import { uriToAnnotationIdOrPassthrough } from '@semiont/core';
 import { useEventBus } from '../contexts/EventBusContext';
 import type { EventMap } from '@semiont/core';
@@ -275,10 +275,10 @@ export function useMarkFlow(rUri: ResourceUri): MarkFlowState {
           body: event.body,
         }, { auth: toAccessToken(tokenRef.current) });
 
-        if (result.annotation) {
-          setPendingAnnotation(null);
-          eventBus.get('mark:created').next({ annotation: result.annotation });
-        }
+        setPendingAnnotation(null);
+        // Extract short ID from the annotation URI returned by the backend
+        const idSegment = uriToAnnotationIdOrPassthrough(result.annotationId);
+        eventBus.get('mark:created').next({ annotationId: annotationId(idSegment) });
       } catch (error) {
         console.error('Failed to create annotation:', error);
         eventBus.get('mark:create-failed').next({ error: error as Error });

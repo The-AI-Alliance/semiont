@@ -45,18 +45,10 @@ describe('EventBus scoping', () => {
     resource2.get('mark:created').subscribe(e => events2.push(e));
 
     // Emit to resource1 only
-    const mockAnnotation = {
-      '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-      type: 'Annotation' as const,
-      id: 'http://localhost:4000/annotations/ann-1',
-      motivation: 'commenting' as const,
-      target: 'http://localhost:4000/resources/resource-1',
-      body: []
-    };
-    resource1.get('mark:created').next({ annotation: mockAnnotation });
+    resource1.get('mark:created').next({ annotationId: 'ann-1' as any });
 
     expect(events1).toHaveLength(1);
-    expect(events1[0].annotation.id).toBe('http://localhost:4000/annotations/ann-1');
+    expect(events1[0].annotationId).toBe('ann-1');
 
     expect(events2).toHaveLength(0); // Resource2 should not receive event
   });

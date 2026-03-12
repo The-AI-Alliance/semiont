@@ -31,7 +31,7 @@
 import { Subscription, from, merge } from 'rxjs';
 import { concatMap } from 'rxjs/operators';
 import type { EventMap, Logger } from '@semiont/core';
-import { EventBus, resourceId, CREATION_METHODS, generateUuid } from '@semiont/core';
+import { EventBus, resourceId, uriToAnnotationId, CREATION_METHODS, generateUuid } from '@semiont/core';
 import type { CreationMethod, ResourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
 import type { KnowledgeBase } from './knowledge-base';
@@ -162,7 +162,7 @@ export class Stower {
         version: 1,
         payload: { annotation: event.annotation },
       });
-      this.eventBus.get('mark:created').next({ annotation: event.annotation as components['schemas']['Annotation'] });
+      this.eventBus.get('mark:created').next({ annotationId: uriToAnnotationId(event.annotation.id) });
     } catch (error) {
       this.logger.error('Failed to create annotation', { error });
       this.eventBus.get('mark:create-failed').next({

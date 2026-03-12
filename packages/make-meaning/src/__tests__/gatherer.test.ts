@@ -92,7 +92,7 @@ describe('Gatherer', () => {
 
       const result = await resultPromise;
       expect(result!.annotationUri).toBe('http://localhost:4000/annotations/ann-1');
-      expect(result!.context).toEqual(mockContext);
+      expect(result!.response.context).toEqual(mockContext);
 
       expect(AnnotationContext.buildLLMContext).toHaveBeenCalledWith(
         'http://localhost:4000/annotations/ann-1',

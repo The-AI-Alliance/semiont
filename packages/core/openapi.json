@@ -1820,12 +1820,20 @@
           }
         },
         "responses": {
-          "201": {
-            "description": "Annotation created successfully",
+          "202": {
+            "description": "Annotation creation accepted",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreateAnnotationResponse"
+                  "type": "object",
+                  "properties": {
+                    "annotationId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "annotationId"
+                  ]
                 }
               }
             }
@@ -2029,11 +2037,8 @@
           }
         ],
         "responses": {
-          "204": {
-            "description": "Annotation deleted successfully"
-          },
-          "404": {
-            "description": "Annotation not found"
+          "202": {
+            "description": "Annotation deletion accepted"
           }
         }
       }
@@ -2081,15 +2086,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Annotation body updated successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UpdateAnnotationBodyResponse"
-                }
-              }
-            }
+          "202": {
+            "description": "Annotation body update accepted"
           }
         }
       }
@@ -2252,15 +2250,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Entity type added successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AddEntityTypeResponse"
-                }
-              }
-            }
+          "202": {
+            "description": "Entity type addition accepted"
           },
           "403": {
             "description": "Forbidden - Moderator or Admin access required",
@@ -2297,15 +2288,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Entity types added successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AddEntityTypeResponse"
-                }
-              }
-            }
+          "202": {
+            "description": "Entity types addition accepted"
           },
           "403": {
             "description": "Forbidden - Moderator or Admin access required",
@@ -2388,24 +2372,6 @@
         },
         "required": [
           "tag"
-        ]
-      },
-      "AddEntityTypeResponse": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "entityTypes": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        "required": [
-          "success",
-          "entityTypes"
         ]
       },
       "AdminUpdateUserResponse": {
@@ -3308,17 +3274,6 @@
           "target",
           "body",
           "motivation"
-        ]
-      },
-      "CreateAnnotationResponse": {
-        "type": "object",
-        "properties": {
-          "annotation": {
-            "$ref": "#/components/schemas/Annotation"
-          }
-        },
-        "required": [
-          "annotation"
         ]
       },
       "CreateFromAnnotationRequest": {
@@ -5257,17 +5212,6 @@
         "required": [
           "resourceId",
           "operations"
-        ]
-      },
-      "UpdateAnnotationBodyResponse": {
-        "type": "object",
-        "properties": {
-          "annotation": {
-            "$ref": "#/components/schemas/Annotation"
-          }
-        },
-        "required": [
-          "annotation"
         ]
       },
       "UpdateResourceRequest": {

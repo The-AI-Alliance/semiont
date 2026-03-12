@@ -1,11 +1,9 @@
 /**
- * Entity Types Routes - Spec-First Version
+ * Entity Types Routes
  *
- * Migrated from code-first to spec-first architecture:
- * - Uses plain Hono (no @hono/zod-openapi)
- * - Validates request bodies with validateRequestBody middleware
- * - Types from generated OpenAPI types
- * - OpenAPI spec is the source of truth
+ * GET returns entity types from view storage projection.
+ * POST/bulk POST emit events and return 202 Accepted.
+ * The frontend refreshes entity types via query invalidation.
  */
 
 import { Hono } from 'hono';
@@ -22,7 +20,6 @@ import { getLogger } from '../logger';
 const getRouteLogger = () => getLogger().child({ component: 'entity-types' });
 
 type AddEntityTypeRequest = components['schemas']['AddEntityTypeRequest'];
-type AddEntityTypeResponse = components['schemas']['AddEntityTypeResponse'];
 type BulkAddEntityTypesRequest = components['schemas']['BulkAddEntityTypesRequest'];
 type GetEntityTypesResponse = components['schemas']['GetEntityTypesResponse'];
 
@@ -52,48 +49,32 @@ entityTypesRouter.get('/api/entity-types', async (c) => {
 
 /**
  * POST /api/entity-types
- * Add a new entity type to the collection (append-only, requires moderator/admin)
- * Emits entitytype.added event → Event Store → view storage projection → Graph Database (graph)
+ * Add a new entity type (append-only, requires moderator/admin)
  */
 entityTypesRouter.post('/api/entity-types',
   validateRequestBody('AddEntityTypeRequest'),
   async (c) => {
-    // Check moderation permissions
     const user = c.get('user');
-    const config = c.get('config');
     if (!user.isModerator && !user.isAdmin) {
       return c.json({ error: 'Forbidden: Moderator or Admin access required' }, 403);
     }
 
     const body = c.get('validatedBody') as AddEntityTypeRequest;
-
-    // Add entity type via EventBus
     const eventBus = c.get('eventBus');
-    try {
-      eventBus.get('mark:add-entity-type').next({ tag: body.tag, userId: userId(user.id) });
-    } catch (error) {
-      return c.json({ error: 'Failed to add entity type' }, 500);
-    }
+    eventBus.get('mark:add-entity-type').next({ tag: body.tag, userId: userId(user.id) });
 
-    // Read from view storage
-    const entityTypes = await readEntityTypesProjection(config);
-
-    const response: AddEntityTypeResponse = { success: true, entityTypes };
-    return c.json(response, 200);
+    return c.body(null, 202);
   }
 );
 
 /**
  * POST /api/entity-types/bulk
- * Add multiple entity types to the collection (append-only, requires moderator/admin)
- * Emits one entitytype.added event per tag → Event Store → view storage projection → Graph Database (graph)
+ * Add multiple entity types (append-only, requires moderator/admin)
  */
 entityTypesRouter.post('/api/entity-types/bulk',
   validateRequestBody('BulkAddEntityTypesRequest'),
   async (c) => {
-    // Check moderation permissions
     const user = c.get('user');
-    const config = c.get('config');
     if (!user.isModerator && !user.isAdmin) {
       return c.json({ error: 'Forbidden: Moderator or Admin access required' }, 403);
     }
@@ -101,19 +82,10 @@ entityTypesRouter.post('/api/entity-types/bulk',
     const body = c.get('validatedBody') as BulkAddEntityTypesRequest;
     const eventBus = c.get('eventBus');
 
-    // Add each entity type via EventBus
     for (const tag of body.tags) {
-      try {
-        eventBus.get('mark:add-entity-type').next({ tag, userId: userId(user.id) });
-      } catch (error) {
-        return c.json({ error: `Failed to add entity type: ${tag}` }, 500);
-      }
+      eventBus.get('mark:add-entity-type').next({ tag, userId: userId(user.id) });
     }
 
-    // Read from view storage
-    const entityTypes = await readEntityTypesProjection(config);
-
-    const response: AddEntityTypeResponse = { success: true, entityTypes };
-    return c.json(response, 200);
+    return c.body(null, 202);
   }
 );

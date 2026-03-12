@@ -1,37 +1,21 @@
 /**
- * Resource LLM Context Route - Spec-First Version
+ * Resource LLM Context Route
+ * GET /resources/{id}/llm-context
  *
- * Migrated from code-first to spec-first architecture:
- * - Uses plain Hono (no @hono/zod-openapi)
- * - Manual query parameter parsing and validation
- * - Types from generated OpenAPI types
- * - OpenAPI spec is the source of truth
+ * Emits gather:resource-requested on the EventBus and awaits the Gatherer's response.
  */
 
 import { HTTPException } from 'hono/http-exception';
+import { firstValueFrom, merge } from 'rxjs';
+import { filter, map, take, timeout } from 'rxjs/operators';
 import type { ResourcesRouterType } from '../shared';
-import { LLMContext } from '@semiont/make-meaning';
-import { resourceId } from '@semiont/core';
 
 export function registerGetResourceLLMContext(router: ResourcesRouterType) {
-  /**
-   * GET /resources/:id/llm-context
-   *
-   * Get resource with full context for LLM processing
-   * Includes related resources, annotations, graph representation, and optional summary
-   *
-   * Query parameters:
-   * - depth: 1-3 (default: 2)
-   * - maxResources: 1-20 (default: 10)
-   * - includeContent: true/false (default: true)
-   * - includeSummary: true/false (default: false)
-   */
   router.get('/resources/:id/llm-context', async (c) => {
     const { id } = c.req.param();
     const query = c.req.query();
     const config = c.get('config');
-    const makeMeaning = c.get('makeMeaning');
-    const publicURL = config.services.backend!.publicURL;
+    const eventBus = c.get('eventBus');
 
     // Parse and validate query parameters
     const depth = query.depth ? Number(query.depth) : 2;
@@ -39,35 +23,49 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
     const includeContent = query.includeContent === 'false' ? false : true;
     const includeSummary = query.includeSummary === 'true' ? true : false;
 
-    // Validate depth range
     if (depth < 1 || depth > 3) {
       throw new HTTPException(400, { message: 'Query parameter "depth" must be between 1 and 3' });
     }
 
-    // Validate maxResources range
     if (maxResources < 1 || maxResources > 20) {
       throw new HTTPException(400, { message: 'Query parameter "maxResources" must be between 1 and 20' });
     }
 
-    // Delegate to make-meaning for LLM context building
+    const resourceUri = `${config.services.backend!.publicURL}/resources/${id}`;
+
+    // Emit gather:resource-requested — Gatherer subscribes and calls LLMContext.getResourceContext
+    eventBus.get('gather:resource-requested').next({
+      resourceUri,
+      options: { depth, maxResources, includeContent, includeSummary },
+    });
+
     try {
-      const response = await LLMContext.getResourceContext(
-        resourceId(id),
-        {
-          depth,
-          maxResources,
-          includeContent,
-          includeSummary,
-        },
-        makeMeaning.kb,
-        publicURL,
-        makeMeaning.inferenceClient
+      const result = await firstValueFrom(
+        merge(
+          eventBus.get('gather:resource-complete').pipe(
+            filter(e => e.resourceUri === resourceUri),
+            map(e => ({ ok: true as const, context: e.context })),
+          ),
+          eventBus.get('gather:resource-failed').pipe(
+            filter(e => e.resourceUri === resourceUri),
+            map(e => ({ ok: false as const, error: e.error })),
+          ),
+        ).pipe(take(1), timeout(30_000)),
       );
 
-      return c.json(response);
+      if (!result.ok) {
+        throw result.error;
+      }
+
+      return c.json(result.context);
     } catch (error) {
-      if (error instanceof Error && error.message === 'Resource not found') {
-        throw new HTTPException(404, { message: 'Resource not found' });
+      if (error instanceof Error) {
+        if (error.message === 'Resource not found') {
+          throw new HTTPException(404, { message: 'Resource not found' });
+        }
+        if (error.name === 'TimeoutError') {
+          throw new HTTPException(504, { message: 'Context gathering timed out' });
+        }
       }
       throw error;
     }

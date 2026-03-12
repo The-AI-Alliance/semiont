@@ -28,6 +28,10 @@ export { GraphDBConsumer } from './graph/consumer';
 export { ResourceOperations } from './resource-operations';
 export type { UpdateResourceInput, CreateResourceInput } from './resource-operations';
 
+// Annotation assembly (pure functions)
+export { assembleAnnotation, applyBodyOperations } from './annotation-assembly';
+export type { AssembledAnnotation } from './annotation-assembly';
+
 // Annotation operations
 export { AnnotationOperations } from './annotation-operations';
 export type { CreateAnnotationResult, UpdateAnnotationBodyResult } from './annotation-operations';

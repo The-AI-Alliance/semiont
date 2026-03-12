@@ -253,14 +253,7 @@ describe('EventBusContext', () => {
 
         // Simulate successful creation (would normally come from API)
         result.current.get('mark:created').next({
-          annotation: {
-            '@context': 'http://www.w3.org/ns/anno.jsonld',
-            type: 'Annotation',
-            id: 'ann-123',
-            motivation: 'commenting',
-            target: { source: 'r:test-resource' },
-            body: []
-          } as any
+          annotationId: 'ann-123' as any,
         });
 
         // Simulate hover

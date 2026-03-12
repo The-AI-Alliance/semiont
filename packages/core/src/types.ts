@@ -1765,13 +1765,15 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Annotation created successfully */
-                201: {
+                /** @description Annotation creation accepted */
+                202: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["CreateAnnotationResponse"];
+                        "application/json": {
+                            annotationId: string;
+                        };
                     };
                 };
             };
@@ -1931,15 +1933,8 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Annotation deleted successfully */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Annotation not found */
-                404: {
+                /** @description Annotation deletion accepted */
+                202: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1982,14 +1977,12 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Annotation body updated successfully */
-                200: {
+                /** @description Annotation body update accepted */
+                202: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": components["schemas"]["UpdateAnnotationBodyResponse"];
-                    };
+                    content?: never;
                 };
             };
         };
@@ -2160,14 +2153,12 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Entity type added successfully */
-                200: {
+                /** @description Entity type addition accepted */
+                202: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": components["schemas"]["AddEntityTypeResponse"];
-                    };
+                    content?: never;
                 };
                 /** @description Forbidden - Moderator or Admin access required */
                 403: {
@@ -2212,14 +2203,12 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Entity types added successfully */
-                200: {
+                /** @description Entity types addition accepted */
+                202: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": components["schemas"]["AddEntityTypeResponse"];
-                    };
+                    content?: never;
                 };
                 /** @description Forbidden - Moderator or Admin access required */
                 403: {
@@ -2296,10 +2285,6 @@ export interface components {
         };
         AddEntityTypeRequest: {
             tag: string;
-        };
-        AddEntityTypeResponse: {
-            success: boolean;
-            entityTypes: string[];
         };
         AdminUpdateUserResponse: {
             success: boolean;
@@ -2521,9 +2506,6 @@ export interface components {
                 } | components["schemas"]["SvgSelector"] | components["schemas"]["FragmentSelector"])[];
             };
             body: unknown[] | components["schemas"]["AnnotationBody"] | components["schemas"]["AnnotationBody"][];
-        };
-        CreateAnnotationResponse: {
-            annotation: components["schemas"]["Annotation"];
         };
         CreateFromAnnotationRequest: {
             /** @description ID of the resource containing the annotation */
@@ -3085,9 +3067,6 @@ export interface components {
             resourceId: string;
             /** @description Array of body modification operations to apply */
             operations: (components["schemas"]["BodyOperationAdd"] | components["schemas"]["BodyOperationRemove"] | components["schemas"]["BodyOperationReplace"])[];
-        };
-        UpdateAnnotationBodyResponse: {
-            annotation: components["schemas"]["Annotation"];
         };
         UpdateResourceRequest: {
             entityTypes?: string[];

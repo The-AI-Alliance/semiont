@@ -138,9 +138,6 @@
       "AddEntityTypeRequest": {
         "$ref": "components/schemas/AddEntityTypeRequest.json"
       },
-      "AddEntityTypeResponse": {
-        "$ref": "components/schemas/AddEntityTypeResponse.json"
-      },
       "AdminUpdateUserResponse": {
         "$ref": "components/schemas/AdminUpdateUserResponse.json"
       },
@@ -200,9 +197,6 @@
       },
       "CreateAnnotationRequest": {
         "$ref": "components/schemas/CreateAnnotationRequest.json"
-      },
-      "CreateAnnotationResponse": {
-        "$ref": "components/schemas/CreateAnnotationResponse.json"
       },
       "CreateFromAnnotationRequest": {
         "$ref": "components/schemas/CreateFromAnnotationRequest.json"
@@ -362,9 +356,6 @@
       },
       "UpdateAnnotationBodyRequest": {
         "$ref": "components/schemas/UpdateAnnotationBodyRequest.json"
-      },
-      "UpdateAnnotationBodyResponse": {
-        "$ref": "components/schemas/UpdateAnnotationBodyResponse.json"
       },
       "UpdateResourceRequest": {
         "$ref": "components/schemas/UpdateResourceRequest.json"

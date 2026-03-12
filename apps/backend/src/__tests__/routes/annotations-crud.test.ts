@@ -299,7 +299,7 @@ describe('Annotation CRUD HTTP Contract', () => {
   });
 
   describe('PUT /resources/:id/annotation/:annotationId/body (update)', () => {
-    it('should return 200 on successful body update', async () => {
+    it('should return 202 on successful body update', async () => {
       const response = await app.request('/resources/test-resource/annotations/test-annotation/body', {
         method: 'PUT',
         headers: {
@@ -319,30 +319,7 @@ describe('Annotation CRUD HTTP Contract', () => {
         }),
       });
 
-      expect(response.status).toBe(200);
-    });
-
-    it('should return 404 for non-existent annotation', async () => {
-      vi.mocked(mockEventStore.getView).mockResolvedValueOnce({
-        resource: { '@id': 'test-resource' },
-        annotations: { version: 1, annotations: [] }
-      });
-
-      const response = await app.request('/resources/test-resource/annotation/nonexistent/body', {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operations: [{
-            op: 'add',
-            item: { type: 'TextualBody', value: 'test' }
-          }]
-        }),
-      });
-
-      expect(response.status).toBe(404);
+      expect(response.status).toBe(202);
     });
 
     it('should return 400 for invalid body structure', async () => {
@@ -374,7 +351,7 @@ describe('Annotation CRUD HTTP Contract', () => {
   });
 
   describe('DELETE /resources/:id/annotation/:annotationId (delete)', () => {
-    it('should return 204 on successful deletion', async () => {
+    it('should return 202 on successful deletion', async () => {
       const response = await app.request('/resources/test-resource/annotations/test-annotation', {
         method: 'DELETE',
         headers: {
@@ -382,23 +359,7 @@ describe('Annotation CRUD HTTP Contract', () => {
         },
       });
 
-      expect(response.status).toBe(204);
-    });
-
-    it('should return 404 for non-existent annotation', async () => {
-      vi.mocked(mockEventStore.getView).mockResolvedValueOnce({
-        resource: { '@id': 'test-resource' },
-        annotations: { version: 1, annotations: [] }
-      });
-
-      const response = await app.request('/resources/test-resource/annotation/nonexistent', {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-        },
-      });
-
-      expect(response.status).toBe(404);
+      expect(response.status).toBe(202);
     });
 
     it('should return 401 without authentication', async () => {

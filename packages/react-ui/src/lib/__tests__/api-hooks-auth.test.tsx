@@ -62,14 +62,14 @@ describe('API Hooks Authentication', () => {
       getResourceAnnotation: vi.fn().mockResolvedValue({ annotation: {} }),
       getAnnotationHistory: vi.fn().mockResolvedValue({ history: [] }),
       getAnnotationLLMContext: vi.fn().mockResolvedValue({ context: {} }),
-      createAnnotation: vi.fn().mockResolvedValue({ annotation: {} }),
-      deleteAnnotation: vi.fn().mockResolvedValue({}),
-      updateAnnotationBody: vi.fn().mockResolvedValue({ annotation: {} }),
+      createAnnotation: vi.fn().mockResolvedValue({ annotationId: 'test-id' }),
+      deleteAnnotation: vi.fn().mockResolvedValue(undefined),
+      updateAnnotationBody: vi.fn().mockResolvedValue(undefined),
 
       // Entity Types
       listEntityTypes: vi.fn().mockResolvedValue({ entityTypes: [] }),
-      addEntityType: vi.fn().mockResolvedValue({}),
-      addEntityTypesBulk: vi.fn().mockResolvedValue({}),
+      addEntityType: vi.fn().mockResolvedValue(undefined),
+      addEntityTypesBulk: vi.fn().mockResolvedValue(undefined),
 
       // Admin
       listUsers: vi.fn().mockResolvedValue({ users: [] }),

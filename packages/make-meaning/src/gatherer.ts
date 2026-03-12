@@ -76,18 +76,18 @@ export class Gatherer {
         resourceUri: event.resourceUri,
       });
 
-      const result = await AnnotationContext.buildLLMContext(
+      const response = await AnnotationContext.buildLLMContext(
         makeAnnotationUri(event.annotationUri),
         uriToResourceId(event.resourceUri),
         this.kb,
-        {},
+        event.options ?? {},
         this.inferenceClient,
         this.logger,
       );
 
       this.eventBus.get('gather:complete').next({
         annotationUri: event.annotationUri,
-        context: result.context!,
+        response,
       });
     } catch (error) {
       this.logger.error('Gather annotation context failed', {

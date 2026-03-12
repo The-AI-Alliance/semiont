@@ -67,12 +67,18 @@
       }
     },
     "responses": {
-      "201": {
-        "description": "Annotation created successfully",
+      "202": {
+        "description": "Annotation creation accepted",
         "content": {
           "application/json": {
             "schema": {
-              "$ref": "../components/schemas/CreateAnnotationResponse.json"
+              "type": "object",
+              "properties": {
+                "annotationId": {
+                  "type": "string"
+                }
+              },
+              "required": ["annotationId"]
             }
           }
         }

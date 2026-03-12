@@ -10,10 +10,10 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { firstValueFrom } from 'rxjs';
-import { take } from 'rxjs/operators';
+import { filter, take } from 'rxjs/operators';
 import { AnnotationOperations } from '../annotation-operations';
 import { ResourceOperations } from '../resource-operations';
-import { resourceId, userId, EventBus, type EnvironmentConfig, type Logger } from '@semiont/core';
+import { resourceId, userId, uriToAnnotationId, EventBus, type EnvironmentConfig, type Logger } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import type { KnowledgeBase } from '../knowledge-base';
@@ -35,12 +35,14 @@ async function createAnnotationAndAwait(
   eventBus: EventBus,
   publicURL: string
 ) {
-  // Subscribe first, then create
-  const created$ = firstValueFrom(eventBus.get('mark:created').pipe(take(1)));
   const creator = { type: 'Person' as const, id: 'did:web:test.local:users:test-user', name: 'Test User' };
   const result = await AnnotationOperations.createAnnotation(request, uid, creator, eventBus, publicURL);
-  // Wait for the Stower to persist (mark:created fires after appendEvent + view materialization)
-  await created$;
+  // Wait for THIS annotation's mark:created (filter by ID to avoid picking up a stale event)
+  const expectedId = uriToAnnotationId(result.annotation.id);
+  await firstValueFrom(eventBus.get('mark:created').pipe(
+    filter(e => e.annotationId === expectedId),
+    take(1),
+  ));
   return result;
 }
 
@@ -499,7 +501,7 @@ describe('AnnotationOperations', () => {
           eventBus,
           publicURL
         )
-      ).rejects.toThrow('TextPositionSelector required');
+      ).rejects.toThrow('Either TextPositionSelector, SvgSelector, or FragmentSelector is required');
     });
   });
 

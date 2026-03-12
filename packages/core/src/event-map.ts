@@ -179,7 +179,7 @@ export type EventMap = {
     resourceId?: ResourceId;
     annotation?: Annotation;
   };
-  'mark:created': { annotation: Annotation };
+  'mark:created': { annotationId: AnnotationId };
   'mark:create-failed': { error: Error };
   'mark:delete': { annotationId: AnnotationId; userId?: UserId; resourceId?: ResourceId };
   'mark:deleted': { annotationId: AnnotationId };
@@ -300,14 +300,19 @@ export type EventMap = {
   // ========================================================================
   // LLM context gathering from annotations for generation
 
-  // Annotation-level context (for yield flow)
+  // Annotation-level context (for yield flow and LLM context endpoint)
   'gather:requested': {
     annotationUri: string;
     resourceUri: string;
+    options?: {
+      includeSourceContext?: boolean;
+      includeTargetContext?: boolean;
+      contextWindow?: number;
+    };
   };
   'gather:complete': {
     annotationUri: string;
-    context: YieldContext;
+    response: components['schemas']['AnnotationLLMContextResponse'];
   };
   'gather:failed': {
     annotationUri: string;
