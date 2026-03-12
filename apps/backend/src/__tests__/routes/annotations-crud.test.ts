@@ -98,40 +98,36 @@ vi.mock('@semiont/make-meaning', () => ({
   startMakeMeaning: vi.fn().mockImplementation(async (_config: any, eventBus: any) => {
     // Subscribe mock Gatherer to browse events so eventBusRequest gets responses
     eventBus.get('browse:annotations-requested').subscribe((e: any) => {
-      queueMicrotask(() => {
-        eventBus.get('browse:annotations-result').next({
-          correlationId: e.correlationId,
-          response: {
-            annotations: [{
-              '@context': 'http://www.w3.org/ns/anno.jsonld',
-              id: 'http://localhost:4000/annotations/test-annotation',
-              type: 'Annotation',
-              motivation: 'highlighting',
-              body: [],
-              target: { source: 'urn:semiont:resource:test-resource' }
-            }],
-            total: 1,
-          },
-        });
+      eventBus.get('browse:annotations-result').next({
+        correlationId: e.correlationId,
+        response: {
+          annotations: [{
+            '@context': 'http://www.w3.org/ns/anno.jsonld',
+            id: 'http://localhost:4000/annotations/test-annotation',
+            type: 'Annotation',
+            motivation: 'highlighting',
+            body: [],
+            target: { source: 'urn:semiont:resource:test-resource' }
+          }],
+          total: 1,
+        },
       });
     });
     eventBus.get('browse:annotation-requested').subscribe((e: any) => {
-      queueMicrotask(() => {
-        eventBus.get('browse:annotation-result').next({
-          correlationId: e.correlationId,
-          response: {
-            annotation: {
-              '@context': 'http://www.w3.org/ns/anno.jsonld',
-              id: 'http://localhost:4000/annotations/test-annotation',
-              type: 'Annotation',
-              motivation: 'highlighting',
-              body: [],
-              target: { source: 'urn:semiont:resource:test-resource' },
-              created: new Date().toISOString(),
-              modified: new Date().toISOString()
-            },
+      eventBus.get('browse:annotation-result').next({
+        correlationId: e.correlationId,
+        response: {
+          annotation: {
+            '@context': 'http://www.w3.org/ns/anno.jsonld',
+            id: 'http://localhost:4000/annotations/test-annotation',
+            type: 'Annotation',
+            motivation: 'highlighting',
+            body: [],
+            target: { source: 'urn:semiont:resource:test-resource' },
+            created: new Date().toISOString(),
+            modified: new Date().toISOString()
           },
-        });
+        },
       });
     });
     return {
@@ -176,6 +172,9 @@ describe('Annotation CRUD HTTP Contract', () => {
   };
 
   beforeAll(async () => {
+    // Set JWT_SECRET env var for JWTService.getSecret()
+    process.env.JWT_SECRET = 'test-secret-key-at-least-32-characters-long';
+
     // Initialize JWTService
     const mockConfig: EnvironmentConfig = {
       site: {

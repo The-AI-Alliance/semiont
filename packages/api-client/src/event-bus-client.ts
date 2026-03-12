@@ -56,9 +56,12 @@ async function eventBusRequest<
     ),
   ).pipe(take(1), timeout(timeoutMs));
 
+  // firstValueFrom subscribes eagerly — must be called before .next()
+  const resultPromise = firstValueFrom(result$);
+
   (eventBus.get(requestEvent) as any).next(payload);
 
-  const result = await firstValueFrom(result$);
+  const result = await resultPromise;
   if (!result.ok) {
     throw result.error;
   }
@@ -299,6 +302,8 @@ export class EventBusClient {
       ),
     ).pipe(take(1), timeout(this.timeoutMs));
 
+    const resultPromise = firstValueFrom(result$);
+
     this.eventBus.get('gather:requested').next({
       correlationId,
       annotationUri,
@@ -306,7 +311,7 @@ export class EventBusClient {
       options,
     });
 
-    const result = await firstValueFrom(result$);
+    const result = await resultPromise;
     if (!result.ok) {
       throw result.error;
     }
@@ -335,13 +340,15 @@ export class EventBusClient {
       ),
     ).pipe(take(1), timeout(this.timeoutMs));
 
+    const resultPromise = firstValueFrom(result$);
+
     this.eventBus.get('gather:resource-requested').next({
       correlationId,
       resourceUri,
       options,
     });
 
-    const result = await firstValueFrom(result$);
+    const result = await resultPromise;
     if (!result.ok) {
       throw result.error;
     }
@@ -369,13 +376,15 @@ export class EventBusClient {
       ),
     ).pipe(take(1), timeout(this.timeoutMs));
 
+    const resultPromise = firstValueFrom(result$);
+
     this.eventBus.get('bind:search-requested').next({
       correlationId,
       referenceId,
       searchTerm,
     });
 
-    const result = await firstValueFrom(result$);
+    const result = await resultPromise;
     if (!result.ok) {
       throw result.error;
     }
