@@ -176,7 +176,7 @@ describe('CommentAnnotationWorker - Event Emission', () => {
     expect(markEvents.length).toBe(2);
 
     expect(markEvents[0]).toMatchObject({
-      motivation: 'commenting',
+      annotation: expect.objectContaining({ motivation: 'commenting' }),
       userId: userId('user-1'),
       resourceId: resourceId('res-comment-4'),
     });
@@ -185,7 +185,7 @@ describe('CommentAnnotationWorker - Event Emission', () => {
     );
 
     expect(markEvents[1]).toMatchObject({
-      motivation: 'commenting',
+      annotation: expect.objectContaining({ motivation: 'commenting' }),
       userId: userId('user-1'),
       resourceId: resourceId('res-comment-4'),
     });

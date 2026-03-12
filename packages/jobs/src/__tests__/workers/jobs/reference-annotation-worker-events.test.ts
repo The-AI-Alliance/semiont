@@ -186,7 +186,7 @@ describe('ReferenceAnnotationWorker - Event Emission', () => {
     // If entities were detected, they should have the correct motivation
     if (markEvents.length > 0) {
       expect(markEvents[0]).toMatchObject({
-        motivation: 'linking',
+        annotation: expect.objectContaining({ motivation: 'linking' }),
         resourceId: resourceId('res-test-4'),
       });
     }

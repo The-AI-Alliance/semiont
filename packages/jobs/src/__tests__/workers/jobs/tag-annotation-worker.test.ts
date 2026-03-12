@@ -216,7 +216,7 @@ describe('TagAnnotationWorker - Event Emission', () => {
     // All annotations should be tagging motivation
     for (const event of markEvents) {
       expect(event).toMatchObject({
-        motivation: 'tagging',
+        annotation: expect.objectContaining({ motivation: 'tagging' }),
         userId: userId('user-1'),
         resourceId: resourceId('res-tag-4'),
       });

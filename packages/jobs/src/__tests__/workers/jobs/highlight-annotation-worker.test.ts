@@ -177,13 +177,13 @@ describe('HighlightAnnotationWorker - Event Emission', () => {
 
     // Both annotations should be highlighting motivation
     expect(markEvents[0]).toMatchObject({
-      motivation: 'highlighting',
+      annotation: expect.objectContaining({ motivation: 'highlighting' }),
       userId: userId('user-1'),
       resourceId: resourceId('res-highlight-4'),
     });
 
     expect(markEvents[1]).toMatchObject({
-      motivation: 'highlighting',
+      annotation: expect.objectContaining({ motivation: 'highlighting' }),
       userId: userId('user-1'),
       resourceId: resourceId('res-highlight-4'),
     });

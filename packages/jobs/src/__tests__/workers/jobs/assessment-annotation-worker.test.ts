@@ -244,7 +244,7 @@ describe('AssessmentAnnotationWorker - Event Emission', () => {
 
     // Check first assessment annotation
     expect(markEvents[0]).toMatchObject({
-      motivation: 'assessing',
+      annotation: expect.objectContaining({ motivation: 'assessing' }),
       userId: userId('user-1'),
       resourceId: resourceId(testResourceId),
     });
@@ -254,7 +254,7 @@ describe('AssessmentAnnotationWorker - Event Emission', () => {
 
     // Check second assessment annotation
     expect(markEvents[1]).toMatchObject({
-      motivation: 'assessing',
+      annotation: expect.objectContaining({ motivation: 'assessing' }),
       userId: userId('user-1'),
       resourceId: resourceId(testResourceId),
     });
