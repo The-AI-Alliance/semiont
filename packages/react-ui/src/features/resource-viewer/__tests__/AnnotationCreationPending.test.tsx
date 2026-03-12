@@ -1,13 +1,13 @@
 /**
- * Regression test: pendingAnnotation cleared after mark:createsucceeds
+ * Regression test: pendingAnnotation cleared after mark:submitsucceeds
  *
  * Bug: handleAnnotationCreate in useMarkFlow called the API and emitted
- * mark:created, but never called setPendingAnnotation(null). The pending
+ * mark:submitd, but never called setPendingAnnotation(null). The pending
  * creation form (e.g. "Create Reference", "Save" assessment) remained visible
  * after the user clicked the confirm button.
  *
  * Fix: setPendingAnnotation(null) added in handleAnnotationCreate on success,
- * before emitting mark:created.
+ * before emitting mark:submitd.
  *
  * This test covers all four motivations that have a pending form:
  * - linking  (ReferencesPanel: "Create Reference" button)
@@ -129,9 +129,9 @@ describe('Annotation creation clears pendingAnnotation', () => {
       expect(screen.getByTestId('pending-motivation')).toHaveTextContent('linking');
     });
 
-    // Emit mark:create(what ReferencesPanel does when user clicks "Create Reference")
+    // Emit mark:submit(what ReferencesPanel does when user clicks "Create Reference")
     await act(async () => {
-      emit('mark:create', {
+      emit('mark:submit', {
         motivation: 'linking',
         selector: TEXT_SELECTOR,
         body: [{ type: 'TextualBody', value: 'Person', purpose: 'tagging' }],
@@ -158,7 +158,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     });
 
     await act(async () => {
-      emit('mark:create', {
+      emit('mark:submit', {
         motivation: 'assessing',
         selector: SVG_SELECTOR,
         body: [{ type: 'TextualBody', value: 'Looks good', purpose: 'assessing' }],
@@ -183,7 +183,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
 
     // Empty body is valid for assessments
     await act(async () => {
-      emit('mark:create', {
+      emit('mark:submit', {
         motivation: 'assessing',
         selector: SVG_SELECTOR,
         body: [],
@@ -207,7 +207,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     });
 
     await act(async () => {
-      emit('mark:create', {
+      emit('mark:submit', {
         motivation: 'commenting',
         selector: TEXT_SELECTOR,
         body: [{ type: 'TextualBody', value: 'Great point', purpose: 'commenting' }],
@@ -231,7 +231,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     });
 
     await act(async () => {
-      emit('mark:create', {
+      emit('mark:submit', {
         motivation: 'tagging',
         selector: SVG_SELECTOR,
         body: [{ type: 'TextualBody', value: 'concept:trust', purpose: 'tagging' }],
@@ -243,20 +243,20 @@ describe('Annotation creation clears pendingAnnotation', () => {
     });
   });
 
-  it('emits mark:created after successful creation', async () => {
+  it('emits mark:submitd after successful creation', async () => {
     const { emit, getEventBus } = renderDetectionFlow(TEST_URI);
 
     const createdListener = vi.fn();
     // Set listener after first render so eventBus is captured
     await waitFor(() => expect(getEventBus()).toBeDefined());
-    const subscription = getEventBus().get('mark:created').subscribe(createdListener);
+    const subscription = getEventBus().get('mark:submitd').subscribe(createdListener);
 
     act(() => {
       emit('mark:requested', { selector: TEXT_SELECTOR, motivation: 'linking' });
     });
 
     await act(async () => {
-      emit('mark:create', {
+      emit('mark:submit', {
         motivation: 'linking',
         selector: TEXT_SELECTOR,
         body: [],
@@ -285,7 +285,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     });
 
     await act(async () => {
-      emit('mark:create', {
+      emit('mark:submit', {
         motivation: 'linking',
         selector: TEXT_SELECTOR,
         body: [],

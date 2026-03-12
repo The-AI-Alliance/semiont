@@ -129,10 +129,10 @@ export function HighlightPanel({
   });
 
   // Highlights auto-create: when pendingAnnotation arrives with highlighting motivation,
-  // immediately emit mark:create event
+  // immediately emit mark:submit event
   useEffect(() => {
     if (pendingAnnotation && pendingAnnotation.motivation === 'highlighting') {
-      eventBus.get('mark:create').next({
+      eventBus.get('mark:submit').next({
         motivation: 'highlighting',
         selector: pendingAnnotation.selector,
         body: [],

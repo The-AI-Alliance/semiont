@@ -263,12 +263,9 @@ export class HighlightAnnotationWorker extends JobWorker {
     };
 
     this.eventBus.get('mark:create').next({
-      motivation: annotation.motivation,
-      selector: annotation.target.selector,
-      body: [],
+      annotation,
       userId: userId(metadata.userId),
       resourceId,
-      annotation,
     });
   }
 }

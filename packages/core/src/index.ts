@@ -150,6 +150,17 @@ export type {
 // Backend-specific annotation utilities
 export { findBodyItem } from './annotation-utils';
 
+// Annotation assembly (pure functions for building W3C Annotations)
+export {
+  assembleAnnotation,
+  applyBodyOperations,
+  getTextPositionSelector,
+  getSvgSelector,
+  getFragmentSelector,
+  validateSvgMarkup,
+} from './annotation-assembly';
+export type { AssembledAnnotation } from './annotation-assembly';
+
 // Resource types
 export type { UpdateResourceInput, ResourceFilter } from './resource-types';
 

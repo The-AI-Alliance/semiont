@@ -233,12 +233,9 @@ export class ReferenceAnnotationWorker extends JobWorker {
           };
 
           this.eventBus.get('mark:create').next({
-            motivation: annotation.motivation,
-            selector: annotation.target.selector,
-            body: annotation.body,
+            annotation,
             userId: userId(job.metadata.userId),
             resourceId: job.params.resourceId,
-            annotation,
           });
 
           totalEmitted++;

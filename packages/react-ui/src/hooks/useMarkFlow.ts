@@ -21,7 +21,7 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { Motivation, ResourceUri, Selector, components, ResourceEvent } from '@semiont/core';
+import type { Motivation, ResourceUri, Selector, ResourceEvent } from '@semiont/core';
 import { resourceAnnotationUri, accessToken, entityType, annotationId } from '@semiont/core';
 import { uriToAnnotationIdOrPassthrough } from '@semiont/core';
 import { useEventBus } from '../contexts/EventBusContext';
@@ -253,14 +253,11 @@ export function useMarkFlow(rUri: ResourceUri): MarkFlowState {
 
   useEffect(() => {
     /**
-     * Handle annotation creation
+     * Handle annotation submit from panels
      * Emitted by: HighlightPanel, AssessmentPanel, CommentsPanel, TaggingPanel, ReferencesPanel
+     * Sends decomposed fields to backend via HTTP; backend assembles and emits mark:create
      */
-    const handleAnnotationCreate = async (event: {
-      motivation: Motivation;
-      selector: Selector | Selector[];
-      body: components['schemas']['AnnotationBody'][];
-    }) => {
+    const handleAnnotationSubmit = async (event: EventMap['mark:submit']) => {
       const currentClient = clientRef.current;
       const currentRUri = rUriRef.current;
       if (!currentClient || !currentRUri) return;
@@ -400,7 +397,7 @@ export function useMarkFlow(rUri: ResourceUri): MarkFlowState {
       }
     };
 
-    const subscription1 = eventBus.get('mark:create').subscribe(handleAnnotationCreate);
+    const subscription1 = eventBus.get('mark:submit').subscribe(handleAnnotationSubmit);
     const subscription2 = eventBus.get('mark:delete').subscribe(handleAnnotationDelete);
     const subscription3 = eventBus.get('mark:assist-request').subscribe(handleAssistStart);
     const subscription4 = eventBus.get('job:cancel-requested').subscribe(handleJobCancelRequested);

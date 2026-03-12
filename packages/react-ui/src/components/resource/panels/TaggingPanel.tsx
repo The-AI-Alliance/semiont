@@ -274,7 +274,7 @@ export function TaggingPanel({
                   className="semiont-select"
                   onChange={(e) => {
                     if (e.target.value && pendingAnnotation) {
-                      eventBus.get('mark:create').next({
+                      eventBus.get('mark:submit').next({
                         motivation: 'tagging',
                         selector: pendingAnnotation.selector,
                         body: [

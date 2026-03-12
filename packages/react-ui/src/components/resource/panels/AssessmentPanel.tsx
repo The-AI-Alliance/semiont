@@ -141,7 +141,7 @@ export function AssessmentPanel({
         ? [{ type: 'TextualBody' as const, value: newAssessmentText, purpose: 'assessing' as const }]
         : [];
 
-      eventBus.get('mark:create').next({
+      eventBus.get('mark:submit').next({
         motivation: 'assessing',
         selector: pendingAnnotation.selector,
         body,

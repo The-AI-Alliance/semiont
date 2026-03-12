@@ -100,8 +100,8 @@ describe('EventBusContext', () => {
       const { result } = renderHook(() => useEventBus(), { wrapper });
 
       act(() => {
-        result.current.get('mark:create').subscribe(handler);
-        result.current.get('mark:create').next({
+        result.current.get('mark:submit').subscribe(handler);
+        result.current.get('mark:submit').next({
           motivation: 'highlighting',
           selector: { type: 'TextQuoteSelector', exact: 'test' },
           body: [{ type: 'TextualBody', value: 'highlight' }]
@@ -240,12 +240,12 @@ describe('EventBusContext', () => {
 
       act(() => {
         // Subscribe to annotation events
-        result.current.get('mark:create').subscribe(createHandler);
+        result.current.get('mark:submit').subscribe(createHandler);
         result.current.get('mark:created').subscribe(createdHandler);
         result.current.get('beckon:hover').subscribe(hoverHandler);
 
-        // Simulate annotation creation flow
-        result.current.get('mark:create').next({
+        // Simulate annotation submission flow
+        result.current.get('mark:submit').next({
           motivation: 'commenting',
           selector: { type: 'TextQuoteSelector', exact: 'important text' },
           body: [{ type: 'TextualBody', value: 'my comment' }]

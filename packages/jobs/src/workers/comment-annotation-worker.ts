@@ -274,12 +274,9 @@ export class CommentAnnotationWorker extends JobWorker {
     };
 
     this.eventBus.get('mark:create').next({
-      motivation: annotation.motivation,
-      selector: annotation.target.selector,
-      body: annotation.body,
+      annotation,
       userId: userId(metadata.userId),
       resourceId,
-      annotation,
     });
 
     this.logger?.debug('Created comment annotation', {

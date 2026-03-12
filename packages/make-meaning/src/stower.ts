@@ -148,11 +148,6 @@ export class Stower {
   }
 
   private async handleMarkCreate(event: EventMap['mark:create']): Promise<void> {
-    // Backend/worker path: annotation and userId and resourceId are provided
-    if (!event.annotation || !event.userId || !event.resourceId) {
-      return; // Frontend-only event — handled by route, not Stower
-    }
-
     try {
       this.logger.debug('Stowing annotation', { annotationId: event.annotation.id });
       await this.kb.eventStore.appendEvent({

@@ -11,7 +11,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/core';
 import { resourceId, userId, userToAgent } from '@semiont/core';
-import { assembleAnnotation } from '@semiont/make-meaning';
+import { assembleAnnotation } from '@semiont/core';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
@@ -32,9 +32,8 @@ export function registerCreateAnnotation(router: ResourcesRouterType) {
 
       // Assemble W3C annotation (validates selectors, generates ID)
       let annotation;
-      let bodyArray;
       try {
-        ({ annotation, bodyArray } = assembleAnnotation(request, userToAgent(user), backendUrl));
+        ({ annotation } = assembleAnnotation(request, userToAgent(user), backendUrl));
       } catch (error) {
         if (error instanceof Error) {
           throw new HTTPException(400, { message: error.message });
@@ -45,12 +44,9 @@ export function registerCreateAnnotation(router: ResourcesRouterType) {
       // Emit mark:create — Stower subscribes and persists
       const eventBus = c.get('eventBus');
       eventBus.get('mark:create').next({
-        motivation: annotation.motivation,
-        selector: request.target.selector,
-        body: bodyArray,
+        annotation,
         userId: userId(user.id),
         resourceId: resourceId(id),
-        annotation,
       });
 
       return c.json({ annotationId: annotation.id }, 202);

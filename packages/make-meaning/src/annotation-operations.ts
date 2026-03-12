@@ -17,10 +17,9 @@ import type {
   UserId,
   Logger,
 } from '@semiont/core';
-import { EventBus, annotationId, uriToResourceId, uriToAnnotationId } from '@semiont/core';
+import { EventBus, annotationId, uriToResourceId, uriToAnnotationId, assembleAnnotation, applyBodyOperations } from '@semiont/core';
 import { AnnotationContext } from './annotation-context';
 import type { KnowledgeBase } from './knowledge-base';
-import { assembleAnnotation, applyBodyOperations } from './annotation-assembly';
 
 type Agent = components['schemas']['Agent'];
 type Annotation = components['schemas']['Annotation'];
@@ -46,17 +45,14 @@ export class AnnotationOperations {
     eventBus: EventBus,
     publicURL: string
   ): Promise<CreateAnnotationResult> {
-    const { annotation, bodyArray } = assembleAnnotation(request, creator, publicURL);
+    const { annotation } = assembleAnnotation(request, creator, publicURL);
     const resourceId = uriToResourceId(request.target.source);
 
     // Emit mark:create — Stower subscribes and appends to event store
     eventBus.get('mark:create').next({
-      motivation: request.motivation,
-      selector: request.target.selector,
-      body: bodyArray,
+      annotation,
       userId,
       resourceId,
-      annotation,
     });
 
     return { annotation };

@@ -9,9 +9,17 @@
  * Target can be simple string IRI or object with source and optional selector
  */
 
-import type { components } from '@semiont/core';
+import type { components, Selector } from '@semiont/core';
 import type { ResourceUri } from '@semiont/core';
 import { resourceUri } from '@semiont/core';
+
+// Re-export selector utilities from core (canonical location)
+export {
+  getTextPositionSelector,
+  getSvgSelector,
+  getFragmentSelector,
+  validateSvgMarkup,
+} from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 type HighlightAnnotation = Annotation;
@@ -20,7 +28,6 @@ type TextPositionSelector = components['schemas']['TextPositionSelector'];
 type TextQuoteSelector = components['schemas']['TextQuoteSelector'];
 type SvgSelector = components['schemas']['SvgSelector'];
 type FragmentSelector = components['schemas']['FragmentSelector'];
-type Selector = TextPositionSelector | TextQuoteSelector | SvgSelector | FragmentSelector;
 
 // Re-export selector types for convenience
 export type { TextPositionSelector, TextQuoteSelector, SvgSelector, FragmentSelector, Selector };
@@ -254,20 +261,6 @@ export function getPrimarySelector(selector: Selector | Selector[]): Selector {
 }
 
 /**
- * Get TextPositionSelector from a selector (single or array)
- *
- * Returns the first TextPositionSelector found, or null if none exists.
- * Handles undefined selector (when target is a string IRI with no selector)
- */
-export function getTextPositionSelector(selector: Selector | Selector[] | undefined): TextPositionSelector | null {
-  if (!selector) return null; // No selector means entire resource
-  const selectors = Array.isArray(selector) ? selector : [selector];
-  const found = selectors.find(s => s.type === 'TextPositionSelector');
-  if (!found) return null;
-  return found.type === 'TextPositionSelector' ? found : null;
-}
-
-/**
  * Get TextQuoteSelector from a selector (single or array)
  *
  * Returns the first TextQuoteSelector found, or null if none exists.
@@ -277,66 +270,6 @@ export function getTextQuoteSelector(selector: Selector | Selector[]): TextQuote
   const found = selectors.find(s => s.type === 'TextQuoteSelector');
   if (!found) return null;
   return found.type === 'TextQuoteSelector' ? found : null;
-}
-
-/**
- * Get SvgSelector from a selector (single or array)
- *
- * Returns the first SvgSelector found, or null if none exists.
- */
-export function getSvgSelector(selector: Selector | Selector[] | undefined): SvgSelector | null {
-  if (!selector) return null;
-  const selectors = Array.isArray(selector) ? selector : [selector];
-  const found = selectors.find(s => s.type === 'SvgSelector');
-  if (!found) return null;
-  return found.type === 'SvgSelector' ? found : null;
-}
-
-/**
- * Get FragmentSelector from a selector (single or array)
- *
- * Returns the first FragmentSelector found, or null if none exists.
- */
-export function getFragmentSelector(selector: Selector | Selector[] | undefined): FragmentSelector | null {
-  if (!selector) return null;
-  const selectors = Array.isArray(selector) ? selector : [selector];
-  const found = selectors.find(s => s.type === 'FragmentSelector');
-  if (!found) return null;
-  return found.type === 'FragmentSelector' ? found : null;
-}
-
-/**
- * Validate SVG markup for W3C compliance
- *
- * Checks that:
- * - SVG contains xmlns attribute
- * - SVG is well-formed XML
- * - SVG contains at least one shape element
- *
- * @returns null if valid, error message if invalid
- */
-export function validateSvgMarkup(svg: string): string | null {
-  // Check for xmlns attribute (required by W3C spec)
-  if (!svg.includes('xmlns="http://www.w3.org/2000/svg"')) {
-    return 'SVG must include xmlns="http://www.w3.org/2000/svg" attribute';
-  }
-
-  // Check for basic SVG tag structure
-  if (!svg.includes('<svg') || !svg.includes('</svg>')) {
-    return 'SVG must have opening and closing tags';
-  }
-
-  // Check for at least one shape element
-  const shapeElements = ['rect', 'circle', 'ellipse', 'polygon', 'polyline', 'path', 'line'];
-  const hasShape = shapeElements.some(shape =>
-    svg.includes(`<${shape}`) || svg.includes(`<${shape} `)
-  );
-
-  if (!hasShape) {
-    return 'SVG must contain at least one shape element (rect, circle, ellipse, polygon, polyline, path, or line)';
-  }
-
-  return null; // Valid
 }
 
 /**

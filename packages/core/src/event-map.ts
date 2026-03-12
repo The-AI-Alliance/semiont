@@ -212,16 +212,18 @@ export type EventMap = {
   };
   'mark:cancel-pending': void;
 
-  // Annotation CRUD operations
-  // Frontend emits { motivation, selector, body } on scoped bus
-  // Backend/workers enrich with userId, resourceId, and full annotation
-  'mark:create': {
+  // Frontend panel submit — decomposed fields sent to backend via HTTP
+  'mark:submit': {
     motivation: Motivation;
     selector: Selector | Selector[];
     body: components['schemas']['AnnotationBody'][];
-    userId?: UserId;
-    resourceId?: ResourceId;
-    annotation?: Annotation;
+  };
+
+  // Annotation CRUD operations — always carries fully-assembled annotation
+  'mark:create': {
+    annotation: Annotation;
+    userId: UserId;
+    resourceId: ResourceId;
   };
   'mark:created': { annotationId: AnnotationId };
   'mark:create-failed': { error: Error };
