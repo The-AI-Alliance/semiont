@@ -142,7 +142,7 @@ describe('Scripting Example: Query Graph Database', () => {
 
     // Verify resource exists in graph
     expect(resource).toBeDefined();
-    expect(resource?.['@id']).toBe(result);
+    expect(resource?.['@id']).toBe(rUri);
     expect(resource?.name).toBe('Test Document');
   });
 

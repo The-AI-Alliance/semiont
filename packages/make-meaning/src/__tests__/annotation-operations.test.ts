@@ -535,7 +535,10 @@ describe('AnnotationOperations', () => {
 
       const annotationIdStr = createResult.annotation.id.split('/').pop()!;
 
-      // Update with add operation
+      // Update with add operation — await mark:body-updated so the Stower finishes
+      // writing the view before the next test starts (prevents concurrent view writes)
+      const bodyUpdated$ = firstValueFrom(eventBus.get('mark:body-updated').pipe(take(1)));
+
       const result = await AnnotationOperations.updateAnnotationBody(
         annotationIdStr,
         {
@@ -555,6 +558,8 @@ describe('AnnotationOperations', () => {
         eventBus,
         kb
       );
+
+      await bodyUpdated$;
 
       expect(Array.isArray(result.annotation.body)).toBe(true);
       expect((result.annotation.body as any[]).length).toBe(2);
@@ -595,7 +600,9 @@ describe('AnnotationOperations', () => {
 
       const annotationIdStr = createResult.annotation.id.split('/').pop()!;
 
-      // Remove one tag
+      // Remove one tag — await mark:body-updated to prevent concurrent view writes
+      const bodyUpdated$ = firstValueFrom(eventBus.get('mark:body-updated').pipe(take(1)));
+
       const result = await AnnotationOperations.updateAnnotationBody(
         annotationIdStr,
         {
@@ -615,6 +622,8 @@ describe('AnnotationOperations', () => {
         eventBus,
         kb
       );
+
+      await bodyUpdated$;
 
       expect((result.annotation.body as any[]).length).toBe(1);
       expect((result.annotation.body as any[])[0].value).toBe('remove2');
@@ -650,7 +659,9 @@ describe('AnnotationOperations', () => {
 
       const annotationIdStr = createResult.annotation.id.split('/').pop()!;
 
-      // Replace tag
+      // Replace tag — await mark:body-updated to prevent concurrent view writes
+      const bodyUpdated$ = firstValueFrom(eventBus.get('mark:body-updated').pipe(take(1)));
+
       const result = await AnnotationOperations.updateAnnotationBody(
         annotationIdStr,
         {
@@ -675,6 +686,8 @@ describe('AnnotationOperations', () => {
         eventBus,
         kb
       );
+
+      await bodyUpdated$;
 
       expect((result.annotation.body as any[])[0].value).toBe('new-tag');
     });

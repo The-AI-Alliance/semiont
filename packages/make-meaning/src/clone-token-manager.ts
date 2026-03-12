@@ -231,7 +231,7 @@ export class CloneTokenManager {
 
       this.eventBus.get('yield:clone-created').next({
         correlationId: event.correlationId,
-        resourceId,
+        response: { resourceId },
       });
     } catch (error) {
       this.logger.error('Clone create failed', { token: event.token, error });

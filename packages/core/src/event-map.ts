@@ -187,7 +187,7 @@ export type EventMap = {
   };
   'yield:clone-created': {
     correlationId: string;
-    resourceId: ResourceId;
+    response: { resourceId: ResourceId };
   };
   'yield:clone-create-failed': {
     correlationId: string;
