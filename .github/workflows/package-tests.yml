@@ -60,11 +60,19 @@ jobs:
               npm run openapi:bundle
               npm run build --workspace=@semiont/core
               ;;
-            content|event-sourcing|jobs|graph|inference)
+            content|event-sourcing|graph|inference)
               npm run openapi:bundle
               npm run build --workspace=@semiont/core
               npm run build --workspace=@semiont/ontology
               npm run build --workspace=@semiont/api-client
+              ;;
+            jobs)
+              npm run openapi:bundle
+              npm run build --workspace=@semiont/core
+              npm run build --workspace=@semiont/ontology
+              npm run build --workspace=@semiont/api-client
+              npm run build --workspace=@semiont/event-sourcing
+              npm run build --workspace=@semiont/inference
               ;;
             make-meaning)
               npm run openapi:bundle
@@ -73,8 +81,8 @@ jobs:
               npm run build --workspace=@semiont/api-client
               npm run build --workspace=@semiont/content
               npm run build --workspace=@semiont/event-sourcing
-              npm run build --workspace=@semiont/jobs
               npm run build --workspace=@semiont/inference
+              npm run build --workspace=@semiont/jobs
               npm run build --workspace=@semiont/graph
               ;;
             react-ui)

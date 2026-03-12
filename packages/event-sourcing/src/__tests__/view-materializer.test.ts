@@ -174,6 +174,8 @@ describe('ViewMaterializer', () => {
         'type': 'Annotation' as const,
         id: 'anno1',
         motivation: 'highlighting' as const,
+        creator: { type: 'Person' as const, name: 'Test User' },
+        created: new Date().toISOString(),
         target: {
           source: 'doc1',
           selector: [

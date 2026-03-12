@@ -94,15 +94,8 @@
       }
     },
     "responses": {
-      "200": {
-        "description": "Resource updated successfully",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "../components/schemas/GetResourceResponse.json"
-            }
-          }
-        }
+      "202": {
+        "description": "Update accepted"
       },
       "404": {
         "description": "Resource not found"

@@ -7,7 +7,7 @@ import { BrowseView } from './BrowseView';
 import { PopupContainer } from '../annotation-popups/SharedPopupElements';
 import { JsonLdView } from '../annotation-popups/JsonLdView';
 import type { components } from '@semiont/core';
-import { resourceUri } from '@semiont/core';
+import { resourceUri, annotationId as toAnnotationId } from '@semiont/core';
 import { getExactText, getTargetSelector, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/api-client';
 import { useEventBus } from '../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../contexts/useEventSubscription';
@@ -251,7 +251,7 @@ export function ResourceViewer({
 
   // Handle deleting annotations - emit event instead of direct call
   const handleDeleteAnnotation = useCallback((id: string) => {
-    eventBus.get('mark:delete').next({ annotationId: id });
+    eventBus.get('mark:delete').next({ annotationId: toAnnotationId(id) });
   }, []); // eventBus is stable
 
   // Handle annotation clicks - memoized

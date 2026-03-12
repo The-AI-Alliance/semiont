@@ -41,15 +41,8 @@
       }
     },
     "responses": {
-      "200": {
-        "description": "Annotation body updated successfully",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "../components/schemas/UpdateAnnotationBodyResponse.json"
-            }
-          }
-        }
+      "202": {
+        "description": "Annotation body update accepted"
       }
     }
   }

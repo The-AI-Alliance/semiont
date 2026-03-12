@@ -19,7 +19,7 @@ import type { ResourcesRouterType } from '../shared';
 import { validateRequestBody } from '../../../middleware/validate-openapi';
 import type { components } from '@semiont/core';
 import { getExactText } from '@semiont/api-client';
-import { AnnotationContext } from '@semiont/make-meaning';
+import { AnnotationContext, ResourceContext } from '@semiont/make-meaning';
 import type { JobQueue, PendingJob, GenerationParams } from '@semiont/jobs';
 import { nanoid } from 'nanoid';
 import { getTargetSelector } from '@semiont/api-client';
@@ -77,10 +77,13 @@ export function registerYieldResourceStream(router: ResourcesRouterType, jobQueu
         throw new HTTPException(401, { message: 'Authentication required' });
       }
 
+      const eventBus = c.get('eventBus');
+      const { kb } = c.get('makeMeaning');
+
       logger.info('Starting resource generation', { language: body.language });
 
       // Validate annotation exists using view storage
-      const projection = await AnnotationContext.getResourceAnnotations(resourceId(resourceIdParam), config);
+      const projection = await AnnotationContext.getResourceAnnotations(resourceId(resourceIdParam), kb);
 
       // Debug: log what annotations exist
       const linkingAnnotations = projection.annotations.filter((a: any) => a.motivation === 'linking');
@@ -106,9 +109,6 @@ export function registerYieldResourceStream(router: ResourcesRouterType, jobQueu
       }
       logger.info('Found matching annotation', { annotationId: reference.id });
 
-      // Get EventBus for real-time progress subscriptions
-      const { eventBus } = c.get('makeMeaning');
-
       // Validate context is provided (required by schema)
       if (!body.context) {
         throw new HTTPException(400, { message: 'Context is required for generation' });
@@ -121,6 +121,9 @@ export function registerYieldResourceStream(router: ResourcesRouterType, jobQueu
           id: jobId(`job-${nanoid()}`),
           type: 'generation',
           userId: userId(user.id),
+          userName: user.name || user.email,
+          userEmail: user.email,
+          userDomain: user.domain,
           created: new Date().toISOString(),
           retryCount: 0,
           maxRetries: 3
@@ -128,13 +131,15 @@ export function registerYieldResourceStream(router: ResourcesRouterType, jobQueu
         params: {
           referenceId: makeAnnotationId(annotationIdParam),
           sourceResourceId: resourceId(resourceIdParam),
+          sourceResourceName: (await ResourceContext.getResourceMetadata(resourceId(resourceIdParam), kb))?.name || 'Unknown',
+          annotation: reference,
           title: body.title,
           prompt: body.prompt,
           language: body.language,
           entityTypes: getEntityTypes(reference).map(et => entityType(et)),
-          context: body.context,           // NEW - context from frontend modal
-          temperature: body.temperature,   // NEW - inference parameter
-          maxTokens: body.maxTokens        // NEW - inference parameter
+          context: body.context,
+          temperature: body.temperature,
+          maxTokens: body.maxTokens,
         }
       };
 

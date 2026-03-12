@@ -9,9 +9,9 @@
  * 3. @semiont/ontology - Entity types, tag schemas, vocabularies (depends on @semiont/core)
  * 4. @semiont/content - Content-addressed storage (depends on @semiont/core only)
  * 5. @semiont/event-sourcing - Event sourcing infrastructure (depends on @semiont/core and @semiont/api-client)
- * 6. @semiont/jobs - Job queue and worker infrastructure (depends on @semiont/core and @semiont/api-client)
- * 7. @semiont/graph - Graph database abstraction (depends on @semiont/core, @semiont/api-client, and @semiont/ontology)
- * 8. @semiont/inference - AI inference for entity extraction and text generation (depends on @semiont/core and @semiont/api-client)
+ * 6. @semiont/graph - Graph database abstraction (depends on @semiont/core, @semiont/api-client, and @semiont/ontology)
+ * 7. @semiont/inference - AI inference for entity extraction and text generation (depends on @semiont/core and @semiont/api-client)
+ * 8. @semiont/jobs - Job queue and worker infrastructure (depends on @semiont/core, @semiont/api-client, @semiont/event-sourcing, @semiont/inference)
  * 9. @semiont/make-meaning - Context assembly, pattern detection, and relationship reasoning (depends on @semiont/inference, @semiont/graph, @semiont/ontology)
  * 10. @semiont/react-ui - React components and hooks for Semiont applications (depends on @semiont/api-client, @semiont/core, @semiont/ontology)
  * 11. Backend - Consumes types from @semiont/core, @semiont/api-client, @semiont/ontology, @semiont/content, @semiont/event-sourcing, @semiont/jobs, @semiont/graph, @semiont/inference, and @semiont/make-meaning
@@ -68,11 +68,6 @@ const buildSteps = [
     description: 'Event sourcing infrastructure (depends on @semiont/core and @semiont/api-client)'
   },
   {
-    name: '@semiont/jobs',
-    type: 'package',
-    description: 'Job queue and worker infrastructure (depends on @semiont/core and @semiont/api-client)'
-  },
-  {
     name: '@semiont/graph',
     type: 'package',
     description: 'Graph database abstraction (depends on @semiont/core and @semiont/api-client)'
@@ -81,6 +76,11 @@ const buildSteps = [
     name: '@semiont/inference',
     type: 'package',
     description: 'AI inference for entity extraction and text generation (depends on @semiont/core and @semiont/api-client)'
+  },
+  {
+    name: '@semiont/jobs',
+    type: 'package',
+    description: 'Job queue and worker infrastructure (depends on @semiont/core, @semiont/api-client, @semiont/event-sourcing, @semiont/inference)'
   },
   {
     name: '@semiont/make-meaning',

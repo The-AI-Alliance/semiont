@@ -38,6 +38,7 @@ export * from './hooks/useHoverDelay';
 export * from './hooks/useObservableBrowse';
 export * from './hooks/usePanelWidth';
 export * from './hooks/useResourceEvents';
+export * from './hooks/useGlobalEvents';
 export * from './hooks/useRovingTabIndex';
 export * from './hooks/useSessionExpiry';
 export * from './contexts/ThemeContext';

@@ -54,6 +54,7 @@ graph BT
     inference --> api
     jobs --> core
     jobs --> api
+    jobs --> inference
     graph_pkg --> core
     graph_pkg --> api
     graph_pkg --> ontology

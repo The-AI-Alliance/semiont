@@ -21,11 +21,11 @@ import type { EnvironmentConfig } from '@semiont/core';
 import type { components } from '@semiont/core';
 
 type ListResourcesResponse = components['schemas']['ListResourcesResponse'];
-type GetResourceResponse = components['schemas']['GetResourceResponse'];
 
 type Variables = {
   user: User;
   config: EnvironmentConfig;
+  eventBus: any;
   makeMeaning: any;
 };
 
@@ -95,12 +95,24 @@ vi.mock('@semiont/make-meaning', () => ({
       }
     })
   },
-  startMakeMeaning: vi.fn().mockResolvedValue({
-    eventStore: mockEventStore,
-    repStore: mockRepStore,
-    jobQueue: { createJob: vi.fn() },
-    workers: [],
-    graphConsumer: {}
+  startMakeMeaning: vi.fn().mockImplementation(async (_config: any, eventBus: any) => {
+    // Subscribe mock Gatherer to browse events so eventBusRequest gets responses
+    eventBus.get('browse:resources-requested').subscribe((e: any) => {
+      eventBus.get('browse:resources-result').next({
+        correlationId: e.correlationId,
+        response: {
+          resources: [],
+          total: 0,
+        },
+      });
+    });
+    return {
+      eventStore: mockEventStore,
+      kb: { content: mockRepStore, views: {}, graph: {}, eventStore: mockEventStore },
+      jobQueue: { createJob: vi.fn() },
+      workers: [],
+      graphConsumer: {},
+    };
   })
 }));
 
@@ -181,7 +193,7 @@ describe('Resource CRUD HTTP Contract', () => {
   });
 
   describe('POST /resources (create)', () => {
-    it('should return 201 with Location header on success', async () => {
+    it('should return 202 with resourceId on success', async () => {
       const formData = new FormData();
       formData.append('name', 'Test Resource');
       formData.append('file', new File(['Test resource content'], 'test.txt', { type: 'text/plain' }));
@@ -195,8 +207,7 @@ describe('Resource CRUD HTTP Contract', () => {
         body: formData,
       });
 
-      expect(response.status).toBe(201);
-      expect(response.headers.get('Location')).toMatch(/^http:\/\/localhost:4000\/resources\//);
+      expect(response.status).toBe(202);
     });
 
     it('should return 401 without authentication', async () => {
@@ -243,7 +254,7 @@ describe('Resource CRUD HTTP Contract', () => {
       });
 
       // Route doesn't validate format enum - OpenAPI spec validates this at API gateway level
-      expect(response.status).toBe(201);
+      expect(response.status).toBe(202);
     });
   });
 
@@ -294,7 +305,7 @@ describe('Resource CRUD HTTP Contract', () => {
   });
 
   describe('PATCH /resources/:id (update)', () => {
-    it('should return 200 on successful update', async () => {
+    it('should return 202 on successful update', async () => {
       const response = await app.request('/resources/test-resource', {
         method: 'PATCH',
         headers: {
@@ -306,7 +317,7 @@ describe('Resource CRUD HTTP Contract', () => {
         }),
       });
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(202);
     });
 
     it('should return 404 for non-existent resource', async () => {
@@ -351,9 +362,7 @@ describe('Resource CRUD HTTP Contract', () => {
         }),
       });
 
-      expect(response.status).toBe(200);
-      const data = await response.json() as GetResourceResponse;
-      expect(data.resource.archived).toBe(true);
+      expect(response.status).toBe(202);
     });
   });
 });

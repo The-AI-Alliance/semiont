@@ -1,11 +1,9 @@
 /**
- * Entity Types Routes - Spec-First Version
+ * Entity Types Routes
  *
- * Migrated from code-first to spec-first architecture:
- * - Uses plain Hono (no @hono/zod-openapi)
- * - Validates request bodies with validateRequestBody middleware
- * - Types from generated OpenAPI types
- * - OpenAPI spec is the source of truth
+ * GET emits mark:entity-types-requested on the EventBus, awaits the Gatherer's response.
+ * POST/bulk POST emit events and return 202 Accepted.
+ * The frontend refreshes entity types via query invalidation.
  */
 
 import { Hono } from 'hono';
@@ -13,115 +11,74 @@ import type { User } from '@prisma/client';
 import { authMiddleware } from '../middleware/auth';
 import { validateRequestBody } from '../middleware/validate-openapi';
 import type { components } from '@semiont/core';
-import { userId, type EnvironmentConfig } from '@semiont/core';
+import { userId, type EnvironmentConfig, type EventBus } from '@semiont/core';
 import type { startMakeMeaning } from '@semiont/make-meaning';
-import { readEntityTypesProjection } from '@semiont/make-meaning';
-import { getLogger } from '../logger';
-
-// Lazy initialization to avoid calling getLogger() at module load time
-const getRouteLogger = () => getLogger().child({ component: 'entity-types' });
+import { eventBusRequest } from '../utils/event-bus-request';
 
 type AddEntityTypeRequest = components['schemas']['AddEntityTypeRequest'];
-type AddEntityTypeResponse = components['schemas']['AddEntityTypeResponse'];
 type BulkAddEntityTypesRequest = components['schemas']['BulkAddEntityTypesRequest'];
-type GetEntityTypesResponse = components['schemas']['GetEntityTypesResponse'];
 
 // Create router with auth middleware
-export const entityTypesRouter = new Hono<{ Variables: { user: User; config: EnvironmentConfig; makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>> } }>();
+export const entityTypesRouter = new Hono<{ Variables: { user: User; config: EnvironmentConfig; eventBus: EventBus; makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>> } }>();
 entityTypesRouter.use('/api/entity-types/*', authMiddleware);
 
 /**
  * GET /api/entity-types
- * Get list of available entity types from view storage projection
+ * Get list of available entity types via EventBus → Gatherer
  */
 entityTypesRouter.get('/api/entity-types', async (c) => {
-  try {
-    const config = c.get('config');
-    const entityTypes = await readEntityTypesProjection(config);
+  const eventBus = c.get('eventBus');
+  const correlationId = crypto.randomUUID();
 
-    const response: GetEntityTypesResponse = { entityTypes };
-    return c.json(response, 200);
-  } catch (error) {
-    getRouteLogger().error('Error fetching entity types', {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined
-    });
-    return c.json({ error: 'Failed to fetch entity types', details: error instanceof Error ? error.message : String(error) }, 500);
-  }
+  const response = await eventBusRequest(
+    eventBus,
+    'mark:entity-types-requested',
+    { correlationId },
+    'mark:entity-types-result',
+    'mark:entity-types-failed',
+  );
+  return c.json(response, 200);
 });
 
 /**
  * POST /api/entity-types
- * Add a new entity type to the collection (append-only, requires moderator/admin)
- * Emits entitytype.added event → Event Store → view storage projection → Graph Database (graph)
+ * Add a new entity type (append-only, requires moderator/admin)
  */
 entityTypesRouter.post('/api/entity-types',
   validateRequestBody('AddEntityTypeRequest'),
   async (c) => {
-    // Check moderation permissions
     const user = c.get('user');
-    const config = c.get('config');
     if (!user.isModerator && !user.isAdmin) {
       return c.json({ error: 'Forbidden: Moderator or Admin access required' }, 403);
     }
 
     const body = c.get('validatedBody') as AddEntityTypeRequest;
+    const eventBus = c.get('eventBus');
+    eventBus.get('mark:add-entity-type').next({ tag: body.tag, userId: userId(user.id) });
 
-    // Emit event (no resourceId for system-level events)
-    const { eventStore } = c.get('makeMeaning');
-    await eventStore.appendEvent({
-      type: 'entitytype.added',
-      // resourceId: undefined - system-level event
-      userId: userId(user.id),
-      version: 1,
-      payload: {
-        entityType: body.tag,
-      },
-    });
-
-    // Read from view storage
-    const entityTypes = await readEntityTypesProjection(config);
-
-    const response: AddEntityTypeResponse = { success: true, entityTypes };
-    return c.json(response, 200);
+    return c.body(null, 202);
   }
 );
 
 /**
  * POST /api/entity-types/bulk
- * Add multiple entity types to the collection (append-only, requires moderator/admin)
- * Emits one entitytype.added event per tag → Event Store → view storage projection → Graph Database (graph)
+ * Add multiple entity types (append-only, requires moderator/admin)
  */
 entityTypesRouter.post('/api/entity-types/bulk',
   validateRequestBody('BulkAddEntityTypesRequest'),
   async (c) => {
-    // Check moderation permissions
     const user = c.get('user');
-    const config = c.get('config');
     if (!user.isModerator && !user.isAdmin) {
       return c.json({ error: 'Forbidden: Moderator or Admin access required' }, 403);
     }
 
     const body = c.get('validatedBody') as BulkAddEntityTypesRequest;
-    const { eventStore } = c.get('makeMeaning');
+    const eventBus = c.get('eventBus');
 
-    // Emit one event per entity type (no resourceId)
     for (const tag of body.tags) {
-      await eventStore.appendEvent({
-        type: 'entitytype.added',
-        // resourceId: undefined - system-level event
-        userId: userId(user.id),
-        version: 1,
-        payload: {
-          entityType: tag,
-        },
-      });
+      eventBus.get('mark:add-entity-type').next({ tag, userId: userId(user.id) });
     }
 
-    // Read from view storage
-    const entityTypes = await readEntityTypesProjection(config);
-
-    const response: AddEntityTypeResponse = { success: true, entityTypes };
-    return c.json(response, 200);
+    return c.body(null, 202);
   }
 );

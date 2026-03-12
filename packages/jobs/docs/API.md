@@ -1,307 +1,255 @@
 # Jobs API Reference
 
-## Overview
-
-The `@semiont/jobs` package provides a filesystem-based job queue for long-running operations with atomic state transitions, progress tracking, and automatic retry.
-
 ## JobQueue
 
-### Initialization
+### Constructor
 
 ```typescript
-import { JobQueue } from '@semiont/jobs';
+import { JobQueue, type JobQueueConfig } from '@semiont/jobs';
+import { EventBus, type Logger } from '@semiont/core';
 
-const queue = new JobQueue({
-  dataDir: '/path/to/data/jobs',
-  maxRetries: 3,
-  retentionPeriod: 24 * 60 * 60 * 1000 // 24 hours
-});
-
+const eventBus = new EventBus();
+const queue = new JobQueue({ dataDir: './data' }, logger, eventBus);
 await queue.initialize();
 ```
 
-### Creating Jobs
+**Parameters:**
+- `config: JobQueueConfig` — `{ dataDir: string }` base directory for job storage
+- `logger: Logger` — structured logger
+- `eventBus?: EventBus` — optional EventBus for emitting `job:queued` events
+
+### `initialize(): Promise<void>`
+
+Creates status directories and loads pending jobs into memory. Starts `fs.watch` on `pending/` for external change detection. Idempotent.
+
+### `destroy(): void`
+
+Closes the filesystem watcher and clears debounce timers.
+
+### `createJob(job: AnyJob): Promise<void>`
+
+Persists a job to `{dataDir}/jobs/{status}/{id}.json`. If status is `pending`, pushes to the in-memory queue. If EventBus is provided and job params include `resourceId`, emits `job:queued`.
 
 ```typescript
-const job = await queue.createJob({
-  type: 'detection',
-  userId: 'user-123',
-  resourceId: 'doc-456',
-  entityTypes: ['Person', 'Organization'],
-  maxRetries: 3
-});
+import type { PendingJob, GenerationParams } from '@semiont/jobs';
+import { jobId } from '@semiont/api-client';
+import { userId, resourceId, annotationId } from '@semiont/core';
 
-console.log(job.id); // job-abc123xyz
-console.log(job.status); // 'pending'
-```
-
-### Job Status Management
-
-```typescript
-// Get job by ID
-const job = await queue.getJob('job-abc123xyz');
-
-// Update job status (atomic operation)
-await queue.updateJobStatus('job-abc123xyz', 'running');
-
-// Update progress
-await queue.updateJobProgress('job-abc123xyz', {
-  percentage: 50,
-  message: 'Processing entity types...',
-  currentStep: 2,
-  totalSteps: 4
-});
-
-// Complete job with result
-await queue.completeJob('job-abc123xyz', {
-  totalProcessed: 100,
-  errors: 0
-});
-
-// Fail job with error
-await queue.failJob('job-abc123xyz', new Error('Processing failed'));
-```
-
-### Querying Jobs
-
-```typescript
-// List jobs with filters
-const pendingJobs = await queue.listJobs({
+const job: PendingJob<GenerationParams> = {
   status: 'pending',
-  type: 'detection',
-  userId: 'user-123',
-  limit: 10,
-  offset: 0
-});
+  metadata: {
+    id: jobId('job-abc123'),
+    type: 'generation',
+    userId: userId('user@example.com'),
+    userName: 'Jane Doe',
+    userEmail: 'jane@example.com',
+    userDomain: 'example.com',
+    created: new Date().toISOString(),
+    retryCount: 0,
+    maxRetries: 3,
+  },
+  params: {
+    referenceId: annotationId('ref-456'),
+    sourceResourceId: resourceId('doc-789'),
+    sourceResourceName: 'Source Document',
+    annotation: { /* W3C Annotation */ },
+    title: 'Generated Article',
+    prompt: 'Write about AI',
+    language: 'en-US',
+  },
+};
 
-// Get queue statistics
-const stats = await queue.getStats();
-// {
-//   pending: 5,
-//   running: 2,
-//   complete: 100,
-//   failed: 3,
-//   cancelled: 1
-// }
-
-// Poll for next pending job (FIFO)
-const nextJob = await queue.pollNextPendingJob('detection');
+await queue.createJob(job);
 ```
 
-### Maintenance
+### `getJob(jobId: JobId): Promise<AnyJob | null>`
+
+Searches all status directories (`pending`, `running`, `complete`, `failed`, `cancelled`) for a job by ID. Returns `null` if not found.
 
 ```typescript
-// Clean up old completed/failed jobs
-await queue.cleanupOldJobs();
-
-// Cancel a running job
-await queue.cancelJob('job-abc123xyz');
+const job = await queue.getJob(jobId('job-abc123'));
+if (job?.status === 'complete') {
+  console.log(job.result);
+}
 ```
 
-## JobWorker Base Class
+### `updateJob(job: AnyJob, oldStatus?: JobStatus): Promise<void>`
 
-### Creating a Worker
+Updates a job in place, or atomically moves it between status directories if `oldStatus` differs from `job.status`.
+
+```typescript
+// Progress update (same status)
+if (job.status === 'running') {
+  const updated: RunningJob<GenerationParams, YieldProgress> = {
+    ...job,
+    progress: { stage: 'generating', percentage: 50, message: 'Generating...' },
+  };
+  await queue.updateJob(updated);
+}
+
+// Status transition (atomic move)
+if (job.status === 'running') {
+  const complete: CompleteJob<GenerationParams, GenerationResult> = {
+    status: 'complete',
+    metadata: job.metadata,
+    params: job.params,
+    startedAt: job.startedAt,
+    completedAt: new Date().toISOString(),
+    result: { resourceId: resourceId('doc-new'), resourceName: 'Article' },
+  };
+  await queue.updateJob(complete, 'running');
+}
+```
+
+### `pollNextPendingJob(predicate?): Promise<AnyJob | null>`
+
+Returns the next pending job from the in-memory queue (FIFO). No filesystem I/O. If a predicate is provided, returns the first matching job.
+
+```typescript
+// Any pending job
+const next = await queue.pollNextPendingJob();
+
+// Only generation jobs
+const genJob = await queue.pollNextPendingJob(
+  job => job.metadata.type === 'generation'
+);
+```
+
+### `listJobs(filters?: JobQueryFilters): Promise<AnyJob[]>`
+
+Lists jobs with optional filters. Reads from filesystem, sorted by creation time (newest first), with pagination.
+
+```typescript
+const pending = await queue.listJobs({ status: 'pending' });
+const userJobs = await queue.listJobs({ userId: userId('user@example.com'), limit: 10 });
+const allJobs = await queue.listJobs();
+```
+
+**Filter options:**
+
+```typescript
+interface JobQueryFilters {
+  status?: JobStatus;
+  type?: JobType;
+  userId?: UserId;
+  limit?: number;   // Default: 100
+  offset?: number;   // Default: 0
+}
+```
+
+### `cancelJob(jobId: JobId): Promise<boolean>`
+
+Cancels a pending or running job by moving it to `cancelled` status. Returns `false` if the job doesn't exist or is already in a terminal state.
+
+```typescript
+const cancelled = await queue.cancelJob(jobId('job-abc123'));
+```
+
+### `cleanupOldJobs(retentionHours?: number): Promise<number>`
+
+Removes completed, failed, and cancelled jobs older than the retention period. Returns count of deleted jobs.
+
+```typescript
+// Remove jobs older than 24 hours (default)
+const removed = await queue.cleanupOldJobs();
+
+// Remove jobs older than 1 week
+const removed = await queue.cleanupOldJobs(168);
+```
+
+### `getStats(): Promise<{ pending, running, complete, failed, cancelled }>`
+
+Returns job counts by status directory.
+
+```typescript
+const stats = await queue.getStats();
+console.log(`${stats.pending} pending, ${stats.running} running`);
+```
+
+## Singleton
+
+```typescript
+import { initializeJobQueue, getJobQueue } from '@semiont/jobs';
+
+// At startup
+await initializeJobQueue({ dataDir: './data' }, logger, eventBus);
+
+// Anywhere else
+const queue = getJobQueue(); // Throws if not initialized
+```
+
+## JobWorker
+
+Abstract base class for job processing. Handles polling, state transitions, retries, and error recovery.
+
+### Constructor
 
 ```typescript
 import { JobWorker } from '@semiont/jobs';
 
 class MyWorker extends JobWorker {
-  getWorkerName(): string {
-    return 'my-worker';
+  constructor(jobQueue: JobQueue, logger: Logger) {
+    super(
+      jobQueue,      // JobQueue instance
+      1000,          // pollIntervalMs
+      5000,          // errorBackoffMs
+      logger         // Logger
+    );
   }
 
-  canProcessJob(job: Job): boolean {
-    return job.type === 'my-job-type';
-  }
-
-  async executeJob(job: Job): Promise<void> {
-    // Process the job
-    for (let i = 0; i < 100; i++) {
-      await this.doWork(i);
-
-      // Update progress
-      await this.updateJobProgress({
-        percentage: i,
-        message: `Processing item ${i}...`
-      });
-    }
-  }
+  protected getWorkerName(): string { return 'MyWorker'; }
+  protected canProcessJob(job: AnyJob): boolean { return job.metadata.type === 'generation'; }
+  protected async executeJob(job: AnyJob): Promise<any> { /* processing logic */ }
 }
 ```
 
-### Running Workers
+### Abstract Methods
 
-```typescript
-const worker = new MyWorker({
-  queue,
-  pollInterval: 1000, // Check for jobs every second
-  errorBackoff: 5000  // Back off on errors
-});
+| Method | Signature | Purpose |
+|--------|-----------|---------|
+| `getWorkerName()` | `(): string` | Worker name for logging |
+| `canProcessJob(job)` | `(job: AnyJob): boolean` | Filter which jobs this worker handles |
+| `executeJob(job)` | `(job: AnyJob): Promise<any>` | Job processing logic; return result object |
 
-// Start processing jobs
-await worker.start();
+### Lifecycle Methods
 
-// Graceful shutdown
-await worker.stop();
-```
+| Method | Signature | Purpose |
+|--------|-----------|---------|
+| `start()` | `(): Promise<void>` | Start polling loop (blocks until `stop()`) |
+| `stop()` | `(): Promise<void>` | Graceful shutdown (waits up to 60s for current job) |
 
-## Job Types
+### Protected Helpers
 
-### DetectionJob
+| Method | Signature | Purpose |
+|--------|-----------|---------|
+| `updateJobProgress(job)` | `(job: AnyJob): Promise<void>` | Best-effort progress update (won't throw) |
+| `emitCompletionEvent(job, result)` | `(job, result): Promise<void>` | Override to emit events on completion |
+| `sleep(ms)` | `(ms: number): Promise<void>` | Async sleep utility |
 
-Job for detecting entities in documents.
-
-```typescript
-interface DetectionJob {
-  id: string;
-  type: 'detection';
-  status: JobStatus;
-  userId: string;
-  resourceId: string;
-  entityTypes: string[];
-  progress?: {
-    totalEntityTypes: number;
-    processedEntityTypes: number;
-    currentEntityType?: string;
-    entitiesFound: number;
-    entitiesEmitted: number;
-  };
-  result?: {
-    totalFound: number;
-    totalEmitted: number;
-    errors: number;
-  };
-  created: string;
-  startedAt?: string;
-  completedAt?: string;
-  error?: string;
-  retryCount: number;
-  maxRetries: number;
-}
-```
-
-### GenerationJob
-
-Job for generating documents from annotations.
-
-```typescript
-interface GenerationJob {
-  id: string;
-  type: 'generation';
-  status: JobStatus;
-  userId: string;
-  referenceId: string;
-  sourceResourceId: string;
-  prompt?: string;
-  title?: string;
-  entityTypes?: string[];
-  language?: string;
-  progress?: {
-    stage: 'fetching' | 'generating' | 'creating' | 'linking';
-    percentage: number;
-    message?: string;
-  };
-  result?: {
-    resourceId: string;
-    resourceName: string;
-  };
-  created: string;
-  startedAt?: string;
-  completedAt?: string;
-  error?: string;
-  retryCount: number;
-  maxRetries: number;
-}
-```
-
-## Storage Structure
-
-Jobs are stored in different directories based on status:
+### Processing Flow
 
 ```
-dataDir/
-├── pending/       # Jobs waiting to be processed
-├── running/       # Jobs currently being processed
-├── complete/      # Successfully completed jobs
-├── failed/        # Jobs that failed after retries
-└── cancelled/     # Jobs cancelled by user or system
+Poll in-memory queue (via predicate from canProcessJob)
+  ↓
+Move job: pending → running
+  ↓
+Call executeJob(runningJob)
+  ↓ success
+Move job: running → complete (with returned result)
+  ↓ error
+If retryCount < maxRetries: running → pending (retry)
+If retryCount >= maxRetries: running → failed (permanent)
 ```
 
-Each job is stored as a JSON file named by its ID.
+## Storage
 
-## Worker Patterns
-
-### Retry Logic
-
-```typescript
-class RetryableWorker extends JobWorker {
-  async executeJob(job: Job): Promise<void> {
-    try {
-      await this.doWork(job);
-    } catch (error) {
-      if (this.isRetryable(error)) {
-        throw error; // Will be retried
-      } else {
-        // Non-retryable error
-        await this.failJob(job.id, error);
-      }
-    }
-  }
-
-  isRetryable(error: Error): boolean {
-    return error.code === 'NETWORK_ERROR' ||
-           error.code === 'TIMEOUT';
-  }
-}
+```
+{dataDir}/jobs/
+  pending/{jobId}.json
+  running/{jobId}.json
+  complete/{jobId}.json
+  failed/{jobId}.json
+  cancelled/{jobId}.json
 ```
 
-### Progress Tracking
-
-```typescript
-class ProgressiveWorker extends JobWorker {
-  async executeJob(job: Job): Promise<void> {
-    const items = await this.getItems(job);
-    const total = items.length;
-
-    for (let i = 0; i < total; i++) {
-      await this.processItem(items[i]);
-
-      await this.updateJobProgress({
-        percentage: Math.round((i + 1) / total * 100),
-        message: `Processing item ${i + 1} of ${total}`,
-        currentItem: i + 1,
-        totalItems: total
-      });
-    }
-  }
-}
-```
-
-### Batch Processing
-
-```typescript
-class BatchWorker extends JobWorker {
-  async executeJob(job: Job): Promise<void> {
-    const batchSize = 10;
-    const items = await this.getItems(job);
-
-    for (let i = 0; i < items.length; i += batchSize) {
-      const batch = items.slice(i, i + batchSize);
-      await Promise.all(batch.map(item => this.processItem(item)));
-
-      await this.updateJobProgress({
-        percentage: Math.round((i + batchSize) / items.length * 100)
-      });
-    }
-  }
-}
-```
-
-## Best Practices
-
-1. **Atomic Operations**: Use atomic file moves for state transitions
-2. **Progress Updates**: Update progress regularly for long-running jobs
-3. **Error Handling**: Distinguish between retryable and non-retryable errors
-4. **Graceful Shutdown**: Always wait for current job to complete
-5. **Resource Cleanup**: Clean up old jobs regularly
-6. **Idempotency**: Make job execution idempotent when possible
+Each job is a single JSON file. Status transitions are atomic (delete old file, write new file).

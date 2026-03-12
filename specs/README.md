@@ -134,7 +134,7 @@ All 79 schemas are defined in [src/components/schemas/](src/components/schemas/)
 
 **Request/Response Types:**
 - `CreateResourceRequest.json`, `CreateResourceResponse.json`
-- `CreateAnnotationRequest.json`, `CreateAnnotationResponse.json`
+- `CreateAnnotationRequest.json`
 - `UpdateResourceRequest.json`, etc.
 
 **Authentication:**

@@ -18,7 +18,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventBus, type Logger } from '@semiont/core';
 import { startMakeMeaning, ResourceOperations, AnnotationOperations } from '../..';
 import type { EnvironmentConfig } from '@semiont/core';
-import { userId, resourceUri, uriToResourceId } from '@semiont/core';
+import { userId, resourceIdToURI } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -125,12 +125,11 @@ describe('Scripting Example: Query Graph Database', () => {
         language: 'en'
       },
       userId('test-script'),
-      makeMeaning.eventStore,
-      makeMeaning.repStore,
-      config
+      eventBus,
     );
 
-    const rUri = resourceUri(result.resource['@id']);
+    const publicURL = config.services.backend!.publicURL;
+    const rUri = resourceIdToURI(result, publicURL);
 
     // EVENTUAL CONSISTENCY: GraphConsumer receives events via global subscription
     // Wait for async processing to complete
@@ -143,7 +142,7 @@ describe('Scripting Example: Query Graph Database', () => {
 
     // Verify resource exists in graph
     expect(resource).toBeDefined();
-    expect(resource?.['@id']).toBe(result.resource['@id']);
+    expect(resource?.['@id']).toBe(rUri);
     expect(resource?.name).toBe('Test Document');
   });
 
@@ -157,15 +156,15 @@ describe('Scripting Example: Query Graph Database', () => {
         language: 'en'
       },
       userId('test-script'),
-      makeMeaning.eventStore,
-      makeMeaning.repStore,
-      config
+      eventBus,
     );
 
-    const rUri = resourceUri(resourceResult.resource['@id']);
-    const rId = uriToResourceId(rUri);
+    const publicURL = config.services.backend!.publicURL;
+    const rUri = resourceIdToURI(resourceResult, publicURL);
+    const rId = resourceResult;
 
     // Create an annotation
+    const creator = { type: 'Person' as const, id: 'did:web:test.local:users:test-user', name: 'Test User' };
     await AnnotationOperations.createAnnotation(
       {
         motivation: 'commenting',
@@ -180,8 +179,9 @@ describe('Scripting Example: Query Graph Database', () => {
         }
       },
       userId('test-script'),
-      makeMeaning.eventStore,
-      config
+      creator,
+      eventBus,
+      config.services.backend!.publicURL
     );
 
     // EVENTUAL CONSISTENCY: Wait for GraphConsumer to process events and update graph
@@ -208,9 +208,7 @@ describe('Scripting Example: Query Graph Database', () => {
         language: 'en'
       },
       userId('test-script'),
-      makeMeaning.eventStore,
-      makeMeaning.repStore,
-      config
+      eventBus,
     );
 
     await ResourceOperations.createResource(
@@ -221,9 +219,7 @@ describe('Scripting Example: Query Graph Database', () => {
         language: 'en'
       },
       userId('test-script'),
-      makeMeaning.eventStore,
-      makeMeaning.repStore,
-      config
+      eventBus,
     );
 
     // EVENTUAL CONSISTENCY: GraphConsumer receives events via global subscription
@@ -257,15 +253,15 @@ describe('Scripting Example: Query Graph Database', () => {
         language: 'en'
       },
       userId('test-script'),
-      makeMeaning.eventStore,
-      makeMeaning.repStore,
-      config
+      eventBus,
     );
 
-    const rUri = resourceUri(resource.resource['@id']);
-    const rId = uriToResourceId(rUri);
+    const publicURL = config.services.backend!.publicURL;
+    const rUri = resourceIdToURI(resource, publicURL);
+    const rId = resource;
 
     // Create a few annotations
+    const creator = { type: 'Person' as const, id: 'did:web:test.local:users:test-user', name: 'Test User' };
     for (let i = 0; i < 3; i++) {
       await AnnotationOperations.createAnnotation(
         {
@@ -281,8 +277,9 @@ describe('Scripting Example: Query Graph Database', () => {
           }
         },
         userId('test-script'),
-        makeMeaning.eventStore,
-        config
+        creator,
+        eventBus,
+        config.services.backend!.publicURL
       );
     }
 
@@ -296,7 +293,7 @@ describe('Scripting Example: Query Graph Database', () => {
     console.log('Graph statistics:');
     console.log(`  Total Resources: ${stats.resourceCount}`);
     console.log(`  Total Annotations: ${stats.annotationCount}`);
-    console.log(`  Resource "${resource.resource.name}" has ${annotations.length} annotations`);
+    console.log(`  Resource "Stats Test Doc" has ${annotations.length} annotations`);
 
     expect(stats.resourceCount).toBeGreaterThan(0);
     expect(stats.annotationCount).toBeGreaterThanOrEqual(0);
@@ -315,9 +312,7 @@ describe('Scripting Example: Query Graph Database', () => {
         language: 'en'
       },
       userId('test-script'),
-      makeMeaning.eventStore,
-      makeMeaning.repStore,
-      config
+      eventBus,
     );
 
     // EVENTUAL CONSISTENCY: GraphConsumer receives events via global subscription

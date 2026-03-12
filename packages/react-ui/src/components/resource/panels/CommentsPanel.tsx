@@ -167,7 +167,7 @@ export function CommentsPanel({
 
   const handleSaveNewComment = () => {
     if (newCommentText.trim() && pendingAnnotation) {
-      eventBus.get('mark:create').next({
+      eventBus.get('mark:submit').next({
         motivation: 'commenting',
         selector: pendingAnnotation.selector,
         body: [{ type: 'TextualBody', value: newCommentText, purpose: 'commenting' }],

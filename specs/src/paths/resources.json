@@ -57,12 +57,18 @@
       }
     },
     "responses": {
-      "201": {
-        "description": "Resource created successfully",
+      "202": {
+        "description": "Resource creation accepted",
         "content": {
           "application/json": {
             "schema": {
-              "$ref": "../components/schemas/CreateResourceResponse.json"
+              "type": "object",
+              "properties": {
+                "resourceId": {
+                  "type": "string"
+                }
+              },
+              "required": ["resourceId"]
             }
           }
         }

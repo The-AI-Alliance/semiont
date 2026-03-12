@@ -85,6 +85,7 @@ import { adminRouter } from './routes/admin';
 import { createResourcesRouter } from './routes/resources/index';
 import { annotationsRouter } from './routes/annotations/index';
 import { entityTypesRouter } from './routes/entity-types';
+import { globalEventsRouter } from './routes/global-events-stream';
 import { createJobsRouter } from './routes/jobs/index';
 import { authMiddleware } from './middleware/auth';
 
@@ -108,6 +109,7 @@ import { errorLoggerMiddleware } from './middleware/error-logger';
 type Variables = {
   user: User;
   config: EnvironmentConfig;
+  eventBus: EventBus;
   makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>>;
 };
 
@@ -131,6 +133,7 @@ app.use('*', requestLoggerMiddleware);   // Log requests third
 // Inject config and makeMeaning into context for all routes
 app.use('*', async (c, next) => {
   c.set('config', config);
+  c.set('eventBus', eventBus);
   c.set('makeMeaning', makeMeaning);
   await next();
 });
@@ -144,6 +147,7 @@ const resourcesRouter = createResourcesRouter(makeMeaning.jobQueue);
 app.route('/', resourcesRouter);
 app.route('/', annotationsRouter);
 app.route('/', entityTypesRouter);
+app.route('/', globalEventsRouter);
 const jobsRouter = createJobsRouter(makeMeaning.jobQueue, authMiddleware);
 app.route('/', jobsRouter);
 

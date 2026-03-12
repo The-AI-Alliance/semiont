@@ -19,8 +19,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventBus, type Logger } from '@semiont/core';
 import { startMakeMeaning, ResourceOperations } from '../..';
 import type { EnvironmentConfig } from '@semiont/core';
-import { userId, entityType, resourceId } from '@semiont/core';
-import { getResourceId } from '@semiont/api-client';
+import { userId, entityType } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -133,16 +132,14 @@ describe('Scripting Example: Entity Detection with Progress', () => {
         language: 'en'
       },
       userId('test-script'),
-      makeMeaning.eventStore,
-      makeMeaning.repStore,
-      config
+      eventBus,
     );
 
-    const rId = getResourceId(result.resource);
-    expect(rId).toBeDefined();
+    // result is now a ResourceId directly
+    expect(result).toBeDefined();
 
     // Create resource-scoped event bus
-    const resourceBus = eventBus.scope(rId!);
+    const resourceBus = eventBus.scope(result);
 
     // Track events
     const jobQueuedEvents: any[] = [];
@@ -153,7 +150,7 @@ describe('Scripting Example: Entity Detection with Progress', () => {
     // Subscribe to job queue event
     resourceBus.get('job:queued').subscribe(event => {
       jobQueuedEvents.push(event);
-      console.log(`[${rId}] Job queued: ${event.jobType}`);
+      console.log(`[${result}] Job queued: ${event.jobType}`);
     });
 
     // Subscribe to detection lifecycle events
@@ -161,13 +158,13 @@ describe('Scripting Example: Entity Detection with Progress', () => {
     resourceBus.get('make-meaning:event').subscribe(event => {
       if (event.type === 'job.started') {
         detectionStartedEvents.push(event);
-        console.log(`[${rId}] Detection started`);
+        console.log(`[${result}] Detection started`);
       }
     });
 
     resourceBus.get('mark:progress').subscribe(progress => {
       detectionProgressEvents.push(progress);
-      console.log(`[${rId}] Progress: ${progress.status} - ${progress.message || ''}`);
+      console.log(`[${result}] Progress: ${progress.status} - ${progress.message || ''}`);
     });
 
     // Create promise to wait for completion
@@ -176,7 +173,7 @@ describe('Scripting Example: Entity Detection with Progress', () => {
       resourceBus.get('make-meaning:event').subscribe(event => {
         if (event.type === 'job.completed') {
           detectionCompletedEvents.push(event);
-          console.log(`[${rId}] Detection complete`);
+          console.log(`[${result}] Detection complete`);
           resolve(event);
         }
       });
@@ -189,12 +186,15 @@ describe('Scripting Example: Entity Detection with Progress', () => {
         id: `job-${Date.now()}` as any,
         type: 'reference-annotation',
         userId: userId('test-script'),
+        userName: 'Test User',
+        userEmail: 'test@test.local',
+        userDomain: 'test.local',
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 1
       },
       params: {
-        resourceId: resourceId(rId!),
+        resourceId: result,
         entityTypes: [entityType('Person'), entityType('Organization')]
       }
     });
@@ -217,68 +217,62 @@ describe('Scripting Example: Entity Detection with Progress', () => {
   });
 
   it('demonstrates parallel detection for multiple resources', async () => {
-    // Create multiple resources
-    const resources = await Promise.all([
-      ResourceOperations.createResource(
-        {
-          name: 'Doc 1',
-          content: Buffer.from('Alice works at Google.'),
-          format: 'text/plain',
-          language: 'en'
-        },
-        userId('test-script'),
-        makeMeaning.eventStore,
-        makeMeaning.repStore,
-        config
-      ),
-      ResourceOperations.createResource(
-        {
-          name: 'Doc 2',
-          content: Buffer.from('Bob works at Microsoft.'),
-          format: 'text/plain',
-          language: 'en'
-        },
-        userId('test-script'),
-        makeMeaning.eventStore,
-        makeMeaning.repStore,
-        config
-      ),
-    ]);
+    // Create resources sequentially (createResource uses a global yield:created
+    // subject, so parallel calls would race on the same response)
+    const resource1 = await ResourceOperations.createResource(
+      {
+        name: 'Doc 1',
+        content: Buffer.from('Alice works at Google.'),
+        format: 'text/plain',
+        language: 'en'
+      },
+      userId('test-script'),
+      eventBus,
+    );
+    const resource2 = await ResourceOperations.createResource(
+      {
+        name: 'Doc 2',
+        content: Buffer.from('Bob works at Microsoft.'),
+        format: 'text/plain',
+        language: 'en'
+      },
+      userId('test-script'),
+      eventBus,
+    );
+    const resources = [resource1, resource2];
 
     // Track completion for each resource
     const completions = new Map<string, boolean>();
 
     // Subscribe to completion events for each resource
-    // Subscribe to domain event 'make-meaning:event' and filter for job.completed
-    for (const { resource } of resources) {
-      const rId = getResourceId(resource);
-      expect(rId).toBeDefined();
-      const resourceBus = eventBus.scope(rId!);
+    for (const rId of resources) {
+      const resourceBus = eventBus.scope(rId);
       resourceBus.get('make-meaning:event').subscribe((event) => {
         if (event.type === 'job.completed') {
-          completions.set(rId!, true);
-          console.log(`✓ Completed: ${resource.name} (${rId})`);
+          completions.set(rId, true);
+          console.log(`✓ Completed: ${rId}`);
         }
       });
     }
 
     // Enqueue detection jobs for all resources
     await Promise.all(
-      resources.map(({ resource }, index) => {
-        const rId = getResourceId(resource);
-        expect(rId).toBeDefined();
+      resources.map((rId, index) => {
         return makeMeaning.jobQueue.createJob({
           status: 'pending',
           metadata: {
             id: `job-${Date.now()}-${index}` as any,
             type: 'reference-annotation',
             userId: userId('test-script'),
+            userName: 'Test Script',
+            userEmail: 'test@test.local',
+            userDomain: 'test.local',
             created: new Date().toISOString(),
             retryCount: 0,
             maxRetries: 1
           },
           params: {
-            resourceId: resourceId(rId!),
+            resourceId: rId,
             entityTypes: [entityType('Person'), entityType('Organization')]
           }
         });
@@ -300,10 +294,8 @@ describe('Scripting Example: Entity Detection with Progress', () => {
 
     // Verify all completed
     expect(completions.size).toBe(resources.length);
-    resources.forEach(({ resource }) => {
-      const rId = getResourceId(resource);
-      expect(rId).toBeDefined();
-      expect(completions.get(rId!)).toBe(true);
+    resources.forEach((rId) => {
+      expect(completions.get(rId)).toBe(true);
     });
   });
 
@@ -317,14 +309,10 @@ describe('Scripting Example: Entity Detection with Progress', () => {
         language: 'en'
       },
       userId('test-script'),
-      makeMeaning.eventStore,
-      makeMeaning.repStore,
-      config
+      eventBus,
     );
 
-    const rId = getResourceId(result.resource);
-    expect(rId).toBeDefined();
-    const resourceBus = eventBus.scope(rId!);
+    const resourceBus = eventBus.scope(result);
 
     // Track progress percentage
     const progressPercentages: number[] = [];
@@ -352,12 +340,15 @@ describe('Scripting Example: Entity Detection with Progress', () => {
         id: `job-${Date.now()}` as any,
         type: 'reference-annotation',
         userId: userId('test-script'),
+        userName: 'Test User',
+        userEmail: 'test@test.local',
+        userDomain: 'test.local',
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 1
       },
       params: {
-        resourceId: resourceId(rId!),
+        resourceId: result,
         entityTypes: [entityType('Person')]
       }
     });

@@ -1,12 +1,9 @@
 /**
- * Create Resource Route - Multipart/Form-Data Version
+ * Create Resource Route
  *
- * Handles binary content upload via multipart/form-data:
- * - Uses plain Hono (no @hono/zod-openapi)
- * - Parses multipart form data (no JSON validation middleware)
- * - Supports binary content (images, PDFs, video, etc.)
- * - Types from generated OpenAPI types
- * - OpenAPI spec is the source of truth
+ * Handles binary content upload via multipart/form-data.
+ * Returns 202 with { resourceId } — frontend navigates using the ID
+ * and reconciles full state via SSE domain events.
  */
 
 import { HTTPException } from 'hono/http-exception';
@@ -18,16 +15,8 @@ import { ResourceOperations } from '@semiont/make-meaning';
 type ContentFormat = components['schemas']['ContentFormat'];
 
 export function registerCreateResource(router: ResourcesRouterType) {
-  /**
-   * POST /resources
-   *
-   * Create a new resource with binary content support via multipart/form-data
-   * Requires authentication
-   * Parses FormData (no JSON validation middleware)
-   */
   router.post('/resources', async (c) => {
     const user = c.get('user');
-    const config = c.get('config');
 
     if (!user) {
       throw new HTTPException(401, { message: 'Authentication required' });
@@ -61,9 +50,9 @@ export function registerCreateResource(router: ResourcesRouterType) {
     const arrayBuffer = await file.arrayBuffer();
     const contentBuffer = Buffer.from(arrayBuffer);
 
-    // Delegate to make-meaning for resource creation
-    const { eventStore, repStore } = c.get('makeMeaning');
-    const response = await ResourceOperations.createResource(
+    // Delegate to make-meaning for resource creation (via EventBus)
+    const eventBus = c.get('eventBus');
+    const resourceId = await ResourceOperations.createResource(
       {
         name,
         content: contentBuffer,
@@ -73,14 +62,9 @@ export function registerCreateResource(router: ResourcesRouterType) {
         creationMethod: (creationMethod || undefined) as CreationMethod | undefined,
       },
       userId(user.id),
-      eventStore,
-      repStore,
-      config
+      eventBus,
     );
 
-    // Set Location header to the resource URI
-    c.header('Location', response.resource['@id']);
-
-    return c.json(response, 201);
+    return c.json({ resourceId }, 202);
   });
 }

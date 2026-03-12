@@ -36,7 +36,7 @@ export function registerGetAnnotationUri(router: AnnotationsRouterType) {
   router.get('/annotations/:id', async (c) => {
     const { id } = c.req.param();
     const query = c.req.query();
-    const config = c.get('config');
+    const { kb } = c.get('makeMeaning');
     const resourceUriOrId = query.resourceId;
 
     if (!resourceUriOrId) {
@@ -63,7 +63,7 @@ export function registerGetAnnotationUri(router: AnnotationsRouterType) {
 
     // Otherwise, return JSON-LD representation
     // O(1) lookup in view storage using resource ID
-    const projection = await AnnotationContext.getResourceAnnotations(makeResourceId(extractedResourceId), config);
+    const projection = await AnnotationContext.getResourceAnnotations(makeResourceId(extractedResourceId), kb);
 
     // Find the annotation
     const annotation = projection.annotations.find((a: Annotation) => a.id === id);
@@ -73,7 +73,7 @@ export function registerGetAnnotationUri(router: AnnotationsRouterType) {
     }
 
     // Get resource metadata
-    const resource = await ResourceContext.getResourceMetadata(makeResourceId(extractedResourceId), config);
+    const resource = await ResourceContext.getResourceMetadata(makeResourceId(extractedResourceId), kb);
 
     // If it's a linking annotation with a resolved source, get resolved resource
     let resolvedResource = null;
@@ -81,7 +81,7 @@ export function registerGetAnnotationUri(router: AnnotationsRouterType) {
     if (annotation.motivation === 'linking' && bodySource) {
       // Extract ID from body source URI if needed
       const bodyDocId = bodySource.includes('://') ? uriToResourceId(bodySource) : bodySource;
-      resolvedResource = await ResourceContext.getResourceMetadata(makeResourceId(bodyDocId), config);
+      resolvedResource = await ResourceContext.getResourceMetadata(makeResourceId(bodyDocId), kb);
     }
 
     const response: GetAnnotationResponse = {

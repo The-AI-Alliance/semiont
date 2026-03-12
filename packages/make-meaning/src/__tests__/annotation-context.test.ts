@@ -5,27 +5,15 @@
  * from view storage and content store.
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { AnnotationContext } from '../annotation-context';
-import { resourceId, userId, type EnvironmentConfig, type Logger } from '@semiont/core';
+import { resourceId, userId, type Logger } from '@semiont/core';
 import { createEventStore, FilesystemViewStorage } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore } from '@semiont/content';
+import type { KnowledgeBase } from '../knowledge-base';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-
-// Mock @semiont/inference
-const mockInferenceClient = vi.hoisted(() => ({ client: null as any }));
-
-vi.mock('@semiont/inference', async () => {
-  const { MockInferenceClient } = await import('@semiont/inference');
-  mockInferenceClient.client = new MockInferenceClient(['']);
-
-  return {
-    getInferenceClient: vi.fn().mockResolvedValue(mockInferenceClient.client),
-    MockInferenceClient
-  };
-});
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -37,52 +25,25 @@ const mockLogger: Logger = {
 
 describe('AnnotationContext', () => {
   let testDir: string;
-  let config: EnvironmentConfig;
-
-  beforeEach(() => {
-    mockInferenceClient.client.reset();
-  });
+  let publicURL: string;
+  let kb: KnowledgeBase;
 
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-test-annotation-context-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    config = {
-      services: {
-        filesystem: {
-          platform: { type: 'posix' },
-          path: testDir
-        },
-        backend: {
-          platform: { type: 'posix' },
-          port: 4000,
-          publicURL: 'http://localhost:4000',
-          corsOrigin: 'http://localhost:3000'
-        },
-        inference: {
-          platform: { type: 'external' },
-          type: 'anthropic',
-          model: 'claude-sonnet-4-20250514',
-          maxTokens: 8192,
-          endpoint: 'https://api.anthropic.com',
-          apiKey: 'test-api-key'
-        },
-        graph: {
-          platform: { type: 'posix' },
-          type: 'memory'
-        }
-      },
-      site: {
-        siteName: 'Test Site',
-        domain: 'localhost:3000',
-        adminEmail: 'admin@test.local',
-        oauthAllowedDomains: ['test.local']
-      },
-      _metadata: {
-        environment: 'test',
-        projectRoot: testDir
-      }
-    } as EnvironmentConfig;
+    publicURL = 'http://localhost:4000';
+
+    const viewStorage = new FilesystemViewStorage(testDir, testDir);
+    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
+    const eventStore = createEventStore(testDir, publicURL, undefined, undefined, mockLogger);
+
+    kb = {
+      eventStore,
+      views: viewStorage,
+      content: repStore,
+      graph: {} as any,
+    };
   });
 
   afterAll(async () => {
@@ -91,11 +52,10 @@ describe('AnnotationContext', () => {
 
   // Helper to create a test resource
   async function createTestResource(id: string, content: string): Promise<void> {
-    const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
-    const eventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
-
     const testContent = Buffer.from(content, 'utf-8');
-    const { checksum } = await repStore.store(testContent, { mediaType: 'text/plain' });
+    const { checksum } = await kb.content.store(testContent, { mediaType: 'text/plain' });
+
+    const eventStore = createEventStore(testDir, publicURL, undefined, undefined, mockLogger);
 
     await eventStore.appendEvent({
       type: 'resource.created',
@@ -111,11 +71,10 @@ describe('AnnotationContext', () => {
     });
 
     // Wait for view to materialize
-    const viewStorage = new FilesystemViewStorage(testDir, testDir);
     let attempts = 0;
     while (attempts < 10) {
       try {
-        const view = await viewStorage.get(resourceId(id));
+        const view = await kb.views.get(resourceId(id));
         if (view) break;
       } catch (e) {
         // View not ready yet
@@ -133,7 +92,7 @@ describe('AnnotationContext', () => {
     start: number,
     end: number
   ): Promise<void> {
-    const eventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
+    const eventStore = createEventStore(testDir, publicURL, undefined, undefined, mockLogger);
 
     await eventStore.appendEvent({
       type: 'annotation.added',
@@ -182,8 +141,9 @@ describe('AnnotationContext', () => {
       AnnotationContext.buildLLMContext(
         'http://localhost:4000/annotations/test-1' as any,
         resourceId(testResourceId),
-        config,
+        kb,
         { contextWindow: 50 },
+        undefined,
         mockLogger
       )
     ).rejects.toThrow('contextWindow must be between 100 and 5000');
@@ -193,8 +153,9 @@ describe('AnnotationContext', () => {
       AnnotationContext.buildLLMContext(
         'http://localhost:4000/annotations/test-2' as any,
         resourceId(testResourceId),
-        config,
+        kb,
         { contextWindow: 6000 },
+        undefined,
         mockLogger
       )
     ).rejects.toThrow('contextWindow must be between 100 and 5000');
@@ -206,16 +167,14 @@ describe('AnnotationContext', () => {
     await createTestResource(testResourceId, 'Some text for context window testing');
     await createTestAnnotation(testResourceId, testAnnId, 'text', 5, 9);
 
-    // Mock the inference call to avoid actual API requests
-    mockInferenceClient.client.setResponses(['Mock summary']);
-
     // Test minimum valid value
     await expect(
       AnnotationContext.buildLLMContext(
         `http://localhost:4000/annotations/${testAnnId}` as any,
         resourceId(testResourceId),
-        config,
+        kb,
         { contextWindow: 100 },
+        undefined,
         mockLogger
       )
     ).resolves.toBeDefined();
@@ -225,8 +184,9 @@ describe('AnnotationContext', () => {
       AnnotationContext.buildLLMContext(
         `http://localhost:4000/annotations/${testAnnId}` as any,
         resourceId(testResourceId),
-        config,
+        kb,
         { contextWindow: 5000 },
+        undefined,
         mockLogger
       )
     ).resolves.toBeDefined();
@@ -236,8 +196,9 @@ describe('AnnotationContext', () => {
       AnnotationContext.buildLLMContext(
         `http://localhost:4000/annotations/${testAnnId}` as any,
         resourceId(testResourceId),
-        config,
+        kb,
         { contextWindow: 1500 },
+        undefined,
         mockLogger
       )
     ).resolves.toBeDefined();
@@ -249,14 +210,13 @@ describe('AnnotationContext', () => {
     await createTestResource(testResourceId, 'The quick brown fox jumps over the lazy dog');
     await createTestAnnotation(testResourceId, testAnnId, 'fox', 16, 19);
 
-    // Mock inference
-    mockInferenceClient.client.setResponses(['A test about a fox']);
 
     const result = await AnnotationContext.buildLLMContext(
       `http://localhost:4000/annotations/${testAnnId}` as any,
       resourceId(testResourceId),
-      config,
+      kb,
       {},
+      undefined,
       mockLogger
     );
 
@@ -271,22 +231,22 @@ describe('AnnotationContext', () => {
     await createTestResource(testResourceId, 'Testing source context inclusion');
     await createTestAnnotation(testResourceId, testAnnId, 'context', 15, 22);
 
-    // Mock inference
-    mockInferenceClient.client.setResponses(['Context summary']);
 
     const withContext = await AnnotationContext.buildLLMContext(
       `http://localhost:4000/annotations/${testAnnId}` as any,
       resourceId(testResourceId),
-      config,
+      kb,
       { includeSourceContext: true },
+      undefined,
       mockLogger
     );
 
     const withoutContext = await AnnotationContext.buildLLMContext(
       `http://localhost:4000/annotations/${testAnnId}` as any,
       resourceId(testResourceId),
-      config,
+      kb,
       { includeSourceContext: false },
+      undefined,
       mockLogger
     );
 
@@ -300,8 +260,9 @@ describe('AnnotationContext', () => {
       AnnotationContext.buildLLMContext(
         'http://localhost:4000/annotations/nonexistent' as any,
         resourceId('nonexistent-resource'),
-        config,
+        kb,
         {},
+        undefined,
         mockLogger
       )
     ).rejects.toThrow();
@@ -312,7 +273,7 @@ describe('AnnotationContext', () => {
     const testAnnId = `ann-no-position-${Date.now()}`;
     await createTestResource(testResourceId, 'Content for testing missing selector');
 
-    const eventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, undefined, mockLogger);
+    const eventStore = createEventStore(testDir, publicURL, undefined, undefined, mockLogger);
 
     // Create annotation with only TextQuoteSelector
     await eventStore.appendEvent({
@@ -347,14 +308,13 @@ describe('AnnotationContext', () => {
 
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    // Mock inference
-    mockInferenceClient.client.setResponses(['Summary']);
 
     const result = await AnnotationContext.buildLLMContext(
       `http://localhost:4000/annotations/${testAnnId}` as any,
       resourceId(testResourceId),
-      config,
+      kb,
       {},
+      undefined,
       mockLogger
     );
 

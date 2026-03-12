@@ -20,6 +20,7 @@ type GetReferencedByResponse = components['schemas']['GetReferencedByResponse'];
 type Variables = {
   user: User;
   config: EnvironmentConfig;
+  eventBus: any;
   makeMeaning: any;
 };
 

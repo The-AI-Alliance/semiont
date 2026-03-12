@@ -138,12 +138,13 @@ describe('Make-Meaning Service', () => {
       expect(service.eventStore.views).toBeDefined();
     });
 
-    it('should create representation store', async () => {
+    it('should create knowledge base with content store', async () => {
       service = await startMakeMeaning(config, eventBus, mockLogger);
 
-      expect(service.repStore).toBeDefined();
-      expect(typeof service.repStore.store).toBe('function');
-      expect(typeof service.repStore.retrieve).toBe('function');
+      expect(service.kb).toBeDefined();
+      expect(service.kb.content).toBeDefined();
+      expect(typeof service.kb.content.store).toBe('function');
+      expect(typeof service.kb.content.retrieve).toBe('function');
     });
 
     it('should create inference client', async () => {
@@ -321,22 +322,22 @@ describe('Make-Meaning Service', () => {
       service = null;
     });
 
-    it('should share event store and inference client across workers', async () => {
+    it('should share event bus and inference client across workers', async () => {
       service = await startMakeMeaning(config, eventBus, mockLogger);
 
-      // All workers should share the same eventStore instance
-      const eventStoreRefs = [
+      // All workers should share the same eventBus instance
+      const eventBusRefs = [
         service.workers.detection,
         service.workers.generation,
         service.workers.highlight,
         service.workers.assessment,
         service.workers.comment,
         service.workers.tag,
-      ].map(w => (w as any).eventStore);
+      ].map(w => (w as any).eventBus);
 
-      // All should be the same instance
-      eventStoreRefs.forEach(ref => {
-        expect(ref).toBe(service!.eventStore);
+      // All should be the same instance (compare to the eventBus passed into startMakeMeaning)
+      eventBusRefs.forEach(ref => {
+        expect(ref).toBe(eventBus);
       });
 
       // All workers should share the same inference client

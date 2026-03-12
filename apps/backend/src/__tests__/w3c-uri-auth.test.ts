@@ -13,6 +13,7 @@ import { setupTestEnvironment, type TestEnvironmentConfig } from './_test-setup'
 type Variables = {
   user: User;
   config: EnvironmentConfig;
+  eventBus: any;
   makeMeaning: any;
 };
 

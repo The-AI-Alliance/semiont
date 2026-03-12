@@ -58,28 +58,49 @@ const setupMocks = () => {
         };
       })
     },
-    startMakeMeaning: vi.fn().mockResolvedValue({
-      eventStore: { getView: vi.fn().mockResolvedValue({ resource: {}, annotations: { annotations: [] } }) },
-      graphDb: {
-        getResourceReferencedBy: vi.fn().mockResolvedValue([]),
-        getResource: vi.fn().mockImplementation(async (uri: string) => {
-          // Return resource for test-resource, null for others
-          if (uri.includes('test-resource')) {
-            return {
-              '@id': 'urn:semiont:resource:test-resource',
-              name: 'Test Resource',
-            };
-          }
-          return null;
-        }),
-        getAnnotations: vi.fn().mockResolvedValue([]),
-        getResourceConnections: vi.fn().mockResolvedValue([]),
-        listAnnotations: vi.fn().mockResolvedValue([]),
-      },
-      repStore: { get: vi.fn(), store: vi.fn() },
-      jobQueue: { createJob: vi.fn() },
-      workers: [],
-      graphConsumer: {}
+    startMakeMeaning: vi.fn().mockImplementation(async (_config: any, eventBus: any) => {
+      // Bridge gather events — routes emit requests, Gatherer would handle them
+      const { LLMContext: MockLLMContext } = await import('@semiont/make-meaning');
+      eventBus.get('gather:resource-requested').subscribe(async (event: any) => {
+        try {
+          const context = await MockLLMContext.getResourceContext(
+            event.resourceUri.split('/').pop(),
+            event.options,
+            {} as any,
+            'http://localhost:4000',
+            {} as any,
+          );
+          eventBus.get('gather:resource-complete').next({ resourceUri: event.resourceUri, context });
+        } catch (error: any) {
+          eventBus.get('gather:resource-failed').next({ resourceUri: event.resourceUri, error });
+        }
+      });
+      // Bridge referenced-by events
+      eventBus.get('bind:referenced-by-requested').subscribe((e: any) => {
+        eventBus.get('bind:referenced-by-result').next({
+          correlationId: e.correlationId,
+          response: { referencedBy: [] },
+        });
+      });
+      return {
+        eventStore: { getView: vi.fn().mockResolvedValue({ resource: {}, annotations: { annotations: [] } }) },
+        graphDb: {
+          getResourceReferencedBy: vi.fn().mockResolvedValue([]),
+          getResource: vi.fn().mockImplementation(async (uri: string) => {
+            if (uri.includes('test-resource')) {
+              return { '@id': 'urn:semiont:resource:test-resource', name: 'Test Resource' };
+            }
+            return null;
+          }),
+          getAnnotations: vi.fn().mockResolvedValue([]),
+          getResourceConnections: vi.fn().mockResolvedValue([]),
+          listAnnotations: vi.fn().mockResolvedValue([]),
+        },
+        kb: { content: { get: vi.fn(), store: vi.fn() }, views: {}, graph: {}, eventStore: {} },
+        jobQueue: { createJob: vi.fn() },
+        workers: [],
+        graphConsumer: {},
+      };
     })
   }));
 

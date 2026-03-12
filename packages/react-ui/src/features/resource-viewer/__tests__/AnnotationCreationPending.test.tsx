@@ -1,5 +1,5 @@
 /**
- * Regression test: pendingAnnotation cleared after mark:createsucceeds
+ * Regression test: pendingAnnotation cleared after mark:submit succeeds
  *
  * Bug: handleAnnotationCreate in useMarkFlow called the API and emitted
  * mark:created, but never called setPendingAnnotation(null). The pending
@@ -110,7 +110,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     resetEventBusForTesting();
     createAnnotationSpy = vi
       .spyOn(SemiontApiClient.prototype, 'createAnnotation')
-      .mockResolvedValue({ annotation: MOCK_ANNOTATION } as any);
+      .mockResolvedValue({ annotationId: MOCK_ANNOTATION.id } as any);
   });
 
   afterEach(() => {
@@ -129,9 +129,9 @@ describe('Annotation creation clears pendingAnnotation', () => {
       expect(screen.getByTestId('pending-motivation')).toHaveTextContent('linking');
     });
 
-    // Emit mark:create(what ReferencesPanel does when user clicks "Create Reference")
+    // Emit mark:submit(what ReferencesPanel does when user clicks "Create Reference")
     await act(async () => {
-      emit('mark:create', {
+      emit('mark:submit', {
         motivation: 'linking',
         selector: TEXT_SELECTOR,
         body: [{ type: 'TextualBody', value: 'Person', purpose: 'tagging' }],
@@ -158,7 +158,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     });
 
     await act(async () => {
-      emit('mark:create', {
+      emit('mark:submit', {
         motivation: 'assessing',
         selector: SVG_SELECTOR,
         body: [{ type: 'TextualBody', value: 'Looks good', purpose: 'assessing' }],
@@ -183,7 +183,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
 
     // Empty body is valid for assessments
     await act(async () => {
-      emit('mark:create', {
+      emit('mark:submit', {
         motivation: 'assessing',
         selector: SVG_SELECTOR,
         body: [],
@@ -207,7 +207,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     });
 
     await act(async () => {
-      emit('mark:create', {
+      emit('mark:submit', {
         motivation: 'commenting',
         selector: TEXT_SELECTOR,
         body: [{ type: 'TextualBody', value: 'Great point', purpose: 'commenting' }],
@@ -231,7 +231,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     });
 
     await act(async () => {
-      emit('mark:create', {
+      emit('mark:submit', {
         motivation: 'tagging',
         selector: SVG_SELECTOR,
         body: [{ type: 'TextualBody', value: 'concept:trust', purpose: 'tagging' }],
@@ -256,7 +256,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     });
 
     await act(async () => {
-      emit('mark:create', {
+      emit('mark:submit', {
         motivation: 'linking',
         selector: TEXT_SELECTOR,
         body: [],
@@ -265,7 +265,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
 
     await waitFor(() => {
       expect(createdListener).toHaveBeenCalledTimes(1);
-      expect(createdListener).toHaveBeenCalledWith({ annotation: MOCK_ANNOTATION });
+      expect(createdListener).toHaveBeenCalledWith({ annotationId: 'new-1' });
     });
 
     subscription.unsubscribe();
@@ -285,7 +285,7 @@ describe('Annotation creation clears pendingAnnotation', () => {
     });
 
     await act(async () => {
-      emit('mark:create', {
+      emit('mark:submit', {
         motivation: 'linking',
         selector: TEXT_SELECTOR,
         body: [],

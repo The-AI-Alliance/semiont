@@ -253,6 +253,65 @@ router.post('/summarize', async (c) => {
 });
 ```
 
+## EventBus-Delegated Routes
+
+All knowledge-domain read routes delegate to the EventBus rather than accessing KB stores directly. This makes the EventBus a complete interface for all system behavior — HTTP is just one transport.
+
+### Pattern
+
+Routes use the `eventBusRequest()` helper from `src/utils/event-bus-request.ts`:
+
+```typescript
+import { eventBusRequest } from '../utils/event-bus-request';
+
+router.get('/resources', async (c) => {
+  const eventBus = c.get('eventBus');
+  const correlationId = crypto.randomUUID();
+
+  const response = await eventBusRequest(
+    eventBus,
+    'browse:resources-requested',    // emit this event
+    { correlationId, limit: 20 },    // with this payload
+    'browse:resources-result',       // await this success event
+    'browse:resources-failed',       // or this failure event
+  );
+  return c.json(response);
+});
+```
+
+The helper:
+1. Subscribes to success and failure events filtered by `correlationId`
+2. Emits the request event
+3. Returns the `response` field from the success event, or throws the `error` from failure
+4. Times out after 30 seconds
+
+### What Delegates to EventBus
+
+| Route | Event | Actor |
+|-------|-------|-------|
+| `GET /resources` | `browse:resources-requested` | Gatherer |
+| `GET /resources/:id` (JSON-LD) | `browse:resource-requested` | Gatherer |
+| `GET /resources/:id/annotations` | `browse:annotations-requested` | Gatherer |
+| `GET /resources/:resourceId/annotations/:annotationId` | `browse:annotation-requested` | Gatherer |
+| `GET /resources/:id/events` | `browse:events-requested` | Gatherer |
+| `GET /resources/:resourceId/annotations/:annotationId/history` | `browse:annotation-history-requested` | Gatherer |
+| `GET /resources/:id/referenced-by` | `bind:referenced-by-requested` | Binder |
+| `GET /api/entity-types` | `mark:entity-types-requested` | Gatherer |
+| `GET /api/jobs/:id` | `job:status-requested` | Job subscription |
+| `GET /resources/:id/llm-context` | `gather:resource-requested` | Gatherer |
+| `GET /.../llm-context` (annotation) | `gather:requested` | Gatherer |
+| `POST /resources/:id/clone-with-token` | `yield:clone-token-requested` | CloneTokenManager |
+| `GET /api/clone-tokens/:token` | `yield:clone-resource-requested` | CloneTokenManager |
+| `POST /api/clone-tokens/create-resource` | `yield:clone-create` | CloneTokenManager |
+
+### What Stays HTTP-Only
+
+- **Auth routes** — PostgreSQL/Prisma, JWT, OAuth (orthogonal to knowledge domain)
+- **Admin routes** — PostgreSQL/Prisma (orthogonal to knowledge domain)
+- **Health/Status** — infrastructure monitoring
+- **Binary content** — `GET /resources/:id` with `Accept: text/*`, `image/*`, `application/pdf`
+- **Resource upload** — `POST /resources` with multipart form data
+
 ## Related Documentation
 
 - [Make-Meaning Package](../../../packages/make-meaning/) - Implementation of MakeMeaningService
@@ -263,4 +322,4 @@ router.post('/summarize', async (c) => {
 
 ---
 
-**Last Updated**: 2026-01-29
+**Last Updated**: 2026-03-11

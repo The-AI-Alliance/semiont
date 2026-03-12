@@ -5,11 +5,10 @@
  * Does NOT touch the graph - graph queries go through GraphContext
  */
 
-import { FilesystemViewStorage } from '@semiont/event-sourcing';
-import { FilesystemRepresentationStore } from '@semiont/content';
 import { getPrimaryRepresentation, decodeRepresentation } from '@semiont/api-client';
 import type { components } from '@semiont/core';
-import type { EnvironmentConfig, ResourceId } from '@semiont/core';
+import type { ResourceId } from '@semiont/core';
+import type { KnowledgeBase } from './knowledge-base';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
@@ -22,13 +21,8 @@ export class ResourceContext {
   /**
    * Get resource metadata from view storage
    */
-  static async getResourceMetadata(resourceId: ResourceId, config: EnvironmentConfig): Promise<ResourceDescriptor | null> {
-    const basePath = config.services.filesystem!.path;
-    const projectRoot = config._metadata?.projectRoot;
-
-    const viewStorage = new FilesystemViewStorage(basePath, projectRoot);
-
-    const view = await viewStorage.get(resourceId);
+  static async getResourceMetadata(resourceId: ResourceId, kb: KnowledgeBase): Promise<ResourceDescriptor | null> {
+    const view = await kb.views.get(resourceId);
     if (!view) {
       return null;
     }
@@ -39,13 +33,8 @@ export class ResourceContext {
   /**
    * List all resources by scanning view storage
    */
-  static async listResources(filters: ListResourcesFilters | undefined, config: EnvironmentConfig): Promise<ResourceDescriptor[]> {
-    const basePath = config.services.filesystem!.path;
-    const projectRoot = config._metadata?.projectRoot;
-
-    const viewStorage = new FilesystemViewStorage(basePath, projectRoot);
-
-    const allViews = await viewStorage.getAll();
+  static async listResources(filters: ListResourcesFilters | undefined, kb: KnowledgeBase): Promise<ResourceDescriptor[]> {
+    const allViews = await kb.views.getAll();
     const resources: ResourceDescriptor[] = [];
 
     for (const view of allViews) {
@@ -82,18 +71,14 @@ export class ResourceContext {
    */
   static async addContentPreviews(
     resources: ResourceDescriptor[],
-    config: EnvironmentConfig
+    kb: KnowledgeBase
   ): Promise<Array<ResourceDescriptor & { content: string }>> {
-    const basePath = config.services.filesystem!.path;
-    const projectRoot = config._metadata?.projectRoot;
-    const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
-
     return await Promise.all(
       resources.map(async (doc) => {
         try {
           const primaryRep = getPrimaryRepresentation(doc);
           if (primaryRep?.checksum && primaryRep?.mediaType) {
-            const contentBuffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
+            const contentBuffer = await kb.content.retrieve(primaryRep.checksum, primaryRep.mediaType);
             const contentPreview = decodeRepresentation(contentBuffer, primaryRep.mediaType).slice(0, 200);
             return { ...doc, content: contentPreview };
           }
@@ -111,15 +96,11 @@ export class ResourceContext {
    */
   static async getResourceContent(
     resource: ResourceDescriptor,
-    config: EnvironmentConfig
+    kb: KnowledgeBase
   ): Promise<string | undefined> {
-    const basePath = config.services.filesystem!.path;
-    const projectRoot = config._metadata?.projectRoot;
-    const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
-
     const primaryRep = getPrimaryRepresentation(resource);
     if (primaryRep?.checksum && primaryRep?.mediaType) {
-      const contentBuffer = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
+      const contentBuffer = await kb.content.retrieve(primaryRep.checksum, primaryRep.mediaType);
       return decodeRepresentation(contentBuffer, primaryRep.mediaType);
     }
     return undefined;

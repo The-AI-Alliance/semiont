@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { useAnnotations } from '../lib/api-hooks';
 import type { components, AnnotationUri, ResourceUri, Selector } from '@semiont/core';
-import { useDocumentAnnouncements } from '../components/LiveRegion';
+import { useLiveRegion } from '../components/LiveRegion';
 
 type Annotation = components['schemas']['Annotation'];
 // Create annotation request type - narrow target to only the object form (not string)
@@ -24,7 +24,7 @@ interface ResourceAnnotationsContextType {
     motivation: 'highlighting' | 'linking' | 'assessing' | 'commenting' | 'tagging',
     selector: Selector | Selector[],
     body?: any[]
-  ) => Promise<Annotation | undefined>;
+  ) => Promise<string | undefined>;
 
   // UI actions
   clearNewAnnotationId: (id: AnnotationUri) => void;
@@ -38,7 +38,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
   const [newAnnotationIds, setNewAnnotationIds] = useState<Set<string>>(new Set());
 
   // Live region announcements
-  const { announceAnnotationCreated, announceError } = useDocumentAnnouncements();
+  const { announce } = useLiveRegion();
 
   // API hooks
   const annotations = useAnnotations();
@@ -52,7 +52,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
     motivation: 'highlighting' | 'linking' | 'assessing' | 'commenting' | 'tagging',
     selector: Selector | Selector[],
     body: any[] = []
-  ): Promise<Annotation | undefined> => {
+  ): Promise<string | undefined> => {
     try {
       const createData: CreateAnnotationRequest = {
         motivation,
@@ -69,29 +69,29 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
       });
 
       // Track this as a new annotation for sparkle animation
-      if (result.annotation?.id) {
-        setNewAnnotationIds(prev => new Set(prev).add(result.annotation!.id));
+      if (result.annotationId) {
+        setNewAnnotationIds(prev => new Set(prev).add(result.annotationId));
 
         // Clear the ID after animation completes (6 seconds for 3 iterations)
         setTimeout(() => {
           setNewAnnotationIds(prev => {
             const next = new Set(prev);
-            next.delete(result.annotation!.id);
+            next.delete(result.annotationId);
             return next;
           });
         }, 6000);
 
         // Announce the creation
-        announceAnnotationCreated(result.annotation);
+        announce('Annotation created', 'polite');
       }
 
-      return result.annotation;
+      return result.annotationId;
     } catch (err) {
       console.error('Failed to create annotation:', err);
-      announceError('Failed to create annotation');
+      announce('Failed to create annotation', 'assertive');
       throw err;
     }
-  }, [createAnnotationMutation, announceAnnotationCreated, announceError]);
+  }, [createAnnotationMutation, announce]);
 
   const clearNewAnnotationId = useCallback((id: AnnotationUri) => {
     setNewAnnotationIds(prev => {

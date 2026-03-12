@@ -126,6 +126,9 @@
     "/api/entity-types/bulk": {
       "$ref": "paths/api_entity-types_bulk.json"
     },
+    "/api/events/stream": {
+      "$ref": "paths/api_events_stream.json"
+    },
     "/api/jobs/{id}": {
       "$ref": "paths/api_jobs_{id}.json"
     }
@@ -137,9 +140,6 @@
       },
       "AddEntityTypeRequest": {
         "$ref": "components/schemas/AddEntityTypeRequest.json"
-      },
-      "AddEntityTypeResponse": {
-        "$ref": "components/schemas/AddEntityTypeResponse.json"
       },
       "AdminUpdateUserResponse": {
         "$ref": "components/schemas/AdminUpdateUserResponse.json"
@@ -201,9 +201,6 @@
       "CreateAnnotationRequest": {
         "$ref": "components/schemas/CreateAnnotationRequest.json"
       },
-      "CreateAnnotationResponse": {
-        "$ref": "components/schemas/CreateAnnotationResponse.json"
-      },
       "CreateFromAnnotationRequest": {
         "$ref": "components/schemas/CreateFromAnnotationRequest.json"
       },
@@ -224,9 +221,6 @@
       },
       "CreateResourceFromTokenRequest": {
         "$ref": "components/schemas/CreateResourceFromTokenRequest.json"
-      },
-      "CreateResourceFromTokenResponse": {
-        "$ref": "components/schemas/CreateResourceFromTokenResponse.json"
       },
       "CreateResourceRequest": {
         "$ref": "components/schemas/CreateResourceRequest.json"
@@ -362,9 +356,6 @@
       },
       "UpdateAnnotationBodyRequest": {
         "$ref": "components/schemas/UpdateAnnotationBodyRequest.json"
-      },
-      "UpdateAnnotationBodyResponse": {
-        "$ref": "components/schemas/UpdateAnnotationBodyResponse.json"
       },
       "UpdateResourceRequest": {
         "$ref": "components/schemas/UpdateResourceRequest.json"

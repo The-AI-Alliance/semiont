@@ -8,20 +8,18 @@ The jobs package uses TypeScript's discriminated unions to create a type-safe st
 
 Jobs are modeled with three distinct concepts:
 
-1. **Status** - The discriminator field that determines which other fields exist
-2. **Progress** - Intermediate state tracking (only on `RunningJob`)
-3. **Result** - Final outcome data (only on `CompleteJob`)
-
-This separation ensures result data cannot be "smuggled" through progress objects—a common anti-pattern.
+1. **Status** — The discriminator field that determines which other fields exist
+2. **Progress** — Intermediate state tracking (only on `RunningJob`)
+3. **Result** — Final outcome data (only on `CompleteJob`)
 
 ```typescript
-// ❌ Anti-pattern: Result data in progress
+// Anti-pattern: Result data in progress
 interface Progress {
   percentage: number;
   resultId?: string;  // Don't do this!
 }
 
-// ✅ Correct: Result data in result
+// Correct: Result data in result
 interface Progress {
   percentage: number;  // Only tracking data
 }
@@ -33,45 +31,47 @@ interface Result {
 
 ### Discriminated Union Structure
 
-Jobs use `status` as the discriminator, with each status having specific fields:
-
 ```typescript
 type JobStatus = 'pending' | 'running' | 'complete' | 'failed' | 'cancelled';
 
-// Pending - just created
 interface PendingJob<P> {
   status: 'pending';
   metadata: JobMetadata;
   params: P;
 }
 
-// Running - being processed
 interface RunningJob<P, PG> {
   status: 'running';
   metadata: JobMetadata;
   params: P;
   startedAt: string;
-  progress: PG;  // ← Only RunningJob has progress
+  progress: PG;          // Only RunningJob has progress
 }
 
-// Complete - successfully finished
 interface CompleteJob<P, R> {
   status: 'complete';
   metadata: JobMetadata;
   params: P;
   startedAt: string;
   completedAt: string;
-  result: R;  // ← Only CompleteJob has result
+  result: R;             // Only CompleteJob has result
 }
 
-// Failed - encountered error
 interface FailedJob<P> {
   status: 'failed';
   metadata: JobMetadata;
   params: P;
   startedAt?: string;
   completedAt: string;
-  error: string;  // ← Only FailedJob has error
+  error: string;         // Only FailedJob has error
+}
+
+interface CancelledJob<P> {
+  status: 'cancelled';
+  metadata: JobMetadata;
+  params: P;
+  startedAt?: string;
+  completedAt: string;
 }
 ```
 
@@ -93,7 +93,7 @@ type Job<P, PG, R> =
 // R  = Result (final outcome)
 ```
 
-## Example: Tag Detection Job
+## Example: Tag Annotation Job
 
 ### Pending State
 
@@ -102,22 +102,25 @@ const job: PendingJob<TagDetectionParams> = {
   status: 'pending',
   metadata: {
     id: jobId('job_123'),
-    type: 'tag-detection',
+    type: 'tag-annotation',
     userId: userId('user@example.com'),
+    userName: 'Jane Doe',
+    userEmail: 'jane@example.com',
+    userDomain: 'example.com',
     created: '2026-01-31T10:00:00Z',
     retryCount: 0,
-    maxRetries: 3
+    maxRetries: 3,
   },
   params: {
     resourceId: resourceId('doc_456'),
     schemaId: 'irac',
-    categories: ['issue', 'rule', 'application', 'conclusion']
-  }
+    categories: ['issue', 'rule', 'application', 'conclusion'],
+  },
 };
 
-// ✅ job.params exists
-// ❌ job.progress does NOT exist (compile error)
-// ❌ job.result does NOT exist (compile error)
+// job.params exists
+// job.progress does NOT exist (compile error)
+// job.result does NOT exist (compile error)
 ```
 
 ### Running State
@@ -134,12 +137,12 @@ const runningJob: RunningJob<TagDetectionParams, TagDetectionProgress> = {
     currentCategory: 'issue',
     processedCategories: 1,
     totalCategories: 4,
-    message: 'Analyzing issue...'
-  }
+    message: 'Analyzing issue...',
+  },
 };
 
-// ✅ runningJob.progress exists
-// ❌ runningJob.result does NOT exist (compile error)
+// runningJob.progress exists
+// runningJob.result does NOT exist (compile error)
 ```
 
 ### Complete State
@@ -154,37 +157,28 @@ const completeJob: CompleteJob<TagDetectionParams, TagDetectionResult> = {
   result: {
     tagsFound: 15,
     tagsCreated: 15,
-    byCategory: {
-      'issue': 4,
-      'rule': 3,
-      'application': 5,
-      'conclusion': 3
-    }
-  }
+    byCategory: { issue: 4, rule: 3, application: 5, conclusion: 3 },
+  },
 };
 
-// ✅ completeJob.result exists
-// ❌ completeJob.progress does NOT exist (compile error)
+// completeJob.result exists
+// completeJob.progress does NOT exist (compile error)
 ```
 
 ## Type Narrowing
 
 ### Status-Based Narrowing
 
-TypeScript automatically narrows types based on status checks:
-
 ```typescript
 function handleJob(job: AnyJob) {
   if (job.status === 'running') {
-    // TypeScript knows: job is RunningJob<any, any>
-    console.log(job.progress.percentage);  // ✅ Available
-    // console.log(job.result);  // ❌ Compile error
+    console.log(job.progress.percentage);  // Available
+    // console.log(job.result);            // Compile error
   }
 
   if (job.status === 'complete') {
-    // TypeScript knows: job is CompleteJob<any, any>
-    console.log(job.result);  // ✅ Available
-    // console.log(job.progress);  // ❌ Compile error
+    console.log(job.result);               // Available
+    // console.log(job.progress);          // Compile error
   }
 }
 ```
@@ -194,99 +188,66 @@ function handleJob(job: AnyJob) {
 ```typescript
 function isRunningGenerationJob(
   job: AnyJob
-): job is RunningJob<GenerationParams, GenerationProgress> {
+): job is RunningJob<GenerationParams, YieldProgress> {
   return job.status === 'running' && job.metadata.type === 'generation';
 }
 
 if (isRunningGenerationJob(job)) {
-  // TypeScript knows all these exist:
-  console.log(job.params.title);      // ✅ GenerationParams
-  console.log(job.progress.stage);    // ✅ GenerationProgress
+  console.log(job.params.title);      // GenerationParams
+  console.log(job.progress.stage);    // YieldProgress
 }
 ```
 
-## Job Type Definitions
+### Built-in Type Guards
 
-See [JobTypes.md](./JobTypes.md) for complete parameter, progress, and result types for all job types:
+```typescript
+import { isPendingJob, isRunningJob, isCompleteJob, isFailedJob, isCancelledJob } from '@semiont/jobs';
 
-- **DetectionJob** - Entity detection
-- **GenerationJob** - AI content generation
-- **HighlightDetectionJob** - Key passage identification
-- **AssessmentDetectionJob** - Evaluative comments
-- **CommentDetectionJob** - Explanatory comments
-- **TagDetectionJob** - Structural role tagging
+if (isRunningJob(job)) {
+  console.log(job.progress);
+}
+```
 
 ## Worker Implementation Pattern
 
 Workers use the template method pattern with result returns:
 
 ```typescript
-class TagDetectionWorker extends JobWorker {
-  // 1. Type guard and execute
+class TagAnnotationWorker extends JobWorker {
   protected async executeJob(job: AnyJob): Promise<TagDetectionResult> {
-    if (job.metadata.type !== 'tag-detection') {
+    if (job.metadata.type !== 'tag-annotation') {
       throw new Error(`Invalid job type: ${job.metadata.type}`);
     }
-
     if (job.status !== 'running') {
-      throw new Error(`Job must be in running state, got: ${job.status}`);
+      throw new Error(`Job must be running, got: ${job.status}`);
     }
 
-    return await this.processTagDetectionJob(
-      job as RunningJob<TagDetectionParams, TagDetectionProgress>
-    );
-  }
+    const tagJob = job as RunningJob<TagDetectionParams, TagDetectionProgress>;
 
-  // 2. Process and return result
-  private async processTagDetectionJob(
-    job: RunningJob<TagDetectionParams, TagDetectionProgress>
-  ): Promise<TagDetectionResult> {
-    // Do work, track progress
-    const allTags = await detectTags(job.params);
+    // Process and emit EventBus commands
+    const allTags = await detectTags(tagJob.params);
 
-    // Return result - base class handles transition to CompleteJob
+    // Emit mark:create for each tag via EventBus
+    for (const tag of allTags) {
+      this.eventBus.get('mark:create').next({
+        annotation: tag,
+        userId: tagJob.metadata.userId,
+      });
+    }
+
+    // Return result — base class handles transition to CompleteJob
     return {
       tagsFound: allTags.length,
-      tagsCreated: created,
-      byCategory
+      tagsCreated: allTags.length,
+      byCategory: countByCategory(allTags),
     };
   }
-
-  // 3. Optional: Emit completion event with result data
-  protected override async emitCompletionEvent(
-    job: RunningJob<TagDetectionParams, TagDetectionProgress>,
-    result: TagDetectionResult
-  ): Promise<void> {
-    await this.eventStore.appendEvent({
-      type: 'job.completed',
-      resourceId: job.params.resourceId,
-      userId: job.metadata.userId,
-      version: 1,
-      payload: {
-        jobId: job.metadata.id,
-        jobType: 'tag-detection',
-        // Can include result data here if needed
-      },
-    });
-  }
 }
 ```
 
-## Type Safety Benefits
+Workers emit EventBus commands (`mark:create`, `job:start`, `job:complete`). The **Stower** actor in `@semiont/make-meaning` subscribes to these commands and handles all persistence to the Knowledge Base.
 
-### Compile-Time Guarantees
-
-```typescript
-// ❌ Error: Property 'progress' does not exist on type 'AnyJob'
-console.log(job.progress);
-
-// ✅ Correct: Type guard first
-if (job.status === 'running') {
-  console.log(job.progress.percentage);
-}
-```
-
-### Exhaustive Checking
+## Exhaustive Checking
 
 ```typescript
 function getStatusMessage(job: AnyJob): string {
@@ -300,63 +261,25 @@ function getStatusMessage(job: AnyJob): string {
     case 'failed':
       return `Error: ${job.error}`;
     case 'cancelled':
-      return 'Cancelled by user';
-    // If we add a new status, TypeScript will error here
+      return 'Cancelled';
+    // TypeScript will error if a new status is added and not handled
   }
 }
 ```
 
-## Best Practices
+## Job Type Definitions
 
-### Creating Jobs
+See [JobTypes.md](./JobTypes.md) for all parameter, progress, and result types:
 
-```typescript
-// ✅ Use discriminated union structure
-const job: PendingJob<GenerationParams> = {
-  status: 'pending',
-  metadata: { /* ... */ },
-  params: { /* ... */ }
-};
-
-// ❌ Don't use flat structure
-// const job = { id, type, status, title, prompt, ... }
-```
-
-### Updating Progress
-
-```typescript
-// ✅ Immutable update pattern
-if (job.status === 'running') {
-  const updatedJob: RunningJob<Params, Progress> = {
-    ...job,
-    progress: { percentage: 50, stage: 'processing' }
-  };
-  await queue.updateJob(updatedJob);
-}
-
-// ❌ Don't mutate
-// job.progress = { ... }
-```
-
-### Returning Results
-
-```typescript
-// ✅ Return result from executeJob
-protected async executeJob(job: AnyJob): Promise<GenerationResult> {
-  const resourceId = await createResource(content);
-
-  return {
-    resourceId,
-    resourceName: job.params.title
-  };
-}
-
-// ❌ Don't try to set result field
-// job.result = { ... }  // Field doesn't exist on RunningJob
-```
+- **Reference Annotation** (`reference-annotation`) — Entity detection
+- **Generation** (`generation`) — AI content generation
+- **Highlight Annotation** (`highlight-annotation`) — Key passage identification
+- **Assessment Annotation** (`assessment-annotation`) — Evaluative assessments
+- **Comment Annotation** (`comment-annotation`) — Explanatory comments
+- **Tag Annotation** (`tag-annotation`) — Structural role tagging
 
 ## See Also
 
-- [JobTypes.md](./JobTypes.md) - All job type definitions
-- [Workers.md](./Workers.md) - Worker implementation guide
-- [JobQueue.md](./JobQueue.md) - Job queue API
+- [JobTypes.md](./JobTypes.md) — All job type definitions
+- [Workers.md](./Workers.md) — Worker implementation guide
+- [JobQueue.md](./JobQueue.md) — Job queue API

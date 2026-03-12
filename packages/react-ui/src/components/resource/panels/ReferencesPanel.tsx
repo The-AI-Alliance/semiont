@@ -245,7 +245,7 @@ export function ReferencesPanel({
   const handleCreateReference = () => {
     if (pendingAnnotation) {
       const entityType = pendingEntityTypes.join(',') || undefined;
-      eventBus.get('mark:create').next({
+      eventBus.get('mark:submit').next({
         motivation: 'linking',
         selector: pendingAnnotation.selector,
         body: entityType ? [{ type: 'TextualBody', value: entityType, purpose: 'tagging' }] : [],

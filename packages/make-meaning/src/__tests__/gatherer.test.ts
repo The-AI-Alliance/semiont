@@ -1,0 +1,192 @@
+/**
+ * Gatherer Actor Tests
+ *
+ * Tests the Gatherer's RxJS pipeline:
+ * - Annotation-level gather (gather:requested → gather:complete/gather:failed)
+ * - Resource-level gather (gather:resource-requested → gather:resource-complete/gather:resource-failed)
+ * - Error handling
+ */
+
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { take } from 'rxjs/operators';
+import { EventBus, type Logger } from '@semiont/core';
+import type { KnowledgeBase } from '../knowledge-base';
+import { Gatherer } from '../gatherer';
+
+// Mock AnnotationContext and LLMContext
+vi.mock('../annotation-context', () => ({
+  AnnotationContext: {
+    buildLLMContext: vi.fn(),
+  },
+}));
+
+vi.mock('../llm-context', () => ({
+  LLMContext: {
+    getResourceContext: vi.fn(),
+  },
+}));
+
+import { AnnotationContext } from '../annotation-context';
+import { LLMContext } from '../llm-context';
+
+const mockLogger: Logger = {
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  child: vi.fn(() => mockLogger),
+};
+
+const mockInferenceClient = {
+  generateText: vi.fn(),
+  generateTextWithMetadata: vi.fn(),
+};
+
+function createMockKb(): KnowledgeBase {
+  return {
+    eventStore: {} as any,
+    views: {} as any,
+    content: {} as any,
+    graph: {} as any,
+  };
+}
+
+describe('Gatherer', () => {
+  let eventBus: EventBus;
+  let gatherer: Gatherer;
+  let kb: KnowledgeBase;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    eventBus = new EventBus();
+    kb = createMockKb();
+    gatherer = new Gatherer('http://localhost:4000', kb, eventBus, mockInferenceClient as any, mockLogger);
+    await gatherer.initialize();
+  });
+
+  afterEach(async () => {
+    await gatherer.stop();
+    eventBus.destroy();
+  });
+
+  describe('annotation-level gather', () => {
+    it('should emit gather:complete on success', async () => {
+      const mockContext = {
+        sourceContext: { before: 'before', selected: 'selected', after: 'after' },
+        metadata: { resourceType: 'document' as const },
+      };
+
+      vi.mocked(AnnotationContext.buildLLMContext).mockResolvedValue({
+        annotation: {} as any,
+        sourceResource: {} as any,
+        targetResource: null,
+        context: mockContext,
+      });
+
+      const resultPromise = eventBus.get('gather:complete').pipe(take(1)).toPromise();
+
+      eventBus.get('gather:requested').next({
+        annotationUri: 'http://localhost:4000/annotations/ann-1',
+        resourceUri: 'http://localhost:4000/resources/res-1',
+      });
+
+      const result = await resultPromise;
+      expect(result!.annotationUri).toBe('http://localhost:4000/annotations/ann-1');
+      expect(result!.response.context).toEqual(mockContext);
+
+      expect(AnnotationContext.buildLLMContext).toHaveBeenCalledWith(
+        'http://localhost:4000/annotations/ann-1',
+        'res-1',
+        kb,
+        {},
+        mockInferenceClient,
+        mockLogger,
+      );
+    });
+
+    it('should emit gather:failed on error', async () => {
+      vi.mocked(AnnotationContext.buildLLMContext).mockRejectedValue(new Error('Annotation not found'));
+
+      const resultPromise = eventBus.get('gather:failed').pipe(take(1)).toPromise();
+
+      eventBus.get('gather:requested').next({
+        annotationUri: 'http://localhost:4000/annotations/ann-2',
+        resourceUri: 'http://localhost:4000/resources/res-1',
+      });
+
+      const result = await resultPromise;
+      expect(result!.annotationUri).toBe('http://localhost:4000/annotations/ann-2');
+      expect(result!.error.message).toBe('Annotation not found');
+    });
+  });
+
+  describe('resource-level gather', () => {
+    it('should emit gather:resource-complete on success', async () => {
+      const mockResponse = {
+        mainResource: { name: 'Test Resource' } as any,
+        relatedResources: [],
+        annotations: [],
+        graph: { nodes: [], edges: [] },
+      };
+
+      vi.mocked(LLMContext.getResourceContext).mockResolvedValue(mockResponse as any);
+
+      const resultPromise = eventBus.get('gather:resource-complete').pipe(take(1)).toPromise();
+
+      eventBus.get('gather:resource-requested').next({
+        resourceUri: 'http://localhost:4000/resources/res-1',
+        options: { depth: 1, maxResources: 10, includeContent: true, includeSummary: false },
+      });
+
+      const result = await resultPromise;
+      expect(result!.resourceUri).toBe('http://localhost:4000/resources/res-1');
+      expect(result!.context).toEqual(mockResponse);
+
+      expect(LLMContext.getResourceContext).toHaveBeenCalledWith(
+        'res-1',
+        { depth: 1, maxResources: 10, includeContent: true, includeSummary: false },
+        kb,
+        'http://localhost:4000',
+        mockInferenceClient,
+      );
+    });
+
+    it('should emit gather:resource-failed on error', async () => {
+      vi.mocked(LLMContext.getResourceContext).mockRejectedValue(new Error('Resource not found'));
+
+      const resultPromise = eventBus.get('gather:resource-failed').pipe(take(1)).toPromise();
+
+      eventBus.get('gather:resource-requested').next({
+        resourceUri: 'http://localhost:4000/resources/res-2',
+        options: { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
+      });
+
+      const result = await resultPromise;
+      expect(result!.resourceUri).toBe('http://localhost:4000/resources/res-2');
+      expect(result!.error.message).toBe('Resource not found');
+    });
+  });
+
+  describe('lifecycle', () => {
+    it('should stop cleanly', async () => {
+      await gatherer.stop();
+      expect(mockLogger.info).toHaveBeenCalledWith('Gatherer actor stopped');
+    });
+
+    it('should not process events after stop', async () => {
+      await gatherer.stop();
+
+      vi.mocked(AnnotationContext.buildLLMContext).mockResolvedValue({} as any);
+
+      eventBus.get('gather:requested').next({
+        annotationUri: 'http://localhost:4000/annotations/ann-3',
+        resourceUri: 'http://localhost:4000/resources/res-1',
+      });
+
+      // Give time for any processing
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(AnnotationContext.buildLLMContext).not.toHaveBeenCalled();
+    });
+  });
+});

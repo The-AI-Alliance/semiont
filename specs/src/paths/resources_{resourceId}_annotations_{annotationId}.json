@@ -80,11 +80,8 @@
       }
     ],
     "responses": {
-      "204": {
-        "description": "Annotation deleted successfully"
-      },
-      "404": {
-        "description": "Annotation not found"
+      "202": {
+        "description": "Annotation deletion accepted"
       }
     }
   }

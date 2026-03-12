@@ -7,12 +7,9 @@
  * - Building LLM context for annotations
  * - Extracting annotation text context
  * - Generating AI summaries
- *
- * NOTE: This class contains static utility methods without logger access.
- * Console statements kept for debugging - consider adding logger parameter in future.
  */
 
-import { getInferenceClient } from '@semiont/inference';
+import type { InferenceClient } from '@semiont/inference';
 import { generateResourceSummary } from './generation/resource-generation';
 import {
   getBodySource,
@@ -25,10 +22,7 @@ import {
 } from '@semiont/api-client';
 import type { components, AnnotationUri, YieldContext } from '@semiont/core';
 
-import { FilesystemRepresentationStore } from '@semiont/content';
-import { FilesystemViewStorage } from '@semiont/event-sourcing';
 import type {
-  EnvironmentConfig,
   ResourceId,
   ResourceAnnotations,
   AnnotationId,
@@ -38,6 +32,8 @@ import type {
 import { resourceId as createResourceId, uriToResourceId } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 import { ResourceContext } from './resource-context';
+import type { KnowledgeBase } from './knowledge-base';
+import type { RepresentationStore } from '@semiont/content';
 
 type AnnotationLLMContextResponse = components['schemas']['AnnotationLLMContextResponse'];
 type TextPositionSelector = components['schemas']['TextPositionSelector'];
@@ -65,16 +61,18 @@ export class AnnotationContext {
    *
    * @param annotationUri - Full annotation URI (e.g., http://localhost:4000/annotations/abc123)
    * @param resourceId - Source resource ID
-   * @param config - Application configuration
+   * @param kb - Knowledge base stores
    * @param options - Context building options
+   * @param inferenceClient - Optional inference client for target context summary
    * @returns Rich context for LLM processing
    * @throws Error if annotation or resource not found
    */
   static async buildLLMContext(
     annotationUri: AnnotationUri,
     resourceId: ResourceId,
-    config: EnvironmentConfig,
+    kb: KnowledgeBase,
     options: BuildContextOptions = {},
+    inferenceClient?: InferenceClient,
     logger?: Logger
   ): Promise<AnnotationLLMContextResponse> {
     const {
@@ -90,18 +88,11 @@ export class AnnotationContext {
 
     logger?.debug('Building LLM context', { annotationUri, resourceId });
 
-    const basePath = config.services.filesystem!.path;
-    logger?.debug('Filesystem basePath', { basePath });
-
-    const projectRoot = config._metadata?.projectRoot;
-    const viewStorage = new FilesystemViewStorage(basePath, projectRoot);
-    const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
-
     // Get source resource view
     logger?.debug('Getting view for resource', { resourceId });
     let sourceView;
     try {
-      sourceView = await viewStorage.get(resourceId);
+      sourceView = await kb.views.get(resourceId);
       logger?.debug('Retrieved view', { hasView: !!sourceView });
 
       if (!sourceView) {
@@ -151,7 +142,7 @@ export class AnnotationContext {
         throw new Error(`Invalid body source URI: ${bodySource}`);
       }
       const targetResourceId = createResourceId(lastPart);
-      const targetView = await viewStorage.get(targetResourceId);
+      const targetView = await kb.views.get(targetResourceId);
       targetDoc = targetView?.resource || null;
     }
 
@@ -162,7 +153,7 @@ export class AnnotationContext {
       if (!primaryRep?.checksum || !primaryRep?.mediaType) {
         throw new Error('Source content not found');
       }
-      const sourceContent = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
+      const sourceContent = await kb.content.retrieve(primaryRep.checksum, primaryRep.mediaType);
       const contentStr = decodeRepresentation(sourceContent, primaryRep.mediaType);
 
       const targetSelectorRaw = getTargetSelector(annotation.target);
@@ -215,15 +206,14 @@ export class AnnotationContext {
     if (includeTargetContext && targetDoc) {
       const targetRep = getPrimaryRepresentation(targetDoc);
       if (targetRep?.checksum && targetRep?.mediaType) {
-        const targetContent = await repStore.retrieve(targetRep.checksum, targetRep.mediaType);
+        const targetContent = await kb.content.retrieve(targetRep.checksum, targetRep.mediaType);
         const contentStr = decodeRepresentation(targetContent, targetRep.mediaType);
-
-        // Create inference client for this request (HTTP handler context)
-        const client = await getInferenceClient(config, logger);
 
         targetContext = {
           content: contentStr.slice(0, contextWindow * 2),
-          summary: await generateResourceSummary(targetDoc.name, contentStr, getResourceEntityTypes(targetDoc), client),
+          summary: inferenceClient
+            ? await generateResourceSummary(targetDoc.name, contentStr, getResourceEntityTypes(targetDoc), inferenceClient)
+            : undefined,
         };
       }
     }
@@ -262,14 +252,8 @@ export class AnnotationContext {
    * Get resource annotations from view storage (fast path)
    * Throws if view missing
    */
-  static async getResourceAnnotations(resourceId: ResourceId, config: EnvironmentConfig): Promise<ResourceAnnotations> {
-    if (!config.services?.filesystem?.path) {
-      throw new Error('Filesystem path not found in configuration');
-    }
-    const basePath = config.services.filesystem.path;
-    const projectRoot = config._metadata?.projectRoot;
-    const viewStorage = new FilesystemViewStorage(basePath, projectRoot);
-    const view = await viewStorage.get(resourceId);
+  static async getResourceAnnotations(resourceId: ResourceId, kb: KnowledgeBase): Promise<ResourceAnnotations> {
+    const view = await kb.views.get(resourceId);
 
     if (!view) {
       throw new Error(`Resource ${resourceId} not found in view storage`);
@@ -282,12 +266,11 @@ export class AnnotationContext {
    * Get all annotations
    * @returns Array of all annotation objects
    */
-  static async getAllAnnotations(resourceId: ResourceId, config: EnvironmentConfig): Promise<Annotation[]> {
-    const annotations = await this.getResourceAnnotations(resourceId, config);
+  static async getAllAnnotations(resourceId: ResourceId, kb: KnowledgeBase): Promise<Annotation[]> {
+    const annotations = await this.getResourceAnnotations(resourceId, kb);
 
     // Enrich resolved references with document names
-    // NOTE: Future optimization - make this optional via query param if performance becomes an issue
-    return await this.enrichResolvedReferences(annotations.annotations, config);
+    return await this.enrichResolvedReferences(annotations.annotations, kb);
   }
 
   /**
@@ -295,11 +278,7 @@ export class AnnotationContext {
    * Adds _resolvedDocumentName property to annotations that link to documents
    * @private
    */
-  private static async enrichResolvedReferences(annotations: Annotation[], config: EnvironmentConfig): Promise<Annotation[]> {
-    if (!config.services?.filesystem?.path) {
-      return annotations;
-    }
-
+  private static async enrichResolvedReferences(annotations: Annotation[], kb: KnowledgeBase): Promise<Annotation[]> {
     // Extract unique resolved document URIs from reference annotations
     const resolvedUris = new Set<string>();
     for (const ann of annotations) {
@@ -318,16 +297,12 @@ export class AnnotationContext {
     }
 
     // Batch fetch all resolved documents in parallel
-    const basePath = config.services.filesystem.path;
-    const projectRoot = config._metadata?.projectRoot;
-    const viewStorage = new FilesystemViewStorage(basePath, projectRoot);
-
     const metadataPromises = Array.from(resolvedUris).map(async (uri) => {
       const docId = uri.split('/resources/')[1];
       if (!docId) return null;
 
       try {
-        const view = await viewStorage.get(docId as ResourceId);
+        const view = await kb.views.get(docId as ResourceId);
         if (view?.resource?.name) {
           return {
             uri,
@@ -376,12 +351,12 @@ export class AnnotationContext {
    * Get resource stats (version info)
    * @returns Version and timestamp info for the annotations
    */
-  static async getResourceStats(resourceId: ResourceId, config: EnvironmentConfig): Promise<{
+  static async getResourceStats(resourceId: ResourceId, kb: KnowledgeBase): Promise<{
     resourceId: ResourceId;
     version: number;
     updatedAt: string;
   }> {
-    const annotations = await this.getResourceAnnotations(resourceId, config);
+    const annotations = await this.getResourceAnnotations(resourceId, kb);
     return {
       resourceId: annotations.resourceId,
       version: annotations.version,
@@ -392,22 +367,16 @@ export class AnnotationContext {
   /**
    * Check if resource exists in view storage
    */
-  static async resourceExists(resourceId: ResourceId, config: EnvironmentConfig): Promise<boolean> {
-    if (!config.services?.filesystem?.path) {
-      throw new Error('Filesystem path not found in configuration');
-    }
-    const basePath = config.services.filesystem.path;
-    const projectRoot = config._metadata?.projectRoot;
-    const viewStorage = new FilesystemViewStorage(basePath, projectRoot);
-    return await viewStorage.exists(resourceId);
+  static async resourceExists(resourceId: ResourceId, kb: KnowledgeBase): Promise<boolean> {
+    return await kb.views.exists(resourceId);
   }
 
   /**
    * Get a single annotation by ID
    * O(1) lookup using resource ID to access view storage
    */
-  static async getAnnotation(annotationId: AnnotationId, resourceId: ResourceId, config: EnvironmentConfig): Promise<Annotation | null> {
-    const annotations = await this.getResourceAnnotations(resourceId, config);
+  static async getAnnotation(annotationId: AnnotationId, resourceId: ResourceId, kb: KnowledgeBase): Promise<Annotation | null> {
+    const annotations = await this.getResourceAnnotations(resourceId, kb);
     // Extract short ID from annotation's full URI for comparison
     return annotations.annotations.find((a: Annotation) => {
       const shortId = a.id.split('/').pop();
@@ -420,13 +389,13 @@ export class AnnotationContext {
    * @param filters - Optional filters like resourceId and type
    * @throws Error if resourceId not provided (cross-resource queries not supported in view storage)
    */
-  static async listAnnotations(filters: { resourceId?: ResourceId; type?: AnnotationCategory } | undefined, config: EnvironmentConfig): Promise<Annotation[]> {
+  static async listAnnotations(filters: { resourceId?: ResourceId; type?: AnnotationCategory } | undefined, kb: KnowledgeBase): Promise<Annotation[]> {
     if (!filters?.resourceId) {
       throw new Error('resourceId is required for annotation listing - cross-resource queries not supported in view storage');
     }
 
     // Use view storage directly
-    return await this.getAllAnnotations(filters.resourceId, config);
+    return await this.getAllAnnotations(filters.resourceId, kb);
   }
 
   /**
@@ -437,14 +406,10 @@ export class AnnotationContext {
     resourceId: ResourceId,
     contextBefore: number,
     contextAfter: number,
-    config: EnvironmentConfig
+    kb: KnowledgeBase
   ): Promise<AnnotationContextResponse> {
-    const basePath = config.services.filesystem!.path;
-    const projectRoot = config._metadata?.projectRoot;
-    const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
-
     // Get annotation from view storage
-    const annotation = await this.getAnnotation(annotationId, resourceId, config);
+    const annotation = await this.getAnnotation(annotationId, resourceId, kb);
     if (!annotation) {
       throw new Error('Annotation not found');
     }
@@ -452,14 +417,14 @@ export class AnnotationContext {
     // Get resource metadata from view storage
     const resource = await ResourceContext.getResourceMetadata(
       uriToResourceId(getTargetSource(annotation.target)),
-      config
+      kb
     );
     if (!resource) {
       throw new Error('Resource not found');
     }
 
     // Get content from representation store
-    const contentStr = await this.getResourceContent(resource, repStore);
+    const contentStr = await this.getResourceContent(resource, kb.content);
 
     // Extract context based on annotation position
     const context = this.extractAnnotationContext(annotation, contentStr, contextBefore, contextAfter);
@@ -487,15 +452,11 @@ export class AnnotationContext {
   static async generateAnnotationSummary(
     annotationId: AnnotationId,
     resourceId: ResourceId,
-    config: EnvironmentConfig,
-    logger?: Logger
+    kb: KnowledgeBase,
+    inferenceClient: InferenceClient,
   ): Promise<ContextualSummaryResponse> {
-    const basePath = config.services.filesystem!.path;
-    const projectRoot = config._metadata?.projectRoot;
-    const repStore = new FilesystemRepresentationStore({ basePath }, projectRoot);
-
     // Get annotation from view storage
-    const annotation = await this.getAnnotation(annotationId, resourceId, config);
+    const annotation = await this.getAnnotation(annotationId, resourceId, kb);
     if (!annotation) {
       throw new Error('Annotation not found');
     }
@@ -503,14 +464,14 @@ export class AnnotationContext {
     // Get resource from view storage
     const resource = await ResourceContext.getResourceMetadata(
       uriToResourceId(getTargetSource(annotation.target)),
-      config
+      kb
     );
     if (!resource) {
       throw new Error('Resource not found');
     }
 
     // Get content from representation store
-    const contentStr = await this.getResourceContent(resource, repStore);
+    const contentStr = await this.getResourceContent(resource, kb.content);
 
     // Extract annotation text with context (fixed 500 chars for summary)
     const contextSize = 500;
@@ -520,7 +481,7 @@ export class AnnotationContext {
     const annotationEntityTypes = getEntityTypes(annotation);
 
     // Generate summary using LLM
-    const summary = await this.generateSummary(resource, context, annotationEntityTypes, config, logger);
+    const summary = await this.generateSummary(resource, context, annotationEntityTypes, inferenceClient);
 
     return {
       summary,
@@ -542,7 +503,7 @@ export class AnnotationContext {
    */
   private static async getResourceContent(
     resource: ResourceDescriptor,
-    repStore: FilesystemRepresentationStore
+    repStore: RepresentationStore
   ): Promise<string> {
     const primaryRep = getPrimaryRepresentation(resource);
     if (!primaryRep?.checksum || !primaryRep?.mediaType) {
@@ -587,8 +548,7 @@ export class AnnotationContext {
     resource: ResourceDescriptor,
     context: AnnotationTextContext,
     entityTypes: string[],
-    config: EnvironmentConfig,
-    logger?: Logger
+    inferenceClient: InferenceClient,
   ): Promise<string> {
     const summaryPrompt = `Summarize this text in context:
 
@@ -599,8 +559,6 @@ Context after: "${context.after.substring(0, 200)}"
 Resource: ${resource.name}
 Entity types: ${entityTypes.join(', ')}`;
 
-    // Create client for this HTTP request
-    const client = await getInferenceClient(config, logger);
-    return await client.generateText(summaryPrompt, 500, 0.5);
+    return await inferenceClient.generateText(summaryPrompt, 500, 0.5);
   }
 }

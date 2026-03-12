@@ -18,8 +18,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventBus, type Logger } from '@semiont/core';
 import { startMakeMeaning, ResourceOperations } from '../..';
 import type { EnvironmentConfig } from '@semiont/core';
-import { userId, resourceId } from '@semiont/core';
-import { getResourceId } from '@semiont/api-client';
+import { userId } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -113,29 +112,26 @@ describe('Scripting Example: Create Resource', () => {
         language: 'en'
       },
       userId('test-script'),
-      makeMeaning.eventStore,
-      makeMeaning.repStore,
-      config
+      eventBus,
     );
 
-    // Verify resource was created
-    expect(result.resource).toBeDefined();
-    expect(result.resource.name).toBe('Test Document');
+    // Verify resource was created — result is now a ResourceId directly
+    expect(result).toBeDefined();
 
-    // Verify content was stored (retrieve by checksum, not ID)
-    // Note: format and language are in representations, not at top level
-    const representations = Array.isArray(result.resource.representations)
-      ? result.resource.representations
-      : [result.resource.representations];
+    // Verify via event store
+    const events = await makeMeaning.eventStore.log.getEvents(result);
+    const createdEvent = events.find(e => e.event.type === 'resource.created');
+    expect(createdEvent).toBeDefined();
+    expect(createdEvent!.event.type === 'resource.created' && createdEvent!.event.payload.name).toBe('Test Document');
+    expect(createdEvent!.event.type === 'resource.created' && createdEvent!.event.payload.format).toBe('text/plain');
 
-    expect(representations[0]?.mediaType).toBe('text/plain');
-    expect(representations[0]?.language).toBe('en');
-
-    expect(representations).toHaveLength(1);
-    const checksum = representations[0]?.checksum;
+    // Verify content was stored (retrieve by checksum from event payload)
+    const checksum = createdEvent!.event.type === 'resource.created'
+      ? createdEvent!.event.payload.contentChecksum
+      : undefined;
     expect(checksum).toBeDefined();
 
-    const storedRep = await makeMeaning.repStore.retrieve(checksum!, 'text/plain');
+    const storedRep = await makeMeaning.kb.content.retrieve(checksum!, 'text/plain');
     expect(storedRep).toBeDefined();
     expect(storedRep.toString()).toBe('Hello, world!');
   });
@@ -153,15 +149,12 @@ describe('Scripting Example: Create Resource', () => {
         language: 'en'
       },
       userId('test-script'),
-      makeMeaning.eventStore,
-      makeMeaning.repStore,
-      config
+      eventBus,
     );
 
     // Subscribe to resource-scoped EventBus for domain events
-    const rId = getResourceId(result.resource);
-    expect(rId).toBeDefined();
-    const resourceBus = eventBus.scope(rId!);
+    // result is already a ResourceId
+    const resourceBus = eventBus.scope(result);
 
     // Subscribe to the generic domain event channel BEFORE creating the update event
     const sub = resourceBus.get('make-meaning:event').subscribe(event => {
@@ -171,12 +164,12 @@ describe('Scripting Example: Create Resource', () => {
     // Now create another event (like archiving the resource)
     await ResourceOperations.updateResource(
       {
-        resourceId: resourceId(rId!),
+        resourceId: result,
         userId: userId('test-script'),
         currentArchived: false,
         updatedArchived: true,
       },
-      makeMeaning.eventStore
+      eventBus,
     );
 
     // Give events time to propagate
@@ -210,15 +203,13 @@ describe('Scripting Example: Create Resource', () => {
           language: 'en'
         },
         userId('batch-script'),
-        makeMeaning.eventStore,
-        makeMeaning.repStore,
-        config
+        eventBus,
       );
 
-      const id = getResourceId(result.resource);
-      expect(id).toBeDefined();
-      created.push(id!);
-      console.log(`✓ Created: ${result.resource.name} (${id})`);
+      // result is already a ResourceId
+      expect(result).toBeDefined();
+      created.push(result);
+      console.log(`✓ Created: ${doc.name} (${result})`);
     }
 
     // Verify all were created

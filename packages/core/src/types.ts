@@ -82,14 +82,12 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Resource updated successfully */
-                200: {
+                /** @description Update accepted */
+                202: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": components["schemas"]["GetResourceResponse"];
-                    };
+                    content?: never;
                 };
                 /** @description Resource not found */
                 404: {
@@ -1138,13 +1136,15 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Resource created successfully */
-                201: {
+                /** @description Resource creation accepted */
+                202: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["CreateResourceResponse"];
+                        "application/json": {
+                            resourceId: string;
+                        };
                     };
                 };
             };
@@ -1653,13 +1653,15 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Resource created successfully */
-                201: {
+                /** @description Resource creation accepted */
+                202: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["CreateResourceResponse"];
+                        "application/json": {
+                            resourceId: string;
+                        };
                     };
                 };
             };
@@ -1765,13 +1767,15 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Annotation created successfully */
-                201: {
+                /** @description Annotation creation accepted */
+                202: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["CreateAnnotationResponse"];
+                        "application/json": {
+                            annotationId: string;
+                        };
                     };
                 };
             };
@@ -1931,15 +1935,8 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description Annotation deleted successfully */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Annotation not found */
-                404: {
+                /** @description Annotation deletion accepted */
+                202: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1982,14 +1979,12 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Annotation body updated successfully */
-                200: {
+                /** @description Annotation body update accepted */
+                202: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": components["schemas"]["UpdateAnnotationBodyResponse"];
-                    };
+                    content?: never;
                 };
             };
         };
@@ -2160,14 +2155,12 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Entity type added successfully */
-                200: {
+                /** @description Entity type addition accepted */
+                202: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": components["schemas"]["AddEntityTypeResponse"];
-                    };
+                    content?: never;
                 };
                 /** @description Forbidden - Moderator or Admin access required */
                 403: {
@@ -2212,14 +2205,12 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Entity types added successfully */
-                200: {
+                /** @description Entity types addition accepted */
+                202: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": components["schemas"]["AddEntityTypeResponse"];
-                    };
+                    content?: never;
                 };
                 /** @description Forbidden - Moderator or Admin access required */
                 403: {
@@ -2232,6 +2223,45 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/events/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Subscribe to Global Events (SSE)
+         * @description Open a Server-Sent Events stream to receive real-time system-level events (e.g., entity type changes). Events not scoped to a specific resource are delivered on this channel.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description SSE stream opened successfully */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/event-stream": components["schemas"]["EventStreamResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2296,10 +2326,6 @@ export interface components {
         };
         AddEntityTypeRequest: {
             tag: string;
-        };
-        AddEntityTypeResponse: {
-            success: boolean;
-            entityTypes: string[];
         };
         AdminUpdateUserResponse: {
             success: boolean;
@@ -2522,9 +2548,6 @@ export interface components {
             };
             body: unknown[] | components["schemas"]["AnnotationBody"] | components["schemas"]["AnnotationBody"][];
         };
-        CreateAnnotationResponse: {
-            annotation: components["schemas"]["Annotation"];
-        };
         CreateFromAnnotationRequest: {
             /** @description ID of the resource containing the annotation */
             resourceId: string;
@@ -2575,10 +2598,6 @@ export interface components {
             content: string;
             /** @description Whether to archive the original resource */
             archiveOriginal?: boolean;
-        };
-        CreateResourceFromTokenResponse: {
-            resource: components["schemas"]["ResourceDescriptor"];
-            annotations: components["schemas"]["Annotation"][];
         };
         CreateResourceRequest: {
             name: string;
@@ -3085,9 +3104,6 @@ export interface components {
             resourceId: string;
             /** @description Array of body modification operations to apply */
             operations: (components["schemas"]["BodyOperationAdd"] | components["schemas"]["BodyOperationRemove"] | components["schemas"]["BodyOperationReplace"])[];
-        };
-        UpdateAnnotationBodyResponse: {
-            annotation: components["schemas"]["Annotation"];
         };
         UpdateResourceRequest: {
             entityTypes?: string[];

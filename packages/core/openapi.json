@@ -108,15 +108,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Resource updated successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetResourceResponse"
-                }
-              }
-            }
+          "202": {
+            "description": "Update accepted"
           },
           "404": {
             "description": "Resource not found"
@@ -1010,12 +1003,20 @@
           }
         },
         "responses": {
-          "201": {
-            "description": "Resource created successfully",
+          "202": {
+            "description": "Resource creation accepted",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreateResourceResponse"
+                  "type": "object",
+                  "properties": {
+                    "resourceId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "resourceId"
+                  ]
                 }
               }
             }
@@ -1702,12 +1703,20 @@
           }
         },
         "responses": {
-          "201": {
-            "description": "Resource created successfully",
+          "202": {
+            "description": "Resource creation accepted",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreateResourceResponse"
+                  "type": "object",
+                  "properties": {
+                    "resourceId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "resourceId"
+                  ]
                 }
               }
             }
@@ -1820,12 +1829,20 @@
           }
         },
         "responses": {
-          "201": {
-            "description": "Annotation created successfully",
+          "202": {
+            "description": "Annotation creation accepted",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreateAnnotationResponse"
+                  "type": "object",
+                  "properties": {
+                    "annotationId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "annotationId"
+                  ]
                 }
               }
             }
@@ -2029,11 +2046,8 @@
           }
         ],
         "responses": {
-          "204": {
-            "description": "Annotation deleted successfully"
-          },
-          "404": {
-            "description": "Annotation not found"
+          "202": {
+            "description": "Annotation deletion accepted"
           }
         }
       }
@@ -2081,15 +2095,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Annotation body updated successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UpdateAnnotationBodyResponse"
-                }
-              }
-            }
+          "202": {
+            "description": "Annotation body update accepted"
           }
         }
       }
@@ -2252,15 +2259,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Entity type added successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AddEntityTypeResponse"
-                }
-              }
-            }
+          "202": {
+            "description": "Entity type addition accepted"
           },
           "403": {
             "description": "Forbidden - Moderator or Admin access required",
@@ -2297,15 +2297,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Entity types added successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AddEntityTypeResponse"
-                }
-              }
-            }
+          "202": {
+            "description": "Entity types addition accepted"
           },
           "403": {
             "description": "Forbidden - Moderator or Admin access required",
@@ -2313,6 +2306,33 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/events/stream": {
+      "get": {
+        "summary": "Subscribe to Global Events (SSE)",
+        "description": "Open a Server-Sent Events stream to receive real-time system-level events (e.g., entity type changes). Events not scoped to a specific resource are delivered on this channel.",
+        "tags": [
+          "Events",
+          "Real-time"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE stream opened successfully",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventStreamResponse"
                 }
               }
             }
@@ -2388,24 +2408,6 @@
         },
         "required": [
           "tag"
-        ]
-      },
-      "AddEntityTypeResponse": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "entityTypes": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        },
-        "required": [
-          "success",
-          "entityTypes"
         ]
       },
       "AdminUpdateUserResponse": {
@@ -3310,17 +3312,6 @@
           "motivation"
         ]
       },
-      "CreateAnnotationResponse": {
-        "type": "object",
-        "properties": {
-          "annotation": {
-            "$ref": "#/components/schemas/Annotation"
-          }
-        },
-        "required": [
-          "annotation"
-        ]
-      },
       "CreateFromAnnotationRequest": {
         "type": "object",
         "properties": {
@@ -3494,24 +3485,6 @@
           "token",
           "name",
           "content"
-        ]
-      },
-      "CreateResourceFromTokenResponse": {
-        "type": "object",
-        "properties": {
-          "resource": {
-            "$ref": "#/components/schemas/ResourceDescriptor"
-          },
-          "annotations": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Annotation"
-            }
-          }
-        },
-        "required": [
-          "resource",
-          "annotations"
         ]
       },
       "CreateResourceRequest": {
@@ -5257,17 +5230,6 @@
         "required": [
           "resourceId",
           "operations"
-        ]
-      },
-      "UpdateAnnotationBodyResponse": {
-        "type": "object",
-        "properties": {
-          "annotation": {
-            "$ref": "#/components/schemas/Annotation"
-          }
-        },
-        "required": [
-          "annotation"
         ]
       },
       "UpdateResourceRequest": {

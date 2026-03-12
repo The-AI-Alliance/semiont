@@ -64,8 +64,6 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
       const { id } = c.req.param();
       const body = c.get('validatedBody') as AnnotateTagsStreamRequest;
       const { schemaId, categories } = body;
-      const config = c.get('config');
-
       const logger = getLogger().child({
         component: 'annotate-tags-stream',
         resourceId: id
@@ -96,14 +94,14 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
         throw new HTTPException(400, { message: 'At least one category must be selected' });
       }
 
+      const eventBus = c.get('eventBus');
+      const { kb } = c.get('makeMeaning');
+
       // Validate resource exists using view storage
-      const resource = await ResourceContext.getResourceMetadata(resourceId(id), config);
+      const resource = await ResourceContext.getResourceMetadata(resourceId(id), kb);
       if (!resource) {
         throw new HTTPException(404, { message: 'Resource not found in view storage projections - resource may need to be recreated' });
       }
-
-      // Get EventBus for real-time progress subscriptions
-      const { eventBus } = c.get('makeMeaning');
 
       // Create a tag detection job
       const job: PendingJob<TagDetectionParams> = {
@@ -112,6 +110,9 @@ export function registerAnnotateTagsStream(router: ResourcesRouterType, jobQueue
           id: jobId(`job-${nanoid()}`),
           type: 'tag-annotation',
           userId: userId(user.id),
+          userName: user.name || user.email,
+          userEmail: user.email,
+          userDomain: user.domain,
           created: new Date().toISOString(),
           retryCount: 0,
           maxRetries: 1

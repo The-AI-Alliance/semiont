@@ -241,19 +241,8 @@ export function useAnnotations() {
             if (!client) throw new Error('Not authenticated');
             return client.createAnnotation(rUri, data, { auth: toAccessToken(token) });
           },
-          onSuccess: (response, variables) => {
-            const queryKey = QUERY_KEYS.resources.annotations(variables.rUri);
-            const currentData = queryClient.getQueryData<{ resource: any; annotations: any[] }>(queryKey);
-
-            if (currentData && response.annotation) {
-              queryClient.setQueryData(queryKey, {
-                ...currentData,
-                annotations: [...currentData.annotations, response.annotation]
-              });
-            } else {
-              queryClient.invalidateQueries({ queryKey });
-            }
-
+          onSuccess: (_, variables) => {
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.annotations(variables.rUri) });
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.events(variables.rUri) });
           },
         });
@@ -307,28 +296,11 @@ export function useAnnotations() {
             if (!client) throw new Error('Not authenticated');
             return client.updateAnnotationBody(annotationUri, data, { auth: toAccessToken(token) });
           },
-          onSuccess: (response, variables) => {
-            const singleQueryKey = ['annotations', variables.annotationUri];
-            if (response.annotation) {
-              queryClient.setQueryData(singleQueryKey, response.annotation);
-            } else {
-              queryClient.invalidateQueries({ queryKey: singleQueryKey });
-            }
+          onSuccess: (_, variables) => {
+            queryClient.invalidateQueries({ queryKey: ['annotations', variables.annotationUri] });
 
             const resourceUri = extractResourceUriFromAnnotationUri(variables.annotationUri);
-            const listQueryKey = QUERY_KEYS.resources.annotations(resourceUri);
-            const currentList = queryClient.getQueryData<{ resource: any; annotations: any[] }>(listQueryKey);
-
-            if (currentList && response.annotation) {
-              queryClient.setQueryData(listQueryKey, {
-                ...currentList,
-                annotations: currentList.annotations.map(ann =>
-                  ann.id === response.annotation.id ? response.annotation : ann
-                )
-              });
-            } else {
-              queryClient.invalidateQueries({ queryKey: listQueryKey });
-            }
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.annotations(resourceUri) });
 
             if (variables.data.operations) {
               for (const op of variables.data.operations) {

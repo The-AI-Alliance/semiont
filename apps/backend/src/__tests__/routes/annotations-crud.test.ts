@@ -26,6 +26,7 @@ type GetAnnotationsResponse = components['schemas']['GetAnnotationsResponse'];
 type Variables = {
   user: User;
   config: EnvironmentConfig;
+  eventBus: any;
   makeMeaning: any;
 };
 
@@ -94,12 +95,49 @@ vi.mock('@semiont/make-meaning', () => ({
       }]
     })
   },
-  startMakeMeaning: vi.fn().mockResolvedValue({
-    eventStore: mockEventStore,
-    repStore: { get: vi.fn(), store: vi.fn() },
-    jobQueue: { createJob: vi.fn() },
-    workers: [],
-    graphConsumer: {}
+  startMakeMeaning: vi.fn().mockImplementation(async (_config: any, eventBus: any) => {
+    // Subscribe mock Gatherer to browse events so eventBusRequest gets responses
+    eventBus.get('browse:annotations-requested').subscribe((e: any) => {
+      eventBus.get('browse:annotations-result').next({
+        correlationId: e.correlationId,
+        response: {
+          annotations: [{
+            '@context': 'http://www.w3.org/ns/anno.jsonld',
+            id: 'http://localhost:4000/annotations/test-annotation',
+            type: 'Annotation',
+            motivation: 'highlighting',
+            body: [],
+            target: { source: 'urn:semiont:resource:test-resource' }
+          }],
+          total: 1,
+        },
+      });
+    });
+    eventBus.get('browse:annotation-requested').subscribe((e: any) => {
+      eventBus.get('browse:annotation-result').next({
+        correlationId: e.correlationId,
+        response: {
+          annotation: {
+            '@context': 'http://www.w3.org/ns/anno.jsonld',
+            id: 'http://localhost:4000/annotations/test-annotation',
+            type: 'Annotation',
+            motivation: 'highlighting',
+            body: [],
+            target: { source: 'urn:semiont:resource:test-resource' },
+            created: new Date().toISOString(),
+            modified: new Date().toISOString()
+          },
+        },
+      });
+    });
+    return {
+      eventStore: mockEventStore,
+      eventBus,
+      kb: { content: { get: vi.fn(), store: vi.fn() }, views: {}, graph: {}, eventStore: {} },
+      jobQueue: { createJob: vi.fn() },
+      workers: [],
+      graphConsumer: {}
+    };
   })
 }));
 
@@ -134,6 +172,9 @@ describe('Annotation CRUD HTTP Contract', () => {
   };
 
   beforeAll(async () => {
+    // Set JWT_SECRET env var for JWTService.getSecret()
+    process.env.JWT_SECRET = 'test-secret-key-at-least-32-characters-long';
+
     // Initialize JWTService
     const mockConfig: EnvironmentConfig = {
       site: {
@@ -297,7 +338,7 @@ describe('Annotation CRUD HTTP Contract', () => {
   });
 
   describe('PUT /resources/:id/annotation/:annotationId/body (update)', () => {
-    it('should return 200 on successful body update', async () => {
+    it('should return 202 on successful body update', async () => {
       const response = await app.request('/resources/test-resource/annotations/test-annotation/body', {
         method: 'PUT',
         headers: {
@@ -317,30 +358,7 @@ describe('Annotation CRUD HTTP Contract', () => {
         }),
       });
 
-      expect(response.status).toBe(200);
-    });
-
-    it('should return 404 for non-existent annotation', async () => {
-      vi.mocked(mockEventStore.getView).mockResolvedValueOnce({
-        resource: { '@id': 'test-resource' },
-        annotations: { version: 1, annotations: [] }
-      });
-
-      const response = await app.request('/resources/test-resource/annotation/nonexistent/body', {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operations: [{
-            op: 'add',
-            item: { type: 'TextualBody', value: 'test' }
-          }]
-        }),
-      });
-
-      expect(response.status).toBe(404);
+      expect(response.status).toBe(202);
     });
 
     it('should return 400 for invalid body structure', async () => {
@@ -372,7 +390,7 @@ describe('Annotation CRUD HTTP Contract', () => {
   });
 
   describe('DELETE /resources/:id/annotation/:annotationId (delete)', () => {
-    it('should return 204 on successful deletion', async () => {
+    it('should return 202 on successful deletion', async () => {
       const response = await app.request('/resources/test-resource/annotations/test-annotation', {
         method: 'DELETE',
         headers: {
@@ -380,23 +398,7 @@ describe('Annotation CRUD HTTP Contract', () => {
         },
       });
 
-      expect(response.status).toBe(204);
-    });
-
-    it('should return 404 for non-existent annotation', async () => {
-      vi.mocked(mockEventStore.getView).mockResolvedValueOnce({
-        resource: { '@id': 'test-resource' },
-        annotations: { version: 1, annotations: [] }
-      });
-
-      const response = await app.request('/resources/test-resource/annotation/nonexistent', {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-        },
-      });
-
-      expect(response.status).toBe(404);
+      expect(response.status).toBe(202);
     });
 
     it('should return 401 without authentication', async () => {

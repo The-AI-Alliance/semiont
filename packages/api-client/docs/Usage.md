@@ -16,6 +16,8 @@ npm install @semiont/api-client@dev
 
 ## Table of Contents
 
+- [Choosing a Client](#choosing-a-client)
+- [EventBusClient (No HTTP)](#eventbusclient-no-http)
 - [Authentication](#authentication)
   - [Logout](#logout)
 - [Resources](#resources)
@@ -44,6 +46,70 @@ npm install @semiont/api-client@dev
 - [Logging and Observability](#logging-and-observability)
 - [Error Handling](#error-handling)
 - [System Status](#system-status)
+
+## Choosing a Client
+
+This package provides two clients for different use cases:
+
+| | `SemiontApiClient` | `EventBusClient` |
+|---|---|---|
+| **Transport** | HTTP REST | RxJS EventBus (no HTTP) |
+| **Use when** | Frontend apps, MCP servers, CLI tools, third-party integrations | Scripts alongside make-meaning, tests, embedded scenarios |
+| **Auth** | JWT tokens, OAuth | Not needed |
+| **Binary content** | Yes (upload/download) | No (HTTP-only) |
+| **SSE streaming** | Yes | No (use EventBus subscriptions directly) |
+| **Admin/health** | Yes | No (HTTP-only) |
+
+All knowledge-domain operations (resources, annotations, entity types, search, LLM context, clone tokens, jobs) are available on both clients.
+
+## EventBusClient (No HTTP)
+
+The `EventBusClient` communicates directly via the RxJS EventBus — no HTTP server needed. It requires `startMakeMeaning()` to be running in the same process.
+
+```typescript
+import { EventBusClient } from '@semiont/api-client';
+import { EventBus, resourceId, annotationId } from '@semiont/core';
+import { startMakeMeaning } from '@semiont/make-meaning';
+
+// Start the knowledge system
+const eventBus = new EventBus();
+const makeMeaning = await startMakeMeaning(config, eventBus, logger);
+
+// Create client
+const client = new EventBusClient(eventBus);
+
+// Browse resources
+const resources = await client.listResources({ limit: 10, archived: false });
+const resource = await client.getResource(resourceId('doc-123'));
+const annotations = await client.getAnnotations(resourceId('doc-123'));
+const events = await client.getEvents(resourceId('doc-123'));
+
+// Graph queries
+const referencedBy = await client.getReferencedBy(resourceId('doc-123'));
+const results = await client.searchResources('quantum computing');
+
+// Entity types
+const entityTypes = await client.listEntityTypes();
+client.addEntityType('Person', userId('user-123'));
+
+// LLM context
+const context = await client.getResourceLLMContext(resourceUri, {
+  depth: 2, maxResources: 10, includeContent: true, includeSummary: false,
+});
+
+// Clone tokens
+const token = await client.generateCloneToken(resourceId('doc-123'));
+const source = await client.getResourceByToken(token.token);
+
+// Job status
+const job = await client.getJobStatus(jobId('job-456'));
+
+// Cleanup
+await makeMeaning.stop();
+eventBus.destroy();
+```
+
+The rest of this guide covers `SemiontApiClient` (HTTP). For `EventBusClient` method details, see the [API Reference](./API-Reference.md#eventbusclient).
 
 ## Authentication
 

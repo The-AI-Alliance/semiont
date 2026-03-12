@@ -2,44 +2,25 @@
  * Get Resource URI Route - W3C Content Negotiation
  *
  * Single endpoint for all resource representations via content negotiation:
- * - Accept: application/ld+json -> returns JSON-LD metadata (default)
- * - Accept: text/plain, text/markdown, etc. -> returns raw representation
+ * - Accept: application/ld+json -> JSON-LD metadata via EventBus (default)
+ * - Accept: text/plain, text/markdown, etc. -> raw representation (binary, stays direct)
  * - ?view=semiont -> redirects to Semiont frontend viewer
- *
- * This implements W3C Web Annotation Data Model requirement that
- * resource URIs be globally resolvable.
  */
 
 import { HTTPException } from 'hono/http-exception';
-import { EventQuery } from '@semiont/event-sourcing';
 import type { ResourcesRouterType } from '../shared';
-import type { components } from '@semiont/core';
 import { getFrontendUrl } from '../../../middleware/content-negotiation';
 import { getPrimaryRepresentation, getPrimaryMediaType, decodeRepresentation } from '@semiont/api-client';
 import { ResourceContext } from '@semiont/make-meaning';
 import { resourceId } from '@semiont/core';
-import { getEntityTypes } from '@semiont/ontology';
+import { eventBusRequest } from '../../../utils/event-bus-request';
 import { getLogger } from '../../../logger';
 
-// Lazy initialization to avoid calling getLogger() at module load time
 const getRouteLogger = () => getLogger().child({ component: 'get-resource-uri' });
 
-type GetResourceResponse = components['schemas']['GetResourceResponse'];
-type Annotation = components['schemas']['Annotation'];
-
 export function registerGetResourceUri(router: ResourcesRouterType) {
-  /**
-   * GET /resources/:id
-   *
-   * W3C-compliant globally resolvable resource URI with full content negotiation:
-   * - Accept: application/ld+json -> JSON-LD metadata (default)
-   * - Accept: text/plain, text/markdown, etc. -> raw representation
-   * - ?view=semiont -> 302 redirect to Semiont frontend viewer
-   */
   router.get('/resources/:id', async (c) => {
     const { id } = c.req.param();
-    const config = c.get('config');
-    const { repStore } = c.get('makeMeaning');
 
     // Check for explicit view=semiont query parameter
     const view = c.req.query('view');
@@ -54,96 +35,73 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
     const acceptHeader = c.req.header('Accept') || 'application/ld+json';
 
     // If requesting raw representation (text/plain, text/markdown, images, etc.)
+    // Binary content stays direct — excluded from EventBus by design
     if (acceptHeader.includes('text/') || acceptHeader.includes('image/') || acceptHeader.includes('application/pdf')) {
+      const { kb } = c.get('makeMeaning');
 
-      // Get resource metadata from view storage
       let resource: any;
       try {
-        resource = await ResourceContext.getResourceMetadata(resourceId(id), config);
+        resource = await ResourceContext.getResourceMetadata(resourceId(id), kb);
       } catch (error: any) {
         getRouteLogger().error('Failed to get resource metadata', {
           resourceId: id,
           error: error instanceof Error ? error.message : String(error),
           stack: error instanceof Error ? error.stack : undefined
         });
-        throw new HTTPException(500, {
-          message: 'Failed to retrieve resource'
-        });
+        throw new HTTPException(500, { message: 'Failed to retrieve resource' });
       }
 
       if (!resource) {
         throw new HTTPException(404, { message: 'Resource not found' });
       }
 
-      // Get primary representation
       const primaryRep = getPrimaryRepresentation(resource);
       if (!primaryRep || !primaryRep.checksum || !primaryRep.mediaType) {
         throw new HTTPException(404, { message: 'Resource representation not found' });
       }
 
-      // Read representation from RepresentationStore using content-addressed lookup
-      const content = await repStore.retrieve(primaryRep.checksum, primaryRep.mediaType);
+      const content = await kb.content.retrieve(primaryRep.checksum, primaryRep.mediaType);
       if (!content) {
         throw new HTTPException(404, { message: 'Resource representation not found' });
       }
 
-      // Set Content-Type header from representation mediaType (includes charset if specified)
       const mediaType = getPrimaryMediaType(resource);
       if (mediaType) {
         c.header('Content-Type', mediaType);
       }
 
-      // For binary formats (images, PDFs), return binary data; for text, decode with correct charset
       if (mediaType?.startsWith('image/') || mediaType === 'application/pdf') {
-        // Convert Buffer to Uint8Array for Hono compatibility
         return c.newResponse(new Uint8Array(content), 200, { 'Content-Type': mediaType });
       } else {
         return c.text(decodeRepresentation(content, mediaType || 'text/plain'));
       }
     }
 
-    // Otherwise, return JSON-LD metadata (default)
+    // JSON-LD metadata path — delegate to EventBus → Gatherer
+    const eventBus = c.get('eventBus');
+    const correlationId = crypto.randomUUID();
 
-    // Read from event store: materializes view from events
-    const { eventStore } = c.get('makeMeaning');
-    const query = new EventQuery(eventStore.log.storage);
-    const events = await query.getResourceEvents(resourceId(id));
-
-    let stored: any;
     try {
-      stored = await eventStore.views.materializer.materialize(events, resourceId(id));
-    } catch (error: any) {
-      // Handle corrupted views or broken event chains gracefully
-      getRouteLogger().error('Failed to materialize view', {
-        resourceId: id,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
-      });
-      throw new HTTPException(500, {
-        message: 'Failed to retrieve resource'
-      });
+      const response = await eventBusRequest(
+        eventBus,
+        'browse:resource-requested',
+        { correlationId, resourceId: resourceId(id) },
+        'browse:resource-result',
+        'browse:resource-failed',
+      );
+
+      c.header('Content-Type', 'application/ld+json; charset=utf-8');
+      return c.json(response);
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message === 'Resource not found') {
+          throw new HTTPException(404, { message: 'Resource not found' });
+        }
+        if (error.name === 'TimeoutError') {
+          throw new HTTPException(504, { message: 'Request timed out' });
+        }
+      }
+      throw error;
     }
-
-    if (!stored) {
-      throw new HTTPException(404, { message: 'Resource not found' });
-    }
-
-    const annotations = stored.annotations.annotations;
-    const entityReferences = annotations.filter((a: Annotation) => {
-      if (a.motivation !== 'linking') return false;
-      const entityTypes = getEntityTypes({ body: a.body });
-      return entityTypes.length > 0;
-    });
-
-    const response: GetResourceResponse = {
-      resource: stored.resource,
-      annotations,
-      entityReferences,
-    };
-
-    // Set Content-Type to JSON-LD
-    c.header('Content-Type', 'application/ld+json; charset=utf-8');
-
-    return c.json(response);
   });
 }

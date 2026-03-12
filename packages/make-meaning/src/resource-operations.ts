@@ -1,28 +1,24 @@
 /**
  * Resource Operations
  *
- * Business logic for resource operations including:
- * - Resource creation (ID generation, content storage, event emission)
- * - Archive/unarchive operations
- * - Entity type tagging (add/remove)
- * - Computing diffs and emitting appropriate events
+ * Business logic for resource operations. All writes go through the EventBus
+ * — the Stower actor subscribes and handles persistence.
+ *
+ * For create: emits yield:create, awaits yield:created / yield:create-failed.
+ * For archive/unarchive: emits mark:archive / mark:unarchive on scoped bus.
+ * For entity type updates: emits mark:update-entity-types.
  */
 
-import type { EventStore } from '@semiont/event-sourcing';
-import type { RepresentationStore } from '@semiont/content';
-import type { components } from '@semiont/core';
-import {
-  CREATION_METHODS,
-  type CreationMethod,
-  resourceId,
-  type UserId,
-  type ResourceId,
-  type EnvironmentConfig,
+import { firstValueFrom, race, timer } from 'rxjs';
+import { map, take } from 'rxjs/operators';
+import type {
+  CreationMethod,
+  UserId,
+  ResourceId,
 } from '@semiont/core';
-import { generateUuid } from './id-generation';
+import type { components } from '@semiont/core';
+import { EventBus } from '@semiont/core';
 
-type CreateResourceResponse = components['schemas']['CreateResourceResponse'];
-type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type ContentFormat = components['schemas']['ContentFormat'];
 
 export interface UpdateResourceInput {
@@ -45,193 +41,71 @@ export interface CreateResourceInput {
 
 export class ResourceOperations {
   /**
-   * Create a new resource
-   * Orchestrates: content storage → event emission → response building
+   * Create a new resource via EventBus → Stower
    */
   static async createResource(
     input: CreateResourceInput,
     userId: UserId,
-    eventStore: EventStore,
-    repStore: RepresentationStore,
-    config: EnvironmentConfig
-  ): Promise<CreateResourceResponse> {
-    // Generate resource ID
-    const rId = resourceId(generateUuid());
+    eventBus: EventBus,
+  ): Promise<ResourceId> {
+    // Set up listeners before emitting
+    const result$ = race(
+      eventBus.get('yield:created').pipe(
+        take(1),
+        map((result) => ({ ok: true as const, result })),
+      ),
+      eventBus.get('yield:create-failed').pipe(
+        take(1),
+        map((failure) => ({ ok: false as const, error: failure.error })),
+      ),
+      timer(30_000).pipe(
+        map(() => ({ ok: false as const, error: new Error('Resource creation timed out') })),
+      ),
+    );
 
-    // Store content
-    const storedRep = await repStore.store(input.content, {
-      mediaType: input.format,
-      language: input.language || undefined,
-      rel: 'original',
-    });
-
-    // Validate creation method
-    const validCreationMethods = Object.values(CREATION_METHODS) as string[];
-    const validatedCreationMethod = input.creationMethod && validCreationMethods.includes(input.creationMethod)
-      ? (input.creationMethod as CreationMethod)
-      : CREATION_METHODS.API;
-
-    // Emit resource.created event
-    await eventStore.appendEvent({
-      type: 'resource.created',
-      resourceId: rId,
-      userId,
-      version: 1,
-      payload: {
-        name: input.name,
-        format: input.format,
-        contentChecksum: storedRep.checksum,
-        contentByteSize: storedRep.byteSize,
-        creationMethod: validatedCreationMethod,
-        entityTypes: input.entityTypes || [],
-        language: input.language || undefined,
-        isDraft: false,
-        generatedFrom: undefined,
-        generationPrompt: undefined,
-      },
-    });
-
-    // Build and return response
-    const backendUrl = config.services.backend?.publicURL;
-    if (!backendUrl) {
-      throw new Error('Backend publicURL not configured');
-    }
-    const normalizedBase = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl;
-
-    const resourceMetadata: ResourceDescriptor = {
-      '@context': 'https://schema.org/',
-      '@id': `${normalizedBase}/resources/${rId}`,
+    // Emit the command
+    eventBus.get('yield:create').next({
       name: input.name,
-      archived: false,
-      entityTypes: input.entityTypes || [],
-      creationMethod: validatedCreationMethod,
-      dateCreated: new Date().toISOString(),
-      representations: [
-        {
-          mediaType: storedRep.mediaType,
-          checksum: storedRep.checksum,
-          byteSize: storedRep.byteSize,
-          rel: 'original',
-          language: storedRep.language,
-        },
-      ],
-    };
+      content: input.content,
+      format: input.format,
+      userId,
+      language: input.language,
+      entityTypes: input.entityTypes,
+      creationMethod: input.creationMethod,
+    });
 
-    return {
-      resource: resourceMetadata,
-      annotations: [],
-    };
+    const outcome = await firstValueFrom(result$);
+    if (!outcome.ok) {
+      throw outcome.error;
+    }
+
+    return outcome.result.resourceId;
   }
 
   /**
-   * Update resource metadata by computing diffs and emitting events
-   * Handles: archived status changes, entity type additions/removals
+   * Update resource metadata via EventBus → Stower
    */
   static async updateResource(
     input: UpdateResourceInput,
-    eventStore: EventStore
+    eventBus: EventBus,
   ): Promise<void> {
-    // Handle archived status change
+    // Handle archived status change (emit on global bus with resourceId for Stower)
     if (input.updatedArchived !== undefined && input.updatedArchived !== input.currentArchived) {
-      await this.updateArchivedStatus(
-        input.resourceId,
-        input.userId,
-        input.updatedArchived,
-        eventStore
-      );
+      if (input.updatedArchived) {
+        eventBus.get('mark:archive').next({ userId: input.userId, resourceId: input.resourceId });
+      } else {
+        eventBus.get('mark:unarchive').next({ userId: input.userId, resourceId: input.resourceId });
+      }
     }
 
     // Handle entity type changes
     if (input.updatedEntityTypes && input.currentEntityTypes) {
-      await this.updateEntityTypes(
-        input.resourceId,
-        input.userId,
-        input.currentEntityTypes,
-        input.updatedEntityTypes,
-        eventStore
-      );
-    }
-  }
-
-  /**
-   * Update archived status by emitting resource.archived or resource.unarchived event
-   */
-  private static async updateArchivedStatus(
-    resourceId: ResourceId,
-    userId: UserId,
-    archived: boolean,
-    eventStore: EventStore
-  ): Promise<void> {
-    if (archived) {
-      await eventStore.appendEvent({
-        type: 'resource.archived',
-        resourceId,
-        userId,
-        version: 1,
-        payload: {
-          reason: undefined,
-        },
-      });
-    } else {
-      await eventStore.appendEvent({
-        type: 'resource.unarchived',
-        resourceId,
-        userId,
-        version: 1,
-        payload: {},
+      eventBus.get('mark:update-entity-types').next({
+        resourceId: input.resourceId,
+        userId: input.userId,
+        currentEntityTypes: input.currentEntityTypes,
+        updatedEntityTypes: input.updatedEntityTypes,
       });
     }
-  }
-
-  /**
-   * Update entity types by computing diff and emitting events for added/removed types
-   */
-  private static async updateEntityTypes(
-    resourceId: ResourceId,
-    userId: UserId,
-    currentEntityTypes: string[],
-    updatedEntityTypes: string[],
-    eventStore: EventStore
-  ): Promise<void> {
-    const diff = this.computeEntityTypeDiff(currentEntityTypes, updatedEntityTypes);
-
-    // Emit entitytag.added for new types
-    for (const entityType of diff.added) {
-      await eventStore.appendEvent({
-        type: 'entitytag.added',
-        resourceId,
-        userId,
-        version: 1,
-        payload: {
-          entityType,
-        },
-      });
-    }
-
-    // Emit entitytag.removed for removed types
-    for (const entityType of diff.removed) {
-      await eventStore.appendEvent({
-        type: 'entitytag.removed',
-        resourceId,
-        userId,
-        version: 1,
-        payload: {
-          entityType,
-        },
-      });
-    }
-  }
-
-  /**
-   * Compute diff between current and updated entity types
-   * Returns arrays of added and removed entity types
-   */
-  private static computeEntityTypeDiff(
-    current: string[],
-    updated: string[]
-  ): { added: string[]; removed: string[] } {
-    const added = updated.filter(et => !current.includes(et));
-    const removed = current.filter(et => !updated.includes(et));
-    return { added, removed };
   }
 }

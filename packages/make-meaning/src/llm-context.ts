@@ -11,8 +11,9 @@ import { AnnotationContext } from './annotation-context';
 import { generateResourceSummary, generateReferenceSuggestions } from './generation/resource-generation';
 import type { InferenceClient } from '@semiont/inference';
 import { getResourceEntityTypes, getResourceId } from '@semiont/api-client';
-import { resourceId as makeResourceId, type EnvironmentConfig, type ResourceId } from '@semiont/core';
+import { resourceId as makeResourceId, type ResourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
+import type { KnowledgeBase } from './knowledge-base';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type ResourceLLMContextResponse = components['schemas']['ResourceLLMContextResponse'];
@@ -32,25 +33,27 @@ export class LLMContext {
   static async getResourceContext(
     resourceId: ResourceId,
     options: LLMContextOptions,
-    config: EnvironmentConfig,
+    kb: KnowledgeBase,
+    publicURL: string,
     inferenceClient: InferenceClient
   ): Promise<ResourceLLMContextResponse> {
     // Get main resource from view storage
-    const mainDoc = await ResourceContext.getResourceMetadata(resourceId, config);
+    const mainDoc = await ResourceContext.getResourceMetadata(resourceId, kb);
     if (!mainDoc) {
       throw new Error('Resource not found');
     }
 
     // Get content for main resource
     const mainContent = options.includeContent
-      ? await ResourceContext.getResourceContent(mainDoc, config)
+      ? await ResourceContext.getResourceContent(mainDoc, kb)
       : undefined;
 
     // Get graph representation (includes related resources and connections)
     const graph = await GraphContext.buildGraphRepresentation(
       resourceId,
       options.maxResources,
-      config
+      kb,
+      publicURL
     );
 
     // Extract related resources from graph nodes (excluding main resource)
@@ -58,7 +61,7 @@ export class LLMContext {
     const resourceIdStr = resourceId.toString();
     for (const node of graph.nodes) {
       if (node.id !== resourceIdStr) {
-        const relatedDoc = await ResourceContext.getResourceMetadata(makeResourceId(node.id), config);
+        const relatedDoc = await ResourceContext.getResourceMetadata(makeResourceId(node.id), kb);
         if (relatedDoc) {
           relatedDocs.push(relatedDoc);
         }
@@ -72,7 +75,7 @@ export class LLMContext {
         relatedDocs.map(async (doc) => {
           const docId = getResourceId(doc);
           if (!docId) return;
-          const content = await ResourceContext.getResourceContent(doc, config);
+          const content = await ResourceContext.getResourceContent(doc, kb);
           if (content) {
             relatedResourcesContent[docId] = content;
           }
@@ -81,7 +84,7 @@ export class LLMContext {
     }
 
     // Get annotations from view storage
-    const annotations = await AnnotationContext.getAllAnnotations(resourceId, config);
+    const annotations = await AnnotationContext.getAllAnnotations(resourceId, kb);
 
     // Generate summary if requested
     const summary = options.includeSummary && mainContent

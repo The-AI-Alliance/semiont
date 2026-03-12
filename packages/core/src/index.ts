@@ -150,6 +150,17 @@ export type {
 // Backend-specific annotation utilities
 export { findBodyItem } from './annotation-utils';
 
+// Annotation assembly (pure functions for building W3C Annotations)
+export {
+  assembleAnnotation,
+  applyBodyOperations,
+  getTextPositionSelector,
+  getSvgSelector,
+  getFragmentSelector,
+  validateSvgMarkup,
+} from './annotation-assembly';
+export type { AssembledAnnotation } from './annotation-assembly';
+
 // Resource types
 export type { UpdateResourceInput, ResourceFilter } from './resource-types';
 
@@ -158,6 +169,9 @@ export type { AnnotationCategory, CreateAnnotationInternal } from './annotation-
 
 // Auth types
 export type { GoogleAuthRequest } from './auth-types';
+
+// ID generation
+export { generateUuid } from './id-generation';
 
 // Utility functions
 export * from './type-guards';

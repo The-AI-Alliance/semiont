@@ -29,7 +29,7 @@ function createEventTracker() {
         events.push({ event: eventName, payload });
       };
 
-      const panelEvents = ['mark:create', 'mark:assist-request'] as const;
+      const panelEvents = ['mark:submit', 'mark:assist-request'] as const;
 
       panelEvents.forEach(eventName => {
         const handler = trackEvent(eventName);
@@ -354,7 +354,7 @@ describe('TaggingPanel Component', () => {
       expect(screen.getByText(/Select category/)).toBeInTheDocument();
     });
 
-    it('should emit mark:createevent when category is selected', async () => {
+    it('should emit mark:submitevent when category is selected', async () => {
       const tracker = createEventTracker();
       const pendingAnnotation = createPendingAnnotation('Selected text');
 
@@ -378,7 +378,7 @@ describe('TaggingPanel Component', () => {
 
       await waitFor(() => {
         expect(tracker.events.some(e =>
-          e.event === 'mark:create' &&
+          e.event === 'mark:submit' &&
           e.payload?.motivation === 'tagging' &&
           e.payload?.body?.[0]?.value === 'Issue' &&
           e.payload?.body?.[0]?.type === 'TextualBody'
@@ -407,7 +407,7 @@ describe('TaggingPanel Component', () => {
       await userEvent.selectOptions(categorySelect!, 'Rule');
 
       await waitFor(() => {
-        const createEvent = tracker.events.find(e => e.event === 'mark:create');
+        const createEvent = tracker.events.find(e => e.event === 'mark:submit');
         expect(createEvent).toBeDefined();
         const body: any[] = createEvent!.payload.body;
 

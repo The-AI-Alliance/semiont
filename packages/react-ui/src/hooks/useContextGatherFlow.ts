@@ -82,12 +82,10 @@ export function useContextGatherFlow(
         setCorrelationContext(context);
         setCorrelationLoading(false);
 
-        if (context) {
-          eventBus.get('gather:complete').next({
-            annotationUri: event.annotationUri,
-            context,
-          });
-        }
+        eventBus.get('gather:complete').next({
+          annotationUri: event.annotationUri,
+          response,
+        });
       } catch (error) {
         const err = error as Error;
         setCorrelationError(err);

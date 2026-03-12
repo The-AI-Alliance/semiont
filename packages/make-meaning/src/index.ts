@@ -11,12 +11,27 @@ export { bootstrapEntityTypes, resetBootstrap } from './bootstrap/entity-types';
 // Views
 export { readEntityTypesProjection } from './views/entity-types-reader';
 
+// Knowledge Base
+export { createKnowledgeBase } from './knowledge-base';
+export type { KnowledgeBase } from './knowledge-base';
+
+// Actors
+export { Gatherer } from './gatherer';
+export { Binder } from './binder';
+export { Stower } from './stower';
+export type { CreateResourceResult } from './stower';
+export { CloneTokenManager } from './clone-token-manager';
+
 // Graph Consumer
 export { GraphDBConsumer } from './graph/consumer';
 
 // Resource operations
 export { ResourceOperations } from './resource-operations';
 export type { UpdateResourceInput, CreateResourceInput } from './resource-operations';
+
+// Annotation assembly (pure functions)
+export { assembleAnnotation, applyBodyOperations } from './annotation-assembly';
+export type { AssembledAnnotation } from './annotation-assembly';
 
 // Annotation operations
 export { AnnotationOperations } from './annotation-operations';
@@ -32,39 +47,11 @@ export type { GraphNode, GraphEdge, GraphRepresentation } from './graph-context'
 export { LLMContext } from './llm-context';
 export type { LLMContextOptions } from './llm-context';
 
-// Detection exports
-export { AnnotationDetection } from './annotation-assistance';
-export { MotivationPrompts } from './detection/motivation-prompts';
-export { MotivationParsers } from './detection/motivation-parsers';
-export type {
-  CommentMatch,
-  HighlightMatch,
-  AssessmentMatch,
-  TagMatch,
-} from './detection/motivation-parsers';
-export { extractEntities } from './detection/entity-extractor';
-export type { ExtractedEntity } from './detection/entity-extractor';
-
-// Generation exports
+// Generation exports (context-building reads stay here; generateResourceFromTopic moved to @semiont/jobs)
 export {
-  generateResourceFromTopic,
   generateResourceSummary,
   generateReferenceSuggestions,
 } from './generation/resource-generation';
-
-// Job workers (exported for direct instantiation if needed)
-export { CommentAnnotationWorker } from './jobs/comment-annotation-worker';
-export { HighlightAnnotationWorker } from './jobs/highlight-annotation-worker';
-export { AssessmentAnnotationWorker } from './jobs/assessment-annotation-worker';
-export { TagAnnotationWorker } from './jobs/tag-annotation-worker';
-export { ReferenceAnnotationWorker } from './jobs/reference-annotation-worker';
-export { GenerationWorker } from './jobs/generation-worker';
-
-// Reasoning exports (future)
-// export { ResourceReasoning } from './resource-reasoning';
-
-// ID generation
-export { generateUuid } from './id-generation';
 
 // Placeholder for initial build
 export const PACKAGE_NAME = '@semiont/make-meaning';

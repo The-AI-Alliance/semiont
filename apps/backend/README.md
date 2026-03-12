@@ -94,7 +94,7 @@ See [Container Documentation](./docs/CONTAINER.md) for advanced usage, Docker Co
 
 ## Technology Stack
 
-- **Architecture**: Public REST API (browser-accessible)
+- **Architecture**: EventBus-first with HTTP transport (routes delegate to RxJS EventBus actors)
 - **Runtime**: Node.js with TypeScript
 - **Web Framework**: [Hono](https://hono.dev/) - Fast, lightweight web framework
 - **Database**: PostgreSQL with [Prisma ORM](https://prisma.io/)
@@ -106,6 +106,46 @@ See [Container Documentation](./docs/CONTAINER.md) for advanced usage, Docker Co
 - **MCP Integration**: Model Context Protocol server for AI assistant access
 
 ## Architecture Highlights
+
+### EventBus-Delegated Routes
+
+All knowledge-domain HTTP routes are thin wrappers that delegate to the **EventBus**. Routes emit a request event with a `correlationId`, await the correlated response or failure event, and translate the result to HTTP. This means the entire knowledge domain can operate without HTTP — the EventBus is the primary API surface.
+
+```typescript
+// Typical route pattern — thin HTTP wrapper over EventBus
+router.get('/resources', async (c) => {
+  const response = await eventBusRequest(
+    eventBus,
+    'browse:resources-requested',      // request event
+    { correlationId, search, limit },   // payload
+    'browse:resources-result',          // success event
+    'browse:resources-failed',          // failure event
+  );
+  return c.json(response);
+});
+```
+
+**EventBus-delegated routes** (read operations via request-response):
+- Resource listing, metadata, annotations, events, history → `browse:*` events (Gatherer handles)
+- Referenced-by queries → `bind:referenced-by-requested` (Binder handles)
+- Entity type listing → `mark:entity-types-requested` (Gatherer handles)
+- Clone token operations → `yield:clone-*` events (CloneTokenManager handles)
+- Job status → `job:status-requested` (job queue subscription handles)
+- LLM context → `gather:*` events (Gatherer handles)
+
+**Fire-and-forget mutations** (already event-driven):
+- Annotation create/delete/update → `mark:*` events (Stower handles)
+- Resource create → `yield:create` (Stower handles)
+- Entity type addition → `mark:add-entity-type` (Stower handles)
+
+**HTTP-only routes** (excluded from EventBus by design):
+- Auth (password, Google, refresh, MCP, terms, logout) — PostgreSQL/Prisma dependent
+- Admin (users CRUD, stats, OAuth config) — PostgreSQL/Prisma dependent
+- Health/Status — infrastructure monitoring
+- Binary content retrieval (`GET /resources/:id` with `Accept: text/*`, `image/*`, `application/pdf`) — large file transfer
+- Resource creation (`POST /resources` with multipart) — binary file upload
+
+The `eventBusRequest()` helper in `src/utils/event-bus-request.ts` implements the correlationId-based request-response pattern used by all delegated routes.
 
 ### W3C Web Annotation Support
 
@@ -198,7 +238,9 @@ apps/backend/
 │   ├── DEPLOYMENT.md         # Deployment procedures
 │   └── CONTRIBUTING.md       # Contributing guidelines
 ├── src/
-│   ├── routes/               # Modular route definitions
+│   ├── routes/               # Modular route definitions (thin EventBus wrappers)
+│   ├── utils/                # Shared utilities
+│   │   └── event-bus-request.ts  # correlationId request-response helper
 │   ├── auth/                 # Authentication & authorization
 │   ├── middleware/           # HTTP middleware
 │   ├── types/                # Type definitions
@@ -424,4 +466,4 @@ For detailed troubleshooting, see [Development Guide](./docs/DEVELOPMENT.md#trou
 
 ---
 
-**Last Updated**: 2025-10-25
+**Last Updated**: 2026-03-11

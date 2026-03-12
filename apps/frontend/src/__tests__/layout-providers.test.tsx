@@ -244,9 +244,11 @@ describe('Layout Providers', () => {
 
       render(
         <QueryClientProvider client={queryClient}>
-          <KnowledgeLayout>
-            <TestComponent />
-          </KnowledgeLayout>
+          <EventBusProvider>
+            <KnowledgeLayout>
+              <TestComponent />
+            </KnowledgeLayout>
+          </EventBusProvider>
         </QueryClientProvider>
       );
 
@@ -263,9 +265,11 @@ describe('Layout Providers', () => {
 
       render(
         <QueryClientProvider client={queryClient}>
-          <KnowledgeLayout>
-            <TestComponent />
-          </KnowledgeLayout>
+          <EventBusProvider>
+            <KnowledgeLayout>
+              <TestComponent />
+            </KnowledgeLayout>
+          </EventBusProvider>
         </QueryClientProvider>
       );
 

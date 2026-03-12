@@ -22,7 +22,7 @@ export async function handleCreateResource(client: SemiontApiClient, auth: Acces
   return {
     content: [{
       type: 'text' as const,
-      text: `Resource created successfully:\nID: ${data.resource.id}\nName: ${data.resource.name}\nEntity Types: ${data.resource.entityTypes?.join(', ') || 'None'}`,
+      text: `Resource created:\nID: ${data.resourceId}`,
     }],
   };
 }
@@ -132,16 +132,10 @@ export async function handleCreateAnnotation(client: SemiontApiClient, auth: Acc
     body,
   }, { auth });
 
-  // Extract text using SDK utility
-  const targetSelector = typeof data.annotation.target === 'string'
-    ? undefined
-    : data.annotation.target.selector;
-  const exactText = getExactText(targetSelector);
-
   return {
     content: [{
       type: 'text' as const,
-      text: `Annotation created:\nID: ${data.annotation.id}\nMotivation: ${data.annotation.motivation}\nText: ${exactText}`,
+      text: `Annotation created:\nID: ${data.annotationId}`,
     }],
   };
 }
@@ -159,7 +153,7 @@ export async function handleSaveAnnotation(_client: SemiontApiClient, _auth: Acc
 }
 
 export async function handleResolveAnnotation(client: SemiontApiClient, auth: AccessToken, args: any) {
-  const data = await client.updateAnnotationBody(args?.selectionId, {
+  await client.updateAnnotationBody(args?.selectionId, {
     resourceId: args?.sourceResourceId,
     operations: [{
       op: 'add',
@@ -174,7 +168,7 @@ export async function handleResolveAnnotation(client: SemiontApiClient, auth: Ac
   return {
     content: [{
       type: 'text' as const,
-      text: `Annotation linked to resource:\nAnnotation ID: ${data.annotation.id}\nLinked to: ${args?.resourceId || 'null'}`,
+      text: `Annotation linked to resource:\nAnnotation ID: ${args?.selectionId}\nLinked to: ${args?.resourceId || 'null'}`,
     }],
   };
 }

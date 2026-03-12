@@ -273,13 +273,7 @@ export class ViewMaterializer {
   private applyEventToAnnotations(annotations: ResourceAnnotations, event: ResourceEvent): void {
     switch (event.type) {
       case 'annotation.added':
-        // Event payload contains Omit<Annotation, 'creator' | 'created'> (includes @context and type)
-        // Add creator/created from event metadata
-        annotations.annotations.push({
-          ...event.payload.annotation,
-          creator: didToAgent(event.userId),
-          created: new Date(event.timestamp).toISOString(),
-        });
+        annotations.annotations.push(event.payload.annotation);
         break;
 
       case 'annotation.removed':

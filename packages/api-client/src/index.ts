@@ -20,8 +20,9 @@
  * ```
  */
 
-// Export client
+// Export clients
 export * from './client';
+export { EventBusClient } from './event-bus-client';
 
 // Logger interface for observability (re-export from core)
 export type { Logger } from '@semiont/core';

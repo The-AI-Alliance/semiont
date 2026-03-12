@@ -4,55 +4,27 @@
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
 import { ResourceContext } from '../resource-context';
-import type { EnvironmentConfig, ResourceId } from '@semiont/core';
+import type { ResourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
+import type { KnowledgeBase } from '../knowledge-base';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
 // Mock dependencies
-vi.mock('@semiont/event-sourcing', () => ({
-  FilesystemViewStorage: vi.fn(),
-}));
-
-vi.mock('@semiont/content', () => ({
-  FilesystemRepresentationStore: vi.fn(),
-}));
-
 vi.mock('@semiont/api-client', () => ({
   getPrimaryRepresentation: vi.fn(),
   decodeRepresentation: vi.fn(),
 }));
 
-import { FilesystemViewStorage } from '@semiont/event-sourcing';
-import { FilesystemRepresentationStore } from '@semiont/content';
 import { getPrimaryRepresentation, decodeRepresentation } from '@semiont/api-client';
 
 describe('ResourceContext', () => {
-  let mockConfig: EnvironmentConfig;
+  let mockKb: KnowledgeBase;
   let mockViewStorage: any;
   let mockRepStore: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
-
-    mockConfig = {
-      services: {
-        filesystem: { path: '/test/data' },
-        backend: {
-          publicURL: 'http://localhost:4000',
-          platform: 'local',
-          port: 4000,
-          corsOrigin: '*',
-        },
-      },
-      storage: {
-        base: '/test/storage',
-      },
-      _metadata: {
-        environment: 'test',
-        projectRoot: '/test',
-      },
-    } as unknown as EnvironmentConfig;
 
     mockViewStorage = {
       get: vi.fn(),
@@ -63,8 +35,12 @@ describe('ResourceContext', () => {
       retrieve: vi.fn(),
     };
 
-    vi.mocked(FilesystemViewStorage).mockImplementation(() => mockViewStorage);
-    vi.mocked(FilesystemRepresentationStore).mockImplementation(() => mockRepStore);
+    mockKb = {
+      eventStore: {} as any,
+      views: mockViewStorage,
+      content: mockRepStore,
+      graph: {} as any,
+    };
   });
 
   describe('getResourceMetadata', () => {
@@ -99,7 +75,7 @@ describe('ResourceContext', () => {
         },
       });
 
-      const result = await ResourceContext.getResourceMetadata('test-123' as ResourceId, mockConfig);
+      const result = await ResourceContext.getResourceMetadata('test-123' as ResourceId, mockKb);
 
       expect(result).toEqual(mockResource);
       expect(mockViewStorage.get).toHaveBeenCalledWith('test-123');
@@ -108,29 +84,12 @@ describe('ResourceContext', () => {
     test('should return null when resource not found', async () => {
       mockViewStorage.get.mockResolvedValue(null);
 
-      const result = await ResourceContext.getResourceMetadata('nonexistent' as ResourceId, mockConfig);
+      const result = await ResourceContext.getResourceMetadata('nonexistent' as ResourceId, mockKb);
 
       expect(result).toBeNull();
       expect(mockViewStorage.get).toHaveBeenCalledWith('nonexistent');
     });
 
-    test('should initialize FilesystemViewStorage with correct config', async () => {
-      mockViewStorage.get.mockResolvedValue({
-        resource: mockResource,
-        annotations: {
-          highlights: [],
-          assessments: [],
-          comments: [],
-          tags: [],
-          links: [],
-          entityReferences: [],
-        },
-      });
-
-      await ResourceContext.getResourceMetadata('test-123' as ResourceId, mockConfig);
-
-      expect(FilesystemViewStorage).toHaveBeenCalledWith('/test/data', '/test');
-    });
   });
 
   describe('listResources', () => {
@@ -193,7 +152,7 @@ describe('ResourceContext', () => {
         },
       ]);
 
-      const result = await ResourceContext.listResources(undefined, mockConfig);
+      const result = await ResourceContext.listResources(undefined, mockKb);
 
       expect(result).toHaveLength(2);
       expect(result).toContainEqual(mockResource1);
@@ -226,7 +185,7 @@ describe('ResourceContext', () => {
         },
       ]);
 
-      const result = await ResourceContext.listResources({ archived: false }, mockConfig);
+      const result = await ResourceContext.listResources({ archived: false }, mockKb);
 
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual(mockResource1);
@@ -259,7 +218,7 @@ describe('ResourceContext', () => {
         },
       ]);
 
-      const result = await ResourceContext.listResources({ archived: true }, mockConfig);
+      const result = await ResourceContext.listResources({ archived: true }, mockKb);
 
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual(mockResource3);
@@ -292,7 +251,7 @@ describe('ResourceContext', () => {
         },
       ]);
 
-      const result = await ResourceContext.listResources({ search: 'special' }, mockConfig);
+      const result = await ResourceContext.listResources({ search: 'special' }, mockKb);
 
       expect(result).toHaveLength(1);
       expect(result[0]?.name).toBe('Special Document');
@@ -324,7 +283,7 @@ describe('ResourceContext', () => {
         },
       ]);
 
-      const result = await ResourceContext.listResources({ search: 'resource' }, mockConfig);
+      const result = await ResourceContext.listResources({ search: 'resource' }, mockKb);
 
       expect(result).toHaveLength(2);
     });
@@ -368,7 +327,7 @@ describe('ResourceContext', () => {
 
       const result = await ResourceContext.listResources(
         { archived: true, search: 'special' },
-        mockConfig
+        mockKb
       );
 
       expect(result).toHaveLength(1);
@@ -390,7 +349,7 @@ describe('ResourceContext', () => {
         },
       ]);
 
-      const result = await ResourceContext.listResources({ search: 'nonexistent' }, mockConfig);
+      const result = await ResourceContext.listResources({ search: 'nonexistent' }, mockKb);
 
       expect(result).toEqual([]);
     });
@@ -432,7 +391,7 @@ describe('ResourceContext', () => {
         },
       ]);
 
-      const result = await ResourceContext.listResources(undefined, mockConfig);
+      const result = await ResourceContext.listResources(undefined, mockKb);
 
       // Should be sorted newest first
       expect(result[0]?.dateCreated).toBe('2024-01-03T00:00:00Z');
@@ -476,7 +435,7 @@ describe('ResourceContext', () => {
         },
       ]);
 
-      const result = await ResourceContext.listResources(undefined, mockConfig);
+      const result = await ResourceContext.listResources(undefined, mockKb);
 
       expect(result).toHaveLength(2);
       // Resource with date should come first
@@ -516,7 +475,7 @@ describe('ResourceContext', () => {
       mockRepStore.retrieve.mockResolvedValue(Buffer.from(content));
       vi.mocked(decodeRepresentation).mockReturnValue(content);
 
-      const result = await ResourceContext.addContentPreviews([mockResource], mockConfig);
+      const result = await ResourceContext.addContentPreviews([mockResource], mockKb);
 
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({
@@ -557,7 +516,7 @@ describe('ResourceContext', () => {
         .mockReturnValueOnce('Content 1')
         .mockReturnValueOnce('Content 2');
 
-      const result = await ResourceContext.addContentPreviews(resources, mockConfig);
+      const result = await ResourceContext.addContentPreviews(resources, mockKb);
 
       expect(result).toHaveLength(2);
       expect(result[0]?.content).toBe('Content 1');
@@ -572,7 +531,7 @@ describe('ResourceContext', () => {
 
       vi.mocked(getPrimaryRepresentation).mockReturnValue(undefined);
 
-      const result = await ResourceContext.addContentPreviews([resourceWithoutReps], mockConfig);
+      const result = await ResourceContext.addContentPreviews([resourceWithoutReps], mockKb);
 
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({ ...resourceWithoutReps, content: '' });
@@ -593,7 +552,7 @@ describe('ResourceContext', () => {
 
       vi.mocked(getPrimaryRepresentation).mockReturnValue(repWithoutChecksum);
 
-      const result = await ResourceContext.addContentPreviews([resourceNoChecksum], mockConfig);
+      const result = await ResourceContext.addContentPreviews([resourceNoChecksum], mockKb);
 
       expect(result).toHaveLength(1);
       expect(result[0]?.content).toBe('');
@@ -610,14 +569,14 @@ describe('ResourceContext', () => {
 
       mockRepStore.retrieve.mockRejectedValue(new Error('Content not found'));
 
-      const result = await ResourceContext.addContentPreviews([mockResource], mockConfig);
+      const result = await ResourceContext.addContentPreviews([mockResource], mockKb);
 
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({ ...mockResource, content: '' });
     });
 
     test('should handle empty input array', async () => {
-      const result = await ResourceContext.addContentPreviews([], mockConfig);
+      const result = await ResourceContext.addContentPreviews([], mockKb);
 
       expect(result).toEqual([]);
       expect(mockRepStore.retrieve).not.toHaveBeenCalled();
@@ -636,29 +595,11 @@ describe('ResourceContext', () => {
       mockRepStore.retrieve.mockResolvedValue(Buffer.from(longContent));
       vi.mocked(decodeRepresentation).mockReturnValue(longContent);
 
-      const result = await ResourceContext.addContentPreviews([mockResource], mockConfig);
+      const result = await ResourceContext.addContentPreviews([mockResource], mockKb);
 
       expect(result[0]?.content).toHaveLength(200);
       expect(result[0]?.content).toBe(longContent.slice(0, 200));
     });
 
-    test('should initialize FilesystemRepresentationStore with correct config', async () => {
-      vi.mocked(getPrimaryRepresentation).mockReturnValue({
-        mediaType: 'text/plain',
-        checksum: 'abc123',
-        byteSize: 100,
-        rel: 'original',
-      });
-
-      mockRepStore.retrieve.mockResolvedValue(Buffer.from('test'));
-      vi.mocked(decodeRepresentation).mockReturnValue('test');
-
-      await ResourceContext.addContentPreviews([mockResource], mockConfig);
-
-      expect(FilesystemRepresentationStore).toHaveBeenCalledWith(
-        { basePath: '/test/data' },
-        '/test'
-      );
-    });
   });
 });

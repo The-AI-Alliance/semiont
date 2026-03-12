@@ -44,15 +44,8 @@
       }
     },
     "responses": {
-      "200": {
-        "description": "Entity type added successfully",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "../components/schemas/AddEntityTypeResponse.json"
-            }
-          }
-        }
+      "202": {
+        "description": "Entity type addition accepted"
       },
       "403": {
         "description": "Forbidden - Moderator or Admin access required",

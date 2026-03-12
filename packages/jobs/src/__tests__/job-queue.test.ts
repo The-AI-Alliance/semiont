@@ -26,6 +26,9 @@ function createPendingDetectionJob(id: string): PendingJob<DetectionParams> {
       id: jobId(id),
       type: 'reference-annotation',
       userId: userId('user-1'),
+      userName: 'Test User',
+      userEmail: 'test@test.local',
+      userDomain: 'test.local',
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3,
@@ -44,6 +47,9 @@ function createRunningDetectionJob(id: string): RunningJob<DetectionParams, Dete
       id: jobId(id),
       type: 'reference-annotation',
       userId: userId('user-1'),
+      userName: 'Test User',
+      userEmail: 'test@test.local',
+      userDomain: 'test.local',
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3,
@@ -70,6 +76,9 @@ function createCompleteDetectionJob(id: string): CompleteJob<DetectionParams, De
       id: jobId(id),
       type: 'reference-annotation',
       userId: userId('user-1'),
+      userName: 'Test User',
+      userEmail: 'test@test.local',
+      userDomain: 'test.local',
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3,
@@ -95,6 +104,9 @@ function createFailedDetectionJob(id: string): FailedJob<DetectionParams> {
       id: jobId(id),
       type: 'reference-annotation',
       userId: userId('user-1'),
+      userName: 'Test User',
+      userEmail: 'test@test.local',
+      userDomain: 'test.local',
       created: new Date().toISOString(),
       retryCount: 1,
       maxRetries: 3,
@@ -116,6 +128,9 @@ function createPendingGenerationJob(id: string): PendingJob<GenerationParams> {
       id: jobId(id),
       type: 'generation',
       userId: userId('user-1'),
+      userName: 'Test User',
+      userEmail: 'test@test.local',
+      userDomain: 'test.local',
       created: new Date().toISOString(),
       retryCount: 0,
       maxRetries: 3,
@@ -123,6 +138,21 @@ function createPendingGenerationJob(id: string): PendingJob<GenerationParams> {
     params: {
       referenceId: annotationId('ann-1'),
       sourceResourceId: resourceId('res-1'),
+      sourceResourceName: 'Test Resource',
+      annotation: {
+        '@context': 'http://www.w3.org/ns/anno.jsonld',
+        type: 'Annotation',
+        id: 'http://localhost:4100/annotations/test-anno-1',
+        motivation: 'linking',
+        target: {
+          source: 'http://localhost:4100/resources/test-resource-1',
+          selector: [
+            { type: 'TextPositionSelector', start: 0, end: 10 },
+            { type: 'TextQuoteSelector', exact: 'test text' }
+          ]
+        },
+        body: [{ type: 'TextualBody', value: 'Person', purpose: 'tagging' }]
+      },
       prompt: 'Generate a summary',
     },
   };
