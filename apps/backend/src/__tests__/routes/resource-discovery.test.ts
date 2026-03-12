@@ -75,6 +75,13 @@ const setupMocks = () => {
           eventBus.get('gather:resource-failed').next({ resourceUri: event.resourceUri, error });
         }
       });
+      // Bridge referenced-by events
+      eventBus.get('bind:referenced-by-requested').subscribe((e: any) => {
+        eventBus.get('bind:referenced-by-result').next({
+          correlationId: e.correlationId,
+          response: { referencedBy: [] },
+        });
+      });
       return {
         eventStore: { getView: vi.fn().mockResolvedValue({ resource: {}, annotations: { annotations: [] } }) },
         graphDb: {
