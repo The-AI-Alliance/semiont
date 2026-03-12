@@ -44,26 +44,14 @@ describe('SemiontApiClient - Archive Operations', () => {
 
   describe('updateResource - archive operations', () => {
     test('should archive a resource', async () => {
-      const mockResponse = {
-        resource: {
-          id: 'test-resource-id',
-          name: 'Test Resource',
-          archived: true,
-          entityTypes: [],
-        },
-        annotations: [],
-        entityReferences: [],
-      };
-
       vi.mocked(mockKy.patch).mockReturnValue({
-        json: vi.fn().mockResolvedValue(mockResponse),
+        text: vi.fn().mockResolvedValue(''),
       } as any);
 
-      const result = await client.updateResource(testResourceUri, {
+      await client.updateResource(testResourceUri, {
         archived: true,
       });
 
-      expect(result.resource.archived).toBe(true);
       expect(mockKy.patch).toHaveBeenCalledWith(
         testResourceUri,
         expect.objectContaining({
@@ -73,26 +61,14 @@ describe('SemiontApiClient - Archive Operations', () => {
     });
 
     test('should unarchive a resource', async () => {
-      const mockResponse = {
-        resource: {
-          id: 'test-resource-id',
-          name: 'Test Resource',
-          archived: false,
-          entityTypes: [],
-        },
-        annotations: [],
-        entityReferences: [],
-      };
-
       vi.mocked(mockKy.patch).mockReturnValue({
-        json: vi.fn().mockResolvedValue(mockResponse),
+        text: vi.fn().mockResolvedValue(''),
       } as any);
 
-      const result = await client.updateResource(testResourceUri, {
+      await client.updateResource(testResourceUri, {
         archived: false,
       });
 
-      expect(result.resource.archived).toBe(false);
       expect(mockKy.patch).toHaveBeenCalledWith(
         testResourceUri,
         expect.objectContaining({
@@ -102,28 +78,15 @@ describe('SemiontApiClient - Archive Operations', () => {
     });
 
     test('should update entity types and archive in single operation', async () => {
-      const mockResponse = {
-        resource: {
-          id: 'test-resource-id',
-          name: 'Test Resource',
-          archived: true,
-          entityTypes: ['article', 'draft'],
-        },
-        annotations: [],
-        entityReferences: [],
-      };
-
       vi.mocked(mockKy.patch).mockReturnValue({
-        json: vi.fn().mockResolvedValue(mockResponse),
+        text: vi.fn().mockResolvedValue(''),
       } as any);
 
-      const result = await client.updateResource(testResourceUri, {
+      await client.updateResource(testResourceUri, {
         archived: true,
         entityTypes: ['article', 'draft'],
       });
 
-      expect(result.resource.archived).toBe(true);
-      expect(result.resource.entityTypes).toEqual(['article', 'draft']);
       expect(mockKy.patch).toHaveBeenCalledWith(
         testResourceUri,
         expect.objectContaining({

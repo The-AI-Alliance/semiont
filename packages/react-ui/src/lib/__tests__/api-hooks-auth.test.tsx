@@ -52,10 +52,10 @@ describe('API Hooks Authentication', () => {
       getResourceAnnotations: vi.fn().mockResolvedValue({ annotations: [] }),
       getResourceReferencedBy: vi.fn().mockResolvedValue({ references: [] }),
       getResourceByToken: vi.fn().mockResolvedValue({ resource: {} }),
-      createResource: vi.fn().mockResolvedValue({ resource: {} }),
-      updateResource: vi.fn().mockResolvedValue({ resource: {} }),
+      createResource: vi.fn().mockResolvedValue({ resourceId: 'test-id' }),
+      updateResource: vi.fn().mockResolvedValue(undefined),
       generateCloneToken: vi.fn().mockResolvedValue({ token: 'clone-token' }),
-      createResourceFromToken: vi.fn().mockResolvedValue({ resource: {} }),
+      createResourceFromToken: vi.fn().mockResolvedValue({ resourceId: 'test-id' }),
 
       // Annotations
       getAnnotation: vi.fn().mockResolvedValue({ annotation: {} }),

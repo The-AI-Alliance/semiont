@@ -108,15 +108,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Resource updated successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GetResourceResponse"
-                }
-              }
-            }
+          "202": {
+            "description": "Update accepted"
           },
           "404": {
             "description": "Resource not found"
@@ -1010,12 +1003,20 @@
           }
         },
         "responses": {
-          "201": {
-            "description": "Resource created successfully",
+          "202": {
+            "description": "Resource creation accepted",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreateResourceResponse"
+                  "type": "object",
+                  "properties": {
+                    "resourceId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "resourceId"
+                  ]
                 }
               }
             }
@@ -1702,12 +1703,20 @@
           }
         },
         "responses": {
-          "201": {
-            "description": "Resource created successfully",
+          "202": {
+            "description": "Resource creation accepted",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreateResourceResponse"
+                  "type": "object",
+                  "properties": {
+                    "resourceId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "resourceId"
+                  ]
                 }
               }
             }
@@ -3449,24 +3458,6 @@
           "token",
           "name",
           "content"
-        ]
-      },
-      "CreateResourceFromTokenResponse": {
-        "type": "object",
-        "properties": {
-          "resource": {
-            "$ref": "#/components/schemas/ResourceDescriptor"
-          },
-          "annotations": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Annotation"
-            }
-          }
-        },
-        "required": [
-          "resource",
-          "annotations"
         ]
       },
       "CreateResourceRequest": {

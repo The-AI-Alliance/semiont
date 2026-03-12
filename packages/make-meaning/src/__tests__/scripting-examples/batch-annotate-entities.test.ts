@@ -19,8 +19,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventBus, type Logger } from '@semiont/core';
 import { startMakeMeaning, ResourceOperations } from '../..';
 import type { EnvironmentConfig } from '@semiont/core';
-import { userId, entityType, resourceId } from '@semiont/core';
-import { getResourceId } from '@semiont/api-client';
+import { userId, entityType } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -163,10 +162,8 @@ describe('Scripting Example: Batch Entity Detection', () => {
     let processedCount = 0;
 
     // Subscribe to events for each resource
-    for (const { resource } of resources) {
-      const rId = getResourceId(resource);
-      expect(rId).toBeDefined();
-      const resourceBus = eventBus.scope(rId!);
+    for (const rId of resources) {
+      const resourceBus = eventBus.scope(rId);
 
       // Track progress
       resourceBus.get('mark:progress').subscribe(progress => {
@@ -177,11 +174,11 @@ describe('Scripting Example: Batch Entity Detection', () => {
       // Subscribe to domain event 'make-meaning:event' and filter for job.completed/job.failed
       resourceBus.get('make-meaning:event').subscribe((event) => {
         if (event.type === 'job.completed') {
-          completions.set(rId!, { success: true });
+          completions.set(rId, { success: true });
           processedCount++;
           console.log(`✓ [${rId}] Detection complete (${processedCount}/${resources.length})`);
         } else if (event.type === 'job.failed') {
-          completions.set(rId!, { success: false, message: event.payload.error });
+          completions.set(rId, { success: false, message: event.payload.error });
           processedCount++;
           console.log(`✗ [${rId}] Detection failed: ${event.payload.error || 'Unknown error'} (${processedCount}/${resources.length})`);
         }
@@ -189,11 +186,10 @@ describe('Scripting Example: Batch Entity Detection', () => {
     }
 
     // Enqueue detection jobs for all resources
+    const names = ['Document 1', 'Document 2', 'Document 3'];
     console.log('Enqueuing detection jobs...\n');
     for (let i = 0; i < resources.length; i++) {
-      const { resource } = resources[i];
-      const rId = getResourceId(resource);
-      expect(rId).toBeDefined();
+      const rId = resources[i];
 
       await makeMeaning.jobQueue.createJob({
         status: 'pending',
@@ -209,11 +205,11 @@ describe('Scripting Example: Batch Entity Detection', () => {
           maxRetries: 1
         },
         params: {
-          resourceId: resourceId(rId!),
+          resourceId: rId,
           entityTypes: [entityType('Person'), entityType('Organization')]
         }
       });
-      console.log(`→ Queued: ${resource.name} (${rId})`);
+      console.log(`→ Queued: ${names[i]} (${rId})`);
     }
 
     // Wait for all completions (with timeout)
@@ -276,26 +272,22 @@ describe('Scripting Example: Batch Entity Detection', () => {
     // Track completions
     const completions = new Map<string, { success: boolean }>();
 
-    for (const { resource } of resources) {
-      const rId = getResourceId(resource);
-      expect(rId).toBeDefined();
-      const resourceBus = eventBus.scope(rId!);
+    for (const rId of resources) {
+      const resourceBus = eventBus.scope(rId);
 
       // Subscribe to domain event 'make-meaning:event' and filter for job.completed/job.failed
       resourceBus.get('make-meaning:event').subscribe((event) => {
         if (event.type === 'job.completed') {
-          completions.set(rId!, { success: true });
+          completions.set(rId, { success: true });
         } else if (event.type === 'job.failed') {
-          completions.set(rId!, { success: false });
+          completions.set(rId, { success: false });
         }
       });
     }
 
     // Enqueue jobs
     for (let i = 0; i < resources.length; i++) {
-      const { resource } = resources[i];
-      const rId = getResourceId(resource);
-      expect(rId).toBeDefined();
+      const rId = resources[i];
 
       await makeMeaning.jobQueue.createJob({
         status: 'pending',
@@ -311,7 +303,7 @@ describe('Scripting Example: Batch Entity Detection', () => {
           maxRetries: 1
         },
         params: {
-          resourceId: resourceId(rId!),
+          resourceId: rId,
           entityTypes: [entityType('Person')]
         }
       });

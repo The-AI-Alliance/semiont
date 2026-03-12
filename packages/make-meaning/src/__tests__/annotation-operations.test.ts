@@ -86,7 +86,7 @@ describe('AnnotationOperations', () => {
 
     // Create a test resource for annotations
     const content = Buffer.from('This is test content for annotations. It has multiple sentences. We will annotate various parts.', 'utf-8');
-    const response = await ResourceOperations.createResource(
+    const resId = await ResourceOperations.createResource(
       {
         name: 'Annotation Test Resource',
         content,
@@ -96,9 +96,8 @@ describe('AnnotationOperations', () => {
       eventBus,
     );
 
-    testResourceUri = response.resource['@id'];
-    const idMatch = testResourceUri.match(/\/resources\/(.+)$/);
-    testResourceId = idMatch![1];
+    testResourceId = resId;
+    testResourceUri = `${publicURL}/resources/${resId}`;
   });
 
   afterAll(async () => {

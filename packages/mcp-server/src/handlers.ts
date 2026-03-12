@@ -22,7 +22,7 @@ export async function handleCreateResource(client: SemiontApiClient, auth: Acces
   return {
     content: [{
       type: 'text' as const,
-      text: `Resource created successfully:\nID: ${data.resource.id}\nName: ${data.resource.name}\nEntity Types: ${data.resource.entityTypes?.join(', ') || 'None'}`,
+      text: `Resource created:\nID: ${data.resourceId}`,
     }],
   };
 }

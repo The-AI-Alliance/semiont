@@ -26,7 +26,6 @@ import { getPrimaryRepresentation, getResourceEntityTypes } from '@semiont/api-c
 
 type GetResourceByTokenResponse = components['schemas']['GetResourceByTokenResponse'];
 type CreateResourceFromTokenRequest = components['schemas']['CreateResourceFromTokenRequest'];
-type CreateResourceFromTokenResponse = components['schemas']['CreateResourceFromTokenResponse'];
 type CloneResourceWithTokenResponse = components['schemas']['CloneResourceWithTokenResponse'];
 
 // Simple in-memory token store (replace with Redis/DB in production)
@@ -141,9 +140,7 @@ export function registerTokenRoutes(router: ResourcesRouterType) {
       // Clean up token
       cloneTokens.delete(token);
 
-      const response: CreateResourceFromTokenResponse = result;
-
-      return c.json(response, 201);
+      return c.json({ resourceId: result }, 202);
     }
   );
 

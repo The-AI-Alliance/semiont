@@ -21,7 +21,6 @@ import type { EnvironmentConfig } from '@semiont/core';
 import type { components } from '@semiont/core';
 
 type ListResourcesResponse = components['schemas']['ListResourcesResponse'];
-type GetResourceResponse = components['schemas']['GetResourceResponse'];
 
 type Variables = {
   user: User;
@@ -295,7 +294,7 @@ describe('Resource CRUD HTTP Contract', () => {
   });
 
   describe('PATCH /resources/:id (update)', () => {
-    it('should return 200 on successful update', async () => {
+    it('should return 202 on successful update', async () => {
       const response = await app.request('/resources/test-resource', {
         method: 'PATCH',
         headers: {
@@ -307,7 +306,7 @@ describe('Resource CRUD HTTP Contract', () => {
         }),
       });
 
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(202);
     });
 
     it('should return 404 for non-existent resource', async () => {
@@ -352,9 +351,7 @@ describe('Resource CRUD HTTP Contract', () => {
         }),
       });
 
-      expect(response.status).toBe(200);
-      const data = await response.json() as GetResourceResponse;
-      expect(data.resource.archived).toBe(true);
+      expect(response.status).toBe(202);
     });
   });
 });

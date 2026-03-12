@@ -274,7 +274,7 @@ export class SemiontApiClient {
     creationMethod?: string;
     sourceAnnotationId?: string;
     sourceResourceId?: string;
-  }, options?: RequestOptions): Promise<ResponseContent<paths['/resources']['post']>> {
+  }, options?: RequestOptions): Promise<{ resourceId: string }> {
     // Build FormData
     const formData = new FormData();
     formData.append('name', data.name);
@@ -443,13 +443,13 @@ export class SemiontApiClient {
     resourceUri: ResourceUri,
     data: RequestContent<paths['/resources/{id}']['patch']>,
     options?: RequestOptions
-  ): Promise<ResponseContent<paths['/resources/{id}']['patch']>> {
+  ): Promise<void> {
     // resourceUri is already a full URI, use it directly
-    return this.http.patch(resourceUri, {
+    await this.http.patch(resourceUri, {
       json: data,
       ...options,
       auth: options?.auth
-    } as any).json();
+    } as any).text();
   }
 
   async getResourceEvents(resourceUri: ResourceUri, options?: RequestOptions): Promise<{ events: any[] }> {
@@ -516,7 +516,7 @@ export class SemiontApiClient {
   async createResourceFromToken(
     data: RequestContent<paths['/api/clone-tokens/create-resource']['post']>,
     options?: RequestOptions
-  ): Promise<ResponseContent<paths['/api/clone-tokens/create-resource']['post']>> {
+  ): Promise<{ resourceId: string }> {
     return this.http.post(`${this.baseUrl}/api/clone-tokens/create-resource`, {
       json: data,
       ...options,

@@ -125,7 +125,7 @@ describe('LLM Context', () => {
 
     // Create a test resource
     const content = Buffer.from('This is test content for LLM context building.', 'utf-8');
-    const response = await ResourceOperations.createResource(
+    const resId = await ResourceOperations.createResource(
       {
         name: 'LLM Context Test Resource',
         content,
@@ -135,11 +135,18 @@ describe('LLM Context', () => {
       eventBus,
     );
 
-    const idMatch = response.resource['@id'].match(/\/resources\/(.+)$/);
-    testResourceId = idMatch![1];
+    testResourceId = resId;
 
     // Populate graph database (required by GraphContext)
-    await kb.graph.createResource(response.resource);
+    // Construct a minimal ResourceDescriptor since createResource now returns only ResourceId
+    await kb.graph.createResource({
+      '@context': 'https://www.w3.org/ns/anno.jsonld',
+      '@id': `${publicURL}/resources/${resId}`,
+      name: 'LLM Context Test Resource',
+      archived: false,
+      entityTypes: [],
+      representations: { mediaType: 'text/plain', rel: 'original', checksum: '', byteSize: content.length },
+    });
   });
 
   afterAll(async () => {

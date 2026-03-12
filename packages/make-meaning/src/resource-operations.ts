@@ -11,15 +11,14 @@
 
 import { firstValueFrom, race, timer } from 'rxjs';
 import { map, take } from 'rxjs/operators';
-import type { components } from '@semiont/core';
 import type {
   CreationMethod,
   UserId,
   ResourceId,
 } from '@semiont/core';
+import type { components } from '@semiont/core';
 import { EventBus } from '@semiont/core';
 
-type CreateResourceResponse = components['schemas']['CreateResourceResponse'];
 type ContentFormat = components['schemas']['ContentFormat'];
 
 export interface UpdateResourceInput {
@@ -48,7 +47,7 @@ export class ResourceOperations {
     input: CreateResourceInput,
     userId: UserId,
     eventBus: EventBus,
-  ): Promise<CreateResourceResponse> {
+  ): Promise<ResourceId> {
     // Set up listeners before emitting
     const result$ = race(
       eventBus.get('yield:created').pipe(
@@ -80,10 +79,7 @@ export class ResourceOperations {
       throw outcome.error;
     }
 
-    return {
-      resource: outcome.result.resource,
-      annotations: [],
-    };
+    return outcome.result.resourceId;
   }
 
   /**

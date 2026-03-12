@@ -22,7 +22,7 @@ import { useEventSubscriptions } from '@semiont/react-ui';
 import { Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { resourceUri, resourceAnnotationUri, ResourceUri, ContentFormat, ResourceAnnotationUri, AccessToken } from '@semiont/core';
-import { getPrimaryMediaType, getResourceId } from '@semiont/api-client';
+import { getPrimaryMediaType } from '@semiont/api-client';
 import { decodeWithCharset } from '@semiont/api-client';
 import { uriToAnnotationId } from '@semiont/core';
 import { ComposeLoadingState } from '@semiont/react-ui';
@@ -149,7 +149,7 @@ function ComposeResourceContent() {
   // Handle save resource
   const handleSaveResource = async (params: SaveResourceParams) => {
     try {
-      let rUri: ResourceUri;
+      let newResourceId: string;
 
       if (params.mode === 'clone') {
         // Create resource from clone token with edited content
@@ -160,10 +160,7 @@ function ComposeResourceContent() {
           archiveOriginal: params.archiveOriginal ?? true,
         });
 
-        if (!response.resource?.['@id']) {
-          throw new Error('No resource URI returned from server');
-        }
-        rUri = resourceUri(response.resource['@id']);
+        newResourceId = response.resourceId;
       } else {
         // Create a new resource with entity types
         let fileToUpload: File;
@@ -190,10 +187,7 @@ function ComposeResourceContent() {
           creationMethod: 'ui',
         });
 
-        if (!response.resource?.['@id']) {
-          throw new Error('No resource URI returned from server');
-        }
-        rUri = resourceUri(response.resource['@id']);
+        newResourceId = response.resourceId;
 
         // If this is a reference completion, update the reference
         if (params.mode === 'reference' && params.annotationUri && params.sourceDocumentId) {
@@ -206,6 +200,9 @@ function ComposeResourceContent() {
               `${baseUrl}/resources/${params.sourceDocumentId}/annotations/${annotationIdSegment}`
             );
 
+            // Construct the full resource URI for the annotation body source
+            const newResourceUri = resourceUri(`${baseUrl}/resources/${newResourceId}`);
+
             await updateAnnotationBodyMutation.mutateAsync({
               annotationUri: nestedUri,
               data: {
@@ -214,7 +211,7 @@ function ComposeResourceContent() {
                   op: 'add',
                   item: {
                     type: 'SpecificResource',
-                    source: rUri,
+                    source: newResourceUri,
                     purpose: 'linking',
                   },
                 }],
@@ -229,11 +226,7 @@ function ComposeResourceContent() {
       }
 
       // Navigate to the new resource
-      const resourceId = getResourceId({ '@id': rUri } as any);
-      if (!resourceId) {
-        throw new Error('Failed to extract resource ID from URI');
-      }
-      router.push(`/know/resource/${encodeURIComponent(resourceId)}`);
+      router.push(`/know/resource/${encodeURIComponent(newResourceId)}`);
     } catch (error) {
       console.error('Failed to save resource:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to save resource. Please try again.';

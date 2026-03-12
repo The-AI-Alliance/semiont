@@ -219,9 +219,6 @@
       "CreateResourceFromTokenRequest": {
         "$ref": "components/schemas/CreateResourceFromTokenRequest.json"
       },
-      "CreateResourceFromTokenResponse": {
-        "$ref": "components/schemas/CreateResourceFromTokenResponse.json"
-      },
       "CreateResourceRequest": {
         "$ref": "components/schemas/CreateResourceRequest.json"
       },

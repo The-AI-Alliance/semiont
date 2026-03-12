@@ -82,14 +82,12 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Resource updated successfully */
-                200: {
+                /** @description Update accepted */
+                202: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": components["schemas"]["GetResourceResponse"];
-                    };
+                    content?: never;
                 };
                 /** @description Resource not found */
                 404: {
@@ -1138,13 +1136,15 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Resource created successfully */
-                201: {
+                /** @description Resource creation accepted */
+                202: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["CreateResourceResponse"];
+                        "application/json": {
+                            resourceId: string;
+                        };
                     };
                 };
             };
@@ -1653,13 +1653,15 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description Resource created successfully */
-                201: {
+                /** @description Resource creation accepted */
+                202: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["CreateResourceResponse"];
+                        "application/json": {
+                            resourceId: string;
+                        };
                     };
                 };
             };
@@ -2557,10 +2559,6 @@ export interface components {
             content: string;
             /** @description Whether to archive the original resource */
             archiveOriginal?: boolean;
-        };
-        CreateResourceFromTokenResponse: {
-            resource: components["schemas"]["ResourceDescriptor"];
-            annotations: components["schemas"]["Annotation"][];
         };
         CreateResourceRequest: {
             name: string;
