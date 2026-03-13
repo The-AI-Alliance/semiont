@@ -281,8 +281,8 @@ export class EventBusClient {
   // ========================================================================
 
   async getAnnotationLLMContext(
-    annotationUri: string,
-    resourceUri: string,
+    annotationId: string,
+    resourceId: string,
     options?: {
       includeSourceContext?: boolean;
       includeTargetContext?: boolean;
@@ -306,8 +306,8 @@ export class EventBusClient {
 
     this.eventBus.get('gather:requested').next({
       correlationId,
-      annotationUri,
-      resourceUri,
+      annotationId,
+      resourceId,
       options,
     });
 
@@ -319,7 +319,7 @@ export class EventBusClient {
   }
 
   async getResourceLLMContext(
-    resourceUri: string,
+    resourceId: string,
     options: {
       depth: number;
       maxResources: number;
@@ -344,7 +344,7 @@ export class EventBusClient {
 
     this.eventBus.get('gather:resource-requested').next({
       correlationId,
-      resourceUri,
+      resourceId,
       options,
     });
 
