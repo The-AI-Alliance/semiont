@@ -25,6 +25,10 @@ import { filesystemStopDescriptor } from './filesystem-stop.js';
 import { backendStopDescriptor } from './backend-stop.js';
 import { frontendStopDescriptor } from './frontend-stop.js';
 import { proxyStopDescriptor } from './proxy-stop.js';
+import { inferenceCheckDescriptor } from './inference-check.js';
+import { inferenceStartDescriptor } from './inference-start.js';
+import { inferenceStopDescriptor } from './inference-stop.js';
+import { inferenceProvisionDescriptor } from './inference-provision.js';
 import type { HandlerDescriptor } from './types.js';
 import { BaseHandlerContext, HandlerResult } from '../../../core/handlers/types.js';
 
@@ -41,6 +45,7 @@ const posixHandlers: Array<HandlerDescriptor<any, any>> = [
   backendCheckDescriptor,
   frontendCheckDescriptor,
   proxyCheckDescriptor,
+  inferenceCheckDescriptor,
   // Start handlers
   databaseStartDescriptor,
   filesystemStartDescriptor,
@@ -49,12 +54,14 @@ const posixHandlers: Array<HandlerDescriptor<any, any>> = [
   backendStartDescriptor,
   frontendStartDescriptor,
   proxyStartDescriptor,
+  inferenceStartDescriptor,
   // Stop handlers
   graphStopDescriptor,
   filesystemStopDescriptor,
   backendStopDescriptor,
   frontendStopDescriptor,
   proxyStopDescriptor,
+  inferenceStopDescriptor,
   // Provision handlers
   mcpProvisionDescriptor,
   filesystemProvisionDescriptor,
@@ -62,6 +69,7 @@ const posixHandlers: Array<HandlerDescriptor<any, any>> = [
   backendProvisionDescriptor,
   frontendProvisionDescriptor,
   proxyProvisionDescriptor,
+  inferenceProvisionDescriptor,
   // Publish handlers
   backendPublishDescriptor,
   frontendPublishDescriptor

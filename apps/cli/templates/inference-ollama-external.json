@@ -1,0 +1,10 @@
+{
+  "services": {
+    "inference": {
+      "platform": { "type": "external" },
+      "type": "ollama",
+      "model": "gemma2:9b",
+      "endpoint": "http://localhost:11434"
+    }
+  }
+}
