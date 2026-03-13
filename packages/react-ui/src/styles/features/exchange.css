@@ -61,6 +61,11 @@
               border-color var(--semiont-duration-fast);
 }
 
+.semiont-exchange__button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
 .semiont-exchange__button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -71,12 +76,22 @@
   color: var(--semiont-color-white);
 }
 
+.semiont-exchange__button--primary:focus-visible {
+  outline: 2px solid var(--semiont-color-blue-400);
+  outline-offset: 2px;
+}
+
 .semiont-exchange__button--primary:hover:not(:disabled) {
   background-color: var(--semiont-color-blue-700);
 }
 
 [data-theme="dark"] .semiont-exchange__button--primary {
   background-color: var(--semiont-color-blue-500);
+}
+
+[data-theme="dark"] .semiont-exchange__button--primary:focus-visible {
+  outline: 2px solid var(--semiont-color-blue-300);
+  outline-offset: 2px;
 }
 
 [data-theme="dark"] .semiont-exchange__button--primary:hover:not(:disabled) {
@@ -89,6 +104,11 @@
   border-color: var(--semiont-color-gray-300);
 }
 
+.semiont-exchange__button--secondary:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
 .semiont-exchange__button--secondary:hover:not(:disabled) {
   background-color: var(--semiont-color-gray-100);
 }
@@ -96,6 +116,11 @@
 [data-theme="dark"] .semiont-exchange__button--secondary {
   color: var(--semiont-color-gray-300);
   border-color: var(--semiont-color-gray-600);
+}
+
+[data-theme="dark"] .semiont-exchange__button--secondary:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-400);
+  outline-offset: 2px;
 }
 
 [data-theme="dark"] .semiont-exchange__button--secondary:hover:not(:disabled) {
