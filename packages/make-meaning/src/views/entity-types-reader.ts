@@ -7,14 +7,14 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import type { EnvironmentConfig } from '@semiont/core';
+import type { MakeMeaningConfig } from '../config';
 
 /**
  * Read entity types from view storage projection
  */
-export async function readEntityTypesProjection(config: EnvironmentConfig): Promise<string[]> {
+export async function readEntityTypesProjection(config: MakeMeaningConfig): Promise<string[]> {
   // Resolve basePath against project root if relative
-  const configuredPath = config.services.filesystem!.path;
+  const configuredPath = config.services.filesystem.path;
   const projectRoot = config._metadata?.projectRoot;
   let basePath: string;
   if (path.isAbsolute(configuredPath)) {

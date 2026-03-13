@@ -14,8 +14,12 @@ import * as path from 'path';
 import { JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore, type EventStore } from '@semiont/event-sourcing';
 import { getPrimaryRepresentation } from '@semiont/api-client';
-import type { EnvironmentConfig, Logger, ResourceId } from '@semiont/core';
+import type { Logger, ResourceId } from '@semiont/core';
 import { EventBus } from '@semiont/core';
+import type { MakeMeaningConfig } from './config';
+
+export type { MakeMeaningConfig } from './config';
+
 import { Readable } from 'stream';
 import { from } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
@@ -60,7 +64,7 @@ export interface MakeMeaningService {
   stop: () => Promise<void>;
 }
 
-export async function startMakeMeaning(config: EnvironmentConfig, eventBus: EventBus, logger: Logger): Promise<MakeMeaningService> {
+export async function startMakeMeaning(config: MakeMeaningConfig, eventBus: EventBus, logger: Logger): Promise<MakeMeaningService> {
   // 1. Validate configuration
   const configuredPath = config.services?.filesystem?.path;
   if (!configuredPath) {

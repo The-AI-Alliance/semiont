@@ -11,11 +11,11 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { ResourceOperations } from '../resource-operations';
-import { userId, EventBus, CREATION_METHODS, type EnvironmentConfig, type Logger } from '@semiont/core';
+import { userId, EventBus, CREATION_METHODS, type Logger } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { Stower } from '../stower';
 import { createKnowledgeBase } from '../knowledge-base';
-import { getGraphDatabase } from '@semiont/graph';
+import { getGraphDatabase, type GraphFactoryConfig } from '@semiont/graph';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -39,7 +39,7 @@ describe('ResourceOperations', () => {
 
     eventBus = new EventBus();
     testEventStore = createEventStore(testDir, undefined, eventBus, mockLogger);
-    const graphDb = await getGraphDatabase({ services: { graph: { type: 'memory' } } } as EnvironmentConfig);
+    const graphDb = await getGraphDatabase({ services: { graph: { type: 'memory' } } } as GraphFactoryConfig);
     const kb = createKnowledgeBase(testEventStore, testDir, testDir, graphDb, mockLogger);
 
     stower = new Stower(kb, eventBus, mockLogger);

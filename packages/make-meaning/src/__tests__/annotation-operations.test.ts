@@ -13,12 +13,12 @@ import { firstValueFrom } from 'rxjs';
 import { filter, take } from 'rxjs/operators';
 import { AnnotationOperations } from '../annotation-operations';
 import { ResourceOperations } from '../resource-operations';
-import { resourceId, userId, annotationId, EventBus, type EnvironmentConfig, type Logger } from '@semiont/core';
+import { resourceId, userId, annotationId, EventBus, type Logger } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import type { KnowledgeBase } from '../knowledge-base';
 import { Stower } from '../stower';
-import { getGraphDatabase } from '@semiont/graph';
+import { getGraphDatabase, type GraphFactoryConfig } from '@semiont/graph';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -70,7 +70,7 @@ describe('AnnotationOperations', () => {
     // Initialize EventBus and stores
     eventBus = new EventBus();
     testEventStore = createEventStore(testDir, undefined, eventBus, mockLogger);
-    const graphDb = await getGraphDatabase({ services: { graph: { type: 'memory' } } } as EnvironmentConfig);
+    const graphDb = await getGraphDatabase({ services: { graph: { type: 'memory' } } } as GraphFactoryConfig);
     // Share the event store's view storage with the KB to avoid two separate FilesystemViewStorage instances
     const { FilesystemRepresentationStore } = await import('@semiont/content');
     const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);

@@ -1528,9 +1528,6 @@
               ]
             }
           },
-          "required": [
-            "NODE_ENV"
-          ],
           "additionalProperties": true
         },
         "logLevel": {
@@ -1559,8 +1556,7 @@
         }
       },
       "required": [
-        "services",
-        "env"
+        "services"
       ],
       "additionalProperties": false
     },

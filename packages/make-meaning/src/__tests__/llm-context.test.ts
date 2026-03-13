@@ -18,7 +18,8 @@ import { take } from 'rxjs/operators';
 import { LLMContext } from '../llm-context';
 import { ResourceOperations } from '../resource-operations';
 import { AnnotationOperations } from '../annotation-operations';
-import { resourceId, userId, EventBus, type EnvironmentConfig, type Logger } from '@semiont/core';
+import { resourceId, userId, EventBus, type Logger } from '@semiont/core';
+import type { GraphFactoryConfig } from '@semiont/graph';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore, type RepresentationStore } from '@semiont/content';
 import type { KnowledgeBase } from '../knowledge-base';
@@ -52,7 +53,7 @@ describe('LLM Context', () => {
   let eventBus: EventBus;
   let stower: Stower;
   let repStore: RepresentationStore;
-  let config: EnvironmentConfig;
+  let config: GraphFactoryConfig;
   let kb: KnowledgeBase;
   let testResourceId: string;
 
@@ -71,40 +72,11 @@ describe('LLM Context', () => {
     // Create test configuration
     config = {
       services: {
-        filesystem: {
-          platform: { type: 'posix' },
-          path: testDir
-        },
-        backend: {
-          platform: { type: 'posix' },
-          port: 4000,
-          publicURL: 'http://localhost:4000',
-          corsOrigin: 'http://localhost:3000'
-        },
-        inference: {
-          platform: { type: 'external' },
-          type: 'anthropic',
-          model: 'claude-sonnet-4-20250514',
-          maxTokens: 8192,
-          endpoint: 'https://api.anthropic.com',
-          apiKey: 'test-api-key'
-        },
         graph: {
-          platform: { type: 'posix' },
           type: 'memory'
         }
       },
-      site: {
-        siteName: 'Test Site',
-        domain: 'localhost:3000',
-        adminEmail: 'admin@test.local',
-        oauthAllowedDomains: ['test.local']
-      },
-      _metadata: {
-        environment: 'test',
-        projectRoot: testDir
-      },
-    } as EnvironmentConfig;
+    } as GraphFactoryConfig;
 
     // Initialize EventBus and stores
     eventBus = new EventBus();

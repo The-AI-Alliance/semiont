@@ -16,8 +16,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventBus, type Logger } from '@semiont/core';
-import { startMakeMeaning, ResourceOperations, AnnotationOperations } from '../..';
-import type { EnvironmentConfig } from '@semiont/core';
+import { startMakeMeaning, ResourceOperations, AnnotationOperations, type MakeMeaningConfig } from '../..';
 import { userId, resourceId as makeResourceId } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -46,7 +45,7 @@ const mockLogger: Logger = {
 
 describe('Scripting Example: Query Graph Database', () => {
   let testDir: string;
-  let config: EnvironmentConfig;
+  let config: MakeMeaningConfig;
   let makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>>;
   let eventBus: EventBus;
 
@@ -88,10 +87,9 @@ describe('Scripting Example: Query Graph Database', () => {
         oauthAllowedDomains: ['test.local']
       },
       _metadata: {
-        environment: 'test',
         projectRoot: testDir
       },
-    } as EnvironmentConfig;
+    } as MakeMeaningConfig;
 
     // Create EventBus
     eventBus = new EventBus();

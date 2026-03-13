@@ -17,8 +17,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { startMakeMeaning, type MakeMeaningService } from '../service';
-import type { EnvironmentConfig, Logger } from '@semiont/core';
+import { startMakeMeaning, type MakeMeaningService, type MakeMeaningConfig } from '../service';
+import type { Logger } from '@semiont/core';
 import { EventBus } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -34,7 +34,7 @@ const mockLogger: Logger = {
 
 describe('Make-Meaning Service', () => {
   let testDir: string;
-  let config: EnvironmentConfig;
+  let config: MakeMeaningConfig;
   let service: MakeMeaningService | null = null;
   let eventBus: EventBus;
 
@@ -72,17 +72,10 @@ describe('Make-Meaning Service', () => {
           type: 'memory'
         }
       },
-      site: {
-        siteName: 'Test Site',
-        domain: 'localhost:3000',
-        adminEmail: 'admin@test.local',
-        oauthAllowedDomains: ['test.local']
-      },
       _metadata: {
-        environment: 'test',
         projectRoot: testDir
       },
-    } as EnvironmentConfig;
+    } as MakeMeaningConfig;
   });
 
   afterEach(async () => {
@@ -103,11 +96,10 @@ describe('Make-Meaning Service', () => {
 
   describe('initialization', () => {
     it('should validate required configuration', async () => {
-      const invalidConfig = { ...config };
-      delete invalidConfig.services.filesystem;
+      const invalidConfig = { ...config, services: { ...config.services, filesystem: undefined! } };
 
       await expect(
-        startMakeMeaning(invalidConfig as EnvironmentConfig, eventBus, mockLogger)
+        startMakeMeaning(invalidConfig as MakeMeaningConfig, eventBus, mockLogger)
       ).rejects.toThrow('services.filesystem.path is required');
     });
 

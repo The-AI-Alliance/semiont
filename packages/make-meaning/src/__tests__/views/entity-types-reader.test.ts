@@ -15,10 +15,11 @@ import { readEntityTypesProjection } from '../../views/entity-types-reader';
 import { bootstrapEntityTypes, resetBootstrap } from '../../bootstrap/entity-types';
 import { createEventStore } from '@semiont/event-sourcing';
 import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
-import { EventBus, type EnvironmentConfig, type Logger } from '@semiont/core';
+import { EventBus, type Logger } from '@semiont/core';
 import { createKnowledgeBase } from '../../knowledge-base';
 import { Stower } from '../../stower';
-import { getGraphDatabase } from '@semiont/graph';
+import { getGraphDatabase, type GraphFactoryConfig } from '@semiont/graph';
+import type { MakeMeaningConfig } from '../../config';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -33,7 +34,7 @@ const mockLogger: Logger = {
 
 describe('Entity Types Projection Reader', () => {
   let testDir: string;
-  let config: EnvironmentConfig;
+  let config: MakeMeaningConfig;
 
   beforeEach(async () => {
     // Create temporary test directory
@@ -47,24 +48,14 @@ describe('Entity Types Projection Reader', () => {
           platform: { type: 'posix' },
           path: testDir
         },
-        backend: {
-          platform: { type: 'posix' },
-          port: 4000,
-          publicURL: 'http://localhost:4000',
-          corsOrigin: 'http://localhost:3000'
+        graph: {
+          type: 'memory'
         }
       },
-      site: {
-        siteName: 'Test Site',
-        domain: 'localhost:3000',
-        adminEmail: 'admin@test.local',
-        oauthAllowedDomains: ['test.local']
-      },
       _metadata: {
-        environment: 'test',
         projectRoot: testDir
       },
-    } as EnvironmentConfig;
+    } as MakeMeaningConfig;
   });
 
   afterEach(async () => {
@@ -107,7 +98,7 @@ describe('Entity Types Projection Reader', () => {
       // Bootstrap creates the projection (requires EventBus + Stower)
       const eventBus = new EventBus();
       const eventStore = createEventStore(testDir, undefined, eventBus, mockLogger);
-      const graphDb = await getGraphDatabase({ services: { graph: { type: 'memory' } } } as EnvironmentConfig);
+      const graphDb = await getGraphDatabase({ services: { graph: { type: 'memory' } } } as GraphFactoryConfig);
       const kb = createKnowledgeBase(eventStore, testDir, testDir, graphDb, mockLogger);
       const stower = new Stower(kb, eventBus, mockLogger);
       await stower.initialize();
@@ -225,11 +216,10 @@ describe('Entity Types Projection Reader', () => {
 
   describe('error handling', () => {
     it('should throw if filesystem path is not configured', async () => {
-      const invalidConfig = { ...config };
-      delete invalidConfig.services.filesystem;
+      const invalidConfig = { ...config, services: { ...config.services, filesystem: undefined! } };
 
       await expect(
-        readEntityTypesProjection(invalidConfig as EnvironmentConfig)
+        readEntityTypesProjection(invalidConfig as MakeMeaningConfig)
       ).rejects.toThrow();
     });
 
@@ -248,7 +238,7 @@ describe('Entity Types Projection Reader', () => {
 
       const eventBus = new EventBus();
       const eventStore = createEventStore(testDir, undefined, eventBus, mockLogger);
-      const graphDb = await getGraphDatabase({ services: { graph: { type: 'memory' } } } as EnvironmentConfig);
+      const graphDb = await getGraphDatabase({ services: { graph: { type: 'memory' } } } as GraphFactoryConfig);
       const kb = createKnowledgeBase(eventStore, testDir, testDir, graphDb, mockLogger);
       const stower = new Stower(kb, eventBus, mockLogger);
       await stower.initialize();

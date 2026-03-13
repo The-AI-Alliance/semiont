@@ -13,7 +13,7 @@
 export type { GraphDatabase } from './interface';
 
 // Factory pattern (singleton)
-export { getGraphDatabase, createGraphDatabase, closeGraphDatabase } from './factory';
+export { getGraphDatabase, createGraphDatabase, closeGraphDatabase, type GraphFactoryConfig } from './factory';
 
 // Implementations (for direct use if needed)
 export { Neo4jGraphDatabase } from './implementations/neo4j';

@@ -234,7 +234,7 @@ app.all('/api/*', (c) => {
 const port = backendService.port || 4000;
 
 // Only start server if not in test environment
-if (config.env.NODE_ENV !== 'test') {
+if (config.env?.NODE_ENV !== 'test') {
   serve({
     fetch: app.fetch,
     port: port,
@@ -242,7 +242,7 @@ if (config.env.NODE_ENV !== 'test') {
   }, async (info) => {
     logger.info('Semiont Backend ready', {
       url: `http://localhost:${info.port}/api`,
-      environment: config.env.NODE_ENV
+      environment: config.env?.NODE_ENV ?? 'development'
     });
 
     // Initialize JWT Service with configuration

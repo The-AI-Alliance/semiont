@@ -26,7 +26,7 @@
 
 import { Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
-import type { EventMap, Logger, EnvironmentConfig, components } from '@semiont/core';
+import type { EventMap, Logger, components } from '@semiont/core';
 import { EventBus, annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import { EventQuery } from '@semiont/event-sourcing';
@@ -37,6 +37,7 @@ import { AnnotationContext } from './annotation-context';
 import { ResourceContext } from './resource-context';
 import { LLMContext } from './llm-context';
 import { readEntityTypesProjection } from './views/entity-types-reader';
+import type { MakeMeaningConfig } from './config';
 
 type Annotation = components['schemas']['Annotation'];
 type StoredEvent = { event: any; metadata: any };
@@ -50,7 +51,7 @@ export class Gatherer {
     private eventBus: EventBus,
     private inferenceClient: InferenceClient,
     logger: Logger,
-    private config?: EnvironmentConfig,
+    private config?: MakeMeaningConfig,
   ) {
     this.logger = logger;
   }
