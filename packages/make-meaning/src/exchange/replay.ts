@@ -1,0 +1,325 @@
+/**
+ * Event Replay
+ *
+ * Replays parsed JSONL event streams through the EventBus.
+ * Each domain event is translated to the corresponding command event
+ * (e.g. resource.created → yield:create), emitted, and the result
+ * event is awaited before proceeding (backpressure).
+ *
+ * Content blobs are resolved lazily via a lookup function so that
+ * the caller controls memory strategy (streaming, on-disk, etc.).
+ */
+
+import { firstValueFrom, race, timer } from 'rxjs';
+import { map } from 'rxjs/operators';
+import type { Logger, StoredEvent, ResourceEvent, ResourceId, AnnotationId } from '@semiont/core';
+import { EventBus } from '@semiont/core';
+import type { components } from '@semiont/core';
+
+type ContentFormat = components['schemas']['ContentFormat'];
+type Annotation = components['schemas']['Annotation'];
+
+/**
+ * Resolves a content blob by its checksum.
+ * Returned by the caller so replay doesn't dictate memory strategy.
+ */
+export type ContentBlobResolver = (checksum: string) => Buffer | undefined;
+
+export interface ReplayStats {
+  eventsReplayed: number;
+  resourcesCreated: number;
+  annotationsCreated: number;
+  entityTypesAdded: number;
+}
+
+export interface ReplayResult {
+  stats: ReplayStats;
+  hashChainValid: boolean;
+}
+
+const REPLAY_TIMEOUT_MS = 30_000;
+
+/**
+ * Replay a JSONL event stream through the EventBus.
+ *
+ * Events are emitted sequentially — each command event waits for
+ * its result before the next is emitted. This matches the Stower's
+ * concatMap processing guarantee.
+ */
+export async function replayEventStream(
+  jsonl: string,
+  eventBus: EventBus,
+  resolveBlob: ContentBlobResolver,
+  logger?: Logger,
+): Promise<ReplayResult> {
+  const lines = jsonl.trim().split('\n').filter((l) => l.length > 0);
+  const storedEvents: StoredEvent[] = lines.map((line) => JSON.parse(line));
+
+  const stats: ReplayStats = {
+    eventsReplayed: 0,
+    resourcesCreated: 0,
+    annotationsCreated: 0,
+    entityTypesAdded: 0,
+  };
+
+  // Validate hash chain
+  let hashChainValid = true;
+  for (let i = 1; i < storedEvents.length; i++) {
+    const prev = storedEvents[i - 1];
+    const curr = storedEvents[i];
+    if (curr.metadata.prevEventHash && prev.metadata.checksum) {
+      if (curr.metadata.prevEventHash !== prev.metadata.checksum) {
+        logger?.warn('Hash chain break', {
+          index: i,
+          expected: prev.metadata.checksum,
+          got: curr.metadata.prevEventHash,
+        });
+        hashChainValid = false;
+      }
+    }
+  }
+
+  // Replay each event
+  for (const stored of storedEvents) {
+    await replayEvent(stored.event, eventBus, resolveBlob, stats, logger);
+    stats.eventsReplayed++;
+  }
+
+  return { stats, hashChainValid };
+}
+
+async function replayEvent(
+  event: ResourceEvent,
+  eventBus: EventBus,
+  resolveBlob: ContentBlobResolver,
+  stats: ReplayStats,
+  logger?: Logger,
+): Promise<void> {
+  switch (event.type) {
+    case 'entitytype.added':
+      await replayEntityTypeAdded(event, eventBus, logger);
+      stats.entityTypesAdded++;
+      break;
+
+    case 'resource.created':
+      await replayResourceCreated(event, eventBus, resolveBlob, logger);
+      stats.resourcesCreated++;
+      break;
+
+    case 'annotation.added':
+      await replayAnnotationAdded(event, eventBus, logger);
+      stats.annotationsCreated++;
+      break;
+
+    case 'annotation.body.updated':
+      await replayAnnotationBodyUpdated(event, eventBus, logger);
+      break;
+
+    case 'annotation.removed':
+      await replayAnnotationRemoved(event, eventBus, logger);
+      break;
+
+    case 'resource.archived':
+      await replayResourceArchived(event, eventBus, logger);
+      break;
+
+    case 'resource.unarchived':
+      await replayResourceUnarchived(event, eventBus, logger);
+      break;
+
+    case 'entitytag.added':
+    case 'entitytag.removed':
+      await replayEntityTagChange(event, eventBus, logger);
+      break;
+
+    // Job events are transient — skip during replay
+    case 'job.started':
+    case 'job.progress':
+    case 'job.completed':
+    case 'job.failed':
+      logger?.debug('Skipping job event during replay', { type: event.type });
+      break;
+
+    // Representation events — content is already stored via resource.created replay
+    case 'representation.added':
+    case 'representation.removed':
+      logger?.debug('Skipping representation event during replay', { type: event.type });
+      break;
+
+    default:
+      logger?.warn('Unknown event type during replay', { type: (event as ResourceEvent).type });
+  }
+}
+
+// ── Individual event replay handlers ──
+
+async function replayEntityTypeAdded(
+  event: ResourceEvent & { type: 'entitytype.added' },
+  eventBus: EventBus,
+  logger?: Logger,
+): Promise<void> {
+  const result$ = race(
+    eventBus.get('mark:entity-type-added').pipe(map(() => 'ok' as const)),
+    eventBus.get('mark:entity-type-add-failed').pipe(map((e) => { throw e.error; })),
+    timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:entity-type-added'); })),
+  );
+
+  eventBus.get('mark:add-entity-type').next({
+    tag: event.payload.entityType,
+    userId: event.userId,
+  });
+
+  await firstValueFrom(result$);
+  logger?.debug('Replayed entitytype.added', { entityType: event.payload.entityType });
+}
+
+async function replayResourceCreated(
+  event: ResourceEvent & { type: 'resource.created' },
+  eventBus: EventBus,
+  resolveBlob: ContentBlobResolver,
+  logger?: Logger,
+): Promise<void> {
+  const { payload } = event;
+
+  const blob = resolveBlob(payload.contentChecksum);
+  if (!blob) {
+    throw new Error(`Missing content blob for checksum ${payload.contentChecksum}`);
+  }
+
+  const result$ = race(
+    eventBus.get('yield:created').pipe(map((r) => r)),
+    eventBus.get('yield:create-failed').pipe(map((e) => { throw e.error; })),
+    timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for yield:created'); })),
+  );
+
+  eventBus.get('yield:create').next({
+    name: payload.name,
+    content: blob,
+    format: payload.format as ContentFormat,
+    userId: event.userId,
+    language: payload.language,
+    entityTypes: payload.entityTypes,
+    creationMethod: payload.creationMethod,
+    isDraft: payload.isDraft,
+    generatedFrom: payload.generatedFrom,
+    generationPrompt: payload.generationPrompt,
+  });
+
+  await firstValueFrom(result$);
+  logger?.debug('Replayed resource.created', { name: payload.name });
+}
+
+async function replayAnnotationAdded(
+  event: ResourceEvent & { type: 'annotation.added' },
+  eventBus: EventBus,
+  logger?: Logger,
+): Promise<void> {
+  const result$ = race(
+    eventBus.get('mark:created').pipe(map(() => 'ok' as const)),
+    eventBus.get('mark:create-failed').pipe(map((e) => { throw e.error; })),
+    timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:created'); })),
+  );
+
+  eventBus.get('mark:create').next({
+    annotation: event.payload.annotation as Annotation,
+    userId: event.userId,
+    resourceId: event.resourceId as ResourceId,
+  });
+
+  await firstValueFrom(result$);
+  logger?.debug('Replayed annotation.added', { annotationId: event.payload.annotation.id });
+}
+
+async function replayAnnotationBodyUpdated(
+  event: ResourceEvent & { type: 'annotation.body.updated' },
+  eventBus: EventBus,
+  logger?: Logger,
+): Promise<void> {
+  const result$ = race(
+    eventBus.get('mark:body-updated').pipe(map(() => 'ok' as const)),
+    eventBus.get('mark:body-update-failed').pipe(map((e) => { throw e.error; })),
+    timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:body-updated'); })),
+  );
+
+  eventBus.get('mark:update-body').next({
+    annotationId: event.payload.annotationId as AnnotationId,
+    userId: event.userId,
+    resourceId: event.resourceId as ResourceId,
+    operations: event.payload.operations,
+  });
+
+  await firstValueFrom(result$);
+  logger?.debug('Replayed annotation.body.updated', { annotationId: event.payload.annotationId });
+}
+
+async function replayAnnotationRemoved(
+  event: ResourceEvent & { type: 'annotation.removed' },
+  eventBus: EventBus,
+  logger?: Logger,
+): Promise<void> {
+  const result$ = race(
+    eventBus.get('mark:deleted').pipe(map(() => 'ok' as const)),
+    eventBus.get('mark:delete-failed').pipe(map((e) => { throw e.error; })),
+    timer(REPLAY_TIMEOUT_MS).pipe(map(() => { throw new Error('Timeout waiting for mark:deleted'); })),
+  );
+
+  eventBus.get('mark:delete').next({
+    annotationId: event.payload.annotationId as AnnotationId,
+    userId: event.userId,
+    resourceId: event.resourceId as ResourceId,
+  });
+
+  await firstValueFrom(result$);
+  logger?.debug('Replayed annotation.removed', { annotationId: event.payload.annotationId });
+}
+
+async function replayResourceArchived(
+  event: ResourceEvent & { type: 'resource.archived' },
+  eventBus: EventBus,
+  logger?: Logger,
+): Promise<void> {
+  eventBus.get('mark:archive').next({
+    userId: event.userId,
+    resourceId: event.resourceId as ResourceId,
+  });
+  logger?.debug('Replayed resource.archived', { resourceId: event.resourceId });
+}
+
+async function replayResourceUnarchived(
+  event: ResourceEvent & { type: 'resource.unarchived' },
+  eventBus: EventBus,
+  logger?: Logger,
+): Promise<void> {
+  eventBus.get('mark:unarchive').next({
+    userId: event.userId,
+    resourceId: event.resourceId as ResourceId,
+  });
+  logger?.debug('Replayed resource.unarchived', { resourceId: event.resourceId });
+}
+
+async function replayEntityTagChange(
+  event: ResourceEvent & { type: 'entitytag.added' | 'entitytag.removed' },
+  eventBus: EventBus,
+  logger?: Logger,
+): Promise<void> {
+  const resourceId = event.resourceId as ResourceId;
+  const entityType = event.payload.entityType;
+
+  if (event.type === 'entitytag.added') {
+    eventBus.get('mark:update-entity-types').next({
+      resourceId,
+      userId: event.userId,
+      currentEntityTypes: [],
+      updatedEntityTypes: [entityType],
+    });
+  } else {
+    eventBus.get('mark:update-entity-types').next({
+      resourceId,
+      userId: event.userId,
+      currentEntityTypes: [entityType],
+      updatedEntityTypes: [],
+    });
+  }
+
+  logger?.debug('Replayed entity tag change', { type: event.type, entityType });
+}
