@@ -53,7 +53,7 @@ import { ReferenceEntry } from '../ReferenceEntry';
 
 const createMockReference = (overrides?: Partial<Annotation>): Annotation => ({
   '@context': 'http://www.w3.org/ns/anno.jsonld',
-  id: 'http://example.com/annotations/ref-1',
+  id: 'ref-1',
   type: 'Annotation',
   motivation: 'linking',
   created: '2024-06-15T12:00:00Z',
@@ -66,6 +66,7 @@ const createMockReference = (overrides?: Partial<Annotation>): Annotation => ({
     },
   },
   body: {
+    type: 'SpecificResource',
     source: 'http://example.com/resources/linked-doc',
   },
   ...overrides,
@@ -247,7 +248,7 @@ describe('ReferenceEntry', () => {
       await userEvent.click(entry);
 
       expect(clickHandler).toHaveBeenCalledWith({
-        annotationId: 'http://example.com/annotations/ref-1',
+        annotationId: 'ref-1',
         motivation: 'linking',
       });
 
@@ -319,7 +320,7 @@ describe('ReferenceEntry', () => {
       await userEvent.click(unlinkButton);
 
       expect(unlinkHandler).toHaveBeenCalledWith({
-        annotationUri: 'http://example.com/annotations/ref-1',
+        annotationId: 'ref-1',
         resourceId: 'resource-1',
         operations: [{ op: 'remove' }],
       });
@@ -368,8 +369,8 @@ describe('ReferenceEntry', () => {
       await userEvent.click(generateButton);
 
       expect(generateHandler).toHaveBeenCalledWith({
-        annotationUri: 'http://example.com/annotations/ref-1',
-        resourceUri: 'http://example.com/resources/resource-1',
+        annotationId: 'ref-1',
+        resourceId: 'resource-1',
         defaultTitle: 'referenced text',
       });
 
@@ -391,7 +392,7 @@ describe('ReferenceEntry', () => {
       await userEvent.click(searchButton);
 
       expect(searchHandler).toHaveBeenCalledWith({
-        annotationUri: 'http://example.com/annotations/ref-1',
+        annotationId: 'ref-1',
         searchTerm: 'referenced text',
       });
 
@@ -414,7 +415,7 @@ describe('ReferenceEntry', () => {
       await userEvent.click(createButton);
 
       expect(createHandler).toHaveBeenCalledWith({
-        annotationUri: 'http://example.com/annotations/ref-1',
+        annotationId: 'ref-1',
         title: 'referenced text',
         entityTypes: ['Person'],
       });

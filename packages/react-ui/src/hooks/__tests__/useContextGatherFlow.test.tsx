@@ -12,7 +12,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import React from 'react';
 import { renderHook, waitFor, act } from '@testing-library/react';
-import { EventBus, resourceUri, type YieldContext } from '@semiont/core';
+import { EventBus, annotationId, resourceId, resourceUri, type YieldContext } from '@semiont/core';
 import { SemiontApiClient } from '@semiont/api-client';
 import { useContextGatherFlow } from '../useContextGatherFlow';
 import { AuthTokenProvider } from '../../contexts/AuthTokenContext';
@@ -22,9 +22,9 @@ describe('useContextGatherFlow', () => {
   let eventBus: EventBus;
   let mockClient: vi.Mocked<SemiontApiClient>;
   const testToken = 'test-token-123';
+  const testResourceId = resourceId('resource-123');
   const testResourceUri = resourceUri('http://example.com/resources/resource-123');
-  const testAnnotationUri = 'http://example.com/annotations/anno-456';
-  const testAnnotationId = 'anno-456';
+  const testAnnotationId = annotationId('anno-456');
 
   const mockContext: YieldContext = {
     beforeText: 'This is text before the selection.',
@@ -63,7 +63,7 @@ describe('useContextGatherFlow', () => {
     expect(result.current.gatherLoading).toBe(false);
     expect(result.current.gatherContext).toBe(null);
     expect(result.current.gatherError).toBe(null);
-    expect(result.current.gatherAnnotationUri).toBe(null);
+    expect(result.current.gatherAnnotationId).toBe(null);
 
     // Verify subscription exists by checking if event can be triggered
     const gatherRequestedChannel = eventBus.get('gather:requested');
@@ -85,8 +85,8 @@ describe('useContextGatherFlow', () => {
 
     // Trigger gather:requested event
     eventBus.get('gather:requested').next({
-      annotationUri: testAnnotationUri,
-      resourceUri: testResourceUri,
+      annotationId: testAnnotationId,
+      resourceId: testResourceId,
     });
 
     await waitFor(() => {
@@ -120,13 +120,13 @@ describe('useContextGatherFlow', () => {
 
     // Trigger gather:requested
     eventBus.get('gather:requested').next({
-      annotationUri: testAnnotationUri,
-      resourceUri: testResourceUri,
+      annotationId: testAnnotationId,
+      resourceId: testResourceId,
     });
 
     await waitFor(() => {
       expect(completeSpy).toHaveBeenCalledWith({
-        annotationUri: testAnnotationUri,
+        annotationId: testAnnotationId,
         response: { context: mockContext },
       });
     });
@@ -150,13 +150,13 @@ describe('useContextGatherFlow', () => {
 
     // Trigger gather:requested
     eventBus.get('gather:requested').next({
-      annotationUri: testAnnotationUri,
-      resourceUri: testResourceUri,
+      annotationId: testAnnotationId,
+      resourceId: testResourceId,
     });
 
     await waitFor(() => {
       expect(failedSpy).toHaveBeenCalledWith({
-        annotationUri: testAnnotationUri,
+        annotationId: testAnnotationId,
         error: testError,
       });
     });
@@ -177,8 +177,8 @@ describe('useContextGatherFlow', () => {
 
     // Test with full URI
     eventBus.get('gather:requested').next({
-      annotationUri: testAnnotationUri,
-      resourceUri: testResourceUri,
+      annotationId: testAnnotationId,
+      resourceId: testResourceId,
     });
 
     await waitFor(() => {
@@ -213,8 +213,8 @@ describe('useContextGatherFlow', () => {
     // First request
     act(() => {
       eventBus.get('gather:requested').next({
-        annotationUri: testAnnotationUri,
-        resourceUri: testResourceUri,
+        annotationId: testAnnotationId,
+        resourceId: testResourceId,
       });
     });
 
@@ -225,12 +225,12 @@ describe('useContextGatherFlow', () => {
     // Second request - use deferred promise so we can check state before it completes
     mockClient.getAnnotationLLMContext.mockReturnValueOnce(secondRequestPromise as any);
 
-    const newAnnotationUri = 'http://example.com/annotations/anno-789';
+    const newAnnotationId = annotationId('anno-789');
 
     act(() => {
       eventBus.get('gather:requested').next({
-        annotationUri: newAnnotationUri,
-        resourceUri: testResourceUri,
+        annotationId: newAnnotationId,
+        resourceId: testResourceId,
       });
     });
 
@@ -266,23 +266,23 @@ describe('useContextGatherFlow', () => {
     );
 
     // Initial state - no annotation URI
-    expect(result.current.gatherAnnotationUri).toBe(null);
+    expect(result.current.gatherAnnotationId).toBe(null);
 
     // Trigger gather
     eventBus.get('gather:requested').next({
-      annotationUri: testAnnotationUri,
-      resourceUri: testResourceUri,
+      annotationId: testAnnotationId,
+      resourceId: testResourceId,
     });
 
     // Annotation URI should be stored immediately
     await waitFor(() => {
-      expect(result.current.gatherAnnotationUri).toBe(testAnnotationUri);
+      expect(result.current.gatherAnnotationId).toBe(testAnnotationId);
     });
 
     // Annotation URI should persist after completion
     await waitFor(() => {
       expect(result.current.gatherContext).toEqual(mockContext);
-      expect(result.current.gatherAnnotationUri).toBe(testAnnotationUri);
+      expect(result.current.gatherAnnotationId).toBe(testAnnotationId);
     });
   });
 
@@ -307,8 +307,8 @@ describe('useContextGatherFlow', () => {
 
     // Trigger gather
     eventBus.get('gather:requested').next({
-      annotationUri: testAnnotationUri,
-      resourceUri: testResourceUri,
+      annotationId: testAnnotationId,
+      resourceId: testResourceId,
     });
 
     // Should be loading
@@ -339,8 +339,8 @@ describe('useContextGatherFlow', () => {
 
     // Trigger gather
     eventBus.get('gather:requested').next({
-      annotationUri: testAnnotationUri,
-      resourceUri: testResourceUri,
+      annotationId: testAnnotationId,
+      resourceId: testResourceId,
     });
 
     // Wait for error to be set
@@ -370,8 +370,8 @@ describe('useContextGatherFlow', () => {
 
     // Trigger gather
     eventBus.get('gather:requested').next({
-      annotationUri: testAnnotationUri,
-      resourceUri: testResourceUri,
+      annotationId: testAnnotationId,
+      resourceId: testResourceId,
     });
 
     await waitFor(() => {
@@ -381,7 +381,7 @@ describe('useContextGatherFlow', () => {
 
     // Should still emit gather:complete with the full response (context is null inside)
     expect(completeSpy).toHaveBeenCalledWith({
-      annotationUri: testAnnotationUri,
+      annotationId: testAnnotationId,
       response: { context: null },
     });
   });

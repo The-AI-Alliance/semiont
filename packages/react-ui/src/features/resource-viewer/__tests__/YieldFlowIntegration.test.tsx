@@ -27,8 +27,8 @@ import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { useBindFlow } from '../../../hooks/useBindFlow';
 import { SSEClient } from '@semiont/api-client';
-import type { ResourceUri, AnnotationUri } from '@semiont/core';
-import { resourceUri, annotationUri } from '@semiont/core';
+import type { ResourceUri, AnnotationId, ResourceId } from '@semiont/core';
+import { resourceUri, annotationId, resourceId } from '@semiont/core';
 import type { Emitter } from 'mitt';
 import type { EventMap } from '@semiont/core';
 
@@ -78,7 +78,8 @@ describe('Generation Flow - Feature Integration', () => {
 
   it('should open modal when yield:modal-open event is emitted', async () => {
     const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
-    const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
+    const testAnnotationId = annotationId('test-annotation');
+    const testResourceId = resourceId('test-resource');
 
     const { emitModalOpen } = renderYieldFlow(
       testResourceUri
@@ -86,20 +87,21 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Emit modal open event
     act(() => {
-      emitModalOpen(testAnnotationUri, testResourceUri, 'Test Reference');
+      emitModalOpen(testAnnotationId, testResourceId, 'Test Reference');
     });
 
     // Verify modal state updated
     await waitFor(() => {
       expect(screen.getByTestId('modal-open')).toHaveTextContent('true');
-      expect(screen.getByTestId('reference-id')).toHaveTextContent(testAnnotationUri);
+      expect(screen.getByTestId('reference-id')).toHaveTextContent(testAnnotationId);
       expect(screen.getByTestId('default-title')).toHaveTextContent('Test Reference');
     });
   });
 
   it('should call yieldResourceFromAnnotation exactly ONCE when generation starts', async () => {
     const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
-    const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
+    const testAnnotationId = annotationId('test-annotation');
+    const testResourceId = resourceId('test-resource');
 
     const { emitGenerationStart, getEventBus } = renderYieldFlow(
       testResourceUri
@@ -107,7 +109,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Trigger generation with full options
     act(() => {
-      emitGenerationStart(testAnnotationUri, testResourceUri, {
+      emitGenerationStart(testAnnotationId, testResourceId, {
         title: 'Generated Document',
         prompt: 'Create a comprehensive document',
         language: 'en',
@@ -128,7 +130,7 @@ describe('Generation Flow - Feature Integration', () => {
     // Verify correct parameters
     expect(generateResourceSpy).toHaveBeenCalledWith(
       testResourceUri,
-      testAnnotationUri,
+      testAnnotationId,
       {
         title: 'Generated Document',
         prompt: 'Create a comprehensive document',
@@ -146,7 +148,8 @@ describe('Generation Flow - Feature Integration', () => {
 
   it('should propagate SSE progress events to useYieldProgress state', async () => {
     const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
-    const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
+    const testAnnotationId = annotationId('test-annotation');
+    const testResourceId = resourceId('test-resource');
 
     const { emitGenerationStart, getEventBus } = renderYieldFlow(
       testResourceUri
@@ -154,7 +157,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Start generation
     act(() => {
-      emitGenerationStart(testAnnotationUri, testResourceUri, {
+      emitGenerationStart(testAnnotationId, testResourceId, {
         title: 'Test Doc',
         context: { sourceText: 'test' },
       });
@@ -183,7 +186,8 @@ describe('Generation Flow - Feature Integration', () => {
 
   it('should handle multiple progress updates correctly', async () => {
     const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
-    const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
+    const testAnnotationId = annotationId('test-annotation');
+    const testResourceId = resourceId('test-resource');
 
     const { emitGenerationStart, getEventBus } = renderYieldFlow(
       testResourceUri
@@ -191,7 +195,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Start generation
     act(() => {
-      emitGenerationStart(testAnnotationUri, testResourceUri, {
+      emitGenerationStart(testAnnotationId, testResourceId, {
         title: 'Test',
         context: { sourceText: 'test' },
       });
@@ -231,7 +235,7 @@ describe('Generation Flow - Feature Integration', () => {
     act(() => {
       getEventBus().get('yield:finished').next({
         status: 'complete',
-        referenceId: testAnnotationUri,
+        referenceId: testAnnotationId,
         message: 'Document created successfully',
         percentage: 100,
         resourceName: 'Generated Document',
@@ -246,7 +250,8 @@ describe('Generation Flow - Feature Integration', () => {
 
   it('should show success toast on generation complete', async () => {
     const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
-    const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
+    const testAnnotationId = annotationId('test-annotation');
+    const testResourceId = resourceId('test-resource');
 
     const { emitGenerationStart, getEventBus } = renderYieldFlow(
       testResourceUri
@@ -254,7 +259,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Start generation
     act(() => {
-      emitGenerationStart(testAnnotationUri, testResourceUri, {
+      emitGenerationStart(testAnnotationId, testResourceId, {
         title: 'Test',
         context: { sourceText: 'test' },
       });
@@ -277,7 +282,7 @@ describe('Generation Flow - Feature Integration', () => {
     act(() => {
       getEventBus().get('yield:finished').next({
         status: 'complete',
-        referenceId: testAnnotationUri,
+        referenceId: testAnnotationId,
         resourceName: 'Generated Document',
         percentage: 100,
       });
@@ -289,7 +294,8 @@ describe('Generation Flow - Feature Integration', () => {
 
   it('should clear progress on generation failure', async () => {
     const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
-    const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
+    const testAnnotationId = annotationId('test-annotation');
+    const testResourceId = resourceId('test-resource');
 
     const { emitGenerationStart, getEventBus } = renderYieldFlow(
       testResourceUri
@@ -297,7 +303,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Start generation
     act(() => {
-      emitGenerationStart(testAnnotationUri, testResourceUri, {
+      emitGenerationStart(testAnnotationId, testResourceId, {
         title: 'Test',
         context: { sourceText: 'test' },
       });
@@ -329,7 +335,8 @@ describe('Generation Flow - Feature Integration', () => {
 
   it('should only call API once even with multiple event listeners', async () => {
     const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
-    const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
+    const testAnnotationId = annotationId('test-annotation');
+    const testResourceId = resourceId('test-resource');
 
     const { emitGenerationStart, getEventBus } = renderYieldFlow(
       testResourceUri
@@ -341,7 +348,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Trigger generation
     act(() => {
-      emitGenerationStart(testAnnotationUri, testResourceUri, {
+      emitGenerationStart(testAnnotationId, testResourceId, {
         title: 'Test',
         context: { sourceText: 'test' },
       });
@@ -363,7 +370,8 @@ describe('Generation Flow - Feature Integration', () => {
 
   it('should forward final chunk as progress before emitting complete', async () => {
     const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
-    const testAnnotationUri = annotationUri('http://localhost:4000/resources/test-resource/annotations/test-annotation');
+    const testAnnotationId = annotationId('test-annotation');
+    const testResourceId = resourceId('test-resource');
 
     const { emitGenerationStart, getEventBus } = renderYieldFlow(
       testResourceUri
@@ -371,7 +379,7 @@ describe('Generation Flow - Feature Integration', () => {
 
     // Start generation
     act(() => {
-      emitGenerationStart(testAnnotationUri, testResourceUri, {
+      emitGenerationStart(testAnnotationId, testResourceId, {
         title: 'Test',
         context: { sourceText: 'test' },
       });
@@ -385,7 +393,7 @@ describe('Generation Flow - Feature Integration', () => {
     act(() => {
       getEventBus().get('yield:finished').next({
         status: 'complete',
-        referenceId: testAnnotationUri,
+        referenceId: testAnnotationId,
         message: 'Document created: My Document',
         resourceName: 'My Document',
         percentage: 100,
@@ -460,19 +468,19 @@ function renderYieldFlow(
 
   return {
     emitModalOpen: (
-      annotationUri: AnnotationUri,
-      resourceUri: ResourceUri,
+      aId: AnnotationId,
+      rId: ResourceId,
       defaultTitle: string
     ) => {
       eventBusInstance.get('yield:modal-open').next({
-        annotationUri,
-        resourceUri,
+        annotationId: aId,
+        resourceId: rId,
         defaultTitle,
       });
     },
     emitGenerationStart: (
-      annotationUri: AnnotationUri,
-      resourceUri: ResourceUri,
+      aId: AnnotationId,
+      rId: ResourceId,
       options: {
         title: string;
         prompt?: string;
@@ -483,8 +491,8 @@ function renderYieldFlow(
       }
     ) => {
       eventBusInstance.get('yield:request').next({
-        annotationUri,
-        resourceUri,
+        annotationId: aId,
+        resourceId: rId,
         options,
       });
     },

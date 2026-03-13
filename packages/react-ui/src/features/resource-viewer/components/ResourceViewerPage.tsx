@@ -8,7 +8,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { components, ResourceUri, ResourceEvent } from '@semiont/core';
-import { resourceAnnotationUri } from '@semiont/core';
+import { annotationId, resourceId as makeResourceId } from '@semiont/core';
 import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType } from '@semiont/api-client';
 import { ANNOTATORS } from '@semiont/react-ui';
 import { ErrorBoundary } from '@semiont/react-ui';
@@ -607,11 +607,10 @@ export function ResourceViewerPage({
           if (pendingReferenceId) {
             try {
               const resourceIdSegment = rUri.split('/').pop() || '';
-              const nestedUri = `${window.location.origin}/resources/${resourceIdSegment}/annotations/${pendingReferenceId}`;
 
               eventBus.get('bind:update-body').next({
-                annotationUri: resourceAnnotationUri(nestedUri),
-                resourceId: resourceIdSegment,
+                annotationId: annotationId(pendingReferenceId),
+                resourceId: makeResourceId(resourceIdSegment),
                 operations: [{
                   op: 'add',
                   item: {

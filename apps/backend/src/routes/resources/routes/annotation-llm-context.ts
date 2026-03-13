@@ -8,6 +8,7 @@
 import { HTTPException } from 'hono/http-exception';
 import { firstValueFrom, merge } from 'rxjs';
 import { filter, map, take, timeout } from 'rxjs/operators';
+import { annotationId, resourceId } from '@semiont/core';
 import type { ResourcesRouterType } from '../shared';
 
 export function registerGetAnnotationLLMContext(router: ResourcesRouterType) {
@@ -27,8 +28,8 @@ export function registerGetAnnotationLLMContext(router: ResourcesRouterType) {
 
     // Emit gather:requested — Gatherer subscribes and calls AnnotationContext.buildLLMContext
     eventBus.get('gather:requested').next({
-      annotationId: annotationIdParam,
-      resourceId: resourceIdParam,
+      annotationId: annotationId(annotationIdParam),
+      resourceId: resourceId(resourceIdParam),
       options: { includeSourceContext, includeTargetContext, contextWindow },
     });
 

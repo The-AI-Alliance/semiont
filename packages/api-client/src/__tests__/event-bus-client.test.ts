@@ -509,8 +509,8 @@ describe('EventBusClient', () => {
       });
 
       const result = await client.getAnnotationLLMContext(
-        'ann-1',
-        'res-1',
+        annotationId('ann-1'),
+        resourceId('res-1'),
         { contextWindow: 500 },
       );
       expect(result).toEqual(mockResponse);
@@ -528,7 +528,7 @@ describe('EventBusClient', () => {
       });
 
       await expect(
-        client.getAnnotationLLMContext('ann-1', 'res-1'),
+        client.getAnnotationLLMContext(annotationId('ann-1'), resourceId('res-1')),
       ).rejects.toThrow('Context assembly failed');
     });
   });
@@ -555,7 +555,7 @@ describe('EventBusClient', () => {
       });
 
       const result = await client.getResourceLLMContext(
-        'res-1',
+        resourceId('res-1'),
         { depth: 2, maxResources: 10, includeContent: true, includeSummary: false },
       );
       expect(result).toEqual(mockContext);
@@ -573,7 +573,7 @@ describe('EventBusClient', () => {
       });
 
       await expect(
-        client.getResourceLLMContext('res-1', { depth: 1, maxResources: 5, includeContent: true, includeSummary: false }),
+        client.getResourceLLMContext(resourceId('res-1'), { depth: 1, maxResources: 5, includeContent: true, includeSummary: false }),
       ).rejects.toThrow('Graph traversal failed');
     });
   });

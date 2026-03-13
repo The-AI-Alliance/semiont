@@ -8,6 +8,7 @@
 import { HTTPException } from 'hono/http-exception';
 import { firstValueFrom, merge } from 'rxjs';
 import { filter, map, take, timeout } from 'rxjs/operators';
+import { resourceId } from '@semiont/core';
 import type { ResourcesRouterType } from '../shared';
 
 export function registerGetResourceLLMContext(router: ResourcesRouterType) {
@@ -32,7 +33,7 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
 
     // Emit gather:resource-requested — Gatherer subscribes and calls LLMContext.getResourceContext
     eventBus.get('gather:resource-requested').next({
-      resourceId: id,
+      resourceId: resourceId(id),
       options: { depth, maxResources, includeContent, includeSummary },
     });
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ResourceUri } from '@semiont/core';
+import type { EventMap, ResourceUri } from '@semiont/core';
 import { resourceAnnotationUri, accessToken } from '@semiont/core';
 import { useEventBus } from '../contexts/EventBusContext';
 import { useApiClient } from '../contexts/ApiClientContext';
@@ -69,25 +69,16 @@ export function useBindFlow(rUri: ResourceUri): BindFlowState {
      * Handle annotation body updates
      * Emitted by: ReferenceEntry (for unlinking), future body editing features
      */
-    const handleAnnotationUpdateBody = async (event: {
-      annotationUri: string;
-      resourceId: string;
-      operations: Array<{
-        op: 'add' | 'remove' | 'replace';
-        item?: any;
-        oldItem?: any;
-        newItem?: any;
-      }>;
-    }) => {
+    const handleAnnotationUpdateBody = async (event: EventMap['bind:update-body']) => {
       try {
-        const nestedUri = resourceAnnotationUri(`${rUriRef.current}/annotations/${event.annotationUri}`);
+        const nestedUri = resourceAnnotationUri(`${rUriRef.current}/annotations/${event.annotationId}`);
 
         await clientRef.current.updateAnnotationBody(nestedUri, {
           resourceId: event.resourceId,
           operations: event.operations as any,
         }, { auth: toAccessToken(tokenRef.current) });
 
-        eventBus.get('bind:body-updated').next({ annotationUri: event.annotationUri });
+        eventBus.get('bind:body-updated').next({ annotationId: event.annotationId });
       } catch (error) {
         console.error('Failed to update annotation body:', error);
         eventBus.get('bind:body-update-failed').next({ error: error as Error });
@@ -98,12 +89,9 @@ export function useBindFlow(rUri: ResourceUri): BindFlowState {
      * Handle reference linking (search for existing documents)
      * Emitted by: ReferenceEntry (when user clicks "Link Document")
      */
-    const handleReferenceLink = (event: {
-      annotationUri: string;
-      searchTerm: string;
-    }) => {
+    const handleReferenceLink = (event: EventMap['bind:link']) => {
       eventBus.get('bind:search-requested').next({
-        referenceId: event.annotationUri,
+        referenceId: event.annotationId,
         searchTerm: event.searchTerm,
       });
     };

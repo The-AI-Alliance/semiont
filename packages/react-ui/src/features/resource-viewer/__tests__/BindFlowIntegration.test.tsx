@@ -23,7 +23,7 @@ import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../..
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { SemiontApiClient } from '@semiont/api-client';
-import { resourceUri, accessToken } from '@semiont/core';
+import { resourceUri, accessToken, annotationId, resourceId } from '@semiont/core';
 
 // Mock Toast module to prevent "useToast must be used within a ToastProvider" errors
 vi.mock('../../../components/Toast', () => ({
@@ -96,7 +96,7 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
     const searchRequestedSpy = vi.fn();
 
     const subscription = getEventBus().get('bind:search-requested').subscribe(searchRequestedSpy);
-    act(() => { getEventBus().get('bind:link').next({ annotationUri: 'ann-uri-123', searchTerm: 'climate change' }); });
+    act(() => { getEventBus().get('bind:link').next({ annotationId: annotationId('ann-uri-123'), searchTerm: 'climate change' }); });
     subscription.unsubscribe();
 
     expect(searchRequestedSpy).toHaveBeenCalledTimes(1);
@@ -134,7 +134,7 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
     const { getState, getEventBus } = renderBindFlow();
 
     // Simulate the full user journey: user clicks "Link Document" on a reference entry
-    act(() => { getEventBus().get('bind:link').next({ annotationUri: 'ann-full-chain', searchTerm: 'biodiversity' }); });
+    act(() => { getEventBus().get('bind:link').next({ annotationId: annotationId('ann-full-chain'), searchTerm: 'biodiversity' }); });
 
     await waitFor(() => {
       expect(getState().searchModalOpen).toBe(true);
@@ -177,8 +177,8 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
     const { getEventBus } = renderBindFlow();
 
     act(() => { getEventBus().get('bind:update-body').next({
-      annotationUri: 'http://localhost:4000/resources/test-resource/annotations/ann-body-1',
-      resourceId: 'linked-resource-id',
+      annotationId: annotationId('ann-body-1'),
+      resourceId: resourceId('linked-resource-id'),
       operations: [{ op: 'add', item: { id: 'linked-resource-id' } }],
     }); });
 
@@ -191,8 +191,8 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
     const { getEventBus } = renderBindFlow();
 
     act(() => { getEventBus().get('bind:update-body').next({
-      annotationUri: 'http://localhost:4000/resources/test-resource/annotations/ann-auth',
-      resourceId: 'resource-id',
+      annotationId: annotationId('ann-auth'),
+      resourceId: resourceId('resource-id'),
       operations: [{ op: 'replace', newItem: { id: 'resource-id' } }],
     }); });
 
@@ -212,8 +212,8 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
     const subscription = getEventBus().get('bind:body-updated').subscribe(bodyUpdatedSpy);
 
     act(() => { getEventBus().get('bind:update-body').next({
-      annotationUri: 'http://localhost:4000/resources/test-resource/annotations/ann-success',
-      resourceId: 'resource-id',
+      annotationId: annotationId('ann-success'),
+      resourceId: resourceId('resource-id'),
       operations: [{ op: 'add', item: { id: 'resource-id' } }],
     }); });
 
@@ -224,7 +224,7 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
     subscription.unsubscribe();
 
     expect(bodyUpdatedSpy).toHaveBeenCalledWith({
-      annotationUri: 'http://localhost:4000/resources/test-resource/annotations/ann-success',
+      annotationId: annotationId('ann-success'),
     });
   });
 
@@ -237,8 +237,8 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
     const subscription = getEventBus().get('bind:body-update-failed').subscribe(bodyUpdateFailedSpy);
 
     act(() => { getEventBus().get('bind:update-body').next({
-      annotationUri: 'http://localhost:4000/resources/test-resource/annotations/ann-fail',
-      resourceId: 'resource-id',
+      annotationId: annotationId('ann-fail'),
+      resourceId: resourceId('resource-id'),
       operations: [{ op: 'remove', item: { id: 'old-id' } }],
     }); });
 
@@ -257,8 +257,8 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
     const { getEventBus } = renderBindFlow();
 
     act(() => { getEventBus().get('bind:update-body').next({
-      annotationUri: 'http://localhost:4000/resources/test-resource/annotations/ann-dedup',
-      resourceId: 'resource-id',
+      annotationId: annotationId('ann-dedup'),
+      resourceId: resourceId('resource-id'),
       operations: [{ op: 'add', item: { id: 'resource-id' } }],
     }); });
 

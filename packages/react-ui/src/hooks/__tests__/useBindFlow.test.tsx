@@ -15,7 +15,7 @@ import { render, act, waitFor } from '@testing-library/react';
 import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../contexts/AuthTokenContext';
-import { resourceUri } from '@semiont/core';
+import { resourceUri, annotationId, resourceId } from '@semiont/core';
 import { useBindFlow } from '../useBindFlow';
 
 // Mock the toast hook to track calls
@@ -75,7 +75,7 @@ function renderBindFlow() {
 }
 
 describe('useBindFlow', () => {
-  const testAnnotationUri = 'http://example.com/annotations/anno-456';
+  const testAnnotationId = annotationId('anno-456');
 
   beforeEach(() => {
     resetEventBusForTesting();
@@ -111,7 +111,7 @@ describe('useBindFlow', () => {
     // Trigger bind:link event
     act(() => {
       getEventBus().get('bind:link').next({
-        annotationUri: testAnnotationUri,
+        annotationId: testAnnotationId,
         searchTerm: 'test search term',
       });
     });
@@ -119,7 +119,7 @@ describe('useBindFlow', () => {
     // Should relay to bind:search-requested
     await waitFor(() => {
       expect(searchRequestedSpy).toHaveBeenCalledWith({
-        referenceId: testAnnotationUri,
+        referenceId: testAnnotationId,
         searchTerm: 'test search term',
       });
     });
@@ -135,7 +135,7 @@ describe('useBindFlow', () => {
     // Trigger search requested
     act(() => {
       getEventBus().get('bind:search-requested').next({
-        referenceId: testAnnotationUri,
+        referenceId: testAnnotationId,
         searchTerm: 'test search',
       });
     });
@@ -143,7 +143,7 @@ describe('useBindFlow', () => {
     // Modal should open and reference should be stored
     await waitFor(() => {
       expect(getState().searchModalOpen).toBe(true);
-      expect(getState().pendingReferenceId).toBe(testAnnotationUri);
+      expect(getState().pendingReferenceId).toBe(testAnnotationId);
     });
   });
 
@@ -153,7 +153,7 @@ describe('useBindFlow', () => {
     // Open the modal first
     act(() => {
       getEventBus().get('bind:search-requested').next({
-        referenceId: testAnnotationUri,
+        referenceId: testAnnotationId,
         searchTerm: 'test',
       });
     });
@@ -182,13 +182,13 @@ describe('useBindFlow', () => {
       source: 'resource:789',
     };
 
-    const testResourceUri = resourceUri('http://example.com/resources/resource-123');
+    const testResourceId = resourceId('resource-123');
 
     // Trigger body update with add operation
     act(() => {
       getEventBus().get('bind:update-body').next({
-        annotationUri: testAnnotationUri,
-        resourceId: testResourceUri,
+        annotationId: testAnnotationId,
+        resourceId: testResourceId,
         operations: [
           {
             op: 'add',
@@ -214,13 +214,13 @@ describe('useBindFlow', () => {
       source: 'resource:789',
     };
 
-    const testResourceUri = resourceUri('http://example.com/resources/resource-123');
+    const testResourceId = resourceId('resource-123');
 
     // Trigger body update with remove operation
     act(() => {
       getEventBus().get('bind:update-body').next({
-        annotationUri: testAnnotationUri,
-        resourceId: testResourceUri,
+        annotationId: testAnnotationId,
+        resourceId: testResourceId,
         operations: [
           {
             op: 'remove',
@@ -251,13 +251,13 @@ describe('useBindFlow', () => {
       source: 'resource:789',
     };
 
-    const testResourceUri = resourceUri('http://example.com/resources/resource-123');
+    const testResourceId = resourceId('resource-123');
 
     // Trigger body update with replace operation
     act(() => {
       getEventBus().get('bind:update-body').next({
-        annotationUri: testAnnotationUri,
-        resourceId: testResourceUri,
+        annotationId: testAnnotationId,
+        resourceId: testResourceId,
         operations: [
           {
             op: 'replace',
@@ -283,13 +283,13 @@ describe('useBindFlow', () => {
     const bodyUpdatedSpy = vi.fn();
     getEventBus().get('bind:body-updated').subscribe(bodyUpdatedSpy);
 
-    const testResourceUri = resourceUri('http://example.com/resources/resource-123');
+    const testResourceId = resourceId('resource-123');
 
     // Trigger body update
     act(() => {
       getEventBus().get('bind:update-body').next({
-        annotationUri: testAnnotationUri,
-        resourceId: testResourceUri,
+        annotationId: testAnnotationId,
+        resourceId: testResourceId,
         operations: [
           {
             op: 'add',
@@ -302,7 +302,7 @@ describe('useBindFlow', () => {
     // Should emit body-updated event
     await waitFor(() => {
       expect(bodyUpdatedSpy).toHaveBeenCalledWith({
-        annotationUri: testAnnotationUri,
+        annotationId: testAnnotationId,
       });
     });
   });
@@ -317,13 +317,13 @@ describe('useBindFlow', () => {
     const bodyUpdateFailedSpy = vi.fn();
     getEventBus().get('bind:body-update-failed').subscribe(bodyUpdateFailedSpy);
 
-    const testResourceUri = resourceUri('http://example.com/resources/resource-123');
+    const testResourceId = resourceId('resource-123');
 
     // Trigger body update
     act(() => {
       getEventBus().get('bind:update-body').next({
-        annotationUri: testAnnotationUri,
-        resourceId: testResourceUri,
+        annotationId: testAnnotationId,
+        resourceId: testResourceId,
         operations: [
           {
             op: 'add',
@@ -347,13 +347,13 @@ describe('useBindFlow', () => {
 
     const { getEventBus } = renderBindFlow();
 
-    const testResourceUri = resourceUri('http://example.com/resources/resource-123');
+    const testResourceId = resourceId('resource-123');
 
     // Trigger body update
     act(() => {
       getEventBus().get('bind:update-body').next({
-        annotationUri: testAnnotationUri,
-        resourceId: testResourceUri,
+        annotationId: testAnnotationId,
+        resourceId: testResourceId,
         operations: [
           {
             op: 'add',
