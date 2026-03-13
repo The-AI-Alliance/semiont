@@ -46,9 +46,12 @@ function collectWritable(): { writable: Writable; promise: Promise<Buffer> } {
 function makeStoredEvent(type: string, payload: Record<string, unknown>, checksum: string): StoredEvent {
   return {
     event: {
+      id: 'evt-1',
       type,
       resourceId: 'resource-1' as ResourceId,
       userId: 'did:web:localhost:users:test' as UserId,
+      timestamp: '2026-03-12T00:00:00Z',
+      version: 1,
       payload,
     },
     metadata: {
@@ -56,7 +59,7 @@ function makeStoredEvent(type: string, payload: Record<string, unknown>, checksu
       streamPosition: 0,
       timestamp: '2026-03-12T00:00:00Z',
       checksum,
-      prevEventHash: null,
+      prevEventHash: undefined,
     },
   } as StoredEvent;
 }

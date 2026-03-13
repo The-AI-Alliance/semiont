@@ -56,6 +56,7 @@ function makeResourceView(opts: {
 }): ResourceView {
   return {
     resource: {
+      '@context': 'https://schema.org',
       '@id': `http://localhost:8080/api/resources/${opts.id}`,
       name: opts.name,
       entityTypes: opts.entityTypes || [],

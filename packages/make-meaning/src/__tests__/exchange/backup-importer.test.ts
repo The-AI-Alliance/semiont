@@ -8,7 +8,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Readable, Writable } from 'node:stream';
-import type { Logger, ResourceId, UserId, AnnotationId } from '@semiont/core';
+import type { Logger, ResourceId, UserId } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { EventBus } from '@semiont/core';
 import { importBackup } from '../../exchange/backup-importer';
@@ -24,7 +24,6 @@ function bufferToReadable(buf: Buffer): Readable {
 
 const TEST_USER = 'did:web:localhost:users:test' as UserId;
 const TEST_RESOURCE = 'test-resource-id' as ResourceId;
-const TEST_ANNOTATION = 'test-ann-1' as AnnotationId;
 
 const STUB_RESOURCE: components['schemas']['ResourceDescriptor'] = {
   '@context': 'https://schema.org',

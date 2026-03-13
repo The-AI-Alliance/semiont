@@ -63,6 +63,12 @@
     "/api/admin/oauth/config": {
       "$ref": "paths/api_admin_oauth_config.json"
     },
+    "/api/admin/exchange/export": {
+      "$ref": "paths/api_admin_exchange_export.json"
+    },
+    "/api/admin/exchange/import": {
+      "$ref": "paths/api_admin_exchange_import.json"
+    },
     "/resources": {
       "$ref": "paths/resources.json"
     },
