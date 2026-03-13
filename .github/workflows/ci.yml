@@ -23,14 +23,10 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
-      - name: Build dependencies
+      - name: Build packages
         run: |
           npm install
-          npm run openapi:bundle
-          npm run build --workspace=@semiont/api-client
-          npm run build --workspace=@semiont/core
-          npm run build --workspace=@semiont/ontology
-          npm run build --workspace=@semiont/react-ui
+          npm run build:packages
 
       - name: Build CLI
         run: |
