@@ -1,40 +1,25 @@
 /**
  * Global test setup for frontend
- * Uses lazy-loading TestEnvironment for better performance
  */
 
 import '@testing-library/jest-dom';
-import { beforeAll, afterEach, afterAll, vi } from 'vitest';
-import { FrontendTestEnvironment } from './src/__tests__/test-environment';
+import { vi, afterEach } from 'vitest';
+import { cleanup } from '@testing-library/react';
 
-// Ensure we use Node's native AbortController for ky compatibility
+// AbortController polyfill for ky compatibility
 if (typeof global.AbortController === 'undefined') {
   global.AbortController = AbortController;
   global.AbortSignal = AbortSignal;
 }
 
-// Mock DOMMatrix for PDF.js in test environment
+// DOMMatrix polyfill for PDF.js
 if (typeof globalThis !== 'undefined' && !(globalThis as any).DOMMatrix) {
   (globalThis as any).DOMMatrix = class DOMMatrix {
-    constructor() {
-      // Minimal implementation for PDF.js compatibility
-      this.a = 1;
-      this.b = 0;
-      this.c = 0;
-      this.d = 1;
-      this.e = 0;
-      this.f = 0;
-    }
-    a: number;
-    b: number;
-    c: number;
-    d: number;
-    e: number;
-    f: number;
+    a = 1; b = 0; c = 0; d = 1; e = 0; f = 0;
   };
 }
 
-// Mock window.matchMedia for theme detection
+// window.matchMedia mock for theme detection
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: vi.fn().mockImplementation(query => ({
@@ -49,37 +34,146 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 });
 
-// Mock next-intl globally
-vi.mock('next-intl');
+// Polyfill animations API for Headless UI
+if (!window.Element.prototype.getAnimations) {
+  window.Element.prototype.getAnimations = function () {
+    return [];
+  };
+}
 
-let testEnv: FrontendTestEnvironment;
-
-beforeAll(async () => {
-  // Get test environment instance
-  testEnv = FrontendTestEnvironment.getInstance();
-  
-  // Initialize with default settings (lazy - only when first test runs)
-  await testEnv.initialize({
-    mockAPI: true,
-    mockRouter: true,
-    mockAuth: true,
-    setupDOM: true
-  });
+// window.location mock
+Object.defineProperty(window, 'location', {
+  value: {
+    href: 'http://localhost:3000/',
+    origin: 'http://localhost:3000',
+    protocol: 'http:',
+    host: 'localhost:3000',
+    hostname: 'localhost',
+    port: '3000',
+    pathname: '/',
+    search: '',
+    hash: '',
+    reload: vi.fn(),
+    replace: vi.fn(),
+    assign: vi.fn(),
+  },
+  writable: true,
+  configurable: true,
 });
 
+// URL object mocks
+global.URL.createObjectURL = vi.fn(() => 'blob:mock-url');
+global.URL.revokeObjectURL = vi.fn();
+
+// Relative URL fetch polyfill
+const originalFetch = global.fetch;
+global.fetch = async (input, init) => {
+  if (typeof input === 'string' && input.startsWith('/')) {
+    input = `http://localhost:3000${input}`;
+  }
+  return originalFetch(input, init);
+};
+
+// Next.js navigation mock
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+  }),
+  useSearchParams: () => ({ get: vi.fn() }),
+  usePathname: () => '/',
+  redirect: vi.fn(),
+  notFound: vi.fn(),
+  useParams: () => ({ locale: 'en' }),
+}));
+
+// NextAuth mocks
+vi.mock('next-auth', () => ({
+  getServerSession: vi.fn(),
+}));
+
+vi.mock('next-auth/react', () => ({
+  useSession: vi.fn(() => ({ data: null, status: 'unauthenticated' })),
+  signIn: vi.fn(),
+  signOut: vi.fn(),
+  SessionProvider: ({ children }: any) => children,
+}));
+
+// next-intl mock with actual English translations
+vi.mock('next-intl', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+  const { fileURLToPath } = await import('url');
+
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const translationsPath = path.join(__dirname, 'messages', 'en.json');
+  const translations = JSON.parse(fs.readFileSync(translationsPath, 'utf8'));
+
+  const mockTranslations = (namespace: string) => {
+    return (key: string, params?: Record<string, unknown>) => {
+      const namespaceData = translations[namespace] || {};
+      let result: string = namespaceData[key] || key;
+      if (params) {
+        Object.entries(params).forEach(([paramKey, paramValue]) => {
+          result = result.replace(`{${paramKey}}`, String(paramValue));
+        });
+      }
+      return result;
+    };
+  };
+
+  return {
+    useTranslations: vi.fn((namespace: string) => mockTranslations(namespace)),
+    useLocale: vi.fn(() => 'en'),
+    NextIntlClientProvider: ({ children }: any) => children,
+    useMessages: vi.fn(() => translations),
+  };
+});
+
+// next-intl/routing mock
+vi.mock('next-intl/routing', () => ({
+  defineRouting: vi.fn((config: unknown) => config),
+}));
+
+// next-intl/navigation mock
+vi.mock('next-intl/navigation', async () => {
+  const React = await import('react');
+
+  const MockLink = ({ children, href, ...props }: any) =>
+    React.createElement('a', { href, ...props },
+      typeof children === 'function' ? children({ isActive: false }) : children
+    );
+
+  return {
+    useRouter: () => ({
+      push: vi.fn(),
+      replace: vi.fn(),
+      prefetch: vi.fn(),
+      back: vi.fn(),
+      forward: vi.fn(),
+      refresh: vi.fn(),
+    }),
+    usePathname: () => '/',
+    redirect: vi.fn(),
+    Link: MockLink,
+    createNavigation: vi.fn(() => {
+      const { usePathname, useRouter } = require('next/navigation');
+      return { Link: MockLink, redirect: vi.fn(), usePathname, useRouter };
+    }),
+  };
+});
+
+// Environment variables
+process.env.NEXT_PUBLIC_SITE_NAME = 'Test Semiont';
+process.env.SERVER_API_URL = 'http://localhost:3001';
+process.env.NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS = 'example.com,test.com';
+
+// Cleanup between tests
 afterEach(() => {
-  // Reset mocks between tests for isolation
-  if (testEnv) {
-    testEnv.resetMocks();
-  }
+  cleanup();
+  vi.clearAllTimers();
 });
-
-afterAll(async () => {
-  // Full cleanup after all tests
-  if (testEnv) {
-    await testEnv.cleanup();
-  }
-});
-
-// Export for tests that need direct access
-export { testEnv };

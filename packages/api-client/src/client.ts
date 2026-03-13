@@ -674,6 +674,78 @@ export class SemiontApiClient {
   }
 
   // ============================================================================
+  // ADMIN — EXCHANGE (Import/Export)
+  // ============================================================================
+
+  /**
+   * Export knowledge base. Returns raw Response for streaming download.
+   * Caller should use response.blob() to trigger a file download.
+   */
+  async exportKnowledgeBase(
+    data: { format: 'backup' | 'snapshot'; includeArchived?: boolean },
+    options?: RequestOptions,
+  ): Promise<Response> {
+    return fetch(`${this.baseUrl}/api/admin/exchange/export`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options?.auth ? { Authorization: `Bearer ${options.auth}` } : {}),
+      },
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * Import knowledge base from file. Parses SSE progress events and calls onProgress.
+   * Returns the final SSE event (phase: 'complete' or 'error').
+   */
+  async importKnowledgeBase(
+    file: File,
+    options?: RequestOptions & {
+      onProgress?: (event: { phase: string; message?: string; result?: Record<string, unknown> }) => void;
+    },
+  ): Promise<{ phase: string; message?: string; result?: Record<string, unknown> }> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${this.baseUrl}/api/admin/exchange/import`, {
+      method: 'POST',
+      headers: {
+        ...(options?.auth ? { Authorization: `Bearer ${options.auth}` } : {}),
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Import failed: ${response.status} ${response.statusText}`);
+    }
+
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finalResult: { phase: string; message?: string; result?: Record<string, unknown> } = { phase: 'unknown' };
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop()!;
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const event = JSON.parse(line.slice(6));
+          options?.onProgress?.(event);
+          finalResult = event;
+        }
+      }
+    }
+
+    return finalResult;
+  }
+
+  // ============================================================================
   // JOB STATUS
   // ============================================================================
 

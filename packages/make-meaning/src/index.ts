@@ -25,6 +25,9 @@ export { CloneTokenManager } from './clone-token-manager';
 // Graph Consumer
 export { GraphDBConsumer } from './graph/consumer';
 
+// Exchange (import/export)
+export * from './exchange';
+
 // Resource operations
 export { ResourceOperations } from './resource-operations';
 export type { UpdateResourceInput, CreateResourceInput } from './resource-operations';

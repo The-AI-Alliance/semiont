@@ -309,7 +309,12 @@ For detailed instructions on adding new commands, see the [Adding Commands Guide
 - `backup` - Create service backups
 - `restore` - Restore from backups
 
-**Development & Deployment**  
+**Knowledge Base Import/Export**
+- `export` - Export the knowledge base to a file (backup or snapshot format)
+- `import` - Import a knowledge base from a backup or snapshot file
+- `verify` - Verify a backup archive's integrity without importing
+
+**Development & Deployment**
 - `publish` - Build and publish artifacts (creates new versions, does not deploy)
 - `update` - Deploy new versions to running services (deploys what publish created)
 - `test` - Run test suites
@@ -345,6 +350,78 @@ semiont update --service frontend --environment production
 ```
 
 For services using immutable tags (e.g., git hashes), `update` will only deploy if a newer version exists. For mutable tags (e.g., `:latest`), `update` can force a redeployment even without version changes.
+
+### Knowledge Base Export, Import, and Verify
+
+The `export`, `import`, and `verify` commands provide whole-KB backup and restore capabilities in two formats:
+
+**Backup format** (`--format backup`, default) — Lossless round-trip of the event log and content store:
+- Streams a tar.gz archive containing `manifest.jsonl`, per-resource event streams (`events/*.jsonl`), and content blobs (`content/*`)
+- Preserves full event history, hash chains, and all metadata
+- On import, events replay through the EventBus and Stower actor so materialized views and graph rebuild naturally
+
+**Snapshot format** (`--format snapshot`) — Current-state export, no history:
+- Plain JSONL when all content is text; tar.gz when binary content is present
+- Each line contains a resource with inline text content, annotations, and metadata
+- Lossy — event history, deleted annotations, and job state are not included
+
+#### Export
+
+```bash
+# Full backup (default)
+semiont export --environment production --out backup.tar.gz
+
+# Current-state snapshot
+semiont export --environment production --format snapshot --out snapshot.jsonl
+
+# Include archived resources in snapshot
+semiont export --environment production --format snapshot --include-archived --out full.jsonl
+```
+
+Options:
+- `--format backup|snapshot` — Export format (default: `backup`)
+- `--out <path>` — Output file path (required)
+- `--include-archived` — Include archived resources (snapshot only, default: `false`)
+
+#### Import
+
+```bash
+# Import from backup
+semiont import --environment production --file backup.tar.gz
+
+# Import from snapshot
+semiont import --environment production --format snapshot --file snapshot.jsonl
+
+# Import with a specific user identity
+semiont import --environment production --format snapshot --file snapshot.jsonl \
+  --user-id did:web:example.com:users:alice
+```
+
+Options:
+- `--format backup|snapshot` — Import format (default: `backup`)
+- `--file <path>`, `-f <path>` — Input file path (required)
+- `--user-id <did>` — User DID for snapshot import (default: `did:web:localhost:users:import`)
+
+Import bootstraps a full EventBus + Stower pipeline so imported events flow through the normal actor system. Materialized views and graph rebuild naturally from the replayed events.
+
+#### Verify
+
+```bash
+# Verify a backup archive without importing
+semiont verify --file backup.tar.gz
+```
+
+Options:
+- `--file <path>`, `-f <path>` — Backup file to verify (required)
+
+Verify checks:
+- Manifest format and version
+- Hash chain integrity per event stream
+- First/last checksum match against stream summaries
+- Event count match per stream
+- Content blob count match
+
+Does not require an environment — reads the archive standalone.
 
 ## MCP (Model Context Protocol) Server
 

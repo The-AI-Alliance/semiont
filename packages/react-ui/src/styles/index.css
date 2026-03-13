@@ -43,6 +43,7 @@
 @import './features/admin.css';
 @import './features/compose.css';
 @import './features/devops.css';
+@import './features/exchange.css';
 @import './features/entity-tags.css';
 @import './features/recent-docs.css';
 @import './features/resource.css';
