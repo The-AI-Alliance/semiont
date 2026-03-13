@@ -11,7 +11,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    setupFiles: ['./vitest.setup.js'],
+    setupFiles: ['./vitest.setup.ts'],
     // Don't fail on uncaught exceptions from intentional error tests
     dangerouslyIgnoreUnhandledErrors: true,
     // Pool configuration to reduce memory usage
@@ -36,9 +36,8 @@ export default defineConfig({
         '**/*.d.ts',
         '**/*.config.*',
         '**/mockData/*',
-        'src/mocks/**',
         '**/__tests__/**',
-        'vitest.setup.js',
+        'vitest.setup.ts',
         'public/**',
         '**/public/**',
         '**/mockServiceWorker.js',
