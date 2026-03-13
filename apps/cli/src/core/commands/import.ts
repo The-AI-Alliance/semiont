@@ -106,11 +106,6 @@ export async function runImport(options: ImportOptions): Promise<CommandResults>
     throw new Error('services.filesystem.path is required in environment config');
   }
 
-  const baseUrl = envConfig.services?.backend?.publicURL;
-  if (!baseUrl) {
-    throw new Error('services.backend.publicURL is required in environment config');
-  }
-
   const basePath = path.isAbsolute(configuredPath)
     ? configuredPath
     : path.resolve(projectRoot, configuredPath);
@@ -128,9 +123,9 @@ export async function runImport(options: ImportOptions): Promise<CommandResults>
 
   // Bootstrap EventBus + Stower for import
   const eventBus = new EventBus();
-  const eventStore = createEventStore(basePath, baseUrl, undefined, eventBus, logger);
+  const eventStore = createEventStore(basePath, undefined, eventBus, logger);
   const kb = createKnowledgeBase(eventStore, basePath, projectRoot, createNoopGraphDatabase(), logger);
-  const stower = new Stower(kb, baseUrl, eventBus, logger.child({ component: 'stower' }));
+  const stower = new Stower(kb, eventBus, logger.child({ component: 'stower' }));
   await stower.initialize();
 
   try {

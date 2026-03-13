@@ -43,7 +43,7 @@ import type { Motivation, Selector } from '@semiont/core';
 const TEST_URI = resourceUri('http://localhost:4000/resources/test-resource');
 
 const MOCK_ANNOTATION = {
-  id: 'http://localhost:4000/annotations/new-1',
+  id: 'new-1',
   type: 'Annotation',
   motivation: 'linking' as Motivation,
   target: { source: TEST_URI },

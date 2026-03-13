@@ -54,7 +54,6 @@ describe('LLM Context', () => {
   let repStore: RepresentationStore;
   let config: EnvironmentConfig;
   let kb: KnowledgeBase;
-  let publicURL: string;
   let testResourceId: string;
 
   beforeAll(async () => {
@@ -107,11 +106,9 @@ describe('LLM Context', () => {
       },
     } as EnvironmentConfig;
 
-    publicURL = config.services.backend!.publicURL;
-
     // Initialize EventBus and stores
     eventBus = new EventBus();
-    eventStore = createEventStore(testDir, publicURL, undefined, eventBus, mockLogger);
+    eventStore = createEventStore(testDir, undefined, eventBus, mockLogger);
     repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
 
     // Create KnowledgeBase - share event store's view storage to avoid separate instances
@@ -120,7 +117,7 @@ describe('LLM Context', () => {
     kb = { eventStore, views: eventStore.viewStorage, content: repStore, graph: graphDb };
 
     // Start Stower
-    stower = new Stower(kb, publicURL, eventBus, mockLogger);
+    stower = new Stower(kb, eventBus, mockLogger);
     await stower.initialize();
 
     // Create a test resource
@@ -141,7 +138,7 @@ describe('LLM Context', () => {
     // Construct a minimal ResourceDescriptor since createResource now returns only ResourceId
     await kb.graph.createResource({
       '@context': 'https://www.w3.org/ns/anno.jsonld',
-      '@id': `${publicURL}/resources/${resId}`,
+      '@id': resId,
       name: 'LLM Context Test Resource',
       archived: false,
       entityTypes: [],
@@ -160,7 +157,7 @@ describe('LLM Context', () => {
       const result = await LLMContext.getResourceContext(
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
-        kb, publicURL,
+        kb,
         mockClient
       );
 
@@ -173,7 +170,7 @@ describe('LLM Context', () => {
         LLMContext.getResourceContext(
           resourceId('non-existent-resource'),
           { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
-          kb, publicURL,
+          kb,
           mockClient
         )
       ).rejects.toThrow('Resource not found');
@@ -183,7 +180,7 @@ describe('LLM Context', () => {
       const result = await LLMContext.getResourceContext(
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
-        kb, publicURL,
+        kb,
         mockClient
       );
 
@@ -201,7 +198,7 @@ describe('LLM Context', () => {
         {
           motivation: 'highlighting',
           target: {
-            source: `http://localhost:4000/resources/${testResourceId}`,
+            source: testResourceId,
             selector: [{
               type: 'TextPositionSelector',
               start: 0,
@@ -217,14 +214,13 @@ describe('LLM Context', () => {
         userId('user-1'),
         creator,
         eventBus,
-        publicURL
       );
       await created$;
 
       const result = await LLMContext.getResourceContext(
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
-        kb, publicURL,
+        kb,
         mockClient
       );
 
@@ -239,7 +235,7 @@ describe('LLM Context', () => {
       const result = await LLMContext.getResourceContext(
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
-        kb, publicURL,
+        kb,
         mockClient
       );
 
@@ -254,7 +250,7 @@ describe('LLM Context', () => {
       const result = await LLMContext.getResourceContext(
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
-        kb, publicURL,
+        kb,
         mockClient
       );
 
@@ -268,7 +264,7 @@ describe('LLM Context', () => {
       const result = await LLMContext.getResourceContext(
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: true, includeSummary: false },
-        kb, publicURL,
+        kb,
         mockClient
       );
 
@@ -280,7 +276,7 @@ describe('LLM Context', () => {
       const result = await LLMContext.getResourceContext(
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
-        kb, publicURL,
+        kb,
         mockClient
       );
 
@@ -291,7 +287,7 @@ describe('LLM Context', () => {
       const result = await LLMContext.getResourceContext(
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: true, includeSummary: false },
-        kb, publicURL,
+        kb,
         mockClient
       );
 
@@ -303,7 +299,7 @@ describe('LLM Context', () => {
       const result = await LLMContext.getResourceContext(
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
-        kb, publicURL,
+        kb,
         mockClient
       );
 
@@ -318,7 +314,7 @@ describe('LLM Context', () => {
       const result = await LLMContext.getResourceContext(
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: true, includeSummary: true },
-        kb, publicURL,
+        kb,
         mockClient
       );
 
@@ -330,7 +326,7 @@ describe('LLM Context', () => {
       const result = await LLMContext.getResourceContext(
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: true, includeSummary: false },
-        kb, publicURL,
+        kb,
         mockClient
       );
 
@@ -341,7 +337,7 @@ describe('LLM Context', () => {
       const result = await LLMContext.getResourceContext(
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: false, includeSummary: true },
-        kb, publicURL,
+        kb,
         mockClient
       );
 
@@ -359,7 +355,7 @@ describe('LLM Context', () => {
       const result = await LLMContext.getResourceContext(
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: true, includeSummary: false },
-        kb, publicURL,
+        kb,
         mockClient
       );
 
@@ -371,7 +367,7 @@ describe('LLM Context', () => {
       const result = await LLMContext.getResourceContext(
         resourceId(testResourceId),
         { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
-        kb, publicURL,
+        kb,
         mockClient
       );
 
@@ -384,7 +380,7 @@ describe('LLM Context', () => {
       const result = await LLMContext.getResourceContext(
         resourceId(testResourceId),
         { depth: 1, maxResources: 5, includeContent: false, includeSummary: false },
-        kb, publicURL,
+        kb,
         mockClient
       );
 
@@ -396,7 +392,7 @@ describe('LLM Context', () => {
       const result = await LLMContext.getResourceContext(
         resourceId(testResourceId),
         { depth: 1, maxResources: 1, includeContent: false, includeSummary: false },
-        kb, publicURL,
+        kb,
         mockClient
       );
 
@@ -414,7 +410,7 @@ describe('LLM Context', () => {
       const result = await LLMContext.getResourceContext(
         resourceId(testResourceId),
         { depth: 2, maxResources: 50, includeContent: true, includeSummary: true },
-        kb, publicURL,
+        kb,
         mockClient
       );
 
@@ -438,7 +434,7 @@ describe('LLM Context', () => {
       const result = await LLMContext.getResourceContext(
         resourceId(testResourceId),
         { depth: 1, maxResources: 20, includeContent: true, includeSummary: true },
-        kb, publicURL,
+        kb,
         mockClient
       );
 

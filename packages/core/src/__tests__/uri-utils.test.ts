@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resourceIdToURI, uriToResourceId, annotationIdToURI, uriToAnnotationId } from '../uri-utils';
+import { resourceIdToURI, annotationIdToURI, uriToAnnotationId } from '../uri-utils';
 import { resourceId, annotationId } from '../identifiers';
 
 describe('@semiont/core - uri-utils', () => {
@@ -32,47 +32,6 @@ describe('@semiont/core - uri-utils', () => {
 
       expect(uri1).toBe('http://localhost:4000/resources/my-doc');
       expect(uri2).toBe('https://staging.example.org/resources/my-doc');
-    });
-  });
-
-  describe('uriToResourceId', () => {
-    it('should extract resource ID from full URI', () => {
-      const uri = 'https://api.semiont.app/resources/doc-abc123';
-      const id = uriToResourceId(uri);
-
-      expect(id).toBe('doc-abc123');
-    });
-
-    it('should throw on invalid URI format', () => {
-      expect(() => uriToResourceId('https://api.semiont.app/invalid'))
-        .toThrow('Invalid resource URI');
-    });
-
-    it('should throw on missing resource path', () => {
-      expect(() => uriToResourceId('https://api.semiont.app/'))
-        .toThrow('Invalid resource URI');
-    });
-
-    it('should handle different domains', () => {
-      const id1 = uriToResourceId('http://localhost:4000/resources/test-123');
-      const id2 = uriToResourceId('https://example.org/resources/doc-456');
-
-      expect(id1).toBe('test-123');
-      expect(id2).toBe('doc-456');
-    });
-
-    it('should handle query parameters', () => {
-      const uri = 'https://api.semiont.app/resources/doc-abc123?foo=bar';
-      const id = uriToResourceId(uri);
-
-      expect(id).toBe('doc-abc123');
-    });
-
-    it('should handle fragments', () => {
-      const uri = 'https://api.semiont.app/resources/doc-abc123#section';
-      const id = uriToResourceId(uri);
-
-      expect(id).toBe('doc-abc123');
     });
   });
 

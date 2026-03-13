@@ -33,18 +33,16 @@ describe('ResourceOperations', () => {
   let testEventStore: EventStore;
   let eventBus: EventBus;
   let stower: Stower;
-  const publicURL = 'http://localhost:4000';
-
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-test-resource-ops-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
     eventBus = new EventBus();
-    testEventStore = createEventStore(testDir, publicURL, undefined, eventBus, mockLogger);
+    testEventStore = createEventStore(testDir, undefined, eventBus, mockLogger);
     const graphDb = await getGraphDatabase({ services: { graph: { type: 'memory' } } } as EnvironmentConfig);
     const kb = createKnowledgeBase(testEventStore, testDir, testDir, graphDb, mockLogger);
 
-    stower = new Stower(kb, publicURL, eventBus, mockLogger);
+    stower = new Stower(kb, eventBus, mockLogger);
     await stower.initialize();
   });
 

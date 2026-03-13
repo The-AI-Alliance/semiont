@@ -5,7 +5,7 @@
  * Full URIs are required by W3C Web Annotation Data Model.
  */
 
-import { resourceId, annotationId, type ResourceId, type AnnotationId } from './identifiers';
+import { annotationId, type ResourceId, type AnnotationId } from './identifiers';
 import { resourceUri, annotationUri, type ResourceUri, type AnnotationUri, type ResourceAnnotationUri } from './branded-types';
 
 /**
@@ -23,26 +23,6 @@ export function resourceIdToURI(id: ResourceId, publicURL: string): ResourceUri 
   // Remove trailing slash if present
   const normalizedBase = publicURL.endsWith('/') ? publicURL.slice(0, -1) : publicURL;
   return resourceUri(`${normalizedBase}/resources/${id}` );
-}
-
-/**
- * Extract resource ID from full URI
- *
- * @param uri - Full resource URI (e.g., "https://api.semiont.app/resources/doc-abc123")
- * @returns Short resource ID (e.g., "doc-abc123")
- * @throws Error if URI format is invalid
- *
- * @example
- * uriToResourceId("https://api.semiont.app/resources/doc-abc123")
- * // => "doc-abc123"
- */
-export function uriToResourceId(uri: string): ResourceId {
-  const url = new URL(uri);
-  const match = url.pathname.match(/\/resources\/([^/]+)/);
-  if (!match || !match[1]) {
-    throw new Error(`Invalid resource URI: ${uri}`);
-  }
-  return resourceId(match[1]);
 }
 
 /**
@@ -80,33 +60,6 @@ export function uriToAnnotationId(uri: string): AnnotationId {
     throw new Error(`Invalid annotation URI: ${uri}`);
   }
   return annotationId(match[1]);
-}
-
-/**
- * Extract annotation ID from URI or pass through if already an ID
- *
- * Defensive version of uriToAnnotationId that handles both:
- * - Full URIs: "https://api.semiont.app/annotations/anno-xyz789" → "anno-xyz789"
- * - Already IDs: "anno-xyz789" → "anno-xyz789"
- *
- * @param uriOrId - Full annotation URI or short ID
- * @returns Short annotation ID
- *
- * @example
- * uriToAnnotationIdOrPassthrough("https://api.semiont.app/annotations/anno-xyz789")
- * // => "anno-xyz789"
- *
- * uriToAnnotationIdOrPassthrough("anno-xyz789")
- * // => "anno-xyz789"
- */
-export function uriToAnnotationIdOrPassthrough(uriOrId: string): AnnotationId {
-  // Try parsing as URI first
-  try {
-    return uriToAnnotationId(uriOrId);
-  } catch {
-    // If it fails, assume it's already an ID and return as-is
-    return annotationId(uriOrId);
-  }
 }
 
 /**

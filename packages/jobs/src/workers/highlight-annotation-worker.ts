@@ -10,8 +10,8 @@ import type { AnyJob, HighlightDetectionJob, RunningJob, HighlightDetectionParam
 import type { JobQueue } from '../job-queue';
 import { AnnotationDetection } from './annotation-detection';
 import { generateAnnotationId } from '@semiont/event-sourcing';
-import { resourceIdToURI, EventBus, userToAgent, type Logger } from '@semiont/core';
-import type { EnvironmentConfig, ResourceId } from '@semiont/core';
+import { EventBus, userToAgent, type Logger } from '@semiont/core';
+import type { ResourceId } from '@semiont/core';
 import { userId, jobId } from '@semiont/core';
 import type { HighlightMatch } from './detection/motivation-parsers';
 import type { InferenceClient } from '@semiont/inference';
@@ -21,7 +21,6 @@ export class HighlightAnnotationWorker extends JobWorker {
 
   constructor(
     jobQueue: JobQueue,
-    private config: EnvironmentConfig,
     private inferenceClient: InferenceClient,
     private eventBus: EventBus,
     private contentFetcher: ContentFetcher,
@@ -220,11 +219,7 @@ export class HighlightAnnotationWorker extends JobWorker {
     metadata: import('../types').JobMetadata,
     highlight: HighlightMatch
   ): Promise<void> {
-    const backendUrl = this.config.services.backend?.publicURL;
-    if (!backendUrl) throw new Error('Backend publicURL not configured');
-
-    const annotationIdVal = generateAnnotationId(backendUrl);
-    const resourceUri = resourceIdToURI(resourceId, backendUrl);
+    const annotationIdVal = generateAnnotationId();
 
     const creator = userToAgent({
       id: metadata.userId,
@@ -244,7 +239,7 @@ export class HighlightAnnotationWorker extends JobWorker {
       created: new Date().toISOString(),
       'target': {
         type: 'SpecificResource' as const,
-        source: resourceUri,
+        source: resourceId as string,
         selector: [
           {
             type: 'TextPositionSelector' as const,

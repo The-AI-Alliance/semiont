@@ -9,7 +9,6 @@ import { EventValidator } from '../validation/event-validator';
 import { FilesystemViewStorage } from '../storage/view-storage';
 import { CREATION_METHODS } from '@semiont/core';
 import { resourceId, userId } from '@semiont/core';
-import type { IdentifierConfig } from '../types';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -25,7 +24,6 @@ describe('Event Store', () => {
     await fs.mkdir(testDir, { recursive: true });
 
     const viewStorage = new FilesystemViewStorage(testDir);
-    const identifierConfig: IdentifierConfig = { baseUrl: 'http://localhost:4000' };
 
     eventStore = new EventStore(
       {
@@ -35,7 +33,6 @@ describe('Event Store', () => {
         maxEventsPerFile: 100,
       },
       viewStorage,
-      identifierConfig
     );
 
     query = new EventQuery(eventStore.log.storage);

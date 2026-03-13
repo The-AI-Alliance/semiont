@@ -27,7 +27,7 @@
 import { Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import type { EventMap, Logger, EnvironmentConfig, components } from '@semiont/core';
-import { EventBus, annotationUri as makeAnnotationUri, uriToResourceId, resourceId as makeResourceId } from '@semiont/core';
+import { EventBus, annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import { EventQuery } from '@semiont/event-sourcing';
 import { getResourceEntityTypes, getBodySource } from '@semiont/api-client';
@@ -46,7 +46,6 @@ export class Gatherer {
   private readonly logger: Logger;
 
   constructor(
-    private publicURL: string,
     private kb: KnowledgeBase,
     private eventBus: EventBus,
     private inferenceClient: InferenceClient,
@@ -63,7 +62,7 @@ export class Gatherer {
 
     // Annotation-level gather (for yield flow)
     const annotationGather$ = this.eventBus.get('gather:requested').pipe(
-      groupBy((event) => event.resourceUri),
+      groupBy((event) => event.resourceId),
       mergeMap((group$) =>
         group$.pipe(
           concatMap((event) => from(this.handleAnnotationGather(event))),
@@ -73,7 +72,7 @@ export class Gatherer {
 
     // Resource-level gather (for LLM context endpoint)
     const resourceGather$ = this.eventBus.get('gather:resource-requested').pipe(
-      groupBy((event) => event.resourceUri),
+      groupBy((event) => event.resourceId),
       mergeMap((group$) =>
         group$.pipe(
           concatMap((event) => from(this.handleResourceGather(event))),
@@ -130,13 +129,13 @@ export class Gatherer {
   private async handleAnnotationGather(event: EventMap['gather:requested']): Promise<void> {
     try {
       this.logger.debug('Gathering annotation context', {
-        annotationUri: event.annotationUri,
-        resourceUri: event.resourceUri,
+        annotationId: event.annotationId,
+        resourceId: event.resourceId,
       });
 
       const response = await AnnotationContext.buildLLMContext(
-        makeAnnotationUri(event.annotationUri),
-        uriToResourceId(event.resourceUri),
+        makeAnnotationId(event.annotationId),
+        makeResourceId(event.resourceId),
         this.kb,
         event.options ?? {},
         this.inferenceClient,
@@ -144,16 +143,16 @@ export class Gatherer {
       );
 
       this.eventBus.get('gather:complete').next({
-        annotationUri: event.annotationUri,
+        annotationId: event.annotationId,
         response,
       });
     } catch (error) {
       this.logger.error('Gather annotation context failed', {
-        annotationUri: event.annotationUri,
+        annotationId: event.annotationId,
         error,
       });
       this.eventBus.get('gather:failed').next({
-        annotationUri: event.annotationUri,
+        annotationId: event.annotationId,
         error: error instanceof Error ? error : new Error(String(error)),
       });
     }
@@ -162,29 +161,27 @@ export class Gatherer {
   private async handleResourceGather(event: EventMap['gather:resource-requested']): Promise<void> {
     try {
       this.logger.debug('Gathering resource context', {
-        resourceUri: event.resourceUri,
+        resourceId: event.resourceId,
       });
 
-      const publicURL = this.publicURL;
       const result = await LLMContext.getResourceContext(
-        uriToResourceId(event.resourceUri),
+        makeResourceId(event.resourceId),
         event.options,
         this.kb,
-        publicURL,
         this.inferenceClient,
       );
 
       this.eventBus.get('gather:resource-complete').next({
-        resourceUri: event.resourceUri,
+        resourceId: event.resourceId,
         context: result,
       });
     } catch (error) {
       this.logger.error('Gather resource context failed', {
-        resourceUri: event.resourceUri,
+        resourceId: event.resourceId,
         error,
       });
       this.eventBus.get('gather:resource-failed').next({
-        resourceUri: event.resourceUri,
+        resourceId: event.resourceId,
         error: error instanceof Error ? error : new Error(String(error)),
       });
     }
@@ -310,8 +307,7 @@ export class Gatherer {
       let resolvedResource = null;
       const bodySource = getBodySource(annotation.body);
       if (bodySource) {
-        const resolvedId = bodySource.split('/').pop()!;
-        resolvedResource = await ResourceContext.getResourceMetadata(makeResourceId(resolvedId), this.kb);
+        resolvedResource = await ResourceContext.getResourceMetadata(makeResourceId(bodySource), this.kb);
       }
 
       this.eventBus.get('browse:annotation-result').next({

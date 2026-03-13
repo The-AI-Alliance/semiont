@@ -111,15 +111,6 @@ describe('Make-Meaning Service', () => {
       ).rejects.toThrow('services.filesystem.path is required');
     });
 
-    it('should require backend publicURL', async () => {
-      const invalidConfig = { ...config };
-      delete invalidConfig.services.backend;
-
-      await expect(
-        startMakeMeaning(invalidConfig as EnvironmentConfig, eventBus, mockLogger)
-      ).rejects.toThrow('services.backend.publicURL is required');
-    });
-
     it('should initialize job queue', async () => {
       service = await startMakeMeaning(config, eventBus, mockLogger);
 

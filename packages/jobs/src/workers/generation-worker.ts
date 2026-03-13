@@ -12,7 +12,7 @@ import { JobWorker } from '../job-worker';
 import type { AnyJob, RunningJob, GenerationParams, YieldProgress, GenerationResult, GenerationJob } from '../types';
 import type { JobQueue } from '../job-queue';
 import { generateResourceFromTopic } from './generation/resource-generation';
-import { resourceUri, annotationUri, EventBus, type Logger } from '@semiont/core';
+import { EventBus, type Logger } from '@semiont/core';
 import { getTargetSelector, getExactText } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/ontology';
 import {
@@ -22,7 +22,7 @@ import {
   userId,
   jobId,
 } from '@semiont/core';
-import type { EnvironmentConfig } from '@semiont/core';
+
 import type { InferenceClient } from '@semiont/inference';
 import { firstValueFrom, race, timer } from 'rxjs';
 import { map, take } from 'rxjs/operators';
@@ -30,7 +30,6 @@ import { map, take } from 'rxjs/operators';
 export class GenerationWorker extends JobWorker {
   constructor(
     jobQueue: JobQueue,
-    private config: EnvironmentConfig,
     private inferenceClient: InferenceClient,
     private eventBus: EventBus,
     logger: Logger
@@ -185,22 +184,17 @@ export class GenerationWorker extends JobWorker {
     await this.updateJobProgress(updatedJob);
 
     // Update annotation body to link the annotation to the new resource
-    const newResourceUri = resourceUri(`${this.config.services.backend!.publicURL}/resources/${rId}`);
-
     const operations: BodyOperation[] = [{
       op: 'add',
       item: {
         type: 'SpecificResource',
-        source: newResourceUri,
+        source: rId as string,
         purpose: 'linking',
       },
     }];
 
-    // Extract annotation ID from full URI (format: http://host/annotations/{id})
-    const annotationIdSegment = job.params.referenceId.split('/').pop()!;
-
     this.eventBus.get('mark:update-body').next({
-      annotationId: annotationId(annotationIdSegment),
+      annotationId: annotationId(job.params.referenceId),
       userId: userId(job.metadata.userId),
       resourceId: job.params.sourceResourceId,
       operations,
@@ -245,7 +239,7 @@ export class GenerationWorker extends JobWorker {
       jobType: 'generation',
       result: {
         resultResourceId: result.resourceId,
-        annotationUri: annotationUri(`${this.config.services.backend!.publicURL}/annotations/${job.params.referenceId}`),
+        annotationId: job.params.referenceId,
       },
     });
   }

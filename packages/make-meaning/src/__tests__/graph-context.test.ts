@@ -25,8 +25,6 @@ describe('GraphContext', () => {
     graph: mockGraphDb as any,
   };
 
-  const publicURL = 'http://localhost:4000';
-
   it('should get backlinks for a resource', async () => {
     mockGraphDb.getResourceReferencedBy.mockResolvedValue([
       {
@@ -39,12 +37,12 @@ describe('GraphContext', () => {
       }
     ]);
 
-    const result = await GraphContext.getBacklinks(resourceId('test-resource'), mockKb, publicURL);
+    const result = await GraphContext.getBacklinks(resourceId('test-resource'), mockKb);
 
     expect(result).toHaveLength(1);
     expect(result[0]).toHaveProperty('id');
     expect(mockGraphDb.getResourceReferencedBy).toHaveBeenCalledWith(
-      'http://localhost:4000/resources/test-resource'
+      resourceId('test-resource')
     );
   });
 
@@ -134,7 +132,7 @@ describe('GraphContext', () => {
   it('should handle empty backlinks', async () => {
     mockGraphDb.getResourceReferencedBy.mockResolvedValue([]);
 
-    const result = await GraphContext.getBacklinks(resourceId('no-backlinks'), mockKb, publicURL);
+    const result = await GraphContext.getBacklinks(resourceId('no-backlinks'), mockKb);
 
     expect(result).toEqual([]);
   });

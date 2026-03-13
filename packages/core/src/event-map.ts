@@ -380,8 +380,8 @@ export type EventMap = {
   // Annotation-level context (for yield flow and LLM context endpoint)
   'gather:requested': {
     correlationId?: string;
-    annotationUri: string;
-    resourceUri: string;
+    annotationId: string;
+    resourceId: string;
     options?: {
       includeSourceContext?: boolean;
       includeTargetContext?: boolean;
@@ -390,19 +390,19 @@ export type EventMap = {
   };
   'gather:complete': {
     correlationId?: string;
-    annotationUri: string;
+    annotationId: string;
     response: components['schemas']['AnnotationLLMContextResponse'];
   };
   'gather:failed': {
     correlationId?: string;
-    annotationUri: string;
+    annotationId: string;
     error: Error;
   };
 
   // Resource-level context (for LLM context endpoint)
   'gather:resource-requested': {
     correlationId?: string;
-    resourceUri: string;
+    resourceId: string;
     options: {
       depth: number;
       maxResources: number;
@@ -412,12 +412,12 @@ export type EventMap = {
   };
   'gather:resource-complete': {
     correlationId?: string;
-    resourceUri: string;
+    resourceId: string;
     context: components['schemas']['ResourceLLMContextResponse'];
   };
   'gather:resource-failed': {
     correlationId?: string;
-    resourceUri: string;
+    resourceId: string;
     error: Error;
   };
 

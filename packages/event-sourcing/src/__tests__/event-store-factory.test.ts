@@ -32,7 +32,7 @@ describe('createEventStore', () => {
 
   describe('Factory function', () => {
     it('should create EventStore with valid config', () => {
-      const eventStore = createEventStore(testDir, 'http://localhost:4000', undefined, undefined, mockLogger);
+      const eventStore = createEventStore(testDir, undefined, undefined, mockLogger);
 
       expect(eventStore).toBeDefined();
       expect(eventStore.log).toBeDefined();
@@ -41,14 +41,14 @@ describe('createEventStore', () => {
     });
 
     it('should create EventStore with default sharding enabled', () => {
-      const eventStore = createEventStore(testDir, 'http://localhost:4000', undefined, undefined, mockLogger);
+      const eventStore = createEventStore(testDir, undefined, undefined, mockLogger);
 
       expect(eventStore).toBeDefined();
       expect(eventStore.log.storage).toBeDefined();
     });
 
     it('should create EventStore with sharding disabled', () => {
-      const eventStore = createEventStore(testDir, 'http://localhost:4000', {
+      const eventStore = createEventStore(testDir, {
         enableSharding: false,
       }, undefined, mockLogger);
 
@@ -57,7 +57,7 @@ describe('createEventStore', () => {
     });
 
     it('should create EventStore with custom maxEventsPerFile', () => {
-      const eventStore = createEventStore(testDir, 'http://localhost:4000', {
+      const eventStore = createEventStore(testDir, {
         maxEventsPerFile: 5000,
       }, undefined, mockLogger);
 
@@ -65,7 +65,7 @@ describe('createEventStore', () => {
     });
 
     it('should initialize view storage', () => {
-      const eventStore = createEventStore(testDir, 'http://localhost:4000', undefined, undefined, mockLogger);
+      const eventStore = createEventStore(testDir, undefined, undefined, mockLogger);
 
       expect(eventStore.views.materializer).toBeDefined();
     });
@@ -73,15 +73,11 @@ describe('createEventStore', () => {
 
   describe('Config validation', () => {
     it('should require basePath', () => {
-      expect(() => createEventStore('', 'http://localhost:4000', undefined, undefined, mockLogger)).toThrow();
-    });
-
-    it('should require baseUrl', () => {
-      expect(() => createEventStore(testDir, '', undefined, undefined, mockLogger)).toThrow();
+      expect(() => createEventStore('', undefined, undefined, mockLogger)).toThrow();
     });
 
     it('should require absolute basePath', () => {
-      expect(() => createEventStore('relative/path', 'http://localhost:4000', undefined, undefined, mockLogger)).toThrow(
+      expect(() => createEventStore('relative/path', undefined, undefined, mockLogger)).toThrow(
         'basePath must be an absolute path'
       );
     });
@@ -89,7 +85,7 @@ describe('createEventStore', () => {
 
   describe('Component initialization', () => {
     it('should initialize EventLog with correct config', () => {
-      const eventStore = createEventStore(testDir, 'http://localhost:4000', {
+      const eventStore = createEventStore(testDir, {
         enableSharding: true,
         maxEventsPerFile: 1000,
       }, undefined, mockLogger);
@@ -98,23 +94,23 @@ describe('createEventStore', () => {
       expect(eventStore.log.storage).toBeDefined();
     });
 
-    it('should initialize EventBus with identifier config', () => {
-      const eventStore = createEventStore(testDir, 'http://localhost:4000', undefined, undefined, mockLogger);
+    it('should initialize EventBus', () => {
+      const eventStore = createEventStore(testDir, undefined, undefined, mockLogger);
 
       expect(eventStore.bus).toBeDefined();
       expect(eventStore.bus.subscriptions).toBeDefined();
     });
 
     it('should initialize ViewManager with storage and config', () => {
-      const eventStore = createEventStore(testDir, 'http://localhost:4000', undefined, undefined, mockLogger);
+      const eventStore = createEventStore(testDir, undefined, undefined, mockLogger);
 
       expect(eventStore.views).toBeDefined();
       expect(eventStore.views.materializer).toBeDefined();
     });
 
     it('should share EventSubscriptions singleton across EventBus instances', () => {
-      const eventStore1 = createEventStore(testDir, 'http://localhost:4000', undefined, undefined, mockLogger);
-      const eventStore2 = createEventStore(testDir, 'http://localhost:4000', undefined, undefined, mockLogger);
+      const eventStore1 = createEventStore(testDir, undefined, undefined, mockLogger);
+      const eventStore2 = createEventStore(testDir, undefined, undefined, mockLogger);
 
       // Both EventBus instances should share same subscriptions
       expect(eventStore1.bus.subscriptions).toBe(eventStore2.bus.subscriptions);
@@ -123,7 +119,7 @@ describe('createEventStore', () => {
 
   describe('Storage paths', () => {
     it('should configure event storage to use basePath/events', () => {
-      const eventStore = createEventStore(testDir, 'http://localhost:4000', undefined, undefined, mockLogger);
+      const eventStore = createEventStore(testDir, undefined, undefined, mockLogger);
 
       expect(eventStore).toBeDefined();
       expect(eventStore.log).toBeDefined();
@@ -134,7 +130,7 @@ describe('createEventStore', () => {
     });
 
     it('should set up view storage to use basePath/projections', () => {
-      const eventStore = createEventStore(testDir, 'http://localhost:4000', undefined, undefined, mockLogger);
+      const eventStore = createEventStore(testDir, undefined, undefined, mockLogger);
 
       expect(eventStore).toBeDefined();
 
@@ -146,7 +142,7 @@ describe('createEventStore', () => {
 
   describe('Integration', () => {
     it('should create fully functional EventStore', () => {
-      const eventStore = createEventStore(testDir, 'http://localhost:4000', undefined, undefined, mockLogger);
+      const eventStore = createEventStore(testDir, undefined, undefined, mockLogger);
 
       // Verify all components are connected
       expect(eventStore.log).toBeDefined();

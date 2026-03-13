@@ -24,9 +24,8 @@ import { EventQuery, type EventStore } from '@semiont/event-sourcing';
 import { didToAgent, burstBuffer } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
 import type { components } from '@semiont/core';
-import type { ResourceEvent, StoredEvent, AnnotationAddedEvent, EnvironmentConfig, ResourceId, Logger } from '@semiont/core';
-import { resourceId as makeResourceId, findBodyItem } from '@semiont/core';
-import { toResourceUri, toAnnotationUri } from '@semiont/event-sourcing';
+import type { ResourceEvent, StoredEvent, AnnotationAddedEvent, ResourceId, Logger } from '@semiont/core';
+import { resourceId as makeResourceId, annotationId as makeAnnotationId, findBodyItem } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
@@ -51,7 +50,6 @@ export class GraphDBConsumer {
   private readonly logger: Logger;
 
   constructor(
-    private config: EnvironmentConfig,
     private eventStore: EventStore,
     private graphDb: GraphDatabase,
     logger: Logger
@@ -257,14 +255,9 @@ export class GraphDBConsumer {
       throw new Error('resource.created requires resourceId');
     }
 
-    const resourceUri = toResourceUri(
-      { baseUrl: this.config.services.backend!.publicURL },
-      event.resourceId
-    );
-
     return {
       '@context': 'https://schema.org/',
-      '@id': resourceUri,
+      '@id': event.resourceId,
       name: event.payload.name,
       entityTypes: event.payload.entityTypes || [],
       representations: [{
@@ -302,14 +295,14 @@ export class GraphDBConsumer {
 
       case 'resource.archived':
         if (!event.resourceId) throw new Error('resource.archived requires resourceId');
-        await graphDb.updateResource(toResourceUri({ baseUrl: this.config.services.backend!.publicURL }, event.resourceId), {
+        await graphDb.updateResource(makeResourceId(event.resourceId), {
           archived: true,
         });
         break;
 
       case 'resource.unarchived':
         if (!event.resourceId) throw new Error('resource.unarchived requires resourceId');
-        await graphDb.updateResource(toResourceUri({ baseUrl: this.config.services.backend!.publicURL }, event.resourceId), {
+        await graphDb.updateResource(makeResourceId(event.resourceId), {
           archived: false,
         });
         break;
@@ -328,7 +321,7 @@ export class GraphDBConsumer {
         break;
 
       case 'annotation.removed':
-        await graphDb.deleteAnnotation(toAnnotationUri({ baseUrl: this.config.services.backend!.publicURL }, event.payload.annotationId));
+        await graphDb.deleteAnnotation(makeAnnotationId(event.payload.annotationId));
         break;
 
       case 'annotation.body.updated':
@@ -337,9 +330,9 @@ export class GraphDBConsumer {
           payload: event.payload
         });
         try {
-          const annotationUri = toAnnotationUri({ baseUrl: this.config.services.backend!.publicURL }, event.payload.annotationId);
+          const annId = makeAnnotationId(event.payload.annotationId);
 
-          const currentAnnotation = await graphDb.getAnnotation(annotationUri);
+          const currentAnnotation = await graphDb.getAnnotation(annId);
 
           if (currentAnnotation) {
             let bodyArray = Array.isArray(currentAnnotation.body)
@@ -367,7 +360,7 @@ export class GraphDBConsumer {
               }
             }
 
-            await graphDb.updateAnnotation(annotationUri, {
+            await graphDb.updateAnnotation(annId, {
               body: bodyArray,
             } as Partial<Annotation>);
 
@@ -387,9 +380,10 @@ export class GraphDBConsumer {
       case 'entitytag.added':
         if (!event.resourceId) throw new Error('entitytag.added requires resourceId');
         {
-          const doc = await graphDb.getResource(toResourceUri({ baseUrl: this.config.services.backend!.publicURL }, event.resourceId));
+          const rid = makeResourceId(event.resourceId);
+          const doc = await graphDb.getResource(rid);
           if (doc) {
-            await graphDb.updateResource(toResourceUri({ baseUrl: this.config.services.backend!.publicURL }, event.resourceId), {
+            await graphDb.updateResource(rid, {
               entityTypes: [...(doc.entityTypes || []), event.payload.entityType],
             });
           }
@@ -399,9 +393,10 @@ export class GraphDBConsumer {
       case 'entitytag.removed':
         if (!event.resourceId) throw new Error('entitytag.removed requires resourceId');
         {
-          const doc = await graphDb.getResource(toResourceUri({ baseUrl: this.config.services.backend!.publicURL }, event.resourceId));
+          const rid = makeResourceId(event.resourceId);
+          const doc = await graphDb.getResource(rid);
           if (doc) {
-            await graphDb.updateResource(toResourceUri({ baseUrl: this.config.services.backend!.publicURL }, event.resourceId), {
+            await graphDb.updateResource(rid, {
               entityTypes: (doc.entityTypes || []).filter(t => t !== event.payload.entityType),
             });
           }
@@ -426,7 +421,7 @@ export class GraphDBConsumer {
     this.logger.info('Rebuilding resource from events', { resourceId });
 
     try {
-      await graphDb.deleteResource(toResourceUri({ baseUrl: this.config.services.backend!.publicURL }, makeResourceId(resourceId)));
+      await graphDb.deleteResource(resourceId);
     } catch (error) {
       this.logger.debug('No existing resource to delete', { resourceId });
     }

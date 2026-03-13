@@ -67,7 +67,6 @@ const setupMocks = () => {
             event.resourceUri.split('/').pop(),
             event.options,
             {} as any,
-            'http://localhost:4000',
             {} as any,
           );
           eventBus.get('gather:resource-complete').next({ resourceUri: event.resourceUri, context });

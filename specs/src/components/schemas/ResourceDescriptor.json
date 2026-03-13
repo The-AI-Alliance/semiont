@@ -247,6 +247,11 @@
     "sourceResourceId": {
       "type": "string",
       "description": "Application-specific: ID of source resource for clones/derivatives"
+    },
+    "originatedFrom": {
+      "type": "string",
+      "format": "uri",
+      "description": "Original URI from a source knowledge base when this resource was imported"
     }
   }
 }

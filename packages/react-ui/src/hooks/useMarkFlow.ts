@@ -23,7 +23,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { Motivation, ResourceUri, Selector, ResourceEvent } from '@semiont/core';
 import { resourceAnnotationUri, accessToken, entityType, annotationId } from '@semiont/core';
-import { uriToAnnotationIdOrPassthrough } from '@semiont/core';
 import { useEventBus } from '../contexts/EventBusContext';
 import type { EventMap } from '@semiont/core';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
@@ -273,9 +272,7 @@ export function useMarkFlow(rUri: ResourceUri): MarkFlowState {
         }, { auth: toAccessToken(tokenRef.current) });
 
         setPendingAnnotation(null);
-        // Extract short ID from the annotation URI returned by the backend
-        const idSegment = uriToAnnotationIdOrPassthrough(result.annotationId);
-        eventBus.get('mark:created').next({ annotationId: annotationId(idSegment) });
+        eventBus.get('mark:created').next({ annotationId: annotationId(result.annotationId) });
       } catch (error) {
         console.error('Failed to create annotation:', error);
         eventBus.get('mark:create-failed').next({ error: error as Error });
@@ -290,8 +287,7 @@ export function useMarkFlow(rUri: ResourceUri): MarkFlowState {
       const currentClient = clientRef.current;
       const currentRUri = rUriRef.current;
       try {
-        const annotationIdSegment = uriToAnnotationIdOrPassthrough(event.annotationId);
-        const annotationUri = resourceAnnotationUri(`${currentRUri}/annotations/${annotationIdSegment}`);
+        const annotationUri = resourceAnnotationUri(`${currentRUri}/annotations/${event.annotationId}`);
 
         await currentClient.deleteAnnotation(annotationUri, { auth: toAccessToken(tokenRef.current) });
 

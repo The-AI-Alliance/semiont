@@ -106,10 +106,10 @@ describe('Entity Types Projection Reader', () => {
 
       // Bootstrap creates the projection (requires EventBus + Stower)
       const eventBus = new EventBus();
-      const eventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, eventBus, mockLogger);
+      const eventStore = createEventStore(testDir, undefined, eventBus, mockLogger);
       const graphDb = await getGraphDatabase({ services: { graph: { type: 'memory' } } } as EnvironmentConfig);
       const kb = createKnowledgeBase(eventStore, testDir, testDir, graphDb, mockLogger);
-      const stower = new Stower(kb, config.services.backend!.publicURL, eventBus, mockLogger);
+      const stower = new Stower(kb, eventBus, mockLogger);
       await stower.initialize();
       await bootstrapEntityTypes(eventBus, config);
       await stower.stop();
@@ -247,10 +247,10 @@ describe('Entity Types Projection Reader', () => {
       resetBootstrap();
 
       const eventBus = new EventBus();
-      const eventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, eventBus, mockLogger);
+      const eventStore = createEventStore(testDir, undefined, eventBus, mockLogger);
       const graphDb = await getGraphDatabase({ services: { graph: { type: 'memory' } } } as EnvironmentConfig);
       const kb = createKnowledgeBase(eventStore, testDir, testDir, graphDb, mockLogger);
-      const stower = new Stower(kb, config.services.backend!.publicURL, eventBus, mockLogger);
+      const stower = new Stower(kb, eventBus, mockLogger);
       await stower.initialize();
 
       // Initially no projection

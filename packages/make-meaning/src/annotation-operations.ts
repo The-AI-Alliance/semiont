@@ -10,14 +10,12 @@
  */
 
 import type { components } from '@semiont/core';
-import { getTargetSource } from '@semiont/api-client';
 import type {
   BodyOperation,
-  ResourceId,
   UserId,
   Logger,
 } from '@semiont/core';
-import { EventBus, annotationId, uriToResourceId, uriToAnnotationId, assembleAnnotation, applyBodyOperations } from '@semiont/core';
+import { EventBus, annotationId, resourceId as makeResourceId, assembleAnnotation, applyBodyOperations } from '@semiont/core';
 import { AnnotationContext } from './annotation-context';
 import type { KnowledgeBase } from './knowledge-base';
 
@@ -43,16 +41,15 @@ export class AnnotationOperations {
     userId: UserId,
     creator: Agent,
     eventBus: EventBus,
-    publicURL: string
   ): Promise<CreateAnnotationResult> {
-    const { annotation } = assembleAnnotation(request, creator, publicURL);
-    const resourceId = uriToResourceId(request.target.source);
+    const { annotation } = assembleAnnotation(request, creator);
+    const resId = makeResourceId(request.target.source);
 
     // Emit mark:create — Stower subscribes and appends to event store
     eventBus.get('mark:create').next({
       annotation,
       userId,
-      resourceId,
+      resourceId: resId,
     });
 
     return { annotation };
@@ -68,9 +65,10 @@ export class AnnotationOperations {
     eventBus: EventBus,
     kb: KnowledgeBase
   ): Promise<UpdateAnnotationBodyResult> {
+    const resId = makeResourceId(request.resourceId);
     const annotation = await AnnotationContext.getAnnotation(
       annotationId(id),
-      uriToResourceId(request.resourceId) as ResourceId,
+      resId,
       kb
     );
 
@@ -78,13 +76,11 @@ export class AnnotationOperations {
       throw new Error('Annotation not found');
     }
 
-    const resourceId = uriToResourceId(getTargetSource(annotation.target));
-
     // Emit mark:update-body — Stower subscribes and appends to event store
     eventBus.get('mark:update-body').next({
       annotationId: annotationId(id),
       userId,
-      resourceId,
+      resourceId: resId,
       operations: request.operations as BodyOperation[],
     });
 
@@ -103,13 +99,13 @@ export class AnnotationOperations {
    */
   static async deleteAnnotation(
     id: string,
-    resourceIdUri: string,
+    resourceIdStr: string,
     userId: UserId,
     eventBus: EventBus,
     kb: KnowledgeBase,
     logger?: Logger
   ): Promise<void> {
-    const resId = uriToResourceId(resourceIdUri);
+    const resId = makeResourceId(resourceIdStr);
 
     const projection = await AnnotationContext.getResourceAnnotations(resId, kb);
     const annotation = projection.annotations.find((a: Annotation) => a.id === id);
@@ -122,7 +118,7 @@ export class AnnotationOperations {
 
     // Emit mark:delete — Stower subscribes and appends to event store
     eventBus.get('mark:delete').next({
-      annotationId: uriToAnnotationId(id),
+      annotationId: annotationId(id),
       userId,
       resourceId: resId,
     });

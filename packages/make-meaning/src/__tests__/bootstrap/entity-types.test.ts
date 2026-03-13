@@ -74,10 +74,10 @@ describe('Entity Types Bootstrap', () => {
 
     // Initialize EventBus, event store, and Stower
     eventBus = new EventBus();
-    eventStore = createEventStore(testDir, config.services.backend!.publicURL, undefined, eventBus, mockLogger);
+    eventStore = createEventStore(testDir, undefined, eventBus, mockLogger);
     const graphDb = await getGraphDatabase({ services: { graph: { type: 'memory' } } } as EnvironmentConfig);
     kb = createKnowledgeBase(eventStore, testDir, testDir, graphDb, mockLogger);
-    stower = new Stower(kb, config.services.backend!.publicURL, eventBus, mockLogger);
+    stower = new Stower(kb, eventBus, mockLogger);
     await stower.initialize();
   });
 
@@ -247,10 +247,10 @@ describe('Entity Types Bootstrap', () => {
 
       // Create new EventBus, event store, and Stower for alternate directory
       const altEventBus = new EventBus();
-      const alternateEventStore = createEventStore(alternateDir, config.services.backend!.publicURL, undefined, altEventBus, mockLogger);
+      const alternateEventStore = createEventStore(alternateDir, undefined, altEventBus, mockLogger);
       const altGraphDb = await getGraphDatabase({ services: { graph: { type: 'memory' } } } as EnvironmentConfig);
       const altKb = createKnowledgeBase(alternateEventStore, alternateDir, alternateDir, altGraphDb, mockLogger);
-      const altStower = new Stower(altKb, config.services.backend!.publicURL, altEventBus, mockLogger);
+      const altStower = new Stower(altKb, altEventBus, mockLogger);
       await altStower.initialize();
 
       await bootstrapEntityTypes(altEventBus, alternateConfig);

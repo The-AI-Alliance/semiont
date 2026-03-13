@@ -5,7 +5,6 @@
  * All methods require graph traversal - must use graph database.
  */
 
-import { resourceIdToURI } from '@semiont/core';
 import type {
   ResourceId,
   GraphConnection,
@@ -42,9 +41,8 @@ export class GraphContext {
    * Get all resources referencing this resource (backlinks)
    * Requires graph traversal - must use graph database
    */
-  static async getBacklinks(resourceId: ResourceId, kb: KnowledgeBase, publicURL: string): Promise<Annotation[]> {
-    const resourceUri = resourceIdToURI(resourceId, publicURL);
-    return await kb.graph.getResourceReferencedBy(resourceUri);
+  static async getBacklinks(resourceId: ResourceId, kb: KnowledgeBase): Promise<Annotation[]> {
+    return await kb.graph.getResourceReferencedBy(resourceId);
   }
 
   /**
@@ -84,12 +82,9 @@ export class GraphContext {
     resourceId: ResourceId,
     maxRelated: number,
     kb: KnowledgeBase,
-    publicURL: string
   ): Promise<GraphRepresentation> {
-    const resourceUri = resourceIdToURI(resourceId, publicURL);
-
     // Get main resource
-    const mainDoc = await kb.graph.getResource(resourceUri);
+    const mainDoc = await kb.graph.getResource(resourceId);
     if (!mainDoc) {
       throw new Error('Resource not found');
     }

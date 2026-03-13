@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { AnnotationContext } from '../annotation-context';
-import { resourceId, userId, type Logger } from '@semiont/core';
+import { resourceId, annotationId, userId, type Logger } from '@semiont/core';
 import { createEventStore, FilesystemViewStorage } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore } from '@semiont/content';
 import type { KnowledgeBase } from '../knowledge-base';
@@ -25,18 +25,15 @@ const mockLogger: Logger = {
 
 describe('AnnotationContext', () => {
   let testDir: string;
-  let publicURL: string;
   let kb: KnowledgeBase;
 
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-test-annotation-context-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    publicURL = 'http://localhost:4000';
-
     const viewStorage = new FilesystemViewStorage(testDir, testDir);
     const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
-    const eventStore = createEventStore(testDir, publicURL, undefined, undefined, mockLogger);
+    const eventStore = createEventStore(testDir, undefined, undefined, mockLogger);
 
     kb = {
       eventStore,
@@ -55,7 +52,7 @@ describe('AnnotationContext', () => {
     const testContent = Buffer.from(content, 'utf-8');
     const { checksum } = await kb.content.store(testContent, { mediaType: 'text/plain' });
 
-    const eventStore = createEventStore(testDir, publicURL, undefined, undefined, mockLogger);
+    const eventStore = createEventStore(testDir, undefined, undefined, mockLogger);
 
     await eventStore.appendEvent({
       type: 'resource.created',
@@ -92,7 +89,7 @@ describe('AnnotationContext', () => {
     start: number,
     end: number
   ): Promise<void> {
-    const eventStore = createEventStore(testDir, publicURL, undefined, undefined, mockLogger);
+    const eventStore = createEventStore(testDir, undefined, undefined, mockLogger);
 
     await eventStore.appendEvent({
       type: 'annotation.added',
@@ -102,7 +99,7 @@ describe('AnnotationContext', () => {
       payload: {
         annotation: {
           '@context': 'http://www.w3.org/ns/anno.jsonld',
-          id: `http://localhost:4000/annotations/${annId}`,
+          id: annId,
           type: 'Annotation',
           motivation: 'commenting',
           body: {
@@ -112,7 +109,7 @@ describe('AnnotationContext', () => {
             purpose: 'commenting'
           },
           target: {
-            source: `http://localhost:4000/resources/${resId}`,
+            source: resId,
             selector: [{
               type: 'TextPositionSelector',
               start,
@@ -139,7 +136,7 @@ describe('AnnotationContext', () => {
     // Test too small
     await expect(
       AnnotationContext.buildLLMContext(
-        'http://localhost:4000/annotations/test-1' as any,
+        annotationId('test-1'),
         resourceId(testResourceId),
         kb,
         { contextWindow: 50 },
@@ -151,7 +148,7 @@ describe('AnnotationContext', () => {
     // Test too large
     await expect(
       AnnotationContext.buildLLMContext(
-        'http://localhost:4000/annotations/test-2' as any,
+        annotationId('test-2'),
         resourceId(testResourceId),
         kb,
         { contextWindow: 6000 },
@@ -170,7 +167,7 @@ describe('AnnotationContext', () => {
     // Test minimum valid value
     await expect(
       AnnotationContext.buildLLMContext(
-        `http://localhost:4000/annotations/${testAnnId}` as any,
+        annotationId(testAnnId),
         resourceId(testResourceId),
         kb,
         { contextWindow: 100 },
@@ -182,7 +179,7 @@ describe('AnnotationContext', () => {
     // Test maximum valid value
     await expect(
       AnnotationContext.buildLLMContext(
-        `http://localhost:4000/annotations/${testAnnId}` as any,
+        annotationId(testAnnId),
         resourceId(testResourceId),
         kb,
         { contextWindow: 5000 },
@@ -194,7 +191,7 @@ describe('AnnotationContext', () => {
     // Test mid-range value
     await expect(
       AnnotationContext.buildLLMContext(
-        `http://localhost:4000/annotations/${testAnnId}` as any,
+        annotationId(testAnnId),
         resourceId(testResourceId),
         kb,
         { contextWindow: 1500 },
@@ -212,7 +209,7 @@ describe('AnnotationContext', () => {
 
 
     const result = await AnnotationContext.buildLLMContext(
-      `http://localhost:4000/annotations/${testAnnId}` as any,
+      annotationId(testAnnId),
       resourceId(testResourceId),
       kb,
       {},
@@ -233,7 +230,7 @@ describe('AnnotationContext', () => {
 
 
     const withContext = await AnnotationContext.buildLLMContext(
-      `http://localhost:4000/annotations/${testAnnId}` as any,
+      annotationId(testAnnId),
       resourceId(testResourceId),
       kb,
       { includeSourceContext: true },
@@ -242,7 +239,7 @@ describe('AnnotationContext', () => {
     );
 
     const withoutContext = await AnnotationContext.buildLLMContext(
-      `http://localhost:4000/annotations/${testAnnId}` as any,
+      annotationId(testAnnId),
       resourceId(testResourceId),
       kb,
       { includeSourceContext: false },
@@ -258,7 +255,7 @@ describe('AnnotationContext', () => {
   it('should throw error for non-existent resource', async () => {
     await expect(
       AnnotationContext.buildLLMContext(
-        'http://localhost:4000/annotations/nonexistent' as any,
+        annotationId('nonexistent'),
         resourceId('nonexistent-resource'),
         kb,
         {},
@@ -273,7 +270,7 @@ describe('AnnotationContext', () => {
     const testAnnId = `ann-no-position-${Date.now()}`;
     await createTestResource(testResourceId, 'Content for testing missing selector');
 
-    const eventStore = createEventStore(testDir, publicURL, undefined, undefined, mockLogger);
+    const eventStore = createEventStore(testDir, undefined, undefined, mockLogger);
 
     // Create annotation with only TextQuoteSelector
     await eventStore.appendEvent({
@@ -284,7 +281,7 @@ describe('AnnotationContext', () => {
       payload: {
         annotation: {
           '@context': 'http://www.w3.org/ns/anno.jsonld',
-          id: `http://localhost:4000/annotations/${testAnnId}`,
+          id: testAnnId,
           type: 'Annotation',
           motivation: 'commenting',
           body: {
@@ -294,7 +291,7 @@ describe('AnnotationContext', () => {
             purpose: 'commenting'
           },
           target: {
-            source: `http://localhost:4000/resources/${testResourceId}`,
+            source: testResourceId,
             selector: {
               type: 'TextQuoteSelector',
               exact: 'testing',
@@ -310,7 +307,7 @@ describe('AnnotationContext', () => {
 
 
     const result = await AnnotationContext.buildLLMContext(
-      `http://localhost:4000/annotations/${testAnnId}` as any,
+      annotationId(testAnnId),
       resourceId(testResourceId),
       kb,
       {},

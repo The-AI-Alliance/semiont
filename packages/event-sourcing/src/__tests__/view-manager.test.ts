@@ -42,7 +42,6 @@ describe('ViewManager', () => {
 
     manager = new ViewManager(mockViewStorage, {
       basePath: testDir,
-      backendUrl: 'http://localhost:4000',
     });
   });
 

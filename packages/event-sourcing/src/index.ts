@@ -15,7 +15,7 @@
 export { EventStore } from './event-store';
 export { createEventStore } from './event-store-factory';
 export { EventLog, type EventLogConfig } from './event-log';
-export { EventBus, type EventBusConfig } from './event-bus';
+export { EventBus } from './event-bus';
 export { ViewManager, type ViewManagerConfig } from './view-manager';
 
 // Storage
@@ -46,9 +46,4 @@ export { EventValidator } from './validation/event-validator';
 export { ViewMaterializer } from './views/view-materializer';
 
 // Identifier utilities
-export type { IdentifierConfig } from './types';
-export {
-  toResourceUri,
-  toAnnotationUri,
-  generateAnnotationId,
-} from './identifier-utils';
+export { generateAnnotationId } from './identifier-utils';

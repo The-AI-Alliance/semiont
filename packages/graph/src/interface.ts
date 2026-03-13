@@ -11,8 +11,6 @@ import type {
   CreateAnnotationInternal,
   ResourceId,
   AnnotationId,
-  ResourceUri,
-  AnnotationUri,
 } from '@semiont/core';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
@@ -27,17 +25,17 @@ export interface GraphDatabase {
   // Resource operations
   // Accepts W3C ResourceDescriptor directly - GraphDB stores W3C compliant resources
   createResource(resource: ResourceDescriptor): Promise<ResourceDescriptor>;
-  getResource(id: ResourceUri): Promise<ResourceDescriptor | null>;
-  updateResource(id: ResourceUri, input: UpdateResourceInput): Promise<ResourceDescriptor>;
-  deleteResource(id: ResourceUri): Promise<void>;
+  getResource(id: ResourceId): Promise<ResourceDescriptor | null>;
+  updateResource(id: ResourceId, input: UpdateResourceInput): Promise<ResourceDescriptor>;
+  deleteResource(id: ResourceId): Promise<void>;
   listResources(filter: ResourceFilter): Promise<{ resources: ResourceDescriptor[]; total: number }>;
   searchResources(query: string, limit?: number): Promise<ResourceDescriptor[]>;
 
   // Annotation operations
   createAnnotation(input: CreateAnnotationInternal): Promise<Annotation>;
-  getAnnotation(id: AnnotationUri): Promise<Annotation | null>;
-  updateAnnotation(id: AnnotationUri, updates: Partial<Annotation>): Promise<Annotation>;
-  deleteAnnotation(id: AnnotationUri): Promise<void>;
+  getAnnotation(id: AnnotationId): Promise<Annotation | null>;
+  updateAnnotation(id: AnnotationId, updates: Partial<Annotation>): Promise<Annotation>;
+  deleteAnnotation(id: AnnotationId): Promise<void>;
   listAnnotations(filter: { resourceId?: ResourceId; type?: AnnotationCategory }): Promise<{ annotations: Annotation[]; total: number }>;
 
   // Highlight operations
@@ -50,7 +48,7 @@ export interface GraphDatabase {
 
   // Relationship queries
   getResourceAnnotations(resourceId: ResourceId): Promise<Annotation[]>;
-  getResourceReferencedBy(resourceUri: ResourceUri, motivation?: string): Promise<Annotation[]>;
+  getResourceReferencedBy(resourceId: ResourceId, motivation?: string): Promise<Annotation[]>;
 
   // Graph traversal
   getResourceConnections(resourceId: ResourceId): Promise<GraphConnection[]>;

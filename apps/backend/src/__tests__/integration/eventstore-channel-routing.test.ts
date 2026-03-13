@@ -13,7 +13,6 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { resourceId, userId, jobId, type Logger, EventBus as CoreEventBus } from '@semiont/core';
-import { loadEnvironmentConfig } from '../../utils/config';
 import type { EventStore } from '@semiont/event-sourcing';
 import { promises as fsPromises } from 'fs';
 import { tmpdir } from 'os';
@@ -37,12 +36,6 @@ describe('EventStore Channel Routing Integration', () => {
     testDir = path.join(tmpdir(), `semiont-test-routing-${Date.now()}`);
     await fsPromises.mkdir(testDir, { recursive: true });
 
-    // Load config
-    const projectRoot = process.env.SEMIONT_ROOT;
-    if (!projectRoot) throw new Error("SEMIONT_ROOT not set");
-    const environment = process.env.SEMIONT_ENV || 'test';
-    const config = loadEnvironmentConfig(projectRoot, environment);
-
     // Create CoreEventBus to pass to EventStore
     coreEventBus = new CoreEventBus();
 
@@ -50,7 +43,6 @@ describe('EventStore Channel Routing Integration', () => {
     const { createEventStore } = await import('@semiont/event-sourcing');
     eventStore = createEventStore(
       testDir,
-      config.services.backend!.publicURL,
       {
         enableSharding: false,
         maxEventsPerFile: 100,

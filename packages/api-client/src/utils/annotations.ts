@@ -10,8 +10,6 @@
  */
 
 import type { components, Selector } from '@semiont/core';
-import type { ResourceUri } from '@semiont/core';
-import { resourceUri } from '@semiont/core';
 
 // Re-export selector utilities from core (canonical location)
 export {
@@ -36,7 +34,7 @@ export type { TextPositionSelector, TextQuoteSelector, SvgSelector, FragmentSele
  * Get the source from an annotation body (null if stub)
  * Search for SpecificResource in body array
  */
-export function getBodySource(body: Annotation['body']): ResourceUri | null {
+export function getBodySource(body: Annotation['body']): string | null {
   if (Array.isArray(body)) {
     // Search for SpecificResource with source
     for (const item of body) {
@@ -50,7 +48,7 @@ export function getBodySource(body: Annotation['body']): ResourceUri | null {
         const itemSource = (item as { source: unknown }).source;
 
         if (itemType === 'SpecificResource' && typeof itemSource === 'string') {
-          return resourceUri(itemSource);
+          return itemSource;
         }
       }
     }
@@ -68,7 +66,7 @@ export function getBodySource(body: Annotation['body']): ResourceUri | null {
     const bodySource = (body as { source: unknown }).source;
 
     if (bodyType === 'SpecificResource' && typeof bodySource === 'string') {
-      return resourceUri(bodySource);
+      return bodySource;
     }
   }
 
@@ -115,11 +113,11 @@ export function isBodyResolved(body: Annotation['body']): boolean {
 /**
  * Get the source IRI from target (handles both string and object forms)
  */
-export function getTargetSource(target: Annotation['target']): ResourceUri {
+export function getTargetSource(target: Annotation['target']): string {
   if (typeof target === 'string') {
-    return resourceUri(target);
+    return target;
   }
-  return resourceUri(target.source);
+  return target.source;
 }
 
 /**

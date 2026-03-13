@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ResourceUri } from '@semiont/core';
 import { resourceAnnotationUri, accessToken } from '@semiont/core';
-import { uriToAnnotationIdOrPassthrough } from '@semiont/core';
 import { useEventBus } from '../contexts/EventBusContext';
 import { useApiClient } from '../contexts/ApiClientContext';
 import { useAuthToken } from '../contexts/AuthTokenContext';
@@ -81,8 +80,7 @@ export function useBindFlow(rUri: ResourceUri): BindFlowState {
       }>;
     }) => {
       try {
-        const annotationIdSegment = uriToAnnotationIdOrPassthrough(event.annotationUri);
-        const nestedUri = resourceAnnotationUri(`${rUriRef.current}/annotations/${annotationIdSegment}`);
+        const nestedUri = resourceAnnotationUri(`${rUriRef.current}/annotations/${event.annotationUri}`);
 
         await clientRef.current.updateAnnotationBody(nestedUri, {
           resourceId: event.resourceId,

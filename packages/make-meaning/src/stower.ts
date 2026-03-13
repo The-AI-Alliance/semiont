@@ -31,7 +31,7 @@
 import { Subscription, from, merge } from 'rxjs';
 import { concatMap } from 'rxjs/operators';
 import type { EventMap, Logger } from '@semiont/core';
-import { EventBus, resourceId, uriToAnnotationId, CREATION_METHODS, generateUuid } from '@semiont/core';
+import { EventBus, resourceId, annotationId as makeAnnotationId, CREATION_METHODS, generateUuid } from '@semiont/core';
 import type { CreationMethod, ResourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
 import type { KnowledgeBase } from './knowledge-base';
@@ -49,7 +49,6 @@ export class Stower {
 
   constructor(
     private kb: KnowledgeBase,
-    private publicURL: string,
     private eventBus: EventBus,
     logger: Logger,
   ) {
@@ -118,10 +117,9 @@ export class Stower {
         },
       });
 
-      const normalizedBase = this.publicURL.endsWith('/') ? this.publicURL.slice(0, -1) : this.publicURL;
       const resource: ResourceDescriptor = {
         '@context': 'https://schema.org/' as const,
-        '@id': `${normalizedBase}/resources/${rId}`,
+        '@id': rId,
         name: event.name,
         archived: false,
         entityTypes: event.entityTypes || [],
@@ -157,7 +155,7 @@ export class Stower {
         version: 1,
         payload: { annotation: event.annotation },
       });
-      this.eventBus.get('mark:created').next({ annotationId: uriToAnnotationId(event.annotation.id) });
+      this.eventBus.get('mark:created').next({ annotationId: makeAnnotationId(event.annotation.id) });
     } catch (error) {
       this.logger.error('Failed to create annotation', { error });
       this.eventBus.get('mark:create-failed').next({

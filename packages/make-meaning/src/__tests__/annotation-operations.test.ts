@@ -13,7 +13,7 @@ import { firstValueFrom } from 'rxjs';
 import { filter, take } from 'rxjs/operators';
 import { AnnotationOperations } from '../annotation-operations';
 import { ResourceOperations } from '../resource-operations';
-import { resourceId, userId, uriToAnnotationId, EventBus, type EnvironmentConfig, type Logger } from '@semiont/core';
+import { resourceId, userId, annotationId, EventBus, type EnvironmentConfig, type Logger } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import type { KnowledgeBase } from '../knowledge-base';
@@ -33,12 +33,11 @@ async function createAnnotationAndAwait(
   request: CreateAnnotationRequest,
   uid: ReturnType<typeof userId>,
   eventBus: EventBus,
-  publicURL: string
 ) {
   const creator = { type: 'Person' as const, id: 'did:web:test.local:users:test-user', name: 'Test User' };
-  const result = await AnnotationOperations.createAnnotation(request, uid, creator, eventBus, publicURL);
+  const result = await AnnotationOperations.createAnnotation(request, uid, creator, eventBus);
   // Wait for THIS annotation's mark:created (filter by ID to avoid picking up a stale event)
-  const expectedId = uriToAnnotationId(result.annotation.id);
+  const expectedId = annotationId(result.annotation.id);
   await firstValueFrom(eventBus.get('mark:created').pipe(
     filter(e => e.annotationId === expectedId),
     take(1),
@@ -61,8 +60,6 @@ describe('AnnotationOperations', () => {
   let eventBus: EventBus;
   let stower: Stower;
   let kb: KnowledgeBase;
-  let publicURL: string;
-  let testResourceUri: string;
   let testResourceId: string;
 
   beforeAll(async () => {
@@ -70,18 +67,16 @@ describe('AnnotationOperations', () => {
     testDir = join(tmpdir(), `semiont-test-annotation-ops-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    publicURL = 'http://localhost:4000';
-
     // Initialize EventBus and stores
     eventBus = new EventBus();
-    testEventStore = createEventStore(testDir, publicURL, undefined, eventBus, mockLogger);
+    testEventStore = createEventStore(testDir, undefined, eventBus, mockLogger);
     const graphDb = await getGraphDatabase({ services: { graph: { type: 'memory' } } } as EnvironmentConfig);
     // Share the event store's view storage with the KB to avoid two separate FilesystemViewStorage instances
     const { FilesystemRepresentationStore } = await import('@semiont/content');
     const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
     kb = { eventStore: testEventStore, views: testEventStore.viewStorage, content: repStore, graph: graphDb };
 
-    stower = new Stower(kb, publicURL, eventBus, mockLogger);
+    stower = new Stower(kb, eventBus, mockLogger);
     await stower.initialize();
 
     // Create a test resource for annotations
@@ -97,7 +92,6 @@ describe('AnnotationOperations', () => {
     );
 
     testResourceId = resId;
-    testResourceUri = `${publicURL}/resources/${resId}`;
   });
 
   afterAll(async () => {
@@ -112,7 +106,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'highlighting',
           target: {
-            source: testResourceUri,
+            source: testResourceId,
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -129,12 +123,13 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-        publicURL
       );
 
       expect(result.annotation).toBeDefined();
       expect(result.annotation.motivation).toBe('highlighting');
-      expect(result.annotation.id).toMatch(/^http:\/\/localhost:4000\/annotations\//);
+      expect(result.annotation.id).toBeDefined();
+      expect(typeof result.annotation.id).toBe('string');
+      expect(result.annotation.id.length).toBeGreaterThan(0);
     });
 
     it('should create annotation with motivation: commenting', async () => {
@@ -142,7 +137,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'commenting',
           target: {
-            source: testResourceUri,
+            source: testResourceId,
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -159,7 +154,6 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-        publicURL
       );
 
       expect(result.annotation.motivation).toBe('commenting');
@@ -174,7 +168,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'assessing',
           target: {
-            source: testResourceUri,
+            source: testResourceId,
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -191,7 +185,6 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-        publicURL
       );
 
       expect(result.annotation.motivation).toBe('assessing');
@@ -202,7 +195,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'tagging',
           target: {
-            source: testResourceUri,
+            source: testResourceId,
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -226,7 +219,6 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-        publicURL
       );
 
       expect(result.annotation.motivation).toBe('tagging');
@@ -239,7 +231,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'linking',
           target: {
-            source: testResourceUri,
+            source: testResourceId,
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -255,7 +247,6 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-        publicURL
       );
 
       expect(result.annotation.motivation).toBe('linking');
@@ -266,7 +257,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'commenting',
           target: {
-            source: testResourceUri,
+            source: testResourceId,
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -283,7 +274,6 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-        publicURL
       );
 
       // Verify W3C annotation structure
@@ -302,7 +292,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'highlighting',
           target: {
-            source: testResourceUri,
+            source: testResourceId,
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -319,7 +309,6 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-        publicURL
       );
 
       // Check event was emitted
@@ -344,7 +333,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'commenting',
           target: {
-            source: testResourceUri,
+            source: testResourceId,
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -361,11 +350,11 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-        publicURL
       );
 
       expect(result.annotation.id).toBeDefined();
-      expect(result.annotation.id).toMatch(/^http:\/\/localhost:4000\/annotations\//);
+      expect(typeof result.annotation.id).toBe('string');
+      expect(result.annotation.id.length).toBeGreaterThan(0);
     });
 
     it('should handle text position selector', async () => {
@@ -373,7 +362,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'highlighting',
           target: {
-            source: testResourceUri,
+            source: testResourceId,
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -390,7 +379,6 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-        publicURL
       );
 
       const target = result.annotation.target;
@@ -409,7 +397,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'highlighting',
           target: {
-            source: testResourceUri,
+            source: testResourceId,
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -432,7 +420,6 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-        publicURL
       );
 
       const target = result.annotation.target;
@@ -451,7 +438,7 @@ describe('AnnotationOperations', () => {
           {
             motivation: undefined as any,
             target: {
-              source: testResourceUri,
+              source: testResourceId,
               selector: [
                 {
                   type: 'TextPositionSelector',
@@ -469,7 +456,6 @@ describe('AnnotationOperations', () => {
           userId('user-1'),
           creator,
           eventBus,
-          publicURL
         )
       ).rejects.toThrow('motivation is required');
     });
@@ -481,7 +467,7 @@ describe('AnnotationOperations', () => {
           {
             motivation: 'commenting',
             target: {
-              source: testResourceUri,
+              source: testResourceId,
               selector: [
                 {
                   type: 'TextQuoteSelector',
@@ -498,7 +484,6 @@ describe('AnnotationOperations', () => {
           userId('user-1'),
           creator,
           eventBus,
-          publicURL
         )
       ).rejects.toThrow('Either TextPositionSelector, SvgSelector, or FragmentSelector is required');
     });
@@ -511,7 +496,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'tagging',
           target: {
-            source: testResourceUri,
+            source: testResourceId,
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -530,7 +515,6 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-        publicURL
       );
 
       const annotationIdStr = createResult.annotation.id.split('/').pop()!;
@@ -542,7 +526,7 @@ describe('AnnotationOperations', () => {
       const result = await AnnotationOperations.updateAnnotationBody(
         annotationIdStr,
         {
-          resourceId: testResourceUri,
+          resourceId: testResourceId,
           operations: [
             {
               op: 'add',
@@ -571,7 +555,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'tagging',
           target: {
-            source: testResourceUri,
+            source: testResourceId,
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -595,7 +579,6 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-        publicURL
       );
 
       const annotationIdStr = createResult.annotation.id.split('/').pop()!;
@@ -606,7 +589,7 @@ describe('AnnotationOperations', () => {
       const result = await AnnotationOperations.updateAnnotationBody(
         annotationIdStr,
         {
-          resourceId: testResourceUri,
+          resourceId: testResourceId,
           operations: [
             {
               op: 'remove',
@@ -635,7 +618,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'tagging',
           target: {
-            source: testResourceUri,
+            source: testResourceId,
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -654,7 +637,6 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-        publicURL
       );
 
       const annotationIdStr = createResult.annotation.id.split('/').pop()!;
@@ -665,7 +647,7 @@ describe('AnnotationOperations', () => {
       const result = await AnnotationOperations.updateAnnotationBody(
         annotationIdStr,
         {
-          resourceId: testResourceUri,
+          resourceId: testResourceId,
           operations: [
             {
               op: 'replace',
@@ -698,7 +680,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'tagging',
           target: {
-            source: testResourceUri,
+            source: testResourceId,
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -717,7 +699,6 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-        publicURL
       );
 
       const annotationIdStr = createResult.annotation.id.split('/').pop()!;
@@ -727,7 +708,7 @@ describe('AnnotationOperations', () => {
       await AnnotationOperations.updateAnnotationBody(
         annotationIdStr,
         {
-          resourceId: testResourceUri,
+          resourceId: testResourceId,
           operations: [
             {
               op: 'add',
@@ -756,7 +737,7 @@ describe('AnnotationOperations', () => {
         AnnotationOperations.updateAnnotationBody(
           'non-existent-annotation',
           {
-            resourceId: testResourceUri,
+            resourceId: testResourceId,
             operations: [
               {
                 op: 'add',
@@ -783,7 +764,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'commenting',
           target: {
-            source: testResourceUri,
+            source: testResourceId,
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -800,7 +781,6 @@ describe('AnnotationOperations', () => {
         },
         userId('user-1'),
         eventBus,
-        publicURL
       );
 
       const annotationIdStr = createResult.annotation.id;
@@ -809,7 +789,7 @@ describe('AnnotationOperations', () => {
       const deleted$ = firstValueFrom(eventBus.get('mark:deleted').pipe(take(1)));
       await AnnotationOperations.deleteAnnotation(
         annotationIdStr,
-        testResourceUri,
+        testResourceId,
         userId('user-1'),
         eventBus,
         kb
@@ -825,8 +805,8 @@ describe('AnnotationOperations', () => {
     it('should handle already deleted annotation', async () => {
       await expect(
         AnnotationOperations.deleteAnnotation(
-          'http://localhost:4000/annotations/non-existent',
-          testResourceUri,
+          'non-existent',
+          testResourceId,
           userId('user-1'),
           eventBus,
           kb

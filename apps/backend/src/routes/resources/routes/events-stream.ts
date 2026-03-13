@@ -3,12 +3,6 @@ import { EventQuery } from '@semiont/event-sourcing';
 /**
  * Resource Events Stream Route - Spec-First Version
  *
- * Migrated from code-first to spec-first architecture:
- * - Uses plain Hono (no @hono/zod-openapi)
- * - No response validation (SSE streams validated on request only)
- * - Types from generated OpenAPI types
- * - OpenAPI spec is the source of truth
- *
  * SSE Strategy (per SSE-VALIDATION-CONSIDERATIONS.md):
  * - Validate request only (path params)
  * - No response validation (streaming data)
@@ -19,7 +13,6 @@ import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
 import { resourceId } from '@semiont/core';
-import { resourceUri } from '@semiont/core';
 import { SSE_STREAM_CONNECTED } from '@semiont/api-client';
 import { getLogger } from '../../../logger';
 
@@ -42,22 +35,20 @@ export function registerGetEventStream(router: ResourcesRouterType) {
    */
   router.get('/resources/:id/events/stream', async (c) => {
     const { id } = c.req.param();
-    const config = c.get('config');
 
     const logger = getLogger().child({
       component: 'events-stream',
       resourceId: id
     });
 
-    // Construct full resource URI for event subscriptions (consistent with W3C Web Annotation spec)
-    const rUri = resourceUri(`${config.services.backend!.publicURL}/resources/${id}`);
+    const rId = resourceId(id);
 
-    logger.info('Client connecting to resource events stream', { resourceUri: rUri });
+    logger.info('Client connecting to resource events stream', { resourceId: rId });
 
     // Verify resource exists in event store (Event Store - source of truth)
     const { eventStore } = c.get('makeMeaning');
     const query = new EventQuery(eventStore.log.storage);
-    const events = await query.getResourceEvents(resourceId(id));
+    const events = await query.getResourceEvents(rId);
     if (events.length === 0) {
       logger.warn('Resource not found - no events exist');
       throw new HTTPException(404, { message: 'Resource not found - no events exist for this resource' });
@@ -111,10 +102,10 @@ export function registerGetEventStream(router: ResourcesRouterType) {
         }
       };
 
-      // Subscribe to events for this resource using full URI
+      // Subscribe to events for this resource using bare ResourceId
       const streamId = `${id.substring(0, 16)}...${Math.random().toString(36).substring(7)}`;
-      logger.info('Subscribing to events for resource URI', { streamId, resourceUri: rUri });
-      subscription = eventStore.bus.subscriptions.subscribe(rUri, async (storedEvent) => {
+      logger.info('Subscribing to events for resource', { streamId, resourceId: rId });
+      subscription = eventStore.bus.subscriptions.subscribe(rId, async (storedEvent) => {
         if (isStreamClosed) {
           logger.info('Stream already closed, ignoring event', { streamId, eventType: storedEvent.event.type });
           return;
@@ -142,41 +133,22 @@ export function registerGetEventStream(router: ResourcesRouterType) {
 
           logger.info('Event data prepared, calling writeSSE', { streamId });
 
-          // DEBUG: Test JSON.stringify separately
           let jsonData: string;
           try {
-            const startStringify = Date.now();
             jsonData = JSON.stringify(eventData);
-            const stringifyTime = Date.now() - startStringify;
-            logger.info('JSON.stringify completed', {
-              streamId,
-              time: stringifyTime,
-              size: jsonData.length
-            });
           } catch (stringifyError) {
             logger.error('JSON.stringify FAILED', { streamId, error: stringifyError });
             throw stringifyError;
           }
 
-          // DEBUG: Log payload structure for annotation.body.updated
-          if (storedEvent.event.type === 'annotation.body.updated') {
-            logger.info('annotation.body.updated payload', {
-              streamId,
-              payload: storedEvent.event.payload
-            });
-          }
-
-          const startWrite = Date.now();
           await stream.writeSSE({
             data: jsonData,
             event: storedEvent.event.type,
             id: storedEvent.metadata.sequenceNumber.toString(),
           });
-          const writeTime = Date.now() - startWrite;
           logger.info('Successfully wrote event to SSE stream', {
             streamId,
             eventType: storedEvent.event.type,
-            time: writeTime
           });
         } catch (error) {
           logger.error('Error writing event to SSE stream', {
