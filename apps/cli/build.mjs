@@ -387,6 +387,10 @@ await Promise.all(scriptFiles.map(async (name) => {
         '@semiont/api-types',
         '@semiont/api-client',
         '@semiont/core',
+        '@semiont/content',
+        '@semiont/event-sourcing',
+        '@semiont/graph',
+        '@semiont/make-meaning',
         // Native binaries that can't be bundled
         'ssh2',
         'cpu-features',
