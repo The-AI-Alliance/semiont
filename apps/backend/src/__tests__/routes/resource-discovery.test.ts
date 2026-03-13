@@ -64,14 +64,14 @@ const setupMocks = () => {
       eventBus.get('gather:resource-requested').subscribe(async (event: any) => {
         try {
           const context = await MockLLMContext.getResourceContext(
-            event.resourceUri.split('/').pop(),
+            event.resourceId,
             event.options,
             {} as any,
             {} as any,
           );
-          eventBus.get('gather:resource-complete').next({ resourceUri: event.resourceUri, context });
+          eventBus.get('gather:resource-complete').next({ resourceId: event.resourceId, context });
         } catch (error: any) {
-          eventBus.get('gather:resource-failed').next({ resourceUri: event.resourceUri, error });
+          eventBus.get('gather:resource-failed').next({ resourceId: event.resourceId, error });
         }
       });
       // Bridge referenced-by events
