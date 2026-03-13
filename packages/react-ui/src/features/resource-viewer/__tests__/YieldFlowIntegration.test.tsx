@@ -127,9 +127,9 @@ describe('Generation Flow - Feature Integration', () => {
       expect(generateResourceSpy).toHaveBeenCalledTimes(1);
     });
 
-    // Verify correct parameters
+    // Verify correct parameters — resourceId and annotationId are now bare IDs
     expect(generateResourceSpy).toHaveBeenCalledWith(
-      testResourceUri,
+      testResourceId,
       testAnnotationId,
       {
         title: 'Generated Document',
