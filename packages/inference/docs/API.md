@@ -69,40 +69,31 @@ const entities = await detectEntities({
 ### Anthropic (Claude)
 
 ```typescript
-import { AnthropicProvider } from '@semiont/inference/providers';
+import { AnthropicInferenceClient } from '@semiont/inference';
 
-const provider = new AnthropicProvider({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-  model: 'claude-sonnet-4-20250514',
-  maxTokens: 8192,
-  endpoint: 'https://api.anthropic.com'
-});
+const client = new AnthropicInferenceClient(
+  process.env.ANTHROPIC_API_KEY!,
+  'claude-sonnet-4-20250514',
+  'https://api.anthropic.com'
+);
+
+const response = await client.generateText('Hello', 100, 0.7);
 ```
 
-### OpenAI
+### Ollama (Local Models)
 
 ```typescript
-import { OpenAIProvider } from '@semiont/inference/providers';
+import { OllamaInferenceClient } from '@semiont/inference';
 
-const provider = new OpenAIProvider({
-  apiKey: process.env.OPENAI_API_KEY,
-  model: 'gpt-4',
-  maxTokens: 8192,
-  endpoint: 'https://api.openai.com/v1'
-});
+const client = new OllamaInferenceClient(
+  'gemma2:9b',
+  'http://localhost:11434'
+);
+
+const response = await client.generateText('Hello', 100, 0.7);
 ```
 
-### Local Models (Ollama)
-
-```typescript
-import { OllamaProvider } from '@semiont/inference/providers';
-
-const provider = new OllamaProvider({
-  model: 'llama2',
-  maxTokens: 4096,
-  endpoint: 'http://localhost:11434'
-});
-```
+Supported models include `gemma2:9b`, `llama3.1:8b`, `mistral`, and any model available via `ollama pull`.
 
 ## Prompt Management
 

@@ -438,12 +438,12 @@ The `platform` field must ALWAYS be an object with a `type` property:
   }
 }
 
-// Example for external services (Anthropic, OpenAI, etc.)
+// Example for external services (Anthropic, Ollama, etc.)
 {
   "services": {
     "inference": {
       "platform": { "type": "external" },  // Platform is an OBJECT
-      "type": "anthropic",  // Implementation type
+      "type": "anthropic",  // Implementation type: "anthropic" or "ollama"
       "apiKey": "${ANTHROPIC_API_KEY}",
       "model": "claude-3-haiku-20240307"
     }

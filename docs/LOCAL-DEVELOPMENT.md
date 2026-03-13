@@ -98,7 +98,7 @@ This creates `semiont.json` and `environments/local.json` in your project direct
 cat environments/local.json
 ```
 
-This file defines all services (backend, frontend, database, proxy, etc.) and their configuration. Edit it to set Neo4j credentials, Anthropic API key, or adjust ports.
+This file defines all services (backend, frontend, database, proxy, etc.) and their configuration. Edit it to set Neo4j credentials, inference provider (Anthropic API key or Ollama endpoint), or adjust ports.
 
 ### 7. Provision Services
 

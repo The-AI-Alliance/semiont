@@ -1,17 +1,12 @@
 /**
- * Inference Service - Handles both Claude and OpenAI inference providers
- * 
- * This service represents external AI inference APIs that cannot be started/stopped.
- * The specific provider (Claude or OpenAI) is determined by the 'type' field in config.
- * 
- * Default Requirements:
- * - External API service (no local resources)
- * - API key authentication required
- * - Network access for API calls
- * 
+ * Inference Service - Handles inference providers (Anthropic, Ollama)
+ *
+ * The specific provider is determined by the 'type' field in config.
+ *
  * Platform Adaptations:
- * - External: Direct API calls to inference providers
- * - Other platforms: Not supported (external only)
+ * - External: Direct API calls to inference providers (no lifecycle management)
+ * - Posix: Ollama runs as a local process via `ollama serve`
+ * - Container: Ollama runs in Docker/Podman with persistent model volume
  */
 
 import { BaseService } from '../core/base-service.js';
@@ -22,25 +17,19 @@ import { type InferenceServiceConfig } from '@semiont/core';
 
 export class InferenceService extends BaseService {
 
-  // Type-narrowed config accessor
   private get typedConfig(): InferenceServiceConfig {
     return this.config as InferenceServiceConfig;
   }
-  
-  // =====================================================================
-  // Service Requirements
-  // =====================================================================
-  
+
   override getRequirements(): ServiceRequirements {
-    // Inference services are external APIs - no local resources needed
     const baseRequirements = RequirementPresets.statelessApi();
-    
+
     return {
       ...baseRequirements,
       annotations: {
         ...baseRequirements.annotations,
         'service/type': SERVICE_TYPES.INFERENCE,
-        // When on external platform, only check and watch apply
+        // When on external platform, only check applies
         ...(this.platform === 'external' ? {
           [COMMAND_CAPABILITY_ANNOTATIONS.START]: 'false',
           [COMMAND_CAPABILITY_ANNOTATIONS.STOP]: 'false',
@@ -51,27 +40,35 @@ export class InferenceService extends BaseService {
       }
     };
   }
-  
-  // =====================================================================
-  // Service-specific configuration
-  // =====================================================================
-  
+
   override getPort(): number {
-    return 0; // External API, no local port
+    if (this.typedConfig.type === 'ollama') {
+      return this.typedConfig.port || 11434;
+    }
+    return 0;
   }
-  
+
   override getHealthEndpoint(): string {
-    return ''; // Health checks done via API calls
+    if (this.typedConfig.type === 'ollama') {
+      return '/api/tags';
+    }
+    return '';
   }
-  
+
   override getCommand(): string {
-    return ''; // External service, no local command
+    if (this.typedConfig.type === 'ollama' && this.platform === 'posix') {
+      return 'ollama serve';
+    }
+    return '';
   }
-  
+
   override getImage(): string {
-    return ''; // External service, no container image
+    if (this.typedConfig.type === 'ollama' && this.platform === 'container') {
+      return this.typedConfig.image || 'ollama/ollama';
+    }
+    return '';
   }
-  
+
   override getEnvironmentVariables(): Record<string, string> {
     const baseEnv = super.getEnvironmentVariables();
     const inferenceType = this.typedConfig.type;
@@ -83,39 +80,27 @@ export class InferenceService extends BaseService {
       INFERENCE_MODEL: this.typedConfig.model || ''
     };
   }
-  
-  /**
-   * Get inference provider type from config
-   */
+
   getInferenceType(): string {
     return this.typedConfig.type || 'unknown';
   }
-  
-  /**
-   * Validate inference service configuration
-   */
+
   validateConfig(): void {
     const inferenceType = this.typedConfig.type;
 
-    if (!inferenceType || !['anthropic', 'openai'].includes(inferenceType)) {
+    if (!inferenceType || !['anthropic', 'ollama'].includes(inferenceType)) {
       throw new Error(
-        `Invalid or missing inference type. Must be "anthropic" or "openai", got: ${inferenceType}`
+        `Invalid or missing inference type. Must be "anthropic" or "ollama", got: ${inferenceType}`
       );
     }
 
-    // Check for API key
-    if (!this.typedConfig.apiKey) {
-      throw new Error(`API key is required for ${inferenceType} inference service`);
-    }
-
-    // Check for endpoint
-    if (!this.typedConfig.endpoint) {
-      throw new Error(`Endpoint URL is required for ${inferenceType} inference service`);
-    }
-
-    // Provider-specific validation
-    if (inferenceType === 'openai' && !this.typedConfig.organization) {
-      console.warn('OpenAI organization ID may be required for some API keys');
+    if (inferenceType === 'anthropic') {
+      if (!this.typedConfig.apiKey) {
+        throw new Error('API key is required for anthropic inference service');
+      }
+      if (!this.typedConfig.endpoint) {
+        throw new Error('Endpoint URL is required for anthropic inference service');
+      }
     }
   }
 }

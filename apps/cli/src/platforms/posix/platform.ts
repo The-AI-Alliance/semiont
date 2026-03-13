@@ -54,11 +54,12 @@ export class PosixPlatform extends Platform {
     if (declaredType === 'graph') return 'graph';
     if (declaredType === 'mcp') return 'mcp';
     if (declaredType === 'proxy') return 'proxy';
+    if (declaredType === 'inference') return 'inference';
     if (declaredType === 'web') return 'web';
 
     throw new Error(
       `Unsupported service type for posix platform: '${declaredType}'. ` +
-      `Supported types: frontend, backend, database, filesystem, graph, mcp, proxy`
+      `Supported types: frontend, backend, database, filesystem, graph, mcp, proxy, inference`
     );
   }
   

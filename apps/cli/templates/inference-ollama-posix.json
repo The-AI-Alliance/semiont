@@ -1,0 +1,10 @@
+{
+  "services": {
+    "inference": {
+      "platform": { "type": "posix" },
+      "type": "ollama",
+      "model": "gemma2:9b",
+      "port": 11434
+    }
+  }
+}

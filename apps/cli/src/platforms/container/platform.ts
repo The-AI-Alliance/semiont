@@ -117,8 +117,11 @@ export class ContainerPlatform extends Platform {
     // Proxy services (envoy, nginx, haproxy) get proxy handler
     if (declaredType === 'proxy') return 'proxy';
 
+    // Inference services (Ollama) get inference handler
+    if (declaredType === 'inference') return 'inference';
+
     // No generic handler - all service types must be explicitly supported
-    throw new Error(`Unsupported service type for container platform: ${declaredType}. Supported types: frontend, backend, database, graph, proxy`);
+    throw new Error(`Unsupported service type for container platform: ${declaredType}. Supported types: frontend, backend, database, graph, proxy, inference`);
   }
   
   /**
