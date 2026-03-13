@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { getInferenceClient, getInferenceModel } from '../factory.js';
 import {
   createTestConfig,
-  createConfigWithoutInference,
   createConfigWithoutModel,
   createConfigWithEnvVar,
 } from './helpers/mock-config.js';
@@ -39,11 +38,6 @@ describe('@semiont/inference - factory', () => {
       expect(() => getInferenceModel(config)).toThrow('Inference model not configured');
     });
 
-    it('should throw error if inference config is missing', () => {
-      const config = createConfigWithoutInference();
-      expect(() => getInferenceModel(config)).toThrow();
-    });
-
     it('should handle edge cases (empty string model)', () => {
       const config = createTestConfig({ model: '' });
       expect(() => getInferenceModel(config)).toThrow('Inference model not configured');
@@ -70,14 +64,6 @@ describe('@semiont/inference - factory', () => {
       // But both should be valid clients
       expect(client1).toBeDefined();
       expect(client2).toBeDefined();
-    });
-
-    it('should throw error if services.inference missing', async () => {
-      const config = createConfigWithoutInference();
-
-      await expect(getInferenceClient(config, mockLogger)).rejects.toThrow(
-        'services.inference is required in environment config'
-      );
     });
 
     it('should expand environment variable in apiKey', async () => {

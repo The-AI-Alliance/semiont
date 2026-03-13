@@ -69,10 +69,9 @@ export {
 // URI utilities
 export {
   resourceIdToURI,
-  uriToResourceId,
   annotationIdToURI,
+  uriToResourceId,
   uriToAnnotationId,
-  uriToAnnotationIdOrPassthrough,
   extractResourceUriFromAnnotationUri,
 } from './uri-utils';
 

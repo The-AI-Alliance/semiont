@@ -17,7 +17,6 @@ import type { ViewStorage, ResourceView } from './storage/view-storage';
 
 export interface ViewManagerConfig {
   basePath: string;
-  backendUrl: string;
 }
 
 /**
@@ -35,7 +34,6 @@ export class ViewManager {
   ) {
     const materializerConfig: ViewMaterializerConfig = {
       basePath: config.basePath,
-      backendUrl: config.backendUrl,
     };
     this.materializer = new ViewMaterializer(viewStorage, materializerConfig, logger?.child({ component: 'ViewMaterializer' }));
   }

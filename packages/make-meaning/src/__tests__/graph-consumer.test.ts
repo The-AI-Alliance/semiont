@@ -14,10 +14,9 @@
 
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi, beforeEach } from 'vitest';
 import { EventStore, FilesystemViewStorage } from '@semiont/event-sourcing';
-import type { IdentifierConfig } from '@semiont/event-sourcing';
 import { GraphDBConsumer } from '../graph/consumer';
 import { resourceId, userId, annotationId, CREATION_METHODS } from '@semiont/core';
-import type { EnvironmentConfig, Logger } from '@semiont/core';
+import type { Logger } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -80,42 +79,15 @@ describe('GraphDBConsumer', () => {
   let graphDb: GraphDatabase;
   let consumer: GraphDBConsumer;
 
-  const config: EnvironmentConfig = {
-    services: {
-      backend: {
-        platform: { type: 'posix' },
-        port: 4000,
-        publicURL: 'http://localhost:4000',
-        corsOrigin: 'http://localhost:3000',
-      },
-      graph: {
-        platform: { type: 'posix' },
-        type: 'memory',
-      },
-    },
-    site: {
-      siteName: 'Test Site',
-      domain: 'localhost:3000',
-      adminEmail: 'admin@test.local',
-      oauthAllowedDomains: ['test.local'],
-    },
-    _metadata: {
-      environment: 'test',
-      projectRoot: '/tmp/test',
-    },
-  } as EnvironmentConfig;
-
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-consumer-test-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
     const viewStorage = new FilesystemViewStorage(testDir);
-    const identifierConfig: IdentifierConfig = { baseUrl: 'http://localhost:4000' };
 
     eventStore = new EventStore(
       { basePath: testDir, dataDir: testDir, enableSharding: false, maxEventsPerFile: 100 },
       viewStorage,
-      identifierConfig,
     );
   });
 
@@ -125,7 +97,7 @@ describe('GraphDBConsumer', () => {
 
   beforeEach(async () => {
     graphDb = createMockGraphDb();
-    consumer = new GraphDBConsumer(config, eventStore, graphDb, mockLogger);
+    consumer = new GraphDBConsumer(eventStore, graphDb, mockLogger);
     await consumer.initialize();
     vi.clearAllMocks();
   });
@@ -641,7 +613,7 @@ describe('GraphDBConsumer', () => {
   describe('lifecycle', () => {
     it('should unsubscribe on stop', async () => {
       const localGraphDb = createMockGraphDb();
-      const localConsumer = new GraphDBConsumer(config, eventStore, localGraphDb, mockLogger);
+      const localConsumer = new GraphDBConsumer(eventStore, localGraphDb, mockLogger);
       await localConsumer.initialize();
 
       const docId = resourceId(`lifecycle-stop-${Date.now()}`);

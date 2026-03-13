@@ -497,20 +497,20 @@ describe('EventBusClient', () => {
       };
 
       eventBus.get('gather:requested').subscribe((e) => {
-        expect(e.annotationUri).toBe('http://example.com/ann/1');
-        expect(e.resourceUri).toBe('http://example.com/res/1');
+        expect(e.annotationId).toBe('ann-1');
+        expect(e.resourceId).toBe('res-1');
         respondAsync(() => {
           eventBus.get('gather:complete').next({
             correlationId: e.correlationId,
-            annotationUri: e.annotationUri,
+            annotationId: e.annotationId,
             response: mockResponse,
           });
         });
       });
 
       const result = await client.getAnnotationLLMContext(
-        'http://example.com/ann/1',
-        'http://example.com/res/1',
+        annotationId('ann-1'),
+        resourceId('res-1'),
         { contextWindow: 500 },
       );
       expect(result).toEqual(mockResponse);
@@ -521,14 +521,14 @@ describe('EventBusClient', () => {
         respondAsync(() => {
           eventBus.get('gather:failed').next({
             correlationId: e.correlationId,
-            annotationUri: e.annotationUri,
+            annotationId: e.annotationId,
             error: new Error('Context assembly failed'),
           });
         });
       });
 
       await expect(
-        client.getAnnotationLLMContext('uri1', 'uri2'),
+        client.getAnnotationLLMContext(annotationId('ann-1'), resourceId('res-1')),
       ).rejects.toThrow('Context assembly failed');
     });
   });
@@ -543,19 +543,19 @@ describe('EventBusClient', () => {
       };
 
       eventBus.get('gather:resource-requested').subscribe((e) => {
-        expect(e.resourceUri).toBe('http://example.com/res/1');
+        expect(e.resourceId).toBe('res-1');
         expect(e.options.depth).toBe(2);
         respondAsync(() => {
           eventBus.get('gather:resource-complete').next({
             correlationId: e.correlationId,
-            resourceUri: e.resourceUri,
+            resourceId: e.resourceId,
             context: mockContext,
           });
         });
       });
 
       const result = await client.getResourceLLMContext(
-        'http://example.com/res/1',
+        resourceId('res-1'),
         { depth: 2, maxResources: 10, includeContent: true, includeSummary: false },
       );
       expect(result).toEqual(mockContext);
@@ -566,14 +566,14 @@ describe('EventBusClient', () => {
         respondAsync(() => {
           eventBus.get('gather:resource-failed').next({
             correlationId: e.correlationId,
-            resourceUri: e.resourceUri,
+            resourceId: e.resourceId,
             error: new Error('Graph traversal failed'),
           });
         });
       });
 
       await expect(
-        client.getResourceLLMContext('uri', { depth: 1, maxResources: 5, includeContent: true, includeSummary: false }),
+        client.getResourceLLMContext(resourceId('res-1'), { depth: 1, maxResources: 5, includeContent: true, includeSummary: false }),
       ).rejects.toThrow('Graph traversal failed');
     });
   });

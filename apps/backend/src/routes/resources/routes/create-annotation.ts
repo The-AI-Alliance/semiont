@@ -23,17 +23,11 @@ export function registerCreateAnnotation(router: ResourcesRouterType) {
       const { id } = c.req.param();
       const request = c.get('validatedBody') as CreateAnnotationRequest;
       const user = c.get('user');
-      const config = c.get('config');
 
-      const backendUrl = config.services.backend?.publicURL;
-      if (!backendUrl) {
-        throw new HTTPException(500, { message: 'Backend publicURL not configured' });
-      }
-
-      // Assemble W3C annotation (validates selectors, generates ID)
+      // Assemble W3C annotation (validates selectors, generates bare ID)
       let annotation;
       try {
-        ({ annotation } = assembleAnnotation(request, userToAgent(user), backendUrl));
+        ({ annotation } = assembleAnnotation(request, userToAgent(user)));
       } catch (error) {
         if (error instanceof Error) {
           throw new HTTPException(400, { message: error.message });

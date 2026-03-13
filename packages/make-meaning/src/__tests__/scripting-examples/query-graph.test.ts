@@ -16,9 +16,8 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventBus, type Logger } from '@semiont/core';
-import { startMakeMeaning, ResourceOperations, AnnotationOperations } from '../..';
-import type { EnvironmentConfig } from '@semiont/core';
-import { userId, resourceIdToURI } from '@semiont/core';
+import { startMakeMeaning, ResourceOperations, AnnotationOperations, type MakeMeaningConfig } from '../..';
+import { userId, resourceId as makeResourceId } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -46,7 +45,7 @@ const mockLogger: Logger = {
 
 describe('Scripting Example: Query Graph Database', () => {
   let testDir: string;
-  let config: EnvironmentConfig;
+  let config: MakeMeaningConfig;
   let makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>>;
   let eventBus: EventBus;
 
@@ -88,10 +87,9 @@ describe('Scripting Example: Query Graph Database', () => {
         oauthAllowedDomains: ['test.local']
       },
       _metadata: {
-        environment: 'test',
         projectRoot: testDir
       },
-    } as EnvironmentConfig;
+    } as MakeMeaningConfig;
 
     // Create EventBus
     eventBus = new EventBus();
@@ -128,21 +126,20 @@ describe('Scripting Example: Query Graph Database', () => {
       eventBus,
     );
 
-    const publicURL = config.services.backend!.publicURL;
-    const rUri = resourceIdToURI(result, publicURL);
+    const rId = makeResourceId(result);
 
     // EVENTUAL CONSISTENCY: GraphConsumer receives events via global subscription
     // Wait for async processing to complete
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Query graph directly via GraphDatabase interface
-    const resource = await makeMeaning.graphDb.getResource(rUri);
+    const resource = await makeMeaning.graphDb.getResource(rId);
 
     console.log(`Found resource: ${resource?.name || 'null'}`);
 
     // Verify resource exists in graph
     expect(resource).toBeDefined();
-    expect(resource?.['@id']).toBe(rUri);
+    expect(resource?.['@id']).toBe(result);
     expect(resource?.name).toBe('Test Document');
   });
 
@@ -159,8 +156,6 @@ describe('Scripting Example: Query Graph Database', () => {
       eventBus,
     );
 
-    const publicURL = config.services.backend!.publicURL;
-    const rUri = resourceIdToURI(resourceResult, publicURL);
     const rId = resourceResult;
 
     // Create an annotation
@@ -170,7 +165,7 @@ describe('Scripting Example: Query Graph Database', () => {
         motivation: 'commenting',
         body: [{ value: 'This is a test comment', type: 'text' }],
         target: {
-          source: rUri,
+          source: rId,
           selector: {
             type: 'TextPositionSelector',
             start: 0,
@@ -181,7 +176,6 @@ describe('Scripting Example: Query Graph Database', () => {
       userId('test-script'),
       creator,
       eventBus,
-      config.services.backend!.publicURL
     );
 
     // EVENTUAL CONSISTENCY: Wait for GraphConsumer to process events and update graph
@@ -256,8 +250,6 @@ describe('Scripting Example: Query Graph Database', () => {
       eventBus,
     );
 
-    const publicURL = config.services.backend!.publicURL;
-    const rUri = resourceIdToURI(resource, publicURL);
     const rId = resource;
 
     // Create a few annotations
@@ -268,7 +260,7 @@ describe('Scripting Example: Query Graph Database', () => {
           motivation: 'commenting',
           body: [{ value: `Comment ${i + 1}`, type: 'text' }],
           target: {
-            source: rUri,
+            source: rId,
             selector: {
               type: 'TextPositionSelector',
               start: i * 5,
@@ -279,7 +271,6 @@ describe('Scripting Example: Query Graph Database', () => {
         userId('test-script'),
         creator,
         eventBus,
-        config.services.backend!.publicURL
       );
     }
 

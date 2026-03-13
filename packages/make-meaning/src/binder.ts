@@ -23,7 +23,7 @@
 import { Subscription, from } from 'rxjs';
 import { concatMap, mergeMap } from 'rxjs/operators';
 import type { EventMap, Logger } from '@semiont/core';
-import { type EventBus, resourceIdToURI, resourceUri as makeResourceUri } from '@semiont/core';
+import { type EventBus, uriToResourceId } from '@semiont/core';
 import { getExactText, getTargetSource, getTargetSelector } from '@semiont/api-client';
 import type { KnowledgeBase } from './knowledge-base';
 
@@ -35,7 +35,6 @@ export class Binder {
     private kb: KnowledgeBase,
     private eventBus: EventBus,
     logger: Logger,
-    private publicURL?: string,
   ) {
     this.logger = logger;
   }
@@ -87,22 +86,16 @@ export class Binder {
 
   private async handleReferencedBy(event: EventMap['bind:referenced-by-requested']): Promise<void> {
     try {
-      if (!this.publicURL) {
-        throw new Error('publicURL required for referenced-by queries');
-      }
-
-      const resourceUri = resourceIdToURI(event.resourceId, this.publicURL);
       this.logger.debug('Looking for annotations referencing resource', {
         resourceId: event.resourceId,
-        resourceUri,
         motivation: event.motivation || 'all',
       });
 
-      const references = await this.kb.graph.getResourceReferencedBy(resourceUri, event.motivation);
+      const references = await this.kb.graph.getResourceReferencedBy(event.resourceId, event.motivation);
 
-      // Get unique source resources
-      const docIds = [...new Set(references.map(ref => getTargetSource(ref.target)))];
-      const resources = await Promise.all(docIds.map(docId => this.kb.graph.getResource(makeResourceUri(docId))));
+      // Get unique source resources — getTargetSource returns full URIs, extract IDs
+      const sourceUris = [...new Set(references.map(ref => getTargetSource(ref.target)))];
+      const resources = await Promise.all(sourceUris.map(uri => this.kb.graph.getResource(uriToResourceId(uri))));
 
       // Build resource map for lookup
       const docMap = new Map(resources.filter(doc => doc !== null).map(doc => [doc['@id'], doc]));

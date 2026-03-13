@@ -1,6 +1,6 @@
 // Factory for creating inference client instances based on configuration
 
-import type { EnvironmentConfig, Logger } from '@semiont/core';
+import type { InferenceServiceConfig, Logger } from '@semiont/core';
 import { InferenceClient } from './interface.js';
 import { AnthropicInferenceClient } from './implementations/anthropic.js';
 import { OllamaInferenceClient } from './implementations/ollama.js';
@@ -56,12 +56,7 @@ function evaluateEnvVar(value: string | undefined): string | undefined {
   });
 }
 
-export async function getInferenceClient(config: EnvironmentConfig, logger?: Logger): Promise<InferenceClient> {
-  const inferenceConfig = config.services.inference;
-  if (!inferenceConfig) {
-    throw new Error('services.inference is required in environment config');
-  }
-
+export async function getInferenceClient(inferenceConfig: InferenceServiceConfig, logger?: Logger): Promise<InferenceClient> {
   if (!inferenceConfig.model) {
     throw new Error('services.inference.model is required in environment config');
   }
@@ -93,9 +88,8 @@ export async function getInferenceClient(config: EnvironmentConfig, logger?: Log
 /**
  * Get the configured model name
  */
-export function getInferenceModel(config: EnvironmentConfig): string {
-  const inferenceConfig = config.services.inference;
-  if (!inferenceConfig?.model) {
+export function getInferenceModel(inferenceConfig: InferenceServiceConfig): string {
+  if (!inferenceConfig.model) {
     throw new Error('Inference model not configured! Set it in your environment configuration.');
   }
   return inferenceConfig.model;

@@ -20,7 +20,7 @@ import {
   getPrimaryRepresentation,
   decodeRepresentation,
 } from '@semiont/api-client';
-import type { components, AnnotationUri, YieldContext } from '@semiont/core';
+import type { components, YieldContext } from '@semiont/core';
 
 import type {
   ResourceId,
@@ -29,7 +29,7 @@ import type {
   AnnotationCategory,
   Logger,
 } from '@semiont/core';
-import { resourceId as createResourceId, uriToResourceId } from '@semiont/core';
+import { resourceId as createResourceId } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 import { ResourceContext } from './resource-context';
 import type { KnowledgeBase } from './knowledge-base';
@@ -59,7 +59,7 @@ export class AnnotationContext {
   /**
    * Build LLM context for an annotation
    *
-   * @param annotationUri - Full annotation URI (e.g., http://localhost:4000/annotations/abc123)
+   * @param annotationId - Bare annotation ID
    * @param resourceId - Source resource ID
    * @param kb - Knowledge base stores
    * @param options - Context building options
@@ -68,7 +68,7 @@ export class AnnotationContext {
    * @throws Error if annotation or resource not found
    */
   static async buildLLMContext(
-    annotationUri: AnnotationUri,
+    annotationId: AnnotationId,
     resourceId: ResourceId,
     kb: KnowledgeBase,
     options: BuildContextOptions = {},
@@ -86,7 +86,7 @@ export class AnnotationContext {
       throw new Error('contextWindow must be between 100 and 5000');
     }
 
-    logger?.debug('Building LLM context', { annotationUri, resourceId });
+    logger?.debug('Building LLM context', { annotationId, resourceId });
 
     // Get source resource view
     logger?.debug('Getting view for resource', { resourceId });
@@ -104,14 +104,14 @@ export class AnnotationContext {
     }
 
     logger?.debug('Looking for annotation in resource', {
-      annotationUri,
+      annotationId,
       resourceId,
       totalAnnotations: sourceView.annotations.annotations.length,
       firstFiveIds: sourceView.annotations.annotations.slice(0, 5).map((a: Annotation) => a.id)
     });
 
-    // Find the annotation in the view (annotations have full URIs as their id)
-    const annotation = sourceView.annotations.annotations.find((a: Annotation) => a.id === annotationUri);
+    // Find the annotation in the view (annotations now have bare IDs)
+    const annotation = sourceView.annotations.annotations.find((a: Annotation) => a.id === annotationId);
     logger?.debug('Annotation search result', { found: !!annotation });
 
     if (!annotation) {
@@ -119,12 +119,10 @@ export class AnnotationContext {
     }
 
     const targetSource = getTargetSource(annotation.target);
-    // Extract resource ID from the target source URI (format: http://host/resources/{id})
-    const targetResourceId = targetSource.split('/').pop();
-    logger?.debug('Validating target resource', { targetSource, expectedResourceId: resourceId, extractedId: targetResourceId });
+    logger?.debug('Validating target resource', { targetSource, expectedResourceId: resourceId });
 
-    if (targetResourceId !== resourceId) {
-      throw new Error(`Annotation target resource ID (${targetResourceId}) does not match expected resource ID (${resourceId})`);
+    if (targetSource !== String(resourceId)) {
+      throw new Error(`Annotation target resource ID (${targetSource}) does not match expected resource ID (${resourceId})`);
     }
 
     const sourceDoc = sourceView.resource;
@@ -132,16 +130,10 @@ export class AnnotationContext {
     // Get target resource if annotation is a reference (has resolved body source)
     const bodySource = getBodySource(annotation.body);
 
-    // Extract target document from body source URI if present
+    // Body source is now a bare resource ID
     let targetDoc = null;
     if (bodySource) {
-      // Inline extraction: "http://localhost:4000/resources/abc123" → "abc123"
-      const parts = (bodySource as string).split('/');
-      const lastPart = parts[parts.length - 1];
-      if (!lastPart) {
-        throw new Error(`Invalid body source URI: ${bodySource}`);
-      }
-      const targetResourceId = createResourceId(lastPart);
+      const targetResourceId = createResourceId(bodySource);
       const targetView = await kb.views.get(targetResourceId);
       targetDoc = targetView?.resource || null;
     }
@@ -279,33 +271,30 @@ export class AnnotationContext {
    * @private
    */
   private static async enrichResolvedReferences(annotations: Annotation[], kb: KnowledgeBase): Promise<Annotation[]> {
-    // Extract unique resolved document URIs from reference annotations
-    const resolvedUris = new Set<string>();
+    // Extract unique resolved resource IDs from reference annotations
+    const resolvedIds = new Set<string>();
     for (const ann of annotations) {
       if (ann.motivation === 'linking' && ann.body) {
         const body = Array.isArray(ann.body) ? ann.body : [ann.body];
         for (const item of body) {
           if (item.type === 'SpecificResource' && item.purpose === 'linking' && item.source) {
-            resolvedUris.add(item.source);
+            resolvedIds.add(item.source);
           }
         }
       }
     }
 
-    if (resolvedUris.size === 0) {
+    if (resolvedIds.size === 0) {
       return annotations;
     }
 
     // Batch fetch all resolved documents in parallel
-    const metadataPromises = Array.from(resolvedUris).map(async (uri) => {
-      const docId = uri.split('/resources/')[1];
-      if (!docId) return null;
-
+    const metadataPromises = Array.from(resolvedIds).map(async (id) => {
       try {
-        const view = await kb.views.get(docId as ResourceId);
+        const view = await kb.views.get(id as ResourceId);
         if (view?.resource?.name) {
           return {
-            uri,
+            id,
             metadata: {
               name: view.resource.name,
               mediaType: view.resource.mediaType as string | undefined
@@ -319,10 +308,10 @@ export class AnnotationContext {
     });
 
     const results = await Promise.all(metadataPromises);
-    const uriToMetadata = new Map<string, { name: string; mediaType?: string }>();
+    const idToMetadata = new Map<string, { name: string; mediaType?: string }>();
     for (const result of results) {
       if (result) {
-        uriToMetadata.set(result.uri, result.metadata);
+        idToMetadata.set(result.id, result.metadata);
       }
     }
 
@@ -332,7 +321,7 @@ export class AnnotationContext {
         const body = Array.isArray(ann.body) ? ann.body : [ann.body];
         for (const item of body) {
           if (item.type === 'SpecificResource' && item.purpose === 'linking' && item.source) {
-            const metadata = uriToMetadata.get(item.source);
+            const metadata = idToMetadata.get(item.source);
             if (metadata) {
               return {
                 ...ann,
@@ -377,11 +366,7 @@ export class AnnotationContext {
    */
   static async getAnnotation(annotationId: AnnotationId, resourceId: ResourceId, kb: KnowledgeBase): Promise<Annotation | null> {
     const annotations = await this.getResourceAnnotations(resourceId, kb);
-    // Extract short ID from annotation's full URI for comparison
-    return annotations.annotations.find((a: Annotation) => {
-      const shortId = a.id.split('/').pop();
-      return shortId === annotationId;
-    }) || null;
+    return annotations.annotations.find((a: Annotation) => a.id === annotationId) || null;
   }
 
   /**
@@ -416,7 +401,7 @@ export class AnnotationContext {
 
     // Get resource metadata from view storage
     const resource = await ResourceContext.getResourceMetadata(
-      uriToResourceId(getTargetSource(annotation.target)),
+      createResourceId(getTargetSource(annotation.target)),
       kb
     );
     if (!resource) {
@@ -463,7 +448,7 @@ export class AnnotationContext {
 
     // Get resource from view storage
     const resource = await ResourceContext.getResourceMetadata(
-      uriToResourceId(getTargetSource(annotation.target)),
+      createResourceId(getTargetSource(annotation.target)),
       kb
     );
     if (!resource) {

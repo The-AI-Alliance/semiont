@@ -201,40 +201,6 @@ export function createMockFileSystem() {
 }
 
 /**
- * Create a mock environment configuration
- */
-export function createMockEnvironmentConfig(overrides?: Partial<any>) {
-  return {
-    name: 'test',
-    description: 'Test environment',
-    services: {
-      backend: {
-        port: 4000,
-        host: 'localhost',
-        protocol: 'http',
-      },
-      frontend: {
-        port: 3000,
-        host: 'localhost',
-        protocol: 'http',
-      },
-    },
-    database: {
-      provider: 'postgresql',
-      host: 'localhost',
-      port: 5432,
-      name: 'semiont_test',
-      user: 'test_user',
-    },
-    auth: {
-      jwtSecret: 'test-secret',
-      allowedDomains: ['example.com', 'test.com'],
-    },
-    ...overrides
-  };
-}
-
-/**
  * Create mock API handlers for MSW
  */
 export function createMockAPIHandlers() {

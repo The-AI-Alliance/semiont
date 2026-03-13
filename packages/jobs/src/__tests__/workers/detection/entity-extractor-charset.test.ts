@@ -19,7 +19,7 @@ import { EventBus } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import type { EnvironmentConfig } from '@semiont/core';
+
 
 // Mock inference to avoid actual API calls
 const mockInferenceClient = vi.hoisted(() => {
@@ -83,46 +83,9 @@ describe('Entity Detection - Charset Handling', () => {
     testDir = join(tmpdir(), `semiont-test-charset-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
 
-    const config = {
-      services: {
-        filesystem: {
-          platform: { type: 'posix' },
-          path: testDir
-        },
-        backend: {
-          platform: { type: 'posix' },
-          port: 4000,
-          publicURL: 'http://localhost:4000',
-          corsOrigin: 'http://localhost:3000'
-        },
-        inference: {
-          platform: { type: 'external' },
-          type: 'anthropic',
-          model: 'claude-sonnet-4-20250514',
-          maxTokens: 8192,
-          endpoint: 'https://api.anthropic.com',
-          apiKey: 'test-api-key'
-        },
-        graph: {
-          platform: { type: 'posix' },
-          type: 'memory'
-        }
-      },
-      site: {
-        siteName: 'Test Site',
-        domain: 'localhost:3000',
-        adminEmail: 'admin@test.local',
-        oauthAllowedDomains: ['test.local']
-      },
-      _metadata: {
-        environment: 'test',
-        projectRoot: testDir
-      },
-    } as EnvironmentConfig;
-
-    const jobQueue = new JobQueue({ dataDir: config.services.filesystem!.path }, mockLogger, new EventBus());
+    const jobQueue = new JobQueue({ dataDir: testDir }, mockLogger, new EventBus());
     await jobQueue.initialize();
-    worker = new ReferenceAnnotationWorker(jobQueue, config, mockInferenceClient.client, new EventBus(), mockContentFetcher, mockLogger);
+    worker = new ReferenceAnnotationWorker(jobQueue, mockInferenceClient.client, new EventBus(), mockContentFetcher, mockLogger);
   });
 
   afterAll(async () => {

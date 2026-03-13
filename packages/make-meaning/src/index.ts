@@ -3,7 +3,7 @@
 
 // Service (primary export)
 export { startMakeMeaning } from './service';
-export type { MakeMeaningService } from './service';
+export type { MakeMeaningService, MakeMeaningConfig } from './service';
 
 // Bootstrap
 export { bootstrapEntityTypes, resetBootstrap } from './bootstrap/entity-types';

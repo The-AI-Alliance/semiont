@@ -3,8 +3,8 @@
 
 import gremlin from 'gremlin';
 import { GraphDatabase } from '../interface';
-import type { components, ResourceUri, AnnotationUri, Logger } from '@semiont/core';
-import { resourceUri, annotationIdToURI } from '@semiont/core';
+import type { components, Logger } from '@semiont/core';
+import { uriToResourceId } from '@semiont/core';
 import {
   getBodySource,
   getPrimaryRepresentation,
@@ -22,7 +22,6 @@ import type {
   CreateAnnotationInternal,
   ResourceId,
   AnnotationId,
-  EnvironmentConfig,
 } from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -50,7 +49,6 @@ export class JanusGraphDatabase implements GraphDatabase {
       indexBackend?: 'elasticsearch' | 'solr' | 'lucene';
       logger?: Logger;
     },
-    private envConfig: EnvironmentConfig
   ) {
     this.logger = graphConfig.logger;
   }
@@ -279,7 +277,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     return resource;
   }
   
-  async getResource(id: ResourceUri): Promise<ResourceDescriptor | null> {
+  async getResource(id: ResourceId): Promise<ResourceDescriptor | null> {
     const vertices = await this.g!
       .V()
       .has('Resource', 'id', id)
@@ -292,7 +290,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     return this.vertexToResource(vertices[0] as any);
   }
   
-  async updateResource(id: ResourceUri, input: UpdateResourceInput): Promise<ResourceDescriptor> {
+  async updateResource(id: ResourceId, input: UpdateResourceInput): Promise<ResourceDescriptor> {
     // Resources are immutable - only archiving is allowed
     if (Object.keys(input).length !== 1 || input.archived === undefined) {
       throw new Error('Resources are immutable. Only archiving is allowed.');
@@ -312,7 +310,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     return updatedResource;
   }
   
-  async deleteResource(id: ResourceUri): Promise<void> {
+  async deleteResource(id: ResourceId): Promise<void> {
     // Delete the vertex and all its edges
     await this.g!
       .V()
@@ -449,7 +447,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     return annotation;
   }
   
-  async getAnnotation(id: AnnotationUri): Promise<Annotation | null> {
+  async getAnnotation(id: AnnotationId): Promise<Annotation | null> {
     const vertices = await this.g!
       .V()
       .has('Annotation', 'id', id)
@@ -474,7 +472,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     return this.vertexToAnnotation(vertices[0] as any, entityTypes);
   }
   
-  async updateAnnotation(id: AnnotationUri, updates: Partial<Annotation>): Promise<Annotation> {
+  async updateAnnotation(id: AnnotationId, updates: Partial<Annotation>): Promise<Annotation> {
     const traversalQuery = this.g!
       .V()
       .has('Annotation', 'id', id);
@@ -557,7 +555,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     return updatedAnnotation;
   }
   
-  async deleteAnnotation(id: AnnotationUri): Promise<void> {
+  async deleteAnnotation(id: AnnotationId): Promise<void> {
     await this.g!
       .V()
       .has('Annotation', 'id', id)
@@ -598,13 +596,12 @@ export class JanusGraphDatabase implements GraphDatabase {
   }
 
   async resolveReference(annotationId: AnnotationId, source: ResourceId): Promise<Annotation> {
-    const publicURL = this.envConfig.services.backend!.publicURL;
-    const annotation = await this.getAnnotation(annotationIdToURI(annotationId, publicURL));
+    const annotation = await this.getAnnotation(annotationId);
     if (!annotation) throw new Error('Annotation not found');
 
     // TODO Preserve existing TextualBody entities, add SpecificResource
     // For now, just update with SpecificResource (losing entity tags)
-    await this.updateAnnotation(annotationIdToURI(annotationId, publicURL), {
+    await this.updateAnnotation(annotationId, {
       body: [
         {
           type: 'SpecificResource',
@@ -622,7 +619,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       .to(this.g!.V().has('Resource', 'id', source))
       .next();
 
-    const updatedAnnotation = await this.getAnnotation(annotationIdToURI(annotationId, publicURL));
+    const updatedAnnotation = await this.getAnnotation(annotationId);
     if (!updatedAnnotation) {
       throw new Error('Annotation not found after update');
     }
@@ -660,12 +657,12 @@ export class JanusGraphDatabase implements GraphDatabase {
     return annotations;
   }
 
-  async getResourceReferencedBy(resourceUri: ResourceUri, _motivation?: string): Promise<Annotation[]> {
+  async getResourceReferencedBy(resourceId: ResourceId, _motivation?: string): Promise<Annotation[]> {
     // Find annotations that reference this resource
     const vertices = await this.g!
       .V()
       .hasLabel('Annotation')
-      .has('source', resourceUri)
+      .has('source', resourceId)
       .toList();
 
     return await this.fetchAnnotationsWithEntityTypes(vertices);
@@ -695,7 +692,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       // Extract source from body using helper
       const bodySource = getBodySource(ref.body);
       if (bodySource) {
-        const targetDoc = await this.getResource(resourceUri(bodySource));
+        const targetDoc = await this.getResource(uriToResourceId(bodySource));
         if (targetDoc) {
           const existing = connections.find(c => c.targetResource.id === targetDoc.id);
           if (existing) {

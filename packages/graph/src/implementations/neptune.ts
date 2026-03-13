@@ -14,8 +14,6 @@ import type {
   CreateAnnotationInternal,
   ResourceId,
   AnnotationId,
-  ResourceUri,
-  AnnotationUri,
 } from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -390,7 +388,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async getResource(id: ResourceUri): Promise<ResourceDescriptor | null> {
+  async getResource(id: ResourceId): Promise<ResourceDescriptor | null> {
     try {
       const result = await this.g.V()
         .hasLabel('Resource')
@@ -409,7 +407,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async updateResource(id: ResourceUri, input: UpdateResourceInput): Promise<ResourceDescriptor> {
+  async updateResource(id: ResourceId, input: UpdateResourceInput): Promise<ResourceDescriptor> {
     // Resources are immutable - only archiving is allowed
     if (Object.keys(input).length !== 1 || input.archived === undefined) {
       throw new Error('Resources are immutable. Only archiving is allowed.');
@@ -434,7 +432,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async deleteResource(id: ResourceUri): Promise<void> {
+  async deleteResource(id: ResourceId): Promise<void> {
     try {
       // Delete the resource vertex and all connected edges
       await this.g.V()
@@ -594,7 +592,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async getAnnotation(id: AnnotationUri): Promise<Annotation | null> {
+  async getAnnotation(id: AnnotationId): Promise<Annotation | null> {
     try {
       const result = await this.g.V()
         .hasLabel('Annotation')
@@ -624,7 +622,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async updateAnnotation(id: AnnotationUri, updates: Partial<Annotation>): Promise<Annotation> {
+  async updateAnnotation(id: AnnotationId, updates: Partial<Annotation>): Promise<Annotation> {
     try {
       let traversal = this.g.V()
         .hasLabel('Annotation')
@@ -709,7 +707,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async deleteAnnotation(id: AnnotationUri): Promise<void> {
+  async deleteAnnotation(id: AnnotationId): Promise<void> {
     try {
       await this.g.V()
         .hasLabel('Annotation')
@@ -876,11 +874,11 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async getResourceReferencedBy(resourceUri: ResourceUri, _motivation?: string): Promise<Annotation[]> {
+  async getResourceReferencedBy(resourceId: ResourceId, _motivation?: string): Promise<Annotation[]> {
     try {
       const results = await this.g.V()
         .hasLabel('Annotation')
-        .has('resolvedResourceId', resourceUri)
+        .has('resolvedResourceId', resourceId)
         .elementMap()
         .toList();
 

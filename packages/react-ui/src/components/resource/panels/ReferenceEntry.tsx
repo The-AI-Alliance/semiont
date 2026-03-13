@@ -4,6 +4,7 @@ import { forwardRef } from 'react';
 import type { RouteBuilder } from '../../../contexts/RoutingContext';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components } from '@semiont/core';
+import { annotationId, resourceId } from '@semiont/core';
 import { getAnnotationExactText, isBodyResolved, getBodySource, getFragmentSelector, getSvgSelector, getTargetSelector } from '@semiont/api-client';
 import { getEntityTypes } from '@semiont/ontology';
 import { getResourceIcon } from '../../../lib/resource-utils';
@@ -74,7 +75,7 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
 
   const handleComposeDocument = () => {
     eventBus.get('bind:create-manual').next({
-      annotationUri: reference.id,
+      annotationId: annotationId(reference.id),
       title: selectedText,
       entityTypes,
     });
@@ -85,31 +86,33 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
     const sourceUri = typeof reference.target === 'object' && 'source' in reference.target
       ? reference.target.source
       : '';
-    if (sourceUri) {
+    const extractedResourceId = sourceUri.split('/resources/')[1] || '';
+    if (sourceUri && extractedResourceId) {
       eventBus.get('bind:update-body').next({
-        annotationUri: reference.id,
-        resourceId: sourceUri.split('/resources/')[1] || '',
+        annotationId: annotationId(reference.id),
+        resourceId: resourceId(extractedResourceId),
         operations: [{ op: 'remove' }], // Remove all body items
       });
     }
   };
 
   const handleGenerate = () => {
-    const resourceUri = typeof reference.target === 'object' && 'source' in reference.target
+    const sourceUri = typeof reference.target === 'object' && 'source' in reference.target
       ? reference.target.source
       : '';
+    const extractedResourceId = sourceUri.split('/resources/')[1] || '';
 
     // Emit request to open generation modal
     eventBus.get('yield:modal-open').next({
-      annotationUri: reference.id,
-      resourceUri,
+      annotationId: annotationId(reference.id),
+      resourceId: resourceId(extractedResourceId),
       defaultTitle: selectedText,
     });
   };
 
   const handleSearch = () => {
     eventBus.get('bind:link').next({
-      annotationUri: reference.id,
+      annotationId: annotationId(reference.id),
       searchTerm: selectedText,
     });
   };

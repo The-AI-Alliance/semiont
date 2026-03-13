@@ -34,7 +34,6 @@ export class LLMContext {
     resourceId: ResourceId,
     options: LLMContextOptions,
     kb: KnowledgeBase,
-    publicURL: string,
     inferenceClient: InferenceClient
   ): Promise<ResourceLLMContextResponse> {
     // Get main resource from view storage
@@ -53,7 +52,6 @@ export class LLMContext {
       resourceId,
       options.maxResources,
       kb,
-      publicURL
     );
 
     // Extract related resources from graph nodes (excluding main resource)

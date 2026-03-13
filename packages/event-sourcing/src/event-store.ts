@@ -19,11 +19,9 @@ import type {
 } from '@semiont/core';
 import { EventBus as CoreEventBus } from '@semiont/core';
 import type { ViewStorage } from './storage/view-storage';
-import type { IdentifierConfig } from './identifier-utils';
-
 // Import focused components
 import { EventLog, type EventLogConfig } from './event-log';
-import { EventBus, type EventBusConfig } from './event-bus';
+import { EventBus } from './event-bus';
 import { ViewManager, type ViewManagerConfig } from './view-manager';
 import type { EventStorageConfig } from './storage/event-storage';
 
@@ -43,7 +41,6 @@ export class EventStore {
   constructor(
     config: EventStorageConfig,
     viewStorage: ViewStorage,
-    identifierConfig: IdentifierConfig,
     coreEventBus?: CoreEventBus,
     logger?: Logger
   ) {
@@ -60,14 +57,10 @@ export class EventStore {
     };
     this.log = new EventLog(logConfig, logger?.child({ component: 'EventLog' }));
 
-    const busConfig: EventBusConfig = {
-      identifierConfig,
-    };
-    this.bus = new EventBus(busConfig, logger?.child({ component: 'EventBus' }));
+    this.bus = new EventBus(logger?.child({ component: 'EventBus' }));
 
     const viewConfig: ViewManagerConfig = {
       basePath: config.basePath,
-      backendUrl: identifierConfig.baseUrl,
     };
     this.views = new ViewManager(viewStorage, viewConfig, logger?.child({ component: 'ViewManager' }));
   }

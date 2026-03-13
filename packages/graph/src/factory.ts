@@ -5,24 +5,24 @@ import { NeptuneGraphDatabase } from './implementations/neptune';
 import { Neo4jGraphDatabase } from './implementations/neo4j';
 import { JanusGraphDatabase } from './implementations/janusgraph';
 import { MemoryGraphDatabase } from './implementations/memorygraph';
-import type { EnvironmentConfig } from '@semiont/core';
+import type { GraphServiceConfig } from '@semiont/core';
 
 export type GraphDatabaseType = 'neptune' | 'neo4j' | 'janusgraph' | 'memory';
 
 export interface GraphDatabaseConfig {
   type: GraphDatabaseType;
-  
+
   // Neptune config
   neptuneEndpoint?: string;
   neptunePort?: number;
   neptuneRegion?: string;
-  
+
   // Neo4j config
   neo4jUri?: string;
   neo4jUsername?: string;
   neo4jPassword?: string;
   neo4jDatabase?: string;
-  
+
   // JanusGraph config
   janusHost?: string;
   janusPort?: number;
@@ -33,7 +33,7 @@ export interface GraphDatabaseConfig {
 // Singleton instance
 let graphDatabaseInstance: GraphDatabase | null = null;
 
-export function createGraphDatabase(config: GraphDatabaseConfig, envConfig: EnvironmentConfig): GraphDatabase {
+export function createGraphDatabase(config: GraphDatabaseConfig): GraphDatabase {
   switch (config.type) {
     case 'neptune': {
       const neptuneConfig: any = {};
@@ -58,7 +58,7 @@ export function createGraphDatabase(config: GraphDatabaseConfig, envConfig: Envi
       if (config.janusPort !== undefined) janusConfig.port = config.janusPort;
       if (config.janusStorageBackend !== undefined) janusConfig.storageBackend = config.janusStorageBackend;
       if (config.janusIndexBackend !== undefined) janusConfig.indexBackend = config.janusIndexBackend;
-      return new JanusGraphDatabase(janusConfig, envConfig);
+      return new JanusGraphDatabase(janusConfig);
     }
 
     case 'memory':
@@ -83,10 +83,8 @@ function evaluateEnvVar(value: string | undefined): string | undefined {
   });
 }
 
-export async function getGraphDatabase(envConfig: EnvironmentConfig): Promise<GraphDatabase> {
+export async function getGraphDatabase(graphConfig: GraphServiceConfig): Promise<GraphDatabase> {
   if (!graphDatabaseInstance) {
-    const graphConfig = envConfig.services.graph!;
-
     const config: GraphDatabaseConfig = {
       type: graphConfig.type,
     };
@@ -130,7 +128,7 @@ export async function getGraphDatabase(envConfig: EnvironmentConfig): Promise<Gr
       }
     }
 
-    graphDatabaseInstance = createGraphDatabase(config, envConfig);
+    graphDatabaseInstance = createGraphDatabase(config);
     await graphDatabaseInstance.connect();
   }
 

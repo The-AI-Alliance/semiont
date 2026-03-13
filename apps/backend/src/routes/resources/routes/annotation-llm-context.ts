@@ -8,13 +8,13 @@
 import { HTTPException } from 'hono/http-exception';
 import { firstValueFrom, merge } from 'rxjs';
 import { filter, map, take, timeout } from 'rxjs/operators';
+import { annotationId, resourceId } from '@semiont/core';
 import type { ResourcesRouterType } from '../shared';
 
 export function registerGetAnnotationLLMContext(router: ResourcesRouterType) {
   router.get('/resources/:resourceId/annotations/:annotationId/llm-context', async (c) => {
     const { resourceId: resourceIdParam, annotationId: annotationIdParam } = c.req.param();
     const query = c.req.query();
-    const config = c.get('config');
     const eventBus = c.get('eventBus');
 
     // Parse and validate query parameters
@@ -26,13 +26,10 @@ export function registerGetAnnotationLLMContext(router: ResourcesRouterType) {
       throw new HTTPException(400, { message: 'Query parameter "contextWindow" must be between 100 and 5000' });
     }
 
-    const fullAnnotationUri = `${config.services.backend!.publicURL}/annotations/${annotationIdParam}`;
-    const resourceUri = `${config.services.backend!.publicURL}/resources/${resourceIdParam}`;
-
     // Emit gather:requested — Gatherer subscribes and calls AnnotationContext.buildLLMContext
     eventBus.get('gather:requested').next({
-      annotationUri: fullAnnotationUri,
-      resourceUri,
+      annotationId: annotationId(annotationIdParam),
+      resourceId: resourceId(resourceIdParam),
       options: { includeSourceContext, includeTargetContext, contextWindow },
     });
 
@@ -40,11 +37,11 @@ export function registerGetAnnotationLLMContext(router: ResourcesRouterType) {
       const result = await firstValueFrom(
         merge(
           eventBus.get('gather:complete').pipe(
-            filter(e => e.annotationUri === fullAnnotationUri),
+            filter(e => e.annotationId === annotationIdParam),
             map(e => ({ ok: true as const, response: e.response })),
           ),
           eventBus.get('gather:failed').pipe(
-            filter(e => e.annotationUri === fullAnnotationUri),
+            filter(e => e.annotationId === annotationIdParam),
             map(e => ({ ok: false as const, error: e.error })),
           ),
         ).pipe(take(1), timeout(30_000)),

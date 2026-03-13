@@ -10,19 +10,15 @@
  * motivation prompts/parsers), see @semiont/make-meaning examples.
  */
 
-import { generateText, getInferenceClient } from '@semiont/inference';
-import type { EnvironmentConfig } from '@semiont/core';
+import { getInferenceClient } from '@semiont/inference';
+import type { InferenceServiceConfig } from '@semiont/core';
 
 // Example configuration
-const config: EnvironmentConfig = {
-  services: {
-    inference: {
-      type: 'anthropic',
-      model: 'claude-3-5-sonnet-20241022',
-      apiKey: '${ANTHROPIC_API_KEY}', // Expands from environment variable
-    },
-  },
-};
+const config: InferenceServiceConfig = {
+  type: 'anthropic',
+  model: 'claude-3-5-sonnet-20241022',
+  apiKey: '${ANTHROPIC_API_KEY}', // Expands from environment variable
+} as InferenceServiceConfig;
 
 async function main() {
   // 1. Simple text generation (the core primitive)

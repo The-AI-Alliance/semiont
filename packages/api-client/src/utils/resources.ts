@@ -21,7 +21,7 @@ export function getResourceId(resource: ResourceDescriptor | undefined): string 
 
   const fullId = resource['@id'];
 
-  // For internal resources, extract the last path segment
+  // For URI-formatted resources, extract the last path segment
   // http://localhost:4000/resources/{uuid} -> {uuid}
   if (fullId.includes('/resources/')) {
     const parts = fullId.split('/resources/');
@@ -29,8 +29,8 @@ export function getResourceId(resource: ResourceDescriptor | undefined): string 
     return lastPart || undefined;
   }
 
-  // For external resources, cannot extract ID
-  return undefined;
+  // Bare ID (no URI prefix) — return as-is
+  return fullId || undefined;
 }
 
 /**

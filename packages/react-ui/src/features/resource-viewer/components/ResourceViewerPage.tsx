@@ -8,9 +8,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { components, ResourceUri, ResourceEvent } from '@semiont/core';
-import { resourceAnnotationUri } from '@semiont/core';
+import { annotationId, resourceId as makeResourceId } from '@semiont/core';
 import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType } from '@semiont/api-client';
-import { uriToAnnotationId } from '@semiont/core';
 import { ANNOTATORS } from '@semiont/react-ui';
 import { ErrorBoundary } from '@semiont/react-ui';
 import { AnnotationHistory } from '@semiont/react-ui';
@@ -213,8 +212,7 @@ export function ResourceViewerPage({
         return {
           ...old,
           annotations: old.annotations.map((annotation: any) => {
-            const annotationIdSegment = uriToAnnotationId(annotation.id);
-            if (annotationIdSegment === event.payload.annotationId) {
+            if (annotation.id === event.payload.annotationId) {
               let bodyArray = Array.isArray(annotation.body) ? [...annotation.body] : [];
 
               for (const op of event.payload.operations || []) {
@@ -608,17 +606,11 @@ export function ResourceViewerPage({
         onSelect={async (documentId: string) => {
           if (pendingReferenceId) {
             try {
-              const annotationIdShort = pendingReferenceId.split('/').pop();
-              if (!annotationIdShort) {
-                throw new Error('Invalid reference ID');
-              }
-
               const resourceIdSegment = rUri.split('/').pop() || '';
-              const nestedUri = `${window.location.origin}/resources/${resourceIdSegment}/annotations/${annotationIdShort}`;
 
               eventBus.get('bind:update-body').next({
-                annotationUri: resourceAnnotationUri(nestedUri),
-                resourceId: resourceIdSegment,
+                annotationId: annotationId(pendingReferenceId),
+                resourceId: makeResourceId(resourceIdSegment),
                 operations: [{
                   op: 'add',
                   item: {

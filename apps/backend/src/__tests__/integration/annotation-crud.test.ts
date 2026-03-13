@@ -41,7 +41,6 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
     // Create test resources in event store
     const eventStore = await createEventStore(
       testEnv.config.services.filesystem!.path,
-      testEnv.config.services.backend!.publicURL,
       undefined,
       undefined,
       mockLogger
@@ -89,7 +88,6 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       // Use SAME path from beforeAll
       const eventStore = await createEventStore(
       testEnv.config.services.filesystem!.path,
-      testEnv.config.services.backend!.publicURL,
       undefined,
       undefined,
       mockLogger
@@ -141,7 +139,6 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       // Use SAME path from beforeAll
       const eventStore = await createEventStore(
       testEnv.config.services.filesystem!.path,
-      testEnv.config.services.backend!.publicURL,
       undefined,
       undefined,
       mockLogger
@@ -219,7 +216,6 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       // Use SAME path from beforeAll
       const eventStore = await createEventStore(
       testEnv.config.services.filesystem!.path,
-      testEnv.config.services.backend!.publicURL,
       undefined,
       undefined,
       mockLogger
@@ -325,7 +321,6 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       // Use SAME path from beforeAll
       const eventStore = await createEventStore(
       testEnv.config.services.filesystem!.path,
-      testEnv.config.services.backend!.publicURL,
       undefined,
       undefined,
       mockLogger
@@ -442,7 +437,6 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       // Use SAME path from beforeAll
       const eventStore = await createEventStore(
       testEnv.config.services.filesystem!.path,
-      testEnv.config.services.backend!.publicURL,
       undefined,
       undefined,
       mockLogger
@@ -522,7 +516,6 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       // Use SAME path from beforeAll
       const eventStore = await createEventStore(
       testEnv.config.services.filesystem!.path,
-      testEnv.config.services.backend!.publicURL,
       undefined,
       undefined,
       mockLogger

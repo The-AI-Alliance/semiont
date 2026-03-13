@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
 import { ReferenceAnnotationWorker } from '../../../workers/reference-annotation-worker';
 import { JobQueue, type RunningJob, type DetectionParams, type DetectionProgress, type ContentFetcher } from '@semiont/jobs';
-import { resourceId, userId, type EnvironmentConfig, EventBus, type Logger } from '@semiont/core';
+import { resourceId, userId, EventBus, type Logger } from '@semiont/core';
 import { jobId, entityType } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -44,7 +44,6 @@ const mockContentFetcher: ContentFetcher = async () => {
 describe('ReferenceAnnotationWorker - Event Emission', () => {
   let worker: ReferenceAnnotationWorker;
   let testDir: string;
-  let config: EnvironmentConfig;
   let eventBus: EventBus;
 
   beforeAll(async () => {
@@ -53,24 +52,13 @@ describe('ReferenceAnnotationWorker - Event Emission', () => {
 
     testDir = join(tmpdir(), `semiont-test-worker-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
-
-    config = {
-      services: {
-        filesystem: { platform: { type: 'posix' }, path: testDir },
-        backend: { platform: { type: 'posix' }, port: 4000, publicURL: 'http://localhost:4000', corsOrigin: 'http://localhost:3000' },
-        inference: { platform: { type: 'external' }, type: 'anthropic', model: 'claude-sonnet-4-20250514', maxTokens: 8192, endpoint: 'https://api.anthropic.com', apiKey: 'test-api-key' },
-        graph: { platform: { type: 'posix' }, type: 'memory' }
-      },
-      site: { siteName: 'Test Site', domain: 'localhost:3000', adminEmail: 'admin@test.local', oauthAllowedDomains: ['test.local'] },
-      _metadata: { environment: 'test', projectRoot: testDir },
-    } as EnvironmentConfig;
   });
 
   beforeEach(async () => {
     eventBus = new EventBus();
     const jobQueue = new JobQueue({ dataDir: testDir }, mockLogger, new EventBus());
     await jobQueue.initialize();
-    worker = new ReferenceAnnotationWorker(jobQueue, config, mockInferenceClient, eventBus, mockContentFetcher, mockLogger);
+    worker = new ReferenceAnnotationWorker(jobQueue, mockInferenceClient, eventBus, mockContentFetcher, mockLogger);
     mockInferenceClient.setResponses(['[]']);
   });
 

@@ -11,7 +11,7 @@ import type { User } from '@prisma/client';
 import { authMiddleware } from '../middleware/auth';
 import { validateRequestBody } from '../middleware/validate-openapi';
 import type { components } from '@semiont/core';
-import { userId, type EnvironmentConfig, type EventBus } from '@semiont/core';
+import { userId, type EventBus } from '@semiont/core';
 import type { startMakeMeaning } from '@semiont/make-meaning';
 import { eventBusRequest } from '../utils/event-bus-request';
 
@@ -19,7 +19,7 @@ type AddEntityTypeRequest = components['schemas']['AddEntityTypeRequest'];
 type BulkAddEntityTypesRequest = components['schemas']['BulkAddEntityTypesRequest'];
 
 // Create router with auth middleware
-export const entityTypesRouter = new Hono<{ Variables: { user: User; config: EnvironmentConfig; eventBus: EventBus; makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>> } }>();
+export const entityTypesRouter = new Hono<{ Variables: { user: User; eventBus: EventBus; makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>> } }>();
 entityTypesRouter.use('/api/entity-types/*', authMiddleware);
 
 /**

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resourceIdToURI, uriToResourceId, annotationIdToURI, uriToAnnotationId } from '../uri-utils';
+import { resourceIdToURI, annotationIdToURI, uriToAnnotationId, uriToResourceId } from '../uri-utils';
 import { resourceId, annotationId } from '../identifiers';
 
 describe('@semiont/core - uri-utils', () => {
@@ -35,47 +35,6 @@ describe('@semiont/core - uri-utils', () => {
     });
   });
 
-  describe('uriToResourceId', () => {
-    it('should extract resource ID from full URI', () => {
-      const uri = 'https://api.semiont.app/resources/doc-abc123';
-      const id = uriToResourceId(uri);
-
-      expect(id).toBe('doc-abc123');
-    });
-
-    it('should throw on invalid URI format', () => {
-      expect(() => uriToResourceId('https://api.semiont.app/invalid'))
-        .toThrow('Invalid resource URI');
-    });
-
-    it('should throw on missing resource path', () => {
-      expect(() => uriToResourceId('https://api.semiont.app/'))
-        .toThrow('Invalid resource URI');
-    });
-
-    it('should handle different domains', () => {
-      const id1 = uriToResourceId('http://localhost:4000/resources/test-123');
-      const id2 = uriToResourceId('https://example.org/resources/doc-456');
-
-      expect(id1).toBe('test-123');
-      expect(id2).toBe('doc-456');
-    });
-
-    it('should handle query parameters', () => {
-      const uri = 'https://api.semiont.app/resources/doc-abc123?foo=bar';
-      const id = uriToResourceId(uri);
-
-      expect(id).toBe('doc-abc123');
-    });
-
-    it('should handle fragments', () => {
-      const uri = 'https://api.semiont.app/resources/doc-abc123#section';
-      const id = uriToResourceId(uri);
-
-      expect(id).toBe('doc-abc123');
-    });
-  });
-
   describe('annotationIdToURI', () => {
     it('should convert annotation ID to full URI', () => {
       const id = annotationId('anno-xyz789');
@@ -89,6 +48,33 @@ describe('@semiont/core - uri-utils', () => {
       const uri = annotationIdToURI(id, 'https://api.semiont.app/');
 
       expect(uri).toBe('https://api.semiont.app/annotations/test-annotation');
+    });
+  });
+
+  describe('uriToResourceId', () => {
+    it('should extract resource ID from full URI', () => {
+      const id = uriToResourceId('https://api.semiont.app/resources/doc-abc123');
+      expect(id).toBe('doc-abc123');
+    });
+
+    it('should extract resource ID from localhost URI', () => {
+      const id = uriToResourceId('http://localhost:4000/resources/my-doc');
+      expect(id).toBe('my-doc');
+    });
+
+    it('should return bare ID as-is', () => {
+      const id = uriToResourceId('doc-abc123');
+      expect(id).toBe('doc-abc123');
+    });
+
+    it('should return UUID as-is', () => {
+      const id = uriToResourceId('550e8400-e29b-41d4-a716-446655440000');
+      expect(id).toBe('550e8400-e29b-41d4-a716-446655440000');
+    });
+
+    it('should throw on URI without /resources/ path', () => {
+      expect(() => uriToResourceId('https://api.semiont.app/annotations/foo'))
+        .toThrow('Invalid resource URI');
     });
   });
 

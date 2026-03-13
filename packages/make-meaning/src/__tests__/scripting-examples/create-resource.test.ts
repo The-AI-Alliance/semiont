@@ -16,8 +16,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { EventBus, type Logger } from '@semiont/core';
-import { startMakeMeaning, ResourceOperations } from '../..';
-import type { EnvironmentConfig } from '@semiont/core';
+import { startMakeMeaning, ResourceOperations, type MakeMeaningConfig } from '../..';
 import { userId } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -33,7 +32,7 @@ const mockLogger: Logger = {
 
 describe('Scripting Example: Create Resource', () => {
   let testDir: string;
-  let config: EnvironmentConfig;
+  let config: MakeMeaningConfig;
   let makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>>;
   let eventBus: EventBus;
 
@@ -75,10 +74,9 @@ describe('Scripting Example: Create Resource', () => {
         oauthAllowedDomains: ['test.local']
       },
       _metadata: {
-        environment: 'test',
         projectRoot: testDir
       },
-    } as EnvironmentConfig;
+    } as MakeMeaningConfig;
 
     // Create EventBus (caller controls this)
     eventBus = new EventBus();

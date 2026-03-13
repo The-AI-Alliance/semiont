@@ -91,28 +91,18 @@ export function validateSvgMarkup(svg: string): string | null {
 // =============================================================================
 
 /**
- * Generate a unique annotation ID (W3C-compliant HTTP URI)
- */
-function generateAnnotationId(baseUrl: string): string {
-  if (!baseUrl) {
-    throw new Error('baseUrl is required to generate annotation URIs');
-  }
-  const normalizedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-  return `${normalizedBase}/annotations/${generateUuid()}`;
-}
-
-/**
  * Build a complete W3C Annotation from a CreateAnnotationRequest.
  *
- * Generates ID, validates selectors, constructs the full annotation object.
+ * Generates a bare annotation ID (no URL prefix). URIs are constructed
+ * at the API boundary when returning responses to clients.
+ *
  * Throws on invalid input (missing selector, missing motivation, invalid SVG).
  */
 export function assembleAnnotation(
   request: CreateAnnotationRequest,
   creator: Agent,
-  publicURL: string,
 ): AssembledAnnotation {
-  const newAnnotationId = generateAnnotationId(publicURL);
+  const newAnnotationId = generateUuid();
 
   // Validate selector: must have TextPositionSelector, SvgSelector, or FragmentSelector
   const posSelector = getTextPositionSelector(request.target.selector);

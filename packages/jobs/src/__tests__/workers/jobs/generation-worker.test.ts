@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
 import { GenerationWorker } from '../../../workers/generation-worker';
 import { JobQueue, type RunningJob, type GenerationParams, type YieldProgress } from '@semiont/jobs';
-import { resourceId, userId, annotationId, type EnvironmentConfig, EventBus, type Logger } from '@semiont/core';
+import { resourceId, userId, annotationId, EventBus, type Logger } from '@semiont/core';
 import { jobId } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -36,17 +36,16 @@ const mockLogger: Logger = {
 describe('GenerationWorker - Event Emission', () => {
   let worker: GenerationWorker;
   let testDir: string;
-  let config: EnvironmentConfig;
   let eventBus: EventBus;
 
   // Shared test annotation fixture
   const testAnnotation = {
     '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
     type: 'Annotation' as const,
-    id: 'http://localhost:4000/annotations/test-anno-1',
+    id: 'test-anno-1',
     motivation: 'linking' as const,
     target: {
-      source: 'http://localhost:4000/resources/test-resource-1',
+      source: 'test-resource-1',
       selector: [
         { type: 'TextPositionSelector' as const, start: 0, end: 10 },
         { type: 'TextQuoteSelector' as const, exact: 'test text' }
@@ -61,24 +60,13 @@ describe('GenerationWorker - Event Emission', () => {
 
     testDir = join(tmpdir(), `semiont-test-generation-worker-${Date.now()}`);
     await fs.mkdir(testDir, { recursive: true });
-
-    config = {
-      services: {
-        filesystem: { platform: { type: 'posix' }, path: testDir },
-        backend: { platform: { type: 'posix' }, port: 4000, publicURL: 'http://localhost:4000', corsOrigin: 'http://localhost:3000' },
-        inference: { platform: { type: 'external' }, type: 'anthropic', model: 'claude-sonnet-4-20250514', maxTokens: 8192, endpoint: 'https://api.anthropic.com', apiKey: 'test-api-key' },
-        graph: { platform: { type: 'posix' }, type: 'memory' }
-      },
-      site: { siteName: 'Test Site', domain: 'localhost:3000', adminEmail: 'admin@test.local', oauthAllowedDomains: ['test.local'] },
-      _metadata: { environment: 'test', projectRoot: testDir },
-    } as EnvironmentConfig;
   });
 
   beforeEach(async () => {
     eventBus = new EventBus();
     const jobQueue = new JobQueue({ dataDir: testDir }, mockLogger, new EventBus());
     await jobQueue.initialize();
-    worker = new GenerationWorker(jobQueue, config, mockInferenceClient, eventBus, mockLogger);
+    worker = new GenerationWorker(jobQueue, mockInferenceClient, eventBus, mockLogger);
     mockInferenceClient.setResponses(['# Test Title\n\nTest content']);
 
     // Simulate yield handler: when worker emits yield:create, respond with yield:created

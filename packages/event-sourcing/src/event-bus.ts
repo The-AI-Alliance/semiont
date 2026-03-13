@@ -4,33 +4,25 @@
  * Single Responsibility: Event pub/sub only
  * - Publishes events to subscribers
  * - Manages subscriptions (resource-scoped and global)
- * - Converts ResourceId to ResourceUri internally
  *
  * Does NOT handle:
  * - Event persistence (see EventLog)
  * - View updates (see ViewManager)
  */
 
-import { type StoredEvent, type ResourceId, isResourceEvent, isSystemEvent, type Logger } from '@semiont/core';
-import { toResourceUri, type IdentifierConfig } from './identifier-utils';
+import { type StoredEvent, type ResourceId, resourceId as makeResourceId, isResourceEvent, isSystemEvent, type Logger } from '@semiont/core';
 import { getEventSubscriptions, type EventSubscriptions, type EventCallback, type EventSubscription } from './subscriptions/event-subscriptions';
-
-export interface EventBusConfig {
-  identifierConfig: IdentifierConfig;
-}
 
 /**
  * EventBus wraps EventSubscriptions with a clean API
- * Handles ID-to-URI conversion internally for type safety
+ * Uses bare ResourceId for subscriptions
  */
 export class EventBus {
-  // Expose subscriptions for direct access (legacy compatibility)
+  // Expose subscriptions for direct access
   readonly subscriptions: EventSubscriptions;
-  private identifierConfig: IdentifierConfig;
   private logger?: Logger;
 
-  constructor(config: EventBusConfig, logger?: Logger) {
-    this.identifierConfig = config.identifierConfig;
+  constructor(logger?: Logger) {
     this.logger = logger;
     // Use global singleton EventSubscriptions to ensure all EventBus instances
     // share the same subscription registry (critical for SSE real-time events)
@@ -50,9 +42,8 @@ export class EventBus {
     } else if (isResourceEvent(event.event)) {
       // Resource event - notify BOTH resource-scoped AND global subscribers
       // This enables projections (graph, search, etc.) to use global subscription
-      const resourceId = event.event.resourceId as ResourceId;
-      const resourceUri = toResourceUri(this.identifierConfig, resourceId);
-      await this.subscriptions.notifySubscribers(resourceUri, event);
+      const rid = makeResourceId(event.event.resourceId as string);
+      await this.subscriptions.notifySubscribers(rid, event);
       await this.subscriptions.notifyGlobalSubscribers(event);
     } else {
       // Shouldn't happen - events should be either resource or system
@@ -67,8 +58,7 @@ export class EventBus {
    * @returns EventSubscription with unsubscribe function
    */
   subscribe(resourceId: ResourceId, callback: EventCallback): EventSubscription {
-    const resourceUri = toResourceUri(this.identifierConfig, resourceId);
-    return this.subscriptions.subscribe(resourceUri, callback);
+    return this.subscriptions.subscribe(resourceId, callback);
   }
 
   /**
@@ -86,12 +76,11 @@ export class EventBus {
    * @param callback - Event callback function to remove
    */
   unsubscribe(resourceId: ResourceId, callback: EventCallback): void {
-    const resourceUri = toResourceUri(this.identifierConfig, resourceId);
-    const callbacks = (this.subscriptions as any).subscriptions.get(resourceUri);
+    const callbacks = (this.subscriptions as any).subscriptions.get(resourceId);
     if (callbacks) {
       callbacks.delete(callback);
       if (callbacks.size === 0) {
-        (this.subscriptions as any).subscriptions.delete(resourceUri);
+        (this.subscriptions as any).subscriptions.delete(resourceId);
       }
     }
   }
@@ -110,8 +99,7 @@ export class EventBus {
    * @returns Number of active subscribers
    */
   getSubscriberCount(resourceId: ResourceId): number {
-    const resourceUri = toResourceUri(this.identifierConfig, resourceId);
-    return this.subscriptions.getSubscriptionCount(resourceUri);
+    return this.subscriptions.getSubscriptionCount(resourceId);
   }
 
   /**

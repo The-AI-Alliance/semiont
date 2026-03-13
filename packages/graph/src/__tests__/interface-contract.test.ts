@@ -8,8 +8,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { MemoryGraphDatabase } from '../implementations/memorygraph';
 import type { GraphDatabase } from '../interface';
-import { resourceId, annotationId, uriToResourceId } from '@semiont/core';
-import { resourceUri, type ResourceUri, type AnnotationUri } from '@semiont/core';
+import { resourceId, annotationId } from '@semiont/core';
 import {
   createTestResource,
   createTestHighlight,
@@ -82,13 +81,13 @@ describe('GraphDatabase Interface Contract', () => {
       const resource = createTestResource();
       await db.createResource(resource);
 
-      const retrieved = await db.getResource(resource['@id'] as ResourceUri);
+      const retrieved = await db.getResource(resourceId(resource['@id']));
 
       expect(retrieved).toEqual(resource);
     });
 
     it('getResource() should return null for non-existent resource', async () => {
-      const retrieved = await db.getResource(resourceUri('http://example.com/nonexistent'));
+      const retrieved = await db.getResource(resourceId('nonexistent'));
 
       expect(retrieved).toBeNull();
     });
@@ -97,7 +96,7 @@ describe('GraphDatabase Interface Contract', () => {
       const resource = createTestResource();
       await db.createResource(resource);
 
-      const updated = await db.updateResource(resource['@id'] as ResourceUri, { archived: true });
+      const updated = await db.updateResource(resourceId(resource['@id']), { archived: true });
 
       expect(updated.archived).toBe(true);
       expect(updated['@id']).toBe(resource['@id']);
@@ -108,13 +107,13 @@ describe('GraphDatabase Interface Contract', () => {
       await db.createResource(resource);
 
       await expect(
-        db.updateResource(resource['@id'] as ResourceUri, { name: 'New Name' } as any)
+        db.updateResource(resourceId(resource['@id']), { name: 'New Name' } as any)
       ).rejects.toThrow(/immutable/i);
     });
 
     it('updateResource() should throw for non-existent resource', async () => {
       await expect(
-        db.updateResource(resourceUri('http://example.com/nonexistent'), { archived: true })
+        db.updateResource(resourceId('nonexistent'), { archived: true })
       ).rejects.toThrow();
     });
 
@@ -122,9 +121,9 @@ describe('GraphDatabase Interface Contract', () => {
       const resource = createTestResource();
       await db.createResource(resource);
 
-      await db.deleteResource(resource['@id'] as ResourceUri);
+      await db.deleteResource(resourceId(resource['@id']));
 
-      const retrieved = await db.getResource(resource['@id'] as ResourceUri);
+      const retrieved = await db.getResource(resourceId(resource['@id']));
       expect(retrieved).toBeNull();
     });
 
@@ -135,9 +134,9 @@ describe('GraphDatabase Interface Contract', () => {
       const highlight = createTestHighlight(resource['@id']);
       const annotation = await db.createAnnotation(highlight);
 
-      await db.deleteResource(resource['@id'] as ResourceUri);
+      await db.deleteResource(resourceId(resource['@id']));
 
-      const retrievedAnnotation = await db.getAnnotation(annotation.id as AnnotationUri);
+      const retrievedAnnotation = await db.getAnnotation(annotationId(annotation.id));
       expect(retrievedAnnotation).toBeNull();
     });
 
@@ -261,13 +260,13 @@ describe('GraphDatabase Interface Contract', () => {
       const input = createTestHighlight(resource['@id']);
       const created = await db.createAnnotation(input);
 
-      const retrieved = await db.getAnnotation(created.id as AnnotationUri);
+      const retrieved = await db.getAnnotation(annotationId(created.id));
 
       expect(retrieved).toEqual(created);
     });
 
     it('getAnnotation() should return null for non-existent', async () => {
-      const retrieved = await db.getAnnotation('nonexistent-id' as AnnotationUri);
+      const retrieved = await db.getAnnotation(annotationId('nonexistent-id'));
 
       expect(retrieved).toBeNull();
     });
@@ -286,7 +285,7 @@ describe('GraphDatabase Interface Contract', () => {
         purpose: 'highlighting' as const,
       };
 
-      const updated = await db.updateAnnotation(created.id as AnnotationUri, { body: newBody });
+      const updated = await db.updateAnnotation(annotationId(created.id), { body: newBody });
 
       expect(updated.body).toEqual(newBody);
       expect(updated.id).toBe(created.id);
@@ -299,7 +298,7 @@ describe('GraphDatabase Interface Contract', () => {
       const input = createTestHighlight(resource['@id']);
       const created = await db.createAnnotation(input);
 
-      const updated = await db.updateAnnotation(created.id as AnnotationUri, {});
+      const updated = await db.updateAnnotation(annotationId(created.id), {});
 
       expect(updated.creator).toBe(created.creator);
       expect(updated.motivation).toBe(created.motivation);
@@ -312,9 +311,9 @@ describe('GraphDatabase Interface Contract', () => {
       const input = createTestHighlight(resource['@id']);
       const created = await db.createAnnotation(input);
 
-      await db.deleteAnnotation(created.id as AnnotationUri);
+      await db.deleteAnnotation(annotationId(created.id));
 
-      const retrieved = await db.getAnnotation(created.id as AnnotationUri);
+      const retrieved = await db.getAnnotation(annotationId(created.id));
       expect(retrieved).toBeNull();
     });
 
@@ -328,7 +327,7 @@ describe('GraphDatabase Interface Contract', () => {
       await db.createAnnotation(createTestHighlight(resource1['@id']));
       await db.createAnnotation(createTestHighlight(resource2['@id']));
 
-      const result = await db.listAnnotations({ resourceId: uriToResourceId(resource1['@id']) });
+      const result = await db.listAnnotations({ resourceId: resourceId(resource1['@id']) });
 
       expect(result.total).toBe(2);
       expect(result.annotations).toHaveLength(2);
@@ -390,7 +389,7 @@ describe('GraphDatabase Interface Contract', () => {
       await db.createAnnotation(createTestHighlight(resource['@id']));
       await db.createAnnotation(createTestReference(resource['@id']));
 
-      const highlights = await db.getHighlights(uriToResourceId(resource['@id']));
+      const highlights = await db.getHighlights(resourceId(resource['@id']));
 
       expect(highlights).toHaveLength(2);
       expect(highlights.every(h => h.motivation === 'highlighting')).toBe(true);
@@ -405,7 +404,7 @@ describe('GraphDatabase Interface Contract', () => {
       await db.createAnnotation(createTestHighlight(resource1['@id']));
       await db.createAnnotation(createTestHighlight(resource2['@id']));
 
-      const highlights = await db.getHighlights(uriToResourceId(resource1['@id']));
+      const highlights = await db.getHighlights(resourceId(resource1['@id']));
 
       expect(highlights).toHaveLength(1);
     });
@@ -414,7 +413,7 @@ describe('GraphDatabase Interface Contract', () => {
       const resource = createTestResource();
       await db.createResource(resource);
 
-      const highlights = await db.getHighlights(uriToResourceId(resource['@id']));
+      const highlights = await db.getHighlights(resourceId(resource['@id']));
 
       expect(highlights).toEqual([]);
     });
@@ -432,7 +431,7 @@ describe('GraphDatabase Interface Contract', () => {
 
       const resolved = await db.resolveReference(
         annotationId(created.id),
-        uriToResourceId(resource2['@id'])
+        resourceId(resource2['@id'])
       );
 
       expect(resolved.body).toHaveProperty('source');
@@ -453,7 +452,7 @@ describe('GraphDatabase Interface Contract', () => {
       await db.createAnnotation(createTestReference(resource['@id']));
       await db.createAnnotation(createTestHighlight(resource['@id']));
 
-      const references = await db.getReferences(uriToResourceId(resource['@id']));
+      const references = await db.getReferences(resourceId(resource['@id']));
 
       expect(references).toHaveLength(2);
       expect(references.every(r => r.motivation === 'linking')).toBe(true);
@@ -468,7 +467,7 @@ describe('GraphDatabase Interface Contract', () => {
       await db.createAnnotation(createTestReference(resource1['@id']));
       await db.createAnnotation(createTestReference(resource2['@id']));
 
-      const references = await db.getReferences(uriToResourceId(resource1['@id']));
+      const references = await db.getReferences(resourceId(resource1['@id']));
 
       expect(references).toHaveLength(1);
     });
@@ -482,7 +481,7 @@ describe('GraphDatabase Interface Contract', () => {
       await db.createAnnotation(createTestEntityReference(resource1['@id'], resource2['@id'], ['Person']));
       await db.createAnnotation(createTestReference(resource1['@id'])); // No entity types
 
-      const entityRefs = await db.getEntityReferences(uriToResourceId(resource1['@id']));
+      const entityRefs = await db.getEntityReferences(resourceId(resource1['@id']));
 
       expect(entityRefs).toHaveLength(1);
     });
@@ -496,7 +495,7 @@ describe('GraphDatabase Interface Contract', () => {
       await db.createAnnotation(createTestEntityReference(resource1['@id'], resource2['@id'], ['Person']));
       await db.createAnnotation(createTestEntityReference(resource1['@id'], resource2['@id'], ['Organization']));
 
-      const personRefs = await db.getEntityReferences(uriToResourceId(resource1['@id']), ['Person']);
+      const personRefs = await db.getEntityReferences(resourceId(resource1['@id']), ['Person']);
 
       expect(personRefs).toHaveLength(1);
     });
@@ -508,7 +507,7 @@ describe('GraphDatabase Interface Contract', () => {
       await db.createAnnotation(createTestHighlight(resource['@id']));
       await db.createAnnotation(createTestReference(resource['@id']));
 
-      const annotations = await db.getResourceAnnotations(uriToResourceId(resource['@id']));
+      const annotations = await db.getResourceAnnotations(resourceId(resource['@id']));
 
       expect(annotations).toHaveLength(2);
     });
@@ -522,7 +521,7 @@ describe('GraphDatabase Interface Contract', () => {
       const input = createTestEntityReference(resource1['@id'], resource2['@id']);
       await db.createAnnotation(input);
 
-      const reverseRefs = await db.getResourceReferencedBy(resourceUri(resource2['@id']));
+      const reverseRefs = await db.getResourceReferencedBy(resourceId(resource2['@id']));
 
       expect(reverseRefs).toHaveLength(1);
     });
@@ -538,7 +537,7 @@ describe('GraphDatabase Interface Contract', () => {
       const ref = createTestEntityReference(resource1['@id'], resource2['@id']);
       await db.createAnnotation(ref);
 
-      const connections = await db.getResourceConnections(uriToResourceId(resource1['@id']));
+      const connections = await db.getResourceConnections(resourceId(resource1['@id']));
 
       expect(connections).toHaveLength(1);
       expect(connections[0]?.targetResource['@id']).toBe(resource2['@id']);
@@ -553,7 +552,7 @@ describe('GraphDatabase Interface Contract', () => {
       await db.createAnnotation(createTestEntityReference(resource1['@id'], resource2['@id']));
       await db.createAnnotation(createTestEntityReference(resource2['@id'], resource1['@id']));
 
-      const connections = await db.getResourceConnections(uriToResourceId(resource1['@id']));
+      const connections = await db.getResourceConnections(resourceId(resource1['@id']));
 
       expect(connections[0]?.bidirectional).toBe(true);
     });
@@ -570,7 +569,10 @@ describe('GraphDatabase Interface Contract', () => {
       await db.createAnnotation(createTestEntityReference(resource1['@id'], resource2['@id']));
       await db.createAnnotation(createTestEntityReference(resource2['@id'], resource3['@id']));
 
-      const paths = await db.findPath(resource1['@id'] as any, resource3['@id'] as any);
+      const paths = await db.findPath(
+        resourceId(resource1['@id']),
+        resourceId(resource3['@id'])
+      );
 
       expect(paths.length).toBeGreaterThan(0);
       expect(paths[0]?.resources).toHaveLength(3);
@@ -588,7 +590,11 @@ describe('GraphDatabase Interface Contract', () => {
       await db.createAnnotation(createTestEntityReference(resource1['@id'], resource2['@id']));
       await db.createAnnotation(createTestEntityReference(resource2['@id'], resource3['@id']));
 
-      const paths = await db.findPath(resource1['@id'] as any, resource3['@id'] as any, 1);
+      const paths = await db.findPath(
+        resourceId(resource1['@id']),
+        resourceId(resource3['@id']),
+        1
+      );
 
       expect(paths).toHaveLength(0);
     });

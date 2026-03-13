@@ -5,7 +5,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { components } from '@semiont/core';
 import type { CreateAnnotationInternal } from '@semiont/core';
-import { resourceUri } from '@semiont/core';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
@@ -13,7 +12,7 @@ type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
  * Create a test resource with sensible defaults
  */
 export function createTestResource(overrides: Partial<ResourceDescriptor> = {}): ResourceDescriptor {
-  const id = (overrides as any)['@id'] || overrides.id || `http://example.com/resources/${uuidv4()}`;
+  const id = (overrides as any)['@id'] || overrides.id || uuidv4();
 
   return {
     '@context': 'https://www.w3.org/ns/ldp',
@@ -23,7 +22,7 @@ export function createTestResource(overrides: Partial<ResourceDescriptor> = {}):
     entityTypes: ['Person'],
     representations: [
       {
-        id: `http://example.com/representations/${uuidv4()}`,
+        id: uuidv4(),
         mediaType: 'text/plain',
         content: { value: 'test content' },
       },
@@ -44,7 +43,7 @@ export function createTestHighlight(
     id: uuidv4(),
     motivation: 'highlighting',
     target: {
-      source: resourceUri(resourceId),
+      source: resourceId,
       selector: {
         type: 'TextQuoteSelector',
         exact: 'test highlight',
@@ -76,7 +75,7 @@ export function createTestReference(
     id: uuidv4(),
     motivation: 'linking',
     target: {
-      source: resourceUri(targetResourceId),
+      source: targetResourceId,
       selector: {
         type: 'TextQuoteSelector',
         exact: 'reference text',
@@ -105,7 +104,7 @@ export function createTestEntityReference(
     id: uuidv4(),
     motivation: 'linking',
     target: {
-      source: resourceUri(targetResourceId),
+      source: targetResourceId,
       selector: {
         type: 'TextQuoteSelector',
         exact: 'entity text',
@@ -115,7 +114,7 @@ export function createTestEntityReference(
     },
     body: {
       type: 'SpecificResource',
-      source: resourceUri(sourceResourceId),
+      source: sourceResourceId,
       purpose: 'linking',
       entityTypes,
     } as any,
@@ -130,7 +129,7 @@ export function createTestEntityReference(
  * Generate a unique resource ID
  */
 export function generateResourceId(): string {
-  return `http://example.com/resources/${uuidv4()}`;
+  return uuidv4();
 }
 
 /**

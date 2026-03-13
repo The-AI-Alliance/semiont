@@ -106,13 +106,13 @@ export type EventMap = {
   // Resource generation from reference annotations
 
   'yield:modal-open': {
-    annotationUri: string;
-    resourceUri: string;
+    annotationId: AnnotationId;
+    resourceId: ResourceId;
     defaultTitle: string;
   };
   'yield:request': {
-    annotationUri: string;
-    resourceUri: string;
+    annotationId: AnnotationId;
+    resourceId: ResourceId;
     options: {
       title: string;
       prompt?: string;
@@ -318,12 +318,12 @@ export type EventMap = {
   // Reference linking and resolution (search modal)
 
   'bind:create-manual': {
-    annotationUri: string;
+    annotationId: AnnotationId;
     title: string;
     entityTypes: string[];
   };
   'bind:link': {
-    annotationUri: string;
+    annotationId: AnnotationId;
     searchTerm: string;
   };
   'bind:search-requested': {
@@ -332,10 +332,9 @@ export type EventMap = {
     searchTerm: string;
   };
   'bind:update-body': {
-    annotationUri: string;
-    resourceId: string;
+    annotationId: AnnotationId;
+    resourceId: ResourceId;
     userId?: UserId;
-    annotationId?: AnnotationId;
     operations: Array<{
       op: 'add' | 'remove' | 'replace';
       item?: components['schemas']['AnnotationBody'];
@@ -343,7 +342,7 @@ export type EventMap = {
       newItem?: components['schemas']['AnnotationBody'];
     }>;
   };
-  'bind:body-updated': { annotationUri: string };
+  'bind:body-updated': { annotationId: AnnotationId };
   'bind:body-update-failed': { error: Error };
   'bind:search-results': {
     referenceId: string;
@@ -380,8 +379,8 @@ export type EventMap = {
   // Annotation-level context (for yield flow and LLM context endpoint)
   'gather:requested': {
     correlationId?: string;
-    annotationUri: string;
-    resourceUri: string;
+    annotationId: AnnotationId;
+    resourceId: ResourceId;
     options?: {
       includeSourceContext?: boolean;
       includeTargetContext?: boolean;
@@ -390,19 +389,19 @@ export type EventMap = {
   };
   'gather:complete': {
     correlationId?: string;
-    annotationUri: string;
+    annotationId: AnnotationId;
     response: components['schemas']['AnnotationLLMContextResponse'];
   };
   'gather:failed': {
     correlationId?: string;
-    annotationUri: string;
+    annotationId: AnnotationId;
     error: Error;
   };
 
   // Resource-level context (for LLM context endpoint)
   'gather:resource-requested': {
     correlationId?: string;
-    resourceUri: string;
+    resourceId: ResourceId;
     options: {
       depth: number;
       maxResources: number;
@@ -412,12 +411,12 @@ export type EventMap = {
   };
   'gather:resource-complete': {
     correlationId?: string;
-    resourceUri: string;
+    resourceId: ResourceId;
     context: components['schemas']['ResourceLLMContextResponse'];
   };
   'gather:resource-failed': {
     correlationId?: string;
-    resourceUri: string;
+    resourceId: ResourceId;
     error: Error;
   };
 

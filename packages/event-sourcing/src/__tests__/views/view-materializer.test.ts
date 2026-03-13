@@ -34,7 +34,6 @@ describe('ViewMaterializer', () => {
     viewStorage = new FilesystemViewStorage(testDir);
     materializer = new ViewMaterializer(viewStorage, {
       basePath: testDir,
-      backendUrl: 'http://localhost:4000',
     });
   });
 
@@ -274,11 +273,11 @@ describe('ViewMaterializer', () => {
             payload: {
               annotation: {
                 '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-                id: 'http://localhost:4000/annotations/anno1',
+                id: 'anno1',
                 type: 'Annotation' as const,
                 motivation: 'commenting' satisfies Motivation,
                 body: [],
-                target: 'http://localhost:4000/resources/doc1',
+                target: 'doc1',
               },
             },
           },
@@ -322,11 +321,11 @@ describe('ViewMaterializer', () => {
             payload: {
               annotation: {
                 '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-                id: 'http://localhost:4000/annotations/anno1',
+                id: 'anno1',
                 type: 'Annotation' as const,
                 motivation: 'commenting' satisfies Motivation,
                 body: [],
-                target: 'http://localhost:4000/resources/doc1',
+                target: 'doc1',
               },
             },
           },
@@ -395,11 +394,11 @@ describe('ViewMaterializer', () => {
             payload: {
               annotation: {
                 '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
-                id: 'http://localhost:4000/annotations/anno1',
+                id: 'anno1',
                 type: 'Annotation' as const,
                 motivation: 'commenting' satisfies Motivation,
                 body: [],
-                target: 'http://localhost:4000/resources/doc1',
+                target: 'doc1',
               },
             },
           },

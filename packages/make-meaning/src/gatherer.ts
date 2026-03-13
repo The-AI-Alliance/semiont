@@ -26,8 +26,8 @@
 
 import { Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
-import type { EventMap, Logger, EnvironmentConfig, components } from '@semiont/core';
-import { EventBus, annotationUri as makeAnnotationUri, uriToResourceId, resourceId as makeResourceId } from '@semiont/core';
+import type { EventMap, Logger, components } from '@semiont/core';
+import { EventBus, annotationId as makeAnnotationId, uriToResourceId } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import { EventQuery } from '@semiont/event-sourcing';
 import { getResourceEntityTypes, getBodySource } from '@semiont/api-client';
@@ -37,6 +37,7 @@ import { AnnotationContext } from './annotation-context';
 import { ResourceContext } from './resource-context';
 import { LLMContext } from './llm-context';
 import { readEntityTypesProjection } from './views/entity-types-reader';
+import type { MakeMeaningConfig } from './config';
 
 type Annotation = components['schemas']['Annotation'];
 type StoredEvent = { event: any; metadata: any };
@@ -46,12 +47,11 @@ export class Gatherer {
   private readonly logger: Logger;
 
   constructor(
-    private publicURL: string,
     private kb: KnowledgeBase,
     private eventBus: EventBus,
     private inferenceClient: InferenceClient,
     logger: Logger,
-    private config?: EnvironmentConfig,
+    private config?: MakeMeaningConfig,
   ) {
     this.logger = logger;
   }
@@ -63,7 +63,7 @@ export class Gatherer {
 
     // Annotation-level gather (for yield flow)
     const annotationGather$ = this.eventBus.get('gather:requested').pipe(
-      groupBy((event) => event.resourceUri),
+      groupBy((event) => event.resourceId),
       mergeMap((group$) =>
         group$.pipe(
           concatMap((event) => from(this.handleAnnotationGather(event))),
@@ -73,7 +73,7 @@ export class Gatherer {
 
     // Resource-level gather (for LLM context endpoint)
     const resourceGather$ = this.eventBus.get('gather:resource-requested').pipe(
-      groupBy((event) => event.resourceUri),
+      groupBy((event) => event.resourceId),
       mergeMap((group$) =>
         group$.pipe(
           concatMap((event) => from(this.handleResourceGather(event))),
@@ -130,13 +130,13 @@ export class Gatherer {
   private async handleAnnotationGather(event: EventMap['gather:requested']): Promise<void> {
     try {
       this.logger.debug('Gathering annotation context', {
-        annotationUri: event.annotationUri,
-        resourceUri: event.resourceUri,
+        annotationId: event.annotationId,
+        resourceId: event.resourceId,
       });
 
       const response = await AnnotationContext.buildLLMContext(
-        makeAnnotationUri(event.annotationUri),
-        uriToResourceId(event.resourceUri),
+        makeAnnotationId(event.annotationId),
+        event.resourceId,
         this.kb,
         event.options ?? {},
         this.inferenceClient,
@@ -144,16 +144,16 @@ export class Gatherer {
       );
 
       this.eventBus.get('gather:complete').next({
-        annotationUri: event.annotationUri,
+        annotationId: event.annotationId,
         response,
       });
     } catch (error) {
       this.logger.error('Gather annotation context failed', {
-        annotationUri: event.annotationUri,
+        annotationId: event.annotationId,
         error,
       });
       this.eventBus.get('gather:failed').next({
-        annotationUri: event.annotationUri,
+        annotationId: event.annotationId,
         error: error instanceof Error ? error : new Error(String(error)),
       });
     }
@@ -162,29 +162,27 @@ export class Gatherer {
   private async handleResourceGather(event: EventMap['gather:resource-requested']): Promise<void> {
     try {
       this.logger.debug('Gathering resource context', {
-        resourceUri: event.resourceUri,
+        resourceId: event.resourceId,
       });
 
-      const publicURL = this.publicURL;
       const result = await LLMContext.getResourceContext(
-        uriToResourceId(event.resourceUri),
+        event.resourceId,
         event.options,
         this.kb,
-        publicURL,
         this.inferenceClient,
       );
 
       this.eventBus.get('gather:resource-complete').next({
-        resourceUri: event.resourceUri,
+        resourceId: event.resourceId,
         context: result,
       });
     } catch (error) {
       this.logger.error('Gather resource context failed', {
-        resourceUri: event.resourceUri,
+        resourceId: event.resourceId,
         error,
       });
       this.eventBus.get('gather:resource-failed').next({
-        resourceUri: event.resourceUri,
+        resourceId: event.resourceId,
         error: error instanceof Error ? error : new Error(String(error)),
       });
     }
@@ -310,8 +308,7 @@ export class Gatherer {
       let resolvedResource = null;
       const bodySource = getBodySource(annotation.body);
       if (bodySource) {
-        const resolvedId = bodySource.split('/').pop()!;
-        resolvedResource = await ResourceContext.getResourceMetadata(makeResourceId(resolvedId), this.kb);
+        resolvedResource = await ResourceContext.getResourceMetadata(uriToResourceId(bodySource), this.kb);
       }
 
       this.eventBus.get('browse:annotation-result').next({
@@ -448,7 +445,7 @@ export class Gatherer {
   private async handleEntityTypes(event: EventMap['mark:entity-types-requested']): Promise<void> {
     try {
       if (!this.config) {
-        throw new Error('EnvironmentConfig required for entity type reads');
+        throw new Error('MakeMeaningConfig required for entity type reads');
       }
       const entityTypes = await readEntityTypesProjection(this.config);
 

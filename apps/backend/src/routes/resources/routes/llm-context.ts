@@ -8,13 +8,13 @@
 import { HTTPException } from 'hono/http-exception';
 import { firstValueFrom, merge } from 'rxjs';
 import { filter, map, take, timeout } from 'rxjs/operators';
+import { resourceId } from '@semiont/core';
 import type { ResourcesRouterType } from '../shared';
 
 export function registerGetResourceLLMContext(router: ResourcesRouterType) {
   router.get('/resources/:id/llm-context', async (c) => {
     const { id } = c.req.param();
     const query = c.req.query();
-    const config = c.get('config');
     const eventBus = c.get('eventBus');
 
     // Parse and validate query parameters
@@ -31,11 +31,9 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
       throw new HTTPException(400, { message: 'Query parameter "maxResources" must be between 1 and 20' });
     }
 
-    const resourceUri = `${config.services.backend!.publicURL}/resources/${id}`;
-
     // Emit gather:resource-requested — Gatherer subscribes and calls LLMContext.getResourceContext
     eventBus.get('gather:resource-requested').next({
-      resourceUri,
+      resourceId: resourceId(id),
       options: { depth, maxResources, includeContent, includeSummary },
     });
 
@@ -43,11 +41,11 @@ export function registerGetResourceLLMContext(router: ResourcesRouterType) {
       const result = await firstValueFrom(
         merge(
           eventBus.get('gather:resource-complete').pipe(
-            filter(e => e.resourceUri === resourceUri),
+            filter(e => e.resourceId === id),
             map(e => ({ ok: true as const, context: e.context })),
           ),
           eventBus.get('gather:resource-failed').pipe(
-            filter(e => e.resourceUri === resourceUri),
+            filter(e => e.resourceId === id),
             map(e => ({ ok: false as const, error: e.error })),
           ),
         ).pipe(take(1), timeout(30_000)),

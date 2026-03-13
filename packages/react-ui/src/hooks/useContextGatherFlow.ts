@@ -16,7 +16,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import type { EventBus, YieldContext, ResourceUri } from '@semiont/core';
+import type { EventBus, EventMap, YieldContext, ResourceUri, AnnotationId } from '@semiont/core';
 import { SemiontApiClient } from '@semiont/api-client';
 import { accessToken } from '@semiont/core';
 import { useAuthToken } from '../contexts/AuthTokenContext';
@@ -36,8 +36,8 @@ export interface ContextGatherFlowState {
   gatherContext: YieldContext | null;
   gatherLoading: boolean;
   gatherError: Error | null;
-  /** The annotationUri for which context was most recently gathered */
-  gatherAnnotationUri: string | null;
+  /** The annotationId for which context was most recently gathered */
+  gatherAnnotationId: AnnotationId | null;
 }
 
 export function useContextGatherFlow(
@@ -49,7 +49,7 @@ export function useContextGatherFlow(
   const [gatherContext, setCorrelationContext] = useState<YieldContext | null>(null);
   const [gatherLoading, setCorrelationLoading] = useState(false);
   const [gatherError, setCorrelationError] = useState<Error | null>(null);
-  const [gatherAnnotationUri, setCorrelationAnnotationUri] = useState<string | null>(null);
+  const [gatherAnnotationId, setCorrelationAnnotationId] = useState<AnnotationId | null>(null);
 
   // Store latest config/token in refs to avoid re-subscribing when they change
   const configRef = useRef(config);
@@ -58,23 +58,18 @@ export function useContextGatherFlow(
   useEffect(() => { tokenRef.current = token; });
 
   useEffect(() => {
-    const handleGatherRequested = async (event: {
-      annotationUri: string;
-      resourceUri: string;
-    }) => {
+    const handleGatherRequested = async (event: EventMap['gather:requested']) => {
       setCorrelationLoading(true);
       setCorrelationError(null);
       setCorrelationContext(null);
-      setCorrelationAnnotationUri(event.annotationUri);
+      setCorrelationAnnotationId(event.annotationId);
 
       try {
-        const { client } = configRef.current;
-        // Extract short annotation ID from full URI
-        const annotationId = event.annotationUri.split('/').pop() || '';
+        const { client, resourceUri } = configRef.current;
 
         const response = await client.getAnnotationLLMContext(
-          event.resourceUri as ResourceUri,
-          annotationId,
+          resourceUri,
+          event.annotationId,
           { contextWindow: 2000, auth: toAccessToken(tokenRef.current) }
         );
 
@@ -83,7 +78,7 @@ export function useContextGatherFlow(
         setCorrelationLoading(false);
 
         eventBus.get('gather:complete').next({
-          annotationUri: event.annotationUri,
+          annotationId: event.annotationId,
           response,
         });
       } catch (error) {
@@ -92,7 +87,7 @@ export function useContextGatherFlow(
         setCorrelationLoading(false);
 
         eventBus.get('gather:failed').next({
-          annotationUri: event.annotationUri,
+          annotationId: event.annotationId,
           error: err,
         });
       }
@@ -102,5 +97,5 @@ export function useContextGatherFlow(
     return () => subscription.unsubscribe();
   }, [eventBus]);
 
-  return { gatherContext, gatherLoading, gatherError, gatherAnnotationUri };
+  return { gatherContext, gatherLoading, gatherError, gatherAnnotationId };
 }

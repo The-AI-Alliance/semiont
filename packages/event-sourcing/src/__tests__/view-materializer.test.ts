@@ -28,7 +28,6 @@ describe('ViewMaterializer', () => {
     viewStorage = new FilesystemViewStorage(testDir);
     projector = new ViewMaterializer(viewStorage, {
       basePath: testDir,
-      backendUrl: 'http://localhost:4000'
     });
   });
 

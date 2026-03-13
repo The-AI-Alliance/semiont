@@ -15,7 +15,6 @@ import type { components } from '@semiont/core';
 import { getBodySource } from '@semiont/api-client';
 import { AnnotationContext } from '@semiont/make-meaning';
 import { ResourceContext } from '@semiont/make-meaning';
-import { uriToResourceId } from '@semiont/core';
 import { prefersHtml, getFrontendUrl } from '../../../middleware/content-negotiation';
 import { resourceId as makeResourceId } from '@semiont/core';
 
@@ -37,33 +36,23 @@ export function registerGetAnnotationUri(router: AnnotationsRouterType) {
     const { id } = c.req.param();
     const query = c.req.query();
     const { kb } = c.get('makeMeaning');
-    const resourceUriOrId = query.resourceId;
+    const resourceIdParam = query.resourceId;
 
-    if (!resourceUriOrId) {
+    if (!resourceIdParam) {
       throw new HTTPException(400, { message: 'resourceId query parameter is required' });
-    }
-
-    // Extract resource ID from URI if provided as full URI
-    let extractedResourceId: string;
-    try {
-      extractedResourceId = resourceUriOrId.includes('://')
-        ? uriToResourceId(resourceUriOrId)
-        : resourceUriOrId;
-    } catch (error) {
-      throw new HTTPException(400, { message: 'Invalid resourceId parameter' });
     }
 
     // Check if client prefers HTML (browser)
     if (prefersHtml(c)) {
       const frontendUrl = getFrontendUrl();
       const normalizedBase = frontendUrl.endsWith('/') ? frontendUrl.slice(0, -1) : frontendUrl;
-      const redirectUrl = `${normalizedBase}/annotations/${id}?resourceId=${extractedResourceId}`;
+      const redirectUrl = `${normalizedBase}/annotations/${id}?resourceId=${resourceIdParam}`;
       return c.redirect(redirectUrl, 302);
     }
 
     // Otherwise, return JSON-LD representation
     // O(1) lookup in view storage using resource ID
-    const projection = await AnnotationContext.getResourceAnnotations(makeResourceId(extractedResourceId), kb);
+    const projection = await AnnotationContext.getResourceAnnotations(makeResourceId(resourceIdParam), kb);
 
     // Find the annotation
     const annotation = projection.annotations.find((a: Annotation) => a.id === id);
@@ -73,15 +62,13 @@ export function registerGetAnnotationUri(router: AnnotationsRouterType) {
     }
 
     // Get resource metadata
-    const resource = await ResourceContext.getResourceMetadata(makeResourceId(extractedResourceId), kb);
+    const resource = await ResourceContext.getResourceMetadata(makeResourceId(resourceIdParam), kb);
 
     // If it's a linking annotation with a resolved source, get resolved resource
     let resolvedResource = null;
     const bodySource = getBodySource(annotation.body);
     if (annotation.motivation === 'linking' && bodySource) {
-      // Extract ID from body source URI if needed
-      const bodyDocId = bodySource.includes('://') ? uriToResourceId(bodySource) : bodySource;
-      resolvedResource = await ResourceContext.getResourceMetadata(makeResourceId(bodyDocId), kb);
+      resolvedResource = await ResourceContext.getResourceMetadata(makeResourceId(bodySource), kb);
     }
 
     const response: GetAnnotationResponse = {

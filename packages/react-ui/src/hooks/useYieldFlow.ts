@@ -12,8 +12,8 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { AnnotationUri, YieldContext, YieldProgress } from '@semiont/core';
-import { annotationUri, accessToken } from '@semiont/core';
+import type { AnnotationUri, EventMap, ResourceId, YieldContext, YieldProgress } from '@semiont/core';
+import { annotationId as makeAnnotationId, annotationUri, accessToken } from '@semiont/core';
 
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
 import { useEventBus } from '../contexts/EventBusContext';
@@ -122,13 +122,10 @@ export function useYieldFlow(
     // Clear CSS sparkle animation if reference was recently created
     clearNewAnnotationId(annotationUri(referenceId));
 
-    // Use full resource URI (W3C Web Annotation spec requires URIs)
-    const resourceUriStr = `resource://${resourceId}`;
-
     // Emit yield:request event instead of calling SSE directly
     eventBus.get('yield:request').next({
-      annotationUri: referenceId,
-      resourceUri: resourceUriStr,
+      annotationId: makeAnnotationId(referenceId),
+      resourceId: resourceId as ResourceId,
       options: {
         ...options,
         // Use language from modal if provided, otherwise fall back to current locale
@@ -142,16 +139,12 @@ export function useYieldFlow(
     setGenerationModalOpen(false);
   }, []);
 
-  const handleGenerationModalOpen = useCallback(({ annotationUri: annUri, resourceUri, defaultTitle }: {
-    annotationUri: string;
-    resourceUri: string;
-    defaultTitle: string;
-  }) => {
-    setGenerationReferenceId(annUri);
-    setGenerationDefaultTitle(defaultTitle);
+  const handleGenerationModalOpen = useCallback((event: EventMap['yield:modal-open']) => {
+    setGenerationReferenceId(event.annotationId);
+    setGenerationDefaultTitle(event.defaultTitle);
     setGenerationModalOpen(true);
     // Trigger gather in parallel with modal open
-    eventBus.get('gather:requested').next({ annotationUri: annUri, resourceUri });
+    eventBus.get('gather:requested').next({ annotationId: event.annotationId, resourceId: event.resourceId });
   }, []);
 
   const handleGenerationComplete = useCallback((progress: YieldProgress) => {
@@ -190,18 +183,7 @@ export function useYieldFlow(
      * Handle document generation start - SSE stream
      * Emitted by: handleGenerateDocument (when user submits generation modal with full options)
      */
-    const handleGenerationStart = async (event: {
-      annotationUri: string;
-      resourceUri: string;
-      options: {
-        title: string;
-        prompt?: string;
-        language?: string;
-        temperature?: number;
-        maxTokens?: number;
-        context: any;
-      };
-    }) => {
+    const handleGenerationStart = async (event: EventMap['yield:request']) => {
       try {
         generationStreamRef.current?.abort();
         generationStreamRef.current = new AbortController();
@@ -209,8 +191,8 @@ export function useYieldFlow(
         const sseOptions = { auth: toAccessToken(tokenRef.current), eventBus };
 
         clientRef.current.sse.yieldResourceFromAnnotation(
-          event.resourceUri as any,
-          event.annotationUri as any,
+          event.resourceId as any,
+          event.annotationId as any,
           event.options as any,
           sseOptions
         );
@@ -239,14 +221,10 @@ export function useYieldFlow(
      * Emitted by: ReferenceEntry (when user clicks "Create Document")
      * Navigates to the compose page with pre-filled params
      */
-    const handleReferenceCreateManual = (event: {
-      annotationUri: string;
-      title: string;
-      entityTypes: string[];
-    }) => {
+    const handleReferenceCreateManual = (event: EventMap['bind:create-manual']) => {
       const baseUrl = window.location.origin;
       const params = new URLSearchParams({
-        annotationUri: event.annotationUri,
+        annotationId: event.annotationId,
         sourceDocumentId: resourceId,
         name: event.title,
         entityTypes: event.entityTypes.join(','),

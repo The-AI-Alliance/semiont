@@ -14,8 +14,12 @@ import * as path from 'path';
 import { JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore, type EventStore } from '@semiont/event-sourcing';
 import { getPrimaryRepresentation } from '@semiont/api-client';
-import type { EnvironmentConfig, Logger, ResourceId } from '@semiont/core';
+import type { Logger, ResourceId } from '@semiont/core';
 import { EventBus } from '@semiont/core';
+import type { MakeMeaningConfig } from './config';
+
+export type { MakeMeaningConfig } from './config';
+
 import { Readable } from 'stream';
 import { from } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
@@ -60,17 +64,17 @@ export interface MakeMeaningService {
   stop: () => Promise<void>;
 }
 
-export async function startMakeMeaning(config: EnvironmentConfig, eventBus: EventBus, logger: Logger): Promise<MakeMeaningService> {
+export async function startMakeMeaning(config: MakeMeaningConfig, eventBus: EventBus, logger: Logger): Promise<MakeMeaningService> {
   // 1. Validate configuration
-  const configuredPath = config.services?.filesystem?.path;
-  if (!configuredPath) {
+  const filesystemConfig = config.services?.filesystem;
+  if (!filesystemConfig?.path) {
     throw new Error('services.filesystem.path is required for make-meaning service');
   }
-
-  const baseUrl = config.services?.backend?.publicURL;
-  if (!baseUrl) {
-    throw new Error('services.backend.publicURL is required for make-meaning service');
+  const graphConfig = config.services?.graph;
+  if (!graphConfig) {
+    throw new Error('services.graph is required for make-meaning service');
   }
+  const configuredPath = filesystemConfig.path;
 
   // Resolve basePath to absolute path
   const projectRoot = config._metadata?.projectRoot;
@@ -128,26 +132,30 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus: Even
 
   // 3. Create shared event store with EventBus integration
   const eventStoreLogger = logger.child({ component: 'event-store' });
-  const eventStore = createEventStoreCore(basePath, baseUrl, undefined, eventBus, eventStoreLogger);
+  const eventStore = createEventStoreCore(basePath, undefined, eventBus, eventStoreLogger);
 
   // 4. Create inference client (shared across all workers)
   const inferenceLogger = logger.child({ component: 'inference-client' });
-  const inferenceClient = await getInferenceClient(config, inferenceLogger);
+  const inferenceConfig = config.services?.inference;
+  if (!inferenceConfig) {
+    throw new Error('services.inference is required for make-meaning service');
+  }
+  const inferenceClient = await getInferenceClient(inferenceConfig, inferenceLogger);
 
   // 6. Create graph database connection
-  const graphDb = await getGraphDatabase(config);
+  const graphDb = await getGraphDatabase(graphConfig);
 
   // 7. Create Knowledge Base (groups event store, views, content store, graph)
   const kb = createKnowledgeBase(eventStore, basePath, projectRoot, graphDb, logger);
 
   // 8. Start graph consumer
   const graphConsumerLogger = logger.child({ component: 'graph-consumer' });
-  const graphConsumer = new GraphDBConsumer(config, eventStore, graphDb, graphConsumerLogger);
+  const graphConsumer = new GraphDBConsumer(eventStore, graphDb, graphConsumerLogger);
   await graphConsumer.initialize();
 
   // 9. Start Stower actor (write gateway — must start before Gatherer/Binder)
   const stowerLogger = logger.child({ component: 'stower' });
-  const stower = new Stower(kb, baseUrl, eventBus, stowerLogger);
+  const stower = new Stower(kb, eventBus, stowerLogger);
   await stower.initialize();
 
   // 9b. Bootstrap entity types (requires Stower to be running, emits via EventBus)
@@ -156,12 +164,12 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus: Even
 
   // 10. Start Gatherer actor
   const gathererLogger = logger.child({ component: 'gatherer' });
-  const gatherer = new Gatherer(baseUrl, kb, eventBus, inferenceClient, gathererLogger, config);
+  const gatherer = new Gatherer(kb, eventBus, inferenceClient, gathererLogger, config);
   await gatherer.initialize();
 
   // 10. Start Binder actor
   const binderLogger = logger.child({ component: 'binder' });
-  const binder = new Binder(kb, eventBus, binderLogger, baseUrl);
+  const binder = new Binder(kb, eventBus, binderLogger);
   await binder.initialize();
 
   // 10b. Start CloneTokenManager actor
@@ -190,12 +198,12 @@ export async function startMakeMeaning(config: EnvironmentConfig, eventBus: Even
 
   // 13. Instantiate workers with EventBus, ContentFetcher, and logger
   const workers = {
-    detection: new ReferenceAnnotationWorker(jobQueue, config, inferenceClient, eventBus, contentFetcher, detectionLogger),
-    generation: new GenerationWorker(jobQueue, config, inferenceClient, eventBus, generationLogger),
-    highlight: new HighlightAnnotationWorker(jobQueue, config, inferenceClient, eventBus, contentFetcher, highlightLogger),
-    assessment: new AssessmentAnnotationWorker(jobQueue, config, inferenceClient, eventBus, contentFetcher, assessmentLogger),
-    comment: new CommentAnnotationWorker(jobQueue, config, inferenceClient, eventBus, contentFetcher, commentLogger),
-    tag: new TagAnnotationWorker(jobQueue, config, inferenceClient, eventBus, contentFetcher, tagLogger),
+    detection: new ReferenceAnnotationWorker(jobQueue, inferenceClient, eventBus, contentFetcher, detectionLogger),
+    generation: new GenerationWorker(jobQueue, inferenceClient, eventBus, generationLogger),
+    highlight: new HighlightAnnotationWorker(jobQueue, inferenceClient, eventBus, contentFetcher, highlightLogger),
+    assessment: new AssessmentAnnotationWorker(jobQueue, inferenceClient, eventBus, contentFetcher, assessmentLogger),
+    comment: new CommentAnnotationWorker(jobQueue, inferenceClient, eventBus, contentFetcher, commentLogger),
+    tag: new TagAnnotationWorker(jobQueue, inferenceClient, eventBus, contentFetcher, tagLogger),
   };
 
   // 11. Start all workers (non-blocking)

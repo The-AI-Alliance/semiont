@@ -75,7 +75,7 @@ export async function runExport(options: ExportOptions): Promise<CommandResults>
   const logger = createCliLogger(options.verbose ?? false);
 
   // Bootstrap read-only stores
-  const eventStore = createEventStore(basePath, baseUrl, undefined, undefined, logger);
+  const eventStore = createEventStore(basePath, undefined, undefined, logger);
   const contentStore = new FilesystemRepresentationStore(
     { basePath },
     projectRoot,

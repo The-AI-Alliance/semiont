@@ -10,18 +10,12 @@
 
 import { createEventStore } from '@semiont/event-sourcing';
 import { resourceId, userId } from '@semiont/core';
-import type { EnvironmentConfig } from '@semiont/core';
+import * as path from 'path';
 
 async function main() {
   // 1. Initialize event store
-  const config: EnvironmentConfig = {
-    services: {
-      filesystem: { path: './data' },
-      backend: { publicURL: 'http://localhost:4000' }
-    }
-  };
-
-  const eventStore = await createEventStore(config);
+  const basePath = path.resolve('./data');
+  const eventStore = createEventStore(basePath);
 
   // 2. Create a resource
   const docId = resourceId('doc-example-001');

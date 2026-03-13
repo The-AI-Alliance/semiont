@@ -19,7 +19,6 @@ export interface AnnotationProviderProps {
  * Example usage:
  * ```typescript
  * // In app (apps/frontend/src/hooks/useAnnotationManager.ts)
- * import { uriToAnnotationIdOrPassthrough } from '@semiont/core';
  *
  * function useAnnotationManager(): AnnotationManager {
  *   const annotations = useAnnotations();
@@ -35,8 +34,7 @@ export interface AnnotationProviderProps {
  *       return result.annotation;
  *     },
  *     deleteAnnotation: async (params) => {
- *       const annotationIdSegment = uriToAnnotationIdOrPassthrough(params.annotationId);
- *       await deleteMutation.mutateAsync(resourceAnnotationUri(`${params.rUri}/annotations/${annotationIdSegment}`));
+ *       await deleteMutation.mutateAsync(resourceAnnotationUri(`${params.rUri}/annotations/${params.annotationId}`));
  *     }
  *   };
  * }

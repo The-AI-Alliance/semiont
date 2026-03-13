@@ -9,7 +9,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { take } from 'rxjs/operators';
-import { EventBus, type Logger } from '@semiont/core';
+import { EventBus, annotationId, resourceId, type Logger } from '@semiont/core';
 import type { KnowledgeBase } from '../knowledge-base';
 import { Gatherer } from '../gatherer';
 
@@ -60,7 +60,7 @@ describe('Gatherer', () => {
     vi.clearAllMocks();
     eventBus = new EventBus();
     kb = createMockKb();
-    gatherer = new Gatherer('http://localhost:4000', kb, eventBus, mockInferenceClient as any, mockLogger);
+    gatherer = new Gatherer(kb, eventBus, mockInferenceClient as any, mockLogger);
     await gatherer.initialize();
   });
 
@@ -86,16 +86,16 @@ describe('Gatherer', () => {
       const resultPromise = eventBus.get('gather:complete').pipe(take(1)).toPromise();
 
       eventBus.get('gather:requested').next({
-        annotationUri: 'http://localhost:4000/annotations/ann-1',
-        resourceUri: 'http://localhost:4000/resources/res-1',
+        annotationId: annotationId('ann-1'),
+        resourceId: resourceId('res-1'),
       });
 
       const result = await resultPromise;
-      expect(result!.annotationUri).toBe('http://localhost:4000/annotations/ann-1');
+      expect(result!.annotationId).toBe('ann-1');
       expect(result!.response.context).toEqual(mockContext);
 
       expect(AnnotationContext.buildLLMContext).toHaveBeenCalledWith(
-        'http://localhost:4000/annotations/ann-1',
+        'ann-1',
         'res-1',
         kb,
         {},
@@ -110,12 +110,12 @@ describe('Gatherer', () => {
       const resultPromise = eventBus.get('gather:failed').pipe(take(1)).toPromise();
 
       eventBus.get('gather:requested').next({
-        annotationUri: 'http://localhost:4000/annotations/ann-2',
-        resourceUri: 'http://localhost:4000/resources/res-1',
+        annotationId: annotationId('ann-2'),
+        resourceId: resourceId('res-1'),
       });
 
       const result = await resultPromise;
-      expect(result!.annotationUri).toBe('http://localhost:4000/annotations/ann-2');
+      expect(result!.annotationId).toBe('ann-2');
       expect(result!.error.message).toBe('Annotation not found');
     });
   });
@@ -134,19 +134,18 @@ describe('Gatherer', () => {
       const resultPromise = eventBus.get('gather:resource-complete').pipe(take(1)).toPromise();
 
       eventBus.get('gather:resource-requested').next({
-        resourceUri: 'http://localhost:4000/resources/res-1',
+        resourceId: resourceId('res-1'),
         options: { depth: 1, maxResources: 10, includeContent: true, includeSummary: false },
       });
 
       const result = await resultPromise;
-      expect(result!.resourceUri).toBe('http://localhost:4000/resources/res-1');
+      expect(result!.resourceId).toBe('res-1');
       expect(result!.context).toEqual(mockResponse);
 
       expect(LLMContext.getResourceContext).toHaveBeenCalledWith(
         'res-1',
         { depth: 1, maxResources: 10, includeContent: true, includeSummary: false },
         kb,
-        'http://localhost:4000',
         mockInferenceClient,
       );
     });
@@ -157,12 +156,12 @@ describe('Gatherer', () => {
       const resultPromise = eventBus.get('gather:resource-failed').pipe(take(1)).toPromise();
 
       eventBus.get('gather:resource-requested').next({
-        resourceUri: 'http://localhost:4000/resources/res-2',
+        resourceId: resourceId('res-2'),
         options: { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
       });
 
       const result = await resultPromise;
-      expect(result!.resourceUri).toBe('http://localhost:4000/resources/res-2');
+      expect(result!.resourceId).toBe('res-2');
       expect(result!.error.message).toBe('Resource not found');
     });
   });
@@ -179,8 +178,8 @@ describe('Gatherer', () => {
       vi.mocked(AnnotationContext.buildLLMContext).mockResolvedValue({} as any);
 
       eventBus.get('gather:requested').next({
-        annotationUri: 'http://localhost:4000/annotations/ann-3',
-        resourceUri: 'http://localhost:4000/resources/res-1',
+        annotationId: annotationId('ann-3'),
+        resourceId: resourceId('res-1'),
       });
 
       // Give time for any processing

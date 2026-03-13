@@ -66,6 +66,9 @@ vi.mock('../utils/config', () => ({
       adminEmail: 'admin@test.local',
       oauthAllowedDomains: ['test.local'],
     },
+    env: {
+      NODE_ENV: 'test' as const,
+    },
     _metadata: {
       environment: 'unit',
       projectRoot: testDir,

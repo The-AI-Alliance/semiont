@@ -41,8 +41,8 @@ describe('getResourceId', () => {
     expect(getResourceId(makeResource())).toBe('abc-123');
   });
 
-  test('returns undefined for external URI', () => {
-    expect(getResourceId(makeResource({ '@id': 'https://example.com/doc' }))).toBeUndefined();
+  test('returns @id as-is for non-internal URIs', () => {
+    expect(getResourceId(makeResource({ '@id': 'https://example.com/doc' }))).toBe('https://example.com/doc');
   });
 
   test('returns undefined for undefined resource', () => {

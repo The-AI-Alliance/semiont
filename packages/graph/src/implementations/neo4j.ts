@@ -14,8 +14,6 @@ import type {
   CreateAnnotationInternal,
   ResourceId,
   AnnotationId,
-  ResourceUri,
-  AnnotationUri,
 } from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -237,7 +235,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async getResource(id: ResourceUri): Promise<ResourceDescriptor | null> {
+  async getResource(id: ResourceId): Promise<ResourceDescriptor | null> {
     const session = this.getSession();
     try {
       const result = await session.run(
@@ -252,7 +250,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async updateResource(id: ResourceUri, input: UpdateResourceInput): Promise<ResourceDescriptor> {
+  async updateResource(id: ResourceId, input: UpdateResourceInput): Promise<ResourceDescriptor> {
     // Resources are immutable - only archiving is allowed
     if (Object.keys(input).length !== 1 || input.archived === undefined) {
       throw new Error('Resources are immutable. Only archiving is allowed.');
@@ -277,7 +275,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async deleteResource(id: ResourceUri): Promise<void> {
+  async deleteResource(id: ResourceId): Promise<void> {
     const session = this.getSession();
     try {
       // Delete resource and all its annotations
@@ -459,7 +457,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async getAnnotation(id: AnnotationUri): Promise<Annotation | null> {
+  async getAnnotation(id: AnnotationId): Promise<Annotation | null> {
     this.logger?.debug('Getting annotation', { id });
     const session = this.getSession();
     try {
@@ -484,7 +482,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async updateAnnotation(id: AnnotationUri, updates: Partial<Annotation>): Promise<Annotation> {
+  async updateAnnotation(id: AnnotationId, updates: Partial<Annotation>): Promise<Annotation> {
     const session = this.getSession();
     try {
       const setClauses: string[] = ['a.updatedAt = datetime()'];
@@ -588,7 +586,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async deleteAnnotation(id: AnnotationUri): Promise<void> {
+  async deleteAnnotation(id: AnnotationId): Promise<void> {
     const session = this.getSession();
     try {
       await session.run(
@@ -762,20 +760,20 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async getResourceReferencedBy(resourceUri: ResourceUri, motivation?: string): Promise<Annotation[]> {
+  async getResourceReferencedBy(resourceId: ResourceId, motivation?: string): Promise<Annotation[]> {
     const session = this.getSession();
     try {
-      this.logger?.debug('Searching for annotations referencing resource', { resourceUri, motivation });
+      this.logger?.debug('Searching for annotations referencing resource', { resourceId, motivation });
 
       // Build query with optional motivation label filter
       // If motivation is specified, use the label for efficient filtering
       const motivationLabel = motivation ? `:${motivationToLabel(motivation)}` : '';
-      const cypher = `MATCH (a:Annotation${motivationLabel})-[:REFERENCES]->(d:Resource {id: $resourceUri})
+      const cypher = `MATCH (a:Annotation${motivationLabel})-[:REFERENCES]->(d:Resource {id: $resourceId})
          OPTIONAL MATCH (a)-[:TAGGED_AS]->(et:EntityType)
          RETURN a, collect(et.name) as entityTypes
          ORDER BY a.created DESC`;
 
-      const result = await session.run(cypher, { resourceUri });
+      const result = await session.run(cypher, { resourceId });
 
       this.logger?.debug('Found annotations', { count: result.records.length });
 

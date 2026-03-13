@@ -13,9 +13,9 @@ import type { AnyJob, DetectionJob, RunningJob, DetectionParams, DetectionProgre
 import type { JobQueue } from '../job-queue';
 import { AnnotationDetection } from './annotation-detection';
 import { generateAnnotationId } from '@semiont/event-sourcing';
-import { resourceIdToURI, EventBus, userToAgent } from '@semiont/core';
+import { EventBus, userToAgent } from '@semiont/core';
 import { userId, jobId } from '@semiont/core';
-import type { EnvironmentConfig, Logger } from '@semiont/core';
+import type { Logger } from '@semiont/core';
 import { validateAndCorrectOffsets } from '@semiont/api-client';
 import { extractEntities } from './detection/entity-extractor';
 import type { InferenceClient } from '@semiont/inference';
@@ -36,7 +36,6 @@ export interface DetectedAnnotation {
 export class ReferenceAnnotationWorker extends JobWorker {
   constructor(
     jobQueue: JobQueue,
-    private config: EnvironmentConfig,
     private inferenceClient: InferenceClient,
     private eventBus: EventBus,
     private contentFetcher: ContentFetcher,
@@ -181,17 +180,7 @@ export class ReferenceAnnotationWorker extends JobWorker {
           continue;
         }
 
-        let referenceId: string;
-        try {
-          const backendUrl = this.config.services.backend?.publicURL;
-          if (!backendUrl) {
-            throw new Error('Backend publicURL not configured');
-          }
-          referenceId = generateAnnotationId(backendUrl);
-        } catch (error) {
-          this.logger?.error('Failed to generate annotation ID', { error });
-          throw new Error('Configuration error: Backend publicURL not set');
-        }
+        const referenceId = generateAnnotationId();
 
         try {
           const creator = userToAgent({
@@ -209,7 +198,7 @@ export class ReferenceAnnotationWorker extends JobWorker {
             creator,
             created: new Date().toISOString(),
             target: {
-              source: resourceIdToURI(job.params.resourceId, this.config.services.backend!.publicURL), // Convert to full URI
+              source: job.params.resourceId as string,
               selector: [
                 {
                   type: 'TextPositionSelector' as const,

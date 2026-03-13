@@ -72,7 +72,6 @@ export function registerYieldResourceStream(router: ResourcesRouterType, jobQueu
 
       // User will be available from auth middleware
       const user = c.get('user');
-      const config = c.get('config');
       if (!user) {
         throw new HTTPException(401, { message: 'Authentication required' });
       }
@@ -92,17 +91,16 @@ export function registerYieldResourceStream(router: ResourcesRouterType, jobQueu
         ids: linkingAnnotations.map((a: any) => a.id)
       });
 
-      // Compare by ID - need to match full annotation URI
-      const expectedAnnotationUri = `${config.services.backend!.publicURL}/annotations/${annotationIdParam}`;
-      logger.info('Looking for annotation URI', { expectedAnnotationUri });
+      // Compare by bare annotation ID
+      logger.info('Looking for annotation', { annotationId: annotationIdParam });
 
       const reference = projection.annotations.find((a: any) =>
-        a.id === expectedAnnotationUri && a.motivation === 'linking'
+        a.id === annotationIdParam && a.motivation === 'linking'
       );
 
       if (!reference) {
         logger.warn('Annotation not found', {
-          expectedUri: expectedAnnotationUri,
+          expectedId: annotationIdParam,
           availableIds: projection.annotations.map((a: any) => a.id)
         });
         throw new HTTPException(404, { message: `Annotation ${annotationIdParam} not found in resource ${resourceIdParam}` });

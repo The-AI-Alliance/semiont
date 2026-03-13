@@ -30,7 +30,6 @@ import type { ViewStorage, ResourceView } from '../storage/view-storage';
 
 export interface ViewMaterializerConfig {
   basePath: string;
-  backendUrl: string;
 }
 
 /**
@@ -106,14 +105,11 @@ export class ViewMaterializer {
    * Materialize view from event list (full rebuild)
    */
   private materializeFromEvents(events: StoredEvent[], resourceId: ResourceId): ResourceView {
-    // Build W3C-compliant HTTP URI for @id
-    const backendUrl = this.config.backendUrl;
-    const normalizedBase = backendUrl.endsWith('/') ? backendUrl.slice(0, -1) : backendUrl;
-
     // Start with empty ResourceDescriptor state
+    // @id uses bare resource ID; full URI is constructed at the API boundary
     const resource: ResourceDescriptor = {
       '@context': 'https://schema.org/',
-      '@id': `${normalizedBase}/resources/${resourceId}`,
+      '@id': resourceId as string,
       name: '',
       representations: [],
       archived: false,
@@ -277,19 +273,14 @@ export class ViewMaterializer {
         break;
 
       case 'annotation.removed':
-        // payload.annotationId is just the UUID, but a.id might be full URI or plain ID
-        // Handle both: plain ID ('anno1') and full URI ('http://.../annotations/anno1')
         annotations.annotations = annotations.annotations.filter(
-          (a: Annotation) => a.id !== event.payload.annotationId && !a.id.endsWith(`/annotations/${event.payload.annotationId}`)
+          (a: Annotation) => a.id !== event.payload.annotationId
         );
         break;
 
       case 'annotation.body.updated':
-        // Find annotation by ID
-        // payload.annotationId is just the UUID, but a.id might be full URI or plain ID
-        // Handle both: plain ID ('anno1') and full URI ('http://.../annotations/anno1')
         const annotation = annotations.annotations.find((a: Annotation) =>
-          a.id === event.payload.annotationId || a.id.endsWith(`/annotations/${event.payload.annotationId}`)
+          a.id === event.payload.annotationId
         );
         if (annotation) {
           // Ensure body is an array

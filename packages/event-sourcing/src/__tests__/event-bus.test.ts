@@ -20,23 +20,22 @@ function createEventMetadata(sequenceNumber: number, prevHash?: string): EventMe
 
 describe('EventBus', () => {
   let bus: EventBus;
-  const identifierConfig = { baseUrl: 'http://localhost:4000' };
 
   beforeEach(() => {
-    bus = new EventBus({ identifierConfig });
+    bus = new EventBus();
     // Clear all subscriptions before each test
     (bus.subscriptions as any).subscriptions.clear();
     (bus.subscriptions as any).globalSubscriptions.clear();
   });
 
   describe('Constructor', () => {
-    it('should create EventBus with identifier config', () => {
+    it('should create EventBus', () => {
       expect(bus).toBeDefined();
       expect(bus.subscriptions).toBeDefined();
     });
 
     it('should use singleton subscriptions', () => {
-      const bus2 = new EventBus({ identifierConfig });
+      const bus2 = new EventBus();
       expect(bus.subscriptions).toBe(bus2.subscriptions);
     });
   });
@@ -194,19 +193,9 @@ describe('EventBus', () => {
       const subscription = bus.subscribe(rid, callback);
 
       expect(subscription).toBeDefined();
-      expect(subscription.resourceUri).toBe('http://localhost:4000/resources/doc1');
+      expect(subscription.resourceId).toBe('doc1');
       expect(subscription.callback).toBe(callback);
       expect(subscription.unsubscribe).toBeInstanceOf(Function);
-    });
-
-    it('should convert ResourceId to ResourceUri internally', () => {
-      const rid = resourceId('doc1');
-      const callback = vi.fn();
-
-      bus.subscribe(rid, callback);
-
-      const count = bus.getSubscriberCount(rid);
-      expect(count).toBe(1);
     });
 
     it('should support multiple subscribers for same resource', () => {
@@ -228,7 +217,7 @@ describe('EventBus', () => {
       const subscription = bus.subscribeGlobal(callback);
 
       expect(subscription).toBeDefined();
-      expect(subscription.resourceUri).toBe('__global__');
+      expect(subscription.resourceId).toBe('__global__');
       expect(subscription.callback).toBe(callback);
       expect(subscription.unsubscribe).toBeInstanceOf(Function);
     });
