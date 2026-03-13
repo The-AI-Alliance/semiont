@@ -5,7 +5,7 @@
  * Full URIs are required by W3C Web Annotation Data Model.
  */
 
-import { annotationId, type ResourceId, type AnnotationId } from './identifiers';
+import { annotationId, resourceId, type ResourceId, type AnnotationId } from './identifiers';
 import { resourceUri, annotationUri, type ResourceUri, type AnnotationUri, type ResourceAnnotationUri } from './branded-types';
 
 /**
@@ -40,6 +40,25 @@ export function annotationIdToURI(id: AnnotationId, publicURL: string): Annotati
   // Remove trailing slash if present
   const normalizedBase = publicURL.endsWith('/') ? publicURL.slice(0, -1) : publicURL;
   return annotationUri(`${normalizedBase}/annotations/${id}`);
+}
+
+/**
+ * Extract resource ID from a full URI or return a bare ID as-is.
+ *
+ * @param uriOrId - Full resource URI (e.g., "https://api.semiont.app/resources/doc-abc123") or bare ID
+ * @returns Short resource ID (e.g., "doc-abc123")
+ * @throws Error if URI contains `/resources/` but format is invalid
+ */
+export function uriToResourceId(uriOrId: string): ResourceId {
+  if (!uriOrId.includes('/')) {
+    return resourceId(uriOrId);
+  }
+  const url = new URL(uriOrId);
+  const match = url.pathname.match(/\/resources\/([^/]+)/);
+  if (!match || !match[1]) {
+    throw new Error(`Invalid resource URI: ${uriOrId}`);
+  }
+  return resourceId(match[1]);
 }
 
 /**

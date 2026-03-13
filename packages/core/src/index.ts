@@ -70,6 +70,7 @@ export {
 export {
   resourceIdToURI,
   annotationIdToURI,
+  uriToResourceId,
   uriToAnnotationId,
   extractResourceUriFromAnnotationUri,
 } from './uri-utils';
