@@ -14,13 +14,13 @@ import { streamSSE } from 'hono/streaming';
 import type { User } from '@prisma/client';
 import { authMiddleware } from '../middleware/auth';
 import { SSE_STREAM_CONNECTED } from '@semiont/api-client';
-import type { EnvironmentConfig, EventBus } from '@semiont/core';
+import type { EventBus } from '@semiont/core';
 import type { startMakeMeaning } from '@semiont/make-meaning';
 import { getLogger } from '../logger';
 
 const getRouteLogger = () => getLogger().child({ component: 'global-events-stream' });
 
-export const globalEventsRouter = new Hono<{ Variables: { user: User; config: EnvironmentConfig; eventBus: EventBus; makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>> } }>();
+export const globalEventsRouter = new Hono<{ Variables: { user: User; eventBus: EventBus; makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>> } }>();
 globalEventsRouter.use('/api/events/stream', authMiddleware);
 
 /**

@@ -37,22 +37,6 @@ describe('Authentication Integration', () => {
     // Initialize JWTService with test config
     JWTService.initialize({
       site: { domain: 'test.local', oauthAllowedDomains: ['test.local', 'example.com'] },
-      services: {
-        backend: {
-          platform: { type: 'posix' },
-          corsOrigin: 'http://localhost:3000',
-          publicURL: 'http://localhost:4000',
-          port: 4000
-        },
-        frontend: {
-          platform: { type: 'posix' },
-          publicURL: 'http://localhost:3000',
-          port: 3000,
-          siteName: 'Test Site'
-        }
-      },
-      env: { NODE_ENV: 'test' as const },
-      app: {}
     });
   });
 

@@ -445,7 +445,7 @@ export class Gatherer {
   private async handleEntityTypes(event: EventMap['mark:entity-types-requested']): Promise<void> {
     try {
       if (!this.config) {
-        throw new Error('EnvironmentConfig required for entity type reads');
+        throw new Error('MakeMeaningConfig required for entity type reads');
       }
       const entityTypes = await readEntityTypesProjection(this.config);
 

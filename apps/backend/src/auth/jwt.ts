@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { JWTPayloadSchema } from '../types/jwt-types';
 import type { JWTPayload as ValidatedJWTPayload } from '../types/jwt-types';
-import type { EnvironmentConfig, UserId, Email } from '@semiont/core';
+import type { UserId, Email } from '@semiont/core';
 import { userId as makeUserId, email as makeEmail } from '@semiont/core';
 
 export interface JWTPayload {
@@ -27,7 +27,7 @@ export class JWTService {
    * Initialize JWTService with application configuration
    * Must be called once at application startup before using any other methods
    */
-  static initialize(config: EnvironmentConfig): void {
+  static initialize(config: { site?: SiteConfig }): void {
     if (!config.site?.domain) {
       throw new Error('site.domain is required in environment config');
     }
