@@ -51,6 +51,7 @@ describe('Authentication Integration', () => {
           siteName: 'Test Site'
         }
       },
+      env: { NODE_ENV: 'test' as const },
       app: {}
     });
   });

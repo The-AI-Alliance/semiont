@@ -143,6 +143,7 @@ describe('Resource Discovery HTTP Contract', () => {
           jwtSecret: 'test-secret-key-at-least-32-characters-long',
         },
       },
+      env: { NODE_ENV: 'test' as const },
     } as EnvironmentConfig;
     JWTService.initialize(mockConfig);
 

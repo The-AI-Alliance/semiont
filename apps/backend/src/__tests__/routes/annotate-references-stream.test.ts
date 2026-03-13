@@ -103,6 +103,7 @@ describe('POST /resources/:resourceId/annotate-references-stream', () => {
           jwtSecret: 'test-secret-key-at-least-32-characters-long',
         },
       },
+      env: { NODE_ENV: 'test' as const },
     } as EnvironmentConfig;
     JWTService.initialize(mockConfig);
 

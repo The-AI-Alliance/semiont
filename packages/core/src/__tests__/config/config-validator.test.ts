@@ -232,7 +232,7 @@ describe('@semiont/core - config-validator', () => {
       expect(result.valid).toBe(false);
     });
 
-    it('should accept config without env field', () => {
+    it('should reject config without env field', () => {
       const config = {
         site: {
           domain: 'example.com',
@@ -241,7 +241,20 @@ describe('@semiont/core - config-validator', () => {
       };
 
       const result = validateEnvironmentConfig(config);
-      expect(result.valid).toBe(true);
+      expect(result.valid).toBe(false);
+    });
+
+    it('should reject config with env but missing NODE_ENV', () => {
+      const config = {
+        site: {
+          domain: 'example.com',
+        },
+        services: {},
+        env: {},
+      };
+
+      const result = validateEnvironmentConfig(config);
+      expect(result.valid).toBe(false);
     });
   });
 
