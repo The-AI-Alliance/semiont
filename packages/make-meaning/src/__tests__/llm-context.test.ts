@@ -19,7 +19,7 @@ import { LLMContext } from '../llm-context';
 import { ResourceOperations } from '../resource-operations';
 import { AnnotationOperations } from '../annotation-operations';
 import { resourceId, userId, EventBus, type Logger } from '@semiont/core';
-import type { GraphFactoryConfig } from '@semiont/graph';
+import type { GraphServiceConfig } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore, type RepresentationStore } from '@semiont/content';
 import type { KnowledgeBase } from '../knowledge-base';
@@ -53,7 +53,7 @@ describe('LLM Context', () => {
   let eventBus: EventBus;
   let stower: Stower;
   let repStore: RepresentationStore;
-  let config: GraphFactoryConfig;
+  let graphConfig: GraphServiceConfig;
   let kb: KnowledgeBase;
   let testResourceId: string;
 
@@ -70,13 +70,7 @@ describe('LLM Context', () => {
     await fs.mkdir(testDir, { recursive: true });
 
     // Create test configuration
-    config = {
-      services: {
-        graph: {
-          type: 'memory'
-        }
-      },
-    } as GraphFactoryConfig;
+    graphConfig = { type: 'memory' } as GraphServiceConfig;
 
     // Initialize EventBus and stores
     eventBus = new EventBus();
@@ -85,7 +79,7 @@ describe('LLM Context', () => {
 
     // Create KnowledgeBase - share event store's view storage to avoid separate instances
     const { getGraphDatabase } = await import('@semiont/graph');
-    const graphDb = await getGraphDatabase(config);
+    const graphDb = await getGraphDatabase(graphConfig);
     kb = { eventStore, views: eventStore.viewStorage, content: repStore, graph: graphDb };
 
     // Start Stower

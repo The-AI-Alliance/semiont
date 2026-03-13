@@ -66,10 +66,15 @@ export interface MakeMeaningService {
 
 export async function startMakeMeaning(config: MakeMeaningConfig, eventBus: EventBus, logger: Logger): Promise<MakeMeaningService> {
   // 1. Validate configuration
-  const configuredPath = config.services?.filesystem?.path;
-  if (!configuredPath) {
+  const filesystemConfig = config.services?.filesystem;
+  if (!filesystemConfig?.path) {
     throw new Error('services.filesystem.path is required for make-meaning service');
   }
+  const graphConfig = config.services?.graph;
+  if (!graphConfig) {
+    throw new Error('services.graph is required for make-meaning service');
+  }
+  const configuredPath = filesystemConfig.path;
 
   // Resolve basePath to absolute path
   const projectRoot = config._metadata?.projectRoot;
@@ -131,10 +136,14 @@ export async function startMakeMeaning(config: MakeMeaningConfig, eventBus: Even
 
   // 4. Create inference client (shared across all workers)
   const inferenceLogger = logger.child({ component: 'inference-client' });
-  const inferenceClient = await getInferenceClient(config, inferenceLogger);
+  const inferenceConfig = config.services?.inference;
+  if (!inferenceConfig) {
+    throw new Error('services.inference is required for make-meaning service');
+  }
+  const inferenceClient = await getInferenceClient(inferenceConfig, inferenceLogger);
 
   // 6. Create graph database connection
-  const graphDb = await getGraphDatabase(config);
+  const graphDb = await getGraphDatabase(graphConfig);
 
   // 7. Create Knowledge Base (groups event store, views, content store, graph)
   const kb = createKnowledgeBase(eventStore, basePath, projectRoot, graphDb, logger);

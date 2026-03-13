@@ -7,13 +7,6 @@ import { OllamaInferenceClient } from './implementations/ollama.js';
 
 export type InferenceClientType = 'anthropic' | 'ollama';
 
-/** Narrow config type — only the fields getInferenceClient actually reads */
-export interface InferenceFactoryConfig {
-  services: {
-    inference?: InferenceServiceConfig;
-  };
-}
-
 export interface InferenceClientConfig {
   type: InferenceClientType;
   apiKey?: string;
@@ -63,12 +56,7 @@ function evaluateEnvVar(value: string | undefined): string | undefined {
   });
 }
 
-export async function getInferenceClient(config: InferenceFactoryConfig, logger?: Logger): Promise<InferenceClient> {
-  const inferenceConfig = config.services.inference;
-  if (!inferenceConfig) {
-    throw new Error('services.inference is required in environment config');
-  }
-
+export async function getInferenceClient(inferenceConfig: InferenceServiceConfig, logger?: Logger): Promise<InferenceClient> {
   if (!inferenceConfig.model) {
     throw new Error('services.inference.model is required in environment config');
   }
@@ -100,9 +88,8 @@ export async function getInferenceClient(config: InferenceFactoryConfig, logger?
 /**
  * Get the configured model name
  */
-export function getInferenceModel(config: InferenceFactoryConfig): string {
-  const inferenceConfig = config.services.inference;
-  if (!inferenceConfig?.model) {
+export function getInferenceModel(inferenceConfig: InferenceServiceConfig): string {
+  if (!inferenceConfig.model) {
     throw new Error('Inference model not configured! Set it in your environment configuration.');
   }
   return inferenceConfig.model;

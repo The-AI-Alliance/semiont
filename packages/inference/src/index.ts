@@ -5,7 +5,6 @@ export {
   createInferenceClient,
   type InferenceClientConfig,
   type InferenceClientType,
-  type InferenceFactoryConfig,
 } from './factory';
 
 export { type InferenceClient, type InferenceResponse } from './interface';

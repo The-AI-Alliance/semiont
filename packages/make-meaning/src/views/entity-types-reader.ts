@@ -14,7 +14,10 @@ import type { MakeMeaningConfig } from '../config';
  */
 export async function readEntityTypesProjection(config: MakeMeaningConfig): Promise<string[]> {
   // Resolve basePath against project root if relative
-  const configuredPath = config.services.filesystem.path;
+  const configuredPath = config.services.filesystem?.path;
+  if (!configuredPath) {
+    throw new Error('services.filesystem.path is required for entity types reader');
+  }
   const projectRoot = config._metadata?.projectRoot;
   let basePath: string;
   if (path.isAbsolute(configuredPath)) {

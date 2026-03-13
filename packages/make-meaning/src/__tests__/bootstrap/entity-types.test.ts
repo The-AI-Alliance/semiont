@@ -17,7 +17,8 @@ import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
 import { userId, EventBus, type Logger } from '@semiont/core';
 import { createKnowledgeBase, type KnowledgeBase } from '../../knowledge-base';
 import { Stower } from '../../stower';
-import { getGraphDatabase, type GraphFactoryConfig } from '@semiont/graph';
+import { getGraphDatabase } from '@semiont/graph';
+import type { GraphServiceConfig } from '@semiont/core';
 import type { MakeMeaningConfig } from '../../config';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -66,7 +67,7 @@ describe('Entity Types Bootstrap', () => {
     // Initialize EventBus, event store, and Stower
     eventBus = new EventBus();
     eventStore = createEventStore(testDir, undefined, eventBus, mockLogger);
-    const graphDb = await getGraphDatabase({ services: { graph: { type: 'memory' } } } as GraphFactoryConfig);
+    const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
     kb = createKnowledgeBase(eventStore, testDir, testDir, graphDb, mockLogger);
     stower = new Stower(kb, eventBus, mockLogger);
     await stower.initialize();
@@ -239,7 +240,7 @@ describe('Entity Types Bootstrap', () => {
       // Create new EventBus, event store, and Stower for alternate directory
       const altEventBus = new EventBus();
       const alternateEventStore = createEventStore(alternateDir, undefined, altEventBus, mockLogger);
-      const altGraphDb = await getGraphDatabase({ services: { graph: { type: 'memory' } } } as GraphFactoryConfig);
+      const altGraphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
       const altKb = createKnowledgeBase(alternateEventStore, alternateDir, alternateDir, altGraphDb, mockLogger);
       const altStower = new Stower(altKb, altEventBus, mockLogger);
       await altStower.initialize();

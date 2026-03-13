@@ -18,7 +18,8 @@ import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
 import { EventBus, type Logger } from '@semiont/core';
 import { createKnowledgeBase } from '../../knowledge-base';
 import { Stower } from '../../stower';
-import { getGraphDatabase, type GraphFactoryConfig } from '@semiont/graph';
+import { getGraphDatabase } from '@semiont/graph';
+import type { GraphServiceConfig } from '@semiont/core';
 import type { MakeMeaningConfig } from '../../config';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
@@ -98,7 +99,7 @@ describe('Entity Types Projection Reader', () => {
       // Bootstrap creates the projection (requires EventBus + Stower)
       const eventBus = new EventBus();
       const eventStore = createEventStore(testDir, undefined, eventBus, mockLogger);
-      const graphDb = await getGraphDatabase({ services: { graph: { type: 'memory' } } } as GraphFactoryConfig);
+      const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
       const kb = createKnowledgeBase(eventStore, testDir, testDir, graphDb, mockLogger);
       const stower = new Stower(kb, eventBus, mockLogger);
       await stower.initialize();
@@ -238,7 +239,7 @@ describe('Entity Types Projection Reader', () => {
 
       const eventBus = new EventBus();
       const eventStore = createEventStore(testDir, undefined, eventBus, mockLogger);
-      const graphDb = await getGraphDatabase({ services: { graph: { type: 'memory' } } } as GraphFactoryConfig);
+      const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
       const kb = createKnowledgeBase(eventStore, testDir, testDir, graphDb, mockLogger);
       const stower = new Stower(kb, eventBus, mockLogger);
       await stower.initialize();

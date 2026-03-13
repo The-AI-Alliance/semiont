@@ -18,7 +18,8 @@ import type { components } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import type { KnowledgeBase } from '../knowledge-base';
 import { Stower } from '../stower';
-import { getGraphDatabase, type GraphFactoryConfig } from '@semiont/graph';
+import { getGraphDatabase } from '@semiont/graph';
+import type { GraphServiceConfig } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -70,7 +71,7 @@ describe('AnnotationOperations', () => {
     // Initialize EventBus and stores
     eventBus = new EventBus();
     testEventStore = createEventStore(testDir, undefined, eventBus, mockLogger);
-    const graphDb = await getGraphDatabase({ services: { graph: { type: 'memory' } } } as GraphFactoryConfig);
+    const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
     // Share the event store's view storage with the KB to avoid two separate FilesystemViewStorage instances
     const { FilesystemRepresentationStore } = await import('@semiont/content');
     const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);

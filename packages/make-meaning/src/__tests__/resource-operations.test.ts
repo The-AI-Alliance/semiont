@@ -15,7 +15,8 @@ import { userId, EventBus, CREATION_METHODS, type Logger } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { Stower } from '../stower';
 import { createKnowledgeBase } from '../knowledge-base';
-import { getGraphDatabase, type GraphFactoryConfig } from '@semiont/graph';
+import { getGraphDatabase } from '@semiont/graph';
+import type { GraphServiceConfig } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -39,7 +40,7 @@ describe('ResourceOperations', () => {
 
     eventBus = new EventBus();
     testEventStore = createEventStore(testDir, undefined, eventBus, mockLogger);
-    const graphDb = await getGraphDatabase({ services: { graph: { type: 'memory' } } } as GraphFactoryConfig);
+    const graphDb = await getGraphDatabase({ type: 'memory' } as GraphServiceConfig);
     const kb = createKnowledgeBase(testEventStore, testDir, testDir, graphDb, mockLogger);
 
     stower = new Stower(kb, eventBus, mockLogger);

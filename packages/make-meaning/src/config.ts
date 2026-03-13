@@ -3,8 +3,8 @@ import type { FilesystemServiceConfig, GraphServiceConfig, InferenceServiceConfi
 /** Narrow config type — only the fields make-meaning actually reads */
 export interface MakeMeaningConfig {
   services: {
-    filesystem: FilesystemServiceConfig;
-    graph: GraphServiceConfig;
+    filesystem?: FilesystemServiceConfig;
+    graph?: GraphServiceConfig;
     inference?: InferenceServiceConfig;
   };
   _metadata?: {

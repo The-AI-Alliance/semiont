@@ -5,16 +5,9 @@ import { NeptuneGraphDatabase } from './implementations/neptune';
 import { Neo4jGraphDatabase } from './implementations/neo4j';
 import { JanusGraphDatabase } from './implementations/janusgraph';
 import { MemoryGraphDatabase } from './implementations/memorygraph';
-import { type GraphServiceConfig } from '@semiont/core';
+import type { GraphServiceConfig } from '@semiont/core';
 
 export type GraphDatabaseType = 'neptune' | 'neo4j' | 'janusgraph' | 'memory';
-
-/** Narrow config type — only the fields getGraphDatabase actually reads */
-export interface GraphFactoryConfig {
-  services: {
-    graph: GraphServiceConfig;
-  };
-}
 
 export interface GraphDatabaseConfig {
   type: GraphDatabaseType;
@@ -90,10 +83,8 @@ function evaluateEnvVar(value: string | undefined): string | undefined {
   });
 }
 
-export async function getGraphDatabase(envConfig: GraphFactoryConfig): Promise<GraphDatabase> {
+export async function getGraphDatabase(graphConfig: GraphServiceConfig): Promise<GraphDatabase> {
   if (!graphDatabaseInstance) {
-    const graphConfig = envConfig.services.graph;
-
     const config: GraphDatabaseConfig = {
       type: graphConfig.type,
     };
