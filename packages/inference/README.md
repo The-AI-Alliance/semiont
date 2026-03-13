@@ -9,10 +9,10 @@
 **AI primitives for text generation and client management.**
 
 This package provides the **core AI primitives** for the Semiont platform:
-- Anthropic client singleton management
+- Inference client implementations (Anthropic, Ollama)
 - Simple text generation interface
 - Environment variable expansion for API keys
-- Provider abstraction for future extensibility
+- Provider abstraction via `InferenceClient` interface
 
 For **application-specific AI logic** (entity extraction, resource generation, motivation prompts/parsers), see [@semiont/make-meaning](../make-meaning/).
 
@@ -40,12 +40,24 @@ npm install @semiont/inference
 import { generateText, getInferenceClient, getInferenceModel } from '@semiont/inference';
 import type { EnvironmentConfig } from '@semiont/core';
 
+// Anthropic
 const config: EnvironmentConfig = {
   services: {
     inference: {
       type: 'anthropic',
       model: 'claude-3-5-sonnet-20241022',
       apiKey: '${ANTHROPIC_API_KEY}'  // Supports environment variable expansion
+    }
+  }
+};
+
+// Ollama (no API key required)
+const ollamaConfig: EnvironmentConfig = {
+  services: {
+    inference: {
+      type: 'ollama',
+      model: 'gemma2:9b',
+      endpoint: 'http://localhost:11434'
     }
   }
 };
@@ -77,9 +89,9 @@ Simple text generation primitive.
 
 **Returns:** `Promise<string>` - Generated text
 
-**Implementation** ([src/factory.ts:68-102](src/factory.ts#L68-L102)):
-- Uses Anthropic Messages API
-- Extracts text content from first text block in response
+**Implementation** ([src/factory.ts](src/factory.ts)):
+- Routes to provider-specific client (Anthropic Messages API or Ollama `/api/generate`)
+- Extracts text content from response
 - Throws error if no text content in response
 
 **Example:**
@@ -92,28 +104,29 @@ const result = await generateText(
 );
 ```
 
-**`getInferenceClient(config): Promise<Anthropic>`**
+**`getInferenceClient(config): Promise<InferenceClient>`**
 
-Get the singleton Anthropic client instance.
+Get an inference client instance based on configuration.
 
 **Parameters:**
 - `config: EnvironmentConfig` - Configuration
 
-**Returns:** `Promise<Anthropic>` - Anthropic client
+**Returns:** `Promise<InferenceClient>` - Provider-specific client implementing the `InferenceClient` interface
 
-**Implementation** ([src/factory.ts:17-52](src/factory.ts#L17-L52)):
-- Singleton pattern - creates client once, caches for reuse
-- Supports environment variable expansion in API keys (e.g., '${ANTHROPIC_API_KEY}')
-- Configurable baseURL with fallback to https://api.anthropic.com
+**Implementation** ([src/factory.ts](src/factory.ts)):
+- Creates `AnthropicInferenceClient` or `OllamaInferenceClient` based on `config.services.inference.type`
+- Supports environment variable expansion in API keys (e.g., `'${ANTHROPIC_API_KEY}'`)
+- Ollama defaults to `http://localhost:11434`, no API key required
 
 **Example:**
 ```typescript
 const client = await getInferenceClient(config);
-const response = await client.messages.create({
-  model: 'claude-3-5-sonnet-20241022',
-  max_tokens: 100,
-  messages: [{ role: 'user', content: 'Hello' }]
-});
+const response = await client.generateTextWithMetadata(
+  'Hello',
+  100,
+  0.7
+);
+console.log(response.text);
 ```
 
 **`getInferenceModel(config): string`**
@@ -123,7 +136,7 @@ Get the configured model name.
 **Parameters:**
 - `config: EnvironmentConfig` - Configuration
 
-**Returns:** `string` - Model name (e.g., 'claude-3-5-sonnet-20241022')
+**Returns:** `string` - Model name (e.g., `'claude-3-5-sonnet-20241022'` or `'gemma2:9b'`)
 
 **Example:**
 ```typescript
@@ -133,15 +146,23 @@ console.log(`Using model: ${model}`);
 
 ## Configuration
 
-From [src/factory.ts:22-48](src/factory.ts#L22-L48):
+From [src/factory.ts](src/factory.ts):
 
 ```typescript
+// Anthropic
 config.services.inference = {
   type: 'anthropic',      // Provider type
   model: string,          // Model name (e.g., 'claude-3-5-sonnet-20241022')
   apiKey: string,         // API key or ${ENV_VAR} pattern
   endpoint?: string,      // Custom endpoint (optional)
   baseURL?: string        // Fallback endpoint (optional)
+}
+
+// Ollama
+config.services.inference = {
+  type: 'ollama',         // Provider type
+  model: string,          // Model name (e.g., 'gemma2:9b', 'llama3.1:8b', 'mistral')
+  endpoint?: string,      // Ollama server URL (default: http://localhost:11434)
 }
 ```
 
@@ -224,33 +245,36 @@ const highlights = await AnnotationDetection.detectHighlights(resourceId, config
 ┌──────────────────▼──────────────────────────┐
 │      @semiont/inference                     │
 │  (AI primitives only)                       │
-│  - getInferenceClient()                     │
+│  - InferenceClient interface                │
+│  - getInferenceClient() factory             │
 │  - getInferenceModel()                      │
-│  - generateText()                           │
-└──────────────────┬──────────────────────────┘
-                   │ uses
-┌──────────────────▼──────────────────────────┐
-│      @anthropic-ai/sdk                      │
-│  (Anthropic Messages API)                   │
-└─────────────────────────────────────────────┘
+└──────────┬───────────────────┬──────────────┘
+           │                   │
+┌──────────▼──────────┐ ┌─────▼──────────────┐
+│  AnthropicInference │ │  OllamaInference   │
+│  Client             │ │  Client            │
+│  (@anthropic-ai/sdk)│ │  (native HTTP API) │
+└─────────────────────┘ └────────────────────┘
 ```
 
 **Key Principles:**
 - **@semiont/inference**: Provider abstraction, client management, core text generation
 - **@semiont/make-meaning**: Semantic processing, prompt engineering, response parsing
-- **Clean separation**: Adding OpenAI support only affects @semiont/inference
+- **Clean separation**: Adding a new provider only affects @semiont/inference
 
-## Provider Extensibility
+## Supported Providers
 
-The package is designed for future provider support:
+| Provider | Type | API Key | Models |
+|----------|------|---------|--------|
+| Anthropic | `anthropic` | Required (`ANTHROPIC_API_KEY`) | Claude family |
+| Ollama | `ollama` | Not required | gemma2:9b, llama3.1:8b, mistral, etc. |
 
-1. Update `getInferenceClient()` to support `config.services.inference.type`
-2. Add provider-specific client initialization
-3. Update `generateText()` to handle different API formats
-4. Application code in `@semiont/make-meaning` remains unchanged
+### Adding a New Provider
 
-**Current Support:** Anthropic (Claude) via `@anthropic-ai/sdk`
-**Future:** OpenAI, Google Vertex AI, local models, etc.
+1. Implement `InferenceClient` interface in `src/implementations/`
+2. Add type to `InferenceClientType` union in `src/factory.ts`
+3. Add case in `createInferenceClient()` switch
+4. Application code in `@semiont/make-meaning` requires no changes
 
 ## Dependencies
 
@@ -258,6 +282,8 @@ From [package.json](package.json):
 
 - `@anthropic-ai/sdk` ^0.63.0 - Anthropic API client
 - `@semiont/core` * - Environment configuration
+
+Ollama uses native HTTP (`fetch`) with no SDK dependency.
 
 **Note:** No dependency on `@semiont/api-client` - primitives have minimal dependencies
 

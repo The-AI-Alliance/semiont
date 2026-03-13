@@ -22,13 +22,21 @@ Used for the PostgreSQL database and Envoy proxy containers. Install [Docker Des
 docker --version   # or: podman --version
 ```
 
-### Inference (Anthropic)
+### Inference (Anthropic or Ollama)
 
-Required for AI-powered annotation features. Other inference providers coming soon. Get a key from the [Anthropic Console](https://console.anthropic.com/settings/keys).
+Required for AI-powered annotation features.
+
+**Option A: Anthropic (cloud)**
+
+Get a key from the [Anthropic Console](https://console.anthropic.com/settings/keys).
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
+
+**Option B: Ollama (local)**
+
+Install [Ollama](https://ollama.com/), then set `type: "ollama"` and `model: "gemma2:9b"` in your inference service config (see `environments/local.json`). No API key required. `semiont provision` will pull the model automatically.
 
 ### Graph (Neo4j)
 
@@ -65,7 +73,7 @@ Review `environments/local.json` and edit database credentials or ports as neede
 - **backend** and **frontend** as `posix` platform (local Node.js processes, resolved from installed npm packages)
 - **database** as `container` platform (Docker/Podman)
 - **graph** as `external` platform (Neo4j, uses `NEO4J_*` environment variables)
-- **inference** as `external` platform (Anthropic, uses `ANTHROPIC_API_KEY`)
+- **inference** as `external` platform (Anthropic with `ANTHROPIC_API_KEY`, or Ollama at `localhost:11434`)
 
 ### 3. Provision Services
 

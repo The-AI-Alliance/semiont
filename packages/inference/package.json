@@ -43,6 +43,7 @@
     "entity-extraction",
     "llm",
     "anthropic",
+    "ollama",
     "text-generation"
   ],
   "author": "The AI Alliance",
