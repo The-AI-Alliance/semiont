@@ -44,18 +44,6 @@ Built on the W3C Web Annotation standard, Semiont transforms unstructured conten
 - **[Browse](docs/flows/BROWSE.md)** — Navigate through resources, panels, and views — structured paths for reviewing and examining content
 - **[Beckon](docs/flows/BECKON.md)** — Direct user focus to specific annotations or regions of interest through visual cues and coordination signals
 
-## Core Development & Contributing
-
-**GitHub Codespaces** (Recommended for quick setup):
-
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new/The-AI-Alliance/semiont)
-
-See [.devcontainer/README.md](.devcontainer/README.md) for setup details.
-
-**Local Development**:
-
-Semiont uses a [CLI](apps/cli/README.md) (`semiont`) to initialize projects, provision services, and manage environments. See [LOCAL-DEVELOPMENT.md](docs/LOCAL-DEVELOPMENT.md) for installation, configuration, and running locally.
-
 ## 🧪 Demos & Examples
 
 **Semiont Workflows Demo** - Interactive examples showing Semiont SDK usage:
@@ -97,6 +85,20 @@ Semiont publishes npm packages and container images for easy integration and dep
 | **[Backend](apps/backend/README.md)** | Hono API server — routes, event bridging, real-time SSE, logging |
 | **[Frontend](apps/frontend/README.md)** | Next.js app — annotations, accessibility, i18n, performance |
 | **[CLI](apps/cli/README.md)** | Environment management, service orchestration, deployment commands |
+
+## Core Development & Contributing
+
+**GitHub Codespaces** (Recommended for quick setup):
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new/The-AI-Alliance/semiont)
+
+See [.devcontainer/README.md](.devcontainer/README.md) for setup details.
+
+**Local Development**:
+
+Semiont uses a [CLI](apps/cli/README.md) (`semiont`) to initialize projects, provision services, and manage environments. See [LOCAL-DEVELOPMENT.md](docs/LOCAL-DEVELOPMENT.md) for installation, configuration, and running locally.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to participate, testing guide, and development standards.
 
 ## 📁 File Layout
 
