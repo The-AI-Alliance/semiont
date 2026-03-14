@@ -139,6 +139,7 @@ export type {
 } from './types/simple-navigation';
 
 // Components - Modals
+export * from './components/modals/BindContextModal';
 export * from './components/modals/SearchModal';
 export * from './components/modals/ResourceSearchModal';
 export type {

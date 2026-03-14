@@ -10,7 +10,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { take } from 'rxjs/operators';
-import { EventBus, resourceId, type Logger, type ResourceId } from '@semiont/core';
+import { EventBus, resourceId, type GatheredContext, type Logger, type ResourceId } from '@semiont/core';
 import type { KnowledgeBase } from '../knowledge-base';
 import { Binder } from '../binder';
 
@@ -26,6 +26,7 @@ interface MockGraphOverrides {
   searchResources?: (...args: any[]) => any;
   getResourceReferencedBy?: (...args: any[]) => any;
   getResource?: (...args: any[]) => any;
+  listResources?: (...args: any[]) => any;
 }
 
 function createMockKb(overrides: MockGraphOverrides = {}): KnowledgeBase {
@@ -34,9 +35,10 @@ function createMockKb(overrides: MockGraphOverrides = {}): KnowledgeBase {
     views: {} as any,
     content: {} as any,
     graph: {
-      searchResources: overrides.searchResources ?? vi.fn(),
-      getResourceReferencedBy: overrides.getResourceReferencedBy ?? vi.fn(),
-      getResource: overrides.getResource ?? vi.fn(),
+      searchResources: overrides.searchResources ?? vi.fn().mockResolvedValue([]),
+      getResourceReferencedBy: overrides.getResourceReferencedBy ?? vi.fn().mockResolvedValue([]),
+      getResource: overrides.getResource ?? vi.fn().mockResolvedValue(null),
+      listResources: overrides.listResources ?? vi.fn().mockResolvedValue({ resources: [], total: 0 }),
       createResource: vi.fn(),
       deleteResource: vi.fn(),
       getBacklinks: vi.fn(),
@@ -324,6 +326,331 @@ describe('Binder', () => {
       const result = await resultPromise;
       expect(result!.correlationId).toBe('corr-8');
       expect(result!.error.message).toBe('Resource lookup failed');
+    });
+  });
+
+  describe('context-driven search', () => {
+    let mockSearchFn2: ReturnType<typeof vi.fn>;
+    let mockListResources: ReturnType<typeof vi.fn>;
+    let mockGetResource: ReturnType<typeof vi.fn>;
+
+    const RES_A = { '@id': 'http://localhost:4000/resources/res-a', name: 'Alpha', dateCreated: '2026-01-01T00:00:00Z' };
+    const RES_B = { '@id': 'http://localhost:4000/resources/res-b', name: 'Beta', dateCreated: '2026-01-15T00:00:00Z' };
+    const RES_C = { '@id': 'http://localhost:4000/resources/res-c', name: 'Gamma', dateCreated: '2026-02-01T00:00:00Z' };
+
+    beforeEach(async () => {
+      await binder.stop();
+      eventBus.destroy();
+
+      vi.clearAllMocks();
+      eventBus = new EventBus();
+      mockSearchFn2 = vi.fn().mockResolvedValue([]);
+      mockListResources = vi.fn().mockResolvedValue({ resources: [], total: 0 });
+      mockGetResource = vi.fn().mockResolvedValue(null);
+      kb = createMockKb({
+        searchResources: mockSearchFn2,
+        listResources: mockListResources,
+        getResource: mockGetResource,
+      });
+      binder = new Binder(kb, eventBus, mockLogger);
+      await binder.initialize();
+    });
+
+    function makeContext(overrides: Partial<GatheredContext> = {}): GatheredContext {
+      return {
+        sourceContext: { before: '', selected: 'test', after: '' },
+        ...overrides,
+      };
+    }
+
+    it('should fall back to simple search when no context provided', async () => {
+      mockSearchFn2.mockResolvedValue([RES_A]);
+
+      const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+
+      eventBus.get('bind:search-requested').next({
+        referenceId: 'ref-no-ctx',
+        searchTerm: 'Alpha',
+      });
+
+      const result = await resultPromise;
+      expect(result!.results).toEqual([RES_A]);
+      // Simple search — no listResources or getResource calls
+      expect(mockListResources).not.toHaveBeenCalled();
+      expect(mockGetResource).not.toHaveBeenCalled();
+    });
+
+    it('should score exact name match higher than contains match', async () => {
+      mockSearchFn2.mockResolvedValue([RES_A, RES_B]);
+
+      const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+
+      eventBus.get('bind:search-requested').next({
+        referenceId: 'ref-name',
+        searchTerm: 'Alpha',
+        context: makeContext(),
+      });
+
+      const result = await resultPromise;
+      const scores = result!.results as Array<{ name: string; score: number; matchReason: string }>;
+      const alpha = scores.find(r => r.name === 'Alpha');
+      const beta = scores.find(r => r.name === 'Beta');
+      expect(alpha).toBeDefined();
+      expect(alpha!.score).toBeGreaterThan(0);
+      // Beta has no name match so its score should be lower
+      if (beta) {
+        expect(alpha!.score).toBeGreaterThan(beta.score);
+      }
+      expect(alpha!.matchReason).toContain('exact name match');
+    });
+
+    it('should boost candidates with matching entity types', async () => {
+      const resWithTypes = {
+        ...RES_A,
+        entityTypes: ['Person', 'Author'],
+      };
+      const resWithoutTypes = { ...RES_B };
+      mockSearchFn2.mockResolvedValue([resWithTypes, resWithoutTypes]);
+
+      const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+
+      eventBus.get('bind:search-requested').next({
+        referenceId: 'ref-et',
+        searchTerm: 'nonmatching', // no name match — isolate entity type signal
+        context: makeContext({
+          metadata: { entityTypes: ['Person', 'Author'] },
+        }),
+      });
+
+      const result = await resultPromise;
+      const scores = result!.results as Array<{ name: string; score: number; matchReason: string }>;
+      const alpha = scores.find(r => r.name === 'Alpha');
+      expect(alpha).toBeDefined();
+      expect(alpha!.matchReason).toContain('entity types');
+      expect(alpha!.score).toBeGreaterThan(0);
+      // Beta has no entity types — should score lower
+      const beta = scores.find(r => r.name === 'Beta');
+      if (beta) {
+        expect(alpha!.score).toBeGreaterThan(beta.score);
+      }
+    });
+
+    it('should boost bidirectional connections', async () => {
+      // RES_A found via name, RES_B found via name — both match
+      // RES_B is also a bidirectional connection
+      mockSearchFn2.mockResolvedValue([RES_A, RES_B]);
+
+      const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+
+      eventBus.get('bind:search-requested').next({
+        referenceId: 'ref-bidir',
+        searchTerm: 'test',
+        context: makeContext({
+          graphContext: {
+            connections: [
+              { resourceId: 'res-b', resourceName: 'Beta', bidirectional: true },
+            ],
+            citedByCount: 0,
+          },
+        }),
+      });
+
+      const result = await resultPromise;
+      const scores = result!.results as Array<{ name: string; score: number; matchReason: string }>;
+      const beta = scores.find(r => r.name === 'Beta');
+      expect(beta).toBeDefined();
+      expect(beta!.matchReason).toContain('bidirectional connection');
+    });
+
+    it('should include neighborhood candidates from connections', async () => {
+      // Name search returns nothing, but connection provides a candidate
+      mockSearchFn2.mockResolvedValue([]);
+      mockGetResource.mockImplementation((id: ResourceId) => {
+        if (id === resourceId('res-c')) return Promise.resolve(RES_C);
+        return Promise.resolve(null);
+      });
+
+      const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+
+      eventBus.get('bind:search-requested').next({
+        referenceId: 'ref-neighbor',
+        searchTerm: 'something',
+        context: makeContext({
+          graphContext: {
+            connections: [
+              { resourceId: 'res-c', resourceName: 'Gamma', bidirectional: false },
+            ],
+            citedByCount: 0,
+          },
+        }),
+      });
+
+      const result = await resultPromise;
+      expect(result!.results.length).toBeGreaterThanOrEqual(1);
+      const gamma = result!.results.find((r: any) => r.name === 'Gamma');
+      expect(gamma).toBeDefined();
+    });
+
+    it('should give multi-source bonus when candidate found by multiple strategies', async () => {
+      // RES_A found by both name search and entity type search
+      mockSearchFn2.mockResolvedValue([RES_A]);
+      mockListResources.mockResolvedValue({ resources: [RES_A], total: 1 });
+
+      const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+
+      eventBus.get('bind:search-requested').next({
+        referenceId: 'ref-multi',
+        searchTerm: 'Alpha',
+        context: makeContext({
+          metadata: { entityTypes: ['Person'] },
+        }),
+      });
+
+      const result = await resultPromise;
+      const scores = result!.results as Array<{ name: string; score: number; matchReason: string }>;
+      const alpha = scores.find(r => r.name === 'Alpha');
+      expect(alpha).toBeDefined();
+      expect(alpha!.matchReason).toContain('retrieval sources');
+    });
+
+    it('should sort results by score descending', async () => {
+      // RES_A: exact name match = high score
+      // RES_B: no name match = low score
+      // RES_C: prefix name match = medium score
+      const resGamma = { ...RES_C, name: 'Alphaville' }; // prefix match for "Alpha"
+      mockSearchFn2.mockResolvedValue([RES_A, RES_B, resGamma]);
+
+      const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+
+      eventBus.get('bind:search-requested').next({
+        referenceId: 'ref-sort',
+        searchTerm: 'Alpha',
+        context: makeContext(),
+      });
+
+      const result = await resultPromise;
+      const scores = result!.results as Array<{ score: number }>;
+      for (let i = 1; i < scores.length; i++) {
+        expect(scores[i - 1].score).toBeGreaterThanOrEqual(scores[i].score);
+      }
+    });
+
+    it('should blend inference semantic scores when inferenceClient provided', async () => {
+      // Stop binder without inference, create one with it
+      await binder.stop();
+      eventBus.destroy();
+
+      vi.clearAllMocks();
+      eventBus = new EventBus();
+      mockSearchFn2 = vi.fn().mockResolvedValue([RES_A, RES_B]);
+      mockListResources = vi.fn().mockResolvedValue({ resources: [], total: 0 });
+      mockGetResource = vi.fn().mockResolvedValue(null);
+      kb = createMockKb({
+        searchResources: mockSearchFn2,
+        listResources: mockListResources,
+        getResource: mockGetResource,
+      });
+
+      const mockInference = {
+        generateText: vi.fn().mockResolvedValue('1. 0.9\n2. 0.2'),
+        generateTextWithMetadata: vi.fn(),
+      };
+      binder = new Binder(kb, eventBus, mockLogger, mockInference);
+      await binder.initialize();
+
+      const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+
+      eventBus.get('bind:search-requested').next({
+        referenceId: 'ref-inference',
+        searchTerm: 'Alpha',
+        context: makeContext(),
+      });
+
+      const result = await resultPromise;
+      const scores = result!.results as Array<{ name: string; score: number; matchReason: string }>;
+      const alpha = scores.find(r => r.name === 'Alpha');
+      const beta = scores.find(r => r.name === 'Beta');
+      expect(alpha).toBeDefined();
+      expect(beta).toBeDefined();
+      // Alpha should have higher inference boost (0.9 * 25 = 22.5)
+      // Beta should have lower inference boost (0.2 * 25 = 5)
+      expect(alpha!.score).toBeGreaterThan(beta!.score);
+      expect(alpha!.matchReason).toContain('semantic match');
+      expect(mockInference.generateText).toHaveBeenCalledTimes(1);
+    });
+
+    it('should gracefully degrade when inference fails', async () => {
+      await binder.stop();
+      eventBus.destroy();
+
+      vi.clearAllMocks();
+      eventBus = new EventBus();
+      mockSearchFn2 = vi.fn().mockResolvedValue([RES_A]);
+      mockListResources = vi.fn().mockResolvedValue({ resources: [], total: 0 });
+      mockGetResource = vi.fn().mockResolvedValue(null);
+      kb = createMockKb({
+        searchResources: mockSearchFn2,
+        listResources: mockListResources,
+        getResource: mockGetResource,
+      });
+
+      const mockInference = {
+        generateText: vi.fn().mockRejectedValue(new Error('LLM unavailable')),
+        generateTextWithMetadata: vi.fn(),
+      };
+      binder = new Binder(kb, eventBus, mockLogger, mockInference);
+      await binder.initialize();
+
+      const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+
+      eventBus.get('bind:search-requested').next({
+        referenceId: 'ref-inference-fail',
+        searchTerm: 'Alpha',
+        context: makeContext(),
+      });
+
+      const result = await resultPromise;
+      // Should still return results with structural scores only
+      expect(result!.results.length).toBe(1);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Inference semantic scoring failed, using structural scores only',
+        expect.anything(),
+      );
+    });
+
+    it('should not call inference when no inferenceClient provided', async () => {
+      // Use the default binder (no inference client)
+      mockSearchFn2.mockResolvedValue([RES_A]);
+
+      const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+
+      eventBus.get('bind:search-requested').next({
+        referenceId: 'ref-no-inference',
+        searchTerm: 'Alpha',
+        context: makeContext(),
+      });
+
+      const result = await resultPromise;
+      expect(result!.results.length).toBe(1);
+      // No inference call — score is purely structural
+      const alpha = result!.results[0] as any;
+      expect(alpha.matchReason).not.toContain('semantic match');
+    });
+
+    it('should emit search-failed when context search throws', async () => {
+      mockSearchFn2.mockRejectedValue(new Error('DB down'));
+
+      const resultPromise = eventBus.get('bind:search-failed').pipe(take(1)).toPromise();
+
+      eventBus.get('bind:search-requested').next({
+        referenceId: 'ref-fail',
+        searchTerm: 'anything',
+        context: makeContext(),
+      });
+
+      const result = await resultPromise;
+      expect(result!.referenceId).toBe('ref-fail');
+      expect(result!.error.message).toBe('DB down');
     });
   });
 

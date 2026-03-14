@@ -72,3 +72,6 @@ export { TagAnnotationWorker } from './workers/tag-annotation-worker';
 
 // Detection utilities
 export { AnnotationDetection } from './workers/annotation-detection';
+
+// Generation utilities
+export { generateResourceFromTopic } from './workers/generation/resource-generation';

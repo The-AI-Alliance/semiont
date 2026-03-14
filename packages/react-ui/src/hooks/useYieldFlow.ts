@@ -12,7 +12,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { AnnotationUri, EventMap, ResourceId, YieldContext, YieldProgress } from '@semiont/core';
+import type { AnnotationUri, EventMap, ResourceId, GatheredContext, YieldProgress } from '@semiont/core';
 import { annotationId as makeAnnotationId, annotationUri, accessToken } from '@semiont/core';
 
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
@@ -38,7 +38,7 @@ export interface YieldFlowState {
     language?: string;
     temperature?: number;
     maxTokens?: number;
-    context?: YieldContext;
+    context?: GatheredContext;
   }) => void;
   onCloseGenerationModal: () => void;
 }
@@ -107,7 +107,7 @@ export function useYieldFlow(
       language?: string;
       temperature?: number;
       maxTokens?: number;
-      context?: YieldContext;
+      context?: GatheredContext;
     }
   ) => {
     // Only open modal if this is the initial click (no context provided)

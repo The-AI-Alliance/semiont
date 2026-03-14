@@ -12,7 +12,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import React from 'react';
 import { renderHook, waitFor, act } from '@testing-library/react';
-import { EventBus, annotationId, resourceId, resourceUri, type YieldContext } from '@semiont/core';
+import { EventBus, annotationId, resourceId, resourceUri, type GatheredContext } from '@semiont/core';
 import { SemiontApiClient } from '@semiont/api-client';
 import { useContextGatherFlow } from '../useContextGatherFlow';
 import { AuthTokenProvider } from '../../contexts/AuthTokenContext';
@@ -26,7 +26,7 @@ describe('useContextGatherFlow', () => {
   const testResourceUri = resourceUri('http://example.com/resources/resource-123');
   const testAnnotationId = annotationId('anno-456');
 
-  const mockContext: YieldContext = {
+  const mockContext: GatheredContext = {
     beforeText: 'This is text before the selection.',
     selectedText: 'Selected entity reference',
     afterText: 'This is text after the selection.',

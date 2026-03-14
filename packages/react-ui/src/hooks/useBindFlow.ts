@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { EventMap, ResourceUri } from '@semiont/core';
+import type { AnnotationId, EventMap, GatheredContext, ResourceId, ResourceUri } from '@semiont/core';
 import { resourceAnnotationUri, accessToken } from '@semiont/core';
 import { useEventBus } from '../contexts/EventBusContext';
 import { useApiClient } from '../contexts/ApiClientContext';
@@ -13,24 +13,38 @@ function toAccessToken(token: string | null) {
 }
 
 export interface BindFlowState {
+  /** Whether the context modal (step 1) is open */
+  contextModalOpen: boolean;
+  /** Whether the search results modal (step 2) is open */
   searchModalOpen: boolean;
   pendingReferenceId: string | null;
+  pendingSearchTerm: string | null;
+  pendingResourceId: ResourceId | null;
+  onCloseContextModal: () => void;
   onCloseSearchModal: () => void;
+  /** Called from BindContextModal when user clicks "Search" */
+  onSearch: (searchTerm: string, context: GatheredContext) => void;
 }
 
 /**
  * Hook that handles the Resolution capability: resolving reference annotations
  * to existing resources (search) or new resources (manual creation).
  *
+ * Two-step flow:
+ * 1. bind:link → opens context modal + triggers gather:requested
+ * 2. User reviews context, clicks "Search" → emits bind:search-requested with context
+ * 3. bind:search-requested → opens search results modal
+ *
  * @param rUri - Resource URI being viewed
- * @returns Resolution flow state (search modal open state and close handler)
+ * @returns Resolution flow state
  *
  * @emits bind:body-updated - Annotation body successfully updated
  * @emits bind:body-update-failed - Annotation body update failed
- * @emits bind:search-requested - Search modal requested
+ * @emits bind:search-requested - Context-driven search requested
+ * @emits gather:requested - Triggers context gathering for the annotation
  * @subscribes bind:update-body - Update annotation body via API
- * @subscribes bind:link - User clicked "Link Document"; opens search modal
- * @subscribes bind:search-requested - Opens search modal with pending reference
+ * @subscribes bind:link - User clicked "Link Document"; opens context modal
+ * @subscribes bind:search-requested - Opens search results modal
  */
 export function useBindFlow(rUri: ResourceUri): BindFlowState {
   const eventBus = useEventBus();
@@ -38,13 +52,36 @@ export function useBindFlow(rUri: ResourceUri): BindFlowState {
   const token = useAuthToken();
   const { showError } = useToast();
 
-  // Resolution search modal state
-  const [searchModalOpen, setSearchModalOpen] = useState(false);
+  // Step 1: Context modal state
+  const [contextModalOpen, setContextModalOpen] = useState(false);
   const [pendingReferenceId, setPendingReferenceId] = useState<string | null>(null);
+  const [pendingSearchTerm, setPendingSearchTerm] = useState<string | null>(null);
+  const [pendingResourceId, setPendingResourceId] = useState<ResourceId | null>(null);
+
+  // Step 2: Search results modal state
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+
+  const onCloseContextModal = useCallback(() => {
+    setContextModalOpen(false);
+  }, []);
 
   const onCloseSearchModal = useCallback(() => {
     setSearchModalOpen(false);
   }, []);
+
+  /**
+   * Called from BindContextModal when user clicks "Search".
+   * Emits bind:search-requested with the gathered context.
+   */
+  const onSearch = useCallback((searchTerm: string, context: GatheredContext) => {
+    if (!pendingReferenceId) return;
+    setContextModalOpen(false);
+    eventBus.get('bind:search-requested').next({
+      referenceId: pendingReferenceId,
+      searchTerm,
+      context,
+    });
+  }, [eventBus, pendingReferenceId]);
 
   // Store latest rUri in ref to avoid re-subscribing when it changes
   const rUriRef = useRef(rUri);
@@ -88,11 +125,20 @@ export function useBindFlow(rUri: ResourceUri): BindFlowState {
     /**
      * Handle reference linking (search for existing documents)
      * Emitted by: ReferenceEntry (when user clicks "Link Document")
+     *
+     * Step 1: Open context modal and trigger gather:requested.
+     * The search is deferred until the user reviews context and clicks "Search".
      */
     const handleReferenceLink = (event: EventMap['bind:link']) => {
-      eventBus.get('bind:search-requested').next({
-        referenceId: event.annotationId,
-        searchTerm: event.searchTerm,
+      setPendingReferenceId(event.annotationId);
+      setPendingSearchTerm(event.searchTerm);
+      setPendingResourceId(event.resourceId);
+      setContextModalOpen(true);
+
+      // Trigger context gathering (same event used by Generate flow)
+      eventBus.get('gather:requested').next({
+        annotationId: event.annotationId as AnnotationId,
+        resourceId: event.resourceId,
       });
     };
 
@@ -106,6 +152,10 @@ export function useBindFlow(rUri: ResourceUri): BindFlowState {
   }, [eventBus]); // eventBus is stable singleton; client/rUri/token accessed via refs
 
   useEffect(() => {
+    /**
+     * Step 2: When bind:search-requested fires, open the search results modal.
+     * This happens after the user clicks "Search" in the context modal.
+     */
     const handleResolutionSearchRequested = (event: { referenceId: string; searchTerm: string }) => {
       setPendingReferenceId(event.referenceId);
       setSearchModalOpen(true);
@@ -120,5 +170,14 @@ export function useBindFlow(rUri: ResourceUri): BindFlowState {
     'bind:body-update-failed': ({ error }) => showError(`Failed to update reference: ${error.message}`),
   });
 
-  return { searchModalOpen, pendingReferenceId, onCloseSearchModal };
+  return {
+    contextModalOpen,
+    searchModalOpen,
+    pendingReferenceId,
+    pendingSearchTerm,
+    pendingResourceId,
+    onCloseContextModal,
+    onCloseSearchModal,
+    onSearch,
+  };
 }

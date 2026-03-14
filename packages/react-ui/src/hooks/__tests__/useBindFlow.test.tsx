@@ -3,6 +3,7 @@
  *
  * Validates the resolution capability:
  * - Event subscription to bind:link, bind:update-body
+ * - Two-step flow: bind:link → context modal → bind:search-requested → search modal
  * - API calls with correct parameters
  * - Modal state management
  * - Success/failure event emission
@@ -76,6 +77,7 @@ function renderBindFlow() {
 
 describe('useBindFlow', () => {
   const testAnnotationId = annotationId('anno-456');
+  const testResourceId = resourceId('test-resource');
 
   beforeEach(() => {
     resetEventBusForTesting();
@@ -89,50 +91,112 @@ describe('useBindFlow', () => {
     // Cleanup
   });
 
-  it('subscribes to bind:link event', () => {
-    const { getState, getEventBus } = renderBindFlow();
+  it('has correct initial state', () => {
+    const { getState } = renderBindFlow();
 
-    // Initial state
+    expect(getState().contextModalOpen).toBe(false);
     expect(getState().searchModalOpen).toBe(false);
     expect(getState().pendingReferenceId).toBe(null);
-
-    // Verify subscription exists by checking if event can be triggered
-    const resolveLinkChannel = getEventBus().get('bind:link');
-    expect(resolveLinkChannel).toBeDefined();
+    expect(getState().pendingSearchTerm).toBe(null);
+    expect(getState().pendingResourceId).toBe(null);
   });
 
-  it('opens search modal on bind:link event', async () => {
-    const { getEventBus } = renderBindFlow();
+  // ─── Two-step flow: bind:link → context modal → search ─────────────
 
-    // Subscribe to bind:search-requested to verify relay
-    const searchRequestedSpy = vi.fn();
-    getEventBus().get('bind:search-requested').subscribe(searchRequestedSpy);
+  it('opens context modal on bind:link event', async () => {
+    const { getState, getEventBus } = renderBindFlow();
 
-    // Trigger bind:link event
     act(() => {
       getEventBus().get('bind:link').next({
         annotationId: testAnnotationId,
+        resourceId: testResourceId,
         searchTerm: 'test search term',
       });
     });
 
-    // Should relay to bind:search-requested
     await waitFor(() => {
-      expect(searchRequestedSpy).toHaveBeenCalledWith({
-        referenceId: testAnnotationId,
-        searchTerm: 'test search term',
+      expect(getState().contextModalOpen).toBe(true);
+      expect(getState().pendingReferenceId).toBe(String(testAnnotationId));
+      expect(getState().pendingSearchTerm).toBe('test search term');
+      expect(getState().pendingResourceId).toBe(testResourceId);
+    });
+
+    // Search modal should NOT be open yet (two-step flow)
+    expect(getState().searchModalOpen).toBe(false);
+  });
+
+  it('emits gather:requested on bind:link', async () => {
+    const { getEventBus } = renderBindFlow();
+    const gatherSpy = vi.fn();
+    getEventBus().get('gather:requested').subscribe(gatherSpy);
+
+    act(() => {
+      getEventBus().get('bind:link').next({
+        annotationId: testAnnotationId,
+        resourceId: testResourceId,
+        searchTerm: 'test',
       });
+    });
+
+    await waitFor(() => {
+      expect(gatherSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          annotationId: testAnnotationId,
+          resourceId: testResourceId,
+        })
+      );
     });
   });
 
-  it('opens modal and stores pending reference on bind:search-requested', async () => {
+  it('does NOT emit bind:search-requested immediately on bind:link', async () => {
+    const { getEventBus } = renderBindFlow();
+    const searchRequestedSpy = vi.fn();
+    getEventBus().get('bind:search-requested').subscribe(searchRequestedSpy);
+
+    act(() => {
+      getEventBus().get('bind:link').next({
+        annotationId: testAnnotationId,
+        resourceId: testResourceId,
+        searchTerm: 'test',
+      });
+    });
+
+    // Give time for any async processing
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(searchRequestedSpy).not.toHaveBeenCalled();
+  });
+
+  it('closes context modal via onCloseContextModal', async () => {
     const { getState, getEventBus } = renderBindFlow();
 
-    // Initially closed
-    expect(getState().searchModalOpen).toBe(false);
-    expect(getState().pendingReferenceId).toBe(null);
+    act(() => {
+      getEventBus().get('bind:link').next({
+        annotationId: testAnnotationId,
+        resourceId: testResourceId,
+        searchTerm: 'test',
+      });
+    });
 
-    // Trigger search requested
+    await waitFor(() => {
+      expect(getState().contextModalOpen).toBe(true);
+    });
+
+    act(() => {
+      getState().onCloseContextModal();
+    });
+
+    await waitFor(() => {
+      expect(getState().contextModalOpen).toBe(false);
+    });
+  });
+
+  // ─── bind:search-requested → search modal ──────────────────────────
+
+  it('opens search modal on bind:search-requested', async () => {
+    const { getState, getEventBus } = renderBindFlow();
+
+    expect(getState().searchModalOpen).toBe(false);
+
     act(() => {
       getEventBus().get('bind:search-requested').next({
         referenceId: testAnnotationId,
@@ -140,17 +204,15 @@ describe('useBindFlow', () => {
       });
     });
 
-    // Modal should open and reference should be stored
     await waitFor(() => {
       expect(getState().searchModalOpen).toBe(true);
       expect(getState().pendingReferenceId).toBe(testAnnotationId);
     });
   });
 
-  it('closes modal when onCloseSearchModal is called', async () => {
+  it('closes search modal when onCloseSearchModal is called', async () => {
     const { getState, getEventBus } = renderBindFlow();
 
-    // Open the modal first
     act(() => {
       getEventBus().get('bind:search-requested').next({
         referenceId: testAnnotationId,
@@ -162,7 +224,6 @@ describe('useBindFlow', () => {
       expect(getState().searchModalOpen).toBe(true);
     });
 
-    // Close the modal
     act(() => {
       getState().onCloseSearchModal();
     });
@@ -171,6 +232,8 @@ describe('useBindFlow', () => {
       expect(getState().searchModalOpen).toBe(false);
     });
   });
+
+  // ─── Body update operations ─────────────────────────────────────────
 
   it('handles body update with add operation', async () => {
     mockUpdateAnnotationBody.mockResolvedValue(undefined);
@@ -182,13 +245,10 @@ describe('useBindFlow', () => {
       source: 'resource:789',
     };
 
-    const testResourceId = resourceId('resource-123');
-
-    // Trigger body update with add operation
     act(() => {
       getEventBus().get('bind:update-body').next({
         annotationId: testAnnotationId,
-        resourceId: testResourceId,
+        resourceId: resourceId('resource-123'),
         operations: [
           {
             op: 'add',
@@ -198,7 +258,6 @@ describe('useBindFlow', () => {
       });
     });
 
-    // Should call API with correct parameters
     await waitFor(() => {
       expect(mockUpdateAnnotationBody).toHaveBeenCalled();
     });
@@ -214,13 +273,10 @@ describe('useBindFlow', () => {
       source: 'resource:789',
     };
 
-    const testResourceId = resourceId('resource-123');
-
-    // Trigger body update with remove operation
     act(() => {
       getEventBus().get('bind:update-body').next({
         annotationId: testAnnotationId,
-        resourceId: testResourceId,
+        resourceId: resourceId('resource-123'),
         operations: [
           {
             op: 'remove',
@@ -230,7 +286,6 @@ describe('useBindFlow', () => {
       });
     });
 
-    // Should call API with correct parameters
     await waitFor(() => {
       expect(mockUpdateAnnotationBody).toHaveBeenCalled();
     });
@@ -241,34 +296,20 @@ describe('useBindFlow', () => {
 
     const { getEventBus } = renderBindFlow();
 
-    const oldBodyItem = {
-      type: 'SpecificResource' as const,
-      source: 'resource:123',
-    };
-
-    const newBodyItem = {
-      type: 'SpecificResource' as const,
-      source: 'resource:789',
-    };
-
-    const testResourceId = resourceId('resource-123');
-
-    // Trigger body update with replace operation
     act(() => {
       getEventBus().get('bind:update-body').next({
         annotationId: testAnnotationId,
-        resourceId: testResourceId,
+        resourceId: resourceId('resource-123'),
         operations: [
           {
             op: 'replace',
-            oldItem: oldBodyItem,
-            newItem: newBodyItem,
+            oldItem: { type: 'SpecificResource', source: 'resource:123' },
+            newItem: { type: 'SpecificResource', source: 'resource:789' },
           },
         ],
       });
     });
 
-    // Should call API with correct parameters
     await waitFor(() => {
       expect(mockUpdateAnnotationBody).toHaveBeenCalled();
     });
@@ -279,17 +320,13 @@ describe('useBindFlow', () => {
 
     const { getEventBus } = renderBindFlow();
 
-    // Subscribe to bind:body-updated event
     const bodyUpdatedSpy = vi.fn();
     getEventBus().get('bind:body-updated').subscribe(bodyUpdatedSpy);
 
-    const testResourceId = resourceId('resource-123');
-
-    // Trigger body update
     act(() => {
       getEventBus().get('bind:update-body').next({
         annotationId: testAnnotationId,
-        resourceId: testResourceId,
+        resourceId: resourceId('resource-123'),
         operations: [
           {
             op: 'add',
@@ -299,7 +336,6 @@ describe('useBindFlow', () => {
       });
     });
 
-    // Should emit body-updated event
     await waitFor(() => {
       expect(bodyUpdatedSpy).toHaveBeenCalledWith({
         annotationId: testAnnotationId,
@@ -313,17 +349,13 @@ describe('useBindFlow', () => {
 
     const { getEventBus } = renderBindFlow();
 
-    // Subscribe to bind:body-update-failed event
     const bodyUpdateFailedSpy = vi.fn();
     getEventBus().get('bind:body-update-failed').subscribe(bodyUpdateFailedSpy);
 
-    const testResourceId = resourceId('resource-123');
-
-    // Trigger body update
     act(() => {
       getEventBus().get('bind:update-body').next({
         annotationId: testAnnotationId,
-        resourceId: testResourceId,
+        resourceId: resourceId('resource-123'),
         operations: [
           {
             op: 'add',
@@ -333,7 +365,6 @@ describe('useBindFlow', () => {
       });
     });
 
-    // Should emit body-update-failed event
     await waitFor(() => {
       expect(bodyUpdateFailedSpy).toHaveBeenCalledWith({
         error: testError,
@@ -347,13 +378,10 @@ describe('useBindFlow', () => {
 
     const { getEventBus } = renderBindFlow();
 
-    const testResourceId = resourceId('resource-123');
-
-    // Trigger body update
     act(() => {
       getEventBus().get('bind:update-body').next({
         annotationId: testAnnotationId,
-        resourceId: testResourceId,
+        resourceId: resourceId('resource-123'),
         operations: [
           {
             op: 'add',
@@ -363,7 +391,6 @@ describe('useBindFlow', () => {
       });
     });
 
-    // Should show error toast
     await waitFor(() => {
       expect(mockShowError).toHaveBeenCalledWith(
         expect.stringContaining('Failed to update reference')

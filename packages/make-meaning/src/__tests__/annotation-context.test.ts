@@ -10,10 +10,49 @@ import { AnnotationContext } from '../annotation-context';
 import { resourceId, annotationId, userId, type Logger } from '@semiont/core';
 import { createEventStore, FilesystemViewStorage } from '@semiont/event-sourcing';
 import { FilesystemRepresentationStore } from '@semiont/content';
+import type { GraphDatabase } from '@semiont/graph';
 import type { KnowledgeBase } from '../knowledge-base';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+
+function createMockGraphDb(): GraphDatabase {
+  return {
+    connect: vi.fn().mockResolvedValue(undefined),
+    disconnect: vi.fn().mockResolvedValue(undefined),
+    isConnected: vi.fn().mockReturnValue(true),
+    createResource: vi.fn().mockResolvedValue({}),
+    getResource: vi.fn().mockResolvedValue(null),
+    updateResource: vi.fn().mockResolvedValue({}),
+    deleteResource: vi.fn().mockResolvedValue(undefined),
+    listResources: vi.fn().mockResolvedValue({ resources: [], total: 0 }),
+    searchResources: vi.fn().mockResolvedValue([]),
+    createAnnotation: vi.fn().mockResolvedValue({}),
+    getAnnotation: vi.fn().mockResolvedValue(null),
+    updateAnnotation: vi.fn().mockResolvedValue({}),
+    deleteAnnotation: vi.fn().mockResolvedValue(undefined),
+    listAnnotations: vi.fn().mockResolvedValue({ annotations: [], total: 0 }),
+    getHighlights: vi.fn().mockResolvedValue([]),
+    resolveReference: vi.fn().mockResolvedValue({}),
+    getReferences: vi.fn().mockResolvedValue([]),
+    getEntityReferences: vi.fn().mockResolvedValue([]),
+    getResourceAnnotations: vi.fn().mockResolvedValue([]),
+    getResourceReferencedBy: vi.fn().mockResolvedValue([]),
+    getResourceConnections: vi.fn().mockResolvedValue([]),
+    findPath: vi.fn().mockResolvedValue([]),
+    getEntityTypeStats: vi.fn().mockResolvedValue([]),
+    getStats: vi.fn().mockResolvedValue({ resourceCount: 0, annotationCount: 0, highlightCount: 0, referenceCount: 0, entityReferenceCount: 0, entityTypes: {}, contentTypes: {} }),
+    batchCreateResources: vi.fn().mockResolvedValue([]),
+    createAnnotations: vi.fn().mockResolvedValue([]),
+    resolveReferences: vi.fn().mockResolvedValue([]),
+    detectAnnotations: vi.fn().mockResolvedValue([]),
+    getEntityTypes: vi.fn().mockResolvedValue([]),
+    addEntityType: vi.fn().mockResolvedValue(undefined),
+    addEntityTypes: vi.fn().mockResolvedValue(undefined),
+    generateId: vi.fn().mockReturnValue('mock-id'),
+    clearDatabase: vi.fn().mockResolvedValue(undefined),
+  } as unknown as GraphDatabase;
+}
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -26,6 +65,7 @@ const mockLogger: Logger = {
 describe('AnnotationContext', () => {
   let testDir: string;
   let kb: KnowledgeBase;
+  let mockGraphDb: GraphDatabase;
 
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-test-annotation-context-${Date.now()}`);
@@ -34,12 +74,13 @@ describe('AnnotationContext', () => {
     const viewStorage = new FilesystemViewStorage(testDir, testDir);
     const repStore = new FilesystemRepresentationStore({ basePath: testDir }, testDir, mockLogger);
     const eventStore = createEventStore(testDir, undefined, undefined, mockLogger);
+    mockGraphDb = createMockGraphDb();
 
     kb = {
       eventStore,
       views: viewStorage,
       content: repStore,
-      graph: {} as any,
+      graph: mockGraphDb,
     };
   });
 
@@ -317,5 +358,291 @@ describe('AnnotationContext', () => {
 
     expect(result).toBeDefined();
     expect(result.annotation).toBeDefined();
+  });
+
+  describe('graph context enrichment', () => {
+    it('should include graphContext with connections', async () => {
+      const testResourceId = `resource-graph-conn-${Date.now()}`;
+      const testAnnId = `ann-graph-conn-${Date.now()}`;
+      await createTestResource(testResourceId, 'The quick brown fox jumps over the lazy dog');
+      await createTestAnnotation(testResourceId, testAnnId, 'fox', 16, 19);
+
+      // Mock graph connections
+      (mockGraphDb.getResourceConnections as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+        {
+          targetResource: { '@id': 'connected-1', id: 'connected-1', name: 'Connected Resource', entityTypes: ['Person'] },
+          annotations: [],
+          bidirectional: true,
+        },
+      ]);
+      (mockGraphDb.getResourceReferencedBy as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      (mockGraphDb.getEntityTypeStats as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+        { type: 'Person', count: 5 },
+        { type: 'Location', count: 3 },
+      ]);
+
+      const result = await AnnotationContext.buildLLMContext(
+        annotationId(testAnnId),
+        resourceId(testResourceId),
+        kb,
+        {},
+        undefined,
+        mockLogger
+      );
+
+      expect(result.context).toBeDefined();
+      expect(result.context?.graphContext).toBeDefined();
+      expect(result.context?.graphContext?.connections).toHaveLength(1);
+      expect(result.context?.graphContext?.connections?.[0]).toMatchObject({
+        resourceId: 'connected-1',
+        resourceName: 'Connected Resource',
+        bidirectional: true,
+      });
+    });
+
+    it('should include citedBy resources', async () => {
+      const testResourceId = `resource-cited-${Date.now()}`;
+      const testAnnId = `ann-cited-${Date.now()}`;
+      const citingResourceId = `resource-citing-${Date.now()}`;
+      await createTestResource(testResourceId, 'The quick brown fox jumps over the lazy dog');
+      await createTestAnnotation(testResourceId, testAnnId, 'fox', 16, 19);
+
+      // Create the citing resource so views.get can find it
+      await createTestResource(citingResourceId, 'This document cites the fox resource');
+
+      (mockGraphDb.getResourceConnections as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      (mockGraphDb.getResourceReferencedBy as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+        {
+          id: 'citing-ann-1',
+          type: 'Annotation',
+          motivation: 'linking',
+          target: { source: citingResourceId },
+          body: {},
+        },
+      ]);
+      (mockGraphDb.getEntityTypeStats as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+
+      const result = await AnnotationContext.buildLLMContext(
+        annotationId(testAnnId),
+        resourceId(testResourceId),
+        kb,
+        {},
+        undefined,
+        mockLogger
+      );
+
+      expect(result.context?.graphContext?.citedByCount).toBe(1);
+      expect(result.context?.graphContext?.citedBy).toHaveLength(1);
+      expect(result.context?.graphContext?.citedBy?.[0]?.resourceId).toBe(citingResourceId);
+    });
+
+    it('should include entity type frequencies', async () => {
+      const testResourceId = `resource-freq-${Date.now()}`;
+      const testAnnId = `ann-freq-${Date.now()}`;
+      await createTestResource(testResourceId, 'The quick brown fox jumps over the lazy dog');
+      await createTestAnnotation(testResourceId, testAnnId, 'fox', 16, 19);
+
+      (mockGraphDb.getResourceConnections as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      (mockGraphDb.getResourceReferencedBy as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      (mockGraphDb.getEntityTypeStats as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+        { type: 'Person', count: 12 },
+        { type: 'Location', count: 7 },
+        { type: 'Event', count: 2 },
+      ]);
+
+      const result = await AnnotationContext.buildLLMContext(
+        annotationId(testAnnId),
+        resourceId(testResourceId),
+        kb,
+        {},
+        undefined,
+        mockLogger
+      );
+
+      expect(result.context?.graphContext?.entityTypeFrequencies).toEqual({
+        Person: 12,
+        Location: 7,
+        Event: 2,
+      });
+    });
+
+    it('should include sibling entity types from other annotations', async () => {
+      const testResourceId = `resource-sibling-${Date.now()}`;
+      const testAnnId = `ann-sibling-main-${Date.now()}`;
+      const siblingAnnId = `ann-sibling-other-${Date.now()}`;
+      await createTestResource(testResourceId, 'The quick brown fox jumps over the lazy dog near London');
+      await createTestAnnotation(testResourceId, testAnnId, 'fox', 16, 19);
+
+      // Add a sibling annotation with entity types
+      const eventStore = createEventStore(testDir, undefined, undefined, mockLogger);
+      await eventStore.appendEvent({
+        type: 'annotation.added',
+        resourceId: resourceId(testResourceId),
+        userId: userId('user-1'),
+        version: 1,
+        payload: {
+          annotation: {
+            '@context': 'http://www.w3.org/ns/anno.jsonld',
+            id: siblingAnnId,
+            type: 'Annotation',
+            motivation: 'tagging',
+            body: [{
+              type: 'TextualBody',
+              value: 'Location',
+              purpose: 'tagging',
+              format: 'text/plain'
+            }],
+            target: {
+              source: testResourceId,
+              selector: [{
+                type: 'TextPositionSelector',
+                start: 49,
+                end: 55
+              }]
+            }
+          }
+        }
+      });
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      (mockGraphDb.getResourceConnections as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      (mockGraphDb.getResourceReferencedBy as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      (mockGraphDb.getEntityTypeStats as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+
+      const result = await AnnotationContext.buildLLMContext(
+        annotationId(testAnnId),
+        resourceId(testResourceId),
+        kb,
+        {},
+        undefined,
+        mockLogger
+      );
+
+      expect(result.context?.graphContext?.siblingEntityTypes).toBeDefined();
+      // The sibling annotation has entity type 'Location'
+      expect(result.context?.graphContext?.siblingEntityTypes).toContain('Location');
+    });
+
+    it('should generate inferredRelationshipSummary when inferenceClient provided', async () => {
+      const testResourceId = `resource-infer-${Date.now()}`;
+      const testAnnId = `ann-infer-${Date.now()}`;
+      await createTestResource(testResourceId, 'The quick brown fox jumps over the lazy dog');
+      await createTestAnnotation(testResourceId, testAnnId, 'fox', 16, 19);
+
+      (mockGraphDb.getResourceConnections as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+        {
+          targetResource: { '@id': 'conn-1', id: 'conn-1', name: 'Animals', entityTypes: ['Topic'] },
+          annotations: [],
+          bidirectional: false,
+        },
+      ]);
+      (mockGraphDb.getResourceReferencedBy as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      (mockGraphDb.getEntityTypeStats as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+
+      const mockInferenceClient = {
+        generateText: vi.fn().mockResolvedValue('This passage about a fox relates to the Animals topic in the knowledge base.'),
+        generateTextWithMetadata: vi.fn(),
+      };
+
+      const result = await AnnotationContext.buildLLMContext(
+        annotationId(testAnnId),
+        resourceId(testResourceId),
+        kb,
+        {},
+        mockInferenceClient,
+        mockLogger
+      );
+
+      expect(result.context?.graphContext?.inferredRelationshipSummary).toBeDefined();
+      expect(result.context?.graphContext?.inferredRelationshipSummary).toContain('fox');
+      expect(mockInferenceClient.generateText).toHaveBeenCalledTimes(1);
+      // Verify the prompt includes passage and graph neighborhood
+      const prompt = mockInferenceClient.generateText.mock.calls[0][0];
+      expect(prompt).toContain('fox');
+      expect(prompt).toContain('Animals');
+    });
+
+    it('should not include inferredRelationshipSummary without inferenceClient', async () => {
+      const testResourceId = `resource-no-infer-${Date.now()}`;
+      const testAnnId = `ann-no-infer-${Date.now()}`;
+      await createTestResource(testResourceId, 'The quick brown fox jumps over the lazy dog');
+      await createTestAnnotation(testResourceId, testAnnId, 'fox', 16, 19);
+
+      (mockGraphDb.getResourceConnections as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      (mockGraphDb.getResourceReferencedBy as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      (mockGraphDb.getEntityTypeStats as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+
+      const result = await AnnotationContext.buildLLMContext(
+        annotationId(testAnnId),
+        resourceId(testResourceId),
+        kb,
+        {},
+        undefined,
+        mockLogger
+      );
+
+      expect(result.context?.graphContext?.inferredRelationshipSummary).toBeUndefined();
+    });
+
+    it('should gracefully handle inference failure', async () => {
+      const testResourceId = `resource-infer-fail-${Date.now()}`;
+      const testAnnId = `ann-infer-fail-${Date.now()}`;
+      await createTestResource(testResourceId, 'The quick brown fox jumps over the lazy dog');
+      await createTestAnnotation(testResourceId, testAnnId, 'fox', 16, 19);
+
+      (mockGraphDb.getResourceConnections as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      (mockGraphDb.getResourceReferencedBy as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      (mockGraphDb.getEntityTypeStats as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+
+      const mockInferenceClient = {
+        generateText: vi.fn().mockRejectedValue(new Error('LLM unavailable')),
+        generateTextWithMetadata: vi.fn(),
+      };
+
+      const result = await AnnotationContext.buildLLMContext(
+        annotationId(testAnnId),
+        resourceId(testResourceId),
+        kb,
+        {},
+        mockInferenceClient,
+        mockLogger
+      );
+
+      // Should succeed without inferredRelationshipSummary
+      expect(result.context).toBeDefined();
+      expect(result.context?.graphContext?.inferredRelationshipSummary).toBeUndefined();
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Failed to generate inferred relationship summary',
+        expect.anything(),
+      );
+    });
+
+    it('should handle empty graph gracefully', async () => {
+      const testResourceId = `resource-empty-graph-${Date.now()}`;
+      const testAnnId = `ann-empty-graph-${Date.now()}`;
+      await createTestResource(testResourceId, 'The quick brown fox jumps over the lazy dog');
+      await createTestAnnotation(testResourceId, testAnnId, 'fox', 16, 19);
+
+      (mockGraphDb.getResourceConnections as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      (mockGraphDb.getResourceReferencedBy as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+      (mockGraphDb.getEntityTypeStats as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+
+      const result = await AnnotationContext.buildLLMContext(
+        annotationId(testAnnId),
+        resourceId(testResourceId),
+        kb,
+        {},
+        undefined,
+        mockLogger
+      );
+
+      expect(result.context?.graphContext).toEqual({
+        connections: [],
+        citedByCount: 0,
+        citedBy: [],
+        siblingEntityTypes: [],
+        entityTypeFrequencies: {},
+      });
+    });
   });
 });

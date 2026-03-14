@@ -393,6 +393,7 @@ describe('ReferenceEntry', () => {
 
       expect(searchHandler).toHaveBeenCalledWith({
         annotationId: 'ref-1',
+        resourceId: 'resource-1',
         searchTerm: 'referenced text',
       });
 

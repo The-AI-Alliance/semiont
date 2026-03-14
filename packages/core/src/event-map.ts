@@ -19,7 +19,7 @@ export type Selector =
   | components['schemas']['SvgSelector']
   | components['schemas']['FragmentSelector'];
 
-export type YieldContext = components['schemas']['YieldContext'];
+export type GatheredContext = components['schemas']['GatheredContext'];
 
 type Annotation = components['schemas']['Annotation'];
 type Motivation = components['schemas']['Motivation'];
@@ -119,7 +119,7 @@ export type EventMap = {
       language?: string;
       temperature?: number;
       maxTokens?: number;
-      context: YieldContext;
+      context: GatheredContext;
     };
   };
   'yield:progress': YieldProgress;
@@ -324,12 +324,14 @@ export type EventMap = {
   };
   'bind:link': {
     annotationId: AnnotationId;
+    resourceId: ResourceId;
     searchTerm: string;
   };
   'bind:search-requested': {
     correlationId?: string;
     referenceId: string;
     searchTerm: string;
+    context?: GatheredContext;
   };
   'bind:update-body': {
     annotationId: AnnotationId;
@@ -347,7 +349,10 @@ export type EventMap = {
   'bind:search-results': {
     referenceId: string;
     searchTerm: string;
-    results: components['schemas']['ResourceDescriptor'][];
+    results: Array<components['schemas']['ResourceDescriptor'] & {
+      score?: number;
+      matchReason?: string;
+    }>;
     correlationId?: string;
   };
   'bind:search-failed': {

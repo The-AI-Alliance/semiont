@@ -143,7 +143,7 @@ export type {
   MarkProgress,
   YieldProgress,
   Selector,
-  YieldContext,
+  GatheredContext,
 } from './event-map';
 
 // Backend-specific annotation utilities

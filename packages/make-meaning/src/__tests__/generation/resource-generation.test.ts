@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { generateResourceFromTopic } from '../../generation/resource-generation';
+import { generateResourceFromTopic } from '@semiont/jobs';
 import { MockInferenceClient } from '@semiont/inference';
 
 // Create mock client directly - no need for complex vi.mock since we're passing it directly to functions

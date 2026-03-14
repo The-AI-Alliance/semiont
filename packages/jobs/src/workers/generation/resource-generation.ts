@@ -5,7 +5,7 @@
  */
 
 import { getLocaleEnglishName } from '@semiont/api-client';
-import type { YieldContext, Logger } from '@semiont/core';
+import type { GatheredContext, Logger } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 
 
@@ -22,7 +22,7 @@ export async function generateResourceFromTopic(
   client: InferenceClient,
   userPrompt?: string,
   locale?: string,
-  context?: YieldContext,
+  context?: GatheredContext,
   temperature?: number,
   maxTokens?: number,
   logger?: Logger
@@ -59,10 +59,43 @@ ${after ? `${after}...` : ''}
 `;
   }
 
+  // Build graph context section if available
+  let graphContextSection = '';
+  if (context?.graphContext) {
+    const gc = context.graphContext;
+    const connections = gc.connections ?? [];
+    const citedBy = gc.citedBy ?? [];
+    const parts: string[] = [];
+
+    if (connections.length > 0) {
+      const connList = connections
+        .map(c => `${c.resourceName}${c.entityTypes?.length ? ` (${c.entityTypes.join(', ')})` : ''}`)
+        .join(', ');
+      parts.push(`- Connected resources: ${connList}`);
+    }
+
+    if (gc.citedByCount && gc.citedByCount > 0) {
+      const citedNames = citedBy.map(c => c.resourceName).join(', ');
+      parts.push(`- This resource is cited by ${gc.citedByCount} other resource${gc.citedByCount > 1 ? 's' : ''}${citedNames ? `: ${citedNames}` : ''}`);
+    }
+
+    if (gc.siblingEntityTypes && gc.siblingEntityTypes.length > 0) {
+      parts.push(`- Related entity types in this document: ${gc.siblingEntityTypes.join(', ')}`);
+    }
+
+    if (gc.inferredRelationshipSummary) {
+      parts.push(`- Relationship summary: ${gc.inferredRelationshipSummary}`);
+    }
+
+    if (parts.length > 0) {
+      graphContextSection = `\n\nKnowledge graph context:\n${parts.join('\n')}`;
+    }
+  }
+
   // Simple, direct prompt - just ask for markdown content
   const prompt = `Generate a concise, informative resource about "${topic}".
 ${entityTypes.length > 0 ? `Focus on these entity types: ${entityTypes.join(', ')}.` : ''}
-${userPrompt ? `Additional context: ${userPrompt}` : ''}${contextSection}${languageInstruction}
+${userPrompt ? `Additional context: ${userPrompt}` : ''}${contextSection}${graphContextSection}${languageInstruction}
 
 Requirements:
 - Start with a clear heading (# Title)
