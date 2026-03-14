@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Fragment } from 'react';
+import React from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 import './modals.css';
@@ -91,12 +91,11 @@ export function KeyboardShortcutsHelpModal({ isOpen, onClose }: KeyboardShortcut
   const isMac = typeof window !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 
   return (
-    <Transition appear show={isOpen} as={Fragment}>
+    <Transition appear show={isOpen}>
       <Dialog as="div" className="semiont-modal" onClose={onClose}>
         {/* Backdrop */}
         <TransitionChild
-          as={Fragment}
-          enter="ease-out duration-200"
+                   enter="ease-out duration-200"
           enterFrom="opacity-0"
           enterTo="opacity-100"
           leave="ease-in duration-150"
@@ -110,8 +109,7 @@ export function KeyboardShortcutsHelpModal({ isOpen, onClose }: KeyboardShortcut
         <div className="semiont-modal__container">
           <div className="semiont-modal__wrapper">
             <TransitionChild
-              as={Fragment}
-              enter="ease-out duration-200"
+                           enter="ease-out duration-200"
               enterFrom="opacity-0 scale-95"
               enterTo="opacity-100 scale-100"
               leave="ease-in duration-150"

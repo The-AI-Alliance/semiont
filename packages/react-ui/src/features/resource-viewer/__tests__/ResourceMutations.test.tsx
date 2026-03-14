@@ -175,7 +175,7 @@ describe('Resource mutations — hooks hoisted to top level', () => {
     await waitFor(() => {
       expect(generateCloneTokenSpy).toHaveBeenCalledWith(
         TEST_URI,
-        expect.anything()
+        expect.anything(),
       );
     });
   });
@@ -241,7 +241,7 @@ describe('Resource mutations — hooks hoisted to top level', () => {
     expect(updateResourceSpy).toHaveBeenCalledWith(
       TEST_URI,
       expect.objectContaining({ archived: true }),
-      expect.anything()
+      expect.anything(),
     );
   });
 
@@ -275,7 +275,7 @@ describe('Resource mutations — hooks hoisted to top level', () => {
     expect(updateResourceSpy).toHaveBeenCalledWith(
       TEST_URI,
       expect.objectContaining({ archived: false }),
-      expect.anything()
+      expect.anything(),
     );
   });
 

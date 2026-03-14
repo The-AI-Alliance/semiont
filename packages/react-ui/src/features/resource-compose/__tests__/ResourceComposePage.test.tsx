@@ -448,7 +448,7 @@ describe('ResourceComposePage', () => {
         expect.objectContaining({
           theme: 'dark',
         }),
-        expect.anything()
+        undefined,
       );
     });
   });

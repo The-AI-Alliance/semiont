@@ -106,7 +106,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
 
       // Form should be visible (meaning progress was null)
       expect(screen.getByPlaceholderText('Enter custom instructions...')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /✨ Annotate/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /✨\s*Annotate/ })).toBeInTheDocument();
     });
 
     it('should pass undefined progress to AssistSection', () => {
@@ -122,7 +122,7 @@ describe('HighlightPanel + AssistSection Integration', () => {
 
       // Form should be visible (meaning progress was undefined)
       expect(screen.getByPlaceholderText('Enter custom instructions...')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /✨ Annotate/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /✨\s*Annotate/ })).toBeInTheDocument();
     });
 
     it('should keep progress visible after detection completes (isAssisting=false)', () => {

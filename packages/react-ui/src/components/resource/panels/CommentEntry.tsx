@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import { useState, useEffect, useRef, useImperativeHandle, type Ref } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components } from '@semiont/core';
 import { getAnnotationExactText, getCommentText } from '@semiont/api-client';
@@ -14,6 +14,7 @@ interface CommentEntryProps {
   isFocused: boolean;
   isHovered?: boolean;
   annotateMode?: boolean;
+  ref?: Ref<HTMLDivElement>;
 }
 
 function formatRelativeTime(isoString: string): string {
@@ -33,16 +34,13 @@ function formatRelativeTime(isoString: string): string {
   return date.toLocaleDateString();
 }
 
-export const CommentEntry = forwardRef<HTMLDivElement, CommentEntryProps>(
-  function CommentEntry(
-    {
-      comment,
-      isFocused,
-      isHovered = false,
-      annotateMode = true,
-    },
-    ref
-  ) {
+export function CommentEntry({
+  comment,
+  isFocused,
+  isHovered = false,
+  annotateMode = true,
+  ref,
+}: CommentEntryProps) {
   const t = useTranslations('CommentsPanel');
   const eventBus = useEventBus();
   const hoverProps = useHoverEmitter(comment.id);
@@ -156,4 +154,4 @@ export const CommentEntry = forwardRef<HTMLDivElement, CommentEntryProps>(
       )}
     </div>
   );
-});
+}

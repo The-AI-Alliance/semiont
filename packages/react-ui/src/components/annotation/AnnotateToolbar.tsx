@@ -36,7 +36,7 @@ interface DropdownGroupProps {
   isExpanded: boolean;
   onHoverChange: (hovering: boolean) => void;
   onPin: () => void;
-  containerRef: React.RefObject<HTMLDivElement>;
+  containerRef: React.Ref<HTMLDivElement>;
 }
 
 function DropdownGroup({

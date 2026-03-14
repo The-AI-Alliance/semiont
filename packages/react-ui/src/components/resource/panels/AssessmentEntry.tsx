@@ -1,6 +1,6 @@
 'use client';
 
-import { forwardRef } from 'react';
+import type { Ref } from 'react';
 import type { components } from '@semiont/core';
 import { getAnnotationExactText } from '@semiont/api-client';
 import { useEventBus } from '../../../contexts/EventBusContext';
@@ -20,6 +20,7 @@ interface AssessmentEntryProps {
   assessment: Annotation;
   isFocused: boolean;
   isHovered?: boolean;
+  ref?: Ref<HTMLDivElement>;
 }
 
 function formatRelativeTime(isoString: string): string {
@@ -67,15 +68,12 @@ function getAssessmentText(annotation: Annotation): string | null {
   return null;
 }
 
-export const AssessmentEntry = forwardRef<HTMLDivElement, AssessmentEntryProps>(
-  function AssessmentEntry(
-    {
-      assessment,
-      isFocused,
-      isHovered = false,
-    },
-    ref
-  ) {
+export function AssessmentEntry({
+  assessment,
+  isFocused,
+  isHovered = false,
+  ref,
+}: AssessmentEntryProps) {
   const eventBus = useEventBus();
   const hoverProps = useHoverEmitter(assessment.id);
 
@@ -113,4 +111,4 @@ export const AssessmentEntry = forwardRef<HTMLDivElement, AssessmentEntryProps>(
       </div>
     </div>
   );
-});
+}

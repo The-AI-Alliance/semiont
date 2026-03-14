@@ -1,6 +1,6 @@
 'use client';
 
-import { forwardRef } from 'react';
+import type { Ref } from 'react';
 import type { components } from '@semiont/core';
 import { getAnnotationExactText } from '@semiont/api-client';
 import { getTagCategory, getTagSchemaId } from '@semiont/ontology';
@@ -14,17 +14,15 @@ interface TagEntryProps {
   tag: Annotation;
   isFocused: boolean;
   isHovered?: boolean;
+  ref?: Ref<HTMLDivElement>;
 }
 
-export const TagEntry = forwardRef<HTMLDivElement, TagEntryProps>(
-  function TagEntry(
-    {
-      tag,
-      isFocused,
-      isHovered = false,
-    },
-    ref
-  ) {
+export function TagEntry({
+  tag,
+  isFocused,
+  isHovered = false,
+  ref,
+}: TagEntryProps) {
   const eventBus = useEventBus();
   const hoverProps = useHoverEmitter(tag.id);
 
@@ -62,4 +60,4 @@ export const TagEntry = forwardRef<HTMLDivElement, TagEntryProps>(
       </div>
     </div>
   );
-});
+}

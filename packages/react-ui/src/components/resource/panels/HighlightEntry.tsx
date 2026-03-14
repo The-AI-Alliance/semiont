@@ -1,6 +1,6 @@
 'use client';
 
-import { forwardRef } from 'react';
+import type { Ref } from 'react';
 import type { components } from '@semiont/core';
 import { getAnnotationExactText } from '@semiont/api-client';
 import { useEventBus } from '../../../contexts/EventBusContext';
@@ -12,6 +12,7 @@ interface HighlightEntryProps {
   highlight: Annotation;
   isFocused: boolean;
   isHovered?: boolean;
+  ref?: Ref<HTMLDivElement>;
 }
 
 function formatRelativeTime(isoString: string): string {
@@ -31,15 +32,12 @@ function formatRelativeTime(isoString: string): string {
   return date.toLocaleDateString();
 }
 
-export const HighlightEntry = forwardRef<HTMLDivElement, HighlightEntryProps>(
-  function HighlightEntry(
-    {
-      highlight,
-      isFocused,
-      isHovered = false,
-    },
-    ref
-  ) {
+export function HighlightEntry({
+  highlight,
+  isFocused,
+  isHovered = false,
+  ref,
+}: HighlightEntryProps) {
   const eventBus = useEventBus();
   const hoverProps = useHoverEmitter(highlight.id);
 
@@ -69,4 +67,4 @@ export const HighlightEntry = forwardRef<HTMLDivElement, HighlightEntryProps>(
       </div>
     </div>
   );
-});
+}

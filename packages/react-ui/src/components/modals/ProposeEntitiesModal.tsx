@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Fragment } from 'react';
+import { useEffect, useState } from 'react';
 import { Dialog, DialogPanel, DialogTitle, DialogDescription, Transition, TransitionChild } from '@headlessui/react';
 import { useEntityTypes } from '../../lib/api-hooks';
 
@@ -68,12 +68,11 @@ export function ProposeEntitiesModal({
   };
 
   return (
-    <Transition appear show={isOpen} as={Fragment}>
+    <Transition appear show={isOpen}>
       <Dialog as="div" className="semiont-modal" onClose={onCancel}>
         {/* Backdrop */}
         <TransitionChild
-          as={Fragment}
-          enter="ease-out duration-200"
+                   enter="ease-out duration-200"
           enterFrom="opacity-0"
           enterTo="opacity-100"
           leave="ease-in duration-150"
@@ -87,8 +86,7 @@ export function ProposeEntitiesModal({
         <div className="semiont-modal__container">
           <div className="semiont-modal__wrapper">
             <TransitionChild
-              as={Fragment}
-              enter="ease-out duration-200"
+                           enter="ease-out duration-200"
               enterFrom="opacity-0 scale-95"
               enterTo="opacity-100 scale-100"
               leave="ease-in duration-150"

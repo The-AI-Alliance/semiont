@@ -135,7 +135,7 @@ describe('AssistSection', () => {
 
       // Form should not be visible
       expect(screen.queryByPlaceholderText('Enter custom instructions...')).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /✨ Annotate/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /✨\s*Annotate/ })).not.toBeInTheDocument();
     });
 
     it('should show form when progress is null', () => {
@@ -149,7 +149,7 @@ describe('AssistSection', () => {
 
       // Form should be visible
       expect(screen.getByPlaceholderText('Enter custom instructions...')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /✨ Annotate/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /✨\s*Annotate/ })).toBeInTheDocument();
     });
 
     it('should show form when progress is undefined', () => {
@@ -163,7 +163,7 @@ describe('AssistSection', () => {
 
       // Form should be visible
       expect(screen.getByPlaceholderText('Enter custom instructions...')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /✨ Annotate/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /✨\s*Annotate/ })).toBeInTheDocument();
     });
 
     it('should keep progress visible after detection completes (isAssisting=false but progress exists)', () => {
@@ -279,7 +279,7 @@ describe('AssistSection', () => {
 
       const subscription = eventBus!.get('mark:assist-request').subscribe(detectionHandler);
 
-      const annotateButton = screen.getByRole('button', { name: /✨ Annotate/ });
+      const annotateButton = screen.getByRole('button', { name: /✨\s*Annotate/ });
       await user.click(annotateButton);
 
       expect(detectionHandler).toHaveBeenCalledWith({
@@ -305,7 +305,7 @@ describe('AssistSection', () => {
 
       const subscription = eventBus!.get('mark:assist-request').subscribe(detectionHandler);
 
-      const annotateButton = screen.getByRole('button', { name: /✨ Annotate/ });
+      const annotateButton = screen.getByRole('button', { name: /✨\s*Annotate/ });
       await user.click(annotateButton);
 
       expect(detectionHandler).toHaveBeenCalledWith({
@@ -331,7 +331,7 @@ describe('AssistSection', () => {
 
       const subscription = eventBus!.get('mark:assist-request').subscribe(detectionHandler);
 
-      const annotateButton = screen.getByRole('button', { name: /✨ Annotate/ });
+      const annotateButton = screen.getByRole('button', { name: /✨\s*Annotate/ });
       await user.click(annotateButton);
 
       expect(detectionHandler).toHaveBeenCalledWith({
@@ -360,7 +360,7 @@ describe('AssistSection', () => {
       const textarea = screen.getByPlaceholderText('Enter custom instructions...');
       await user.type(textarea, 'Find key concepts');
 
-      const annotateButton = screen.getByRole('button', { name: /✨ Annotate/ });
+      const annotateButton = screen.getByRole('button', { name: /✨\s*Annotate/ });
       await user.click(annotateButton);
 
       expect(detectionHandler).toHaveBeenCalledWith({

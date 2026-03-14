@@ -5,10 +5,14 @@
  * allowing users to style it with any CSS solution.
  */
 
-import React, { forwardRef } from 'react';
+import React from 'react';
 import { clsx } from 'clsx';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  /**
+   * Ref forwarded to the underlying button element
+   */
+  ref?: React.Ref<HTMLButtonElement>;
   /**
    * The visual variant of the button
    */
@@ -50,25 +54,22 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   active?: boolean;
 }
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  (
-    {
-      variant = 'primary',
-      size = 'md',
-      fullWidth = false,
-      loading = false,
-      leftIcon,
-      rightIcon,
-      iconOnly = false,
-      active = false,
-      className,
-      disabled,
-      children,
-      type = 'button',
-      ...props
-    },
-    ref
-  ) => {
+export function Button({
+  variant = 'primary',
+  size = 'md',
+  fullWidth = false,
+  loading = false,
+  leftIcon,
+  rightIcon,
+  iconOnly = false,
+  active = false,
+  className,
+  disabled,
+  children,
+  type = 'button',
+  ref,
+  ...props
+}: ButtonProps) {
     const isDisabled = disabled || loading;
 
     return (
@@ -143,11 +144,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           </span>
         )}
       </button>
-    );
-  }
-);
-
-Button.displayName = 'Button';
+  );
+}
 
 /**
  * Button Group Component
