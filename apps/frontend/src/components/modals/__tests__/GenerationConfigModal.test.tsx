@@ -121,8 +121,9 @@ describe('GenerationConfigModal', () => {
       expect(screen.queryByText('Location')).not.toBeInTheDocument();
     });
 
-    it('does not render graph section when graphContext is undefined', () => {
-      const ctx = makeContext({ graphContext: undefined });
+    it('does not render graph section when graphContext is absent', () => {
+      const { graphContext: _, ...rest } = makeContext();
+      const ctx = rest as GatheredContext;
       render(<GenerationConfigModal {...defaultProps} context={ctx} />);
       expect(screen.queryByText('Alpha Doc')).not.toBeInTheDocument();
     });
