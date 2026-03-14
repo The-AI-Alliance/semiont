@@ -652,6 +652,189 @@ describe('Binder', () => {
       expect(result!.referenceId).toBe('ref-fail');
       expect(result!.error.message).toBe('DB down');
     });
+
+    describe('inference response parsing edge cases', () => {
+      let mockInference: { generateText: ReturnType<typeof vi.fn>; generateTextWithMetadata: ReturnType<typeof vi.fn> };
+
+      beforeEach(async () => {
+        await binder.stop();
+        eventBus.destroy();
+
+        vi.clearAllMocks();
+        eventBus = new EventBus();
+        mockSearchFn2 = vi.fn().mockResolvedValue([RES_A, RES_B, RES_C]);
+        mockListResources = vi.fn().mockResolvedValue({ resources: [], total: 0 });
+        mockGetResource = vi.fn().mockResolvedValue(null);
+        kb = createMockKb({
+          searchResources: mockSearchFn2,
+          listResources: mockListResources,
+          getResource: mockGetResource,
+        });
+
+        mockInference = {
+          generateText: vi.fn(),
+          generateTextWithMetadata: vi.fn(),
+        };
+        binder = new Binder(kb, eventBus, mockLogger, mockInference);
+        await binder.initialize();
+      });
+
+      it('should drop scores outside 0-1 range', async () => {
+        // Score > 1 should be ignored, score < 0 should be ignored
+        mockInference.generateText.mockResolvedValue('1. 1.5\n2. -0.3\n3. 0.7');
+
+        const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+
+        eventBus.get('bind:search-requested').next({
+          referenceId: 'ref-range',
+          searchTerm: 'test',
+          context: makeContext(),
+        });
+
+        const result = await resultPromise;
+        const scores = result!.results as Array<{ name: string; score: number; matchReason: string }>;
+        // Only Gamma (index 2, score 0.7) should get semantic boost
+        const gamma = scores.find(r => r.name === 'Gamma');
+        expect(gamma!.matchReason).toContain('semantic match');
+        // Alpha and Beta should NOT have semantic match (their scores were out of range)
+        const alpha = scores.find(r => r.name === 'Alpha');
+        const beta = scores.find(r => r.name === 'Beta');
+        expect(alpha!.matchReason).not.toContain('semantic match');
+        expect(beta!.matchReason).not.toContain('semantic match');
+      });
+
+      it('should handle malformed response lines gracefully', async () => {
+        mockInference.generateText.mockResolvedValue(
+          'Here are my scores:\n1. 0.8\nThis is not a score line\n2. invalid\n3. 0.5'
+        );
+
+        const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+
+        eventBus.get('bind:search-requested').next({
+          referenceId: 'ref-malformed',
+          searchTerm: 'test',
+          context: makeContext(),
+        });
+
+        const result = await resultPromise;
+        const scores = result!.results as Array<{ name: string; score: number; matchReason: string }>;
+        // Only Alpha (index 0) should get semantic match (0.8 > 0.5)
+        const alpha = scores.find(r => r.name === 'Alpha');
+        expect(alpha!.matchReason).toContain('semantic match');
+        // Gamma (index 2, score 0.5) is not > 0.5
+        const gamma = scores.find(r => r.name === 'Gamma');
+        expect(gamma!.matchReason).not.toContain('semantic match');
+      });
+
+      it('should handle empty inference response', async () => {
+        mockInference.generateText.mockResolvedValue('');
+
+        const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+
+        eventBus.get('bind:search-requested').next({
+          referenceId: 'ref-empty',
+          searchTerm: 'Alpha',
+          context: makeContext(),
+        });
+
+        const result = await resultPromise;
+        // Should still return results with structural scores only
+        expect(result!.results.length).toBe(3);
+        const alpha = result!.results.find((r: any) => r.name === 'Alpha') as any;
+        expect(alpha.matchReason).not.toContain('semantic match');
+      });
+
+      it('should handle out-of-bounds indices', async () => {
+        // Index 5 doesn't exist (only 3 candidates)
+        mockInference.generateText.mockResolvedValue('1. 0.8\n5. 0.9\n3. 0.6');
+
+        const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+
+        eventBus.get('bind:search-requested').next({
+          referenceId: 'ref-oob',
+          searchTerm: 'test',
+          context: makeContext(),
+        });
+
+        const result = await resultPromise;
+        const scores = result!.results as Array<{ name: string; score: number; matchReason: string }>;
+        // Alpha (index 0) should get boost, Gamma (index 2) should get boost
+        // Index 4 (5th candidate) doesn't exist, should be silently ignored
+        const alpha = scores.find(r => r.name === 'Alpha');
+        expect(alpha!.matchReason).toContain('semantic match');
+      });
+
+      it('should not add semantic match reason when score is exactly 0.5', async () => {
+        mockInference.generateText.mockResolvedValue('1. 0.5\n2. 0.51\n3. 0.49');
+
+        const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+
+        eventBus.get('bind:search-requested').next({
+          referenceId: 'ref-threshold',
+          searchTerm: 'test',
+          context: makeContext(),
+        });
+
+        const result = await resultPromise;
+        const scores = result!.results as Array<{ name: string; score: number; matchReason: string }>;
+        const alpha = scores.find(r => r.name === 'Alpha');
+        const beta = scores.find(r => r.name === 'Beta');
+        const gamma = scores.find(r => r.name === 'Gamma');
+        // 0.5 is not > 0.5
+        expect(alpha!.matchReason).not.toContain('semantic match');
+        // 0.51 > 0.5
+        expect(beta!.matchReason).toContain('semantic match');
+        // 0.49 is not > 0.5
+        expect(gamma!.matchReason).not.toContain('semantic match');
+      });
+
+      it('should include inferredRelationshipSummary in semantic scoring prompt', async () => {
+        mockInference.generateText.mockResolvedValue('1. 0.8\n2. 0.3\n3. 0.5');
+
+        const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+
+        const summary = 'This passage discusses Greek mythology figures.';
+        eventBus.get('bind:search-requested').next({
+          referenceId: 'ref-summary',
+          searchTerm: 'Zeus',
+          context: makeContext({
+            graphContext: {
+              connections: [
+                { resourceId: 'r1', resourceName: 'Olympus', bidirectional: false },
+              ],
+              citedByCount: 0,
+              inferredRelationshipSummary: summary,
+            },
+          }),
+        });
+
+        await resultPromise;
+        const prompt = mockInference.generateText.mock.calls[0][0] as string;
+        expect(prompt).toContain(summary);
+        expect(prompt).toContain('Olympus');
+      });
+
+      it('should pass passage text and entity types to semantic scoring prompt', async () => {
+        mockInference.generateText.mockResolvedValue('1. 0.5');
+
+        const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
+
+        eventBus.get('bind:search-requested').next({
+          referenceId: 'ref-passage',
+          searchTerm: 'Zeus',
+          context: makeContext({
+            sourceContext: { before: 'In the beginning,', selected: 'Zeus ruled the heavens', after: 'and the earth.' },
+            metadata: { entityTypes: ['Person', 'Deity'] },
+          }),
+        });
+
+        await resultPromise;
+        const prompt = mockInference.generateText.mock.calls[0][0] as string;
+        expect(prompt).toContain('Zeus ruled the heavens');
+        expect(prompt).toContain('Person');
+        expect(prompt).toContain('Deity');
+      });
+    });
   });
 
   describe('lifecycle', () => {

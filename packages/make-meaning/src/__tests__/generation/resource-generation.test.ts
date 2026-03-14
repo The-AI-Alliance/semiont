@@ -207,4 +207,203 @@ describe('generateResourceFromTopic', () => {
     expect(result.content.endsWith('\n\n')).toBe(false);
     expect(result.content).toContain('Whitespace Test');
   });
+
+  describe('graph context in prompt', () => {
+    it('should include connections in prompt', async () => {
+      mockInferenceClient.setResponses(['# Test\n\nContent.']);
+
+      await generateResourceFromTopic(
+        'Zeus',
+        ['Person'],
+        mockInferenceClient,
+        undefined,
+        undefined,
+        {
+          sourceContext: { before: 'before', selected: 'Zeus', after: 'after' },
+          graphContext: {
+            connections: [
+              { resourceId: 'r1', resourceName: 'Mount Olympus', entityTypes: ['Location'], bidirectional: false },
+              { resourceId: 'r2', resourceName: 'Hera', entityTypes: ['Person', 'Deity'], bidirectional: true },
+            ],
+            citedByCount: 0,
+          },
+        },
+      );
+
+      const prompt = mockInferenceClient.calls[0].prompt;
+      expect(prompt).toContain('Knowledge graph context');
+      expect(prompt).toContain('Connected resources');
+      expect(prompt).toContain('Mount Olympus (Location)');
+      expect(prompt).toContain('Hera (Person, Deity)');
+    });
+
+    it('should include citedBy in prompt', async () => {
+      mockInferenceClient.setResponses(['# Test\n\nContent.']);
+
+      await generateResourceFromTopic(
+        'Prometheus',
+        [],
+        mockInferenceClient,
+        undefined,
+        undefined,
+        {
+          sourceContext: { before: '', selected: 'Prometheus', after: '' },
+          graphContext: {
+            connections: [],
+            citedByCount: 3,
+            citedBy: [
+              { resourceId: 'c1', resourceName: 'Prometheus Bound' },
+              { resourceId: 'c2', resourceName: 'Theogony' },
+            ],
+          },
+        },
+      );
+
+      const prompt = mockInferenceClient.calls[0].prompt;
+      expect(prompt).toContain('cited by 3 other resources');
+      expect(prompt).toContain('Prometheus Bound');
+      expect(prompt).toContain('Theogony');
+    });
+
+    it('should include singular "resource" for citedByCount of 1', async () => {
+      mockInferenceClient.setResponses(['# Test\n\nContent.']);
+
+      await generateResourceFromTopic(
+        'Icarus',
+        [],
+        mockInferenceClient,
+        undefined,
+        undefined,
+        {
+          sourceContext: { before: '', selected: 'Icarus', after: '' },
+          graphContext: {
+            connections: [],
+            citedByCount: 1,
+            citedBy: [{ resourceId: 'c1', resourceName: 'Metamorphoses' }],
+          },
+        },
+      );
+
+      const prompt = mockInferenceClient.calls[0].prompt;
+      expect(prompt).toContain('cited by 1 other resource');
+      expect(prompt).not.toContain('resources');
+    });
+
+    it('should include siblingEntityTypes in prompt', async () => {
+      mockInferenceClient.setResponses(['# Test\n\nContent.']);
+
+      await generateResourceFromTopic(
+        'Athens',
+        ['Location'],
+        mockInferenceClient,
+        undefined,
+        undefined,
+        {
+          sourceContext: { before: '', selected: 'Athens', after: '' },
+          graphContext: {
+            connections: [],
+            citedByCount: 0,
+            siblingEntityTypes: ['Person', 'Event', 'Organization'],
+          },
+        },
+      );
+
+      const prompt = mockInferenceClient.calls[0].prompt;
+      expect(prompt).toContain('Related entity types');
+      expect(prompt).toContain('Person');
+      expect(prompt).toContain('Event');
+      expect(prompt).toContain('Organization');
+    });
+
+    it('should include inferredRelationshipSummary in prompt', async () => {
+      mockInferenceClient.setResponses(['# Test\n\nContent.']);
+
+      const summary = 'This passage about Zeus relates to the mythology section, connecting to several deity resources.';
+      await generateResourceFromTopic(
+        'Zeus',
+        [],
+        mockInferenceClient,
+        undefined,
+        undefined,
+        {
+          sourceContext: { before: '', selected: 'Zeus', after: '' },
+          graphContext: {
+            connections: [],
+            citedByCount: 0,
+            inferredRelationshipSummary: summary,
+          },
+        },
+      );
+
+      const prompt = mockInferenceClient.calls[0].prompt;
+      expect(prompt).toContain('Relationship summary');
+      expect(prompt).toContain(summary);
+    });
+
+    it('should omit graph context section when graphContext has no content', async () => {
+      mockInferenceClient.setResponses(['# Test\n\nContent.']);
+
+      await generateResourceFromTopic(
+        'Orphan',
+        [],
+        mockInferenceClient,
+        undefined,
+        undefined,
+        {
+          sourceContext: { before: '', selected: 'Orphan', after: '' },
+          graphContext: {
+            connections: [],
+            citedByCount: 0,
+          },
+        },
+      );
+
+      const prompt = mockInferenceClient.calls[0].prompt;
+      expect(prompt).not.toContain('Knowledge graph context');
+    });
+
+    it('should omit graph context section when graphContext is undefined', async () => {
+      mockInferenceClient.setResponses(['# Test\n\nContent.']);
+
+      await generateResourceFromTopic(
+        'NoGraph',
+        [],
+        mockInferenceClient,
+        undefined,
+        undefined,
+        {
+          sourceContext: { before: '', selected: 'NoGraph', after: '' },
+        },
+      );
+
+      const prompt = mockInferenceClient.calls[0].prompt;
+      expect(prompt).not.toContain('Knowledge graph context');
+    });
+
+    it('should handle connections without entityTypes', async () => {
+      mockInferenceClient.setResponses(['# Test\n\nContent.']);
+
+      await generateResourceFromTopic(
+        'Topic',
+        [],
+        mockInferenceClient,
+        undefined,
+        undefined,
+        {
+          sourceContext: { before: '', selected: 'Topic', after: '' },
+          graphContext: {
+            connections: [
+              { resourceId: 'r1', resourceName: 'Untitled', bidirectional: false },
+            ],
+            citedByCount: 0,
+          },
+        },
+      );
+
+      const prompt = mockInferenceClient.calls[0].prompt;
+      expect(prompt).toContain('Untitled');
+      // Should not crash or include empty parens
+      expect(prompt).not.toContain('()');
+    });
+  });
 });
