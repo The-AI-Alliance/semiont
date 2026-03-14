@@ -509,6 +509,11 @@
     "creativityCreative": "Kreatif (1.0)",
     "maxLength": "Panjang Maksimum (Token)",
     "maxLengthHelp": "Nilai lebih tinggi membenarkan kandungan lebih panjang (100-4000 token)",
+    "entityTypes": "Jenis entiti",
+    "graphContext": "Konteks graf pengetahuan",
+    "connections": "Sumber yang disambungkan",
+    "citedBy": "Dipetik oleh ({count})",
+    "siblingTypes": "Jenis entiti berkaitan",
     "cancel": "Batal",
     "generate": "\u2728 Jana"
   },

@@ -509,6 +509,11 @@
     "creativityCreative": "Luova (1.0)",
     "maxLength": "Enimm\u00e4ispituus (tokenit)",
     "maxLengthHelp": "Suuremmat arvot mahdollistavat pidemm\u00e4n sis\u00e4ll\u00f6n (100\u20134000 tokenia)",
+    "entityTypes": "Entiteettityypit",
+    "graphContext": "Tietograafin konteksti",
+    "connections": "Yhdistetyt resurssit",
+    "citedBy": "Viitattu ({count})",
+    "siblingTypes": "Liittyv\u00e4t entiteettityypit",
     "cancel": "Peruuta",
     "generate": "\u2728 Generoi"
   },

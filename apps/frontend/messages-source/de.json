@@ -509,6 +509,11 @@
     "creativityCreative": "Kreativ (1.0)",
     "maxLength": "Maximale L\u00e4nge (Token)",
     "maxLengthHelp": "H\u00f6here Werte erlauben l\u00e4ngere Inhalte (100\u20134000 Token)",
+    "entityTypes": "Entit\u00e4tstypen",
+    "graphContext": "Wissensgraph-Kontext",
+    "connections": "Verbundene Ressourcen",
+    "citedBy": "Zitiert von ({count})",
+    "siblingTypes": "Verwandte Entit\u00e4tstypen",
     "cancel": "Abbrechen",
     "generate": "\u2728 Generieren"
   },

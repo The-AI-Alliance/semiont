@@ -509,6 +509,11 @@
     "creativityCreative": "रचनात्मक (1.0)",
     "maxLength": "अधिकतम लंबाई (टोकन)",
     "maxLengthHelp": "उच्च मान लंबी सामग्री की अनुमति देते हैं (100-4000 टोकन)",
+    "entityTypes": "इकाई प्रकार",
+    "graphContext": "ज्ञान ग्राफ संदर्भ",
+    "connections": "जुड़े संसाधन",
+    "citedBy": "द्वारा उद्धृत ({count})",
+    "siblingTypes": "संबंधित इकाई प्रकार",
     "cancel": "रद्द करें",
     "generate": "✨ जनित करें"
   },

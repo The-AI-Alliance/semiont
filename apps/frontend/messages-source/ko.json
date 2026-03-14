@@ -509,6 +509,11 @@
     "creativityCreative": "창의적 (1.0)",
     "maxLength": "최대 길이 (토큰)",
     "maxLengthHelp": "높은 값은 더 긴 콘텐츠를 허용합니다 (100-4000 토큰)",
+    "entityTypes": "엔티티 유형",
+    "graphContext": "지식 그래프 컨텍스트",
+    "connections": "연결된 리소스",
+    "citedBy": "인용됨 ({count})",
+    "siblingTypes": "관련 엔티티 유형",
     "cancel": "취소",
     "generate": "✨ 생성"
   },

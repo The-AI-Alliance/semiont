@@ -509,6 +509,11 @@
     "creativityCreative": "Δημιουργική (1.0)",
     "maxLength": "Μέγιστο Μήκος (Tokens)",
     "maxLengthHelp": "Υψηλότερες τιμές επιτρέπουν μεγαλύτερο περιεχόμενο (100-4000 tokens)",
+    "entityTypes": "Τύποι οντοτήτων",
+    "graphContext": "Πλαίσιο γράφου γνώσεων",
+    "connections": "Συνδεδεμένοι πόροι",
+    "citedBy": "Αναφέρεται από ({count})",
+    "siblingTypes": "Σχετικοί τύποι οντοτήτων",
     "cancel": "Ακύρωση",
     "generate": "✨ Παραγωγή"
   },

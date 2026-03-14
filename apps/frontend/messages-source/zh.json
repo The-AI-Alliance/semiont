@@ -509,6 +509,11 @@
     "creativityCreative": "创意 (1.0)",
     "maxLength": "最大长度（Token 数）",
     "maxLengthHelp": "值越高，内容越长（100-4000 个 Token）",
+    "entityTypes": "实体类型",
+    "graphContext": "知识图谱上下文",
+    "connections": "关联资源",
+    "citedBy": "被引用 ({count})",
+    "siblingTypes": "相关实体类型",
     "cancel": "取消",
     "generate": "✨ 生成"
   },

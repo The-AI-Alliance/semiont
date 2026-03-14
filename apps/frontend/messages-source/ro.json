@@ -509,6 +509,11 @@
     "creativityCreative": "Creativ (1.0)",
     "maxLength": "Lungime maximă (Token-uri)",
     "maxLengthHelp": "Valorile mai mari permit conținut mai lung (100-4000 token-uri)",
+    "entityTypes": "Tipuri de entități",
+    "graphContext": "Contextul grafului de cunoștințe",
+    "connections": "Resurse conectate",
+    "citedBy": "Citat de ({count})",
+    "siblingTypes": "Tipuri de entități asociate",
     "cancel": "Anulare",
     "generate": "✨ Generează"
   },

@@ -509,6 +509,11 @@
     "creativityCreative": "Kreatif (1.0)",
     "maxLength": "Panjang Maksimum (Token)",
     "maxLengthHelp": "Nilai lebih tinggi memungkinkan konten lebih panjang (100-4000 token)",
+    "entityTypes": "Jenis entitas",
+    "graphContext": "Konteks grafik pengetahuan",
+    "connections": "Sumber daya terhubung",
+    "citedBy": "Dikutip oleh ({count})",
+    "siblingTypes": "Jenis entitas terkait",
     "cancel": "Batal",
     "generate": "\u2728 Hasilkan"
   },

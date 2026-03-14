@@ -509,6 +509,11 @@
     "creativityCreative": "Kreativní (1.0)",
     "maxLength": "Maximální délka (tokeny)",
     "maxLengthHelp": "Vyšší hodnoty umožňují delší obsah (100–4000 tokenů)",
+    "entityTypes": "Typy entit",
+    "graphContext": "Kontext znalostního grafu",
+    "connections": "Propojené zdroje",
+    "citedBy": "Citováno ({count})",
+    "siblingTypes": "Příbuzné typy entit",
     "cancel": "Zrušit",
     "generate": "✨ Generovat"
   },
