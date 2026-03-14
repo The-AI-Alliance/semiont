@@ -13,6 +13,7 @@ import type { InferenceClient } from '@semiont/inference';
 import { generateResourceSummary } from './generation/resource-generation';
 import {
   getBodySource,
+  getResourceId,
   getTargetSource,
   getTargetSelector,
   getResourceEntityTypes,
@@ -20,7 +21,7 @@ import {
   getPrimaryRepresentation,
   decodeRepresentation,
 } from '@semiont/api-client';
-import type { components, YieldContext } from '@semiont/core';
+import type { components, GatheredContext } from '@semiont/core';
 
 import type {
   ResourceId,
@@ -213,8 +214,99 @@ export class AnnotationContext {
     // TODO: Generate suggested resolution using AI
     const suggestedResolution = undefined;
 
-    // Build YieldContext structure
-    const generationContext: YieldContext | undefined = sourceContext ? {
+    // Build graph context via graph traversal
+    logger?.debug('Building graph context', { resourceId });
+
+    const [connections, referencedByAnnotations, entityTypeStats] = await Promise.all([
+      kb.graph.getResourceConnections(resourceId),
+      kb.graph.getResourceReferencedBy(resourceId),
+      kb.graph.getEntityTypeStats(),
+    ]);
+
+    // Extract cited-by resources from referenced-by annotations
+    const citedByMap = new Map<string, string>();
+    for (const ann of referencedByAnnotations) {
+      const source = getTargetSource(ann.target);
+      if (source && source !== String(resourceId)) {
+        const sourceResId = createResourceId(source);
+        const sourceView = await kb.views.get(sourceResId);
+        if (sourceView?.resource) {
+          citedByMap.set(source, sourceView.resource.name);
+        }
+      }
+    }
+
+    // Collect sibling entity types from other annotations on this resource
+    const annotationEntityTypes = getEntityTypes(annotation);
+    const siblingEntityTypes = new Set<string>();
+    for (const ann of sourceView.annotations.annotations) {
+      if (ann.id !== annotationId) {
+        for (const et of getEntityTypes(ann)) {
+          siblingEntityTypes.add(et);
+        }
+      }
+    }
+
+    // Build entity type frequency map
+    const entityTypeFrequencies: Record<string, number> = {};
+    for (const stat of entityTypeStats) {
+      entityTypeFrequencies[stat.type] = stat.count;
+    }
+
+    // Optional inference enrichment: LLM summarizes relationships from passage + graph neighborhood
+    let inferredRelationshipSummary: string | undefined;
+    if (inferenceClient && sourceContext) {
+      try {
+        const connNames = connections.map(c => c.targetResource.name).slice(0, 10);
+        const citedByNames = Array.from(citedByMap.values()).slice(0, 5);
+        const siblingTypes = Array.from(siblingEntityTypes).slice(0, 10);
+
+        const parts: string[] = [];
+        parts.push(`Passage: "${sourceContext.selected}"`);
+        if (connNames.length > 0) parts.push(`Connected resources: ${connNames.join(', ')}`);
+        if (citedByNames.length > 0) parts.push(`Cited by: ${citedByNames.join(', ')}`);
+        if (siblingTypes.length > 0) parts.push(`Sibling entity types: ${siblingTypes.join(', ')}`);
+        if (annotationEntityTypes.length > 0) parts.push(`Annotation entity types: ${annotationEntityTypes.join(', ')}`);
+
+        const relationshipPrompt = `Given this annotation passage and its knowledge graph neighborhood, write a 1-2 sentence summary of how this passage relates to its surrounding resources and what kind of resource would best resolve this reference.
+
+${parts.join('\n')}
+
+Summary:`;
+
+        inferredRelationshipSummary = await inferenceClient.generateText(relationshipPrompt, 150, 0.3);
+        logger?.debug('Generated inferred relationship summary', { length: inferredRelationshipSummary.length });
+      } catch (error) {
+        logger?.warn('Failed to generate inferred relationship summary', { error });
+        // Non-fatal — proceed without it
+      }
+    }
+
+    const graphContext: GatheredContext['graphContext'] = {
+      connections: connections.map(conn => ({
+        resourceId: getResourceId(conn.targetResource) ?? '',
+        resourceName: conn.targetResource.name,
+        entityTypes: getResourceEntityTypes(conn.targetResource),
+        bidirectional: conn.bidirectional,
+      })),
+      citedByCount: citedByMap.size,
+      citedBy: Array.from(citedByMap.entries()).map(([id, name]) => ({
+        resourceId: id,
+        resourceName: name,
+      })),
+      siblingEntityTypes: Array.from(siblingEntityTypes),
+      entityTypeFrequencies,
+      ...(inferredRelationshipSummary ? { inferredRelationshipSummary } : {}),
+    };
+
+    logger?.debug('Built graph context', {
+      connections: connections.length,
+      citedByCount: citedByMap.size,
+      siblingEntityTypes: siblingEntityTypes.size,
+    });
+
+    // Build GatheredContext structure
+    const generationContext: GatheredContext | undefined = sourceContext ? {
       sourceContext: {
         before: sourceContext.before || '',
         selected: sourceContext.selected,
@@ -223,8 +315,9 @@ export class AnnotationContext {
       metadata: {
         resourceType: 'document',
         language: sourceDoc.language as string | undefined,
-        entityTypes: getEntityTypes(annotation),
+        entityTypes: annotationEntityTypes,
       },
+      graphContext,
     } : undefined;
 
     const response: AnnotationLLMContextResponse = {

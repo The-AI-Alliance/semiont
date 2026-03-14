@@ -509,6 +509,11 @@
     "creativityCreative": "創造的 (1.0)",
     "maxLength": "最大長（トークン）",
     "maxLengthHelp": "値が大きいほど長いコンテンツが生成可能（100〜4000トークン）",
+    "entityTypes": "エンティティタイプ",
+    "graphContext": "ナレッジグラフコンテキスト",
+    "connections": "接続されたリソース",
+    "citedBy": "引用元 ({count})",
+    "siblingTypes": "関連エンティティタイプ",
     "cancel": "キャンセル",
     "generate": "✨ 生成"
   },

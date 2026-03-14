@@ -16,8 +16,8 @@
       ]
     },
     "context": {
-      "$ref": "./YieldContext.json",
-      "description": "Generation context for this annotation"
+      "$ref": "./GatheredContext.json",
+      "description": "Gathered context for this annotation"
     },
     "sourceContext": {
       "type": "object",

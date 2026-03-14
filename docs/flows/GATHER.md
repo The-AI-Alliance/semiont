@@ -1,20 +1,19 @@
 # Gather Flow
 
-**Purpose**: Extract semantic context from an annotation and its surrounding document text for downstream use. Correlation assembles a `GenerationContext` — the selected text, surrounding passage, and metadata — that serves as grounding material for the [Yield flow](./YIELD.md) or any other consumer that needs rich context from an annotation.
+**Purpose**: Extract semantic context from an annotation — its surrounding passage, metadata, and knowledge graph neighborhood — for downstream use. The Gatherer assembles a `GatheredContext` that serves as grounding material for the [Yield flow](./YIELD.md), the [Bind flow](./BIND.md), or any other consumer that needs rich context from an annotation.
 
 **Related Documentation**:
-- [Yield Flow](./YIELD.md) - Primary consumer of correlated context
+- [Yield Flow](./YIELD.md) - Consumer: generation prompt enrichment
+- [Bind Flow](./BIND.md) - Consumer: context-driven search scoring
 - [Mark Flow](./MARK.md) - How annotations (the correlation sources) are created
 - [@semiont/make-meaning Architecture](../../packages/make-meaning/docs/architecture.md) - Context assembly layer
-- [Make-Meaning API Reference](../../packages/make-meaning/docs/api-reference.md) - `getAnnotationLLMContext` endpoint
+- [Make-Meaning API Reference](../../packages/make-meaning/docs/api-reference.md) - `buildLLMContext` method
 
 ## Overview
 
-The Gather flow assembles related context around a focal annotation. The application surfaces related documents, linked records, and surrounding passage text to construct a coherent input for downstream processing. AI agents perform RAG retrieval, context window assembly, and knowledge graph traversal; human collaborators pull prior materials and cross-references. The output is a `YieldContext` object that provides grounding material for resource generation or other context-dependent operations.
+The Gather flow assembles related context around a focal annotation. The application surfaces surrounding passage text, annotation metadata, and knowledge graph neighborhood to construct a coherent input for downstream processing. AI agents perform RAG retrieval, context window assembly, and knowledge graph traversal; human collaborators pull prior materials and cross-references. The output is a `GatheredContext` object that provides grounding material for resource generation, context-driven search, or other context-dependent operations.
 
-When a user or agent wants to generate a new resource from a reference annotation, the system first needs to understand the context around that reference — what the surrounding text says, what the annotation targets, and what entity types are involved. The Gather flow fetches this context from the backend and makes it available to downstream flows.
-
-Gathering is triggered automatically when the generation modal opens. It runs in parallel with the modal rendering, so context is typically ready by the time the user submits.
+Gathering is triggered automatically when the generation modal opens (Yield flow) or when the user clicks "Link Document" (Bind flow). It runs in parallel with the modal rendering, so context is typically ready by the time the user interacts.
 
 ## Using the API Client
 
@@ -32,10 +31,24 @@ const { context } = await client.getAnnotationLLMContext(
   { contextWindow: 2000 }
 );
 
-// context contains: selectedText, beforeText, afterText, metadata
-console.log(context.selectedText);  // The exact text the annotation targets
-console.log(context.beforeText);    // Surrounding passage before the selection
-console.log(context.afterText);     // Surrounding passage after the selection
+// Source context (passage text)
+console.log(context.sourceContext.selected);  // The exact text the annotation targets
+console.log(context.sourceContext.before);    // Surrounding passage before the selection
+console.log(context.sourceContext.after);     // Surrounding passage after the selection
+
+// Graph context (knowledge graph neighborhood)
+console.log(context.graphContext.connections);       // Connected resources with scores
+console.log(context.graphContext.citedBy);           // Resources citing the source
+console.log(context.graphContext.citedByCount);      // Total citation count
+console.log(context.graphContext.siblingEntityTypes); // Entity types in neighborhood
+console.log(context.graphContext.entityTypeFrequencies); // IDF-weighted type frequencies
+
+// Inference enrichment (when InferenceClient is available)
+console.log(context.graphContext.inferredRelationshipSummary); // LLM-generated summary
+
+// Metadata
+console.log(context.metadata.entityTypes);   // Entity type tags on the annotation
+console.log(context.metadata.resourceName);  // Source resource name
 ```
 
 ## Events
@@ -43,25 +56,34 @@ console.log(context.afterText);     // Surrounding passage after the selection
 | Event | Payload | Description |
 |-------|---------|-------------|
 | `gather:requested` | `{ annotationUri, resourceUri }` | Fetch context for this annotation |
-| `gather:complete` | `{ annotationUri, context: GenerationContext }` | Context successfully assembled |
+| `gather:complete` | `{ annotationUri, context: GatheredContext }` | Context successfully assembled |
 | `gather:failed` | `{ annotationUri, error }` | Context fetch failed |
 
 ## Context Assembly
 
-The Gatherer actor assembles a `GenerationContext` by:
+The Gatherer actor assembles a `GatheredContext` by:
 
 1. Loading the annotation from Materialized Views
 2. Extracting the target text via the annotation's selector
 3. Extracting surrounding text (configurable context window, default ~2000 characters)
 4. Including annotation metadata (entity types, motivation)
+5. Traversing the knowledge graph for connections, citations, and sibling entity types
+6. Computing entity type frequencies (IDF-weighted) across the neighborhood
+7. Optionally generating an `inferredRelationshipSummary` via the InferenceClient
 
-The result is a `GenerationContext` containing:
-- **selectedText** — The exact text the annotation targets
-- **beforeText** — Text preceding the selection
-- **afterText** — Text following the selection
+The result is a `GatheredContext` containing:
+- **sourceContext** — `{ selected, before, after }` — the passage text
 - **metadata** — Entity types, annotation motivation, resource info
+- **graphContext** — Knowledge graph neighborhood:
+  - `connections` — Resources linked from/to the source resource, with `mutual` flag for bidirectional links
+  - `citedBy` / `citedByCount` — Resources that cite the source
+  - `siblingEntityTypes` — Entity types present in the graph neighborhood
+  - `entityTypeFrequencies` — IDF-weighted frequency map for entity types
+  - `inferredRelationshipSummary` — (optional) LLM-generated 1-2 sentence summary of how the passage relates to its graph neighborhood
 
 ## Workflow
+
+### Yield Flow (Generation)
 
 ```
 User clicks "Generate" on a reference annotation
@@ -70,20 +92,38 @@ yield:modal-open fires
     |
 useYieldFlow emits gather:requested on EventBus (parallel with modal render)
     |
-Gatherer actor receives gather:requested
+Gatherer assembles GatheredContext (passage + graph + optional inference summary)
     |
-Gatherer assembles GenerationContext from Materialized Views + Content Store
+gather:complete → Context available in generation modal
     |
-Gatherer emits gather:complete on EventBus with assembled context
-    |
-Context available in generation modal for user review and submission
+GenerationConfigModal displays entity types, graph context, passage preview
 ```
 
-## Relationship to Generate
+### Bind Flow (Search)
 
-Correlation and generation are separate flows because correlation is independently useful. Any consumer that needs rich annotation context — a search index, an export pipeline, an agent reasoning step — can subscribe to `gather:complete` without triggering generation.
+```
+User clicks "Link Document" on unresolved reference
+    |
+bind:link fires
+    |
+useBindFlow emits gather:requested on EventBus
+    |
+Gatherer assembles GatheredContext (passage + graph + optional inference summary)
+    |
+gather:complete → Context modal opens for review
+    |
+User clicks "Find" → bind:search-requested fires with context
+    |
+Binder uses context for multi-signal search scoring
+```
 
-In the current UI, the primary consumer is the Yield flow. When `yield:modal-open` fires, `useYieldFlow` emits `gather:requested` in parallel. The correlated context is then passed as input when the user submits the generation form.
+## Relationship to Downstream Flows
+
+Gathering is separate from both generation and search because it is independently useful. Any consumer that needs rich annotation context — the Yield flow, the Bind flow, a search index, an export pipeline, an agent reasoning step — can subscribe to `gather:complete` without triggering other flows.
+
+Current consumers:
+- **Yield flow** — uses gathered context to enrich the generation prompt with graph neighborhood
+- **Bind flow** — passes gathered context to the Binder for context-driven search scoring
 
 ## Implementation
 

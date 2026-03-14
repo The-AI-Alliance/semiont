@@ -12,7 +12,7 @@
  */
 
 import type { Readable } from 'stream';
-import type { JobId, EntityType, ResourceId, UserId, AnnotationId, YieldContext, components } from '@semiont/core';
+import type { JobId, EntityType, ResourceId, UserId, AnnotationId, GatheredContext, components } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -67,7 +67,7 @@ export interface GenerationParams {
   title?: string;
   entityTypes?: EntityType[];
   language?: string;
-  context?: YieldContext;
+  context?: GatheredContext;
   temperature?: number;
   maxTokens?: number;
 }

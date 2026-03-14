@@ -100,19 +100,21 @@ The read actor for the Knowledge Base. Handles all browse reads, context assembl
 | `browse:events-requested` | `EventQuery.queryEvents()` | `browse:events-result` / `browse:events-failed` |
 | `browse:annotation-history-requested` | `EventQuery` + annotation event filtering | `browse:annotation-history-result` / `browse:annotation-history-failed` |
 | `mark:entity-types-requested` | `readEntityTypesProjection()` | `mark:entity-types-result` / `mark:entity-types-failed` |
-| `gather:requested` | `AnnotationContext.buildLLMContext(kb)` | `gather:complete` / `gather:failed` |
+| `gather:requested` | `AnnotationContext.buildLLMContext(kb, inferenceClient)` — passage + graph + optional inference summary | `gather:complete` / `gather:failed` |
 | `gather:resource-requested` | `LLMContext.getResourceContext(kb)` | `gather:resource-complete` / `gather:resource-failed` |
 
 ### Binder (Search/Link Actor)
 
 **Implementation**: [src/binder.ts](../src/binder.ts)
 
-Searches KB stores to resolve entity references and discover relationships.
+Searches KB stores to resolve entity references and discover relationships. When `bind:search-requested` includes a `context` field (a `GatheredContext`), the Binder runs context-driven search with multi-source candidate retrieval, composite structural scoring, and optional LLM-based semantic scoring.
 
 | Request Event | Handler | Result Event |
 |--------------|---------|-------------|
-| `bind:search-requested` | `kb.graph.searchResources()` | `bind:search-results` / `bind:search-failed` |
+| `bind:search-requested` | Context-driven search (when `context` present) or `kb.graph.searchResources()` (plain) | `bind:search-results` / `bind:search-failed` |
 | `bind:referenced-by-requested` | `kb.graph.getResourceReferencedBy()` + resource lookups | `bind:referenced-by-result` / `bind:referenced-by-failed` |
+
+**Context-driven search** retrieves candidates from three sources (name match, entity type filter, graph neighborhood), scores them with structural signals (entity type overlap, bidirectionality, citation weight, name match, recency), and optionally blends LLM semantic relevance scores when an `InferenceClient` is available.
 
 ### CloneTokenManager (Clone Token Actor)
 

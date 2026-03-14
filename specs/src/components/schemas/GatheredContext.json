@@ -1,0 +1,116 @@
+{
+  "type": "object",
+  "description": "Context gathered for an annotation. Includes source document excerpts, metadata, and graph-derived context. Used by both Find (bind) and Generate (yield) flows.",
+  "properties": {
+    "sourceContext": {
+      "type": "object",
+      "description": "Text context from the source document",
+      "properties": {
+        "before": {
+          "type": "string",
+          "description": "Text appearing before the selected passage"
+        },
+        "selected": {
+          "type": "string",
+          "description": "The selected text passage (the annotation target)"
+        },
+        "after": {
+          "type": "string",
+          "description": "Text appearing after the selected passage"
+        }
+      },
+      "required": ["selected"]
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Context metadata about the annotation and its source",
+      "properties": {
+        "resourceType": {
+          "type": "string",
+          "description": "Type of source resource (e.g., 'document', 'image', 'video')"
+        },
+        "language": {
+          "type": "string",
+          "description": "BCP 47 language tag of source content"
+        },
+        "entityTypes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Entity types associated with the annotation"
+        }
+      }
+    },
+    "graphContext": {
+      "type": "object",
+      "description": "Graph-derived context from the knowledge base",
+      "properties": {
+        "connections": {
+          "type": "array",
+          "description": "Resources connected to the source resource via annotations",
+          "items": {
+            "type": "object",
+            "properties": {
+              "resourceId": {
+                "type": "string",
+                "description": "ID of the connected resource"
+              },
+              "resourceName": {
+                "type": "string",
+                "description": "Name of the connected resource"
+              },
+              "entityTypes": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Entity types on the connected resource"
+              },
+              "bidirectional": {
+                "type": "boolean",
+                "description": "Whether the connection goes both ways"
+              }
+            },
+            "required": ["resourceId", "resourceName", "bidirectional"]
+          }
+        },
+        "citedByCount": {
+          "type": "integer",
+          "description": "Number of other resources that reference the source resource"
+        },
+        "citedBy": {
+          "type": "array",
+          "description": "Resources that reference the source resource",
+          "items": {
+            "type": "object",
+            "properties": {
+              "resourceId": {
+                "type": "string"
+              },
+              "resourceName": {
+                "type": "string"
+              }
+            },
+            "required": ["resourceId", "resourceName"]
+          }
+        },
+        "siblingEntityTypes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Entity types from other annotations on the same resource"
+        },
+        "entityTypeFrequencies": {
+          "type": "object",
+          "description": "Global frequency counts for entity types (for IDF-like weighting)",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "inferredRelationshipSummary": {
+          "type": "string",
+          "description": "LLM-generated summary of the annotation's relationships in the knowledge graph"
+        }
+      }
+    }
+  },
+  "required": ["sourceContext"]
+}

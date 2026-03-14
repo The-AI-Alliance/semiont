@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 import { useTranslations, useLocale } from 'next-intl';
-import type { YieldContext } from '@semiont/core';
+import type { GatheredContext } from '@semiont/core';
 import { LOCALES } from '@semiont/api-client';
 import { Fragment } from 'react';
 
@@ -16,10 +16,10 @@ interface GenerationConfigModalProps {
     language?: string;
     temperature?: number;
     maxTokens?: number;
-    context: YieldContext;
+    context: GatheredContext;
   }) => void;
   defaultTitle: string;          // Selected text from reference
-  context: YieldContext | null;
+  context: GatheredContext | null;
   contextLoading: boolean;
   contextError: Error | null;
 }
@@ -75,6 +75,12 @@ export function GenerationConfigModal({
 
   const sourceContext = context?.sourceContext;
   const hasContext = sourceContext && (sourceContext.before || sourceContext.after);
+  const graphContext = context?.graphContext;
+  const connections = graphContext?.connections ?? [];
+  const citedBy = graphContext?.citedBy ?? [];
+  const citedByCount = graphContext?.citedByCount ?? 0;
+  const siblingEntityTypes = graphContext?.siblingEntityTypes ?? [];
+  const entityTypes = context?.metadata?.entityTypes ?? [];
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
@@ -148,6 +154,81 @@ export function GenerationConfigModal({
                       {t('contextHelp')}
                     </p>
                   </div>
+
+                  {/* Entity Types */}
+                  {entityTypes.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        {t('entityTypes')}
+                      </label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {entityTypes.map(et => (
+                          <span key={et} className="inline-block px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 rounded-full">
+                            {et}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Graph Context */}
+                  {graphContext && (connections.length > 0 || citedByCount > 0 || siblingEntityTypes.length > 0) && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        {t('graphContext')}
+                      </label>
+                      <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 space-y-2 text-sm">
+                        {connections.length > 0 && (
+                          <div>
+                            <span className="font-medium text-gray-600 dark:text-gray-400">{t('connections')}</span>
+                            <ul className="mt-1 space-y-0.5">
+                              {connections.map(conn => (
+                                <li key={conn.resourceId} className="text-gray-600 dark:text-gray-400 flex items-center gap-1.5">
+                                  <span>{conn.resourceName}</span>
+                                  {conn.bidirectional && (
+                                    <span className="text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded">mutual</span>
+                                  )}
+                                  {conn.entityTypes && conn.entityTypes.length > 0 && (
+                                    <span className="text-xs text-gray-400 dark:text-gray-500">
+                                      {conn.entityTypes.join(', ')}
+                                    </span>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {citedByCount > 0 && (
+                          <div>
+                            <span className="font-medium text-gray-600 dark:text-gray-400">
+                              {t('citedBy', { count: citedByCount })}
+                            </span>
+                            {citedBy.length > 0 && (
+                              <ul className="mt-1 space-y-0.5">
+                                {citedBy.map(ref => (
+                                  <li key={ref.resourceId} className="text-gray-600 dark:text-gray-400">
+                                    {ref.resourceName}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        )}
+                        {siblingEntityTypes.length > 0 && (
+                          <div>
+                            <span className="font-medium text-gray-600 dark:text-gray-400">{t('siblingTypes')}</span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {siblingEntityTypes.map(et => (
+                                <span key={et} className="inline-block px-2 py-0.5 text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full">
+                                  {et}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Resource Title */}
                   <div>

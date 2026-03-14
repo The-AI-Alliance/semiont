@@ -509,6 +509,11 @@
     "creativityCreative": "Sáng tạo (1.0)",
     "maxLength": "Độ dài tối đa (Token)",
     "maxLengthHelp": "Giá trị cao hơn cho phép nội dung dài hơn (100-4000 token)",
+    "entityTypes": "Loại thực thể",
+    "graphContext": "Ngữ cảnh đồ thị tri thức",
+    "connections": "Tài nguyên kết nối",
+    "citedBy": "Được trích dẫn bởi ({count})",
+    "siblingTypes": "Loại thực thể liên quan",
     "cancel": "Hủy",
     "generate": "✨ Tạo sinh"
   },

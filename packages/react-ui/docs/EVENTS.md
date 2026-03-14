@@ -85,6 +85,19 @@ These events are emitted by the backend when domain changes occur:
 - `bind:body-updated` - Annotation body updated (resolution flow)
 - `beckon:sparkle` - Annotation highlighted (UI animation)
 
+**Bind Flow Events** (context-driven search and linking):
+
+- `bind:link` - User clicked "Link Document" (`{ annotationId, resourceId, searchTerm }`)
+- `bind:search-requested` - Search with optional gathered context (`{ referenceId, searchTerm, context? }`)
+- `bind:search-results` - Scored search results with match reasons (`{ referenceId, searchTerm, results }`)
+- `bind:update-body` - Update annotation body (add/remove link)
+
+**Gather Flow Events** (context assembly — used by both Yield and Bind flows):
+
+- `gather:requested` - Fetch context for annotation (`{ annotationId, resourceId }`)
+- `gather:complete` - Context assembled with passage + graph neighborhood (`{ annotationUri, context: GatheredContext }`)
+- `gather:failed` - Context fetch failed
+
 **Resource Events**:
 
 - `mark:archive` - Resource should be archived

@@ -509,6 +509,11 @@
     "creativityCreative": "Kreativ (1.0)",
     "maxLength": "Maximal längd (Tokens)",
     "maxLengthHelp": "Högre värden tillåter längre innehåll (100-4000 tokens)",
+    "entityTypes": "Entitetstyper",
+    "graphContext": "Kunskapsgrafskontext",
+    "connections": "Anslutna resurser",
+    "citedBy": "Citerad av ({count})",
+    "siblingTypes": "Relaterade entitetstyper",
     "cancel": "Avbryt",
     "generate": "✨ Generera"
   },

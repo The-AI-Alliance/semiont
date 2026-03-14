@@ -16,7 +16,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import type { EventBus, EventMap, YieldContext, ResourceUri, AnnotationId } from '@semiont/core';
+import type { EventBus, EventMap, GatheredContext, ResourceUri, AnnotationId } from '@semiont/core';
 import { SemiontApiClient } from '@semiont/api-client';
 import { accessToken } from '@semiont/core';
 import { useAuthToken } from '../contexts/AuthTokenContext';
@@ -33,7 +33,7 @@ export interface ContextGatherFlowConfig {
 }
 
 export interface ContextGatherFlowState {
-  gatherContext: YieldContext | null;
+  gatherContext: GatheredContext | null;
   gatherLoading: boolean;
   gatherError: Error | null;
   /** The annotationId for which context was most recently gathered */
@@ -46,7 +46,7 @@ export function useContextGatherFlow(
 ): ContextGatherFlowState {
   const token = useAuthToken();
 
-  const [gatherContext, setCorrelationContext] = useState<YieldContext | null>(null);
+  const [gatherContext, setCorrelationContext] = useState<GatheredContext | null>(null);
   const [gatherLoading, setCorrelationLoading] = useState(false);
   const [gatherError, setCorrelationError] = useState<Error | null>(null);
   const [gatherAnnotationId, setCorrelationAnnotationId] = useState<AnnotationId | null>(null);

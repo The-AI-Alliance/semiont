@@ -509,6 +509,11 @@
     "creativityCreative": "إبداعي (1.0)",
     "maxLength": "الحد الأقصى للطول (رموز)",
     "maxLengthHelp": "القيم الأعلى تسمح بمحتوى أطول (100-4000 رمز)",
+    "entityTypes": "أنواع الكيانات",
+    "graphContext": "سياق الرسم البياني المعرفي",
+    "connections": "الموارد المتصلة",
+    "citedBy": "مُستشهد بها بواسطة ({count})",
+    "siblingTypes": "أنواع الكيانات ذات الصلة",
     "cancel": "إلغاء",
     "generate": "✨ توليد"
   },

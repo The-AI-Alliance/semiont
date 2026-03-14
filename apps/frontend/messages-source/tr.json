@@ -509,6 +509,11 @@
     "creativityCreative": "Yaratıcı (1.0)",
     "maxLength": "Maksimum Uzunluk (Token)",
     "maxLengthHelp": "Daha yüksek değerler daha uzun içeriğe izin verir (100-4000 token)",
+    "entityTypes": "Varlık türleri",
+    "graphContext": "Bilgi grafiği bağlamı",
+    "connections": "Bağlı kaynaklar",
+    "citedBy": "Alıntılayan ({count})",
+    "siblingTypes": "İlgili varlık türleri",
     "cancel": "İptal",
     "generate": "✨ Oluştur"
   },

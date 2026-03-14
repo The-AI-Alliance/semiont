@@ -509,6 +509,11 @@
     "creativityCreative": "সৃজনশীল (1.0)",
     "maxLength": "সর্বোচ্চ দৈর্ঘ্য (টোকেন)",
     "maxLengthHelp": "উচ্চতর মান দীর্ঘতর বিষয়বস্তু অনুমোদন করে (100-4000 টোকেন)",
+    "entityTypes": "সত্তার ধরন",
+    "graphContext": "জ্ঞান গ্রাফ প্রসঙ্গ",
+    "connections": "সংযুক্ত সম্পদ",
+    "citedBy": "উদ্ধৃত ({count})",
+    "siblingTypes": "সম্পর্কিত সত্তার ধরন",
     "cancel": "বাতিল করুন",
     "generate": "✨ তৈরি করুন"
   },

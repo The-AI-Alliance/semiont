@@ -14,8 +14,8 @@
       "description": "Language locale for generated content (e.g., \"es\", \"fr\", \"ja\")"
     },
     "context": {
-      "$ref": "./YieldContext.json",
-      "description": "Generation context including source document excerpts and metadata"
+      "$ref": "./GatheredContext.json",
+      "description": "Gathered context including source document excerpts, metadata, and graph context"
     },
     "temperature": {
       "type": "number",

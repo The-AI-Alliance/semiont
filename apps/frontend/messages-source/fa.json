@@ -509,6 +509,11 @@
     "creativityCreative": "خلاقانه (1.0)",
     "maxLength": "حداکثر طول (توکن)",
     "maxLengthHelp": "مقادیر بالاتر محتوای طولانی‌تری را ممکن می‌سازند (100 تا 4000 توکن)",
+    "entityTypes": "انواع موجودیت",
+    "graphContext": "زمینه نمودار دانش",
+    "connections": "منابع متصل",
+    "citedBy": "استناد شده توسط ({count})",
+    "siblingTypes": "انواع موجودیت مرتبط",
     "cancel": "انصراف",
     "generate": "✨ تولید"
   },

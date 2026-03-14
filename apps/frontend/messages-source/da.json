@@ -509,6 +509,11 @@
     "creativityCreative": "Kreativ (1.0)",
     "maxLength": "Maksimal l\u00e6ngde (tokens)",
     "maxLengthHelp": "H\u00f8jere v\u00e6rdier tillader l\u00e6ngere indhold (100-4000 tokens)",
+    "entityTypes": "Entitetstyper",
+    "graphContext": "Vidensgraffens kontekst",
+    "connections": "Forbundne ressourcer",
+    "citedBy": "Citeret af ({count})",
+    "siblingTypes": "Relaterede entitetstyper",
     "cancel": "Annuller",
     "generate": "\u2728 Generer"
   },

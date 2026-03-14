@@ -1,4 +1,5 @@
 import { ComponentType, ReactNode } from 'react';
+import type { GatheredContext } from '@semiont/core';
 
 /**
  * Base modal props that all modals share
@@ -75,7 +76,7 @@ export interface GenerationOptions {
   language?: string;
   temperature?: number;
   maxTokens?: number;
-  context: any; // YieldContext from api-client
+  context: GatheredContext;
 }
 
 /**

@@ -96,13 +96,12 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
     }
   };
 
-  const handleGenerate = () => {
-    const sourceUri = typeof reference.target === 'object' && 'source' in reference.target
-      ? reference.target.source
-      : '';
-    const extractedResourceId = sourceUri.split('/resources/')[1] || '';
+  const sourceUri = typeof reference.target === 'object' && 'source' in reference.target
+    ? reference.target.source
+    : '';
+  const extractedResourceId = sourceUri.split('/resources/')[1] || '';
 
-    // Emit request to open generation modal
+  const handleGenerate = () => {
     eventBus.get('yield:modal-open').next({
       annotationId: annotationId(reference.id),
       resourceId: resourceId(extractedResourceId),
@@ -113,6 +112,7 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
   const handleSearch = () => {
     eventBus.get('bind:link').next({
       annotationId: annotationId(reference.id),
+      resourceId: resourceId(extractedResourceId),
       searchTerm: selectedText,
     });
   };

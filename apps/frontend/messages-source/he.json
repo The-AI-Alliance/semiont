@@ -509,6 +509,11 @@
     "creativityCreative": "יצירתי (1.0)",
     "maxLength": "אורך מרבי (טוקנים)",
     "maxLengthHelp": "ערכים גבוהים יותר מאפשרים תוכן ארוך יותר (100-4000 טוקנים)",
+    "entityTypes": "סוגי ישויות",
+    "graphContext": "הקשר גרף ידע",
+    "connections": "משאבים מקושרים",
+    "citedBy": "צוטט על ידי ({count})",
+    "siblingTypes": "סוגי ישויות קשורים",
     "cancel": "ביטול",
     "generate": "✨ יצירה"
   },

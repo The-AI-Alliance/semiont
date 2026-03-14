@@ -169,7 +169,7 @@ export async function startMakeMeaning(config: MakeMeaningConfig, eventBus: Even
 
   // 10. Start Binder actor
   const binderLogger = logger.child({ component: 'binder' });
-  const binder = new Binder(kb, eventBus, binderLogger);
+  const binder = new Binder(kb, eventBus, binderLogger, inferenceClient);
   await binder.initialize();
 
   // 10b. Start CloneTokenManager actor

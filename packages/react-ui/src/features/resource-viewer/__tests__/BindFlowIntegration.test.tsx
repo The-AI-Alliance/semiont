@@ -83,27 +83,35 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
 
   // ─── Initial state ──────────────────────────────────────────────────────────
 
-  it('starts with search modal closed and no pending reference', () => {
+  it('starts with both modals closed and no pending reference', () => {
     const { getState } = renderBindFlow();
+    expect(getState().contextModalOpen).toBe(false);
     expect(getState().searchModalOpen).toBe(false);
     expect(getState().pendingReferenceId).toBeNull();
+    expect(getState().pendingSearchTerm).toBeNull();
   });
 
   // ─── bind:link ─────────────────────────────────────────────────────────
 
-  it('bind:link emits bind:search-requested with referenceId and searchTerm', () => {
-    const { getEventBus } = renderBindFlow();
-    const searchRequestedSpy = vi.fn();
+  it('bind:link opens context modal and emits gather:requested', async () => {
+    const { getState, getEventBus } = renderBindFlow();
+    const gatherSpy = vi.fn();
 
-    const subscription = getEventBus().get('bind:search-requested').subscribe(searchRequestedSpy);
-    act(() => { getEventBus().get('bind:link').next({ annotationId: annotationId('ann-uri-123'), searchTerm: 'climate change' }); });
-    subscription.unsubscribe();
+    getEventBus().get('gather:requested').subscribe(gatherSpy);
+    act(() => { getEventBus().get('bind:link').next({ annotationId: annotationId('ann-uri-123'), resourceId: resourceId('res-123'), searchTerm: 'climate change' }); });
 
-    expect(searchRequestedSpy).toHaveBeenCalledTimes(1);
-    expect(searchRequestedSpy).toHaveBeenCalledWith({
-      referenceId: 'ann-uri-123',
-      searchTerm: 'climate change',
+    await waitFor(() => {
+      expect(getState().contextModalOpen).toBe(true);
+      expect(getState().pendingReferenceId).toBe('ann-uri-123');
+      expect(getState().pendingSearchTerm).toBe('climate change');
     });
+
+    expect(gatherSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        annotationId: annotationId('ann-uri-123'),
+        resourceId: resourceId('res-123'),
+      })
+    );
   });
 
   // ─── bind:search-requested ────────────────────────────────────────────
@@ -130,16 +138,20 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
     });
   });
 
-  it('bind:link → bind:search-requested chain opens modal end-to-end', async () => {
+  it('bind:link opens context modal (not search modal) end-to-end', async () => {
     const { getState, getEventBus } = renderBindFlow();
 
     // Simulate the full user journey: user clicks "Link Document" on a reference entry
-    act(() => { getEventBus().get('bind:link').next({ annotationId: annotationId('ann-full-chain'), searchTerm: 'biodiversity' }); });
+    act(() => { getEventBus().get('bind:link').next({ annotationId: annotationId('ann-full-chain'), resourceId: resourceId('res-full'), searchTerm: 'biodiversity' }); });
 
     await waitFor(() => {
-      expect(getState().searchModalOpen).toBe(true);
+      expect(getState().contextModalOpen).toBe(true);
       expect(getState().pendingReferenceId).toBe('ann-full-chain');
+      expect(getState().pendingSearchTerm).toBe('biodiversity');
     });
+
+    // Search modal should NOT be open yet
+    expect(getState().searchModalOpen).toBe(false);
   });
 
   // ─── onCloseSearchModal ──────────────────────────────────────────────────────

@@ -42,6 +42,7 @@ import { useBeckonFlow } from '../../../hooks/useBeckonFlow';
 import { usePanelBrowse } from '../../../hooks/usePanelBrowse';
 import { useYieldFlow } from '../../../hooks/useYieldFlow';
 import { useContextGatherFlow } from '../../../hooks/useContextGatherFlow';
+import { BindContextModal } from '../../../components/modals/BindContextModal';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
@@ -159,7 +160,15 @@ export function ResourceViewerPage({
   const { hoveredAnnotationId } = useBeckonFlow();
   const { assistingMotivation, progress, pendingAnnotation } = useMarkFlow(rUri);
   const { activePanel, scrollToAnnotationId, panelInitialTab, onScrollCompleted } = usePanelBrowse();
-  const { searchModalOpen, pendingReferenceId, onCloseSearchModal } = useBindFlow(rUri);
+  const {
+    contextModalOpen,
+    searchModalOpen,
+    pendingReferenceId,
+    pendingSearchTerm,
+    onCloseContextModal,
+    onCloseSearchModal,
+    onSearch: onBindSearch,
+  } = useBindFlow(rUri);
   const {
     generationProgress,
     generationModalOpen,
@@ -599,7 +608,18 @@ export function ResourceViewerPage({
         </div>
       </div>
 
-      {/* Search Resources Modal */}
+      {/* Bind Context Modal (Step 1: review context before searching) */}
+      <BindContextModal
+        isOpen={contextModalOpen}
+        onClose={onCloseContextModal}
+        onSearch={onBindSearch}
+        searchTerm={pendingSearchTerm || ''}
+        context={gatherContext}
+        contextLoading={gatherLoading}
+        contextError={gatherError}
+      />
+
+      {/* Search Resources Modal (Step 2: show search results) */}
       <SearchResourcesModal
         isOpen={searchModalOpen}
         onClose={onCloseSearchModal}

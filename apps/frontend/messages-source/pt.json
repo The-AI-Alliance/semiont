@@ -509,6 +509,11 @@
     "creativityCreative": "Criativo (1.0)",
     "maxLength": "Comprimento Maximo (Tokens)",
     "maxLengthHelp": "Valores mais altos permitem conteudo mais longo (100-4000 tokens)",
+    "entityTypes": "Tipos de entidade",
+    "graphContext": "Contexto do grafo de conhecimento",
+    "connections": "Recursos conectados",
+    "citedBy": "Citado por ({count})",
+    "siblingTypes": "Tipos de entidade relacionados",
     "cancel": "Cancelar",
     "generate": "\u2728 Gerar"
   },
