@@ -48,6 +48,7 @@ export class Binder {
       concatMap((event) => from(this.handleSearch(event))),
     );
 
+    // mergeMap: referenced-by queries are independent reads — safe to run concurrently
     const referencedBy$ = this.eventBus.get('bind:referenced-by-requested').pipe(
       mergeMap((event) => from(this.handleReferencedBy(event))),
     );
@@ -97,7 +98,12 @@ export class Binder {
       const sourceUris = [...new Set(references.map(ref => getTargetSource(ref.target)))];
       const resources = await Promise.all(sourceUris.map(uri => this.kb.graph.getResource(uriToResourceId(uri))));
 
-      // Build resource map for lookup
+      // Build resource map for lookup — warn about any that couldn't be found
+      for (let i = 0; i < sourceUris.length; i++) {
+        if (resources[i] === null) {
+          this.logger.warn('Referenced resource not found in graph', { uri: sourceUris[i] });
+        }
+      }
       const docMap = new Map(resources.filter(doc => doc !== null).map(doc => [doc['@id'], doc]));
 
       // Transform into ReferencedBy structure
