@@ -45,20 +45,20 @@ Responds to:
 
 ### Binder
 
-Search/link actor. Searches KB stores for entity resolution and graph queries.
+Search/link actor. Searches KB stores for entity resolution, context-driven search with composite scoring, and graph queries. When an `InferenceClient` is provided, the Binder also performs LLM-based semantic relevance scoring of search candidates (GraphRAG-style).
 
 **Implementation**: [src/binder.ts](../src/binder.ts)
 
 ```typescript
 import { Binder } from '@semiont/make-meaning';
 
-const binder = new Binder(kb, eventBus, logger, publicURL);
+const binder = new Binder(kb, eventBus, logger, inferenceClient);
 await binder.initialize();
 await binder.stop();
 ```
 
 Responds to:
-- `bind:search-requested` → emits `bind:search-results` or `bind:search-failed`
+- `bind:search-requested` → context-driven search when `context` field is present, plain search otherwise → emits `bind:search-results` or `bind:search-failed`
 - `bind:referenced-by-requested` → emits `bind:referenced-by-result` or `bind:referenced-by-failed`
 
 ### CloneTokenManager
@@ -212,14 +212,16 @@ Annotation queries and LLM context building.
 
 ```typescript
 static async buildLLMContext(
-  annotationUri: AnnotationUri,
+  annotationId: AnnotationId,
   resourceId: ResourceId,
   kb: KnowledgeBase,
   options: BuildContextOptions,
+  inferenceClient?: InferenceClient,
+  logger?: Logger,
 ): Promise<AnnotationLLMContextResponse>
 ```
 
-Builds rich context for AI processing including the annotation, surrounding text, and resource metadata.
+Builds rich context for AI processing including the annotation, surrounding text, resource metadata, and knowledge graph neighborhood (`graphContext`). When an `InferenceClient` is provided, also generates an `inferredRelationshipSummary` describing how the passage relates to its graph neighborhood.
 
 #### getResourceAnnotations()
 

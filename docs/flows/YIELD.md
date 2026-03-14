@@ -212,6 +212,8 @@ See [Job Workers Documentation](../../packages/make-meaning/docs/job-workers.md#
 
 ### AI Generation Prompt
 
+The generation prompt is enriched with graph context from the [Gather flow](./GATHER.md) when available. This includes connected resources, citations, and an optional LLM-generated relationship summary.
+
 **Prompt Structure**:
 ```
 You are generating content for a reference to "{referenceText}" in a document.
@@ -220,6 +222,12 @@ Context from source document:
 {surrounding text from source document}
 
 Entity types: {comma-separated entity type tags}
+
+Knowledge graph context:
+- Connected resources: {names of connected resources}
+- Cited by: {names of citing resources}
+- Related entity types: {sibling entity types from graph neighborhood}
+- Relationship summary: {inferredRelationshipSummary, if available}
 
 Generate {length} content in a {tone} tone about "{referenceText}".
 
@@ -231,6 +239,8 @@ The generated content should:
 
 Generate the content as plain text (no markdown formatting).
 ```
+
+The graph context section is omitted when no graph context is available (e.g., for isolated annotations with no graph connections).
 
 **Model Parameters**:
 - Model: Claude Sonnet 4.5
@@ -301,6 +311,7 @@ Both events flow through EventBus → Stower → Event Store → Materialized Vi
 - Generation modal shows:
   - Reference text preview
   - Entity type tags
+  - Knowledge graph context (connected resources, cited-by with counts, sibling entity types)
   - Optional title input
   - Tone selector (scholarly/explanatory/conversational/technical)
   - Length selector (brief/moderate/detailed)
@@ -439,7 +450,7 @@ See [REAL-TIME.md](../../apps/backend/docs/REAL-TIME.md) for complete SSE archit
 2. **Factual Accuracy**: Generated content should be reviewed for accuracy, especially for scholarly use
 3. **Single Language**: Each generated resource is single-language (no multilingual generation)
 4. **No Iterative Refinement**: Generation is one-shot, no revision or refinement cycle
-5. **Context Window**: Prompt includes limited context from source document (~2000 characters)
+5. **Context Window**: Prompt includes limited context from source document (~2000 characters) plus graph neighborhood
 6. **Duplicate Detection**: No automatic detection of duplicate/similar generated resources
 
 ## Related Files

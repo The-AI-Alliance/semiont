@@ -11,8 +11,8 @@
 This package implements the actor model from [ARCHITECTURE.md](../../docs/ARCHITECTURE.md). It owns the **Knowledge Base** and the actors that interface with it:
 
 - **Stower** (write) — the single write gateway to the Knowledge Base
-- **Gatherer** (read) — handles all browse reads, context assembly, and entity type listing
-- **Binder** (search/link) — searches KB stores for entity resolution and graph queries
+- **Gatherer** (read) — handles all browse reads, context assembly (passage + graph neighborhood + optional inference summary), and entity type listing
+- **Binder** (search/link) — context-driven search with multi-source retrieval, composite structural scoring, optional LLM semantic scoring, and graph queries
 - **CloneTokenManager** (yield) — manages clone token lifecycle for resource cloning
 
 All actors subscribe to the EventBus via RxJS pipelines. They expose only `initialize()` and `stop()` — no public business methods. Callers communicate with actors by putting events on the bus.
@@ -181,7 +181,7 @@ The EventBus is created by the backend (or script) and passed into `startMakeMea
 
 - `Stower` — Write gateway actor
 - `Gatherer` — Read actor (browse reads, context assembly, entity type listing)
-- `Binder` — Search/link actor (entity resolution, referenced-by queries)
+- `Binder` — Search/link actor (context-driven search, entity resolution, referenced-by queries)
 - `CloneTokenManager` — Clone token lifecycle actor (yield domain)
 
 ### Operations
