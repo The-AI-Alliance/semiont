@@ -1,13 +1,12 @@
 import { defineConfig } from 'vitest/config'
+import react from '@vitejs/plugin-react'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
-  esbuild: {
-    jsx: 'automatic',
-  },
+  plugins: [react()],
   test: {
     globals: true,
     environment: 'jsdom',
@@ -16,13 +15,7 @@ export default defineConfig({
     dangerouslyIgnoreUnhandledErrors: true,
     // Pool configuration to reduce memory usage
     pool: 'threads',
-    poolOptions: {
-      threads: {
-        singleThread: false,
-        maxThreads: 2,
-        minThreads: 1
-      }
-    },
+    maxConcurrency: 2,
     // Configure reporters (replaces deprecated 'basic' reporter)
     reporters: [
       ['default', { summary: false }]

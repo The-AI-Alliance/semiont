@@ -56,12 +56,7 @@ export default defineConfig({
     },
     // Pool options for integration tests
     pool: 'threads',
-    poolOptions: {
-      threads: {
-        singleThread: false,
-        isolate: true
-      }
-    }
+    isolate: true
   },
   resolve: {
     alias: {

@@ -47,14 +47,9 @@ export default defineConfig({
     typecheck: {
       enabled: true
     },
-    // Pool options for integration tests
-    pool: 'threads',
-    poolOptions: {
-      threads: {
-        singleThread: true, // Run integration tests sequentially to avoid container conflicts
-        isolate: true
-      }
-    }
+    // Run integration tests sequentially to avoid container conflicts
+    fileParallelism: false,
+    isolate: true
   },
   resolve: {
     alias: {

@@ -50,5 +50,13 @@
     "isolatedModules": true,                    // Ensure each file can be transpiled in isolation
     "verbatimModuleSyntax": false,              // Keep false for backward compatibility
     "allowImportingTsExtensions": false         // Disallow .ts extensions in imports
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "**/node_modules",
+    "**/dist",
+    "**/examples",
+    "apps/frontend",
+    "apps/frontend/.next"
+  ]
 }

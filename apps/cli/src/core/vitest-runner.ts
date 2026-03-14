@@ -1,4 +1,4 @@
-import { startVitest, type UserConfig, type Vitest } from 'vitest/node';
+import { startVitest, type TestUserConfig, type Vitest } from 'vitest/node';
 import { resolve } from 'path';
 import * as fs from 'fs';
 
@@ -43,7 +43,7 @@ export class VitestRunner {
     
     try {
       // Build Vitest configuration
-      const config: UserConfig = {
+      const config: TestUserConfig = {
         root: this.workDir,
         ...(options.coverage && {
           coverage: {

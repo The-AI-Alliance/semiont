@@ -49,7 +49,7 @@ vi.mock('@tanstack/react-query', async () => {
   const actual = await vi.importActual('@tanstack/react-query');
   return {
     ...actual,
-    QueryClient: vi.fn().mockImplementation((options) => new (actual as any).QueryClient(options)),
+    QueryClient: vi.fn().mockImplementation(function(options) { return new (actual as any).QueryClient(options); }),
     QueryClientProvider: ({ children }: { children: React.ReactNode }) =>
       <div data-testid="query-client-provider">{children}</div>
   };

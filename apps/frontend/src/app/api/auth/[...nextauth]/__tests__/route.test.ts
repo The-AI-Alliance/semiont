@@ -82,9 +82,9 @@ describe('NextAuth Route Handler', () => {
 
   describe('Handler Function Properties', () => {
     it('should have function names for debugging', () => {
-      // vi.fn() creates spies with name 'spy' by default
-      expect(GET.name).toBe('spy');
-      expect(POST.name).toBe('spy');
+      // vi.fn() creates mocks with name 'Mock' (vitest 4+)
+      expect(GET.name).toBe('Mock');
+      expect(POST.name).toBe('Mock');
     });
 
     it('should be functions that can be called', () => {

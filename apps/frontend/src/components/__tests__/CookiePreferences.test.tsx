@@ -50,12 +50,12 @@ global.URL = {
   canParse: vi.fn(() => true),
   parse: vi.fn(() => null)
 } as any;
-global.Blob = vi.fn().mockImplementation((content, options) => ({
+global.Blob = vi.fn().mockImplementation(function(content, options) { return {
   content,
   options,
   size: content?.[0]?.length || 0,
   type: options?.type || 'application/octet-stream'
-}));
+}; });
 
 // Mock @heroicons/react/24/outline
 vi.mock('@heroicons/react/24/outline', () => ({
