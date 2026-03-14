@@ -12,6 +12,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { take } from 'rxjs/operators';
 import { EventBus, resourceId, type GatheredContext, type Logger, type ResourceId } from '@semiont/core';
 import type { KnowledgeBase } from '../knowledge-base';
+import type { InferenceClient } from '@semiont/inference';
 import { Binder } from '../binder';
 
 const mockLogger: Logger = {
@@ -23,10 +24,10 @@ const mockLogger: Logger = {
 };
 
 interface MockGraphOverrides {
-  searchResources?: (...args: any[]) => any;
-  getResourceReferencedBy?: (...args: any[]) => any;
-  getResource?: (...args: any[]) => any;
-  listResources?: (...args: any[]) => any;
+  searchResources?: ReturnType<typeof vi.fn>;
+  getResourceReferencedBy?: ReturnType<typeof vi.fn>;
+  getResource?: ReturnType<typeof vi.fn>;
+  listResources?: ReturnType<typeof vi.fn>;
 }
 
 function createMockKb(overrides: MockGraphOverrides = {}): KnowledgeBase {
@@ -675,7 +676,7 @@ describe('Binder', () => {
           generateText: vi.fn(),
           generateTextWithMetadata: vi.fn(),
         };
-        binder = new Binder(kb, eventBus, mockLogger, mockInference);
+        binder = new Binder(kb, eventBus, mockLogger, mockInference as InferenceClient);
         await binder.initialize();
       });
 

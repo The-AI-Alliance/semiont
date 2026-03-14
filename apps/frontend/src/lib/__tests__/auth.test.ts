@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, type Mock } from 'vitest';
 import type { NextAuthOptions } from 'next-auth';
 import type { Account, Profile, User } from 'next-auth';
 import type { AdapterUser } from 'next-auth/adapters';
@@ -40,7 +40,7 @@ describe('Auth Configuration', () => {
   let mockUser: User;
   let mockAccount: Account;
   let mockProfile: Profile;
-  let mockValidateData: ReturnType<typeof vi.fn>;
+  let mockValidateData: Mock;
   let authOptions: NextAuthOptions;
 
   beforeAll(async () => {

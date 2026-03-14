@@ -26,16 +26,16 @@ import { ApiClientProvider } from '../../contexts/ApiClientContext';
 
 // Mock the API client
 vi.mock('@semiont/api-client', () => ({
-  SemiontApiClient: vi.fn(),
-  resourceUri: vi.fn((id: string) => id as any),
-  annotationUri: vi.fn((id: string) => id as any),
-  resourceAnnotationUri: vi.fn((id: string) => id as any),
-  searchQuery: vi.fn((q: string) => q as any),
-  cloneToken: vi.fn((t: string) => t as any),
-  entityType: vi.fn((t: string) => t as any),
-  userDID: vi.fn((id: string) => id as any),
-  accessToken: vi.fn((t: string) => t as any),
-  baseUrl: vi.fn((url: string) => url),
+  SemiontApiClient: vi.fn(function() {}),
+  resourceUri: vi.fn(function(id: string) { return id as any; }),
+  annotationUri: vi.fn(function(id: string) { return id as any; }),
+  resourceAnnotationUri: vi.fn(function(id: string) { return id as any; }),
+  searchQuery: vi.fn(function(q: string) { return q as any; }),
+  cloneToken: vi.fn(function(t: string) { return t as any; }),
+  entityType: vi.fn(function(t: string) { return t as any; }),
+  userDID: vi.fn(function(id: string) { return id as any; }),
+  accessToken: vi.fn(function(t: string) { return t as any; }),
+  baseUrl: vi.fn(function(url: string) { return url; }),
 }));
 
 describe('API Hooks Authentication', () => {
@@ -88,7 +88,7 @@ describe('API Hooks Authentication', () => {
       getStatus: vi.fn().mockResolvedValue({ status: 'operational' }),
     };
 
-    vi.mocked(SemiontApiClient).mockImplementation(() => mockClient);
+    vi.mocked(SemiontApiClient).mockImplementation(function() { return mockClient; });
 
     queryClient = new QueryClient({
       defaultOptions: {
