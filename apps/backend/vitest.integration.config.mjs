@@ -49,12 +49,8 @@ export default defineConfig({
     },
     // Pool options for integration tests
     pool: 'threads',
-    poolOptions: {
-      threads: {
-        singleThread: true, // Run integration tests sequentially to avoid container conflicts
-        isolate: true
-      }
-    }
+    maxConcurrency: 1, // Run integration tests sequentially to avoid container conflicts
+    isolate: true
   },
   resolve: {
     alias: {
