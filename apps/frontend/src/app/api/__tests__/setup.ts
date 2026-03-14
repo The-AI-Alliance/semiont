@@ -1,5 +1,4 @@
 // Setup for API route tests
-import 'whatwg-fetch';
 import { TextEncoder, TextDecoder } from 'util';
 
 // Mock Next.js server environment

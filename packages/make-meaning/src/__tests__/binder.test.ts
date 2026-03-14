@@ -392,7 +392,7 @@ describe('Binder', () => {
       });
 
       const result = await resultPromise;
-      const scores = result!.results as Array<{ name: string; score: number; matchReason: string }>;
+      const scores = result!.results as unknown as Array<{ name: string; score: number; matchReason: string }>;
       const alpha = scores.find(r => r.name === 'Alpha');
       const beta = scores.find(r => r.name === 'Beta');
       expect(alpha).toBeDefined();
@@ -423,7 +423,7 @@ describe('Binder', () => {
       });
 
       const result = await resultPromise;
-      const scores = result!.results as Array<{ name: string; score: number; matchReason: string }>;
+      const scores = result!.results as unknown as Array<{ name: string; score: number; matchReason: string }>;
       const alpha = scores.find(r => r.name === 'Alpha');
       expect(alpha).toBeDefined();
       expect(alpha!.matchReason).toContain('entity types');
@@ -456,7 +456,7 @@ describe('Binder', () => {
       });
 
       const result = await resultPromise;
-      const scores = result!.results as Array<{ name: string; score: number; matchReason: string }>;
+      const scores = result!.results as unknown as Array<{ name: string; score: number; matchReason: string }>;
       const beta = scores.find(r => r.name === 'Beta');
       expect(beta).toBeDefined();
       expect(beta!.matchReason).toContain('bidirectional connection');
@@ -507,7 +507,7 @@ describe('Binder', () => {
       });
 
       const result = await resultPromise;
-      const scores = result!.results as Array<{ name: string; score: number; matchReason: string }>;
+      const scores = result!.results as unknown as Array<{ name: string; score: number; matchReason: string }>;
       const alpha = scores.find(r => r.name === 'Alpha');
       expect(alpha).toBeDefined();
       expect(alpha!.matchReason).toContain('retrieval sources');
@@ -567,7 +567,7 @@ describe('Binder', () => {
       });
 
       const result = await resultPromise;
-      const scores = result!.results as Array<{ name: string; score: number; matchReason: string }>;
+      const scores = result!.results as unknown as Array<{ name: string; score: number; matchReason: string }>;
       const alpha = scores.find(r => r.name === 'Alpha');
       const beta = scores.find(r => r.name === 'Beta');
       expect(alpha).toBeDefined();
@@ -692,7 +692,7 @@ describe('Binder', () => {
         });
 
         const result = await resultPromise;
-        const scores = result!.results as Array<{ name: string; score: number; matchReason: string }>;
+        const scores = result!.results as unknown as Array<{ name: string; score: number; matchReason: string }>;
         // Only Gamma (index 2, score 0.7) should get semantic boost
         const gamma = scores.find(r => r.name === 'Gamma');
         expect(gamma!.matchReason).toContain('semantic match');
@@ -717,7 +717,7 @@ describe('Binder', () => {
         });
 
         const result = await resultPromise;
-        const scores = result!.results as Array<{ name: string; score: number; matchReason: string }>;
+        const scores = result!.results as unknown as Array<{ name: string; score: number; matchReason: string }>;
         // Only Alpha (index 0) should get semantic match (0.8 > 0.5)
         const alpha = scores.find(r => r.name === 'Alpha');
         expect(alpha!.matchReason).toContain('semantic match');
@@ -757,7 +757,7 @@ describe('Binder', () => {
         });
 
         const result = await resultPromise;
-        const scores = result!.results as Array<{ name: string; score: number; matchReason: string }>;
+        const scores = result!.results as unknown as Array<{ name: string; score: number; matchReason: string }>;
         // Alpha (index 0) should get boost, Gamma (index 2) should get boost
         // Index 4 (5th candidate) doesn't exist, should be silently ignored
         const alpha = scores.find(r => r.name === 'Alpha');
@@ -776,7 +776,7 @@ describe('Binder', () => {
         });
 
         const result = await resultPromise;
-        const scores = result!.results as Array<{ name: string; score: number; matchReason: string }>;
+        const scores = result!.results as unknown as Array<{ name: string; score: number; matchReason: string }>;
         const alpha = scores.find(r => r.name === 'Alpha');
         const beta = scores.find(r => r.name === 'Beta');
         const gamma = scores.find(r => r.name === 'Gamma');
