@@ -1,6 +1,6 @@
 # Gather Flow
 
-**Purpose**: Extract semantic context from an annotation and its surrounding document text for downstream use. Correlation assembles a `GenerationContext` — the selected text, surrounding passage, and metadata — that serves as grounding material for the [Yield flow](./YIELD.md) or any other consumer that needs rich context from an annotation.
+**Purpose**: Extract semantic context from an annotation and its surrounding document text for downstream use. Correlation assembles a `GatheredContext` — the selected text, surrounding passage, and metadata — that serves as grounding material for the [Yield flow](./YIELD.md) or any other consumer that needs rich context from an annotation.
 
 **Related Documentation**:
 - [Yield Flow](./YIELD.md) - Primary consumer of correlated context
@@ -10,7 +10,7 @@
 
 ## Overview
 
-The Gather flow assembles related context around a focal annotation. The application surfaces related documents, linked records, and surrounding passage text to construct a coherent input for downstream processing. AI agents perform RAG retrieval, context window assembly, and knowledge graph traversal; human collaborators pull prior materials and cross-references. The output is a `YieldContext` object that provides grounding material for resource generation or other context-dependent operations.
+The Gather flow assembles related context around a focal annotation. The application surfaces related documents, linked records, and surrounding passage text to construct a coherent input for downstream processing. AI agents perform RAG retrieval, context window assembly, and knowledge graph traversal; human collaborators pull prior materials and cross-references. The output is a `GatheredContext` object that provides grounding material for resource generation or other context-dependent operations.
 
 When a user or agent wants to generate a new resource from a reference annotation, the system first needs to understand the context around that reference — what the surrounding text says, what the annotation targets, and what entity types are involved. The Gather flow fetches this context from the backend and makes it available to downstream flows.
 
@@ -43,19 +43,19 @@ console.log(context.afterText);     // Surrounding passage after the selection
 | Event | Payload | Description |
 |-------|---------|-------------|
 | `gather:requested` | `{ annotationUri, resourceUri }` | Fetch context for this annotation |
-| `gather:complete` | `{ annotationUri, context: GenerationContext }` | Context successfully assembled |
+| `gather:complete` | `{ annotationUri, context: GatheredContext }` | Context successfully assembled |
 | `gather:failed` | `{ annotationUri, error }` | Context fetch failed |
 
 ## Context Assembly
 
-The Gatherer actor assembles a `GenerationContext` by:
+The Gatherer actor assembles a `GatheredContext` by:
 
 1. Loading the annotation from Materialized Views
 2. Extracting the target text via the annotation's selector
 3. Extracting surrounding text (configurable context window, default ~2000 characters)
 4. Including annotation metadata (entity types, motivation)
 
-The result is a `GenerationContext` containing:
+The result is a `GatheredContext` containing:
 - **selectedText** — The exact text the annotation targets
 - **beforeText** — Text preceding the selection
 - **afterText** — Text following the selection
@@ -72,7 +72,7 @@ useYieldFlow emits gather:requested on EventBus (parallel with modal render)
     |
 Gatherer actor receives gather:requested
     |
-Gatherer assembles GenerationContext from Materialized Views + Content Store
+Gatherer assembles GatheredContext from Materialized Views + Content Store
     |
 Gatherer emits gather:complete on EventBus with assembled context
     |

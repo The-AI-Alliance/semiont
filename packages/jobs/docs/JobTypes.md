@@ -116,7 +116,7 @@ interface GenerationParams {
   title?: string;
   entityTypes?: EntityType[];
   language?: string;                // e.g., 'en-US'
-  context?: YieldContext;
+  context?: GatheredContext;
   temperature?: number;
   maxTokens?: number;
 }
