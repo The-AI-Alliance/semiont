@@ -23,7 +23,7 @@ const mockPrismaClient = {
   $on: vi.fn(),
 };
 
-const mockPrismaConstructor = vi.fn(() => mockPrismaClient);
+const mockPrismaConstructor = vi.fn(function() { return mockPrismaClient; });
 
 vi.mock('@prisma/client', () => ({
   PrismaClient: mockPrismaConstructor,
