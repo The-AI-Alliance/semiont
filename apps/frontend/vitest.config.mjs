@@ -16,13 +16,7 @@ export default defineConfig({
     dangerouslyIgnoreUnhandledErrors: true,
     // Pool configuration to reduce memory usage
     pool: 'threads',
-    poolOptions: {
-      threads: {
-        singleThread: false,
-        maxThreads: 2,
-        minThreads: 1
-      }
-    },
+    maxConcurrency: 2,
     // Configure reporters (replaces deprecated 'basic' reporter)
     reporters: [
       ['default', { summary: false }]
