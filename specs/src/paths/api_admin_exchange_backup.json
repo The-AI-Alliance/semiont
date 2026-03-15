@@ -1,28 +1,16 @@
 {
   "post": {
-    "summary": "Export Knowledge Base as JSON-LD",
-    "description": "Export the knowledge base as a JSON-LD Linked Data tar.gz archive",
+    "summary": "Backup Knowledge Base",
+    "description": "Create a lossless backup of the knowledge base as a streaming tar.gz archive",
     "tags": ["Admin"],
     "security": [
       {
         "bearerAuth": []
       }
     ],
-    "parameters": [
-      {
-        "name": "includeArchived",
-        "in": "query",
-        "description": "Include archived resources in export",
-        "required": false,
-        "schema": {
-          "type": "boolean",
-          "default": false
-        }
-      }
-    ],
     "responses": {
       "200": {
-        "description": "Streaming JSON-LD archive",
+        "description": "Streaming backup archive",
         "content": {
           "application/gzip": {
             "schema": {

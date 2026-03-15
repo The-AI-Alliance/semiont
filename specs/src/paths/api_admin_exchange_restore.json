@@ -1,7 +1,7 @@
 {
   "post": {
-    "summary": "Import Knowledge Base from JSON-LD",
-    "description": "Import resources from a JSON-LD Linked Data archive. Returns SSE progress events.",
+    "summary": "Restore Knowledge Base",
+    "description": "Restore knowledge base from a backup archive. Returns SSE progress events.",
     "tags": ["Admin"],
     "security": [
       {
@@ -19,7 +19,7 @@
               "file": {
                 "type": "string",
                 "format": "binary",
-                "description": "JSON-LD archive (.tar.gz)"
+                "description": "Backup archive (.tar.gz)"
               }
             }
           }
@@ -28,7 +28,7 @@
     },
     "responses": {
       "200": {
-        "description": "SSE stream of import progress events",
+        "description": "SSE stream of restore progress events",
         "content": {
           "text/event-stream": {
             "schema": {
