@@ -19,7 +19,7 @@ export default function Home() {
   return (
     <div className="flex flex-col min-h-screen">
       <main className="flex-1 flex flex-col items-center justify-center p-24" role="main">
-        <div className="z-10 w-full max-w-5xl items-center justify-between text-sm">
+        <div className="z-10 max-w-5xl text-sm">
           {status === "loading" ? (
             <div className="text-center">
               <p className="text-gray-600 dark:text-gray-300">{t('loading')}</p>
