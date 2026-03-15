@@ -1,4 +1,4 @@
-import type { ResourceUri } from '@semiont/core';
+import type { ResourceId } from '@semiont/core';
 
 /**
  * Cache Manager Interface
@@ -47,12 +47,12 @@ export interface CacheManager {
    * @param rUri - Resource URI
    * @returns Promise or void (synchronous invalidation is acceptable)
    */
-  invalidateAnnotations: (rUri: ResourceUri) => void | Promise<void>;
+  invalidateAnnotations: (rUri: ResourceId) => void | Promise<void>;
 
   /**
    * Invalidate events cache for a resource
    * @param rUri - Resource URI
    * @returns Promise or void (synchronous invalidation is acceptable)
    */
-  invalidateEvents: (rUri: ResourceUri) => void | Promise<void>;
+  invalidateEvents: (rUri: ResourceId) => void | Promise<void>;
 }
