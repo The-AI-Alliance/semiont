@@ -7,7 +7,6 @@
 
 import type { ResourceEvent, BodyOperation } from './events';
 import type { components } from './types';
-import type { ResourceUri } from './branded-types';
 import type { ResourceId, AnnotationId, UserId } from './identifiers';
 import type { JobId } from './branded-types';
 import type { CreationMethod } from './creation-methods';
@@ -252,7 +251,7 @@ export type EventMap = {
     };
   };
   'mark:progress': MarkProgress;
-  'mark:assist-finished': { motivation?: Motivation; resourceUri?: ResourceUri; progress?: MarkProgress };
+  'mark:assist-finished': { motivation?: Motivation; resourceId?: ResourceId; progress?: MarkProgress };
   'mark:assist-failed': Extract<ResourceEvent, { type: 'job.failed' }>;
   'mark:assist-cancelled': void;
   'mark:progress-dismiss': void;
