@@ -31,6 +31,32 @@ export interface BackupStreamSummary {
   lastChecksum: string;
 }
 
+// ── Linked Data manifest (JSON-LD) ──
+
+export const LINKED_DATA_FORMAT = 'semiont-linked-data' as const;
+
+export interface LinkedDataManifest {
+  '@context': Record<string, string>;
+  '@type': string;
+  'semiont:format': typeof LINKED_DATA_FORMAT;
+  'semiont:version': number;
+  'dct:created': string;
+  'prov:wasGeneratedBy': {
+    '@type': string;
+    'prov:used': string;
+  };
+  'semiont:entityTypes': string[];
+  'void:entities': number;
+}
+
+export function isLinkedDataManifest(obj: unknown): obj is LinkedDataManifest {
+  return (
+    typeof obj === 'object' &&
+    obj !== null &&
+    (obj as LinkedDataManifest)['semiont:format'] === LINKED_DATA_FORMAT
+  );
+}
+
 // ── Validation ──
 
 export function isBackupManifest(obj: unknown): obj is BackupManifestHeader {

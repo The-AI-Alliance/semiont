@@ -43,6 +43,63 @@ export interface LinkedDataImportResult {
 const IMPORT_TIMEOUT_MS = 30_000;
 
 /**
+ * Strip full URIs back to bare IDs for internal storage.
+ *
+ * Exported JSON-LD uses full W3C-compliant URIs like
+ * `http://host/resources/abc123` and `http://host/annotations/xyz`.
+ * Internally Semiont stores bare IDs, so we strip the URI prefix on import.
+ */
+function stripUriToId(uri: string): string {
+  // Already a bare ID
+  if (!uri.includes('/')) return uri;
+  // Extract last path segment: http://host/resources/abc → abc
+  const lastSlash = uri.lastIndexOf('/');
+  return uri.slice(lastSlash + 1);
+}
+
+function dehydrateAnnotation(annotation: Annotation): Annotation {
+  const dehydrated = { ...annotation };
+
+  // annotation.id
+  if (dehydrated.id) {
+    dehydrated.id = stripUriToId(dehydrated.id);
+  }
+
+  // annotation.target
+  if (typeof dehydrated.target === 'string') {
+    dehydrated.target = stripUriToId(dehydrated.target);
+  } else if (dehydrated.target && typeof dehydrated.target === 'object') {
+    const target = { ...dehydrated.target };
+    if (target.source) {
+      target.source = stripUriToId(target.source);
+    }
+    dehydrated.target = target;
+  }
+
+  // annotation.body — single or array of SpecificResource with source
+  dehydrated.body = dehydrateBody(dehydrated.body);
+
+  return dehydrated;
+}
+
+function dehydrateBody(body: Annotation['body']): Annotation['body'] {
+  if (Array.isArray(body)) {
+    return body.map((b) => dehydrateBodyItem(b));
+  }
+  return dehydrateBodyItem(body);
+}
+
+function dehydrateBodyItem<T>(item: T): T {
+  if (item && typeof item === 'object' && 'source' in item) {
+    const source = (item as { source: string }).source;
+    if (typeof source === 'string' && source.includes('/')) {
+      return { ...item, source: stripUriToId(source) };
+    }
+  }
+  return item;
+}
+
+/**
  * Build a blob resolver closure over raw tar entries.
  *
  * Content blobs live at the archive root as {checksum}.{ext}.
@@ -258,7 +315,7 @@ async function createAnnotation(
   );
 
   eventBus.get('mark:create').next({
-    annotation,
+    annotation: dehydrateAnnotation(annotation),
     userId,
     resourceId,
   });

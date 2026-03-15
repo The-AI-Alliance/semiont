@@ -50,7 +50,7 @@ function collectWritable(): { writable: Writable; promise: Promise<Buffer> } {
 function makeResource(overrides: Partial<ResourceDescriptor> = {}): ResourceDescriptor {
   return {
     '@context': 'https://schema.org',
-    '@id': 'http://localhost:4000/resources/res-abc',
+    '@id': 'res-abc',
     name: 'Test Document',
     representations: [{
       mediaType: 'text/markdown',
@@ -69,7 +69,7 @@ function makeAnnotation(id: string): Annotation {
   return {
     '@context': 'http://www.w3.org/ns/anno.jsonld',
     type: 'Annotation',
-    id: `urn:uuid:${id}`,
+    id,
     motivation: 'commenting',
     body: {
       type: 'TextualBody',
@@ -77,7 +77,7 @@ function makeAnnotation(id: string): Annotation {
       format: 'text/plain',
     },
     target: {
-      source: 'http://localhost:4000/resources/res-abc',
+      source: 'res-abc',
       selector: { type: 'TextQuoteSelector', exact: 'test' },
     },
     creator: {
@@ -175,7 +175,7 @@ describe('linked-data-exporter', () => {
     expect(resourceDoc['entityTypes']).toEqual(['Person']);
     expect(resourceDoc['creationMethod']).toBe('ui');
     expect(resourceDoc['annotations']).toHaveLength(1);
-    expect(resourceDoc['annotations'][0]['id']).toBe('urn:uuid:ann-1');
+    expect(resourceDoc['annotations'][0]['id']).toBe('http://localhost:4000/annotations/ann-1');
 
     // Verify representations
     expect(resourceDoc['representations']).toHaveLength(1);
@@ -214,8 +214,8 @@ describe('linked-data-exporter', () => {
   });
 
   it('filters out archived resources by default', async () => {
-    const active = makeResource({ '@id': 'http://test/resources/active', archived: false });
-    const archived = makeResource({ '@id': 'http://test/resources/archived', archived: true });
+    const active = makeResource({ '@id': 'active', archived: false });
+    const archived = makeResource({ '@id': 'archived', archived: true });
     const views = createMockViews([
       { resource: active, annotations: [] },
       { resource: archived, annotations: [] },
@@ -243,7 +243,7 @@ describe('linked-data-exporter', () => {
   });
 
   it('includes archived resources when includeArchived is true', async () => {
-    const archived = makeResource({ '@id': 'http://test/resources/archived', archived: true });
+    const archived = makeResource({ '@id': 'archived', archived: true });
     const views = createMockViews([{ resource: archived, annotations: [] }]);
     const content = createMockContent(new Map([
       ['deadbeef1234', Buffer.from('content')],

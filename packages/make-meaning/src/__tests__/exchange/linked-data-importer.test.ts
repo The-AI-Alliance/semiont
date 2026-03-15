@@ -211,18 +211,18 @@ describe('linked-data-importer', () => {
       {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         type: 'Annotation',
-        id: 'urn:uuid:ann-1',
+        id: 'http://localhost:4000/annotations/ann-1',
         motivation: 'commenting',
         body: { type: 'TextualBody', value: 'First', format: 'text/plain' },
-        target: { source: 'http://test/resources/res-abc' },
+        target: { source: 'http://localhost:4000/resources/res-abc' },
       },
       {
         '@context': 'http://www.w3.org/ns/anno.jsonld',
         type: 'Annotation',
-        id: 'urn:uuid:ann-2',
+        id: 'http://localhost:4000/annotations/ann-2',
         motivation: 'commenting',
         body: { type: 'TextualBody', value: 'Second', format: 'text/plain' },
-        target: { source: 'http://test/resources/res-abc' },
+        target: { source: 'http://localhost:4000/resources/res-abc' },
       },
     ];
 
@@ -240,7 +240,7 @@ describe('linked-data-importer', () => {
 
     expect(result.resourcesCreated).toBe(1);
     expect(result.annotationsCreated).toBe(2);
-    expect(annotationIds).toEqual(['urn:uuid:ann-1', 'urn:uuid:ann-2']);
+    expect(annotationIds).toEqual(['ann-1', 'ann-2']);
   });
 
   it('imports multiple resources', async () => {

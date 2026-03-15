@@ -69,6 +69,56 @@ const MANIFEST_CONTEXT: Record<string, string> = {
 };
 
 /**
+ * Hydrate bare IDs into full W3C-compliant URIs for JSON-LD export.
+ *
+ * Internally Semiont stores bare IDs (UUIDs). For linked-data export we
+ * construct full HTTP IRIs so the output is valid JSON-LD / W3C Web Annotation.
+ */
+function hydrateAnnotation(annotation: Annotation, baseUrl: string): Annotation {
+  const hydrated = { ...annotation };
+
+  // annotation.id: bare annotation ID → full URI
+  if (hydrated.id && !hydrated.id.startsWith('http')) {
+    hydrated.id = `${baseUrl}/annotations/${hydrated.id}`;
+  }
+
+  // annotation.target
+  if (typeof hydrated.target === 'string') {
+    if (!hydrated.target.startsWith('http')) {
+      hydrated.target = `${baseUrl}/resources/${hydrated.target}`;
+    }
+  } else if (hydrated.target && typeof hydrated.target === 'object') {
+    const target = { ...hydrated.target };
+    if (target.source && !target.source.startsWith('http')) {
+      target.source = `${baseUrl}/resources/${target.source}`;
+    }
+    hydrated.target = target;
+  }
+
+  // annotation.body — single or array of SpecificResource with source
+  hydrated.body = hydrateBody(hydrated.body, baseUrl);
+
+  return hydrated;
+}
+
+function hydrateBody(body: Annotation['body'], baseUrl: string): Annotation['body'] {
+  if (Array.isArray(body)) {
+    return body.map((b) => hydrateBodyItem(b, baseUrl));
+  }
+  return hydrateBodyItem(body, baseUrl);
+}
+
+function hydrateBodyItem<T>(item: T, baseUrl: string): T {
+  if (item && typeof item === 'object' && 'source' in item) {
+    const source = (item as { source: string }).source;
+    if (typeof source === 'string' && !source.startsWith('http')) {
+      return { ...item, source: `${baseUrl}/resources/${source}` };
+    }
+  }
+  return item;
+}
+
+/**
  * Export the knowledge base as a JSON-LD tar.gz archive.
  */
 export async function exportLinkedData(
@@ -127,8 +177,8 @@ export async function exportLinkedData(
 
     // 2. Per-resource JSON-LD documents
     for (const view of resourceViews) {
-      const resourceId = extractResourceId(view.resource['@id']);
-      const jsonld = buildResourceJsonLd(view.resource, view.annotations.annotations);
+      const resourceId = view.resource['@id'];
+      const jsonld = buildResourceJsonLd(view.resource, view.annotations.annotations, sourceUrl);
       yield {
         name: `.semiont/resources/${resourceId}.jsonld`,
         data: Buffer.from(JSON.stringify(jsonld, null, 2), 'utf8'),
@@ -153,14 +203,21 @@ export async function exportLinkedData(
 
 /**
  * Build a JSON-LD document for a single resource with its annotations.
+ * Hydrates bare IDs into full W3C-compliant URIs using sourceUrl.
  */
 function buildResourceJsonLd(
   resource: ResourceDescriptor,
   annotations: Annotation[],
+  sourceUrl: string,
 ): Record<string, unknown> {
+  const resourceId = resource['@id'];
+  const resourceUri = resourceId.startsWith('http')
+    ? resourceId
+    : `${sourceUrl}/resources/${resourceId}`;
+
   const doc: Record<string, unknown> = {
     '@context': SEMIONT_CONTEXT,
-    '@id': resource['@id'],
+    '@id': resourceUri,
     '@type': resource['@type'] ?? 'DigitalDocument',
     'name': resource.name,
   };
@@ -212,20 +269,12 @@ function buildResourceJsonLd(
     });
   }
 
-  // Annotations
+  // Annotations — hydrate bare IDs into full URIs for W3C compliance
   if (annotations.length > 0) {
-    doc['annotations'] = annotations;
+    doc['annotations'] = annotations.map((ann) => hydrateAnnotation(ann, sourceUrl));
   }
 
   return doc;
-}
-
-/**
- * Extract the resource ID from a URI like "http://localhost:4000/resources/4feadd89-..."
- */
-function extractResourceId(uri: string): string {
-  const lastSlash = uri.lastIndexOf('/');
-  return lastSlash >= 0 ? uri.slice(lastSlash + 1) : uri;
 }
 
 /**
