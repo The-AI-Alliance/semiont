@@ -19,7 +19,7 @@ export interface UseResourceContentResult {
  * Uses React Query for caching, deduplication, and consistent loading state.
  */
 export function useResourceContent(
-  rUri: ResourceUri,
+  rUri: ResourceId,
   resource: SemiontResource
 ): UseResourceContentResult {
   const { showError } = useToast();
