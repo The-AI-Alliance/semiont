@@ -13,7 +13,7 @@ import { EventBusProvider, resetEventBusForTesting } from '../../../contexts/Eve
 
 const createMockResource = (id: string, name: string, entityTypes: string[] = []) => ({
   '@context': 'https://www.w3.org/ns/anno.jsonld',
-  '@id': `http://localhost/resources/${id}`,
+  '@id': id,
   '@type': 'schema:DigitalDocument',
   name,
   description: `Description for ${name}`,

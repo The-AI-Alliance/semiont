@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { AnnotationProvider, useAnnotationManager } from '../AnnotationContext';
 import type { AnnotationManager, CreateAnnotationParams, DeleteAnnotationParams } from '../../types/AnnotationManager';
-import { resourceUri } from '@semiont/core';
+import { resourceId } from '@semiont/core';
 
 // Test component that uses the hook
 function TestConsumer() {
@@ -16,7 +16,7 @@ function TestConsumer() {
         data-testid="create-btn"
         onClick={() =>
           manager.createAnnotation({
-            rUri: resourceUri('http://localhost/resources/test-123'),
+            rUri: resourceId('test-123'),
             motivation: 'highlighting',
             selector: { type: 'TextQuoteSelector', exact: 'test' }
           })
@@ -29,7 +29,7 @@ function TestConsumer() {
         onClick={() =>
           manager.deleteAnnotation({
             annotationId: 'ann-123',
-            rUri: resourceUri('http://localhost/resources/test-123')
+            rUri: resourceId('test-123')
           })
         }
       >
@@ -74,7 +74,7 @@ describe('AnnotationContext', () => {
 
       await waitFor(() => {
         expect(mockCreate).toHaveBeenCalledWith({
-          rUri: resourceUri('http://localhost/resources/test-123'),
+          rUri: resourceId('test-123'),
           motivation: 'highlighting',
           selector: { type: 'TextQuoteSelector', exact: 'test' }
         });
@@ -100,7 +100,7 @@ describe('AnnotationContext', () => {
       await waitFor(() => {
         expect(mockDelete).toHaveBeenCalledWith({
           annotationId: 'ann-123',
-          rUri: resourceUri('http://localhost/resources/test-123')
+          rUri: resourceId('test-123')
         });
       });
     });
@@ -279,7 +279,7 @@ describe('AnnotationContext', () => {
             data-testid="nested-create"
             onClick={() =>
               manager.createAnnotation({
-                rUri: resourceUri('http://localhost/resources/test'),
+                rUri: resourceId('test'),
                 motivation: 'highlighting',
                 selector: { type: 'TextQuoteSelector', exact: 'test' }
               })
@@ -323,7 +323,7 @@ describe('AnnotationContext', () => {
             data-testid="consumer1-create"
             onClick={() =>
               manager.createAnnotation({
-                rUri: resourceUri('http://localhost/resources/test'),
+                rUri: resourceId('test'),
                 motivation: 'highlighting',
                 selector: { type: 'TextQuoteSelector', exact: 'test1' }
               })
@@ -341,7 +341,7 @@ describe('AnnotationContext', () => {
             data-testid="consumer2-create"
             onClick={() =>
               manager.createAnnotation({
-                rUri: resourceUri('http://localhost/resources/test'),
+                rUri: resourceId('test'),
                 motivation: 'commenting',
                 selector: { type: 'TextQuoteSelector', exact: 'test2' }
               })
@@ -385,7 +385,7 @@ describe('AnnotationContext', () => {
               onClick={async () => {
                 try {
                   await manager.createAnnotation({
-                    rUri: resourceUri('http://localhost/resources/test'),
+                    rUri: resourceId('test'),
                     motivation: 'highlighting',
                     selector: { type: 'TextQuoteSelector', exact: 'test' }
                   });
@@ -433,7 +433,7 @@ describe('AnnotationContext', () => {
                 try {
                   await manager.deleteAnnotation({
                     annotationId: 'ann-123',
-                    rUri: resourceUri('http://localhost/resources/test')
+                    rUri: resourceId('test')
                   });
                 } catch (err) {
                   setError((err as Error).message);

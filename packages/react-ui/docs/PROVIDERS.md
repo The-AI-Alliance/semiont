@@ -278,7 +278,7 @@ interface MakeMeaningEventBus {
 
 ```typescript
 interface MakeMeaningEventBusProviderProps {
-  rUri: ResourceUri;
+  rId: ResourceId;
   children: React.ReactNode;
 }
 ```
@@ -287,15 +287,15 @@ interface MakeMeaningEventBusProviderProps {
 
 ```tsx
 import { MakeMeaningEventBusProvider, useMakeMeaningEvents } from '@semiont/react-ui';
-import { resourceUri } from '@semiont/api-client';
+import { resourceId } from '@semiont/api-client';
 
 // Wrap resource page with provider
 export default function ResourcePage({ params }: { params: { id: string } }) {
-  const rUri = resourceUri(params.id);
+  const rId = resourceId(params.id);
 
   return (
-    <MakeMeaningEventBusProvider rUri={rUri}>
-      <ResourceViewerPage rUri={rUri} />
+    <MakeMeaningEventBusProvider rId={rId}>
+      <ResourceViewerPage rId={rId} />
     </MakeMeaningEventBusProvider>
   );
 }

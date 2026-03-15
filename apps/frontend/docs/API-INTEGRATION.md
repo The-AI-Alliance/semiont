@@ -441,7 +441,7 @@ POST /resources/:resourceId/annotations/:annotationId/generate-resource-stream
 **Example**:
 ```typescript
 // Asynchronous - uses SSE streaming for real-time progress
-const stream = client.sse.detectAnnotations(resourceUri, {
+const stream = client.sse.detectAnnotations(resourceId, {
   entityTypes: ['Person', 'Organization']
 });
 

@@ -1,5 +1,5 @@
 /**
- * AdminExchangePage — Import/Export admin page
+ * AdminExchangePage — Backup/Restore admin page
  *
  * Pure React component. All state and handlers passed as props.
  */
@@ -19,8 +19,8 @@ export interface AdminExchangePageTranslations {
 }
 
 export interface AdminExchangePageProps {
-  // Export
-  onExport: (format: 'backup' | 'snapshot', includeArchived: boolean) => void;
+  // Backup
+  onExport: () => void;
   isExporting: boolean;
 
   // Import

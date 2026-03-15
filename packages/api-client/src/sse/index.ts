@@ -7,7 +7,7 @@
 
 import { createSSEStream } from './stream';
 import type { SSEStream } from './types';
-import type { ResourceUri, AnnotationUri } from '@semiont/core';
+import type { ResourceId, AnnotationId } from '@semiont/core';
 import type { AccessToken, BaseUrl, EntityType, Logger } from '@semiont/core';
 import type { components } from '@semiont/core';
 
@@ -137,18 +137,6 @@ export class SSEClient {
   }
 
   /**
-   * Extract resource ID from URI
-   *
-   * Handles both full URIs and plain IDs:
-   * - 'http://localhost:4000/resources/doc-123' -> 'doc-123'
-   * - 'doc-123' -> 'doc-123'
-   */
-  private extractId(uri: string): string {
-    const parts = uri.split('/');
-    return parts[parts.length - 1];
-  }
-
-  /**
    * Detect annotations in a resource (streaming)
    *
    * Streams entity detection progress via Server-Sent Events.
@@ -184,12 +172,11 @@ export class SSEClient {
    * ```
    */
   annotateReferences(
-    resourceId: ResourceUri,
+    resourceId: ResourceId,
     request: AnnotateReferencesStreamRequest,
     options: SSERequestOptions
   ): SSEStream {
-    const id = this.extractId(resourceId);
-    const url = `${this.baseUrl}/resources/${id}/annotate-references-stream`;
+    const url = `${this.baseUrl}/resources/${resourceId}/annotate-references-stream`;
 
     return createSSEStream(
       url,
@@ -247,14 +234,12 @@ export class SSEClient {
    * ```
    */
   yieldResourceFromAnnotation(
-    resourceId: ResourceUri,
-    annotationId: AnnotationUri,
+    resourceId: ResourceId,
+    annotationId: AnnotationId,
     request: YieldResourceStreamRequest,
     options: SSERequestOptions
   ): SSEStream {
-    const resId = this.extractId(resourceId);
-    const annId = this.extractId(annotationId);
-    const url = `${this.baseUrl}/resources/${resId}/annotations/${annId}/yield-resource-stream`;
+    const url = `${this.baseUrl}/resources/${resourceId}/annotations/${annotationId}/yield-resource-stream`;
 
     return createSSEStream(
       url,
@@ -310,12 +295,11 @@ export class SSEClient {
    * ```
    */
   annotateHighlights(
-    resourceId: ResourceUri,
+    resourceId: ResourceId,
     request: AnnotateHighlightsStreamRequest = {},
     options: SSERequestOptions
   ): SSEStream {
-    const id = this.extractId(resourceId);
-    const url = `${this.baseUrl}/resources/${id}/annotate-highlights-stream`;
+    const url = `${this.baseUrl}/resources/${resourceId}/annotate-highlights-stream`;
 
     return createSSEStream(
       url,
@@ -371,12 +355,11 @@ export class SSEClient {
    * ```
    */
   annotateAssessments(
-    resourceId: ResourceUri,
+    resourceId: ResourceId,
     request: AnnotateAssessmentsStreamRequest = {},
     options: SSERequestOptions
   ): SSEStream {
-    const id = this.extractId(resourceId);
-    const url = `${this.baseUrl}/resources/${id}/annotate-assessments-stream`;
+    const url = `${this.baseUrl}/resources/${resourceId}/annotate-assessments-stream`;
 
     return createSSEStream(
       url,
@@ -436,12 +419,11 @@ export class SSEClient {
    * ```
    */
   annotateComments(
-    resourceId: ResourceUri,
+    resourceId: ResourceId,
     request: AnnotateCommentsStreamRequest = {},
     options: SSERequestOptions
   ): SSEStream {
-    const id = this.extractId(resourceId);
-    const url = `${this.baseUrl}/resources/${id}/annotate-comments-stream`;
+    const url = `${this.baseUrl}/resources/${resourceId}/annotate-comments-stream`;
 
     return createSSEStream(
       url,
@@ -502,12 +484,11 @@ export class SSEClient {
    * ```
    */
   annotateTags(
-    resourceId: ResourceUri,
+    resourceId: ResourceId,
     request: AnnotateTagsStreamRequest,
     options: SSERequestOptions
   ): SSEStream {
-    const id = this.extractId(resourceId);
-    const url = `${this.baseUrl}/resources/${id}/annotate-tags-stream`;
+    const url = `${this.baseUrl}/resources/${resourceId}/annotate-tags-stream`;
 
     return createSSEStream(
       url,
@@ -562,11 +543,10 @@ export class SSEClient {
    * ```
    */
   resourceEvents(
-    resourceId: ResourceUri,
+    resourceId: ResourceId,
     options: SSERequestOptions & { onConnected?: () => void }
   ): SSEStream {
-    const id = this.extractId(resourceId);
-    const url = `${this.baseUrl}/resources/${id}/events/stream`;
+    const url = `${this.baseUrl}/resources/${resourceId}/events/stream`;
 
     // Events auto-route to EventBus:
     // - Domain events (annotation.added, job.completed, etc.) emit to both their specific channel and 'make-meaning:event'

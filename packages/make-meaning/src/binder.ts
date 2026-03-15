@@ -23,7 +23,7 @@
 import { Subscription, from } from 'rxjs';
 import { concatMap, mergeMap } from 'rxjs/operators';
 import type { EventMap, GatheredContext, Logger, components } from '@semiont/core';
-import { type EventBus, resourceId, uriToResourceId } from '@semiont/core';
+import { type EventBus, resourceId } from '@semiont/core';
 import { getExactText, getResourceId, getResourceEntityTypes, getTargetSource, getTargetSelector } from '@semiont/api-client';
 import type { InferenceClient } from '@semiont/inference';
 import type { KnowledgeBase } from './knowledge-base';
@@ -376,14 +376,14 @@ No explanations.`;
 
       const references = await this.kb.graph.getResourceReferencedBy(event.resourceId, event.motivation);
 
-      // Get unique source resources — getTargetSource returns full URIs, extract IDs
-      const sourceUris = [...new Set(references.map(ref => getTargetSource(ref.target)))];
-      const resources = await Promise.all(sourceUris.map(uri => this.kb.graph.getResource(uriToResourceId(uri))));
+      // Get unique source resource IDs from annotation targets
+      const sourceIds = [...new Set(references.map(ref => getTargetSource(ref.target)))];
+      const resources = await Promise.all(sourceIds.map(id => this.kb.graph.getResource(resourceId(id))));
 
       // Build resource map for lookup — warn about any that couldn't be found
-      for (let i = 0; i < sourceUris.length; i++) {
+      for (let i = 0; i < sourceIds.length; i++) {
         if (resources[i] === null) {
-          this.logger.warn('Referenced resource not found in graph', { uri: sourceUris[i] });
+          this.logger.warn('Referenced resource not found in graph', { resourceId: sourceIds[i] });
         }
       }
       const docMap = new Map(resources.filter(doc => doc !== null).map(doc => [doc['@id'], doc]));

@@ -93,7 +93,7 @@ const entityTypes = await client.listEntityTypes();
 client.addEntityType('Person', userId('user-123'));
 
 // LLM context
-const context = await client.getResourceLLMContext(resourceUri, {
+const context = await client.getResourceLLMContext(resourceId('doc-123'), {
   depth: 2, maxResources: 10, includeContent: true, includeSummary: false,
 });
 
@@ -174,7 +174,7 @@ console.log('User logged out successfully');
 #### Creating Text Resources
 
 ```typescript
-import { resourceUri } from '@semiont/api-client';
+import { resourceId } from '@semiont/api-client';
 
 // Simple text/markdown example
 const textBlob = new Blob(['# Introduction\n\nThis paper explores...']);
@@ -186,8 +186,8 @@ const result = await client.createResource({
   language: 'en',
 });
 
-const rUri = resourceUri(result.resource['@id']);
-console.log('Created resource:', rUri);
+const rId = resourceId(result.resource['@id']);
+console.log('Created resource:', rId);
 ```
 
 #### Creating Image Resources
@@ -263,7 +263,7 @@ The charset is preserved in the resource metadata and used for correct decoding 
 
 ```typescript
 // Get full resource with annotations (JSON metadata)
-const resource = await client.getResource(rUri);
+const resource = await client.getResource(rId);
 
 console.log('Name:', resource.resource.name);
 console.log('Format:', resource.resource.format);
@@ -279,7 +279,7 @@ Use W3C content negotiation to get the raw binary content of a resource (images,
 
 ```typescript
 // Get markdown content for editing (decode to text)
-const { data, contentType } = await client.getResourceRepresentation(rUri, {
+const { data, contentType } = await client.getResourceRepresentation(rId, {
   accept: 'text/markdown'
 });
 const markdown = new TextDecoder().decode(data);
@@ -289,7 +289,7 @@ console.log('Content:', markdown);
 console.log('Type:', contentType); // 'text/markdown'
 
 // Get plain text representation
-const { data, contentType } = await client.getResourceRepresentation(rUri, {
+const { data, contentType } = await client.getResourceRepresentation(rId, {
   accept: 'text/plain'
 });
 const plainText = new TextDecoder().decode(data);
@@ -299,7 +299,7 @@ const plainText = new TextDecoder().decode(data);
 
 ```typescript
 // Get JPEG image
-const { data, contentType } = await client.getResourceRepresentation(imageUri, {
+const { data, contentType } = await client.getResourceRepresentation(imageId, {
   accept: 'image/jpeg'
 });
 
@@ -316,7 +316,7 @@ import { writeFileSync } from 'fs';
 writeFileSync('/path/to/output.jpg', Buffer.from(data));
 
 // Get PNG image
-const { data: pngData, contentType: pngType } = await client.getResourceRepresentation(imageUri, {
+const { data: pngData, contentType: pngType } = await client.getResourceRepresentation(imageId, {
   accept: 'image/png'
 });
 const pngBlob = new Blob([pngData], { type: pngType });
@@ -333,7 +333,7 @@ const pngBlob = new Blob([pngData], { type: pngType });
 
 ```typescript
 // Stream large video file (never loads entire file into memory)
-const { stream, contentType } = await client.getResourceRepresentationStream(rUri, {
+const { stream, contentType } = await client.getResourceRepresentationStream(rId, {
   accept: 'video/mp4'
 });
 
@@ -370,24 +370,24 @@ Resources in Semiont are **append-only** (event sourced), so content and name ar
 
 ```typescript
 // Update entity types
-const updated = await client.updateResource(rUri, {
+const updated = await client.updateResource(rId, {
   entityTypes: ['research', 'paper', 'published'],
 });
 
 console.log('Updated entity types:', updated.resource.entityTypes);
 
 // Archive a resource (instead of deleting)
-const archived = await client.updateResource(rUri, {
+const archived = await client.updateResource(rId, {
   archived: true,
 });
 
 // Unarchive a resource
-const unarchived = await client.updateResource(rUri, {
+const unarchived = await client.updateResource(rId, {
   archived: false,
 });
 
 // Update multiple fields in one operation
-const result = await client.updateResource(rUri, {
+const result = await client.updateResource(rId, {
   archived: true,
   entityTypes: ['archived', 'draft'],
 });
@@ -417,7 +417,7 @@ console.log(`Found ${search.total} matching resources`);
 
 ```typescript
 // Get event history for a resource
-const events = await client.getResourceEvents(rUri);
+const events = await client.getResourceEvents(rId);
 
 console.log(`Total events: ${events.events.length}`);
 
@@ -437,11 +437,11 @@ Semiont uses the [W3C Web Annotation Data Model](https://www.w3.org/TR/annotatio
 #### Create a Highlight
 
 ```typescript
-import { resourceAnnotationUri } from '@semiont/api-client';
+import { annotationId } from '@semiont/api-client';
 
-const highlight = await client.createAnnotation(rUri, {
+const highlight = await client.createAnnotation(rId, {
   target: {
-    source: rUri,
+    source: rId,
     selector: [
       {
         type: 'TextPositionSelector',
@@ -464,9 +464,9 @@ console.log('Created highlight:', highlight.annotation.id);
 #### Create a Reference (Stub)
 
 ```typescript
-const reference = await client.createAnnotation(rUri, {
+const reference = await client.createAnnotation(rId, {
   target: {
-    source: rUri,
+    source: rId,
     selector: [
       {
         type: 'TextPositionSelector',
@@ -497,15 +497,15 @@ console.log('Created reference stub:', reference.annotation.id);
 
 ```typescript
 // Link a reference annotation to an existing resource
-const annUri = resourceAnnotationUri(`${rUri}/annotations/${annotationId}`);
+const annId = annotationId('ann-456');
 
-const linked = await client.updateAnnotationBody(annUri, {
+const linked = await client.updateAnnotationBody(rId, annId, {
   operations: [
     {
       op: 'add',
       item: {
         type: 'SpecificResource',
-        source: targetResourceUri,
+        source: targetResourceId,
         purpose: 'linking',
       },
     },
@@ -518,10 +518,10 @@ console.log('Linked annotation to resource:', linked.annotation.id);
 ### Deleting Annotations
 
 ```typescript
-const annUri = resourceAnnotationUri(`${rUri}/annotations/${annotationId}`);
-await client.deleteAnnotation(annUri);
+const annId = annotationId('ann-456');
+await client.deleteAnnotation(rId, annId);
 
-console.log('Deleted annotation:', annotationId);
+console.log('Deleted annotation:', annId);
 ```
 
 ### Annotation History
@@ -529,8 +529,8 @@ console.log('Deleted annotation:', annotationId);
 Get the complete event history for an annotation with sequence numbers and checksums.
 
 ```typescript
-const annUri = resourceAnnotationUri(`${rUri}/annotations/${annotationId}`);
-const history = await client.getAnnotationHistory(annUri);
+const annId = annotationId('ann-456');
+const history = await client.getAnnotationHistory(rId, annId);
 
 console.log(`Total events: ${history.total}`);
 
@@ -548,7 +548,7 @@ history.events.forEach(event => {
 ### Get Resource Events
 
 ```typescript
-const events = await client.getResourceEvents(rUri);
+const events = await client.getResourceEvents(rId);
 
 // Format events for display
 events.events.forEach(event => {
@@ -561,7 +561,7 @@ events.events.forEach(event => {
 
 ```typescript
 // Find all resources that reference this resource
-const refs = await client.getResourceReferencedBy(rUri);
+const refs = await client.getResourceReferencedBy(rId);
 
 console.log(`Referenced by ${refs.referencedBy.length} resources`);
 refs.referencedBy.forEach(ref => {
@@ -632,16 +632,16 @@ SSE streams are not validated (per `SSE-VALIDATION-CONSIDERATIONS.md`). Request 
 
 **When to use SSE:**
 
-- ✅ Long-running operations (detection, generation)
-- ✅ Real-time progress updates
-- ✅ Live collaboration (see events from other users)
-- ✅ Operations that benefit from immediate feedback
+- Long-running operations (detection, generation)
+- Real-time progress updates
+- Live collaboration (see events from other users)
+- Operations that benefit from immediate feedback
 
 **When to use regular methods:**
 
-- ✅ Simple CRUD operations (create, read, update, delete)
-- ✅ One-time requests without progress tracking
-- ✅ Batch operations that don't need real-time feedback
+- Simple CRUD operations (create, read, update, delete)
+- One-time requests without progress tracking
+- Batch operations that don't need real-time feedback
 
 **Note**: SSE methods use native `fetch()` instead of `ky` for better streaming support.
 
@@ -650,10 +650,10 @@ SSE streams are not validated (per `SSE-VALIDATION-CONSIDERATIONS.md`). Request 
 Stream real-time progress updates during entity detection using EventBus:
 
 ```typescript
-import { resourceUri, entityType, accessToken } from '@semiont/api-client';
+import { resourceId, entityType, accessToken } from '@semiont/api-client';
 import { EventBus } from '@semiont/core';
 
-const rUri = resourceUri('http://localhost:4000/resources/resource-123');
+const rId = resourceId('resource-123');
 const eventBus = new EventBus();
 
 // Subscribe to events BEFORE starting stream
@@ -671,7 +671,7 @@ eventBus.get('detection:complete').subscribe((result) => {
   console.log(`Found ${result.foundCount} entities`);
 
   // Fetch updated resource with new annotations
-  client.getResource(rUri).then(resource => {
+  client.getResource(rId).then(resource => {
     console.log(`Resource now has ${resource.annotations.length} annotations`);
   });
 });
@@ -681,7 +681,7 @@ eventBus.get('detection:failed').subscribe(({ error }) => {
 });
 
 // Start detection stream - events auto-emit to EventBus
-const stream = client.sse.detectReferences(rUri, {
+const stream = client.sse.detectReferences(rId, {
   entityTypes: [entityType('Person'), entityType('Organization'), entityType('Location')]
 }, {
   auth: accessToken('your-token'),
@@ -704,11 +704,11 @@ const stream = client.sse.detectReferences(rUri, {
 Stream real-time progress updates during resource generation from an annotation:
 
 ```typescript
-import { resourceUri, resourceAnnotationUri, accessToken } from '@semiont/api-client';
+import { resourceId, annotationId, accessToken } from '@semiont/api-client';
 import { EventBus } from '@semiont/core';
 
-const rUri = resourceUri('http://localhost:4000/resources/resource-123');
-const annUri = resourceAnnotationUri('http://localhost:4000/resources/resource-123/annotations/ann-456');
+const rId = resourceId('resource-123');
+const annId = annotationId('ann-456');
 const eventBus = new EventBus();
 
 // Subscribe to events BEFORE starting stream
@@ -725,8 +725,8 @@ eventBus.get('generation:complete').subscribe((result) => {
   console.log(`Generated resource: ${result.resourceId}`);
 
   if (result.resourceId) {
-    const generatedUri = resourceUri(result.resourceId);
-    client.getResource(generatedUri).then(resource => {
+    const generatedId = resourceId(result.resourceId);
+    client.getResource(generatedId).then(resource => {
       console.log('Generated resource:', resource.name);
     });
   }
@@ -737,7 +737,7 @@ eventBus.get('generation:failed').subscribe(({ error }) => {
 });
 
 // Start generation stream - events auto-emit to EventBus
-const stream = client.sse.generateResourceFromAnnotation(rUri, annUri, {
+const stream = client.sse.generateResourceFromAnnotation(rId, annId, {
   title: 'Spanish Summary',
   language: 'es',
   prompt: 'Create a concise summary focusing on key findings'
@@ -768,12 +768,12 @@ const stream = client.sse.generateResourceFromAnnotation(rUri, annUri, {
 Subscribe to real-time events for a resource (long-lived stream for collaboration):
 
 ```typescript
-import { resourceUri } from '@semiont/api-client';
+import { resourceId } from '@semiont/api-client';
 
-const rUri = resourceUri('http://localhost:4000/resources/resource-123');
+const rId = resourceId('resource-123');
 
 // Open long-lived event stream
-const stream = client.sse.resourceEvents(rUri);
+const stream = client.sse.resourceEvents(rId);
 
 // Handle all events (uses onProgress for events)
 stream.onProgress((event) => {
@@ -842,7 +842,7 @@ useEffect(() => {
   const sub3 = eventBus.get('detection:failed').subscribe(({ error }) => setError(error));
 
   // Start stream - events auto-emit to EventBus
-  const stream = client.sse.detectReferences(resourceId, {
+  const stream = client.sse.detectReferences(rId, {
     entityTypes: [entityType('Person')]
   }, {
     auth: accessToken(token),
@@ -856,7 +856,7 @@ useEffect(() => {
     sub2.unsubscribe();
     sub3.unsubscribe();
   };
-}, [resourceId]);
+}, [rId]);
 ```
 
 ```typescript
@@ -865,7 +865,7 @@ const eventBus = new EventBus();
 
 eventBus.get('resourceEvent').subscribe((event) => console.log(event));
 
-const stream = client.sse.resourceEvents(resourceId, {
+const stream = client.sse.resourceEvents(rId, {
   auth: accessToken(token),
   eventBus
 });
@@ -906,7 +906,7 @@ eventBus.get('detection:failed').subscribe(({ error }) => {
 });
 
 // Start stream
-const stream = client.sse.detectReferences(resourceId, {
+const stream = client.sse.detectReferences(rId, {
   entityTypes: [entityType('Person')]
 }, {
   auth: accessToken(token),
@@ -939,10 +939,10 @@ console.log('Available entity types:', types.entityTypes);
 For entity detection, use the SSE streaming API with EventBus for real-time progress updates. See the [SSE Streaming](#sse-streaming) section for details.
 
 ```typescript
-import { resourceUri, entityType, accessToken } from '@semiont/api-client';
+import { resourceId, entityType, accessToken } from '@semiont/api-client';
 import { EventBus } from '@semiont/core';
 
-const rUri = resourceUri('http://localhost:4000/resources/resource-123');
+const rId = resourceId('resource-123');
 const eventBus = new EventBus();
 
 // Subscribe to events
@@ -961,7 +961,7 @@ eventBus.get('detection:failed').subscribe(({ error }) => {
 });
 
 // Start detection - events auto-emit to EventBus
-const stream = client.sse.detectReferences(rUri, {
+const stream = client.sse.detectReferences(rId, {
   entityTypes: [entityType('Person'), entityType('Organization'), entityType('Location')]
 }, {
   auth: accessToken('your-token'),
@@ -994,12 +994,12 @@ if (status.status === 'complete') {
 Get a resource with full context optimized for LLM processing. This includes the resource, related resources, annotations, and a graph representation.
 
 ```typescript
-import { resourceUri } from '@semiont/api-client';
+import { resourceId } from '@semiont/api-client';
 
-const rUri = resourceUri('http://localhost:4000/resources/resource-123');
+const rId = resourceId('resource-123');
 
 // Get with default options
-const context = await client.getResourceLLMContext(rUri);
+const context = await client.getResourceLLMContext(rId);
 
 console.log('Main resource:', context.mainResource);
 console.log('Related resources:', context.relatedResources);
@@ -1007,7 +1007,7 @@ console.log('Annotations:', context.annotations);
 console.log('Graph:', context.graph);
 
 // Get with custom options
-const contextWithOptions = await client.getResourceLLMContext(rUri, {
+const contextWithOptions = await client.getResourceLLMContext(rId, {
   depth: 3,              // Graph traversal depth (1-3, default: 2)
   maxResources: 15,      // Max related resources (1-20, default: 10)
   includeContent: true,  // Include full content (default: true)
@@ -1022,14 +1022,13 @@ console.log('Context for LLM:', contextWithOptions);
 Get an annotation with surrounding text context for LLM processing. Useful for understanding what text was selected and the context around it.
 
 ```typescript
-import { resourceAnnotationUri } from '@semiont/api-client';
+import { resourceId, annotationId } from '@semiont/api-client';
 
-const annUri = resourceAnnotationUri(
-  'http://localhost:4000/resources/resource-123/annotations/ann-456'
-);
+const rId = resourceId('resource-123');
+const annId = annotationId('ann-456');
 
 // Get with default options
-const context = await client.getAnnotationLLMContext(annUri);
+const context = await client.getAnnotationLLMContext(rId, annId);
 
 console.log('Annotation:', context.annotation);
 console.log('Source resource:', context.sourceResource);
@@ -1037,7 +1036,7 @@ console.log('Target resource:', context.targetResource);
 console.log('Source context:', context.sourceContext);
 
 // Get with custom options
-const contextWithWindow = await client.getAnnotationLLMContext(annUri, {
+const contextWithWindow = await client.getAnnotationLLMContext(rId, annId, {
   includeSourceContext: true,   // Include source text context (default: true)
   includeTargetContext: true,   // Include target resource context (default: true)
   contextWindow: 500,           // Characters of context (100-5000, default: 1000)
@@ -1078,7 +1077,7 @@ const client = new SemiontApiClient({
 
 **Security**: Authorization headers are never logged to prevent token leaks.
 
-📘 **[Complete Logging Guide](./LOGGING.md)** - Detailed documentation on logger setup, integration examples (winston, pino, DataDog, Splunk), structured metadata, log levels, filtering, and troubleshooting.
+**[Complete Logging Guide](./LOGGING.md)** - Detailed documentation on logger setup, integration examples (winston, pino, DataDog, Splunk), structured metadata, log levels, filtering, and troubleshooting.
 
 ## Error Handling
 
@@ -1086,7 +1085,7 @@ const client = new SemiontApiClient({
 import { APIError } from '@semiont/api-client';
 
 try {
-  const resource = await client.getResource(rUri);
+  const resource = await client.getResource(rId);
 } catch (error) {
   if (error instanceof APIError) {
     // Structured API error
@@ -1123,7 +1122,7 @@ test('should archive a resource', async () => {
   const client = new SemiontApiClient({ baseUrl: 'http://localhost:4000' });
 
   // Archive resource
-  const result = await client.updateResource(resourceUri, {
+  const result = await client.updateResource(rId, {
     archived: true,
   });
 
@@ -1177,7 +1176,7 @@ const client = new SemiontApiClient({
 
 ```typescript
 // Generate a clone token (valid for 24 hours)
-const tokenResponse = await client.generateCloneToken(rUri);
+const tokenResponse = await client.generateCloneToken(rId);
 console.log('Clone token:', tokenResponse.token);
 
 // Later, use token to clone resource (no auth required)

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import type { ResourceUri } from '@semiont/core';
+import type { ResourceId } from '@semiont/core';
 import { getPrimaryMediaType } from '@semiont/api-client';
 import { useToast } from '../components/Toast';
 import { useResources } from '../lib/api-hooks';
@@ -19,7 +19,7 @@ export interface UseResourceContentResult {
  * Uses React Query for caching, deduplication, and consistent loading state.
  */
 export function useResourceContent(
-  rUri: ResourceUri,
+  rUri: ResourceId,
   resource: SemiontResource
 ): UseResourceContentResult {
   const { showError } = useToast();

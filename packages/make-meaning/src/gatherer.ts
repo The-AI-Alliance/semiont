@@ -27,7 +27,7 @@
 import { Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import type { EventMap, Logger, components } from '@semiont/core';
-import { EventBus, annotationId as makeAnnotationId, uriToResourceId } from '@semiont/core';
+import { EventBus, annotationId as makeAnnotationId, resourceId } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import { EventQuery } from '@semiont/event-sourcing';
 import { getResourceEntityTypes, getBodySource } from '@semiont/api-client';
@@ -308,7 +308,7 @@ export class Gatherer {
       let resolvedResource = null;
       const bodySource = getBodySource(annotation.body);
       if (bodySource) {
-        resolvedResource = await ResourceContext.getResourceMetadata(uriToResourceId(bodySource), this.kb);
+        resolvedResource = await ResourceContext.getResourceMetadata(resourceId(bodySource), this.kb);
       }
 
       this.eventBus.get('browse:annotation-result').next({

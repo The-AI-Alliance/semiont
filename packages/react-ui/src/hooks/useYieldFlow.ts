@@ -12,8 +12,9 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import type { AnnotationUri, EventMap, ResourceId, GatheredContext, YieldProgress } from '@semiont/core';
-import { annotationId as makeAnnotationId, annotationUri, accessToken } from '@semiont/core';
+import type { EventMap, GatheredContext, YieldProgress } from '@semiont/core';
+import { annotationId as makeAnnotationId, resourceId as makeResourceId, accessToken } from '@semiont/core';
+import type { AnnotationId } from '@semiont/core';
 
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
 import { useEventBus } from '../contexts/EventBusContext';
@@ -64,7 +65,7 @@ export interface YieldFlowState {
 export function useYieldFlow(
   locale: string,
   resourceId: string,
-  clearNewAnnotationId: (annotationId: AnnotationUri) => void
+  clearNewAnnotationId: (annotationId: AnnotationId) => void
 ): YieldFlowState {
   const eventBus = useEventBus();
   const client = useApiClient();
@@ -120,12 +121,12 @@ export function useYieldFlow(
 
     // Modal submitted with full options - emit event for handleGenerationStart
     // Clear CSS sparkle animation if reference was recently created
-    clearNewAnnotationId(annotationUri(referenceId));
+    clearNewAnnotationId(makeAnnotationId(referenceId));
 
     // Emit yield:request event instead of calling SSE directly
     eventBus.get('yield:request').next({
       annotationId: makeAnnotationId(referenceId),
-      resourceId: resourceId as ResourceId,
+      resourceId: makeResourceId(resourceId),
       options: {
         ...options,
         // Use language from modal if provided, otherwise fall back to current locale
@@ -191,9 +192,9 @@ export function useYieldFlow(
         const sseOptions = { auth: toAccessToken(tokenRef.current), eventBus };
 
         clientRef.current.sse.yieldResourceFromAnnotation(
-          event.resourceId as any,
-          event.annotationId as any,
-          event.options as any,
+          event.resourceId,
+          event.annotationId,
+          event.options,
           sseOptions
         );
         // Events auto-emit to EventBus: yield:progress, yield:finished, yield:failed

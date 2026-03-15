@@ -35,13 +35,13 @@ const client = new SemiontApiClient({ baseUrl: 'http://localhost:4000' });
 
 // First, correlate context for the annotation (see Gather flow)
 const { context } = await client.getAnnotationLLMContext(
-  resourceUri, annotationId, { contextWindow: 2000 }
+  resourceId, annotationId, { contextWindow: 2000 }
 );
 
 // Generate a new resource from the reference annotation
 client.sse.generateResourceFromAnnotation(
-  resourceUri,
-  annotationUri,
+  resourceId,
+  annotationId,
   {
     title: 'Ouranos',
     language: 'en',
@@ -277,13 +277,13 @@ eventBus.get('yield:create').next({
 **Annotation Update** — worker emits `mark:update-body` on EventBus:
 ```typescript
 eventBus.get('mark:update-body').next({
-  annotationUri: referenceId,
+  annotationId: referenceId,
   resourceId: sourceResourceId,
   operations: [{
     op: 'add',
     item: {
       type: 'SpecificResource',
-      source: newResourceUri,
+      source: newResourceId,
       purpose: 'linking'
     }
   }]
@@ -335,7 +335,7 @@ Both events flow through EventBus → Stower → Event Store → Materialized Vi
 ```typescript
 // Initiate generation
 const stream = client.sse.generateResourceFromAnnotation(
-  resourceUri,
+  resourceId,
   referenceId,
   {
     tone: 'scholarly',

@@ -79,7 +79,7 @@ const result = await AnnotationOperations.createAnnotation(
     motivation: 'commenting',
     target: {
       type: 'SpecificResource',
-      source: resourceUri,
+      source: resourceId,
       selector: [
         { type: 'TextPositionSelector', start: 0, end: 50 },
         { type: 'TextQuoteSelector', exact: 'Hello World', prefix: '# ', suffix: '\n' },
@@ -118,7 +118,7 @@ const allAnnotations = await AnnotationContext.getAllAnnotations(resourceId, kb)
 import { AnnotationContext } from '@semiont/make-meaning';
 
 const context = await AnnotationContext.buildLLMContext(
-  annotationUri,
+  annotationId,
   resourceId,
   kb,
   { contextLines: 10, includeMetadata: true },
@@ -153,7 +153,7 @@ const searchResults = await client.searchResources('quantum computing');
 const entityTypes = await client.listEntityTypes();
 
 // LLM context
-const llmContext = await client.getResourceLLMContext(resourceUri, {
+const llmContext = await client.getResourceLLMContext(resourceId('doc-123'), {
   depth: 2, maxResources: 10, includeContent: true, includeSummary: false,
 });
 ```
@@ -181,8 +181,8 @@ const result$ = merge(
 
 eventBus.get('gather:requested').next({
   correlationId,
-  annotationUri,
-  resourceUri,
+  annotationId,
+  resourceId,
   options: { contextWindow: 1000 },
 });
 

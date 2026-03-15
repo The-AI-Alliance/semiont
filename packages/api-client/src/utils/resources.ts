@@ -10,27 +10,11 @@ type Representation = components['schemas']['Representation'];
 /**
  * Get the resource ID from @id property
  *
- * For internal resources: extracts UUID from "http://localhost:4000/resources/{uuid}"
- * For external resources: returns undefined
- *
- * This is used for routing - the frontend URL should contain only the resource ID,
- * not the full HTTP URI.
+ * @id is always a bare ID (UUID), never a full URI.
  */
 export function getResourceId(resource: ResourceDescriptor | undefined): string | undefined {
   if (!resource) return undefined;
-
-  const fullId = resource['@id'];
-
-  // For URI-formatted resources, extract the last path segment
-  // http://localhost:4000/resources/{uuid} -> {uuid}
-  if (fullId.includes('/resources/')) {
-    const parts = fullId.split('/resources/');
-    const lastPart = parts[parts.length - 1];
-    return lastPart || undefined;
-  }
-
-  // Bare ID (no URI prefix) — return as-is
-  return fullId || undefined;
+  return resource['@id'] || undefined;
 }
 
 /**

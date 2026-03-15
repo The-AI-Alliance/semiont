@@ -125,8 +125,8 @@ describe('backup-importer', () => {
     const systemEvents = makeStoredEventJson('entitytype.added', { entityType: 'Person' }) + '\n';
 
     const archive = await buildArchive([
-      { name: 'manifest.jsonl', data: Buffer.from(manifestLines) },
-      { name: 'events/__system__.jsonl', data: Buffer.from(systemEvents) },
+      { name: '.semiont/manifest.jsonl', data: Buffer.from(manifestLines) },
+      { name: '.semiont/events/__system__.jsonl', data: Buffer.from(systemEvents) },
     ]);
 
     const result = await importBackup(bufferToReadable(archive), { eventBus, logger: mockLogger });
@@ -165,9 +165,9 @@ describe('backup-importer', () => {
     }) + '\n';
 
     const archive = await buildArchive([
-      { name: 'manifest.jsonl', data: Buffer.from(manifestLines) },
-      { name: `events/${TEST_RESOURCE}.jsonl`, data: Buffer.from(resourceEvents) },
-      { name: 'content/sha-content.md', data: contentBlob },
+      { name: '.semiont/manifest.jsonl', data: Buffer.from(manifestLines) },
+      { name: `.semiont/events/${TEST_RESOURCE}.jsonl`, data: Buffer.from(resourceEvents) },
+      { name: 'sha-content.md', data: contentBlob },
     ]);
 
     const result = await importBackup(bufferToReadable(archive), { eventBus, logger: mockLogger });
@@ -200,9 +200,9 @@ describe('backup-importer', () => {
 
     const pdfContent = Buffer.from([0x25, 0x50, 0x44, 0x46]); // %PDF
     const archive = await buildArchive([
-      { name: 'manifest.jsonl', data: Buffer.from(manifestLines) },
-      { name: `events/${TEST_RESOURCE}.jsonl`, data: Buffer.from(resourceEvents) },
-      { name: 'content/deadbeef1234.pdf', data: pdfContent },
+      { name: '.semiont/manifest.jsonl', data: Buffer.from(manifestLines) },
+      { name: `.semiont/events/${TEST_RESOURCE}.jsonl`, data: Buffer.from(resourceEvents) },
+      { name: 'deadbeef1234.pdf', data: pdfContent },
     ]);
 
     await importBackup(bufferToReadable(archive), { eventBus, logger: mockLogger });
@@ -218,7 +218,7 @@ describe('backup-importer', () => {
 
     await expect(
       importBackup(bufferToReadable(archive), { eventBus })
-    ).rejects.toThrow(/missing manifest\.jsonl/);
+    ).rejects.toThrow(/missing \.semiont\/manifest\.jsonl/);
   });
 
   it('rejects an archive with wrong format', async () => {
@@ -231,7 +231,7 @@ describe('backup-importer', () => {
     }) + '\n';
 
     const archive = await buildArchive([
-      { name: 'manifest.jsonl', data: Buffer.from(badManifest) },
+      { name: '.semiont/manifest.jsonl', data: Buffer.from(badManifest) },
     ]);
 
     await expect(
@@ -249,7 +249,7 @@ describe('backup-importer', () => {
     }) + '\n';
 
     const archive = await buildArchive([
-      { name: 'manifest.jsonl', data: Buffer.from(futureManifest) },
+      { name: '.semiont/manifest.jsonl', data: Buffer.from(futureManifest) },
     ]);
 
     await expect(
@@ -264,8 +264,8 @@ describe('backup-importer', () => {
     ].join('\n') + '\n';
 
     const archive = await buildArchive([
-      { name: 'manifest.jsonl', data: Buffer.from(manifestLines) },
-      // Note: no events/missing-resource.jsonl
+      { name: '.semiont/manifest.jsonl', data: Buffer.from(manifestLines) },
+      // Note: no .semiont/events/missing-resource.jsonl
     ]);
 
     const result = await importBackup(bufferToReadable(archive), { eventBus, logger: mockLogger });
@@ -305,10 +305,10 @@ describe('backup-importer', () => {
     }) + '\n';
 
     const archive = await buildArchive([
-      { name: 'manifest.jsonl', data: Buffer.from(manifestLines) },
-      { name: 'events/__system__.jsonl', data: Buffer.from(systemEvents) },
-      { name: `events/${TEST_RESOURCE}.jsonl`, data: Buffer.from(resourceEvents) },
-      { name: 'content/chk1.md', data: Buffer.from('content') },
+      { name: '.semiont/manifest.jsonl', data: Buffer.from(manifestLines) },
+      { name: '.semiont/events/__system__.jsonl', data: Buffer.from(systemEvents) },
+      { name: `.semiont/events/${TEST_RESOURCE}.jsonl`, data: Buffer.from(resourceEvents) },
+      { name: 'chk1.md', data: Buffer.from('content') },
     ]);
 
     await importBackup(bufferToReadable(archive), { eventBus, logger: mockLogger });
@@ -352,12 +352,12 @@ describe('backup-importer', () => {
     }) + '\n';
 
     const archive = await buildArchive([
-      { name: 'manifest.jsonl', data: Buffer.from(manifestLines) },
-      { name: 'events/__system__.jsonl', data: Buffer.from(systemEvents) },
-      { name: `events/${res1}.jsonl`, data: Buffer.from(res1Events) },
-      { name: `events/${res2}.jsonl`, data: Buffer.from(res2Events) },
-      { name: 'content/c1.md', data: Buffer.from('doc 1 content') },
-      { name: 'content/c2.md', data: Buffer.from('doc 2 content') },
+      { name: '.semiont/manifest.jsonl', data: Buffer.from(manifestLines) },
+      { name: '.semiont/events/__system__.jsonl', data: Buffer.from(systemEvents) },
+      { name: `.semiont/events/${res1}.jsonl`, data: Buffer.from(res1Events) },
+      { name: `.semiont/events/${res2}.jsonl`, data: Buffer.from(res2Events) },
+      { name: 'c1.md', data: Buffer.from('doc 1 content') },
+      { name: 'c2.md', data: Buffer.from('doc 2 content') },
     ]);
 
     const result = await importBackup(bufferToReadable(archive), { eventBus, logger: mockLogger });

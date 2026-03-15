@@ -127,7 +127,7 @@ describe('Incoming References Integration Tests', () => {
   it('should return empty array when resource has no incoming references', async () => {
     const resourceId = 'test-resource-no-refs';
 
-    // Mock Neo4j to return no references
+    // Mock graph to return no references
     mockGraphDb.getResourceReferencedBy.mockResolvedValueOnce([]);
 
     const res = await app.request(`/resources/${resourceId}/referenced-by`, {
@@ -145,15 +145,14 @@ describe('Incoming References Integration Tests', () => {
     const targetResourceId = 'target-resource-1';
     const sourceResourceId = 'source-resource-1';
     const annotationId = 'annotation-1';
-    const publicURL = 'http://localhost:4000';
 
-    // Mock Neo4j to return one reference
+    // Mock graph to return one reference (bare IDs internally)
     mockGraphDb.getResourceReferencedBy.mockResolvedValueOnce([
       {
         id: annotationId,
         target: {
           type: 'SpecificResource',
-          source: `${publicURL}/resources/${sourceResourceId}`,
+          source: sourceResourceId,
           selector: {
             type: 'TextQuoteSelector',
             exact: 'selected text from source document',
@@ -162,9 +161,9 @@ describe('Incoming References Integration Tests', () => {
       },
     ]);
 
-    // Mock Neo4j to return the source resource with proper @id
+    // Mock graph to return the source resource with bare @id
     mockGraphDb.getResource.mockResolvedValueOnce({
-      '@id': `${publicURL}/resources/${sourceResourceId}`,
+      '@id': sourceResourceId,
       '@context': 'https://schema.org',
       '@type': 'DigitalDocument',
       name: 'Source Document Title',
@@ -186,7 +185,7 @@ describe('Incoming References Integration Tests', () => {
       id: annotationId,
       resourceName: 'Source Document Title',
       target: {
-        source: `${publicURL}/resources/${sourceResourceId}`,
+        source: sourceResourceId,
         selector: {
           exact: 'selected text from source document',
         },
@@ -196,15 +195,14 @@ describe('Incoming References Integration Tests', () => {
 
   it('should return multiple incoming references from different resources', async () => {
     const targetResourceId = 'target-resource-2';
-    const publicURL = 'http://localhost:4000';
 
-    // Mock Neo4j to return three references from two different resources
+    // Mock graph to return three references from two different resources (bare IDs)
     mockGraphDb.getResourceReferencedBy.mockResolvedValueOnce([
       {
         id: 'annotation-1',
         target: {
           type: 'SpecificResource',
-          source: `${publicURL}/resources/source-resource-a`,
+          source: 'source-resource-a',
           selector: {
             type: 'TextQuoteSelector',
             exact: 'first reference from resource A',
@@ -215,7 +213,7 @@ describe('Incoming References Integration Tests', () => {
         id: 'annotation-2',
         target: {
           type: 'SpecificResource',
-          source: `${publicURL}/resources/source-resource-a`,
+          source: 'source-resource-a',
           selector: {
             type: 'TextQuoteSelector',
             exact: 'second reference from resource A',
@@ -226,7 +224,7 @@ describe('Incoming References Integration Tests', () => {
         id: 'annotation-3',
         target: {
           type: 'SpecificResource',
-          source: `${publicURL}/resources/source-resource-b`,
+          source: 'source-resource-b',
           selector: {
             type: 'TextQuoteSelector',
             exact: 'reference from resource B',
@@ -235,17 +233,17 @@ describe('Incoming References Integration Tests', () => {
       },
     ]);
 
-    // Mock Neo4j to return both source resources
+    // Mock graph to return both source resources (bare @ids)
     mockGraphDb.getResource
       .mockResolvedValueOnce({
-        '@id': `${publicURL}/resources/source-resource-a`,
+        '@id': 'source-resource-a',
         '@context': 'https://schema.org',
         '@type': 'DigitalDocument',
         name: 'Source Document A',
         encodingFormat: 'text/plain',
       })
       .mockResolvedValueOnce({
-        '@id': `${publicURL}/resources/source-resource-b`,
+        '@id': 'source-resource-b',
         '@context': 'https://schema.org',
         '@type': 'DigitalDocument',
         name: 'Source Document B',
@@ -277,15 +275,14 @@ describe('Incoming References Integration Tests', () => {
 
   it('should return "Untitled Resource" when source resource not found', async () => {
     const targetResourceId = 'target-resource-3';
-    const publicURL = 'http://localhost:4000';
 
-    // Mock Neo4j to return reference to non-existent resource
+    // Mock graph to return reference to non-existent resource (bare ID)
     mockGraphDb.getResourceReferencedBy.mockResolvedValueOnce([
       {
         id: 'annotation-orphan',
         target: {
           type: 'SpecificResource',
-          source: `${publicURL}/resources/non-existent-resource`,
+          source: 'non-existent-resource',
           selector: {
             type: 'TextQuoteSelector',
             exact: 'reference to deleted resource',
@@ -294,7 +291,7 @@ describe('Incoming References Integration Tests', () => {
       },
     ]);
 
-    // Mock Neo4j to return null (resource not found)
+    // Mock graph to return null (resource not found)
     mockGraphDb.getResource.mockResolvedValueOnce(null);
 
     const res = await app.request(`/resources/${targetResourceId}/referenced-by`, {
@@ -312,15 +309,14 @@ describe('Incoming References Integration Tests', () => {
 
   it('should handle incoming references from image annotations without text selector', async () => {
     const targetResourceId = 'target-resource-4';
-    const publicURL = 'http://localhost:4000';
 
-    // Mock Neo4j to return image annotation reference (no text selector)
+    // Mock graph to return image annotation reference (no text selector, bare ID)
     mockGraphDb.getResourceReferencedBy.mockResolvedValueOnce([
       {
         id: 'annotation-image',
         target: {
           type: 'SpecificResource',
-          source: `${publicURL}/resources/image-resource`,
+          source: 'image-resource',
           selector: {
             type: 'SvgSelector',
             value: '<svg>...</svg>',
@@ -329,9 +325,9 @@ describe('Incoming References Integration Tests', () => {
       },
     ]);
 
-    // Mock Neo4j to return the image resource
+    // Mock graph to return the image resource (bare @id)
     mockGraphDb.getResource.mockResolvedValueOnce({
-      '@id': `${publicURL}/resources/image-resource`,
+      '@id': 'image-resource',
       '@context': 'https://schema.org',
       '@type': 'ImageObject',
       name: 'Image with Annotations',
@@ -362,16 +358,15 @@ describe('Incoming References Integration Tests', () => {
 
   it('should correctly build resource map using @id not id', async () => {
     const targetResourceId = 'target-resource-5';
-    const publicURL = 'http://localhost:4000';
-    const sourceResourceURI = `${publicURL}/resources/source-resource-5`;
+    const sourceResourceId = 'source-resource-5';
 
-    // Mock Neo4j to return reference
+    // Mock graph to return reference (bare ID)
     mockGraphDb.getResourceReferencedBy.mockResolvedValueOnce([
       {
         id: 'annotation-5',
         target: {
           type: 'SpecificResource',
-          source: sourceResourceURI,
+          source: sourceResourceId,
           selector: {
             type: 'TextQuoteSelector',
             exact: 'test text',
@@ -380,10 +375,9 @@ describe('Incoming References Integration Tests', () => {
       },
     ]);
 
-    // Mock Neo4j to return resource with @id (JSON-LD format)
-    // Note: ResourceDescriptor uses @id, not id
+    // Mock graph to return resource with bare @id
     mockGraphDb.getResource.mockResolvedValueOnce({
-      '@id': sourceResourceURI,
+      '@id': sourceResourceId,
       '@context': 'https://schema.org',
       '@type': 'DigitalDocument',
       name: 'Correctly Mapped Resource',
@@ -406,17 +400,15 @@ describe('Incoming References Integration Tests', () => {
 
   it('should filter incoming references by motivation type', async () => {
     const targetResourceId = 'target-resource-6';
-    const publicURL = 'http://localhost:4000';
 
-    // Mock Neo4j to return only linking annotations (not highlighting)
-    // This simulates the label-based filtering in Neo4j
+    // Mock graph to return only linking annotations (bare ID)
     mockGraphDb.getResourceReferencedBy.mockResolvedValueOnce([
       {
         id: 'annotation-linking',
         motivation: 'linking',
         target: {
           type: 'SpecificResource',
-          source: `${publicURL}/resources/source-with-link`,
+          source: 'source-with-link',
           selector: {
             type: 'TextQuoteSelector',
             exact: 'this is a link reference',
@@ -425,9 +417,9 @@ describe('Incoming References Integration Tests', () => {
       },
     ]);
 
-    // Mock Neo4j to return the source resource
+    // Mock graph to return the source resource (bare @id)
     mockGraphDb.getResource.mockResolvedValueOnce({
-      '@id': `${publicURL}/resources/source-with-link`,
+      '@id': 'source-with-link',
       '@context': 'https://schema.org',
       '@type': 'DigitalDocument',
       name: 'Document with Link',

@@ -23,7 +23,7 @@ import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../..
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { SemiontApiClient } from '@semiont/api-client';
-import { resourceUri, accessToken, annotationId, resourceId } from '@semiont/core';
+import { resourceId, accessToken, annotationId } from '@semiont/core';
 
 // Mock Toast module to prevent "useToast must be used within a ToastProvider" errors
 vi.mock('../../../components/Toast', () => ({
@@ -37,7 +37,7 @@ vi.mock('../../../components/Toast', () => ({
 
 describe('Resolution Flow - Search Modal & Body Update Integration', () => {
   let updateAnnotationBodySpy: ReturnType<typeof vi.fn>;
-  const testUri = resourceUri('http://localhost:4000/resources/test-resource');
+  const testId = resourceId('test-resource');
   const testToken = 'test-resolution-token';
   const testBaseUrl = 'http://localhost:4000';
 
@@ -61,7 +61,7 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
 
     function TestComponent() {
       eventBusInstance = useEventBus();
-      lastState = useBindFlow(testUri);
+      lastState = useBindFlow(testId);
       return null;
     }
 
@@ -213,8 +213,8 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
     });
 
     const callArgs = updateAnnotationBodySpy.mock.calls[0];
-    expect(callArgs[2]).toHaveProperty('auth');
-    expect(callArgs[2].auth).toBe(accessToken(testToken));
+    expect(callArgs[3]).toHaveProperty('auth');
+    expect(callArgs[3].auth).toBe(accessToken(testToken));
   });
 
   it('bind:update-body emits bind:body-updated on success', async () => {

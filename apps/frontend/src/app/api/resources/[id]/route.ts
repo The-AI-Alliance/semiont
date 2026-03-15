@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { SERVER_API_URL } from '@/lib/env';
-import { resourceUri, ResourceUri, AccessToken, BaseUrl, ContentFormat } from '@semiont/core';
+import { resourceId, AccessToken, BaseUrl, ContentFormat } from '@semiont/core';
 import { SemiontApiClient } from '@semiont/api-client';
 
 export async function GET(
@@ -47,9 +47,9 @@ export async function GET(
       baseUrl: backendUrl as BaseUrl,
     });
 
-    // Get resource representation as stream (avoids loading entire file into memory)
-    const rUri = resourceUri(`${backendUrl}/resources/${id}`);
-    const { stream, contentType } = await client.getResourceRepresentationStream(rUri as ResourceUri, {
+    // Get resource representation as stream
+    const rId = resourceId(id);
+    const { stream, contentType } = await client.getResourceRepresentationStream(rId, {
       accept: acceptHeader as ContentFormat,
       auth: session.backendToken as AccessToken,
     });

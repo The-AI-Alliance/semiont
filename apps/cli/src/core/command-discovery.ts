@@ -26,8 +26,8 @@ import { publishCommand } from './commands/publish.js';
 import { updateCommand } from './commands/update.js';
 import { watchCommand } from './commands/watch.js';
 import { useraddCommand } from './commands/useradd.js';
-import { exportCmd } from './commands/export.js';
-import { importCmd } from './commands/import.js';
+import { backupCmd } from './commands/backup.js';
+import { restoreCmd } from './commands/restore.js';
 import { verifyCmd } from './commands/verify.js';
 
 /**
@@ -49,8 +49,8 @@ const COMMANDS: Record<string, CommandDefinition<any>> = {
   'update': updateCommand,
   'watch': watchCommand,
   'useradd': useraddCommand,
-  'export': exportCmd,
-  'import': importCmd,
+  'backup': backupCmd,
+  'restore': restoreCmd,
   'verify': verifyCmd,
 };
 

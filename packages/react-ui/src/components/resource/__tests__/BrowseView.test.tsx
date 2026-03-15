@@ -27,7 +27,7 @@ vi.mock('@semiont/api-client', async () => {
       return 'unsupported';
     }),
     isPdfMimeType: vi.fn((mimeType: string) => mimeType === 'application/pdf'),
-    resourceUri: vi.fn((uri: string) => uri),
+    resourceId: vi.fn((id: string) => id),
     getExactText: vi.fn(() => 'exact text'),
     getTextPositionSelector: vi.fn(() => ({ start: 0, end: 10 })),
     getTargetSelector: vi.fn(() => ({ type: 'TextPositionSelector', start: 0, end: 10 })),
@@ -200,7 +200,7 @@ describe('BrowseView Component', () => {
   const defaultProps = {
     content: '# Test Content\n\nThis is test markdown content.',
     mimeType: 'text/markdown',
-    resourceUri: 'http://localhost:8080/resources/test-resource',
+    resourceUri: 'test-resource',
     annotations: {
       highlights: [],
       references: [],

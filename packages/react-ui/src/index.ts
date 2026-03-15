@@ -193,6 +193,7 @@ export * from './features/admin-exchange/components/AdminExchangePage';
 export * from './features/admin-exchange/components/ExportCard';
 export * from './features/admin-exchange/components/ImportCard';
 export * from './features/admin-exchange/components/ImportProgress';
+export * from './features/admin-linked-data/components/AdminLinkedDataPage';
 export * from './features/admin-security/components/AdminSecurityPage';
 export * from './features/admin-users/components/AdminUsersPage';
 

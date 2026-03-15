@@ -111,14 +111,14 @@ describe('backup-exporter', () => {
     expect(manifest.stats.events).toBe(0);
     expect(manifest.stats.blobs).toBe(0);
 
-    // Parse the archive — should contain only manifest.jsonl
+    // Parse the archive — should contain only .semiont/manifest.jsonl
     const archive = await promise;
     const entries: Array<{ name: string }> = [];
     for await (const entry of readTarGz(bufferToReadable(archive))) {
       entries.push(entry);
     }
     expect(entries).toHaveLength(1);
-    expect(entries[0].name).toBe('manifest.jsonl');
+    expect(entries[0].name).toBe('.semiont/manifest.jsonl');
   });
 
   it('exports system events and resource events', async () => {
@@ -169,13 +169,13 @@ describe('backup-exporter', () => {
       entryDataMap.set(entry.name, entry.data);
     }
 
-    expect(entryNames).toContain('manifest.jsonl');
-    expect(entryNames).toContain('events/__system__.jsonl');
-    expect(entryNames).toContain(`events/${resourceId}.jsonl`);
-    expect(entryNames).toContain('content/sha-content.md');
+    expect(entryNames).toContain('.semiont/manifest.jsonl');
+    expect(entryNames).toContain('.semiont/events/__system__.jsonl');
+    expect(entryNames).toContain(`.semiont/events/${resourceId}.jsonl`);
+    expect(entryNames).toContain('sha-content.md');
 
     // Verify manifest JSONL
-    const manifestData = entryDataMap.get('manifest.jsonl')!.toString('utf8');
+    const manifestData = entryDataMap.get('.semiont/manifest.jsonl')!.toString('utf8');
     const manifestLines = manifestData.trim().split('\n');
     expect(manifestLines).toHaveLength(3); // header + 2 stream summaries
 
@@ -184,13 +184,13 @@ describe('backup-exporter', () => {
     expect(header.stats.streams).toBe(2);
 
     // Verify event stream content
-    const systemData = entryDataMap.get('events/__system__.jsonl')!.toString('utf8');
+    const systemData = entryDataMap.get('.semiont/events/__system__.jsonl')!.toString('utf8');
     const parsedSysEvents = systemData.trim().split('\n').map((l) => JSON.parse(l));
     expect(parsedSysEvents).toHaveLength(1);
     expect(parsedSysEvents[0].event.type).toBe('entitytype.added');
 
     // Verify content blob
-    const contentData = entryDataMap.get('content/sha-content.md')!;
+    const contentData = entryDataMap.get('sha-content.md')!;
     expect(contentData.toString('utf8')).toBe('# Test Content\n');
   });
 
@@ -212,7 +212,7 @@ describe('backup-exporter', () => {
     const archive = await promise;
     let manifestData = '';
     for await (const entry of readTarGz(bufferToReadable(archive))) {
-      if (entry.name === 'manifest.jsonl') {
+      if (entry.name === '.semiont/manifest.jsonl') {
         manifestData = entry.data.toString('utf8');
       }
     }

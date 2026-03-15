@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AnnotationId, EventMap, GatheredContext, ResourceId, ResourceUri } from '@semiont/core';
-import { resourceAnnotationUri, accessToken } from '@semiont/core';
+import type { AnnotationId, EventMap, GatheredContext, ResourceId } from '@semiont/core';
+import { accessToken } from '@semiont/core';
 import { useEventBus } from '../contexts/EventBusContext';
 import { useApiClient } from '../contexts/ApiClientContext';
 import { useAuthToken } from '../contexts/AuthTokenContext';
@@ -46,7 +46,7 @@ export interface BindFlowState {
  * @subscribes bind:link - User clicked "Link Document"; opens context modal
  * @subscribes bind:search-requested - Opens search results modal
  */
-export function useBindFlow(rUri: ResourceUri): BindFlowState {
+export function useBindFlow(rUri: ResourceId): BindFlowState {
   const eventBus = useEventBus();
   const client = useApiClient();
   const token = useAuthToken();
@@ -108,9 +108,7 @@ export function useBindFlow(rUri: ResourceUri): BindFlowState {
      */
     const handleAnnotationUpdateBody = async (event: EventMap['bind:update-body']) => {
       try {
-        const nestedUri = resourceAnnotationUri(`${rUriRef.current}/annotations/${event.annotationId}`);
-
-        await clientRef.current.updateAnnotationBody(nestedUri, {
+        await clientRef.current.updateAnnotationBody(rUriRef.current, event.annotationId, {
           resourceId: event.resourceId,
           operations: event.operations as any,
         }, { auth: toAccessToken(tokenRef.current) });

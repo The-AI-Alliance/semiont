@@ -25,7 +25,7 @@ import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../..
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { SemiontApiClient } from '@semiont/api-client';
-import { resourceUri } from '@semiont/core';
+import { resourceId } from '@semiont/core';
 import type { Emitter } from 'mitt';
 import type { EventMap } from '@semiont/core';
 
@@ -40,7 +40,7 @@ vi.mock('../../../components/Toast', () => ({
 }));
 import type { Motivation, Selector } from '@semiont/core';
 
-const TEST_URI = resourceUri('http://localhost:4000/resources/test-resource');
+const TEST_URI = resourceId('test-resource');
 
 const MOCK_ANNOTATION = {
   id: 'new-1',

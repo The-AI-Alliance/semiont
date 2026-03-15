@@ -7,8 +7,8 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { components, ResourceUri, ResourceEvent } from '@semiont/core';
-import { annotationId, resourceId as makeResourceId } from '@semiont/core';
+import type { components, ResourceId, ResourceEvent } from '@semiont/core';
+import { annotationId } from '@semiont/core';
 import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType } from '@semiont/api-client';
 import { ANNOTATORS } from '@semiont/react-ui';
 import { ErrorBoundary } from '@semiont/react-ui';
@@ -56,7 +56,7 @@ export interface ResourceViewerPageProps {
   /**
    * Resource URI
    */
-  rUri: ResourceUri;
+  rUri: ResourceId;
 
   /**
    * Current locale
@@ -176,8 +176,8 @@ export function ResourceViewerPage({
     generationDefaultTitle,
     onGenerateDocument,
     onCloseGenerationModal,
-  } = useYieldFlow(locale, rUri.split('/').pop() || '', clearNewAnnotationId);
-  const { gatherContext, gatherLoading, gatherError } = useContextGatherFlow(eventBus, { client, resourceUri: rUri });
+  } = useYieldFlow(locale, rUri, clearNewAnnotationId);
+  const { gatherContext, gatherLoading, gatherError } = useContextGatherFlow(eventBus, { client, resourceId: rUri });
 
   // Debounced invalidation for real-time events
   const debouncedInvalidateAnnotations = useDebouncedCallback(
@@ -191,11 +191,10 @@ export function ResourceViewerPage({
   // Add resource to open tabs when it loads
   useEffect(() => {
     if (resource && rUri) {
-      const resourceIdSegment = rUri.split('/').pop() || '';
       const mediaType = getPrimaryMediaType(resource);
-      addResource(resourceIdSegment, resource.name, mediaType || undefined);
+      addResource(rUri, resource.name, mediaType || undefined);
       if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('lastViewedDocumentId', resourceIdSegment);
+        localStorage.setItem('lastViewedDocumentId', rUri);
       }
     }
   }, [resource, rUri, addResource]);
@@ -290,7 +289,7 @@ export function ResourceViewerPage({
   // Event handlers extracted to useCallback (tenet: no inline handlers in useEventSubscriptions)
   const handleResourceArchive = useCallback(async () => {
     try {
-      await updateMutation.mutateAsync({ rUri, data: { archived: true } });
+      await updateMutation.mutateAsync({ id: rUri, data: { archived: true } });
       await refetchDocument();
     } catch (err) {
       console.error('Failed to archive document:', err);
@@ -300,7 +299,7 @@ export function ResourceViewerPage({
 
   const handleResourceUnarchive = useCallback(async () => {
     try {
-      await updateMutation.mutateAsync({ rUri, data: { archived: false } });
+      await updateMutation.mutateAsync({ id: rUri, data: { archived: false } });
       await refetchDocument();
     } catch (err) {
       console.error('Failed to unarchive document:', err);
@@ -551,7 +550,7 @@ export function ResourceViewerPage({
                 generatingReferenceId={generationProgress?.referenceId ?? null}
                 referencedBy={referencedBy}
                 referencedByLoading={referencedByLoading}
-                resourceId={rUri.split('/').pop() || ''}
+                resourceId={rUri}
                 scrollToAnnotationId={scrollToAnnotationId}
                 hoveredAnnotationId={hoveredAnnotationId}
                 onScrollCompleted={onScrollCompleted}
@@ -626,11 +625,9 @@ export function ResourceViewerPage({
         onSelect={async (documentId: string) => {
           if (pendingReferenceId) {
             try {
-              const resourceIdSegment = rUri.split('/').pop() || '';
-
               eventBus.get('bind:update-body').next({
                 annotationId: annotationId(pendingReferenceId),
-                resourceId: makeResourceId(resourceIdSegment),
+                resourceId: rUri,
                 operations: [{
                   op: 'add',
                   item: {

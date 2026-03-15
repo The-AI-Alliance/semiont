@@ -2,26 +2,22 @@
  * Manifest Type Tests
  *
  * Tests format constants, type guards, and version validation
- * for backup and snapshot manifest headers.
+ * for backup manifest headers.
  */
 
 import { describe, it, expect } from 'vitest';
 import {
   BACKUP_FORMAT,
-  SNAPSHOT_FORMAT,
   FORMAT_VERSION,
   isBackupManifest,
-  isSnapshotManifest,
   validateManifestVersion,
   type BackupManifestHeader,
-  type SnapshotManifestHeader,
 } from '../../exchange/manifest';
 
 describe('manifest', () => {
   describe('constants', () => {
     it('has expected format strings', () => {
       expect(BACKUP_FORMAT).toBe('semiont-backup');
-      expect(SNAPSHOT_FORMAT).toBe('semiont-snapshot');
     });
 
     it('has a numeric version', () => {
@@ -42,16 +38,8 @@ describe('manifest', () => {
       expect(isBackupManifest(header)).toBe(true);
     });
 
-    it('returns false for a snapshot manifest', () => {
-      const header: SnapshotManifestHeader = {
-        format: SNAPSHOT_FORMAT,
-        version: 1,
-        exportedAt: '2026-03-12T00:00:00Z',
-        sourceUrl: 'http://localhost:8080',
-        entityTypes: ['Person'],
-        stats: { resources: 5 },
-      };
-      expect(isBackupManifest(header)).toBe(false);
+    it('returns false for a different format', () => {
+      expect(isBackupManifest({ format: 'semiont-snapshot', version: 1 })).toBe(false);
     });
 
     it('returns false for null', () => {
@@ -72,39 +60,6 @@ describe('manifest', () => {
 
     it('returns false for an empty object', () => {
       expect(isBackupManifest({})).toBe(false);
-    });
-  });
-
-  describe('isSnapshotManifest', () => {
-    it('returns true for a valid snapshot manifest', () => {
-      const header: SnapshotManifestHeader = {
-        format: SNAPSHOT_FORMAT,
-        version: 1,
-        exportedAt: '2026-03-12T00:00:00Z',
-        sourceUrl: 'http://localhost:8080',
-        entityTypes: [],
-        stats: { resources: 0 },
-      };
-      expect(isSnapshotManifest(header)).toBe(true);
-    });
-
-    it('returns false for a backup manifest', () => {
-      const header: BackupManifestHeader = {
-        format: BACKUP_FORMAT,
-        version: 1,
-        exportedAt: '2026-03-12T00:00:00Z',
-        sourceUrl: 'http://localhost:8080',
-        stats: { streams: 0, events: 0, blobs: 0, contentBytes: 0 },
-      };
-      expect(isSnapshotManifest(header)).toBe(false);
-    });
-
-    it('returns false for null', () => {
-      expect(isSnapshotManifest(null)).toBe(false);
-    });
-
-    it('returns false for undefined', () => {
-      expect(isSnapshotManifest(undefined)).toBe(false);
     });
   });
 

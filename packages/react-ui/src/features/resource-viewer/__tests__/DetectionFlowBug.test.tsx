@@ -52,7 +52,7 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
     // Component to capture EventBus and hook state
     function TestComponent() {
       eventBusInstance = useEventBus();
-      const state = useMarkFlow('http://localhost:8080/resources/test' as any);
+      const state = useMarkFlow('test' as any);
       currentState = state;
 
       console.log('[TEST] useMarkFlow state:', {
@@ -109,7 +109,7 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
 
     function TestComponent() {
       eventBusInstance = useEventBus();
-      const state = useMarkFlow('http://localhost:8080/resources/test' as any);
+      const state = useMarkFlow('test' as any);
       currentState = state;
 
       return (
@@ -162,7 +162,7 @@ describe('REPRODUCING BUG: Detection state not updating', () => {
 
     function TestComponent() {
       eventBusInstance = useEventBus();
-      const state = useMarkFlow('http://localhost:8080/resources/f45fd44f9cb0b0fe1b7980d3d034bc61' as any);
+      const state = useMarkFlow('f45fd44f9cb0b0fe1b7980d3d034bc61' as any);
 
       stateSnapshots.push({
         assistingMotivation: state.assistingMotivation,

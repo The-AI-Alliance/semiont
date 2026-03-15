@@ -21,27 +21,23 @@ const createProps = (overrides?: Partial<AdminExchangePageProps>): AdminExchange
   showLineNumbers: false,
   activePanel: null,
   translations: {
-    title: 'Import / Export',
-    subtitle: 'Back up and restore',
+    title: 'Backup & Restore',
+    subtitle: 'Back up and restore your knowledge base',
     export: {
-      title: 'Export',
-      description: 'Download a copy',
-      formatLabel: 'Format',
-      formatBackup: 'Full Backup',
-      formatSnapshot: 'Snapshot',
-      includeArchived: 'Include archived',
-      exportButton: 'Export',
-      exporting: 'Exporting…',
+      title: 'Backup',
+      description: 'Create a lossless backup',
+      exportButton: 'Create Backup',
+      exporting: 'Creating backup…',
     },
     import: {
-      title: 'Import',
-      description: 'Restore from a file',
+      title: 'Restore',
+      description: 'Restore from a backup',
       dropzoneLabel: 'Drop a file here',
       dropzoneActive: 'Drop to upload',
       detectedFormat: 'Format',
       statsPreview: 'Preview',
-      importButton: 'Import',
-      importing: 'Importing…',
+      importButton: 'Restore',
+      importing: 'Restoring…',
       importConfirmTitle: 'Confirm',
       importConfirmMessage: 'Cannot undo.',
       confirmImport: 'Proceed',
@@ -56,9 +52,6 @@ const createProps = (overrides?: Partial<AdminExchangePageProps>): AdminExchange
       phaseError: 'Failed',
       hashChainValid: 'Hash valid',
       hashChainInvalid: 'Hash invalid',
-      resourcesCreated: 'Resources',
-      annotationsCreated: 'Annotations',
-      entityTypesAdded: 'Entity types',
       streams: 'Streams',
       events: 'Events',
       blobs: 'Blobs',
@@ -72,20 +65,20 @@ const createProps = (overrides?: Partial<AdminExchangePageProps>): AdminExchange
 describe('AdminExchangePage', () => {
   it('renders page title and subtitle', () => {
     render(<AdminExchangePage {...createProps()} />);
-    expect(screen.getByText('Import / Export')).toBeInTheDocument();
-    expect(screen.getByText('Back up and restore')).toBeInTheDocument();
+    expect(screen.getByText('Backup & Restore')).toBeInTheDocument();
+    expect(screen.getByText('Back up and restore your knowledge base')).toBeInTheDocument();
   });
 
   it('renders ExportCard', () => {
     render(<AdminExchangePage {...createProps()} />);
-    expect(screen.getByRole('heading', { name: 'Export' })).toBeInTheDocument();
-    expect(screen.getByText('Download a copy')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Backup' })).toBeInTheDocument();
+    expect(screen.getByText('Create a lossless backup')).toBeInTheDocument();
   });
 
   it('renders ImportCard', () => {
     render(<AdminExchangePage {...createProps()} />);
-    expect(screen.getByRole('heading', { name: 'Import' })).toBeInTheDocument();
-    expect(screen.getByText('Restore from a file')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Restore' })).toBeInTheDocument();
+    expect(screen.getByText('Restore from a backup')).toBeInTheDocument();
   });
 
   it('renders toolbar components', () => {
@@ -104,13 +97,13 @@ describe('AdminExchangePage', () => {
     expect(screen.getByText('Starting…')).toBeInTheDocument();
   });
 
-  it('renders ImportProgress with result on completion', () => {
+  it('renders ImportProgress with backup result on completion', () => {
     render(<AdminExchangePage {...createProps({
       importPhase: 'complete',
-      importResult: { resourcesCreated: 7, annotationsCreated: 15, entityTypesAdded: 2 },
+      importResult: { stats: { streams: 5, events: 42, blobs: 3 }, hashChainValid: true },
     })} />);
     expect(screen.getByText('Complete')).toBeInTheDocument();
-    expect(screen.getByText('7')).toBeInTheDocument();
+    expect(screen.getByText('5')).toBeInTheDocument();
   });
 
   it('applies panel-open class when common panel is active', () => {

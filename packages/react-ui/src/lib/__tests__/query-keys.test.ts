@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { QUERY_KEYS } from '../query-keys';
-import type { ResourceUri, AnnotationUri, ResourceAnnotationUri } from '@semiont/core';
+import type { ResourceId, AnnotationId } from '@semiont/core';
 
 describe('query-keys', () => {
   describe('QUERY_KEYS', () => {
@@ -32,7 +32,7 @@ describe('query-keys', () => {
     });
 
     describe('resources', () => {
-      const mockResourceUri = 'r-12345' as ResourceUri;
+      const mockResourceId = 'r-12345' as ResourceId;
 
       it('should return correct key for all resources without params', () => {
         const key = QUERY_KEYS.resources.all();
@@ -55,8 +55,8 @@ describe('query-keys', () => {
       });
 
       it('should return correct key for resource detail', () => {
-        const key = QUERY_KEYS.resources.detail(mockResourceUri);
-        expect(key).toEqual(['resources', mockResourceUri]);
+        const key = QUERY_KEYS.resources.detail(mockResourceId);
+        expect(key).toEqual(['resources', mockResourceId]);
       });
 
       it('should return correct key for resource by token', () => {
@@ -70,50 +70,50 @@ describe('query-keys', () => {
       });
 
       it('should return correct key for resource events', () => {
-        const key = QUERY_KEYS.resources.events(mockResourceUri);
-        expect(key).toEqual(['resources', mockResourceUri, 'events']);
+        const key = QUERY_KEYS.resources.events(mockResourceId);
+        expect(key).toEqual(['resources', mockResourceId, 'events']);
       });
 
       it('should return correct key for resource annotations', () => {
-        const key = QUERY_KEYS.resources.annotations(mockResourceUri);
-        expect(key).toEqual(['resources', mockResourceUri, 'annotations']);
+        const key = QUERY_KEYS.resources.annotations(mockResourceId);
+        expect(key).toEqual(['resources', mockResourceId, 'annotations']);
       });
 
       it('should return correct key for resource referencedBy', () => {
-        const key = QUERY_KEYS.resources.referencedBy(mockResourceUri);
-        expect(key).toEqual(['resources', mockResourceUri, 'referenced-by']);
+        const key = QUERY_KEYS.resources.referencedBy(mockResourceId);
+        expect(key).toEqual(['resources', mockResourceId, 'referenced-by']);
       });
 
       it('should differentiate between different resources', () => {
-        const key1 = QUERY_KEYS.resources.detail('r-111' as ResourceUri);
-        const key2 = QUERY_KEYS.resources.detail('r-222' as ResourceUri);
+        const key1 = QUERY_KEYS.resources.detail('r-111' as ResourceId);
+        const key2 = QUERY_KEYS.resources.detail('r-222' as ResourceId);
         expect(key1).not.toEqual(key2);
       });
     });
 
     describe('annotations', () => {
-      const mockAnnotationUri = 'a-12345' as AnnotationUri;
-      const mockResourceAnnotationUri = 'r-12345/a-67890' as ResourceAnnotationUri;
-      const mockResourceUri = 'r-12345' as ResourceUri;
+      const mockAnnotationId = 'a-12345' as AnnotationId;
+      const mockResourceId = 'r-12345' as ResourceId;
+      const mockAnnotationId2 = 'a-67890' as AnnotationId;
 
       it('should return correct key for annotation detail', () => {
-        const key = QUERY_KEYS.annotations.detail(mockAnnotationUri);
-        expect(key).toEqual(['annotations', mockAnnotationUri]);
+        const key = QUERY_KEYS.annotations.detail(mockAnnotationId);
+        expect(key).toEqual(['annotations', mockAnnotationId]);
       });
 
       it('should return correct key for annotation history', () => {
-        const key = QUERY_KEYS.annotations.history(mockResourceAnnotationUri);
-        expect(key).toEqual(['annotations', mockResourceAnnotationUri, 'history']);
+        const key = QUERY_KEYS.annotations.history(mockResourceId, mockAnnotationId2);
+        expect(key).toEqual(['annotations', mockResourceId, mockAnnotationId2, 'history']);
       });
 
       it('should return correct key for LLM context', () => {
-        const key = QUERY_KEYS.annotations.llmContext(mockResourceUri, 'annotation-123');
-        expect(key).toEqual(['annotations', 'llm-context', mockResourceUri, 'annotation-123']);
+        const key = QUERY_KEYS.annotations.llmContext(mockResourceId, 'annotation-123' as AnnotationId);
+        expect(key).toEqual(['annotations', 'llm-context', mockResourceId, 'annotation-123']);
       });
 
       it('should differentiate between different annotations', () => {
-        const key1 = QUERY_KEYS.annotations.detail('a-111' as AnnotationUri);
-        const key2 = QUERY_KEYS.annotations.detail('a-222' as AnnotationUri);
+        const key1 = QUERY_KEYS.annotations.detail('a-111' as AnnotationId);
+        const key2 = QUERY_KEYS.annotations.detail('a-222' as AnnotationId);
         expect(key1).not.toEqual(key2);
       });
     });
@@ -162,12 +162,12 @@ describe('query-keys', () => {
       });
 
       it('should produce different keys for same resource with different operations', () => {
-        const rUri = 'r-test' as ResourceUri;
+        const rId = 'r-test' as ResourceId;
         const keys = [
-          QUERY_KEYS.resources.detail(rUri),
-          QUERY_KEYS.resources.events(rUri),
-          QUERY_KEYS.resources.annotations(rUri),
-          QUERY_KEYS.resources.referencedBy(rUri),
+          QUERY_KEYS.resources.detail(rId),
+          QUERY_KEYS.resources.events(rId),
+          QUERY_KEYS.resources.annotations(rId),
+          QUERY_KEYS.resources.referencedBy(rId),
         ];
 
         const stringifiedKeys = keys.map(k => JSON.stringify(k));
@@ -187,7 +187,7 @@ describe('query-keys', () => {
         expect(QUERY_KEYS.users.me()[0]).toBe('users');
         expect(QUERY_KEYS.health()[0]).toBe('health');
         expect(QUERY_KEYS.resources.all()[0]).toBe('resources');
-        expect(QUERY_KEYS.annotations.detail('a-1' as AnnotationUri)[0]).toBe('annotations');
+        expect(QUERY_KEYS.annotations.detail('a-1' as AnnotationId)[0]).toBe('annotations');
       });
     });
   });

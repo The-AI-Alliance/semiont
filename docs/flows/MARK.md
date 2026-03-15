@@ -35,10 +35,10 @@ import { SemiontApiClient } from '@semiont/api-client';
 const client = new SemiontApiClient({ baseUrl: 'http://localhost:4000' });
 
 // Create a highlight annotation on selected text
-await client.createAnnotation(resourceUri, {
+await client.createAnnotation(resourceId, {
   motivation: 'highlighting',
   target: {
-    source: resourceUri,
+    source: resourceId,
     selector: {
       type: 'TextQuoteSelector',
       exact: 'Ouranos',
@@ -54,13 +54,13 @@ await client.createAnnotation(resourceUri, {
 
 ```typescript
 // Detect highlights with AI (results stream via event bus)
-client.sse.annotateHighlights(resourceUri, {
+client.sse.annotateHighlights(resourceId, {
   instructions: 'Focus on key technical points',
   density: 5,
 }, { eventBus });
 
 // Detect entity references
-client.sse.annotateReferences(resourceUri, {
+client.sse.annotateReferences(resourceId, {
   entityTypes: [entityType('Person'), entityType('Location')],
   includeDescriptiveReferences: false,
 }, { eventBus });
@@ -411,7 +411,7 @@ Frontend → POST /resources/{id}/detect-{highlights|assessments|comments|annota
     ↓
 Route validates request, creates job → submits to queue
     ↓
-Route subscribes to EventBus for job events (resourceUri)
+Route subscribes to EventBus for job events (resourceId)
     ↓
 Worker picks up job from queue
     ↓
@@ -593,9 +593,9 @@ Entity type selection UI:
 
 ```typescript
 // Initiate detection
-const stream = client.sse.detectHighlights(resourceUri, { instructions });
+const stream = client.sse.detectHighlights(resourceId, { instructions });
 // or
-const stream = client.sse.detectAnnotations(resourceUri, { entityTypes });
+const stream = client.sse.detectAnnotations(resourceId, { entityTypes });
 
 // Handle progress events
 stream.onProgress((progress) => {

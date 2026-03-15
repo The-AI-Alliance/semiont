@@ -4,13 +4,13 @@ import React, { useEffect, useRef } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
 import type { RouteBuilder, LinkComponentProps } from '../../contexts/RoutingContext';
 import { useResources } from '../../lib/api-hooks';
-import type { ResourceUri } from '@semiont/core';
+import type { ResourceId } from '@semiont/core';
 import type { StoredEvent } from '@semiont/core';
 import { getAnnotationUriFromEvent } from '@semiont/core';
 import { HistoryEvent } from './HistoryEvent';
 
 interface Props {
-  rUri: ResourceUri;
+  rUri: ResourceId;
   hoveredAnnotationId?: string | null;
   onEventHover?: (annotationId: string | null) => void;
   onEventClick?: (annotationId: string | null) => void;

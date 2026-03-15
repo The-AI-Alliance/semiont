@@ -497,8 +497,7 @@ export function ReferencesPanel({
           {referencedBy.length > 0 ? (
             <div className="semiont-panel__list">
               {referencedBy.map((ref) => {
-                // Extract resource ID from full URI (e.g., "http://localhost:4000/resources/abc123" -> "abc123")
-                const resourceId = ref.target.source.split('/').pop() || '';
+                const resourceId = ref.target.source;
 
                 return (
                   <div key={ref.id} className="semiont-reference-item semiont-reference-item--incoming">

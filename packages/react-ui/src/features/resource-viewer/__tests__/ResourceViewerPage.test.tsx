@@ -141,7 +141,7 @@ vi.mock('@/components/modals/GenerationConfigModal', () => ({
 const createMockProps = (overrides?: Partial<ResourceViewerPageProps>): ResourceViewerPageProps => ({
   resource: {
     '@context': 'https://www.w3.org/ns/anno.jsonld',
-    '@id': 'http://localhost/resources/test-123',
+    '@id': 'test-123',
     '@type': 'schema:DigitalDocument',
     name: 'Test Resource',
     description: 'A test resource for unit testing',
@@ -155,7 +155,7 @@ const createMockProps = (overrides?: Partial<ResourceViewerPageProps>): Resource
       },
     ],
   },
-  rUri: 'http://localhost/resources/test-123' as any,
+  rUri: 'test-123' as any,
   locale: 'en',
   cacheManager: {},
   Link: ({ children }: any) => <a>{children}</a>,

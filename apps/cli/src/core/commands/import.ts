@@ -1,14 +1,13 @@
 /**
  * Import Command
  *
- * Imports a knowledge base from a backup or snapshot file.
- *
- * Replays events through EventBus → Stower so all derived state
- * (materialized views, graph) rebuilds naturally.
+ * Imports resources from a JSON-LD Linked Data archive.
+ * Creates new resources through the EventBus → Stower pipeline.
+ * This is lossy — original resource IDs are not preserved.
  *
  * Usage:
- *   semiont import --file backup.tar.gz
- *   semiont import --format snapshot --file snapshot.jsonl
+ *   semiont import --file export.tar.gz
+ *   semiont import --file export.tar.gz --user-id did:web:example.com:users:alice
  */
 
 import * as fs from 'fs';
@@ -17,7 +16,7 @@ import { z } from 'zod';
 import type { Logger, UserId } from '@semiont/core';
 import { EventBus } from '@semiont/core';
 import { createEventStore } from '@semiont/event-sourcing';
-import { importBackup, importSnapshot, Stower, createKnowledgeBase } from '@semiont/make-meaning';
+import { importLinkedData, Stower, createKnowledgeBase } from '@semiont/make-meaning';
 import type { GraphDatabase } from '@semiont/graph';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
@@ -83,9 +82,8 @@ function createNoopGraphDatabase(): GraphDatabase {
 // =====================================================================
 
 export const ImportOptionsSchema = BaseOptionsSchema.extend({
-  format: z.enum(['backup', 'snapshot']).default('backup'),
   file: z.string().min(1, 'Input file path is required'),
-  userId: z.string().default('did:web:localhost:users:import'),
+  userId: z.string().optional(),
 });
 
 export type ImportOptions = z.output<typeof ImportOptionsSchema>;
@@ -117,8 +115,11 @@ export async function runImport(options: ImportOptions): Promise<CommandResults>
     throw new Error(`File not found: ${filePath}`);
   }
 
+  const userId = (options.userId ?? `did:web:localhost:users:${process.env.USER ?? 'cli'}`) as UserId;
+
   if (!options.quiet) {
-    printInfo(`Importing ${options.format} from ${filePath}`);
+    printInfo(`Importing JSON-LD archive from ${filePath}`);
+    printInfo(`User identity: ${userId}`);
   }
 
   // Bootstrap EventBus + Stower for import
@@ -129,72 +130,38 @@ export async function runImport(options: ImportOptions): Promise<CommandResults>
   await stower.initialize();
 
   try {
-    if (options.format === 'backup') {
-      const input = fs.createReadStream(filePath);
-      const result = await importBackup(input, { eventBus, logger });
+    const input = fs.createReadStream(filePath);
+    const result = await importLinkedData(input, { eventBus, userId, logger });
 
-      if (!options.quiet) {
-        printSuccess(
-          `Backup imported: ${result.stats.eventsReplayed} events, ` +
-          `${result.stats.resourcesCreated} resources, ` +
-          `${result.stats.annotationsCreated} annotations` +
-          (result.hashChainValid ? '' : ' (WARNING: hash chain invalid)')
-        );
-      }
-
-      const duration = Date.now() - startTime;
-      return {
-        command: 'import',
-        environment,
-        timestamp: new Date(),
-        duration,
-        summary: {
-          succeeded: 1, failed: 0, total: 1,
-          warnings: result.hashChainValid ? 0 : 1,
-        },
-        executionContext: { user: process.env.USER || 'unknown', workingDirectory: process.cwd(), dryRun: options.dryRun },
-        results: [{
-          entity: filePath,
-          platform: 'posix',
-          success: true,
-          metadata: { format: 'backup', ...result.stats, hashChainValid: result.hashChainValid },
-          duration,
-        }],
-      };
-    } else {
-      // Snapshot
-      const input = fs.createReadStream(filePath);
-      const result = await importSnapshot(input, {
-        eventBus,
-        userId: options.userId as UserId,
-        logger,
-      });
-
-      if (!options.quiet) {
-        printSuccess(
-          `Snapshot imported: ${result.resourcesCreated} resources, ` +
-          `${result.annotationsCreated} annotations, ` +
-          `${result.entityTypesAdded} entity types`
-        );
-      }
-
-      const duration = Date.now() - startTime;
-      return {
-        command: 'import',
-        environment,
-        timestamp: new Date(),
-        duration,
-        summary: { succeeded: 1, failed: 0, total: 1, warnings: 0 },
-        executionContext: { user: process.env.USER || 'unknown', workingDirectory: process.cwd(), dryRun: options.dryRun },
-        results: [{
-          entity: filePath,
-          platform: 'posix',
-          success: true,
-          metadata: { format: 'snapshot', ...result },
-          duration,
-        }],
-      };
+    if (!options.quiet) {
+      printSuccess(
+        `Import complete: ${result.resourcesCreated} resources, ` +
+        `${result.annotationsCreated} annotations, ` +
+        `${result.entityTypesAdded} entity types`
+      );
     }
+
+    const duration = Date.now() - startTime;
+    return {
+      command: 'import',
+      environment,
+      timestamp: new Date(),
+      duration,
+      summary: { succeeded: 1, failed: 0, total: 1, warnings: 0 },
+      executionContext: { user: process.env.USER || 'unknown', workingDirectory: process.cwd(), dryRun: options.dryRun },
+      results: [{
+        entity: filePath,
+        platform: 'posix',
+        success: true,
+        metadata: {
+          format: 'linked-data',
+          resourcesCreated: result.resourcesCreated,
+          annotationsCreated: result.annotationsCreated,
+          entityTypesAdded: result.entityTypesAdded,
+        },
+        duration,
+      }],
+    };
   } finally {
     await stower.stop();
   }
@@ -206,30 +173,22 @@ export async function runImport(options: ImportOptions): Promise<CommandResults>
 
 export const importCmd = new CommandBuilder()
   .name('import')
-  .description('Import knowledge base from backup or snapshot')
+  .description('Import resources from a JSON-LD Linked Data archive')
   .requiresEnvironment(true)
   .requiresServices(false)
   .examples(
-    'semiont import --file backup.tar.gz',
-    'semiont import --format snapshot --file snapshot.jsonl',
-    'semiont import --format snapshot --file snapshot.jsonl --user-id did:web:example.com:users:alice',
+    'semiont import --file export.tar.gz',
+    'semiont import --file export.tar.gz --user-id did:web:example.com:users:alice',
   )
   .args({
     args: {
-      '--format': {
-        type: 'string',
-        description: 'Import format: backup or snapshot',
-        default: 'backup',
-        choices: ['backup', 'snapshot'] as const,
-      },
       '--file': {
         type: 'string',
         description: 'Input file path (required)',
       },
       '--user-id': {
         type: 'string',
-        description: 'User DID for snapshot import (default: did:web:localhost:users:import)',
-        default: 'did:web:localhost:users:import',
+        description: 'User identity for imported resources (default: current user)',
       },
     },
     aliases: {

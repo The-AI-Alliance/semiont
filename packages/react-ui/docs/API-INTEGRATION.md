@@ -6,12 +6,12 @@ Guide to working with the Semiont API using `@semiont/react-ui` hooks.
 
 The library provides **React Query hooks** for all Semiont API operations. These hooks:
 
-- ✅ Handle authentication automatically (via ApiClientContext)
-- ✅ Manage loading, error, and success states
-- ✅ Cache responses intelligently
-- ✅ Retry failed requests (configurable)
-- ✅ Invalidate related queries on mutations
-- ✅ Are fully type-safe with TypeScript
+- Handle authentication automatically (via ApiClientContext)
+- Manage loading, error, and success states
+- Cache responses intelligently
+- Retry failed requests (configurable)
+- Invalidate related queries on mutations
+- Are fully type-safe with TypeScript
 
 ## Setup
 
@@ -117,9 +117,9 @@ function ResourceList() {
 **Get Single Resource:**
 
 ```tsx
-function ResourceDetail({ rUri }) {
+function ResourceDetail({ rId }) {
   const resources = useResources();
-  const { data: resource } = resources.get.useQuery(rUri);
+  const { data: resource } = resources.get.useQuery(rId);
 
   return <div>{resource?.name}</div>;
 }
@@ -162,13 +162,13 @@ function CreateResourceForm() {
 **Update Resource:**
 
 ```tsx
-function EditResource({ rUri }) {
+function EditResource({ rId }) {
   const resources = useResources();
   const { mutate } = resources.update.useMutation();
 
   const handleSave = (updates) => {
     mutate({
-      rUri,
+      id: rId,
       data: { name: updates.name }
     });
   };
@@ -179,11 +179,11 @@ function EditResource({ rUri }) {
 
 **Available Operations:**
 - `resources.list.useQuery()` - List resources
-- `resources.get.useQuery(rUri)` - Get single resource
+- `resources.get.useQuery(rId)` - Get single resource
 - `resources.search.useQuery(query, limit)` - Search resources
-- `resources.events.useQuery(rUri)` - Get resource events
-- `resources.annotations.useQuery(rUri)` - Get resource annotations
-- `resources.referencedBy.useQuery(rUri)` - Get referencing resources
+- `resources.events.useQuery(rId)` - Get resource events
+- `resources.annotations.useQuery(rId)` - Get resource annotations
+- `resources.referencedBy.useQuery(rId)` - Get referencing resources
 - `resources.create.useMutation()` - Create resource
 - `resources.update.useMutation()` - Update resource
 - `resources.generateCloneToken.useMutation()` - Generate clone token
@@ -201,9 +201,9 @@ Manage annotations on resources
 ```tsx
 import { useAnnotations } from '@semiont/react-ui';
 
-function AnnotationsList({ rUri }) {
+function AnnotationsList({ rId }) {
   const resources = useResources();
-  const { data: annotations } = resources.annotations.useQuery(rUri);
+  const { data: annotations } = resources.annotations.useQuery(rId);
 
   return (
     <ul>
@@ -218,18 +218,18 @@ function AnnotationsList({ rUri }) {
 **Create Annotation:**
 
 ```tsx
-function AddAnnotation({ rUri }) {
+function AddAnnotation({ rId }) {
   const annotations = useAnnotations();
   const { mutate } = annotations.create.useMutation();
 
   const addHighlight = () => {
     mutate({
-      rUri,
+      resourceId: rId,
       data: {
         type: 'Annotation',
         motivation: 'highlighting',
         target: {
-          source: rUri,
+          source: rId,
           selector: {
             type: 'TextPositionSelector',
             start: 0,
@@ -252,12 +252,12 @@ function AddAnnotation({ rUri }) {
 **Delete Annotation:**
 
 ```tsx
-function DeleteAnnotationButton({ annotationUri }) {
+function DeleteAnnotationButton({ resourceId, annotationId }) {
   const annotations = useAnnotations();
   const { mutate } = annotations.delete.useMutation();
 
   return (
-    <button onClick={() => mutate(annotationUri)}>
+    <button onClick={() => mutate(resourceId, annotationId)}>
       Delete
     </button>
   );
@@ -265,10 +265,10 @@ function DeleteAnnotationButton({ annotationUri }) {
 ```
 
 **Available Operations:**
-- `annotations.get.useQuery(annotationUri)` - Get annotation
-- `annotations.getResourceAnnotation.useQuery(annotationUri)` - Get resource annotation
-- `annotations.history.useQuery(annotationUri)` - Get annotation history
-- `annotations.llmContext.useQuery(resourceUri, annotationId, options)` - Get LLM context
+- `annotations.get.useQuery(annotationId)` - Get annotation
+- `annotations.getResourceAnnotation.useQuery(resourceId, annotationId)` - Get resource annotation
+- `annotations.history.useQuery(resourceId, annotationId)` - Get annotation history
+- `annotations.llmContext.useQuery(resourceId, annotationId, options)` - Get LLM context
 - `annotations.create.useMutation()` - Create annotation
 - `annotations.delete.useMutation()` - Delete annotation
 - `annotations.updateBody.useMutation()` - Update annotation body
@@ -501,16 +501,16 @@ All queries use consistent key patterns for cache management:
 ```typescript
 import { QUERY_KEYS } from '@semiont/react-ui';
 
-// Document queries
-QUERY_KEYS.documents.all(limit, archived)
-QUERY_KEYS.documents.detail(rUri)
-QUERY_KEYS.documents.events(rUri)
-QUERY_KEYS.documents.annotations(rUri)
-QUERY_KEYS.documents.search(query, limit)
+// Resource queries
+QUERY_KEYS.resources.all(limit, archived)
+QUERY_KEYS.resources.detail(rId)
+QUERY_KEYS.resources.events(rId)
+QUERY_KEYS.resources.annotations(rId)
+QUERY_KEYS.resources.search(query, limit)
 
 // Annotation queries
-QUERY_KEYS.annotations.history(annotationUri)
-QUERY_KEYS.annotations.llmContext(resourceUri, annotationId)
+QUERY_KEYS.annotations.history(resourceId, annotationId)
+QUERY_KEYS.annotations.llmContext(resourceId, annotationId)
 
 // Entity type queries
 QUERY_KEYS.entityTypes.all()
@@ -553,7 +553,7 @@ const queryClient = new QueryClient({
 ### Per-Query Error Handling
 
 ```tsx
-const { data, error } = resources.get.useQuery(rUri, {
+const { data, error } = resources.get.useQuery(rId, {
   onError: (error) => {
     if (error instanceof APIError) {
       if (error.status === 404) {
@@ -584,28 +584,28 @@ mutate(data, {
 ## Optimistic Updates
 
 ```tsx
-function ToggleFavorite({ rUri }) {
+function ToggleFavorite({ rId }) {
   const resources = useResources();
   const queryClient = useQueryClient();
   const { mutate } = resources.update.useMutation();
 
   const toggle = () => {
     mutate({
-      rUri,
+      id: rId,
       data: { isFavorite: !currentValue }
     }, {
       // Optimistically update the cache
       onMutate: async (variables) => {
         await queryClient.cancelQueries({
-          queryKey: QUERY_KEYS.documents.detail(rUri)
+          queryKey: QUERY_KEYS.resources.detail(rId)
         });
 
         const previous = queryClient.getQueryData(
-          QUERY_KEYS.documents.detail(rUri)
+          QUERY_KEYS.resources.detail(rId)
         );
 
         queryClient.setQueryData(
-          QUERY_KEYS.documents.detail(rUri),
+          QUERY_KEYS.resources.detail(rId),
           (old) => ({ ...old, isFavorite: variables.data.isFavorite })
         );
 
@@ -614,7 +614,7 @@ function ToggleFavorite({ rUri }) {
       // Rollback on error
       onError: (err, variables, context) => {
         queryClient.setQueryData(
-          QUERY_KEYS.documents.detail(rUri),
+          QUERY_KEYS.resources.detail(rId),
           context.previous
         );
       },
@@ -677,15 +677,15 @@ it('should fetch resources', async () => {
 
 ## Best Practices
 
-### ✅ Do: Enable queries conditionally
+### Do: Enable queries conditionally
 
 ```tsx
-const { data } = resources.get.useQuery(rUri, {
-  enabled: !!rUri && isAuthenticated
+const { data } = resources.get.useQuery(rId, {
+  enabled: !!rId && isAuthenticated
 });
 ```
 
-### ✅ Do: Invalidate related queries
+### Do: Invalidate related queries
 
 ```tsx
 const { mutate } = annotations.create.useMutation();
@@ -693,13 +693,13 @@ const { mutate } = annotations.create.useMutation();
 mutate(data, {
   onSuccess: () => {
     queryClient.invalidateQueries({
-      queryKey: QUERY_KEYS.documents.annotations(rUri)
+      queryKey: QUERY_KEYS.resources.annotations(rId)
     });
   }
 });
 ```
 
-### ✅ Do: Use React Query devtools (development)
+### Do: Use React Query devtools (development)
 
 ```tsx
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
@@ -710,7 +710,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 </QueryClientProvider>
 ```
 
-### ❌ Don't: Call useApiClient() directly in components
+### Don't: Call useApiClient() directly in components
 
 ```tsx
 // WRONG
@@ -722,12 +722,12 @@ const resources = useResources();
 const { data } = resources.list.useQuery();
 ```
 
-### ❌ Don't: Ignore loading states
+### Don't: Ignore loading states
 
 ```tsx
 // WRONG
 const { data } = resources.list.useQuery();
-return <div>{data.map(...)}</div>; // ❌ data might be undefined
+return <div>{data.map(...)}</div>; // data might be undefined
 
 // CORRECT
 const { data, isLoading } = resources.list.useQuery();
@@ -735,35 +735,35 @@ if (isLoading) return <Spinner />;
 return <div>{data?.map(...) ?? []}</div>;
 ```
 
-### ✅ Do: Use event-based cache invalidation
+### Do: Use event-based cache invalidation
 
 ```tsx
-// ❌ OLD: Manual cache invalidation after mutations
+// OLD: Manual cache invalidation after mutations
 const { mutate } = annotations.create.useMutation();
 
 mutate(data, {
   onSuccess: () => {
     // Manual refetch after every mutation
-    queryClient.invalidateQueries({ queryKey: ['annotations', rUri] });
+    queryClient.invalidateQueries({ queryKey: ['annotations', rId] });
   }
 });
 
-// ✅ NEW: Event-based cache invalidation (automatic)
+// NEW: Event-based cache invalidation (automatic)
 import { useMakeMeaningEvents } from '@semiont/react-ui';
 
-function AnnotationCacheSync({ rUri }: { rUri: ResourceUri }) {
+function AnnotationCacheSync({ rId }: { rId: ResourceId }) {
   const eventBus = useMakeMeaningEvents();
   const queryClient = useQueryClient();
 
   useEffect(() => {
     // Backend events automatically trigger cache invalidation
     const handleAnnotationAdded = () => {
-      queryClient.invalidateQueries(['annotations', rUri]);
+      queryClient.invalidateQueries(['annotations', rId]);
     };
 
     eventBus.on('mark:added', handleAnnotationAdded);
     return () => eventBus.off('mark:added', handleAnnotationAdded);
-  }, [eventBus, queryClient, rUri]);
+  }, [eventBus, queryClient, rId]);
 
   return null;
 }
@@ -775,10 +775,10 @@ mutate(data); // Cache updates automatically via events
 
 **Benefits:**
 
-- ✅ Zero manual `refetch()` calls in mutation callbacks
-- ✅ Automatic cache updates from backend SSE events
-- ✅ Real-time updates when other users make changes
-- ✅ Consistent cache state across all components
+- Zero manual `refetch()` calls in mutation callbacks
+- Automatic cache updates from backend SSE events
+- Real-time updates when other users make changes
+- Consistent cache state across all components
 
 See [EVENTS.md](EVENTS.md) for complete event-driven architecture documentation.
 
@@ -793,30 +793,30 @@ The library uses **event-driven cache invalidation** instead of manual refetch c
 These events are emitted by the backend via SSE and automatically invalidate relevant caches:
 
 **Detection Events:**
-- `detection:started` → Show detection progress
-- `detection:progress` → Update progress indicators
-- `detection:entity-found` → Invalidate annotations cache
-- `detection:completed` → Invalidate annotations cache
-- `detection:failed` → Show error notification
+- `detection:started` - Show detection progress
+- `detection:progress` - Update progress indicators
+- `detection:entity-found` - Invalidate annotations cache
+- `detection:completed` - Invalidate annotations cache
+- `detection:failed` - Show error notification
 
 **Generation Events:**
-- `generation:started` → Show generation progress
-- `generation:progress` → Update progress indicators
-- `generation:resource-created` → Invalidate resources list
-- `generation:completed` → Invalidate resources list
+- `generation:started` - Show generation progress
+- `generation:progress` - Update progress indicators
+- `generation:resource-created` - Invalidate resources list
+- `generation:completed` - Invalidate resources list
 
 **Annotation Events:**
-- `mark:added` → Invalidate annotations cache
-- `mark:removed` → Invalidate annotations cache
-- `mark:body-updated` → Invalidate annotation detail cache
+- `mark:added` - Invalidate annotations cache
+- `mark:removed` - Invalidate annotations cache
+- `mark:body-updated` - Invalidate annotation detail cache
 
 **Entity Tag Events:**
-- `entity-tag:added` → Invalidate annotations cache
-- `entity-tag:removed` → Invalidate annotations cache
+- `entity-tag:added` - Invalidate annotations cache
+- `entity-tag:removed` - Invalidate annotations cache
 
 **Resource Events:**
-- `mark:archived` → Invalidate resource cache
-- `mark:unarchived` → Invalidate resource cache
+- `mark:archived` - Invalidate resource cache
+- `mark:unarchived` - Invalidate resource cache
 
 ### Setup Event-Based Invalidation
 
@@ -828,35 +828,35 @@ import { useQueryClient } from '@tanstack/react-query';
 
 // 1. Wrap resource page with event bus provider
 export default function ResourcePage({ params }: { params: { id: string } }) {
-  const rUri = resourceUri(params.id);
+  const rId = resourceId(params.id);
 
   return (
-    <MakeMeaningEventBusProvider rUri={rUri}>
-      <ResourceCacheSync rUri={rUri} />
-      <ResourceViewerPage rUri={rUri} />
+    <MakeMeaningEventBusProvider rId={rId}>
+      <ResourceCacheSync rId={rId} />
+      <ResourceViewerPage rId={rId} />
     </MakeMeaningEventBusProvider>
   );
 }
 
 // 2. Create cache sync component that subscribes to events
-function ResourceCacheSync({ rUri }: { rUri: ResourceUri }) {
+function ResourceCacheSync({ rId }: { rId: ResourceId }) {
   const eventBus = useMakeMeaningEvents();
   const queryClient = useQueryClient();
 
   useEffect(() => {
     // Annotation events
     const handleAnnotationChange = () => {
-      queryClient.invalidateQueries(['annotations', rUri]);
+      queryClient.invalidateQueries(['annotations', rId]);
     };
 
     // Detection events
     const handleDetectionComplete = () => {
-      queryClient.invalidateQueries(['annotations', rUri]);
+      queryClient.invalidateQueries(['annotations', rId]);
     };
 
     // Resource events
     const handleResourceChange = () => {
-      queryClient.invalidateQueries(['resources', rUri]);
+      queryClient.invalidateQueries(['resources', rId]);
     };
 
     // Subscribe to all relevant events
@@ -876,7 +876,7 @@ function ResourceCacheSync({ rUri }: { rUri: ResourceUri }) {
       eventBus.off('mark:archived', handleResourceChange);
       eventBus.off('mark:unarchived', handleResourceChange);
     };
-  }, [eventBus, queryClient, rUri]);
+  }, [eventBus, queryClient, rId]);
 
   return null;
 }
@@ -887,7 +887,7 @@ function ResourceCacheSync({ rUri }: { rUri: ResourceUri }) {
 **Before (Manual Refetch):**
 
 ```tsx
-// ❌ OLD: Manual cache invalidation in every mutation
+// OLD: Manual cache invalidation in every mutation
 const { mutate: createAnnotation } = annotations.create.useMutation();
 const { mutate: deleteAnnotation } = annotations.delete.useMutation();
 const { mutate: updateAnnotation } = annotations.updateBody.useMutation();
@@ -895,19 +895,19 @@ const { mutate: updateAnnotation } = annotations.updateBody.useMutation();
 // Each mutation manually invalidates cache
 createAnnotation(data, {
   onSuccess: () => {
-    queryClient.invalidateQueries(['annotations', rUri]);
+    queryClient.invalidateQueries(['annotations', rId]);
   }
 });
 
-deleteAnnotation(annotationUri, {
+deleteAnnotation(resourceId, annotationId, {
   onSuccess: () => {
-    queryClient.invalidateQueries(['annotations', rUri]);
+    queryClient.invalidateQueries(['annotations', rId]);
   }
 });
 
 updateAnnotation(data, {
   onSuccess: () => {
-    queryClient.invalidateQueries(['annotations', rUri]);
+    queryClient.invalidateQueries(['annotations', rId]);
   }
 });
 ```
@@ -915,17 +915,17 @@ updateAnnotation(data, {
 **After (Event-Based):**
 
 ```tsx
-// ✅ NEW: Zero manual invalidation, events handle it
+// NEW: Zero manual invalidation, events handle it
 const { mutate: createAnnotation } = annotations.create.useMutation();
 const { mutate: deleteAnnotation } = annotations.delete.useMutation();
 const { mutate: updateAnnotation } = annotations.updateBody.useMutation();
 
 // Just call mutations - events handle cache invalidation automatically
 createAnnotation(data);
-deleteAnnotation(annotationUri);
+deleteAnnotation(resourceId, annotationId);
 updateAnnotation(data);
 
-// Backend emits events → EventBus → ResourceCacheSync → Cache invalidated
+// Backend emits events -> EventBus -> ResourceCacheSync -> Cache invalidated
 ```
 
 **Key Differences:**

@@ -425,12 +425,12 @@ Response: 200 with updated resource
 ```typescript
 const handleArchive = useCallback(async () => {
   await updateDocMutation.mutateAsync({
-    rUri,
+    rId,
     data: { archived: true }  // PATCH, not DELETE
   });
   await refetchDocument();
   showSuccess('Document archived');
-}, [resource, rUri, updateDocMutation, refetchDocument, showSuccess, showError]);
+}, [resource, rId, updateDocMutation, refetchDocument, showSuccess, showError]);
 ```
 
 **Backend implementation**: [apps/backend/src/routes/resources/routes/update.ts:50-60](../routes/resources/routes/update.ts#L50-L60)

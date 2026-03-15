@@ -66,15 +66,6 @@ export {
   isAnnotationId,
 } from './identifiers';
 
-// URI utilities
-export {
-  resourceIdToURI,
-  annotationIdToURI,
-  uriToResourceId,
-  uriToAnnotationId,
-  extractResourceUriFromAnnotationUri,
-} from './uri-utils';
-
 // Graph types
 export type {
   GraphConnection,

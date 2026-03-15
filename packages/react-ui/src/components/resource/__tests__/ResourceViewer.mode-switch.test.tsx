@@ -31,7 +31,7 @@ vi.mock('../../../hooks/useObservableBrowse', () => ({
 
 const mockResource: SemiontResource & { content: string } = {
   '@context': 'https://www.w3.org/ns/activitystreams',
-  '@id': 'http://example.com/resources/test-123',
+  '@id': 'test-123',
   name: 'Test Document',
   created: '2024-01-01T00:00:00Z',
   entityTypes: [],

@@ -59,7 +59,7 @@ const createMockReference = (overrides?: Partial<Annotation>): Annotation => ({
   created: '2024-06-15T12:00:00Z',
   modified: '2024-06-15T12:00:00Z',
   target: {
-    source: 'http://example.com/resources/resource-1',
+    source: 'resource-1',
     selector: {
       type: 'TextQuoteSelector',
       exact: 'referenced text',
@@ -67,7 +67,7 @@ const createMockReference = (overrides?: Partial<Annotation>): Annotation => ({
   },
   body: {
     type: 'SpecificResource',
-    source: 'http://example.com/resources/linked-doc',
+    source: 'linked-doc',
   },
   ...overrides,
 });
@@ -125,7 +125,7 @@ describe('ReferenceEntry', () => {
 
     it('should show link icon when reference is resolved', () => {
       mockIsBodyResolved.mockReturnValue(true);
-      mockGetBodySource.mockReturnValue('http://example.com/resources/linked-doc');
+      mockGetBodySource.mockReturnValue('linked-doc');
 
       const { container } = renderWithProviders(<ReferenceEntry {...defaultProps} />);
 
@@ -162,7 +162,7 @@ describe('ReferenceEntry', () => {
 
     it('should render resolved document name when enriched', () => {
       mockIsBodyResolved.mockReturnValue(true);
-      mockGetBodySource.mockReturnValue('http://example.com/resources/linked-doc');
+      mockGetBodySource.mockReturnValue('linked-doc');
 
       const enrichedRef = {
         ...createMockReference(),
@@ -259,7 +259,7 @@ describe('ReferenceEntry', () => {
   describe('Resolved reference actions', () => {
     it('should show open button when resolved', () => {
       mockIsBodyResolved.mockReturnValue(true);
-      mockGetBodySource.mockReturnValue('http://example.com/resources/linked-doc');
+      mockGetBodySource.mockReturnValue('linked-doc');
 
       const { container } = renderWithProviders(<ReferenceEntry {...defaultProps} />);
 
@@ -269,7 +269,7 @@ describe('ReferenceEntry', () => {
 
     it('should show unlink button when resolved and in annotate mode', () => {
       mockIsBodyResolved.mockReturnValue(true);
-      mockGetBodySource.mockReturnValue('http://example.com/resources/linked-doc');
+      mockGetBodySource.mockReturnValue('linked-doc');
 
       const { container } = renderWithProviders(
         <ReferenceEntry {...defaultProps} annotateMode={true} />
@@ -281,7 +281,7 @@ describe('ReferenceEntry', () => {
 
     it('should not show unlink button when not in annotate mode', () => {
       mockIsBodyResolved.mockReturnValue(true);
-      mockGetBodySource.mockReturnValue('http://example.com/resources/linked-doc');
+      mockGetBodySource.mockReturnValue('linked-doc');
 
       const { container } = renderWithProviders(
         <ReferenceEntry {...defaultProps} annotateMode={false} />
@@ -293,7 +293,7 @@ describe('ReferenceEntry', () => {
 
     it('should navigate on open click', async () => {
       mockIsBodyResolved.mockReturnValue(true);
-      mockGetBodySource.mockReturnValue('http://example.com/resources/linked-doc');
+      mockGetBodySource.mockReturnValue('linked-doc');
 
       const { container } = renderWithProviders(<ReferenceEntry {...defaultProps} />);
 
@@ -306,7 +306,7 @@ describe('ReferenceEntry', () => {
 
     it('should emit bind:update-body on unlink click', async () => {
       mockIsBodyResolved.mockReturnValue(true);
-      mockGetBodySource.mockReturnValue('http://example.com/resources/linked-doc');
+      mockGetBodySource.mockReturnValue('linked-doc');
       const unlinkHandler = vi.fn();
 
       const { container, eventBus } = renderWithProviders(

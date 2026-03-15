@@ -13,7 +13,7 @@
     "administer": "管理"
   },
   "Footer": {
-    "copyright": "\u00a9 {year} Semiont. All rights reserved.",
+    "copyright": "© {year} Semiont. All rights reserved.",
     "about": "概要",
     "privacyPolicy": "プライバシーポリシー",
     "cookiePreferences": "Cookie設定",
@@ -305,7 +305,7 @@
   },
   "AnnotateView": {
     "ariaLabel": "選択したテキストからアノテーションを作成。ハイライトはH、リファレンスはRを押してください。",
-    "tooltip": "クリックでハイライトを作成 \u2022 右クリックでその他のオプション"
+    "tooltip": "クリックでハイライトを作成 • 右クリックでその他のオプション"
   },
   "CreateAnnotationPopup": {
     "title": "アノテーション",
@@ -375,7 +375,11 @@
     "oauthSettings": "OAuth設定",
     "oauthSettingsDescription": "OAuth構成を表示",
     "devops": "DevOps",
-    "devopsDescription": "システム監視と管理"
+    "devopsDescription": "システム監視と管理",
+    "exchange": "Backup & Restore",
+    "exchangeDescription": "Back up and restore your knowledge base",
+    "linkedData": "Export & Import",
+    "linkedDataDescription": "JSON-LD Linked Data exchange"
   },
   "AdminUsers": {
     "title": "ユーザー管理",
@@ -450,6 +454,37 @@
     "deploymentControlCLI": "CLI: semiont update",
     "cliTitle": "高度な操作のためのSemiont CLI",
     "cliDescription": "インフラストラクチャ管理、デプロイ、監視には、Semiont CLIをご利用ください："
+  },
+  "AdminExchange": {
+    "title": "インポート / エクスポート",
+    "subtitle": "ナレッジベースをバックアップするか、インスタンス間でデータを転送します",
+    "exportTitle": "エクスポート",
+    "exportDescription": "ナレッジベースの完全バックアップまたは現在の状態のスナップショットをダウンロードします。",
+    "exportButton": "エクスポート",
+    "exporting": "エクスポート中…",
+    "importTitle": "インポート",
+    "importDescription": "バックアップから復元するか、スナップショットをインポートします。",
+    "dropzoneLabel": ".tar.gzまたは.jsonlファイルをここにドロップするか、クリックして参照",
+    "dropzoneActive": "ここにファイルをドロップ…",
+    "detectedFormat": "検出されたフォーマット",
+    "statsPreview": "プレビュー",
+    "importButton": "インポート",
+    "importing": "インポート中…",
+    "importConfirmTitle": "インポートの確認",
+    "importConfirmMessage": "インポートするとナレッジベースにデータが追加されます。この操作は元に戻せません。続行しますか？",
+    "confirmImport": "はい、インポート",
+    "cancelImport": "キャンセル",
+    "phaseStarted": "インポート開始中…",
+    "phaseEntityTypes": "エンティティタイプをインポート中…",
+    "phaseResources": "リソースをインポート中…",
+    "phaseAnnotations": "アノテーションをインポート中…",
+    "phaseComplete": "インポート完了",
+    "phaseError": "インポート失敗",
+    "hashChainValid": "ハッシュチェーン検証済み",
+    "hashChainInvalid": "ハッシュチェーンの検証に失敗",
+    "streams": "ストリーム",
+    "events": "イベント",
+    "blobs": "コンテンツブロブ"
   },
   "CookieBanner": {
     "saving": "保存中...",
@@ -534,5 +569,36 @@
     "close": "で閉じる",
     "enter": "Enter",
     "esc": "Esc"
+  },
+  "AdminLinkedData": {
+    "title": "Export & Import",
+    "subtitle": "Exchange knowledge as JSON-LD Linked Data",
+    "exportTitle": "Export",
+    "exportDescription": "Export your knowledge base as a JSON-LD archive.",
+    "exportButton": "Export as JSON-LD",
+    "exporting": "Exporting…",
+    "importTitle": "Import",
+    "importDescription": "Import resources from a JSON-LD archive.",
+    "dropzoneLabel": "Drop a .tar.gz file here, or click to browse",
+    "dropzoneActive": "Drop file here…",
+    "detectedFormat": "Detected format",
+    "statsPreview": "Preview",
+    "importButton": "Import",
+    "importing": "Importing…",
+    "importConfirmTitle": "Confirm Import",
+    "importConfirmMessage": "This will create new resources in your knowledge base. Continue?",
+    "confirmImport": "Yes, Import",
+    "cancelImport": "Cancel",
+    "phaseStarted": "Starting import…",
+    "phaseEntityTypes": "Importing entity types…",
+    "phaseResources": "Importing resources…",
+    "phaseAnnotations": "Importing annotations…",
+    "phaseComplete": "Import complete",
+    "phaseError": "Import failed",
+    "hashChainValid": "Verified",
+    "hashChainInvalid": "Verification failed",
+    "streams": "Resources",
+    "events": "Annotations",
+    "blobs": "Entity types"
   }
 }
