@@ -742,7 +742,7 @@ export class SemiontApiClient {
     options?: RequestOptions,
   ): Promise<Response> {
     const query = params?.includeArchived ? '?includeArchived=true' : '';
-    return fetch(`${this.baseUrl}/api/admin/exchange/export${query}`, {
+    return fetch(`${this.baseUrl}/api/moderate/exchange/export${query}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -764,7 +764,7 @@ export class SemiontApiClient {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch(`${this.baseUrl}/api/admin/exchange/import`, {
+    const response = await fetch(`${this.baseUrl}/api/moderate/exchange/import`, {
       method: 'POST',
       headers: {
         ...(options?.auth ? { Authorization: `Bearer ${options.auth}` } : {}),

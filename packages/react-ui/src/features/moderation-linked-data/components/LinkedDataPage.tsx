@@ -1,5 +1,5 @@
 /**
- * AdminLinkedDataPage — JSON-LD Export/Import admin page
+ * LinkedDataPage — JSON-LD Export/Import moderation page
  *
  * Pure React component. All state and handlers passed as props.
  * Reuses ExportCard, ImportCard, and ImportProgress from admin-exchange.
@@ -11,7 +11,7 @@ import { ExportCard, type ExportCardTranslations } from '../../admin-exchange/co
 import { ImportCard, type ImportCardProps, type ImportCardTranslations } from '../../admin-exchange/components/ImportCard';
 import { ImportProgress, type ImportProgressTranslations } from '../../admin-exchange/components/ImportProgress';
 
-export interface AdminLinkedDataPageTranslations {
+export interface LinkedDataPageTranslations {
   title: string;
   subtitle: string;
   export: ExportCardTranslations;
@@ -19,7 +19,7 @@ export interface AdminLinkedDataPageTranslations {
   progress: ImportProgressTranslations;
 }
 
-export interface AdminLinkedDataPageProps {
+export interface LinkedDataPageProps {
   // Export
   onExport: () => void;
   isExporting: boolean;
@@ -43,14 +43,14 @@ export interface AdminLinkedDataPageProps {
   activePanel: string | null;
 
   // Translations
-  translations: AdminLinkedDataPageTranslations;
+  translations: LinkedDataPageTranslations;
 
   // Component dependencies
   ToolbarPanels: React.ComponentType<any>;
   Toolbar: React.ComponentType<any>;
 }
 
-export function AdminLinkedDataPage({
+export function LinkedDataPage({
   onExport,
   isExporting,
   onFileSelected,
@@ -68,7 +68,7 @@ export function AdminLinkedDataPage({
   translations: t,
   ToolbarPanels,
   Toolbar,
-}: AdminLinkedDataPageProps) {
+}: LinkedDataPageProps) {
   return (
     <div className={`semiont-page${activePanel && COMMON_PANELS.includes(activePanel as ToolbarPanelType) ? ' semiont-page--panel-open' : ''}`}>
       <div className="semiont-page__content">

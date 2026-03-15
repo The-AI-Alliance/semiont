@@ -1,22 +1,22 @@
 'use client';
 
 /**
- * Admin Linked Data Client - Thin Next.js wrapper
+ * Linked Data Client - Thin Next.js wrapper
  *
  * Handles Next.js-specific concerns (translations, API calls, hooks)
- * and delegates rendering to the pure React AdminLinkedDataPage component.
+ * and delegates rendering to the pure React LinkedDataPage component.
  */
 
 import React, { useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
-import { useAdmin, Toolbar } from '@semiont/react-ui';
+import { useModeration, Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme, usePanelBrowse, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
-import { AdminLinkedDataPage } from '@semiont/react-ui';
+import { LinkedDataPage } from '@semiont/react-ui';
 import type { ImportPreview } from '@semiont/react-ui';
 
-export default function AdminLinkedDataClient() {
-  const t = useTranslations('AdminLinkedData');
+export default function LinkedDataClient() {
+  const t = useTranslations('ModerationLinkedData');
 
   // Toolbar and settings state
   const { activePanel } = usePanelBrowse();
@@ -37,9 +37,9 @@ export default function AdminLinkedDataClient() {
   });
 
   // API hooks
-  const adminAPI = useAdmin();
-  const exportMutation = adminAPI.exchange.export.useMutation();
-  const importMutation = adminAPI.exchange.import.useMutation();
+  const moderationAPI = useModeration();
+  const exportMutation = moderationAPI.exchange.export.useMutation();
+  const importMutation = moderationAPI.exchange.import.useMutation();
 
   // Local state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -94,7 +94,7 @@ export default function AdminLinkedDataClient() {
   }, []);
 
   return (
-    <AdminLinkedDataPage
+    <LinkedDataPage
       onExport={handleExport}
       isExporting={exportMutation.isPending}
       onFileSelected={handleFileSelected}

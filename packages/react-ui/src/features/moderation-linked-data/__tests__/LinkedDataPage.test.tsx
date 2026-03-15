@@ -1,13 +1,13 @@
 /**
- * Tests for AdminLinkedDataPage component
+ * Tests for LinkedDataPage component
  */
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { AdminLinkedDataPage } from '../components/AdminLinkedDataPage';
-import type { AdminLinkedDataPageProps } from '../components/AdminLinkedDataPage';
+import { LinkedDataPage } from '../components/LinkedDataPage';
+import type { LinkedDataPageProps } from '../components/LinkedDataPage';
 
-const createProps = (overrides?: Partial<AdminLinkedDataPageProps>): AdminLinkedDataPageProps => ({
+const createProps = (overrides?: Partial<LinkedDataPageProps>): LinkedDataPageProps => ({
   onExport: vi.fn(),
   isExporting: false,
   onFileSelected: vi.fn(),
@@ -62,43 +62,43 @@ const createProps = (overrides?: Partial<AdminLinkedDataPageProps>): AdminLinked
   ...overrides,
 });
 
-describe('AdminLinkedDataPage', () => {
+describe('LinkedDataPage', () => {
   it('renders page title and subtitle', () => {
-    render(<AdminLinkedDataPage {...createProps()} />);
+    render(<LinkedDataPage {...createProps()} />);
     expect(screen.getByText('Export & Import')).toBeInTheDocument();
     expect(screen.getByText('Exchange knowledge as JSON-LD Linked Data')).toBeInTheDocument();
   });
 
   it('renders ExportCard', () => {
-    render(<AdminLinkedDataPage {...createProps()} />);
+    render(<LinkedDataPage {...createProps()} />);
     expect(screen.getByRole('heading', { name: 'Export' })).toBeInTheDocument();
     expect(screen.getByText('Export as JSON-LD')).toBeInTheDocument();
   });
 
   it('renders ImportCard', () => {
-    render(<AdminLinkedDataPage {...createProps()} />);
+    render(<LinkedDataPage {...createProps()} />);
     expect(screen.getByRole('heading', { name: 'Import' })).toBeInTheDocument();
     expect(screen.getByText('Import from JSON-LD')).toBeInTheDocument();
   });
 
   it('renders toolbar components', () => {
-    render(<AdminLinkedDataPage {...createProps()} />);
+    render(<LinkedDataPage {...createProps()} />);
     expect(screen.getByTestId('toolbar-panels')).toBeInTheDocument();
     expect(screen.getByTestId('toolbar')).toBeInTheDocument();
   });
 
   it('does not render ImportProgress when importPhase is null', () => {
-    const { container } = render(<AdminLinkedDataPage {...createProps()} />);
+    const { container } = render(<LinkedDataPage {...createProps()} />);
     expect(container.querySelector('.semiont-exchange__progress')).not.toBeInTheDocument();
   });
 
   it('renders ImportProgress when importPhase is set', () => {
-    render(<AdminLinkedDataPage {...createProps({ importPhase: 'started' })} />);
+    render(<LinkedDataPage {...createProps({ importPhase: 'started' })} />);
     expect(screen.getByText('Starting…')).toBeInTheDocument();
   });
 
   it('renders ImportProgress with result on completion', () => {
-    render(<AdminLinkedDataPage {...createProps({
+    render(<LinkedDataPage {...createProps({
       importPhase: 'complete',
       importResult: { resourcesCreated: 5, annotationsCreated: 12, entityTypesAdded: 3 },
     })} />);
@@ -106,12 +106,12 @@ describe('AdminLinkedDataPage', () => {
   });
 
   it('applies panel-open class when common panel is active', () => {
-    const { container } = render(<AdminLinkedDataPage {...createProps({ activePanel: 'user' })} />);
+    const { container } = render(<LinkedDataPage {...createProps({ activePanel: 'user' })} />);
     expect(container.querySelector('.semiont-page--panel-open')).toBeInTheDocument();
   });
 
   it('does not apply panel-open class when no panel is active', () => {
-    const { container } = render(<AdminLinkedDataPage {...createProps({ activePanel: null })} />);
+    const { container } = render(<LinkedDataPage {...createProps({ activePanel: null })} />);
     expect(container.querySelector('.semiont-page--panel-open')).not.toBeInTheDocument();
   });
 });

@@ -10,6 +10,7 @@ import {
   ClockIcon,
   TagIcon,
   BookOpenIcon,
+  ArrowsRightLeftIcon,
   ChevronLeftIcon,
   Bars3Icon
 } from '@heroicons/react/24/outline';
@@ -53,6 +54,12 @@ export function ModerationNavigation({ isCollapsed, toggleCollapsed, navigationM
       href: '/moderate/tag-schemas',
       icon: BookOpenIcon,
       description: t('tagSchemasDescription')
+    },
+    {
+      name: t('linkedData'),
+      href: '/moderate/linked-data',
+      icon: ArrowsRightLeftIcon,
+      description: t('linkedDataDescription')
     }
   ];
 

@@ -1,12 +1,13 @@
 /**
  * Exchange Routes — Knowledge Base Backup/Restore + Linked Data Export/Import
  *
+ * Admin routes (require admin role):
  * POST /api/admin/exchange/backup  — stream a full backup archive
  * POST /api/admin/exchange/restore — upload a backup and replay via EventBus
- * POST /api/admin/exchange/export  — stream a JSON-LD linked data archive
- * POST /api/admin/exchange/import  — upload a JSON-LD archive and import via EventBus
  *
- * All routes require auth + admin middleware.
+ * Moderator routes (require moderator or admin role):
+ * POST /api/moderate/exchange/export  — stream a JSON-LD linked data archive
+ * POST /api/moderate/exchange/import  — upload a JSON-LD archive and import via EventBus
  */
 
 import { Hono } from 'hono';
@@ -40,8 +41,18 @@ const adminMiddleware = async (c: any, next: any) => {
   return next();
 };
 
+// Moderator middleware (same pattern as routes/entity-types.ts)
+const moderatorMiddleware = async (c: any, next: any) => {
+  const user = c.get('user');
+  if (!user || (!user.isModerator && !user.isAdmin)) {
+    return c.json({ error: 'Forbidden: Moderator or Admin access required' }, 403);
+  }
+  return next();
+};
+
 export const exchangeRouter = new Hono<{ Variables: Variables }>();
 exchangeRouter.use('/api/admin/exchange/*', authMiddleware, adminMiddleware);
+exchangeRouter.use('/api/moderate/exchange/*', authMiddleware, moderatorMiddleware);
 
 /**
  * POST /api/admin/exchange/backup
@@ -159,11 +170,12 @@ exchangeRouter.post('/api/admin/exchange/restore', async (c) => {
 });
 
 /**
- * POST /api/admin/exchange/export
+ * POST /api/moderate/exchange/export
  *
  * Streams a JSON-LD linked data archive to the client.
+ * Requires moderator or admin role.
  */
-exchangeRouter.post('/api/admin/exchange/export', async (c) => {
+exchangeRouter.post('/api/moderate/exchange/export', async (c) => {
   const mm = c.get('makeMeaning');
   const config = c.get('config');
   const sourceUrl = config.services?.backend?.publicURL ?? 'http://localhost:4000';
@@ -224,12 +236,13 @@ exchangeRouter.post('/api/admin/exchange/export', async (c) => {
 });
 
 /**
- * POST /api/admin/exchange/import
+ * POST /api/moderate/exchange/import
  *
  * Accepts a multipart JSON-LD archive upload and imports via EventBus.
+ * Requires moderator or admin role.
  * Returns SSE progress events.
  */
-exchangeRouter.post('/api/admin/exchange/import', async (c) => {
+exchangeRouter.post('/api/moderate/exchange/import', async (c) => {
   const formData = await c.req.formData();
   const file = formData.get('file') as File | null;
   if (!file) {

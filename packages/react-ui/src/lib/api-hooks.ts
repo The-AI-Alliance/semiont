@@ -482,6 +482,19 @@ export function useAdmin() {
           }),
       },
 
+    },
+  };
+}
+
+/**
+ * Moderation operations (moderator or admin role required)
+ */
+export function useModeration() {
+  const client = useApiClient();
+  const token = useAuthToken();
+
+  return {
+    exchange: {
       export: {
         useMutation: () =>
           useMutation({
