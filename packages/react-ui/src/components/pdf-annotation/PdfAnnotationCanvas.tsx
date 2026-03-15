@@ -2,7 +2,7 @@
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import { createHoverHandlers } from '../../hooks/useBeckonFlow';
-import type { components, ResourceUri } from '@semiont/core';
+import type { components, ResourceId } from '@semiont/core';
 import { getTargetSelector } from '@semiont/api-client';
 import type { SelectionMotivation } from '../annotation/AnnotateToolbar';
 import type { EventBus } from "@semiont/core"
@@ -48,7 +48,7 @@ function getMotivationColor(motivation: SelectionMotivation | null): { stroke: s
 }
 
 interface PdfAnnotationCanvasProps {
-  resourceUri: ResourceUri;
+  resourceUri: ResourceId;
   existingAnnotations?: Annotation[];
   drawingMode: DrawingMode;
   selectedMotivation?: SelectionMotivation | null;
@@ -76,8 +76,7 @@ export function PdfAnnotationCanvas({
   hoverDelayMs = 150
 }: PdfAnnotationCanvasProps) {
   const pdfUrl = useMemo(() => {
-    const resourceId = resourceUri.split('/').pop();
-    return `/api/resources/${resourceId}`;
+    return `/api/resources/${resourceUri}`;
   }, [resourceUri]);
 
   // Removed excessive logging

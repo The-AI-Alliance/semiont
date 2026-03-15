@@ -34,7 +34,7 @@ export interface AnnotationProviderProps {
  *       return result.annotation;
  *     },
  *     deleteAnnotation: async (params) => {
- *       await deleteMutation.mutateAsync(resourceAnnotationUri(`${params.rUri}/annotations/${params.annotationId}`));
+ *       await deleteMutation.mutateAsync({ resourceId: params.rUri, annotationId: params.annotationId });
  *     }
  *   };
  * }

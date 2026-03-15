@@ -63,11 +63,8 @@ export function ReferenceEntry({
 
   const handleOpen = () => {
     if (resolvedResourceUri) {
-      const resourceId = resolvedResourceUri.split('/resources/')[1];
-      if (resourceId) {
-        // Use observable navigation - emits 'browse:external-navigate' event
-        navigate(routes.resourceDetail(resourceId), { resourceId });
-      }
+      // resolvedResourceUri is already a bare resource ID
+      navigate(routes.resourceDetail(resolvedResourceUri), { resourceId: resolvedResourceUri });
     }
   };
 

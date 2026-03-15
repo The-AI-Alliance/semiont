@@ -1,4 +1,4 @@
-import type { components, ResourceUri, Selector } from '@semiont/core';
+import type { components, ResourceId, Selector } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
 
@@ -6,7 +6,7 @@ type Annotation = components['schemas']['Annotation'];
  * Parameters for creating an annotation
  */
 export interface CreateAnnotationParams {
-  rUri: ResourceUri;
+  rUri: ResourceId;
   motivation: 'highlighting' | 'linking' | 'assessing' | 'commenting' | 'tagging';
   selector: Selector | Selector[];
   body?: any[];
@@ -17,7 +17,7 @@ export interface CreateAnnotationParams {
  */
 export interface DeleteAnnotationParams {
   annotationId: string;
-  rUri: ResourceUri;
+  rUri: ResourceId;
 }
 
 /**
