@@ -16,7 +16,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import type { EventBus, EventMap, GatheredContext, ResourceUri, AnnotationId } from '@semiont/core';
+import type { EventBus, EventMap, GatheredContext, ResourceId, AnnotationId } from '@semiont/core';
 import { SemiontApiClient } from '@semiont/api-client';
 import { accessToken } from '@semiont/core';
 import { useAuthToken } from '../contexts/AuthTokenContext';
@@ -29,7 +29,7 @@ function toAccessToken(token: string | null) {
 
 export interface ContextGatherFlowConfig {
   client: SemiontApiClient;
-  resourceUri: ResourceUri;
+  resourceId: ResourceId;
 }
 
 export interface ContextGatherFlowState {
@@ -65,10 +65,10 @@ export function useContextGatherFlow(
       setCorrelationAnnotationId(event.annotationId);
 
       try {
-        const { client, resourceUri } = configRef.current;
+        const { client, resourceId } = configRef.current;
 
         const response = await client.getAnnotationLLMContext(
-          resourceUri,
+          resourceId,
           event.annotationId,
           { contextWindow: 2000, auth: toAccessToken(tokenRef.current) }
         );
