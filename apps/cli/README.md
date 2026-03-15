@@ -356,7 +356,7 @@ For services using immutable tags (e.g., git hashes), `update` will only deploy 
 The `export`, `import`, and `verify` commands provide whole-KB backup and restore capabilities in two formats:
 
 **Backup format** (`--format backup`, default) — Lossless round-trip of the event log and content store:
-- Streams a tar.gz archive containing `manifest.jsonl`, per-resource event streams (`events/*.jsonl`), and content blobs (`content/*`)
+- Streams a tar.gz archive containing `.semiont/manifest.jsonl`, per-resource event streams (`.semiont/events/*.jsonl`), and content blobs at the archive root (`{checksum}.{ext}`)
 - Preserves full event history, hash chains, and all metadata
 - On import, events replay through the EventBus and Stower actor so materialized views and graph rebuild naturally
 

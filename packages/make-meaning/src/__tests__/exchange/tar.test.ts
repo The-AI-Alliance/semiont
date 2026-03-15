@@ -74,16 +74,16 @@ describe('tar', () => {
 
     it('round-trips multiple entries', async () => {
       const entries: TarEntry[] = [
-        { name: 'manifest.jsonl', data: Buffer.from('{"format":"test"}\n', 'utf8') },
-        { name: 'events/system.jsonl', data: Buffer.from('{"event":"one"}\n{"event":"two"}\n', 'utf8') },
-        { name: 'content/abc123.md', data: Buffer.from('# Hello\n\nSome content here.\n', 'utf8') },
+        { name: '.semiont/manifest.jsonl', data: Buffer.from('{"format":"test"}\n', 'utf8') },
+        { name: '.semiont/events/system.jsonl', data: Buffer.from('{"event":"one"}\n{"event":"two"}\n', 'utf8') },
+        { name: 'abc123.md', data: Buffer.from('# Hello\n\nSome content here.\n', 'utf8') },
       ];
       const result = await roundTrip(entries);
 
       expect(result).toHaveLength(3);
-      expect(result[0].name).toBe('manifest.jsonl');
-      expect(result[1].name).toBe('events/system.jsonl');
-      expect(result[2].name).toBe('content/abc123.md');
+      expect(result[0].name).toBe('.semiont/manifest.jsonl');
+      expect(result[1].name).toBe('.semiont/events/system.jsonl');
+      expect(result[2].name).toBe('abc123.md');
 
       for (let i = 0; i < entries.length; i++) {
         expect(result[i].data.toString('utf8')).toBe(entries[i].data.toString('utf8'));
@@ -102,7 +102,7 @@ describe('tar', () => {
 
     it('round-trips binary data', async () => {
       const binary = Buffer.from([0x00, 0xff, 0x1f, 0x8b, 0xde, 0xad, 0xbe, 0xef]);
-      const result = await roundTrip([{ name: 'content/deadbeef.bin', data: binary }]);
+      const result = await roundTrip([{ name: 'deadbeef.bin', data: binary }]);
 
       expect(result).toHaveLength(1);
       expect(Buffer.compare(result[0].data, binary)).toBe(0);

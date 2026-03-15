@@ -48,10 +48,10 @@ const SYSTEM_STREAM = '__system__' as ResourceId;
  * Export a full backup of the knowledge base to a tar.gz stream.
  *
  * Archive structure:
- *   manifest.jsonl        - Format metadata + per-stream checksums
- *   events/__system__.jsonl - System events
- *   events/{resourceId}.jsonl - Per-resource events
- *   content/{checksum}.{ext}  - Content blobs
+ *   .semiont/manifest.jsonl              - Format metadata + per-stream checksums
+ *   .semiont/events/__system__.jsonl     - System events
+ *   .semiont/events/{resourceId}.jsonl   - Per-resource events
+ *   {checksum}.{ext}                     - Content blobs (root level)
  */
 export async function exportBackup(
   options: BackupExporterOptions,
@@ -126,20 +126,20 @@ export async function exportBackup(
       JSON.stringify(manifestHeader),
       ...streamSummaries.map((s) => JSON.stringify(s)),
     ].join('\n') + '\n';
-    yield { name: 'manifest.jsonl', data: Buffer.from(manifestLines, 'utf8') };
+    yield { name: '.semiont/manifest.jsonl', data: Buffer.from(manifestLines, 'utf8') };
 
     // 2. Event streams
     for (const [streamId, events] of streamData) {
       const fileName = streamId === SYSTEM_STREAM
-        ? 'events/__system__.jsonl'
-        : `events/${streamId}.jsonl`;
+        ? '.semiont/events/__system__.jsonl'
+        : `.semiont/events/${streamId}.jsonl`;
       const jsonl = events.map((e) => JSON.stringify(e)).join('\n') + '\n';
       yield { name: fileName, data: Buffer.from(jsonl, 'utf8') };
     }
 
     // 3. Content blobs
     for (const [checksum, { data, ext }] of contentBlobs) {
-      yield { name: `content/${checksum}${ext}`, data };
+      yield { name: `${checksum}${ext}`, data };
     }
   }
 

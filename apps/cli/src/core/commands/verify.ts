@@ -96,9 +96,9 @@ export async function runVerify(options: VerifyOptions): Promise<CommandResults>
   const entries = await readTarGzEntries(input);
 
   // 1. Check manifest
-  const manifestData = entries.get('manifest.jsonl');
+  const manifestData = entries.get('.semiont/manifest.jsonl');
   if (!manifestData) {
-    throw new Error('Invalid backup: missing manifest.jsonl');
+    throw new Error('Invalid backup: missing .semiont/manifest.jsonl');
   }
 
   const manifestLines = manifestData.toString('utf8').trim().split('\n');
@@ -123,7 +123,7 @@ export async function runVerify(options: VerifyOptions): Promise<CommandResults>
   const warnings: string[] = [];
 
   for (const summary of streamSummaries) {
-    const streamFile = `events/${summary.stream}.jsonl`;
+    const streamFile = `.semiont/events/${summary.stream}.jsonl`;
     const streamData = entries.get(streamFile);
 
     if (!streamData) {
@@ -171,7 +171,7 @@ export async function runVerify(options: VerifyOptions): Promise<CommandResults>
   }
 
   // 3. Check content blobs
-  const contentEntries = [...entries.keys()].filter((k) => k.startsWith('content/'));
+  const contentEntries = [...entries.keys()].filter((k) => !k.startsWith('.semiont/'));
   if (header.stats.blobs !== contentEntries.length) {
     warnings.push(`Expected ${header.stats.blobs} content blobs, found ${contentEntries.length}`);
   }

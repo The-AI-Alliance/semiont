@@ -47,7 +47,7 @@ export interface SnapshotExporterOptions {
  *
  * If all content is text, writes plain JSONL to `output`.
  * If binary content exists, writes a tar.gz containing
- * snapshot.jsonl + content/{checksum}.{ext}.
+ * snapshot.jsonl + {checksum}.{ext} at root.
  */
 export async function exportSnapshot(
   options: SnapshotExporterOptions,
@@ -144,7 +144,7 @@ async function buildSnapshotResource(
     snapshotContent.text = contentData.toString('utf8');
   } else {
     const ext = getExtensionForMimeType(original.mediaType);
-    const blobPath = `content/${original.checksum}${ext}`;
+    const blobPath = `${original.checksum}${ext}`;
     snapshotContent.path = blobPath;
     binaryBlobs.set(original.checksum, { data: contentData, ext });
   }
@@ -179,7 +179,7 @@ async function writeTarGzSnapshot(
 
     // 2. Binary content blobs
     for (const [checksum, { data, ext }] of binaryBlobs) {
-      yield { name: `content/${checksum}${ext}`, data };
+      yield { name: `${checksum}${ext}`, data };
     }
   }
 

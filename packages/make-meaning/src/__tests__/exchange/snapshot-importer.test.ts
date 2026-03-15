@@ -300,13 +300,13 @@ describe('snapshot-importer', () => {
           name: 'PDF Doc',
           format: 'application/pdf',
           checksum: 'sha-pdf',
-          path: 'content/sha-pdf.pdf',
+          path: 'sha-pdf.pdf',
         }),
       ].join('\n') + '\n';
 
       const archive = await buildTarGz([
         { name: 'snapshot.jsonl', data: Buffer.from(snapshotJsonl) },
-        { name: 'content/sha-pdf.pdf', data: binaryContent },
+        { name: 'sha-pdf.pdf', data: binaryContent },
       ]);
 
       const input = bufferToReadable(archive);
@@ -328,7 +328,7 @@ describe('snapshot-importer', () => {
           name: 'Missing Content',
           format: 'application/pdf',
           checksum: 'sha-missing',
-          path: 'content/sha-missing.pdf',
+          path: 'sha-missing.pdf',
         }),
       ].join('\n') + '\n';
 

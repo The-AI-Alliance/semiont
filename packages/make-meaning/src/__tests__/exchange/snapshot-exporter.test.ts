@@ -206,7 +206,7 @@ describe('snapshot-exporter', () => {
 
     expect(entryNames).toContain('snapshot.jsonl');
     // Content blob should be in the archive
-    const contentEntry = entryNames.find((n) => n.startsWith('content/'));
+    const contentEntry = entryNames.find((n) => n !== 'snapshot.jsonl');
     expect(contentEntry).toBeDefined();
 
     // Verify the snapshot.jsonl content

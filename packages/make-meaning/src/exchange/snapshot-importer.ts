@@ -98,12 +98,11 @@ export async function importSnapshot(
     }
     jsonlText = snapshotData.toString('utf8');
 
-    // Collect binary content blobs
+    // Collect binary content blobs (root-level entries, not snapshot.jsonl)
     for (const [name, buf] of entries) {
-      if (name.startsWith('content/')) {
-        const filename = name.slice('content/'.length);
-        const dotIndex = filename.lastIndexOf('.');
-        const checksum = dotIndex >= 0 ? filename.slice(0, dotIndex) : filename;
+      if (name !== 'snapshot.jsonl') {
+        const dotIndex = name.lastIndexOf('.');
+        const checksum = dotIndex >= 0 ? name.slice(0, dotIndex) : name;
         binaryBlobs.set(checksum, buf);
       }
     }
