@@ -134,8 +134,8 @@ The detailed service documentation has been reorganized to be package-centric:
 - [Architecture Overview](../ARCHITECTURE.md) - Overall system architecture
 - [Service Overview](./OVERVIEW.md) - Service management and deployment
 - [AWS Deployment](../platforms/AWS.md) - Production deployment guide
-- [Configuration Guide](../CONFIGURATION.md) - Environment and service configuration
-- [Authentication](../AUTHENTICATION.md) - OAuth 2.0 and JWT authentication
+- [Configuration Guide](../administration/CONFIGURATION.md) - Environment and service configuration
+- [Authentication](../administration/AUTHENTICATION.md) - OAuth 2.0 and JWT authentication
 
 ### Package Documentation
 - [Packages Overview](../../packages/README.md) - Package dependency graph and descriptions

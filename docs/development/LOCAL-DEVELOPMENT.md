@@ -177,15 +177,15 @@ semiont provision --service backend   # Updates backend configuration
 
 ## Additional Documentation
 
-- **[AUTHENTICATION.md](./AUTHENTICATION.md)** - Authentication setup, OAuth configuration, admin users
-- **[CONFIGURATION.md](./CONFIGURATION.md)** - Environment variables, service configuration
+- **[AUTHENTICATION.md](../administration/AUTHENTICATION.md)** - Authentication setup, OAuth configuration, admin users
+- **[CONFIGURATION.md](../administration/CONFIGURATION.md)** - Environment variables, service configuration
 - **[TESTING.md](./TESTING.md)** - Running tests, test commands
-- **[TROUBLESHOOTING.md](./TROUBLESHOOTING.md)** - Common issues, port conflicts, database problems
-- **[ARCHITECTURE.md](./ARCHITECTURE.md)** - System architecture, component overview
-- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Production deployment
+- **[TROUBLESHOOTING.md](../administration/TROUBLESHOOTING.md)** - Common issues, port conflicts, database problems
+- **[ARCHITECTURE.md](../ARCHITECTURE.md)** - System architecture, component overview
+- **[DEPLOYMENT.md](../administration/DEPLOYMENT.md)** - Production deployment
 
 ## Getting Help
 
-1. Check [TROUBLESHOOTING.md](./TROUBLESHOOTING.md)
+1. Check [TROUBLESHOOTING.md](../administration/TROUBLESHOOTING.md)
 2. Search [GitHub Issues](https://github.com/The-AI-Alliance/semiont/issues)
 3. Create a new issue with reproduction steps and error messages

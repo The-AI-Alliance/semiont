@@ -268,8 +268,8 @@ See [CLI Documentation](../apps/cli/README.md) for details.
 
 ## Related Documentation
 
-- [Configuration Guide](./CONFIGURATION.md) — Environment configuration
-- [Authentication](./AUTHENTICATION.md) — OAuth, JWT, MCP token flows
+- [Configuration Guide](./administration/CONFIGURATION.md) — Environment configuration
+- [Authentication](./administration/AUTHENTICATION.md) — OAuth, JWT, MCP token flows
 - [API Documentation](../specs/docs/API.md) — REST API reference
 - [W3C Web Annotation](../specs/docs/W3C-WEB-ANNOTATION.md) — Annotation data model
 - [Services Overview](./services/OVERVIEW.md) — Service index and data architecture

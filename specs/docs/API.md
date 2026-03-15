@@ -164,7 +164,7 @@ For architecture details, see [Backend W3C Implementation](../../apps/backend/do
 
 **For backend development:**
 - [Backend README](../../apps/backend/) - Development setup and overview
-- [Backend Configuration](../../apps/backend/docs/CONFIGURATION.md) - Environment configuration
+- [Configuration](../../docs/administration/CONFIGURATION.md) - Environment configuration
 
 ---
 

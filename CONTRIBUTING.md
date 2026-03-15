@@ -79,7 +79,7 @@ This project is part of [The AI Alliance](https://thealliance.ai/) and follows t
    npm test
    ```
 
-See [docs/LOCAL-DEVELOPMENT.md](docs/LOCAL-DEVELOPMENT.md) for complete setup instructions.
+See [docs/development/LOCAL-DEVELOPMENT.md](docs/development/LOCAL-DEVELOPMENT.md) for complete setup instructions.
 
 ## 🤝 How to Contribute
 
@@ -333,7 +333,7 @@ All contributions should include appropriate tests. We have comprehensive testin
 
 ### Testing Documentation
 
-- **[System Testing Guide](docs/TESTING.md)** - Overall testing strategy, Vitest, MSW v2, frontend testing
+- **[System Testing Guide](docs/development/TESTING.md)** - Overall testing strategy, Vitest, MSW v2, frontend testing
 - **[Backend Testing Guide](apps/backend/docs/TESTING.md)** - Jest, unit tests, Prisma database tests
 - **[CLI Testing Guide](apps/cli/TESTING.md)** - Platform tests, command tests, mocking
 

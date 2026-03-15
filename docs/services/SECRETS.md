@@ -15,9 +15,9 @@ Support is planned for:
 
 ## Related Documentation
 
-- [Configuration Guide](../CONFIGURATION.md) - Current environment variable configuration
+- [Configuration Guide](../administration/CONFIGURATION.md) - Current environment variable configuration
 - [AWS Deployment](../platforms/AWS.md) - AWS Secrets Manager setup
-- [Authentication](../AUTHENTICATION.md) - JWT and OAuth secret management
+- [Authentication](../administration/AUTHENTICATION.md) - JWT and OAuth secret management
 - [Database](./DATABASE.md) - Database credential management
 - [CLI README](../../apps/cli/README.md) - CLI command reference
 

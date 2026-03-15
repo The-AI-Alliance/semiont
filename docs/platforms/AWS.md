@@ -360,7 +360,7 @@ infrastructure/
 
 ### Deployment Commands
 
-For complete deployment procedures, see [DEPLOYMENT.md](../DEPLOYMENT.md).
+For complete deployment procedures, see [DEPLOYMENT.md](../administration/DEPLOYMENT.md).
 
 ```bash
 # Set default environment
@@ -542,10 +542,10 @@ Set via ECS task definitions:
 ## Related Documentation
 
 - [Architecture Overview](../ARCHITECTURE.md) - Platform-agnostic application architecture
-- [Deployment Guide](../DEPLOYMENT.md) - Step-by-step deployment instructions
-- [Configuration Guide](../CONFIGURATION.md) - Environment and secret management
+- [Deployment Guide](../administration/DEPLOYMENT.md) - Step-by-step deployment instructions
+- [Configuration Guide](../administration/CONFIGURATION.md) - Environment and secret management
 - [Database Management](../services/DATABASE.md) - PostgreSQL management on RDS
-- [Troubleshooting](../TROUBLESHOOTING.md) - Common issues and solutions
+- [Troubleshooting](../administration/TROUBLESHOOTING.md) - Common issues and solutions
 
 ---
 

@@ -21,7 +21,7 @@ The current implementation includes:
 - **Router-Level Authentication**: Each backend router applies JWT authentication middleware to protected routes
 - **JWT Token Validation**: Bearer token authentication for API access with HMAC SHA256 signature verification
 - **User Identification**: Each request includes user context (id, email, isAdmin, isModerator) for audit trails
-- **Role-Based Access Control**: Admin and moderator roles implemented with middleware enforcement (see [RBAC.md](./RBAC.md))
+- **Role-Based Access Control**: Admin and moderator roles implemented with middleware enforcement (see [RBAC.md](../RBAC.md))
 - **OpenAPI Security Spec**: All routes documented with security requirements in OpenAPI specification
 
 **Access Levels**:
@@ -30,7 +30,7 @@ The current implementation includes:
 - **Moderator**: Entity type management (requires isModerator=true or isAdmin=true)
 - **Admin**: User management, exchange operations, system configuration (requires isAdmin=true)
 
-**Important limitation**: All authenticated users have full read/write access to all content. There is no per-resource, per-annotation, or per-user access control. The Admin and Moderator roles only gate access to administrative features, not to content. Content-level access control is planned for future releases. See [RBAC.md](./RBAC.md) for details.
+**Important limitation**: All authenticated users have full read/write access to all content. There is no per-resource, per-annotation, or per-user access control. The Admin and Moderator roles only gate access to administrative features, not to content. Content-level access control is planned for future releases. See [RBAC.md](../RBAC.md) for details.
 
 ### Security Testing
 
@@ -56,7 +56,7 @@ Comprehensive security test coverage ensures no authentication regressions:
   - Content security headers
   - Request validation
 
-**CI/CD Integration**: Security tests run on every pull request via GitHub Actions ([.github/workflows/security-tests.yml](../.github/workflows/security-tests.yml))
+**CI/CD Integration**: Security tests run on every pull request via GitHub Actions ([.github/workflows/security-tests.yml](../../.github/workflows/security-tests.yml))
 
 ### Data Security
 

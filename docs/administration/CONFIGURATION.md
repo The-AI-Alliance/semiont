@@ -535,19 +535,19 @@ Only **4 environment variables** are required:
 ## Related Documentation
 
 ### Core Implementation
-- [packages/core/src/config/](../packages/core/src/config/) - Core configuration loading (@semiont/core)
-- [packages/core/src/config/environment-loader.ts](../packages/core/src/config/environment-loader.ts) - `loadEnvironmentConfig()` implementation
-- [packages/core/src/config/project-discovery.ts](../packages/core/src/config/project-discovery.ts) - `findProjectRoot()` implementation
+- [packages/core/src/config/](../../packages/core/src/config/) - Core configuration loading (@semiont/core)
+- [packages/core/src/config/environment-loader.ts](../../packages/core/src/config/environment-loader.ts) - `loadEnvironmentConfig()` implementation
+- [packages/core/src/config/project-discovery.ts](../../packages/core/src/config/project-discovery.ts) - `findProjectRoot()` implementation
 
 ### Backend Configuration
-- [apps/backend/src/config/config.ts](../apps/backend/src/config/config.ts) - Backend config wrapper functions
-- [apps/backend/src/auth/jwt.ts](../apps/backend/src/auth/jwt.ts) - JWT service using config files
+- [apps/backend/src/config/config.ts](../../apps/backend/src/config/config.ts) - Backend config wrapper functions
+- [apps/backend/src/auth/jwt.ts](../../apps/backend/src/auth/jwt.ts) - JWT service using config files
 
 ### CLI Integration
-- [apps/cli/src/lib/deployment-resolver.ts](../apps/cli/src/lib/deployment-resolver.ts) - CLI wrapper for configuration
-- [apps/cli/templates/environments/](../apps/cli/templates/environments/) - Environment templates (source of truth)
-- [apps/cli/README.md](../apps/cli/README.md) - CLI commands
+- [apps/cli/src/lib/deployment-resolver.ts](../../apps/cli/src/lib/deployment-resolver.ts) - CLI wrapper for configuration
+- [apps/cli/templates/environments/](../../apps/cli/templates/environments/) - Environment templates (source of truth)
+- [apps/cli/README.md](../../apps/cli/README.md) - CLI commands
 
 ### Other Docs
 - [DEPLOYMENT.md](./DEPLOYMENT.md) - Deployment guide
-- [ARCHITECTURE.md](./ARCHITECTURE.md) - System architecture
+- [ARCHITECTURE.md](../ARCHITECTURE.md) - System architecture

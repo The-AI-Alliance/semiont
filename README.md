@@ -63,7 +63,7 @@ The [Semiont Workflows Demo](https://github.com/The-AI-Alliance/semiont-workflow
 Semiont publishes npm packages and container images for easy integration and deployment.
 
 - **NPM Packages** - See [packages/README.md](packages/README.md) for available packages and documentation
-- **Container Images** - See [docs/IMAGES.md](docs/IMAGES.md) for Docker images and deployment examples
+- **Container Images** - See [docs/administration/IMAGES.md](docs/administration/IMAGES.md) for Docker images and deployment examples
 
 ## 📖 Documentation
 
@@ -71,11 +71,11 @@ Semiont publishes npm packages and container images for easy integration and dep
 | --- | --- |
 | **[Architecture](docs/ARCHITECTURE.md)** | System design, event sourcing, and layered package structure |
 | **[W3C Web Annotation](specs/docs/W3C-WEB-ANNOTATION.md)** | How Semiont implements the W3C standard across all layers |
-| **[Local Development](docs/LOCAL-DEVELOPMENT.md)** | Get running locally — prerequisites, configuration, first launch |
+| **[Local Development](docs/development/LOCAL-DEVELOPMENT.md)** | Get running locally — prerequisites, configuration, first launch |
 | **[API Reference](specs/docs/API.md)** | HTTP endpoints ([OpenAPI spec](specs/README.md)) |
 | **[Packages](packages/README.md)** | All published npm packages with dependency graph |
-| **[Deployment](docs/DEPLOYMENT.md)** | Production deployment, platforms, scaling, and maintenance |
-| **[Security](docs/SECURITY.md)** | Authentication, RBAC, and security controls |
+| **[Deployment](docs/administration/DEPLOYMENT.md)** | Production deployment, platforms, scaling, and maintenance |
+| **[Security](docs/administration/SECURITY.md)** | Authentication, RBAC, and security controls |
 | **[Contributing](CONTRIBUTING.md)** | How to participate, testing guide, and development standards |
 
 ### Applications
@@ -96,7 +96,7 @@ See [.devcontainer/README.md](.devcontainer/README.md) for setup details.
 
 **Local Development**:
 
-Semiont uses a [CLI](apps/cli/README.md) (`semiont`) to initialize projects, provision services, and manage environments. See [LOCAL-DEVELOPMENT.md](docs/LOCAL-DEVELOPMENT.md) for installation, configuration, and running locally.
+Semiont uses a [CLI](apps/cli/README.md) (`semiont`) to initialize projects, provision services, and manage environments. See [LOCAL-DEVELOPMENT.md](docs/development/LOCAL-DEVELOPMENT.md) for installation, configuration, and running locally.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to participate, testing guide, and development standards.
 

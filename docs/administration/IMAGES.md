@@ -9,7 +9,7 @@ Semiont publishes **2 container images** to GitHub Container Registry (ghcr.io):
 - **semiont-backend** - Backend API server
 - **semiont-frontend** - Next.js frontend application
 
-Both images support multiple platforms (amd64, arm64) and follow the unified versioning scheme managed through [`version.json`](../version.json).
+Both images support multiple platforms (amd64, arm64) and follow the unified versioning scheme managed through [`version.json`](../../version.json).
 
 ---
 
@@ -47,13 +47,13 @@ docker run -d \
 - `NODE_ENV` - Environment mode (default: production)
 - `CORS_ORIGIN` - CORS allowed origins
 
-**Documentation:** [apps/backend/README.md](../apps/backend/README.md)
+**Documentation:** [apps/backend/README.md](../../apps/backend/README.md)
 
-**Source:** [apps/backend/](../apps/backend/)
+**Source:** [apps/backend/](../../apps/backend/)
 
-**Dockerfile:** [apps/backend/Dockerfile](../apps/backend/Dockerfile)
+**Dockerfile:** [apps/backend/Dockerfile](../../apps/backend/Dockerfile)
 
-**Workflow:** [.github/workflows/publish-backend.yml](../.github/workflows/publish-backend.yml)
+**Workflow:** [.github/workflows/publish-backend.yml](../../.github/workflows/publish-backend.yml)
 
 ---
 
@@ -88,13 +88,13 @@ docker run -d \
 - `NEXT_PUBLIC_SITE_NAME` - Site name displayed in UI (default: "Semiont")
 - `NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS` - Comma-separated list of allowed OAuth domains
 
-**Documentation:** [apps/frontend/README.md](../apps/frontend/README.md)
+**Documentation:** [apps/frontend/README.md](../../apps/frontend/README.md)
 
-**Source:** [apps/frontend/](../apps/frontend/)
+**Source:** [apps/frontend/](../../apps/frontend/)
 
-**Dockerfile:** [apps/frontend/Dockerfile](../apps/frontend/Dockerfile)
+**Dockerfile:** [apps/frontend/Dockerfile](../../apps/frontend/Dockerfile)
 
-**Workflow:** [.github/workflows/publish-frontend.yml](../.github/workflows/publish-frontend.yml)
+**Workflow:** [.github/workflows/publish-frontend.yml](../../.github/workflows/publish-frontend.yml)
 
 ---
 
@@ -145,7 +145,7 @@ volumes:
 
 ## Versioning
 
-Container images follow the unified versioning system managed through [`version.json`](../version.json).
+Container images follow the unified versioning system managed through [`version.json`](../../version.json).
 
 ### Version Tags
 
@@ -210,5 +210,5 @@ gh workflow run publish-frontend.yml --field stable_release=true
 
 For issues related to container images:
 - **Bug reports:** https://github.com/The-AI-Alliance/semiont/issues
-- **Security issues:** See [SECURITY.md](../SECURITY.md)
+- **Security issues:** See [SECURITY.md](./SECURITY.md)
 - **General questions:** https://github.com/The-AI-Alliance/semiont/discussions

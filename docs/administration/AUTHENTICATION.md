@@ -3,8 +3,8 @@
 Semiont implements a **router-level authentication** model using OAuth 2.0 and JWT tokens with special support for MCP (Model Context Protocol) clients.
 
 **Related Documentation:**
-- [Architecture Overview](./ARCHITECTURE.md) - Overall application architecture
-- [AWS Deployment](./platforms/AWS.md) - AWS Secrets Manager configuration
+- [Architecture Overview](../ARCHITECTURE.md) - Overall application architecture
+- [AWS Deployment](../platforms/AWS.md) - AWS Secrets Manager configuration
 - [Configuration Guide](./CONFIGURATION.md) - Environment and secret management
 
 ## Overview
@@ -456,7 +456,7 @@ See [Configuration Guide](./CONFIGURATION.md) for detailed secret management.
 ### API Security
 
 1. **Explicit protection**: Routes must explicitly apply authentication middleware
-2. **Rate limiting**: Implement rate limiting per IP/user (see [AWS.md](./platforms/AWS.md) for WAF configuration)
+2. **Rate limiting**: Implement rate limiting per IP/user (see [AWS.md](../platforms/AWS.md) for WAF configuration)
 3. **Input validation**: Validate all inputs with Zod schemas
 4. **Audit logging**: Log all authentication events
 
@@ -486,10 +486,10 @@ See [Configuration Guide](./CONFIGURATION.md) for detailed secret management.
 
 ## Related Documentation
 
-- [Architecture Overview](./ARCHITECTURE.md) - Application architecture and service communication
-- [AWS Deployment](./platforms/AWS.md) - AWS Secrets Manager and security groups
+- [Architecture Overview](../ARCHITECTURE.md) - Application architecture and service communication
+- [AWS Deployment](../platforms/AWS.md) - AWS Secrets Manager and security groups
 - [Configuration Guide](./CONFIGURATION.md) - Environment variables and secret management
-- [Database Management](./services/DATABASE.md) - User table schema and Prisma setup
+- [Database Management](../services/DATABASE.md) - User table schema and Prisma setup
 
 ---
 
