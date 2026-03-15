@@ -64,10 +64,7 @@
     "npm": ">=9.0.0"
   },
   "overrides": {
-    "@types/react": "^19",
-    "next-auth": {
-      "next": "$next"
-    }
+    "@types/react": "^19"
   },
   "devDependencies": {
     "@redocly/cli": "^2.21.1",
