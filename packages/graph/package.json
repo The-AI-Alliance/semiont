@@ -27,7 +27,7 @@
     "@semiont/api-client": "*",
     "@semiont/core": "*",
     "@semiont/ontology": "*",
-    "uuid": "^9.0.1"
+    "uuid": "^10.0.0"
   },
   "peerDependencies": {
     "@aws-sdk/client-neptune": "^3.600.0",
