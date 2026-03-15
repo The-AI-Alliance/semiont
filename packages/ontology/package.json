@@ -23,9 +23,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },
-  "dependencies": {
-    "@semiont/api-client": "*"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.0",
     "tsup": "^8.0.1",
