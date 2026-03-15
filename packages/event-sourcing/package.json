@@ -1,6 +1,6 @@
 {
   "name": "@semiont/event-sourcing",
-  "version": "0.2.46",
+  "version": "0.3.0",
   "description": "Event sourcing infrastructure for Semiont - EventLog, EventBus, and ViewManager",
   "type": "module",
   "main": "dist/index.js",

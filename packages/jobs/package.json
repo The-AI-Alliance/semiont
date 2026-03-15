@@ -1,6 +1,6 @@
 {
   "name": "@semiont/jobs",
-  "version": "0.2.46",
+  "version": "0.3.0",
   "type": "module",
   "description": "Filesystem-based job queue and worker infrastructure",
   "main": "./dist/index.js",
