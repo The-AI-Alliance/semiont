@@ -109,8 +109,9 @@ describe('Annotation Deletion - Feature Integration', () => {
       expect(deleteAnnotationSpy).toHaveBeenCalledTimes(1);
     });
 
-    // Verify correct parameters (annotationUri constructed from ID)
+    // Verify correct parameters (resourceId, annotationId, opts)
     expect(deleteAnnotationSpy).toHaveBeenCalledWith(
+      'test-resource',
       expect.stringContaining(annotationId),
       expect.objectContaining({
         auth: accessToken(testToken),
@@ -127,10 +128,10 @@ describe('Annotation Deletion - Feature Integration', () => {
       expect(deleteAnnotationSpy).toHaveBeenCalled();
     });
 
-    // CRITICAL: Auth token must be present
+    // CRITICAL: Auth token must be present (3rd arg is opts)
     const callArgs = deleteAnnotationSpy.mock.calls[0];
-    expect(callArgs[1]).toHaveProperty('auth');
-    expect(callArgs[1].auth).toBe(accessToken(testToken));
+    expect(callArgs[2]).toHaveProperty('auth');
+    expect(callArgs[2].auth).toBe(accessToken(testToken));
   });
 
   it('should emit mark:deleted event on successful deletion', async () => {
@@ -197,9 +198,9 @@ describe('Annotation Deletion - Feature Integration', () => {
       expect(deleteAnnotationSpy).toHaveBeenCalledTimes(2);
     });
 
-    // Verify each call had correct annotation ID
-    expect(deleteAnnotationSpy.mock.calls[0][0]).toContain('annotation-1');
-    expect(deleteAnnotationSpy.mock.calls[1][0]).toContain('annotation-2');
+    // Verify each call had correct annotation ID (2nd arg)
+    expect(deleteAnnotationSpy.mock.calls[0][1]).toContain('annotation-1');
+    expect(deleteAnnotationSpy.mock.calls[1][1]).toContain('annotation-2');
   });
 
   it('ARCHITECTURE: useBindFlow is called in useMarkFlow (single registration point)', async () => {

@@ -213,8 +213,8 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
     });
 
     const callArgs = updateAnnotationBodySpy.mock.calls[0];
-    expect(callArgs[2]).toHaveProperty('auth');
-    expect(callArgs[2].auth).toBe(accessToken(testToken));
+    expect(callArgs[3]).toHaveProperty('auth');
+    expect(callArgs[3].auth).toBe(accessToken(testToken));
   });
 
   it('bind:update-body emits bind:body-updated on success', async () => {

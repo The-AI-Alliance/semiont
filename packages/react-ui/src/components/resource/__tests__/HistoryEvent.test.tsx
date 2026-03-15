@@ -55,7 +55,7 @@ function makeStoredEvent(overrides: Partial<StoredEvent['event']> = {}): StoredE
       id: 'evt-1',
       type: 'resource.created',
       timestamp: '2026-03-06T12:00:00Z',
-      resourceId: 'http://localhost/resources/res-1',
+      resourceId: 'res-1',
       userId: 'user-1',
       version: 1,
       payload: { name: 'Test', format: 'text/plain', contentChecksum: 'abc', creationMethod: 'upload' },

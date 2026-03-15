@@ -76,30 +76,24 @@ export function ReferenceEntry({
     });
   };
 
+  const source = typeof reference.target === 'object' && 'source' in reference.target
+    ? reference.target.source
+    : '';
+
   const handleUnlink = () => {
-    // Unlinking removes all body items from the reference annotation
-    const sourceUri = typeof reference.target === 'object' && 'source' in reference.target
-      ? reference.target.source
-      : '';
-    const extractedResourceId = sourceUri.split('/resources/')[1] || '';
-    if (sourceUri && extractedResourceId) {
+    if (source) {
       eventBus.get('bind:update-body').next({
         annotationId: annotationId(reference.id),
-        resourceId: resourceId(extractedResourceId),
-        operations: [{ op: 'remove' }], // Remove all body items
+        resourceId: resourceId(source),
+        operations: [{ op: 'remove' }],
       });
     }
   };
 
-  const sourceUri = typeof reference.target === 'object' && 'source' in reference.target
-    ? reference.target.source
-    : '';
-  const extractedResourceId = sourceUri.split('/resources/')[1] || '';
-
   const handleGenerate = () => {
     eventBus.get('yield:modal-open').next({
       annotationId: annotationId(reference.id),
-      resourceId: resourceId(extractedResourceId),
+      resourceId: resourceId(source),
       defaultTitle: selectedText,
     });
   };
@@ -107,7 +101,7 @@ export function ReferenceEntry({
   const handleSearch = () => {
     eventBus.get('bind:link').next({
       annotationId: annotationId(reference.id),
-      resourceId: resourceId(extractedResourceId),
+      resourceId: resourceId(source),
       searchTerm: selectedText,
     });
   };

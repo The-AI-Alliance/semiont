@@ -60,7 +60,7 @@ function makeStoredEvent(id: string, type: string, seq: number, overrides: Recor
       id,
       type,
       timestamp: '2026-03-06T12:00:00Z',
-      resourceId: 'http://localhost/resources/res-1',
+      resourceId: 'res-1',
       userId: 'user-1',
       version: 1,
       payload: {},
@@ -90,7 +90,7 @@ describe('AnnotationHistory', () => {
 
     renderWithProviders(
       <AnnotationHistory
-        rUri={testRUri}
+        rUri={testRId}
         Link={MockLink}
         routes={mockRoutes}
       />
@@ -105,7 +105,7 @@ describe('AnnotationHistory', () => {
 
     const { container } = renderWithProviders(
       <AnnotationHistory
-        rUri={testRUri}
+        rUri={testRId}
         Link={MockLink}
         routes={mockRoutes}
       />
@@ -119,7 +119,7 @@ describe('AnnotationHistory', () => {
 
     const { container } = renderWithProviders(
       <AnnotationHistory
-        rUri={testRUri}
+        rUri={testRId}
         Link={MockLink}
         routes={mockRoutes}
       />
@@ -138,7 +138,7 @@ describe('AnnotationHistory', () => {
 
     renderWithProviders(
       <AnnotationHistory
-        rUri={testRUri}
+        rUri={testRId}
         Link={MockLink}
         routes={mockRoutes}
       />
@@ -169,7 +169,7 @@ describe('AnnotationHistory', () => {
 
     renderWithProviders(
       <AnnotationHistory
-        rUri={testRUri}
+        rUri={testRId}
         Link={MockLink}
         routes={mockRoutes}
       />
@@ -194,7 +194,7 @@ describe('AnnotationHistory', () => {
 
     renderWithProviders(
       <AnnotationHistory
-        rUri={testRUri}
+        rUri={testRId}
         hoveredAnnotationId={annotationUri}
         Link={MockLink}
         routes={mockRoutes}
@@ -215,7 +215,7 @@ describe('AnnotationHistory', () => {
 
     renderWithProviders(
       <AnnotationHistory
-        rUri={testRUri}
+        rUri={testRId}
         hoveredAnnotationId="http://localhost/annotations/ann-1"
         Link={MockLink}
         routes={mockRoutes}
@@ -234,7 +234,7 @@ describe('AnnotationHistory', () => {
 
     renderWithProviders(
       <AnnotationHistory
-        rUri={testRUri}
+        rUri={testRId}
         Link={MockLink}
         routes={mockRoutes}
       />
@@ -255,7 +255,7 @@ describe('AnnotationHistory', () => {
 
     renderWithProviders(
       <AnnotationHistory
-        rUri={testRUri}
+        rUri={testRId}
         onEventClick={onEventClick}
         onEventHover={onEventHover}
         Link={MockLink}
@@ -276,7 +276,7 @@ describe('AnnotationHistory', () => {
 
     renderWithProviders(
       <AnnotationHistory
-        rUri={testRUri}
+        rUri={testRId}
         Link={MockLink}
         routes={mockRoutes}
       />
@@ -298,7 +298,7 @@ describe('AnnotationHistory', () => {
 
     renderWithProviders(
       <AnnotationHistory
-        rUri={testRUri}
+        rUri={testRId}
         Link={MockLink}
         routes={mockRoutes}
       />
@@ -318,7 +318,7 @@ describe('AnnotationHistory', () => {
 
     renderWithProviders(
       <AnnotationHistory
-        rUri={testRUri}
+        rUri={testRId}
         Link={MockLink}
         routes={mockRoutes}
       />
@@ -336,7 +336,7 @@ describe('AnnotationHistory', () => {
 
     const { container } = renderWithProviders(
       <AnnotationHistory
-        rUri={testRUri}
+        rUri={testRId}
         Link={MockLink}
         routes={mockRoutes}
       />

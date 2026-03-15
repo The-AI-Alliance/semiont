@@ -66,11 +66,11 @@ function ResourceMutationHarness({ onEventBus }: { onEventBus: (eventBus: EventB
   const generateCloneTokenMutation = resources.generateCloneToken.useMutation();
 
   const handleResourceArchive = useCallback(async () => {
-    await updateMutation.mutateAsync({ rUri: TEST_URI, data: { archived: true } });
+    await updateMutation.mutateAsync({ id: TEST_URI, data: { archived: true } });
   }, [updateMutation]);
 
   const handleResourceUnarchive = useCallback(async () => {
-    await updateMutation.mutateAsync({ rUri: TEST_URI, data: { archived: false } });
+    await updateMutation.mutateAsync({ id: TEST_URI, data: { archived: false } });
   }, [updateMutation]);
 
   const handleResourceClone = useCallback(async () => {
