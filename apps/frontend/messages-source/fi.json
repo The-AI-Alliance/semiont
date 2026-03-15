@@ -340,6 +340,8 @@
     "entityTagsDescription": "Hallitse resurssien luokittelutunnisteita",
     "tagSchemas": "Tunnisteskeemat",
     "tagSchemasDescription": "Näytä rakenteelliset analyysikehykset automaattista tunnistamista varten",
+    "linkedData": "Linked Data",
+    "linkedDataDescription": "Vie ja tuo tietoa JSON-LD Linked Data -muodossa",
     "redirecting": "Ohjataan uudelleen..."
   },
   "ModerateRecent": {
@@ -377,9 +379,7 @@
     "devops": "DevOps",
     "devopsDescription": "Järjestelmän valvonta ja hallinta",
     "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base",
-    "linkedData": "Export & Import",
-    "linkedDataDescription": "JSON-LD Linked Data exchange"
+    "exchangeDescription": "Back up and restore your knowledge base"
   },
   "AdminUsers": {
     "title": "Käyttäjähallinta",
@@ -570,7 +570,7 @@
     "enter": "Enter",
     "esc": "Esc"
   },
-  "AdminLinkedData": {
+  "ModerationLinkedData": {
     "title": "Export & Import",
     "subtitle": "Exchange knowledge as JSON-LD Linked Data",
     "exportTitle": "Export",

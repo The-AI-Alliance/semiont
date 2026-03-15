@@ -340,6 +340,8 @@
     "entityTagsDescription": "Quản lý thẻ phân loại tài nguyên",
     "tagSchemas": "Lược đồ thẻ",
     "tagSchemasDescription": "Xem các khung phân tích cấu trúc để gắn thẻ tự động",
+    "linkedData": "Linked Data",
+    "linkedDataDescription": "Xuất và nhập kiến thức dưới dạng JSON-LD Linked Data",
     "redirecting": "Đang chuyển hướng..."
   },
   "ModerateRecent": {
@@ -377,9 +379,7 @@
     "devops": "DevOps",
     "devopsDescription": "Giám sát và quản lý hệ thống",
     "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base",
-    "linkedData": "Export & Import",
-    "linkedDataDescription": "JSON-LD Linked Data exchange"
+    "exchangeDescription": "Back up and restore your knowledge base"
   },
   "AdminUsers": {
     "title": "Quản lý người dùng",
@@ -570,7 +570,7 @@
     "enter": "Enter",
     "esc": "Esc"
   },
-  "AdminLinkedData": {
+  "ModerationLinkedData": {
     "title": "Export & Import",
     "subtitle": "Exchange knowledge as JSON-LD Linked Data",
     "exportTitle": "Export",

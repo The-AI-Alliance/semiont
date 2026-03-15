@@ -340,6 +340,8 @@
     "entityTagsDescription": "Klassifizierungs-Tags für Ressourcen verwalten",
     "tagSchemas": "Tag-Schemata",
     "tagSchemasDescription": "Strukturelle Analyseframeworks für automatisches Tagging anzeigen",
+    "linkedData": "Linked Data",
+    "linkedDataDescription": "Wissen als JSON-LD Linked Data exportieren und importieren",
     "redirecting": "Weiterleitung..."
   },
   "ModerateRecent": {
@@ -377,9 +379,7 @@
     "devops": "DevOps",
     "devopsDescription": "Systemüberwachung und -verwaltung",
     "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base",
-    "linkedData": "Export & Import",
-    "linkedDataDescription": "JSON-LD Linked Data exchange"
+    "exchangeDescription": "Back up and restore your knowledge base"
   },
   "AdminUsers": {
     "title": "Benutzerverwaltung",
@@ -570,7 +570,7 @@
     "enter": "Eingabe",
     "esc": "Esc"
   },
-  "AdminLinkedData": {
+  "ModerationLinkedData": {
     "title": "Export & Import",
     "subtitle": "Exchange knowledge as JSON-LD Linked Data",
     "exportTitle": "Export",

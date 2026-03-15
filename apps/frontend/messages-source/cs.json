@@ -340,6 +340,8 @@
     "entityTagsDescription": "Správa klasifikačních štítků zdrojů",
     "tagSchemas": "Schémata štítků",
     "tagSchemasDescription": "Zobrazit rámce strukturální analýzy pro automatické značkování",
+    "linkedData": "Propojená data",
+    "linkedDataDescription": "Export a import znalostí ve formátu JSON-LD Linked Data",
     "redirecting": "Přesměrování..."
   },
   "ModerateRecent": {
@@ -377,9 +379,7 @@
     "devops": "DevOps",
     "devopsDescription": "Monitoring a správa systému",
     "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base",
-    "linkedData": "Export & Import",
-    "linkedDataDescription": "JSON-LD Linked Data exchange"
+    "exchangeDescription": "Back up and restore your knowledge base"
   },
   "AdminUsers": {
     "title": "Správa uživatelů",
@@ -570,7 +570,7 @@
     "enter": "Enter",
     "esc": "Esc"
   },
-  "AdminLinkedData": {
+  "ModerationLinkedData": {
     "title": "Export & Import",
     "subtitle": "Exchange knowledge as JSON-LD Linked Data",
     "exportTitle": "Export",

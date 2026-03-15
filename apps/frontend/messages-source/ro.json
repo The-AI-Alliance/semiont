@@ -340,6 +340,8 @@
     "entityTagsDescription": "Gestionează etichetele de clasificare a resurselor",
     "tagSchemas": "Scheme de etichete",
     "tagSchemasDescription": "Vizualizează cadrele de analiză structurală pentru etichetarea automată",
+    "linkedData": "Linked Data",
+    "linkedDataDescription": "Exportă și importă cunoștințe ca JSON-LD Linked Data",
     "redirecting": "Se redirecționează..."
   },
   "ModerateRecent": {
@@ -377,9 +379,7 @@
     "devops": "DevOps",
     "devopsDescription": "Monitorizarea și gestionarea sistemului",
     "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base",
-    "linkedData": "Export & Import",
-    "linkedDataDescription": "JSON-LD Linked Data exchange"
+    "exchangeDescription": "Back up and restore your knowledge base"
   },
   "AdminUsers": {
     "title": "Gestionarea utilizatorilor",
@@ -570,7 +570,7 @@
     "enter": "Enter",
     "esc": "Esc"
   },
-  "AdminLinkedData": {
+  "ModerationLinkedData": {
     "title": "Export & Import",
     "subtitle": "Exchange knowledge as JSON-LD Linked Data",
     "exportTitle": "Export",

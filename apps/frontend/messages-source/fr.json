@@ -340,6 +340,8 @@
     "entityTagsDescription": "Gérer les étiquettes de classification des ressources",
     "tagSchemas": "Schémas d'étiquettes",
     "tagSchemasDescription": "Voir les cadres d'analyse structurelle pour l'étiquetage automatique",
+    "linkedData": "Linked Data",
+    "linkedDataDescription": "Exporter et importer des connaissances au format JSON-LD Linked Data",
     "redirecting": "Redirection..."
   },
   "ModerateRecent": {
@@ -377,9 +379,7 @@
     "devops": "DevOps",
     "devopsDescription": "Surveillance et gestion du système",
     "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base",
-    "linkedData": "Export & Import",
-    "linkedDataDescription": "JSON-LD Linked Data exchange"
+    "exchangeDescription": "Back up and restore your knowledge base"
   },
   "AdminUsers": {
     "title": "Gestion des utilisateurs",
@@ -570,7 +570,7 @@
     "enter": "Entrée",
     "esc": "Échap"
   },
-  "AdminLinkedData": {
+  "ModerationLinkedData": {
     "title": "Export & Import",
     "subtitle": "Exchange knowledge as JSON-LD Linked Data",
     "exportTitle": "Export",

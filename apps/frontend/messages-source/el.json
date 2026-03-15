@@ -340,6 +340,8 @@
     "entityTagsDescription": "Διαχείριση ετικετών ταξινόμησης πόρων",
     "tagSchemas": "Σχήματα Ετικετών",
     "tagSchemasDescription": "Προβολή πλαισίων δομικής ανάλυσης για αυτόματη ετικετοποίηση",
+    "linkedData": "Linked Data",
+    "linkedDataDescription": "Εξαγωγή και εισαγωγή γνώσης ως JSON-LD Linked Data",
     "redirecting": "Ανακατεύθυνση..."
   },
   "ModerateRecent": {
@@ -377,9 +379,7 @@
     "devops": "DevOps",
     "devopsDescription": "Παρακολούθηση και διαχείριση συστήματος",
     "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base",
-    "linkedData": "Export & Import",
-    "linkedDataDescription": "JSON-LD Linked Data exchange"
+    "exchangeDescription": "Back up and restore your knowledge base"
   },
   "AdminUsers": {
     "title": "Διαχείριση Χρηστών",
@@ -570,7 +570,7 @@
     "enter": "Enter",
     "esc": "Esc"
   },
-  "AdminLinkedData": {
+  "ModerationLinkedData": {
     "title": "Export & Import",
     "subtitle": "Exchange knowledge as JSON-LD Linked Data",
     "exportTitle": "Export",

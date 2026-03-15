@@ -340,6 +340,8 @@
     "entityTagsDescription": "Hantera klassificeringstaggar för resurser",
     "tagSchemas": "Taggscheman",
     "tagSchemasDescription": "Visa strukturella analysramverk för automatisk taggning",
+    "linkedData": "Linked Data",
+    "linkedDataDescription": "Exportera och importera kunskap som JSON-LD Linked Data",
     "redirecting": "Omdirigerar..."
   },
   "ModerateRecent": {
@@ -377,9 +379,7 @@
     "devops": "DevOps",
     "devopsDescription": "Systemövervakning och hantering",
     "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base",
-    "linkedData": "Export & Import",
-    "linkedDataDescription": "JSON-LD Linked Data exchange"
+    "exchangeDescription": "Back up and restore your knowledge base"
   },
   "AdminUsers": {
     "title": "Användarhantering",
@@ -570,7 +570,7 @@
     "enter": "Enter",
     "esc": "Esc"
   },
-  "AdminLinkedData": {
+  "ModerationLinkedData": {
     "title": "Export & Import",
     "subtitle": "Exchange knowledge as JSON-LD Linked Data",
     "exportTitle": "Export",

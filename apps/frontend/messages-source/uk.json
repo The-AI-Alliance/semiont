@@ -340,6 +340,8 @@
     "entityTagsDescription": "Керування тегами класифікації ресурсів",
     "tagSchemas": "Схеми тегів",
     "tagSchemasDescription": "Перегляд фреймворків структурного аналізу для автоматичного тегування",
+    "linkedData": "Linked Data",
+    "linkedDataDescription": "Експорт та імпорт знань у форматі JSON-LD Linked Data",
     "redirecting": "Перенаправлення..."
   },
   "ModerateRecent": {
@@ -377,9 +379,7 @@
     "devops": "DevOps",
     "devopsDescription": "Моніторинг та управління системою",
     "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base",
-    "linkedData": "Export & Import",
-    "linkedDataDescription": "JSON-LD Linked Data exchange"
+    "exchangeDescription": "Back up and restore your knowledge base"
   },
   "AdminUsers": {
     "title": "Управління користувачами",
@@ -570,7 +570,7 @@
     "enter": "Enter",
     "esc": "Esc"
   },
-  "AdminLinkedData": {
+  "ModerationLinkedData": {
     "title": "Export & Import",
     "subtitle": "Exchange knowledge as JSON-LD Linked Data",
     "exportTitle": "Export",

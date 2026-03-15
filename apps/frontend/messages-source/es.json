@@ -340,6 +340,8 @@
     "entityTagsDescription": "Gestionar etiquetas de clasificación de documentos",
     "tagSchemas": "Esquemas de Etiquetas",
     "tagSchemasDescription": "Ver marcos de análisis estructural para etiquetado automático",
+    "linkedData": "Linked Data",
+    "linkedDataDescription": "Exportar e importar conocimiento como JSON-LD Linked Data",
     "redirecting": "Redirigiendo..."
   },
   "ModerateRecent": {
@@ -377,9 +379,7 @@
     "devops": "DevOps",
     "devopsDescription": "Monitoreo y gestión del sistema",
     "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base",
-    "linkedData": "Export & Import",
-    "linkedDataDescription": "JSON-LD Linked Data exchange"
+    "exchangeDescription": "Back up and restore your knowledge base"
   },
   "AdminUsers": {
     "title": "Gestión de Usuarios",
@@ -570,7 +570,7 @@
     "enter": "Enter",
     "esc": "Esc"
   },
-  "AdminLinkedData": {
+  "ModerationLinkedData": {
     "title": "Export & Import",
     "subtitle": "Exchange knowledge as JSON-LD Linked Data",
     "exportTitle": "Export",

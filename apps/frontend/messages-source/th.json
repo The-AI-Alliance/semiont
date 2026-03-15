@@ -340,6 +340,8 @@
     "entityTagsDescription": "จัดการแท็กการจำแนกทรัพยากร",
     "tagSchemas": "โครงสร้างแท็ก",
     "tagSchemasDescription": "ดูกรอบการวิเคราะห์เชิงโครงสร้างสำหรับการติดแท็กอัตโนมัติ",
+    "linkedData": "Linked Data",
+    "linkedDataDescription": "ส่งออกและนำเข้าความรู้เป็น JSON-LD Linked Data",
     "redirecting": "กำลังเปลี่ยนเส้นทาง..."
   },
   "ModerateRecent": {
@@ -377,9 +379,7 @@
     "devops": "DevOps",
     "devopsDescription": "การตรวจสอบและจัดการระบบ",
     "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base",
-    "linkedData": "Export & Import",
-    "linkedDataDescription": "JSON-LD Linked Data exchange"
+    "exchangeDescription": "Back up and restore your knowledge base"
   },
   "AdminUsers": {
     "title": "การจัดการผู้ใช้",
@@ -570,7 +570,7 @@
     "enter": "Enter",
     "esc": "Esc"
   },
-  "AdminLinkedData": {
+  "ModerationLinkedData": {
     "title": "Export & Import",
     "subtitle": "Exchange knowledge as JSON-LD Linked Data",
     "exportTitle": "Export",

@@ -340,6 +340,8 @@
     "entityTagsDescription": "Kaynak sınıflandırma etiketlerini yönetin",
     "tagSchemas": "Etiket Şemaları",
     "tagSchemasDescription": "Otomatik etiketleme için yapısal analiz çerçevelerini görüntüleyin",
+    "linkedData": "Linked Data",
+    "linkedDataDescription": "Bilgiyi JSON-LD Linked Data olarak dışa ve içe aktarın",
     "redirecting": "Yönlendiriliyor..."
   },
   "ModerateRecent": {
@@ -377,9 +379,7 @@
     "devops": "DevOps",
     "devopsDescription": "Sistem izleme ve yönetimi",
     "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base",
-    "linkedData": "Export & Import",
-    "linkedDataDescription": "JSON-LD Linked Data exchange"
+    "exchangeDescription": "Back up and restore your knowledge base"
   },
   "AdminUsers": {
     "title": "Kullanıcı Yönetimi",
@@ -570,7 +570,7 @@
     "enter": "Enter",
     "esc": "Esc"
   },
-  "AdminLinkedData": {
+  "ModerationLinkedData": {
     "title": "Export & Import",
     "subtitle": "Exchange knowledge as JSON-LD Linked Data",
     "exportTitle": "Export",

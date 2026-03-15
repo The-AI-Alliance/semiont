@@ -340,6 +340,8 @@
     "entityTagsDescription": "管理资源分类标签",
     "tagSchemas": "标签架构",
     "tagSchemasDescription": "查看用于自动标记的结构分析框架",
+    "linkedData": "关联数据",
+    "linkedDataDescription": "以 JSON-LD 关联数据格式导出和导入知识",
     "redirecting": "重定向中..."
   },
   "ModerateRecent": {
@@ -377,9 +379,7 @@
     "devops": "DevOps",
     "devopsDescription": "系统监控和管理",
     "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base",
-    "linkedData": "Export & Import",
-    "linkedDataDescription": "JSON-LD Linked Data exchange"
+    "exchangeDescription": "Back up and restore your knowledge base"
   },
   "AdminUsers": {
     "title": "用户管理",
@@ -570,7 +570,7 @@
     "enter": "Enter",
     "esc": "Esc"
   },
-  "AdminLinkedData": {
+  "ModerationLinkedData": {
     "title": "Export & Import",
     "subtitle": "Exchange knowledge as JSON-LD Linked Data",
     "exportTitle": "Export",

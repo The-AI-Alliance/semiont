@@ -340,6 +340,8 @@
     "entityTagsDescription": "Manage resource classification tags",
     "tagSchemas": "Tag Schemas",
     "tagSchemasDescription": "View structural analysis frameworks for automatic tagging",
+    "linkedData": "Linked Data",
+    "linkedDataDescription": "Export and import knowledge as JSON-LD Linked Data",
     "redirecting": "Redirecting..."
   },
   "ModerateRecent": {
@@ -376,8 +378,6 @@
     "oauthSettingsDescription": "View OAuth configuration",
     "exchange": "Backup & Restore",
     "exchangeDescription": "Back up and restore your knowledge base",
-    "linkedData": "Export & Import",
-    "linkedDataDescription": "JSON-LD Linked Data exchange",
     "devops": "DevOps",
     "devopsDescription": "System monitoring and management"
   },
@@ -486,7 +486,7 @@
     "events": "Events",
     "blobs": "Content blobs"
   },
-  "AdminLinkedData": {
+  "ModerationLinkedData": {
     "title": "Export & Import",
     "subtitle": "Exchange knowledge as JSON-LD Linked Data",
     "exportTitle": "Export",

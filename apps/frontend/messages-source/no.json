@@ -340,6 +340,8 @@
     "entityTagsDescription": "Administrer klassifiseringsmerker for ressurser",
     "tagSchemas": "Merkeskjemaer",
     "tagSchemasDescription": "Se strukturelle analyserammeverk for automatisk merking",
+    "linkedData": "Linked Data",
+    "linkedDataDescription": "Eksporter og importer kunnskap som JSON-LD Linked Data",
     "redirecting": "Omdirigerer..."
   },
   "ModerateRecent": {
@@ -377,9 +379,7 @@
     "devops": "DevOps",
     "devopsDescription": "Systemovervåking og -administrasjon",
     "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base",
-    "linkedData": "Export & Import",
-    "linkedDataDescription": "JSON-LD Linked Data exchange"
+    "exchangeDescription": "Back up and restore your knowledge base"
   },
   "AdminUsers": {
     "title": "Brukeradministrasjon",
@@ -570,7 +570,7 @@
     "enter": "Enter",
     "esc": "Esc"
   },
-  "AdminLinkedData": {
+  "ModerationLinkedData": {
     "title": "Export & Import",
     "subtitle": "Exchange knowledge as JSON-LD Linked Data",
     "exportTitle": "Export",

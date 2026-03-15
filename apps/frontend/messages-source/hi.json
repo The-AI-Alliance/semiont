@@ -340,6 +340,8 @@
     "entityTagsDescription": "संसाधन वर्गीकरण टैग प्रबंधित करें",
     "tagSchemas": "टैग स्कीमा",
     "tagSchemasDescription": "स्वचालित टैगिंग के लिए संरचनात्मक विश्लेषण फ्रेमवर्क देखें",
+    "linkedData": "लिंक्ड डेटा",
+    "linkedDataDescription": "JSON-LD लिंक्ड डेटा के रूप में ज्ञान का निर्यात और आयात करें",
     "redirecting": "पुनर्निर्देशित हो रहा है..."
   },
   "ModerateRecent": {
@@ -377,9 +379,7 @@
     "devops": "DevOps",
     "devopsDescription": "सिस्टम निगरानी और प्रबंधन",
     "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base",
-    "linkedData": "Export & Import",
-    "linkedDataDescription": "JSON-LD Linked Data exchange"
+    "exchangeDescription": "Back up and restore your knowledge base"
   },
   "AdminUsers": {
     "title": "उपयोगकर्ता प्रबंधन",
@@ -570,7 +570,7 @@
     "enter": "Enter",
     "esc": "Esc"
   },
-  "AdminLinkedData": {
+  "ModerationLinkedData": {
     "title": "Export & Import",
     "subtitle": "Exchange knowledge as JSON-LD Linked Data",
     "exportTitle": "Export",

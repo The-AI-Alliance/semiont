@@ -340,6 +340,8 @@
     "entityTagsDescription": "Urus tag pengelasan sumber",
     "tagSchemas": "Skema Tag",
     "tagSchemasDescription": "Lihat rangka kerja analisis struktur untuk penandaan automatik",
+    "linkedData": "Linked Data",
+    "linkedDataDescription": "Eksport dan import pengetahuan sebagai JSON-LD Linked Data",
     "redirecting": "Mengalihkan..."
   },
   "ModerateRecent": {
@@ -377,9 +379,7 @@
     "devops": "DevOps",
     "devopsDescription": "Pemantauan dan pengurusan sistem",
     "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base",
-    "linkedData": "Export & Import",
-    "linkedDataDescription": "JSON-LD Linked Data exchange"
+    "exchangeDescription": "Back up and restore your knowledge base"
   },
   "AdminUsers": {
     "title": "Pengurusan Pengguna",
@@ -570,7 +570,7 @@
     "enter": "Enter",
     "esc": "Esc"
   },
-  "AdminLinkedData": {
+  "ModerationLinkedData": {
     "title": "Export & Import",
     "subtitle": "Exchange knowledge as JSON-LD Linked Data",
     "exportTitle": "Export",

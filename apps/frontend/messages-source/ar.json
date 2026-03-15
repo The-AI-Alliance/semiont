@@ -340,6 +340,8 @@
     "entityTagsDescription": "إدارة علامات تصنيف الموارد",
     "tagSchemas": "مخططات العلامات",
     "tagSchemasDescription": "عرض أطر التحليل الهيكلي للعلامات التلقائية",
+    "linkedData": "بيانات مترابطة",
+    "linkedDataDescription": "تصدير واستيراد المعرفة بصيغة JSON-LD Linked Data",
     "redirecting": "جارٍ إعادة التوجيه..."
   },
   "ModerateRecent": {
@@ -377,9 +379,7 @@
     "devops": "DevOps",
     "devopsDescription": "مراقبة النظام وإدارته",
     "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base",
-    "linkedData": "Export & Import",
-    "linkedDataDescription": "JSON-LD Linked Data exchange"
+    "exchangeDescription": "Back up and restore your knowledge base"
   },
   "AdminUsers": {
     "title": "إدارة المستخدمين",
@@ -570,7 +570,7 @@
     "enter": "Enter",
     "esc": "Esc"
   },
-  "AdminLinkedData": {
+  "ModerationLinkedData": {
     "title": "Export & Import",
     "subtitle": "Exchange knowledge as JSON-LD Linked Data",
     "exportTitle": "Export",

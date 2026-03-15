@@ -340,6 +340,8 @@
     "entityTagsDescription": "리소스 분류 태그 관리",
     "tagSchemas": "태그 스키마",
     "tagSchemasDescription": "자동 태깅을 위한 구조 분석 프레임워크 보기",
+    "linkedData": "Linked Data",
+    "linkedDataDescription": "JSON-LD Linked Data로 지식을 내보내기 및 가져오기",
     "redirecting": "리디렉션 중..."
   },
   "ModerateRecent": {
@@ -377,9 +379,7 @@
     "devops": "DevOps",
     "devopsDescription": "시스템 모니터링 및 관리",
     "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base",
-    "linkedData": "Export & Import",
-    "linkedDataDescription": "JSON-LD Linked Data exchange"
+    "exchangeDescription": "Back up and restore your knowledge base"
   },
   "AdminUsers": {
     "title": "사용자 관리",
@@ -570,7 +570,7 @@
     "enter": "Enter",
     "esc": "Esc"
   },
-  "AdminLinkedData": {
+  "ModerationLinkedData": {
     "title": "Export & Import",
     "subtitle": "Exchange knowledge as JSON-LD Linked Data",
     "exportTitle": "Export",

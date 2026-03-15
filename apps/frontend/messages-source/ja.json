@@ -340,6 +340,8 @@
     "entityTagsDescription": "リソース分類タグを管理",
     "tagSchemas": "タグスキーマ",
     "tagSchemasDescription": "自動タグ付けのための構造分析フレームワークを表示",
+    "linkedData": "Linked Data",
+    "linkedDataDescription": "JSON-LD Linked Dataとしてナレッジをエクスポート・インポート",
     "redirecting": "リダイレクト中..."
   },
   "ModerateRecent": {
@@ -377,9 +379,7 @@
     "devops": "DevOps",
     "devopsDescription": "システム監視と管理",
     "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base",
-    "linkedData": "Export & Import",
-    "linkedDataDescription": "JSON-LD Linked Data exchange"
+    "exchangeDescription": "Back up and restore your knowledge base"
   },
   "AdminUsers": {
     "title": "ユーザー管理",
@@ -570,7 +570,7 @@
     "enter": "Enter",
     "esc": "Esc"
   },
-  "AdminLinkedData": {
+  "ModerationLinkedData": {
     "title": "Export & Import",
     "subtitle": "Exchange knowledge as JSON-LD Linked Data",
     "exportTitle": "Export",

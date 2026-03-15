@@ -340,6 +340,8 @@
     "entityTagsDescription": "ניהול תגיות סיווג משאבים",
     "tagSchemas": "סכמות תגיות",
     "tagSchemasDescription": "צפייה במסגרות ניתוח מבניות לתיוג אוטומטי",
+    "linkedData": "Linked Data",
+    "linkedDataDescription": "ייצוא וייבוא ידע בפורמט JSON-LD Linked Data",
     "redirecting": "מפנה..."
   },
   "ModerateRecent": {
@@ -377,9 +379,7 @@
     "devops": "DevOps",
     "devopsDescription": "ניטור וניהול מערכת",
     "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base",
-    "linkedData": "Export & Import",
-    "linkedDataDescription": "JSON-LD Linked Data exchange"
+    "exchangeDescription": "Back up and restore your knowledge base"
   },
   "AdminUsers": {
     "title": "ניהול משתמשים",
@@ -570,7 +570,7 @@
     "enter": "Enter",
     "esc": "Esc"
   },
-  "AdminLinkedData": {
+  "ModerationLinkedData": {
     "title": "Export & Import",
     "subtitle": "Exchange knowledge as JSON-LD Linked Data",
     "exportTitle": "Export",

@@ -340,6 +340,8 @@
     "entityTagsDescription": "Beheer bronclassificatielabels",
     "tagSchemas": "Labelschema's",
     "tagSchemasDescription": "Bekijk structurele analyseframeworks voor automatisch labelen",
+    "linkedData": "Linked Data",
+    "linkedDataDescription": "Kennis exporteren en importeren als JSON-LD Linked Data",
     "redirecting": "Doorsturen..."
   },
   "ModerateRecent": {
@@ -377,9 +379,7 @@
     "devops": "DevOps",
     "devopsDescription": "Systeemmonitoring en -beheer",
     "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base",
-    "linkedData": "Export & Import",
-    "linkedDataDescription": "JSON-LD Linked Data exchange"
+    "exchangeDescription": "Back up and restore your knowledge base"
   },
   "AdminUsers": {
     "title": "Gebruikersbeheer",
@@ -570,7 +570,7 @@
     "enter": "Enter",
     "esc": "Esc"
   },
-  "AdminLinkedData": {
+  "ModerationLinkedData": {
     "title": "Export & Import",
     "subtitle": "Exchange knowledge as JSON-LD Linked Data",
     "exportTitle": "Export",

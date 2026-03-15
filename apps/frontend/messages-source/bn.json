@@ -340,6 +340,8 @@
     "entityTagsDescription": "সম্পদ শ্রেণিবিভাগ ট্যাগ পরিচালনা করুন",
     "tagSchemas": "ট্যাগ স্কিমা",
     "tagSchemasDescription": "স্বয়ংক্রিয় ট্যাগিংয়ের জন্য কাঠামোগত বিশ্লেষণ ফ্রেমওয়ার্ক দেখুন",
+    "linkedData": "লিংকড ডেটা",
+    "linkedDataDescription": "JSON-LD লিংকড ডেটা হিসেবে জ্ঞান রপ্তানি ও আমদানি করুন",
     "redirecting": "পুনর্নির্দেশ হচ্ছে..."
   },
   "ModerateRecent": {
@@ -377,9 +379,7 @@
     "devops": "DevOps",
     "devopsDescription": "সিস্টেম পর্যবেক্ষণ এবং ব্যবস্থাপনা",
     "exchange": "Backup & Restore",
-    "exchangeDescription": "Back up and restore your knowledge base",
-    "linkedData": "Export & Import",
-    "linkedDataDescription": "JSON-LD Linked Data exchange"
+    "exchangeDescription": "Back up and restore your knowledge base"
   },
   "AdminUsers": {
     "title": "ব্যবহারকারী ব্যবস্থাপনা",
@@ -570,7 +570,7 @@
     "enter": "Enter",
     "esc": "Esc"
   },
-  "AdminLinkedData": {
+  "ModerationLinkedData": {
     "title": "Export & Import",
     "subtitle": "Exchange knowledge as JSON-LD Linked Data",
     "exportTitle": "Export",
