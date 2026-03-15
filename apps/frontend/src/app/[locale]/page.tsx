@@ -35,7 +35,7 @@ export default function Home() {
                   animated={true}
                   className="mb-8"
                 />
-                <p className="text-xl text-gray-600 dark:text-gray-300 max-w-4xl mx-auto px-4">
+                <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
                   {t('description')}
                 </p>
               </section>
