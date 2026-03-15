@@ -50,7 +50,6 @@ Backend (/resources/123)
 
 ```typescript
 // PdfAnnotationCanvas.tsx
-const resourceId = resourceUri.split('/').pop();
 const pdfUrl = `/api/resources/${resourceId}`; // ✅ Proxy route
 
 // Browser-side PDF.js fetch
@@ -97,7 +96,7 @@ The proxy performs four key functions:
 
 4. **Streaming proxy** (lines 49-63):
    ```typescript
-   const { stream, contentType } = await client.getResourceRepresentationStream(rUri, {
+   const { stream, contentType } = await client.getResourceRepresentationStream(rId, {
      accept: acceptHeader as ContentFormat,
    });
 
@@ -165,7 +164,7 @@ The proxy uses streaming to avoid loading entire files into memory:
 
 ```typescript
 // Get resource as stream (not buffered)
-const { stream, contentType } = await client.getResourceRepresentationStream(rUri, {
+const { stream, contentType } = await client.getResourceRepresentationStream(rId, {
   accept: acceptHeader as ContentFormat,
 });
 
@@ -400,7 +399,6 @@ The proxy is not a workaround - it's the **correct architectural solution** for 
 
 ```typescript
 // PdfAnnotationCanvas.tsx
-const resourceId = resourceUri.split('/').pop();
 const pdfUrl = `/api/resources/${resourceId}`;
 
 // PDF.js loads the PDF

@@ -1,13 +1,11 @@
 /**
  * Exchange Format Manifest Types
  *
- * Defines the metadata structures for backup and snapshot formats.
+ * Defines the metadata structures for backup archives.
  * The manifest is the first entry in an archive and describes its contents.
  */
 
 export const BACKUP_FORMAT = 'semiont-backup' as const;
-export const SNAPSHOT_FORMAT = 'semiont-snapshot' as const;
-import type { CreationMethod } from '@semiont/core';
 
 export const FORMAT_VERSION = 1;
 
@@ -33,35 +31,30 @@ export interface BackupStreamSummary {
   lastChecksum: string;
 }
 
-// ── Snapshot manifest (first line of JSONL) ──
+// ── Linked Data manifest (JSON-LD) ──
 
-export interface SnapshotManifestHeader {
-  format: typeof SNAPSHOT_FORMAT;
-  version: number;
-  exportedAt: string;
-  sourceUrl: string;
-  entityTypes: string[];
-  stats: {
-    resources: number;
+export const LINKED_DATA_FORMAT = 'semiont-linked-data' as const;
+
+export interface LinkedDataManifest {
+  '@context': Record<string, string>;
+  '@type': string;
+  'semiont:format': typeof LINKED_DATA_FORMAT;
+  'semiont:version': number;
+  'dct:created': string;
+  'prov:wasGeneratedBy': {
+    '@type': string;
+    'prov:used': string;
   };
+  'semiont:entityTypes': string[];
+  'void:entities': number;
 }
 
-export interface SnapshotResource {
-  id: string;
-  name: string;
-  format: string;
-  language?: string;
-  creationMethod: CreationMethod;
-  entityTypes: string[];
-  dateCreated: string;
-  archived: boolean;
-  content: {
-    checksum: string;
-    byteSize: number;
-    text?: string;   // Inline for text/* content
-    path?: string;   // Relative path in tar for binary content
-  };
-  annotations: unknown[]; // W3C annotation objects
+export function isLinkedDataManifest(obj: unknown): obj is LinkedDataManifest {
+  return (
+    typeof obj === 'object' &&
+    obj !== null &&
+    (obj as LinkedDataManifest)['semiont:format'] === LINKED_DATA_FORMAT
+  );
 }
 
 // ── Validation ──
@@ -71,14 +64,6 @@ export function isBackupManifest(obj: unknown): obj is BackupManifestHeader {
     typeof obj === 'object' &&
     obj !== null &&
     (obj as BackupManifestHeader).format === BACKUP_FORMAT
-  );
-}
-
-export function isSnapshotManifest(obj: unknown): obj is SnapshotManifestHeader {
-  return (
-    typeof obj === 'object' &&
-    obj !== null &&
-    (obj as SnapshotManifestHeader).format === SNAPSHOT_FORMAT
   );
 }
 

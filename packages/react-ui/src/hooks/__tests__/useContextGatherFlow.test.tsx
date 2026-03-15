@@ -12,7 +12,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import React from 'react';
 import { renderHook, waitFor, act } from '@testing-library/react';
-import { EventBus, annotationId, resourceId, resourceUri, type GatheredContext } from '@semiont/core';
+import { EventBus, annotationId, resourceId, type GatheredContext } from '@semiont/core';
 import { SemiontApiClient } from '@semiont/api-client';
 import { useContextGatherFlow } from '../useContextGatherFlow';
 import { AuthTokenProvider } from '../../contexts/AuthTokenContext';
@@ -23,7 +23,6 @@ describe('useContextGatherFlow', () => {
   let mockClient: vi.Mocked<SemiontApiClient>;
   const testToken = 'test-token-123';
   const testResourceId = resourceId('resource-123');
-  const testResourceUri = resourceUri('http://example.com/resources/resource-123');
   const testAnnotationId = annotationId('anno-456');
 
   const mockContext: GatheredContext = {
@@ -54,7 +53,7 @@ describe('useContextGatherFlow', () => {
     const { result } = renderHook(
       () => useContextGatherFlow(eventBus, {
         client: mockClient,
-        resourceUri: testResourceUri,
+        resourceId: testResourceId,
       }),
       { wrapper }
     );
@@ -78,7 +77,7 @@ describe('useContextGatherFlow', () => {
     renderHook(
       () => useContextGatherFlow(eventBus, {
         client: mockClient,
-        resourceUri: testResourceUri,
+        resourceId: testResourceId,
       }),
       { wrapper }
     );
@@ -91,7 +90,7 @@ describe('useContextGatherFlow', () => {
 
     await waitFor(() => {
       expect(mockClient.getAnnotationLLMContext).toHaveBeenCalledWith(
-        testResourceUri,
+        testResourceId,
         testAnnotationId,
         expect.objectContaining({
           contextWindow: 2000,
@@ -109,7 +108,7 @@ describe('useContextGatherFlow', () => {
     renderHook(
       () => useContextGatherFlow(eventBus, {
         client: mockClient,
-        resourceUri: testResourceUri,
+        resourceId: testResourceId,
       }),
       { wrapper }
     );
@@ -139,7 +138,7 @@ describe('useContextGatherFlow', () => {
     renderHook(
       () => useContextGatherFlow(eventBus, {
         client: mockClient,
-        resourceUri: testResourceUri,
+        resourceId: testResourceId,
       }),
       { wrapper }
     );
@@ -170,7 +169,7 @@ describe('useContextGatherFlow', () => {
     renderHook(
       () => useContextGatherFlow(eventBus, {
         client: mockClient,
-        resourceUri: testResourceUri,
+        resourceId: testResourceId,
       }),
       { wrapper }
     );
@@ -183,7 +182,7 @@ describe('useContextGatherFlow', () => {
 
     await waitFor(() => {
       expect(mockClient.getAnnotationLLMContext).toHaveBeenCalledWith(
-        testResourceUri,
+        testResourceId,
         testAnnotationId, // Extracted from URI
         expect.any(Object)
       );
@@ -205,7 +204,7 @@ describe('useContextGatherFlow', () => {
     const { result } = renderHook(
       () => useContextGatherFlow(eventBus, {
         client: mockClient,
-        resourceUri: testResourceUri,
+        resourceId: testResourceId,
       }),
       { wrapper }
     );
@@ -260,7 +259,7 @@ describe('useContextGatherFlow', () => {
     const { result } = renderHook(
       () => useContextGatherFlow(eventBus, {
         client: mockClient,
-        resourceUri: testResourceUri,
+        resourceId: testResourceId,
       }),
       { wrapper }
     );
@@ -297,7 +296,7 @@ describe('useContextGatherFlow', () => {
     const { result } = renderHook(
       () => useContextGatherFlow(eventBus, {
         client: mockClient,
-        resourceUri: testResourceUri,
+        resourceId: testResourceId,
       }),
       { wrapper }
     );
@@ -332,7 +331,7 @@ describe('useContextGatherFlow', () => {
     const { result } = renderHook(
       () => useContextGatherFlow(eventBus, {
         client: mockClient,
-        resourceUri: testResourceUri,
+        resourceId: testResourceId,
       }),
       { wrapper }
     );
@@ -359,7 +358,7 @@ describe('useContextGatherFlow', () => {
     const { result } = renderHook(
       () => useContextGatherFlow(eventBus, {
         client: mockClient,
-        resourceUri: testResourceUri,
+        resourceId: testResourceId,
       }),
       { wrapper }
     );

@@ -294,7 +294,7 @@ This is critical for SSE (Server-Sent Events) real-time notifications - all part
 ### Memory Usage
 
 Each subscription stores:
-- ResourceUri or global flag (8-64 bytes)
+- ResourceId or global flag (8-64 bytes)
 - Callback function (varies)
 
 With 10,000 subscriptions: ~1-5 MB
@@ -484,7 +484,7 @@ const registry = eventBus.subscriptions;
 const total = registry.getTotalSubscriptions();
 
 // Get subscriptions for a resource
-const count = registry.getSubscriptionCount(resourceUri);
+const count = registry.getSubscriptionCount(resourceId);
 ```
 
 ## See Also

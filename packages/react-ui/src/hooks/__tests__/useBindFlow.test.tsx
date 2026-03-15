@@ -16,7 +16,7 @@ import { render, act, waitFor } from '@testing-library/react';
 import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../contexts/AuthTokenContext';
-import { resourceUri, annotationId, resourceId } from '@semiont/core';
+import { annotationId, resourceId } from '@semiont/core';
 import { useBindFlow } from '../useBindFlow';
 
 // Mock the toast hook to track calls
@@ -49,13 +49,13 @@ vi.mock('../../contexts/ApiClientContext', async () => {
 
 // Test harness
 function renderBindFlow() {
-  const rUri = resourceUri('http://example.com/resources/resource-123');
+  const rId = resourceId('resource-123');
   let eventBusInstance: ReturnType<typeof useEventBus> | null = null;
   let lastState: ReturnType<typeof useBindFlow> | null = null;
 
   function TestComponent() {
     eventBusInstance = useEventBus();
-    lastState = useBindFlow(rUri);
+    lastState = useBindFlow(rId);
     return null;
   }
 

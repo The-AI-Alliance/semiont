@@ -14,7 +14,7 @@ import { render, act } from '@testing-library/react';
 import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../contexts/AuthTokenContext';
-import { resourceUri } from '@semiont/core';
+import { resourceId } from '@semiont/core';
 import { useMarkFlow } from '../useMarkFlow';
 
 // Mock the toast hook to track calls
@@ -56,13 +56,13 @@ vi.mock('../../contexts/ApiClientContext', async () => {
 // ─── Test harness ──────────────────────────────────────────────────────────────
 
 function renderAnnotationFlow() {
-  const rUri = resourceUri('https://example.com/resources/test');
+  const rId = resourceId('test');
   let eventBusInstance: ReturnType<typeof useEventBus> | null = null;
   let lastState: ReturnType<typeof useMarkFlow> | null = null;
 
   function TestComponent() {
     eventBusInstance = useEventBus();
-    lastState = useMarkFlow(rUri);
+    lastState = useMarkFlow(rId);
     return null;
   }
 

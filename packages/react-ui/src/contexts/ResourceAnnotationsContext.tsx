@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { useAnnotations } from '../lib/api-hooks';
-import type { components, AnnotationUri, ResourceUri, Selector } from '@semiont/core';
+import type { components, AnnotationId, ResourceId, Selector } from '@semiont/core';
 import { useLiveRegion } from '../components/LiveRegion';
 
 type Annotation = components['schemas']['Annotation'];
@@ -20,14 +20,14 @@ interface ResourceAnnotationsContextType {
 
   // Generic annotation creation (supports both text and image annotations)
   createAnnotation: (
-    rUri: ResourceUri,
+    rUri: ResourceId,
     motivation: 'highlighting' | 'linking' | 'assessing' | 'commenting' | 'tagging',
     selector: Selector | Selector[],
     body?: any[]
   ) => Promise<string | undefined>;
 
   // UI actions
-  clearNewAnnotationId: (id: AnnotationUri) => void;
+  clearNewAnnotationId: (id: AnnotationId) => void;
   triggerSparkleAnimation: (annotationId: string) => void;
 }
 
@@ -48,7 +48,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
 
   // Generic annotation creation function (supports both text and image annotations)
   const createAnnotation = useCallback(async (
-    rUri: ResourceUri,
+    rUri: ResourceId,
     motivation: 'highlighting' | 'linking' | 'assessing' | 'commenting' | 'tagging',
     selector: Selector | Selector[],
     body: any[] = []
@@ -64,7 +64,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
       };
 
       const result = await createAnnotationMutation.mutateAsync({
-        rUri,
+        resourceId: rUri,
         data: createData
       });
 
@@ -93,7 +93,7 @@ export function ResourceAnnotationsProvider({ children }: { children: React.Reac
     }
   }, [createAnnotationMutation, announce]);
 
-  const clearNewAnnotationId = useCallback((id: AnnotationUri) => {
+  const clearNewAnnotationId = useCallback((id: AnnotationId) => {
     setNewAnnotationIds(prev => {
       const next = new Set(prev);
       next.delete(id);

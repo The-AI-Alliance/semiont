@@ -19,7 +19,7 @@ export default function Home() {
   return (
     <div className="flex flex-col min-h-screen">
       <main className="flex-1 flex flex-col items-center justify-center p-24" role="main">
-        <div className="z-10 w-full max-w-5xl items-center justify-between font-sans text-sm">
+        <div className="z-10 w-full max-w-5xl items-center justify-between text-sm">
           {status === "loading" ? (
             <div className="text-center">
               <p className="text-gray-600 dark:text-gray-300">{t('loading')}</p>
@@ -35,7 +35,7 @@ export default function Home() {
                   animated={true}
                   className="mb-8"
                 />
-                <p className="text-xl text-gray-600 dark:text-gray-300 font-sans max-w-4xl mx-auto px-4">
+                <p className="text-xl text-gray-600 dark:text-gray-300 max-w-4xl mx-auto px-4">
                   {t('description')}
                 </p>
               </section>

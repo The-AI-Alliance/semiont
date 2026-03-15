@@ -11,7 +11,7 @@ import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PdfAnnotationCanvas } from '../PdfAnnotationCanvas';
-import { resourceUri } from '@semiont/core';
+import { resourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
@@ -40,16 +40,24 @@ vi.mock('../../../lib/browser-pdfjs', () => ({
 }));
 
 describe('PdfAnnotationCanvas', () => {
-  const mockResourceUri = resourceUri('http://example.com/resources/123');
+  const mockResourceId = resourceId('123');
 
   beforeEach(() => {
     vi.clearAllMocks();
+
+    // jsdom doesn't fire image onLoad or support clientWidth/clientHeight.
+    // Mock requestAnimationFrame to run callbacks synchronously and
+    // provide dimensions on the image element so the SVG overlay renders.
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+      cb(0);
+      return 0;
+    });
   });
 
   test('renders loading state initially', () => {
     render(
       <PdfAnnotationCanvas
-        resourceUri={mockResourceUri}
+        resourceUri={mockResourceId}
         drawingMode={null}
       />
     );
@@ -60,7 +68,7 @@ describe('PdfAnnotationCanvas', () => {
   test('renders page navigation controls after loading', async () => {
     render(
       <PdfAnnotationCanvas
-        resourceUri={mockResourceUri}
+        resourceUri={mockResourceId}
         drawingMode={null}
       />
     );
@@ -76,7 +84,7 @@ describe('PdfAnnotationCanvas', () => {
   test('previous button is disabled on first page', async () => {
     render(
       <PdfAnnotationCanvas
-        resourceUri={mockResourceUri}
+        resourceUri={mockResourceId}
         drawingMode={null}
       />
     );
@@ -92,7 +100,7 @@ describe('PdfAnnotationCanvas', () => {
   test('next button is disabled on last page', async () => {
     render(
       <PdfAnnotationCanvas
-        resourceUri={mockResourceUri}
+        resourceUri={mockResourceId}
         drawingMode={null}
       />
     );
@@ -124,7 +132,7 @@ describe('PdfAnnotationCanvas', () => {
         id: 'ann-1',
         body: [],
         target: {
-          source: mockResourceUri,
+          source: mockResourceId,
           selector: {
             type: 'FragmentSelector',
             value: 'page=1&viewrect=100,200,150,100',
@@ -138,7 +146,7 @@ describe('PdfAnnotationCanvas', () => {
 
     render(
       <PdfAnnotationCanvas
-        resourceUri={mockResourceUri}
+        resourceUri={mockResourceId}
         existingAnnotations={mockAnnotations}
         drawingMode={null}
       />
@@ -148,12 +156,26 @@ describe('PdfAnnotationCanvas', () => {
       expect(screen.getByText(/page 1 of 3/i)).toBeInTheDocument();
     });
 
-    // Annotation should be rendered in SVG
-    const svg = document.querySelector('.semiont-pdf-annotation-canvas__svg');
-    expect(svg).toBeInTheDocument();
+    // jsdom doesn't fire image onLoad or provide clientWidth/clientHeight.
+    // Wait for the image element to appear, then simulate load with dimensions.
+    await waitFor(() => {
+      const img = document.querySelector('.semiont-pdf-annotation-canvas__image') as HTMLImageElement;
+      expect(img).toBeInTheDocument();
+    });
 
-    const rects = svg?.querySelectorAll('rect');
-    expect(rects?.length).toBeGreaterThan(0);
+    const img = document.querySelector('.semiont-pdf-annotation-canvas__image') as HTMLImageElement;
+    Object.defineProperty(img, 'clientWidth', { value: 612, configurable: true });
+    Object.defineProperty(img, 'clientHeight', { value: 792, configurable: true });
+    fireEvent.load(img);
+
+    await waitFor(() => {
+      // Annotation should be rendered in SVG
+      const svg = document.querySelector('.semiont-pdf-annotation-canvas__svg');
+      expect(svg).toBeInTheDocument();
+
+      const rects = svg?.querySelectorAll('rect');
+      expect(rects?.length).toBeGreaterThan(0);
+    });
   });
 
   test('emits annotate:requested via eventBus when drawing with sufficient drag', async () => {
@@ -167,7 +189,7 @@ describe('PdfAnnotationCanvas', () => {
 
     render(
       <PdfAnnotationCanvas
-        resourceUri={mockResourceUri}
+        resourceUri={mockResourceId}
         drawingMode="rectangle"
         selectedMotivation="highlighting"
         eventBus={mockEventBus as any}

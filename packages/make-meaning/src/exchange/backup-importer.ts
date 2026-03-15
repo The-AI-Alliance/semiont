@@ -45,10 +45,9 @@ function buildBlobResolver(entries: Map<string, Buffer>): ContentBlobResolver {
   // Build a checksum → entry-name index (lightweight — just strings)
   const checksumIndex = new Map<string, string>();
   for (const name of entries.keys()) {
-    if (name.startsWith('content/')) {
-      const filename = name.slice('content/'.length);
-      const dotIndex = filename.lastIndexOf('.');
-      const checksum = dotIndex >= 0 ? filename.slice(0, dotIndex) : filename;
+    if (!name.startsWith('.semiont/')) {
+      const dotIndex = name.lastIndexOf('.');
+      const checksum = dotIndex >= 0 ? name.slice(0, dotIndex) : name;
       checksumIndex.set(checksum, name);
     }
   }
@@ -64,10 +63,10 @@ function buildBlobResolver(entries: Map<string, Buffer>): ContentBlobResolver {
  *
  * Flow:
  *   1. Stream and decompress tar.gz entries
- *   2. Parse manifest.jsonl → validate format
- *   3. Build blob resolver over content/ entries
- *   4. Replay __system__.jsonl (entity types)
- *   5. Replay each {resourceId}.jsonl (resources, annotations)
+ *   2. Parse .semiont/manifest.jsonl → validate format
+ *   3. Build blob resolver over root-level content entries
+ *   4. Replay .semiont/events/__system__.jsonl (entity types)
+ *   5. Replay each .semiont/events/{resourceId}.jsonl (resources, annotations)
  *
  * Events flow: importer → EventBus → Stower → EventStore + Views
  */
@@ -84,9 +83,9 @@ export async function importBackup(
   }
 
   // 1. Parse manifest
-  const manifestData = entries.get('manifest.jsonl');
+  const manifestData = entries.get('.semiont/manifest.jsonl');
   if (!manifestData) {
-    throw new Error('Invalid backup: missing manifest.jsonl');
+    throw new Error('Invalid backup: missing .semiont/manifest.jsonl');
   }
 
   const manifestLines = manifestData.toString('utf8').trim().split('\n');
@@ -111,7 +110,7 @@ export async function importBackup(
   const resolveBlob = buildBlobResolver(entries);
 
   // 3. Replay system events first (entity types)
-  const systemData = entries.get('events/__system__.jsonl');
+  const systemData = entries.get('.semiont/events/__system__.jsonl');
   let stats: ReplayStats = { eventsReplayed: 0, resourcesCreated: 0, annotationsCreated: 0, entityTypesAdded: 0 };
   let hashChainValid = true;
 
@@ -130,7 +129,7 @@ export async function importBackup(
   for (const summary of streamSummaries) {
     if (summary.stream === '__system__') continue;
 
-    const eventData = entries.get(`events/${summary.stream}.jsonl`);
+    const eventData = entries.get(`.semiont/events/${summary.stream}.jsonl`);
     if (!eventData) {
       logger?.warn('Backup import: missing event stream', { stream: summary.stream });
       continue;

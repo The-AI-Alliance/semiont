@@ -553,29 +553,29 @@ interface AnnotationManager {
 }
 
 interface CacheManager {
-  invalidateAnnotations: (rUri: ResourceUri) => void | Promise<void>;
-  invalidateEvents: (rUri: ResourceUri) => void | Promise<void>;
+  invalidateAnnotations: (rId: ResourceId) => void | Promise<void>;
+  invalidateEvents: (rId: ResourceId) => void | Promise<void>;
 }
 
 // Apps provide IMPLEMENTATIONS
 const annotationManager: AnnotationManager = {
   createAnnotation: async (params) => {
     const annotation = await client.createAnnotation(params);
-    queryClient.invalidateQueries(['annotations', params.rUri]);
+    queryClient.invalidateQueries(['annotations', params.rId]);
     return annotation;
   },
   deleteAnnotation: async (params) => {
     await client.deleteAnnotation(params);
-    queryClient.invalidateQueries(['annotations', params.rUri]);
+    queryClient.invalidateQueries(['annotations', params.rId]);
   }
 };
 
 const cacheManager: CacheManager = {
-  invalidateAnnotations: (rUri) => {
-    queryClient.invalidateQueries({ queryKey: ['annotations', rUri] });
+  invalidateAnnotations: (rId) => {
+    queryClient.invalidateQueries({ queryKey: ['annotations', rId] });
   },
-  invalidateEvents: (rUri) => {
-    queryClient.invalidateQueries({ queryKey: ['documents', 'events', rUri] });
+  invalidateEvents: (rId) => {
+    queryClient.invalidateQueries({ queryKey: ['resources', 'events', rId] });
   }
 };
 

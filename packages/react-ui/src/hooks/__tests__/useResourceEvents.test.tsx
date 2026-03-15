@@ -15,7 +15,7 @@ import { render, act, waitFor } from '@testing-library/react';
 import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../contexts/AuthTokenContext';
-import { resourceUri } from '@semiont/core';
+import { resourceId } from '@semiont/core';
 import type { ResourceEvent } from '@semiont/core';
 import { useResourceEvents } from '../useResourceEvents';
 
@@ -51,14 +51,14 @@ function renderResourceEvents(options: {
   onError?: (error: string) => void;
   autoConnect?: boolean;
 } = {}) {
-  const rUri = resourceUri('http://example.com/resources/resource-123');
+  const rId = resourceId('resource-123');
   let eventBusInstance: ReturnType<typeof useEventBus> | null = null;
   let lastState: ReturnType<typeof useResourceEvents> | null = null;
 
   function TestComponent() {
     eventBusInstance = useEventBus();
     lastState = useResourceEvents({
-      rUri,
+      rUri: rId,
       ...options,
     });
     return null;

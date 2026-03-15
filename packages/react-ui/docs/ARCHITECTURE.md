@@ -134,13 +134,13 @@ export function useResources() {
 
 ```tsx
 // Layer 1 (Service): SSE connection
-function ResourceViewerPage({ rUri }) {
-  useResourceEvents(rUri);  // Opens SSE, emits events to bus
+function ResourceViewerPage({ rId }) {
+  useResourceEvents(rId);  // Opens SSE, emits events to bus
   // ...
 }
 
 // Layer 2 (Hook): State management from events
-export function useDetectionFlow(rUri: ResourceUri) {
+export function useDetectionFlow(rId: ResourceId) {
   const [detecting, setDetecting] = useState(null);
 
   useEventSubscriptions({
@@ -152,8 +152,8 @@ export function useDetectionFlow(rUri: ResourceUri) {
 }
 
 // Layer 3 (Component): UI rendering
-function ResourceViewerPage({ rUri }) {
-  const { detecting } = useDetectionFlow(rUri);
+function ResourceViewerPage({ rId }) {
+  const { detecting } = useDetectionFlow(rId);
   return <div>{detecting && <p>Detecting...</p>}</div>;
 }
 ```

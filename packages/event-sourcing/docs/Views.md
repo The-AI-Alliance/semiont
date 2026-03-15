@@ -49,7 +49,7 @@ console.log('Current state:', view);
 
 ```typescript
 interface ResourceView {
-  resourceUri: ResourceUri;
+  resourceId: ResourceId;
   resource: components['schemas']['Resource'];
   annotations: components['schemas']['Annotation'][];
 }
@@ -107,7 +107,7 @@ Events with a `resourceId` update resource views:
 
 // Updates view
 {
-  resourceUri: 'http://localhost:4000/resources/doc-123',
+  resourceId: 'doc-123',
   resource: { ... },
   annotations: [...existing, newAnnotation]  // ← Added
 }
@@ -207,7 +207,7 @@ When a `resource.added` event is applied:
 
 // Creates view
 {
-  resourceUri: 'http://localhost:4000/resources/doc-123',
+  resourceId: 'doc-123',
   resource: { id: 'doc-123', type: 'Document', ... },
   annotations: []
 }
@@ -234,7 +234,7 @@ When an `annotation.added` event is applied:
 
 // Updates view
 {
-  resourceUri: 'http://localhost:4000/resources/doc-123',
+  resourceId: 'doc-123',
   resource: { ... },
   annotations: [
     { id: 'anno-456', ... }  // ← Added to array
@@ -292,7 +292,7 @@ ViewManager uses the `ViewStorage` interface:
 
 ```typescript
 interface ViewStorage {
-  getResourceView(uri: ResourceUri): Promise<ResourceView | null>;
+  getResourceView(id: ResourceId): Promise<ResourceView | null>;
   saveResourceView(view: ResourceView): Promise<void>;
   getSystemView(): Promise<SystemView>;
   saveSystemView(view: SystemView): Promise<void>;
@@ -359,7 +359,7 @@ import { EventQuery } from '@semiont/event-sourcing';
 
 // Delete old view
 await viewStorage.saveResourceView({
-  resourceUri: uri,
+  resourceId: id,
   resource: null,
   annotations: [],
 });
@@ -562,7 +562,7 @@ describe('View queries', () => {
   it('should get resource view', async () => {
     const mockStorage = {
       getResourceView: vi.fn().mockResolvedValue({
-        resourceUri: uri,
+        resourceId: id,
         resource: mockResource,
         annotations: [],
       }),
@@ -632,10 +632,10 @@ Implement `ViewStorage` for custom backends:
 import { ViewStorage } from '@semiont/event-sourcing';
 
 class PostgresViewStorage implements ViewStorage {
-  async getResourceView(uri: ResourceUri): Promise<ResourceView | null> {
+  async getResourceView(id: ResourceId): Promise<ResourceView | null> {
     const row = await db.query(
-      'SELECT * FROM resource_views WHERE uri = $1',
-      [uri]
+      'SELECT * FROM resource_views WHERE id = $1',
+      [id]
     );
     return row ? JSON.parse(row.data) : null;
   }
@@ -643,7 +643,7 @@ class PostgresViewStorage implements ViewStorage {
   async saveResourceView(view: ResourceView): Promise<void> {
     await db.query(
       'INSERT INTO resource_views (uri, data) VALUES ($1, $2) ON CONFLICT (uri) DO UPDATE SET data = $2',
-      [view.resourceUri, JSON.stringify(view)]
+      [view.resourceId, JSON.stringify(view)]
     );
   }
 

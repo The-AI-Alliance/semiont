@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useEffect, useCallback, lazy, Suspense } from 'react';
-import { resourceUri as toResourceUri } from '@semiont/core';
+import { resourceId as toResourceId } from '@semiont/core';
 import { getMimeCategory, isPdfMimeType } from '@semiont/api-client';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import { segmentTextWithAnnotations } from '../../lib/text-segmentation';
@@ -247,7 +247,7 @@ export function AnnotateView({
               {resourceUri && (
                 <Suspense fallback={<div className="semiont-annotate-view__loading">Loading PDF viewer...</div>}>
                   <PdfAnnotationCanvas
-                    resourceUri={toResourceUri(resourceUri)}
+                    resourceUri={toResourceId(resourceUri)}
                     existingAnnotations={allAnnotations}
                     drawingMode={selectedMotivation ? selectedShape : null}
                     selectedMotivation={selectedMotivation}
@@ -277,7 +277,7 @@ export function AnnotateView({
           <div className="semiont-annotate-view__content">
             {resourceUri && (
               <SvgDrawingCanvas
-                resourceUri={toResourceUri(resourceUri)}
+                resourceUri={toResourceId(resourceUri)}
                 existingAnnotations={allAnnotations}
                 drawingMode={selectedMotivation ? selectedShape : null}
                 selectedMotivation={selectedMotivation}
@@ -300,7 +300,7 @@ export function AnnotateView({
             </p>
             {resourceUri && (
               <a
-                href={resourceUri}
+                href={`/api/resources/${resourceUri}`}
                 download
                 className="semiont-button semiont-button--primary"
               >

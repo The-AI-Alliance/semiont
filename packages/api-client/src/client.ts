@@ -12,9 +12,8 @@
 import ky, { type KyInstance } from 'ky';
 import type { paths } from '@semiont/core';
 import type {
-  AnnotationUri,
-  ResourceUri,
-  ResourceAnnotationUri,
+  ResourceId,
+  AnnotationId,
   AccessToken,
   BaseUrl,
   CloneToken,
@@ -316,9 +315,8 @@ export class SemiontApiClient {
     } as any).json();
   }
 
-  async getResource(resourceUri: ResourceUri, options?: RequestOptions): Promise<ResponseContent<paths['/resources/{id}']['get']>> {
-    // resourceUri is already a full URI, use it directly
-    return this.http.get(resourceUri, {
+  async getResource(id: ResourceId, options?: RequestOptions): Promise<ResponseContent<paths['/resources/{id}']['get']>> {
+    return this.http.get(`${this.baseUrl}/resources/${id}`, {
       ...options,
       auth: options?.auth
     } as any).json();
@@ -347,11 +345,10 @@ export class SemiontApiClient {
    * ```
    */
   async getResourceRepresentation(
-    resourceUri: ResourceUri,
+    id: ResourceId,
     options?: { accept?: ContentFormat; auth?: AccessToken }
   ): Promise<{ data: ArrayBuffer; contentType: string }> {
-    // resourceUri is already a full URI, use it directly with Accept header
-    const response = await this.http.get(resourceUri, {
+    const response = await this.http.get(`${this.baseUrl}/resources/${id}`, {
       headers: {
         Accept: options?.accept || 'text/plain'
       },
@@ -401,11 +398,10 @@ export class SemiontApiClient {
    * ```
    */
   async getResourceRepresentationStream(
-    resourceUri: ResourceUri,
+    id: ResourceId,
     options?: { accept?: ContentFormat; auth?: AccessToken }
   ): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }> {
-    // resourceUri is already a full URI, use it directly with Accept header
-    const response = await this.http.get(resourceUri, {
+    const response = await this.http.get(`${this.baseUrl}/resources/${id}`, {
       headers: {
         Accept: options?.accept || 'text/plain'
       },
@@ -440,49 +436,45 @@ export class SemiontApiClient {
   }
 
   async updateResource(
-    resourceUri: ResourceUri,
+    id: ResourceId,
     data: RequestContent<paths['/resources/{id}']['patch']>,
     options?: RequestOptions
   ): Promise<void> {
-    // resourceUri is already a full URI, use it directly
-    await this.http.patch(resourceUri, {
+    await this.http.patch(`${this.baseUrl}/resources/${id}`, {
       json: data,
       ...options,
       auth: options?.auth
     } as any).text();
   }
 
-  async getResourceEvents(resourceUri: ResourceUri, options?: RequestOptions): Promise<{ events: any[] }> {
-    // resourceUri is already a full URI, use it directly
-    return this.http.get(`${resourceUri}/events`, {
+  async getResourceEvents(id: ResourceId, options?: RequestOptions): Promise<{ events: any[] }> {
+    return this.http.get(`${this.baseUrl}/resources/${id}/events`, {
       ...options,
       auth: options?.auth
     } as any).json();
   }
 
   async getResourceAnnotations(
-    resourceUri: ResourceUri,
+    id: ResourceId,
     options?: RequestOptions
   ): Promise<ResponseContent<paths['/resources/{id}/annotations']['get']>> {
-    // resourceUri is already a full URI, use it directly
-    return this.http.get(`${resourceUri}/annotations`, {
+    return this.http.get(`${this.baseUrl}/resources/${id}/annotations`, {
       ...options,
       auth: options?.auth
     } as any).json();
   }
 
   async getAnnotationLLMContext(
-    resourceUri: ResourceUri,
-    annotationId: string,
+    resourceId: ResourceId,
+    annotationId: AnnotationId,
     options?: { contextWindow?: number; auth?: AccessToken }
   ): Promise<ResponseContent<paths['/resources/{resourceId}/annotations/{annotationId}/llm-context']['get']>> {
     const searchParams = new URLSearchParams();
     if (options?.contextWindow) {
       searchParams.append('contextWindow', options.contextWindow.toString());
     }
-    // resourceUri is already a full URI, use it directly
     return this.http.get(
-      `${resourceUri}/annotations/${annotationId}/llm-context`,
+      `${this.baseUrl}/resources/${resourceId}/annotations/${annotationId}/llm-context`,
       {
         searchParams,
         auth: options?.auth
@@ -490,16 +482,14 @@ export class SemiontApiClient {
     ).json();
   }
 
-  async getResourceReferencedBy(resourceUri: ResourceUri, options?: RequestOptions): Promise<{ referencedBy: any[] }> {
-    // resourceUri is already a full URI, use it directly
-    return this.http.get(`${resourceUri}/referenced-by`, {
+  async getResourceReferencedBy(id: ResourceId, options?: RequestOptions): Promise<{ referencedBy: any[] }> {
+    return this.http.get(`${this.baseUrl}/resources/${id}/referenced-by`, {
       ...options,
       auth: options?.auth
     } as any).json();
   }
 
-  async generateCloneToken(resourceUri: ResourceUri, options?: RequestOptions): Promise<ResponseContent<paths['/resources/{id}/clone-with-token']['post']>> {
-    const id = resourceUri.split('/').pop();
+  async generateCloneToken(id: ResourceId, options?: RequestOptions): Promise<ResponseContent<paths['/resources/{id}/clone-with-token']['post']>> {
     return this.http.post(`${this.baseUrl}/resources/${id}/clone-with-token`, {
       ...options,
       auth: options?.auth
@@ -529,65 +519,60 @@ export class SemiontApiClient {
   // ============================================================================
 
   async createAnnotation(
-    resourceUri: ResourceUri,
+    id: ResourceId,
     data: RequestContent<paths['/resources/{id}/annotations']['post']>,
     options?: RequestOptions
   ): Promise<{ annotationId: string }> {
-    // resourceUri is already a full URI, use it directly
-    return this.http.post(`${resourceUri}/annotations`, {
+    return this.http.post(`${this.baseUrl}/resources/${id}/annotations`, {
       json: data,
       ...options,
       auth: options?.auth
     } as any).json();
   }
 
-  async getAnnotation(annotationUri: AnnotationUri, options?: RequestOptions): Promise<ResponseContent<paths['/annotations/{id}']['get']>> {
-    // annotationUri is already a full URI, use it directly
-    return this.http.get(annotationUri, {
+  async getAnnotation(id: AnnotationId, options?: RequestOptions): Promise<ResponseContent<paths['/annotations/{id}']['get']>> {
+    return this.http.get(`${this.baseUrl}/annotations/${id}`, {
       ...options,
       auth: options?.auth
     } as any).json();
   }
 
-  async getResourceAnnotation(annotationUri: ResourceAnnotationUri, options?: RequestOptions): Promise<ResponseContent<paths['/resources/{resourceId}/annotations/{annotationId}']['get']>> {
-    // annotationUri is already a full URI, use it directly
-    return this.http.get(annotationUri, {
+  async getResourceAnnotation(resourceId: ResourceId, annotationId: AnnotationId, options?: RequestOptions): Promise<ResponseContent<paths['/resources/{resourceId}/annotations/{annotationId}']['get']>> {
+    return this.http.get(`${this.baseUrl}/resources/${resourceId}/annotations/${annotationId}`, {
       ...options,
       auth: options?.auth
     } as any).json();
   }
 
   async listAnnotations(
-    resourceUri: ResourceUri,
+    id: ResourceId,
     motivation?: Motivation,
     options?: RequestOptions
   ): Promise<ResponseContent<paths['/resources/{id}/annotations']['get']>> {
     const searchParams = new URLSearchParams();
     if (motivation) searchParams.append('motivation', motivation);
 
-    // resourceUri is already a full URI, use it directly
-    return this.http.get(`${resourceUri}/annotations`, {
+    return this.http.get(`${this.baseUrl}/resources/${id}/annotations`, {
       searchParams,
       ...options,
       auth: options?.auth
     } as any).json();
   }
 
-  async deleteAnnotation(annotationUri: ResourceAnnotationUri, options?: RequestOptions): Promise<void> {
-    // annotationUri is already a full URI, use it directly
-    await this.http.delete(annotationUri, {
+  async deleteAnnotation(resourceId: ResourceId, annotationId: AnnotationId, options?: RequestOptions): Promise<void> {
+    await this.http.delete(`${this.baseUrl}/resources/${resourceId}/annotations/${annotationId}`, {
       ...options,
       auth: options?.auth
     } as any);
   }
 
   async updateAnnotationBody(
-    annotationUri: ResourceAnnotationUri,
+    resourceId: ResourceId,
+    annotationId: AnnotationId,
     data: RequestContent<paths['/resources/{resourceId}/annotations/{annotationId}/body']['put']>,
     options?: RequestOptions
   ): Promise<void> {
-    // annotationUri is already a full URI, use it directly
-    await this.http.put(`${annotationUri}/body`, {
+    await this.http.put(`${this.baseUrl}/resources/${resourceId}/annotations/${annotationId}/body`, {
       json: data,
       ...options,
       auth: options?.auth
@@ -595,14 +580,15 @@ export class SemiontApiClient {
   }
 
   async getAnnotationHistory(
-    annotationUri: ResourceAnnotationUri,
+    resourceId: ResourceId,
+    annotationId: AnnotationId,
     options?: RequestOptions
   ): Promise<ResponseContent<paths['/resources/{resourceId}/annotations/{annotationId}/history']['get']>> {
-    // annotationUri is already a full URI, use it directly
+    const url = `${this.baseUrl}/resources/${resourceId}/annotations/${annotationId}/history`;
     if (options) {
-      return this.http.get(`${annotationUri}/history`, options as any).json();
+      return this.http.get(url, options as any).json();
     }
-    return this.http.get(`${annotationUri}/history`).json();
+    return this.http.get(url).json();
   }
 
   // ============================================================================
@@ -674,32 +660,30 @@ export class SemiontApiClient {
   }
 
   // ============================================================================
-  // ADMIN — EXCHANGE (Import/Export)
+  // ADMIN — EXCHANGE (Backup/Restore)
   // ============================================================================
 
   /**
-   * Export knowledge base. Returns raw Response for streaming download.
+   * Create a backup of the knowledge base. Returns raw Response for streaming download.
    * Caller should use response.blob() to trigger a file download.
    */
-  async exportKnowledgeBase(
-    data: { format: 'backup' | 'snapshot'; includeArchived?: boolean },
+  async backupKnowledgeBase(
     options?: RequestOptions,
   ): Promise<Response> {
-    return fetch(`${this.baseUrl}/api/admin/exchange/export`, {
+    return fetch(`${this.baseUrl}/api/admin/exchange/backup`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(options?.auth ? { Authorization: `Bearer ${options.auth}` } : {}),
       },
-      body: JSON.stringify(data),
     });
   }
 
   /**
-   * Import knowledge base from file. Parses SSE progress events and calls onProgress.
+   * Restore knowledge base from a backup file. Parses SSE progress events and calls onProgress.
    * Returns the final SSE event (phase: 'complete' or 'error').
    */
-  async importKnowledgeBase(
+  async restoreKnowledgeBase(
     file: File,
     options?: RequestOptions & {
       onProgress?: (event: { phase: string; message?: string; result?: Record<string, unknown> }) => void;
@@ -708,7 +692,7 @@ export class SemiontApiClient {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch(`${this.baseUrl}/api/admin/exchange/import`, {
+    const response = await fetch(`${this.baseUrl}/api/admin/exchange/restore`, {
       method: 'POST',
       headers: {
         ...(options?.auth ? { Authorization: `Bearer ${options.auth}` } : {}),
@@ -717,7 +701,7 @@ export class SemiontApiClient {
     });
 
     if (!response.ok) {
-      throw new Error(`Import failed: ${response.status} ${response.statusText}`);
+      throw new Error(`Restore failed: ${response.status} ${response.statusText}`);
     }
 
     const reader = response.body!.getReader();
@@ -803,7 +787,7 @@ export class SemiontApiClient {
   // ============================================================================
 
   async getResourceLLMContext(
-    resourceUri: ResourceUri,
+    id: ResourceId,
     options?: {
       depth?: number;
       maxResources?: number;
@@ -818,7 +802,7 @@ export class SemiontApiClient {
     if (options?.includeContent !== undefined) searchParams.append('includeContent', options.includeContent.toString());
     if (options?.includeSummary !== undefined) searchParams.append('includeSummary', options.includeSummary.toString());
 
-    return this.http.get(`${resourceUri}/llm-context`, {
+    return this.http.get(`${this.baseUrl}/resources/${id}/llm-context`, {
       searchParams,
       auth: options?.auth
     } as any).json();

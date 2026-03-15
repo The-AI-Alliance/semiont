@@ -137,7 +137,7 @@ describe('ResourceComposePage', () => {
         mode: 'clone',
         cloneData: {
           sourceResource: {
-            '@id': 'http://localhost/resources/1',
+            '@id': '1',
             name: 'Original Resource',
           } as any,
           sourceContent: 'Original content',
@@ -154,7 +154,7 @@ describe('ResourceComposePage', () => {
         mode: 'clone',
         cloneData: {
           sourceResource: {
-            '@id': 'http://localhost/resources/1',
+            '@id': '1',
             name: 'Original Resource',
           } as any,
           sourceContent: 'Original content',
@@ -174,7 +174,7 @@ describe('ResourceComposePage', () => {
         mode: 'clone',
         cloneData: {
           sourceResource: {
-            '@id': 'http://localhost/resources/1',
+            '@id': '1',
             name: 'Original Resource',
           } as any,
           sourceContent: 'Original content',
@@ -190,7 +190,7 @@ describe('ResourceComposePage', () => {
         mode: 'clone',
         cloneData: {
           sourceResource: {
-            '@id': 'http://localhost/resources/1',
+            '@id': '1',
             name: 'Original Resource',
           } as any,
           sourceContent: 'Original content',

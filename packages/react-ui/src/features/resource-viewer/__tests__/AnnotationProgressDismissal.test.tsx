@@ -26,7 +26,7 @@ import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../..
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { SSEClient } from '@semiont/api-client';
-import { resourceUri } from '@semiont/core';
+import { resourceId } from '@semiont/core';
 
 // Mock Toast module to prevent "useToast must be used within a ToastProvider" errors
 vi.mock('../../../components/Toast', () => ({
@@ -40,7 +40,7 @@ vi.mock('../../../components/Toast', () => ({
 
 describe('Detection Progress Dismissal Bug', () => {
   let mockStream: any;
-  const rUri = resourceUri('https://example.com/resources/test');
+  const rUri = resourceId('test');
 
   beforeEach(() => {
     resetEventBusForTesting();

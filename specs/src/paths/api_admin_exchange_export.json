@@ -1,39 +1,28 @@
 {
   "post": {
-    "summary": "Export Knowledge Base",
-    "description": "Export knowledge base as a full backup (tar.gz) or current-state snapshot",
+    "summary": "Export Knowledge Base as JSON-LD",
+    "description": "Export the knowledge base as a JSON-LD Linked Data tar.gz archive",
     "tags": ["Admin"],
     "security": [
       {
         "bearerAuth": []
       }
     ],
-    "requestBody": {
-      "required": true,
-      "content": {
-        "application/json": {
-          "schema": {
-            "type": "object",
-            "required": ["format"],
-            "properties": {
-              "format": {
-                "type": "string",
-                "enum": ["backup", "snapshot"],
-                "description": "Export format: 'backup' for full event log + content, 'snapshot' for current-state resources"
-              },
-              "includeArchived": {
-                "type": "boolean",
-                "default": false,
-                "description": "Include archived resources (snapshot format only)"
-              }
-            }
-          }
+    "parameters": [
+      {
+        "name": "includeArchived",
+        "in": "query",
+        "description": "Include archived resources in export",
+        "required": false,
+        "schema": {
+          "type": "boolean",
+          "default": false
         }
       }
-    },
+    ],
     "responses": {
       "200": {
-        "description": "Streaming archive file",
+        "description": "Streaming JSON-LD archive",
         "content": {
           "application/gzip": {
             "schema": {

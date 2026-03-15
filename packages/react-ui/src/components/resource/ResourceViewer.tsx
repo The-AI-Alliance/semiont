@@ -7,7 +7,7 @@ import { BrowseView } from './BrowseView';
 import { PopupContainer } from '../annotation-popups/SharedPopupElements';
 import { JsonLdView } from '../annotation-popups/JsonLdView';
 import type { components } from '@semiont/core';
-import { resourceUri, annotationId as toAnnotationId } from '@semiont/core';
+import { resourceId as toResourceId, annotationId as toAnnotationId } from '@semiont/core';
 import { getExactText, getTargetSelector, isHighlight, isAssessment, isReference, isComment, isTag, getBodySource } from '@semiont/api-client';
 import { useEventBus } from '../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../contexts/useEventSubscription';
@@ -84,7 +84,7 @@ export function ResourceViewer({
   if (!resource['@id']) {
     throw new Error('Resource has no @id');
   }
-  const rUri = resourceUri(resource['@id']);
+  const rUri = toResourceId(resource['@id']);
 
   // Helper to get MIME type from resource
   const getMimeType = (): string => {
@@ -279,11 +279,8 @@ export function ResourceViewer({
     if (selectedClick === 'follow' && isReference(annotation)) {
       const bodySource = getBodySource(annotation.body);
       if (bodySource) {
-        // Navigate to the linked resource - emits 'browse:external-navigate' event
-        const resourceId = bodySource.split('/resources/')[1];
-        if (resourceId) {
-          navigate(`/know/resource/${resourceId}`, { resourceId });
-        }
+        // bodySource is already a bare resource ID
+        navigate(`/know/resource/${bodySource}`, { resourceId: bodySource });
       }
       return;
     }

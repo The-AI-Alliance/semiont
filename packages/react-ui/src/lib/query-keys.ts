@@ -6,7 +6,7 @@
  * Keys use semantic names (not URL paths) and are properly typed with 'as const'
  */
 
-import type { ResourceUri, AnnotationUri, ResourceAnnotationUri } from '@semiont/core';
+import type { ResourceId, AnnotationId } from '@semiont/core';
 
 export const QUERY_KEYS = {
   users: {
@@ -18,19 +18,19 @@ export const QUERY_KEYS = {
 
   resources: {
     all: (limit?: number, archived?: boolean) => ['resources', { limit, archived }] as const,
-    detail: (rUri: ResourceUri) => ['resources', rUri] as const,
+    detail: (id: ResourceId) => ['resources', id] as const,
     byToken: (token: string) => ['resources', 'by-token', token] as const,
     search: (query: string, limit: number) => ['resources', 'search', { query, limit }] as const,
-    events: (rUri: ResourceUri) => ['resources', rUri, 'events'] as const,
-    annotations: (rUri: ResourceUri) => ['resources', rUri, 'annotations'] as const,
-    referencedBy: (rUri: ResourceUri) => ['resources', rUri, 'referenced-by'] as const,
-    representation: (rUri: ResourceUri) => ['resources', rUri, 'representation'] as const,
+    events: (id: ResourceId) => ['resources', id, 'events'] as const,
+    annotations: (id: ResourceId) => ['resources', id, 'annotations'] as const,
+    referencedBy: (id: ResourceId) => ['resources', id, 'referenced-by'] as const,
+    representation: (id: ResourceId) => ['resources', id, 'representation'] as const,
   },
 
   annotations: {
-    detail: (aUri: AnnotationUri) => ['annotations', aUri] as const,
-    history: (aUri: ResourceAnnotationUri) => ['annotations', aUri, 'history'] as const,
-    llmContext: (resourceUri: ResourceUri, annotationId: string) => ['annotations', 'llm-context', resourceUri, annotationId] as const,
+    detail: (id: AnnotationId) => ['annotations', id] as const,
+    history: (resourceId: ResourceId, annotationId: AnnotationId) => ['annotations', resourceId, annotationId, 'history'] as const,
+    llmContext: (resourceId: ResourceId, annotationId: AnnotationId) => ['annotations', 'llm-context', resourceId, annotationId] as const,
   },
 
   entityTypes: {

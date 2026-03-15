@@ -26,7 +26,7 @@ const client = new SemiontApiClient({ baseUrl: 'http://localhost:4000' });
 
 // Get LLM-ready context for an annotation
 const { context } = await client.getAnnotationLLMContext(
-  resourceUri,
+  resourceId,
   annotationId,
   { contextWindow: 2000 }
 );
@@ -55,9 +55,9 @@ console.log(context.metadata.resourceName);  // Source resource name
 
 | Event | Payload | Description |
 |-------|---------|-------------|
-| `gather:requested` | `{ annotationUri, resourceUri }` | Fetch context for this annotation |
-| `gather:complete` | `{ annotationUri, context: GatheredContext }` | Context successfully assembled |
-| `gather:failed` | `{ annotationUri, error }` | Context fetch failed |
+| `gather:requested` | `{ annotationId, resourceId }` | Fetch context for this annotation |
+| `gather:complete` | `{ annotationId, context: GatheredContext }` | Context successfully assembled |
+| `gather:failed` | `{ annotationId, error }` | Context fetch failed |
 
 ## Context Assembly
 

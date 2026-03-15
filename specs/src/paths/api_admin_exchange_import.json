@@ -1,7 +1,7 @@
 {
   "post": {
-    "summary": "Import Knowledge Base",
-    "description": "Import knowledge base from a backup or snapshot file. Returns SSE progress events.",
+    "summary": "Import Knowledge Base from JSON-LD",
+    "description": "Import resources from a JSON-LD Linked Data archive. Returns SSE progress events.",
     "tags": ["Admin"],
     "security": [
       {
@@ -19,7 +19,7 @@
               "file": {
                 "type": "string",
                 "format": "binary",
-                "description": "Backup (.tar.gz) or snapshot (.jsonl) file"
+                "description": "JSON-LD archive (.tar.gz)"
               }
             }
           }

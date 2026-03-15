@@ -13,7 +13,7 @@
     "administer": "Pentadbiran"
   },
   "Footer": {
-    "copyright": "\u00a9 {year} Semiont. Hak cipta terpelihara.",
+    "copyright": "© {year} Semiont. Hak cipta terpelihara.",
     "about": "Perihal",
     "privacyPolicy": "Dasar Privasi",
     "cookiePreferences": "Keutamaan Kuki",
@@ -24,7 +24,7 @@
   },
   "Home": {
     "tagline": "bina makna",
-    "description": "Rangka kerja sumber terbuka dan kalis masa depan yang membolehkan manusia dan ejen pintar mencipta pengetahuan bersama \u2014 ditadbir oleh anda dan dibina untuk berkekalan.",
+    "description": "Rangka kerja sumber terbuka dan kalis masa depan yang membolehkan manusia dan ejen pintar mencipta pengetahuan bersama — ditadbir oleh anda dan dibina untuk berkekalan.",
     "continueToKnowledgeBase": "Teruskan ke Pangkalan Pengetahuan",
     "learnMore": "Ketahui Lebih Lanjut",
     "signUp": "Daftar",
@@ -33,7 +33,7 @@
   },
   "About": {
     "pageTitle": "Perihal Semiont",
-    "tagline": "Rangka kerja sumber terbuka dan kalis masa depan yang membolehkan manusia dan ejen pintar mencipta pengetahuan bersama \u2014 ditadbir oleh anda dan dibina untuk berkekalan.",
+    "tagline": "Rangka kerja sumber terbuka dan kalis masa depan yang membolehkan manusia dan ejen pintar mencipta pengetahuan bersama — ditadbir oleh anda dan dibina untuk berkekalan.",
     "signUp": "Daftar",
     "signIn": "Log Masuk",
     "missionTitle": "Misi Kami",
@@ -189,11 +189,11 @@
     "reviewTermsPrompt": "Sebelum anda boleh mula menggunakan Semiont, sila semak dan terima terma perkhidmatan kami",
     "termsSummaryTitle": "Ringkasan Terma Perkhidmatan",
     "termsSummaryIntro": "Dengan menggunakan Semiont, anda bersetuju untuk:",
-    "acceptableUseTitle": "\u2705 Penggunaan yang Boleh Diterima",
+    "acceptableUseTitle": "✅ Penggunaan yang Boleh Diterima",
     "acceptableUseResponsible": "Menggunakan platform secara bertanggungjawab dan sah",
     "acceptableUseRespect": "Menghormati pengguna lain dan mengekalkan persekitaran yang membina",
     "acceptableUseConduct": "Mematuhi prinsip Kod Kelakuan AI Alliance",
-    "prohibitedContentTitle": "\u274c Kandungan yang Dilarang",
+    "prohibitedContentTitle": "❌ Kandungan yang Dilarang",
     "prohibitedContentIntro": "Anda bersetuju untuk tidak memuat naik atau berkongsi:",
     "prohibitedIllegal": "Kandungan haram, berbahaya atau mendera",
     "prohibitedAdult": "Kandungan dewasa, pornografi atau bahan seksual eksplisit",
@@ -204,11 +204,11 @@
     "prohibitedCopyright": "Bahan berhak cipta tanpa kebenaran",
     "prohibitedMalware": "Perisian hasad, virus atau ancaman keselamatan",
     "prohibitedSpam": "Spam atau kandungan manipulatif",
-    "conductTitle": "\ud83e\udd1d Kod Kelakuan AI Alliance",
+    "conductTitle": "🤝 Kod Kelakuan AI Alliance",
     "conductDescription": "Platform ini mengikuti",
     "conductLink": "Kod Kelakuan AI Alliance",
     "conductPromotion": ", mempromosikan pembangunan AI yang bertanggungjawab, ketelusan, perlindungan privasi dan pertimbangan etika.",
-    "responsibilitiesTitle": "\ud83d\udd12 Tanggungjawab Anda",
+    "responsibilitiesTitle": "🔒 Tanggungjawab Anda",
     "responsibilitiesSecure": "Pastikan akaun anda selamat",
     "responsibilitiesReport": "Laporkan pelanggaran yang anda temui",
     "responsibilitiesAccurate": "Berikan maklumat yang tepat",
@@ -299,13 +299,13 @@
     "session": "Sesi",
     "expiresIn": "Tamat tempoh dalam: {time}",
     "privileges": "Keistimewaan",
-    "administrator": "\ud83d\udee1\ufe0f Pentadbir",
-    "moderator": "\u2696\ufe0f Penyederhana",
+    "administrator": "🛡️ Pentadbir",
+    "moderator": "⚖️ Penyederhana",
     "signOut": "Log Keluar"
   },
   "AnnotateView": {
     "ariaLabel": "Cipta anotasi daripada teks yang dipilih. Tekan H untuk sorotan atau R untuk rujukan.",
-    "tooltip": "Klik untuk mencipta sorotan \u2022 Klik kanan untuk pilihan lanjut"
+    "tooltip": "Klik untuk mencipta sorotan • Klik kanan untuk pilihan lanjut"
   },
   "CreateAnnotationPopup": {
     "title": "Anotasi",
@@ -375,7 +375,11 @@
     "oauthSettings": "Tetapan OAuth",
     "oauthSettingsDescription": "Lihat konfigurasi OAuth",
     "devops": "DevOps",
-    "devopsDescription": "Pemantauan dan pengurusan sistem"
+    "devopsDescription": "Pemantauan dan pengurusan sistem",
+    "exchange": "Backup & Restore",
+    "exchangeDescription": "Back up and restore your knowledge base",
+    "linkedData": "Export & Import",
+    "linkedDataDescription": "JSON-LD Linked Data exchange"
   },
   "AdminUsers": {
     "title": "Pengurusan Pengguna",
@@ -451,6 +455,37 @@
     "cliTitle": "CLI Semiont untuk Operasi Lanjutan",
     "cliDescription": "Untuk pengurusan infrastruktur, penggunaan dan pemantauan, gunakan CLI Semiont:"
   },
+  "AdminExchange": {
+    "title": "Import / Eksport",
+    "subtitle": "Sandarkan pangkalan pengetahuan anda atau pindahkan data antara instans",
+    "exportTitle": "Eksport",
+    "exportDescription": "Muat turun sandaran penuh atau petikan keadaan semasa pangkalan pengetahuan anda.",
+    "exportButton": "Eksport",
+    "exporting": "Mengeksport…",
+    "importTitle": "Import",
+    "importDescription": "Pulihkan daripada sandaran atau import petikan.",
+    "dropzoneLabel": "Letakkan fail .tar.gz atau .jsonl di sini, atau klik untuk menyemak imbas",
+    "dropzoneActive": "Letakkan fail di sini…",
+    "detectedFormat": "Format dikesan",
+    "statsPreview": "Pratonton",
+    "importButton": "Import",
+    "importing": "Mengimport…",
+    "importConfirmTitle": "Sahkan Import",
+    "importConfirmMessage": "Import akan menambah data ke pangkalan pengetahuan anda. Tindakan ini tidak boleh dibatalkan. Teruskan?",
+    "confirmImport": "Ya, Import",
+    "cancelImport": "Batal",
+    "phaseStarted": "Memulakan import…",
+    "phaseEntityTypes": "Mengimport jenis entiti…",
+    "phaseResources": "Mengimport sumber…",
+    "phaseAnnotations": "Mengimport anotasi…",
+    "phaseComplete": "Import selesai",
+    "phaseError": "Import gagal",
+    "hashChainValid": "Rantaian hash disahkan",
+    "hashChainInvalid": "Pengesahan rantaian hash gagal",
+    "streams": "Aliran",
+    "events": "Peristiwa",
+    "blobs": "Blob kandungan"
+  },
   "CookieBanner": {
     "saving": "Menyimpan...",
     "customize": "Sesuaikan",
@@ -515,7 +550,7 @@
     "citedBy": "Dipetik oleh ({count})",
     "siblingTypes": "Jenis entiti berkaitan",
     "cancel": "Batal",
-    "generate": "\u2728 Jana"
+    "generate": "✨ Jana"
   },
   "SearchResources": {
     "title": "Cari Sumber",
@@ -534,5 +569,36 @@
     "close": "untuk menutup",
     "enter": "Enter",
     "esc": "Esc"
+  },
+  "AdminLinkedData": {
+    "title": "Export & Import",
+    "subtitle": "Exchange knowledge as JSON-LD Linked Data",
+    "exportTitle": "Export",
+    "exportDescription": "Export your knowledge base as a JSON-LD archive.",
+    "exportButton": "Export as JSON-LD",
+    "exporting": "Exporting…",
+    "importTitle": "Import",
+    "importDescription": "Import resources from a JSON-LD archive.",
+    "dropzoneLabel": "Drop a .tar.gz file here, or click to browse",
+    "dropzoneActive": "Drop file here…",
+    "detectedFormat": "Detected format",
+    "statsPreview": "Preview",
+    "importButton": "Import",
+    "importing": "Importing…",
+    "importConfirmTitle": "Confirm Import",
+    "importConfirmMessage": "This will create new resources in your knowledge base. Continue?",
+    "confirmImport": "Yes, Import",
+    "cancelImport": "Cancel",
+    "phaseStarted": "Starting import…",
+    "phaseEntityTypes": "Importing entity types…",
+    "phaseResources": "Importing resources…",
+    "phaseAnnotations": "Importing annotations…",
+    "phaseComplete": "Import complete",
+    "phaseError": "Import failed",
+    "hashChainValid": "Verified",
+    "hashChainInvalid": "Verification failed",
+    "streams": "Resources",
+    "events": "Annotations",
+    "blobs": "Entity types"
   }
 }

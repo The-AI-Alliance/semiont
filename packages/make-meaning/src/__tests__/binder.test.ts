@@ -90,8 +90,8 @@ describe('Binder', () => {
   describe('search handling', () => {
     it('should emit bind:search-results on success', async () => {
       const mockResults = [
-        { '@id': 'http://localhost:4000/resources/r1', name: 'Resource 1' },
-        { '@id': 'http://localhost:4000/resources/r2', name: 'Resource 2' },
+        { '@id': 'r1', name: 'Resource 1' },
+        { '@id': 'r2', name: 'Resource 2' },
       ];
       mockSearchFn.mockResolvedValue(mockResults);
 
@@ -141,8 +141,8 @@ describe('Binder', () => {
   });
 
   describe('referenced-by handling', () => {
-    const DOC_A_URI = 'http://localhost:4000/resources/doc-a';
-    const DOC_B_URI = 'http://localhost:4000/resources/doc-b';
+    const DOC_A_URI = 'doc-a';
+    const DOC_B_URI = 'doc-b';
     const TARGET_RESOURCE_ID = resourceId('target-res');
 
     let mockReferencedBy: ReturnType<typeof vi.fn>;
@@ -335,9 +335,9 @@ describe('Binder', () => {
     let mockListResources: ReturnType<typeof vi.fn>;
     let mockGetResource: ReturnType<typeof vi.fn>;
 
-    const RES_A = { '@id': 'http://localhost:4000/resources/res-a', name: 'Alpha', dateCreated: '2026-01-01T00:00:00Z' };
-    const RES_B = { '@id': 'http://localhost:4000/resources/res-b', name: 'Beta', dateCreated: '2026-01-15T00:00:00Z' };
-    const RES_C = { '@id': 'http://localhost:4000/resources/res-c', name: 'Gamma', dateCreated: '2026-02-01T00:00:00Z' };
+    const RES_A = { '@id': 'res-a', name: 'Alpha', dateCreated: '2026-01-01T00:00:00Z' };
+    const RES_B = { '@id': 'res-b', name: 'Beta', dateCreated: '2026-01-15T00:00:00Z' };
+    const RES_C = { '@id': 'res-c', name: 'Gamma', dateCreated: '2026-02-01T00:00:00Z' };
 
     beforeEach(async () => {
       await binder.stop();

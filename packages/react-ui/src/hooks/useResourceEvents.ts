@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-import type { ResourceUri } from '@semiont/core';
+import type { ResourceId } from '@semiont/core';
 import { SSEStream } from '@semiont/api-client';
 import { accessToken } from '@semiont/core';
 import type { ResourceEvent } from '@semiont/core';
@@ -15,7 +15,7 @@ import { useEventBus } from '../contexts/EventBusContext';
 export type StreamStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
 interface UseResourceEventsOptions {
-  rUri: ResourceUri;
+  rUri: ResourceId;
   onEvent?: (event: ResourceEvent) => void;
   onAnnotationAdded?: (event: Extract<ResourceEvent, { type: 'annotation.added' }>) => void;
   onAnnotationRemoved?: (event: Extract<ResourceEvent, { type: 'annotation.removed' }>) => void;

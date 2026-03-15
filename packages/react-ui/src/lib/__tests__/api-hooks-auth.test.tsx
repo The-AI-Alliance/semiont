@@ -27,9 +27,8 @@ import { ApiClientProvider } from '../../contexts/ApiClientContext';
 // Mock the API client
 vi.mock('@semiont/api-client', () => ({
   SemiontApiClient: vi.fn(function() {}),
-  resourceUri: vi.fn(function(id: string) { return id as any; }),
-  annotationUri: vi.fn(function(id: string) { return id as any; }),
-  resourceAnnotationUri: vi.fn(function(id: string) { return id as any; }),
+  resourceId: vi.fn(function(id: string) { return id as any; }),
+  annotationId: vi.fn(function(id: string) { return id as any; }),
   searchQuery: vi.fn(function(q: string) { return q as any; }),
   cloneToken: vi.fn(function(t: string) { return t as any; }),
   entityType: vi.fn(function(t: string) { return t as any; }),
@@ -218,11 +217,12 @@ describe('API Hooks Authentication', () => {
 
     it('should pass auth token to getResourceAnnotation', async () => {
       const { result } = renderHook(() => useAnnotations(), { wrapper });
-      const query = renderHook(() => result.current.getResourceAnnotation.useQuery('annotation-1' as any), { wrapper });
+      const query = renderHook(() => result.current.getResourceAnnotation.useQuery('resource-1' as any, 'annotation-1' as any), { wrapper });
 
       await waitFor(() => expect(query.result.current.isSuccess).toBe(true));
 
       expect(mockClient.getResourceAnnotation).toHaveBeenCalledWith(
+        'resource-1',
         'annotation-1',
         { auth: 'test-token' }
       );
@@ -230,11 +230,12 @@ describe('API Hooks Authentication', () => {
 
     it('should pass auth token to getAnnotationHistory', async () => {
       const { result } = renderHook(() => useAnnotations(), { wrapper });
-      const query = renderHook(() => result.current.history.useQuery('annotation-1' as any), { wrapper });
+      const query = renderHook(() => result.current.history.useQuery('resource-1' as any, 'annotation-1' as any), { wrapper });
 
       await waitFor(() => expect(query.result.current.isSuccess).toBe(true));
 
       expect(mockClient.getAnnotationHistory).toHaveBeenCalledWith(
+        'resource-1',
         'annotation-1',
         { auth: 'test-token' }
       );
@@ -366,7 +367,7 @@ describe('API Hooks Authentication', () => {
       const mutation = renderHook(() => result.current.create.useMutation(), { wrapper });
 
       await mutation.result.current.mutateAsync({
-        rUri: 'resource-1' as any,
+        resourceId: 'resource-1' as any,
         data: { body: [] },
       });
 

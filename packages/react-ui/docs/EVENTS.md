@@ -95,7 +95,7 @@ These events are emitted by the backend when domain changes occur:
 **Gather Flow Events** (context assembly — used by both Yield and Bind flows):
 
 - `gather:requested` - Fetch context for annotation (`{ annotationId, resourceId }`)
-- `gather:complete` - Context assembled with passage + graph neighborhood (`{ annotationUri, context: GatheredContext }`)
+- `gather:complete` - Context assembled with passage + graph neighborhood (`{ annotationId, context: GatheredContext }`)
 - `gather:failed` - Context fetch failed
 
 **Resource Events**:
@@ -128,7 +128,7 @@ These events are emitted by components when users interact with the UI:
 ```tsx
 import { useEventSubscriptions } from '@semiont/react-ui';
 
-function MyComponent({ rUri }) {
+function MyComponent({ rId }) {
   const [pendingAnnotation, setPendingAnnotation] = useState(null);
 
   // ✅ CORRECT: Use useEventSubscriptions
@@ -239,16 +239,16 @@ Backend events automatically invalidate React Query cache:
 import { useEventSubscriptions } from '@semiont/react-ui';
 import { useQueryClient } from '@tanstack/react-query';
 
-function MyComponent({ rUri }) {
+function MyComponent({ rId }) {
   const queryClient = useQueryClient();
 
   useEventSubscriptions({
     'mark:created': () => {
       // Backend created annotation → invalidate cache
-      queryClient.invalidateQueries(['annotations', rUri]);
+      queryClient.invalidateQueries(['annotations', rId]);
     },
     'mark:deleted': () => {
-      queryClient.invalidateQueries(['annotations', rUri]);
+      queryClient.invalidateQueries(['annotations', rId]);
     },
   });
 
@@ -272,15 +272,15 @@ The event bus is part of a three-layer architecture:
 
 **Layer 1 (Service)**: Establish SSE connection
 ```tsx
-function ResourceViewerPage({ rUri }) {
-  useResourceEvents(rUri);  // Opens SSE, emits events to bus
+function ResourceViewerPage({ rId }) {
+  useResourceEvents(rId);  // Opens SSE, emits events to bus
   // ...
 }
 ```
 
 **Layer 2 (Hook)**: Manage state from events
 ```tsx
-export function useDetectionFlow(rUri: ResourceUri) {
+export function useDetectionFlow(rId: ResourceId) {
   const [detecting, setDetecting] = useState(null);
   const [progress, setProgress] = useState(null);
 
@@ -296,8 +296,8 @@ export function useDetectionFlow(rUri: ResourceUri) {
 
 **Layer 3 (Component)**: Use hook and render UI
 ```tsx
-function ResourceViewerPage({ rUri }) {
-  const { detecting, progress } = useDetectionFlow(rUri);
+function ResourceViewerPage({ rId }) {
+  const { detecting, progress } = useDetectionFlow(rId);
 
   return (
     <div>
@@ -384,7 +384,7 @@ function Component() {
 
 ```tsx
 // ✅ GOOD: Custom hook encapsulates event logic
-export function useMarkFlow(rUri: ResourceUri) {
+export function useMarkFlow(rId: ResourceId) {
   const [pending, setPending] = useState(null);
 
   useEventSubscriptions({
@@ -402,8 +402,8 @@ export function useMarkFlow(rUri: ResourceUri) {
 }
 
 // Component uses hook
-function MyComponent({ rUri }) {
-  const { pendingAnnotation } = useMarkFlow(rUri);
+function MyComponent({ rId }) {
+  const { pendingAnnotation } = useMarkFlow(rId);
   return <div>{/* Use pendingAnnotation */}</div>;
 }
 ```

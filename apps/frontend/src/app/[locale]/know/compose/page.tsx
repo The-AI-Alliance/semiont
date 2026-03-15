@@ -21,10 +21,9 @@ import { useHoverDelay } from '@semiont/react-ui';
 import { useEventSubscriptions } from '@semiont/react-ui';
 import { Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { resourceUri, resourceAnnotationUri, ResourceUri, ContentFormat, ResourceAnnotationUri, AccessToken } from '@semiont/core';
+import { resourceId as toResourceId, annotationId as toAnnotationId, ContentFormat, AccessToken } from '@semiont/core';
 import { getPrimaryMediaType } from '@semiont/api-client';
 import { decodeWithCharset } from '@semiont/api-client';
-import { uriToAnnotationId } from '@semiont/core';
 import { ComposeLoadingState } from '@semiont/react-ui';
 import { ResourceComposePage } from '@semiont/react-ui';
 import type { SaveResourceParams } from '@semiont/react-ui';
@@ -113,9 +112,9 @@ function ComposeResourceContent() {
       if (isCloneMode && cloneDataResponse) {
         if (cloneDataResponse.sourceResource && client && token) {
           try {
-            const rUri = resourceUri(cloneDataResponse.sourceResource['@id']);
+            const rId = toResourceId(cloneDataResponse.sourceResource['@id']);
             const mediaType = getPrimaryMediaType(cloneDataResponse.sourceResource) || 'text/plain';
-            const { data } = await client.getResourceRepresentation(rUri as ResourceUri, {
+            const { data } = await client.getResourceRepresentation(rId, {
               accept: mediaType as ContentFormat,
               auth: token as AccessToken,
             });
@@ -192,26 +191,16 @@ function ComposeResourceContent() {
         // If this is a reference completion, update the reference
         if (params.mode === 'reference' && params.annotationUri && params.sourceDocumentId) {
           try {
-            const annotationIdSegment = uriToAnnotationId(params.annotationUri);
-
-            // Construct nested URI using the backend's public URL
-            const baseUrl = new URL(params.annotationUri).origin;
-            const nestedUri = resourceAnnotationUri(
-              `${baseUrl}/resources/${params.sourceDocumentId}/annotations/${annotationIdSegment}`
-            );
-
-            // Construct the full resource URI for the annotation body source
-            const newResourceUri = resourceUri(`${baseUrl}/resources/${newResourceId}`);
-
             await updateAnnotationBodyMutation.mutateAsync({
-              annotationUri: nestedUri,
+              resourceId: toResourceId(params.sourceDocumentId),
+              annotationId: toAnnotationId(params.annotationUri),
               data: {
                 resourceId: params.sourceDocumentId,
                 operations: [{
                   op: 'add',
                   item: {
                     type: 'SpecificResource',
-                    source: newResourceUri,
+                    source: newResourceId,
                     purpose: 'linking',
                   },
                 }],

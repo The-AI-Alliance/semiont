@@ -21,8 +21,8 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { Motivation, ResourceUri, Selector, ResourceEvent } from '@semiont/core';
-import { resourceAnnotationUri, accessToken, entityType, annotationId } from '@semiont/core';
+import type { Motivation, ResourceId, Selector, ResourceEvent } from '@semiont/core';
+import { accessToken, entityType, annotationId } from '@semiont/core';
 import { useEventBus } from '../contexts/EventBusContext';
 import type { EventMap } from '@semiont/core';
 import { useEventSubscriptions } from '../contexts/useEventSubscription';
@@ -82,7 +82,7 @@ export interface MarkFlowState {
  * @subscribes mark:progress-dismiss - Manually dismiss progress display
  * @returns Annotation flow state
  */
-export function useMarkFlow(rUri: ResourceUri): MarkFlowState {
+export function useMarkFlow(rUri: ResourceId): MarkFlowState {
   const eventBus = useEventBus();
   const client = useApiClient();
   const token = useAuthToken();
@@ -287,9 +287,7 @@ export function useMarkFlow(rUri: ResourceUri): MarkFlowState {
       const currentClient = clientRef.current;
       const currentRUri = rUriRef.current;
       try {
-        const annotationUri = resourceAnnotationUri(`${currentRUri}/annotations/${event.annotationId}`);
-
-        await currentClient.deleteAnnotation(annotationUri, { auth: toAccessToken(tokenRef.current) });
+        await currentClient.deleteAnnotation(currentRUri, event.annotationId, { auth: toAccessToken(tokenRef.current) });
 
         eventBus.get('mark:deleted').next({ annotationId: event.annotationId });
       } catch (error) {

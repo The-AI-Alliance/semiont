@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { CacheManager } from '@semiont/react-ui';
-import type { ResourceUri } from '@semiont/core';
+import type { ResourceId } from '@semiont/core';
 
 /**
  * Frontend implementation of CacheManager using React Query
@@ -18,10 +18,10 @@ export function useCacheManager(): CacheManager {
   const queryClient = useQueryClient();
 
   return useMemo(() => ({
-    invalidateAnnotations: (rUri: ResourceUri) => {
+    invalidateAnnotations: (rUri: ResourceId) => {
       queryClient.invalidateQueries({ queryKey: ['resources', rUri, 'annotations'] });
     },
-    invalidateEvents: (rUri: ResourceUri) => {
+    invalidateEvents: (rUri: ResourceId) => {
       queryClient.invalidateQueries({ queryKey: ['resources', rUri, 'events'] });
     }
   }), [queryClient]);

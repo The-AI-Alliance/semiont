@@ -92,7 +92,7 @@ router.get('/resources/:id', async (c) => {
   const { eventStore, graphDb, repStore } = c.get('makeMeaning');
 
   // Use infrastructure
-  const resource = await graphDb.getResource(resourceUri);
+  const resource = await graphDb.getResource(resourceId);
   const content = await repStore.retrieve(checksum, mediaType);
   await eventStore.appendEvent(event);
 

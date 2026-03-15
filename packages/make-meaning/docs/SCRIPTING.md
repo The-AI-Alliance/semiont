@@ -193,7 +193,7 @@ const results = await client.searchResources('quantum computing');
 const entityTypes = await client.listEntityTypes();
 
 // LLM context
-const context = await client.getResourceLLMContext(resourceUri, {
+const context = await client.getResourceLLMContext(resourceId('doc-123'), {
   depth: 2, maxResources: 10, includeContent: true, includeSummary: false,
 });
 ```

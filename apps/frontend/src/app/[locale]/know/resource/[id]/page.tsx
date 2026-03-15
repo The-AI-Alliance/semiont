@@ -11,8 +11,7 @@ import { useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useLocale } from 'next-intl';
 import { useResources } from '@semiont/react-ui';
-import type { ResourceUri } from '@semiont/core';
-import { resourceUri } from '@semiont/core';
+import { resourceId } from '@semiont/core';
 import { Link, routes } from '@/lib/routing';
 
 // Feature components
@@ -29,8 +28,8 @@ export default function KnowledgeResourcePage() {
   const params = useParams();
   const locale = useLocale();
 
-  // Construct resource URI from URL param
-  const initialUri = resourceUri(`${typeof window !== 'undefined' ? window.location.origin : 'http://localhost'}/resources/${params?.id}`);
+  // The URL param is the bare resource ID
+  const rId = resourceId(params?.id as string);
 
   // Load only the resource descriptor - everything else is loaded by ResourceViewerPage
   const resources = useResources();
@@ -40,7 +39,7 @@ export default function KnowledgeResourcePage() {
     isError,
     error,
     refetch: refetchDocument
-  } = resources.get.useQuery(initialUri) as {
+  } = resources.get.useQuery(rId) as {
     data: { resource: SemiontResource } | undefined;
     isLoading: boolean;
     isError: boolean;
@@ -51,9 +50,9 @@ export default function KnowledgeResourcePage() {
   // Log error for debugging
   useEffect(() => {
     if (isError && !isLoading) {
-      console.error(`[Document] Failed to load resource ${initialUri}:`, error);
+      console.error(`[Document] Failed to load resource ${rId}:`, error);
     }
-  }, [isError, isLoading, initialUri, error]);
+  }, [isError, isLoading, rId, error]);
 
   // Early return: Loading state
   if (isLoading || !docData) {
@@ -71,23 +70,14 @@ export default function KnowledgeResourcePage() {
   }
 
   const resource = docData.resource;
-  const canonicalUri = resourceUri(resource['@id']);
-
-  // Warn if URI mismatch
-  if (canonicalUri !== initialUri) {
-    console.warn(
-      `[Document] URI mismatch:\n` +
-      `  Constructed: ${initialUri}\n` +
-      `  Canonical:   ${canonicalUri}\n` +
-      `This may indicate environment misconfiguration.`
-    );
-  }
+  // resource['@id'] is now a bare ID
+  const canonicalId = resourceId(resource['@id']);
 
   // Render with minimal props - all data loading/events handled inside ResourceViewerPage
   return (
     <ResourceViewerPage
       resource={resource}
-      rUri={canonicalUri}
+      rUri={canonicalId}
       locale={locale}
       Link={Link}
       routes={routes}

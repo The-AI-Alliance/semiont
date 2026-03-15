@@ -33,7 +33,7 @@ const createMockAnnotation = (overrides?: Partial<Annotation>): Annotation => ({
   created: '2024-06-15T12:00:00Z',
   modified: '2024-06-15T12:00:00Z',
   target: {
-    source: 'http://example.com/resources/1',
+    source: '1',
     selector: {
       type: 'TextQuoteSelector',
       exact: 'some text',

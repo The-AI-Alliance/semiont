@@ -11,7 +11,7 @@ import type { ResourceCardProps } from '../components/ResourceCard';
 
 const createMockResource = (overrides?: any) => ({
   '@context': 'https://www.w3.org/ns/anno.jsonld',
-  '@id': 'http://localhost/resources/test-123',
+  '@id': 'test-123',
   '@type': 'schema:DigitalDocument',
   name: 'Test Resource',
   description: 'A test resource',

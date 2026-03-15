@@ -27,8 +27,8 @@ import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { useBindFlow } from '../../../hooks/useBindFlow';
 import { SSEClient } from '@semiont/api-client';
-import type { ResourceUri, AnnotationId, ResourceId } from '@semiont/core';
-import { resourceUri, annotationId, resourceId } from '@semiont/core';
+import type { AnnotationId, ResourceId } from '@semiont/core';
+import { resourceId, annotationId } from '@semiont/core';
 import type { Emitter } from 'mitt';
 import type { EventMap } from '@semiont/core';
 
@@ -77,12 +77,11 @@ describe('Generation Flow - Feature Integration', () => {
   });
 
   it('should open modal when yield:modal-open event is emitted', async () => {
-    const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
-    const testAnnotationId = annotationId('test-annotation');
     const testResourceId = resourceId('test-resource');
+    const testAnnotationId = annotationId('test-annotation');
 
     const { emitModalOpen } = renderYieldFlow(
-      testResourceUri
+      testResourceId
     );
 
     // Emit modal open event
@@ -99,12 +98,11 @@ describe('Generation Flow - Feature Integration', () => {
   });
 
   it('should call yieldResourceFromAnnotation exactly ONCE when generation starts', async () => {
-    const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
-    const testAnnotationId = annotationId('test-annotation');
     const testResourceId = resourceId('test-resource');
+    const testAnnotationId = annotationId('test-annotation');
 
     const { emitGenerationStart, getEventBus } = renderYieldFlow(
-      testResourceUri
+      testResourceId
     );
 
     // Trigger generation with full options
@@ -147,12 +145,11 @@ describe('Generation Flow - Feature Integration', () => {
   });
 
   it('should propagate SSE progress events to useYieldProgress state', async () => {
-    const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
-    const testAnnotationId = annotationId('test-annotation');
     const testResourceId = resourceId('test-resource');
+    const testAnnotationId = annotationId('test-annotation');
 
     const { emitGenerationStart, getEventBus } = renderYieldFlow(
-      testResourceUri
+      testResourceId
     );
 
     // Start generation
@@ -185,12 +182,11 @@ describe('Generation Flow - Feature Integration', () => {
   });
 
   it('should handle multiple progress updates correctly', async () => {
-    const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
-    const testAnnotationId = annotationId('test-annotation');
     const testResourceId = resourceId('test-resource');
+    const testAnnotationId = annotationId('test-annotation');
 
     const { emitGenerationStart, getEventBus } = renderYieldFlow(
-      testResourceUri
+      testResourceId
     );
 
     // Start generation
@@ -249,12 +245,11 @@ describe('Generation Flow - Feature Integration', () => {
   });
 
   it('should show success toast on generation complete', async () => {
-    const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
-    const testAnnotationId = annotationId('test-annotation');
     const testResourceId = resourceId('test-resource');
+    const testAnnotationId = annotationId('test-annotation');
 
     const { emitGenerationStart, getEventBus } = renderYieldFlow(
-      testResourceUri
+      testResourceId
     );
 
     // Start generation
@@ -293,12 +288,11 @@ describe('Generation Flow - Feature Integration', () => {
   });
 
   it('should clear progress on generation failure', async () => {
-    const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
-    const testAnnotationId = annotationId('test-annotation');
     const testResourceId = resourceId('test-resource');
+    const testAnnotationId = annotationId('test-annotation');
 
     const { emitGenerationStart, getEventBus } = renderYieldFlow(
-      testResourceUri
+      testResourceId
     );
 
     // Start generation
@@ -334,12 +328,11 @@ describe('Generation Flow - Feature Integration', () => {
   });
 
   it('should only call API once even with multiple event listeners', async () => {
-    const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
-    const testAnnotationId = annotationId('test-annotation');
     const testResourceId = resourceId('test-resource');
+    const testAnnotationId = annotationId('test-annotation');
 
     const { emitGenerationStart, getEventBus } = renderYieldFlow(
-      testResourceUri
+      testResourceId
     );
 
     // Add an additional event listener (simulating multiple subscribers)
@@ -369,12 +362,11 @@ describe('Generation Flow - Feature Integration', () => {
   });
 
   it('should forward final chunk as progress before emitting complete', async () => {
-    const testResourceUri = resourceUri('http://localhost:4000/resources/test-resource');
-    const testAnnotationId = annotationId('test-annotation');
     const testResourceId = resourceId('test-resource');
+    const testAnnotationId = annotationId('test-annotation');
 
     const { emitGenerationStart, getEventBus } = renderYieldFlow(
-      testResourceUri
+      testResourceId
     );
 
     // Start generation
@@ -413,7 +405,7 @@ describe('Generation Flow - Feature Integration', () => {
  * Returns methods to interact with the rendered component
  */
 function renderYieldFlow(
-  testResourceUri: ResourceUri
+  testResourceId: ResourceId
 ) {
   let eventBusInstance: Emitter<EventMap>;
 
@@ -422,7 +414,7 @@ function renderYieldFlow(
     eventBusInstance = useEventBus();
 
     // Set up resolution flow (resolve:update-body, resolve:link)
-    useBindFlow(testResourceUri);
+    useBindFlow(testResourceId);
 
     return null;
   }
@@ -436,7 +428,7 @@ function renderYieldFlow(
       generationDefaultTitle,
     } = useYieldFlow(
       'en',
-      testResourceUri.split('/resources/')[1] || 'test-resource',
+      testResourceId,
       vi.fn()
     );
 

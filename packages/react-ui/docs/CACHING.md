@@ -1,6 +1,6 @@
 # Caching Architecture
 
-**Last Updated:** February 12, 2026
+**Last Updated:** March 15, 2026
 
 ---
 
@@ -23,18 +23,18 @@ This document explains how they work together and patterns for optimal performan
 All cache keys are centralized in [lib/query-keys.ts](../src/lib/query-keys.ts):
 
 ```typescript
-QUERY_KEYS.documents.all()                    // All resources
-QUERY_KEYS.documents.detail(resourceUri)      // Single resource
-QUERY_KEYS.documents.annotations(resourceUri) // Resource annotations
-QUERY_KEYS.documents.events(resourceUri)      // Resource events
-QUERY_KEYS.documents.referencedBy(resourceUri)// Referenced by list
+QUERY_KEYS.resources.all()                    // All resources
+QUERY_KEYS.resources.detail(resourceId)       // Single resource
+QUERY_KEYS.resources.annotations(resourceId)  // Resource annotations
+QUERY_KEYS.resources.events(resourceId)       // Resource events
+QUERY_KEYS.resources.referencedBy(resourceId) // Referenced by list
 ```
 
 ### Two Cache Update Strategies
 
 **1. Invalidate (Refetch from Server)**
 ```typescript
-queryClient.invalidateQueries({ queryKey: QUERY_KEYS.documents.all() });
+queryClient.invalidateQueries({ queryKey: QUERY_KEYS.resources.all() });
 ```
 Use when:
 - API doesn't return the updated object
@@ -56,13 +56,13 @@ Use when:
 
 ### Pattern 1: Create with Direct Cache Update
 
-**File:** [lib/api-hooks.ts:205-219](../src/lib/api-hooks.ts#L205-L219)
+**File:** [lib/api-hooks.ts](../src/lib/api-hooks.ts)
 
 ```typescript
 useMutation({
-  mutationFn: (data) => client.createAnnotation(resourceUri, data),
+  mutationFn: (data) => client.createAnnotation(resourceId, data, opts),
   onSuccess: (response, variables) => {
-    const queryKey = QUERY_KEYS.documents.annotations(variables.rUri);
+    const queryKey = QUERY_KEYS.resources.annotations(variables.resourceId);
     const currentData = queryClient.getQueryData(queryKey);
 
     if (currentData && response.annotation) {
@@ -86,21 +86,20 @@ useMutation({
 
 ### Pattern 2: Delete with Surgical Cache Update
 
-**File:** [lib/api-hooks.ts:233-250](../src/lib/api-hooks.ts#L233-L250)
+**File:** [lib/api-hooks.ts](../src/lib/api-hooks.ts)
 
 ```typescript
 useMutation({
-  mutationFn: (variables) => client.deleteAnnotation(variables.annotationUri),
+  mutationFn: (variables) => client.deleteAnnotation(variables.resourceId, variables.annotationId, opts),
   onSuccess: (_, variables) => {
-    const queryKey = QUERY_KEYS.documents.annotations(variables.resourceUri);
+    const queryKey = QUERY_KEYS.resources.annotations(variables.resourceId);
     const currentData = queryClient.getQueryData(queryKey);
 
     if (currentData) {
-      const annotationId = variables.annotationUri.split('/').pop();
-      // Filter out deleted annotation
+      // Filter out deleted annotation by ID
       queryClient.setQueryData(queryKey, {
         ...currentData,
-        annotations: currentData.annotations.filter(ann => ann.id !== annotationId)
+        annotations: currentData.annotations.filter(ann => ann.id !== variables.annotationId)
       });
     } else {
       queryClient.invalidateQueries({ queryKey });
@@ -116,18 +115,22 @@ useMutation({
 
 ### Pattern 3: Update with Replacement
 
-**File:** [lib/api-hooks.ts:268-305](../src/lib/api-hooks.ts#L268-L305)
+**File:** [lib/api-hooks.ts](../src/lib/api-hooks.ts)
 
 ```typescript
 useMutation({
-  mutationFn: (variables) => client.updateAnnotationBody(variables.annotationUri, variables.data),
+  mutationFn: (variables) => client.updateAnnotationBody(
+    variables.resourceId, variables.annotationId, variables.data, opts
+  ),
   onSuccess: (response, variables) => {
     // 1. Update single annotation cache
-    queryClient.setQueryData(['annotations', variables.annotationUri], response.annotation);
+    queryClient.setQueryData(
+      ['annotations', variables.resourceId, variables.annotationId],
+      response.annotation
+    );
 
     // 2. Update resource annotations list
-    const resourceUri = extractResourceUriFromAnnotationUri(variables.annotationUri);
-    const listQueryKey = QUERY_KEYS.documents.annotations(resourceUri);
+    const listQueryKey = QUERY_KEYS.resources.annotations(variables.resourceId);
     const currentList = queryClient.getQueryData(listQueryKey);
 
     if (currentList && response.annotation) {
@@ -171,11 +174,11 @@ useMutation({
 
 ```typescript
 // 1. User clicks "Save" → Event emitted
-eventBus.emit('mark:create, { motivation, selector, body });
+eventBus.emit('mark:create', { motivation, selector, body });
 
 // 2. Event handler calls API mutation
 const mutation = useAnnotations().create.useMutation();
-await mutation.mutateAsync({ rUri, data });
+await mutation.mutateAsync({ resourceId, data });
 
 // 3. Mutation updates cache directly (no refetch)
 queryClient.setQueryData(queryKey, newAnnotations);
@@ -189,10 +192,10 @@ queryClient.setQueryData(queryKey, newAnnotations);
 
 ## Anti-Patterns to Avoid
 
-### ❌ Broad Invalidation
+### Don't: Broad Invalidation
 ```typescript
 // BAD: Invalidates ALL resources
-queryClient.invalidateQueries({ queryKey: ['documents'] });
+queryClient.invalidateQueries({ queryKey: ['resources'] });
 ```
 
 **Why it's bad:** Forces every open resource to refetch unnecessarily.
@@ -201,11 +204,11 @@ queryClient.invalidateQueries({ queryKey: ['documents'] });
 ```typescript
 // GOOD: Invalidates only affected resource
 queryClient.invalidateQueries({
-  queryKey: QUERY_KEYS.documents.annotations(resourceUri)
+  queryKey: QUERY_KEYS.resources.annotations(resourceId)
 });
 ```
 
-### ❌ Ignoring API Response
+### Don't: Ignore API Response
 ```typescript
 // BAD: Throws away API response, then refetches
 onSuccess: () => {
@@ -223,7 +226,7 @@ onSuccess: (response) => {
 }
 ```
 
-### ❌ Missing Fallback
+### Don't: Missing Fallback
 ```typescript
 // BAD: Assumes cache exists
 queryClient.setQueryData(queryKey, newData);

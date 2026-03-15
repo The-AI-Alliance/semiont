@@ -1,10 +1,8 @@
 /**
- * ImportProgress — Shows SSE-driven progress during import
+ * ImportProgress — Shows SSE-driven progress during restore
  *
  * Pure React component. All state passed as props.
  */
-
-// Pure React component — no framework dependencies
 
 export interface ImportProgressTranslations {
   phaseStarted: string;
@@ -15,9 +13,6 @@ export interface ImportProgressTranslations {
   phaseError: string;
   hashChainValid: string;
   hashChainInvalid: string;
-  resourcesCreated: string;
-  annotationsCreated: string;
-  entityTypesAdded: string;
   streams: string;
   events: string;
   blobs: string;
@@ -58,7 +53,6 @@ export function ImportProgress({ phase, message, result, translations: t }: Impo
 
       {isComplete && result && (
         <div className="semiont-exchange__result">
-          {/* Backup result */}
           {result.stats != null && typeof result.stats === 'object' && (
             <>
               {Object.entries(result.stats as Record<string, number>).map(([key, value]) => {
@@ -76,25 +70,6 @@ export function ImportProgress({ phase, message, result, translations: t }: Impo
             </>
           )}
 
-          {/* Snapshot result */}
-          {result.resourcesCreated !== undefined && (
-            <>
-              <div className="semiont-exchange__result-stat">
-                <span className="semiont-exchange__result-value">{Number(result.resourcesCreated)}</span>
-                <span className="semiont-exchange__result-label">{t.resourcesCreated}</span>
-              </div>
-              <div className="semiont-exchange__result-stat">
-                <span className="semiont-exchange__result-value">{Number(result.annotationsCreated)}</span>
-                <span className="semiont-exchange__result-label">{t.annotationsCreated}</span>
-              </div>
-              <div className="semiont-exchange__result-stat">
-                <span className="semiont-exchange__result-value">{Number(result.entityTypesAdded)}</span>
-                <span className="semiont-exchange__result-label">{t.entityTypesAdded}</span>
-              </div>
-            </>
-          )}
-
-          {/* Hash chain badge */}
           {result.hashChainValid !== undefined && (
             <div className={`semiont-exchange__hash-badge${result.hashChainValid ? ' semiont-exchange__hash-badge--valid' : ' semiont-exchange__hash-badge--invalid'}`}>
               {result.hashChainValid ? t.hashChainValid : t.hashChainInvalid}

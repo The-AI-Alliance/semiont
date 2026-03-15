@@ -14,14 +14,15 @@ vi.mock('ky', () => ({
 
 import ky from 'ky';
 import { SemiontApiClient } from '../client';
-import type { ResourceUri, ResourceAnnotationUri, ContentFormat } from '@semiont/core';
-import { baseUrl, entityType, jobId } from '@semiont/core';
+import type { ContentFormat } from '@semiont/core';
+import { baseUrl, resourceId, annotationId, entityType, jobId } from '@semiont/core';
 
 describe('SemiontApiClient - Archive Operations', () => {
   let client: SemiontApiClient;
   let mockKy: KyInstance;
   const testBaseUrl = baseUrl('http://localhost:4000');
-  const testResourceUri: ResourceUri = `${testBaseUrl}/resources/test-resource-id` as ResourceUri;
+  const testResourceId = resourceId('test-resource-id');
+  const testResourceUrl = `${testBaseUrl}/resources/${testResourceId}`;
 
   beforeEach(() => {
     // Create mock ky instance with chainable methods
@@ -48,12 +49,12 @@ describe('SemiontApiClient - Archive Operations', () => {
         text: vi.fn().mockResolvedValue(''),
       } as any);
 
-      await client.updateResource(testResourceUri, {
+      await client.updateResource(testResourceId, {
         archived: true,
       });
 
       expect(mockKy.patch).toHaveBeenCalledWith(
-        testResourceUri,
+        testResourceUrl,
         expect.objectContaining({
           json: { archived: true },
         })
@@ -65,12 +66,12 @@ describe('SemiontApiClient - Archive Operations', () => {
         text: vi.fn().mockResolvedValue(''),
       } as any);
 
-      await client.updateResource(testResourceUri, {
+      await client.updateResource(testResourceId, {
         archived: false,
       });
 
       expect(mockKy.patch).toHaveBeenCalledWith(
-        testResourceUri,
+        testResourceUrl,
         expect.objectContaining({
           json: { archived: false },
         })
@@ -82,13 +83,13 @@ describe('SemiontApiClient - Archive Operations', () => {
         text: vi.fn().mockResolvedValue(''),
       } as any);
 
-      await client.updateResource(testResourceUri, {
+      await client.updateResource(testResourceId, {
         archived: true,
         entityTypes: ['article', 'draft'],
       });
 
       expect(mockKy.patch).toHaveBeenCalledWith(
-        testResourceUri,
+        testResourceUrl,
         expect.objectContaining({
           json: {
             archived: true,
@@ -239,11 +240,11 @@ describe('SemiontApiClient - Archive Operations', () => {
         json: vi.fn().mockResolvedValue(mockResponse),
       } as any);
 
-      const result = await client.getResourceLLMContext(testResourceUri);
+      const result = await client.getResourceLLMContext(testResourceId);
 
       expect(result.mainResource.name).toBe('Test Resource');
       expect(mockKy.get).toHaveBeenCalledWith(
-        `${testResourceUri}/llm-context`,
+        `${testResourceUrl}/llm-context`,
         expect.objectContaining({
           searchParams: expect.any(URLSearchParams),
         })
@@ -266,7 +267,7 @@ describe('SemiontApiClient - Archive Operations', () => {
         json: vi.fn().mockResolvedValue(mockResponse),
       } as any);
 
-      const result = await client.getResourceLLMContext(testResourceUri, {
+      const result = await client.getResourceLLMContext(testResourceId, {
         depth: 3,
         maxResources: 15,
         includeContent: true,
@@ -283,14 +284,14 @@ describe('SemiontApiClient - Archive Operations', () => {
     });
 
     test('should get annotation LLM context with default options', async () => {
-      const annotationId = 'ann-123';
+      const testAnnotationId = annotationId('ann-123');
       const mockResponse = {
         annotation: {
           '@context': 'http://www.w3.org/ns/anno.jsonld',
           type: 'Annotation',
           id: 'ann-123',
           motivation: 'highlighting',
-          target: { source: testResourceUri },
+          target: { source: testResourceId },
           body: [],
         },
         sourceResource: {
@@ -310,11 +311,11 @@ describe('SemiontApiClient - Archive Operations', () => {
         json: vi.fn().mockResolvedValue(mockResponse),
       } as any);
 
-      const result = await client.getAnnotationLLMContext(testResourceUri, annotationId);
+      const result = await client.getAnnotationLLMContext(testResourceId, testAnnotationId);
 
       expect(result.annotation.id).toBe('ann-123');
       expect(mockKy.get).toHaveBeenCalledWith(
-        `${testResourceUri}/annotations/${annotationId}/llm-context`,
+        `${testResourceUrl}/annotations/${testAnnotationId}/llm-context`,
         expect.objectContaining({
           searchParams: expect.any(URLSearchParams),
         })
@@ -322,14 +323,14 @@ describe('SemiontApiClient - Archive Operations', () => {
     });
 
     test('should get annotation LLM context with custom options', async () => {
-      const annotationId = 'ann-123';
+      const testAnnotationId = annotationId('ann-123');
       const mockResponse = {
         annotation: {
           '@context': 'http://www.w3.org/ns/anno.jsonld',
           type: 'Annotation',
           id: 'ann-123',
           motivation: 'linking',
-          target: { source: testResourceUri },
+          target: { source: testResourceId },
           body: [],
         },
         sourceResource: {
@@ -349,7 +350,7 @@ describe('SemiontApiClient - Archive Operations', () => {
         json: vi.fn().mockResolvedValue(mockResponse),
       } as any);
 
-      const result = await client.getAnnotationLLMContext(testResourceUri, annotationId, {
+      const result = await client.getAnnotationLLMContext(testResourceId, testAnnotationId, {
         contextWindow: 500,
       });
 
@@ -420,7 +421,7 @@ describe('SemiontApiClient - Archive Operations', () => {
 
   describe('Annotation History', () => {
     test('should get annotation event history', async () => {
-      const annotationUri = `${testResourceUri}/annotations/ann-123` as ResourceAnnotationUri;
+      const testAnnotationId = annotationId('ann-123');
       const mockResponse = {
         events: [
           {
@@ -459,13 +460,13 @@ describe('SemiontApiClient - Archive Operations', () => {
         json: vi.fn().mockResolvedValue(mockResponse),
       } as any);
 
-      const result = await client.getAnnotationHistory(annotationUri);
+      const result = await client.getAnnotationHistory(testResourceId, testAnnotationId);
 
       expect(result.total).toBe(2);
       expect(result.events).toHaveLength(2);
       expect(result.annotationId).toBe('ann-123');
       expect(result.events[0].metadata.sequenceNumber).toBe(1);
-      expect(mockKy.get).toHaveBeenCalledWith(`${annotationUri}/history`);
+      expect(mockKy.get).toHaveBeenCalledWith(`${testResourceUrl}/annotations/${testAnnotationId}/history`);
     });
   });
 
@@ -481,13 +482,13 @@ describe('SemiontApiClient - Archive Operations', () => {
         arrayBuffer: vi.fn().mockResolvedValue(mockBuffer),
       } as any);
 
-      const result = await client.getResourceRepresentation(testResourceUri);
+      const result = await client.getResourceRepresentation(testResourceId);
 
       expect(result.data).toBeInstanceOf(ArrayBuffer);
       expect(result.contentType).toBe('text/plain');
       expect(new TextDecoder().decode(result.data)).toBe(mockText);
       expect(mockKy.get).toHaveBeenCalledWith(
-        testResourceUri,
+        testResourceUrl,
         expect.objectContaining({
           headers: {
             Accept: 'text/plain',
@@ -507,7 +508,7 @@ describe('SemiontApiClient - Archive Operations', () => {
         arrayBuffer: vi.fn().mockResolvedValue(mockBuffer),
       } as any);
 
-      const result = await client.getResourceRepresentation(testResourceUri, {
+      const result = await client.getResourceRepresentation(testResourceId, {
         accept: 'text/markdown',
       });
 
@@ -515,7 +516,7 @@ describe('SemiontApiClient - Archive Operations', () => {
       expect(result.contentType).toBe('text/markdown');
       expect(new TextDecoder().decode(result.data)).toBe(mockMarkdown);
       expect(mockKy.get).toHaveBeenCalledWith(
-        testResourceUri,
+        testResourceUrl,
         expect.objectContaining({
           headers: {
             Accept: 'text/markdown',
@@ -535,7 +536,7 @@ describe('SemiontApiClient - Archive Operations', () => {
         arrayBuffer: vi.fn().mockResolvedValue(mockBuffer),
       } as any);
 
-      const result = await client.getResourceRepresentation(testResourceUri, {
+      const result = await client.getResourceRepresentation(testResourceId, {
         accept: 'text/plain',
       });
 
@@ -543,7 +544,7 @@ describe('SemiontApiClient - Archive Operations', () => {
       expect(result.contentType).toBe('text/plain; charset=utf-8');
       expect(new TextDecoder().decode(result.data)).toBe(mockText);
       expect(mockKy.get).toHaveBeenCalledWith(
-        testResourceUri,
+        testResourceUrl,
         expect.objectContaining({
           headers: {
             Accept: 'text/plain',
@@ -570,14 +571,14 @@ describe('SemiontApiClient - Archive Operations', () => {
         body: mockStream,
       } as any);
 
-      const result = await client.getResourceRepresentationStream(testResourceUri, {
+      const result = await client.getResourceRepresentationStream(testResourceId, {
         accept: 'video/mp4' as ContentFormat,
       });
 
       expect(result.stream).toBeInstanceOf(ReadableStream);
       expect(result.contentType).toBe('video/mp4');
       expect(mockKy.get).toHaveBeenCalledWith(
-        testResourceUri,
+        testResourceUrl,
         expect.objectContaining({
           headers: {
             Accept: 'video/mp4',
@@ -601,7 +602,7 @@ describe('SemiontApiClient - Archive Operations', () => {
       } as any);
 
       await expect(
-        client.getResourceRepresentationStream(testResourceUri)
+        client.getResourceRepresentationStream(testResourceId)
       ).rejects.toThrow('Response body is null - cannot create stream');
     });
 
@@ -619,34 +620,10 @@ describe('SemiontApiClient - Archive Operations', () => {
         body: mockStream,
       } as any);
 
-      const result = await client.getResourceRepresentationStream(testResourceUri);
+      const result = await client.getResourceRepresentationStream(testResourceId);
 
       expect(result.contentType).toBe('application/octet-stream');
       expect(result.stream).toBeInstanceOf(ReadableStream);
     });
   });
 });
-
-/**
- * Example usage documentation
- *
- * Archive a resource:
- * ```typescript
- * await client.updateResource(resourceUri, { archived: true });
- * ```
- *
- * Unarchive a resource:
- * ```typescript
- * await client.updateResource(resourceUri, { archived: false });
- * ```
- *
- * List active resources only:
- * ```typescript
- * const active = await client.listResources(20, false);
- * ```
- *
- * List archived resources only:
- * ```typescript
- * const archived = await client.listResources(20, true);
- * ```
- */
