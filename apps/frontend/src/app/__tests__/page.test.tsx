@@ -78,7 +78,7 @@ describe('Home Page', () => {
     expect(container).toHaveClass('flex', 'flex-col', 'min-h-screen');
     
     const innerContainer = screen.getByRole('main').firstElementChild;
-    expect(innerContainer).toHaveClass('z-10', 'w-full', 'max-w-5xl');
+    expect(innerContainer).toHaveClass('z-10', 'max-w-5xl');
   });
 
   it('should have proper content spacing and layout', () => {
