@@ -22,7 +22,7 @@ type Representation = components['schemas']['Representation'];
 function makeResource(overrides?: Partial<ResourceDescriptor>): ResourceDescriptor {
   return {
     '@context': 'http://schema.org',
-    '@id': 'http://localhost:4000/resources/abc-123',
+    '@id': 'abc-123',
     name: 'Test',
     representations: [],
     ...overrides,
@@ -37,21 +37,16 @@ function makeRep(overrides?: Partial<Representation>): Representation {
 }
 
 describe('getResourceId', () => {
-  test('extracts ID from internal URI', () => {
+  test('returns bare ID from @id', () => {
     expect(getResourceId(makeResource())).toBe('abc-123');
   });
 
-  test('returns @id as-is for non-internal URIs', () => {
-    expect(getResourceId(makeResource({ '@id': 'https://example.com/doc' }))).toBe('https://example.com/doc');
+  test('returns @id as-is', () => {
+    expect(getResourceId(makeResource({ '@id': 'xyz-456' }))).toBe('xyz-456');
   });
 
   test('returns undefined for undefined resource', () => {
     expect(getResourceId(undefined)).toBeUndefined();
-  });
-
-  test('handles URI with nested /resources/ path', () => {
-    const r = makeResource({ '@id': 'http://host/api/resources/xyz' });
-    expect(getResourceId(r)).toBe('xyz');
   });
 });
 
