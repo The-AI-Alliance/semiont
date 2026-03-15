@@ -267,14 +267,14 @@ const mockDropdownStates = {
     toggle: vi.fn(),
     close: vi.fn(),
     open: vi.fn(),
-    dropdownRef: { current: null }
+    dropdownRef: { current: null } as React.RefObject<HTMLDivElement | null>
   },
   open: {
     isOpen: true,
     toggle: vi.fn(),
     close: vi.fn(),
     open: vi.fn(),
-    dropdownRef: { current: document.createElement('div') }
+    dropdownRef: { current: document.createElement('div') } as React.RefObject<HTMLDivElement | null>
   }
 };
 

@@ -1,4 +1,11 @@
 import { DefaultSession, DefaultUser } from 'next-auth';
+import type { SessionProviderProps } from 'next-auth/react';
+
+// Fix next-auth v4 SessionProvider return type for React 19
+// next-auth v4 declares `JSX.Element` which is incompatible with React 19's types
+declare module 'next-auth/react' {
+  export function SessionProvider(props: SessionProviderProps): React.ReactNode;
+}
 
 declare module 'next-auth' {
   interface Session extends DefaultSession {
