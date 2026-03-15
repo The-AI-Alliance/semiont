@@ -45,11 +45,9 @@ Brief description of the changes in this PR.
 
 ### Admin Route Security (Frontend)
 
-- [ ] Admin routes use `AdminAuthWrapper` or equivalent server-side protection
+- [ ] Admin/moderate routes protected by middleware (proxy.ts)
 - [ ] No admin content rendered for unauthorized users
-- [ ] Access denied pages return 200 OK (not 307 redirects)
 - [ ] No sensitive information in error responses
-- [ ] Authentication checks use `getServerSession`
 
 ### API Security (Backend)
 
