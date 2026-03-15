@@ -787,7 +787,7 @@ export class SemiontApiClient {
   // ============================================================================
 
   async getResourceLLMContext(
-    resourceUri: ResourceUri,
+    id: ResourceId,
     options?: {
       depth?: number;
       maxResources?: number;
@@ -802,7 +802,7 @@ export class SemiontApiClient {
     if (options?.includeContent !== undefined) searchParams.append('includeContent', options.includeContent.toString());
     if (options?.includeSummary !== undefined) searchParams.append('includeSummary', options.includeSummary.toString());
 
-    return this.http.get(`${resourceUri}/llm-context`, {
+    return this.http.get(`${this.baseUrl}/resources/${id}/llm-context`, {
       searchParams,
       auth: options?.auth
     } as any).json();
