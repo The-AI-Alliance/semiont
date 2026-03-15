@@ -28,7 +28,9 @@ The current implementation includes:
 - **Public**: Health checks, API documentation, OAuth endpoints (no authentication required)
 - **Authenticated**: All resources, annotations, entity types (requires valid JWT)
 - **Moderator**: Entity type management (requires isModerator=true or isAdmin=true)
-- **Admin**: User management, system configuration (requires isAdmin=true)
+- **Admin**: User management, exchange operations, system configuration (requires isAdmin=true)
+
+**Important limitation**: All authenticated users have full read/write access to all content. There is no per-resource, per-annotation, or per-user access control. The Admin and Moderator roles only gate access to administrative features, not to content. Content-level access control is planned for future releases. See [RBAC.md](./RBAC.md) for details.
 
 ### Security Testing
 
@@ -143,6 +145,7 @@ export OAUTH_ALLOWED_DOMAINS="example.com,example.org"
 
 The following security features are **not yet implemented** and are planned for future releases:
 
+- **Content-level access control** (per-resource, per-annotation, per-user visibility/permissions)
 - Automated vulnerability scanning in CI/CD
 - End-to-end encryption for stored documents
 - Multi-factor authentication (MFA) beyond OAuth provider support
@@ -237,6 +240,6 @@ Semiont is an open-source project and is provided "as-is". Organizations deployi
 
 ---
 
-Last Updated: January 2026
+Last Updated: March 2026
 
 For the latest security updates and patches, see the [GitHub repository](https://github.com/The-AI-Alliance/semiont).

@@ -2,134 +2,97 @@
 
 ## Current State
 
-**Important**: Semiont currently does **not** have role-based access control implemented. All authenticated users have equal access to all features.
+Semiont authenticates all users via OAuth and enforces three privilege levels through middleware on the backend:
 
-### What's Currently Implemented
+| Role | Flag | Capabilities |
+|------|------|-------------|
+| **User** | *(default)* | Full read/write access to all resources, annotations, and entity types |
+| **Moderator** | `isModerator` | User capabilities + entity type management |
+| **Admin** | `isAdmin` | All capabilities + user management, exchange (backup/restore/export/import), system configuration |
 
-1. **Authentication Required**: In non-development environments, users must authenticate via OAuth to access the application
-2. **User Context**: Each authenticated user has a unique ID and email associated with their session
-3. **Development Mode**: When `NODE_ENV=development`, authentication can be bypassed for easier local development
+### What This Means in Practice
 
-### What's NOT Implemented Yet
+- **All authenticated users can see and edit all content.** There is no per-resource, per-annotation, or per-user access control today.
+- Moderator and Admin roles gate access to specific administrative features, not to content.
+- Role flags (`isAdmin`, `isModerator`) are stored on the User record in the PostgreSQL database and checked by middleware on protected routes.
 
-- User roles (admin, editor, viewer, etc.)
-- Permission levels
-- Resource-level access control
-- Admin-only features or endpoints
-- User management interface
+### Access Levels
+
+- **Public**: Health checks, API documentation, OAuth endpoints (no authentication required)
+- **Authenticated**: All resources, annotations, entity types, search, graph queries
+- **Moderator**: Entity type management (`/api/entity-types` mutations)
+- **Admin**: User management (`/api/admin/users`), exchange operations (`/api/admin/exchange/*`), system configuration
+
+### What's NOT Implemented
+
+- Per-resource or per-annotation access control
+- Visibility restrictions (private/shared/public resources)
+- Team or group-based permissions
+- Custom roles beyond the three above
 - Access control lists (ACLs)
 
-## Authentication Methods
+Semiont recognizes that content-level access control is essential for multi-tenant and enterprise deployments. This is planned for future releases.
+
+## Authentication
 
 ### Production (OAuth)
 
-In production environments, authentication is handled through OAuth providers:
+Authentication is handled through OAuth providers configured in the environment:
 
-```typescript
-// Currently supported providers
-- Google OAuth (configured via GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)
-```
+- Google OAuth
+- GitHub OAuth
+- GitLab OAuth
+
+Sessions use JWT tokens: 7-day access tokens, 30-day refresh tokens.
 
 ### Development
 
-In development mode, authentication is simplified:
-- Mock user sessions available
-- No OAuth configuration required
-- Intended for local development only
+In development mode (`NODE_ENV=development`), authentication can be simplified for local development.
 
-## Roadmap for RBAC
+## Roadmap
 
-### Phase 1: Basic Roles (Planned)
-- [ ] Admin role
-- [ ] User role
-- [ ] Role assignment mechanism
-- [ ] Admin-only endpoints
+### Content-Level Access Control (Future)
 
-### Phase 2: Permission System (Future)
-- [ ] Define permission model
-- [ ] Resource-level permissions
-- [ ] Custom roles
-- [ ] Role inheritance
+- Per-resource visibility (private, shared, public)
+- Team/group-based permissions
+- Fine-grained annotation permissions
+- Custom roles with configurable permission sets
 
-### Phase 3: Advanced Features (Future)
-- [ ] User management UI
-- [ ] Audit logging
-- [ ] Temporary permissions
-- [ ] API key management
+### Enterprise Features (Future)
+
+- Audit logging UI
+- Temporary/time-limited permissions
+- API key management with scoped access
+- SAML/OIDC enterprise SSO
 
 ## Security Recommendations
 
-Until RBAC is implemented, consider these security measures:
+Until content-level access control is implemented:
 
-1. **Network Security**: Deploy behind a firewall or VPN if sensitive data is involved
-2. **OAuth Domain Restrictions**: Configure OAuth to only allow specific email domains
-3. **Environment Isolation**: Use separate deployments for different user groups
-4. **External Access Control**: Use reverse proxy authentication or cloud provider IAM
+1. **OAuth Domain Restrictions**: Configure `OAUTH_ALLOWED_DOMAINS` to limit who can authenticate
+2. **Network Security**: Deploy behind a firewall or VPN if sensitive data is involved
+3. **Environment Isolation**: Use separate deployments for different user groups with different trust levels
+4. **Admin Assignment**: Limit admin role assignments to trusted users via the admin UI
 
 ## For Developers
 
-### Preparing for RBAC
+### Middleware Pattern
 
-When contributing code, consider future RBAC implementation:
+Role checks are enforced via middleware on the backend:
 
 ```typescript
-// Example: Structure code to easily add role checks later
-async function handleRequest(req: Request, user: User) {
-  // Future: check user.role here
-  // if (!hasPermission(user, 'resource:action')) {
-  //   throw new ForbiddenError();
-  // }
-
-  // Current: all authenticated users can proceed
-  if (!user) {
-    throw new UnauthorizedError();
+// Admin middleware pattern (used in routes/exchange.ts, routes/admin.ts)
+const adminMiddleware = async (c, next) => {
+  const user = c.get('user');
+  if (!user || !user.isAdmin) {
+    return c.json({ error: 'Forbidden: Admin access required' }, 403);
   }
-
-  // ... handle request
-}
+  return next();
+};
 ```
 
-### Authentication Context
-
-The current user context is available in API routes:
-
-```typescript
-// Backend example
-const user = await getUserFromRequest(request);
-// user = { id: 'user_123', email: 'user@example.com' }
-```
-
-## Configuration
-
-Current authentication configuration:
-
-```bash
-# Required for OAuth (production)
-NEXTAUTH_SECRET="<secure-random-string>"
-NEXTAUTH_URL="https://your-domain.com"
-GOOGLE_CLIENT_ID="<your-client-id>"
-GOOGLE_CLIENT_SECRET="<your-client-secret>"
-
-# Development mode (optional)
-NODE_ENV="development"  # Enables simplified auth
-```
-
-## FAQ
-
-**Q: Can I restrict certain users from accessing specific features?**
-A: Not currently. All authenticated users have the same access level.
-
-**Q: How can I make my deployment more secure without RBAC?**
-A: Use OAuth domain restrictions, deploy behind a VPN, or use infrastructure-level access controls.
-
-**Q: When will RBAC be implemented?**
-A: RBAC is on the roadmap but no specific timeline is set. Contributions are welcome!
-
-**Q: Can I contribute RBAC implementation?**
-A: Yes! Please open an issue first to discuss the design and approach.
+All protected routes apply `authMiddleware` first (JWT validation), then role-specific middleware as needed.
 
 ---
 
-Last Updated: September 2025
-
-For updates on RBAC implementation, watch the [GitHub repository](https://github.com/The-AI-Alliance/semiont).
+Last Updated: March 2026
