@@ -31,7 +31,7 @@ import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { SSEClient } from '@semiont/api-client';
 import type { Motivation } from '@semiont/core';
-import { resourceUri } from '@semiont/core';
+import { resourceId } from '@semiont/core';
 import type { Emitter } from 'mitt';
 
 // Mock Toast module to prevent "useToast must be used within a ToastProvider" errors
@@ -77,10 +77,10 @@ describe('Detection Flow - Feature Integration', () => {
   });
 
   it('should call annotateReferences exactly ONCE when detection starts (not twice)', async () => {
-    const testUri = resourceUri('http://localhost:4000/resources/test-resource');
+    const testId = resourceId('test-resource');
 
     // Render with real component composition
-    const { emitDetectionStart } = renderDetectionFlow(testUri);
+    const { emitDetectionStart } = renderDetectionFlow(testId);
 
     // Trigger detection for linking (uses annotateReferences)
     act(() => {
@@ -98,7 +98,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     // Verify correct parameters (eventBus is passed but we don't need to verify its exact value)
     expect(annotateReferencesSpy).toHaveBeenCalledWith(
-      testUri,
+      testId,
       {
         entityTypes: ['Person', 'Organization'],
         includeDescriptiveReferences: false,
@@ -108,10 +108,10 @@ describe('Detection Flow - Feature Integration', () => {
   });
 
   it('should propagate SSE progress events to useMarkFlow state', async () => {
-    const testUri = resourceUri('http://localhost:4000/resources/test-resource');
+    const testId = resourceId('test-resource');
 
     // Render with state observer
-    const { emitDetectionStart, getEventBus } = renderDetectionFlow(testUri);
+    const { emitDetectionStart, getEventBus } = renderDetectionFlow(testId);
 
     // Start detection
     act(() => {
@@ -145,8 +145,8 @@ describe('Detection Flow - Feature Integration', () => {
   });
 
   it('should handle multiple progress updates correctly', async () => {
-    const testUri = resourceUri('http://localhost:4000/resources/test-resource');
-    const { emitDetectionStart, getEventBus } = renderDetectionFlow(testUri);
+    const testId = resourceId('test-resource');
+    const { emitDetectionStart, getEventBus } = renderDetectionFlow(testId);
 
     // Start detection
     act(() => {
@@ -200,8 +200,8 @@ describe('Detection Flow - Feature Integration', () => {
   });
 
   it('should keep progress visible after detection completes', async () => {
-    const testUri = resourceUri('http://localhost:4000/resources/test-resource');
-    const { emitDetectionStart, getEventBus } = renderDetectionFlow(testUri);
+    const testId = resourceId('test-resource');
+    const { emitDetectionStart, getEventBus } = renderDetectionFlow(testId);
 
     // Start detection
     act(() => {
@@ -237,8 +237,8 @@ describe('Detection Flow - Feature Integration', () => {
   });
 
   it('should clear progress on detection failure', async () => {
-    const testUri = resourceUri('http://localhost:4000/resources/test-resource');
-    const { emitDetectionStart, getEventBus } = renderDetectionFlow(testUri);
+    const testId = resourceId('test-resource');
+    const { emitDetectionStart, getEventBus } = renderDetectionFlow(testId);
 
     // Start detection
     act(() => {
@@ -282,8 +282,8 @@ describe('Detection Flow - Feature Integration', () => {
   });
 
   it('should handle different detection motivations with correct API calls', async () => {
-    const testUri = resourceUri('http://localhost:4000/resources/test-resource');
-    const { emitDetectionStart } = renderDetectionFlow(testUri);
+    const testId = resourceId('test-resource');
+    const { emitDetectionStart } = renderDetectionFlow(testId);
 
     // Test highlighting
     act(() => {
@@ -292,7 +292,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     await waitFor(() => {
       expect(annotateHighlightsSpy).toHaveBeenCalledTimes(1);
-      expect(annotateHighlightsSpy).toHaveBeenCalledWith(testUri, {
+      expect(annotateHighlightsSpy).toHaveBeenCalledWith(testId, {
         instructions: 'Find important text',
       }, expect.objectContaining({ auth: undefined }));
     });
@@ -312,7 +312,7 @@ describe('Detection Flow - Feature Integration', () => {
 
     await waitFor(() => {
       expect(detectCommentsSpy).toHaveBeenCalledTimes(1);
-      expect(detectCommentsSpy).toHaveBeenCalledWith(testUri, {
+      expect(detectCommentsSpy).toHaveBeenCalledWith(testId, {
         instructions: 'Add helpful comments',
         tone: 'educational',
       }, expect.objectContaining({ auth: undefined }));
@@ -320,11 +320,11 @@ describe('Detection Flow - Feature Integration', () => {
   });
 
   it('should only call API once even with multiple event listeners', async () => {
-    const testUri = resourceUri('http://localhost:4000/resources/test-resource');
+    const testId = resourceId('test-resource');
 
     // This test specifically catches the duplicate useBindFlow bug
     // If multiple components call useBindFlow, we'll see multiple API calls
-    const { emitDetectionStart, getEventBus } = renderDetectionFlow(testUri);
+    const { emitDetectionStart, getEventBus } = renderDetectionFlow(testId);
 
     // Add an additional event listener (simulating multiple subscribers)
     const additionalListener = vi.fn();
@@ -354,7 +354,7 @@ describe('Detection Flow - Feature Integration', () => {
  * Helper: Render useMarkFlow hook with real component composition
  * Returns methods to interact with the rendered component
  */
-function renderDetectionFlow(testUri: string) {
+function renderDetectionFlow(testId: string) {
   let eventBusInstance: Emitter<EventMap>;
 
   // Component to capture EventBus instance
@@ -365,7 +365,7 @@ function renderDetectionFlow(testUri: string) {
 
   // Test harness component that uses the hook
   function DetectionFlowTestHarness() {
-    const { progress, assistingMotivation } = useMarkFlow(testUri as any);
+    const { progress, assistingMotivation } = useMarkFlow(testId as any);
     return (
       <div>
         <div data-testid="detecting">{assistingMotivation || 'none'}</div>

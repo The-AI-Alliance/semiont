@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { CacheProvider, useCacheManager } from '../CacheContext';
 import type { CacheManager } from '../../types/CacheManager';
-import { resourceUri } from '@semiont/core';
+import { resourceId } from '@semiont/core';
 
 // Test component that uses the hook
 function TestConsumer() {
@@ -15,14 +15,14 @@ function TestConsumer() {
       <button
         data-testid="invalidate-annotations-btn"
         onClick={() =>
-          cacheManager.invalidateAnnotations(resourceUri('http://localhost/resources/test-123'))
+          cacheManager.invalidateAnnotations(resourceId('test-123'))
         }
       >
         Invalidate Annotations
       </button>
       <button
         data-testid="invalidate-events-btn"
-        onClick={() => cacheManager.invalidateEvents(resourceUri('http://localhost/resources/test-123'))}
+        onClick={() => cacheManager.invalidateEvents(resourceId('test-123'))}
       >
         Invalidate Events
       </button>
@@ -65,7 +65,7 @@ describe('CacheContext', () => {
 
       await waitFor(() => {
         expect(mockInvalidateAnnotations).toHaveBeenCalledWith(
-          resourceUri('http://localhost/resources/test-123')
+          resourceId('test-123')
         );
       });
     });
@@ -88,7 +88,7 @@ describe('CacheContext', () => {
 
       await waitFor(() => {
         expect(mockInvalidateEvents).toHaveBeenCalledWith(
-          resourceUri('http://localhost/resources/test-123')
+          resourceId('test-123')
         );
       });
     });
@@ -270,7 +270,7 @@ describe('CacheContext', () => {
           <button
             data-testid="nested-invalidate"
             onClick={() =>
-              manager.invalidateAnnotations(resourceUri('http://localhost/resources/test'))
+              manager.invalidateAnnotations(resourceId('test'))
             }
           >
             Invalidate
@@ -310,7 +310,7 @@ describe('CacheContext', () => {
           <button
             data-testid="consumer1-invalidate"
             onClick={() =>
-              manager.invalidateAnnotations(resourceUri('http://localhost/resources/test1'))
+              manager.invalidateAnnotations(resourceId('test1'))
             }
           >
             Invalidate 1
@@ -324,7 +324,7 @@ describe('CacheContext', () => {
           <button
             data-testid="consumer2-invalidate"
             onClick={() =>
-              manager.invalidateAnnotations(resourceUri('http://localhost/resources/test2'))
+              manager.invalidateAnnotations(resourceId('test2'))
             }
           >
             Invalidate 2
@@ -363,7 +363,7 @@ describe('CacheContext', () => {
             <button
               data-testid="sync-invalidate"
               onClick={() =>
-                manager.invalidateAnnotations(resourceUri('http://localhost/resources/test'))
+                manager.invalidateAnnotations(resourceId('test'))
               }
             >
               Sync
@@ -371,7 +371,7 @@ describe('CacheContext', () => {
             <button
               data-testid="async-invalidate"
               onClick={async () =>
-                await manager.invalidateEvents(resourceUri('http://localhost/resources/test'))
+                await manager.invalidateEvents(resourceId('test'))
               }
             >
               Async
@@ -411,7 +411,7 @@ describe('CacheContext', () => {
               // Rapid calls
               for (let i = 0; i < 10; i++) {
                 manager.invalidateAnnotations(
-                  resourceUri(`http://localhost/resources/test-${i}`)
+                  resourceId(`test-${i}`)
                 );
               }
             }}

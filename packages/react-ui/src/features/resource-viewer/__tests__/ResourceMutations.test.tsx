@@ -26,7 +26,7 @@ import { render, waitFor } from '@testing-library/react';
 import { act } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SemiontApiClient } from '@semiont/api-client';
-import { resourceUri, accessToken } from '@semiont/core';
+import { resourceId, accessToken } from '@semiont/core';
 import { EventBusProvider, useEventBus, resetEventBusForTesting } from '../../../contexts/EventBusContext';
 import { useEventSubscriptions } from '../../../contexts/useEventSubscription';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
@@ -36,7 +36,7 @@ import type { EventMap, EventBus } from '@semiont/core';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const TEST_URI = resourceUri('http://localhost:4000/resources/test-resource');
+const TEST_URI = resourceId('test-resource');
 const TEST_TOKEN = 'test-auth-token-123';
 const BASE_URL = 'http://localhost:4000';
 const CLONE_TOKEN = 'generated-clone-token-xyz';

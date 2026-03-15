@@ -41,11 +41,11 @@ vi.mock('../../../components/Toast', () => ({
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
 import { SemiontApiClient } from '@semiont/api-client';
-import { resourceUri, accessToken, annotationId as toAnnotationId } from '@semiont/core';
+import { resourceId, accessToken, annotationId as toAnnotationId } from '@semiont/core';
 
 describe('Annotation Deletion - Feature Integration', () => {
   let deleteAnnotationSpy: ReturnType<typeof vi.fn>;
-  const testUri = resourceUri('http://localhost:4000/resources/test-resource');
+  const testId = resourceId('test-resource');
   const testToken = 'test-token-123';
   const testBaseUrl = 'http://localhost:4000';
 
@@ -72,7 +72,7 @@ describe('Annotation Deletion - Feature Integration', () => {
       eventBusInstance = useEventBus();
       // useMarkFlow is the single registration point for useBindFlow
       // (handles mark:delete mark:create annotate:detect-request, etc.)
-      useMarkFlow(testUri);
+      useMarkFlow(testId);
       return null;
     }
 

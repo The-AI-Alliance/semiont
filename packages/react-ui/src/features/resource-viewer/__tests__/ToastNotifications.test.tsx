@@ -19,7 +19,7 @@ import { render, waitFor, act } from '@testing-library/react';
 import { EventBusProvider, resetEventBusForTesting, useEventBus } from '../../../contexts/EventBusContext';
 import { ApiClientProvider } from '../../../contexts/ApiClientContext';
 import { AuthTokenProvider } from '../../../contexts/AuthTokenContext';
-import { resourceUri } from '@semiont/core';
+import { resourceId } from '@semiont/core';
 import { useMarkFlow } from '../../../hooks/useMarkFlow';
 import { useYieldFlow } from '../../../hooks/useYieldFlow';
 
@@ -38,7 +38,7 @@ vi.mock('../../../components/Toast', () => ({
 
 describe('Toast Notifications - Verifies Toast Integration', () => {
   let eventBusInstance: any;
-  const rUri = resourceUri('https://example.com/resources/test');
+  const rUri = resourceId('test');
 
   beforeEach(() => {
     resetEventBusForTesting();

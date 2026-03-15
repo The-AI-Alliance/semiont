@@ -4,11 +4,11 @@ import { screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { renderWithProviders } from '../../../test-utils';
 import { ImageViewer } from '../ImageViewer';
-import type { ResourceUri } from '@semiont/core';
+import type { ResourceId } from '@semiont/core';
 
 describe('ImageViewer', () => {
   const defaultProps = {
-    resourceUri: 'http://example.com/resources/abc-123' as ResourceUri,
+    resourceUri: 'abc-123' as ResourceId,
     mimeType: 'image/png',
   };
 
@@ -38,7 +38,7 @@ describe('ImageViewer', () => {
   it('should extract the last segment of the URI as resource ID', () => {
     renderWithProviders(
       <ImageViewer
-        resourceUri={'http://example.com/deep/path/to/resource-xyz' as ResourceUri}
+        resourceUri={'resource-xyz' as ResourceId}
         mimeType="image/jpeg"
       />
     );

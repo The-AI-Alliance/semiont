@@ -4,7 +4,7 @@ import { screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { AnnotationHistory } from '../AnnotationHistory';
 import { renderWithProviders } from '../../../test-utils';
-import type { StoredEvent, ResourceUri } from '@semiont/core';
+import type { StoredEvent, ResourceId } from '@semiont/core';
 
 // Mock @semiont/core - must use importOriginal to preserve EventBus etc.
 vi.mock('@semiont/core', async (importOriginal) => {
@@ -52,7 +52,7 @@ vi.mock('../HistoryEvent', () => ({
 import { getAnnotationUriFromEvent } from '@semiont/core';
 const mockGetAnnotationUri = getAnnotationUriFromEvent as ReturnType<typeof vi.fn>;
 
-const testRUri = 'http://localhost/resources/res-1' as ResourceUri;
+const testRId = 'res-1' as ResourceId;
 
 function makeStoredEvent(id: string, type: string, seq: number, overrides: Record<string, any> = {}): StoredEvent {
   return {

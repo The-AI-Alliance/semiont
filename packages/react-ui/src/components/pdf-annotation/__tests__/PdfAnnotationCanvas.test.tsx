@@ -11,7 +11,7 @@ import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PdfAnnotationCanvas } from '../PdfAnnotationCanvas';
-import { resourceUri } from '@semiont/core';
+import { resourceId } from '@semiont/core';
 import type { components } from '@semiont/core';
 
 type Annotation = components['schemas']['Annotation'];
@@ -40,7 +40,7 @@ vi.mock('../../../lib/browser-pdfjs', () => ({
 }));
 
 describe('PdfAnnotationCanvas', () => {
-  const mockResourceUri = resourceUri('http://example.com/resources/123');
+  const mockResourceId = resourceId('123');
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -49,7 +49,7 @@ describe('PdfAnnotationCanvas', () => {
   test('renders loading state initially', () => {
     render(
       <PdfAnnotationCanvas
-        resourceUri={mockResourceUri}
+        resourceUri={mockResourceId}
         drawingMode={null}
       />
     );
@@ -60,7 +60,7 @@ describe('PdfAnnotationCanvas', () => {
   test('renders page navigation controls after loading', async () => {
     render(
       <PdfAnnotationCanvas
-        resourceUri={mockResourceUri}
+        resourceUri={mockResourceId}
         drawingMode={null}
       />
     );
@@ -76,7 +76,7 @@ describe('PdfAnnotationCanvas', () => {
   test('previous button is disabled on first page', async () => {
     render(
       <PdfAnnotationCanvas
-        resourceUri={mockResourceUri}
+        resourceUri={mockResourceId}
         drawingMode={null}
       />
     );
@@ -92,7 +92,7 @@ describe('PdfAnnotationCanvas', () => {
   test('next button is disabled on last page', async () => {
     render(
       <PdfAnnotationCanvas
-        resourceUri={mockResourceUri}
+        resourceUri={mockResourceId}
         drawingMode={null}
       />
     );
@@ -124,7 +124,7 @@ describe('PdfAnnotationCanvas', () => {
         id: 'ann-1',
         body: [],
         target: {
-          source: mockResourceUri,
+          source: mockResourceId,
           selector: {
             type: 'FragmentSelector',
             value: 'page=1&viewrect=100,200,150,100',
@@ -138,7 +138,7 @@ describe('PdfAnnotationCanvas', () => {
 
     render(
       <PdfAnnotationCanvas
-        resourceUri={mockResourceUri}
+        resourceUri={mockResourceId}
         existingAnnotations={mockAnnotations}
         drawingMode={null}
       />
@@ -167,7 +167,7 @@ describe('PdfAnnotationCanvas', () => {
 
     render(
       <PdfAnnotationCanvas
-        resourceUri={mockResourceUri}
+        resourceUri={mockResourceId}
         drawingMode="rectangle"
         selectedMotivation="highlighting"
         eventBus={mockEventBus as any}
