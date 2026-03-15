@@ -79,7 +79,6 @@ describe('Generation Flow - Feature Integration', () => {
   it('should open modal when yield:modal-open event is emitted', async () => {
     const testResourceId = resourceId('test-resource');
     const testAnnotationId = annotationId('test-annotation');
-    const testResourceId = resourceId('test-resource');
 
     const { emitModalOpen } = renderYieldFlow(
       testResourceId
@@ -101,7 +100,6 @@ describe('Generation Flow - Feature Integration', () => {
   it('should call yieldResourceFromAnnotation exactly ONCE when generation starts', async () => {
     const testResourceId = resourceId('test-resource');
     const testAnnotationId = annotationId('test-annotation');
-    const testResourceId = resourceId('test-resource');
 
     const { emitGenerationStart, getEventBus } = renderYieldFlow(
       testResourceId
@@ -149,7 +147,6 @@ describe('Generation Flow - Feature Integration', () => {
   it('should propagate SSE progress events to useYieldProgress state', async () => {
     const testResourceId = resourceId('test-resource');
     const testAnnotationId = annotationId('test-annotation');
-    const testResourceId = resourceId('test-resource');
 
     const { emitGenerationStart, getEventBus } = renderYieldFlow(
       testResourceId
@@ -187,7 +184,6 @@ describe('Generation Flow - Feature Integration', () => {
   it('should handle multiple progress updates correctly', async () => {
     const testResourceId = resourceId('test-resource');
     const testAnnotationId = annotationId('test-annotation');
-    const testResourceId = resourceId('test-resource');
 
     const { emitGenerationStart, getEventBus } = renderYieldFlow(
       testResourceId
@@ -251,7 +247,6 @@ describe('Generation Flow - Feature Integration', () => {
   it('should show success toast on generation complete', async () => {
     const testResourceId = resourceId('test-resource');
     const testAnnotationId = annotationId('test-annotation');
-    const testResourceId = resourceId('test-resource');
 
     const { emitGenerationStart, getEventBus } = renderYieldFlow(
       testResourceId
@@ -295,7 +290,6 @@ describe('Generation Flow - Feature Integration', () => {
   it('should clear progress on generation failure', async () => {
     const testResourceId = resourceId('test-resource');
     const testAnnotationId = annotationId('test-annotation');
-    const testResourceId = resourceId('test-resource');
 
     const { emitGenerationStart, getEventBus } = renderYieldFlow(
       testResourceId
@@ -336,7 +330,6 @@ describe('Generation Flow - Feature Integration', () => {
   it('should only call API once even with multiple event listeners', async () => {
     const testResourceId = resourceId('test-resource');
     const testAnnotationId = annotationId('test-annotation');
-    const testResourceId = resourceId('test-resource');
 
     const { emitGenerationStart, getEventBus } = renderYieldFlow(
       testResourceId
@@ -371,7 +364,6 @@ describe('Generation Flow - Feature Integration', () => {
   it('should forward final chunk as progress before emitting complete', async () => {
     const testResourceId = resourceId('test-resource');
     const testAnnotationId = annotationId('test-annotation');
-    const testResourceId = resourceId('test-resource');
 
     const { emitGenerationStart, getEventBus } = renderYieldFlow(
       testResourceId

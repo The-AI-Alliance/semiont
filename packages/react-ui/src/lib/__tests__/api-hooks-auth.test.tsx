@@ -365,7 +365,7 @@ describe('API Hooks Authentication', () => {
       const mutation = renderHook(() => result.current.create.useMutation(), { wrapper });
 
       await mutation.result.current.mutateAsync({
-        rUri: 'resource-1' as any,
+        resourceId: 'resource-1' as any,
         data: { body: [] },
       });
 
