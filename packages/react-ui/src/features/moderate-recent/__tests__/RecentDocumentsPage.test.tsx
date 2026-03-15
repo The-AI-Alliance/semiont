@@ -190,7 +190,7 @@ describe('RecentDocumentsPage', () => {
 
       expect(ToolbarPanels).toHaveBeenCalledWith(
         expect.objectContaining({ theme: 'dark' }),
-        expect.anything()
+        undefined,
       );
     });
 
@@ -201,7 +201,7 @@ describe('RecentDocumentsPage', () => {
 
       expect(Toolbar).toHaveBeenCalledWith(
         expect.objectContaining({ activePanel: 'settings' }),
-        expect.anything()
+        undefined,
       );
     });
 
@@ -212,7 +212,7 @@ describe('RecentDocumentsPage', () => {
 
       expect(ToolbarPanels).toHaveBeenCalledWith(
         expect.objectContaining({ showLineNumbers: true }),
-        expect.anything()
+        undefined,
       );
     });
 
@@ -224,7 +224,7 @@ describe('RecentDocumentsPage', () => {
 
       expect(Toolbar).toHaveBeenCalledWith(
         expect.objectContaining({ context: 'simple' }),
-        expect.anything()
+        undefined,
       );
     });
   });

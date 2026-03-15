@@ -285,7 +285,7 @@ describe('AdminDevOpsPage', () => {
 
       expect(ToolbarPanels).toHaveBeenCalledWith(
         expect.objectContaining({ theme: 'dark' }),
-        expect.anything()
+        undefined,
       );
     });
 
@@ -296,7 +296,7 @@ describe('AdminDevOpsPage', () => {
 
       expect(ToolbarPanels).toHaveBeenCalledWith(
         expect.objectContaining({ showLineNumbers: true }),
-        expect.anything()
+        undefined,
       );
     });
 
@@ -307,7 +307,7 @@ describe('AdminDevOpsPage', () => {
 
       expect(ToolbarPanels).toHaveBeenCalledWith(
         expect.objectContaining({ activePanel: 'settings' }),
-        expect.anything()
+        undefined,
       );
     });
 
@@ -318,7 +318,7 @@ describe('AdminDevOpsPage', () => {
 
       expect(Toolbar).toHaveBeenCalledWith(
         expect.objectContaining({ context: 'simple' }),
-        expect.anything()
+        undefined,
       );
     });
 
@@ -329,7 +329,7 @@ describe('AdminDevOpsPage', () => {
 
       expect(Toolbar).toHaveBeenCalledWith(
         expect.objectContaining({ activePanel: 'help' }),
-        expect.anything()
+        undefined,
       );
     });
 

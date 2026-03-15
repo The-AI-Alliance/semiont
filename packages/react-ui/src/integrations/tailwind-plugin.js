@@ -23,7 +23,7 @@ module.exports = plugin(function({ addBase, addComponents, addUtilities, theme }
     '.semiont-button': {
       '@apply relative inline-flex items-center justify-center': {},
       '@apply font-medium transition-all duration-200': {},
-      '@apply focus:outline-none focus:ring-2 focus:ring-offset-2': {},
+      '@apply focus:outline-hidden focus:ring-2 focus:ring-offset-2': {},
       '@apply disabled:opacity-50 disabled:cursor-not-allowed': {},
     },
 
@@ -56,10 +56,10 @@ module.exports = plugin(function({ addBase, addComponents, addUtilities, theme }
 
     // Button sizes
     '.semiont-button[data-size="xs"]': {
-      '@apply px-2 py-1 text-xs rounded min-h-[1.75rem]': {},
+      '@apply px-2 py-1 text-xs rounded-sm min-h-[1.75rem]': {},
     },
     '.semiont-button[data-size="sm"]': {
-      '@apply px-3 py-1.5 text-sm rounded min-h-[2rem]': {},
+      '@apply px-3 py-1.5 text-sm rounded-sm min-h-[2rem]': {},
     },
     '.semiont-button[data-size="md"]': {
       '@apply px-4 py-2 text-base rounded-md min-h-[2.5rem]': {},

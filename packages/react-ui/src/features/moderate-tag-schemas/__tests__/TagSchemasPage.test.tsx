@@ -261,7 +261,7 @@ describe('TagSchemasPage', () => {
 
       expect(ToolbarPanels).toHaveBeenCalledWith(
         expect.objectContaining({ theme: 'dark' }),
-        expect.anything()
+        undefined,
       );
     });
 
@@ -272,7 +272,7 @@ describe('TagSchemasPage', () => {
 
       expect(Toolbar).toHaveBeenCalledWith(
         expect.objectContaining({ activePanel: 'settings' }),
-        expect.anything()
+        undefined,
       );
     });
 
@@ -283,7 +283,7 @@ describe('TagSchemasPage', () => {
 
       expect(ToolbarPanels).toHaveBeenCalledWith(
         expect.objectContaining({ showLineNumbers: true }),
-        expect.anything()
+        undefined,
       );
     });
 

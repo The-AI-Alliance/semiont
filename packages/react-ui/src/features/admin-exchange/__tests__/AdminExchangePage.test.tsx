@@ -128,7 +128,7 @@ describe('AdminExchangePage', () => {
     render(<AdminExchangePage {...createProps({ theme: 'dark', ToolbarPanels })} />);
     expect(ToolbarPanels).toHaveBeenCalledWith(
       expect.objectContaining({ theme: 'dark' }),
-      expect.anything(),
+      undefined,
     );
   });
 
@@ -137,7 +137,7 @@ describe('AdminExchangePage', () => {
     render(<AdminExchangePage {...createProps({ Toolbar })} />);
     expect(Toolbar).toHaveBeenCalledWith(
       expect.objectContaining({ context: 'simple' }),
-      expect.anything(),
+      undefined,
     );
   });
 

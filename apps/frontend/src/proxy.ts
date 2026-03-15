@@ -6,7 +6,7 @@ import { routing } from './i18n/routing';
 
 const handleI18nRouting = createMiddleware(routing);
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   // First, handle i18n routing
@@ -36,7 +36,7 @@ export async function middleware(request: NextRequest) {
         return NextResponse.rewrite(new URL('/404', request.url));
       }
     } catch (error) {
-      console.error('Middleware auth error:', error);
+      console.error('Proxy auth error:', error);
       return NextResponse.rewrite(new URL('/404', request.url));
     }
   }
@@ -61,7 +61,7 @@ export async function middleware(request: NextRequest) {
         return NextResponse.rewrite(new URL('/404', request.url));
       }
     } catch (error) {
-      console.error('Middleware auth error:', error);
+      console.error('Proxy auth error:', error);
       return NextResponse.rewrite(new URL('/404', request.url));
     }
   }

@@ -294,7 +294,7 @@ describe('AdminSecurityPage', () => {
 
       expect(ToolbarPanels).toHaveBeenCalledWith(
         expect.objectContaining({ theme: 'dark' }),
-        expect.anything()
+        undefined,
       );
     });
 
@@ -305,7 +305,7 @@ describe('AdminSecurityPage', () => {
 
       expect(Toolbar).toHaveBeenCalledWith(
         expect.objectContaining({ activePanel: 'settings' }),
-        expect.anything()
+        undefined,
       );
     });
 
@@ -316,7 +316,7 @@ describe('AdminSecurityPage', () => {
 
       expect(Toolbar).toHaveBeenCalledWith(
         expect.objectContaining({ context: 'simple' }),
-        expect.anything()
+        undefined,
       );
     });
   });

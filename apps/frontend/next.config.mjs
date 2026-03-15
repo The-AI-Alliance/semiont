@@ -182,11 +182,7 @@ const baseConfig = {
     ignoreBuildErrors: false,
   },
 
-  // ESLint configuration
-  eslint: {
-    // Fail build on ESLint errors
-    ignoreDuringBuilds: false,
-  },
+  // ESLint: removed in Next.js 16 (use eslint CLI directly)
 };
 
 // Export configuration with bundle analyzer and next-intl

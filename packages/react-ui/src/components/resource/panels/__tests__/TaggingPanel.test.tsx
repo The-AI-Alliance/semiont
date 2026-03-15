@@ -542,7 +542,7 @@ describe('TaggingPanel Component', () => {
         />
       );
 
-      const annotateButton = screen.getByRole('button', { name: /✨ Annotate/i });
+      const annotateButton = screen.getByRole('button', { name: /✨\s*Annotate/i });
       expect(annotateButton).toBeDisabled();
     });
 
@@ -557,7 +557,7 @@ describe('TaggingPanel Component', () => {
       const issueCheckbox = screen.getByLabelText(/Issue/);
       await userEvent.click(issueCheckbox);
 
-      const annotateButton = screen.getByRole('button', { name: /✨ Annotate/i });
+      const annotateButton = screen.getByRole('button', { name: /✨\s*Annotate/i });
       expect(annotateButton).not.toBeDisabled();
     });
 
@@ -577,7 +577,7 @@ describe('TaggingPanel Component', () => {
       await userEvent.click(issueCheckbox);
       await userEvent.click(ruleCheckbox);
 
-      const annotateButton = screen.getByRole('button', { name: /✨ Annotate/i });
+      const annotateButton = screen.getByRole('button', { name: /✨\s*Annotate/i });
       await userEvent.click(annotateButton);
 
       await waitFor(() => {

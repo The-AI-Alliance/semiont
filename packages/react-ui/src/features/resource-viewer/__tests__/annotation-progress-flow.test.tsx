@@ -180,7 +180,7 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
     expect(screen.queryByText(/Analyzing/)).not.toBeInTheDocument();
 
     // Click annotate button
-    const annotateButton = screen.getByRole('button', { name: /✨ Annotate/ });
+    const annotateButton = screen.getByRole('button', { name: /✨\s*Annotate/ });
     await user.click(annotateButton);
 
     // Simulate SSE progress chunk #1: Starting
@@ -244,7 +244,7 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
     renderDetectionFlow();
 
     // Click annotate button
-    const annotateButton = screen.getByRole('button', { name: /✨ Annotate/ });
+    const annotateButton = screen.getByRole('button', { name: /✨\s*Annotate/ });
     await user.click(annotateButton);
 
     // Simulate initial progress
@@ -284,7 +284,7 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
 
     renderDetectionFlow();
 
-    const annotateButton = screen.getByRole('button', { name: /✨ Annotate/ });
+    const annotateButton = screen.getByRole('button', { name: /✨\s*Annotate/ });
     await user.click(annotateButton);
 
     // Simulate progress with request parameters
@@ -310,7 +310,7 @@ describe('Detection Progress Flow Integration (Layer 3)', () => {
 
     renderDetectionFlow();
 
-    const annotateButton = screen.getByRole('button', { name: /✨ Annotate/ });
+    const annotateButton = screen.getByRole('button', { name: /✨\s*Annotate/ });
     await user.click(annotateButton);
 
     // Show progress

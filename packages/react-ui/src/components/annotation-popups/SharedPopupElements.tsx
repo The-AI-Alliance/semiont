@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Fragment } from 'react';
+import React from 'react';
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react';
 
 interface SelectedTextDisplayProps {
@@ -85,12 +85,11 @@ export function PopupContainer({ children, position, onClose, isOpen, wide = fal
   };
 
   return (
-    <Transition appear show={isOpen} as={Fragment}>
+    <Transition appear show={isOpen}>
       <Dialog as="div" className="semiont-popup-overlay" onClose={onClose}>
         {/* Backdrop */}
         <TransitionChild
-          as={Fragment}
-          enter="ease-out duration-200"
+                   enter="ease-out duration-200"
           enterFrom="opacity-0"
           enterTo="opacity-100"
           leave="ease-in duration-150"
@@ -103,8 +102,7 @@ export function PopupContainer({ children, position, onClose, isOpen, wide = fal
         {/* Popup positioned at cursor */}
         <div className="semiont-popup-container">
           <TransitionChild
-            as={Fragment}
-            enter="ease-out duration-200"
+                       enter="ease-out duration-200"
             enterFrom="opacity-0 scale-95"
             enterTo="opacity-100 scale-100"
             leave="ease-in duration-150"
@@ -117,7 +115,7 @@ export function PopupContainer({ children, position, onClose, isOpen, wide = fal
               data-annotation-ui
               data-wide={wide ? 'true' : 'false'}
             >
-              {children}
+              <>{children}</>
             </DialogPanel>
           </TransitionChild>
         </div>

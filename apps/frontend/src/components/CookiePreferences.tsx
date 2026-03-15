@@ -121,7 +121,7 @@ export function CookiePreferences({ isOpen, onClose }: CookiePreferencesProps) {
           {/* Close button in upper right */}
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded-lg p-1"
+            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded-lg p-1"
             aria-label="Close"
           >
             <XMarkIcon className="h-6 w-6" />
@@ -176,7 +176,7 @@ export function CookiePreferences({ isOpen, onClose }: CookiePreferencesProps) {
                             checked={consent[category.id] || false}
                             onChange={() => handleCategoryToggle(category.id)}
                             disabled={category.required || isLoading}
-                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50"
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded-sm disabled:opacity-50"
                           />
                           <label
                             htmlFor={`pref-${category.id}`}
@@ -195,7 +195,7 @@ export function CookiePreferences({ isOpen, onClose }: CookiePreferencesProps) {
                           <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-800">
                             {t('viewCookies', { count: category.cookies.length })}
                           </summary>
-                          <div className="mt-1 text-xs text-gray-500 bg-gray-50 rounded p-2">
+                          <div className="mt-1 text-xs text-gray-500 bg-gray-50 rounded-sm p-2">
                             <ul className="list-disc list-inside space-y-1">
                               {category.cookies.map(cookie => (
                                 <li key={cookie}>{cookie}</li>
@@ -218,7 +218,7 @@ export function CookiePreferences({ isOpen, onClose }: CookiePreferencesProps) {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <button
                     onClick={handleExportData}
-                    className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-xs text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                   >
                     <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
                     {t('exportMyData')}
@@ -226,7 +226,7 @@ export function CookiePreferences({ isOpen, onClose }: CookiePreferencesProps) {
 
                   <button
                     onClick={() => setShowDeleteConfirm(true)}
-                    className="flex items-center justify-center px-4 py-2 border border-red-300 rounded-md shadow-sm text-sm font-medium text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                    className="flex items-center justify-center px-4 py-2 border border-red-300 rounded-md shadow-xs text-sm font-medium text-red-700 bg-white hover:bg-red-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                   >
                     <TrashIcon className="h-4 w-4 mr-2" />
                     {t('deleteAllData')}
@@ -254,7 +254,7 @@ export function CookiePreferences({ isOpen, onClose }: CookiePreferencesProps) {
                 } : null);
               }}
               disabled={isLoading}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
             >
               {t('rejectAll')}
             </button>
@@ -270,7 +270,7 @@ export function CookiePreferences({ isOpen, onClose }: CookiePreferencesProps) {
                 } : null);
               }}
               disabled={isLoading}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
             >
               {t('acceptAll')}
             </button>
@@ -282,14 +282,14 @@ export function CookiePreferences({ isOpen, onClose }: CookiePreferencesProps) {
               type="button"
               onClick={handleSave}
               disabled={isLoading}
-              className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
+              className="w-full inline-flex justify-center rounded-md border border-transparent shadow-xs px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
             >
               {isLoading ? t('saving') : t('saveChanges')}
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm"
+              className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-xs px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm"
             >
               {t('cancel')}
             </button>
@@ -322,14 +322,14 @@ export function CookiePreferences({ isOpen, onClose }: CookiePreferencesProps) {
                 <button
                   type="button"
                   onClick={handleDeleteAllData}
-                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm"
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-xs px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm"
                 >
                   {t('deleteAllData')}
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowDeleteConfirm(false)}
-                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm"
+                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-xs px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm"
                 >
                   {t('cancel')}
                 </button>

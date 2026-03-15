@@ -267,14 +267,14 @@ const mockDropdownStates = {
     toggle: vi.fn(),
     close: vi.fn(),
     open: vi.fn(),
-    dropdownRef: { current: null }
+    dropdownRef: { current: null } as React.RefObject<HTMLDivElement | null>
   },
   open: {
     isOpen: true,
     toggle: vi.fn(),
     close: vi.fn(),
     open: vi.fn(),
-    dropdownRef: { current: document.createElement('div') }
+    dropdownRef: { current: document.createElement('div') } as React.RefObject<HTMLDivElement | null>
   }
 };
 
@@ -604,7 +604,7 @@ describe('UserMenu Component', () => {
 
       const profileButton = screen.getByRole('button');
       expect(profileButton).toHaveClass(
-        'focus:outline-none',
+        'focus:outline-hidden',
         'focus:ring-2',
         'focus:ring-blue-500',
         'focus:ring-offset-2'

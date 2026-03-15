@@ -1,6 +1,6 @@
 'use client';
 
-import { forwardRef } from 'react';
+import type { Ref } from 'react';
 import type { RouteBuilder } from '../../../contexts/RoutingContext';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { components } from '@semiont/core';
@@ -27,20 +27,18 @@ interface ReferenceEntryProps {
   routes: RouteBuilder;
   annotateMode?: boolean;
   isGenerating?: boolean;
+  ref?: Ref<HTMLDivElement>;
 }
 
-export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
-  function ReferenceEntry(
-    {
-      reference,
-      isFocused,
-      isHovered = false,
-      routes,
-      annotateMode = true,
-      isGenerating = false,
-    },
-    ref
-  ) {
+export function ReferenceEntry({
+  reference,
+  isFocused,
+  isHovered = false,
+  routes,
+  annotateMode = true,
+  isGenerating = false,
+  ref,
+}: ReferenceEntryProps) {
   const t = useTranslations('ReferencesPanel');
   const eventBus = useEventBus();
   const navigate = useObservableExternalNavigation();
@@ -221,4 +219,4 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
       </div>
     </div>
   );
-});
+}

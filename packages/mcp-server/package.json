@@ -13,8 +13,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.4",
-    "@semiont/api-client": "*",
-    "formdata-polyfill": "^4.0.10"
+    "@semiont/api-client": "*"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

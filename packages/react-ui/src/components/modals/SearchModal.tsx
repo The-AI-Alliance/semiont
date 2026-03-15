@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Fragment } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogPanel, Transition, TransitionChild } from '@headlessui/react';
 // import { useResources } from '../../hooks/useResources';
 import { useSearchAnnouncements } from '../../hooks/useSearchAnnouncements';
@@ -134,12 +134,11 @@ export function SearchModal({
   };
 
   return (
-    <Transition appear show={isOpen} as={Fragment}>
+    <Transition appear show={isOpen}>
       <Dialog as="div" className="semiont-search-modal" onClose={onClose}>
         {/* Backdrop */}
         <TransitionChild
-          as={Fragment}
-          enter="ease-out duration-200"
+                   enter="ease-out duration-200"
           enterFrom="opacity-0"
           enterTo="opacity-100"
           leave="ease-in duration-150"
@@ -153,8 +152,7 @@ export function SearchModal({
         <div className="semiont-search-modal__wrapper">
           <div className="semiont-search-modal__centering">
             <TransitionChild
-              as={Fragment}
-              enter="ease-out duration-200"
+                           enter="ease-out duration-200"
               enterFrom="opacity-0 scale-95"
               enterTo="opacity-100 scale-100"
               leave="ease-in duration-150"

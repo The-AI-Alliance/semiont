@@ -278,7 +278,7 @@ describe('EntityTagsPage', () => {
 
       expect(ToolbarPanels).toHaveBeenCalledWith(
         expect.objectContaining({ theme: 'dark' }),
-        expect.anything()
+        undefined,
       );
     });
 
@@ -289,7 +289,7 @@ describe('EntityTagsPage', () => {
 
       expect(Toolbar).toHaveBeenCalledWith(
         expect.objectContaining({ activePanel: 'settings' }),
-        expect.anything()
+        undefined,
       );
     });
   });
