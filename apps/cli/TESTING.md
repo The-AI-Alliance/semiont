@@ -115,6 +115,6 @@ This setup is only used for integration tests, allowing unit tests to run in com
 
 ## Related Documentation
 
-- [Testing Guide](../../docs/TESTING.md) - Comprehensive testing documentation for all services
+- [Testing Guide](../../docs/development/TESTING.md) - Comprehensive testing documentation for all services
 - [Backend Testing](../backend/README.md#testing) - Backend API testing
 - [Frontend Testing](../frontend/README.md#testing) - Frontend component and integration testing

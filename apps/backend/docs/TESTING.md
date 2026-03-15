@@ -3,12 +3,12 @@
 Backend testing guide focused on Vitest, HTTP contract testing, and backend-specific testing strategies.
 
 **Related Documentation:**
-- **[System Testing Guide](../../../docs/TESTING.md)** - **Read this first!** Complete testing strategy including Vitest, MSW v2, frontend testing, and test orchestration
+- **[System Testing Guide](../../../docs/development/TESTING.md)** - **Read this first!** Complete testing strategy including Vitest, MSW v2, frontend testing, and test orchestration
 - [Main README](../README.md) - Backend overview
 - [Development Guide](./DEVELOPMENT.md) - Local development setup
 - [Contributing Guide](./CONTRIBUTING.md) - Code style and patterns
 
-**Scope**: This document covers backend-specific testing using Vitest, HTTP contract testing, and API endpoint validation. For system-wide testing including frontend testing, see the [System Testing Guide](../../../docs/TESTING.md).
+**Scope**: This document covers backend-specific testing using Vitest, HTTP contract testing, and API endpoint validation. For system-wide testing including frontend testing, see the [System Testing Guide](../../../docs/development/TESTING.md).
 
 ## Backend Testing Philosophy
 
@@ -568,7 +568,7 @@ npm run test:watch
 
 ## Related Documentation
 
-- **[System Testing Guide](../../../docs/TESTING.md)** - Complete testing strategy including frontend (Vitest, MSW v2, React Testing Library)
+- **[System Testing Guide](../../../docs/development/TESTING.md)** - Complete testing strategy including frontend (Vitest, MSW v2, React Testing Library)
 - **[TEST-BACKEND.md](../../../TEST-BACKEND.md)** - Backend testing reorganization plan
 - [Development Guide](./DEVELOPMENT.md) - Setting up test environment
 - [Contributing Guide](./CONTRIBUTING.md) - Testing requirements for PRs

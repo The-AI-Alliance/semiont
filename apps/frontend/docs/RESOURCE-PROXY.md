@@ -421,7 +421,7 @@ The proxy automatically:
 
 - [Frontend Authentication Architecture](./AUTHENTICATION.md) - Complete authentication system
 - [Backend Authentication Guide](../../backend/docs/AUTHENTICATION.md) - Backend JWT validation
-- [System Authentication Architecture](../../../docs/AUTHENTICATION.md) - End-to-end auth flows
+- [System Authentication Architecture](../../../docs/administration/AUTHENTICATION.md) - End-to-end auth flows
 
 ---
 

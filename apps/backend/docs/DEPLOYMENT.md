@@ -3,12 +3,12 @@
 Backend-specific deployment guide focused on build process, database migrations, and backend monitoring.
 
 **Related Documentation:**
-- **[System Deployment Guide](../../../docs/DEPLOYMENT.md)** - **Read this first!** Complete multi-service deployment, AWS provisioning, and deployment workflows
+- **[System Deployment Guide](../../../docs/administration/DEPLOYMENT.md)** - **Read this first!** Complete multi-service deployment, AWS provisioning, and deployment workflows
 - [AWS Platform Docs](../../../docs/platforms/AWS.md) - AWS infrastructure details
 - [Main README](../README.md) - Backend overview
 - [Development Guide](./DEVELOPMENT.md) - Local development setup
 
-**Scope**: This document covers backend-specific deployment concerns: TypeScript build process, Prisma migrations, backend monitoring, and troubleshooting. For complete system deployment including frontend and infrastructure provisioning, see the [System Deployment Guide](../../../docs/DEPLOYMENT.md).
+**Scope**: This document covers backend-specific deployment concerns: TypeScript build process, Prisma migrations, backend monitoring, and troubleshooting. For complete system deployment including frontend and infrastructure provisioning, see the [System Deployment Guide](../../../docs/administration/DEPLOYMENT.md).
 
 ## Backend Build Process
 
@@ -453,7 +453,7 @@ aws rds restore-db-instance-from-db-snapshot \
 
 ## Related Documentation
 
-- **[System Deployment Guide](../../../docs/DEPLOYMENT.md)** - Complete deployment procedures for all services
+- **[System Deployment Guide](../../../docs/administration/DEPLOYMENT.md)** - Complete deployment procedures for all services
 - [AWS Platform Docs](../../../docs/platforms/AWS.md) - AWS infrastructure and networking
 - [Development Guide](./DEVELOPMENT.md) - Local development and testing before deployment
 - [Testing Guide](./TESTING.md) - Running tests before deployment

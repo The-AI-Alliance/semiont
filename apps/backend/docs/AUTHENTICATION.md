@@ -3,12 +3,12 @@
 Backend developer's guide to implementing and debugging authentication in the Semiont backend.
 
 **Related Documentation:**
-- **[System Authentication Architecture](../../../docs/AUTHENTICATION.md)** - **Read this first!** Complete authentication flows, diagrams, NextAuth.js + backend integration, and MCP implementation
+- **[System Authentication Architecture](../../../docs/administration/AUTHENTICATION.md)** - **Read this first!** Complete authentication flows, diagrams, NextAuth.js + backend integration, and MCP implementation
 - [Main README](../README.md) - Backend overview
 - [API Reference](./API.md) - API endpoints
 - [Development Guide](./DEVELOPMENT.md) - Local setup
 
-**Scope**: This document is a practical guide for backend developers. For the complete authentication architecture, flow diagrams, and frontend integration, see the [System Authentication Architecture](../../../docs/AUTHENTICATION.md).
+**Scope**: This document is a practical guide for backend developers. For the complete authentication architecture, flow diagrams, and frontend integration, see the [System Authentication Architecture](../../../docs/administration/AUTHENTICATION.md).
 
 ## Quick Reference
 
@@ -193,7 +193,7 @@ app.get('/api/documents', async (c) => {
 
 ## MCP Authentication Endpoints
 
-Special backend endpoints for Model Context Protocol clients. For complete MCP flow, see [System Authentication](../../../docs/AUTHENTICATION.md#mcp-authentication).
+Special backend endpoints for Model Context Protocol clients. For complete MCP flow, see [System Authentication](../../../docs/administration/AUTHENTICATION.md#mcp-authentication).
 
 ### `POST /api/auth/mcp-generate-token`
 
@@ -372,11 +372,11 @@ For complete implementation details including:
 - Environment variable configuration
 - Security best practices
 
-See [System Authentication Architecture](../../../docs/AUTHENTICATION.md).
+See [System Authentication Architecture](../../../docs/administration/AUTHENTICATION.md).
 
 ## Related Documentation
 
-- **[System Authentication Architecture](../../../docs/AUTHENTICATION.md)** - Complete auth flows and implementation
+- **[System Authentication Architecture](../../../docs/administration/AUTHENTICATION.md)** - Complete auth flows and implementation
 - [API Reference](./API.md) - Authentication endpoint details
 - [Development Guide](./DEVELOPMENT.md) - Setting up OAuth credentials locally
 - [Testing Guide](./TESTING.md) - Testing authenticated endpoints
