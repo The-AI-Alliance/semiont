@@ -29,6 +29,8 @@ import { useraddCommand } from './commands/useradd.js';
 import { backupCmd } from './commands/backup.js';
 import { restoreCmd } from './commands/restore.js';
 import { verifyCmd } from './commands/verify.js';
+import { exportCmd } from './commands/export.js';
+import { importCmd } from './commands/import.js';
 
 /**
  * Cache of loaded command definitions
@@ -52,6 +54,8 @@ const COMMANDS: Record<string, CommandDefinition<any>> = {
   'backup': backupCmd,
   'restore': restoreCmd,
   'verify': verifyCmd,
+  'export': exportCmd,
+  'import': importCmd,
 };
 
 /**
