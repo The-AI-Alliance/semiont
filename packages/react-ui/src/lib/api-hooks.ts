@@ -481,6 +481,49 @@ export function useAdmin() {
             },
           }),
       },
+
+      export: {
+        useMutation: () =>
+          useMutation({
+            mutationFn: async (params?: { includeArchived?: boolean }) => {
+              if (!client) throw new Error('Not authenticated');
+              const response = await client.exportKnowledgeBase(params, { auth: toAccessToken(token) });
+              if (!response.ok) {
+                throw new Error(`Export failed: ${response.status} ${response.statusText}`);
+              }
+              const blob = await response.blob();
+              const contentDisposition = response.headers.get('Content-Disposition');
+              const filename = contentDisposition?.match(/filename="(.+?)"/)?.[1]
+                ?? `semiont-export-${Date.now()}.tar.gz`;
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = filename;
+              a.click();
+              URL.revokeObjectURL(url);
+              return { filename, size: blob.size };
+            },
+          }),
+      },
+
+      import: {
+        useMutation: () =>
+          useMutation({
+            mutationFn: async ({
+              file,
+              onProgress,
+            }: {
+              file: File;
+              onProgress?: (event: { phase: string; message?: string; result?: Record<string, unknown> }) => void;
+            }) => {
+              if (!client) throw new Error('Not authenticated');
+              return client.importKnowledgeBase(file, {
+                auth: toAccessToken(token),
+                onProgress,
+              });
+            },
+          }),
+      },
     },
   };
 }
