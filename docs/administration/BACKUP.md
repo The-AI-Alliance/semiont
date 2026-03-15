@@ -6,14 +6,7 @@ This guide covers how to create full backups of a Semiont knowledge base and res
 
 ## Overview
 
-Semiont supports two exchange formats:
-
-| Format | Purpose | Scope | Access |
-|--------|---------|-------|--------|
-| **Full Backup** (`semiont-backup`) | Disaster recovery, migration | Complete event log + content blobs | Admin |
-| **Linked Data** (`semiont-linked-data`) | Data sharing, interoperability | Current-state JSON-LD snapshot | Moderator |
-
-This document covers the **Full Backup** format. For Linked Data export/import, see the Moderation section in the application.
+Semiont also supports a separate [Linked Data exchange format](../moderation/EXCHANGE.md) for standards-based data sharing. This document covers the **Full Backup** format used for disaster recovery and migration.
 
 ## GUI: Backup & Restore
 
@@ -44,25 +37,9 @@ The restore process replays all events through the EventBus → Stower pipeline.
 
 **Warning**: Restore adds data to the existing knowledge base. It does not wipe existing data first.
 
-## CLI: Linked Data Export/Import
+## CLI
 
-The CLI currently supports the **Linked Data** format (current-state JSON-LD), not the full backup format.
-
-```bash
-# Export current state as JSON-LD
-semiont export --out export.tar.gz
-
-# Include archived resources
-semiont export --include-archived --out full-export.tar.gz
-
-# Import from a JSON-LD archive
-semiont import --file export.tar.gz
-
-# Specify user identity for imported resources
-semiont import --file export.tar.gz --user-id did:web:example.com:users:alice
-```
-
-The linked data format is lossy — it captures current state (resources, annotations, content) but not event history. Original resource IDs are not preserved during import.
+The CLI currently supports the [Linked Data exchange format](../moderation/EXCHANGE.md) (`semiont export` / `semiont import`), not the full backup format. Full backup and restore is available through the GUI only.
 
 ## Backup Archive Format
 

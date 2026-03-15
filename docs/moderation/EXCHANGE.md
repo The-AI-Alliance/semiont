@@ -207,18 +207,6 @@ During export, bare internal IDs are hydrated into full HTTP IRIs for W3C compli
 
 During import, URIs are stripped back to bare IDs. Since new resource IDs are assigned on import, annotation targets are rewritten to point to the newly created resource.
 
-## Comparison with Full Backup
+## Full Backup
 
-| | Linked Data | Full Backup |
-|---|---|---|
-| **Format** | `semiont-linked-data` | `semiont-backup` |
-| **Scope** | Current state | Complete event history |
-| **Lossless** | No | Yes |
-| **IDs preserved** | No (new IDs on import) | Yes (events replayed as-is) |
-| **Event history** | Not included | Included |
-| **Hash chain** | N/A | Verified on restore |
-| **Interoperable** | Yes (JSON-LD, W3C) | No (Semiont-specific) |
-| **Access** | Moderator | Admin |
-| **Use case** | Sharing, portability | Disaster recovery, migration |
-
-For full backup and restore, see [Backup & Restore](../administration/BACKUP.md).
+For lossless backup and restore (complete event history, hash chain verification, exact reconstruction), see [Backup & Restore](../administration/BACKUP.md). Full backup requires the admin role.
