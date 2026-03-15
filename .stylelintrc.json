@@ -114,12 +114,15 @@
           true,
           {
             "ignoreAtRules": [
-              "tailwind",
+              "config",
+              "plugin",
+              "theme",
+              "utility",
+              "variant",
+              "custom-variant",
+              "source",
               "layer",
-              "apply",
-              "variants",
-              "responsive",
-              "screen"
+              "apply"
             ]
           }
         ],

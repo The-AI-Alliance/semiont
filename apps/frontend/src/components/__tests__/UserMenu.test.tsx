@@ -604,7 +604,7 @@ describe('UserMenu Component', () => {
 
       const profileButton = screen.getByRole('button');
       expect(profileButton).toHaveClass(
-        'focus:outline-none',
+        'focus:outline-hidden',
         'focus:ring-2',
         'focus:ring-blue-500',
         'focus:ring-offset-2'

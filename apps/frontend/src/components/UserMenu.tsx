@@ -76,7 +76,7 @@ export function UserMenu() {
       <button
         onClick={toggle}
         onKeyDown={handleKeyDown}
-        className="w-8 h-8 rounded-full hover:ring-2 hover:ring-blue-500 hover:ring-offset-2 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 overflow-hidden"
+        className="w-8 h-8 rounded-full hover:ring-2 hover:ring-blue-500 hover:ring-offset-2 transition-all focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 overflow-hidden"
         aria-label={`User menu for ${displayName || 'user'}`}
         aria-expanded={isOpen}
         aria-controls="user-menu-dropdown"

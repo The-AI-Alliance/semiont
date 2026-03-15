@@ -173,7 +173,7 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
               <button
                 type="button"
                 onClick={() => setShowDetails(!showDetails)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
               >
                 <span className="flex items-center">
                   {t('customize')}
@@ -190,7 +190,7 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
                   type="button"
                   onClick={handleRejectAll}
                   disabled={isLoading}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
                 >
                   {isLoading ? t('saving') : t('rejectAll')}
                 </button>
@@ -200,7 +200,7 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
                 type="button"
                 onClick={handleAcceptAll}
                 disabled={isLoading}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
               >
                 {isLoading ? t('saving') : t('acceptAll')}
               </button>
@@ -225,7 +225,7 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
                           checked={consent[category.id] || false}
                           onChange={() => handleCategoryToggle(category.id)}
                           disabled={category.required || isLoading}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50"
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded-sm disabled:opacity-50"
                         />
                       </div>
                       <div className="flex-1 min-w-0">
@@ -258,7 +258,7 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
                   <button
                     type="button"
                     onClick={() => setShowDetails(false)}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                   >
                     {t('cancel')}
                   </button>
@@ -266,7 +266,7 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
                     type="button"
                     onClick={handleSavePreferences}
                     disabled={isLoading}
-                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
                   >
                     {isLoading ? t('saving') : t('savePreferences')}
                   </button>

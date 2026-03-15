@@ -186,7 +186,7 @@ export function GenerationConfigModal({
                                 <li key={conn.resourceId} className="text-gray-600 dark:text-gray-400 flex items-center gap-1.5">
                                   <span>{conn.resourceName}</span>
                                   {conn.bidirectional && (
-                                    <span className="text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded">mutual</span>
+                                    <span className="text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded-sm">mutual</span>
                                   )}
                                   {conn.entityTypes && conn.entityTypes.length > 0 && (
                                     <span className="text-xs text-gray-400 dark:text-gray-500">

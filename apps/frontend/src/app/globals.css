@@ -1,6 +1,10 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* Load Tailwind config */
+@config "../../tailwind.config.js";
+
+/* Load Tailwind plugins */
+@plugin "@tailwindcss/typography";
 
 /* Import @semiont/react-ui styles */
 @import '@semiont/react-ui/styles';

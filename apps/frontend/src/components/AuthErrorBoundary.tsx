@@ -76,7 +76,7 @@ export class AuthErrorBoundary extends React.Component<Props, State> {
                 <summary className="text-sm text-gray-500 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300">
                   Error details (development only)
                 </summary>
-                <pre className="mt-2 text-xs bg-gray-100 dark:bg-gray-900 p-2 rounded overflow-auto">
+                <pre className="mt-2 text-xs bg-gray-100 dark:bg-gray-900 p-2 rounded-sm overflow-auto">
                   {this.state.error.message}
                   {this.state.error.stack}
                 </pre>
