@@ -89,7 +89,7 @@ The single write path to the Knowledge Base. No other code calls `eventStore.app
 
 The read actor for the Knowledge Base. Handles all browse reads, context assembly, and entity type listing.
 
-**Pipeline**: `gather:*` events use `groupBy(resourceUri)` for per-resource isolation and `concatMap` for ordering. `browse:*` events use `mergeMap` for independent request-response (no grouping needed since they use `correlationId`).
+**Pipeline**: `gather:*` events use `groupBy(resourceId)` for per-resource isolation and `concatMap` for ordering. `browse:*` events use `mergeMap` for independent request-response (no grouping needed since they use `correlationId`).
 
 | Request Event | Handler | Result Event |
 |--------------|---------|-------------|

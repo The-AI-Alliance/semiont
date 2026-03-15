@@ -306,7 +306,7 @@ Implement `ViewStorage` interface for custom backends:
 
 ```typescript
 interface ViewStorage {
-  getResourceView(uri: ResourceUri): Promise<ResourceView | null>;
+  getResourceView(id: ResourceId): Promise<ResourceView | null>;
   saveResourceView(view: ResourceView): Promise<void>;
   getSystemView(): Promise<SystemView>;
   saveSystemView(view: SystemView): Promise<void>;
@@ -319,10 +319,10 @@ interface ViewStorage {
 class PostgresViewStorage implements ViewStorage {
   constructor(private pool: pg.Pool) {}
 
-  async getResourceView(uri: ResourceUri): Promise<ResourceView | null> {
+  async getResourceView(id: ResourceId): Promise<ResourceView | null> {
     const result = await this.pool.query(
-      'SELECT data FROM resource_views WHERE uri = $1',
-      [uri]
+      'SELECT data FROM resource_views WHERE id = $1',
+      [id]
     );
     return result.rows[0]?.data || null;
   }
@@ -332,7 +332,7 @@ class PostgresViewStorage implements ViewStorage {
       `INSERT INTO resource_views (uri, data)
        VALUES ($1, $2)
        ON CONFLICT (uri) DO UPDATE SET data = $2`,
-      [view.resourceUri, view]
+      [view.resourceId, view]
     );
   }
 

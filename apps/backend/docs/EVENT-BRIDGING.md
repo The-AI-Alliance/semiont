@@ -275,11 +275,10 @@ The frontend API client connects to SSE endpoints and forwards events to the fro
 export class SSEClient {
   // Generic resource events stream
   public resourceEvents(
-    resourceUri: ResourceUri,
+    resourceId: ResourceId,
     options: SSERequestOptions
   ): EventSource {
-    const rId = uriToResourceId(resourceUri);
-    const url = `${this.baseUrl}/sse/resources/${rId}/events`;
+    const url = `${this.baseUrl}/sse/resources/${resourceId}/events`;
 
     const eventSource = new EventSource(url, {
       headers: {
@@ -288,7 +287,7 @@ export class SSEClient {
     });
 
     // Forward all events to frontend EventBus
-    const resourceBus = options.eventBus.scope(rId);
+    const resourceBus = options.eventBus.scope(resourceId);
 
     eventSource.addEventListener('event:appended', (e) => {
       resourceBus.get('event:appended').next(JSON.parse(e.data));
@@ -317,12 +316,11 @@ export class SSEClient {
 
   // Task-specific detection stream
   public detectReferences(
-    resourceUri: ResourceUri,
+    resourceId: ResourceId,
     params: DetectionParams,
     options: SSERequestOptions
   ): EventSource {
-    const rId = uriToResourceId(resourceUri);
-    const url = `${this.baseUrl}/sse/resources/${rId}/detect-references`;
+    const url = `${this.baseUrl}/sse/resources/${resourceId}/detect-references`;
 
     const eventSource = new EventSource(url, {
       method: 'POST',
@@ -334,7 +332,7 @@ export class SSEClient {
     });
 
     // Forward detection events to frontend EventBus
-    const resourceBus = options.eventBus.scope(rId);
+    const resourceBus = options.eventBus.scope(resourceId);
 
     eventSource.addEventListener('detection:started', (e) => {
       resourceBus.get('detection:started').next(JSON.parse(e.data));

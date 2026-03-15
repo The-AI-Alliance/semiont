@@ -31,8 +31,7 @@ import { SemiontApiClient } from '@semiont/api-client';
 const client = new SemiontApiClient({ baseUrl: 'http://localhost:4000' });
 
 // Link a reference annotation to an existing resource
-await client.updateAnnotationBody(annotationUri, {
-  resourceId,
+await client.updateAnnotationBody(resourceId, annotationId, {
   operations: [{
     op: 'add',
     item: {
@@ -44,8 +43,7 @@ await client.updateAnnotationBody(annotationUri, {
 });
 
 // Unlink — remove the SpecificResource body item
-await client.updateAnnotationBody(annotationUri, {
-  resourceId,
+await client.updateAnnotationBody(resourceId, annotationId, {
   operations: [{
     op: 'remove',
     oldItem: {
@@ -70,7 +68,7 @@ await client.updateAnnotationBody(annotationUri, {
 | `bind:update-body` | `{ annotationId, resourceId, operations }` | Update annotation body (add/remove link) |
 | `bind:body-updated` | `{ annotationId }` | Annotation body successfully updated |
 | `bind:body-update-failed` | `{ error }` | Annotation body update failed |
-| `bind:create-manual` | `{ annotationUri, title, entityTypes }` | Navigate to compose page for manual resource creation |
+| `bind:create-manual` | `{ annotationId, title, entityTypes }` | Navigate to compose page for manual resource creation |
 
 ## Resolution Workflow
 
@@ -134,7 +132,7 @@ User clicks "Create Document" on unresolved reference
     |
 bind:create-manual
     |
-Navigate to /know/compose?annotationUri=...&name=...&entityTypes=...
+Navigate to /know/compose?annotationId=...&name=...&entityTypes=...
     |
 User composes and saves the new resource
     |

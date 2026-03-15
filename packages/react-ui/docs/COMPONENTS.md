@@ -70,7 +70,7 @@ Display annotation history and events.
 ```tsx
 import { AnnotationHistory } from '@semiont/react-ui';
 
-<AnnotationHistory resourceUri={rUri} />
+<AnnotationHistory resourceId={rId} />
 ```
 
 ---
@@ -286,10 +286,10 @@ import {
 } from '@semiont/react-ui';
 
 // Use specific panel
-<HighlightPanel resourceUri={rUri} />
+<HighlightPanel resourceId={rId} />
 
 // Or unified panel for all annotations
-<UnifiedAnnotationsPanel resourceUri={rUri} />
+<UnifiedAnnotationsPanel resourceId={rId} />
 ```
 
 ---
@@ -334,7 +334,7 @@ import { ProposeEntitiesModal } from '@semiont/react-ui';
 <ProposeEntitiesModal
   isOpen={showModal}
   onClose={() => setShowModal(false)}
-  resourceUri={rUri}
+  resourceId={rId}
 />
 ```
 

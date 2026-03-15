@@ -39,8 +39,8 @@ interface AnnotationManager {
 }
 
 interface CacheManager {
-  invalidateAnnotations: (rUri: ResourceUri) => void | Promise<void>;
-  invalidateEvents: (rUri: ResourceUri) => void | Promise<void>;
+  invalidateAnnotations: (rId: ResourceId) => void | Promise<void>;
+  invalidateEvents: (rId: ResourceId) => void | Promise<void>;
 }
 
 // Apps provide implementations
@@ -67,7 +67,7 @@ function MyComponent() {
   const { createAnnotation } = useResourceAnnotations();
 
   // Create a highlight
-  await createAnnotation(rUri, 'highlighting', [
+  await createAnnotation(rId, 'highlighting', [
     {
       type: 'TextPositionSelector',
       start: 0,
@@ -80,7 +80,7 @@ function MyComponent() {
   ]);
 
   // Create a comment
-  await createAnnotation(rUri, 'commenting', selector, {
+  await createAnnotation(rId, 'commenting', selector, {
     type: 'TextualBody',
     value: 'Great point!',
     format: 'text/plain',
@@ -88,7 +88,7 @@ function MyComponent() {
   });
 
   // Create a reference
-  await createAnnotation(rUri, 'linking', selector, [
+  await createAnnotation(rId, 'linking', selector, [
     { type: 'TextualBody', value: 'Person', purpose: 'tagging' },
     { type: 'SpecificResource', source: targetDocId, purpose: 'linking' }
   ]);
@@ -100,7 +100,7 @@ function MyComponent() {
 ```typescript
 const { deleteAnnotation } = useResourceAnnotations();
 
-await deleteAnnotation(annotationId, rUri);
+await deleteAnnotation(rId, annotationId);
 ```
 
 ### UI State Management
@@ -140,7 +140,7 @@ import { ResourceViewer } from '@semiont/react-ui';
 <ResourceViewer
   content={content}
   mimeType="text/plain"
-  resourceUri={rUri}
+  resourceId={rId}
   annotations={annotationsCollection}
   handlers={annotationHandlers}
   uiState={uiState}
@@ -256,7 +256,7 @@ import { createDetectionHandler, ANNOTATORS } from '@semiont/react-ui';
 
 const detectionContext = {
   client: apiClient,
-  rUri,
+  rId,
   setDetectingMotivation,
   setMotivationDetectionProgress,
   detectionStreamRef,
@@ -294,12 +294,12 @@ function DetectionMonitor() {
   useEffect(() => {
     const handler = () => {
       // Automatically invalidate cache when detection completes
-      queryClient.invalidateQueries(['annotations', rUri]);
+      queryClient.invalidateQueries(['annotations', rId]);
     };
 
     eventBus.on('detection:completed', handler);
     return () => eventBus.off('detection:completed', handler);
-  }, [eventBus, queryClient, rUri]);
+  }, [eventBus, queryClient, rId]);
 }
 ```
 
@@ -332,12 +332,12 @@ detection: {
 import { SvgDrawingCanvas } from '@semiont/react-ui';
 
 <SvgDrawingCanvas
-  resourceUri={rUri}
+  resourceId={rId}
   existingAnnotations={imageAnnotations}
   drawingMode={selectedShape} // 'rectangle', 'circle', 'polygon'
   selectedMotivation={motivation}
   onAnnotationCreate={async (svg, position) => {
-    await createAnnotation(rUri, motivation, {
+    await createAnnotation(rId, motivation, {
       type: 'SvgSelector',
       value: svg
     });
@@ -551,22 +551,22 @@ The annotation system uses **event-driven cache invalidation** instead of manual
 import { useMakeMeaningEvents } from '@semiont/react-ui';
 import { useQueryClient } from '@tanstack/react-query';
 
-function AnnotationCacheManager({ rUri }: { rUri: ResourceUri }) {
+function AnnotationCacheManager({ rId }: { rId: ResourceId }) {
   const eventBus = useMakeMeaningEvents();
   const queryClient = useQueryClient();
 
   useEffect(() => {
     // Automatically invalidate cache when annotations change
     const handleAnnotationAdded = () => {
-      queryClient.invalidateQueries(['annotations', rUri]);
+      queryClient.invalidateQueries(['annotations', rId]);
     };
 
     const handleAnnotationRemoved = () => {
-      queryClient.invalidateQueries(['annotations', rUri]);
+      queryClient.invalidateQueries(['annotations', rId]);
     };
 
     const handleAnnotationUpdated = () => {
-      queryClient.invalidateQueries(['annotations', rUri]);
+      queryClient.invalidateQueries(['annotations', rId]);
     };
 
     eventBus.on('mark:added', handleAnnotationAdded);
@@ -578,7 +578,7 @@ function AnnotationCacheManager({ rUri }: { rUri: ResourceUri }) {
       eventBus.off('mark:removed', handleAnnotationRemoved);
       eventBus.off('mark:body-updated', handleAnnotationUpdated);
     };
-  }, [eventBus, queryClient, rUri]);
+  }, [eventBus, queryClient, rId]);
 
   return null;
 }
@@ -598,11 +598,11 @@ The `CacheManager` interface is deprecated in favor of event-based cache invalid
 ```typescript
 // ❌ OLD: Manual cache invalidation via CacheManager
 const cacheManager: CacheManager = {
-  invalidateAnnotations: (rUri) => {
-    queryClient.invalidateQueries({ queryKey: ['annotations', rUri] });
+  invalidateAnnotations: (rId) => {
+    queryClient.invalidateQueries({ queryKey: ['annotations', rId] });
   },
-  invalidateEvents: (rUri) => {
-    queryClient.invalidateQueries({ queryKey: ['documents', 'events', rUri] });
+  invalidateEvents: (rId) => {
+    queryClient.invalidateQueries({ queryKey: ['resources', 'events', rId] });
   }
 };
 

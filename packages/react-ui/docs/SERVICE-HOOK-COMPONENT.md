@@ -32,13 +32,13 @@ This architecture leverages RxJS EventBus for event routing, eliminates callback
 
 ```typescript
 // packages/react-ui/src/hooks/useResourceEvents.ts
-export function useResourceEvents(rUri: ResourceUri) {
+export function useResourceEvents(rId: ResourceId) {
   const eventBus = useEventBus();
   const client = useApiClient();
 
   useEffect(() => {
     // Open SSE connection - events auto-emit to EventBus
-    const stream = client!.sse.resourceEvents(rUri, {
+    const stream = client!.sse.resourceEvents(rId, {
       auth: accessToken(token),
       eventBus  // ← Stream auto-emits to EventBus
     });
@@ -46,7 +46,7 @@ export function useResourceEvents(rUri: ResourceUri) {
     // No callbacks needed - EventBus handles everything
     // Cleanup on unmount
     return () => stream.close();
-  }, [rUri, eventBus, client]);
+  }, [rId, eventBus, client]);
 }
 ```
 
@@ -82,7 +82,7 @@ export interface DetectionFlowState {
   detectionProgress: DetectionProgress | null;
 }
 
-export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
+export function useDetectionFlow(rId: ResourceId): DetectionFlowState {
   const eventBus = useEventBus();
   const client = useApiClient();
   const token = useAuthToken();
@@ -98,7 +98,7 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
       setDetectionProgress(null);
 
       // Start SSE stream - events auto-emit to EventBus
-      client.sse.detectReferences(rUri, event.options, {
+      client.sse.detectReferences(rId, event.options, {
         auth: accessToken(token),
         eventBus  // ← Stream auto-emits detection:progress, detection:complete, detection:failed
       });
@@ -106,7 +106,7 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
 
     const sub = eventBus.get('detection:start').subscribe(handleDetectionStart);
     return () => sub.unsubscribe();
-  }, [eventBus, rUri, client, token]);
+  }, [eventBus, rId, client, token]);
 
   // State subscriptions (update state when SSE events arrive)
   useEventSubscriptions({
@@ -151,13 +151,13 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
 
 ```typescript
 // packages/react-ui/src/features/resource-viewer/components/ResourceViewerPage.tsx
-export function ResourceViewerPage({ rUri, resource, ... }: ResourceViewerPageProps) {
+export function ResourceViewerPage({ rId, resource, ... }: ResourceViewerPageProps) {
   // Layer 2: Get data from hooks
-  const { detectingMotivation, detectionProgress } = useDetectionFlow(rUri);
+  const { detectingMotivation, detectionProgress } = useDetectionFlow(rId);
   const { activePanel, scrollToAnnotationId } = usePanelNavigation();
 
   // Layer 1: SSE connection
-  useResourceEvents(rUri);
+  useResourceEvents(rId);
 
   // Event emission (user interaction)
   const eventBus = useEventBus();
@@ -239,9 +239,9 @@ export function ResourceViewerPage({ rUri, resource, ... }: ResourceViewerPagePr
 
 ```typescript
 // In ResourceViewerPage.tsx
-export function ResourceViewerPage({ rUri, ... }: ResourceViewerPageProps) {
+export function ResourceViewerPage({ rId, ... }: ResourceViewerPageProps) {
   // Layer 1: Establish SSE connection for this resource
-  useResourceEvents(rUri);
+  useResourceEvents(rId);
 
   // ... rest of component
 }
@@ -253,7 +253,7 @@ The service layer runs automatically once per resource page.
 
 ```typescript
 // packages/react-ui/src/hooks/useDetectionFlow.ts
-export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
+export function useDetectionFlow(rId: ResourceId): DetectionFlowState {
   const eventBus = useEventBus();
   const [detecting, setDetecting] = useState<Motivation | null>(null);
   const [progress, setProgress] = useState<DetectionProgress | null>(null);
@@ -277,11 +277,11 @@ export function useDetectionFlow(rUri: ResourceUri): DetectionFlowState {
 
 ```typescript
 // packages/react-ui/src/features/resource-viewer/components/ResourceViewerPage.tsx
-export function ResourceViewerPage({ rUri, ... }: ResourceViewerPageProps) {
+export function ResourceViewerPage({ rId, ... }: ResourceViewerPageProps) {
   const eventBus = useEventBus();
 
   // Use hooks to get state (Layer 2)
-  const { detecting, progress } = useDetectionFlow(rUri);
+  const { detecting, progress } = useDetectionFlow(rId);
 
   // Emit events for user actions
   const handleDetect = useCallback(() => {
@@ -311,9 +311,9 @@ export function ResourceViewerPage({ rUri, ... }: ResourceViewerPageProps) {
 
 ```typescript
 // 4 levels of nested render props = 636 lines of indirection
-function ResourceViewerPage({ rUri, ... }) {
+function ResourceViewerPage({ rId, ... }) {
   return (
-    <DetectionFlowContainer rUri={rUri}>
+    <DetectionFlowContainer rId={rId}>
       {(detectionState) => (
         <PanelNavigationContainer>
           {(navState) => (
@@ -349,14 +349,14 @@ function ResourceViewerPage({ rUri, ... }) {
 
 ```typescript
 // Direct hook calls = 0 indirection
-function ResourceViewerPage({ rUri, resource, ... }: ResourceViewerPageProps) {
+function ResourceViewerPage({ rId, resource, ... }: ResourceViewerPageProps) {
   // Layer 2: Get data from hooks
-  const { detectingMotivation, detectionProgress } = useDetectionFlow(rUri);
+  const { detectingMotivation, detectionProgress } = useDetectionFlow(rId);
   const { activePanel, scrollToAnnotationId } = usePanelNavigation();
-  const { generationModalOpen } = useGenerationFlow(locale, rUri, ...);
+  const { generationModalOpen } = useGenerationFlow(locale, rId, ...);
 
   // Layer 1: SSE connection
-  useResourceEvents(rUri);
+  useResourceEvents(rId);
 
   // Layer 3: Render UI directly
   return (
@@ -412,7 +412,7 @@ function Toolbar() {
 Hooks subscribe to events using `useEventSubscriptions`:
 
 ```typescript
-export function useDetectionFlow(rUri: ResourceUri) {
+export function useDetectionFlow(rId: ResourceId) {
   const [detecting, setDetecting] = useState(null);
 
   // ✅ CORRECT: Use useEventSubscriptions
@@ -425,7 +425,7 @@ export function useDetectionFlow(rUri: ResourceUri) {
 }
 
 // ❌ WRONG: Manual eventBus.on() in hooks
-export function useDetectionFlow(rUri: ResourceUri) {
+export function useDetectionFlow(rId: ResourceId) {
   const eventBus = useEventBus();
   const [detecting, setDetecting] = useState(null);
 
@@ -444,12 +444,12 @@ export function useDetectionFlow(rUri: ResourceUri) {
 Use `useEventOperations` to trigger API calls when events are emitted:
 
 ```typescript
-export function useDetectionFlow(rUri: ResourceUri) {
+export function useDetectionFlow(rId: ResourceId) {
   const eventBus = useEventBus();
   const client = useApiClient();
 
   // Triggers API calls when 'detection:start' event is emitted
-  useEventOperations(eventBus, { client, resourceUri: rUri });
+  useEventOperations(eventBus, { client, resourceId: rId });
 
   // ... state management
 }
@@ -570,7 +570,7 @@ it('should emit detection:start when button clicked', async () => {
 
   render(
     <EventBusProvider value={eventBus}>
-      <ResourceViewerPage rUri={testUri} {...props} />
+      <ResourceViewerPage rId={testId} {...props} />
     </EventBusProvider>
   );
 
@@ -607,7 +607,7 @@ it('should emit detection:start when button clicked', async () => {
    }
 
    // After: Hook
-   export function useDetectionFlow(rUri: ResourceUri) {
+   export function useDetectionFlow(rId: ResourceId) {
      const [detecting, setDetecting] = useState(null);
      useEventSubscriptions({
        'detection:start': ({ motivation }) => setDetecting(motivation),
@@ -624,7 +624,7 @@ it('should emit detection:start when button clicked', async () => {
    </DetectionFlowContainer>
 
    // After
-   const { detecting } = useDetectionFlow(rUri);
+   const { detecting } = useDetectionFlow(rId);
    return <div>{detecting}</div>;
    ```
 

@@ -40,7 +40,7 @@ UI Update (automatic re-render)
 
 Events are scoped to specific resources, not broadcast globally:
 
-- **Resource URI**: `http://localhost:8080/resources/doc-123`
+- **Resource ID**: `doc-123`
 - **SSE Endpoint**: `GET /resources/doc-123/events/stream`
 - **Events Received**: All events for `doc-123` (annotations, jobs, document changes)
 - **Subscribers**: Multiple clients can subscribe to same resource (multi-tab, collaborative editing)
@@ -69,7 +69,7 @@ Events are scoped to specific resources, not broadcast globally:
 
 ```typescript
 // Subscribe to Event Store for this resource
-const unsubscribe = eventSubscriptions.subscribe(rUri, (storedEvent) => {
+const unsubscribe = eventSubscriptions.subscribe(rId, (storedEvent) => {
   // Write event to SSE stream
   await stream.writeSSE({
     data: JSON.stringify(storedEvent.event),
@@ -114,7 +114,7 @@ await eventStore.append({
       op: 'add',
       item: {
         type: 'SpecificResource',
-        source: newResourceUri,
+        source: newResourceId,
         purpose: 'linking'
       }
     }]
@@ -137,12 +137,12 @@ append() → Event Store → notify subscribers → SSE writeSSE() → client
 
 ```typescript
 const { status, isConnected } = useResourceEvents({
-  rUri: resourceUri('http://localhost:8080/resources/doc-123'),
+  rId: resourceId('doc-123'),
   onAnnotationAdded: (event) => {
-    queryClient.invalidateQueries(['annotations', rUri]);
+    queryClient.invalidateQueries(['annotations', rId]);
   },
   onAnnotationBodyUpdated: (event) => {
-    queryClient.invalidateQueries(['annotations', rUri]);
+    queryClient.invalidateQueries(['annotations', rId]);
   }
 });
 ```
@@ -270,7 +270,7 @@ const disconnect = useCallback(() => {
 ```json
 {
   "type": "annotation.added",
-  "resourceId": "http://localhost:8080/resources/doc-123",
+  "resourceId": "doc-123",
   "payload": {
     "annotationId": "/annotations/abc123",
     "annotation": { /* W3C annotation */ }
@@ -282,7 +282,7 @@ const disconnect = useCallback(() => {
 ```json
 {
   "type": "annotation.removed",
-  "resourceId": "http://localhost:8080/resources/doc-123",
+  "resourceId": "doc-123",
   "payload": {
     "annotationId": "/annotations/abc123"
   }
@@ -293,7 +293,7 @@ const disconnect = useCallback(() => {
 ```json
 {
   "type": "annotation.body.updated",
-  "resourceId": "http://localhost:8080/resources/doc-123",
+  "resourceId": "doc-123",
   "payload": {
     "annotationId": "/annotations/abc123",
     "operations": [
@@ -309,7 +309,7 @@ const disconnect = useCallback(() => {
 ```json
 {
   "type": "job.started",
-  "resourceId": "http://localhost:8080/resources/doc-123",
+  "resourceId": "doc-123",
   "payload": {
     "jobId": "job-456",
     "jobType": "detection"
@@ -321,7 +321,7 @@ const disconnect = useCallback(() => {
 ```json
 {
   "type": "job.progress",
-  "resourceId": "http://localhost:8080/resources/doc-123",
+  "resourceId": "doc-123",
   "payload": {
     "jobId": "job-456",
     "status": "detecting-references",
@@ -334,7 +334,7 @@ const disconnect = useCallback(() => {
 ```json
 {
   "type": "job.completed",
-  "resourceId": "http://localhost:8080/resources/doc-123",
+  "resourceId": "doc-123",
   "payload": {
     "jobId": "job-456",
     "result": { /* job-specific result */ }
@@ -386,10 +386,10 @@ Frontend uses React Query for caching. SSE events trigger cache invalidation:
 const queryClient = useQueryClient();
 
 useResourceEvents({
-  rUri: resourceUri,
+  rId: resourceId,
   onAnnotationBodyUpdated: (event) => {
     // Invalidate annotations cache
-    queryClient.invalidateQueries(['annotations', resourceUri]);
+    queryClient.invalidateQueries(['annotations', resourceId]);
 
     // React Query refetches in background
     // UI updates automatically when data arrives
@@ -403,13 +403,13 @@ For immediate feedback, combine SSE with optimistic updates:
 
 ```typescript
 // Optimistically update cache
-queryClient.setQueryData(['annotations', rUri], (old) => {
+queryClient.setQueryData(['annotations', rId], (old) => {
   return [...old, newAnnotation];
 });
 
 // SSE event confirms and corrects if needed
 onAnnotationAdded: (event) => {
-  queryClient.invalidateQueries(['annotations', rUri]);
+  queryClient.invalidateQueries(['annotations', rId]);
 };
 ```
 
@@ -450,7 +450,7 @@ onAnnotationAdded: (event) => {
 Filter by `[ResourceEvents]` to see connection lifecycle:
 
 ```
-[ResourceEvents] Connecting to SSE stream for resource http://localhost:8080/resources/doc-123
+[ResourceEvents] Connecting to SSE stream for resource doc-123
 [ResourceEvents] Stream connected event received
 [ResourceEvents] Received event: annotation.body.updated
 ```

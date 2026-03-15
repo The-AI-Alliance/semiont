@@ -110,25 +110,25 @@ interface EventMap {
 
   // Reference creation and linking events
   'bind:create-manual': {
-    annotationUri: string;
+    annotationId: string;
     title: string;
     entityTypes: string[];
   };
 
   'reference:generate': {
-    annotationUri: string;
-    resourceUri: string;
+    annotationId: string;
+    resourceId: string;
     options: { title: string };
   };
 
   'bind:link': {
-    annotationUri: string;
+    annotationId: string;
     searchTerm: string;
   };
 
   // Annotation body updates
   'bind:update-body': {
-    annotationUri: string;
+    annotationId: string;
     resourceId: string;
     operations: Array<{ op: string; item: any }>;
   };

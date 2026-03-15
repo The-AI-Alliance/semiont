@@ -26,7 +26,7 @@ import { SemiontApiClient } from '@semiont/api-client';
 const client = new SemiontApiClient({ baseUrl: 'http://localhost:4000' });
 
 // Fetch annotations for a resource (the targets of attention)
-const { annotations } = await client.listAnnotations(resourceUri);
+const { annotations } = await client.listAnnotations(resourceId);
 
 // Programmatically direct attention via the event bus
 eventBus.get('beckon:focus').next({ annotationId: annotations[0].id });

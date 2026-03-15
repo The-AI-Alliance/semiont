@@ -91,40 +91,40 @@ const result = await client.createResource({
 console.log('Resource ID:', result.resource.id);
 ```
 
-### `getResource(uri: ResourceUri)`
+### `getResource(id: ResourceId)`
 
-Retrieve a resource by URI (returns JSON metadata).
+Retrieve a resource by ID (returns JSON metadata).
 
 ```typescript
-const result = await client.getResource(resourceUri);
+const result = await client.getResource(resourceId);
 console.log('Resource:', result.resource);
 ```
 
-### `getResourceRepresentation(uri: ResourceUri, options?)`
+### `getResourceRepresentation(id: ResourceId, options?)`
 
 Get resource representation using W3C content negotiation. Returns raw binary content (images, PDFs, text, etc.) with content type.
 
 ```typescript
 // Get markdown representation (decode to text)
-const { data, contentType } = await client.getResourceRepresentation(resourceUri, {
+const { data, contentType } = await client.getResourceRepresentation(resourceId, {
   accept: 'text/markdown'
 });
 const markdown = new TextDecoder().decode(data);
 console.log(contentType); // 'text/markdown'
 
 // Get plain text representation (default)
-const { data, contentType } = await client.getResourceRepresentation(resourceUri);
+const { data, contentType } = await client.getResourceRepresentation(resourceId);
 const text = new TextDecoder().decode(data);
 
 // Get image representation (use as binary)
-const { data, contentType } = await client.getResourceRepresentation(resourceUri, {
+const { data, contentType } = await client.getResourceRepresentation(resourceId, {
   accept: 'image/png'
 });
 const blob = new Blob([data], { type: contentType });
 const url = URL.createObjectURL(blob);
 
 // Get PDF representation
-const { data, contentType } = await client.getResourceRepresentation(resourceUri, {
+const { data, contentType } = await client.getResourceRepresentation(resourceId, {
   accept: 'application/pdf'
 });
 ```
@@ -142,13 +142,13 @@ const { data, contentType } = await client.getResourceRepresentation(resourceUri
 
 **Note:** For large files (videos, large PDFs), use `getResourceRepresentationStream()` to avoid loading entire content into memory.
 
-### `getResourceRepresentationStream(uri: ResourceUri, options?)`
+### `getResourceRepresentationStream(id: ResourceId, options?)`
 
 Get resource representation as a stream using W3C content negotiation. Use this for large files to avoid memory issues.
 
 ```typescript
 // Stream large video file (never loads entire file into memory)
-const { stream, contentType } = await client.getResourceRepresentationStream(resourceUri, {
+const { stream, contentType } = await client.getResourceRepresentationStream(resourceId, {
   accept: 'video/mp4'
 });
 
@@ -198,51 +198,51 @@ const result = await client.listResources(20, false);
 console.log(`Found ${result.total} resources`);
 ```
 
-### `updateResource(uri: ResourceUri, data)`
+### `updateResource(id: ResourceId, data)`
 
 Update resource metadata (name, entity types, archive status).
 
 ```typescript
-const result = await client.updateResource(resourceUri, {
+const result = await client.updateResource(resourceId, {
   name: 'Updated Name',
   entityTypes: ['updated'],
   archived: true
 });
 ```
 
-### `getResourceEvents(uri: ResourceUri)`
+### `getResourceEvents(id: ResourceId)`
 
 Get event history for a resource.
 
 ```typescript
-const result = await client.getResourceEvents(resourceUri);
+const result = await client.getResourceEvents(resourceId);
 console.log(`Total events: ${result.events.length}`);
 ```
 
-### `getResourceAnnotations(uri: ResourceUri)`
+### `getResourceAnnotations(id: ResourceId)`
 
 Get annotations for a resource.
 
 ```typescript
-const result = await client.getResourceAnnotations(resourceUri);
+const result = await client.getResourceAnnotations(resourceId);
 console.log(`Found ${result.annotations.length} annotations`);
 ```
 
-### `getResourceReferencedBy(uri: ResourceUri)`
+### `getResourceReferencedBy(id: ResourceId)`
 
 Find resources that reference this resource.
 
 ```typescript
-const result = await client.getResourceReferencedBy(resourceUri);
+const result = await client.getResourceReferencedBy(resourceId);
 console.log('Referenced by:', result.referencedBy);
 ```
 
-### `generateCloneToken(uri: ResourceUri)`
+### `generateCloneToken(id: ResourceId)`
 
 Generate a token for cloning a resource (valid 24 hours).
 
 ```typescript
-const result = await client.generateCloneToken(resourceUri);
+const result = await client.generateCloneToken(resourceId);
 console.log('Token:', result.token);
 ```
 
@@ -259,14 +259,14 @@ const result = await client.createResourceFromToken({
 
 ## Annotation Methods
 
-### `createAnnotation(resourceUri: ResourceUri, data)`
+### `createAnnotation(resourceId: ResourceId, data)`
 
 Create a new annotation (highlight or reference). Uses W3C Web Annotation Model with dual selectors.
 
 ```typescript
-const result = await client.createAnnotation(resourceUri, {
+const result = await client.createAnnotation(resourceId, {
   target: {
-    source: resourceUri,
+    source: resourceId,
     selector: [
       {
         type: 'TextPositionSelector',
@@ -286,28 +286,28 @@ const result = await client.createAnnotation(resourceUri, {
 console.log('Annotation ID:', result.annotation.id);
 ```
 
-### `getAnnotation(uri: ResourceAnnotationUri)`
+### `getAnnotation(id: AnnotationId)`
 
-Retrieve an annotation by URI.
+Retrieve an annotation by ID.
 
 ```typescript
-const result = await client.getAnnotation(annotationUri);
+const result = await client.getAnnotation(annotationId);
 ```
 
-### `deleteAnnotation(uri: ResourceAnnotationUri)`
+### `deleteAnnotation(resourceId: ResourceId, annotationId: AnnotationId)`
 
 Delete an annotation.
 
 ```typescript
-await client.deleteAnnotation(annotationUri);
+await client.deleteAnnotation(resourceId, annotationId);
 ```
 
-### `getAnnotationHistory(uri: ResourceAnnotationUri)`
+### `getAnnotationHistory(resourceId: ResourceId, annotationId: AnnotationId)`
 
 Get the complete event history for a specific annotation with sequence numbers and checksums.
 
 ```typescript
-const result = await client.getAnnotationHistory(annotationUri);
+const result = await client.getAnnotationHistory(resourceId, annotationId);
 
 console.log(`Total events: ${result.total}`);
 result.events.forEach(event => {
@@ -315,17 +315,17 @@ result.events.forEach(event => {
 });
 ```
 
-### `updateAnnotationBody(uri: ResourceAnnotationUri, data: UpdateAnnotationBodyRequest)`
+### `updateAnnotationBody(resourceId: ResourceId, annotationId: AnnotationId, data: UpdateAnnotationBodyRequest)`
 
 Update an annotation's body with fine-grained operations (add, remove, replace body items).
 
 ```typescript
-const result = await client.updateAnnotationBody(annotationUri, {
+const result = await client.updateAnnotationBody(resourceId, annotationId, {
   operations: [{
     op: 'add',
     item: {
       type: 'SpecificResource',
-      source: targetResourceUri,
+      source: targetResourceId,
       purpose: 'linking'
     }
   }]
@@ -334,12 +334,12 @@ const result = await client.updateAnnotationBody(annotationUri, {
 console.log('Updated annotation:', result.annotation.id);
 ```
 
-### `generateResourceFromAnnotation(uri: ResourceAnnotationUri, data)`
+### `generateResourceFromAnnotation(resourceId: ResourceId, annotationId: AnnotationId, data)`
 
 Generate a new resource from an annotation using AI.
 
 ```typescript
-const result = await client.generateResourceFromAnnotation(annotationUri, {
+const result = await client.generateResourceFromAnnotation(resourceId, annotationId, {
   name: 'Generated Resource',
   prompt: 'Explain this concept in detail',
   entityTypes: ['explanation']
@@ -379,12 +379,12 @@ console.log('Entity types:', result.entityTypes);
 
 ## LLM Context Methods
 
-### `getResourceLLMContext(resourceUri, options?)`
+### `getResourceLLMContext(resourceId, options?)`
 
 Get resource with full context optimized for LLM processing.
 
 ```typescript
-const context = await client.getResourceLLMContext(resourceUri, {
+const context = await client.getResourceLLMContext(resourceId, {
   depth: 2,              // Graph traversal depth (1-3, default: 2)
   maxResources: 10,      // Max related resources (1-20, default: 10)
   includeContent: true,  // Include full content (default: true)
@@ -396,12 +396,12 @@ console.log('Related resources:', context.relatedResources);
 console.log('Graph:', context.graph);
 ```
 
-### `getAnnotationLLMContext(annotationUri, options?)`
+### `getAnnotationLLMContext(resourceId, annotationId, options?)`
 
 Get annotation with surrounding context for LLM processing.
 
 ```typescript
-const context = await client.getAnnotationLLMContext(annotationUri, {
+const context = await client.getAnnotationLLMContext(resourceId, annotationId, {
   includeSourceContext: true,   // Include source text context (default: true)
   includeTargetContext: true,   // Include target resource context (default: true)
   contextWindow: 1000,          // Characters of context (100-5000, default: 1000)
@@ -486,16 +486,16 @@ The `client.sse.*` namespace provides Server-Sent Events (SSE) streaming for rea
 - All events are type-safe with TypeScript interfaces
 - Request bodies are validated via OpenAPI schemas; responses are not validated
 
-### `client.sse.detectAnnotations(resourceUri, options)`
+### `client.sse.detectAnnotations(resourceId, options)`
 
 Stream real-time entity detection progress via Server-Sent Events.
 
 ```typescript
-import { resourceUri } from '@semiont/api-client';
+import { resourceId } from '@semiont/api-client';
 
-const rUri = resourceUri('http://localhost:4000/resources/resource-123');
+const rId = resourceId('resource-123');
 
-const stream = client.sse.detectAnnotations(rUri, {
+const stream = client.sse.detectAnnotations(rId, {
   entityTypes: ['Person', 'Organization']
 });
 
@@ -517,7 +517,7 @@ stream.close();
 ```
 
 **Parameters**:
-- `resourceUri` (ResourceUri): Resource to detect entities in
+- `resourceId` (ResourceId): Resource to detect entities in
 - `options` (object): Detection options
   - `entityTypes` (string[]): Entity types to detect
 
@@ -542,17 +542,17 @@ interface DetectionProgress {
 }
 ```
 
-### `client.sse.generateResourceFromAnnotation(resourceUri, annotationUri, options)`
+### `client.sse.generateResourceFromAnnotation(resourceId, annotationId, options)`
 
 Stream real-time resource generation progress via Server-Sent Events.
 
 ```typescript
-import { resourceUri, annotationUri } from '@semiont/api-client';
+import { resourceId, annotationId } from '@semiont/api-client';
 
-const rUri = resourceUri('http://localhost:4000/resources/resource-123');
-const annUri = annotationUri('http://localhost:4000/annotations/annotation-456');
+const rId = resourceId('resource-123');
+const annId = annotationId('annotation-456');
 
-const stream = client.sse.generateResourceFromAnnotation(rUri, annUri, {
+const stream = client.sse.generateResourceFromAnnotation(rId, annId, {
   title: 'Albert Einstein',
   prompt: 'Write a biography',
   language: 'en'
@@ -575,8 +575,8 @@ stream.onError((error) => {
 ```
 
 **Parameters**:
-- `resourceUri` (ResourceUri): Source resource ID
-- `annotationUri` (AnnotationUri): Annotation ID to generate from
+- `resourceId` (ResourceId): Source resource ID
+- `annotationId` (AnnotationId): Annotation ID to generate from
 - `options` (object): Generation parameters
   - `title` (string, optional): Custom title for generated resource
   - `prompt` (string, optional): Custom generation prompt
@@ -610,16 +610,16 @@ interface GenerationProgress {
 - `creating` (90%) - Creating resource in database
 - `complete` (100%) - Done
 
-### `client.sse.resourceEvents(resourceUri)`
+### `client.sse.resourceEvents(resourceId)`
 
 Subscribe to real-time resource events via Server-Sent Events (long-lived connection).
 
 ```typescript
-import { resourceUri } from '@semiont/api-client';
+import { resourceId } from '@semiont/api-client';
 
-const rUri = resourceUri('http://localhost:4000/resources/resource-123');
+const rId = resourceId('resource-123');
 
-const stream = client.sse.resourceEvents(rUri);
+const stream = client.sse.resourceEvents(rId);
 
 stream.onProgress((event) => {
   // Handle stream-connected event
@@ -644,7 +644,7 @@ onUnmount(() => stream.close());
 ```
 
 **Parameters**:
-- `resourceUri` (ResourceUri): Resource ID to subscribe to
+- `resourceId` (ResourceId): Resource ID to subscribe to
 
 **Returns**: `SSEStream<ResourceEvent, never>`
 
@@ -709,11 +709,11 @@ interface SSEStream<TProgress, TComplete> {
 // React example
 useEffect(() => {
   const stream = client.sse.detectAnnotations(resourceId, { entityTypes: ['Person'] });
-  
+
   stream.onProgress((p) => setProgress(p));
   stream.onComplete((r) => setResult(r));
   stream.onError((e) => setError(e));
-  
+
   // Cleanup on unmount
   return () => stream.close();
 }, [resourceId]);
@@ -726,13 +726,13 @@ SSE streams can fail for various reasons. Always implement error handling:
 ```typescript
 stream.onError((error) => {
   console.error('Stream error:', error.message);
-  
+
   // Common errors:
   // - Network disconnection
   // - 401 Unauthorized (token expired)
   // - 404 Not Found (resource doesn't exist)
   // - 500 Server Error (backend failure)
-  
+
   // Implement retry logic if appropriate
   if (error.message.includes('401')) {
     // Re-authenticate and retry
@@ -870,7 +870,7 @@ The client throws `APIError` for failed requests:
 import { SemiontApiClient, APIError } from '@semiont/api-client';
 
 try {
-  const resource = await client.getResource(resourceUri);
+  const resource = await client.getResource(resourceId);
 } catch (error) {
   if (error instanceof APIError) {
     console.error('API Error:', error.message);
@@ -993,25 +993,25 @@ client.addEntityType('custom-type', userId('user-123'));
 
 ### Gather Methods
 
-#### `getAnnotationLLMContext(annotationUri, resourceUri, options?)`
+#### `getAnnotationLLMContext(resourceId, annotationId, options?)`
 
 Get annotation context for LLM processing.
 
 ```typescript
 const context = await client.getAnnotationLLMContext(
-  'http://localhost:4000/annotations/ann-456',
-  'http://localhost:4000/resources/doc-123',
+  resourceId('doc-123'),
+  annotationId('ann-456'),
   { contextWindow: 2000 },
 );
 ```
 
-#### `getResourceLLMContext(resourceUri, options)`
+#### `getResourceLLMContext(resourceId, options)`
 
 Get resource context with graph traversal for LLM processing.
 
 ```typescript
 const context = await client.getResourceLLMContext(
-  'http://localhost:4000/resources/doc-123',
+  resourceId('doc-123'),
   { depth: 2, maxResources: 10, includeContent: true, includeSummary: false },
 );
 ```
