@@ -443,19 +443,19 @@ export function useAdmin() {
     },
 
     exchange: {
-      export: {
+      backup: {
         useMutation: () =>
           useMutation({
-            mutationFn: async (data: { format: 'backup' | 'snapshot'; includeArchived?: boolean }) => {
+            mutationFn: async () => {
               if (!client) throw new Error('Not authenticated');
-              const response = await client.exportKnowledgeBase(data, { auth: toAccessToken(token) });
+              const response = await client.backupKnowledgeBase({ auth: toAccessToken(token) });
               if (!response.ok) {
-                throw new Error(`Export failed: ${response.status} ${response.statusText}`);
+                throw new Error(`Backup failed: ${response.status} ${response.statusText}`);
               }
               const blob = await response.blob();
               const contentDisposition = response.headers.get('Content-Disposition');
               const filename = contentDisposition?.match(/filename="(.+?)"/)?.[1]
-                ?? `semiont-export-${Date.now()}.tar.gz`;
+                ?? `semiont-backup-${Date.now()}.tar.gz`;
               const url = URL.createObjectURL(blob);
               const a = document.createElement('a');
               a.href = url;
@@ -467,7 +467,7 @@ export function useAdmin() {
           }),
       },
 
-      import: {
+      restore: {
         useMutation: () =>
           useMutation({
             mutationFn: async ({
@@ -478,7 +478,7 @@ export function useAdmin() {
               onProgress?: (event: { phase: string; message?: string; result?: Record<string, unknown> }) => void;
             }) => {
               if (!client) throw new Error('Not authenticated');
-              return client.importKnowledgeBase(file, {
+              return client.restoreKnowledgeBase(file, {
                 auth: toAccessToken(token),
                 onProgress,
               });

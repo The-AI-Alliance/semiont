@@ -1,23 +1,21 @@
 /**
- * Import Command
+ * Restore Command
  *
- * Imports a knowledge base from a backup or snapshot file.
- *
+ * Restores a knowledge base from a backup archive.
  * Replays events through EventBus → Stower so all derived state
  * (materialized views, graph) rebuilds naturally.
  *
  * Usage:
- *   semiont import --file backup.tar.gz
- *   semiont import --format snapshot --file snapshot.jsonl
+ *   semiont restore --file backup.tar.gz
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
 import { z } from 'zod';
-import type { Logger, UserId } from '@semiont/core';
+import type { Logger } from '@semiont/core';
 import { EventBus } from '@semiont/core';
 import { createEventStore } from '@semiont/event-sourcing';
-import { importBackup, importSnapshot, Stower, createKnowledgeBase } from '@semiont/make-meaning';
+import { importBackup, Stower, createKnowledgeBase } from '@semiont/make-meaning';
 import type { GraphDatabase } from '@semiont/graph';
 import { CommandResults } from '../command-types.js';
 import { CommandBuilder } from '../command-definition.js';
@@ -36,11 +34,11 @@ function createCliLogger(verbose: boolean): Logger {
 }
 
 /**
- * Noop graph database for import — the graph rebuilds from events
- * after import via the GraphDBConsumer, not during import.
+ * Noop graph database for restore — the graph rebuilds from events
+ * after restore via the GraphDBConsumer, not during restore.
  */
 function createNoopGraphDatabase(): GraphDatabase {
-  const noop = async (): Promise<never> => { throw new Error('Graph not available during import'); };
+  const noop = async (): Promise<never> => { throw new Error('Graph not available during restore'); };
   return {
     connect: async () => {},
     disconnect: async () => {},
@@ -82,19 +80,17 @@ function createNoopGraphDatabase(): GraphDatabase {
 // SCHEMA
 // =====================================================================
 
-export const ImportOptionsSchema = BaseOptionsSchema.extend({
-  format: z.enum(['backup', 'snapshot']).default('backup'),
+export const RestoreOptionsSchema = BaseOptionsSchema.extend({
   file: z.string().min(1, 'Input file path is required'),
-  userId: z.string().default('did:web:localhost:users:import'),
 });
 
-export type ImportOptions = z.output<typeof ImportOptionsSchema>;
+export type RestoreOptions = z.output<typeof RestoreOptionsSchema>;
 
 // =====================================================================
 // IMPLEMENTATION
 // =====================================================================
 
-export async function runImport(options: ImportOptions): Promise<CommandResults> {
+export async function runRestore(options: RestoreOptions): Promise<CommandResults> {
   const startTime = Date.now();
 
   const projectRoot = process.env.SEMIONT_ROOT || findProjectRoot();
@@ -118,10 +114,10 @@ export async function runImport(options: ImportOptions): Promise<CommandResults>
   }
 
   if (!options.quiet) {
-    printInfo(`Importing ${options.format} from ${filePath}`);
+    printInfo(`Restoring from ${filePath}`);
   }
 
-  // Bootstrap EventBus + Stower for import
+  // Bootstrap EventBus + Stower for restore
   const eventBus = new EventBus();
   const eventStore = createEventStore(basePath, undefined, eventBus, logger);
   const kb = createKnowledgeBase(eventStore, basePath, projectRoot, createNoopGraphDatabase(), logger);
@@ -129,72 +125,37 @@ export async function runImport(options: ImportOptions): Promise<CommandResults>
   await stower.initialize();
 
   try {
-    if (options.format === 'backup') {
-      const input = fs.createReadStream(filePath);
-      const result = await importBackup(input, { eventBus, logger });
+    const input = fs.createReadStream(filePath);
+    const result = await importBackup(input, { eventBus, logger });
 
-      if (!options.quiet) {
-        printSuccess(
-          `Backup imported: ${result.stats.eventsReplayed} events, ` +
-          `${result.stats.resourcesCreated} resources, ` +
-          `${result.stats.annotationsCreated} annotations` +
-          (result.hashChainValid ? '' : ' (WARNING: hash chain invalid)')
-        );
-      }
-
-      const duration = Date.now() - startTime;
-      return {
-        command: 'import',
-        environment,
-        timestamp: new Date(),
-        duration,
-        summary: {
-          succeeded: 1, failed: 0, total: 1,
-          warnings: result.hashChainValid ? 0 : 1,
-        },
-        executionContext: { user: process.env.USER || 'unknown', workingDirectory: process.cwd(), dryRun: options.dryRun },
-        results: [{
-          entity: filePath,
-          platform: 'posix',
-          success: true,
-          metadata: { format: 'backup', ...result.stats, hashChainValid: result.hashChainValid },
-          duration,
-        }],
-      };
-    } else {
-      // Snapshot
-      const input = fs.createReadStream(filePath);
-      const result = await importSnapshot(input, {
-        eventBus,
-        userId: options.userId as UserId,
-        logger,
-      });
-
-      if (!options.quiet) {
-        printSuccess(
-          `Snapshot imported: ${result.resourcesCreated} resources, ` +
-          `${result.annotationsCreated} annotations, ` +
-          `${result.entityTypesAdded} entity types`
-        );
-      }
-
-      const duration = Date.now() - startTime;
-      return {
-        command: 'import',
-        environment,
-        timestamp: new Date(),
-        duration,
-        summary: { succeeded: 1, failed: 0, total: 1, warnings: 0 },
-        executionContext: { user: process.env.USER || 'unknown', workingDirectory: process.cwd(), dryRun: options.dryRun },
-        results: [{
-          entity: filePath,
-          platform: 'posix',
-          success: true,
-          metadata: { format: 'snapshot', ...result },
-          duration,
-        }],
-      };
+    if (!options.quiet) {
+      printSuccess(
+        `Restore complete: ${result.stats.eventsReplayed} events, ` +
+        `${result.stats.resourcesCreated} resources, ` +
+        `${result.stats.annotationsCreated} annotations` +
+        (result.hashChainValid ? '' : ' (WARNING: hash chain invalid)')
+      );
     }
+
+    const duration = Date.now() - startTime;
+    return {
+      command: 'restore',
+      environment,
+      timestamp: new Date(),
+      duration,
+      summary: {
+        succeeded: 1, failed: 0, total: 1,
+        warnings: result.hashChainValid ? 0 : 1,
+      },
+      executionContext: { user: process.env.USER || 'unknown', workingDirectory: process.cwd(), dryRun: options.dryRun },
+      results: [{
+        entity: filePath,
+        platform: 'posix',
+        success: true,
+        metadata: { format: 'backup', ...result.stats, hashChainValid: result.hashChainValid },
+        duration,
+      }],
+    };
   } finally {
     await stower.stop();
   }
@@ -204,38 +165,25 @@ export async function runImport(options: ImportOptions): Promise<CommandResults>
 // COMMAND DEFINITION
 // =====================================================================
 
-export const importCmd = new CommandBuilder()
-  .name('import')
-  .description('Import knowledge base from backup or snapshot')
+export const restoreCmd = new CommandBuilder()
+  .name('restore')
+  .description('Restore a knowledge base from a backup archive')
   .requiresEnvironment(true)
   .requiresServices(false)
   .examples(
-    'semiont import --file backup.tar.gz',
-    'semiont import --format snapshot --file snapshot.jsonl',
-    'semiont import --format snapshot --file snapshot.jsonl --user-id did:web:example.com:users:alice',
+    'semiont restore --file backup.tar.gz',
   )
   .args({
     args: {
-      '--format': {
-        type: 'string',
-        description: 'Import format: backup or snapshot',
-        default: 'backup',
-        choices: ['backup', 'snapshot'] as const,
-      },
       '--file': {
         type: 'string',
         description: 'Input file path (required)',
-      },
-      '--user-id': {
-        type: 'string',
-        description: 'User DID for snapshot import (default: did:web:localhost:users:import)',
-        default: 'did:web:localhost:users:import',
       },
     },
     aliases: {
       '-f': '--file',
     },
   })
-  .schema(ImportOptionsSchema)
-  .handler(runImport)
+  .schema(RestoreOptionsSchema)
+  .handler(runRestore)
   .build();

@@ -38,8 +38,8 @@ export default function AdminExchangeClient() {
 
   // API hooks
   const adminAPI = useAdmin();
-  const exportMutation = adminAPI.exchange.export.useMutation();
-  const importMutation = adminAPI.exchange.import.useMutation();
+  const backupMutation = adminAPI.exchange.backup.useMutation();
+  const restoreMutation = adminAPI.exchange.restore.useMutation();
 
   // Local state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -48,9 +48,9 @@ export default function AdminExchangeClient() {
   const [importMessage, setImportMessage] = useState<string | undefined>();
   const [importResult, setImportResult] = useState<Record<string, unknown> | undefined>();
 
-  const handleExport = useCallback((format: 'backup' | 'snapshot', includeArchived: boolean) => {
-    exportMutation.mutate({ format, includeArchived });
-  }, [exportMutation]);
+  const handleBackup = useCallback(() => {
+    backupMutation.mutate();
+  }, [backupMutation]);
 
   const handleFileSelected = useCallback(async (file: File) => {
     setSelectedFile(file);
@@ -58,47 +58,23 @@ export default function AdminExchangeClient() {
     setImportMessage(undefined);
     setImportResult(undefined);
 
-    // Try to parse preview from file header
-    try {
-      if (file.name.endsWith('.jsonl')) {
-        const text = await file.slice(0, 4096).text();
-        const firstLine = text.split('\n')[0] ?? '';
-        const meta = JSON.parse(firstLine);
-        if (meta.format && meta.version) {
-          setPreview({
-            format: meta.format,
-            version: meta.version,
-            sourceUrl: meta.sourceUrl ?? '',
-            stats: meta.stats ?? {},
-          });
-          return;
-        }
-      }
-      // For tar.gz or unrecognized, show basic info
-      setPreview({
-        format: file.name.endsWith('.tar.gz') || file.name.endsWith('.gz') ? 'semiont-backup' : 'unknown',
-        version: 1,
-        sourceUrl: '',
-        stats: {},
-      });
-    } catch {
-      setPreview({
-        format: 'unknown',
-        version: 1,
-        sourceUrl: '',
-        stats: {},
-      });
-    }
+    // For tar.gz backups, show basic info
+    setPreview({
+      format: file.name.endsWith('.tar.gz') || file.name.endsWith('.gz') ? 'semiont-backup' : 'unknown',
+      version: 1,
+      sourceUrl: '',
+      stats: {},
+    });
   }, []);
 
-  const handleImport = useCallback(() => {
+  const handleRestore = useCallback(() => {
     if (!selectedFile) return;
 
     setImportPhase('started');
     setImportMessage(undefined);
     setImportResult(undefined);
 
-    importMutation.mutate({
+    restoreMutation.mutate({
       file: selectedFile,
       onProgress: (event) => {
         setImportPhase(event.phase);
@@ -108,9 +84,9 @@ export default function AdminExchangeClient() {
         }
       },
     });
-  }, [selectedFile, importMutation]);
+  }, [selectedFile, restoreMutation]);
 
-  const handleCancelImport = useCallback(() => {
+  const handleCancelRestore = useCallback(() => {
     setSelectedFile(null);
     setPreview(null);
     setImportPhase(null);
@@ -120,14 +96,14 @@ export default function AdminExchangeClient() {
 
   return (
     <AdminExchangePage
-      onExport={handleExport}
-      isExporting={exportMutation.isPending}
+      onExport={handleBackup}
+      isExporting={backupMutation.isPending}
       onFileSelected={handleFileSelected}
-      onImport={handleImport}
-      onCancelImport={handleCancelImport}
+      onImport={handleRestore}
+      onCancelImport={handleCancelRestore}
       selectedFile={selectedFile}
       preview={preview}
-      isImporting={importMutation.isPending}
+      isImporting={restoreMutation.isPending}
       importPhase={importPhase}
       importMessage={importMessage}
       importResult={importResult}
@@ -140,10 +116,6 @@ export default function AdminExchangeClient() {
         export: {
           title: t('exportTitle'),
           description: t('exportDescription'),
-          formatLabel: t('formatLabel'),
-          formatBackup: t('formatBackup'),
-          formatSnapshot: t('formatSnapshot'),
-          includeArchived: t('includeArchived'),
           exportButton: t('exportButton'),
           exporting: t('exporting'),
         },
@@ -170,9 +142,6 @@ export default function AdminExchangeClient() {
           phaseError: t('phaseError'),
           hashChainValid: t('hashChainValid'),
           hashChainInvalid: t('hashChainInvalid'),
-          resourcesCreated: t('resourcesCreated'),
-          annotationsCreated: t('annotationsCreated'),
-          entityTypesAdded: t('entityTypesAdded'),
           streams: t('streams'),
           events: t('events'),
           blobs: t('blobs'),

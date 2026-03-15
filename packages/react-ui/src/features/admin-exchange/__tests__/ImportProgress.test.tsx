@@ -8,17 +8,14 @@ import { ImportProgress } from '../components/ImportProgress';
 import type { ImportProgressProps } from '../components/ImportProgress';
 
 const translations: ImportProgressProps['translations'] = {
-  phaseStarted: 'Starting import…',
+  phaseStarted: 'Starting restore…',
   phaseEntityTypes: 'Adding entity types…',
   phaseResources: 'Creating resources…',
   phaseAnnotations: 'Creating annotations…',
-  phaseComplete: 'Import complete',
-  phaseError: 'Import failed',
+  phaseComplete: 'Restore complete',
+  phaseError: 'Restore failed',
   hashChainValid: 'Hash chain valid',
   hashChainInvalid: 'Hash chain invalid',
-  resourcesCreated: 'Resources created',
-  annotationsCreated: 'Annotations created',
-  entityTypesAdded: 'Entity types added',
   streams: 'Event streams',
   events: 'Events',
   blobs: 'Content blobs',
@@ -27,7 +24,7 @@ const translations: ImportProgressProps['translations'] = {
 describe('ImportProgress', () => {
   it('renders phase label for known phases', () => {
     render(<ImportProgress phase="started" translations={translations} />);
-    expect(screen.getByText('Starting import…')).toBeInTheDocument();
+    expect(screen.getByText('Starting restore…')).toBeInTheDocument();
   });
 
   it('renders raw phase string for unknown phases', () => {
@@ -49,14 +46,14 @@ describe('ImportProgress', () => {
     const { container } = render(<ImportProgress phase="complete" translations={translations} />);
     const label = container.querySelector('.semiont-exchange__phase-label--complete');
     expect(label).toBeInTheDocument();
-    expect(label).toHaveTextContent('Import complete');
+    expect(label).toHaveTextContent('Restore complete');
   });
 
   it('renders error phase with correct class', () => {
     const { container } = render(<ImportProgress phase="error" translations={translations} />);
     const label = container.querySelector('.semiont-exchange__phase-label--error');
     expect(label).toBeInTheDocument();
-    expect(label).toHaveTextContent('Import failed');
+    expect(label).toHaveTextContent('Restore failed');
   });
 
   it('renders error message', () => {
@@ -76,20 +73,6 @@ describe('ImportProgress', () => {
     expect(screen.getByText('Events')).toBeInTheDocument();
     expect(screen.getByText('3')).toBeInTheDocument();
     expect(screen.getByText('Content blobs')).toBeInTheDocument();
-  });
-
-  it('renders snapshot result stats', () => {
-    render(<ImportProgress
-      phase="complete"
-      result={{ resourcesCreated: 10, annotationsCreated: 25, entityTypesAdded: 3 }}
-      translations={translations}
-    />);
-    expect(screen.getByText('10')).toBeInTheDocument();
-    expect(screen.getByText('Resources created')).toBeInTheDocument();
-    expect(screen.getByText('25')).toBeInTheDocument();
-    expect(screen.getByText('Annotations created')).toBeInTheDocument();
-    expect(screen.getByText('3')).toBeInTheDocument();
-    expect(screen.getByText('Entity types added')).toBeInTheDocument();
   });
 
   it('renders valid hash chain badge', () => {
@@ -115,7 +98,7 @@ describe('ImportProgress', () => {
   it('does not render result section during non-complete phases', () => {
     const { container } = render(<ImportProgress
       phase="resources"
-      result={{ resourcesCreated: 5 }}
+      result={{ stats: { streams: 1, events: 5, blobs: 0 } }}
       translations={translations}
     />);
     expect(container.querySelector('.semiont-exchange__result')).not.toBeInTheDocument();

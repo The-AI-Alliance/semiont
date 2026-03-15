@@ -674,32 +674,30 @@ export class SemiontApiClient {
   }
 
   // ============================================================================
-  // ADMIN — EXCHANGE (Import/Export)
+  // ADMIN — EXCHANGE (Backup/Restore)
   // ============================================================================
 
   /**
-   * Export knowledge base. Returns raw Response for streaming download.
+   * Create a backup of the knowledge base. Returns raw Response for streaming download.
    * Caller should use response.blob() to trigger a file download.
    */
-  async exportKnowledgeBase(
-    data: { format: 'backup' | 'snapshot'; includeArchived?: boolean },
+  async backupKnowledgeBase(
     options?: RequestOptions,
   ): Promise<Response> {
-    return fetch(`${this.baseUrl}/api/admin/exchange/export`, {
+    return fetch(`${this.baseUrl}/api/admin/exchange/backup`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(options?.auth ? { Authorization: `Bearer ${options.auth}` } : {}),
       },
-      body: JSON.stringify(data),
     });
   }
 
   /**
-   * Import knowledge base from file. Parses SSE progress events and calls onProgress.
+   * Restore knowledge base from a backup file. Parses SSE progress events and calls onProgress.
    * Returns the final SSE event (phase: 'complete' or 'error').
    */
-  async importKnowledgeBase(
+  async restoreKnowledgeBase(
     file: File,
     options?: RequestOptions & {
       onProgress?: (event: { phase: string; message?: string; result?: Record<string, unknown> }) => void;
@@ -708,7 +706,7 @@ export class SemiontApiClient {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch(`${this.baseUrl}/api/admin/exchange/import`, {
+    const response = await fetch(`${this.baseUrl}/api/admin/exchange/restore`, {
       method: 'POST',
       headers: {
         ...(options?.auth ? { Authorization: `Bearer ${options.auth}` } : {}),
@@ -717,7 +715,7 @@ export class SemiontApiClient {
     });
 
     if (!response.ok) {
-      throw new Error(`Import failed: ${response.status} ${response.statusText}`);
+      throw new Error(`Restore failed: ${response.status} ${response.statusText}`);
     }
 
     const reader = response.body!.getReader();

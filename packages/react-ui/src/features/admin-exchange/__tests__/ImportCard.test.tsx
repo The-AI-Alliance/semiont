@@ -51,7 +51,7 @@ describe('ImportCard', () => {
   it('enables import button when preview is available', () => {
     render(<ImportCard {...createProps({
       selectedFile: new File([''], 'test.jsonl'),
-      preview: { format: 'semiont-snapshot', version: 1, sourceUrl: '', stats: {} },
+      preview: { format: 'semiont-backup', version: 1, sourceUrl: '', stats: {} },
     })} />);
     expect(screen.getByRole('button', { name: 'Import' })).not.toBeDisabled();
   });
@@ -66,21 +66,21 @@ describe('ImportCard', () => {
     render(<ImportCard {...createProps({
       selectedFile: new File([''], 'test.jsonl'),
       preview: {
-        format: 'semiont-snapshot',
+        format: 'semiont-backup',
         version: 1,
         sourceUrl: 'http://example.com',
-        stats: { resources: 5 },
+        stats: { streams: 5 },
       },
     })} />);
-    expect(screen.getByText('semiont-snapshot v1')).toBeInTheDocument();
+    expect(screen.getByText('semiont-backup v1')).toBeInTheDocument();
     expect(screen.getByText('http://example.com')).toBeInTheDocument();
-    expect(screen.getByText('5 resources')).toBeInTheDocument();
+    expect(screen.getByText('5 streams')).toBeInTheDocument();
   });
 
   it('shows confirmation dialog on import click', () => {
     render(<ImportCard {...createProps({
       selectedFile: new File([''], 'test.jsonl'),
-      preview: { format: 'semiont-snapshot', version: 1, sourceUrl: '', stats: {} },
+      preview: { format: 'semiont-backup', version: 1, sourceUrl: '', stats: {} },
     })} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Import' }));
@@ -93,7 +93,7 @@ describe('ImportCard', () => {
     render(<ImportCard {...createProps({
       onImport,
       selectedFile: new File([''], 'test.jsonl'),
-      preview: { format: 'semiont-snapshot', version: 1, sourceUrl: '', stats: {} },
+      preview: { format: 'semiont-backup', version: 1, sourceUrl: '', stats: {} },
     })} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Import' }));
@@ -104,7 +104,7 @@ describe('ImportCard', () => {
   it('hides confirmation when cancel is clicked in confirm dialog', () => {
     render(<ImportCard {...createProps({
       selectedFile: new File([''], 'test.jsonl'),
-      preview: { format: 'semiont-snapshot', version: 1, sourceUrl: '', stats: {} },
+      preview: { format: 'semiont-backup', version: 1, sourceUrl: '', stats: {} },
     })} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Import' }));
@@ -127,7 +127,7 @@ describe('ImportCard', () => {
     render(<ImportCard {...createProps({
       isImporting: true,
       selectedFile: new File([''], 'test.jsonl'),
-      preview: { format: 'semiont-snapshot', version: 1, sourceUrl: '', stats: {} },
+      preview: { format: 'semiont-backup', version: 1, sourceUrl: '', stats: {} },
     })} />);
     expect(screen.getByRole('button', { name: 'Importing…' })).toBeDisabled();
   });

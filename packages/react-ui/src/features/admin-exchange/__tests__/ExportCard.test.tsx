@@ -11,14 +11,10 @@ const createProps = (overrides?: Partial<ExportCardProps>): ExportCardProps => (
   onExport: vi.fn(),
   isExporting: false,
   translations: {
-    title: 'Export',
-    description: 'Download a copy',
-    formatLabel: 'Format',
-    formatBackup: 'Full Backup',
-    formatSnapshot: 'Snapshot',
-    includeArchived: 'Include archived',
-    exportButton: 'Export',
-    exporting: 'Exporting…',
+    title: 'Backup',
+    description: 'Create a lossless backup',
+    exportButton: 'Create Backup',
+    exporting: 'Creating backup…',
   },
   ...overrides,
 });
@@ -26,57 +22,20 @@ const createProps = (overrides?: Partial<ExportCardProps>): ExportCardProps => (
 describe('ExportCard', () => {
   it('renders title and description', () => {
     render(<ExportCard {...createProps()} />);
-    expect(screen.getByRole('heading', { name: 'Export' })).toBeInTheDocument();
-    expect(screen.getByText('Download a copy')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Backup' })).toBeInTheDocument();
+    expect(screen.getByText('Create a lossless backup')).toBeInTheDocument();
   });
 
-  it('renders format dropdown with both options', () => {
-    render(<ExportCard {...createProps()} />);
-    expect(screen.getByText('Full Backup')).toBeInTheDocument();
-    expect(screen.getByText('Snapshot')).toBeInTheDocument();
-  });
-
-  it('calls onExport with backup format by default', () => {
+  it('calls onExport when button is clicked', () => {
     const onExport = vi.fn();
     render(<ExportCard {...createProps({ onExport })} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Export' }));
-    expect(onExport).toHaveBeenCalledWith('backup', false);
-  });
-
-  it('calls onExport with snapshot format when selected', () => {
-    const onExport = vi.fn();
-    render(<ExportCard {...createProps({ onExport })} />);
-    fireEvent.change(screen.getByLabelText('Format'), { target: { value: 'snapshot' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Export' }));
-    expect(onExport).toHaveBeenCalledWith('snapshot', false);
-  });
-
-  it('shows includeArchived checkbox only for snapshot format', () => {
-    render(<ExportCard {...createProps()} />);
-    expect(screen.queryByText('Include archived')).not.toBeInTheDocument();
-
-    // Switch to snapshot
-    fireEvent.change(screen.getByLabelText('Format'), { target: { value: 'snapshot' } });
-    expect(screen.getByText('Include archived')).toBeInTheDocument();
-  });
-
-  it('passes includeArchived state to onExport', () => {
-    const onExport = vi.fn();
-    render(<ExportCard {...createProps({ onExport })} />);
-    fireEvent.change(screen.getByLabelText('Format'), { target: { value: 'snapshot' } });
-    fireEvent.click(screen.getByText('Include archived'));
-    fireEvent.click(screen.getByRole('button', { name: 'Export' }));
-    expect(onExport).toHaveBeenCalledWith('snapshot', true);
+    fireEvent.click(screen.getByRole('button', { name: 'Create Backup' }));
+    expect(onExport).toHaveBeenCalled();
   });
 
   it('disables button and shows exporting text when isExporting', () => {
     render(<ExportCard {...createProps({ isExporting: true })} />);
-    const button = screen.getByRole('button', { name: 'Exporting…' });
+    const button = screen.getByRole('button', { name: 'Creating backup…' });
     expect(button).toBeDisabled();
-  });
-
-  it('disables format select when exporting', () => {
-    render(<ExportCard {...createProps({ isExporting: true })} />);
-    expect(screen.getByLabelText('Format')).toBeDisabled();
   });
 });
