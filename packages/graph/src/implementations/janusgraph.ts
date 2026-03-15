@@ -4,7 +4,7 @@
 import gremlin from 'gremlin';
 import { GraphDatabase } from '../interface';
 import type { components, Logger } from '@semiont/core';
-import { uriToResourceId } from '@semiont/core';
+import { resourceId as makeResourceId } from '@semiont/core';
 import {
   getBodySource,
   getPrimaryRepresentation,
@@ -692,7 +692,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       // Extract source from body using helper
       const bodySource = getBodySource(ref.body);
       if (bodySource) {
-        const targetDoc = await this.getResource(uriToResourceId(bodySource));
+        const targetDoc = await this.getResource(makeResourceId(bodySource));
         if (targetDoc) {
           const existing = connections.find(c => c.targetResource.id === targetDoc.id);
           if (existing) {

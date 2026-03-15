@@ -23,7 +23,7 @@
 import { Subscription, from } from 'rxjs';
 import { concatMap, mergeMap } from 'rxjs/operators';
 import type { EventMap, GatheredContext, Logger, components } from '@semiont/core';
-import { type EventBus, resourceId, uriToResourceId } from '@semiont/core';
+import { type EventBus, resourceId } from '@semiont/core';
 import { getExactText, getResourceId, getResourceEntityTypes, getTargetSource, getTargetSelector } from '@semiont/api-client';
 import type { InferenceClient } from '@semiont/inference';
 import type { KnowledgeBase } from './knowledge-base';
@@ -378,7 +378,7 @@ No explanations.`;
 
       // Get unique source resources — getTargetSource returns full URIs, extract IDs
       const sourceUris = [...new Set(references.map(ref => getTargetSource(ref.target)))];
-      const resources = await Promise.all(sourceUris.map(uri => this.kb.graph.getResource(uriToResourceId(uri))));
+      const resources = await Promise.all(sourceUris.map(uri => this.kb.graph.getResource(resourceId(uri))));
 
       // Build resource map for lookup — warn about any that couldn't be found
       for (let i = 0; i < sourceUris.length; i++) {

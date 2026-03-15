@@ -14,7 +14,7 @@ import type {
   ResourceId,
   AnnotationId,
 } from '@semiont/core';
-import { resourceId as makeResourceId, uriToResourceId } from '@semiont/core';
+import { resourceId as makeResourceId } from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
 import {
   getBodySource,
@@ -285,9 +285,9 @@ export class MemoryGraphDatabase implements GraphDatabase {
     for (const ref of refs) {
       const bodySource = getBodySource(ref.body);
       if (bodySource) {
-        const targetDoc = await this.getResource(uriToResourceId(bodySource));
+        const targetDoc = await this.getResource(makeResourceId(bodySource));
         if (targetDoc) {
-          const reverseRefs = await this.getReferences(uriToResourceId(bodySource));
+          const reverseRefs = await this.getReferences(makeResourceId(bodySource));
           const bidirectional = reverseRefs.some(r => getBodySource(r.body) === resourceIdStr);
 
           connections.push({
