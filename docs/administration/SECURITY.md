@@ -6,6 +6,8 @@ This document describes the current security implementation in Semiont and provi
 
 ### Authentication
 
+For backend implementation details, see the [Backend Authentication Guide](../../apps/backend/docs/AUTHENTICATION.md).
+
 Semiont implements authentication using NextAuth.js with support for:
 
 - **Google OAuth**: Secure authentication via Google Identity Platform (production environments)

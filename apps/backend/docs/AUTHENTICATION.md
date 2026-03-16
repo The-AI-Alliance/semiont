@@ -44,10 +44,10 @@ adminRouter.use('/api/admin/*', authMiddleware, adminMiddleware);
 
 These endpoints are documented in the OpenAPI spec as public (no `security` field):
 
-- `GET /api/health` - Health check for AWS ALB/ELB monitoring
-- `GET /api` - API documentation endpoint
-- `POST /api/auth/google` - OAuth login initiation
-- `POST /api/auth/refresh` - Refresh token exchange for MCP clients
+- `GET /api/health` - Health check for load balancer monitoring
+- `POST /api/tokens/password` - Password authentication
+- `POST /api/tokens/google` - Google OAuth authentication
+- `POST /api/tokens/refresh` - Refresh token exchange for MCP clients
 
 All other routes require JWT authentication via router-level middleware.
 
@@ -132,32 +132,28 @@ publicRouter.get('/api', async (c) => {
 
 ### Admin-Only Routes
 
-For admin-only endpoints, use layered middleware or check the `isAdmin` flag:
+For admin-only endpoints, use layered middleware:
 
 ```typescript
-// Method 1: Layered middleware (recommended for admin routers)
-const adminMiddleware = async (c: any, next: any) => {
+adminRouter.use('/api/admin/*', authMiddleware, adminMiddleware);
+```
+
+The `adminMiddleware` returns 403 if `user.isAdmin !== true`.
+
+### Moderator Routes
+
+Moderator endpoints use similar layered middleware, allowing both moderators and admins:
+
+```typescript
+const moderatorMiddleware = async (c: any, next: any) => {
   const user = c.get('user');
-  if (!user || !user.isAdmin) {
-    return c.json({ error: 'Forbidden: Admin access required' }, 403);
+  if (!user || (!user.isModerator && !user.isAdmin)) {
+    return c.json({ error: 'Forbidden: Moderator or Admin access required' }, 403);
   }
   return next();
 };
 
-adminRouter.use('/api/admin/*', authMiddleware, adminMiddleware);
-
-// Method 2: Check flag in handler (for individual admin routes)
-router.delete('/api/users/:id', async (c) => {
-  const user = c.get('user');
-
-  if (!user.isAdmin) {
-    return c.json({ error: 'Forbidden' }, 403);
-  }
-
-  // Admin logic here
-  await deleteUser(c.req.param('id'));
-  return c.json({ success: true });
-});
+moderateRouter.use('/api/moderate/*', authMiddleware, moderatorMiddleware);
 ```
 
 ## Backend Authentication Flow
@@ -195,7 +191,7 @@ app.get('/api/documents', async (c) => {
 
 Special backend endpoints for Model Context Protocol clients. For complete MCP flow, see [System Authentication](../../../docs/administration/AUTHENTICATION.md#mcp-authentication).
 
-### `POST /api/auth/mcp-generate-token`
+### `POST /api/tokens/mcp-generate`
 
 Generate a 30-day refresh token for MCP clients.
 
@@ -203,11 +199,11 @@ Generate a 30-day refresh token for MCP clients.
 - **Called by**: Frontend's `/auth/mcp-setup` endpoint
 - **Returns**: `{ refreshToken: string, expiresIn: number }`
 
-### `POST /api/auth/refresh`
+### `POST /api/tokens/refresh`
 
 Exchange refresh token for new access token.
 
-- **Auth**: Accepts refresh token in body
+- **Auth**: Public (accepts refresh token in body)
 - **Used by**: MCP clients every hour
 - **Returns**: `{ accessToken: string, expiresIn: number }`
 
@@ -215,7 +211,7 @@ Exchange refresh token for new access token.
 
 ```typescript
 // MCP client exchanges refresh token
-const response = await fetch('https://api.semiont.com/api/auth/refresh', {
+const response = await fetch('https://api.semiont.com/api/tokens/refresh', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ refreshToken })
@@ -238,6 +234,7 @@ const documents = await fetch('https://api.semiont.com/api/documents', {
   "sub": "user-123",
   "email": "user@example.com",
   "isAdmin": false,
+  "isModerator": false,
   "iat": 1698765432,
   "exp": 1699370232
 }
@@ -395,9 +392,10 @@ See [System Authentication Architecture](../../../docs/administration/AUTHENTICA
 - [src/routes/resources/shared.ts](../src/routes/resources/shared.ts) - Resources router with auth
 - [src/routes/entity-types.ts](../src/routes/entity-types.ts) - Entity types router with auth
 - [src/routes/admin.ts](../src/routes/admin.ts) - Admin router with layered auth
+- [src/routes/exchange.ts](../src/routes/exchange.ts) - Exchange routes with admin and moderator middleware
 - [src/__tests__/route-auth-coverage.test.ts](../src/__tests__/route-auth-coverage.test.ts) - Comprehensive security tests
 
 ---
 
-**Last Updated**: 2026-01-21
+**Last Updated**: 2026-03-15
 **Scope**: Backend authentication implementation and debugging
