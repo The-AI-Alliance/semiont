@@ -84,7 +84,7 @@ export function GenerationConfigModal({
 
   return (
     <Transition appear show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-[1001]" onClose={onClose}>
+      <Dialog as="div" className="semiont-modal" style={{ zIndex: 1001 }} onClose={onClose}>
         {/* Backdrop */}
         <TransitionChild
           as={Fragment}
@@ -95,12 +95,12 @@ export function GenerationConfigModal({
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="semiont-modal__backdrop" />
         </TransitionChild>
 
         {/* Modal panel */}
-        <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4">
+        <div className="semiont-modal__container">
+          <div className="semiont-modal__wrapper">
             <TransitionChild
               as={Fragment}
               enter="ease-out duration-200"
@@ -110,60 +110,69 @@ export function GenerationConfigModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <DialogPanel className="w-full max-w-[700px] transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 shadow-xl border border-gray-200 dark:border-gray-700 p-6 transition-all">
-                <div className="flex items-center justify-between mb-4">
-                  <DialogTitle className="text-lg font-semibold text-gray-900 dark:text-white">
+              <DialogPanel className="semiont-modal__panel" style={{ maxWidth: '700px' }}>
+                <div className="semiont-modal__header-content" style={{ marginBottom: '1rem' }}>
+                  <DialogTitle className="semiont-modal__title">
                     {t('title')}
                   </DialogTitle>
-                  <button
-                    onClick={onClose}
-                    className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300"
-                  >
+                  <button onClick={onClose} className="semiont-modal__close">
                     ✕
                   </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form onSubmit={handleSubmit} className="semiont-form">
                   {/* Source Context Preview */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <div className="semiont-form__field">
+                    <label className="semiont-form__label">
                       {t('sourceContext')}
                     </label>
                     {contextLoading && (
-                      <div className="text-center py-4 text-gray-600 dark:text-gray-400">
+                      <div className="semiont-modal__empty-state" style={{ textAlign: 'center', padding: '1rem 0' }}>
                         {t('loadingContext')}
                       </div>
                     )}
                     {!!contextError && (
-                      <div className="text-center py-4 text-red-600 dark:text-red-400">
+                      <div style={{ textAlign: 'center', padding: '1rem 0', color: 'var(--semiont-color-red-600)' }}>
                         {t('failedContext')}
                       </div>
                     )}
                     {hasContext && (
-                      <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 max-h-[200px] overflow-y-auto">
-                        <div className="text-sm font-mono whitespace-pre-wrap text-gray-600 dark:text-gray-400">
+                      <div style={{
+                        padding: '0.75rem',
+                        backgroundColor: 'var(--semiont-bg-secondary)',
+                        borderRadius: 'var(--semiont-radius-md)',
+                        border: '1px solid var(--semiont-border-primary)',
+                        maxHeight: '200px',
+                        overflowY: 'auto',
+                      }}>
+                        <div style={{ fontSize: 'var(--semiont-text-sm)', fontFamily: 'monospace', whiteSpace: 'pre-wrap', color: 'var(--semiont-text-secondary)' }}>
                           {sourceContext.before && <span>{sourceContext.before}</span>}
-                          <span className="bg-blue-100 dark:bg-blue-900/40 px-1 font-semibold text-blue-900 dark:text-blue-200">
+                          <span style={{
+                            backgroundColor: 'var(--semiont-color-primary-100)',
+                            padding: '0 0.25rem',
+                            fontWeight: 600,
+                            color: 'var(--semiont-color-primary-900)',
+                          }}>
                             {sourceContext.selected}
                           </span>
                           {sourceContext.after && <span>{sourceContext.after}</span>}
                         </div>
                       </div>
                     )}
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    <p className="semiont-form__help">
                       {t('contextHelp')}
                     </p>
                   </div>
 
                   {/* Entity Types */}
                   {entityTypes.length > 0 && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <div className="semiont-form__field">
+                      <label className="semiont-form__label">
                         {t('entityTypes')}
                       </label>
-                      <div className="flex flex-wrap gap-1.5">
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
                         {entityTypes.map(et => (
-                          <span key={et} className="inline-block px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 rounded-full">
+                          <span key={et} className="semiont-chip" style={{ fontSize: 'var(--semiont-text-xs)', padding: '0.125rem 0.5rem' }}>
                             {et}
                           </span>
                         ))}
@@ -173,23 +182,32 @@ export function GenerationConfigModal({
 
                   {/* Graph Context */}
                   {graphContext && (connections.length > 0 || citedByCount > 0 || siblingEntityTypes.length > 0) && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <div className="semiont-form__field">
+                      <label className="semiont-form__label">
                         {t('graphContext')}
                       </label>
-                      <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 space-y-2 text-sm">
+                      <div style={{
+                        padding: '0.75rem',
+                        backgroundColor: 'var(--semiont-bg-secondary)',
+                        borderRadius: 'var(--semiont-radius-md)',
+                        border: '1px solid var(--semiont-border-primary)',
+                        fontSize: 'var(--semiont-text-sm)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.5rem',
+                      }}>
                         {connections.length > 0 && (
                           <div>
-                            <span className="font-medium text-gray-600 dark:text-gray-400">{t('connections')}</span>
-                            <ul className="mt-1 space-y-0.5">
+                            <span style={{ fontWeight: 500, color: 'var(--semiont-text-secondary)' }}>{t('connections')}</span>
+                            <ul style={{ marginTop: '0.25rem', display: 'flex', flexDirection: 'column', gap: '0.125rem', listStyle: 'none', padding: 0 }}>
                               {connections.map(conn => (
-                                <li key={conn.resourceId} className="text-gray-600 dark:text-gray-400 flex items-center gap-1.5">
+                                <li key={conn.resourceId} style={{ color: 'var(--semiont-text-secondary)', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
                                   <span>{conn.resourceName}</span>
                                   {conn.bidirectional && (
-                                    <span className="text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded-sm">mutual</span>
+                                    <span className="semiont-chip" style={{ fontSize: 'var(--semiont-text-xs)', padding: '0.125rem 0.375rem' }}>mutual</span>
                                   )}
                                   {conn.entityTypes && conn.entityTypes.length > 0 && (
-                                    <span className="text-xs text-gray-400 dark:text-gray-500">
+                                    <span style={{ fontSize: 'var(--semiont-text-xs)', color: 'var(--semiont-text-tertiary)' }}>
                                       {conn.entityTypes.join(', ')}
                                     </span>
                                   )}
@@ -200,13 +218,13 @@ export function GenerationConfigModal({
                         )}
                         {citedByCount > 0 && (
                           <div>
-                            <span className="font-medium text-gray-600 dark:text-gray-400">
+                            <span style={{ fontWeight: 500, color: 'var(--semiont-text-secondary)' }}>
                               {t('citedBy', { count: citedByCount })}
                             </span>
                             {citedBy.length > 0 && (
-                              <ul className="mt-1 space-y-0.5">
+                              <ul style={{ marginTop: '0.25rem', display: 'flex', flexDirection: 'column', gap: '0.125rem', listStyle: 'none', padding: 0 }}>
                                 {citedBy.map(ref => (
-                                  <li key={ref.resourceId} className="text-gray-600 dark:text-gray-400">
+                                  <li key={ref.resourceId} style={{ color: 'var(--semiont-text-secondary)' }}>
                                     {ref.resourceName}
                                   </li>
                                 ))}
@@ -216,10 +234,10 @@ export function GenerationConfigModal({
                         )}
                         {siblingEntityTypes.length > 0 && (
                           <div>
-                            <span className="font-medium text-gray-600 dark:text-gray-400">{t('siblingTypes')}</span>
-                            <div className="flex flex-wrap gap-1 mt-1">
+                            <span style={{ fontWeight: 500, color: 'var(--semiont-text-secondary)' }}>{t('siblingTypes')}</span>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: '0.25rem' }}>
                               {siblingEntityTypes.map(et => (
-                                <span key={et} className="inline-block px-2 py-0.5 text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full">
+                                <span key={et} className="semiont-chip" style={{ fontSize: 'var(--semiont-text-xs)', padding: '0.125rem 0.5rem' }}>
                                   {et}
                                 </span>
                               ))}
@@ -231,8 +249,8 @@ export function GenerationConfigModal({
                   )}
 
                   {/* Resource Title */}
-                  <div>
-                    <label htmlFor="title" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <div className="semiont-form__field">
+                    <label htmlFor="title" className="semiont-form__label">
                       {t('resourceTitle')}
                     </label>
                     <input
@@ -241,14 +259,14 @@ export function GenerationConfigModal({
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
                       required
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-gray-900 dark:text-white"
+                      className="semiont-input"
                       placeholder={t('resourceTitlePlaceholder')}
                     />
                   </div>
 
                   {/* Additional Instructions */}
-                  <div>
-                    <label htmlFor="prompt" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <div className="semiont-form__field">
+                    <label htmlFor="prompt" className="semiont-form__label">
                       {t('additionalInstructions')}
                     </label>
                     <textarea
@@ -256,21 +274,21 @@ export function GenerationConfigModal({
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
                       rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-gray-900 dark:text-white"
+                      className="semiont-textarea"
                       placeholder={t('additionalInstructionsPlaceholder')}
                     />
                   </div>
 
                   {/* Language Selection */}
-                  <div>
-                    <label htmlFor="language" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <div className="semiont-form__field">
+                    <label htmlFor="language" className="semiont-form__label">
                       {t('language')}
                     </label>
                     <select
                       id="language"
                       value={language}
                       onChange={(e) => setLanguage(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-gray-900 dark:text-white"
+                      className="semiont-select"
                     >
                       {LOCALES.map((lang) => (
                         <option key={lang.code} value={lang.code}>
@@ -278,14 +296,14 @@ export function GenerationConfigModal({
                         </option>
                       ))}
                     </select>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    <p className="semiont-form__help">
                       {t('languageHelp')}
                     </p>
                   </div>
 
                   {/* Temperature Slider */}
-                  <div>
-                    <label htmlFor="temperature" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <div className="semiont-form__field">
+                    <label htmlFor="temperature" className="semiont-form__label">
                       {t('creativity', { value: temperature.toFixed(1) })}
                     </label>
                     <input
@@ -296,17 +314,17 @@ export function GenerationConfigModal({
                       step="0.1"
                       value={temperature}
                       onChange={(e) => setTemperature(parseFloat(e.target.value))}
-                      className="w-full"
+                      className="semiont-slider"
                     />
-                    <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    <div className="semiont-slider__labels">
                       <span>{t('creativityFocused')}</span>
                       <span>{t('creativityCreative')}</span>
                     </div>
                   </div>
 
                   {/* Max Tokens Input */}
-                  <div>
-                    <label htmlFor="maxTokens" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <div className="semiont-form__field">
+                    <label htmlFor="maxTokens" className="semiont-form__label">
                       {t('maxLength')}
                     </label>
                     <input
@@ -317,26 +335,26 @@ export function GenerationConfigModal({
                       step="100"
                       value={maxTokens}
                       onChange={(e) => setMaxTokens(parseInt(e.target.value))}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 text-gray-900 dark:text-white"
+                      className="semiont-input"
                     />
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    <p className="semiont-form__help">
                       {t('maxLengthHelp')}
                     </p>
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex gap-3 pt-2">
+                  <div className="semiont-modal__actions" style={{ paddingTop: '0.5rem' }}>
                     <button
                       type="button"
                       onClick={onClose}
-                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                      className="semiont-button--secondary semiont-button--flex"
                     >
                       {t('cancel')}
                     </button>
                     <button
                       type="submit"
                       disabled={contextLoading || !context}
-                      className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="semiont-button--gradient semiont-button--flex"
                     >
                       {t('generate')}
                     </button>
