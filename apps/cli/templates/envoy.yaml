@@ -36,6 +36,8 @@ static_resources:
           - name: envoy.filters.http.router
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+          upgrade_configs:
+          - upgrade_type: websocket
           route_config:
             name: local_route
             virtual_hosts:
