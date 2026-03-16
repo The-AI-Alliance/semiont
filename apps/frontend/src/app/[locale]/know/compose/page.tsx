@@ -21,7 +21,7 @@ import { useHoverDelay } from '@semiont/react-ui';
 import { useEventSubscriptions } from '@semiont/react-ui';
 import { Toolbar } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { resourceId as toResourceId, annotationId as toAnnotationId, ContentFormat, AccessToken } from '@semiont/core';
+import { resourceId as toResourceId, annotationId as toAnnotationId, ContentFormat, AccessToken, type GatheredContext } from '@semiont/core';
 import { getPrimaryMediaType } from '@semiont/api-client';
 import { decodeWithCharset } from '@semiont/api-client';
 import { ComposeLoadingState } from '@semiont/react-ui';
@@ -55,6 +55,7 @@ function ComposeResourceContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [cloneData, setCloneData] = useState<any>(null);
   const [referenceData, setReferenceData] = useState<any>(null);
+  const [gatheredContext, setGatheredContext] = useState<GatheredContext | null>(null);
 
   // Toolbar and settings state
   const { activePanel } = usePanelBrowse();
@@ -104,6 +105,19 @@ function ComposeResourceContent() {
           name: nameFromUrl!,
           entityTypes,
         });
+
+        // Read gathered context from sessionStorage (stored by wizard)
+        const contextKey = `gather-context:${annotationUriParam}`;
+        const stored = sessionStorage.getItem(contextKey);
+        if (stored) {
+          try {
+            setGatheredContext(JSON.parse(stored));
+          } catch {
+            // Ignore malformed context
+          }
+          sessionStorage.removeItem(contextKey);
+        }
+
         setIsLoading(false);
         return;
       }
@@ -244,6 +258,7 @@ function ComposeResourceContent() {
       mode={pageMode}
       cloneData={cloneData}
       referenceData={referenceData}
+      gatheredContext={gatheredContext}
       availableEntityTypes={availableEntityTypes}
       initialLocale={locale}
       theme={resolvedTheme}

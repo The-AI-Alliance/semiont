@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import type { components } from '@semiont/core';
+import type { components, GatheredContext } from '@semiont/core';
 import { isImageMimeType, isPdfMimeType, LOCALES } from '@semiont/api-client';
 import { COMMON_PANELS, type ToolbarPanelType } from '../../../hooks/usePanelBrowse';
 import { buttonStyles } from '../../../lib/button-styles';
@@ -33,6 +33,9 @@ export interface ResourceComposePageProps {
     name: string;
     entityTypes: string[];
   };
+
+  // Gathered context from wizard (optional, for reference mode)
+  gatheredContext?: GatheredContext | null;
 
   // Available options
   availableEntityTypes: string[];
@@ -108,6 +111,7 @@ export function ResourceComposePage({
   mode,
   cloneData,
   referenceData,
+  gatheredContext,
   availableEntityTypes,
   initialLocale,
   theme,
@@ -276,6 +280,49 @@ export function ResourceComposePage({
             </div>
           )}
         </div>
+
+        {/* Gathered Context Panel (from wizard) */}
+        {gatheredContext && (
+          <div className="semiont-form__field" style={{ marginBottom: '1rem' }}>
+            {gatheredContext.sourceContext && (
+              <div style={{
+                padding: '0.75rem',
+                backgroundColor: 'var(--semiont-bg-secondary)',
+                borderRadius: 'var(--semiont-radius-md)',
+                border: '1px solid var(--semiont-border-primary)',
+                maxHeight: '150px',
+                overflowY: 'auto',
+                marginBottom: '0.5rem',
+              }}>
+                <div style={{ fontSize: 'var(--semiont-text-sm)', fontFamily: 'monospace', whiteSpace: 'pre-wrap', color: 'var(--semiont-text-secondary)' }}>
+                  {gatheredContext.sourceContext.before && <span>{gatheredContext.sourceContext.before}</span>}
+                  <span style={{
+                    backgroundColor: 'var(--semiont-color-primary-100)',
+                    padding: '0 0.25rem',
+                    fontWeight: 600,
+                    color: 'var(--semiont-color-primary-900)',
+                  }}>
+                    {gatheredContext.sourceContext.selected}
+                  </span>
+                  {gatheredContext.sourceContext.after && <span>{gatheredContext.sourceContext.after}</span>}
+                </div>
+              </div>
+            )}
+            {gatheredContext.graphContext && gatheredContext.graphContext.connections && gatheredContext.graphContext.connections.length > 0 && (
+              <div style={{
+                padding: '0.5rem 0.75rem',
+                fontSize: 'var(--semiont-text-sm)',
+                color: 'var(--semiont-text-secondary)',
+              }}>
+                {gatheredContext.graphContext.connections.map(conn => (
+                  <span key={conn.resourceId} className="semiont-chip" style={{ fontSize: 'var(--semiont-text-xs)', padding: '0.125rem 0.5rem', marginRight: '0.25rem' }}>
+                    {conn.resourceName}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Create Form */}
         <div className="semiont-form">

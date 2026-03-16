@@ -76,27 +76,6 @@ describe('Generation Flow - Feature Integration', () => {
     vi.restoreAllMocks();
   });
 
-  it('should open modal when yield:modal-open event is emitted', async () => {
-    const testResourceId = resourceId('test-resource');
-    const testAnnotationId = annotationId('test-annotation');
-
-    const { emitModalOpen } = renderYieldFlow(
-      testResourceId
-    );
-
-    // Emit modal open event
-    act(() => {
-      emitModalOpen(testAnnotationId, testResourceId, 'Test Reference');
-    });
-
-    // Verify modal state updated
-    await waitFor(() => {
-      expect(screen.getByTestId('modal-open')).toHaveTextContent('true');
-      expect(screen.getByTestId('reference-id')).toHaveTextContent(testAnnotationId);
-      expect(screen.getByTestId('default-title')).toHaveTextContent('Test Reference');
-    });
-  });
-
   it('should call yieldResourceFromAnnotation exactly ONCE when generation starts', async () => {
     const testResourceId = resourceId('test-resource');
     const testAnnotationId = annotationId('test-annotation');
@@ -422,10 +401,8 @@ function renderYieldFlow(
   // Test harness component that uses the hook
   function YieldFlowTestHarness() {
     const {
+      isGenerating,
       generationProgress,
-      generationModalOpen,
-      generationReferenceId,
-      generationDefaultTitle,
     } = useYieldFlow(
       'en',
       testResourceId,
@@ -434,11 +411,8 @@ function renderYieldFlow(
 
     return (
       <div>
-        <div data-testid="modal-open">{generationModalOpen ? 'true' : 'false'}</div>
-        <div data-testid="reference-id">{generationReferenceId || 'none'}</div>
-        <div data-testid="default-title">{generationDefaultTitle || 'none'}</div>
         <div data-testid="is-generating">
-          {generationProgress ? 'true' : 'false'}
+          {isGenerating ? 'true' : 'false'}
         </div>
         <div data-testid="progress">
           {generationProgress?.message || 'No progress'}
@@ -459,17 +433,6 @@ function renderYieldFlow(
   );
 
   return {
-    emitModalOpen: (
-      aId: AnnotationId,
-      rId: ResourceId,
-      defaultTitle: string
-    ) => {
-      eventBusInstance.get('yield:modal-open').next({
-        annotationId: aId,
-        resourceId: rId,
-        defaultTitle,
-      });
-    },
     emitGenerationStart: (
       aId: AnnotationId,
       rId: ResourceId,

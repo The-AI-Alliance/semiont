@@ -104,11 +104,6 @@ export type EventMap = {
   // ========================================================================
   // Resource generation from reference annotations
 
-  'yield:modal-open': {
-    annotationId: AnnotationId;
-    resourceId: ResourceId;
-    defaultTitle: string;
-  };
   'yield:request': {
     annotationId: AnnotationId;
     resourceId: ResourceId;
@@ -316,21 +311,18 @@ export type EventMap = {
   // ========================================================================
   // Reference linking and resolution (search modal)
 
-  'bind:create-manual': {
-    annotationId: AnnotationId;
-    title: string;
-    entityTypes: string[];
-  };
-  'bind:link': {
+  'bind:initiate': {
     annotationId: AnnotationId;
     resourceId: ResourceId;
-    searchTerm: string;
+    defaultTitle: string;
+    entityTypes: string[];
   };
   'bind:search-requested': {
     correlationId?: string;
     referenceId: string;
-    searchTerm: string;
-    context?: GatheredContext;
+    context: GatheredContext;
+    limit?: number;
+    useSemanticScoring?: boolean;
   };
   'bind:update-body': {
     annotationId: AnnotationId;
@@ -347,7 +339,6 @@ export type EventMap = {
   'bind:body-update-failed': { error: Error };
   'bind:search-results': {
     referenceId: string;
-    searchTerm: string;
     results: Array<components['schemas']['ResourceDescriptor'] & {
       score?: number;
       matchReason?: string;

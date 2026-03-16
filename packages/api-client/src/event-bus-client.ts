@@ -381,7 +381,9 @@ export class EventBusClient {
     this.eventBus.get('bind:search-requested').next({
       correlationId,
       referenceId,
-      searchTerm,
+      context: {
+        sourceContext: { selected: searchTerm },
+      },
     });
 
     const result = await resultPromise;

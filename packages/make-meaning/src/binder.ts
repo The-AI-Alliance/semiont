@@ -65,31 +65,27 @@ export class Binder {
 
   private async handleSearch(event: EventMap['bind:search-requested']): Promise<void> {
     try {
+      const context = event.context;
+      const searchTerm = context.sourceContext?.selected ?? '';
+
       this.logger.debug('Searching for binding candidates', {
         referenceId: event.referenceId,
-        searchTerm: event.searchTerm,
-        hasContext: !!event.context,
+        searchTerm,
+        limit: event.limit,
+        useSemanticScoring: event.useSemanticScoring,
       });
 
-      if (!event.context) {
-        // No context — fall back to simple name search
-        const results = await this.kb.graph.searchResources(event.searchTerm);
-        this.eventBus.get('bind:search-results').next({
-          referenceId: event.referenceId,
-          searchTerm: event.searchTerm,
-          results,
-        });
-        return;
-      }
+      const scored = await this.contextDrivenSearch(
+        searchTerm,
+        context,
+        event.useSemanticScoring,
+      );
 
-      // Context-driven multi-source retrieval + ranking
-      const context = event.context;
-      const scored = await this.contextDrivenSearch(event.searchTerm, context);
+      const limited = event.limit ? scored.slice(0, event.limit) : scored;
 
       this.eventBus.get('bind:search-results').next({
         referenceId: event.referenceId,
-        searchTerm: event.searchTerm,
-        results: scored,
+        results: limited,
       });
     } catch (error) {
       this.logger.error('Bind search failed', {
@@ -121,6 +117,7 @@ export class Binder {
   private async contextDrivenSearch(
     searchTerm: string,
     context: GatheredContext,
+    useSemanticScoring?: boolean,
   ): Promise<Array<ResourceDescriptor & { score: number; matchReason: string }>> {
     const annotationEntityTypes = context.metadata?.entityTypes ?? [];
     const connections = context.graphContext?.connections ?? [];
@@ -253,8 +250,8 @@ export class Binder {
       };
     });
 
-    // Inference-based semantic scoring (when available and there are candidates)
-    if (this.inferenceClient && scored.length > 0) {
+    // Inference-based semantic scoring (when available, enabled, and there are candidates)
+    if (this.inferenceClient && scored.length > 0 && useSemanticScoring !== false) {
       try {
         const inferenceScores = await this.inferenceSemanticScore(
           searchTerm,

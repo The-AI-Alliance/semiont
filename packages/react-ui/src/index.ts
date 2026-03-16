@@ -139,13 +139,12 @@ export type {
 } from './types/simple-navigation';
 
 // Components - Modals
-export * from './components/modals/BindContextModal';
+export * from './components/modals/ReferenceWizardModal';
 export * from './components/modals/SearchModal';
 export * from './components/modals/ResourceSearchModal';
 export type {
   SearchModalProps,
   ResourceSearchModalProps,
-  GenerationOptions
 } from './types/modals';
 
 // Components - Layout

@@ -2,7 +2,7 @@
  * Type definitions for resource viewer feature
  */
 
-import type { components, GatheredContext } from '@semiont/core';
+import type { components } from '@semiont/core';
 
 export type SemiontResource = components['schemas']['ResourceDescriptor'];
 export type Annotation = components['schemas']['Annotation'];
@@ -18,16 +18,4 @@ export interface TextSelection {
   prefix?: string;
   suffix?: string;
   svgSelector?: string;
-}
-
-/**
- * Generation options
- */
-export interface GenerationOptions {
-  title: string;
-  prompt?: string;
-  language?: string;
-  temperature?: number;
-  maxTokens?: number;
-  context?: GatheredContext;
 }

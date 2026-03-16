@@ -13,7 +13,7 @@
 
 The Gather flow assembles related context around a focal annotation. The application surfaces surrounding passage text, annotation metadata, and knowledge graph neighborhood to construct a coherent input for downstream processing. AI agents perform RAG retrieval, context window assembly, and knowledge graph traversal; human collaborators pull prior materials and cross-references. The output is a `GatheredContext` object that provides grounding material for resource generation, context-driven search, or other context-dependent operations.
 
-Gathering is triggered automatically when the generation modal opens (Yield flow) or when the user clicks "Link Document" (Bind flow). It runs in parallel with the modal rendering, so context is typically ready by the time the user interacts.
+Gathering is triggered automatically when the Reference Resolution Wizard opens (`bind:initiate`). It runs in parallel with the wizard rendering, so context is typically ready by the time the user interacts with the wizard's first step.
 
 ## Using the API Client
 
@@ -83,39 +83,23 @@ The result is a `GatheredContext` containing:
 
 ## Workflow
 
-### Yield Flow (Generation)
+### Reference Resolution Wizard
 
 ```
-User clicks "Generate" on a reference annotation
+User clicks 🕸️🧙 wizard button on unresolved reference
     |
-yield:modal-open fires
+bind:initiate fires
     |
-useYieldFlow emits gather:requested on EventBus (parallel with modal render)
+ResourceViewerPage emits gather:requested on EventBus (parallel with wizard render)
     |
 Gatherer assembles GatheredContext (passage + graph + optional inference summary)
     |
-gather:complete → Context available in generation modal
+gather:complete → Wizard Step 1 displays entity types, graph context, passage preview
     |
-GenerationConfigModal displays entity types, graph context, passage preview
+User chooses: Bind (search) / Generate (AI) / Compose (manual)
 ```
 
-### Bind Flow (Search)
-
-```
-User clicks "Link Document" on unresolved reference
-    |
-bind:link fires
-    |
-useBindFlow emits gather:requested on EventBus
-    |
-Gatherer assembles GatheredContext (passage + graph + optional inference summary)
-    |
-gather:complete → Context modal opens for review
-    |
-User clicks "Find" → bind:search-requested fires with context
-    |
-Binder uses context for multi-signal search scoring
-```
+Both the Bind path (context-driven search) and Generate path (SSE generation) use the same `GatheredContext` gathered in Step 1. See [WIZARDS.md](./WIZARDS.md) for the full wizard specification.
 
 ## Relationship to Downstream Flows
 
