@@ -3,13 +3,11 @@
 /**
  * Entity Tags Page - Thin Next.js wrapper
  *
- * This page handles Next.js-specific concerns (session, translations, API calls)
+ * This page handles Next.js-specific concerns (translations, API calls)
  * and delegates rendering to the pure React EntityTagsPage component.
  */
 
-import { notFound } from 'next/navigation';
-import { useSession } from 'next-auth/react';
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { useEntityTypes, Toolbar } from '@semiont/react-ui';
 import { useQueryClient } from '@tanstack/react-query';
@@ -17,9 +15,11 @@ import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme, usePanelBrowse, useLineNumbers, useEventSubscriptions } from '@semiont/react-ui';
 import { EntityTagsPage } from '@semiont/react-ui';
 
+// Authentication is handled by middleware (proxy.ts)
+// Only authenticated moderators/admins can reach this page
+
 export default function EntityTagsPageWrapper() {
   const t = useTranslations('ModerateEntityTags');
-  const { data: session, status } = useSession();
   const [newTag, setNewTag] = useState('');
   const [error, setError] = useState('');
   const queryClient = useQueryClient();
@@ -29,12 +29,10 @@ export default function EntityTagsPageWrapper() {
   const { theme, setTheme } = useTheme();
   const { showLineNumbers, toggleLineNumbers } = useLineNumbers();
 
-  // Handle theme change events
   const handleThemeChanged = useCallback(({ theme }: { theme: 'light' | 'dark' | 'system' }) => {
     setTheme(theme);
   }, [setTheme]);
 
-  // Handle line numbers toggle events
   const handleLineNumbersToggled = useCallback(() => {
     toggleLineNumbers();
   }, [toggleLineNumbers]);
@@ -57,17 +55,6 @@ export default function EntityTagsPageWrapper() {
   // Mutation for creating new entity type
   const createEntityTypeMutation = entityTypesAPI.add.useMutation();
 
-  // Check authentication and moderator/admin status
-  useEffect(() => {
-    if (status === 'loading') return;
-    if (status === 'unauthenticated') {
-      notFound();
-    }
-    if (!session?.backendUser?.isModerator && !session?.backendUser?.isAdmin) {
-      notFound();
-    }
-  }, [status, session]);
-
   const handleAddTag = async () => {
     if (!newTag.trim()) return;
 
@@ -82,18 +69,12 @@ export default function EntityTagsPageWrapper() {
     }
   };
 
-  // Show loading while checking session
-  if (status === 'loading' || isLoading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
         <p className="text-gray-600 dark:text-gray-300">{t('loading')}</p>
       </div>
     );
-  }
-
-  // Show nothing if not moderator/admin (will be handled by notFound)
-  if (!session?.backendUser?.isModerator && !session?.backendUser?.isAdmin) {
-    return null;
   }
 
   return (

@@ -120,7 +120,55 @@ jobs:
           fi
           echo "✅ No sensitive data patterns detected"
           
-          echo "🎉 All frontend security checks passed!"
+          echo "🎉 All admin route security checks passed!"
+
+      - name: Verify no moderate content leakage
+        run: |
+          echo "Testing moderate route security..."
+
+          # Test 1: Verify moderate route returns 404 for unauthenticated users
+          status_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/moderate)
+          if [ "$status_code" != "404" ]; then
+            echo "❌ SECURITY FAILURE: Moderate route returned $status_code instead of 404"
+            echo "Moderate routes should return 404 to hide their existence from unauthorized users"
+            exit 1
+          fi
+          echo "✅ Moderate route returns proper 404 status code (hiding moderate routes)"
+
+          # Test 2: Verify no moderate content in response body
+          response=$(curl -s http://localhost:3000/moderate)
+
+          if echo "$response" | grep -qi "moderation\|moderator dashboard\|entity.tag\|tag.schema\|linked.data\|recent activity"; then
+            echo "❌ SECURITY FAILURE: Moderate-related content leaked in response!"
+            exit 1
+          fi
+          echo "✅ No moderate content leaked in 404 response"
+
+          # Test 3: Verify it's a standard 404 page (not revealing moderate existence)
+          if echo "$response" | grep -qi "404\|not.*found\|page.*could.*not.*be.*found"; then
+            echo "✅ Standard 404 page displayed (good security practice)"
+          else
+            echo "⚠️ Warning: 404 page might not be standard, but no moderate content leaked"
+          fi
+
+          # Test 4: Verify no sensitive data patterns
+          if echo "$response" | grep -qE "postgresql://|sk_[a-zA-Z0-9]+|@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}|DELETE|admin@"; then
+            echo "❌ SECURITY FAILURE: Sensitive data patterns found in response!"
+            exit 1
+          fi
+          echo "✅ No sensitive data patterns detected"
+
+          # Test 5: Verify moderate sub-routes also return 404
+          for subroute in "/moderate/recent" "/moderate/entity-tags" "/moderate/tag-schemas" "/moderate/linked-data"; do
+            status_code=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:3000$subroute")
+            if [ "$status_code" != "404" ]; then
+              echo "❌ SECURITY FAILURE: $subroute returned $status_code instead of 404"
+              exit 1
+            fi
+            echo "✅ $subroute returns proper 404"
+          done
+
+          echo "🎉 All moderate route security checks passed!"
 
       - name: Stop application
         if: always()
@@ -439,6 +487,7 @@ jobs:
           if [ "${{ needs.frontend-security.result }}" == "success" ]; then
             echo "✅ **Frontend Security Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
             echo "- Admin route security verified" >> $GITHUB_STEP_SUMMARY
+            echo "- Moderate route security verified" >> $GITHUB_STEP_SUMMARY
             echo "- No information disclosure detected" >> $GITHUB_STEP_SUMMARY
             echo "- Authentication checks working properly" >> $GITHUB_STEP_SUMMARY
           else

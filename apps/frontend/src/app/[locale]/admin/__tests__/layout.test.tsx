@@ -3,8 +3,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import AdminLayout from '../layout';
 
-// Mock the admin components
-// Note: AdminAuthWrapper was removed - auth is now handled by middleware
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual('@semiont/react-ui');
   return {
@@ -246,8 +244,6 @@ describe('AdminLayout', () => {
     it('should properly integrate all admin components', () => {
       render(<AdminLayout>{mockChildren}</AdminLayout>);
 
-      // All components should be present and in correct hierarchy
-      // Note: AdminAuthWrapper was removed as auth is now handled by middleware
       const sidebar = screen.getByTestId('admin-sidebar');
       const navigation = screen.getByTestId('admin-navigation');
       const main = screen.getByRole('main');
