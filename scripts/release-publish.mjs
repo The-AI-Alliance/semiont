@@ -91,8 +91,9 @@ async function main() {
   // Confirm with user
   console.log('\n⚠️  This will:');
   console.log(`   1. Verify version sync across all packages`);
-  console.log(`   2. Trigger stable release workflows for ${currentVersion}`);
-  console.log(`   3. Provide command to await workflow completion`);
+  console.log(`   2. Create and push git tag v${currentVersion}`);
+  console.log(`   3. Trigger stable release workflows for ${currentVersion}`);
+  console.log(`   4. Provide command to await workflow completion`);
 
   const confirmed = await confirmAction('\nDo you want to proceed?');
   if (!confirmed) {
@@ -107,9 +108,18 @@ async function main() {
 
   execInteractive('npm', ['run', 'version:show'], 'Checking version sync status');
 
-  // Phase 2: Publish stable releases
+  // Phase 2: Git tag
   console.log('\n' + '='.repeat(70));
-  console.log('PHASE 2: TRIGGER STABLE RELEASE WORKFLOWS');
+  console.log('PHASE 2: GIT TAG');
+  console.log('='.repeat(70));
+
+  const tag = `v${currentVersion}`;
+  exec('git', ['tag', tag], `Creating git tag ${tag}`);
+  exec('git', ['push', 'origin', tag], `Pushing tag ${tag} to origin`);
+
+  // Phase 3: Publish stable releases
+  console.log('\n' + '='.repeat(70));
+  console.log('PHASE 3: TRIGGER STABLE RELEASE WORKFLOWS');
   console.log('='.repeat(70));
 
   console.log(`\n📦 Publishing ${currentVersion} as stable release...\n`);
@@ -169,6 +179,7 @@ async function main() {
 
   console.log('\n📋 Summary:');
   console.log(`   • Version to publish: ${currentVersion}`);
+  console.log(`   • Git tag: v${currentVersion}`);
   console.log(`   • Workflows triggered: ${workflows.length}`);
 
   console.log('\n🔗 Monitor progress:');
