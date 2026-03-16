@@ -318,6 +318,17 @@ export class Binder {
     }).join('\n');
 
     const contextParts: string[] = [];
+    contextParts.push(`Annotation motivation: ${context.annotation.motivation}`);
+    contextParts.push(`Source resource: ${context.sourceResource.name}`);
+    // Include body text for commenting/assessing annotations
+    const { motivation, body } = context.annotation;
+    if (motivation === 'commenting' || motivation === 'assessing') {
+      const bodyItem = Array.isArray(body) ? body[0] : body;
+      if (bodyItem && 'value' in bodyItem && bodyItem.value) {
+        const label = motivation === 'commenting' ? 'Comment' : 'Assessment';
+        contextParts.push(`${label}: ${bodyItem.value}`);
+      }
+    }
     if (entityTypes.length > 0) contextParts.push(`Annotation entity types: ${entityTypes.join(', ')}`);
     if (connections.length > 0) {
       const connNames = connections.slice(0, 5).map(c => c.resourceName);
