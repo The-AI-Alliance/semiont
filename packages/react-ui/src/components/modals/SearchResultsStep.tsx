@@ -84,7 +84,7 @@ export function SearchResultsStep({
                   className="semiont-button--primary"
                   style={{ flexShrink: 0 }}
                 >
-                  {t.link}
+                  🔗 {t.link}
                 </button>
               </div>
             );
@@ -99,14 +99,14 @@ export function SearchResultsStep({
           onClick={onCancel}
           className="semiont-button--secondary semiont-button--flex"
         >
-          {t.cancel}
+          ✕ {t.cancel}
         </button>
         <button
           type="button"
           onClick={onBack}
           className="semiont-button--secondary semiont-button--flex"
         >
-          {t.back}
+          ◀ {t.back}
         </button>
       </div>
     </>

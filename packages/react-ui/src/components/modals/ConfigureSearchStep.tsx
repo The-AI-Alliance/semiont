@@ -17,7 +17,7 @@ export interface ConfigureSearchStepProps {
     semanticScoringHelp: string;
     cancel: string;
     back: string;
-    search: string;
+    find: string;
   };
 }
 
@@ -77,20 +77,20 @@ export function ConfigureSearchStep({
           onClick={onCancel}
           className="semiont-button--secondary semiont-button--flex"
         >
-          {t.cancel}
+          ✕ {t.cancel}
         </button>
         <button
           type="button"
           onClick={onBack}
           className="semiont-button--secondary semiont-button--flex"
         >
-          {t.back}
+          ◀ {t.back}
         </button>
         <button
           type="submit"
           className="semiont-button--primary semiont-button--flex"
         >
-          {t.search}
+          🔍 {t.find}
         </button>
       </div>
     </form>

@@ -346,11 +346,9 @@
     "loadingContext": "Context wordt verzameld...",
     "failedContext": "Context verzamelen mislukt",
     "cancel": "Annuleren",
-    "bind": "Binden",
     "generate": "Genereren",
     "compose": "Opstellen",
     "back": "Terug",
-    "search": "Zoeken",
     "link": "Link",
     "score": "Score",
     "noResults": "Geen resultaten gevonden",
@@ -367,6 +365,7 @@
     "maxLengthHelp": "Maximaal aantal tokens",
     "maxResults": "Maximale resultaten",
     "semanticScoring": "Semantische beoordeling",
-    "semanticScoringHelp": "Gebruik AI om resultaten te beoordelen op semantische relevantie"
+    "semanticScoringHelp": "Gebruik AI om resultaten te beoordelen op semantische relevantie",
+    "find": "Zoeken"
   }
 }

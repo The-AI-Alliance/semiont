@@ -343,11 +343,9 @@
     "loadingContext": "Collecte du contexte...",
     "failedContext": "Échec de la collecte du contexte",
     "cancel": "Annuler",
-    "bind": "Lier",
     "generate": "Générer",
     "compose": "Composer",
     "back": "Retour",
-    "search": "Rechercher",
     "link": "Lien",
     "score": "Score",
     "noResults": "Aucun résultat trouvé",
@@ -364,6 +362,7 @@
     "maxLengthHelp": "Nombre maximum de tokens",
     "maxResults": "Résultats maximum",
     "semanticScoring": "Évaluation sémantique",
-    "semanticScoringHelp": "Utiliser l'IA pour évaluer les résultats par pertinence sémantique"
+    "semanticScoringHelp": "Utiliser l'IA pour évaluer les résultats par pertinence sémantique",
+    "find": "Trouver"
   }
 }

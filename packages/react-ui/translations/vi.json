@@ -343,11 +343,9 @@
     "loadingContext": "Đang thu thập ngữ cảnh...",
     "failedContext": "Không thể thu thập ngữ cảnh",
     "cancel": "Hủy",
-    "bind": "Liên kết",
     "generate": "Tạo sinh",
     "compose": "Soạn",
     "back": "Quay lại",
-    "search": "Tìm kiếm",
     "link": "Liên kết",
     "score": "Điểm",
     "noResults": "Không tìm thấy kết quả",
@@ -364,6 +362,7 @@
     "maxLengthHelp": "Số lượng token tối đa",
     "maxResults": "Kết quả Tối đa",
     "semanticScoring": "Chấm điểm Ngữ nghĩa",
-    "semanticScoringHelp": "Sử dụng AI để chấm điểm kết quả theo mức độ liên quan ngữ nghĩa"
+    "semanticScoringHelp": "Sử dụng AI để chấm điểm kết quả theo mức độ liên quan ngữ nghĩa",
+    "find": "Tìm"
   }
 }

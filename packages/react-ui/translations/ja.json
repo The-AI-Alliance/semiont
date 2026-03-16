@@ -268,7 +268,7 @@
     "accessibilityTitle": "アクセシビリティ",
     "a11ySkipLinks": "スキップリンクに移動（ページ先頭時）",
     "a11yFollowLink": "スキップリンクをたどる",
-    "macNote": "Macキーボードショートカットを使用中。\u2318はCommandキーです。",
+    "macNote": "Macキーボードショートカットを使用中。⌘はCommandキーです。",
     "windowsNote": "Windows/Linuxキーボードショートカットを使用中。CtrlはControlキーです。",
     "footerHint": "いつでも{key}を押してこのヘルプを表示",
     "close": "閉じる"
@@ -343,11 +343,9 @@
     "loadingContext": "コンテキストを収集中...",
     "failedContext": "コンテキストの収集に失敗しました",
     "cancel": "キャンセル",
-    "bind": "バインド",
     "generate": "生成",
     "compose": "作成",
     "back": "戻る",
-    "search": "検索",
     "link": "リンク",
     "score": "スコア",
     "noResults": "結果が見つかりません",
@@ -364,6 +362,7 @@
     "maxLengthHelp": "トークンの最大数",
     "maxResults": "最大結果数",
     "semanticScoring": "意味的スコアリング",
-    "semanticScoringHelp": "AIを使用して意味的関連性で結果をスコアリング"
+    "semanticScoringHelp": "AIを使用して意味的関連性で結果をスコアリング",
+    "find": "検索"
   }
 }

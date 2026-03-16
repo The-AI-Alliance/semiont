@@ -343,11 +343,9 @@
     "loadingContext": "正在收集上下文...",
     "failedContext": "收集上下文失败",
     "cancel": "取消",
-    "bind": "绑定",
     "generate": "生成",
     "compose": "编写",
     "back": "返回",
-    "search": "搜索",
     "link": "链接",
     "score": "评分",
     "noResults": "未找到结果",
@@ -364,6 +362,7 @@
     "maxLengthHelp": "最大令牌数",
     "maxResults": "最大结果数",
     "semanticScoring": "语义评分",
-    "semanticScoringHelp": "使用 AI 按语义相关性对结果进行评分"
+    "semanticScoringHelp": "使用 AI 按语义相关性对结果进行评分",
+    "find": "查找"
   }
 }

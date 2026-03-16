@@ -268,7 +268,7 @@
     "accessibilityTitle": "Aksesibilitas",
     "a11ySkipLinks": "Navigasi ke tautan lompat (saat di awal halaman)",
     "a11yFollowLink": "Ikuti tautan lompat",
-    "macNote": "Menggunakan pintasan keyboard Mac. \u2318 adalah tombol Command.",
+    "macNote": "Menggunakan pintasan keyboard Mac. ⌘ adalah tombol Command.",
     "windowsNote": "Menggunakan pintasan keyboard Windows/Linux. Ctrl adalah tombol Control.",
     "footerHint": "Tekan {key} kapan saja untuk menampilkan bantuan ini",
     "close": "Tutup"
@@ -343,11 +343,9 @@
     "loadingContext": "Mengumpulkan konteks...",
     "failedContext": "Gagal mengumpulkan konteks",
     "cancel": "Batal",
-    "bind": "Ikat",
     "generate": "Hasilkan",
     "compose": "Susun",
     "back": "Kembali",
-    "search": "Cari",
     "link": "Tautan",
     "score": "Skor",
     "noResults": "Tidak ada hasil ditemukan",
@@ -364,6 +362,7 @@
     "maxLengthHelp": "Jumlah token maksimum",
     "maxResults": "Hasil Maksimum",
     "semanticScoring": "Penilaian Semantik",
-    "semanticScoringHelp": "Gunakan AI untuk menilai hasil berdasarkan relevansi semantik"
+    "semanticScoringHelp": "Gunakan AI untuk menilai hasil berdasarkan relevansi semantik",
+    "find": "Temukan"
   }
 }

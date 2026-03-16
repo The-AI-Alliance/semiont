@@ -55,11 +55,10 @@ export interface ReferenceWizardModalProps {
     loadingContext: string;
     failedContext: string;
     cancel: string;
-    bind: string;
+    find: string;
     generate: string;
     compose: string;
     back: string;
-    search: string;
     link: string;
     score: string;
     noResults: string;
@@ -229,7 +228,7 @@ export function ReferenceWizardModal({
                       loadingContext: t.loadingContext,
                       failedContext: t.failedContext,
                       cancel: t.cancel,
-                      bind: t.bind,
+                      find: t.find,
                       generate: t.generate,
                       compose: t.compose,
                     }}
@@ -274,7 +273,7 @@ export function ReferenceWizardModal({
                       semanticScoringHelp: t.semanticScoringHelp,
                       cancel: t.cancel,
                       back: t.back,
-                      search: t.search,
+                      find: t.find,
                     }}
                   />
                 )}

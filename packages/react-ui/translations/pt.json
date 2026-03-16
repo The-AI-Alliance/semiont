@@ -268,7 +268,7 @@
     "accessibilityTitle": "Acessibilidade",
     "a11ySkipLinks": "Navegar para links de pular (quando no inicio da pagina)",
     "a11yFollowLink": "Seguir link de pular",
-    "macNote": "Usando atalhos de teclado do Mac. \u2318 e a tecla Command.",
+    "macNote": "Usando atalhos de teclado do Mac. ⌘ e a tecla Command.",
     "windowsNote": "Usando atalhos de teclado do Windows/Linux. Ctrl e a tecla Control.",
     "footerHint": "Pressione {key} a qualquer momento para mostrar esta ajuda",
     "close": "Fechar"
@@ -343,11 +343,9 @@
     "loadingContext": "Coletando contexto...",
     "failedContext": "Falha ao coletar contexto",
     "cancel": "Cancelar",
-    "bind": "Vincular",
     "generate": "Gerar",
     "compose": "Compor",
     "back": "Voltar",
-    "search": "Pesquisar",
     "link": "Link",
     "score": "Pontuação",
     "noResults": "Nenhum resultado encontrado",
@@ -364,6 +362,7 @@
     "maxLengthHelp": "Número máximo de tokens",
     "maxResults": "Resultados Máximos",
     "semanticScoring": "Pontuação Semântica",
-    "semanticScoringHelp": "Usar IA para pontuar resultados por relevância semântica"
+    "semanticScoringHelp": "Usar IA para pontuar resultados por relevância semântica",
+    "find": "Encontrar"
   }
 }

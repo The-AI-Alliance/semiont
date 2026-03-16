@@ -343,11 +343,9 @@
     "loadingContext": "Shromažďování kontextu...",
     "failedContext": "Nepodařilo se shromáždit kontext",
     "cancel": "Zrušit",
-    "bind": "Propojit",
     "generate": "Generovat",
     "compose": "Sestavit",
     "back": "Zpět",
-    "search": "Hledat",
     "link": "Odkaz",
     "score": "Skóre",
     "noResults": "Žádné výsledky nenalezeny",
@@ -364,6 +362,7 @@
     "maxLengthHelp": "Maximální počet tokenů",
     "maxResults": "Maximální počet výsledků",
     "semanticScoring": "Sémantické hodnocení",
-    "semanticScoringHelp": "Použít AI k hodnocení výsledků podle sémantické relevance"
+    "semanticScoringHelp": "Použít AI k hodnocení výsledků podle sémantické relevance",
+    "find": "Najít"
   }
 }

@@ -343,11 +343,9 @@
     "loadingContext": "Samlar kontext...",
     "failedContext": "Misslyckades med att samla kontext",
     "cancel": "Avbryt",
-    "bind": "Bind",
     "generate": "Generera",
     "compose": "Komponera",
     "back": "Tillbaka",
-    "search": "Sök",
     "link": "Länk",
     "score": "Poäng",
     "noResults": "Inga resultat hittades",
@@ -364,6 +362,7 @@
     "maxLengthHelp": "Maximalt antal tokens",
     "maxResults": "Max resultat",
     "semanticScoring": "Semantisk poängsättning",
-    "semanticScoringHelp": "Använd AI för att poängsätta resultat efter semantisk relevans"
+    "semanticScoringHelp": "Använd AI för att poängsätta resultat efter semantisk relevans",
+    "find": "Hitta"
   }
 }

@@ -343,11 +343,9 @@
     "loadingContext": "Se colectează contextul...",
     "failedContext": "Colectarea contextului a eșuat",
     "cancel": "Anulare",
-    "bind": "Leagă",
     "generate": "Generează",
     "compose": "Compune",
     "back": "Înapoi",
-    "search": "Caută",
     "link": "Link",
     "score": "Scor",
     "noResults": "Niciun rezultat găsit",
@@ -364,6 +362,7 @@
     "maxLengthHelp": "Număr maxim de jetoane",
     "maxResults": "Rezultate Maxime",
     "semanticScoring": "Evaluare Semantică",
-    "semanticScoringHelp": "Folosiți AI pentru a evalua rezultatele după relevanța semantică"
+    "semanticScoringHelp": "Folosiți AI pentru a evalua rezultatele după relevanța semantică",
+    "find": "Găsește"
   }
 }

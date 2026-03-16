@@ -343,11 +343,9 @@
     "loadingContext": "Zbieranie kontekstu...",
     "failedContext": "Nie udało się zebrać kontekstu",
     "cancel": "Anuluj",
-    "bind": "Powiąż",
     "generate": "Generuj",
     "compose": "Komponuj",
     "back": "Wstecz",
-    "search": "Szukaj",
     "link": "Link",
     "score": "Wynik",
     "noResults": "Nie znaleziono wyników",
@@ -364,6 +362,7 @@
     "maxLengthHelp": "Maksymalna liczba tokenów",
     "maxResults": "Maksymalna liczba wyników",
     "semanticScoring": "Ocena semantyczna",
-    "semanticScoringHelp": "Użyj AI do oceny wyników według semantycznego dopasowania"
+    "semanticScoringHelp": "Użyj AI do oceny wyników według semantycznego dopasowania",
+    "find": "Znajdź"
   }
 }

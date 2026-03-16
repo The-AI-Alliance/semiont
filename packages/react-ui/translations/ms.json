@@ -268,7 +268,7 @@
     "accessibilityTitle": "Kebolehcapaian",
     "a11ySkipLinks": "Navigasi ke pautan langkau (apabila di permulaan halaman)",
     "a11yFollowLink": "Ikuti pautan langkau",
-    "macNote": "Menggunakan pintasan papan kekunci Mac. \u2318 ialah kekunci Command.",
+    "macNote": "Menggunakan pintasan papan kekunci Mac. ⌘ ialah kekunci Command.",
     "windowsNote": "Menggunakan pintasan papan kekunci Windows/Linux. Ctrl ialah kekunci Control.",
     "footerHint": "Tekan {key} pada bila-bila masa untuk menunjukkan bantuan ini",
     "close": "Tutup"
@@ -343,11 +343,9 @@
     "loadingContext": "Mengumpul konteks...",
     "failedContext": "Gagal mengumpul konteks",
     "cancel": "Batal",
-    "bind": "Ikat",
     "generate": "Jana",
     "compose": "Karang",
     "back": "Kembali",
-    "search": "Cari",
     "link": "Pautan",
     "score": "Skor",
     "noResults": "Tiada hasil ditemui",
@@ -364,6 +362,7 @@
     "maxLengthHelp": "Bilangan maksimum token",
     "maxResults": "Hasil Maksimum",
     "semanticScoring": "Pemarkahan Semantik",
-    "semanticScoringHelp": "Gunakan AI untuk menilai hasil mengikut kerelevanan semantik"
+    "semanticScoringHelp": "Gunakan AI untuk menilai hasil mengikut kerelevanan semantik",
+    "find": "Cari"
   }
 }

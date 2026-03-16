@@ -169,20 +169,20 @@ export function ConfigureGenerationStep({
           onClick={onCancel}
           className="semiont-button--secondary semiont-button--flex"
         >
-          {t.cancel}
+          ✕ {t.cancel}
         </button>
         <button
           type="button"
           onClick={onBack}
           className="semiont-button--secondary semiont-button--flex"
         >
-          {t.back}
+          ◀ {t.back}
         </button>
         <button
           type="submit"
-          className="semiont-button--gradient semiont-button--flex"
+          className="semiont-button--primary semiont-button--flex"
         >
-          {t.generate}
+          ✨ {t.generate}
         </button>
       </div>
     </form>

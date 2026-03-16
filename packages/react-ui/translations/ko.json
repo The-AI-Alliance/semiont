@@ -343,11 +343,9 @@
     "loadingContext": "컨텍스트 수집 중...",
     "failedContext": "컨텍스트 수집 실패",
     "cancel": "취소",
-    "bind": "바인드",
     "generate": "생성",
     "compose": "작성",
     "back": "뒤로",
-    "search": "검색",
     "link": "링크",
     "score": "점수",
     "noResults": "결과를 찾을 수 없습니다",
@@ -364,6 +362,7 @@
     "maxLengthHelp": "최대 토큰 수",
     "maxResults": "최대 결과 수",
     "semanticScoring": "의미 기반 점수",
-    "semanticScoringHelp": "AI를 사용하여 의미적 관련성에 따라 결과 점수 부여"
+    "semanticScoringHelp": "AI를 사용하여 의미적 관련성에 따라 결과 점수 부여",
+    "find": "찾기"
   }
 }

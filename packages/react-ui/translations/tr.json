@@ -343,11 +343,9 @@
     "loadingContext": "Bağlam toplanıyor...",
     "failedContext": "Bağlam toplanamadı",
     "cancel": "İptal",
-    "bind": "Bağla",
     "generate": "Oluştur",
     "compose": "Derle",
     "back": "Geri",
-    "search": "Ara",
     "link": "Bağlantı",
     "score": "Puan",
     "noResults": "Sonuç bulunamadı",
@@ -364,6 +362,7 @@
     "maxLengthHelp": "Maksimum jeton sayısı",
     "maxResults": "Maksimum Sonuç",
     "semanticScoring": "Anlamsal Puanlama",
-    "semanticScoringHelp": "Sonuçları anlamsal alaka düzeyine göre puanlamak için yapay zeka kullanın"
+    "semanticScoringHelp": "Sonuçları anlamsal alaka düzeyine göre puanlamak için yapay zeka kullanın",
+    "find": "Bul"
   }
 }

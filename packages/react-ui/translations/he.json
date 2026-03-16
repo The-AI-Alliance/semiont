@@ -343,11 +343,9 @@
     "loadingContext": "אוסף הקשר...",
     "failedContext": "איסוף ההקשר נכשל",
     "cancel": "ביטול",
-    "bind": "קישור",
     "generate": "יצירה",
     "compose": "חיבור",
     "back": "חזרה",
-    "search": "חיפוש",
     "link": "קישור",
     "score": "ציון",
     "noResults": "לא נמצאו תוצאות",
@@ -364,6 +362,7 @@
     "maxLengthHelp": "מספר מרבי של טוקנים",
     "maxResults": "תוצאות מרביות",
     "semanticScoring": "דירוג סמנטי",
-    "semanticScoringHelp": "שימוש ב-AI לדירוג תוצאות לפי רלוונטיות סמנטית"
+    "semanticScoringHelp": "שימוש ב-AI לדירוג תוצאות לפי רלוונטיות סמנטית",
+    "find": "חיפוש"
   }
 }

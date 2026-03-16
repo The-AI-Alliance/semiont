@@ -21,7 +21,7 @@ export interface GatherContextStepProps {
     loadingContext: string;
     failedContext: string;
     cancel: string;
-    bind: string;
+    find: string;
     generate: string;
     compose: string;
   };
@@ -185,7 +185,7 @@ export function GatherContextStep({
           onClick={onCancel}
           className="semiont-button--secondary semiont-button--flex"
         >
-          {t.cancel}
+          ✕ {t.cancel}
         </button>
         <button
           type="button"
@@ -193,15 +193,15 @@ export function GatherContextStep({
           disabled={!contextReady}
           className="semiont-button--primary semiont-button--flex"
         >
-          {t.bind}
+          🔍 {t.find}…
         </button>
         <button
           type="button"
           onClick={onGenerate}
           disabled={!contextReady}
-          className="semiont-button--gradient semiont-button--flex"
+          className="semiont-button--primary semiont-button--flex"
         >
-          {t.generate}
+          ✨ {t.generate}…
         </button>
         <button
           type="button"
@@ -209,7 +209,7 @@ export function GatherContextStep({
           disabled={!contextReady}
           className="semiont-button--secondary semiont-button--flex"
         >
-          {t.compose}
+          ✍️ {t.compose}
         </button>
       </div>
     </>

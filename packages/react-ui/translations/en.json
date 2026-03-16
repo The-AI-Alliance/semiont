@@ -332,8 +332,8 @@
   "ReferenceWizard": {
     "gatherTitle": "Gather Context",
     "configureGenerationTitle": "Configure Generation",
-    "configureSearchTitle": "Configure Search",
-    "searchResultsTitle": "Search Results",
+    "configureSearchTitle": "Configure Find",
+    "searchResultsTitle": "Find Results",
     "sourceContextLabel": "Source Context",
     "entityTypesLabel": "Entity Types",
     "graphContextLabel": "Graph Context",
@@ -343,11 +343,9 @@
     "loadingContext": "Gathering context...",
     "failedContext": "Failed to gather context",
     "cancel": "Cancel",
-    "bind": "Bind",
     "generate": "Generate",
     "compose": "Compose",
     "back": "Back",
-    "search": "Search",
     "link": "Link",
     "score": "Score",
     "noResults": "No results found",
@@ -364,6 +362,7 @@
     "maxLengthHelp": "Maximum number of tokens",
     "maxResults": "Max Results",
     "semanticScoring": "Semantic Scoring",
-    "semanticScoringHelp": "Use AI to score results by semantic relevance"
+    "semanticScoringHelp": "Use AI to score results by semantic relevance",
+    "find": "Find"
   }
 }
