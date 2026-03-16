@@ -283,11 +283,18 @@ export function ResourceComposePage({
 
         {/* Gathered Context Panel (from wizard) */}
         {gatheredContext && (
-          <div className="semiont-form__field" style={{ marginBottom: '1rem' }}>
+          <div className="semiont-form__field" style={{
+            marginBottom: '1.5rem',
+            padding: '1rem',
+            backgroundColor: 'var(--semiont-bg-secondary)',
+            borderRadius: 'var(--semiont-radius-md)',
+            border: '1px solid var(--semiont-border-primary)',
+          }}>
+            <h3 className="semiont-form__label" style={{ marginBottom: '0.75rem' }}>Gathered Context</h3>
             {gatheredContext.sourceContext && (
               <div style={{
                 padding: '0.75rem',
-                backgroundColor: 'var(--semiont-bg-secondary)',
+                backgroundColor: 'var(--semiont-bg-primary)',
                 borderRadius: 'var(--semiont-radius-md)',
                 border: '1px solid var(--semiont-border-primary)',
                 maxHeight: '150px',
@@ -310,10 +317,11 @@ export function ResourceComposePage({
             )}
             {gatheredContext.graphContext && gatheredContext.graphContext.connections && gatheredContext.graphContext.connections.length > 0 && (
               <div style={{
-                padding: '0.5rem 0.75rem',
+                padding: '0.5rem 0',
                 fontSize: 'var(--semiont-text-sm)',
                 color: 'var(--semiont-text-secondary)',
               }}>
+                <span style={{ fontSize: 'var(--semiont-text-xs)', fontWeight: 500, marginRight: '0.5rem' }}>Connections:</span>
                 {gatheredContext.graphContext.connections.map(conn => (
                   <span key={conn.resourceId} className="semiont-chip" style={{ fontSize: 'var(--semiont-text-xs)', padding: '0.125rem 0.5rem', marginRight: '0.25rem' }}>
                     {conn.resourceName}
