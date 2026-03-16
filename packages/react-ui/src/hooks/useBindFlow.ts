@@ -63,8 +63,27 @@ export function useBindFlow(rUri: ResourceId): void {
       }
     };
 
-    const subscription = eventBus.get('bind:update-body').subscribe(handleAnnotationUpdateBody);
-    return () => subscription.unsubscribe();
+    /**
+     * Handle bind search requests
+     * Emitted by: ReferenceWizardModal (search button)
+     * Bridges to backend Binder actor via SSE stream.
+     * Results auto-emit as bind:search-results on the browser EventBus.
+     */
+    const handleSearchRequested = (event: EventMap['bind:search-requested']) => {
+      clientRef.current.sse.bindSearch(rUriRef.current, {
+        referenceId: event.referenceId,
+        context: event.context,
+        limit: event.limit,
+        useSemanticScoring: event.useSemanticScoring,
+      }, { auth: toAccessToken(tokenRef.current), eventBus });
+    };
+
+    const updateSub = eventBus.get('bind:update-body').subscribe(handleAnnotationUpdateBody);
+    const searchSub = eventBus.get('bind:search-requested').subscribe(handleSearchRequested);
+    return () => {
+      updateSub.unsubscribe();
+      searchSub.unsubscribe();
+    };
   }, [eventBus]);
 
   // Toast notifications for resolution errors

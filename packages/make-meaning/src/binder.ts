@@ -86,6 +86,7 @@ export class Binder {
       this.eventBus.get('bind:search-results').next({
         referenceId: event.referenceId,
         results: limited,
+        correlationId: event.correlationId,
       });
     } catch (error) {
       this.logger.error('Bind search failed', {
@@ -95,6 +96,7 @@ export class Binder {
       this.eventBus.get('bind:search-failed').next({
         referenceId: event.referenceId,
         error: error instanceof Error ? error : new Error(String(error)),
+        correlationId: event.correlationId,
       });
     }
   }

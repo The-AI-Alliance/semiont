@@ -8,7 +8,7 @@
 import { createSSEStream } from './stream';
 import type { SSEStream } from './types';
 import type { ResourceId, AnnotationId } from '@semiont/core';
-import type { AccessToken, BaseUrl, EntityType, Logger } from '@semiont/core';
+import type { AccessToken, BaseUrl, EntityType, GatheredContext, Logger } from '@semiont/core';
 import type { components } from '@semiont/core';
 
 /**
@@ -67,6 +67,16 @@ export interface AnnotateCommentsStreamRequest {
 export interface AnnotateTagsStreamRequest {
   schemaId: string;
   categories: string[];
+}
+
+/**
+ * Request body for bind search stream
+ */
+export interface BindSearchStreamRequest {
+  referenceId: string;
+  context: GatheredContext;
+  limit?: number;
+  useSemanticScoring?: boolean;
 }
 
 /**
@@ -503,6 +513,41 @@ export class SSEClient {
         errorEvent: 'mark:assist-failed',
         eventBus: options.eventBus,
         eventPrefix: undefined
+      },
+      this.logger
+    );
+  }
+
+  /**
+   * Search for binding candidates (streaming)
+   *
+   * Bridges bind:search-requested to the backend Binder actor via SSE.
+   * Results emit as bind:search-results on the browser EventBus.
+   *
+   * @param resourceId - Resource the annotation belongs to
+   * @param request - Search configuration (referenceId, context, limit)
+   * @param options - Request options (auth token, eventBus)
+   * @returns SSE stream controller
+   */
+  bindSearch(
+    resourceId: ResourceId,
+    request: BindSearchStreamRequest,
+    options: SSERequestOptions
+  ): SSEStream {
+    const url = `${this.baseUrl}/resources/${resourceId}/bind-search-stream`;
+
+    return createSSEStream(
+      url,
+      {
+        method: 'POST',
+        headers: this.getHeaders(options.auth),
+        body: JSON.stringify(request)
+      },
+      {
+        progressEvents: [],
+        completeEvent: 'bind:search-results',
+        errorEvent: 'bind:search-failed',
+        eventBus: options.eventBus,
       },
       this.logger
     );
