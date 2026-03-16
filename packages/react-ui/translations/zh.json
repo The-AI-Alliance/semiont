@@ -366,6 +366,7 @@
     "maxResults": "最大结果数",
     "semanticScoring": "语义评分",
     "semanticScoringHelp": "使用 AI 按语义相关性对结果进行评分",
-    "find": "查找"
+    "searching": "搜索中...",
+    "search": "搜索"
   }
 }

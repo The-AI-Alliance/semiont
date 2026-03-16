@@ -332,8 +332,8 @@
   "ReferenceWizard": {
     "gatherTitle": "Konteks Dikumpul",
     "configureGenerationTitle": "Konfigurasi Penjanaan",
-    "configureSearchTitle": "Konfigurasi Carian",
-    "searchResultsTitle": "Hasil Carian",
+    "configureSearchTitle": "Konfigurasi carian",
+    "searchResultsTitle": "Hasil carian",
     "annotationLabel": "Anotasi",
     "sourceResourceLabel": "Sumber asal",
     "motivationLabel": "Motivasi",
@@ -366,6 +366,7 @@
     "maxResults": "Hasil Maksimum",
     "semanticScoring": "Pemarkahan Semantik",
     "semanticScoringHelp": "Gunakan AI untuk menilai hasil mengikut kerelevanan semantik",
-    "find": "Cari"
+    "searching": "Mencari...",
+    "search": "Cari"
   }
 }

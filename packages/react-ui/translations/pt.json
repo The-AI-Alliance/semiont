@@ -332,8 +332,8 @@
   "ReferenceWizard": {
     "gatherTitle": "Contexto Coletado",
     "configureGenerationTitle": "Configurar Geração",
-    "configureSearchTitle": "Configurar Pesquisa",
-    "searchResultsTitle": "Resultados da Pesquisa",
+    "configureSearchTitle": "Configurar pesquisa",
+    "searchResultsTitle": "Resultados da pesquisa",
     "annotationLabel": "Anotação",
     "sourceResourceLabel": "Recurso de origem",
     "motivationLabel": "Motivação",
@@ -366,6 +366,7 @@
     "maxResults": "Resultados Máximos",
     "semanticScoring": "Pontuação Semântica",
     "semanticScoringHelp": "Usar IA para pontuar resultados por relevância semântica",
-    "find": "Encontrar"
+    "searching": "Pesquisando...",
+    "search": "Pesquisar"
   }
 }

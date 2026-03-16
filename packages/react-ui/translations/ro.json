@@ -332,8 +332,8 @@
   "ReferenceWizard": {
     "gatherTitle": "Context Colectat",
     "configureGenerationTitle": "Configurare Generare",
-    "configureSearchTitle": "Configurare Căutare",
-    "searchResultsTitle": "Rezultatele Căutării",
+    "configureSearchTitle": "Configurare căutare",
+    "searchResultsTitle": "Rezultatele căutării",
     "annotationLabel": "Adnotare",
     "sourceResourceLabel": "Resursă sursă",
     "motivationLabel": "Motivație",
@@ -366,6 +366,7 @@
     "maxResults": "Rezultate Maxime",
     "semanticScoring": "Evaluare Semantică",
     "semanticScoringHelp": "Folosiți AI pentru a evalua rezultatele după relevanța semantică",
-    "find": "Găsește"
+    "searching": "Se caută...",
+    "search": "Caută"
   }
 }

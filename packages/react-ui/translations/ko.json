@@ -366,6 +366,7 @@
     "maxResults": "최대 결과 수",
     "semanticScoring": "의미 기반 점수",
     "semanticScoringHelp": "AI를 사용하여 의미적 관련성에 따라 결과 점수 부여",
-    "find": "찾기"
+    "searching": "검색 중...",
+    "search": "검색"
   }
 }

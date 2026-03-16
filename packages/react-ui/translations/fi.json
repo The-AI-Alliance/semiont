@@ -366,6 +366,7 @@
     "maxResults": "Enimmäistulokset",
     "semanticScoring": "Semanttinen pisteytys",
     "semanticScoringHelp": "Käytä tekoälyä tulosten pisteyttämiseen semanttisen relevanssin mukaan",
-    "find": "Etsi"
+    "searching": "Haetaan...",
+    "search": "Hae"
   }
 }

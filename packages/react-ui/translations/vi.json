@@ -332,8 +332,8 @@
   "ReferenceWizard": {
     "gatherTitle": "Ngữ cảnh đã thu thập",
     "configureGenerationTitle": "Cấu hình Tạo sinh",
-    "configureSearchTitle": "Cấu hình Tìm kiếm",
-    "searchResultsTitle": "Kết quả Tìm kiếm",
+    "configureSearchTitle": "Cấu hình tìm kiếm",
+    "searchResultsTitle": "Kết quả tìm kiếm",
     "annotationLabel": "Chú thích",
     "sourceResourceLabel": "Tài nguyên nguồn",
     "motivationLabel": "Động lực",
@@ -366,6 +366,7 @@
     "maxResults": "Kết quả Tối đa",
     "semanticScoring": "Chấm điểm Ngữ nghĩa",
     "semanticScoringHelp": "Sử dụng AI để chấm điểm kết quả theo mức độ liên quan ngữ nghĩa",
-    "find": "Tìm"
+    "searching": "Đang tìm kiếm...",
+    "search": "Tìm kiếm"
   }
 }

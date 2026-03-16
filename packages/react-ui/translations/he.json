@@ -366,6 +366,7 @@
     "maxResults": "תוצאות מרביות",
     "semanticScoring": "דירוג סמנטי",
     "semanticScoringHelp": "שימוש ב-AI לדירוג תוצאות לפי רלוונטיות סמנטית",
-    "find": "חיפוש"
+    "searching": "מחפש...",
+    "search": "חיפוש"
   }
 }

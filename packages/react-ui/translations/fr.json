@@ -366,6 +366,7 @@
     "maxResults": "Résultats maximum",
     "semanticScoring": "Évaluation sémantique",
     "semanticScoringHelp": "Utiliser l'IA pour évaluer les résultats par pertinence sémantique",
-    "find": "Trouver"
+    "searching": "Recherche en cours...",
+    "search": "Rechercher"
   }
 }

@@ -332,8 +332,8 @@
   "ReferenceWizard": {
     "gatherTitle": "Shromážděný kontext",
     "configureGenerationTitle": "Konfigurovat generování",
-    "configureSearchTitle": "Konfigurovat vyhledávání",
-    "searchResultsTitle": "Výsledky vyhledávání",
+    "configureSearchTitle": "Konfigurovat hledání",
+    "searchResultsTitle": "Výsledky hledání",
     "annotationLabel": "Anotace",
     "sourceResourceLabel": "Zdrojový prostředek",
     "motivationLabel": "Motivace",
@@ -366,6 +366,7 @@
     "maxResults": "Maximální počet výsledků",
     "semanticScoring": "Sémantické hodnocení",
     "semanticScoringHelp": "Použít AI k hodnocení výsledků podle sémantické relevance",
-    "find": "Najít"
+    "searching": "Vyhledávání...",
+    "search": "Hledat"
   }
 }

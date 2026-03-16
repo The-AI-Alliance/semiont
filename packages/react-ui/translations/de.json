@@ -366,6 +366,7 @@
     "maxResults": "Maximale Ergebnisse",
     "semanticScoring": "Semantische Bewertung",
     "semanticScoringHelp": "KI zur Bewertung der Ergebnisse nach semantischer Relevanz verwenden",
-    "find": "Finden"
+    "searching": "Suche läuft...",
+    "search": "Suchen"
   }
 }
