@@ -108,22 +108,12 @@ interface EventMap {
     scrollToAnnotationId?: string;
   };
 
-  // Reference creation and linking events
-  'bind:create-manual': {
-    annotationId: string;
-    title: string;
-    entityTypes: string[];
-  };
-
-  'reference:generate': {
+  // Reference resolution wizard
+  'bind:initiate': {
     annotationId: string;
     resourceId: string;
-    options: { title: string };
-  };
-
-  'bind:link': {
-    annotationId: string;
-    searchTerm: string;
+    defaultTitle: string;
+    entityTypes: string[];
   };
 
   // Annotation body updates
