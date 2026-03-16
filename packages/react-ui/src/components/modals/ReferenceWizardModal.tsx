@@ -46,6 +46,9 @@ export interface ReferenceWizardModalProps {
     configureGenerationTitle: string;
     configureSearchTitle: string;
     searchResultsTitle: string;
+    annotationLabel: string;
+    sourceResourceLabel: string;
+    motivationLabel: string;
     sourceContextLabel: string;
     entityTypesLabel: string;
     graphContextLabel: string;
@@ -194,7 +197,7 @@ export function ReferenceWizardModal({
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <DialogPanel className="semiont-search-modal__panel semiont-search-modal__panel--with-border">
+              <DialogPanel className={`semiont-search-modal__panel semiont-search-modal__panel--with-border${wizardStep.step === 'search-results' ? ' semiont-search-modal__panel--wide' : ''}`}>
                 <div className="semiont-search-modal__header">
                   <DialogTitle className="semiont-search-modal__title">
                     {stepTitle}
@@ -219,6 +222,9 @@ export function ReferenceWizardModal({
                     onCompose={handleCompose}
                     translations={{
                       title: t.gatherTitle,
+                      annotationLabel: t.annotationLabel,
+                      sourceResourceLabel: t.sourceResourceLabel,
+                      motivationLabel: t.motivationLabel,
                       sourceContextLabel: t.sourceContextLabel,
                       entityTypesLabel: t.entityTypesLabel,
                       graphContextLabel: t.graphContextLabel,
@@ -278,9 +284,10 @@ export function ReferenceWizardModal({
                   />
                 )}
 
-                {wizardStep.step === 'search-results' && (
+                {wizardStep.step === 'search-results' && context && (
                   <SearchResultsStep
                     results={wizardStep.results}
+                    context={context}
                     onLink={handleLink}
                     onBack={handleBackToGather}
                     onCancel={onClose}
@@ -290,6 +297,15 @@ export function ReferenceWizardModal({
                       back: t.back,
                       cancel: t.cancel,
                       score: t.score,
+                      annotationLabel: t.annotationLabel,
+                      sourceResourceLabel: t.sourceResourceLabel,
+                      motivationLabel: t.motivationLabel,
+                      sourceContextLabel: t.sourceContextLabel,
+                      entityTypesLabel: t.entityTypesLabel,
+                      graphContextLabel: t.graphContextLabel,
+                      connectionsLabel: t.connectionsLabel,
+                      citedByLabel: t.citedByLabel,
+                      siblingTypesLabel: t.siblingTypesLabel,
                     }}
                   />
                 )}

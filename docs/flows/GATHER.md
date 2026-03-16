@@ -99,7 +99,7 @@ gather:complete → Wizard Step 1 displays entity types, graph context, passage 
 User chooses: Bind (search) / Generate (AI) / Compose (manual)
 ```
 
-Both the Bind path (context-driven search) and Generate path (SSE generation) use the same `GatheredContext` gathered in Step 1. See [WIZARDS.md](./WIZARDS.md) for the full wizard specification.
+Both the Bind path (context-driven search) and Generate path (SSE generation) use the same `GatheredContext` gathered in Step 1.
 
 ## Relationship to Downstream Flows
 

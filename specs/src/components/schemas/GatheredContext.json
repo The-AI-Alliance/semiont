@@ -2,6 +2,14 @@
   "type": "object",
   "description": "Context gathered for an annotation. Includes source document excerpts, metadata, and graph-derived context. Used by both Find (bind) and Generate (yield) flows.",
   "properties": {
+    "annotation": {
+      "$ref": "./Annotation.json",
+      "description": "The annotation this context was gathered for"
+    },
+    "sourceResource": {
+      "$ref": "./ResourceDescriptor.json",
+      "description": "The resource containing the annotation"
+    },
     "sourceContext": {
       "type": "object",
       "description": "Text context from the source document",
@@ -112,5 +120,5 @@
       }
     }
   },
-  "required": ["sourceContext"]
+  "required": ["annotation", "sourceResource", "sourceContext"]
 }

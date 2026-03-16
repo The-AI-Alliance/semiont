@@ -15,6 +15,23 @@ import type { KnowledgeBase } from '../knowledge-base';
 import type { InferenceClient } from '@semiont/inference';
 import { Binder } from '../binder';
 
+const testAnnotation: GatheredContext['annotation'] = {
+  id: 'test-ann',
+  '@context': 'http://www.w3.org/ns/anno.jsonld',
+  type: 'Annotation',
+  motivation: 'linking',
+  target: { source: 'test-resource' },
+  body: { type: 'SpecificResource', source: '' },
+};
+
+const testSourceResource: GatheredContext['sourceResource'] = {
+  '@context': 'https://schema.org',
+  '@id': 'test-resource',
+  name: 'Test Resource',
+  format: 'text/plain',
+  representations: [],
+};
+
 const mockLogger: Logger = {
   debug: vi.fn(),
   info: vi.fn(),
@@ -99,7 +116,7 @@ describe('Binder', () => {
 
       eventBus.get('bind:search-requested').next({
         referenceId: 'ref-1',
-        context: { sourceContext: { selected: 'test query' } },
+        context: { annotation: testAnnotation, sourceResource: testSourceResource, sourceContext: { selected: 'test query' } },
       });
 
       const result = await resultPromise;
@@ -126,7 +143,7 @@ describe('Binder', () => {
 
       eventBus.get('bind:search-requested').next({
         referenceId: 'ref-2',
-        context: { sourceContext: { selected: 'failing query' } },
+        context: { annotation: testAnnotation, sourceResource: testSourceResource, sourceContext: { selected: 'failing query' } },
       });
 
       const result = await resultPromise;
@@ -141,7 +158,7 @@ describe('Binder', () => {
 
       eventBus.get('bind:search-requested').next({
         referenceId: 'ref-3',
-        context: { sourceContext: { selected: 'nonexistent' } },
+        context: { annotation: testAnnotation, sourceResource: testSourceResource, sourceContext: { selected: 'nonexistent' } },
       });
 
       const result = await resultPromise;
@@ -368,6 +385,8 @@ describe('Binder', () => {
 
     function makeContext(overrides: Partial<GatheredContext> = {}): GatheredContext {
       return {
+        annotation: testAnnotation,
+        sourceResource: testSourceResource,
         sourceContext: { before: '', selected: 'test', after: '' },
         ...overrides,
       };
@@ -380,7 +399,7 @@ describe('Binder', () => {
 
       eventBus.get('bind:search-requested').next({
         referenceId: 'ref-no-ctx',
-        context: { sourceContext: { selected: 'Alpha' } },
+        context: { annotation: testAnnotation, sourceResource: testSourceResource, sourceContext: { selected: 'Alpha' } },
       });
 
       const result = await resultPromise;
@@ -846,7 +865,7 @@ describe('Binder', () => {
 
       eventBus.get('bind:search-requested').next({
         referenceId: 'ref-4',
-        context: { sourceContext: { selected: 'after stop' } },
+        context: { annotation: testAnnotation, sourceResource: testSourceResource, sourceContext: { selected: 'after stop' } },
       });
 
       // Give time for any processing

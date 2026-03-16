@@ -1,6 +1,8 @@
 'use client';
 
-import type { components } from '@semiont/core';
+import type { components, GatheredContext } from '@semiont/core';
+import { ContextSummary } from './ContextSummary';
+import type { ContextSummaryTranslations } from './ContextSummary';
 
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 
@@ -11,6 +13,7 @@ export type ScoredResult = ResourceDescriptor & {
 
 export interface SearchResultsStepProps {
   results: ScoredResult[];
+  context: GatheredContext;
   onLink: (resourceId: string) => void;
   onBack: () => void;
   onCancel: () => void;
@@ -20,11 +23,12 @@ export interface SearchResultsStepProps {
     back: string;
     cancel: string;
     score: string;
-  };
+  } & ContextSummaryTranslations;
 }
 
 export function SearchResultsStep({
   results,
+  context,
   onLink,
   onBack,
   onCancel,
@@ -32,65 +36,73 @@ export function SearchResultsStep({
 }: SearchResultsStepProps) {
   return (
     <>
-      {/* Results List */}
-      {results.length === 0 ? (
-        <div className="semiont-modal__empty-state" style={{ textAlign: 'center', padding: '2rem 0' }}>
-          {t.noResults}
+      {/* Two-pane layout: context left, results right */}
+      <div className="semiont-search-results__two-pane">
+        {/* Left: Gathered Context */}
+        <div className="semiont-search-results__context-pane">
+          <ContextSummary context={context} translations={t} />
         </div>
-      ) : (
-        <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-          {results.map((result) => {
-            const id = result['@id'];
-            return (
-              <div
-                key={id}
-                style={{
-                  padding: '0.75rem',
-                  borderBottom: '1px solid var(--semiont-border-primary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '0.75rem',
-                }}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 500, color: 'var(--semiont-text-primary)' }}>
-                    {result.name}
-                  </div>
-                  {result.description && (
-                    <div style={{
-                      fontSize: 'var(--semiont-text-sm)',
-                      color: 'var(--semiont-text-secondary)',
-                      marginTop: '0.25rem',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}>
-                      {result.description}
-                    </div>
-                  )}
-                  <div style={{ fontSize: 'var(--semiont-text-xs)', color: 'var(--semiont-text-tertiary)', marginTop: '0.25rem', display: 'flex', gap: '0.5rem' }}>
-                    {result.score !== undefined && (
-                      <span>{t.score}: {result.score}</span>
-                    )}
-                    {result.matchReason && (
-                      <span>{result.matchReason}</span>
-                    )}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onLink(id)}
-                  className="semiont-button--primary"
-                  style={{ flexShrink: 0 }}
+
+        {/* Right: Results List */}
+        <div className="semiont-search-results__results-pane">
+          {results.length === 0 ? (
+            <div className="semiont-modal__empty-state" style={{ textAlign: 'center', padding: '2rem 0' }}>
+              {t.noResults}
+            </div>
+          ) : (
+            results.map((result) => {
+              const id = result['@id'];
+              return (
+                <div
+                  key={id}
+                  style={{
+                    padding: '0.75rem',
+                    borderBottom: '1px solid var(--semiont-border-primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '0.75rem',
+                  }}
                 >
-                  🔗 {t.link}
-                </button>
-              </div>
-            );
-          })}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 500, color: 'var(--semiont-text-primary)' }}>
+                      {result.name}
+                    </div>
+                    {result.description && (
+                      <div style={{
+                        fontSize: 'var(--semiont-text-sm)',
+                        color: 'var(--semiont-text-secondary)',
+                        marginTop: '0.25rem',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {result.description}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 'var(--semiont-text-xs)', color: 'var(--semiont-text-tertiary)', marginTop: '0.25rem', display: 'flex', gap: '0.5rem' }}>
+                      {result.score !== undefined && (
+                        <span>{t.score}: {result.score}</span>
+                      )}
+                      {result.matchReason && (
+                        <span>{result.matchReason}</span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onLink(id)}
+                    className="semiont-button--primary"
+                    style={{ flexShrink: 0 }}
+                  >
+                    🔗 {t.link}
+                  </button>
+                </div>
+              );
+            })
+          )}
         </div>
-      )}
+      </div>
 
       {/* Action Buttons */}
       <div className="semiont-modal__actions" style={{ paddingTop: '0.5rem' }}>

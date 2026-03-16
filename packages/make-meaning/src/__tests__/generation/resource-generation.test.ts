@@ -8,9 +8,30 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { generateResourceFromTopic } from '@semiont/jobs';
 import { MockInferenceClient } from '@semiont/inference';
+import type { GatheredContext } from '@semiont/core';
 
 // Create mock client directly - no need for complex vi.mock since we're passing it directly to functions
 const mockInferenceClient = new MockInferenceClient(['']);
+
+// Minimal required fields for GatheredContext in tests
+const testAnnotation: GatheredContext['annotation'] = {
+  '@context': 'http://www.w3.org/ns/anno.jsonld',
+  type: 'Annotation',
+  id: 'test-annotation',
+  motivation: 'describing',
+  target: { source: 'test-resource' },
+  body: [],
+};
+
+const testSourceResource: GatheredContext['sourceResource'] = {
+  '@context': 'https://www.w3.org/ns/anno.jsonld',
+  '@id': 'test-resource',
+  name: 'Test Resource',
+  representations: [],
+  archived: false,
+  creationMethod: 'ui',
+  dateCreated: '2026-01-01T00:00:00Z',
+};
 
 describe('generateResourceFromTopic', () => {
 
@@ -120,6 +141,8 @@ describe('generateResourceFromTopic', () => {
       undefined,
       undefined,
       {
+        annotation: testAnnotation,
+        sourceResource: testSourceResource,
         sourceContext: {
           before: 'Machine learning includes',
           selected: 'deep learning',
@@ -219,6 +242,8 @@ describe('generateResourceFromTopic', () => {
         undefined,
         undefined,
         {
+          annotation: testAnnotation,
+          sourceResource: testSourceResource,
           sourceContext: { before: 'before', selected: 'Zeus', after: 'after' },
           graphContext: {
             connections: [
@@ -247,6 +272,8 @@ describe('generateResourceFromTopic', () => {
         undefined,
         undefined,
         {
+          annotation: testAnnotation,
+          sourceResource: testSourceResource,
           sourceContext: { before: '', selected: 'Prometheus', after: '' },
           graphContext: {
             connections: [],
@@ -275,6 +302,8 @@ describe('generateResourceFromTopic', () => {
         undefined,
         undefined,
         {
+          annotation: testAnnotation,
+          sourceResource: testSourceResource,
           sourceContext: { before: '', selected: 'Icarus', after: '' },
           graphContext: {
             connections: [],
@@ -299,6 +328,8 @@ describe('generateResourceFromTopic', () => {
         undefined,
         undefined,
         {
+          annotation: testAnnotation,
+          sourceResource: testSourceResource,
           sourceContext: { before: '', selected: 'Athens', after: '' },
           graphContext: {
             connections: [],
@@ -326,6 +357,8 @@ describe('generateResourceFromTopic', () => {
         undefined,
         undefined,
         {
+          annotation: testAnnotation,
+          sourceResource: testSourceResource,
           sourceContext: { before: '', selected: 'Zeus', after: '' },
           graphContext: {
             connections: [],
@@ -350,6 +383,8 @@ describe('generateResourceFromTopic', () => {
         undefined,
         undefined,
         {
+          annotation: testAnnotation,
+          sourceResource: testSourceResource,
           sourceContext: { before: '', selected: 'Orphan', after: '' },
           graphContext: {
             connections: [],
@@ -372,6 +407,8 @@ describe('generateResourceFromTopic', () => {
         undefined,
         undefined,
         {
+          annotation: testAnnotation,
+          sourceResource: testSourceResource,
           sourceContext: { before: '', selected: 'NoGraph', after: '' },
         },
       );
@@ -390,6 +427,8 @@ describe('generateResourceFromTopic', () => {
         undefined,
         undefined,
         {
+          annotation: testAnnotation,
+          sourceResource: testSourceResource,
           sourceContext: { before: '', selected: 'Topic', after: '' },
           graphContext: {
             connections: [

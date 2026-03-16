@@ -72,6 +72,21 @@ describe('Gatherer', () => {
   describe('annotation-level gather', () => {
     it('should emit gather:complete on success', async () => {
       const mockContext = {
+        annotation: {
+          id: 'ann-1',
+          '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
+          type: 'Annotation' as const,
+          motivation: 'linking' as const,
+          target: { source: 'res-1' },
+          body: { type: 'SpecificResource' as const, source: '' },
+        },
+        sourceResource: {
+          '@context': 'https://schema.org',
+          '@id': 'res-1',
+          name: 'Test Resource',
+          format: 'text/plain',
+          representations: [] as [],
+        },
         sourceContext: { before: 'before', selected: 'selected', after: 'after' },
         metadata: { resourceType: 'document' as const },
       };

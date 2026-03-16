@@ -307,6 +307,8 @@ Summary:`;
 
     // Build GatheredContext structure
     const generationContext: GatheredContext | undefined = sourceContext ? {
+      annotation,
+      sourceResource: sourceDoc,
       sourceContext: {
         before: sourceContext.before || '',
         selected: sourceContext.selected,
