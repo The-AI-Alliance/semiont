@@ -330,7 +330,7 @@
   },
   "AnnotateView": {},
   "ReferenceWizard": {
-    "gatherTitle": "コンテキストの収集",
+    "gatherTitle": "収集済みコンテキスト",
     "configureGenerationTitle": "生成の設定",
     "configureSearchTitle": "検索の設定",
     "searchResultsTitle": "検索結果",

@@ -330,7 +330,7 @@
   },
   "AnnotateView": {},
   "ReferenceWizard": {
-    "gatherTitle": "컨텍스트 수집",
+    "gatherTitle": "수집된 컨텍스트",
     "configureGenerationTitle": "생성 구성",
     "configureSearchTitle": "검색 구성",
     "searchResultsTitle": "검색 결과",

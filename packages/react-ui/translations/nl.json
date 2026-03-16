@@ -333,7 +333,7 @@
     "tooltip": "Klik om markering te maken • Rechtsklik voor meer opties"
   },
   "ReferenceWizard": {
-    "gatherTitle": "Context verzamelen",
+    "gatherTitle": "Verzamelde context",
     "configureGenerationTitle": "Generatie configureren",
     "configureSearchTitle": "Zoeken configureren",
     "searchResultsTitle": "Zoekresultaten",

@@ -330,7 +330,7 @@
   },
   "AnnotateView": {},
   "ReferenceWizard": {
-    "gatherTitle": "جمع السياق",
+    "gatherTitle": "السياق المُجمَّع",
     "configureGenerationTitle": "تكوين التوليد",
     "configureSearchTitle": "تكوين البحث",
     "searchResultsTitle": "نتائج البحث",

@@ -330,7 +330,7 @@
   },
   "AnnotateView": {},
   "ReferenceWizard": {
-    "gatherTitle": "Coletar Contexto",
+    "gatherTitle": "Contexto Coletado",
     "configureGenerationTitle": "Configurar Geração",
     "configureSearchTitle": "Configurar Pesquisa",
     "searchResultsTitle": "Resultados da Pesquisa",

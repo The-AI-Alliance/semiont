@@ -330,7 +330,7 @@
   },
   "AnnotateView": {},
   "ReferenceWizard": {
-    "gatherTitle": "รวบรวมบริบท",
+    "gatherTitle": "บริบทที่รวบรวมแล้ว",
     "configureGenerationTitle": "กำหนดค่าการสร้าง",
     "configureSearchTitle": "กำหนดค่าการค้นหา",
     "searchResultsTitle": "ผลการค้นหา",

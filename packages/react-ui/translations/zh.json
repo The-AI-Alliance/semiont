@@ -330,7 +330,7 @@
   },
   "AnnotateView": {},
   "ReferenceWizard": {
-    "gatherTitle": "收集上下文",
+    "gatherTitle": "已收集的上下文",
     "configureGenerationTitle": "配置生成",
     "configureSearchTitle": "配置搜索",
     "searchResultsTitle": "搜索结果",
