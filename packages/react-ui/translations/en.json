@@ -332,8 +332,8 @@
   "ReferenceWizard": {
     "gatherTitle": "Gathered Context",
     "configureGenerationTitle": "Configure Generation",
-    "configureSearchTitle": "Configure Find",
-    "searchResultsTitle": "Find Results",
+    "configureSearchTitle": "Configure Search",
+    "searchResultsTitle": "Search Results",
     "annotationLabel": "Annotation",
     "sourceResourceLabel": "Source Resource",
     "motivationLabel": "Motivation",
@@ -366,6 +366,7 @@
     "maxResults": "Max Results",
     "semanticScoring": "Semantic Scoring",
     "semanticScoringHelp": "Use AI to score results by semantic relevance",
-    "find": "Find"
+    "searching": "Searching...",
+    "search": "Search"
   }
 }

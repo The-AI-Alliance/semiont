@@ -332,8 +332,8 @@
   "ReferenceWizard": {
     "gatherTitle": "Konteks Terkumpul",
     "configureGenerationTitle": "Konfigurasi Generasi",
-    "configureSearchTitle": "Konfigurasi Pencarian",
-    "searchResultsTitle": "Hasil Pencarian",
+    "configureSearchTitle": "Konfigurasi pencarian",
+    "searchResultsTitle": "Hasil pencarian",
     "annotationLabel": "Anotasi",
     "sourceResourceLabel": "Sumber daya asal",
     "motivationLabel": "Motivasi",
@@ -366,6 +366,7 @@
     "maxResults": "Hasil Maksimum",
     "semanticScoring": "Penilaian Semantik",
     "semanticScoringHelp": "Gunakan AI untuk menilai hasil berdasarkan relevansi semantik",
-    "find": "Temukan"
+    "searching": "Mencari...",
+    "search": "Cari"
   }
 }

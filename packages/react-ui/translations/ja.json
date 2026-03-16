@@ -366,6 +366,7 @@
     "maxResults": "最大結果数",
     "semanticScoring": "意味的スコアリング",
     "semanticScoringHelp": "AIを使用して意味的関連性で結果をスコアリング",
-    "find": "検索"
+    "searching": "検索中...",
+    "search": "検索"
   }
 }

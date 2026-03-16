@@ -332,8 +332,8 @@
   "ReferenceWizard": {
     "gatherTitle": "Toplanan Bağlam",
     "configureGenerationTitle": "Oluşturmayı Yapılandır",
-    "configureSearchTitle": "Aramayı Yapılandır",
-    "searchResultsTitle": "Arama Sonuçları",
+    "configureSearchTitle": "Aramayı yapılandır",
+    "searchResultsTitle": "Arama sonuçları",
     "annotationLabel": "Açıklama",
     "sourceResourceLabel": "Kaynak kaynak",
     "motivationLabel": "Motivasyon",
@@ -366,6 +366,7 @@
     "maxResults": "Maksimum Sonuç",
     "semanticScoring": "Anlamsal Puanlama",
     "semanticScoringHelp": "Sonuçları anlamsal alaka düzeyine göre puanlamak için yapay zeka kullanın",
-    "find": "Bul"
+    "searching": "Aranıyor...",
+    "search": "Ara"
   }
 }

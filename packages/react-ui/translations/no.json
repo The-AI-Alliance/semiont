@@ -366,6 +366,7 @@
     "maxResults": "Maks. resultater",
     "semanticScoring": "Semantisk skåring",
     "semanticScoringHelp": "Bruk AI til å score resultater etter semantisk relevans",
-    "find": "Finn"
+    "searching": "Søker...",
+    "search": "Søk"
   }
 }

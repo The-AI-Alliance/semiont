@@ -369,6 +369,7 @@
     "maxResults": "Maximale resultaten",
     "semanticScoring": "Semantische beoordeling",
     "semanticScoringHelp": "Gebruik AI om resultaten te beoordelen op semantische relevantie",
-    "find": "Zoeken"
+    "searching": "Zoeken...",
+    "search": "Zoeken"
   }
 }

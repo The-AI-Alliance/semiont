@@ -17,7 +17,7 @@ export interface GatherContextStepProps {
     loadingContext: string;
     failedContext: string;
     cancel: string;
-    find: string;
+    search: string;
     generate: string;
     compose: string;
   } & ContextSummaryTranslations;
@@ -65,7 +65,7 @@ export function GatherContextStep({
           disabled={!contextReady}
           className="semiont-button--primary semiont-button--flex"
         >
-          🔍 {t.find}…
+          🔍 {t.search}…
         </button>
         <button
           type="button"
