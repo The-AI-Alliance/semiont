@@ -17,8 +17,6 @@ import { Link, routes } from '@/lib/routing';
 // Feature components
 import { ResourceLoadingState, ResourceErrorState, ResourceViewerPage } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { SearchResourcesModal } from '@/components/modals/SearchResourcesModal';
-import { GenerationConfigModal } from '@/components/modals/GenerationConfigModal';
 import type { SemiontResource } from '@semiont/react-ui';
 
 /**
@@ -82,8 +80,6 @@ export default function KnowledgeResourcePage() {
       Link={Link}
       routes={routes}
       ToolbarPanels={ToolbarPanels}
-      SearchResourcesModal={SearchResourcesModal}
-      GenerationConfigModal={GenerationConfigModal}
       refetchDocument={refetchDocument}
     />
   );

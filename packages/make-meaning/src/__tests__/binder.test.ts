@@ -99,13 +99,22 @@ describe('Binder', () => {
 
       eventBus.get('bind:search-requested').next({
         referenceId: 'ref-1',
-        searchTerm: 'test query',
+        context: { sourceContext: { selected: 'test query' } },
       });
 
       const result = await resultPromise;
       expect(result!.referenceId).toBe('ref-1');
-      expect(result!.searchTerm).toBe('test query');
-      expect(result!.results).toEqual(mockResults);
+      expect(result!.results).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ '@id': 'r1', name: 'Resource 1' }),
+          expect.objectContaining({ '@id': 'r2', name: 'Resource 2' }),
+        ]),
+      );
+      expect(result!.results).toHaveLength(2);
+      // Context-driven search always adds score
+      for (const r of result!.results) {
+        expect(r).toHaveProperty('score');
+      }
 
       expect(mockSearchFn).toHaveBeenCalledWith('test query');
     });
@@ -117,7 +126,7 @@ describe('Binder', () => {
 
       eventBus.get('bind:search-requested').next({
         referenceId: 'ref-2',
-        searchTerm: 'failing query',
+        context: { sourceContext: { selected: 'failing query' } },
       });
 
       const result = await resultPromise;
@@ -132,7 +141,7 @@ describe('Binder', () => {
 
       eventBus.get('bind:search-requested').next({
         referenceId: 'ref-3',
-        searchTerm: 'nonexistent',
+        context: { sourceContext: { selected: 'nonexistent' } },
       });
 
       const result = await resultPromise;
@@ -364,21 +373,21 @@ describe('Binder', () => {
       };
     }
 
-    it('should fall back to simple search when no context provided', async () => {
+    it('should search with minimal context (sourceContext only)', async () => {
       mockSearchFn2.mockResolvedValue([RES_A]);
 
       const resultPromise = eventBus.get('bind:search-results').pipe(take(1)).toPromise();
 
       eventBus.get('bind:search-requested').next({
         referenceId: 'ref-no-ctx',
-        searchTerm: 'Alpha',
+        context: { sourceContext: { selected: 'Alpha' } },
       });
 
       const result = await resultPromise;
-      expect(result!.results).toEqual([RES_A]);
-      // Simple search — no listResources or getResource calls
-      expect(mockListResources).not.toHaveBeenCalled();
-      expect(mockGetResource).not.toHaveBeenCalled();
+      expect(result!.results).toHaveLength(1);
+      expect(result!.results[0]).toMatchObject({ '@id': 'res-a', name: 'Alpha' });
+      expect(result!.results[0]).toHaveProperty('score');
+      expect(result!.results[0]).toHaveProperty('matchReason');
     });
 
     it('should score exact name match higher than contains match', async () => {
@@ -388,8 +397,7 @@ describe('Binder', () => {
 
       eventBus.get('bind:search-requested').next({
         referenceId: 'ref-name',
-        searchTerm: 'Alpha',
-        context: makeContext(),
+        context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
       });
 
       const result = await resultPromise;
@@ -417,8 +425,8 @@ describe('Binder', () => {
 
       eventBus.get('bind:search-requested').next({
         referenceId: 'ref-et',
-        searchTerm: 'nonmatching', // no name match — isolate entity type signal
         context: makeContext({
+          sourceContext: { before: '', selected: 'nonmatching', after: '' }, // no name match — isolate entity type signal
           metadata: { entityTypes: ['Person', 'Author'] },
         }),
       });
@@ -445,8 +453,8 @@ describe('Binder', () => {
 
       eventBus.get('bind:search-requested').next({
         referenceId: 'ref-bidir',
-        searchTerm: 'test',
         context: makeContext({
+          sourceContext: { before: '', selected: 'test', after: '' },
           graphContext: {
             connections: [
               { resourceId: 'res-b', resourceName: 'Beta', bidirectional: true },
@@ -475,8 +483,8 @@ describe('Binder', () => {
 
       eventBus.get('bind:search-requested').next({
         referenceId: 'ref-neighbor',
-        searchTerm: 'something',
         context: makeContext({
+          sourceContext: { before: '', selected: 'something', after: '' },
           graphContext: {
             connections: [
               { resourceId: 'res-c', resourceName: 'Gamma', bidirectional: false },
@@ -501,8 +509,8 @@ describe('Binder', () => {
 
       eventBus.get('bind:search-requested').next({
         referenceId: 'ref-multi',
-        searchTerm: 'Alpha',
         context: makeContext({
+          sourceContext: { before: '', selected: 'Alpha', after: '' },
           metadata: { entityTypes: ['Person'] },
         }),
       });
@@ -525,8 +533,7 @@ describe('Binder', () => {
 
       eventBus.get('bind:search-requested').next({
         referenceId: 'ref-sort',
-        searchTerm: 'Alpha',
-        context: makeContext(),
+        context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
       });
 
       const result = await resultPromise;
@@ -563,8 +570,7 @@ describe('Binder', () => {
 
       eventBus.get('bind:search-requested').next({
         referenceId: 'ref-inference',
-        searchTerm: 'Alpha',
-        context: makeContext(),
+        context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
       });
 
       const result = await resultPromise;
@@ -606,8 +612,7 @@ describe('Binder', () => {
 
       eventBus.get('bind:search-requested').next({
         referenceId: 'ref-inference-fail',
-        searchTerm: 'Alpha',
-        context: makeContext(),
+        context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
       });
 
       const result = await resultPromise;
@@ -627,8 +632,7 @@ describe('Binder', () => {
 
       eventBus.get('bind:search-requested').next({
         referenceId: 'ref-no-inference',
-        searchTerm: 'Alpha',
-        context: makeContext(),
+        context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
       });
 
       const result = await resultPromise;
@@ -645,8 +649,7 @@ describe('Binder', () => {
 
       eventBus.get('bind:search-requested').next({
         referenceId: 'ref-fail',
-        searchTerm: 'anything',
-        context: makeContext(),
+        context: makeContext({ sourceContext: { before: '', selected: 'anything', after: '' } }),
       });
 
       const result = await resultPromise;
@@ -688,7 +691,6 @@ describe('Binder', () => {
 
         eventBus.get('bind:search-requested').next({
           referenceId: 'ref-range',
-          searchTerm: 'test',
           context: makeContext(),
         });
 
@@ -713,7 +715,6 @@ describe('Binder', () => {
 
         eventBus.get('bind:search-requested').next({
           referenceId: 'ref-malformed',
-          searchTerm: 'test',
           context: makeContext(),
         });
 
@@ -734,8 +735,7 @@ describe('Binder', () => {
 
         eventBus.get('bind:search-requested').next({
           referenceId: 'ref-empty',
-          searchTerm: 'Alpha',
-          context: makeContext(),
+          context: makeContext({ sourceContext: { before: '', selected: 'Alpha', after: '' } }),
         });
 
         const result = await resultPromise;
@@ -753,7 +753,6 @@ describe('Binder', () => {
 
         eventBus.get('bind:search-requested').next({
           referenceId: 'ref-oob',
-          searchTerm: 'test',
           context: makeContext(),
         });
 
@@ -772,7 +771,6 @@ describe('Binder', () => {
 
         eventBus.get('bind:search-requested').next({
           referenceId: 'ref-threshold',
-          searchTerm: 'test',
           context: makeContext(),
         });
 
@@ -797,8 +795,8 @@ describe('Binder', () => {
         const summary = 'This passage discusses Greek mythology figures.';
         eventBus.get('bind:search-requested').next({
           referenceId: 'ref-summary',
-          searchTerm: 'Zeus',
           context: makeContext({
+            sourceContext: { before: '', selected: 'Zeus', after: '' },
             graphContext: {
               connections: [
                 { resourceId: 'r1', resourceName: 'Olympus', bidirectional: false },
@@ -822,7 +820,6 @@ describe('Binder', () => {
 
         eventBus.get('bind:search-requested').next({
           referenceId: 'ref-passage',
-          searchTerm: 'Zeus',
           context: makeContext({
             sourceContext: { before: 'In the beginning,', selected: 'Zeus ruled the heavens', after: 'and the earth.' },
             metadata: { entityTypes: ['Person', 'Deity'] },
@@ -849,7 +846,7 @@ describe('Binder', () => {
 
       eventBus.get('bind:search-requested').next({
         referenceId: 'ref-4',
-        searchTerm: 'after stop',
+        context: { sourceContext: { selected: 'after stop' } },
       });
 
       // Give time for any processing

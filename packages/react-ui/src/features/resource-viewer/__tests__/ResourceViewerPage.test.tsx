@@ -129,14 +129,6 @@ vi.mock('@/components/toolbar/ToolbarPanels', () => ({
   ToolbarPanels: ({ children }: any) => <div data-testid="toolbar-panels">{children}</div>,
 }));
 
-vi.mock('@/components/modals/SearchResourcesModal', () => ({
-  SearchResourcesModal: () => <div data-testid="search-modal">Search Modal</div>,
-}));
-
-vi.mock('@/components/modals/GenerationConfigModal', () => ({
-  GenerationConfigModal: () => <div data-testid="generation-modal">Generation Modal</div>,
-}));
-
 // Create mock props matching the current ResourceViewerPageProps
 const createMockProps = (overrides?: Partial<ResourceViewerPageProps>): ResourceViewerPageProps => ({
   resource: {
@@ -163,8 +155,6 @@ const createMockProps = (overrides?: Partial<ResourceViewerPageProps>): Resource
   refetchDocument: vi.fn().mockResolvedValue(undefined),
   ToolbarPanels: ({ children, activePanel }: any) =>
     !activePanel ? null : <div data-testid="toolbar-panels">{children}</div>,
-  SearchResourcesModal: () => <div data-testid="search-modal">Search Modal</div>,
-  GenerationConfigModal: () => <div data-testid="generation-modal">Generation Modal</div>,
   ...overrides,
 });
 
@@ -323,18 +313,12 @@ describe('ResourceViewerPage', () => {
   });
 
   describe('Modals', () => {
-    it('renders search resources modal', () => {
+    it('renders reference wizard modal', () => {
       const props = createMockProps();
       renderWithProviders(<ResourceViewerPage {...props} />);
 
-      expect(screen.getByTestId('search-modal')).toBeInTheDocument();
-    });
-
-    it('renders generation config modal', () => {
-      const props = createMockProps();
-      renderWithProviders(<ResourceViewerPage {...props} />);
-
-      expect(screen.getByTestId('generation-modal')).toBeInTheDocument();
+      // Wizard modal is rendered but closed by default
+      // It opens when bind:initiate is emitted from ReferenceEntry
     });
   });
 

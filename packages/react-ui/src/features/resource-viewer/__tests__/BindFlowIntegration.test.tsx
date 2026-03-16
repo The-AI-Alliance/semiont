@@ -1,16 +1,15 @@
 /**
- * Layer 3: Feature Integration Test - Resolution Flow (search modal & body update)
+ * Layer 3: Feature Integration Test - Bind Flow (body update)
  *
- * Tests the UNCOVERED half of useBindFlow:
- * - bind:link → emits bind:search-requested
- * - bind:search-requested → opens search modal with pendingReferenceId
- * - onCloseSearchModal → closes modal
+ * Tests the write side of useBindFlow:
  * - bind:update-body → calls updateAnnotationBody API
  * - bind:update-body → emits bind:body-updated on success
  * - bind:update-body → emits bind:body-update-failed on error
  * - auth token passed to updateAnnotationBody
  *
- * The deletion half of useBindFlow is covered by AnnotationDeletionIntegration.test.tsx.
+ * The wizard modal (ReferenceWizardModal) handles modal state, context
+ * gathering, search configuration, and result display. This test covers
+ * only the downstream API calls after the wizard emits bind:update-body.
  *
  * Uses real providers (EventBus, ApiClient, AuthToken) with mocked API boundary.
  */
@@ -35,7 +34,7 @@ vi.mock('../../../components/Toast', () => ({
   }),
 }));
 
-describe('Resolution Flow - Search Modal & Body Update Integration', () => {
+describe('Bind Flow - Body Update Integration', () => {
   let updateAnnotationBodySpy: ReturnType<typeof vi.fn>;
   const testId = resourceId('test-resource');
   const testToken = 'test-resolution-token';
@@ -57,11 +56,10 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
 
   function renderBindFlow() {
     let eventBusInstance: ReturnType<typeof useEventBus> | null = null;
-    let lastState: ReturnType<typeof useBindFlow> | null = null;
 
     function TestComponent() {
       eventBusInstance = useEventBus();
-      lastState = useBindFlow(testId);
+      useBindFlow(testId);
       return null;
     }
 
@@ -76,112 +74,9 @@ describe('Resolution Flow - Search Modal & Body Update Integration', () => {
     );
 
     return {
-      getState: () => lastState!,
       getEventBus: () => eventBusInstance!,
     };
   }
-
-  // ─── Initial state ──────────────────────────────────────────────────────────
-
-  it('starts with both modals closed and no pending reference', () => {
-    const { getState } = renderBindFlow();
-    expect(getState().contextModalOpen).toBe(false);
-    expect(getState().searchModalOpen).toBe(false);
-    expect(getState().pendingReferenceId).toBeNull();
-    expect(getState().pendingSearchTerm).toBeNull();
-  });
-
-  // ─── bind:link ─────────────────────────────────────────────────────────
-
-  it('bind:link opens context modal and emits gather:requested', async () => {
-    const { getState, getEventBus } = renderBindFlow();
-    const gatherSpy = vi.fn();
-
-    getEventBus().get('gather:requested').subscribe(gatherSpy);
-    act(() => { getEventBus().get('bind:link').next({ annotationId: annotationId('ann-uri-123'), resourceId: resourceId('res-123'), searchTerm: 'climate change' }); });
-
-    await waitFor(() => {
-      expect(getState().contextModalOpen).toBe(true);
-      expect(getState().pendingReferenceId).toBe('ann-uri-123');
-      expect(getState().pendingSearchTerm).toBe('climate change');
-    });
-
-    expect(gatherSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        annotationId: annotationId('ann-uri-123'),
-        resourceId: resourceId('res-123'),
-      })
-    );
-  });
-
-  // ─── bind:search-requested ────────────────────────────────────────────
-
-  it('bind:search-requested opens the search modal', async () => {
-    const { getState, getEventBus } = renderBindFlow();
-
-    expect(getState().searchModalOpen).toBe(false);
-
-    act(() => { getEventBus().get('bind:search-requested').next({ referenceId: 'ref-abc', searchTerm: 'oceans' }); });
-
-    await waitFor(() => {
-      expect(getState().searchModalOpen).toBe(true);
-    });
-  });
-
-  it('bind:search-requested sets pendingReferenceId', async () => {
-    const { getState, getEventBus } = renderBindFlow();
-
-    act(() => { getEventBus().get('bind:search-requested').next({ referenceId: 'ref-xyz', searchTerm: 'forests' }); });
-
-    await waitFor(() => {
-      expect(getState().pendingReferenceId).toBe('ref-xyz');
-    });
-  });
-
-  it('bind:link opens context modal (not search modal) end-to-end', async () => {
-    const { getState, getEventBus } = renderBindFlow();
-
-    // Simulate the full user journey: user clicks "Link Document" on a reference entry
-    act(() => { getEventBus().get('bind:link').next({ annotationId: annotationId('ann-full-chain'), resourceId: resourceId('res-full'), searchTerm: 'biodiversity' }); });
-
-    await waitFor(() => {
-      expect(getState().contextModalOpen).toBe(true);
-      expect(getState().pendingReferenceId).toBe('ann-full-chain');
-      expect(getState().pendingSearchTerm).toBe('biodiversity');
-    });
-
-    // Search modal should NOT be open yet
-    expect(getState().searchModalOpen).toBe(false);
-  });
-
-  // ─── onCloseSearchModal ──────────────────────────────────────────────────────
-
-  it('onCloseSearchModal closes the search modal', async () => {
-    const { getState, getEventBus } = renderBindFlow();
-
-    act(() => { getEventBus().get('bind:search-requested').next({ referenceId: 'ref-close', searchTerm: 'test' }); });
-
-    await waitFor(() => expect(getState().searchModalOpen).toBe(true));
-
-    act(() => { getState().onCloseSearchModal(); });
-
-    await waitFor(() => {
-      expect(getState().searchModalOpen).toBe(false);
-    });
-  });
-
-  it('onCloseSearchModal does not clear pendingReferenceId (preserves for re-open)', async () => {
-    const { getState, getEventBus } = renderBindFlow();
-
-    act(() => { getEventBus().get('bind:search-requested').next({ referenceId: 'ref-persist', searchTerm: 'test' }); });
-    await waitFor(() => expect(getState().searchModalOpen).toBe(true));
-
-    act(() => { getState().onCloseSearchModal(); });
-    await waitFor(() => expect(getState().searchModalOpen).toBe(false));
-
-    // pendingReferenceId remains — modal may reopen
-    expect(getState().pendingReferenceId).toBe('ref-persist');
-  });
 
   // ─── bind:update-body ──────────────────────────────────────────────────
 

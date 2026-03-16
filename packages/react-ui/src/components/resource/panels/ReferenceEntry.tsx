@@ -68,14 +68,6 @@ export function ReferenceEntry({
     }
   };
 
-  const handleComposeDocument = () => {
-    eventBus.get('bind:create-manual').next({
-      annotationId: annotationId(reference.id),
-      title: selectedText,
-      entityTypes,
-    });
-  };
-
   const source = typeof reference.target === 'object' && 'source' in reference.target
     ? reference.target.source
     : '';
@@ -90,19 +82,12 @@ export function ReferenceEntry({
     }
   };
 
-  const handleGenerate = () => {
-    eventBus.get('yield:modal-open').next({
+  const handleInitiateWizard = () => {
+    eventBus.get('bind:initiate').next({
       annotationId: annotationId(reference.id),
       resourceId: resourceId(source),
       defaultTitle: selectedText,
-    });
-  };
-
-  const handleSearch = () => {
-    eventBus.get('bind:link').next({
-      annotationId: annotationId(reference.id),
-      resourceId: resourceId(source),
-      searchTerm: selectedText,
+      entityTypes,
     });
   };
 
@@ -183,26 +168,12 @@ export function ReferenceEntry({
           annotateMode && (
             <div className="semiont-annotation-entry__action-row">
               <button
-                onClick={handleGenerate}
-                className="semiont-reference-button semiont-reference-button--primary semiont-reference-button--full"
-                title={t('generate')}
+                onClick={handleInitiateWizard}
+                className="semiont-reference-button semiont-reference-button--primary semiont-reference-button--wide"
+                title={t('resolve')}
                 data-generating={isGenerating ? 'true' : 'false'}
               >
-                ✨
-              </button>
-              <button
-                onClick={handleSearch}
-                className="semiont-reference-button semiont-reference-button--primary semiont-reference-button--full"
-                title={t('find')}
-              >
-                🔍
-              </button>
-              <button
-                onClick={handleComposeDocument}
-                className="semiont-reference-button semiont-reference-button--primary semiont-reference-button--full"
-                title={t('create')}
-              >
-                ✏️
+                🕸️🧙
               </button>
             </div>
           )

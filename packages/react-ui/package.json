@@ -7,11 +7,13 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.mts",
-      "import": "./dist/index.mjs"
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
     },
     "./test-utils": {
       "types": "./dist/test-utils.d.mts",
-      "import": "./dist/test-utils.mjs"
+      "import": "./dist/test-utils.mjs",
+      "default": "./dist/test-utils.mjs"
     },
     "./styles": "./src/styles/index.css",
     "./styles/index.css": "./src/styles/index.css",
@@ -19,11 +21,13 @@
     "./tailwind": "./src/integrations/tailwind-plugin.js",
     "./integrations/css-modules": {
       "types": "./dist/integrations/css-modules-helper.d.mts",
-      "import": "./dist/integrations/css-modules-helper.mjs"
+      "import": "./dist/integrations/css-modules-helper.mjs",
+      "default": "./dist/integrations/css-modules-helper.mjs"
     },
     "./integrations/styled-components": {
       "types": "./dist/integrations/styled-components-theme.d.mts",
-      "import": "./dist/integrations/styled-components-theme.mjs"
+      "import": "./dist/integrations/styled-components-theme.mjs",
+      "default": "./dist/integrations/styled-components-theme.mjs"
     },
     "./translations/*": "./translations/*.json"
   },

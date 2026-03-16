@@ -16,6 +16,7 @@ import { registerAnnotateTagsStream } from './routes/annotate-tags-stream';
 import { registerGetResourceLLMContext } from './routes/llm-context';
 import { registerGetAnnotationLLMContext } from './routes/annotation-llm-context';
 import { registerGetReferencedBy } from './routes/referenced-by';
+import { registerBindSearchStream } from './routes/bind-search-stream';
 import { registerTokenRoutes } from './routes/token';
 import { registerGetResourceAnnotations } from './routes/get-annotations';
 import { registerGetEvents } from './routes/events';
@@ -53,6 +54,7 @@ registerTokenRoutes(resourcesRouter);  // GET /api/clone-tokens/:token, POST /ap
   registerGetResourceLLMContext(resourcesRouter);  // GET /resources/:id/llm-context
   registerGetAnnotationLLMContext(resourcesRouter);  // GET /resources/:resourceId/annotations/:annotationId/llm-context
   registerGetReferencedBy(resourcesRouter);  // GET /resources/:id/referenced-by
+  registerBindSearchStream(resourcesRouter);  // POST /resources/:id/bind-search-stream
 
   // Annotation routes (nested under resources) - must be before generic :id route
   registerGetResourceAnnotations(resourcesRouter);  // GET /resources/:id/annotations (list)

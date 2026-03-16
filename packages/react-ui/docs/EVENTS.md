@@ -85,11 +85,11 @@ These events are emitted by the backend when domain changes occur:
 - `bind:body-updated` - Annotation body updated (resolution flow)
 - `beckon:sparkle` - Annotation highlighted (UI animation)
 
-**Bind Flow Events** (context-driven search and linking):
+**Bind Flow Events** (wizard-driven search and linking):
 
-- `bind:link` - User clicked "Link Document" (`{ annotationId, resourceId, searchTerm }`)
-- `bind:search-requested` - Search with optional gathered context (`{ referenceId, searchTerm, context? }`)
-- `bind:search-results` - Scored search results with match reasons (`{ referenceId, searchTerm, results }`)
+- `bind:initiate` - User clicked wizard button on unresolved reference (`{ annotationId, resourceId, defaultTitle, entityTypes }`)
+- `bind:search-requested` - Search with gathered context (`{ referenceId, context, limit?, useSemanticScoring? }`)
+- `bind:search-results` - Scored search results with match reasons (`{ referenceId, results }`)
 - `bind:update-body` - Update annotation body (add/remove link)
 
 **Gather Flow Events** (context assembly — used by both Yield and Bind flows):

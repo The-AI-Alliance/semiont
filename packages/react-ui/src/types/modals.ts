@@ -1,5 +1,4 @@
 import { ComponentType, ReactNode } from 'react';
-import type { GatheredContext } from '@semiont/core';
 
 /**
  * Base modal props that all modals share
@@ -45,38 +44,6 @@ export interface SearchModalProps extends BaseModalProps, NavigableModalProps {
     select?: string;
     close?: string;
   };
-}
-
-/**
- * Generation config modal props
- */
-export interface GenerationConfigModalProps extends BaseModalProps {
-  /** Callback when generation is triggered */
-  onGenerate: (options: GenerationOptions) => void;
-  /** Reference ID for the annotation */
-  referenceId: string;
-  /** Resource URI */
-  resourceUri: string;
-  /** Default title from selected text */
-  defaultTitle: string;
-  /** Translation function */
-  t: (key: string, values?: Record<string, any>) => string;
-  /** Current locale */
-  locale: string;
-  /** Available locales */
-  locales?: Array<{ code: string; name: string; nativeName: string }>;
-}
-
-/**
- * Generation options
- */
-export interface GenerationOptions {
-  title: string;
-  prompt?: string;
-  language?: string;
-  temperature?: number;
-  maxTokens?: number;
-  context: GatheredContext;
 }
 
 /**

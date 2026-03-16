@@ -59,43 +59,42 @@ await client.updateAnnotationBody(resourceId, annotationId, {
 
 | Event | Payload | Description |
 |-------|---------|-------------|
-| `bind:link` | `{ annotationId, resourceId, searchTerm }` | User clicked "Link Document" on a reference |
-| `bind:search-requested` | `{ referenceId, searchTerm, context? }` | Open the resource search modal (context enables scoring) |
-| `bind:search-results` | `{ referenceId, searchTerm, results, correlationId? }` | Scored search results from Binder |
-| `bind:search-failed` | `{ referenceId, error, correlationId? }` | Search failed |
+| `bind:initiate` | `{ annotationId, resourceId, defaultTitle, entityTypes }` | User clicked wizard button on unresolved reference |
+| `bind:search-requested` | `{ referenceId, context, limit?, useSemanticScoring? }` | Search for binding candidates using gathered context |
+| `bind:search-results` | `{ referenceId, results }` | Scored search results from Binder |
+| `bind:search-failed` | `{ referenceId, error }` | Search failed |
 | `bind:referenced-by-requested` | `{ correlationId, resourceId, motivation? }` | Query which annotations reference a resource |
 | `bind:referenced-by-result` | `{ correlationId, response }` | Referenced-by results from Binder via Graph |
 | `bind:update-body` | `{ annotationId, resourceId, operations }` | Update annotation body (add/remove link) |
 | `bind:body-updated` | `{ annotationId }` | Annotation body successfully updated |
 | `bind:body-update-failed` | `{ error }` | Annotation body update failed |
-| `bind:create-manual` | `{ annotationId, title, entityTypes }` | Navigate to compose page for manual resource creation |
 
 ## Resolution Workflow
 
-### Link to Existing Resource (Two-Step Modal)
+### Link to Existing Resource (Wizard)
 
-The Bind flow uses a two-step modal: first a context modal shows gathered context (passage, graph neighborhood), then the search modal shows context-scored results.
+The Bind path uses the Reference Resolution Wizard (see [WIZARDS.md](./WIZARDS.md)). The wizard gathers context, then lets the user configure and execute a context-driven search.
 
 ```
-User clicks "Link Document" on unresolved reference
+User clicks 🕸️🧙 wizard button on unresolved reference
     |
-bind:link fires with { annotationId, resourceId, searchTerm }
+bind:initiate fires with { annotationId, resourceId, defaultTitle, entityTypes }
     |
-useBindFlow emits gather:requested on EventBus (fetches annotation context)
+ResourceViewerPage emits gather:requested on EventBus
     |
 Gatherer assembles GatheredContext (passage + graph neighborhood)
     |
-gather:complete → Context modal opens (shows passage, connections, entity types)
+gather:complete → Wizard shows gathered context (Step 1)
     |
-User clicks "Find" in context modal
+User clicks "Bind" → Configure Search (Step 2A)
     |
-bind:search-requested fires with { searchTerm, context: GatheredContext }
+User submits search → bind:search-requested fires with { context, limit, useSemanticScoring }
     |
 Binder runs context-driven search (structural scoring + optional inference scoring)
     |
-bind:search-results → Search results modal opens with scored candidates
+bind:search-results → Wizard shows scored candidates (Step 3A)
     |
-User selects a resource from search results
+User clicks "Link" on a result
     |
 bind:update-body → API call (PATCH annotation body)
     |
@@ -125,14 +124,14 @@ When `bind:search-requested` includes a `context` field (a `GatheredContext`), t
 - Returns 0–1 relevance scores that blend with structural scores
 - Graceful degradation — if inference fails, structural scores are used alone
 
-### Create New Resource (Manual)
+### Create New Resource (Compose via Wizard)
 
 ```
-User clicks "Create Document" on unresolved reference
+User clicks 🕸️🧙 wizard button → Step 1 shows context → User clicks "Compose"
     |
-bind:create-manual
+GatheredContext stored in sessionStorage
     |
-Navigate to /know/compose?annotationId=...&name=...&entityTypes=...
+Navigate to /know/compose?annotationUri=...&name=...&entityTypes=...
     |
 User composes and saves the new resource
     |
@@ -166,7 +165,8 @@ Resolution is reversible. A user can remove a link via `bind:update-body` with a
 
 ## Implementation
 
-- **Hook**: [packages/react-ui/src/hooks/useBindFlow.ts](../../packages/react-ui/src/hooks/useBindFlow.ts) — two-step modal state, gather trigger, search dispatch
+- **Hook**: [packages/react-ui/src/hooks/useBindFlow.ts](../../packages/react-ui/src/hooks/useBindFlow.ts) — write side (annotation body updates)
+- **Wizard**: [packages/react-ui/src/components/modals/ReferenceWizardModal.tsx](../../packages/react-ui/src/components/modals/ReferenceWizardModal.tsx) — multi-step wizard for Bind/Generate/Compose
 - **Binder actor**: [packages/make-meaning/src/binder.ts](../../packages/make-meaning/src/binder.ts) — context-driven search + inference scoring
 - **Event definitions**: [packages/core/src/event-map.ts](../../packages/core/src/event-map.ts) — `RESOLUTION FLOW` section
 - **API**: `updateAnnotationBody` in [@semiont/api-client](../../packages/api-client/README.md)

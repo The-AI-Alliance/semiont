@@ -330,109 +330,49 @@ describe('ReferenceEntry', () => {
   });
 
   describe('Stub reference actions', () => {
-    it('should show generate, search, and create buttons in annotate mode', () => {
+    it('should show wizard button for stub references in annotate mode', () => {
       mockIsBodyResolved.mockReturnValue(false);
 
       const { container } = renderWithProviders(
         <ReferenceEntry {...defaultProps} annotateMode={true} />
       );
 
-      expect(container.querySelector('button[title="ReferencesPanel.generate"]')).toBeInTheDocument();
-      expect(container.querySelector('button[title="ReferencesPanel.find"]')).toBeInTheDocument();
-      expect(container.querySelector('button[title="ReferencesPanel.create"]')).toBeInTheDocument();
+      expect(container.querySelector('button[title="ReferencesPanel.resolve"]')).toBeInTheDocument();
     });
 
-    it('should not show stub actions when not in annotate mode', () => {
+    it('should not show wizard button when not in annotate mode', () => {
       mockIsBodyResolved.mockReturnValue(false);
 
       const { container } = renderWithProviders(
         <ReferenceEntry {...defaultProps} annotateMode={false} />
       );
 
-      expect(container.querySelector('button[title="ReferencesPanel.generate"]')).not.toBeInTheDocument();
-      expect(container.querySelector('button[title="ReferencesPanel.find"]')).not.toBeInTheDocument();
-      expect(container.querySelector('button[title="ReferencesPanel.create"]')).not.toBeInTheDocument();
+      expect(container.querySelector('button[title="ReferencesPanel.resolve"]')).not.toBeInTheDocument();
     });
 
-    it('should emit yield:modal-open on generate click', async () => {
+    it('should emit bind:initiate on wizard button click', async () => {
       mockIsBodyResolved.mockReturnValue(false);
-      const generateHandler = vi.fn();
+      mockGetEntityTypes.mockReturnValue(['Person']);
+      const initiateHandler = vi.fn();
 
       const { container, eventBus } = renderWithProviders(
         <ReferenceEntry {...defaultProps} annotateMode={true} />,
         { returnEventBus: true }
       );
 
-      const subscription = eventBus!.get('yield:modal-open').subscribe(generateHandler);
+      const subscription = eventBus!.get('bind:initiate').subscribe(initiateHandler);
 
-      const generateButton = container.querySelector('button[title="ReferencesPanel.generate"]')!;
-      await userEvent.click(generateButton);
+      const wizardButton = container.querySelector('button[title="ReferencesPanel.resolve"]')!;
+      await userEvent.click(wizardButton);
 
-      expect(generateHandler).toHaveBeenCalledWith({
+      expect(initiateHandler).toHaveBeenCalledWith({
         annotationId: 'ref-1',
         resourceId: 'resource-1',
         defaultTitle: 'referenced text',
-      });
-
-      subscription.unsubscribe();
-    });
-
-    it('should emit bind:link on search click', async () => {
-      mockIsBodyResolved.mockReturnValue(false);
-      const searchHandler = vi.fn();
-
-      const { container, eventBus } = renderWithProviders(
-        <ReferenceEntry {...defaultProps} annotateMode={true} />,
-        { returnEventBus: true }
-      );
-
-      const subscription = eventBus!.get('bind:link').subscribe(searchHandler);
-
-      const searchButton = container.querySelector('button[title="ReferencesPanel.find"]')!;
-      await userEvent.click(searchButton);
-
-      expect(searchHandler).toHaveBeenCalledWith({
-        annotationId: 'ref-1',
-        resourceId: 'resource-1',
-        searchTerm: 'referenced text',
-      });
-
-      subscription.unsubscribe();
-    });
-
-    it('should emit bind:create-manual on create click', async () => {
-      mockIsBodyResolved.mockReturnValue(false);
-      mockGetEntityTypes.mockReturnValue(['Person']);
-      const createHandler = vi.fn();
-
-      const { container, eventBus } = renderWithProviders(
-        <ReferenceEntry {...defaultProps} annotateMode={true} />,
-        { returnEventBus: true }
-      );
-
-      const subscription = eventBus!.get('bind:create-manual').subscribe(createHandler);
-
-      const createButton = container.querySelector('button[title="ReferencesPanel.create"]')!;
-      await userEvent.click(createButton);
-
-      expect(createHandler).toHaveBeenCalledWith({
-        annotationId: 'ref-1',
-        title: 'referenced text',
         entityTypes: ['Person'],
       });
 
       subscription.unsubscribe();
-    });
-
-    it('should set data-generating on generate button', () => {
-      mockIsBodyResolved.mockReturnValue(false);
-
-      const { container } = renderWithProviders(
-        <ReferenceEntry {...defaultProps} annotateMode={true} isGenerating={true} />
-      );
-
-      const generateButton = container.querySelector('button[title="ReferencesPanel.generate"]');
-      expect(generateButton).toHaveAttribute('data-generating', 'true');
     });
   });
 

@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { components, ResourceId, ResourceEvent } from '@semiont/core';
+import type { components, ResourceId, ResourceEvent, GatheredContext } from '@semiont/core';
 import { annotationId } from '@semiont/core';
 import { getLanguage, getPrimaryRepresentation, getPrimaryMediaType } from '@semiont/api-client';
 import { ANNOTATORS } from '@semiont/react-ui';
@@ -19,7 +19,6 @@ import { CollaborationPanel } from '@semiont/react-ui';
 import { JsonLdPanel } from '@semiont/react-ui';
 import { Toolbar } from '@semiont/react-ui';
 import { useResourceLoadingAnnouncements } from '@semiont/react-ui';
-import type { GenerationOptions } from '@semiont/react-ui';
 import { ResourceViewer } from '@semiont/react-ui';
 import { QUERY_KEYS } from '../../../lib/query-keys';
 import { useResources, useEntityTypes } from '../../../lib/api-hooks';
@@ -42,7 +41,9 @@ import { useBeckonFlow } from '../../../hooks/useBeckonFlow';
 import { usePanelBrowse } from '../../../hooks/usePanelBrowse';
 import { useYieldFlow } from '../../../hooks/useYieldFlow';
 import { useContextGatherFlow } from '../../../hooks/useContextGatherFlow';
-import { BindContextModal } from '../../../components/modals/BindContextModal';
+import { useTranslations } from '../../../contexts/TranslationContext';
+import { ReferenceWizardModal } from '../../../components/modals/ReferenceWizardModal';
+import type { GenerationConfig } from '../../../components/modals/ConfigureGenerationStep';
 
 type SemiontResource = components['schemas']['ResourceDescriptor'];
 type Annotation = components['schemas']['Annotation'];
@@ -77,8 +78,6 @@ export interface ResourceViewerPageProps {
    * Component dependencies - passed from framework layer
    */
   ToolbarPanels: React.ComponentType<any>;
-  SearchResourcesModal: React.ComponentType<any>;
-  GenerationConfigModal: React.ComponentType<any>;
 
   /**
    * Callback to refetch document from parent
@@ -120,10 +119,11 @@ export function ResourceViewerPage({
   Link,
   routes,
   ToolbarPanels,
-  SearchResourcesModal,
-  GenerationConfigModal,
   refetchDocument,
 }: ResourceViewerPageProps) {
+  // Translations
+  const tw = useTranslations('ReferenceWizard');
+
   // Get unified event bus for subscribing to UI events
   const eventBus = useEventBus();
   const client = useApiClient();
@@ -160,24 +160,85 @@ export function ResourceViewerPage({
   const { hoveredAnnotationId } = useBeckonFlow();
   const { assistingMotivation, progress, pendingAnnotation } = useMarkFlow(rUri);
   const { activePanel, scrollToAnnotationId, panelInitialTab, onScrollCompleted } = usePanelBrowse();
-  const {
-    contextModalOpen,
-    searchModalOpen,
-    pendingReferenceId,
-    pendingSearchTerm,
-    onCloseContextModal,
-    onCloseSearchModal,
-    onSearch: onBindSearch,
-  } = useBindFlow(rUri);
+  useBindFlow(rUri);
   const {
     generationProgress,
-    generationModalOpen,
-    generationReferenceId,
-    generationDefaultTitle,
     onGenerateDocument,
-    onCloseGenerationModal,
   } = useYieldFlow(locale, rUri, clearNewAnnotationId);
   const { gatherContext, gatherLoading, gatherError } = useContextGatherFlow(eventBus, { client, resourceId: rUri });
+
+  // Wizard state — driven by bind:initiate from ReferenceEntry
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardAnnotationId, setWizardAnnotationId] = useState<string | null>(null);
+  const [wizardResourceId, setWizardResourceId] = useState<string | null>(null);
+  const [wizardDefaultTitle, setWizardDefaultTitle] = useState('');
+  const [wizardEntityTypes, setWizardEntityTypes] = useState<string[]>([]);
+
+  useEffect(() => {
+    const subscription = eventBus.get('bind:initiate').subscribe((event) => {
+      setWizardAnnotationId(event.annotationId);
+      setWizardResourceId(event.resourceId);
+      setWizardDefaultTitle(event.defaultTitle);
+      setWizardEntityTypes(event.entityTypes);
+      setWizardOpen(true);
+
+      // Trigger context gathering
+      eventBus.get('gather:requested').next({ annotationId: event.annotationId, resourceId: event.resourceId });
+    });
+    return () => subscription.unsubscribe();
+  }, [eventBus]);
+
+  const handleWizardClose = useCallback(() => {
+    setWizardOpen(false);
+  }, []);
+
+  const handleWizardGenerateSubmit = useCallback((referenceId: string, config: GenerationConfig) => {
+    onGenerateDocument(referenceId, {
+      title: config.title,
+      prompt: config.prompt,
+      language: config.language,
+      temperature: config.temperature,
+      maxTokens: config.maxTokens,
+      context: config.context,
+    });
+  }, [onGenerateDocument]);
+
+  const handleWizardLinkResource = useCallback((referenceId: string, targetResourceId: string) => {
+    eventBus.get('bind:update-body').next({
+      annotationId: annotationId(referenceId),
+      resourceId: rUri,
+      operations: [{
+        op: 'add',
+        item: {
+          type: 'SpecificResource' as const,
+          source: targetResourceId,
+          purpose: 'linking' as const,
+        },
+      }],
+    });
+    showSuccess('Reference linked successfully');
+  }, [rUri, showSuccess]); // eventBus is stable singleton
+
+  const handleWizardComposeNavigate = useCallback((
+    context: GatheredContext,
+    annId: string,
+    resId: string,
+    title: string,
+    entTypes: string[],
+  ) => {
+    // Store context in sessionStorage for the compose page
+    sessionStorage.setItem(`gather-context:${annId}`, JSON.stringify(context));
+    const params = new URLSearchParams({
+      annotationUri: annId,
+      sourceDocumentId: resId,
+      name: title,
+      entityTypes: entTypes.join(','),
+    });
+    eventBus.get('browse:router-push').next({
+      path: `/know/compose?${params.toString()}`,
+      reason: 'compose-from-wizard',
+    });
+  }, []); // eventBus is stable singleton
 
   // Debounced invalidation for real-time events
   const debouncedInvalidateAnnotations = useDebouncedCallback(
@@ -607,60 +668,58 @@ export function ResourceViewerPage({
         </div>
       </div>
 
-      {/* Bind Context Modal (Step 1: review context before searching) */}
-      <BindContextModal
-        isOpen={contextModalOpen}
-        onClose={onCloseContextModal}
-        onSearch={onBindSearch}
-        searchTerm={pendingSearchTerm || ''}
+      {/* Reference Resolution Wizard */}
+      <ReferenceWizardModal
+        isOpen={wizardOpen}
+        onClose={handleWizardClose}
+        annotationId={wizardAnnotationId}
+        resourceId={wizardResourceId}
+        defaultTitle={wizardDefaultTitle}
+        entityTypes={wizardEntityTypes}
+        locale={locale}
         context={gatherContext}
         contextLoading={gatherLoading}
         contextError={gatherError}
-      />
-
-      {/* Search Resources Modal (Step 2: show search results) */}
-      <SearchResourcesModal
-        isOpen={searchModalOpen}
-        onClose={onCloseSearchModal}
-        onSelect={async (documentId: string) => {
-          if (pendingReferenceId) {
-            try {
-              eventBus.get('bind:update-body').next({
-                annotationId: annotationId(pendingReferenceId),
-                resourceId: rUri,
-                operations: [{
-                  op: 'add',
-                  item: {
-                    type: 'SpecificResource' as const,
-                    source: documentId,
-                    purpose: 'linking' as const,
-                  },
-                }],
-              });
-              showSuccess('Reference linked successfully');
-              // Cache invalidation now handled by mark:body-updated event
-              onCloseSearchModal();
-            } catch (error) {
-              console.error('Failed to link reference:', error);
-              showError('Failed to link reference');
-            }
-          }
+        eventBus={eventBus}
+        onGenerateSubmit={handleWizardGenerateSubmit}
+        onLinkResource={handleWizardLinkResource}
+        onComposeNavigate={handleWizardComposeNavigate}
+        translations={{
+          gatherTitle: tw('gatherTitle'),
+          configureGenerationTitle: tw('configureGenerationTitle'),
+          configureSearchTitle: tw('configureSearchTitle'),
+          searchResultsTitle: tw('searchResultsTitle'),
+          sourceContextLabel: tw('sourceContextLabel'),
+          entityTypesLabel: tw('entityTypesLabel'),
+          graphContextLabel: tw('graphContextLabel'),
+          connectionsLabel: tw('connectionsLabel'),
+          citedByLabel: tw('citedByLabel'),
+          siblingTypesLabel: tw('siblingTypesLabel'),
+          loadingContext: tw('loadingContext'),
+          failedContext: tw('failedContext'),
+          cancel: tw('cancel'),
+          find: tw('find'),
+          generate: tw('generate'),
+          compose: tw('compose'),
+          back: tw('back'),
+          link: tw('link'),
+          score: tw('score'),
+          noResults: tw('noResults'),
+          resourceTitle: tw('resourceTitle'),
+          resourceTitlePlaceholder: tw('resourceTitlePlaceholder'),
+          additionalInstructions: tw('additionalInstructions'),
+          additionalInstructionsPlaceholder: tw('additionalInstructionsPlaceholder'),
+          language: tw('language'),
+          languageHelp: tw('languageHelp'),
+          creativity: tw('creativity'),
+          creativityFocused: tw('creativityFocused'),
+          creativityCreative: tw('creativityCreative'),
+          maxLength: tw('maxLength'),
+          maxLengthHelp: tw('maxLengthHelp'),
+          maxResults: tw('maxResults'),
+          semanticScoring: tw('semanticScoring'),
+          semanticScoringHelp: tw('semanticScoringHelp'),
         }}
-      />
-
-      {/* Generation Config Modal */}
-      <GenerationConfigModal
-        isOpen={generationModalOpen}
-        onClose={onCloseGenerationModal}
-        onGenerate={(options: GenerationOptions) => {
-          if (generationReferenceId) {
-            onGenerateDocument(generationReferenceId, options);
-          }
-        }}
-        defaultTitle={generationDefaultTitle}
-        context={gatherContext}
-        contextLoading={gatherLoading}
-        contextError={gatherError}
       />
     </div>
   );
