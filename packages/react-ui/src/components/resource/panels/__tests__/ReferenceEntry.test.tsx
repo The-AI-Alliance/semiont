@@ -256,18 +256,31 @@ describe('ReferenceEntry', () => {
     });
   });
 
-  describe('Resolved reference actions', () => {
-    it('should show open button when resolved', () => {
+  describe('Status icon — resolved reference', () => {
+    it('should navigate on 🔗 icon click', async () => {
       mockIsBodyResolved.mockReturnValue(true);
       mockGetBodySource.mockReturnValue('linked-doc');
 
       const { container } = renderWithProviders(<ReferenceEntry {...defaultProps} />);
 
-      const openButton = container.querySelector('button[title="ReferencesPanel.open"]');
-      expect(openButton).toBeInTheDocument();
+      const icon = container.querySelector('.semiont-reference-icon')!;
+      await userEvent.click(icon);
+
+      expect(mockRoutes.resourceDetail).toHaveBeenCalledWith('linked-doc');
+      expect(mockNavigate).toHaveBeenCalledWith('/resources/linked-doc', { resourceId: 'linked-doc' });
     });
 
-    it('should show unlink button when resolved and in annotate mode', () => {
+    it('should have clickable class when resolved', () => {
+      mockIsBodyResolved.mockReturnValue(true);
+      mockGetBodySource.mockReturnValue('linked-doc');
+
+      const { container } = renderWithProviders(<ReferenceEntry {...defaultProps} />);
+
+      const icon = container.querySelector('.semiont-reference-icon');
+      expect(icon).toHaveClass('semiont-reference-icon--clickable');
+    });
+
+    it('should show hover-reveal unlink button in annotate mode', () => {
       mockIsBodyResolved.mockReturnValue(true);
       mockGetBodySource.mockReturnValue('linked-doc');
 
@@ -275,7 +288,7 @@ describe('ReferenceEntry', () => {
         <ReferenceEntry {...defaultProps} annotateMode={true} />
       );
 
-      const unlinkButton = container.querySelector('button[title="ReferencesPanel.unlink"]');
+      const unlinkButton = container.querySelector('.semiont-reference-unlink');
       expect(unlinkButton).toBeInTheDocument();
     });
 
@@ -287,21 +300,8 @@ describe('ReferenceEntry', () => {
         <ReferenceEntry {...defaultProps} annotateMode={false} />
       );
 
-      const unlinkButton = container.querySelector('button[title="ReferencesPanel.unlink"]');
+      const unlinkButton = container.querySelector('.semiont-reference-unlink');
       expect(unlinkButton).not.toBeInTheDocument();
-    });
-
-    it('should navigate on open click', async () => {
-      mockIsBodyResolved.mockReturnValue(true);
-      mockGetBodySource.mockReturnValue('linked-doc');
-
-      const { container } = renderWithProviders(<ReferenceEntry {...defaultProps} />);
-
-      const openButton = container.querySelector('button[title="ReferencesPanel.open"]')!;
-      await userEvent.click(openButton);
-
-      expect(mockRoutes.resourceDetail).toHaveBeenCalledWith('linked-doc');
-      expect(mockNavigate).toHaveBeenCalledWith('/resources/linked-doc', { resourceId: 'linked-doc' });
     });
 
     it('should emit bind:update-body on unlink click', async () => {
@@ -316,7 +316,7 @@ describe('ReferenceEntry', () => {
 
       const subscription = eventBus!.get('bind:update-body').subscribe(unlinkHandler);
 
-      const unlinkButton = container.querySelector('button[title="ReferencesPanel.unlink"]')!;
+      const unlinkButton = container.querySelector('.semiont-reference-unlink')!;
       await userEvent.click(unlinkButton);
 
       expect(unlinkHandler).toHaveBeenCalledWith({
@@ -329,28 +329,8 @@ describe('ReferenceEntry', () => {
     });
   });
 
-  describe('Stub reference actions', () => {
-    it('should show wizard button for stub references in annotate mode', () => {
-      mockIsBodyResolved.mockReturnValue(false);
-
-      const { container } = renderWithProviders(
-        <ReferenceEntry {...defaultProps} annotateMode={true} />
-      );
-
-      expect(container.querySelector('button[title="ReferencesPanel.resolve"]')).toBeInTheDocument();
-    });
-
-    it('should not show wizard button when not in annotate mode', () => {
-      mockIsBodyResolved.mockReturnValue(false);
-
-      const { container } = renderWithProviders(
-        <ReferenceEntry {...defaultProps} annotateMode={false} />
-      );
-
-      expect(container.querySelector('button[title="ReferencesPanel.resolve"]')).not.toBeInTheDocument();
-    });
-
-    it('should emit bind:initiate on wizard button click', async () => {
+  describe('Status icon — stub reference', () => {
+    it('should emit bind:initiate on ❓ icon click in annotate mode', async () => {
       mockIsBodyResolved.mockReturnValue(false);
       mockGetEntityTypes.mockReturnValue(['Person']);
       const initiateHandler = vi.fn();
@@ -362,8 +342,8 @@ describe('ReferenceEntry', () => {
 
       const subscription = eventBus!.get('bind:initiate').subscribe(initiateHandler);
 
-      const wizardButton = container.querySelector('button[title="ReferencesPanel.resolve"]')!;
-      await userEvent.click(wizardButton);
+      const icon = container.querySelector('.semiont-reference-icon')!;
+      await userEvent.click(icon);
 
       expect(initiateHandler).toHaveBeenCalledWith({
         annotationId: 'ref-1',
@@ -371,6 +351,47 @@ describe('ReferenceEntry', () => {
         defaultTitle: 'referenced text',
         entityTypes: ['Person'],
       });
+
+      subscription.unsubscribe();
+    });
+
+    it('should have clickable class in annotate mode', () => {
+      mockIsBodyResolved.mockReturnValue(false);
+
+      const { container } = renderWithProviders(
+        <ReferenceEntry {...defaultProps} annotateMode={true} />
+      );
+
+      const icon = container.querySelector('.semiont-reference-icon');
+      expect(icon).toHaveClass('semiont-reference-icon--clickable');
+    });
+
+    it('should not be clickable in browse mode', () => {
+      mockIsBodyResolved.mockReturnValue(false);
+
+      const { container } = renderWithProviders(
+        <ReferenceEntry {...defaultProps} annotateMode={false} />
+      );
+
+      const icon = container.querySelector('.semiont-reference-icon');
+      expect(icon).not.toHaveClass('semiont-reference-icon--clickable');
+    });
+
+    it('should not emit bind:initiate on ❓ icon click in browse mode', async () => {
+      mockIsBodyResolved.mockReturnValue(false);
+      const initiateHandler = vi.fn();
+
+      const { container, eventBus } = renderWithProviders(
+        <ReferenceEntry {...defaultProps} annotateMode={false} />,
+        { returnEventBus: true }
+      );
+
+      const subscription = eventBus!.get('bind:initiate').subscribe(initiateHandler);
+
+      const icon = container.querySelector('.semiont-reference-icon')!;
+      await userEvent.click(icon);
+
+      expect(initiateHandler).not.toHaveBeenCalled();
 
       subscription.unsubscribe();
     });
