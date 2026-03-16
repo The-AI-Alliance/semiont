@@ -464,24 +464,24 @@
 
 /* Wide panel variant for two-pane layouts */
 .semiont-search-modal__panel--wide {
-  max-width: 900px;
+  max-width: 1100px;
 }
 
 /* Two-pane layout for search results + context */
 .semiont-search-results__two-pane {
   display: flex;
-  gap: 1rem;
+  gap: 1.5rem;
 }
 
 .semiont-search-results__context-pane {
-  flex: 0 0 280px;
-  max-height: 400px;
+  flex: 0 0 340px;
+  max-height: 500px;
   overflow-y: auto;
 }
 
 .semiont-search-results__results-pane {
   flex: 1;
-  max-height: 400px;
+  max-height: 500px;
   overflow-y: auto;
 }
 
@@ -501,6 +501,6 @@
   }
 
   .semiont-search-results__results-pane {
-    max-height: 300px;
+    max-height: 350px;
   }
 }

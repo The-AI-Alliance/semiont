@@ -58,7 +58,8 @@ export interface ReferenceWizardModalProps {
     loadingContext: string;
     failedContext: string;
     cancel: string;
-    find: string;
+    search: string;
+    searching: string;
     generate: string;
     compose: string;
     back: string;
@@ -100,11 +101,13 @@ export function ReferenceWizardModal({
   translations: t,
 }: ReferenceWizardModalProps) {
   const [wizardStep, setWizardStep] = useState<WizardStep>({ step: 'gather' });
+  const [isSearching, setIsSearching] = useState(false);
 
   // Reset to gather step when modal opens
   useEffect(() => {
     if (isOpen) {
       setWizardStep({ step: 'gather' });
+      setIsSearching(false);
     }
   }, [isOpen]);
 
@@ -114,6 +117,7 @@ export function ReferenceWizardModal({
 
     const subscription = eventBus.get('bind:search-results').subscribe((event) => {
       if (annotationId && event.referenceId === annotationId) {
+        setIsSearching(false);
         setWizardStep({ step: 'search-results', results: event.results as ScoredResult[] });
       }
     });
@@ -141,6 +145,7 @@ export function ReferenceWizardModal({
 
   const handleSearchSubmit = useCallback((config: SearchConfig) => {
     if (!annotationId || !context) return;
+    setIsSearching(true);
     eventBus.get('bind:search-requested').next({
       referenceId: annotationId,
       context,
@@ -234,7 +239,7 @@ export function ReferenceWizardModal({
                       loadingContext: t.loadingContext,
                       failedContext: t.failedContext,
                       cancel: t.cancel,
-                      find: t.find,
+                      search: t.search,
                       generate: t.generate,
                       compose: t.compose,
                     }}
@@ -270,6 +275,7 @@ export function ReferenceWizardModal({
 
                 {wizardStep.step === 'configure-search' && (
                   <ConfigureSearchStep
+                    isSearching={isSearching}
                     onBack={handleBackToGather}
                     onCancel={onClose}
                     onSearch={handleSearchSubmit}
@@ -279,7 +285,8 @@ export function ReferenceWizardModal({
                       semanticScoringHelp: t.semanticScoringHelp,
                       cancel: t.cancel,
                       back: t.back,
-                      find: t.find,
+                      search: t.search,
+                      searching: t.searching,
                     }}
                   />
                 )}
