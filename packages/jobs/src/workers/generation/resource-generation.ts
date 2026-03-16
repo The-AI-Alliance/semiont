@@ -46,6 +46,24 @@ export async function generateResourceFromTopic(
     ? `\n\nIMPORTANT: Write the entire resource in ${getLanguageName(locale)}.`
     : '';
 
+  // Build annotation context section if available
+  let annotationSection = '';
+  if (context) {
+    const parts: string[] = [];
+    parts.push(`- Annotation motivation: ${context.annotation.motivation}`);
+    parts.push(`- Source resource: ${context.sourceResource.name}`);
+    // Include body text for commenting/assessing annotations
+    const { motivation, body } = context.annotation;
+    if (motivation === 'commenting' || motivation === 'assessing') {
+      const bodyItem = Array.isArray(body) ? body[0] : body;
+      if (bodyItem && 'value' in bodyItem && bodyItem.value) {
+        const label = motivation === 'commenting' ? 'Comment' : 'Assessment';
+        parts.push(`- ${label}: ${bodyItem.value}`);
+      }
+    }
+    annotationSection = `\n\nAnnotation context:\n${parts.join('\n')}`;
+  }
+
   // Build context section if available
   let contextSection = '';
   if (context?.sourceContext) {
@@ -95,7 +113,7 @@ ${after ? `${after}...` : ''}
   // Simple, direct prompt - just ask for markdown content
   const prompt = `Generate a concise, informative resource about "${topic}".
 ${entityTypes.length > 0 ? `Focus on these entity types: ${entityTypes.join(', ')}.` : ''}
-${userPrompt ? `Additional context: ${userPrompt}` : ''}${contextSection}${graphContextSection}${languageInstruction}
+${userPrompt ? `Additional context: ${userPrompt}` : ''}${annotationSection}${contextSection}${graphContextSection}${languageInstruction}
 
 Requirements:
 - Start with a clear heading (# Title)

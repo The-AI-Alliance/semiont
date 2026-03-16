@@ -382,6 +382,21 @@ export class EventBusClient {
       correlationId,
       referenceId,
       context: {
+        annotation: {
+          '@context': 'http://www.w3.org/ns/anno.jsonld',
+          type: 'Annotation',
+          id: referenceId,
+          motivation: 'linking',
+          target: referenceId,
+          body: [],
+        },
+        sourceResource: {
+          '@context': 'https://schema.org',
+          '@id': referenceId,
+          name: searchTerm,
+          format: 'text/plain',
+          representations: [],
+        },
         sourceContext: { selected: searchTerm },
       },
     });
