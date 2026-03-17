@@ -343,6 +343,8 @@
     "connectionsLabel": "कनेक्शन",
     "citedByLabel": "द्वारा उद्धृत",
     "siblingTypesLabel": "सहोदर प्रकार",
+    "userHintLabel": "संकेत",
+    "userHintPlaceholder": "वर्णन करें कि यह एनोटेशन किसे संदर्भित करता है...",
     "loadingContext": "संदर्भ एकत्र हो रहा है...",
     "failedContext": "संदर्भ एकत्र करने में विफल",
     "cancel": "रद्द करें",

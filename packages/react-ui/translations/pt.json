@@ -343,6 +343,8 @@
     "connectionsLabel": "Conexões",
     "citedByLabel": "Citado por",
     "siblingTypesLabel": "Tipos Irmãos",
+    "userHintLabel": "Dica",
+    "userHintPlaceholder": "Descreva a que esta anotação se refere...",
     "loadingContext": "Coletando contexto...",
     "failedContext": "Falha ao coletar contexto",
     "cancel": "Cancelar",

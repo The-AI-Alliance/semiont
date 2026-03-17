@@ -698,6 +698,8 @@ export function ResourceViewerPage({
           connectionsLabel: tw('connectionsLabel'),
           citedByLabel: tw('citedByLabel'),
           siblingTypesLabel: tw('siblingTypesLabel'),
+          userHintLabel: tw('userHintLabel'),
+          userHintPlaceholder: tw('userHintPlaceholder'),
           loadingContext: tw('loadingContext'),
           failedContext: tw('failedContext'),
           cancel: tw('cancel'),

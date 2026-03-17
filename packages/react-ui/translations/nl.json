@@ -346,6 +346,8 @@
     "connectionsLabel": "Verbindingen",
     "citedByLabel": "Geciteerd door",
     "siblingTypesLabel": "Verwante typen",
+    "userHintLabel": "Hint",
+    "userHintPlaceholder": "Beschrijf waar deze annotatie naar verwijst...",
     "loadingContext": "Context wordt verzameld...",
     "failedContext": "Context verzamelen mislukt",
     "cancel": "Annuleren",

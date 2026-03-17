@@ -343,6 +343,8 @@
     "connectionsLabel": "Połączenia",
     "citedByLabel": "Cytowane przez",
     "siblingTypesLabel": "Typy pokrewne",
+    "userHintLabel": "Wskazówka",
+    "userHintPlaceholder": "Opisz, do czego odnosi się ta adnotacja...",
     "loadingContext": "Zbieranie kontekstu...",
     "failedContext": "Nie udało się zebrać kontekstu",
     "cancel": "Anuluj",

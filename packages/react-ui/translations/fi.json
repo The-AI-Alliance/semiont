@@ -343,6 +343,8 @@
     "connectionsLabel": "Yhteydet",
     "citedByLabel": "Viittaajat",
     "siblingTypesLabel": "Sisartyypit",
+    "userHintLabel": "Vihje",
+    "userHintPlaceholder": "Kuvaile mihin tämä merkintä viittaa...",
     "loadingContext": "Kerätään kontekstia...",
     "failedContext": "Kontekstin kerääminen epäonnistui",
     "cancel": "Peruuta",

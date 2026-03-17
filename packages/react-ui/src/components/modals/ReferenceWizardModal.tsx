@@ -55,6 +55,8 @@ export interface ReferenceWizardModalProps {
     connectionsLabel: string;
     citedByLabel: string;
     siblingTypesLabel: string;
+    userHintLabel: string;
+    userHintPlaceholder: string;
     loadingContext: string;
     failedContext: string;
     cancel: string;
@@ -102,12 +104,14 @@ export function ReferenceWizardModal({
 }: ReferenceWizardModalProps) {
   const [wizardStep, setWizardStep] = useState<WizardStep>({ step: 'gather' });
   const [isSearching, setIsSearching] = useState(false);
+  const [userHint, setUserHint] = useState('');
 
   // Reset to gather step when modal opens
   useEffect(() => {
     if (isOpen) {
       setWizardStep({ step: 'gather' });
       setIsSearching(false);
+      setUserHint('');
     }
   }, [isOpen]);
 
@@ -135,9 +139,10 @@ export function ReferenceWizardModal({
 
   const handleCompose = useCallback(() => {
     if (!context || !annotationId || !resourceId) return;
-    onComposeNavigate(context, annotationId, resourceId, defaultTitle, entityTypes);
+    const contextWithHint = userHint ? { ...context, userHint } : context;
+    onComposeNavigate(contextWithHint, annotationId, resourceId, defaultTitle, entityTypes);
     onClose();
-  }, [context, annotationId, resourceId, defaultTitle, entityTypes, onComposeNavigate, onClose]);
+  }, [context, annotationId, resourceId, defaultTitle, entityTypes, onComposeNavigate, onClose, userHint]);
 
   const handleBackToGather = useCallback(() => {
     setWizardStep({ step: 'gather' });
@@ -146,14 +151,15 @@ export function ReferenceWizardModal({
   const handleSearchSubmit = useCallback((config: SearchConfig) => {
     if (!annotationId || !context) return;
     setIsSearching(true);
+    const contextWithHint = userHint ? { ...context, userHint } : context;
     eventBus.get('bind:search-requested').next({
       referenceId: annotationId,
-      context,
+      context: contextWithHint,
       limit: config.limit,
       useSemanticScoring: config.useSemanticScoring,
     });
     // Stay on configure-search until results arrive (subscription above handles transition)
-  }, [annotationId, context, eventBus]);
+  }, [annotationId, context, eventBus, userHint]);
 
   const handleGenerateSubmit = useCallback((config: GenerationConfig) => {
     if (!annotationId) return;
@@ -221,6 +227,8 @@ export function ReferenceWizardModal({
                     context={context}
                     contextLoading={contextLoading}
                     contextError={contextError}
+                    userHint={userHint}
+                    onUserHintChange={setUserHint}
                     onCancel={onClose}
                     onBind={handleBind}
                     onGenerate={handleGenerate}
@@ -236,6 +244,8 @@ export function ReferenceWizardModal({
                       connectionsLabel: t.connectionsLabel,
                       citedByLabel: t.citedByLabel,
                       siblingTypesLabel: t.siblingTypesLabel,
+                      userHintLabel: t.userHintLabel,
+                      userHintPlaceholder: t.userHintPlaceholder,
                       loadingContext: t.loadingContext,
                       failedContext: t.failedContext,
                       cancel: t.cancel,
@@ -313,6 +323,8 @@ export function ReferenceWizardModal({
                       connectionsLabel: t.connectionsLabel,
                       citedByLabel: t.citedByLabel,
                       siblingTypesLabel: t.siblingTypesLabel,
+                      userHintLabel: t.userHintLabel,
+                      userHintPlaceholder: t.userHintPlaceholder,
                     }}
                   />
                 )}

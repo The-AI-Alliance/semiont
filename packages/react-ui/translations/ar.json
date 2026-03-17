@@ -343,6 +343,8 @@
     "connectionsLabel": "الاتصالات",
     "citedByLabel": "مُستشهد به من قِبل",
     "siblingTypesLabel": "الأنواع الشقيقة",
+    "userHintLabel": "تلميح",
+    "userHintPlaceholder": "صف ما يشير إليه هذا التعليق التوضيحي...",
     "loadingContext": "جارٍ جمع السياق...",
     "failedContext": "فشل في جمع السياق",
     "cancel": "إلغاء",

@@ -343,6 +343,8 @@
     "connectionsLabel": "接続",
     "citedByLabel": "引用元",
     "siblingTypesLabel": "兄弟タイプ",
+    "userHintLabel": "ヒント",
+    "userHintPlaceholder": "このアノテーションが何を指すか説明してください...",
     "loadingContext": "コンテキストを収集中...",
     "failedContext": "コンテキストの収集に失敗しました",
     "cancel": "キャンセル",

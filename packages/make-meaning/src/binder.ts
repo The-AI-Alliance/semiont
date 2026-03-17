@@ -66,7 +66,9 @@ export class Binder {
   private async handleSearch(event: EventMap['bind:search-requested']): Promise<void> {
     try {
       const context = event.context;
-      const searchTerm = context.sourceContext?.selected ?? '';
+      const selectedText = context.sourceContext?.selected ?? '';
+      const userHint = context.userHint ?? '';
+      const searchTerm = [selectedText, userHint].filter(Boolean).join(' ');
 
       this.logger.debug('Searching for binding candidates', {
         referenceId: event.referenceId,
@@ -305,7 +307,8 @@ export class Binder {
   ): Promise<Map<string, number>> {
     if (!this.inferenceClient) return new Map();
 
-    const passage = context.sourceContext?.selected ?? searchTerm;
+    const passage = [context.sourceContext?.selected, context.userHint]
+      .filter(Boolean).join(' — ') || searchTerm;
     const entityTypes = context.metadata?.entityTypes ?? [];
     const graphConnections = context.graphContext?.connections;
     const connections = graphConnections ?? [];

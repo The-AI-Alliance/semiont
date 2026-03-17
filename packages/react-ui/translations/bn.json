@@ -343,6 +343,8 @@
     "connectionsLabel": "সংযোগ",
     "citedByLabel": "উদ্ধৃতকারী",
     "siblingTypesLabel": "সহোদর ধরন",
+    "userHintLabel": "ইঙ্গিত",
+    "userHintPlaceholder": "এই টীকাটি কী বোঝায় তা বর্ণনা করুন...",
     "loadingContext": "প্রসঙ্গ সংগ্রহ হচ্ছে...",
     "failedContext": "প্রসঙ্গ সংগ্রহ ব্যর্থ",
     "cancel": "বাতিল করুন",

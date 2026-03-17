@@ -12,14 +12,18 @@ export interface ContextSummaryTranslations {
   connectionsLabel: string;
   citedByLabel: string;
   siblingTypesLabel: string;
+  userHintLabel: string;
+  userHintPlaceholder: string;
 }
 
 export interface ContextSummaryProps {
   context: GatheredContext;
+  userHint?: string;
+  onUserHintChange?: (value: string) => void;
   translations: ContextSummaryTranslations;
 }
 
-export function ContextSummary({ context, translations: t }: ContextSummaryProps) {
+export function ContextSummary({ context, userHint, onUserHintChange, translations: t }: ContextSummaryProps) {
   const annotation = context.annotation;
   const sourceResource = context.sourceResource;
   const sourceContext = context.sourceContext;
@@ -178,6 +182,21 @@ export function ContextSummary({ context, translations: t }: ContextSummaryProps
           </div>
         </div>
       )}
+
+      {/* User Hint */}
+      <div className="semiont-form__field">
+        <label className="semiont-form__label">
+          {t.userHintLabel}
+        </label>
+        <input
+          type="text"
+          value={userHint ?? ''}
+          onChange={onUserHintChange ? (e) => onUserHintChange(e.target.value) : undefined}
+          readOnly={!onUserHintChange}
+          placeholder={t.userHintPlaceholder}
+          className="semiont-search-modal__search-input"
+        />
+      </div>
     </>
   );
 }

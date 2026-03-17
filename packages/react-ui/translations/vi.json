@@ -343,6 +343,8 @@
     "connectionsLabel": "Kết nối",
     "citedByLabel": "Được trích dẫn bởi",
     "siblingTypesLabel": "Loại Anh em",
+    "userHintLabel": "Gợi ý",
+    "userHintPlaceholder": "Mô tả chú thích này đề cập đến điều gì...",
     "loadingContext": "Đang thu thập ngữ cảnh...",
     "failedContext": "Không thể thu thập ngữ cảnh",
     "cancel": "Hủy",

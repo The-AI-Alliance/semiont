@@ -343,6 +343,8 @@
     "connectionsLabel": "Conexiuni",
     "citedByLabel": "Citat de",
     "siblingTypesLabel": "Tipuri Înrudite",
+    "userHintLabel": "Indiciu",
+    "userHintPlaceholder": "Descrieți la ce se referă această adnotare...",
     "loadingContext": "Se colectează contextul...",
     "failedContext": "Colectarea contextului a eșuat",
     "cancel": "Anulare",
