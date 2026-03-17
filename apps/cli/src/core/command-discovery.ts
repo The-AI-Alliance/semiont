@@ -31,6 +31,7 @@ import { restoreCmd } from './commands/restore.js';
 import { verifyCmd } from './commands/verify.js';
 import { exportCmd } from './commands/export.js';
 import { importCmd } from './commands/import.js';
+import { localCommand } from './commands/local.js';
 
 /**
  * Cache of loaded command definitions
@@ -56,6 +57,7 @@ const COMMANDS: Record<string, CommandDefinition<any>> = {
   'verify': verifyCmd,
   'export': exportCmd,
   'import': importCmd,
+  'local': localCommand,
 };
 
 /**
