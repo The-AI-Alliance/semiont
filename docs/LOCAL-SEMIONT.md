@@ -4,6 +4,21 @@ Run Semiont locally using published npm packages -- no need to clone the Semiont
 
 The CLI installs and provisions backend and frontend from pre-built npm packages, generates `.env` files, and runs database migrations. The database and Envoy proxy run as containers (Docker/Podman).
 
+## Quick Start
+
+The fastest way to get Semiont running is a single command:
+
+```bash
+npm install -g @semiont/cli
+semiont local
+```
+
+`semiont local` guides you through the entire setup interactively — it prompts for a project directory, initializes the project, provisions and starts all services, and creates an admin user. At the end it prints the login URL and your credentials file location.
+
+See [Prerequisites](#prerequisites) below before running if you haven't installed Node.js or Docker yet.
+
+---
+
 ## Prerequisites
 
 ### Node.js
