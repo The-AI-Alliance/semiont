@@ -2,7 +2,7 @@
  * Referenced By Route
  *
  * Thin HTTP wrapper: emits bind:referenced-by-requested on the EventBus,
- * awaits the Binder's response.
+ * awaits the Matcher's response.
  */
 
 import { HTTPException } from 'hono/http-exception';

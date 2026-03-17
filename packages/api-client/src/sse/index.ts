@@ -521,7 +521,7 @@ export class SSEClient {
   /**
    * Search for binding candidates (streaming)
    *
-   * Bridges bind:search-requested to the backend Binder actor via SSE.
+   * Bridges bind:search-requested to the backend Matcher actor via SSE.
    * Results emit as bind:search-results on the browser EventBus.
    *
    * @param resourceId - Resource the annotation belongs to

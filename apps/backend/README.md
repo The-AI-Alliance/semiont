@@ -127,7 +127,7 @@ router.get('/resources', async (c) => {
 
 **EventBus-delegated routes** (read operations via request-response):
 - Resource listing, metadata, annotations, events, history → `browse:*` events (Gatherer handles)
-- Referenced-by queries → `bind:referenced-by-requested` (Binder handles)
+- Referenced-by queries → `bind:referenced-by-requested` (Matcher handles)
 - Entity type listing → `mark:entity-types-requested` (Gatherer handles)
 - Clone token operations → `yield:clone-*` events (CloneTokenManager handles)
 - Job status → `job:status-requested` (job queue subscription handles)

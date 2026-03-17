@@ -27,10 +27,10 @@ graph TD
 
     BUS -->|"write commands"| STOWER["Stower"]
     BUS -->|"gather"| GATHERER["Gatherer"]
-    BUS -->|"bind"| BINDER["Binder"]
+    BUS -->|"bind"| MATCHER["Matcher"]
     STOWER -->|"write"| KB["Knowledge Base"]
     GATHERER -->|"query"| KB
-    BINDER -->|"query"| KB
+    MATCHER -->|"query"| KB
 
     SOURCES["Content Sources"] --> FEEDER["Feeder"]
     FEEDER -->|"yield"| BUS
@@ -47,7 +47,7 @@ graph TD
     class BUS bus
     class KB kb
     class SOURCES stream
-    class FEEDER,STOWER,GATHERER,BINDER worker
+    class FEEDER,STOWER,GATHERER,MATCHER worker
 ```
 
 ## Actors
@@ -107,7 +107,7 @@ The knowledge base has exactly three actor interfaces. No other code touches KB 
 
 - **Stower** (write) — subscribes to command events on the bus and persists them to the event log and content store
 - **Gatherer** (read context) — subscribes to gather events on the bus and assembles context from KB stores
-- **Binder** (read search) — subscribes to bind events on the bus and searches KB stores for matching resources
+- **Matcher** (read search) — subscribes to bind events on the bus and searches KB stores for matching resources
 
 All three are reactive actors: they subscribe to the EventBus via RxJS pipelines in `initialize()`, process events through private handlers, and communicate results back by emitting on the bus. They expose no public business methods — only `initialize()` and `stop()` for lifecycle management. Callers never call into an actor directly; they put a message on the bus and trust the actor is listening.
 
@@ -117,7 +117,7 @@ graph TB
 
     BUS -->|"mark, yield, job"| STOWER["Stower"]
     BUS -->|"gather, browse"| GATHERER["Gatherer"]
-    BUS -->|"bind"| BINDER["Binder"]
+    BUS -->|"bind"| MATCHER["Matcher"]
 
     STOWER -->|append| EVENTLOG
     STOWER -->|store| CONTENT
@@ -141,13 +141,13 @@ graph TB
     GATHERER -->|traverse| GRAPH
     GATHERER -->|search| VECTORS
 
-    BINDER -->|query| VIEWS
-    BINDER -->|traverse| GRAPH
-    BINDER -->|search| VECTORS
+    MATCHER -->|query| VIEWS
+    MATCHER -->|traverse| GRAPH
+    MATCHER -->|search| VECTORS
 
     STOWER -->|"mark, yield, job"| BUS
     GATHERER -->|"gather, browse"| BUS
-    BINDER -->|"bind"| BUS
+    MATCHER -->|"bind"| BUS
 
     classDef bus fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000,font-weight:bold
     classDef store fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
@@ -157,16 +157,16 @@ graph TB
     class BUS bus
     class EVENTLOG,VIEWS,CONTENT,GRAPH store
     class VECTORS planned
-    class STOWER,GATHERER,BINDER worker
+    class STOWER,GATHERER,MATCHER worker
 ```
 
 | Store | Purpose | Access Pattern |
 |-------|---------|---------------|
-| **Event Log** | Immutable append-only log of all domain events | Stower appends; Gatherer/Binder read |
-| **Materialized Views** | Denormalized projections for fast reads | Gatherer/Binder query by resource URI |
+| **Event Log** | Immutable append-only log of all domain events | Stower appends; Gatherer/Matcher read |
+| **Materialized Views** | Denormalized projections for fast reads | Gatherer/Matcher query by resource URI |
 | **Content Store** | Content-addressed binary storage (documents, images, PDFs) | Stower writes; Gatherer reads by SHA-256 checksum |
-| **Graph** | Eventually consistent relationship projection for traversal queries (backlinks, entity networks) | Gatherer/Binder traverse and search |
-| **Vectors** *(planned)* | Embedding vectors derived from content for semantic search | Gatherer/Binder search |
+| **Graph** | Eventually consistent relationship projection for traversal queries (backlinks, entity networks) | Gatherer/Matcher traverse and search |
+| **Vectors** *(planned)* | Embedding vectors derived from content for semantic search | Gatherer/Matcher search |
 
 ### Stower
 
@@ -176,9 +176,9 @@ The Stower is the single write gateway to the knowledge base. It subscribes to c
 
 The Gatherer is the read actor for context assembly. When a Generator Agent or Linker Agent emits a **gather** event, the Gatherer receives it from the bus, queries the relevant KB stores (materialized views, content store, graph, vectors), and assembles the context needed for downstream work. It emits the assembled context back onto the bus.
 
-### Binder
+### Matcher
 
-The Binder is the read actor for entity resolution. When an Analyst or Linker Agent emits a **bind** event, the Binder receives it from the bus, searches the KB stores (materialized views, graph, vectors) for matching resources, and resolves references — linking a mention to its referent. The Binder does not need the content store directly; it works with metadata, relationships, and embeddings to find the right target. It emits search results back onto the bus.
+The Matcher is the read actor for entity resolution. When an Analyst or Linker Agent emits a **bind** event, the Matcher receives it from the bus, searches the KB stores (materialized views, graph, vectors) for matching resources, and resolves references — linking a mention to its referent. The Matcher does not need the content store directly; it works with metadata, relationships, and embeddings to find the right target. It emits search results back onto the bus.
 
 ### Feeder and Content Streams
 
@@ -199,7 +199,7 @@ The six flows are verbs that actors perform. Each flow is a conversation between
 | **[Mark](flows/MARK.md)** | Annotate | Analyst, Author, Marker Agent | Create W3C annotations on resources |
 | **[Browse](flows/BROWSE.md)** | Navigate | Reader, Analyst, Marker Agent | Route attention to panels, annotations, resources |
 | **[Beckon](flows/BECKON.md)** | Focus | Reader, Analyst, Marker Agent | Coordinate which annotation has visual attention |
-| **[Bind](flows/BIND.md)** | Link | Analyst, Linker Agent, Binder | Resolve references to concrete resources |
+| **[Bind](flows/BIND.md)** | Link | Analyst, Linker Agent, Matcher | Resolve references to concrete resources |
 | **[Gather](flows/GATHER.md)** | Contextualize | Generator Agent, Linker Agent, Gatherer | Assemble surrounding context for downstream use |
 | **[Yield](flows/YIELD.md)** | Create | Author, Generator Agent, Content Streams | Produce new resources in the knowledge base |
 
@@ -231,7 +231,7 @@ Domain Layer:
 AI Layer:
   @semiont/inference      - LLM integration (Anthropic, OpenAI, local)
   @semiont/jobs           - Job queue and annotation workers
-  @semiont/make-meaning   - Stower, Gatherer, Binder — the KB actor implementations
+  @semiont/make-meaning   - Stower, Gatherer, Matcher — the KB actor implementations
 
 UI Layer:
   @semiont/react-ui       - React components, hooks, and context providers

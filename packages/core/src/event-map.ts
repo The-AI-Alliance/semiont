@@ -351,7 +351,7 @@ export type EventMap = {
     correlationId?: string;
   };
 
-  // Knowledge base graph reads (Binder handles these)
+  // Knowledge base graph reads (Matcher handles these)
   'bind:referenced-by-requested': {
     correlationId: string;
     resourceId: ResourceId;

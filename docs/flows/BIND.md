@@ -61,10 +61,10 @@ await client.updateAnnotationBody(resourceId, annotationId, {
 |-------|---------|-------------|
 | `bind:initiate` | `{ annotationId, resourceId, defaultTitle, entityTypes }` | User clicked wizard button on unresolved reference |
 | `bind:search-requested` | `{ referenceId, context, limit?, useSemanticScoring? }` | Search for binding candidates using gathered context |
-| `bind:search-results` | `{ referenceId, results }` | Scored search results from Binder |
+| `bind:search-results` | `{ referenceId, results }` | Scored search results from Matcher |
 | `bind:search-failed` | `{ referenceId, error }` | Search failed |
 | `bind:referenced-by-requested` | `{ correlationId, resourceId, motivation? }` | Query which annotations reference a resource |
-| `bind:referenced-by-result` | `{ correlationId, response }` | Referenced-by results from Binder via Graph |
+| `bind:referenced-by-result` | `{ correlationId, response }` | Referenced-by results from Matcher via Graph |
 | `bind:update-body` | `{ annotationId, resourceId, operations }` | Update annotation body (add/remove link) |
 | `bind:body-updated` | `{ annotationId }` | Annotation body successfully updated |
 | `bind:body-update-failed` | `{ error }` | Annotation body update failed |
@@ -90,7 +90,7 @@ User clicks "Bind" → Configure Search (Step 2A)
     |
 User submits search → bind:search-requested fires with { context, limit, useSemanticScoring }
     |
-Binder runs context-driven search (structural scoring + optional inference scoring)
+Matcher runs context-driven search (structural scoring + optional inference scoring)
     |
 bind:search-results → Wizard shows scored candidates (Step 3A)
     |
@@ -103,7 +103,7 @@ bind:body-updated → UI updates: unresolved → linked
 
 ### Context-Driven Search
 
-When `bind:search-requested` includes a `context` field (a `GatheredContext`), the Binder uses multi-source candidate retrieval and composite scoring:
+When `bind:search-requested` includes a `context` field (a `GatheredContext`), the Matcher uses multi-source candidate retrieval and composite scoring:
 
 **Candidate Sources**:
 1. Name match — direct text search against resource names
@@ -167,6 +167,6 @@ Resolution is reversible. A user can remove a link via `bind:update-body` with a
 
 - **Hook**: [packages/react-ui/src/hooks/useBindFlow.ts](../../packages/react-ui/src/hooks/useBindFlow.ts) — write side (annotation body updates)
 - **Wizard**: [packages/react-ui/src/components/modals/ReferenceWizardModal.tsx](../../packages/react-ui/src/components/modals/ReferenceWizardModal.tsx) — multi-step wizard for Bind/Generate/Compose
-- **Binder actor**: [packages/make-meaning/src/binder.ts](../../packages/make-meaning/src/binder.ts) — context-driven search + inference scoring
+- **Matcher actor**: [packages/make-meaning/src/matcher.ts](../../packages/make-meaning/src/matcher.ts) — context-driven search + inference scoring
 - **Event definitions**: [packages/core/src/event-map.ts](../../packages/core/src/event-map.ts) — `RESOLUTION FLOW` section
 - **API**: `updateAnnotationBody` in [@semiont/api-client](../../packages/api-client/README.md)
