@@ -343,6 +343,8 @@
     "connectionsLabel": "Bağlantılar",
     "citedByLabel": "Alıntılayan",
     "siblingTypesLabel": "Kardeş Türler",
+    "userHintLabel": "İpucu",
+    "userHintPlaceholder": "Bu açıklamanın neyi ifade ettiğini tanımlayın...",
     "loadingContext": "Bağlam toplanıyor...",
     "failedContext": "Bağlam toplanamadı",
     "cancel": "İptal",

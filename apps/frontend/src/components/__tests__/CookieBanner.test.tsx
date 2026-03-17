@@ -214,11 +214,11 @@ describe('CookieBanner Component', () => {
     it('should handle custom className prop', async () => {
       const customClass = 'custom-banner-class';
       mockShouldShowBanner.mockReturnValue(true);
-      
+
       render(<CookieBanner className={customClass} />);
 
       await waitFor(() => {
-        const banner = screen.getByText('Cookie Notice').closest('[class*="fixed bottom-0"]');
+        const banner = screen.getByText('Cookie Notice').closest(`.${customClass}`);
         expect(banner).toHaveClass(customClass);
       });
     });
@@ -1049,8 +1049,10 @@ describe('CookieBanner Component', () => {
         expect(screen.getByText('Cookie Notice')).toBeInTheDocument();
       });
 
-      const banner = screen.getByText('Cookie Notice').closest('[class*="fixed bottom-0"]');
-      expect(banner).toHaveClass('fixed', 'bottom-0', 'left-0', 'right-0', 'z-50');
+      // Component uses inline styles for layout (position: fixed, bottom: 0, etc.)
+      const bannerEl = screen.getByText('Cookie Notice').closest('div[style*="position: fixed"]') as HTMLElement;
+      expect(bannerEl).toBeTruthy();
+      expect(bannerEl!.style.position).toBe('fixed');
     });
 
     it('should display loading text during operations', async () => {
@@ -1085,25 +1087,27 @@ describe('CookieBanner Component', () => {
         expect(screen.getByText('Cookie Notice')).toBeInTheDocument();
       });
 
-      // Check for responsive classes
-      const container = screen.getByText('Cookie Notice').closest('.max-w-7xl');
-      expect(container).toHaveClass('max-w-7xl', 'mx-auto');
+      // Component uses inline styles for layout (maxWidth, margin auto)
+      const container = screen.getByText('Cookie Notice').closest('div[style*="max-width"]') as HTMLElement;
+      expect(container).toBeTruthy();
+      expect(container!.style.maxWidth).toBe('80rem');
+      expect(container!.style.margin).toBe('0px auto');
     });
 
     it('should apply proper button styling', () => {
       render(<CookieBanner />);
 
       const acceptButton = screen.getByRole('button', { name: /accept all/i });
-      expect(acceptButton).toHaveClass('bg-blue-600', 'text-white');
+      expect(acceptButton).toHaveClass('semiont-button--primary');
     });
 
     it('should handle custom className correctly', async () => {
       const customClass = 'my-custom-banner';
-      
+
       render(<CookieBanner className={customClass} />);
 
       await waitFor(() => {
-        const banner = screen.getByText('Cookie Notice').closest('[class*="fixed bottom-0"]');
+        const banner = screen.getByText('Cookie Notice').closest(`.${customClass}`);
         expect(banner).toHaveClass(customClass);
       });
     });

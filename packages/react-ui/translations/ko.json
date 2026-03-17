@@ -343,6 +343,8 @@
     "connectionsLabel": "연결",
     "citedByLabel": "인용처",
     "siblingTypesLabel": "형제 유형",
+    "userHintLabel": "힌트",
+    "userHintPlaceholder": "이 주석이 무엇을 가리키는지 설명하세요...",
     "loadingContext": "컨텍스트 수집 중...",
     "failedContext": "컨텍스트 수집 실패",
     "cancel": "취소",

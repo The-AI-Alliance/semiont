@@ -38,7 +38,7 @@ The user sees context first, then decides the resolution strategy. Context infor
 | Max results | select (1, 5, 10, 20) | 10 |
 | Semantic scoring | toggle | on (when InferenceClient available) |
 
-No search term input — the full `GatheredContext` drives the search via the Binder's `contextDrivenSearch`.
+No search term input — the full `GatheredContext` drives the search via the Matcher's `contextDrivenSearch`.
 
 **Actions**: Cancel | Back | Search
 
@@ -149,7 +149,7 @@ No re-exports, no aliases, no compatibility shims:
 
 | File | Change |
 |------|--------|
-| `packages/make-meaning/src/binder.ts` | Respect `limit` (slice scored results) and `useSemanticScoring` (skip `inferenceSemanticScore` when false) in `contextDrivenSearch` |
+| `packages/make-meaning/src/matcher.ts` | Respect `limit` (slice scored results) and `useSemanticScoring` (skip `inferenceSemanticScore` when false) in `contextDrivenSearch` |
 
 ### Compose page changes
 
@@ -182,7 +182,7 @@ type WizardStep =
 
 ## Ranking Signals (Reference)
 
-The Binder's `contextDrivenSearch` scores candidates using these signals (not user-configurable):
+The Matcher's `contextDrivenSearch` scores candidates using these signals (not user-configurable):
 
 | Signal | Max points | Source |
 |--------|-----------|--------|

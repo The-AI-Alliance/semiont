@@ -343,6 +343,8 @@
     "connectionsLabel": "Connexions",
     "citedByLabel": "Cité par",
     "siblingTypesLabel": "Types apparentés",
+    "userHintLabel": "Indice",
+    "userHintPlaceholder": "Décrivez ce à quoi cette annotation fait référence...",
     "loadingContext": "Collecte du contexte...",
     "failedContext": "Échec de la collecte du contexte",
     "cancel": "Annuler",

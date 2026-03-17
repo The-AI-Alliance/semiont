@@ -343,6 +343,8 @@
     "connectionsLabel": "חיבורים",
     "citedByLabel": "צוטט על ידי",
     "siblingTypesLabel": "סוגים אחים",
+    "userHintLabel": "רמז",
+    "userHintPlaceholder": "תאר למה ההערה הזו מתייחסת...",
     "loadingContext": "אוסף הקשר...",
     "failedContext": "איסוף ההקשר נכשל",
     "cancel": "ביטול",

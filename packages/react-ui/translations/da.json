@@ -343,6 +343,8 @@
     "connectionsLabel": "Forbindelser",
     "citedByLabel": "Citeret af",
     "siblingTypesLabel": "Søskendetyper",
+    "userHintLabel": "Hint",
+    "userHintPlaceholder": "Beskriv hvad denne annotation refererer til...",
     "loadingContext": "Indsamler kontekst...",
     "failedContext": "Kunne ikke indsamle kontekst",
     "cancel": "Annuller",

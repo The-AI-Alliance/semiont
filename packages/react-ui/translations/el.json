@@ -343,6 +343,8 @@
     "connectionsLabel": "Συνδέσεις",
     "citedByLabel": "Αναφέρεται από",
     "siblingTypesLabel": "Αδελφοί Τύποι",
+    "userHintLabel": "Υπόδειξη",
+    "userHintPlaceholder": "Περιγράψτε σε τι αναφέρεται αυτός ο σχολιασμός...",
     "loadingContext": "Συλλογή πλαισίου...",
     "failedContext": "Αποτυχία συλλογής πλαισίου",
     "cancel": "Ακύρωση",

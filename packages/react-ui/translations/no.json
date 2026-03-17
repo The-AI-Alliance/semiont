@@ -343,6 +343,8 @@
     "connectionsLabel": "Tilkoblinger",
     "citedByLabel": "Sitert av",
     "siblingTypesLabel": "Søskentyper",
+    "userHintLabel": "Hint",
+    "userHintPlaceholder": "Beskriv hva denne kommentaren refererer til...",
     "loadingContext": "Samler kontekst...",
     "failedContext": "Kunne ikke samle kontekst",
     "cancel": "Avbryt",

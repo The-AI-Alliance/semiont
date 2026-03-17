@@ -9,7 +9,7 @@
  * The Knowledge Base has exactly three actor interfaces:
  * - Stower (write) — this actor
  * - Gatherer (read context)
- * - Binder (read search)
+ * - Matcher (read search)
  *
  * No other code should call eventStore.appendEvent() or repStore.store().
  *

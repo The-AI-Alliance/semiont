@@ -343,6 +343,8 @@
     "connectionsLabel": "Koneksi",
     "citedByLabel": "Dikutip Oleh",
     "siblingTypesLabel": "Tipe Saudara",
+    "userHintLabel": "Petunjuk",
+    "userHintPlaceholder": "Jelaskan apa yang dirujuk anotasi ini...",
     "loadingContext": "Mengumpulkan konteks...",
     "failedContext": "Gagal mengumpulkan konteks",
     "cancel": "Batal",

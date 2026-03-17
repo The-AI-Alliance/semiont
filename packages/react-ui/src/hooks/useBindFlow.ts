@@ -66,7 +66,7 @@ export function useBindFlow(rUri: ResourceId): void {
     /**
      * Handle bind search requests
      * Emitted by: ReferenceWizardModal (search button)
-     * Bridges to backend Binder actor via SSE stream.
+     * Bridges to backend Matcher actor via SSE stream.
      * Results auto-emit as bind:search-results on the browser EventBus.
      */
     const handleSearchRequested = (event: EventMap['bind:search-requested']) => {

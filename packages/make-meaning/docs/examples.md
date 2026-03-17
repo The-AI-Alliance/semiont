@@ -215,7 +215,7 @@ eventBus.get('bind:search-requested').next({
   searchTerm: 'quantum computing',
 });
 
-// Await the Binder's response
+// Await the Matcher's response
 const results = await firstValueFrom(
   eventBus.get('bind:search-results').pipe(
     filter(e => e.referenceId === annotationId),

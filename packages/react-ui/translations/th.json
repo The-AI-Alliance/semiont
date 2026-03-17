@@ -343,6 +343,8 @@
     "connectionsLabel": "การเชื่อมต่อ",
     "citedByLabel": "อ้างอิงโดย",
     "siblingTypesLabel": "ประเภทพี่น้อง",
+    "userHintLabel": "คำใบ้",
+    "userHintPlaceholder": "อธิบายว่าคำอธิบายประกอบนี้หมายถึงอะไร...",
     "loadingContext": "กำลังรวบรวมบริบท...",
     "failedContext": "ไม่สามารถรวบรวมบริบทได้",
     "cancel": "ยกเลิก",

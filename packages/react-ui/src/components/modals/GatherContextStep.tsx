@@ -8,6 +8,8 @@ export interface GatherContextStepProps {
   context: GatheredContext | null;
   contextLoading: boolean;
   contextError: Error | null;
+  userHint: string;
+  onUserHintChange: (value: string) => void;
   onCancel: () => void;
   onBind: () => void;
   onGenerate: () => void;
@@ -27,6 +29,8 @@ export function GatherContextStep({
   context,
   contextLoading,
   contextError,
+  userHint,
+  onUserHintChange,
   onCancel,
   onBind,
   onGenerate,
@@ -48,7 +52,7 @@ export function GatherContextStep({
         </div>
       )}
 
-      {context && <ContextSummary context={context} translations={t} />}
+      {context && <ContextSummary context={context} userHint={userHint} onUserHintChange={onUserHintChange} translations={t} />}
 
       {/* Action Buttons */}
       <div className="semiont-modal__actions" style={{ paddingTop: '0.5rem' }}>

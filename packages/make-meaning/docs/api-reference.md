@@ -43,18 +43,18 @@ Responds to:
 - `gather:requested` → emits `gather:complete` or `gather:failed`
 - `gather:resource-requested` → emits `gather:resource-complete` or `gather:resource-failed`
 
-### Binder
+### Matcher
 
-Search/link actor. Searches KB stores for entity resolution, context-driven search with composite scoring, and graph queries. When an `InferenceClient` is provided, the Binder also performs LLM-based semantic relevance scoring of search candidates (GraphRAG-style).
+Search/link actor. Searches KB stores for entity resolution, context-driven search with composite scoring, and graph queries. When an `InferenceClient` is provided, the Matcher also performs LLM-based semantic relevance scoring of search candidates (GraphRAG-style).
 
-**Implementation**: [src/binder.ts](../src/binder.ts)
+**Implementation**: [src/matcher.ts](../src/matcher.ts)
 
 ```typescript
-import { Binder } from '@semiont/make-meaning';
+import { Matcher } from '@semiont/make-meaning';
 
-const binder = new Binder(kb, eventBus, logger, inferenceClient);
-await binder.initialize();
-await binder.stop();
+const matcher = new Matcher(kb, eventBus, logger, inferenceClient);
+await matcher.initialize();
+await matcher.stop();
 ```
 
 Responds to:

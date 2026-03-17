@@ -343,6 +343,8 @@
     "connectionsLabel": "اتصالات",
     "citedByLabel": "ارجاع شده توسط",
     "siblingTypesLabel": "انواع هم‌سطح",
+    "userHintLabel": "راهنمایی",
+    "userHintPlaceholder": "توضیح دهید این حاشیه به چه چیزی اشاره دارد...",
     "loadingContext": "در حال جمع‌آوری زمینه...",
     "failedContext": "جمع‌آوری زمینه ناموفق بود",
     "cancel": "انصراف",

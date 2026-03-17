@@ -343,6 +343,8 @@
     "connectionsLabel": "Connections",
     "citedByLabel": "Cited By",
     "siblingTypesLabel": "Sibling Types",
+    "userHintLabel": "Hint",
+    "userHintPlaceholder": "Describe what this annotation refers to...",
     "loadingContext": "Gathering context...",
     "failedContext": "Failed to gather context",
     "cancel": "Cancel",

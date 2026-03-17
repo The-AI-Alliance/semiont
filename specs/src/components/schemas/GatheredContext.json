@@ -50,6 +50,10 @@
         }
       }
     },
+    "userHint": {
+      "type": "string",
+      "description": "User-provided textual hint to supplement or replace the selected text for search and generation"
+    },
     "graphContext": {
       "type": "object",
       "description": "Graph-derived context from the knowledge base",
@@ -120,5 +124,5 @@
       }
     }
   },
-  "required": ["annotation", "sourceResource", "sourceContext"]
+  "required": ["annotation", "sourceResource"]
 }

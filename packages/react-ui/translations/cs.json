@@ -343,6 +343,8 @@
     "connectionsLabel": "Připojení",
     "citedByLabel": "Citováno",
     "siblingTypesLabel": "Příbuzné typy",
+    "userHintLabel": "Nápověda",
+    "userHintPlaceholder": "Popište, na co se tato anotace vztahuje...",
     "loadingContext": "Shromažďování kontextu...",
     "failedContext": "Nepodařilo se shromáždit kontext",
     "cancel": "Zrušit",

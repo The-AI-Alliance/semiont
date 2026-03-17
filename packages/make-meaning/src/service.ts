@@ -38,7 +38,7 @@ import { GraphDBConsumer } from './graph/consumer';
 import { bootstrapEntityTypes } from './bootstrap/entity-types';
 import { createKnowledgeBase, type KnowledgeBase } from './knowledge-base';
 import { Gatherer } from './gatherer';
-import { Binder } from './binder';
+import { Matcher } from './matcher';
 import { Stower } from './stower';
 import { CloneTokenManager } from './clone-token-manager';
 
@@ -59,7 +59,7 @@ export interface MakeMeaningService {
   graphConsumer: GraphDBConsumer;
   stower: Stower;
   gatherer: Gatherer;
-  binder: Binder;
+  matcher: Matcher;
   cloneTokenManager: CloneTokenManager;
   stop: () => Promise<void>;
 }
@@ -153,7 +153,7 @@ export async function startMakeMeaning(config: MakeMeaningConfig, eventBus: Even
   const graphConsumer = new GraphDBConsumer(eventStore, graphDb, graphConsumerLogger);
   await graphConsumer.initialize();
 
-  // 9. Start Stower actor (write gateway — must start before Gatherer/Binder)
+  // 9. Start Stower actor (write gateway — must start before Gatherer/Matcher)
   const stowerLogger = logger.child({ component: 'stower' });
   const stower = new Stower(kb, eventBus, stowerLogger);
   await stower.initialize();
@@ -167,10 +167,10 @@ export async function startMakeMeaning(config: MakeMeaningConfig, eventBus: Even
   const gatherer = new Gatherer(kb, eventBus, inferenceClient, gathererLogger, config);
   await gatherer.initialize();
 
-  // 10. Start Binder actor
-  const binderLogger = logger.child({ component: 'binder' });
-  const binder = new Binder(kb, eventBus, binderLogger, inferenceClient);
-  await binder.initialize();
+  // 10. Start Matcher actor
+  const matcherLogger = logger.child({ component: 'matcher' });
+  const matcher = new Matcher(kb, eventBus, matcherLogger, inferenceClient);
+  await matcher.initialize();
 
   // 10b. Start CloneTokenManager actor
   const cloneTokenLogger = logger.child({ component: 'clone-token-manager' });
@@ -236,7 +236,7 @@ export async function startMakeMeaning(config: MakeMeaningConfig, eventBus: Even
     graphConsumer,
     stower,
     gatherer,
-    binder,
+    matcher,
     cloneTokenManager,
     stop: async () => {
       logger.info('Stopping Make-Meaning service');
@@ -249,7 +249,7 @@ export async function startMakeMeaning(config: MakeMeaningConfig, eventBus: Even
         workers.tag.stop(),
       ]);
       await gatherer.stop();
-      await binder.stop();
+      await matcher.stop();
       jobStatusSubscription.unsubscribe();
       await cloneTokenManager.stop();
       await stower.stop();

@@ -343,6 +343,8 @@
     "connectionsLabel": "Sambungan",
     "citedByLabel": "Dipetik Oleh",
     "siblingTypesLabel": "Jenis Adik-Beradik",
+    "userHintLabel": "Petunjuk",
+    "userHintPlaceholder": "Terangkan apa yang dirujuk oleh anotasi ini...",
     "loadingContext": "Mengumpul konteks...",
     "failedContext": "Gagal mengumpul konteks",
     "cancel": "Batal",

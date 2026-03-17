@@ -343,6 +343,8 @@
     "connectionsLabel": "Зв'язки",
     "citedByLabel": "Цитується",
     "siblingTypesLabel": "Споріднені типи",
+    "userHintLabel": "Підказка",
+    "userHintPlaceholder": "Опишіть, на що посилається ця анотація...",
     "loadingContext": "Збирається контекст...",
     "failedContext": "Не вдалося зібрати контекст",
     "cancel": "Скасувати",

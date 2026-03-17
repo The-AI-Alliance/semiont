@@ -308,7 +308,7 @@ describe('EventBusClient', () => {
       ];
 
       eventBus.get('bind:search-requested').subscribe((e) => {
-        expect(e.context.sourceContext.selected).toBe('quantum');
+        expect(e.context.sourceContext?.selected).toBe('quantum');
         respondAsync(() => {
           eventBus.get('bind:search-results').next({
             correlationId: e.correlationId,

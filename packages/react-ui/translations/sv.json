@@ -343,6 +343,8 @@
     "connectionsLabel": "Anslutningar",
     "citedByLabel": "Citerad av",
     "siblingTypesLabel": "Systertyper",
+    "userHintLabel": "Ledtråd",
+    "userHintPlaceholder": "Beskriv vad denna anteckning hänvisar till...",
     "loadingContext": "Samlar kontext...",
     "failedContext": "Misslyckades med att samla kontext",
     "cancel": "Avbryt",

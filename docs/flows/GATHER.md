@@ -107,7 +107,7 @@ Gathering is separate from both generation and search because it is independentl
 
 Current consumers:
 - **Yield flow** — uses gathered context to enrich the generation prompt with graph neighborhood
-- **Bind flow** — passes gathered context to the Binder for context-driven search scoring
+- **Bind flow** — passes gathered context to the Matcher for context-driven search scoring
 
 ## Implementation
 
