@@ -211,31 +211,38 @@ export function resolveSharedSecret(
   thisKey: string,
   peerEnvFile: string,
   peerKey: string,
-  generate: () => string
-): { secret: string; message: string } {
+  generate: () => string,
+  forceGenerate = false
+): { secret: string; message: string; peerWillBeOutOfSync: boolean } {
   const peerFile = path.join(projectRoot, peerEnvFile);
   const peerSecret = readEnvKey(peerFile, peerKey);
   const thisFile = path.join(projectRoot, thisEnvFile);
   const thisSecret = readEnvKey(thisFile, thisKey);
 
+  if (forceGenerate) {
+    const secret = generate();
+    const peerWillBeOutOfSync = !!peerSecret && peerSecret !== secret;
+    return { secret, message: `Generated new ${thisKey} (--rotate-secret)`, peerWillBeOutOfSync };
+  }
+
   if (!peerSecret) {
     // Peer not provisioned yet — generate a fresh secret
     const secret = generate();
-    return { secret, message: `Generated new ${thisKey}` };
+    return { secret, message: `Generated new ${thisKey}`, peerWillBeOutOfSync: false };
   }
 
   if (!thisSecret) {
     // This service not yet provisioned — adopt peer's secret
-    return { secret: peerSecret, message: `Copied ${peerKey} from ${peerEnvFile} to ${thisKey}` };
+    return { secret: peerSecret, message: `Copied ${peerKey} from ${peerEnvFile} to ${thisKey}`, peerWillBeOutOfSync: false };
   }
 
   if (thisSecret !== peerSecret) {
     // Both provisioned but mismatched — adopt peer's secret
-    return { secret: peerSecret, message: `${thisKey} was out of sync with ${peerEnvFile} — updated to match` };
+    return { secret: peerSecret, message: `${thisKey} was out of sync with ${peerEnvFile} — updated to match`, peerWillBeOutOfSync: false };
   }
 
   // Already in sync
-  return { secret: thisSecret, message: `${thisKey} is already in sync with ${peerEnvFile}` };
+  return { secret: thisSecret, message: `${thisKey} is already in sync with ${peerEnvFile}`, peerWillBeOutOfSync: false };
 }
 
 /**

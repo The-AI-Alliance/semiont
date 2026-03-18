@@ -116,13 +116,17 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
     (nodeEnv === 'development');
 
   // Resolve JWT secret in sync with frontend's NEXTAUTH_SECRET
-  const { secret: jwtSecret, message: jwtSecretMessage } = resolveSharedSecret(
+  const { secret: jwtSecret, message: jwtSecretMessage, peerWillBeOutOfSync: jwtPeerOutOfSync } = resolveSharedSecret(
     projectRoot,
     'backend/.env',       'JWT_SECRET',
     'frontend/.env.local', 'NEXTAUTH_SECRET',
-    () => service.environmentConfig.app?.security?.jwtSecret ?? crypto.randomBytes(32).toString('base64')
+    () => service.environmentConfig.app?.security?.jwtSecret ?? crypto.randomBytes(32).toString('base64'),
+    options.rotateSecret === true
   );
   printInfo(jwtSecretMessage);
+  if (jwtPeerOutOfSync) {
+    printWarning('frontend NEXTAUTH_SECRET is now out of sync — re-provision frontend to restore authentication');
+  }
 
   const envUpdates: Record<string, string> = {
     'NODE_ENV': nodeEnv,

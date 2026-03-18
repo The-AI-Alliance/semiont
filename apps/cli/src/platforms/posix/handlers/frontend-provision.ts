@@ -16,7 +16,7 @@ import type { PreflightResult } from '../../../core/handlers/types.js';
  * configures environment variables, and prepares the build.
  */
 const provisionFrontendService = async (context: PosixProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
-  const { service } = context;
+  const { service, options } = context;
 
   const projectRoot = service.projectRoot;
 
@@ -79,13 +79,17 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
   }
   
   // Resolve NEXTAUTH_SECRET in sync with backend's JWT_SECRET
-  const { secret: nextAuthSecret, message: nextAuthSecretMessage } = resolveSharedSecret(
+  const { secret: nextAuthSecret, message: nextAuthSecretMessage, peerWillBeOutOfSync: nextAuthPeerOutOfSync } = resolveSharedSecret(
     projectRoot,
     'frontend/.env.local', 'NEXTAUTH_SECRET',
     'backend/.env',        'JWT_SECRET',
-    () => crypto.randomBytes(32).toString('base64')
+    () => crypto.randomBytes(32).toString('base64'),
+    options.rotateSecret === true
   );
   printInfo(nextAuthSecretMessage);
+  if (nextAuthPeerOutOfSync) {
+    printWarning('backend JWT_SECRET is now out of sync — re-provision backend to restore authentication');
+  }
 
   // Get values from service config (already validated by schema)
   // Type narrowing: we know this is a frontend service
