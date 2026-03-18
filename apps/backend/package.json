@@ -29,7 +29,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.17.1",
-    "@hono/swagger-ui": "^0.5.2",
+    "@hono/swagger-ui": "^0.6.1",
     "@prisma/client": "^6.13.0",
     "@semiont/core": "^0.3.4",
     "@semiont/event-sourcing": "^0.3.4",
