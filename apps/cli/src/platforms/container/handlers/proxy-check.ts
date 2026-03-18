@@ -4,7 +4,7 @@ import { ContainerCheckHandlerContext, CheckHandlerResult, HandlerDescriptor } f
 import { printInfo, printSuccess, printError, printWarning } from '../../../core/io/cli-logger.js';
 import { getProxyPaths } from './proxy-paths.js';
 import type { ProxyServiceConfig } from '@semiont/core';
-import { checkCommandAvailable, checkContainerRuntime, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { checkContainerRuntime, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -21,11 +21,16 @@ interface ProxyHealthCheck {
 }
 
 /**
- * Check if a URL is accessible
+ * Check if a URL is accessible.
+ * Any HTTP response (including redirects) indicates the proxy routed the request successfully.
+ * Only a network error or timeout means the target is unreachable.
  */
 async function checkUrl(url: string, timeout: number = 5000): Promise<boolean> {
   try {
-    execFileSync('curl', ['-s', '-f', '-m', Math.floor(timeout / 1000).toString(), '-o', '/dev/null', url], { stdio: 'pipe' });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    await fetch(url, { signal: controller.signal, redirect: 'follow' });
+    clearTimeout(timer);
     return true;
   } catch {
     return false;
@@ -217,7 +222,7 @@ const checkProxyService = async (context: ContainerCheckHandlerContext): Promise
     healthCheck.logs = getRecentLogs(runtime, containerName, 10);
     if (healthCheck.logs && !service.quiet && service.verbose) {
       printInfo('\nRecent container logs:');
-      console.log(healthCheck.logs);
+      printInfo(healthCheck.logs);
     }
   }
 
@@ -280,7 +285,6 @@ const checkProxyService = async (context: ContainerCheckHandlerContext): Promise
 const preflightProxyCheck = async (context: ContainerCheckHandlerContext): Promise<PreflightResult> => {
   return preflightFromChecks([
     checkContainerRuntime(context.runtime),
-    checkCommandAvailable('curl'),
   ]);
 };
 

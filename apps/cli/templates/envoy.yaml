@@ -148,6 +148,7 @@ static_resources:
   - name: backend
     connect_timeout: 5s
     type: STRICT_DNS
+    dns_lookup_family: V4_ONLY
     lb_policy: ROUND_ROBIN
     load_assignment:
       cluster_name: backend
@@ -162,6 +163,7 @@ static_resources:
   - name: frontend
     connect_timeout: 5s
     type: STRICT_DNS
+    dns_lookup_family: V4_ONLY
     lb_policy: ROUND_ROBIN
     load_assignment:
       cluster_name: frontend
