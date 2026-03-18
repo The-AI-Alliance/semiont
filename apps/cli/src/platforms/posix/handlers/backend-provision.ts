@@ -7,7 +7,7 @@ import type { BackendServiceConfig } from '@semiont/core';
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
 import { getBackendPaths, resolveBackendNpmPackage } from './backend-paths.js';
 import { getNodeEnvForEnvironment } from '@semiont/core';
-import { checkCommandAvailable, checkFileExists, checkConfigPort, checkConfigUrl, checkConfigField, checkConfigNonEmptyArray, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { checkCommandAvailable, checkFileExists, checkConfigPort, checkConfigUrl, checkConfigField, checkConfigNonEmptyArray, preflightFromChecks, resolveSharedSecret } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -115,9 +115,18 @@ const provisionBackendService = async (context: PosixProvisionHandlerContext): P
   const enableLocalAuth = service.environmentConfig.app?.security?.enableLocalAuth ??
     (nodeEnv === 'development');
 
-  // Get JWT secret from config or generate a secure one
-  const jwtSecret = service.environmentConfig.app?.security?.jwtSecret ??
-    crypto.randomBytes(32).toString('base64');
+  // Resolve JWT secret in sync with frontend's NEXTAUTH_SECRET
+  const { secret: jwtSecret, message: jwtSecretMessage, peerWillBeOutOfSync: jwtPeerOutOfSync } = resolveSharedSecret(
+    projectRoot,
+    'backend/.env',       'JWT_SECRET',
+    'frontend/.env.local', 'NEXTAUTH_SECRET',
+    () => service.environmentConfig.app?.security?.jwtSecret ?? crypto.randomBytes(32).toString('base64'),
+    options.rotateSecret === true
+  );
+  printInfo(jwtSecretMessage);
+  if (jwtPeerOutOfSync) {
+    printWarning('frontend NEXTAUTH_SECRET is now out of sync — re-provision frontend to restore authentication');
+  }
 
   const envUpdates: Record<string, string> = {
     'NODE_ENV': nodeEnv,

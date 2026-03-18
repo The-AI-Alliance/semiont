@@ -1,6 +1,7 @@
 import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as net from 'net';
+import * as path from 'path';
 import type { PreflightCheck, PreflightResult } from './types.js';
 
 export function checkContainerRuntime(runtime: string): PreflightCheck {
@@ -12,12 +13,35 @@ export function checkContainerRuntime(runtime: string): PreflightCheck {
   }
 }
 
+/**
+ * Try to find the PID(s) holding a port using lsof (macOS/Linux) or fuser (Linux).
+ * Returns a human-readable string like "PID 1234" or null if unable to determine.
+ */
+function findPortOwner(port: number): string | null {
+  const { execFileSync } = require('child_process');
+  try {
+    if (process.platform === 'darwin' || process.platform === 'linux') {
+      const out = execFileSync('lsof', ['-ti', `:${port}`], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }) as string;
+      const pids = out.trim().split('\n').filter(Boolean);
+      if (pids.length > 0) return `PID ${pids.join(', ')}`;
+    }
+  } catch { /* lsof not available or no match */ }
+  try {
+    const out = execFileSync('fuser', [`${port}/tcp`], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }) as string;
+    const pids = out.trim().split(/\s+/).filter(Boolean);
+    if (pids.length > 0) return `PID ${pids.join(', ')}`;
+  } catch { /* fuser not available or no match */ }
+  return null;
+}
+
 export async function checkPortFree(port: number): Promise<PreflightCheck> {
   return new Promise((resolve) => {
     const server = net.createServer();
     server.once('error', (err: NodeJS.ErrnoException) => {
       if (err.code === 'EADDRINUSE') {
-        resolve({ name: `port-${port}`, pass: false, message: `Port ${port} is in use` });
+        const owner = findPortOwner(port);
+        const hint = owner ? ` (${owner})` : '';
+        resolve({ name: `port-${port}`, pass: false, message: `Port ${port} is in use${hint}` });
       } else {
         resolve({ name: `port-${port}`, pass: false, message: `Cannot check port ${port}: ${err.message}` });
       }
@@ -147,6 +171,114 @@ export function checkConfigNonEmptyArray(arr: unknown, fieldPath: string): Prefl
     return { name: `config-${fieldPath}`, pass: false, message: `${fieldPath} must be a non-empty array` };
   }
   return { name: `config-${fieldPath}`, pass: true, message: `${fieldPath} has ${arr.length} entries` };
+}
+
+/**
+ * Read a single key's value from an env file (KEY=VALUE format).
+ * Returns undefined if the file doesn't exist or the key is absent.
+ */
+function readEnvKey(filePath: string, key: string): string | undefined {
+  if (!fs.existsSync(filePath)) return undefined;
+  const content = fs.readFileSync(filePath, 'utf-8');
+  for (const line of content.split('\n')) {
+    if (line.startsWith('#') || !line.includes('=')) continue;
+    const [k, ...rest] = line.split('=');
+    if (k.trim() === key) return rest.join('=').trim();
+  }
+  return undefined;
+}
+
+/**
+ * Resolve the shared secret for a service being provisioned.
+ *
+ * Rules:
+ *   - If the peer env file doesn't exist yet, generate a new secret.
+ *   - If the peer has a secret and this service doesn't, copy it.
+ *   - If both have secrets but they differ, copy the peer's (and log it).
+ *   - If both already match, return it unchanged.
+ *
+ * @param projectRoot - $SEMIONT_ROOT
+ * @param thisEnvFile - The env file being written (backend/.env or frontend/.env.local)
+ * @param thisKey     - Key name in thisEnvFile (e.g. 'JWT_SECRET')
+ * @param peerEnvFile - The other service's env file
+ * @param peerKey     - Key name in peerEnvFile (e.g. 'NEXTAUTH_SECRET')
+ * @param generate    - Function that generates a fresh secret
+ * @returns { secret, message } where message describes what happened
+ */
+export function resolveSharedSecret(
+  projectRoot: string,
+  thisEnvFile: string,
+  thisKey: string,
+  peerEnvFile: string,
+  peerKey: string,
+  generate: () => string,
+  forceGenerate = false
+): { secret: string; message: string; peerWillBeOutOfSync: boolean } {
+  const peerFile = path.join(projectRoot, peerEnvFile);
+  const peerSecret = readEnvKey(peerFile, peerKey);
+  const thisFile = path.join(projectRoot, thisEnvFile);
+  const thisSecret = readEnvKey(thisFile, thisKey);
+
+  if (forceGenerate) {
+    const secret = generate();
+    const peerWillBeOutOfSync = !!peerSecret && peerSecret !== secret;
+    return { secret, message: `Generated new ${thisKey} (--rotate-secret)`, peerWillBeOutOfSync };
+  }
+
+  if (!peerSecret) {
+    // Peer not provisioned yet — generate a fresh secret
+    const secret = generate();
+    return { secret, message: `Generated new ${thisKey}`, peerWillBeOutOfSync: false };
+  }
+
+  if (!thisSecret) {
+    // This service not yet provisioned — adopt peer's secret
+    return { secret: peerSecret, message: `Copied ${peerKey} from ${peerEnvFile} to ${thisKey}`, peerWillBeOutOfSync: false };
+  }
+
+  if (thisSecret !== peerSecret) {
+    // Both provisioned but mismatched — adopt peer's secret
+    return { secret: peerSecret, message: `${thisKey} was out of sync with ${peerEnvFile} — updated to match`, peerWillBeOutOfSync: false };
+  }
+
+  // Already in sync
+  return { secret: thisSecret, message: `${thisKey} is already in sync with ${peerEnvFile}`, peerWillBeOutOfSync: false };
+}
+
+/**
+ * Check that the backend JWT_SECRET and frontend NEXTAUTH_SECRET are in sync.
+ * Both files are under $SEMIONT_ROOT (runtime directory), not the source repo.
+ * Pass projectRoot ($SEMIONT_ROOT) to locate both env files.
+ */
+export function checkSecretsInSync(projectRoot: string): PreflightCheck {
+  const backendEnv  = fs.existsSync(projectRoot + '/backend/.env')
+    ? projectRoot + '/backend/.env'
+    : null;
+  const frontendEnv = fs.existsSync(projectRoot + '/frontend/.env.local')
+    ? projectRoot + '/frontend/.env.local'
+    : null;
+
+  if (!backendEnv) {
+    return { name: 'secrets-in-sync', pass: false, message: 'backend/.env not found — run: semiont provision --service backend' };
+  }
+  if (!frontendEnv) {
+    return { name: 'secrets-in-sync', pass: false, message: 'frontend/.env.local not found — run: semiont provision --service frontend' };
+  }
+
+  const jwtSecret      = readEnvKey(backendEnv,  'JWT_SECRET');
+  const nextAuthSecret = readEnvKey(frontendEnv, 'NEXTAUTH_SECRET');
+
+  if (!jwtSecret) {
+    return { name: 'secrets-in-sync', pass: false, message: 'JWT_SECRET missing from backend/.env' };
+  }
+  if (!nextAuthSecret) {
+    return { name: 'secrets-in-sync', pass: false, message: 'NEXTAUTH_SECRET missing from frontend/.env.local' };
+  }
+  if (jwtSecret !== nextAuthSecret) {
+    return { name: 'secrets-in-sync', pass: false, message: 'JWT_SECRET (backend) and NEXTAUTH_SECRET (frontend) do not match — re-provision both services' };
+  }
+
+  return { name: 'secrets-in-sync', pass: true, message: 'JWT_SECRET and NEXTAUTH_SECRET are in sync' };
 }
 
 export function passingPreflight(): PreflightResult {

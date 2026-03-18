@@ -30,6 +30,7 @@ function createProvisionOptions(partial: Partial<ProvisionOptions> = {}): Provis
     stack: undefined,
     service: undefined,
     semiontRepo: undefined,
+    rotateSecret: false,
     ...partial
   };
 }
