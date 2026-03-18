@@ -59,7 +59,7 @@ jobs:
 
       - name: Upload accessibility test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: react-ui-a11y-results
           path: packages/react-ui/a11y-report.json
@@ -128,7 +128,7 @@ jobs:
 
       - name: Upload accessibility test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-a11y-results
           path: apps/frontend/a11y-report.json
@@ -195,7 +195,7 @@ jobs:
 
       - name: Upload Lighthouse results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: lighthouse-results
           path: apps/frontend/.lighthouseci

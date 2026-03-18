@@ -85,7 +85,7 @@ jobs:
 
       - name: Upload React-UI Compliance Report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: react-ui-compliance-report
           path: REACT-UI-COMPLIANCE.md
@@ -93,7 +93,7 @@ jobs:
 
       - name: Upload Frontend Compliance Report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-compliance-report
           path: FRONTEND-COMPLIANCE.md
