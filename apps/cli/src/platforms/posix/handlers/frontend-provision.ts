@@ -6,7 +6,7 @@ import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
 import { getFrontendPaths, resolveFrontendNpmPackage } from './frontend-paths.js';
 import type { FrontendServiceConfig } from '@semiont/core';
-import { checkCommandAvailable, checkFileExists, checkConfigPort, checkConfigField, checkConfigUrl, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { checkCommandAvailable, checkFileExists, checkConfigPort, checkConfigField, checkConfigUrl, preflightFromChecks, resolveSharedSecret } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -78,8 +78,14 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     }
   }
   
-  // Always generate a new secure NEXTAUTH_SECRET
-  const nextAuthSecret = crypto.randomBytes(32).toString('base64');
+  // Resolve NEXTAUTH_SECRET in sync with backend's JWT_SECRET
+  const { secret: nextAuthSecret, message: nextAuthSecretMessage } = resolveSharedSecret(
+    projectRoot,
+    'frontend/.env.local', 'NEXTAUTH_SECRET',
+    'backend/.env',        'JWT_SECRET',
+    () => crypto.randomBytes(32).toString('base64')
+  );
+  printInfo(nextAuthSecretMessage);
 
   // Get values from service config (already validated by schema)
   // Type narrowing: we know this is a frontend service

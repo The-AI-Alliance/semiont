@@ -1,6 +1,7 @@
 import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as net from 'net';
+import * as path from 'path';
 import type { PreflightCheck, PreflightResult } from './types.js';
 
 export function checkContainerRuntime(runtime: string): PreflightCheck {
@@ -185,6 +186,56 @@ function readEnvKey(filePath: string, key: string): string | undefined {
     if (k.trim() === key) return rest.join('=').trim();
   }
   return undefined;
+}
+
+/**
+ * Resolve the shared secret for a service being provisioned.
+ *
+ * Rules:
+ *   - If the peer env file doesn't exist yet, generate a new secret.
+ *   - If the peer has a secret and this service doesn't, copy it.
+ *   - If both have secrets but they differ, copy the peer's (and log it).
+ *   - If both already match, return it unchanged.
+ *
+ * @param projectRoot - $SEMIONT_ROOT
+ * @param thisEnvFile - The env file being written (backend/.env or frontend/.env.local)
+ * @param thisKey     - Key name in thisEnvFile (e.g. 'JWT_SECRET')
+ * @param peerEnvFile - The other service's env file
+ * @param peerKey     - Key name in peerEnvFile (e.g. 'NEXTAUTH_SECRET')
+ * @param generate    - Function that generates a fresh secret
+ * @returns { secret, message } where message describes what happened
+ */
+export function resolveSharedSecret(
+  projectRoot: string,
+  thisEnvFile: string,
+  thisKey: string,
+  peerEnvFile: string,
+  peerKey: string,
+  generate: () => string
+): { secret: string; message: string } {
+  const peerFile = path.join(projectRoot, peerEnvFile);
+  const peerSecret = readEnvKey(peerFile, peerKey);
+  const thisFile = path.join(projectRoot, thisEnvFile);
+  const thisSecret = readEnvKey(thisFile, thisKey);
+
+  if (!peerSecret) {
+    // Peer not provisioned yet — generate a fresh secret
+    const secret = generate();
+    return { secret, message: `Generated new ${thisKey}` };
+  }
+
+  if (!thisSecret) {
+    // This service not yet provisioned — adopt peer's secret
+    return { secret: peerSecret, message: `Copied ${peerKey} from ${peerEnvFile} to ${thisKey}` };
+  }
+
+  if (thisSecret !== peerSecret) {
+    // Both provisioned but mismatched — adopt peer's secret
+    return { secret: peerSecret, message: `${thisKey} was out of sync with ${peerEnvFile} — updated to match` };
+  }
+
+  // Already in sync
+  return { secret: thisSecret, message: `${thisKey} is already in sync with ${peerEnvFile}` };
 }
 
 /**
