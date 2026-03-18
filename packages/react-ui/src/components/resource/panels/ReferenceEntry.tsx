@@ -73,11 +73,11 @@ export function ReferenceEntry({
     : '';
 
   const handleUnlink = () => {
-    if (source) {
+    if (source && resolvedResourceUri) {
       eventBus.get('bind:update-body').next({
         annotationId: annotationId(reference.id),
         resourceId: resourceId(source),
-        operations: [{ op: 'remove' }],
+        operations: [{ op: 'remove', item: { type: 'SpecificResource', source: resolvedResourceUri } }],
       });
     }
   };
