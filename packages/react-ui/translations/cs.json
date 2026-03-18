@@ -330,16 +330,21 @@
   },
   "AnnotateView": {},
   "ReferenceWizard": {
-    "gatherTitle": "Shromáždit kontext",
+    "gatherTitle": "Shromážděný kontext",
     "configureGenerationTitle": "Konfigurovat generování",
-    "configureSearchTitle": "Konfigurovat vyhledávání",
-    "searchResultsTitle": "Výsledky vyhledávání",
+    "configureSearchTitle": "Konfigurovat hledání",
+    "searchResultsTitle": "Výsledky hledání",
+    "annotationLabel": "Anotace",
+    "sourceResourceLabel": "Zdrojový prostředek",
+    "motivationLabel": "Motivace",
     "sourceContextLabel": "Kontext zdroje",
     "entityTypesLabel": "Typy entit",
     "graphContextLabel": "Kontext grafu",
     "connectionsLabel": "Připojení",
     "citedByLabel": "Citováno",
     "siblingTypesLabel": "Příbuzné typy",
+    "userHintLabel": "Nápověda",
+    "userHintPlaceholder": "Popište, na co se tato anotace vztahuje...",
     "loadingContext": "Shromažďování kontextu...",
     "failedContext": "Nepodařilo se shromáždit kontext",
     "cancel": "Zrušit",
@@ -363,6 +368,7 @@
     "maxResults": "Maximální počet výsledků",
     "semanticScoring": "Sémantické hodnocení",
     "semanticScoringHelp": "Použít AI k hodnocení výsledků podle sémantické relevance",
-    "find": "Najít"
+    "searching": "Vyhledávání...",
+    "search": "Hledat"
   }
 }

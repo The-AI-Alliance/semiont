@@ -17,7 +17,7 @@ export type { KnowledgeBase } from './knowledge-base';
 
 // Actors
 export { Gatherer } from './gatherer';
-export { Binder } from './binder';
+export { Matcher } from './matcher';
 export { Stower } from './stower';
 export type { CreateResourceResult } from './stower';
 export { CloneTokenManager } from './clone-token-manager';

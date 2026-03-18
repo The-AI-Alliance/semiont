@@ -305,20 +305,24 @@ Summary:`;
       siblingEntityTypes: siblingEntityTypes.size,
     });
 
-    // Build GatheredContext structure
-    const generationContext: GatheredContext | undefined = sourceContext ? {
-      sourceContext: {
-        before: sourceContext.before || '',
-        selected: sourceContext.selected,
-        after: sourceContext.after || '',
-      },
+    // Build GatheredContext structure (sourceContext is optional for image/PDF annotations)
+    const generationContext: GatheredContext = {
+      annotation,
+      sourceResource: sourceDoc,
       metadata: {
         resourceType: 'document',
         language: sourceDoc.language as string | undefined,
         entityTypes: annotationEntityTypes,
       },
       graphContext,
-    } : undefined;
+    };
+    if (sourceContext) {
+      generationContext.sourceContext = {
+        before: sourceContext.before || '',
+        selected: sourceContext.selected,
+        after: sourceContext.after || '',
+      };
+    }
 
     const response: AnnotationLLMContextResponse = {
       annotation,

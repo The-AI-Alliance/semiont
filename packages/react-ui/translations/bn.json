@@ -330,16 +330,21 @@
   },
   "AnnotateView": {},
   "ReferenceWizard": {
-    "gatherTitle": "প্রসঙ্গ সংগ্রহ করুন",
+    "gatherTitle": "সংগৃহীত প্রসঙ্গ",
     "configureGenerationTitle": "জেনারেশন কনফিগার করুন",
     "configureSearchTitle": "অনুসন্ধান কনফিগার করুন",
     "searchResultsTitle": "অনুসন্ধান ফলাফল",
+    "annotationLabel": "টীকা",
+    "sourceResourceLabel": "উৎস সম্পদ",
+    "motivationLabel": "উদ্দেশ্য",
     "sourceContextLabel": "উৎস প্রসঙ্গ",
     "entityTypesLabel": "সত্তার ধরন",
     "graphContextLabel": "গ্রাফ প্রসঙ্গ",
     "connectionsLabel": "সংযোগ",
     "citedByLabel": "উদ্ধৃতকারী",
     "siblingTypesLabel": "সহোদর ধরন",
+    "userHintLabel": "ইঙ্গিত",
+    "userHintPlaceholder": "এই টীকাটি কী বোঝায় তা বর্ণনা করুন...",
     "loadingContext": "প্রসঙ্গ সংগ্রহ হচ্ছে...",
     "failedContext": "প্রসঙ্গ সংগ্রহ ব্যর্থ",
     "cancel": "বাতিল করুন",
@@ -363,6 +368,7 @@
     "maxResults": "সর্বোচ্চ ফলাফল",
     "semanticScoring": "অর্থগত স্কোরিং",
     "semanticScoringHelp": "অর্থগত প্রাসঙ্গিকতা অনুযায়ী ফলাফল স্কোর করতে AI ব্যবহার করুন",
-    "find": "খুঁজুন"
+    "searching": "অনুসন্ধান করা হচ্ছে...",
+    "search": "অনুসন্ধান"
   }
 }

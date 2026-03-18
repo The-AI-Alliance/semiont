@@ -91,6 +91,18 @@ export function ReferenceEntry({
     });
   };
 
+  // Status icon click handler depends on state and mode
+  const handleIconClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isResolved) {
+      handleOpen();
+    } else if (annotateMode) {
+      handleInitiateWizard();
+    }
+  };
+
+  const iconIsClickable = isResolved || annotateMode;
+
   return (
     <div
       ref={ref}
@@ -104,9 +116,26 @@ export function ReferenceEntry({
     >
       {/* Status indicator and text quote */}
       <div className="semiont-annotation-entry__header">
-        <span className="semiont-reference-icon" title={isResolved ? t('resolved') : t('stub')}>
-          {isResolved ? '🔗' : '❓'}
-        </span>
+        <div className="semiont-reference-icon-group">
+          <button
+            className={`semiont-reference-icon${iconIsClickable ? ' semiont-reference-icon--clickable' : ''}`}
+            title={isResolved ? t('open') : annotateMode ? t('resolve') : t('stub')}
+            onClick={iconIsClickable ? handleIconClick : undefined}
+            data-generating={!isResolved && isGenerating ? 'true' : 'false'}
+            tabIndex={iconIsClickable ? 0 : -1}
+          >
+            {isResolved ? '🔗' : '❓'}
+          </button>
+          {annotateMode && isResolved && (
+            <button
+              className="semiont-reference-unlink"
+              title={t('unlink')}
+              onClick={(e) => { e.stopPropagation(); handleUnlink(); }}
+            >
+              ⛓️‍💥
+            </button>
+          )}
+        </div>
         <div className="semiont-annotation-entry__content">
           {selectedText && (
             <div className="semiont-annotation-entry__quote" data-type="reference">
@@ -140,45 +169,6 @@ export function ReferenceEntry({
           ))}
         </div>
       )}
-
-      {/* Actions based on state - only show curation actions in Annotate mode */}
-      <div className="semiont-annotation-entry__actions" onClick={(e) => e.stopPropagation()}>
-        {isResolved ? (
-          // Resolved reference actions
-          <div className="semiont-annotation-entry__action-row">
-            <button
-              onClick={handleOpen}
-              className={`semiont-reference-button semiont-reference-button--primary ${annotateMode ? 'semiont-reference-button--full' : 'semiont-reference-button--wide'}`}
-              title={t('open')}
-            >
-              🔗
-            </button>
-            {annotateMode && (
-              <button
-                onClick={handleUnlink}
-                className="semiont-reference-button semiont-reference-button--primary"
-                title={t('unlink')}
-              >
-                ⛓️‍💥
-              </button>
-            )}
-          </div>
-        ) : (
-          // Stub reference actions - only in Annotate mode
-          annotateMode && (
-            <div className="semiont-annotation-entry__action-row">
-              <button
-                onClick={handleInitiateWizard}
-                className="semiont-reference-button semiont-reference-button--primary semiont-reference-button--wide"
-                title={t('resolve')}
-                data-generating={isGenerating ? 'true' : 'false'}
-              >
-                🕸️🧙
-              </button>
-            </div>
-          )
-        )}
-      </div>
     </div>
   );
 }

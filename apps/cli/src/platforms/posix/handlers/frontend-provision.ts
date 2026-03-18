@@ -6,7 +6,7 @@ import { PosixProvisionHandlerContext, ProvisionHandlerResult, HandlerDescriptor
 import { printInfo, printSuccess, printWarning, printError } from '../../../core/io/cli-logger.js';
 import { getFrontendPaths, resolveFrontendNpmPackage } from './frontend-paths.js';
 import type { FrontendServiceConfig } from '@semiont/core';
-import { checkCommandAvailable, checkFileExists, checkConfigPort, checkConfigField, checkConfigUrl, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { checkCommandAvailable, checkFileExists, checkConfigPort, checkConfigField, checkConfigUrl, preflightFromChecks, resolveSharedSecret } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -16,7 +16,7 @@ import type { PreflightResult } from '../../../core/handlers/types.js';
  * configures environment variables, and prepares the build.
  */
 const provisionFrontendService = async (context: PosixProvisionHandlerContext): Promise<ProvisionHandlerResult> => {
-  const { service } = context;
+  const { service, options } = context;
 
   const projectRoot = service.projectRoot;
 
@@ -78,8 +78,18 @@ const provisionFrontendService = async (context: PosixProvisionHandlerContext): 
     }
   }
   
-  // Always generate a new secure NEXTAUTH_SECRET
-  const nextAuthSecret = crypto.randomBytes(32).toString('base64');
+  // Resolve NEXTAUTH_SECRET in sync with backend's JWT_SECRET
+  const { secret: nextAuthSecret, message: nextAuthSecretMessage, peerWillBeOutOfSync: nextAuthPeerOutOfSync } = resolveSharedSecret(
+    projectRoot,
+    'frontend/.env.local', 'NEXTAUTH_SECRET',
+    'backend/.env',        'JWT_SECRET',
+    () => crypto.randomBytes(32).toString('base64'),
+    options.rotateSecret === true
+  );
+  printInfo(nextAuthSecretMessage);
+  if (nextAuthPeerOutOfSync) {
+    printWarning('backend JWT_SECRET is now out of sync — re-provision backend to restore authentication');
+  }
 
   // Get values from service config (already validated by schema)
   // Type narrowing: we know this is a frontend service

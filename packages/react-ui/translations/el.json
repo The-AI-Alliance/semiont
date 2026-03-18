@@ -330,16 +330,21 @@
   },
   "AnnotateView": {},
   "ReferenceWizard": {
-    "gatherTitle": "Συλλογή Πλαισίου",
+    "gatherTitle": "Συλλεγμένο Πλαίσιο",
     "configureGenerationTitle": "Ρύθμιση Παραγωγής",
-    "configureSearchTitle": "Ρύθμιση Αναζήτησης",
-    "searchResultsTitle": "Αποτελέσματα Αναζήτησης",
+    "configureSearchTitle": "Ρύθμιση αναζήτησης",
+    "searchResultsTitle": "Αποτελέσματα αναζήτησης",
+    "annotationLabel": "Σχολιασμός",
+    "sourceResourceLabel": "Πόρος πηγής",
+    "motivationLabel": "Κίνητρο",
     "sourceContextLabel": "Πλαίσιο Πηγής",
     "entityTypesLabel": "Τύποι Οντοτήτων",
     "graphContextLabel": "Πλαίσιο Γράφου",
     "connectionsLabel": "Συνδέσεις",
     "citedByLabel": "Αναφέρεται από",
     "siblingTypesLabel": "Αδελφοί Τύποι",
+    "userHintLabel": "Υπόδειξη",
+    "userHintPlaceholder": "Περιγράψτε σε τι αναφέρεται αυτός ο σχολιασμός...",
     "loadingContext": "Συλλογή πλαισίου...",
     "failedContext": "Αποτυχία συλλογής πλαισίου",
     "cancel": "Ακύρωση",
@@ -363,6 +368,7 @@
     "maxResults": "Μέγιστα Αποτελέσματα",
     "semanticScoring": "Σημασιολογική Βαθμολόγηση",
     "semanticScoringHelp": "Χρήση AI για βαθμολόγηση αποτελεσμάτων κατά σημασιολογική συνάφεια",
-    "find": "Εύρεση"
+    "searching": "Αναζήτηση...",
+    "search": "Αναζήτηση"
   }
 }

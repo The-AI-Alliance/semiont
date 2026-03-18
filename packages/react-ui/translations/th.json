@@ -330,16 +330,21 @@
   },
   "AnnotateView": {},
   "ReferenceWizard": {
-    "gatherTitle": "รวบรวมบริบท",
+    "gatherTitle": "บริบทที่รวบรวมแล้ว",
     "configureGenerationTitle": "กำหนดค่าการสร้าง",
     "configureSearchTitle": "กำหนดค่าการค้นหา",
     "searchResultsTitle": "ผลการค้นหา",
+    "annotationLabel": "คำอธิบายประกอบ",
+    "sourceResourceLabel": "ทรัพยากรต้นทาง",
+    "motivationLabel": "แรงจูงใจ",
     "sourceContextLabel": "บริบทแหล่งที่มา",
     "entityTypesLabel": "ประเภทเอนทิตี",
     "graphContextLabel": "บริบทกราฟ",
     "connectionsLabel": "การเชื่อมต่อ",
     "citedByLabel": "อ้างอิงโดย",
     "siblingTypesLabel": "ประเภทพี่น้อง",
+    "userHintLabel": "คำใบ้",
+    "userHintPlaceholder": "อธิบายว่าคำอธิบายประกอบนี้หมายถึงอะไร...",
     "loadingContext": "กำลังรวบรวมบริบท...",
     "failedContext": "ไม่สามารถรวบรวมบริบทได้",
     "cancel": "ยกเลิก",
@@ -363,6 +368,7 @@
     "maxResults": "ผลลัพธ์สูงสุด",
     "semanticScoring": "การให้คะแนนเชิงความหมาย",
     "semanticScoringHelp": "ใช้ AI เพื่อให้คะแนนผลลัพธ์ตามความเกี่ยวข้องเชิงความหมาย",
-    "find": "ค้นหา"
+    "searching": "กำลังค้นหา...",
+    "search": "ค้นหา"
   }
 }

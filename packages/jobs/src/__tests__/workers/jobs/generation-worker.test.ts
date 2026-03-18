@@ -38,7 +38,17 @@ describe('GenerationWorker - Event Emission', () => {
   let testDir: string;
   let eventBus: EventBus;
 
-  // Shared test annotation fixture
+  // Shared test fixtures
+  const testSourceResource = {
+    '@context': 'https://www.w3.org/ns/anno.jsonld' as const,
+    '@id': 'test-resource-1',
+    name: 'Test Resource',
+    representations: [] as [],
+    archived: false,
+    creationMethod: 'ui' as const,
+    dateCreated: '2026-01-01T00:00:00Z',
+  };
+
   const testAnnotation = {
     '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
     type: 'Annotation' as const,
@@ -105,6 +115,8 @@ describe('GenerationWorker - Event Emission', () => {
         sourceResourceName: 'Test Resource',
         annotation: testAnnotation,
         context: {
+          annotation: testAnnotation,
+          sourceResource: testSourceResource,
           sourceContext: {
             before: 'Context before ',
             selected: 'Test Topic',

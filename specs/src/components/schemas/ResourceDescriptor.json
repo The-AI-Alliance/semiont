@@ -39,7 +39,6 @@
     },
     "@id": {
       "type": "string",
-      "format": "uri",
       "description": "Canonical URI/URN of the resource being described."
     },
     "@type": {
@@ -150,14 +149,12 @@
       "description": "W3C PROV - source resources this was derived from",
       "oneOf": [
         {
-          "type": "string",
-          "format": "uri"
+          "type": "string"
         },
         {
           "type": "array",
           "items": {
-            "type": "string",
-            "format": "uri"
+            "type": "string"
           }
         }
       ]

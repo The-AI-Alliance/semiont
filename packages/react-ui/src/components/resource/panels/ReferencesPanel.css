@@ -61,25 +61,106 @@
   color: var(--semiont-text-tertiary);
 }
 
-/* Reference Entry Buttons */
-.semiont-reference-button-group {
-  display: flex;
-  gap: var(--semiont-panel-gap-sm);
-  width: 100%;
+/* Reference Icon Group — status icon + hover-reveal unlink */
+.semiont-reference-icon-group {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
-.semiont-reference-button {
-  display: flex;
+.semiont-reference-icon {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: var(--semiont-panel-padding-xs) var(--semiont-panel-padding-sm);
-  font-size: var(--semiont-panel-icon-size);
+  width: 1.75rem;
+  height: 1.75rem;
+  font-size: 0.875rem;
+  line-height: 1;
+  border-radius: var(--semiont-radius-md);
+  border: 1px solid var(--semiont-color-gray-300);
+  background: var(--semiont-bg-secondary);
+  color: var(--semiont-text-secondary);
+  transition: all 0.15s ease;
 }
 
-.semiont-reference-button--full {
-  width: 100%;
+[data-theme="dark"] .semiont-reference-icon {
+  border-color: var(--semiont-color-gray-600);
+  background: var(--semiont-color-gray-700);
 }
 
-.semiont-reference-button--flex {
-  flex: 1;
+.semiont-reference-icon--clickable {
+  cursor: pointer;
+}
+
+.semiont-reference-icon--clickable:hover {
+  background: var(--semiont-gradient-primary);
+  border-color: var(--semiont-color-primary-300);
+  transform: scale(1.1);
+}
+
+[data-theme="dark"] .semiont-reference-icon--clickable:hover {
+  background: var(--semiont-gradient-primary-dark);
+  border-color: var(--semiont-color-primary-500);
+}
+
+.semiont-reference-icon--clickable:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-reference-icon--clickable:focus-visible {
+  outline-color: var(--semiont-color-primary-400);
+}
+
+/* Generating state pulse on stub icon */
+.semiont-reference-icon[data-generating="true"] {
+  animation: semiont-icon-pulse 1.5s ease-in-out infinite;
+}
+
+[data-theme="dark"] .semiont-reference-icon[data-generating="true"] {
+  animation: semiont-icon-pulse-dark 1.5s ease-in-out infinite;
+}
+
+@keyframes semiont-icon-pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 8px 2px rgba(59, 130, 246, 0.5); }
+  50% { transform: scale(1.2); box-shadow: 0 0 16px 4px rgba(59, 130, 246, 0.8); }
+}
+
+@keyframes semiont-icon-pulse-dark {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 8px 2px rgba(96, 165, 250, 0.6); }
+  50% { transform: scale(1.2); box-shadow: 0 0 16px 4px rgba(96, 165, 250, 0.9); }
+}
+
+/* Hover-reveal unlink button */
+.semiont-reference-unlink {
+  position: absolute;
+  right: -1.25rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.75rem;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.semiont-annotation-entry:hover .semiont-reference-unlink {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.semiont-reference-unlink:hover {
+  transform: translateY(-50%) scale(1.2);
+}
+
+.semiont-reference-unlink:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+  border-radius: 2px;
 }

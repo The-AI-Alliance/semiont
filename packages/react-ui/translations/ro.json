@@ -330,16 +330,21 @@
   },
   "AnnotateView": {},
   "ReferenceWizard": {
-    "gatherTitle": "Colectează Context",
+    "gatherTitle": "Context Colectat",
     "configureGenerationTitle": "Configurare Generare",
-    "configureSearchTitle": "Configurare Căutare",
-    "searchResultsTitle": "Rezultatele Căutării",
+    "configureSearchTitle": "Configurare căutare",
+    "searchResultsTitle": "Rezultatele căutării",
+    "annotationLabel": "Adnotare",
+    "sourceResourceLabel": "Resursă sursă",
+    "motivationLabel": "Motivație",
     "sourceContextLabel": "Context Sursă",
     "entityTypesLabel": "Tipuri de Entități",
     "graphContextLabel": "Context Graf",
     "connectionsLabel": "Conexiuni",
     "citedByLabel": "Citat de",
     "siblingTypesLabel": "Tipuri Înrudite",
+    "userHintLabel": "Indiciu",
+    "userHintPlaceholder": "Descrieți la ce se referă această adnotare...",
     "loadingContext": "Se colectează contextul...",
     "failedContext": "Colectarea contextului a eșuat",
     "cancel": "Anulare",
@@ -363,6 +368,7 @@
     "maxResults": "Rezultate Maxime",
     "semanticScoring": "Evaluare Semantică",
     "semanticScoringHelp": "Folosiți AI pentru a evalua rezultatele după relevanța semantică",
-    "find": "Găsește"
+    "searching": "Se caută...",
+    "search": "Caută"
   }
 }

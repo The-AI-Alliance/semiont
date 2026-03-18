@@ -7,7 +7,7 @@ import { PlatformResources } from '../../platform-resources.js';
 import { isPortInUse } from '../../../core/io/network-utils.js';
 import { printInfo, printSuccess } from '../../../core/io/cli-logger.js';
 import { getBackendPaths } from './backend-paths.js';
-import { checkPortFree, checkCommandAvailable, checkConfigPort, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
+import { checkPortFree, checkCommandAvailable, checkConfigPort, checkSecretsInSync, preflightFromChecks } from '../../../core/handlers/preflight-utils.js';
 import type { PreflightResult } from '../../../core/handlers/types.js';
 
 /**
@@ -266,6 +266,7 @@ const preflightBackendStart = async (context: PosixStartHandlerContext): Promise
   if (config.port) {
     checks.push(await checkPortFree(config.port));
   }
+  checks.push(checkSecretsInSync(context.service.projectRoot));
   return preflightFromChecks(checks);
 };
 

@@ -333,16 +333,21 @@
     "tooltip": "Klik om markering te maken • Rechtsklik voor meer opties"
   },
   "ReferenceWizard": {
-    "gatherTitle": "Context verzamelen",
+    "gatherTitle": "Verzamelde context",
     "configureGenerationTitle": "Generatie configureren",
     "configureSearchTitle": "Zoeken configureren",
     "searchResultsTitle": "Zoekresultaten",
+    "annotationLabel": "Annotatie",
+    "sourceResourceLabel": "Bronresource",
+    "motivationLabel": "Motivatie",
     "sourceContextLabel": "Broncontext",
     "entityTypesLabel": "Entiteitstypen",
     "graphContextLabel": "Grafiekcontext",
     "connectionsLabel": "Verbindingen",
     "citedByLabel": "Geciteerd door",
     "siblingTypesLabel": "Verwante typen",
+    "userHintLabel": "Hint",
+    "userHintPlaceholder": "Beschrijf waar deze annotatie naar verwijst...",
     "loadingContext": "Context wordt verzameld...",
     "failedContext": "Context verzamelen mislukt",
     "cancel": "Annuleren",
@@ -366,6 +371,7 @@
     "maxResults": "Maximale resultaten",
     "semanticScoring": "Semantische beoordeling",
     "semanticScoringHelp": "Gebruik AI om resultaten te beoordelen op semantische relevantie",
-    "find": "Zoeken"
+    "searching": "Zoeken...",
+    "search": "Zoeken"
   }
 }

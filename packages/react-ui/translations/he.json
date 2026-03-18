@@ -330,16 +330,21 @@
   },
   "AnnotateView": {},
   "ReferenceWizard": {
-    "gatherTitle": "איסוף הקשר",
+    "gatherTitle": "הקשר שנאסף",
     "configureGenerationTitle": "הגדרת יצירה",
     "configureSearchTitle": "הגדרת חיפוש",
     "searchResultsTitle": "תוצאות חיפוש",
+    "annotationLabel": "הערה",
+    "sourceResourceLabel": "משאב מקור",
+    "motivationLabel": "מוטיבציה",
     "sourceContextLabel": "הקשר מקור",
     "entityTypesLabel": "סוגי ישויות",
     "graphContextLabel": "הקשר גרף",
     "connectionsLabel": "חיבורים",
     "citedByLabel": "צוטט על ידי",
     "siblingTypesLabel": "סוגים אחים",
+    "userHintLabel": "רמז",
+    "userHintPlaceholder": "תאר למה ההערה הזו מתייחסת...",
     "loadingContext": "אוסף הקשר...",
     "failedContext": "איסוף ההקשר נכשל",
     "cancel": "ביטול",
@@ -363,6 +368,7 @@
     "maxResults": "תוצאות מרביות",
     "semanticScoring": "דירוג סמנטי",
     "semanticScoringHelp": "שימוש ב-AI לדירוג תוצאות לפי רלוונטיות סמנטית",
-    "find": "חיפוש"
+    "searching": "מחפש...",
+    "search": "חיפוש"
   }
 }

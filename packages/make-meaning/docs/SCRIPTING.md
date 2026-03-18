@@ -38,7 +38,7 @@ async function main() {
     // makeMeaning.jobQueue           — Job queue
     // makeMeaning.stower             — Write gateway actor
     // makeMeaning.gatherer           — Read actor (browse, gather, entity types)
-    // makeMeaning.binder             — Search/link actor
+    // makeMeaning.matcher             — Search/link actor
     // makeMeaning.cloneTokenManager  — Clone token actor
     // makeMeaning.graphDb            — Graph database
 

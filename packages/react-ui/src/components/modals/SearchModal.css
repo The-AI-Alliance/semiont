@@ -461,3 +461,46 @@
 [data-theme="dark"] .semiont-search-modal__resource-media-type {
   color: var(--semiont-color-gray-500);
 }
+
+/* Wide panel variant for two-pane layouts */
+.semiont-search-modal__panel--wide {
+  max-width: 1100px;
+}
+
+/* Two-pane layout for search results + context */
+.semiont-search-results__two-pane {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.semiont-search-results__context-pane {
+  flex: 0 0 340px;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.semiont-search-results__results-pane {
+  flex: 1;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+/* Narrow screens: stack vertically, context above results */
+@media (max-width: 640px) {
+  .semiont-search-modal__panel--wide {
+    max-width: 100%;
+  }
+
+  .semiont-search-results__two-pane {
+    flex-direction: column;
+  }
+
+  .semiont-search-results__context-pane {
+    flex: none;
+    max-height: 200px;
+  }
+
+  .semiont-search-results__results-pane {
+    max-height: 350px;
+  }
+}

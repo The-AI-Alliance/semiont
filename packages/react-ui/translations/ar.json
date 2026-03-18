@@ -330,16 +330,21 @@
   },
   "AnnotateView": {},
   "ReferenceWizard": {
-    "gatherTitle": "جمع السياق",
+    "gatherTitle": "السياق المُجمَّع",
     "configureGenerationTitle": "تكوين التوليد",
-    "configureSearchTitle": "تكوين البحث",
+    "configureSearchTitle": "إعدادات البحث",
     "searchResultsTitle": "نتائج البحث",
+    "annotationLabel": "التعليق التوضيحي",
+    "sourceResourceLabel": "المورد المصدر",
+    "motivationLabel": "الدافع",
     "sourceContextLabel": "سياق المصدر",
     "entityTypesLabel": "أنواع الكيانات",
     "graphContextLabel": "سياق الرسم البياني",
     "connectionsLabel": "الاتصالات",
     "citedByLabel": "مُستشهد به من قِبل",
     "siblingTypesLabel": "الأنواع الشقيقة",
+    "userHintLabel": "تلميح",
+    "userHintPlaceholder": "صف ما يشير إليه هذا التعليق التوضيحي...",
     "loadingContext": "جارٍ جمع السياق...",
     "failedContext": "فشل في جمع السياق",
     "cancel": "إلغاء",
@@ -363,6 +368,7 @@
     "maxResults": "الحد الأقصى للنتائج",
     "semanticScoring": "التقييم الدلالي",
     "semanticScoringHelp": "استخدام الذكاء الاصطناعي لتقييم النتائج حسب الصلة الدلالية",
-    "find": "بحث"
+    "searching": "جاري البحث...",
+    "search": "بحث"
   }
 }

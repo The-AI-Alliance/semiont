@@ -35,14 +35,14 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
     const checkVisibility = async () => {
       if (shouldShowBanner()) {
         setIsVisible(true);
-        
+
         try {
           // Determine applicable regulation
           const [isGDPR, isCCPA] = await Promise.all([
             isGDPRApplicable(),
             isCCPAApplicable()
           ]);
-          
+
           if (isGDPR) {
             setRegion('GDPR');
           } else if (isCCPA) {
@@ -63,7 +63,7 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
 
   const handleAcceptAll = async () => {
     setIsLoading(true);
-    
+
     try {
       const fullConsent = {
         necessary: true,
@@ -71,7 +71,7 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
         marketing: true,
         preferences: true
       };
-      
+
       await Promise.resolve(setCookieConsent(fullConsent));
       setIsVisible(false);
     } catch (error) {
@@ -83,7 +83,7 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
 
   const handleRejectAll = async () => {
     setIsLoading(true);
-    
+
     try {
       const minimalConsent = {
         necessary: true,
@@ -91,7 +91,7 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
         marketing: false,
         preferences: false
       };
-      
+
       await Promise.resolve(setCookieConsent(minimalConsent));
       setIsVisible(false);
     } catch (error) {
@@ -103,7 +103,7 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
 
   const handleSavePreferences = async () => {
     setIsLoading(true);
-    
+
     try {
       await Promise.resolve(setCookieConsent(consent));
       setIsVisible(false);
@@ -116,7 +116,7 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
 
   const handleCategoryToggle = (categoryId: keyof Omit<CookieConsent, 'timestamp' | 'version'>) => {
     if (categoryId === 'necessary') return; // Can't toggle necessary cookies
-    
+
     setConsent(prev => ({
       ...prev,
       [categoryId]: !prev[categoryId]
@@ -151,46 +151,69 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
   const bannerText = getBannerText();
 
   return (
-    <div className={`fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-lg ${className}`}>
-      <div className="max-w-7xl mx-auto p-4 sm:p-6">
-        <div className="flex flex-col space-y-4">
+    <div
+      className={className}
+      style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: 50,
+        backgroundColor: 'var(--semiont-bg-primary)',
+        borderTop: '1px solid var(--semiont-border-primary)',
+        boxShadow: 'var(--semiont-shadow-lg)',
+      }}
+    >
+      <div style={{ maxWidth: '80rem', margin: '0 auto', padding: '1rem 1.5rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {/* Main banner content */}
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1.5rem', flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: '300px' }}>
+              <h3 style={{
+                fontSize: '1.125rem',
+                fontWeight: 600,
+                color: 'var(--semiont-text-primary)',
+                marginBottom: '0.5rem',
+              }}>
                 {bannerText.title}
               </h3>
-              <p className="text-sm text-gray-600 mb-2">
+              <p style={{
+                fontSize: 'var(--semiont-text-sm, 0.875rem)',
+                color: 'var(--semiont-text-secondary)',
+                marginBottom: '0.25rem',
+              }}>
                 {bannerText.description}
               </p>
-              <p className="text-xs text-gray-500">
+              <p style={{
+                fontSize: 'var(--semiont-text-xs, 0.75rem)',
+                color: 'var(--semiont-text-tertiary)',
+              }}>
                 {bannerText.learnMore}
               </p>
             </div>
-            
+
             {/* Action buttons */}
-            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 lg:ml-6">
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
               <button
                 type="button"
                 onClick={() => setShowDetails(!showDetails)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                className="semiont-button--secondary"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}
               >
-                <span className="flex items-center">
-                  {t('customize')}
-                  {showDetails ? (
-                    <ChevronUpIcon className="w-4 h-4 ml-1" />
-                  ) : (
-                    <ChevronDownIcon className="w-4 h-4 ml-1" />
-                  )}
-                </span>
+                {t('customize')}
+                {showDetails ? (
+                  <ChevronUpIcon style={{ width: '1rem', height: '1rem' }} />
+                ) : (
+                  <ChevronDownIcon style={{ width: '1rem', height: '1rem' }} />
+                )}
               </button>
-              
+
               {region !== 'GDPR' && (
                 <button
                   type="button"
                   onClick={handleRejectAll}
                   disabled={isLoading}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
+                  className="semiont-button--secondary"
                 >
                   {isLoading ? t('saving') : t('rejectAll')}
                 </button>
@@ -200,7 +223,7 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
                 type="button"
                 onClick={handleAcceptAll}
                 disabled={isLoading}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
+                className="semiont-button--primary"
               >
                 {isLoading ? t('saving') : t('acceptAll')}
               </button>
@@ -209,43 +232,73 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
 
           {/* Detailed preferences */}
           {showDetails && (
-            <div className="border-t border-gray-200 pt-4">
-              <div className="space-y-4">
-                <h4 className="text-base font-medium text-gray-900">
+            <div style={{
+              borderTop: '1px solid var(--semiont-border-primary)',
+              paddingTop: '1rem',
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <h4 style={{
+                  fontSize: '1rem',
+                  fontWeight: 500,
+                  color: 'var(--semiont-text-primary)',
+                }}>
                   {t('cookiePreferences')}
                 </h4>
-                
-                <div className="space-y-3">
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   {COOKIE_CATEGORIES.map((category: CookieCategory) => (
-                    <div key={category.id} className="flex items-start space-x-3">
-                      <div className="flex items-center h-5">
+                    <div key={category.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', height: '1.25rem' }}>
                         <input
                           id={`cookie-${category.id}`}
                           type="checkbox"
                           checked={consent[category.id] || false}
                           onChange={() => handleCategoryToggle(category.id)}
                           disabled={category.required || isLoading}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded-sm disabled:opacity-50"
+                          style={{ accentColor: 'var(--semiont-color-primary-600, #2563eb)' }}
                         />
                       </div>
-                      <div className="flex-1 min-w-0">
+                      <div style={{ flex: 1, minWidth: 0 }}>
                         <label
                           htmlFor={`cookie-${category.id}`}
-                          className="text-sm font-medium text-gray-900 cursor-pointer"
+                          style={{
+                            fontSize: 'var(--semiont-text-sm, 0.875rem)',
+                            fontWeight: 500,
+                            color: 'var(--semiont-text-primary)',
+                            cursor: 'pointer',
+                          }}
                         >
                           {category.name}
                           {category.required && (
-                            <span className="text-xs text-gray-500 ml-1">{t('required')}</span>
+                            <span style={{
+                              fontSize: 'var(--semiont-text-xs, 0.75rem)',
+                              color: 'var(--semiont-text-tertiary)',
+                              marginLeft: '0.25rem',
+                            }}>
+                              {t('required')}
+                            </span>
                           )}
                         </label>
-                        <p className="text-xs text-gray-600 mt-1">
+                        <p style={{
+                          fontSize: 'var(--semiont-text-xs, 0.75rem)',
+                          color: 'var(--semiont-text-secondary)',
+                          marginTop: '0.25rem',
+                        }}>
                           {category.description}
                         </p>
-                        <details className="mt-1">
-                          <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-800">
+                        <details style={{ marginTop: '0.25rem' }}>
+                          <summary style={{
+                            fontSize: 'var(--semiont-text-xs, 0.75rem)',
+                            color: 'var(--semiont-color-primary-600, #2563eb)',
+                            cursor: 'pointer',
+                          }}>
                             {t('viewCookies')}
                           </summary>
-                          <div className="mt-1 text-xs text-gray-500">
+                          <div style={{
+                            marginTop: '0.25rem',
+                            fontSize: 'var(--semiont-text-xs, 0.75rem)',
+                            color: 'var(--semiont-text-tertiary)',
+                          }}>
                             {category.cookies.join(', ')}
                           </div>
                         </details>
@@ -253,12 +306,17 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
                     </div>
                   ))}
                 </div>
-                
-                <div className="flex justify-end space-x-3 pt-4">
+
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: '0.75rem',
+                  paddingTop: '1rem',
+                }}>
                   <button
                     type="button"
                     onClick={() => setShowDetails(false)}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    className="semiont-button--secondary"
                   >
                     {t('cancel')}
                   </button>
@@ -266,7 +324,7 @@ export function CookieBanner({ className = '' }: CookieBannerProps) {
                     type="button"
                     onClick={handleSavePreferences}
                     disabled={isLoading}
-                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                    className="semiont-button--primary"
                   >
                     {isLoading ? t('saving') : t('savePreferences')}
                   </button>

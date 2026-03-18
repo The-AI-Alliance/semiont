@@ -330,16 +330,21 @@
   },
   "AnnotateView": {},
   "ReferenceWizard": {
-    "gatherTitle": "Kerää konteksti",
+    "gatherTitle": "Kerätty konteksti",
     "configureGenerationTitle": "Määritä generointi",
     "configureSearchTitle": "Määritä haku",
     "searchResultsTitle": "Hakutulokset",
+    "annotationLabel": "Merkintä",
+    "sourceResourceLabel": "Lähderesurssi",
+    "motivationLabel": "Motivaatio",
     "sourceContextLabel": "Lähteen konteksti",
     "entityTypesLabel": "Entiteettityypit",
     "graphContextLabel": "Graafin konteksti",
     "connectionsLabel": "Yhteydet",
     "citedByLabel": "Viittaajat",
     "siblingTypesLabel": "Sisartyypit",
+    "userHintLabel": "Vihje",
+    "userHintPlaceholder": "Kuvaile mihin tämä merkintä viittaa...",
     "loadingContext": "Kerätään kontekstia...",
     "failedContext": "Kontekstin kerääminen epäonnistui",
     "cancel": "Peruuta",
@@ -363,6 +368,7 @@
     "maxResults": "Enimmäistulokset",
     "semanticScoring": "Semanttinen pisteytys",
     "semanticScoringHelp": "Käytä tekoälyä tulosten pisteyttämiseen semanttisen relevanssin mukaan",
-    "find": "Etsi"
+    "searching": "Haetaan...",
+    "search": "Hae"
   }
 }

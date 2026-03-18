@@ -330,16 +330,21 @@
   },
   "AnnotateView": {},
   "ReferenceWizard": {
-    "gatherTitle": "Samla kontext",
+    "gatherTitle": "Samlad kontext",
     "configureGenerationTitle": "Konfigurera generering",
     "configureSearchTitle": "Konfigurera sökning",
     "searchResultsTitle": "Sökresultat",
+    "annotationLabel": "Anteckning",
+    "sourceResourceLabel": "Källresurs",
+    "motivationLabel": "Motivation",
     "sourceContextLabel": "Källkontext",
     "entityTypesLabel": "Entitetstyper",
     "graphContextLabel": "Grafkontext",
     "connectionsLabel": "Anslutningar",
     "citedByLabel": "Citerad av",
     "siblingTypesLabel": "Systertyper",
+    "userHintLabel": "Ledtråd",
+    "userHintPlaceholder": "Beskriv vad denna anteckning hänvisar till...",
     "loadingContext": "Samlar kontext...",
     "failedContext": "Misslyckades med att samla kontext",
     "cancel": "Avbryt",
@@ -363,6 +368,7 @@
     "maxResults": "Max resultat",
     "semanticScoring": "Semantisk poängsättning",
     "semanticScoringHelp": "Använd AI för att poängsätta resultat efter semantisk relevans",
-    "find": "Hitta"
+    "searching": "Söker...",
+    "search": "Sök"
   }
 }

@@ -330,16 +330,21 @@
   },
   "AnnotateView": {},
   "ReferenceWizard": {
-    "gatherTitle": "संदर्भ एकत्र करें",
+    "gatherTitle": "एकत्रित संदर्भ",
     "configureGenerationTitle": "जनरेशन कॉन्फ़िगर करें",
     "configureSearchTitle": "खोज कॉन्फ़िगर करें",
     "searchResultsTitle": "खोज परिणाम",
+    "annotationLabel": "एनोटेशन",
+    "sourceResourceLabel": "स्रोत संसाधन",
+    "motivationLabel": "प्रेरणा",
     "sourceContextLabel": "स्रोत संदर्भ",
     "entityTypesLabel": "इकाई प्रकार",
     "graphContextLabel": "ग्राफ संदर्भ",
     "connectionsLabel": "कनेक्शन",
     "citedByLabel": "द्वारा उद्धृत",
     "siblingTypesLabel": "सहोदर प्रकार",
+    "userHintLabel": "संकेत",
+    "userHintPlaceholder": "वर्णन करें कि यह एनोटेशन किसे संदर्भित करता है...",
     "loadingContext": "संदर्भ एकत्र हो रहा है...",
     "failedContext": "संदर्भ एकत्र करने में विफल",
     "cancel": "रद्द करें",
@@ -363,6 +368,7 @@
     "maxResults": "अधिकतम परिणाम",
     "semanticScoring": "अर्थगत स्कोरिंग",
     "semanticScoringHelp": "अर्थगत प्रासंगिकता के अनुसार परिणामों को स्कोर करने के लिए AI का उपयोग करें",
-    "find": "खोजें"
+    "searching": "खोज रहे हैं...",
+    "search": "खोजें"
   }
 }

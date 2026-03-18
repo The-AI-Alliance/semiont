@@ -330,16 +330,21 @@
   },
   "AnnotateView": {},
   "ReferenceWizard": {
-    "gatherTitle": "Samle kontekst",
+    "gatherTitle": "Samlet kontekst",
     "configureGenerationTitle": "Konfigurer generering",
     "configureSearchTitle": "Konfigurer søk",
     "searchResultsTitle": "Søkeresultater",
+    "annotationLabel": "Annotasjon",
+    "sourceResourceLabel": "Kilderessurs",
+    "motivationLabel": "Motivasjon",
     "sourceContextLabel": "Kildekontekst",
     "entityTypesLabel": "Enhetstyper",
     "graphContextLabel": "Grafkontekst",
     "connectionsLabel": "Tilkoblinger",
     "citedByLabel": "Sitert av",
     "siblingTypesLabel": "Søskentyper",
+    "userHintLabel": "Hint",
+    "userHintPlaceholder": "Beskriv hva denne kommentaren refererer til...",
     "loadingContext": "Samler kontekst...",
     "failedContext": "Kunne ikke samle kontekst",
     "cancel": "Avbryt",
@@ -363,6 +368,7 @@
     "maxResults": "Maks. resultater",
     "semanticScoring": "Semantisk skåring",
     "semanticScoringHelp": "Bruk AI til å score resultater etter semantisk relevans",
-    "find": "Finn"
+    "searching": "Søker...",
+    "search": "Søk"
   }
 }
