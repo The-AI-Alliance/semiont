@@ -64,6 +64,7 @@ const stopDescriptor: CommandDescriptor<StopOptions> = createCommandDescriptor({
         serviceType,
       }
     }, {
+      status: handlerResult.success ? 'stopped' : 'unknown',
       stop: {
         stopTime: stopResult.stopTime,
         graceful: stopResult.graceful,

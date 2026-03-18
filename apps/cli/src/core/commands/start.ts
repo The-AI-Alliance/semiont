@@ -60,6 +60,7 @@ const startDescriptor: CommandDescriptor<StartOptions> = createCommandDescriptor
         serviceType,
       }
     }, {
+      status: handlerResult.success ? 'running' : 'unknown',
       startTime: startResult.startTime,
       endpoint: startResult.endpoint,
       resources: startResult.resources,
