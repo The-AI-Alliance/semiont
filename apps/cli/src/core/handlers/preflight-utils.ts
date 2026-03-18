@@ -149,6 +149,57 @@ export function checkConfigNonEmptyArray(arr: unknown, fieldPath: string): Prefl
   return { name: `config-${fieldPath}`, pass: true, message: `${fieldPath} has ${arr.length} entries` };
 }
 
+/**
+ * Read a single key's value from an env file (KEY=VALUE format).
+ * Returns undefined if the file doesn't exist or the key is absent.
+ */
+function readEnvKey(filePath: string, key: string): string | undefined {
+  if (!fs.existsSync(filePath)) return undefined;
+  const content = fs.readFileSync(filePath, 'utf-8');
+  for (const line of content.split('\n')) {
+    if (line.startsWith('#') || !line.includes('=')) continue;
+    const [k, ...rest] = line.split('=');
+    if (k.trim() === key) return rest.join('=').trim();
+  }
+  return undefined;
+}
+
+/**
+ * Check that the backend JWT_SECRET and frontend NEXTAUTH_SECRET are in sync.
+ * Both files are under $SEMIONT_ROOT (runtime directory), not the source repo.
+ * Pass projectRoot ($SEMIONT_ROOT) to locate both env files.
+ */
+export function checkSecretsInSync(projectRoot: string): PreflightCheck {
+  const backendEnv  = fs.existsSync(projectRoot + '/backend/.env')
+    ? projectRoot + '/backend/.env'
+    : null;
+  const frontendEnv = fs.existsSync(projectRoot + '/frontend/.env.local')
+    ? projectRoot + '/frontend/.env.local'
+    : null;
+
+  if (!backendEnv) {
+    return { name: 'secrets-in-sync', pass: false, message: 'backend/.env not found — run: semiont provision --service backend' };
+  }
+  if (!frontendEnv) {
+    return { name: 'secrets-in-sync', pass: false, message: 'frontend/.env.local not found — run: semiont provision --service frontend' };
+  }
+
+  const jwtSecret      = readEnvKey(backendEnv,  'JWT_SECRET');
+  const nextAuthSecret = readEnvKey(frontendEnv, 'NEXTAUTH_SECRET');
+
+  if (!jwtSecret) {
+    return { name: 'secrets-in-sync', pass: false, message: 'JWT_SECRET missing from backend/.env' };
+  }
+  if (!nextAuthSecret) {
+    return { name: 'secrets-in-sync', pass: false, message: 'NEXTAUTH_SECRET missing from frontend/.env.local' };
+  }
+  if (jwtSecret !== nextAuthSecret) {
+    return { name: 'secrets-in-sync', pass: false, message: 'JWT_SECRET (backend) and NEXTAUTH_SECRET (frontend) do not match — re-provision both services' };
+  }
+
+  return { name: 'secrets-in-sync', pass: true, message: 'JWT_SECRET and NEXTAUTH_SECRET are in sync' };
+}
+
 export function passingPreflight(): PreflightResult {
   return { pass: true, checks: [] };
 }
