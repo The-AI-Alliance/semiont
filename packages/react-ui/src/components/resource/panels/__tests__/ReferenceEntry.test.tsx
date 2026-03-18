@@ -322,7 +322,7 @@ describe('ReferenceEntry', () => {
       expect(unlinkHandler).toHaveBeenCalledWith({
         annotationId: 'ref-1',
         resourceId: 'resource-1',
-        operations: [{ op: 'remove' }],
+        operations: [{ op: 'remove', item: { type: 'SpecificResource', source: 'linked-doc' } }],
       });
 
       subscription.unsubscribe();
